@@ -5,4 +5,4 @@ export {
   type FindManyOptions,
   type CreateUserData,
   type UpdateUserData,
-} from './user.repository.js';
+} from './user.repository';

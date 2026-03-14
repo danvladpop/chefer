@@ -1,18 +1,19 @@
 import { prisma } from '@chefer/database';
 
-export default async function UserPage() {
-  const user = await prisma.user.findFirst({
-    where: { email: 'dan@chefer.dev' },
-    select: { id: true, firstName: true, lastName: true, email: true },
-  });
+import { serverClient } from '../../lib/trpc-server';
 
-  if (!user) {
+export default async function UserPage() {
+  const first = await prisma.user.findFirst({ select: { id: true } });
+
+  if (!first) {
     return (
       <main className="flex min-h-screen items-center justify-center">
         <p className="text-muted-foreground">No user found. Run the seed script first.</p>
       </main>
     );
   }
+
+  const user = await serverClient.user.getById.query({ id: first.id });
 
   return (
     <main className="flex min-h-screen items-center justify-center">
