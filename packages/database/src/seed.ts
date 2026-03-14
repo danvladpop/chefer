@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, PostStatus } from '@prisma/client';
+import { PostStatus, PrismaClient, UserRole } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -14,6 +14,21 @@ async function hashPassword(password: string): Promise<string> {
 
 async function main(): Promise<void> {
   console.log('🌱 Starting database seed...');
+
+  // ── Dan Pop (test user) ────────────────────────────────────────────────────
+  await prisma.user.upsert({
+    where: { email: 'dan@chefer.dev' },
+    update: {},
+    create: {
+      email: 'dan@chefer.dev',
+      firstName: 'Dan',
+      lastName: 'Pop',
+      name: 'Dan Pop',
+      role: UserRole.USER,
+      emailVerified: new Date(),
+    },
+  });
+  console.log('✅ Created user: Dan Pop');
 
   // Clean up existing data in development
   if (process.env['NODE_ENV'] !== 'production') {

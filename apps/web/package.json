@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@chefer/api": "workspace:*",
+    "@chefer/database": "workspace:*",
     "@chefer/types": "workspace:*",
     "@chefer/ui": "workspace:*",
     "@chefer/utils": "workspace:*",
