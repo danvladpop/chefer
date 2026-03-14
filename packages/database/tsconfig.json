@@ -1,0 +1,12 @@
+{
+  "extends": "@chefer/tsconfig/node.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "baseUrl": ".",
+    "outDir": "dist",
+    "paths": {
+      "@chefer/types": ["../types/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

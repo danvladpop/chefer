@@ -1,0 +1,14 @@
+{
+  "extends": "@chefer/tsconfig/nextjs.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@chefer/types": ["../../packages/types/src/index.ts"],
+      "@chefer/ui": ["../../packages/ui/src/index.ts"],
+      "@chefer/utils": ["../../packages/utils/src/index.ts"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.d.ts"],
+  "exclude": ["node_modules"]
+}

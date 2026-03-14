@@ -1,0 +1,127 @@
+import { createExpressMiddleware } from '@trpc/server/adapters/express';
+import cors from 'cors';
+import express from 'express';
+
+import { env } from './lib/env.js';
+import { appRouter } from './routers/index.js';
+import { createContext, requestIdMiddleware } from './interfaces/http/middleware/auth.middleware.js';
+
+const app = express();
+
+// ─── Middleware ───────────────────────────────────────────────────────────────
+
+app.use(
+  cors({
+    origin: env.CORS_ORIGINS,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'x-trpc-source'],
+  }),
+);
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(requestIdMiddleware);
+
+// ─── Health Check ─────────────────────────────────────────────────────────────
+
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: env.NODE_ENV,
+    version: process.env['npm_package_version'] ?? 'unknown',
+  });
+});
+
+app.get('/health/ready', async (_req, res) => {
+  try {
+    // Check database connectivity
+    const { prisma } = await import('@chefer/database');
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ready', database: 'connected' });
+  } catch {
+    res.status(503).json({ status: 'not ready', database: 'disconnected' });
+  }
+});
+
+// ─── tRPC ─────────────────────────────────────────────────────────────────────
+
+app.use(
+  '/trpc',
+  createExpressMiddleware({
+    router: appRouter,
+    createContext: ({ req }) => createContext(req),
+    onError({ error, path }) {
+      if (error.code === 'INTERNAL_SERVER_ERROR') {
+        console.error(`❌ tRPC error on ${path ?? 'unknown'}:`, error);
+      }
+    },
+  }),
+);
+
+// ─── 404 Handler ─────────────────────────────────────────────────────────────
+
+app.use((_req, res) => {
+  res.status(404).json({
+    success: false,
+    error: { code: 'NOT_FOUND', message: 'Route not found' },
+  });
+});
+
+// ─── Error Handler ────────────────────────────────────────────────────────────
+
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({
+    success: false,
+    error: { code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' },
+  });
+});
+
+// ─── Server Start ─────────────────────────────────────────────────────────────
+
+const server = app.listen(env.PORT, env.HOST, () => {
+  console.log('');
+  console.log(`🚀 API server running at http://${env.HOST}:${env.PORT}`);
+  console.log(`📡 tRPC endpoint: http://${env.HOST}:${env.PORT}/trpc`);
+  console.log(`💚 Health check: http://${env.HOST}:${env.PORT}/health`);
+  console.log(`🌍 Environment: ${env.NODE_ENV}`);
+  console.log('');
+});
+
+// ─── Graceful Shutdown ────────────────────────────────────────────────────────
+
+async function gracefulShutdown(signal: string): Promise<void> {
+  console.log(`\n📴 Received ${signal}. Starting graceful shutdown...`);
+
+  server.close(() => {
+    console.log('✅ HTTP server closed');
+  });
+
+  try {
+    const { prisma } = await import('@chefer/database');
+    await prisma.$disconnect();
+    console.log('✅ Database disconnected');
+  } catch (err) {
+    console.error('❌ Error disconnecting database:', err);
+  }
+
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => void gracefulShutdown('SIGINT'));
+
+// Handle unhandled rejections
+process.on('unhandledRejection', (reason) => {
+  console.error('❌ Unhandled promise rejection:', reason);
+  process.exit(1);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught exception:', error);
+  process.exit(1);
+});
+
+export { app };
