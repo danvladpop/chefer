@@ -55,11 +55,12 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // Relations
-  accounts      Account[]
-  sessions      Session[]
-  posts         Post[]
-  profile       UserProfile?
-  chefProfile   ChefProfile?
+  accounts           Account[]
+  sessions           Session[]
+  posts              Post[]
+  profile            UserProfile?
+  chefProfile        ChefProfile?
+  dietaryPreferences DietaryPreferences?
 
   @@index([email])
   @@map("users")
@@ -96,6 +97,22 @@ model ChefProfile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("chef_profiles")
+}
+
+model DietaryPreferences {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  cuisinePreferences   String[]
+  dietaryRestrictions  String[]
+  allergies            String[]
+  dislikedIngredients  String[]
+  mealsPerDay          Int      @default(3)
+  servingSize          Int      @default(1)
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("dietary_preferences")
 }
 
 model Account {

@@ -15,3 +15,10 @@ export {
   type ActivityLevel,
   type Goal,
 } from './chef-profile.repository';
+
+export {
+  DietaryPreferencesRepository,
+  dietaryPreferencesRepository,
+  type IDietaryPreferencesRepository,
+  type UpsertDietaryPreferencesData,
+} from './dietary-preferences.repository';

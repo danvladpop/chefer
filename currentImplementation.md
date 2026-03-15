@@ -1,7 +1,7 @@
 # PersonalChef.ai — Current Implementation
 
-**Last updated:** T-006 · Sign Up & Login Pages
-**Phase:** 0 — Foundation
+**Last updated:** T-007 · Database Schema – Dietary Preferences
+**Phase:** 1 — User Preferences
 
 ---
 
@@ -15,6 +15,7 @@
 | T-004 | Core Layout & Navigation Shell    | ✅ Done | Next.js `middleware.ts` protects all dashboard routes; `NavBar` component with logo, nav links, avatar/sign-out dropdown; `(dashboard)` route group layout                                                       |
 | T-005 | Landing Page (Unauthenticated)    | ✅ Done | `app/page.tsx` — hero with CTA → `/register`, 3-column features (Weekly AI Meal Plans, Personalized Goals, Smart Shopping Lists), footer; server-side cookie check redirects authenticated users to `/dashboard` |
 | T-006 | Sign Up & Login Pages             | ✅ Done | Register success now redirects to `/onboarding`; both `/login` and `/register` pages do server-side cookie check and redirect authenticated users to `/dashboard`; branding updated to PersonalChef.ai           |
+| T-007 | Database Schema – Dietary Preferences | ✅ Done | `dietary_preferences` table with `cuisinePreferences`, `dietaryRestrictions`, `allergies`, `dislikedIngredients` (`String[]`), `mealsPerDay` (default 3), `servingSize` (default 1); `DietaryPreferencesRepository` exported from `@chefer/database` |
 
 ---
 
@@ -41,6 +42,27 @@ pnpm dev
 ---
 
 ## How to Test the Latest Feature
+
+### T-007 — Database Schema – Dietary Preferences
+
+**Pre-condition:** `pnpm db:push` has been run (or the dev server restarted after running it).
+
+#### Test A — Table exists with correct columns
+
+1. Run `pnpm db:studio` from the `packages/database` directory
+2. **Expected:** A `dietary_preferences` table is visible with columns: `id`, `userId`, `cuisinePreferences`, `dietaryRestrictions`, `allergies`, `dislikedIngredients`, `mealsPerDay`, `servingSize`, `updatedAt`
+
+#### Test B — FK to users
+
+1. In Prisma Studio, inspect the `dietary_preferences` table schema
+2. **Expected:** `userId` is a unique foreign key referencing `users.id` with cascade delete
+
+#### Test C — users table unchanged
+
+1. In Prisma Studio, confirm the `users` table still has the same columns as before
+2. **Expected:** No new columns on `users` — the relation is held by `dietary_preferences`
+
+---
 
 ### T-006 — Sign Up & Login Pages
 
@@ -164,6 +186,6 @@ Available after `pnpm db:seed`:
 
 - No "forgot password" flow (out of scope for MVP)
 - `/onboarding`, `/meal-plan`, `/preferences` etc. are protected by middleware but pages don't exist yet — they will 404 until Phase 1+ builds them out
-- `DietaryPreferences` model not yet added (T-007)
+- Onboarding wizard not yet built (T-008 to T-011)
 - Pre-existing TypeScript errors in `packages/database`, `packages/utils`, and `packages/ui` (missing deps: `@types/node`, `@radix-ui/react-slot`). These do not affect the dev runtime — only `pnpm typecheck` output.
 - Pre-existing `exactOptionalPropertyTypes` violations in `apps/api/src` (user router/service/repository). These do not affect runtime.
