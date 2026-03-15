@@ -13,6 +13,5 @@
     "<THIRD_PARTY_MODULES>",
     "^@chefer/(.*)$",
     "^[./]"
-  ],
-  "importOrderTypeScriptVersion": "5.0.0"
+  ]
 }
