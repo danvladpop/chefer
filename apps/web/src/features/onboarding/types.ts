@@ -11,11 +11,15 @@ export type ActivityLevel =
   | 'ATHLETE';
 
 // Accumulated state across all 4 wizard steps.
-// Fields for steps 2–4 are added as those tasks are implemented.
+// Fields for steps 3–4 are added as those tasks are implemented.
 export interface WizardData {
   // Step 1 — T-008
   goal: Goal | null;
-  // Step 2 — T-009 (body metrics): age, heightCm, weightKg, activityLevel
+  // Step 2 — T-009
+  age: number | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  activityLevel: ActivityLevel | null;
   // Step 3 — T-010 (diet & restrictions): dietaryRestrictions, allergies, etc.
   // Step 4 — T-011 (review & save)
 }

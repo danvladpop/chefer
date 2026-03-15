@@ -1,6 +1,6 @@
 # PersonalChef.ai — Current Implementation
 
-**Last updated:** T-008 · Onboarding Wizard – Step 1: Goals
+**Last updated:** T-009 · Onboarding Wizard – Step 2: Body Metrics
 **Phase:** 1 — User Preferences
 
 ---
@@ -17,6 +17,7 @@
 | T-006 | Sign Up & Login Pages             | ✅ Done | Register success now redirects to `/onboarding`; both `/login` and `/register` pages do server-side cookie check and redirect authenticated users to `/dashboard`; branding updated to PersonalChef.ai           |
 | T-007 | Database Schema – Dietary Preferences | ✅ Done | `dietary_preferences` table with `cuisinePreferences`, `dietaryRestrictions`, `allergies`, `dislikedIngredients` (`String[]`), `mealsPerDay` (default 3), `servingSize` (default 1); `DietaryPreferencesRepository` exported from `@chefer/database` |
 | T-008 | Onboarding Wizard – Step 1: Goals | ✅ Done | `/onboarding` page at `(dashboard)/onboarding/page.tsx`; 4-step wizard shell with progress bar; Step 1 goal selector (Lose Weight / Maintain / Gain Muscle / Eat Healthier) with icon cards; Continue disabled until selection; steps 2–4 are placeholders |
+| T-009 | Onboarding Wizard – Step 2: Body Metrics | ✅ Done | Age input; height with cm/ft+in toggle (converts on switch); weight with kg/lbs toggle (converts on switch); activity level radio group (5 options); live Mifflin-St Jeor calorie estimate updates on every keystroke |
 
 ---
 
@@ -43,6 +44,45 @@ pnpm dev
 ---
 
 ## How to Test the Latest Feature
+
+### T-009 — Onboarding Wizard – Step 2: Body Metrics
+
+**Pre-condition:** Logged in. Navigate to `/onboarding`, select a goal on Step 1, click **Continue**.
+
+#### Test A — Live calorie estimate appears on input
+
+1. On Step 2, type `30` in Age, `175` in Height (cm), `75` in Weight (kg)
+2. **Expected:** Calorie estimate card shows a number (e.g. ~2,321 kcal) and updates immediately on every keystroke.
+
+#### Test B — Height cm ↔ ft/in toggle converts the value
+
+1. Enter `180` cm in Height, then click **ft / in**
+2. **Expected:** Feet shows `5`, inches shows `11` (180 cm ≈ 5′11″). Calorie estimate is unchanged.
+3. Click **cm** — **Expected:** Height reverts to `180` cm.
+
+#### Test C — Weight kg ↔ lbs toggle converts the value
+
+1. Enter `80` kg in Weight, then click **lbs**
+2. **Expected:** Weight field shows `176.4` lbs. Calorie estimate is unchanged.
+3. Click **kg** — **Expected:** Weight reverts to `80` kg.
+
+#### Test D — Activity level changes calorie estimate
+
+1. With age/height/weight filled, select **Sedentary**; note the calorie number
+2. Select **Athlete** — **Expected:** Calorie estimate is noticeably higher.
+
+#### Test E — Continue disabled until all fields filled
+
+1. Fill only age and height, leave weight empty
+2. **Expected:** **Continue** button remains disabled.
+3. Fill weight and select an activity level — **Expected:** **Continue** becomes enabled.
+
+#### Test F — Back preserves Step 1 goal selection
+
+1. From Step 2, click **Back**
+2. **Expected:** Returns to Step 1 with the previously selected goal card still highlighted.
+
+---
 
 ### T-008 — Onboarding Wizard – Step 1: Goals
 
@@ -225,7 +265,7 @@ Available after `pnpm db:seed`:
 
 - No "forgot password" flow (out of scope for MVP)
 - `/onboarding`, `/meal-plan`, `/preferences` etc. are protected by middleware but pages don't exist yet — they will 404 until Phase 1+ builds them out
-- Onboarding Steps 2–4 are placeholders — body metrics (T-009), diet & restrictions (T-010), and review/save (T-011) not yet implemented
+- Onboarding Steps 3–4 are placeholders — diet & restrictions (T-010) and review/save (T-011) not yet implemented
 - No redirect away from `/onboarding` when the user already has a ChefProfile (added in T-011)
 - Pre-existing TypeScript errors in `packages/database`, `packages/utils`, and `packages/ui` (missing deps: `@types/node`, `@radix-ui/react-slot`). These do not affect the dev runtime — only `pnpm typecheck` output.
 - Pre-existing `exactOptionalPropertyTypes` violations in `apps/api/src` (user router/service/repository). These do not affect runtime.

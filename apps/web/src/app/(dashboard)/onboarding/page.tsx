@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { StepGoal } from '@/features/onboarding/components/step-goal';
+import { StepMetrics } from '@/features/onboarding/components/step-metrics';
 import { TOTAL_STEPS, type Goal, type WizardData } from '@/features/onboarding/types';
 
 // ─── Wizard Page ──────────────────────────────────────────────────────────────
@@ -12,10 +13,26 @@ import { TOTAL_STEPS, type Goal, type WizardData } from '@/features/onboarding/t
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [data, setData] = useState<WizardData>({ goal: null });
+  const [data, setData] = useState<WizardData>({
+    goal: null,
+    age: null,
+    heightCm: null,
+    weightKg: null,
+    activityLevel: null,
+  });
 
   function canContinue(): boolean {
     if (step === 1) return data.goal !== null;
+    if (step === 2)
+      return (
+        data.age !== null &&
+        data.age > 0 &&
+        data.heightCm !== null &&
+        data.heightCm > 0 &&
+        data.weightKg !== null &&
+        data.weightKg > 0 &&
+        data.activityLevel !== null
+      );
     return true;
   }
 
@@ -70,8 +87,19 @@ export default function OnboardingPage() {
             />
           )}
 
-          {/* Steps 2–4 are implemented in T-009 / T-010 / T-011 */}
-          {step === 2 && <StepPlaceholder title="Body Metrics" stepNumber={2} />}
+          {step === 2 && (
+            <StepMetrics
+              value={{
+                age: data.age,
+                heightCm: data.heightCm,
+                weightKg: data.weightKg,
+                activityLevel: data.activityLevel,
+              }}
+              onChange={(metrics) => setData((d) => ({ ...d, ...metrics }))}
+            />
+          )}
+
+          {/* Steps 3–4 are implemented in T-010 / T-011 */}
           {step === 3 && <StepPlaceholder title="Diet & Restrictions" stepNumber={3} />}
           {step === 4 && <StepPlaceholder title="Review & Save" stepNumber={4} />}
         </div>
