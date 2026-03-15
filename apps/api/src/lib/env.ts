@@ -29,6 +29,16 @@ const envSchema = z.object({
   // Rate Limiting
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+
+  // AI — mock is enabled by default so local dev never calls real LLM endpoints
+  AI_MOCK_ENABLED: z
+    .string()
+    .default('true')
+    .transform((val) => val === 'true'),
+  AI_MOCK_DELAY_MS: z.coerce.number().int().nonnegative().default(0),
+  AI_PROVIDER: z.enum(['openai', 'anthropic']).default('openai'),
+  OPENAI_API_KEY: z.string().optional(),
+  ANTHROPIC_API_KEY: z.string().optional(),
 });
 
 type EnvSchema = z.infer<typeof envSchema>;

@@ -39,6 +39,8 @@ export interface UserDto {
   id: string;
   email: string;
   name: string | null;
+  firstName: string | null;
+  lastName: string | null;
   role: UserRole;
   image: string | null;
   emailVerified: Date | null;
@@ -197,6 +199,8 @@ export class UserService {
     id: string;
     email: string;
     name: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
     role: UserRole;
     image: string | null;
     emailVerified: Date | null;
@@ -207,6 +211,8 @@ export class UserService {
       id: user.id,
       email: user.email,
       name: user.name,
+      firstName: user.firstName ?? null,
+      lastName: user.lastName ?? null,
       role: user.role,
       image: user.image,
       emailVerified: user.emailVerified,

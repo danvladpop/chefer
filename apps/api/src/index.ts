@@ -45,13 +45,25 @@ app.get('/health/ready', async (_req, res) => {
   }
 });
 
+// Canonical health check used by the PRD browser tests and external monitors.
+// Returns { ok: true } on success, { ok: false } with 503 when DB is unreachable.
+app.get('/api/health', async (_req, res) => {
+  try {
+    const { prisma } = await import('@chefer/database');
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ ok: true, timestamp: new Date().toISOString() });
+  } catch {
+    res.status(503).json({ ok: false, timestamp: new Date().toISOString(), error: 'Database unavailable' });
+  }
+});
+
 // ─── tRPC ─────────────────────────────────────────────────────────────────────
 
 app.use(
   '/trpc',
   createExpressMiddleware({
     router: appRouter,
-    createContext: ({ req }) => createContext(req),
+    createContext: ({ req, res }) => createContext(req, res),
     onError({ error, path }) {
       if (error.code === 'INTERNAL_SERVER_ERROR') {
         console.error(`❌ tRPC error on ${path ?? 'unknown'}:`, error);
@@ -85,8 +97,17 @@ const server = app.listen(env.PORT, env.HOST, () => {
   console.log('');
   console.log(`🚀 API server running at http://${env.HOST}:${env.PORT}`);
   console.log(`📡 tRPC endpoint: http://${env.HOST}:${env.PORT}/trpc`);
-  console.log(`💚 Health check: http://${env.HOST}:${env.PORT}/health`);
+  console.log(`💚 Health check: http://${env.HOST}:${env.PORT}/api/health`);
   console.log(`🌍 Environment: ${env.NODE_ENV}`);
+  console.log(`🤖 AI mode: ${env.AI_MOCK_ENABLED ? 'MOCK (no tokens consumed)' : `LIVE (${env.AI_PROVIDER})`}`);
+
+  if (!env.AI_MOCK_ENABLED && !env.OPENAI_API_KEY && !env.ANTHROPIC_API_KEY) {
+    console.warn('⚠️  AI_MOCK_ENABLED=false but no OPENAI_API_KEY or ANTHROPIC_API_KEY is set — AI calls will fail');
+  }
+  if (env.AI_MOCK_ENABLED && (env.OPENAI_API_KEY ?? env.ANTHROPIC_API_KEY)) {
+    console.warn('⚠️  AI_MOCK_ENABLED=true but an API key is also set — the key will not be used (mock takes precedence)');
+  }
+
   console.log('');
 });
 

@@ -7,6 +7,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
+import { trpc } from '@/lib/trpc';
+
 const loginSchema = z.object({
   email: z
     .string()
@@ -26,10 +28,20 @@ export function LoginForm() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  const loginMutation = trpc.auth.login.useMutation({
+    onSuccess: () => {
+      router.push('/dashboard');
+      router.refresh();
+    },
+    onError: (err) => {
+      setServerError(err.message ?? 'Invalid email or password');
+    },
+  });
+
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -39,27 +51,9 @@ export function LoginForm() {
     },
   });
 
-  const onSubmit = async (data: LoginFormValues) => {
+  const onSubmit = (data: LoginFormValues) => {
     setServerError(null);
-
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const body = await response.json() as { message?: string };
-        setServerError(body.message ?? 'Invalid email or password');
-        return;
-      }
-
-      router.push('/dashboard');
-      router.refresh();
-    } catch {
-      setServerError('An unexpected error occurred. Please try again.');
-    }
+    loginMutation.mutate({ email: data.email, password: data.password });
   };
 
   return (
@@ -85,7 +79,7 @@ export function LoginForm() {
           type="email"
           autoComplete="email"
           autoFocus
-          disabled={isSubmitting}
+          disabled={loginMutation.isPending}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           placeholder="you@example.com"
           aria-invalid={errors.email ? 'true' : undefined}
@@ -119,7 +113,7 @@ export function LoginForm() {
             id="password"
             type={showPassword ? 'text' : 'password'}
             autoComplete="current-password"
-            disabled={isSubmitting}
+            disabled={loginMutation.isPending}
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="••••••••"
             aria-invalid={errors.password ? 'true' : undefined}
@@ -167,11 +161,11 @@ export function LoginForm() {
       {/* Submit */}
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={loginMutation.isPending}
         className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-        aria-busy={isSubmitting}
+        aria-busy={loginMutation.isPending}
       >
-        {isSubmitting ? (
+        {loginMutation.isPending ? (
           <>
             <svg
               className="-ml-1 mr-2 h-4 w-4 animate-spin"

@@ -1,6 +1,7 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
 import { ZodError } from 'zod';
+import type { Response } from 'express';
 
 import type { UserProfile } from '@chefer/types';
 
@@ -10,6 +11,8 @@ export interface Context {
   user: UserProfile | null;
   requestId: string;
   ipAddress: string;
+  sessionToken: string | null;
+  res: Response;
 }
 
 export type ProtectedContext = Context & {

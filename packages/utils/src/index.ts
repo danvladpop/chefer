@@ -1,4 +1,4 @@
-export { cn } from './cn.js';
+export { cn } from './cn';
 
 export {
   formatDate,
@@ -20,7 +20,7 @@ export {
   isPast,
   isFuture,
   type DateInput,
-} from './date.js';
+} from './date';
 
 export {
   pick,
@@ -32,7 +32,7 @@ export {
   groupBy,
   keyBy,
   flattenObject,
-} from './object.js';
+} from './object';
 
 export {
   invariant,
@@ -44,7 +44,7 @@ export {
   assertNever,
   InvariantError,
   safeInvariant,
-} from './assert.js';
+} from './assert';
 
 // ─── Async Utilities ──────────────────────────────────────────────────────────
 

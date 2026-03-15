@@ -6,28 +6,26 @@ const envSchema = z.object({
 
   // App
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
-  NEXT_PUBLIC_APP_NAME: z.string().default('Chefer'),
+  NEXT_PUBLIC_APP_NAME: z.string().default('PersonalChef.ai'),
 
-  // API
+  // API / tRPC
   NEXT_PUBLIC_API_URL: z.string().url().default('http://localhost:3001'),
   NEXT_PUBLIC_TRPC_URL: z.string().url().default('http://localhost:3001/trpc'),
 
-  // Auth
-  NEXTAUTH_URL: z.string().url().optional(),
-  NEXTAUTH_SECRET: z.string().min(32).optional(),
+  // Session secret — used server-side only for signing share-link JWTs (Phase 4)
+  SESSION_SECRET: z.string().min(32).optional(),
 });
 
 type EnvSchema = z.infer<typeof envSchema>;
 
 function validateEnv(): EnvSchema {
   const parsed = envSchema.safeParse({
-    NODE_ENV: process.env.NODE_ENV,
-    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-    NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-    NEXT_PUBLIC_TRPC_URL: process.env.NEXT_PUBLIC_TRPC_URL,
-    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
-    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+    NODE_ENV: process.env['NODE_ENV'],
+    NEXT_PUBLIC_APP_URL: process.env['NEXT_PUBLIC_APP_URL'],
+    NEXT_PUBLIC_APP_NAME: process.env['NEXT_PUBLIC_APP_NAME'],
+    NEXT_PUBLIC_API_URL: process.env['NEXT_PUBLIC_API_URL'],
+    NEXT_PUBLIC_TRPC_URL: process.env['NEXT_PUBLIC_TRPC_URL'],
+    SESSION_SECRET: process.env['SESSION_SECRET'],
   });
 
   if (!parsed.success) {

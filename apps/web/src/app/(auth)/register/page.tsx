@@ -3,15 +3,15 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-import { LoginForm } from '@/features/auth/components/login-form';
+import { RegisterForm } from '@/features/auth/components/register-form';
 
 export const metadata: Metadata = {
-  title: 'Sign In',
-  description: 'Sign in to your PersonalChef.ai account',
+  title: 'Create Account',
+  description: 'Create your PersonalChef.ai account',
   robots: { index: false },
 };
 
-export default async function LoginPage() {
+export default async function RegisterPage() {
   const cookieStore = await cookies();
   if (cookieStore.get('chefer_session')?.value) {
     redirect('/dashboard');
@@ -26,29 +26,29 @@ export default async function LoginPage() {
             <span className="text-3xl" aria-hidden="true">🍽️</span>
             <span>PersonalChef.ai</span>
           </Link>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight">Welcome back</h1>
+          <h1 className="mt-4 text-2xl font-bold tracking-tight">Create your account</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Sign in to your account to continue
+            Start your personal chef journey today
           </p>
         </div>
 
-        {/* Login Form Card */}
+        {/* Register Form Card */}
         <div className="rounded-xl border bg-card p-8 shadow-sm">
-          <LoginForm />
+          <RegisterForm />
         </div>
 
         {/* Footer Links */}
         <p className="text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{' '}
+          Already have an account?{' '}
           <Link
-            href="/register"
+            href="/login"
             className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
           >
-            Sign up
+            Sign in
           </Link>
         </p>
         <p className="text-center text-xs text-muted-foreground">
-          By signing in, you agree to our{' '}
+          By creating an account, you agree to our{' '}
           <Link href="/terms" className="underline underline-offset-4 hover:text-foreground">
             Terms of Service
           </Link>{' '}

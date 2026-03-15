@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 
+import { TRPCProvider } from '@/lib/trpc-provider';
 import './globals.css';
 
 const geistSans = Geist({
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
   keywords: ['chefer', 'nextjs', 'typescript', 'monorepo', 'trpc', 'prisma'],
   authors: [{ name: 'Chefer Team', url: 'https://chefer.dev' }],
   creator: 'Chefer Team',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
+  metadataBase: new URL(process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'),
   openGraph: {
     type: 'website',
     locale: 'en_US',
@@ -72,9 +73,11 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background font-sans antialiased`}
       >
-        <div className="relative flex min-h-screen flex-col">
-          {children}
-        </div>
+        <TRPCProvider>
+          <div className="relative flex min-h-screen flex-col">
+            {children}
+          </div>
+        </TRPCProvider>
       </body>
     </html>
   );

@@ -24,6 +24,7 @@
     "@chefer/types": "workspace:*",
     "@chefer/utils": "workspace:*",
     "@trpc/server": "^11.0.0-rc.446",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "superjson": "^2.2.1",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@chefer/tsconfig": "workspace:*",
+    "@types/bcryptjs": "^3.0.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.9",

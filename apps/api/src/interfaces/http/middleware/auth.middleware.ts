@@ -76,9 +76,9 @@ async function resolveUserFromSession(token: string): Promise<UserProfile | null
 }
 
 /**
- * Middleware that creates the tRPC context from an Express request.
+ * Middleware that creates the tRPC context from an Express request/response pair.
  */
-export async function createContext(req: Request): Promise<Context> {
+export async function createContext(req: Request, res: Response): Promise<Context> {
   const requestId =
     (req.headers['x-request-id'] as string | undefined) ??
     crypto.randomUUID();
@@ -90,10 +90,12 @@ export async function createContext(req: Request): Promise<Context> {
 
   // Try to resolve user from session or bearer token
   let user: UserProfile | null = null;
+  let activeSessionToken: string | null = null;
 
-  const sessionToken = extractSessionToken(req.headers.cookie);
-  if (sessionToken) {
-    user = await resolveUserFromSession(sessionToken);
+  const cookieSessionToken = extractSessionToken(req.headers.cookie);
+  if (cookieSessionToken) {
+    user = await resolveUserFromSession(cookieSessionToken);
+    if (user) activeSessionToken = cookieSessionToken;
   }
 
   if (!user) {
@@ -105,7 +107,7 @@ export async function createContext(req: Request): Promise<Context> {
     }
   }
 
-  return { user, requestId, ipAddress };
+  return { user, requestId, ipAddress, sessionToken: activeSessionToken, res };
 }
 
 /**
