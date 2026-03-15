@@ -13,6 +13,7 @@ export {
   type IChefProfileRepository,
   type UpsertChefProfileData,
   type ActivityLevel,
+  type BiologicalSex,
   type Goal,
 } from './chef-profile.repository';
 

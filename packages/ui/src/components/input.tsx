@@ -1,6 +1,5 @@
 import * as React from 'react';
-
-import { cn } from '../lib/utils.js';
+import { cn } from '../lib/utils';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -17,10 +16,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label
-            htmlFor={inputId}
-            className="mb-1.5 block text-sm font-medium text-foreground"
-          >
+          <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-foreground">
             {label}
             {props.required && (
               <span className="ml-1 text-destructive" aria-hidden="true">
@@ -52,9 +48,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             )}
             ref={ref}
             aria-invalid={error ? 'true' : undefined}
-            aria-describedby={
-              error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined
-            }
+            aria-describedby={error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined}
             {...props}
           />
           {rightIcon && (

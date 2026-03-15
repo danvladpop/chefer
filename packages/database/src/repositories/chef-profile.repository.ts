@@ -1,13 +1,13 @@
-import type { ActivityLevel, ChefProfile, Goal, Prisma } from '@prisma/client';
-
+import type { ActivityLevel, BiologicalSex, ChefProfile, Goal, Prisma } from '@prisma/client';
 import { prisma } from '../client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type { ActivityLevel, Goal };
+export type { ActivityLevel, BiologicalSex, Goal };
 
 export interface UpsertChefProfileData {
   displayName?: string | null;
+  biologicalSex?: BiologicalSex | null;
   age?: number | null;
   heightCm?: number | null;
   weightKg?: number | null;

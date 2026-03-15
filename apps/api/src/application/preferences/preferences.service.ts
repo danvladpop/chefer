@@ -1,0 +1,274 @@
+import { TRPCError } from '@trpc/server';
+// ─── Singleton ────────────────────────────────────────────────────────────────
+import {
+  chefProfileRepository,
+  dietaryPreferencesRepository,
+  prisma,
+  type ChefProfile,
+  type DietaryPreferences,
+  type IChefProfileRepository,
+  type IDietaryPreferencesRepository,
+  type UpsertChefProfileData,
+  type UpsertDietaryPreferencesData,
+} from '@chefer/database';
+
+// ─── Activity multipliers (Mifflin-St Jeor) ──────────────────────────────────
+
+const ACTIVITY_MULTIPLIERS: Record<string, number> = {
+  SEDENTARY: 1.2,
+  LIGHTLY_ACTIVE: 1.375,
+  MODERATELY_ACTIVE: 1.55,
+  VERY_ACTIVE: 1.725,
+  ATHLETE: 1.9,
+};
+
+function computeCalorieTarget(
+  weightKg: number,
+  heightCm: number,
+  age: number,
+  activityLevel: string,
+  biologicalSex: string | null,
+): number {
+  // Mifflin-St Jeor: male +5, female −161, unknown average −78
+  const sexConstant = biologicalSex === 'MALE' ? 5 : biologicalSex === 'FEMALE' ? -161 : -78;
+  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + sexConstant;
+  const multiplier = ACTIVITY_MULTIPLIERS[activityLevel] ?? 1.55;
+  return Math.round(bmr * multiplier);
+}
+
+// ─── Input / Output Types ─────────────────────────────────────────────────────
+
+export interface SetupPreferencesInput {
+  goal: 'LOSE_WEIGHT' | 'MAINTAIN' | 'GAIN_MUSCLE' | 'EAT_HEALTHIER';
+  biologicalSex: 'MALE' | 'FEMALE';
+  age: number;
+  heightCm: number;
+  weightKg: number;
+  activityLevel: 'SEDENTARY' | 'LIGHTLY_ACTIVE' | 'MODERATELY_ACTIVE' | 'VERY_ACTIVE' | 'ATHLETE';
+  dietaryRestrictions: string[];
+  allergies: string[];
+  dislikedIngredients: string[];
+  cuisinePreferences: string[];
+  mealsPerDay: number;
+  servingSize: number;
+}
+
+export interface UpdatePreferencesInput {
+  goal?: 'LOSE_WEIGHT' | 'MAINTAIN' | 'GAIN_MUSCLE' | 'EAT_HEALTHIER';
+  biologicalSex?: 'MALE' | 'FEMALE';
+  age?: number;
+  heightCm?: number;
+  weightKg?: number;
+  activityLevel?: 'SEDENTARY' | 'LIGHTLY_ACTIVE' | 'MODERATELY_ACTIVE' | 'VERY_ACTIVE' | 'ATHLETE';
+  dietaryRestrictions?: string[];
+  allergies?: string[];
+  dislikedIngredients?: string[];
+  cuisinePreferences?: string[];
+  mealsPerDay?: number;
+  servingSize?: number;
+}
+
+export interface PreferencesDto {
+  chefProfile: ChefProfile | null;
+  dietaryPreferences: DietaryPreferences | null;
+}
+
+// ─── Service ──────────────────────────────────────────────────────────────────
+
+export class PreferencesService {
+  constructor(
+    private readonly chefProfileRepo: IChefProfileRepository,
+    private readonly dietaryPreferencesRepo: IDietaryPreferencesRepository,
+  ) {}
+
+  /**
+   * Returns true if the user already has a ChefProfile (completed onboarding).
+   */
+  async hasProfile(userId: string): Promise<boolean> {
+    const profile = await this.chefProfileRepo.findByUserId(userId);
+    return profile !== null;
+  }
+
+  /**
+   * Returns ChefProfile + DietaryPreferences for a user (either may be null).
+   */
+  async get(userId: string): Promise<PreferencesDto> {
+    const [chefProfile, dietaryPreferences] = await Promise.all([
+      this.chefProfileRepo.findByUserId(userId),
+      this.dietaryPreferencesRepo.findByUserId(userId),
+    ]);
+    return { chefProfile, dietaryPreferences };
+  }
+
+  /**
+   * Upserts ChefProfile and DietaryPreferences in a single transaction.
+   * Safe to call multiple times (idempotent).
+   */
+  async setup(userId: string, input: SetupPreferencesInput): Promise<void> {
+    const {
+      goal,
+      biologicalSex,
+      age,
+      heightCm,
+      weightKg,
+      activityLevel,
+      dietaryRestrictions,
+      allergies,
+      dislikedIngredients,
+      cuisinePreferences,
+      mealsPerDay,
+      servingSize,
+    } = input;
+
+    const dailyCalorieTarget = computeCalorieTarget(
+      weightKg,
+      heightCm,
+      age,
+      activityLevel,
+      biologicalSex,
+    );
+
+    try {
+      await prisma.$transaction([
+        prisma.chefProfile.upsert({
+          where: { userId },
+          create: {
+            userId,
+            goal,
+            biologicalSex,
+            age,
+            heightCm,
+            weightKg,
+            activityLevel,
+            dailyCalorieTarget,
+          },
+          update: {
+            goal,
+            biologicalSex,
+            age,
+            heightCm,
+            weightKg,
+            activityLevel,
+            dailyCalorieTarget,
+          },
+        }),
+        prisma.dietaryPreferences.upsert({
+          where: { userId },
+          create: {
+            userId,
+            dietaryRestrictions,
+            allergies,
+            dislikedIngredients,
+            cuisinePreferences,
+            mealsPerDay,
+            servingSize,
+          },
+          update: {
+            dietaryRestrictions,
+            allergies,
+            dislikedIngredients,
+            cuisinePreferences,
+            mealsPerDay,
+            servingSize,
+          },
+        }),
+      ]);
+    } catch (error) {
+      console.error('PreferencesService.setup error:', error);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to save your preferences. Please try again.',
+      });
+    }
+  }
+
+  /**
+   * Partial update of ChefProfile and/or DietaryPreferences in a transaction.
+   * Only fields present in the input are written; omitted fields are untouched.
+   */
+  async update(userId: string, input: UpdatePreferencesInput): Promise<PreferencesDto> {
+    const {
+      goal,
+      biologicalSex,
+      age,
+      heightCm,
+      weightKg,
+      activityLevel,
+      dietaryRestrictions,
+      allergies,
+      dislikedIngredients,
+      cuisinePreferences,
+      mealsPerDay,
+      servingSize,
+    } = input;
+
+    // Recompute calorie target only when enough body-metric fields are provided
+    const profileData: UpsertChefProfileData = {};
+    if (goal !== undefined) profileData.goal = goal;
+    if (biologicalSex !== undefined) profileData.biologicalSex = biologicalSex;
+    if (age !== undefined) profileData.age = age;
+    if (heightCm !== undefined) profileData.heightCm = heightCm;
+    if (weightKg !== undefined) profileData.weightKg = weightKg;
+    if (activityLevel !== undefined) profileData.activityLevel = activityLevel;
+
+    if (Object.keys(profileData).length > 0) {
+      // If all body metrics are known, recompute calorie target
+      const existing = await this.chefProfileRepo.findByUserId(userId);
+      const mergedWeight = weightKg ?? existing?.weightKg ?? null;
+      const mergedHeight = heightCm ?? existing?.heightCm ?? null;
+      const mergedAge = age ?? existing?.age ?? null;
+      const mergedActivity = activityLevel ?? existing?.activityLevel ?? null;
+      const mergedSex = biologicalSex ?? existing?.biologicalSex ?? null;
+
+      if (mergedWeight && mergedHeight && mergedAge && mergedActivity) {
+        profileData.dailyCalorieTarget = computeCalorieTarget(
+          mergedWeight,
+          mergedHeight,
+          mergedAge,
+          mergedActivity,
+          mergedSex,
+        );
+      }
+    }
+
+    const prefData: UpsertDietaryPreferencesData = {};
+    if (dietaryRestrictions !== undefined) prefData.dietaryRestrictions = dietaryRestrictions;
+    if (allergies !== undefined) prefData.allergies = allergies;
+    if (dislikedIngredients !== undefined) prefData.dislikedIngredients = dislikedIngredients;
+    if (cuisinePreferences !== undefined) prefData.cuisinePreferences = cuisinePreferences;
+    if (mealsPerDay !== undefined) prefData.mealsPerDay = mealsPerDay;
+    if (servingSize !== undefined) prefData.servingSize = servingSize;
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        if (Object.keys(profileData).length > 0) {
+          await tx.chefProfile.upsert({
+            where: { userId },
+            create: { userId, ...profileData },
+            update: profileData,
+          });
+        }
+        if (Object.keys(prefData).length > 0) {
+          await tx.dietaryPreferences.upsert({
+            where: { userId },
+            create: { userId, ...prefData },
+            update: prefData,
+          });
+        }
+      });
+    } catch (error) {
+      console.error('PreferencesService.update error:', error);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to update your preferences. Please try again.',
+      });
+    }
+
+    return this.get(userId);
+  }
+}
+
+export const preferencesService = new PreferencesService(
+  chefProfileRepository,
+  dietaryPreferencesRepository,
+);

@@ -1,5 +1,5 @@
-export { Button, buttonVariants, type ButtonProps } from './components/button.js';
-export { Input, type InputProps } from './components/input.js';
+export { Button, buttonVariants, type ButtonProps } from './components/button';
+export { Input, type InputProps } from './components/input';
 export {
   Card,
   CardHeader,
@@ -7,6 +7,7 @@ export {
   CardTitle,
   CardDescription,
   CardContent,
-} from './components/card.js';
-export { Badge, badgeVariants, type BadgeProps } from './components/badge.js';
-export { cn } from './lib/utils.js';
+} from './components/card';
+export { Badge, badgeVariants, type BadgeProps } from './components/badge';
+export { Toast, type ToastProps, type ToastType } from './components/toast';
+export { cn } from './lib/utils';

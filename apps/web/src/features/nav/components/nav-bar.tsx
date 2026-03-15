@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-
 import { useAuth } from '@/features/auth/hooks/use-auth';
 
 const NAV_LINKS = [
@@ -30,7 +29,9 @@ export function NavBar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-2 text-lg font-bold">
-          <span className="text-2xl" aria-hidden="true">🍽️</span>
+          <span className="text-2xl" aria-hidden="true">
+            🍽️
+          </span>
           <span>PersonalChef.ai</span>
         </Link>
 
@@ -51,36 +52,45 @@ export function NavBar() {
           ))}
         </div>
 
-        {/* User avatar + dropdown */}
-        {!isLoading && user && (
+        {/* User avatar + dropdown — always show sign-out when not loading */}
+        {!isLoading && (
           <div className="relative">
-            <button
-              onClick={() => setDropdownOpen((prev) => !prev)}
-              className="flex items-center gap-2 rounded-full p-1 hover:bg-muted"
-              aria-label="Open user menu"
-              aria-expanded={dropdownOpen}
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                {initials}
-              </div>
-              <span className="hidden text-sm font-medium md:block">{displayName}</span>
-              <svg
-                className="h-4 w-4 text-muted-foreground"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
+            {user ? (
+              <button
+                onClick={() => setDropdownOpen((prev) => !prev)}
+                className="flex items-center gap-2 rounded-full p-1 hover:bg-muted"
+                aria-label="Open user menu"
+                aria-expanded={dropdownOpen}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </button>
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                  {initials}
+                </div>
+                <span className="hidden text-sm font-medium md:block">{displayName}</span>
+                <svg
+                  className="h-4 w-4 text-muted-foreground"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+            ) : (
+              <button
+                onClick={() => logout()}
+                className="text-sm font-medium text-destructive hover:underline"
+              >
+                Sign out
+              </button>
+            )}
 
-            {dropdownOpen && (
+            {dropdownOpen && user && (
               <>
                 {/* Backdrop to close on outside click */}
                 <div

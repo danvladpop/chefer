@@ -32,6 +32,11 @@ enum ActivityLevel {
   ATHLETE
 }
 
+enum BiologicalSex {
+  MALE
+  FEMALE
+}
+
 enum Goal {
   LOSE_WEIGHT
   MAINTAIN
@@ -86,6 +91,7 @@ model ChefProfile {
   id                 String         @id @default(cuid())
   userId             String         @unique
   displayName        String?
+  biologicalSex      BiologicalSex?
   age                Int?
   heightCm           Float?
   weightKg           Float?

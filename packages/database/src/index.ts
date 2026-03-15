@@ -11,9 +11,24 @@ export {
   type IChefProfileRepository,
   type UpsertChefProfileData,
   type ActivityLevel,
+  type BiologicalSex,
   type Goal,
+  DietaryPreferencesRepository,
+  dietaryPreferencesRepository,
+  type IDietaryPreferencesRepository,
+  type UpsertDietaryPreferencesData,
 } from './repositories/index';
 
 // Re-export Prisma types for convenience
-export type { User, Account, Session, Post, Tag, PostTag, UserProfile, ChefProfile } from '@prisma/client';
-export { UserRole, PostStatus, Prisma } from '@prisma/client';
+export type {
+  User,
+  Account,
+  Session,
+  Post,
+  Tag,
+  PostTag,
+  UserProfile,
+  ChefProfile,
+  DietaryPreferences,
+} from '@prisma/client';
+export { UserRole, PostStatus, Prisma, BiologicalSex } from '@prisma/client';

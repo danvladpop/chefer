@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-
-import type { ActivityLevel } from '../types';
+import type { ActivityLevel, BiologicalSex } from '../types';
 
 // ─── Calorie estimate ─────────────────────────────────────────────────────────
 
@@ -15,16 +14,20 @@ const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
 };
 
 /**
- * Mifflin-St Jeor (gender-neutral average).
- * BMR = 10w + 6.25h - 5a - 78  (average of male +5 / female -161 constants)
+ * Mifflin-St Jeor.
+ * Male: BMR = 10w + 6.25h - 5a + 5
+ * Female: BMR = 10w + 6.25h - 5a - 161
+ * Unknown: gender-neutral average constant -78
  */
 function estimateCalories(
   weightKg: number,
   heightCm: number,
   age: number,
   activityLevel: ActivityLevel | null,
+  biologicalSex: BiologicalSex | null,
 ): number {
-  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 78;
+  const sexConstant = biologicalSex === 'MALE' ? 5 : biologicalSex === 'FEMALE' ? -161 : -78;
+  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + sexConstant;
   const multiplier = activityLevel ? ACTIVITY_MULTIPLIERS[activityLevel] : 1.55;
   return Math.round(bmr * multiplier);
 }
@@ -75,6 +78,7 @@ function lbsToKg(lbs: number): number {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface StepMetricsValues {
+  biologicalSex: BiologicalSex | null;
   age: number | null;
   heightCm: number | null;
   weightKg: number | null;
@@ -184,7 +188,13 @@ export function StepMetrics({ value, onChange }: StepMetricsProps) {
     value.weightKg > 0;
 
   const calorieEstimate = canPreview
-    ? estimateCalories(value.weightKg!, value.heightCm!, value.age!, value.activityLevel)
+    ? estimateCalories(
+        value.weightKg!,
+        value.heightCm!,
+        value.age!,
+        value.activityLevel,
+        value.biologicalSex,
+      )
     : null;
 
   // ── Shared input class ───────────────────────────────────────────────────────
@@ -194,9 +204,7 @@ export function StepMetrics({ value, onChange }: StepMetricsProps) {
 
   const toggleBtnCls = (active: boolean) =>
     `px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none ${
-      active
-        ? 'bg-primary text-primary-foreground'
-        : 'text-muted-foreground hover:text-foreground'
+      active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
     }`;
 
   return (
@@ -210,6 +218,35 @@ export function StepMetrics({ value, onChange }: StepMetricsProps) {
       </div>
 
       <div className="space-y-6">
+        {/* Biological sex */}
+        <fieldset className="space-y-1.5">
+          <legend className="block text-sm font-medium">Biological sex</legend>
+          <p className="text-xs text-muted-foreground">Used for accurate calorie calculation.</p>
+          <div className="mt-2 flex gap-3">
+            {(['MALE', 'FEMALE'] as const).map((sex) => {
+              const selected = value.biologicalSex === sex;
+              return (
+                <label
+                  key={sex}
+                  className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors hover:border-primary/50 ${
+                    selected ? 'border-primary bg-primary/5' : 'border-border bg-card'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="biologicalSex"
+                    value={sex}
+                    checked={selected}
+                    onChange={() => onChange({ ...value, biologicalSex: sex })}
+                    className="sr-only"
+                  />
+                  {sex === 'MALE' ? 'Male' : 'Female'}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
         {/* Age */}
         <div className="space-y-1.5">
           <label htmlFor="age" className="block text-sm font-medium">
@@ -361,7 +398,9 @@ export function StepMetrics({ value, onChange }: StepMetricsProps) {
       {/* Live calorie estimate */}
       <div
         className={`rounded-xl border-2 p-5 text-center transition-all ${
-          calorieEstimate !== null ? 'border-primary/30 bg-primary/5' : 'border-dashed border-border'
+          calorieEstimate !== null
+            ? 'border-primary/30 bg-primary/5'
+            : 'border-dashed border-border'
         }`}
       >
         {calorieEstimate !== null ? (
@@ -372,7 +411,9 @@ export function StepMetrics({ value, onChange }: StepMetricsProps) {
             <p className="mt-1 text-4xl font-bold tabular-nums text-primary">
               {calorieEstimate.toLocaleString()}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">kcal / day · Mifflin-St Jeor estimate</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              kcal / day · Mifflin-St Jeor estimate
+            </p>
           </>
         ) : (
           <p className="text-sm text-muted-foreground">

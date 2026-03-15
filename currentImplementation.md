@@ -1,23 +1,27 @@
 # PersonalChef.ai — Current Implementation
 
-**Last updated:** T-009 · Onboarding Wizard – Step 2: Body Metrics
+**Last updated:** T-013 · Preferences Settings Page
 **Phase:** 1 — User Preferences
 
 ---
 
 ## What's Been Built
 
-| Task  | Name                              | Status  | Notes                                                                                                                                                                                                            |
-| ----- | --------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| T-001 | Health Check & Env Setup          | ✅ Done | `GET /api/health` at port 3001; AI env vars added; root `.env.example` created                                                                                                                                   |
-| T-002 | Chef Profile Schema               | ✅ Done | `chef_profiles` table + `ActivityLevel`/`Goal` enums; `ChefProfileRepository` exported from `@chefer/database`                                                                                                   |
-| T-003 | Authentication – Register & Login | ✅ Done | `auth.register` + `auth.login` + `auth.logout` + `auth.me` tRPC procedures; `chefer_session` cookie; bcrypt password hashing; register page at `/register`                                                       |
-| T-004 | Core Layout & Navigation Shell    | ✅ Done | Next.js `middleware.ts` protects all dashboard routes; `NavBar` component with logo, nav links, avatar/sign-out dropdown; `(dashboard)` route group layout                                                       |
-| T-005 | Landing Page (Unauthenticated)    | ✅ Done | `app/page.tsx` — hero with CTA → `/register`, 3-column features (Weekly AI Meal Plans, Personalized Goals, Smart Shopping Lists), footer; server-side cookie check redirects authenticated users to `/dashboard` |
-| T-006 | Sign Up & Login Pages             | ✅ Done | Register success now redirects to `/onboarding`; both `/login` and `/register` pages do server-side cookie check and redirect authenticated users to `/dashboard`; branding updated to PersonalChef.ai           |
-| T-007 | Database Schema – Dietary Preferences | ✅ Done | `dietary_preferences` table with `cuisinePreferences`, `dietaryRestrictions`, `allergies`, `dislikedIngredients` (`String[]`), `mealsPerDay` (default 3), `servingSize` (default 1); `DietaryPreferencesRepository` exported from `@chefer/database` |
-| T-008 | Onboarding Wizard – Step 1: Goals | ✅ Done | `/onboarding` page at `(dashboard)/onboarding/page.tsx`; 4-step wizard shell with progress bar; Step 1 goal selector (Lose Weight / Maintain / Gain Muscle / Eat Healthier) with icon cards; Continue disabled until selection; steps 2–4 are placeholders |
-| T-009 | Onboarding Wizard – Step 2: Body Metrics | ✅ Done | Age input; height with cm/ft+in toggle (converts on switch); weight with kg/lbs toggle (converts on switch); activity level radio group (5 options); live Mifflin-St Jeor calorie estimate updates on every keystroke |
+| Task  | Name                                               | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----- | -------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-001 | Health Check & Env Setup                           | ✅ Done | `GET /api/health` at port 3001; AI env vars added; root `.env.example` created                                                                                                                                                                                                                                                                                                                                        |
+| T-002 | Chef Profile Schema                                | ✅ Done | `chef_profiles` table + `ActivityLevel`/`Goal` enums; `ChefProfileRepository` exported from `@chefer/database`                                                                                                                                                                                                                                                                                                        |
+| T-003 | Authentication – Register & Login                  | ✅ Done | `auth.register` + `auth.login` + `auth.logout` + `auth.me` tRPC procedures; `chefer_session` cookie; bcrypt password hashing; register page at `/register`                                                                                                                                                                                                                                                            |
+| T-004 | Core Layout & Navigation Shell                     | ✅ Done | Next.js `middleware.ts` protects all dashboard routes; `NavBar` component with logo, nav links, avatar/sign-out dropdown; `(dashboard)` route group layout                                                                                                                                                                                                                                                            |
+| T-005 | Landing Page (Unauthenticated)                     | ✅ Done | `app/page.tsx` — hero with CTA → `/register`, 3-column features (Weekly AI Meal Plans, Personalized Goals, Smart Shopping Lists), footer; server-side cookie check redirects authenticated users to `/dashboard`                                                                                                                                                                                                      |
+| T-006 | Sign Up & Login Pages                              | ✅ Done | Register success now redirects to `/onboarding`; both `/login` and `/register` pages do server-side cookie check and redirect authenticated users to `/dashboard`; branding updated to PersonalChef.ai                                                                                                                                                                                                                |
+| T-007 | Database Schema – Dietary Preferences              | ✅ Done | `dietary_preferences` table with `cuisinePreferences`, `dietaryRestrictions`, `allergies`, `dislikedIngredients` (`String[]`), `mealsPerDay` (default 3), `servingSize` (default 1); `DietaryPreferencesRepository` exported from `@chefer/database`                                                                                                                                                                  |
+| T-008 | Onboarding Wizard – Step 1: Goals                  | ✅ Done | `/onboarding` page at `(dashboard)/onboarding/page.tsx`; 4-step wizard shell with progress bar; Step 1 goal selector (Lose Weight / Maintain / Gain Muscle / Eat Healthier) with icon cards; Continue disabled until selection; steps 2–4 are placeholders                                                                                                                                                            |
+| T-009 | Onboarding Wizard – Step 2: Body Metrics           | ✅ Done | Age input; height with cm/ft+in toggle (converts on switch); weight with kg/lbs toggle (converts on switch); activity level radio group (5 options); live Mifflin-St Jeor calorie estimate updates on every keystroke                                                                                                                                                                                                 |
+| T-010 | Onboarding Wizard – Step 3: Diet & Restrictions    | ✅ Done | Multi-select diet type toggle buttons (8 options); freeform allergy chip input (Enter/comma to tokenize, × to dismiss, Backspace to remove last); preset disliked ingredients multi-select (10 presets) + free-text add with Add button; all fields optional so Continue is always enabled                                                                                                                            |
+| T-011 | Onboarding Wizard – Step 4: Cuisine & Meal Cadence | ✅ Done | Multi-select cuisine preferences (12 options); meals per day (2–5) pill toggle (default 3); serving size (1–6) pill toggle (default 1); Finish calls `trpc.preferences.setup` mutation which upserts ChefProfile + DietaryPreferences in a Prisma `$transaction`; redirect to `/dashboard` on success; `/onboarding` page is now a server component that calls `preferences.hasProfile` and redirects returning users |
+| T-012 | tRPC – Preferences CRUD Procedures                 | ✅ Done | `preferences.get` query returns `{ chefProfile, dietaryPreferences }`; `preferences.update` mutation accepts `.partial()` of setup schema, merges + recomputes calorie target, runs in `$transaction`; `PreferencesService` refactored with constructor-injected repos for testability; `apps/api/vitest.config.ts` created; 7 unit tests pass (hasProfile×2, get×3, update×2)                                        |
+| T-013 | Preferences Settings Page                          | ✅ Done | `/preferences` server component fetches data via cookie-forwarding `createServerClient`; `PreferencesForm` client component reuses all 4 wizard step components (StepGoal, StepMetrics, StepDiet, StepCuisine) in card sections; Save calls `trpc.preferences.update`, shows success/error `Toast` from `@chefer/ui` (new component); calorie target displayed in page header; `packages/ui` now exports `Toast`      |
 
 ---
 
@@ -44,6 +48,139 @@ pnpm dev
 ---
 
 ## How to Test the Latest Feature
+
+### T-013 — Preferences Settings Page
+
+**Pre-condition:** Logged in as a user who has completed onboarding (`pnpm db:seed` then log in as `alice@chefer.dev` / `User@123!`, or complete the wizard as a new user). `pnpm dev` running.
+
+#### Test A — Data pre-populated from DB
+
+1. Navigate to `http://localhost:3000/preferences`
+2. **Expected:** The page loads with all 4 sections (Your Goal, Body Metrics, Diet & Restrictions, Cuisine & Meal Cadence) pre-filled with the values saved during onboarding. The previously selected goal card is highlighted, activity level radio is selected, any dietary chips are present, and previously chosen cuisines are toggled on.
+
+#### Test B — Calorie target shown in header
+
+1. On `/preferences`, look at the top of the page below the heading
+2. **Expected:** A pill shows e.g. `2,321 kcal / day — current target` (only appears when a ChefProfile exists).
+
+#### Test C — Save updates DB and shows toast
+
+1. Change a value (e.g. click a different goal card, or toggle an additional cuisine)
+2. Click **Save preferences**
+3. **Expected:** Button shows "Saving…" briefly, then a green **✓ Preferences saved successfully.** toast appears in the bottom-right corner and auto-dismisses after 3 seconds.
+4. Refresh the page — **Expected:** The changed value is still selected (persisted to DB).
+
+#### Test D — Toast dismisses manually
+
+1. Click **Save preferences**
+2. Before the toast auto-dismisses, click the **×** on the toast
+3. **Expected:** Toast disappears immediately.
+
+#### Test E — Save disabled when required fields missing
+
+1. Clear the Age field (delete the value)
+2. **Expected:** The **Save preferences** button is disabled and a hint message appears: "Fill in your goal, age, height, weight, and activity level to save."
+
+#### Test F — Error toast on API failure
+
+1. Stop the API server (`apps/api`), then click **Save preferences**
+2. **Expected:** A red **✕** error toast appears with an error message.
+
+#### Test G — Nav link routes correctly
+
+1. Click **Preferences** in the top nav bar
+2. **Expected:** Navigates to `/preferences` with the form fully populated.
+
+---
+
+### T-011 — Onboarding Wizard – Step 4: Cuisine & Meal Cadence
+
+**Pre-condition:** Logged in as a fresh account (or run `pnpm db:seed` to reset). `pnpm dev` running for both apps.
+
+#### Test A — Step 4 renders with correct defaults
+
+1. Complete Steps 1–3 and click **Continue** to reach Step 4
+2. **Expected:** Heading "Cuisine & meal cadence". No cuisine cards selected. Meals per day pill **3** is active. Serving size pill **1** is active.
+
+#### Test B — Cuisine multi-select toggles
+
+1. Click **Italian** and **Japanese** cards
+2. **Expected:** Both show primary border + tinted background (`aria-pressed="true"`).
+3. Click **Italian** again — **Expected:** Deselects.
+
+#### Test C — Meals per day and serving size
+
+1. Click **4** in the meals per day row — **Expected:** **4** pill becomes active; **3** deselects.
+2. Click **3** in the serving size row — **Expected:** "3 people" label appears below.
+
+#### Test D — Finish saves to DB and redirects
+
+1. Complete all 4 steps, click **Finish**
+2. **Expected:** Button shows "Saving…" briefly, then redirects to `/dashboard`.
+3. Open `pnpm db:studio` — **Expected:** A `chef_profiles` row and a `dietary_preferences` row exist for your user with all the entered values.
+
+#### Test E — Redirect for returning user
+
+1. After completing onboarding, navigate to `http://localhost:3000/onboarding`
+2. **Expected:** Immediately redirected to `/dashboard` — wizard is never shown.
+
+#### Test F — Finish disabled while saving
+
+1. Click **Finish** and immediately check the button
+2. **Expected:** Button is disabled and shows "Saving…" while the mutation is in flight.
+
+#### Test G — API error shows inline message
+
+1. Stop the API server (`apps/api`), then click **Finish**
+2. **Expected:** A red error banner appears below the progress bar with an error message. The wizard stays on Step 4.
+
+---
+
+### T-010 — Onboarding Wizard – Step 3: Diet & Restrictions
+
+**Pre-condition:** Logged in. Navigate to `/onboarding`, complete Steps 1 and 2, click **Continue** to reach Step 3.
+
+#### Test A — Diet type toggles
+
+1. On Step 3, click **Vegan** and **Gluten-Free**
+2. **Expected:** Both buttons show a primary border and tinted background (`aria-pressed="true"`).
+3. Click **Vegan** again — **Expected:** It deselects (border returns to default).
+
+#### Test B — Allergy chip input (Enter)
+
+1. Type `peanuts` in the Allergies field, press **Enter**
+2. **Expected:** A chip labelled `peanuts` appears inside the input area; the text field clears.
+3. Type `shellfish,` (with a trailing comma) — **Expected:** A `shellfish` chip is added immediately without pressing Enter.
+
+#### Test C — Allergy chip removal
+
+1. With at least one allergy chip, click the **×** on a chip
+2. **Expected:** That chip is removed.
+3. Focus the allergy input with at least one chip, press **Backspace** with an empty input — **Expected:** The last chip is removed.
+
+#### Test D — Preset disliked ingredients
+
+1. Click **Onions** and **Mushrooms** in the preset grid
+2. **Expected:** Both pills show primary styling.
+3. Click **Onions** again — **Expected:** Deselects.
+
+#### Test E — Free-text disliked ingredient add
+
+1. Type `Anchovies` in the "Add another ingredient…" field, click **Add** (or press **Enter**)
+2. **Expected:** `Anchovies` appears as a custom chip above the input. The field clears.
+3. Click **×** on the custom chip — **Expected:** It is removed.
+
+#### Test F — Continue is always enabled
+
+1. Leave all Step 3 fields empty
+2. **Expected:** **Continue** button is enabled (fields are optional).
+
+#### Test G — Back preserves Step 3 selections
+
+1. Select a diet type and add an allergy, then click **Back** to Step 2, then **Continue** again
+2. **Expected:** Step 3 renders with the previously selected diet type and allergy chip still present.
+
+---
 
 ### T-009 — Onboarding Wizard – Step 2: Body Metrics
 
@@ -265,7 +402,6 @@ Available after `pnpm db:seed`:
 
 - No "forgot password" flow (out of scope for MVP)
 - `/onboarding`, `/meal-plan`, `/preferences` etc. are protected by middleware but pages don't exist yet — they will 404 until Phase 1+ builds them out
-- Onboarding Steps 3–4 are placeholders — diet & restrictions (T-010) and review/save (T-011) not yet implemented
-- No redirect away from `/onboarding` when the user already has a ChefProfile (added in T-011)
+- No "forgot password" flow (out of scope for MVP)
 - Pre-existing TypeScript errors in `packages/database`, `packages/utils`, and `packages/ui` (missing deps: `@types/node`, `@radix-ui/react-slot`). These do not affect the dev runtime — only `pnpm typecheck` output.
 - Pre-existing `exactOptionalPropertyTypes` violations in `apps/api/src` (user router/service/repository). These do not affect runtime.

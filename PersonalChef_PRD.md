@@ -2,11 +2,11 @@
 
 | Field                 | Value                                                       |
 | --------------------- | ----------------------------------------------------------- |
-| **Version**           | 1.2.0                                                       |
-| **Status**            | In Progress – Phase 0 Complete, Phase 1 Ready for Execution |
+| **Version**           | 1.3.0                                                       |
+| **Status**            | In Progress – Phase 1 Complete, Phase 2 Ready for Execution |
 | **Author**            | Staff Product Management                                    |
 | **Stack**             | Next.js · Prisma · PostgreSQL · React                       |
-| **Total Tasks**       | 40 tasks across 6 phases (6/40 complete)                    |
+| **Total Tasks**       | 40 tasks across 6 phases (13/40 complete)                   |
 | **Est. Total Effort** | ~140–200 engineering hours                                  |
 
 ---
@@ -36,24 +36,29 @@
 
 ### 0.1 What Already Exists
 
-| Area                              | Status                 | Notes                                                                                                                                                                                                                                                              |
-| --------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Monorepo structure**            | ✅ Done                | `apps/api`, `apps/web`, `packages/database`, `packages/types`, `packages/utils`, `packages/ui`, `packages/config/*`                                                                                                                                                |
-| **tRPC setup**                    | ✅ Done                | `apps/api/src/lib/trpc.ts` — `publicProcedure`, `protectedProcedure`, `adminProcedure` already exported. `apps/web/src/lib/trpc.ts` + `trpc-server.ts` already wired.                                                                                              |
-| **Auth (custom cookie sessions)** | ✅ Done                | **Not NextAuth.** Custom `chefer_session` cookie. `auth.register`, `auth.login`, `auth.logout`, `auth.me` tRPC procedures in `apps/api/src/routers/auth.router.ts`. Cookie resolved to `ctx.user` in `apps/api/src/interfaces/http/middleware/auth.middleware.ts`. |
-| **User model**                    | ✅ Done                | Has `id`, `email`, `passwordHash`, `name`, `firstName`, `lastName`, `image`, `role` (`USER`/`MODERATOR`/`ADMIN`), `createdAt`, `updatedAt`, `accounts`, `sessions`, `posts`, `profile`.                                                                            |
-| **UserProfile model**             | ⚠️ Exists, wrong shape | Currently has social-media fields (`bio`, `website`, `location`, `twitter`, `github`). **Do NOT alter this model.** All PersonalChef health data goes into `ChefProfile` (T-002 complete).                                                                         |
-| **ChefProfile model**             | ✅ Done                | `chef_profiles` table: `age`, `heightCm`, `weightKg`, `activityLevel` (enum), `goal` (enum), `dailyCalorieTarget`, `displayName`. `ChefProfileRepository` exported from `@chefer/database`.                                                                        |
-| **Health check route**            | ✅ Done                | `GET /api/health` at `http://localhost:3001/api/health` — returns `{ ok: true, timestamp }`, `503` on DB failure.                                                                                                                                                  |
-| **Landing page**                  | ✅ Done                | `apps/web/src/app/page.tsx` — hero, 3-column features (Weekly AI Meal Plans, Personalized Goals, Smart Shopping Lists), footer. Redirects authenticated users to `/dashboard`.                                                                                     |
-| **Login page**                    | ✅ Done                | `apps/web/src/app/(auth)/login/page.tsx` — calls `auth.login`, inline errors, redirects authenticated users to `/dashboard`.                                                                                                                                       |
-| **Register page**                 | ✅ Done                | `apps/web/src/app/(auth)/register/page.tsx` — calls `auth.register`, inline validation, redirects on success to `/onboarding`, redirects authenticated users to `/dashboard`.                                                                                      |
-| **Navigation shell**              | ✅ Done                | `apps/web/src/features/nav/components/nav-bar.tsx` — sticky top nav with logo, Dashboard/Meal Plan/Preferences links, avatar dropdown + sign out. Mounted in `apps/web/src/app/(dashboard)/layout.tsx`.                                                            |
-| **Route protection middleware**   | ✅ Done                | `apps/web/src/middleware.ts` — checks `chefer_session` cookie; redirects unauthenticated requests to `/login` for all protected routes.                                                                                                                            |
-| **Dashboard page**                | 🔶 Stub                | `apps/web/src/app/(dashboard)/dashboard/page.tsx` exists with placeholder stats cards. Real data fetching comes in Phase 3.                                                                                                                                        |
-| **User router (tRPC)**            | ✅ Done                | `apps/api/src/routers/user.router.ts` + `index.ts` — `user.*` namespace exists                                                                                                                                                                                     |
-| **User repository**               | ✅ Done                | `packages/database/src/repositories/user.repository.ts`                                                                                                                                                                                                            |
-| **UI components**                 | 🔶 Partial             | `packages/ui`: Button, Card, Input, Badge. Add more as later phases require.                                                                                                                                                                                       |
+| Area                              | Status                 | Notes                                                                                                                                                                                                                                                                       |
+| --------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Monorepo structure**            | ✅ Done                | `apps/api`, `apps/web`, `packages/database`, `packages/types`, `packages/utils`, `packages/ui`, `packages/config/*`                                                                                                                                                         |
+| **tRPC setup**                    | ✅ Done                | `apps/api/src/lib/trpc.ts` — `publicProcedure`, `protectedProcedure`, `adminProcedure` already exported. `apps/web/src/lib/trpc.ts` + `trpc-server.ts` already wired.                                                                                                       |
+| **Auth (custom cookie sessions)** | ✅ Done                | **Not NextAuth.** Custom `chefer_session` cookie. `auth.register`, `auth.login`, `auth.logout`, `auth.me` tRPC procedures in `apps/api/src/routers/auth.router.ts`. Cookie resolved to `ctx.user` in `apps/api/src/interfaces/http/middleware/auth.middleware.ts`.          |
+| **User model**                    | ✅ Done                | Has `id`, `email`, `passwordHash`, `name`, `firstName`, `lastName`, `image`, `role` (`USER`/`MODERATOR`/`ADMIN`), `createdAt`, `updatedAt`, `accounts`, `sessions`, `posts`, `profile`.                                                                                     |
+| **UserProfile model**             | ⚠️ Exists, wrong shape | Currently has social-media fields (`bio`, `website`, `location`, `twitter`, `github`). **Do NOT alter this model.** All PersonalChef health data goes into `ChefProfile` (T-002 complete).                                                                                  |
+| **ChefProfile model**             | ✅ Done                | `chef_profiles` table: `biologicalSex` (enum: `MALE`/`FEMALE`), `age`, `heightCm`, `weightKg`, `activityLevel` (enum), `goal` (enum), `dailyCalorieTarget`, `displayName`. `ChefProfileRepository` exported from `@chefer/database`.                                        |
+| **DietaryPreferences model**      | ✅ Done                | `dietary_preferences` table: `cuisinePreferences`, `dietaryRestrictions`, `allergies`, `dislikedIngredients` (all `String[]`), `mealsPerDay`, `servingSize`. `DietaryPreferencesRepository` exported from `@chefer/database`.                                               |
+| **Preferences tRPC router**       | ✅ Done                | `apps/api/src/routers/preferences.router.ts` — `preferences.hasProfile`, `preferences.setup`, `preferences.get`, `preferences.update`. Service at `apps/api/src/application/preferences/preferences.service.ts`. Calorie target computed with sex-specific Mifflin-St Jeor. |
+| **Onboarding wizard**             | ✅ Done                | `apps/web/src/app/(dashboard)/onboarding/page.tsx` — 4-step wizard (Goal → Body Metrics → Diet → Cuisine). Redirects returning users to `/dashboard`. Calls `preferences.setup` on Finish.                                                                                  |
+| **Preferences settings page**     | ✅ Done                | `apps/web/src/app/(dashboard)/preferences/page.tsx` — loads current data via `preferences.get` (server component), editable form calls `preferences.update`, success/error toast from `packages/ui`.                                                                        |
+| **Toast UI component**            | ✅ Done                | `packages/ui/src/components/toast.tsx` — `success`/`error` variants, auto-dismiss, manual dismiss.                                                                                                                                                                          |
+| **Health check route**            | ✅ Done                | `GET /api/health` at `http://localhost:3001/api/health` — returns `{ ok: true, timestamp }`, `503` on DB failure.                                                                                                                                                           |
+| **Landing page**                  | ✅ Done                | `apps/web/src/app/page.tsx` — hero, 3-column features (Weekly AI Meal Plans, Personalized Goals, Smart Shopping Lists), footer. Redirects authenticated users to `/dashboard`.                                                                                              |
+| **Login page**                    | ✅ Done                | `apps/web/src/app/(auth)/login/page.tsx` — calls `auth.login`, inline errors, redirects authenticated users to `/dashboard`.                                                                                                                                                |
+| **Register page**                 | ✅ Done                | `apps/web/src/app/(auth)/register/page.tsx` — calls `auth.register`, inline validation, redirects on success to `/onboarding`, redirects authenticated users to `/dashboard`.                                                                                               |
+| **Navigation shell**              | ✅ Done                | `apps/web/src/features/nav/components/nav-bar.tsx` — sticky top nav with logo, Dashboard/Meal Plan/Preferences links, avatar dropdown + sign out. Mounted in `apps/web/src/app/(dashboard)/layout.tsx`.                                                                     |
+| **Route protection middleware**   | ✅ Done                | `apps/web/src/middleware.ts` — checks `chefer_session` cookie; redirects unauthenticated requests to `/login` for all protected routes.                                                                                                                                     |
+| **Dashboard page**                | 🔶 Stub                | `apps/web/src/app/(dashboard)/dashboard/page.tsx` exists with placeholder stats cards. Real data fetching comes in Phase 3.                                                                                                                                                 |
+| **User router (tRPC)**            | ✅ Done                | `apps/api/src/routers/user.router.ts` + `index.ts` — `user.*` namespace exists                                                                                                                                                                                              |
+| **User repository**               | ✅ Done                | `packages/database/src/repositories/user.repository.ts`                                                                                                                                                                                                                     |
+| **UI components**                 | 🔶 Partial             | `packages/ui`: Button, Card, Input, Badge, Toast. Add more as later phases require.                                                                                                                                                                                         |
 
 ### 0.2 Critical Architecture Rules for Implementation
 
@@ -178,8 +183,8 @@ The mock and live implementations share an identical TypeScript interface (`IAIS
 | Phase | Name                  | Goal                                                       | Tasks     | Est. | Status      |
 | ----- | --------------------- | ---------------------------------------------------------- | --------- | ---- | ----------- |
 | **0** | Foundation            | Project setup, DB schema, auth, navigation shell           | T-001–006 | ~20h | ✅ Complete |
-| **1** | User Preferences      | Onboarding wizard, dietary preferences CRUD                | T-007–013 | ~28h | 🔜 Next     |
-| **2** | Core AI Feature       | AI meal plan generation, week grid UI, recipe detail       | T-014–020 | ~38h | ⏳ Pending  |
+| **1** | User Preferences      | Onboarding wizard, dietary preferences CRUD                | T-007–013 | ~28h | ✅ Complete |
+| **2** | Core AI Feature       | AI meal plan generation, week grid UI, recipe detail       | T-014–020 | ~38h | 🔜 Next     |
 | **3** | Power Features        | Dashboard, recipe swap, shopping list, history, favourites | T-021–026 | ~28h | ⏳ Pending  |
 | **4** | Tracking & Engagement | Calorie tracker, progress charts, email, chat              | T-027–032 | ~36h | ⏳ Pending  |
 | **5** | Production Hardening  | Mobile, a11y, perf, E2E tests, deployment, analytics       | T-033–040 | ~36h | ⏳ Pending  |
@@ -268,11 +273,11 @@ The login page already exists at `apps/web/src/app/(auth)/login/page.tsx`. This 
 
 ---
 
-### Phase 1 — User Preferences (T-007 to T-013)
+### Phase 1 — User Preferences (T-007 to T-013) ✅ COMPLETE
 
 > **Goal:** Collect all data the AI needs to generate a personalized meal plan. A new user should be able to complete the onboarding wizard in under 3 minutes and return to update their preferences later.
 
-#### T-007 · Database Schema – Dietary Preferences `S` `P0`
+#### T-007 · Database Schema – Dietary Preferences `S` `P0` ✅ DONE
 
 Add Prisma model `DietaryPreferences` to `packages/database/prisma/schema.prisma`:
 
@@ -287,25 +292,25 @@ Run `pnpm db:migrate`. Update repository exports in `packages/database/src/repos
 
 > **Browser Test:** No direct browser test. Verify via `pnpm db:studio` — confirm `dietary_preferences` table exists with all columns and the FK to `users`.
 
-#### T-008 · Onboarding Wizard – Step 1: Goals `M` `P0`
+#### T-008 · Onboarding Wizard – Step 1: Goals `M` `P0` ✅ DONE
 
 Build multi-step onboarding flow at `apps/web/src/app/(dashboard)/onboarding/page.tsx`. This is a client component wizard — state is held in React state, not URL params. Step 1: goal selector card UI (Lose Weight, Maintain Weight, Gain Muscle, Eat Healthier) with an icon per option. Show progress indicator "Step 1 of 4". Disable Continue until a selection is made.
 
 > **Browser Test:** Register a new user — expect redirect to `/onboarding`. Confirm Step 1 renders 4 goal cards with icons. Click a card — confirm it highlights. Click Continue without selecting — confirm it's disabled. Select a goal and click Continue — confirm Step 2 renders with Step 1 answer preserved.
 
-#### T-009 · Onboarding Wizard – Step 2: Body Metrics `M` `P0`
+#### T-009 · Onboarding Wizard – Step 2: Body Metrics `M` `P0` ✅ DONE
 
-Step 2 form: age (number input), height (cm or ft/in toggle), weight (kg or lbs toggle), activity level radio group (Sedentary, Lightly Active, Moderately Active, Very Active, Athlete). Calculate and display estimated daily calorie target using the Mifflin-St Jeor formula as a live preview that updates on every keystroke. Store in React state; clicking Back returns to Step 1 with Step 1 selection intact.
+Step 2 form: biological sex (Male / Female pill toggle, **required**), age (number input), height (cm or ft/in toggle), weight (kg or lbs toggle), activity level radio group (Sedentary, Lightly Active, Moderately Active, Very Active, Athlete). Calculate and display estimated daily calorie target using the Mifflin-St Jeor formula (sex-specific constants: male +5, female −161) as a live preview that updates on every keystroke. Store in React state; clicking Back returns to Step 1 with Step 1 selection intact. Continue button is disabled until all fields including biological sex are filled.
 
-> **Browser Test:** On Step 2, type an age and watch the calorie estimate appear. Toggle between cm and ft/in — confirm the height value converts. Toggle kg/lbs — confirm weight converts. Select each activity level — confirm the calorie target changes. Click Back — confirm Step 1 goal selection is preserved.
+> **Browser Test:** On Step 2, select Male then Female and confirm the calorie estimate changes. Type an age and watch the calorie estimate appear. Toggle between cm and ft/in — confirm the height value converts. Toggle kg/lbs — confirm weight converts. Select each activity level — confirm the calorie target changes. Click Back — confirm Step 1 goal selection is preserved.
 
-#### T-010 · Onboarding Wizard – Step 3: Diet & Restrictions `M` `P0`
+#### T-010 · Onboarding Wizard – Step 3: Diet & Restrictions `M` `P0` ✅ DONE
 
 Step 3: multi-select toggle buttons for diet type (Omnivore, Vegetarian, Vegan, Pescatarian, Keto, Paleo, Gluten-Free, Dairy-Free). Freeform text input for allergies — pressing Enter or comma tokenizes the input into a dismissible chip. Multi-select for disliked ingredients from a preset list (onions, mushrooms, cilantro, etc.) plus a free-text add option. All selections stored in React state.
 
 > **Browser Test:** On Step 3, click multiple diet type toggles — confirm multi-select works. Type "peanuts" in the allergy field and press Enter — confirm it appears as a chip. Click the chip's × — confirm it's removed. Select a disliked ingredient from the list and type a custom one. Click Back — confirm Steps 1 and 2 selections are still intact.
 
-#### T-011 · Onboarding Wizard – Step 4: Cuisine & Meal Cadence `M` `P0`
+#### T-011 · Onboarding Wizard – Step 4: Cuisine & Meal Cadence `M` `P0` ✅ DONE
 
 Step 4: multi-select cuisine preferences (Italian, Mexican, Asian, Mediterranean, American, Indian, Middle Eastern, etc.). Choose meals per day (2–5 toggle). Choose serving size (1–6 people). On Finish, call `trpc.preferences.setup` mutation which upserts both `ChefProfile` and `DietaryPreferences` in a single DB transaction. Redirect to `/dashboard` on success.
 
@@ -313,7 +318,7 @@ Implement the `preferences.setup` tRPC mutation in `apps/api/src/routers/prefere
 
 > **Browser Test:** Complete all 4 onboarding steps and click Finish. Confirm a spinner appears and then a redirect to `/dashboard`. Open `pnpm db:studio` — confirm both `chef_profiles` and `dietary_preferences` rows exist for your user. Navigate to `/onboarding` again — confirm it redirects to `/dashboard` (user already has a profile).
 
-#### T-012 · tRPC – Preferences CRUD Procedures `M` `P1`
+#### T-012 · tRPC – Preferences CRUD Procedures `M` `P1` ✅ DONE
 
 Add to `preferences.router.ts`:
 
@@ -326,9 +331,9 @@ Write at least 3 Vitest unit tests for the service layer (mock the repositories)
 
 > **Browser Test:** Navigate to `/preferences` (built in T-013). While building, verify via DevTools Network tab that `trpc.preferences.get` returns 200 with your data. Test `trpc.preferences.update` from the browser console. Hit a protected procedure without a session cookie (use DevTools to delete the cookie) — confirm a `UNAUTHORIZED` tRPC error is returned.
 
-#### T-013 · Preferences Settings Page `M` `P1`
+#### T-013 · Preferences Settings Page `M` `P1` ✅ DONE
 
-Build `apps/web/src/app/(dashboard)/preferences/page.tsx`. Load user's `ChefProfile` + `DietaryPreferences` via `trpc.preferences.get` (server component). Render an editable form mirroring the onboarding wizard (goal, metrics, diet restrictions, cuisines) as a `"use client"` component. On Save, call `trpc.preferences.update` mutation and show a success toast from `packages/ui`. Protected by middleware (T-004).
+Build `apps/web/src/app/(dashboard)/preferences/page.tsx`. Load user's `ChefProfile` + `DietaryPreferences` via `trpc.preferences.get` (server component). Render an editable form mirroring the onboarding wizard (goal, biological sex, metrics, diet restrictions, cuisines) as a `"use client"` component. Save is disabled until goal, biological sex, age, height, weight, and activity level are all filled. On Save, call `trpc.preferences.update` mutation and show a success toast from `packages/ui`. Protected by middleware (T-004).
 
 > **Browser Test:** Navigate to `/preferences`. Confirm all onboarding data is pre-populated. Change a value (e.g. swap a cuisine or update weight). Click Save — confirm a success toast appears. Refresh the page — confirm the updated value persists. Navigate away and back — confirm no data loss.
 
