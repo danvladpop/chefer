@@ -1,8 +1,10 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { trpc } from '@/lib/trpc';
-import { ArrowRight, Clock, Flame, ChevronRight } from 'lucide-react';
+import { ArrowRight, ChevronRight, Clock, Flame } from 'lucide-react';
+import { getRecipeImageProps } from '@/lib/recipe-image';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -89,9 +91,7 @@ export default function DashboardPage() {
               <div
                 key={day.idx}
                 className={`flex flex-1 flex-col items-center gap-1 rounded-xl py-2.5 ${
-                  day.idx === todayIdx
-                    ? 'bg-[#944a00] text-white'
-                    : 'bg-gray-50 text-gray-600'
+                  day.idx === todayIdx ? 'bg-[#944a00] text-white' : 'bg-gray-50 text-gray-600'
                 }`}
               >
                 <span className="text-[10px] font-semibold uppercase">{day.label}</span>
@@ -110,9 +110,15 @@ export default function DashboardPage() {
         {d.nextMeal ? (
           <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
             <div className="flex gap-4 p-5">
-              {/* Photo placeholder */}
-              <div className="flex h-28 w-32 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#fff3e8] to-[#fde8c8]">
-                <span className="text-4xl" aria-hidden="true">🍽️</span>
+              {/* Recipe photo */}
+              <div className="relative h-28 w-32 shrink-0 overflow-hidden rounded-xl">
+                <Image
+                  {...getRecipeImageProps(d.nextMeal.recipe.imageUrl)}
+                  alt={d.nextMeal.recipe.name}
+                  fill
+                  sizes="128px"
+                  className="object-cover"
+                />
               </div>
               <div className="flex min-w-0 flex-col justify-between">
                 <div>
@@ -165,7 +171,9 @@ export default function DashboardPage() {
             <span className="text-4xl">🥣</span>
             <div>
               <p className="font-semibold text-gray-800">Your weekly menu awaits</p>
-              <p className="mt-0.5 text-sm text-gray-500">Let AI craft a personalised 7-day plan for you.</p>
+              <p className="mt-0.5 text-sm text-gray-500">
+                Let AI craft a personalised 7-day plan for you.
+              </p>
             </div>
             <Link
               href="/meal-plan"
@@ -207,7 +215,10 @@ export default function DashboardPage() {
             <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
               Recent Favourites
             </p>
-            <Link href="/recipes?filter=saved" className="text-xs font-medium text-[#944a00] hover:underline">
+            <Link
+              href="/recipes?filter=saved"
+              className="text-xs font-medium text-[#944a00] hover:underline"
+            >
               View All →
             </Link>
           </div>
@@ -219,12 +230,20 @@ export default function DashboardPage() {
                   href={`/recipes/${fav.id}`}
                   className="flex w-36 shrink-0 flex-col gap-2 rounded-xl border p-1 pb-2 hover:border-[#944a00]/40 hover:shadow-md transition-all"
                 >
-                  <div className="flex h-24 items-center justify-center rounded-lg bg-gradient-to-br from-[#fff3e8] to-[#fde8c8]">
-                    <span className="text-3xl">🍽️</span>
+                  <div className="relative h-24 overflow-hidden rounded-lg">
+                    <Image
+                      {...getRecipeImageProps(fav.imageUrl)}
+                      alt={fav.name}
+                      fill
+                      sizes="144px"
+                      className="object-cover"
+                    />
                   </div>
                   <div className="px-1">
                     <p className="truncate text-xs font-semibold text-gray-800">{fav.name}</p>
-                    <p className="text-[10px] uppercase tracking-wide text-gray-400">{fav.cuisineType} · {fav.prepTimeMins}m</p>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-400">
+                      {fav.cuisineType} · {fav.prepTimeMins}m
+                    </p>
                   </div>
                 </Link>
               ))}
@@ -232,7 +251,9 @@ export default function DashboardPage() {
           ) : (
             <p className="text-sm text-gray-400">
               Save a recipe to see it here.{' '}
-              <Link href="/meal-plan" className="text-[#944a00] hover:underline">Go to Meal Planner →</Link>
+              <Link href="/meal-plan" className="text-[#944a00] hover:underline">
+                Go to Meal Planner →
+              </Link>
             </p>
           )}
         </div>
@@ -248,9 +269,7 @@ export default function DashboardPage() {
             </p>
             <span
               className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
-                isOverTarget
-                  ? 'bg-red-100 text-red-700'
-                  : 'bg-emerald-100 text-emerald-700'
+                isOverTarget ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
               }`}
             >
               {isOverTarget ? 'Over Target' : 'On Track'}
@@ -259,7 +278,13 @@ export default function DashboardPage() {
 
           {/* Calorie ring */}
           <div className="flex flex-col items-center gap-1 py-2">
-            <svg width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Calorie progress ring">
+            <svg
+              width="128"
+              height="128"
+              viewBox="0 0 128 128"
+              role="img"
+              aria-label="Calorie progress ring"
+            >
               <circle cx="64" cy="64" r={R} fill="none" stroke="#f3f4f6" strokeWidth="12" />
               <circle
                 cx="64"
@@ -276,10 +301,14 @@ export default function DashboardPage() {
             </svg>
             <div className="-mt-16 text-center">
               <p className="text-xl font-bold text-gray-900">{n.plannedKcal.toLocaleString()}</p>
-              <p className="text-[10px] text-gray-400">of {n.dailyCalorieTarget.toLocaleString()} kcal</p>
+              <p className="text-[10px] text-gray-400">
+                of {n.dailyCalorieTarget.toLocaleString()} kcal
+              </p>
             </div>
             <div className="mt-14">
-              <p className="text-center text-xs text-gray-500">{remaining.toLocaleString()} remaining</p>
+              <p className="text-center text-xs text-gray-500">
+                {remaining.toLocaleString()} remaining
+              </p>
             </div>
           </div>
 
@@ -293,7 +322,9 @@ export default function DashboardPage() {
               <div key={label}>
                 <div className="mb-1 flex justify-between text-xs">
                   <span className="font-medium text-gray-700">{label}</span>
-                  <span className="text-gray-400">{v}g / {t}g</span>
+                  <span className="text-gray-400">
+                    {v}g / {t}g
+                  </span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
                   <div
@@ -309,7 +340,8 @@ export default function DashboardPage() {
           {d.nextMeal && (
             <div className="mt-4 rounded-xl bg-[#fff3e8] px-3 py-2.5">
               <p className="text-xs text-[#944a00]">
-                🤖 Your upcoming <strong>{d.nextMeal.recipe.name}</strong> supports your daily nutrition goals.
+                🤖 Your upcoming <strong>{d.nextMeal.recipe.name}</strong> supports your daily
+                nutrition goals.
               </p>
             </div>
           )}

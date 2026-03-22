@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Heart, Clock, Flame, Search } from 'lucide-react';
+import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { Clock, Flame, Heart, Search } from 'lucide-react';
+import { getRecipeImageProps } from '@/lib/recipe-image';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -39,9 +41,7 @@ export default function RecipesPage() {
   });
 
   // Check saved status for each recipe
-  const savedIds = new Set(
-    tab === 'saved' ? recipes?.map((r) => r.id) : [],
-  );
+  const savedIds = new Set(tab === 'saved' ? recipes?.map((r) => r.id) : []);
 
   return (
     <div className="px-6 py-8">
@@ -90,7 +90,12 @@ export default function RecipesPage() {
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {recipes.map((recipe) => {
-            const n = recipe.nutritionInfo as { calories: number; protein: number; carbs: number; fat: number };
+            const n = recipe.nutritionInfo as {
+              calories: number;
+              protein: number;
+              carbs: number;
+              fat: number;
+            };
             const isSaved = savedIds.has(recipe.id) || tab === 'saved';
             return (
               <div
@@ -98,8 +103,14 @@ export default function RecipesPage() {
                 className="group relative overflow-hidden rounded-2xl border bg-white shadow-sm transition-all hover:shadow-md"
               >
                 {/* Photo */}
-                <div className="relative flex h-40 items-center justify-center bg-gradient-to-br from-[#fff3e8] to-[#fde8c8]">
-                  <span className="text-5xl" aria-hidden="true">🍽️</span>
+                <div className="relative h-40 overflow-hidden">
+                  <Image
+                    {...getRecipeImageProps(recipe.imageUrl)}
+                    alt={recipe.name}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
                   {/* Heart overlay */}
                   <button
                     onClick={(e) => {
@@ -179,7 +190,9 @@ function EmptyState({ tab }: { tab: 'all' | 'saved' }) {
   }
   return (
     <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed bg-gray-50 py-16 text-center">
-      <span className="text-4xl" aria-hidden="true">📖</span>
+      <span className="text-4xl" aria-hidden="true">
+        📖
+      </span>
       <div>
         <p className="font-medium text-gray-700">No recipes yet</p>
         <p className="mt-1 text-sm text-gray-500">
@@ -200,7 +213,10 @@ function RecipeGridSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {[1, 2, 3, 4, 5, 6].map((i) => (
-        <div key={i} className="animate-pulse overflow-hidden rounded-2xl border bg-white shadow-sm">
+        <div
+          key={i}
+          className="animate-pulse overflow-hidden rounded-2xl border bg-white shadow-sm"
+        >
           <div className="h-40 bg-gray-100" />
           <div className="p-4">
             <div className="mb-2 h-3 w-20 rounded bg-gray-100" />

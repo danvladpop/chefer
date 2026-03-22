@@ -20,7 +20,8 @@
     "db:migrate": "turbo run db:migrate --filter=@chefer/database",
     "db:seed": "turbo run db:seed --filter=@chefer/database",
     "db:studio": "turbo run db:studio --filter=@chefer/database",
-    "prepare": "husky"
+    "prepare": "husky",
+    "upload:images": "npx tsx --env-file=apps/api/.env scripts/upload-to-cloudinary.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.3.0",

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/use-auth';
+import { ChevronDown, LogOut } from 'lucide-react';
 import { cn } from '@chefer/utils';
 
 interface TopHeaderProps {

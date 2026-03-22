@@ -1,6 +1,6 @@
-import type { IAIService } from './types.js';
 import { MockAIService } from './mock.js';
 import { LiveAIService } from './openai.js';
+import type { IAIService } from './types.js';
 
 // ─── AI Service Factory ───────────────────────────────────────────────────────
 // Reads AI_MOCK_ENABLED at startup and exports a singleton `aiService`.
@@ -9,8 +9,7 @@ import { LiveAIService } from './openai.js';
 
 function createAIService(): IAIService {
   const mockEnabled =
-    process.env['AI_MOCK_ENABLED'] === 'true' ||
-    process.env['AI_MOCK_ENABLED'] === '1';
+    process.env['AI_MOCK_ENABLED'] === 'true' || process.env['AI_MOCK_ENABLED'] === '1';
 
   if (mockEnabled) {
     console.info('[AI] Using MockAIService (fixture data)');

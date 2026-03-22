@@ -1,7 +1,7 @@
 import {
   chefProfileRepository,
-  mealPlanRepository,
   favouriteRecipeRepository,
+  mealPlanRepository,
 } from '@chefer/database';
 import type { NutritionInfo } from '../../lib/ai/index.js';
 
@@ -86,7 +86,14 @@ export class DashboardService {
     const dailyCalorieTarget = chefProfile?.dailyCalorieTarget ?? 2000;
 
     if (!plan) {
-      return this.emptyDashboard(userId, firstName, now, todayIndex, dailyCalorieTarget, favourites);
+      return this.emptyDashboard(
+        userId,
+        firstName,
+        now,
+        todayIndex,
+        dailyCalorieTarget,
+        favourites,
+      );
     }
 
     // Join all recipe IDs
@@ -96,9 +103,7 @@ export class DashboardService {
       meals: d.meals as MealSlot[],
     }));
 
-    const uniqueIds = [
-      ...new Set(allMealSlots.flatMap((d) => d.meals.map((m) => m.recipeId))),
-    ];
+    const uniqueIds = [...new Set(allMealSlots.flatMap((d) => d.meals.map((m) => m.recipeId)))];
     const recipeRows = await mealPlanRepository.findRecipesByIds(uniqueIds);
     const recipeMap = new Map(recipeRows.map((r) => [r.id, r]));
 
@@ -135,9 +140,9 @@ export class DashboardService {
     // Determine next meal and rest of today
     const currentHour = now.getHours();
     const nextMealIndex = getNextMealIndex(currentHour);
-    const orderedMeals = MEAL_ORDER.map((type) =>
-      todayMeals.find((m) => m.type === type),
-    ).filter(Boolean) as MealSlot[];
+    const orderedMeals = MEAL_ORDER.map((type) => todayMeals.find((m) => m.type === type)).filter(
+      Boolean,
+    ) as MealSlot[];
 
     let nextMeal: DashboardSummary['nextMeal'] = null;
     const restOfToday: DashboardSummary['restOfToday'] = [];

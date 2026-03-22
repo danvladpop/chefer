@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { CalendarDays, RefreshCw, Wand2 } from 'lucide-react';
-import { trpc } from '@/lib/trpc';
-import { MealCard } from '@/features/meal-plan/components/MealCard';
 import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
+import { MealCard } from '@/features/meal-plan/components/MealCard';
+import { trpc } from '@/lib/trpc';
+import { CalendarDays, RefreshCw, Wand2 } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -16,7 +16,11 @@ const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satu
 export default function MealPlanPage() {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const { data: plan, isLoading, refetch } = trpc.mealPlan.getActive.useQuery(undefined, {
+  const {
+    data: plan,
+    isLoading,
+    refetch,
+  } = trpc.mealPlan.getActive.useQuery(undefined, {
     retry: false,
   });
 
@@ -84,7 +88,10 @@ export default function MealPlanPage() {
           disabled={isGenerating}
           className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${isGenerating ? 'animate-spin' : ''}`} aria-hidden="true" />
+          <RefreshCw
+            className={`h-3.5 w-3.5 ${isGenerating ? 'animate-spin' : ''}`}
+            aria-hidden="true"
+          />
           Regenerate
         </button>
       </div>

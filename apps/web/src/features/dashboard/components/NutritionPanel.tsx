@@ -46,7 +46,9 @@ export function NutritionPanel() {
   if (!plan) {
     return (
       <div className="rounded-2xl border bg-white p-5 shadow-sm">
-        <h3 className="mb-3 font-serif text-base font-semibold text-gray-900">Today&apos;s Nutrition</h3>
+        <h3 className="mb-3 font-serif text-base font-semibold text-gray-900">
+          Today&apos;s Nutrition
+        </h3>
         <p className="text-sm text-gray-500">
           No active meal plan.{' '}
           <Link href="/meal-plan" className="text-[#944a00] hover:underline">
@@ -93,14 +95,31 @@ export function NutritionPanel() {
 
       {/* Macro bars */}
       <div className="space-y-3">
-        <MacroBar label="Protein" value={totals.protein} total={totals.protein + totals.carbs + totals.fat} color="bg-blue-500" />
-        <MacroBar label="Carbs" value={totals.carbs} total={totals.protein + totals.carbs + totals.fat} color="bg-amber-400" />
-        <MacroBar label="Fat" value={totals.fat} total={totals.protein + totals.carbs + totals.fat} color="bg-rose-400" />
+        <MacroBar
+          label="Protein"
+          value={totals.protein}
+          total={totals.protein + totals.carbs + totals.fat}
+          color="bg-blue-500"
+        />
+        <MacroBar
+          label="Carbs"
+          value={totals.carbs}
+          total={totals.protein + totals.carbs + totals.fat}
+          color="bg-amber-400"
+        />
+        <MacroBar
+          label="Fat"
+          value={totals.fat}
+          total={totals.protein + totals.carbs + totals.fat}
+          color="bg-rose-400"
+        />
       </div>
 
       {/* Today's meals list */}
       <div className="mt-4 space-y-1.5">
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Today&apos;s meals</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+          Today&apos;s meals
+        </p>
         {todayPlan.meals.map((m) => (
           <Link
             key={m.type}

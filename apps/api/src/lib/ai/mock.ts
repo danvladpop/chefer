@@ -1,14 +1,14 @@
+import { SWAP_POOL_BY_TYPE } from './fixtures/swap-recipes.fixture.js';
+import { WEEK_PLAN_FIXTURE } from './fixtures/week-plan.fixture.js';
 import type {
+  ChatContext,
+  ChatMessage,
   IAIService,
   MealPlanInput,
+  RecipeData,
   SwapInput,
   WeekPlanResponse,
-  RecipeData,
-  ChatMessage,
-  ChatContext,
 } from './types.js';
-import { WEEK_PLAN_FIXTURE } from './fixtures/week-plan.fixture.js';
-import { SWAP_POOL_BY_TYPE } from './fixtures/swap-recipes.fixture.js';
 
 // ─── Mock AI Service ──────────────────────────────────────────────────────────
 // Deterministic fixture-based implementation used in development and testing.
@@ -40,10 +40,7 @@ export class MockAIService implements IAIService {
     return { ...recipe, id: `swap-${Date.now()}` };
   }
 
-  async chat(
-    messages: ChatMessage[],
-    _context: ChatContext,
-  ): Promise<ReadableStream> {
+  async chat(messages: ChatMessage[], _context: ChatContext): Promise<ReadableStream> {
     await delay(200);
 
     const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');

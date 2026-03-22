@@ -1,4 +1,4 @@
-import type { MealPlan, MealPlanDay, Recipe, Prisma } from '@prisma/client';
+import type { MealPlan, MealPlanDay, Prisma, Recipe } from '@prisma/client';
 import { MealPlanStatus } from '@prisma/client';
 import { prisma } from '../client';
 
@@ -42,7 +42,11 @@ export interface IMealPlanRepository {
     mealType: string,
     newRecipeId: string,
   ): Promise<void>;
-  findAllByUserId(userId: string, limit?: number, offset?: number): Promise<(MealPlan & { days: MealPlanDay[] })[]>;
+  findAllByUserId(
+    userId: string,
+    limit?: number,
+    offset?: number,
+  ): Promise<(MealPlan & { days: MealPlanDay[] })[]>;
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -120,9 +124,7 @@ export class MealPlanRepository implements IMealPlanRepository {
     });
   }
 
-  async findActiveWithDays(
-    userId: string,
-  ): Promise<(MealPlan & { days: MealPlanDay[] }) | null> {
+  async findActiveWithDays(userId: string): Promise<(MealPlan & { days: MealPlanDay[] }) | null> {
     return prisma.mealPlan.findFirst({
       where: { userId, status: MealPlanStatus.ACTIVE },
       include: { days: { orderBy: { dayOfWeek: 'asc' } } },
@@ -152,9 +154,7 @@ export class MealPlanRepository implements IMealPlanRepository {
     if (!day) throw new Error(`Day ${dayOfWeek} not found in plan ${planId}`);
 
     const meals = day.meals as Array<{ type: string; recipeId: string }>;
-    const updated = meals.map((m) =>
-      m.type === mealType ? { ...m, recipeId: newRecipeId } : m,
-    );
+    const updated = meals.map((m) => (m.type === mealType ? { ...m, recipeId: newRecipeId } : m));
 
     await prisma.mealPlanDay.update({
       where: { id: day.id },

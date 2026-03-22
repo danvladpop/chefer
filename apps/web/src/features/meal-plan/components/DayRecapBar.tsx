@@ -28,7 +28,9 @@ export function DayRecapBar({ meals }: DayRecapBarProps) {
 
   return (
     <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2">
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Day total</p>
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+        Day total
+      </p>
       <p className="text-sm font-bold text-[#944a00]">{totals.calories} kcal</p>
       <div className="mt-1 flex gap-3 text-[10px] text-gray-500">
         <span>P {totals.protein}g</span>

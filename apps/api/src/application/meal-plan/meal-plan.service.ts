@@ -1,13 +1,13 @@
 import { TRPCError } from '@trpc/server';
 import {
-  mealPlanRepository,
   chefProfileRepository,
   dietaryPreferencesRepository,
+  mealPlanRepository,
   type IMealPlanRepository,
   type Recipe,
 } from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
-import type { RecipeData, MealType, NutritionInfo, Ingredient } from '../../lib/ai/index.js';
+import type { Ingredient, MealType, NutritionInfo, RecipeData } from '../../lib/ai/index.js';
 
 // ─── Shopping list types ───────────────────────────────────────────────────────
 
@@ -26,26 +26,67 @@ export interface ShoppingListGroup {
 // Simple keyword → category mapping
 const CATEGORY_MAP: Record<string, string> = {
   // Produce
-  tomato: 'Produce', spinach: 'Produce', onion: 'Produce', garlic: 'Produce',
-  lemon: 'Produce', lime: 'Produce', avocado: 'Produce', mushroom: 'Produce',
-  pepper: 'Produce', lettuce: 'Produce', cucumber: 'Produce', zucchini: 'Produce',
-  carrot: 'Produce', broccoli: 'Produce', celery: 'Produce', kale: 'Produce',
+  tomato: 'Produce',
+  spinach: 'Produce',
+  onion: 'Produce',
+  garlic: 'Produce',
+  lemon: 'Produce',
+  lime: 'Produce',
+  avocado: 'Produce',
+  mushroom: 'Produce',
+  pepper: 'Produce',
+  lettuce: 'Produce',
+  cucumber: 'Produce',
+  zucchini: 'Produce',
+  carrot: 'Produce',
+  broccoli: 'Produce',
+  celery: 'Produce',
+  kale: 'Produce',
   // Proteins
-  chicken: 'Proteins', beef: 'Proteins', salmon: 'Proteins', tuna: 'Proteins',
-  egg: 'Proteins', tofu: 'Proteins', shrimp: 'Proteins', turkey: 'Proteins',
-  pork: 'Proteins', lamb: 'Proteins', cod: 'Proteins',
+  chicken: 'Proteins',
+  beef: 'Proteins',
+  salmon: 'Proteins',
+  tuna: 'Proteins',
+  egg: 'Proteins',
+  tofu: 'Proteins',
+  shrimp: 'Proteins',
+  turkey: 'Proteins',
+  pork: 'Proteins',
+  lamb: 'Proteins',
+  cod: 'Proteins',
   // Dairy
-  milk: 'Dairy', cheese: 'Dairy', yogurt: 'Dairy', butter: 'Dairy',
-  cream: 'Dairy', parmesan: 'Dairy', mozzarella: 'Dairy', feta: 'Dairy',
+  milk: 'Dairy',
+  cheese: 'Dairy',
+  yogurt: 'Dairy',
+  butter: 'Dairy',
+  cream: 'Dairy',
+  parmesan: 'Dairy',
+  mozzarella: 'Dairy',
+  feta: 'Dairy',
   // Grains & Pantry
-  rice: 'Grains & Pantry', pasta: 'Grains & Pantry', flour: 'Grains & Pantry',
-  bread: 'Grains & Pantry', oat: 'Grains & Pantry', quinoa: 'Grains & Pantry',
-  lentil: 'Grains & Pantry', bean: 'Grains & Pantry', oil: 'Grains & Pantry',
-  vinegar: 'Grains & Pantry', soy: 'Grains & Pantry', honey: 'Grains & Pantry',
-  salt: 'Grains & Pantry', pepper: 'Grains & Pantry', cumin: 'Grains & Pantry',
-  paprika: 'Grains & Pantry', cinnamon: 'Grains & Pantry', stock: 'Grains & Pantry',
-  broth: 'Grains & Pantry', coconut: 'Grains & Pantry', almond: 'Grains & Pantry',
-  walnut: 'Grains & Pantry', cashew: 'Grains & Pantry',
+  rice: 'Grains & Pantry',
+  pasta: 'Grains & Pantry',
+  flour: 'Grains & Pantry',
+  bread: 'Grains & Pantry',
+  oat: 'Grains & Pantry',
+  quinoa: 'Grains & Pantry',
+  lentil: 'Grains & Pantry',
+  bean: 'Grains & Pantry',
+  oil: 'Grains & Pantry',
+  vinegar: 'Grains & Pantry',
+  soy: 'Grains & Pantry',
+  honey: 'Grains & Pantry',
+  salt: 'Grains & Pantry',
+  pepper: 'Grains & Pantry',
+  cumin: 'Grains & Pantry',
+  paprika: 'Grains & Pantry',
+  cinnamon: 'Grains & Pantry',
+  stock: 'Grains & Pantry',
+  broth: 'Grains & Pantry',
+  coconut: 'Grains & Pantry',
+  almond: 'Grains & Pantry',
+  walnut: 'Grains & Pantry',
+  cashew: 'Grains & Pantry',
 };
 
 // ─── Output DTOs ──────────────────────────────────────────────────────────────

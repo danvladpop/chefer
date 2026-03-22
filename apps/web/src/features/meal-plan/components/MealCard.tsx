@@ -1,5 +1,7 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { Clock, Flame } from 'lucide-react';
+import { getRecipeImageProps } from '@/lib/recipe-image';
 
 interface NutritionInfo {
   calories: number;
@@ -17,6 +19,7 @@ interface RecipeDto {
   prepTimeMins: number;
   cookTimeMins: number;
   nutritionInfo: NutritionInfo;
+  imageUrl?: string | null;
 }
 
 interface MealCardProps {
@@ -42,39 +45,52 @@ const MEAL_TYPE_COLORS: Record<string, string> = {
 
 export function MealCard({ mealType, recipe, planId, dayOfWeek }: MealCardProps) {
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
-
   const href = `/recipes/${recipe.id}?planId=${planId}&day=${dayOfWeek}&meal=${mealType}`;
+  const imgProps = getRecipeImageProps(recipe.imageUrl);
 
   return (
     <Link
       href={href}
-      className="group block rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm transition-all hover:border-[#944a00]/40 hover:shadow-md"
+      className="group block overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all hover:border-[#944a00]/40 hover:shadow-md"
     >
-      {/* Meal type badge */}
-      <span
-        className={`mb-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${MEAL_TYPE_COLORS[mealType] ?? 'bg-gray-100 text-gray-700'}`}
-      >
-        {MEAL_TYPE_LABELS[mealType] ?? mealType}
-      </span>
-
-      {/* Recipe name */}
-      <p className="mb-1 text-sm font-semibold leading-snug text-gray-900 group-hover:text-[#944a00]">
-        {recipe.name}
-      </p>
-
-      {/* Cuisine */}
-      <p className="mb-3 text-[11px] text-gray-400">{recipe.cuisineType}</p>
-
-      {/* Stats row */}
-      <div className="flex items-center gap-3 text-[11px] text-gray-500">
-        <span className="flex items-center gap-1">
-          <Flame className="h-3 w-3 text-[#944a00]" aria-hidden="true" />
-          {recipe.nutritionInfo.calories} kcal
+      {/* Recipe thumbnail */}
+      <div className="relative h-24 w-full overflow-hidden">
+        <Image
+          {...imgProps}
+          alt={recipe.name}
+          fill
+          sizes="(max-width: 1280px) 130px, 160px"
+          className="object-cover transition-transform duration-300 group-hover:scale-105"
+        />
+        {/* Meal type badge overlaid on image */}
+        <span
+          className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide backdrop-blur-sm ${MEAL_TYPE_COLORS[mealType] ?? 'bg-gray-100 text-gray-700'}`}
+        >
+          {MEAL_TYPE_LABELS[mealType] ?? mealType}
         </span>
-        <span className="flex items-center gap-1">
-          <Clock className="h-3 w-3" aria-hidden="true" />
-          {totalTime} min
-        </span>
+      </div>
+
+      {/* Card body */}
+      <div className="p-3">
+        {/* Recipe name */}
+        <p className="mb-1 line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900 group-hover:text-[#944a00]">
+          {recipe.name}
+        </p>
+
+        {/* Cuisine */}
+        <p className="mb-2 text-[11px] text-gray-400">{recipe.cuisineType}</p>
+
+        {/* Stats row */}
+        <div className="flex items-center gap-3 text-[11px] text-gray-500">
+          <span className="flex items-center gap-1">
+            <Flame className="h-3 w-3 text-[#944a00]" aria-hidden="true" />
+            {recipe.nutritionInfo.calories} kcal
+          </span>
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" aria-hidden="true" />
+            {totalTime} min
+          </span>
+        </div>
       </div>
     </Link>
   );

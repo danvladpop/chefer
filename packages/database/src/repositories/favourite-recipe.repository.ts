@@ -10,7 +10,11 @@ export interface IFavouriteRecipeRepository {
   isSaved(userId: string, recipeId: string): Promise<boolean>;
   save(userId: string, recipeId: string): Promise<FavouriteRecipe>;
   remove(userId: string, recipeId: string): Promise<void>;
-  toggleUseInNextPlan(userId: string, recipeId: string, useInNextPlan: boolean): Promise<FavouriteRecipe>;
+  toggleUseInNextPlan(
+    userId: string,
+    recipeId: string,
+    useInNextPlan: boolean,
+  ): Promise<FavouriteRecipe>;
   findAllRecipesForUser(
     userId: string,
     opts?: { search?: string; savedOnly?: boolean; cursor?: string; limit?: number },

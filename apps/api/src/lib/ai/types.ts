@@ -3,9 +3,9 @@
 export interface NutritionInfo {
   calories: number;
   protein: number; // grams
-  carbs: number;   // grams
-  fat: number;     // grams
-  fiber: number;   // grams
+  carbs: number; // grams
+  fat: number; // grams
+  fiber: number; // grams
 }
 
 export interface Ingredient {

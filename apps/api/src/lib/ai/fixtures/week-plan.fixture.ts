@@ -3,6 +3,13 @@ import type { WeekPlanResponse } from '../types.js';
 // ─── Recipe Library ───────────────────────────────────────────────────────────
 // 14 distinct recipes cycling across 7 days × 4 meals.
 // Total daily kcal targets ~2000 (B≈400 L≈580 D≈700 S≈300).
+//
+// Images: curated Unsplash photo IDs (stable CDN, no auth required).
+// All served at 800×600 (4:3) via the recipe-image utility.
+// To migrate to Cloudinary, run `pnpm upload:images` with your credentials.
+
+const U = (id: string) =>
+  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=800&h=600&q=80`;
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
 export const RECIPE_LIBRARY = {
@@ -10,7 +17,8 @@ export const RECIPE_LIBRARY = {
   greekYogurtParfait: {
     id: 'fix-r-001',
     name: 'Greek Yogurt Parfait with Berries',
-    description: 'Creamy Greek yogurt layered with fresh seasonal berries, crunchy granola, and a drizzle of honey. A protein-packed start to your day.',
+    description:
+      'Creamy Greek yogurt layered with fresh seasonal berries, crunchy granola, and a drizzle of honey. A protein-packed start to your day.',
     ingredients: [
       { name: 'Greek yogurt (full-fat)', quantity: 200, unit: 'g' },
       { name: 'Mixed berries (strawberries, blueberries, raspberries)', quantity: 100, unit: 'g' },
@@ -31,13 +39,14 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 5,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1488477181946-6428a0291777'),
   },
 
   avocadoToast: {
     id: 'fix-r-002',
     name: 'Avocado Toast with Poached Eggs',
-    description: 'Thick sourdough toast topped with smashed avocado, perfectly poached eggs, and chilli flakes. A balanced, satiating breakfast.',
+    description:
+      'Thick sourdough toast topped with smashed avocado, perfectly poached eggs, and chilli flakes. A balanced, satiating breakfast.',
     ingredients: [
       { name: 'Sourdough bread', quantity: 2, unit: 'slices' },
       { name: 'Ripe avocado', quantity: 1, unit: 'medium' },
@@ -59,13 +68,14 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 5,
     cookTimeMins: 8,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1525351484163-7529414344d8'),
   },
 
   overnightOats: {
     id: 'fix-r-003',
     name: 'Overnight Oats with Banana and Almond Butter',
-    description: 'Rolled oats soaked overnight in oat milk, topped with sliced banana and a swirl of almond butter. Ready to grab and go.',
+    description:
+      'Rolled oats soaked overnight in oat milk, topped with sliced banana and a swirl of almond butter. Ready to grab and go.',
     ingredients: [
       { name: 'Rolled oats', quantity: 80, unit: 'g' },
       { name: 'Oat milk', quantity: 180, unit: 'ml' },
@@ -87,13 +97,14 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 5,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1517673408408-cb25f2e0fb8a'),
   },
 
   spinachOmelette: {
     id: 'fix-r-004',
     name: 'Spinach and Feta Omelette',
-    description: 'Fluffy three-egg omelette packed with wilted spinach, crumbled feta, and cherry tomatoes. High protein and ready in 10 minutes.',
+    description:
+      'Fluffy three-egg omelette packed with wilted spinach, crumbled feta, and cherry tomatoes. High protein and ready in 10 minutes.',
     ingredients: [
       { name: 'Eggs', quantity: 3, unit: 'large' },
       { name: 'Baby spinach', quantity: 60, unit: 'g' },
@@ -116,14 +127,15 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 5,
     cookTimeMins: 8,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1510693206972-df098062cb71'),
   },
 
   // ── LUNCHES ─────────────────────────────────────────────────────────────────
   chickenCaesarSalad: {
     id: 'fix-r-005',
     name: 'Grilled Chicken Caesar Salad',
-    description: 'Classic Caesar salad with a grilled chicken breast, crunchy romaine lettuce, parmesan shavings, and whole-grain croutons.',
+    description:
+      'Classic Caesar salad with a grilled chicken breast, crunchy romaine lettuce, parmesan shavings, and whole-grain croutons.',
     ingredients: [
       { name: 'Chicken breast', quantity: 150, unit: 'g' },
       { name: 'Romaine lettuce', quantity: 120, unit: 'g' },
@@ -145,13 +157,14 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 10,
     cookTimeMins: 15,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1550304943-4f24f54ddde9'),
   },
 
   quinoaBowl: {
     id: 'fix-r-006',
     name: 'Quinoa and Roasted Vegetable Bowl',
-    description: 'Hearty quinoa base topped with oven-roasted seasonal vegetables, chickpeas, and a lemon-tahini drizzle.',
+    description:
+      'Hearty quinoa base topped with oven-roasted seasonal vegetables, chickpeas, and a lemon-tahini drizzle.',
     ingredients: [
       { name: 'Quinoa (dry)', quantity: 80, unit: 'g' },
       { name: 'Courgette', quantity: 100, unit: 'g' },
@@ -175,13 +188,14 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 10,
     cookTimeMins: 25,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1512621776951-a57141f2eefd'),
   },
 
   turkeyWrap: {
     id: 'fix-r-007',
     name: 'Turkey and Avocado Whole-Wheat Wrap',
-    description: 'A satisfying wrap with lean turkey slices, ripe avocado, crisp romaine, and a tangy Dijon mustard spread.',
+    description:
+      'A satisfying wrap with lean turkey slices, ripe avocado, crisp romaine, and a tangy Dijon mustard spread.',
     ingredients: [
       { name: 'Whole-wheat tortilla', quantity: 1, unit: 'large' },
       { name: 'Turkey breast slices', quantity: 100, unit: 'g' },
@@ -204,14 +218,15 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 10,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1626700051175-6818013e1d4f'),
   },
 
   // ── DINNERS ──────────────────────────────────────────────────────────────────
   herbSalmon: {
     id: 'fix-r-008',
     name: 'Herb-Crusted Salmon with Roasted Asparagus',
-    description: 'Pan-seared salmon fillet with a fresh herb and lemon crust, served alongside tender roasted asparagus spears.',
+    description:
+      'Pan-seared salmon fillet with a fresh herb and lemon crust, served alongside tender roasted asparagus spears.',
     ingredients: [
       { name: 'Salmon fillet', quantity: 180, unit: 'g' },
       { name: 'Asparagus spears', quantity: 200, unit: 'g' },
@@ -235,13 +250,14 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 10,
     cookTimeMins: 20,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1467003909585-2f8a72700288'),
   },
 
   chickenStirFry: {
     id: 'fix-r-009',
     name: 'Chicken and Vegetable Stir-Fry with Brown Rice',
-    description: 'Quick Asian-inspired stir-fry with tender chicken strips, colourful vegetables, and a sesame-ginger sauce over nutty brown rice.',
+    description:
+      'Quick Asian-inspired stir-fry with tender chicken strips, colourful vegetables, and a sesame-ginger sauce over nutty brown rice.',
     ingredients: [
       { name: 'Chicken breast', quantity: 150, unit: 'g, sliced' },
       { name: 'Brown rice (dry)', quantity: 70, unit: 'g' },
@@ -267,13 +283,14 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 15,
     cookTimeMins: 25,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1512058564366-18510be2db19'),
   },
 
   mediterraneanCod: {
     id: 'fix-r-010',
     name: 'Mediterranean Baked Cod with Tomatoes',
-    description: 'Flaky baked cod in a rich tomato, olive, and caper sauce. Serve with crusty bread or over couscous.',
+    description:
+      'Flaky baked cod in a rich tomato, olive, and caper sauce. Serve with crusty bread or over couscous.',
     ingredients: [
       { name: 'Cod fillet', quantity: 180, unit: 'g' },
       { name: 'Cherry tomatoes', quantity: 150, unit: 'g, halved' },
@@ -298,13 +315,14 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 10,
     cookTimeMins: 25,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1519708227418-c8fd9a32b7a2'),
   },
 
   lentilCurry: {
     id: 'fix-r-011',
     name: 'Red Lentil and Spinach Curry',
-    description: 'Warming, aromatic red lentil curry with coconut milk, fresh spinach, and fragrant Indian spices. Served with basmati rice.',
+    description:
+      'Warming, aromatic red lentil curry with coconut milk, fresh spinach, and fragrant Indian spices. Served with basmati rice.',
     ingredients: [
       { name: 'Red lentils', quantity: 100, unit: 'g, dry' },
       { name: 'Baby spinach', quantity: 80, unit: 'g' },
@@ -331,14 +349,15 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 10,
     cookTimeMins: 30,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1585937421612-70a008356fbe'),
   },
 
   // ── SNACKS ───────────────────────────────────────────────────────────────────
   appleAlmondButter: {
     id: 'fix-r-012',
     name: 'Apple Slices with Almond Butter',
-    description: 'Crisp apple slices paired with natural almond butter — a simple, satisfying snack with the perfect balance of fibre and healthy fats.',
+    description:
+      'Crisp apple slices paired with natural almond butter — a simple, satisfying snack with the perfect balance of fibre and healthy fats.',
     ingredients: [
       { name: 'Apple', quantity: 1, unit: 'large' },
       { name: 'Natural almond butter', quantity: 30, unit: 'g' },
@@ -356,13 +375,14 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 3,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1568702846914-96b305d2aaeb'),
   },
 
   proteinSmoothie: {
     id: 'fix-r-013',
     name: 'Banana Protein Smoothie',
-    description: 'Creamy blended smoothie with frozen banana, vanilla protein powder, oat milk, and a handful of spinach. You won\'t taste the greens!',
+    description:
+      "Creamy blended smoothie with frozen banana, vanilla protein powder, oat milk, and a handful of spinach. You won't taste the greens!",
     ingredients: [
       { name: 'Frozen banana', quantity: 1, unit: 'medium' },
       { name: 'Vanilla protein powder', quantity: 30, unit: 'g' },
@@ -381,13 +401,14 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 5,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1553530666-ba11a7da3888'),
   },
 
   mixedNuts: {
     id: 'fix-r-014',
     name: 'Mixed Nuts and Medjool Dates',
-    description: 'A handful of mixed raw nuts paired with sweet Medjool dates — nutrient-dense and deeply satisfying.',
+    description:
+      'A handful of mixed raw nuts paired with sweet Medjool dates — nutrient-dense and deeply satisfying.',
     ingredients: [
       { name: 'Mixed raw nuts (almonds, walnuts, cashews)', quantity: 40, unit: 'g' },
       { name: 'Medjool dates', quantity: 2, unit: 'pitted' },
@@ -403,7 +424,7 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 1,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1508061253366-f7da158b6d46'),
   },
 };
 
@@ -417,63 +438,63 @@ export const WEEK_PLAN_FIXTURE: WeekPlanResponse = {
       dayOfWeek: 0, // Monday
       meals: [
         { type: 'breakfast', recipe: R.greekYogurtParfait },
-        { type: 'lunch',     recipe: R.chickenCaesarSalad },
-        { type: 'dinner',    recipe: R.herbSalmon },
-        { type: 'snack',     recipe: R.appleAlmondButter },
+        { type: 'lunch', recipe: R.chickenCaesarSalad },
+        { type: 'dinner', recipe: R.herbSalmon },
+        { type: 'snack', recipe: R.appleAlmondButter },
       ],
     },
     {
       dayOfWeek: 1, // Tuesday
       meals: [
         { type: 'breakfast', recipe: R.avocadoToast },
-        { type: 'lunch',     recipe: R.turkeyWrap },
-        { type: 'dinner',    recipe: R.chickenStirFry },
-        { type: 'snack',     recipe: R.proteinSmoothie },
+        { type: 'lunch', recipe: R.turkeyWrap },
+        { type: 'dinner', recipe: R.chickenStirFry },
+        { type: 'snack', recipe: R.proteinSmoothie },
       ],
     },
     {
       dayOfWeek: 2, // Wednesday
       meals: [
         { type: 'breakfast', recipe: R.overnightOats },
-        { type: 'lunch',     recipe: R.quinoaBowl },
-        { type: 'dinner',    recipe: R.mediterraneanCod },
-        { type: 'snack',     recipe: R.mixedNuts },
+        { type: 'lunch', recipe: R.quinoaBowl },
+        { type: 'dinner', recipe: R.mediterraneanCod },
+        { type: 'snack', recipe: R.mixedNuts },
       ],
     },
     {
       dayOfWeek: 3, // Thursday
       meals: [
         { type: 'breakfast', recipe: R.spinachOmelette },
-        { type: 'lunch',     recipe: R.chickenCaesarSalad },
-        { type: 'dinner',    recipe: R.lentilCurry },
-        { type: 'snack',     recipe: R.appleAlmondButter },
+        { type: 'lunch', recipe: R.chickenCaesarSalad },
+        { type: 'dinner', recipe: R.lentilCurry },
+        { type: 'snack', recipe: R.appleAlmondButter },
       ],
     },
     {
       dayOfWeek: 4, // Friday
       meals: [
         { type: 'breakfast', recipe: R.greekYogurtParfait },
-        { type: 'lunch',     recipe: R.turkeyWrap },
-        { type: 'dinner',    recipe: R.herbSalmon },
-        { type: 'snack',     recipe: R.proteinSmoothie },
+        { type: 'lunch', recipe: R.turkeyWrap },
+        { type: 'dinner', recipe: R.herbSalmon },
+        { type: 'snack', recipe: R.proteinSmoothie },
       ],
     },
     {
       dayOfWeek: 5, // Saturday
       meals: [
         { type: 'breakfast', recipe: R.avocadoToast },
-        { type: 'lunch',     recipe: R.quinoaBowl },
-        { type: 'dinner',    recipe: R.chickenStirFry },
-        { type: 'snack',     recipe: R.mixedNuts },
+        { type: 'lunch', recipe: R.quinoaBowl },
+        { type: 'dinner', recipe: R.chickenStirFry },
+        { type: 'snack', recipe: R.mixedNuts },
       ],
     },
     {
       dayOfWeek: 6, // Sunday
       meals: [
         { type: 'breakfast', recipe: R.overnightOats },
-        { type: 'lunch',     recipe: R.chickenCaesarSalad },
-        { type: 'dinner',    recipe: R.lentilCurry },
-        { type: 'snack',     recipe: R.appleAlmondButter },
+        { type: 'lunch', recipe: R.chickenCaesarSalad },
+        { type: 'dinner', recipe: R.lentilCurry },
+        { type: 'snack', recipe: R.appleAlmondButter },
       ],
     },
   ],

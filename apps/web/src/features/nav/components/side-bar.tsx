@@ -3,15 +3,15 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
-  CalendarDays,
-  BookOpen,
-  ShoppingCart,
   Activity,
-  TrendingUp,
+  BookOpen,
+  CalendarDays,
   Clock,
-  User,
+  LayoutDashboard,
   Settings,
+  ShoppingCart,
+  TrendingUp,
+  User,
 } from 'lucide-react';
 import { cn } from '@chefer/utils';
 
@@ -38,7 +38,9 @@ export function SideBar() {
     <aside className="flex h-screen w-56 shrink-0 flex-col border-r bg-white">
       {/* Logo */}
       <div className="flex h-16 items-center gap-2 border-b px-5">
-        <span className="text-xl" aria-hidden="true">🍽️</span>
+        <span className="text-xl" aria-hidden="true">
+          🍽️
+        </span>
         <span className="text-[15px] font-semibold tracking-tight text-[#944a00]">Chefer</span>
       </div>
 
@@ -59,7 +61,10 @@ export function SideBar() {
                   )}
                 >
                   <Icon
-                    className={cn('h-[18px] w-[18px] shrink-0', isActive ? 'text-[#944a00]' : 'text-gray-400')}
+                    className={cn(
+                      'h-[18px] w-[18px] shrink-0',
+                      isActive ? 'text-[#944a00]' : 'text-gray-400',
+                    )}
                     aria-hidden="true"
                   />
                   {label}

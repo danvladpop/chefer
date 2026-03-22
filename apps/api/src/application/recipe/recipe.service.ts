@@ -1,6 +1,6 @@
+import type { Recipe } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
 import { favouriteRecipeRepository } from '@chefer/database';
-import type { Recipe } from '@prisma/client';
 
 export class RecipeService {
   async list(
@@ -10,10 +10,7 @@ export class RecipeService {
     return favouriteRecipeRepository.findAllRecipesForUser(userId, opts);
   }
 
-  async toggleFavourite(
-    userId: string,
-    recipeId: string,
-  ): Promise<{ isSaved: boolean }> {
+  async toggleFavourite(userId: string, recipeId: string): Promise<{ isSaved: boolean }> {
     const isSaved = await favouriteRecipeRepository.isSaved(userId, recipeId);
     if (isSaved) {
       await favouriteRecipeRepository.remove(userId, recipeId);

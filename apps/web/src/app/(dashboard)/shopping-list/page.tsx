@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
-import { Check, ShoppingCart, Printer } from 'lucide-react';
+import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { Check, Printer, ShoppingCart } from 'lucide-react';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -101,11 +101,14 @@ export default function ShoppingListPage() {
                     >
                       {isDone && <Check className="h-3 w-3 text-white" />}
                     </span>
-                    <span className={`flex-1 text-sm font-medium capitalize ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                    <span
+                      className={`flex-1 text-sm font-medium capitalize ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}
+                    >
                       {item.name}
                     </span>
                     <span className="text-sm text-gray-400">
-                      {item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1)} {item.unit}
+                      {item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1)}{' '}
+                      {item.unit}
                     </span>
                   </button>
                 );
@@ -117,9 +120,12 @@ export default function ShoppingListPage() {
 
       {/* Chef's Tip */}
       <div className="mt-6 flex items-start gap-3 rounded-2xl bg-[#fff3e8] px-5 py-4">
-        <span className="text-xl" aria-hidden="true">💡</span>
+        <span className="text-xl" aria-hidden="true">
+          💡
+        </span>
         <p className="text-sm text-[#7a3d00]">
-          <strong>Chef&apos;s Tip:</strong> Shop produce last so it stays fresh during the rest of your shopping trip. Store high-protein items with airtight packaging for meal prep.
+          <strong>Chef&apos;s Tip:</strong> Shop produce last so it stays fresh during the rest of
+          your shopping trip. Store high-protein items with airtight packaging for meal prep.
         </p>
       </div>
     </div>

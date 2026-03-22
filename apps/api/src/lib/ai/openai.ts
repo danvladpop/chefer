@@ -1,11 +1,11 @@
 import type {
+  ChatContext,
+  ChatMessage,
   IAIService,
   MealPlanInput,
+  RecipeData,
   SwapInput,
   WeekPlanResponse,
-  RecipeData,
-  ChatMessage,
-  ChatContext,
 } from './types.js';
 
 // ─── Live OpenAI / Claude Service ────────────────────────────────────────────

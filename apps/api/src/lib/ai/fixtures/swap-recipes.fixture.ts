@@ -4,6 +4,9 @@ import type { RecipeData } from '../types.js';
 // A pool of alternative recipes used by MockAIService.generateRecipeSwap.
 // The mock cycles through this list deterministically.
 
+const U = (id: string) =>
+  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=800&h=600&q=80`;
+
 export const SWAP_BREAKFAST_POOL: RecipeData[] = [
   {
     id: 'swap-b-001',
@@ -29,7 +32,7 @@ export const SWAP_BREAKFAST_POOL: RecipeData[] = [
     prepTimeMins: 5,
     cookTimeMins: 15,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1567620905732-2d1ec7ab7445'),
   },
   {
     id: 'swap-b-002',
@@ -55,7 +58,7 @@ export const SWAP_BREAKFAST_POOL: RecipeData[] = [
     prepTimeMins: 5,
     cookTimeMins: 3,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1606851091851-e8c8c0fca5ba'),
   },
 ];
 
@@ -86,7 +89,7 @@ export const SWAP_LUNCH_POOL: RecipeData[] = [
     prepTimeMins: 10,
     cookTimeMins: 25,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1540189549336-e6e99eb4f7c9'),
   },
   {
     id: 'swap-l-002',
@@ -113,7 +116,7 @@ export const SWAP_LUNCH_POOL: RecipeData[] = [
     prepTimeMins: 10,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1490645935967-10de6ba17061'),
   },
 ];
 
@@ -144,7 +147,7 @@ export const SWAP_DINNER_POOL: RecipeData[] = [
     prepTimeMins: 15,
     cookTimeMins: 25,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1529042410759-befb1204b468'),
   },
   {
     id: 'swap-d-002',
@@ -172,7 +175,7 @@ export const SWAP_DINNER_POOL: RecipeData[] = [
     prepTimeMins: 10,
     cookTimeMins: 30,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1565299585323-38d6b0865b47'),
   },
 ];
 
@@ -187,17 +190,14 @@ export const SWAP_SNACK_POOL: RecipeData[] = [
       { name: 'celery', quantity: 60, unit: 'g' },
       { name: 'cucumber', quantity: 60, unit: 'g' },
     ],
-    instructions: [
-      'Cut vegetables into sticks.',
-      'Serve alongside hummus for dipping.',
-    ],
+    instructions: ['Cut vegetables into sticks.', 'Serve alongside hummus for dipping.'],
     nutritionInfo: { calories: 180, protein: 7, carbs: 22, fat: 8, fiber: 6 },
     cuisineType: 'Middle Eastern',
     dietaryTags: ['vegan', 'gluten-free', 'high-fiber'],
     prepTimeMins: 5,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1540420773420-3366772f4999'),
   },
   {
     id: 'swap-s-002',
@@ -218,7 +218,7 @@ export const SWAP_SNACK_POOL: RecipeData[] = [
     prepTimeMins: 3,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: null,
+    imageUrl: U('photo-1546069901-ba9599a7e63c'),
   },
 ];
 

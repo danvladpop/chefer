@@ -1,11 +1,12 @@
 'use client';
 
-import { use, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, Clock, Users, ChefHat, Flame, Heart, RefreshCw } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { use, useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { ArrowLeft, ChefHat, Clock, Flame, Heart, RefreshCw, Users } from 'lucide-react';
+import { getRecipeImageProps } from '@/lib/recipe-image';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -51,9 +52,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
     onSuccess: (newRecipe) => {
       // Navigate to the new recipe in the same meal plan context
       void utils.mealPlan.getActive.invalidate();
-      router.push(
-        `/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}`,
-      );
+      router.push(`/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}`);
     },
   });
 
@@ -75,7 +74,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         <div className="mb-6 h-56 w-full rounded-2xl bg-gray-200" />
         <div className="mb-2 h-8 w-2/3 rounded bg-gray-200" />
         <div className="mb-6 h-4 w-1/3 rounded bg-gray-200" />
-        {[1, 2, 3].map((i) => <div key={i} className="mb-3 h-4 rounded bg-gray-200" />)}
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="mb-3 h-4 rounded bg-gray-200" />
+        ))}
       </div>
     );
   }
@@ -105,9 +106,18 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         {backLabel}
       </Link>
 
-      {/* Hero image placeholder */}
-      <div className="mb-6 flex h-56 w-full items-center justify-center rounded-2xl bg-gradient-to-br from-[#fff3e8] to-[#fde8c8]">
-        <span className="text-7xl" aria-hidden="true">🍽️</span>
+      {/* Hero image */}
+      <div className="relative mb-6 h-56 w-full overflow-hidden rounded-2xl">
+        <Image
+          {...getRecipeImageProps(recipe.imageUrl)}
+          alt={recipe.name}
+          fill
+          priority
+          sizes="(max-width: 768px) 100vw, 768px"
+          className="object-cover"
+        />
+        {/* Subtle gradient overlay for text legibility below */}
+        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent" />
       </div>
 
       {/* Title + action bar */}
@@ -116,7 +126,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           {/* Tags row */}
           <div className="mb-2 flex flex-wrap gap-2">
             {meal && (
-              <span className={`rounded-full px-3 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal] ?? 'bg-gray-100 text-gray-600'}`}>
+              <span
+                className={`rounded-full px-3 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal] ?? 'bg-gray-100 text-gray-600'}`}
+              >
                 {meal}
               </span>
             )}
@@ -124,7 +136,10 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               {recipe.cuisineType}
             </span>
             {recipe.dietaryTags.slice(0, 2).map((tag) => (
-              <span key={tag} className="rounded-full bg-gray-100 px-3 py-0.5 text-xs text-gray-600">
+              <span
+                key={tag}
+                className="rounded-full bg-gray-100 px-3 py-0.5 text-xs text-gray-600"
+              >
                 {tag}
               </span>
             ))}
@@ -164,7 +179,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               disabled={swapMutation.isPending}
               className="flex items-center gap-1.5 rounded-xl border border-[#944a00]/30 bg-white px-3 py-2 text-xs font-medium text-[#944a00] shadow-sm hover:bg-[#fff3e8] disabled:opacity-60"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${swapMutation.isPending ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${swapMutation.isPending ? 'animate-spin' : ''}`}
+              />
               {swapMutation.isPending ? 'Swapping…' : 'Swap Recipe'}
             </button>
           )}
@@ -173,9 +190,21 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
       {/* Stats row */}
       <div className="mb-8 grid grid-cols-3 divide-x rounded-xl border bg-white">
-        <Stat icon={<Clock className="h-4 w-4 text-gray-400" />} label="Total time" value={`${totalTime} min`} />
-        <Stat icon={<Users className="h-4 w-4 text-gray-400" />} label="Servings" value={String(selectedServings)} />
-        <Stat icon={<Flame className="h-4 w-4 text-[#944a00]" />} label="Calories" value={`${n.calories} kcal`} />
+        <Stat
+          icon={<Clock className="h-4 w-4 text-gray-400" />}
+          label="Total time"
+          value={`${totalTime} min`}
+        />
+        <Stat
+          icon={<Users className="h-4 w-4 text-gray-400" />}
+          label="Servings"
+          value={String(selectedServings)}
+        />
+        <Stat
+          icon={<Flame className="h-4 w-4 text-[#944a00]" />}
+          label="Calories"
+          value={`${n.calories} kcal`}
+        />
       </div>
 
       {/* Macros */}
@@ -243,7 +272,8 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       {/* Nutrition Facts panel */}
       <div className="mt-8 rounded-2xl border bg-white p-5">
         <h2 className="mb-3 font-serif text-sm font-semibold text-gray-900">
-          Nutrition Facts <span className="text-xs font-normal text-gray-400">per {recipe.servings} servings</span>
+          Nutrition Facts{' '}
+          <span className="text-xs font-normal text-gray-400">per {recipe.servings} servings</span>
         </h2>
         <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <NutritionRow label="Calories" value={`${n.calories} kcal`} />

@@ -9,7 +9,9 @@ export function GenerateOverlay() {
         {/* Animated chef hat / spinner */}
         <div className="relative flex h-16 w-16 items-center justify-center">
           <div className="absolute inset-0 animate-spin rounded-full border-4 border-[#944a00]/20 border-t-[#944a00]" />
-          <span className="text-2xl" aria-hidden="true">🍽️</span>
+          <span className="text-2xl" aria-hidden="true">
+            🍽️
+          </span>
         </div>
         <div className="text-center">
           <p className="text-lg font-semibold text-gray-900">Crafting your week…</p>
