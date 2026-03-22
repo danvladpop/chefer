@@ -24,6 +24,7 @@
     "@trpc/client": "^11.0.0-rc.446",
     "@trpc/react-query": "^11.0.0-rc.446",
     "@trpc/server": "^11.0.0-rc.446",
+    "lucide-react": "^0.400.0",
     "next": "^16.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

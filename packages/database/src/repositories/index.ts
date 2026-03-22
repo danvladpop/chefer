@@ -23,3 +23,18 @@ export {
   type IDietaryPreferencesRepository,
   type UpsertDietaryPreferencesData,
 } from './dietary-preferences.repository';
+
+export {
+  MealPlanRepository,
+  mealPlanRepository,
+  type IMealPlanRepository,
+  type CreateRecipeData,
+  type CreateMealPlanData,
+} from './meal-plan.repository';
+
+export {
+  FavouriteRecipeRepository,
+  favouriteRecipeRepository,
+  type IFavouriteRecipeRepository,
+  type FavouriteRecipeWithRecipe,
+} from './favourite-recipe.repository';

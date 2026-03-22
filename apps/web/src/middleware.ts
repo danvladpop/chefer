@@ -7,9 +7,10 @@ const PROTECTED_ROUTES = [
   '/onboarding',
   '/tracker',
   '/history',
-  '/cookbook',
+  '/recipes',
   '/progress',
   '/shopping-list',
+  '/profile',
 ];
 
 export function middleware(request: NextRequest) {
@@ -35,10 +36,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  /*
-   * Match only the protected route prefixes directly.
-   * This avoids running middleware on every request (_next, static, api, etc.)
-   */
   matcher: [
     '/dashboard/:path*',
     '/meal-plan/:path*',
@@ -46,8 +43,9 @@ export const config = {
     '/onboarding/:path*',
     '/tracker/:path*',
     '/history/:path*',
-    '/cookbook/:path*',
+    '/recipes/:path*',
     '/progress/:path*',
     '/shopping-list/:path*',
+    '/profile/:path*',
   ],
 };

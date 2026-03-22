@@ -44,6 +44,17 @@ enum Goal {
   EAT_HEALTHIER
 }
 
+enum RecipeSource {
+  AI
+  MANUAL
+}
+
+enum MealPlanStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -66,6 +77,8 @@ model User {
   profile            UserProfile?
   chefProfile        ChefProfile?
   dietaryPreferences DietaryPreferences?
+  mealPlans          MealPlan[]
+  favouriteRecipes   FavouriteRecipe[]
 
   @@index([email])
   @@map("users")
@@ -119,6 +132,68 @@ model DietaryPreferences {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("dietary_preferences")
+}
+
+model Recipe {
+  id            String       @id @default(cuid())
+  name          String
+  description   String
+  ingredients   Json         // { name: string, quantity: number, unit: string }[]
+  instructions  String[]
+  nutritionInfo Json         // { calories: number, protein: number, carbs: number, fat: number, fiber: number }
+  cuisineType   String
+  dietaryTags   String[]
+  prepTimeMins  Int
+  cookTimeMins  Int
+  servings      Int
+  imageUrl      String?
+  source        RecipeSource @default(AI)
+  createdAt     DateTime     @default(now())
+
+  favourites    FavouriteRecipe[]
+
+  @@map("recipes")
+}
+
+model FavouriteRecipe {
+  id            String   @id @default(cuid())
+  userId        String
+  recipeId      String
+  savedAt       DateTime @default(now())
+  useInNextPlan Boolean  @default(false)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+  @@index([userId])
+  @@map("favourite_recipes")
+}
+
+model MealPlan {
+  id            String         @id @default(cuid())
+  userId        String
+  weekStartDate DateTime
+  status        MealPlanStatus @default(DRAFT)
+  createdAt     DateTime       @default(now())
+
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  days MealPlanDay[]
+
+  @@index([userId])
+  @@map("meal_plans")
+}
+
+model MealPlanDay {
+  id         String @id @default(cuid())
+  mealPlanId String
+  dayOfWeek  Int    // 0 = Monday … 6 = Sunday
+  meals      Json   // { type: "breakfast"|"lunch"|"dinner"|"snack", recipeId: string }[]
+
+  mealPlan MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+
+  @@index([mealPlanId])
+  @@map("meal_plan_days")
 }
 
 model Account {

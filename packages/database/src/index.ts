@@ -17,6 +17,15 @@ export {
   dietaryPreferencesRepository,
   type IDietaryPreferencesRepository,
   type UpsertDietaryPreferencesData,
+  MealPlanRepository,
+  mealPlanRepository,
+  type IMealPlanRepository,
+  type CreateRecipeData,
+  type CreateMealPlanData,
+  FavouriteRecipeRepository,
+  favouriteRecipeRepository,
+  type IFavouriteRecipeRepository,
+  type FavouriteRecipeWithRecipe,
 } from './repositories/index';
 
 // Re-export Prisma types for convenience
@@ -30,5 +39,9 @@ export type {
   UserProfile,
   ChefProfile,
   DietaryPreferences,
+  Recipe,
+  MealPlan,
+  MealPlanDay,
+  FavouriteRecipe,
 } from '@prisma/client';
-export { UserRole, PostStatus, Prisma, BiologicalSex } from '@prisma/client';
+export { UserRole, PostStatus, Prisma, BiologicalSex, MealPlanStatus } from '@prisma/client';

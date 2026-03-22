@@ -1,13 +1,14 @@
-# 🍽️ PersonalChef.ai — Product Requirements Document
+# 🍽️ Chefer — Product Requirements Document
 
-| Field                 | Value                                                       |
-| --------------------- | ----------------------------------------------------------- |
-| **Version**           | 1.3.0                                                       |
-| **Status**            | In Progress – Phase 1 Complete, Phase 2 Ready for Execution |
-| **Author**            | Staff Product Management                                    |
-| **Stack**             | Next.js · Prisma · PostgreSQL · React                       |
-| **Total Tasks**       | 40 tasks across 6 phases (13/40 complete)                   |
-| **Est. Total Effort** | ~140–200 engineering hours                                  |
+| Field                 | Value                                                                             |
+| --------------------- | --------------------------------------------------------------------------------- |
+| **Version**           | 1.6.0                                                                             |
+| **Status**            | In Progress – Phase 2 Complete, Phase 3 Partially Done (T-021/T-022/T-023/T-025)  |
+| **Author**            | Staff Product Management                                                          |
+| **Stack**             | Next.js · Prisma · PostgreSQL · React                                             |
+| **Total Tasks**       | 41 tasks across 6 phases (24/41 complete)                                         |
+| **Est. Total Effort** | ~145–210 engineering hours                                                        |
+| **Design Source**     | Stitch project `14879881194424758396` — "Chefer" (7 screens, reviewed 2026-03-22) |
 
 ---
 
@@ -53,7 +54,7 @@
 | **Landing page**                  | ✅ Done                | `apps/web/src/app/page.tsx` — hero, 3-column features (Weekly AI Meal Plans, Personalized Goals, Smart Shopping Lists), footer. Redirects authenticated users to `/dashboard`.                                                                                              |
 | **Login page**                    | ✅ Done                | `apps/web/src/app/(auth)/login/page.tsx` — calls `auth.login`, inline errors, redirects authenticated users to `/dashboard`.                                                                                                                                                |
 | **Register page**                 | ✅ Done                | `apps/web/src/app/(auth)/register/page.tsx` — calls `auth.register`, inline validation, redirects on success to `/onboarding`, redirects authenticated users to `/dashboard`.                                                                                               |
-| **Navigation shell**              | ✅ Done                | `apps/web/src/features/nav/components/nav-bar.tsx` — sticky top nav with logo, Dashboard/Meal Plan/Preferences links, avatar dropdown + sign out. Mounted in `apps/web/src/app/(dashboard)/layout.tsx`.                                                                     |
+| **Navigation shell**              | ⚠️ Superseded          | `apps/web/src/features/nav/components/nav-bar.tsx` — current horizontal top nav (T-004). **T-016A replaces this with a left sidebar.** Do not build new Phase 2 UI until T-016A is complete.                                                                                |
 | **Route protection middleware**   | ✅ Done                | `apps/web/src/middleware.ts` — checks `chefer_session` cookie; redirects unauthenticated requests to `/login` for all protected routes.                                                                                                                                     |
 | **Dashboard page**                | 🔶 Stub                | `apps/web/src/app/(dashboard)/dashboard/page.tsx` exists with placeholder stats cards. Real data fetching comes in Phase 3.                                                                                                                                                 |
 | **User router (tRPC)**            | ✅ Done                | `apps/api/src/routers/user.router.ts` + `index.ts` — `user.*` namespace exists                                                                                                                                                                                              |
@@ -91,13 +92,13 @@
 
 ## 1. Executive Summary
 
-PersonalChef.ai is a web application that acts as an intelligent personal chef for individual users. Its primary function is to generate fully personalized, 7-day meal plans tailored to each user's health goals, dietary restrictions, food preferences, and nutritional targets — powered by a large language model.
+Chefer is a web application that acts as an intelligent personal chef for individual users. Its primary function is to generate fully personalized, 7-day meal plans tailored to each user's health goals, dietary restrictions, food preferences, and nutritional targets — powered by a large language model.
 
 The product lives within an existing Next.js / Prisma / PostgreSQL monorepo. This PRD describes every task required to build the product from zero to a production-ready MVP, broken into six incremental phases so that an AI coding agent can execute them sequentially and demonstrate visible, testable progress after each phase.
 
 ### 1.1 Problem Statement
 
-Planning healthy, varied, goal-aligned meals for an entire week is cognitively expensive. Most people default to repetitive meals or make poor nutritional choices not from lack of motivation, but from lack of time and knowledge. Existing meal-planning apps are either too generic, too rigid, or require a nutritionist. PersonalChef.ai removes this friction entirely.
+Planning healthy, varied, goal-aligned meals for an entire week is cognitively expensive. Most people default to repetitive meals or make poor nutritional choices not from lack of motivation, but from lack of time and knowledge. Existing meal-planning apps are either too generic, too rigid, or require a nutritionist. Chefer removes this friction entirely.
 
 ### 1.2 Target Users
 
@@ -180,14 +181,14 @@ The mock and live implementations share an identical TypeScript interface (`IAIS
 
 ## 3. Phase Overview
 
-| Phase | Name                  | Goal                                                       | Tasks     | Est. | Status      |
-| ----- | --------------------- | ---------------------------------------------------------- | --------- | ---- | ----------- |
-| **0** | Foundation            | Project setup, DB schema, auth, navigation shell           | T-001–006 | ~20h | ✅ Complete |
-| **1** | User Preferences      | Onboarding wizard, dietary preferences CRUD                | T-007–013 | ~28h | ✅ Complete |
-| **2** | Core AI Feature       | AI meal plan generation, week grid UI, recipe detail       | T-014–020 | ~38h | 🔜 Next     |
-| **3** | Power Features        | Dashboard, recipe swap, shopping list, history, favourites | T-021–026 | ~28h | ⏳ Pending  |
-| **4** | Tracking & Engagement | Calorie tracker, progress charts, email, chat              | T-027–032 | ~36h | ⏳ Pending  |
-| **5** | Production Hardening  | Mobile, a11y, perf, E2E tests, deployment, analytics       | T-033–040 | ~36h | ⏳ Pending  |
+| Phase | Name                  | Goal                                                               | Tasks              | Est. | Status                                        |
+| ----- | --------------------- | ------------------------------------------------------------------ | ------------------ | ---- | --------------------------------------------- |
+| **0** | Foundation            | Project setup, DB schema, auth, navigation shell                   | T-001–006          | ~20h | ✅ Complete                                   |
+| **1** | User Preferences      | Onboarding wizard, dietary preferences CRUD                        | T-007–013          | ~28h | ✅ Complete                                   |
+| **2** | Core AI Feature       | Nav redesign, AI meal plan generation, week grid UI, recipe detail | T-014–020 + T-016A | ~42h | ✅ Complete                                   |
+| **3** | Power Features        | Dashboard, recipe swap, shopping list, history, favourites         | T-021–026          | ~28h | 🔶 In Progress (T-021/T-022/T-023/T-025 done) |
+| **4** | Tracking & Engagement | Calorie tracker, progress charts, email, chat                      | T-027–032          | ~36h | ⏳ Pending                                    |
+| **5** | Production Hardening  | Mobile, a11y, perf, E2E tests, deployment, analytics               | T-033–040          | ~36h | ⏳ Pending                                    |
 
 ---
 
@@ -339,11 +340,13 @@ Build `apps/web/src/app/(dashboard)/preferences/page.tsx`. Load user's `ChefProf
 
 ---
 
-### Phase 2 — Core AI Feature (T-014 to T-020)
+### Phase 2 — Core AI Feature (T-014 to T-020 + T-016A)
 
-> **Goal:** The main value proposition. An authenticated user with preferences set can click one button and receive a full 7-day meal plan generated by AI, displayed in a beautiful week-grid calendar view with recipe details on demand.
+> **Goal:** The main value proposition. An authenticated user with preferences set can click one button and receive a full 7-day meal plan generated by AI, displayed in the new "Your Weekly Palette" meal planner UI with recipe details on demand.
+>
+> **⚠️ Design revision applied (v1.4.0):** The Stitch redesign replaces the top horizontal navigation bar with a persistent **left sidebar**. T-016A introduces this change before any Phase 2 pages are built. All subsequent screen specs in this phase reflect the sidebar shell. The nutrition summary moves from the Meal Planner page to the Dashboard (see T-020 and T-021).
 
-#### T-014 · Database Schema – Meal Plans & Recipes `M` `P0`
+#### T-014 · Database Schema – Meal Plans & Recipes `M` `P0` ✅ DONE
 
 Add to `packages/database/prisma/schema.prisma`:
 
@@ -397,7 +400,7 @@ Add `mealPlans MealPlan[]` relation to `User`. Run `pnpm db:migrate`.
 
 > **Browser Test:** No direct browser test. Verify via `pnpm db:studio` — confirm `recipes`, `meal_plans`, and `meal_plan_days` tables exist with all columns.
 
-#### T-015 · AI Service Layer — Interface, Mock, and Live Implementation `L` `P0`
+#### T-015 · AI Service Layer — Interface, Mock, and Live Implementation `L` `P0` ✅ DONE
 
 Create the AI service abstraction in `lib/ai/`:
 
@@ -434,7 +437,7 @@ All fixture files must be co-located in `lib/ai/fixtures/` and exported as typed
 
 All LLM prompts for the live service must live in `lib/ai/prompts.ts` as named exported constants — never inline strings in service methods.
 
-#### T-016 · Generate Meal Plan tRPC Procedure `L` `P0`
+#### T-016 · Generate Meal Plan tRPC Procedure `L` `P0` ✅ DONE
 
 Implement `mealPlan.generate` — `protectedProcedure` mutation in `apps/api/src/routers/meal-plan.router.ts`:
 
@@ -449,31 +452,300 @@ Add `mealPlanRouter` to the root `appRouter`. Create `apps/api/src/application/m
 
 > **Browser Test:** With `AI_MOCK_ENABLED=true`, use the UI button (T-017) to trigger generation. Check DevTools Network tab — confirm the tRPC mutation returns a full plan object. Open `pnpm db:studio` — confirm `meal_plans`, `meal_plan_days`, and `recipes` rows were created. Trigger 4 times in one day — confirm the 4th call returns a rate-limit error shown to the user.
 
-#### T-017 · Weekly Meal Plan View – Calendar Grid `L` `P0`
+#### T-016A · Global Navigation Redesign — Left Sidebar Shell `M` `P0` ✅ DONE
 
-Build `apps/web/src/app/(dashboard)/meal-plan/page.tsx`. Fetch the active plan via `trpc.mealPlan.getActive` (server component). If no active plan: render an empty state with a "Generate My Week" CTA. If plan exists: show a 7-column grid (Mon–Sun) with rows for Breakfast, Lunch, Dinner, Snack. Each cell renders a `MealCard` component (recipe name, prep time badge, kcal badge, placeholder thumbnail). Add a `loading.tsx` skeleton with the same grid layout.
+> **Pre-requisite for T-017 through T-021.** The current navigation (T-004) is a horizontal top bar (`nav-bar.tsx`). The Stitch redesign replaces it with a persistent **left sidebar**. Complete this task before building any Phase 2 page so the shared layout is correct.
 
-`mealPlan.getActive` — `protectedProcedure` query: returns the most recent `ACTIVE` plan with its days and associated recipe data for the session user.
+**What changes vs. T-004:**
 
-> **Browser Test:** Log in as a user with no plan — confirm the empty state and "Generate My Week" button appear. Click the button (T-018 wires the full flow). Log in as a user who has generated a plan — confirm the 7×4 grid renders with recipe names, prep times, and kcal in every cell. Check the loading skeleton appears briefly on first load (throttle network in DevTools to confirm).
+| Before (T-004)                             | After (T-016A)                                          |
+| ------------------------------------------ | ------------------------------------------------------- |
+| Horizontal top bar, logo + links           | Left sidebar, 220 px wide, always visible ≥ 1024 px     |
+| Avatar dropdown in top-right               | Avatar + search bar in a slim top header above `<main>` |
+| Links: Dashboard / Meal Plan / Preferences | Sidebar items: 9 items — see table below                |
 
-#### T-018 · Generate Plan UX & Loading State `M` `P0`
+**Sidebar spec (`apps/web/src/features/nav/components/side-bar.tsx` — new file):**
 
-Wire the "Generate My Week" button to call `trpc.mealPlan.generate` mutation. While the mutation is in-flight, show a full-page loading overlay with animated progress steps cycling through: "Analysing your preferences…" → "Crafting your menu…" → "Balancing nutrition…" → "Finalising your week…". On success, invalidate the `mealPlan.getActive` query and animate the grid filling in (stagger cell appearance with a short CSS transition). On error, dismiss the overlay and show an inline retry banner with the error message.
+- **Brand block** (top): "Chefer" wordmark in bold + "The Digital Sous-Chef" tagline in small caps (`text-xs tracking-widest text-muted`). No emoji. Typography uses the Noto Serif / Inter combination from the design system.
+- **Nav items** (top-to-bottom, each is an icon + label row):
 
-> **Browser Test:** Click "Generate My Week". Confirm the overlay appears with cycling progress steps and cannot be dismissed by clicking outside it. Wait for mock generation to complete (near-instant with `AI_MOCK_ENABLED=true`) — confirm the overlay dismisses and grid cells animate in one by one. Use DevTools to simulate a network error — confirm the retry banner appears with a meaningful message and clicking Retry re-triggers generation.
+  | #   | Label         | Icon (`lucide-react`) | Route            | Phase built |
+  | --- | ------------- | --------------------- | ---------------- | ----------- |
+  | 1   | Dashboard     | `LayoutDashboard`     | `/dashboard`     | Phase 0 ✅  |
+  | 2   | Meal Planner  | `CalendarDays`        | `/meal-plan`     | Phase 2     |
+  | 3   | Recipes       | `BookOpen`            | `/recipes`       | Phase 3     |
+  | 4   | Shopping List | `ShoppingCart`        | `/shopping-list` | Phase 3     |
+  | 5   | Tracker       | `ClipboardList`       | `/tracker`       | Phase 4     |
+  | 6   | Progress      | `TrendingUp`          | `/progress`      | Phase 4     |
+  | 7   | History       | `Clock`               | `/history`       | Phase 3     |
+  | 8   | Profile       | `User`                | `/profile`       | Phase 3     |
+  | 9   | Preferences   | `Settings`            | `/preferences`   | Phase 1 ✅  |
 
-#### T-019 · Recipe Detail Modal / Drawer `M` `P1`
+  Add all 9 items now. Routes that do not have a built page yet will simply 404 — this is intentional and keeps the sidebar stable across all phases. Use `next/link` with `usePathname()` for active detection. All items are clickable from day one; do not disable or grey-out unbuilt routes.
 
-Clicking a `MealCard` opens a slide-over drawer (right side) with full recipe details: description, ingredient list with quantities, numbered step-by-step instructions, nutrition facts panel (calories, protein, carbs, fat, fiber), prep/cook time, servings adjuster (1–8; scales all ingredient quantities proportionally). Include a "Swap Recipe" button placeholder (wired in T-022). The drawer is a `"use client"` component; recipe data is passed as props from the server-rendered grid (no extra fetch).
+  Use icons from `lucide-react` (already a likely transitive dependency; add if missing).
 
-> **Browser Test:** Click any meal card — confirm the drawer slides in from the right with all sections. Adjust servings from 2 to 4 — confirm all ingredient quantities double. Press Escape — confirm the drawer closes and focus returns to the meal card. Tab into the drawer from a meal card — confirm keyboard navigation works within the drawer.
+- **Active state**: Orange filled pill (`bg-primary text-white`) behind the active item + white icon. Detect active route with `pathname.startsWith(route)` so nested routes like `/recipes/[id]` also highlight "Recipes". Inactive items: `text-neutral-600` + `hover:bg-neutral-100`.
+- **"Add New" button** (bottom of sidebar, above any bottom padding): Full-width orange button with a `+` icon. Label: "Add New". **Inert for MVP** — renders but does not navigate. Add a `// TODO T-025` comment linking to the recipe-create flow.
+- Sidebar width is fixed at `w-56` (224 px). Do not collapse to icon-only yet — that is deferred to T-033 (mobile/responsive polish).
+- **Middleware**: Ensure `apps/web/src/middleware.ts` protects all 9 routes: `/dashboard`, `/meal-plan`, `/recipes`, `/shopping-list`, `/tracker`, `/progress`, `/history`, `/profile`, `/preferences` (prefix match on `/recipes` covers both `/recipes` index and `/recipes/[id]` detail pages). Remove any existing `/cookbook` reference from the middleware matcher — `/recipes` now owns that prefix.
 
-#### T-020 · Nutrition Summary Dashboard Widget `M` `P1`
+**Top header bar (above `<main>`, full width minus sidebar):**
 
-On `/meal-plan` page, add a weekly nutrition summary card above the grid: total weekly kcal, avg daily kcal, macros breakdown bar (protein/carbs/fat % as a segmented bar). Compare avg daily kcal against `ChefProfile.dailyCalorieTarget` and color-code a progress ring: green = within ±10%, yellow = 10–20% off, red = 20%+ off. All data is derived from the plan already fetched by T-017 — no additional API calls.
+- Global search input: `placeholder="Search for recipes, chefs or ingredients…"`. **Inert for MVP** — UI only, no backend wiring. Add a `// TODO T-025` comment.
+- Notification bell icon (no-op, MVP placeholder).
+- Cart icon (links to `/shopping-list`).
+- User avatar (opens sign-out dropdown — reuse existing `AuthDropdown` logic from T-004; just relocate it here).
 
-> **Browser Test:** Navigate to `/meal-plan` with an active plan. Confirm the nutrition card appears above the grid with non-zero numbers. Temporarily edit the fixture data in `apps/api/src/lib/ai/fixtures/week-plan.fixture.ts` to have very high calories — confirm the ring turns red. Revert the fixture. Confirm the card does not appear on the empty state (no plan).
+**Layout change (`apps/web/src/app/(dashboard)/layout.tsx`):**
+
+```tsx
+// Before
+<TopNavBar />
+<main>{children}</main>
+
+// After
+<div className="flex h-screen overflow-hidden">
+  <SideBar />
+  <div className="flex flex-1 flex-col overflow-hidden">
+    <TopHeader />           {/* search + bell + cart + avatar */}
+    <main className="flex-1 overflow-y-auto p-6">
+      {children}
+    </main>
+  </div>
+</div>
+```
+
+**Files to create / modify:**
+
+| Action       | File                                                     |
+| ------------ | -------------------------------------------------------- |
+| Create       | `apps/web/src/features/nav/components/side-bar.tsx`      |
+| Create       | `apps/web/src/features/nav/components/top-header.tsx`    |
+| Delete       | `apps/web/src/features/nav/components/nav-bar.tsx`       |
+| Modify       | `apps/web/src/app/(dashboard)/layout.tsx`                |
+| Possibly add | `lucide-react` to `apps/web/package.json` if not present |
+
+> **Browser Test:**
+>
+> 1. Log in — confirm the left sidebar renders with all 9 items in order (Dashboard → Meal Planner → Recipes → Shopping List → Tracker → Progress → History → Profile → Preferences) and the "Chefer" brand block at the top.
+> 2. Click Dashboard — confirm orange active pill. Click Preferences — confirm orange moves to Preferences. Click Meal Planner — confirm routing to `/meal-plan` (404 is fine at this stage) and "Meal Planner" is highlighted.
+> 3. Navigate to a sub-route like `/recipes/some-id` — confirm "Recipes" item remains highlighted (startsWith match).
+> 4. Confirm the "Add New" button renders at the bottom of the sidebar and does nothing on click.
+> 5. Confirm the top header shows the search bar (inert), bell (inert), cart (links to `/shopping-list`), and avatar in a horizontal row.
+> 6. Click the avatar — confirm the sign-out dropdown still appears and sign-out still works (redirects to `/login`).
+> 7. In incognito, navigate to each of `/dashboard`, `/tracker`, `/progress`, `/history`, `/recipes` — confirm middleware redirects all of them to `/login`.
+> 8. Verify `/dashboard` and `/preferences` (already built) render correctly within the new sidebar layout with no visual regressions.
+
+---
+
+#### T-017 · Meal Planner Page — "Your Weekly Palette" `L` `P0` ✅ DONE
+
+> **⚠️ Design revision (v1.4.0):** This page is now called "Meal Planner" in the sidebar and uses the "Your Weekly Palette" branding. The layout, card design, and bottom recap bar are all new. The nutrition summary panel previously described for this page has moved to the Dashboard (see T-020).
+
+Build `apps/web/src/app/(dashboard)/meal-plan/page.tsx`. This is the primary AI feature screen. It lives within the left-sidebar shell (T-016A).
+
+**Page header area:**
+
+- Eyebrow label: `"YOUR WEEKLY PALETTE"` (`text-xs font-semibold tracking-widest text-muted uppercase`).
+- Page title: `"Meal Planner"` (H1, large, bold).
+- **Goal selector tabs** (pill tabs, right of title row): `Weight Loss` | `Muscle Gain` | `Maintenance`. Reads from `ChefProfile.goal` on load and pre-selects the matching tab. For MVP, switching tabs is visual-only (no data re-fetch). Orange fill on active tab.
+- **"Regenerate Weekly Plan"** button (orange, far right): Triggers the T-018 generation flow. Disabled + spinner if generation is in-flight.
+
+**Week grid (main content):**
+
+- 7 columns (Mon–Sun). Column header: abbreviated day name + date (e.g. `Mon / Oct 23`). Today's column header is orange-tinted.
+- 4 rows per column: Breakfast · Lunch · Dinner · Snack (row labels on the left edge).
+- **`MealCard` component** (`apps/web/src/features/meal-plan/components/MealCard.tsx`):
+  - Food photo (`next/image`, `object-cover`, fallback to a branded placeholder SVG if `recipe.imageUrl` is null).
+  - Meal type badge pill: `BREAKFAST` (green) / `LUNCH` (orange) / `DINNER` (indigo) / `SNACK` (purple). Each is a distinct `bg-*` colour using Tailwind.
+  - Recipe name: `font-semibold`, 2-line clamp, `text-sm`.
+  - Macro summary: `{kcal} kcal · {protein}g P · {carbs}g C` in `text-xs text-muted`.
+  - Entire card is a `<Link>` navigating to `/recipes/{recipe.id}?planId={planId}&day={dayOfWeek}&meal={mealType}` (T-019). Use `aria-label="View recipe: {recipeName}"`.
+- **Empty cell** (meal slot with no recipe assigned): Dashed border, centred `+` icon. For MVP, clicking does nothing (add `// TODO T-022 swap flow`).
+
+**Day Recap bar (sticky bottom of `<main>`):**
+
+- Visually pinned to the bottom of the main content area (`sticky bottom-0 bg-white border-t`).
+- Reflects the **currently focused day** (default: today; clicking a column header selects that day).
+- Format: `{DayName} Recap · CALORIES {x}/{target} PROTEIN {x}g/{target}g CARBS {x}g/{target}g FATS {x}g/{target}g`
+- All values are derived from the already-fetched plan data — no additional API call.
+- A chevron icon on the right is rendered but is inert for MVP (add `// TODO T-027 tracker integration`).
+
+**Empty state (no active plan):**
+
+Centred on page: a food-bowl illustration (SVG, inline or from `packages/ui`), headline `"Your weekly menu awaits"`, sub-copy `"Let AI craft a personalised 7-day plan for you."`, and a full-width orange `"Generate My Week"` CTA button.
+
+**tRPC procedure (new):**
+
+`mealPlan.getActive` — `protectedProcedure` query: returns the most recent `ACTIVE` plan for the session user, joined with all `MealPlanDay` rows and each day's associated `Recipe` rows (id, name, imageUrl, nutritionInfo, prepTimeMins, cuisineType, dietaryTags).
+
+**`loading.tsx` skeleton:** 7 column stubs, each containing 4 grey rounded rectangles (one per meal row). Same grid proportions as the real grid so there is no layout shift on hydration.
+
+> **Browser Test:**
+>
+> 1. Log in as a user with no plan — confirm the empty state renders with illustration and "Generate My Week" button (no grid visible).
+> 2. Generate a plan (T-018), then navigate to `/meal-plan` — confirm 7 columns appear with Mon–Sun headers including date numbers.
+> 3. Confirm each filled cell shows: a food photo (or placeholder), the correct meal type badge colour, the recipe name, and the macro line.
+> 4. Confirm the Day Recap bar is pinned to the bottom and shows correct Monday totals (cross-check against the fixture in `lib/ai/fixtures/week-plan.fixture.ts`).
+> 5. Click a different column header — confirm the Recap bar updates to that day's totals.
+> 6. Click a meal card — confirm navigation to `/recipes/[id]` (T-019) with the correct recipe name on the page.
+> 7. Throttle the network (DevTools → Slow 3G) — confirm the skeleton loader appears before content, then disappears without layout shift.
+
+#### T-018 · Generate Plan UX & Loading State `M` `P0` ✅ DONE
+
+Wire both entry points for plan generation:
+
+1. **Empty state CTA** ("Generate My Week" button — shown when no active plan exists, T-017).
+2. **Page header button** ("Regenerate Weekly Plan" — shown when a plan already exists, T-017).
+
+Both buttons call `trpc.mealPlan.generate`.
+
+**While mutation is in-flight:**
+
+- Disable and show a spinner inside the triggering button.
+- Show a full-viewport overlay (z-index above sidebar + header). The overlay contains: the "Chefer" brand mark centred, and a cycling progress message that advances every ~2 seconds:
+  `"Analysing your preferences…"` → `"Crafting your menu…"` → `"Balancing nutrition…"` → `"Finalising your week…"`
+- The overlay **cannot be dismissed** by clicking outside (pointer-events: none on the backdrop for the close action; the overlay itself absorbs all clicks).
+
+**On success:**
+
+- Dismiss overlay.
+- Invalidate `mealPlan.getActive` query (TanStack Query refetches automatically).
+- Grid cells animate in with a staggered CSS transition: each column enters 80 ms after the previous one (`animation-delay: {colIndex * 80}ms`, `fade-in + slide-up`).
+
+**On error:**
+
+- Dismiss overlay.
+- Show an inline banner directly below the page header: `"Something went wrong generating your plan."` + an orange `[Retry]` text link that re-triggers the mutation. Banner is dismissible via an `×` icon.
+
+**Rate limit (enforced by T-016):**
+
+When the user has already generated 3 plans today, the "Regenerate Weekly Plan" button is disabled (greyed out) and a `title` tooltip reads `"Daily limit reached — try again tomorrow"`. Do not show this for the empty-state "Generate My Week" button (it should only appear in the header when a plan exists).
+
+> **Browser Test:**
+>
+> 1. Click "Generate My Week" from the empty state — confirm overlay appears with the brand mark and cycling messages; confirm it cannot be dismissed mid-generation.
+> 2. Wait for mock completion — confirm overlay closes and grid columns animate in with visible stagger.
+> 3. Click "Regenerate Weekly Plan" from the page header — same overlay flow.
+> 4. Simulate network error (disable API) — confirm the inline error banner appears with a Retry link, and clicking Retry re-triggers the mutation.
+> 5. Generate 3 plans in one session (or temporarily lower the rate limit in code) — confirm the Regenerate button is disabled with a tooltip on the 4th attempt.
+
+#### T-019 · Recipe Detail Page `M` `P1` ✅ DONE
+
+> **⚠️ Design revision (v1.5.0):** Recipe detail is a **dedicated full page**, not a slide-over drawer. The Stitch screen "Chefer: Recipe Detail (Updated Nav)" shows this page within the left-sidebar shell at route `/recipes/[id]`.
+
+**Route:** `apps/web/src/app/(dashboard)/recipes/[id]/page.tsx` — server component.
+
+**Data fetching:** `mealPlan.getRecipe` — new `protectedProcedure` query. Input: `{ recipeId: string }`. Returns a single `Recipe` row by id. Add to `meal-plan.router.ts` (the recipe belongs to the meal plan domain for now; move to the dedicated `recipe.router.ts` built in T-025).
+
+**Page layout (within left-sidebar shell):**
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ ← Back to Meal Planner          [Swap Recipe] [♡ Save]       │
+├──────────────────────────────────────────────────────────────┤
+│ [HERO IMAGE — full width, h-64, object-cover, rounded-xl]    │
+│                                                              │
+│ [BREAKFAST badge] [ITALIAN badge]   25 min prep · 4 servings │
+│ Recipe Name (H1, Noto Serif, large)                          │
+│ Short description (text-muted, 2–3 lines)                    │
+├───────────────────────────┬──────────────────────────────────┤
+│  Ingredients              │  Nutrition Facts                 │
+│  Servings adjuster (1–8)  │  Calories · Protein · Carbs · Fat│
+│  • Item · qty · unit      │  (4 rows, labelled)              │
+│  • Item · qty · unit      │                                  │
+├───────────────────────────┴──────────────────────────────────┤
+│  Instructions                                                │
+│  1. Step one text…                                           │
+│  2. Step two text…                                           │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Sections:**
+
+- **Back link**: `← Back to Meal Planner` — uses `next/link` to `/meal-plan`. Positioned at the top-left (`text-sm text-muted hover:text-primary`).
+- **Hero image**: `next/image` with `priority`, `object-cover`, rounded corners. Fall back to a branded food-bowl SVG placeholder if `recipe.imageUrl` is null.
+- **Badge row**: Meal type badge (colour from T-017 spec: green/orange/indigo/purple) + cuisine type badge (secondary styling). Right-side inline: prep time + cook time + serving count.
+- **H1**: Recipe name using Noto Serif, large. Below: short description, 3-line clamp.
+- **Action bar** (below H1, before two-column split):
+  - `"Swap Recipe"` — orange outlined button. Calls `trpc.mealPlan.swapRecipe` (T-022). **Inert until T-022** — add `disabled` + `title="Coming in a future update"` + `// TODO T-022`.
+  - `"Save to Recipes"` — heart icon button. Calls `trpc.recipe.toggleFavourite` (T-025). **Inert until T-025** — same pattern.
+  - Pass `planId`, `dayOfWeek`, and `mealType` as query params when navigating from `MealCard` (e.g. `/recipes/abc?planId=xyz&day=0&meal=breakfast`) so the Swap action has the context it needs. The page reads these from `searchParams` and passes them to the Swap mutation. If the params are absent (e.g. accessed from the `/recipes` browse page), hide the Swap button entirely.
+- **Ingredients section** (left column on ≥ lg screens, stacked on mobile):
+  - Servings adjuster: `−` / number / `+` stepper (1–8). Changes the serving count in local state. All ingredient quantities scale proportionally: `displayQty = (baseQty / recipe.servings) * selectedServings`. Round to 1 decimal place.
+  - Ingredient list: one row per ingredient — `bullet · name · scaled-qty · unit`. Use `ul` + `li` for semantics.
+- **Nutrition Facts section** (right column on ≥ lg screens):
+  - 4 rows: Calories · Protein · Carbs · Fat. Each shows the label + value from `nutritionInfo` JSON. Values do **not** scale with serving count — show per-recipe values with a note `"Per ${recipe.servings} servings"`. Scaling nutrition is deferred to T-027.
+- **Instructions section** (full width below the two-column split):
+  - Ordered list (`ol`). Each `<li>` is one instruction string from `recipe.instructions[]`. Use `counter-reset` / `counter-increment` for custom numbered styling (large orange circle counter per the design system's accent colour).
+
+**Files to create / modify:**
+
+| Action | File                                                                    |
+| ------ | ----------------------------------------------------------------------- |
+| Create | `apps/web/src/app/(dashboard)/recipes/[id]/page.tsx`                    |
+| Create | `apps/web/src/app/(dashboard)/recipes/[id]/loading.tsx` (skeleton)      |
+| Modify | `apps/api/src/routers/meal-plan.router.ts` (add `getRecipe` query)      |
+| Modify | `apps/web/src/features/meal-plan/components/MealCard.tsx` (Link → page) |
+
+**`MealCard` change:** Replace the `onClick` handler (which previously opened a drawer) with a `next/link` `<Link>` wrapping the card:
+
+```tsx
+<Link
+  href={`/recipes/${recipe.id}?planId=${planId}&day=${dayOfWeek}&meal=${mealType}`}
+  aria-label={`View recipe: ${recipe.name}`}
+>
+  {/* existing card content */}
+</Link>
+```
+
+Remove any drawer state (`isOpen`, `setIsOpen`) and the drawer component import from the meal plan page.
+
+> **Browser Test:**
+>
+> 1. On `/meal-plan`, click any meal card — confirm navigation to `/recipes/[id]` with the correct query params in the URL.
+> 2. Confirm the page renders with: hero image (or SVG placeholder), recipe name (Noto Serif H1), description, badge row with correct meal type colour, ingredient list, nutrition panel, and numbered instructions.
+> 3. Change servings from 2 to 4 — confirm all ingredient quantities double. Change to 1 — confirm they halve.
+> 4. Confirm the "Swap Recipe" button is visible but disabled with a tooltip. Confirm the "Save to Cookbook" button is visible but disabled.
+> 5. Click "← Back to Meal Planner" — confirm navigation to `/meal-plan`.
+> 6. Access `/recipes/[id]` without query params (e.g. paste URL directly) — confirm the page still renders correctly and the Swap button is hidden (no context).
+> 7. Throttle network (Slow 3G) — confirm `loading.tsx` skeleton renders before content, with correct proportions matching the final layout.
+
+#### T-020 · Nutrition Panel — Dashboard Right Column `M` `P1` ✅ DONE
+
+> **⚠️ Design revision (v1.4.0):** The nutrition summary has moved from the Meal Planner page to the **Dashboard** (`/dashboard`) right column. The Meal Planner has its own lighter "Day Recap" bar at the bottom (built in T-017). This task builds the Dashboard nutrition panel only. **Do not add a nutrition widget to `/meal-plan`.**
+
+Build the right-column nutrition panel as a server-rendered sub-component of the Dashboard page (T-021). It is isolated here so T-020 and T-021 can be reviewed/tested separately.
+
+**Panel anatomy (`apps/web/src/features/dashboard/components/NutritionPanel.tsx`):**
+
+- **Header row**: "Nutrition" label + status badge:
+  - `"ON TRACK"` (green pill) — planned kcal for today ≤ `dailyCalorieTarget`.
+  - `"OVER TARGET"` (red pill) — planned kcal for today > `dailyCalorieTarget`.
+- **Calorie ring** (SVG doughnut, no Recharts — keep it lightweight): Centre shows consumed/planned kcal in large bold text. Below the ring, a smaller line shows the remaining kcal: `{remaining} remaining`.
+  - Ring arc fill colour: orange. Background arc: `#F3F4F6`.
+  - Do **not** import Recharts for this widget; a raw SVG `<circle>` with `stroke-dasharray`/`stroke-dashoffset` is sufficient.
+- **Macro progress bars** (3 rows):
+  Each row: macro name + `{consumed}g / {target}g` label (right-aligned) + full-width orange filled bar.
+  - Protein (target from `ChefProfile` — use `dailyCalorieTarget * 0.30 / 4` as a rough target if no separate macro targets are stored; note this as a simplification in a code comment).
+  - Carbs (`dailyCalorieTarget * 0.45 / 4`).
+  - Fat (`dailyCalorieTarget * 0.25 / 9`).
+  - Bar fill %: `Math.min((consumed / target) * 100, 100)` (capped at 100%).
+- **AI hint pill** (bottom of panel, orange-tinted background): `"Your upcoming {nextRecipeName} is high in protein, which will help you reach your daily goal of {target}g."` Derives `nextRecipeName` from the first unstarted meal in today's plan. If no plan or no next meal, omit the hint entirely.
+
+**Data source:**
+
+All values for MVP use **planned** intake (meals assigned to today in the active plan), not actual logged intake (that's T-027). Show the panel header as `"Planned Today"` to set the right expectation. Numbers come from the `dashboard.summary` tRPC query (built in T-021) — no separate API call from this component.
+
+> **Browser Test:**
+>
+> 1. Navigate to `/dashboard` with an active plan — confirm the Nutrition panel renders in the right column with the calorie ring, 3 macro bars, and the AI hint.
+> 2. Verify the calorie ring number matches the sum of today's planned meal kcal from the fixture.
+> 3. Edit `week-plan.fixture.ts` temporarily to set today's total well above `dailyCalorieTarget` — confirm the badge switches to "OVER TARGET" (red). Revert.
+> 4. Verify the AI hint references a real recipe name from the plan.
+> 5. Navigate to `/meal-plan` — confirm there is **no** nutrition ring/panel there (only the Day Recap bar at the bottom of the page).
+> 6. Log in as a user with **no active plan** — confirm the Nutrition panel shows `"—"` placeholders and no AI hint.
 
 ---
 
@@ -481,23 +753,181 @@ On `/meal-plan` page, add a weekly nutrition summary card above the grid: total 
 
 > **Goal:** Make the product sticky. Users can swap individual meals, get a smart shopping list, browse past plans, and save their favourite recipes to influence future AI generations.
 
-#### T-021 · Dashboard Page `M` `P0`
+#### T-021 · Dashboard — "Your Daily Overview" `L` `P0` ✅ DONE
 
-Fill in the stub at `apps/web/src/app/(dashboard)/dashboard/page.tsx`. Add widgets: greeting with the user's `firstName` (or `displayName` from `ChefProfile`), current week meal plan status card (days remaining, today's meals preview), calorie goal ring for today (today's total kcal vs. `dailyCalorieTarget`), quick-action buttons (View Plan, Regenerate, Shopping List).
+> **⚠️ Design revision (v1.4.0):** Full redesign. Replace the stub entirely with the new "Your Daily Overview" layout.
+> **Design source:** Stitch screens "Chefer: Restructured Dashboard Overview" (`2e70ce178f97482fb4143cf931790b7b`) and "Chefer: Interactive Daily Dashboard" (`071613c65e0943d8999e943a676c32ce`). Key elements implemented: greeting header with date badge, 7-day weekly outlook strip, Next Meal spotlight card with Start Cooking CTA, Rest of Today meal list, Recent Favourites horizontal scroll, right-column Nutrition Panel with SVG calorie ring + macro bars + AI hint pill. The previous stub's quick-action buttons and plan-status card are removed. The nutrition ring (built in T-020) occupies the right column. This task wires the left column and the tRPC backend query.
 
-Add `dashboard.summary` — `protectedProcedure` query in a new `apps/api/src/routers/dashboard.router.ts` returning all widget data in a single call. Add `dashboardRouter` to the root `appRouter`.
+**File:** `apps/web/src/app/(dashboard)/dashboard/page.tsx` — server component that calls `dashboard.summary` and passes data to client sub-components.
 
-> **Browser Test:** Navigate to `/dashboard`. Confirm the greeting shows your first name. Confirm the meal plan status card shows the correct week date range and today's meals. Confirm the calorie ring shows a number. Click each quick-action button — confirm correct navigation. Test with a user who has no active plan — confirm the plan card shows an empty state with a "Generate Plan" CTA.
+---
 
-#### T-022 · Swap Individual Recipe (AI-Powered) `L` `P1`
+**Page layout (within left-sidebar shell from T-016A):**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ WELCOME BACK, CHEF                    Monday, October 23 │
+│ Your Daily Overview           [SUSTAINABLE CHOICE badge] │
+├──────────────────────────────────┬──────────────────────┤
+│ Weekly Outlook card              │                       │
+│ [Mon][Tue][Wed][Thu][Fri][Sat][Sun]│  Nutrition Panel     │
+├──────────────────────────────────│  (T-020)             │
+│ Next Meal spotlight card         │                       │
+│  [photo] Recipe Name             │  Calorie ring         │
+│          Description snippet     │  Protein bar          │
+│          kcal · servings · ★★★★☆ │  Carbs bar            │
+│          [Start Cooking →]       │  Fat bar              │
+├──────────────────────────────────│                       │
+│ Rest of Today                    │  AI hint pill         │
+│  1:00 PM · SNACK · Greek Yogurt  │                       │
+│  7:00 PM · DINNER · Salmon       │                       │
+├──────────────────────────────────┴──────────────────────┤
+│ Recent Favorites (horizontal scroll)                     │
+│  [card] [card] [card] [card]          [View All →]       │
+└─────────────────────────────────────────────────────────┘
+```
+
+Left column is `flex-1`; right column (Nutrition Panel) is `w-72` (`~288px`), `self-start sticky top-6`.
+
+---
+
+**Page header:**
+
+- Eyebrow label: `"WELCOME BACK, CHEF"` — small-caps, muted colour, `text-xs tracking-widest`.
+- H1: `"Your Daily Overview"` — large, bold.
+- Right-aligned: current date string (e.g. `"Monday, October 23"` — formatted server-side from `new Date()`) + `"SUSTAINABLE CHOICE"` green badge. For MVP, show the badge whenever an active plan exists. (A future iteration can gate it on actual nutritional criteria.)
+
+---
+
+**Left column — Weekly Outlook card:**
+
+- Card header: `"WEEKLY OUTLOOK"` label (small caps, left) + `"FULL SCHEDULE →"` link to `/meal-plan` (right, orange text).
+- Horizontal row of 7 pill buttons (Mon–Sun). Each shows abbreviated day name + date number.
+  - **Today's pill**: orange fill, white text.
+  - **Day with a plan entry** (has at least one recipe): small orange dot below the date number.
+  - **Day with no plan entry**: no dot.
+- Clicking a day pill is **inert for MVP** (add `// TODO T-022 — jump to day on Meal Planner`).
+- Data: derive day labels + dots from the `weekPlan` array in `dashboard.summary`.
+
+---
+
+**Left column — Next Meal spotlight card:**
+
+- Derives from the first meal in today's plan that is scheduled **after the current server time** (use `dayOfWeek` + wall-clock heuristic: Breakfast < 11 AM, Lunch < 3 PM, Dinner < 9 PM, Snack = any remaining).
+- Layout: two-column inside the card. Left ~45%: `<Image>` with `object-cover`, rounded corners. Right ~55%:
+  - Badge row: `"NEXT MEAL"` (orange) + meal type badge (colour per T-017 spec).
+  - Recipe name: H2, bold.
+  - Short description: 2 lines, `line-clamp-2`, `text-sm text-muted`.
+  - Icon row: `{servings} servings` · `{kcal} kcal` · star rating (from fixture `rating` field, render as filled/outline stars).
+  - CTA: `"Start Cooking →"` — orange filled button. Navigates to `/recipes/{recipe.id}` (the recipe detail page, T-019).
+- If there is no "next meal" (all meals for today are in the past, or no plan): render a card with an empty-food-bowl illustration, copy `"You're all caught up for today 🎉"`, and a `"View full plan →"` link.
+
+---
+
+**Left column — Rest of Today list:**
+
+- Section header: `"Rest of Today"`.
+- One row per remaining meal today, excluding the Next Meal spotlight. Each row:
+  - Time string (e.g. `"7:00 PM"`, derived from the wall-clock heuristic above).
+  - Meal type badge (same colour system as T-017).
+  - Recipe name (`font-medium`).
+  - kcal (right-aligned, `text-sm text-muted`).
+- If no remaining meals (or no plan): hide the section entirely.
+
+---
+
+**Left column — Recent Favorites:**
+
+- Section header: `"Recent Favorites"` + `"View All →"` link to `/recipes?filter=saved`.
+- Horizontally scrollable row (`overflow-x-auto`, `flex gap-4`, hide scrollbar with `scrollbar-hide` utility class or Tailwind plugin).
+- Up to 4 `RecipeFavoriteCard` components:
+  - Food photo (`next/image`, `w-36 h-36 object-cover rounded-xl`).
+  - Recipe name (`text-sm font-semibold`, 1-line clamp).
+  - Category tag (e.g. `"ITALIAN"`, small caps, muted).
+  - Prep time (e.g. `"15 MINS"`).
+- `"View All →"` link on the right (only shown if `recentFavourites.length === 4` — i.e. there may be more).
+- Empty state (no favourites yet): muted copy `"Save a recipe to your favourites to see it here."` + link to `/meal-plan`.
+
+---
+
+**tRPC — `dashboard.summary` query:**
+
+Create `apps/api/src/routers/dashboard.router.ts` and `apps/api/src/application/dashboard/dashboard.service.ts`:
+
+```ts
+// Return type
+type DashboardSummary = {
+  user: { firstName: string; displayName: string | null };
+  today: { date: string; dayOfWeek: number }; // ISO date string + 0=Mon index
+  weekPlan: {
+    dayOfWeek: number;
+    meals: { mealType: string; recipeId: string; recipeName: string }[];
+  }[];
+  nextMeal: {
+    mealType: string;
+    recipe: {
+      id: string;
+      name: string;
+      description: string;
+      imageUrl: string | null;
+      nutritionInfo: Json;
+      servings: number;
+      rating?: number;
+    };
+  } | null;
+  restOfToday: {
+    mealType: string;
+    scheduledLabel: string; // e.g. "7:00 PM"
+    recipeName: string;
+    kcal: number;
+  }[];
+  recentFavourites: {
+    id: string;
+    name: string;
+    imageUrl: string | null;
+    cuisineType: string;
+    prepTimeMins: number;
+  }[];
+  nutrition: {
+    dailyCalorieTarget: number;
+    plannedKcal: number;
+    protein: { planned: number; targetG: number };
+    carbs: { planned: number; targetG: number };
+    fat: { planned: number; targetG: number };
+  };
+};
+```
+
+The service fetches: `ChefProfile`, active `MealPlan` with today's `MealPlanDay` and recipes, and up to 4 `FavouriteRecipe` rows. Returns `null` for `nextMeal` and empty arrays for `weekPlan` / `restOfToday` / `recentFavourites` if the user has no active plan — **no 500 error**.
+
+Add `dashboardRouter` to the root `appRouter` in `apps/api/src/routers/index.ts`.
+
+**Seeding:** Ensure `pnpm db:seed` creates at least 2 `FavouriteRecipe` rows for `alice@chefer.dev` (linked to recipe rows created during seeding) so the Recent Favorites section is non-empty during development and testing.
+
+> **Browser Test:**
+>
+> 1. Navigate to `/dashboard` as `alice@chefer.dev` — confirm the greeting shows "Alice" (or her display name).
+> 2. Confirm the Weekly Outlook shows all 7 days, today highlighted orange, and dots only on days with plan data.
+> 3. Confirm the Next Meal card shows a photo, the correct recipe name, kcal, and "Start Cooking" button.
+> 4. Confirm "Rest of Today" lists subsequent meals with time labels and kcal values.
+> 5. Confirm Recent Favorites shows at least 2 recipe cards in a horizontally scrollable row.
+> 6. Confirm the Nutrition Panel (right column) from T-020 renders alongside the left column with correct values.
+> 7. Log in as a brand-new user (no active plan, no favourites) — confirm: Next Meal shows "You're all caught up" empty state, Rest of Today is hidden, Recent Favorites shows the empty-state copy, and the Nutrition Panel shows `"—"` placeholders.
+> 8. Click "Start Cooking" — confirm navigation to `/recipes/[id]` (T-019) for the correct recipe.
+
+#### T-022 · Swap Individual Recipe (AI-Powered) `L` `P1` ✅ DONE
+
+> **Design source:** Stitch screen "Chefer: Recipe Detail" (`3026367cb60140dbb887e329f42985c6`). The "Swap Recipe" outlined orange button in the action bar is now wired. On click, a `RefreshCw` spinning icon is shown while the mutation is in flight. On success, the page navigates to the new recipe's detail page (preserving `planId`/`day`/`meal` query params). On error, a red dismissible error banner appears below the nutrition panel.
 
 Add `mealPlan.swapRecipe` — `protectedProcedure` mutation. Input: `{ planId, dayOfWeek, mealType, reason? }`. Call `aiService.generateRecipeSwap(...)` — in mock mode returns a deterministic replacement from `apps/api/src/lib/ai/fixtures/swap-recipes.fixture.ts`, cycling through fixtures so repeated swaps change the displayed recipe; in live mode calls the LLM with user preferences and original recipe as context. Update the `MealPlanDay.meals` JSON and create/reuse a `Recipe` row atomically. Return the new recipe.
 
-Frontend: wire the "Swap Recipe" button in T-019's drawer. Update the meal grid cell optimistically on click, then confirm on response. Revert optimistically if the mutation fails.
+Frontend: wire the "Swap Recipe" button on the T-019 recipe detail page. On success, navigate back to `/meal-plan` and the grid cell updates. Optimistic update is not required for this page-navigation flow — show a loading spinner on the button, navigate on success, or show an inline error on failure.
 
-> **Browser Test:** Open a recipe detail drawer and click "Swap Recipe". Confirm the cell in the grid updates with a new recipe name and the drawer shows new recipe details. Click Swap again on the same cell — confirm it swaps to a different fixture recipe (not the same one). Confirm the nutrition summary card (T-020) updates its totals to reflect the swap.
+> **Browser Test:** Navigate to a recipe detail page from the meal plan grid and click "Swap Recipe". Confirm a spinner appears on the button. On success, confirm navigation to `/meal-plan` with the swapped cell showing a new recipe name. Navigate back to `/recipes/[newId]` — confirm the new recipe details are displayed. Click Swap again — confirm it swaps to a different fixture recipe. Confirm the nutrition Day Recap bar on `/meal-plan` reflects the updated totals.
 
-#### T-023 · Shopping List Generation `L` `P1`
+#### T-023 · Shopping List Generation `L` `P1` ✅ DONE
+
+> **Design source:** Stitch screen "Chefer: Shopping List" (`3026367cb60140dbb887e329f42985c6`). Key elements: category group headers, checklist rows with checkbox + ingredient name + quantity/unit, progress bar (checked/total), print button, Chef's Tip callout, empty state for no active plan.
 
 Add `mealPlan.getShoppingList` — `protectedProcedure` query. Input: `{ planId }`. Aggregate all `ingredients` JSON arrays from the plan's recipes, merge duplicates (same ingredient name), sum quantities (unit-aware: "1 cup" + "2 cups" = "3 cups"), group by category (Produce, Proteins, Dairy, Grains & Pantry, Frozen). Return sorted JSON. Implement in a `ShoppingListService`.
 
@@ -513,23 +943,87 @@ Build `apps/web/src/app/(dashboard)/history/page.tsx` — a card per past week s
 
 > **Browser Test:** Generate 2+ plans (archive the first by generating the second). Navigate to `/history` — confirm both plans appear as cards with date ranges and recipe previews. Click View on an old plan — confirm the grid renders in read-only mode (no Swap or Generate buttons). Click Restore — confirm the plan becomes active and is visible on `/meal-plan`.
 
-#### T-025 · Recipe Favourites & Personal Cookbook `M` `P2`
+#### T-025 · Recipes Browse Page & Favourites `L` `P2` ✅ DONE
 
-Add `FavouriteRecipe` Prisma model: `userId` FK, `recipeId` FK, `savedAt`, unique constraint on `[userId, recipeId]`. Run `pnpm db:migrate`.
+> **Design source:** Stitch screen "Chefer: Favorite Recipes" (`13d56458203c4f7aa631eb2d8ddb0600`). Key elements: tab bar (All Recipes / ♥ Saved), search input with debounce, 3-column recipe grid with heart overlay, cuisine tag + macro chips on each card, recipe detail page Save/Swap action bar, servings adjuster, nutrition facts panel.
+> **Design note (v1.5.0):** The sidebar "Recipes" item routes to `/recipes` — a **new general-purpose recipe browser page**, not a personal cookbook. Favourites ("Saved") become a filter tab within this page. There is no separate `/cookbook` route.
 
-Add `recipe.toggleFavourite` — `protectedProcedure` mutation. Add `recipe.listFavourites` — `protectedProcedure` query (supports `search` and `dietaryTags` filter params). Add a `useInNextPlan` `Boolean` default `false` field to `FavouriteRecipe` and a `recipe.toggleUseInNextPlan` mutation. When `AI_MOCK_ENABLED=false`, the AI prompt builder should include favourite recipe names as hints.
+**Database:**
 
-Add a heart icon to `MealCard` and the recipe drawer that calls `recipe.toggleFavourite`. Build `apps/web/src/app/(dashboard)/cookbook/page.tsx`.
+Add `FavouriteRecipe` Prisma model: `userId` FK, `recipeId` FK, `savedAt`, unique constraint on `[userId, recipeId]`, `useInNextPlan` `Boolean` default `false`. Run `pnpm db:migrate`.
 
-> **Browser Test:** Click the heart icon on a meal card — confirm it fills. Navigate to `/cookbook` — confirm the recipe appears. Click the heart again — confirm it unfavourites and disappears from `/cookbook` on refresh. Use the search box on `/cookbook` — confirm filtering works. Toggle "Use in Next Plan" — confirm the state persists.
+**tRPC procedures** (new router `apps/api/src/routers/recipe.router.ts`):
+
+- `recipe.list` — `protectedProcedure` query. Input: `{ search?: string, dietaryTags?: string[], cuisineType?: string, savedOnly?: boolean, cursor?: string }`. Returns paginated `Recipe[]` from the user's meal plan history. When `savedOnly=true`, filters to `FavouriteRecipe` rows only. Supports cursor-based pagination (10 per page).
+- `recipe.toggleFavourite` — `protectedProcedure` mutation. Input: `{ recipeId: string }`. Upserts/deletes a `FavouriteRecipe` row. Returns `{ isSaved: boolean }`.
+- `recipe.toggleUseInNextPlan` — `protectedProcedure` mutation. Input: `{ recipeId: string, useInNextPlan: boolean }`. When `AI_MOCK_ENABLED=false`, the AI prompt builder reads `useInNextPlan=true` favourites and includes their names in the system prompt as hints.
+
+Add `recipeRouter` to root `appRouter`.
+
+**`/recipes` index page (`apps/web/src/app/(dashboard)/recipes/page.tsx`):**
+
+- **Page header**: eyebrow `"YOUR COLLECTION"`, H1 `"Recipes"`.
+- **Tab bar** (just below the header, orange underline on active):
+  - `All Recipes` — shows every recipe generated across all the user's meal plans (deduplicated by recipe id).
+  - `Saved` — shows only `FavouriteRecipe` rows (`savedOnly=true`).
+- **Filter row** (below tab bar):
+  - Search input (wired to `recipe.list` with debounce 300 ms).
+  - Cuisine filter dropdown (multi-select, options derived from distinct `cuisineType` values already in the DB).
+  - Dietary tags filter (multi-select chips from `dietaryTags` values).
+- **Recipe grid**: 3-column masonry-style card grid on desktop (2-col on tablet). Each card:
+  - Food photo (`next/image`, `object-cover`, `rounded-xl`).
+  - Heart icon overlay (top-right corner of the photo): filled orange when saved, outline when not. Clicking calls `recipe.toggleFavourite` without navigating away (optimistic update).
+  - Recipe name (`font-semibold`, 1-line clamp).
+  - Cuisine tag + dietary tags chips (first 2 visible, `+N more` if overflow).
+  - Prep time + kcal.
+  - Clicking the card body (not the heart) navigates to `/recipes/[id]` (T-019).
+- **Infinite scroll / Load more**: A `"Load more"` button at the bottom of the grid triggers the next cursor page. Do not use intersection-observer for MVP — a manual button is sufficient.
+- **Empty states**:
+  - "All Recipes" with no plans yet: illustration + copy `"Generate your first meal plan to start building your recipe collection."` + orange `"Go to Meal Planner"` button → `/meal-plan`.
+  - "Saved" with no favourites: copy `"Save a recipe to your collection by tapping the ♡ on any recipe."` + link to "All Recipes" tab.
+
+**Wire-up from T-019:**
+
+The "Save to Cookbook" button on the recipe detail page (rendered disabled in T-019) is now wired to `recipe.toggleFavourite`. Update the button label to "Save to Recipes" and toggle between filled/outline heart icon based on the `isSaved` state (fetch via `recipe.list` with `savedOnly=false` and check the current recipe's saved status, or add a lightweight `recipe.isSaved` query if preferred).
+
+**Wire-up from `MealCard`:**
+
+The small heart overlay in `MealCard` (mentioned in the T-025 original spec) calls `recipe.toggleFavourite` without navigating away. Use optimistic update: toggle the icon immediately, revert on error.
+
+**AI prompt hint:**
+
+When `AI_MOCK_ENABLED=false`, the AI prompt builder in `lib/ai/prompts.ts` fetches `useInNextPlan=true` favourites for the session user and appends them to the system prompt: `"The user has flagged these recipes to include in their next plan: {names}"`.
+
+**Files to create / modify:**
+
+| Action | File                                                                      |
+| ------ | ------------------------------------------------------------------------- |
+| Create | `apps/web/src/app/(dashboard)/recipes/page.tsx`                           |
+| Create | `apps/web/src/app/(dashboard)/recipes/loading.tsx` (grid skeleton)        |
+| Create | `apps/api/src/routers/recipe.router.ts`                                   |
+| Create | `apps/api/src/application/recipe/recipe.service.ts`                       |
+| Modify | `apps/api/src/routers/index.ts` (add `recipeRouter`)                      |
+| Modify | `apps/web/src/features/meal-plan/components/MealCard.tsx` (heart overlay) |
+| Modify | `apps/web/src/app/(dashboard)/recipes/[id]/page.tsx` (wire Save button)   |
+
+> **Browser Test:**
+>
+> 1. Navigate to `/recipes` — confirm "All Recipes" tab is active and the grid shows all recipes from Alice's active plan (seeded data).
+> 2. Click the "Saved" tab — confirm an empty state renders (no favourites yet).
+> 3. Click the heart on a recipe card — confirm it fills orange optimistically. Switch to "Saved" tab — confirm that recipe appears.
+> 4. Click the heart again on the saved recipe card — confirm it empties. Switch to "Saved" tab — confirm it is gone.
+> 5. Type a recipe name fragment in the search box — confirm the grid filters in real time (debounced).
+> 6. Navigate to `/recipes/[id]` — confirm "Save to Recipes" button is now clickable. Click it — confirm heart fills and navigating back to `/recipes?filter=saved` shows the recipe.
+> 7. Toggle "Use in Next Plan" on a saved recipe — confirm state persists across refresh.
+> 8. Navigate to `/recipes` as a brand-new user (no plans) — confirm the "All Recipes" empty state with the "Go to Meal Planner" CTA renders correctly.
 
 #### T-026 · Meal Ratings & Feedback Loop `M` `P2`
 
 Add `MealRating` Prisma model: `userId` FK, `recipeId` FK, unique on `[userId, recipeId]`, `rating` `Int` (1–5), `notes` `String?`, `ratedAt`. Run `pnpm db:migrate`.
 
-Add `recipe.rate` — `protectedProcedure` mutation. In the recipe drawer, show the star rating widget only when `dayOfWeek` of the meal has already passed relative to `MealPlan.weekStartDate`. When `AI_MOCK_ENABLED=false`, the AI prompt builder fetches the user's top-rated (≥4 stars) and low-rated (≤2 stars) recipe names and includes them in the system prompt.
+Add `recipe.rate` — `protectedProcedure` mutation. On the T-019 recipe detail page, show a star rating widget in the bottom section only when `dayOfWeek` of the meal has already passed relative to `MealPlan.weekStartDate` (derive this from the `day` query param on the URL; if absent, hide the widget). When `AI_MOCK_ENABLED=false`, the AI prompt builder fetches the user's top-rated (≥4 stars) and low-rated (≤2 stars) recipe names and includes them in the system prompt.
 
-> **Browser Test:** Open a recipe drawer for a past day's meal — confirm the star rating widget is visible. Click 4 stars — confirm the rating saves and is pre-selected on reopen. Open a recipe for a future day — confirm the rating widget is hidden. Navigate to `/cookbook` — confirm highly-rated recipes have a star badge.
+> **Browser Test:** Navigate to `/recipes/[id]?day=0` where day 0 is in the past — confirm the star rating widget is visible at the bottom of the page. Click 4 stars — confirm the rating saves and is pre-selected on revisiting the page. Navigate to `/recipes/[id]?day=6` (future day) — confirm the rating widget is hidden. Navigate to `/recipes` — confirm highly-rated recipes have a star badge overlaid on their card.
 
 ---
 
@@ -617,7 +1111,7 @@ Audit all pages at 375px, 768px, 1280px, 1440px breakpoints. Fix:
 
 - Meal plan grid collapses to 1-day-at-a-time swipeable carousel on mobile.
 - Navigation becomes a bottom tab bar on mobile.
-- Recipe drawer becomes a full-screen bottom sheet on mobile.
+- Recipe detail page (`/recipes/[id]`) has a mobile-optimised single-column layout; hero image is full-width, ingredients and nutrition stack vertically below.
 - All touch targets >= 44px.
 - All text is legible (min 14px on mobile).
 
@@ -627,7 +1121,7 @@ Test on iOS Safari and Android Chrome.
 
 #### T-034 · Error Handling & Empty States `M` `P1`
 
-The stub `apps/web/src/app/error.tsx` and `not-found.tsx` already exist — flesh them out. Add `loading.tsx` skeletons for every page route that fetches data (meal-plan, dashboard, preferences, tracker, history, cookbook, progress, shopping-list). Define empty states for: no meal plan, no favourites, no history, tracker with no logs — each with a placeholder illustration (SVG inline or from `packages/ui`) and a clear CTA.
+The stub `apps/web/src/app/error.tsx` and `not-found.tsx` already exist — flesh them out. Add `loading.tsx` skeletons for every page route that fetches data (meal-plan, dashboard, preferences, tracker, history, recipes, progress, shopping-list). Define empty states for: no meal plan, no favourites, no history, tracker with no logs — each with a placeholder illustration (SVG inline or from `packages/ui`) and a clear CTA.
 
 > **Browser Test:** Navigate to `/this-page-does-not-exist` — confirm the `not-found.tsx` renders a clean 404 page with a nav link home. Throttle the network to Slow 3G in DevTools and navigate to `/meal-plan` — confirm the skeleton loader appears before content. Temporarily break the tRPC URL in env and reload — confirm the error boundary renders with a retry button. Restore the URL and confirm retry works.
 
@@ -638,13 +1132,13 @@ Run axe-core audit on all pages. Fix:
 - All interactive elements have `aria-label` or visible label.
 - Focus ring visible on keyboard navigation.
 - Colour contrast >= 4.5:1 for normal text.
-- Recipe drawer traps focus and restores on close.
+- Recipe detail page uses browser-native back navigation; "← Back to Meal Planner" link is keyboard-accessible and visible on focus.
 - Skeleton loaders have `aria-busy="true"`.
 - Meal plan grid cells have `role="gridcell"` and descriptive `aria-label` (e.g. "Monday Breakfast: Avocado Toast, 420 kcal").
 
 Target 0 critical violations.
 
-> **Browser Test:** Install the axe DevTools browser extension (free tier). Run it on `/meal-plan`, `/dashboard`, `/onboarding`, and `/preferences` — confirm zero critical violations. Manually keyboard-navigate the entire meal plan page using only Tab/Shift-Tab/Enter/Escape. Confirm all interactive elements are reachable and focus rings are always visible. Open the recipe drawer with keyboard, Tab through all controls, press Escape — confirm focus returns to the originating meal card.
+> **Browser Test:** Install the axe DevTools browser extension (free tier). Run it on `/meal-plan`, `/dashboard`, `/recipes/[id]`, `/onboarding`, and `/preferences` — confirm zero critical violations. Manually keyboard-navigate the meal plan grid and Tab to a meal card link — confirm Enter navigates to the recipe detail page. On `/recipes/[id]`, Tab through all controls (servings adjuster, Swap, Save, instruction list). Confirm focus rings are always visible.
 
 #### T-036 · Performance – Core Web Vitals `L` `P1`
 
@@ -664,7 +1158,7 @@ Target Lighthouse Performance > 85 desktop, LCP < 2.5s, CLS < 0.1.
 The Playwright config already exists at `tests/playwright.config.ts`. Add test files under `tests/e2e/`:
 
 1. `onboarding.spec.ts` — Register new user → complete 4-step onboarding → assert redirect to `/dashboard`.
-2. `meal-plan.spec.ts` — Generate meal plan (mock) → confirm 7×4 grid → click a meal card → assert recipe drawer opens with all sections.
+2. `meal-plan.spec.ts` — Generate meal plan (mock) → confirm 7×4 grid → click a meal card → assert navigation to `/recipes/[id]` → assert recipe name, ingredients, and instructions are present on the page.
 3. `swap.spec.ts` — Swap a recipe → assert grid cell updates.
 4. `shopping-list.spec.ts` — Navigate to `/shopping-list` → assert grouped items → check off an item → reload → assert checked state persists.
 5. `preferences.spec.ts` — Update goal in preferences → save → reload → assert updated value.
@@ -850,7 +1344,7 @@ After completing **every task**, create or update `currentImplementation.md` at 
 #### Required Format
 
 ````markdown
-# PersonalChef.ai — Current Implementation
+# Chefer — Current Implementation
 
 **Last updated:** [task ID] · [task name]
 **Phase:** [0–5]
