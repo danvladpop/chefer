@@ -48,4 +48,22 @@ export const recipeRouter = router({
     .mutation(async ({ ctx, input }) => {
       return recipeService.toggleUseInNextPlan(ctx.user.id, input.recipeId, input.useInNextPlan);
     }),
+
+  rate: protectedProcedure
+    .input(
+      z.object({
+        recipeId: z.string().min(1),
+        rating: z.number().int().min(1).max(5),
+        notes: z.string().max(500).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return recipeService.rate(ctx.user.id, input.recipeId, input.rating, input.notes);
+    }),
+
+  getMyRating: protectedProcedure
+    .input(z.object({ recipeId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      return recipeService.getMyRating(ctx.user.id, input.recipeId);
+    }),
 });

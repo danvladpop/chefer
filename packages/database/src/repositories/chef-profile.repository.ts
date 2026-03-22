@@ -1,5 +1,5 @@
 import type { ActivityLevel, BiologicalSex, ChefProfile, Goal, Prisma } from '@prisma/client';
-import { prisma } from '../client';
+import { prisma } from '../client.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -14,6 +14,8 @@ export interface UpsertChefProfileData {
   activityLevel?: ActivityLevel | null;
   goal?: Goal | null;
   dailyCalorieTarget?: number | null;
+  deliveryAddress?: string | null;
+  deliveryCurrency?: string | null;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────

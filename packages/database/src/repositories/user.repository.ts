@@ -1,6 +1,5 @@
-import { type Prisma, type User, UserRole } from '@prisma/client';
-
-import { prisma } from '../client';
+import { UserRole, type Prisma, type User } from '@prisma/client';
+import { prisma } from '../client.js';
 
 export interface IUserRepository {
   findById(id: string): Promise<User | null>;

@@ -1,8 +1,13 @@
-import type { Recipe } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
-import { favouriteRecipeRepository } from '@chefer/database';
+import type { Recipe } from '@chefer/database';
+import {
+  favouriteRecipeRepository,
+  mealRatingRepository,
+  type IMealRatingRepository,
+} from '@chefer/database';
 
 export class RecipeService {
+  constructor(private readonly ratingRepo: IMealRatingRepository = mealRatingRepository) {}
   async list(
     userId: string,
     opts: { search?: string; savedOnly?: boolean; cursor?: string; limit?: number },
@@ -39,6 +44,31 @@ export class RecipeService {
     }
     await favouriteRecipeRepository.toggleUseInNextPlan(userId, recipeId, useInNextPlan);
     return { useInNextPlan };
+  }
+
+  async rate(
+    userId: string,
+    recipeId: string,
+    rating: number,
+    notes?: string,
+  ): Promise<{ rating: number; notes: string | null }> {
+    const upsertData: { userId: string; recipeId: string; rating: number; notes?: string } = {
+      userId,
+      recipeId,
+      rating,
+    };
+    if (notes !== undefined) upsertData.notes = notes;
+    const result = await this.ratingRepo.upsert(upsertData);
+    return { rating: result.rating, notes: result.notes };
+  }
+
+  async getMyRating(
+    userId: string,
+    recipeId: string,
+  ): Promise<{ rating: number; notes: string | null } | null> {
+    const result = await this.ratingRepo.findByUserAndRecipe(userId, recipeId);
+    if (!result) return null;
+    return { rating: result.rating, notes: result.notes };
   }
 }
 

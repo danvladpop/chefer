@@ -25,6 +25,8 @@ interface FormData {
   cuisinePreferences: string[];
   mealsPerDay: number;
   servingSize: number;
+  deliveryAddress: string;
+  deliveryCurrency: string;
 }
 
 interface PreferencesFormProps {
@@ -54,6 +56,8 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
     cuisinePreferences: dietaryPreferences?.cuisinePreferences ?? [],
     mealsPerDay: dietaryPreferences?.mealsPerDay ?? 3,
     servingSize: dietaryPreferences?.servingSize ?? 1,
+    deliveryAddress: chefProfile?.deliveryAddress ?? '',
+    deliveryCurrency: chefProfile?.deliveryCurrency ?? 'EUR',
   });
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -144,6 +148,43 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
             }}
             onChange={(cuisine) => setData((d) => ({ ...d, ...cuisine }))}
           />
+        </Section>
+
+        {/* Shopping & Delivery */}
+        <Section>
+          <h2 className="mb-4 text-base font-semibold">Shopping &amp; Delivery</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-foreground">
+                Delivery Address
+              </label>
+              <textarea
+                value={data.deliveryAddress}
+                onChange={(e) => setData((d) => ({ ...d, deliveryAddress: e.target.value }))}
+                placeholder="Enter your delivery address…"
+                rows={2}
+                className="w-full resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Used for local store suggestions and delivery estimates in the Shopping List.
+              </p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-foreground">
+                Preferred Currency
+              </label>
+              <select
+                value={data.deliveryCurrency}
+                onChange={(e) => setData((d) => ({ ...d, deliveryCurrency: e.target.value }))}
+                className="rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="EUR">EUR — Euro (€)</option>
+                <option value="USD">USD — US Dollar ($)</option>
+                <option value="GBP">GBP — British Pound (£)</option>
+                <option value="RON">RON — Romanian Leu</option>
+              </select>
+            </div>
+          </div>
         </Section>
 
         {/* Save bar */}

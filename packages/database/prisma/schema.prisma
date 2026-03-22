@@ -79,6 +79,7 @@ model User {
   dietaryPreferences DietaryPreferences?
   mealPlans          MealPlan[]
   favouriteRecipes   FavouriteRecipe[]
+  mealRatings        MealRating[]
 
   @@index([email])
   @@map("users")
@@ -111,6 +112,8 @@ model ChefProfile {
   activityLevel      ActivityLevel?
   goal               Goal?
   dailyCalorieTarget Int?
+  deliveryAddress    String?
+  deliveryCurrency   String?        @default("EUR")
   updatedAt          DateTime       @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -151,6 +154,7 @@ model Recipe {
   createdAt     DateTime     @default(now())
 
   favourites    FavouriteRecipe[]
+  mealRatings   MealRating[]
 
   @@map("recipes")
 }
@@ -194,6 +198,22 @@ model MealPlanDay {
 
   @@index([mealPlanId])
   @@map("meal_plan_days")
+}
+
+model MealRating {
+  id        String   @id @default(cuid())
+  userId    String
+  recipeId  String
+  rating    Int      // 1–5 stars
+  notes     String?
+  ratedAt   DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+  @@index([userId])
+  @@map("meal_ratings")
 }
 
 model Account {

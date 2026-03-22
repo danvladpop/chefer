@@ -5,7 +5,7 @@ export {
   type FindManyOptions,
   type CreateUserData,
   type UpdateUserData,
-} from './user.repository';
+} from './user.repository.js';
 
 export {
   ChefProfileRepository,
@@ -15,14 +15,14 @@ export {
   type ActivityLevel,
   type BiologicalSex,
   type Goal,
-} from './chef-profile.repository';
+} from './chef-profile.repository.js';
 
 export {
   DietaryPreferencesRepository,
   dietaryPreferencesRepository,
   type IDietaryPreferencesRepository,
   type UpsertDietaryPreferencesData,
-} from './dietary-preferences.repository';
+} from './dietary-preferences.repository.js';
 
 export {
   MealPlanRepository,
@@ -30,11 +30,17 @@ export {
   type IMealPlanRepository,
   type CreateRecipeData,
   type CreateMealPlanData,
-} from './meal-plan.repository';
+} from './meal-plan.repository.js';
 
 export {
   FavouriteRecipeRepository,
   favouriteRecipeRepository,
   type IFavouriteRecipeRepository,
   type FavouriteRecipeWithRecipe,
-} from './favourite-recipe.repository';
+} from './favourite-recipe.repository.js';
+
+export {
+  MealRatingRepository,
+  mealRatingRepository,
+  type IMealRatingRepository,
+} from './meal-rating.repository.js';

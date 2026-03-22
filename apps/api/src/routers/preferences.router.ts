@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { preferencesService } from '../application/preferences/preferences.service.js';
+import {
+  preferencesService,
+  type UpdatePreferencesInput,
+} from '../application/preferences/preferences.service.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -25,7 +28,10 @@ const setupSchema = z.object({
   servingSize: z.number().int().min(1).max(6),
 });
 
-const updateSchema = setupSchema.partial();
+const updateSchema = setupSchema.partial().extend({
+  deliveryAddress: z.string().nullable().optional(),
+  deliveryCurrency: z.enum(['EUR', 'USD', 'GBP', 'RON']).nullable().optional(),
+});
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -44,6 +50,6 @@ export const preferencesRouter = router({
   }),
 
   update: protectedProcedure.input(updateSchema).mutation(async ({ input, ctx }) => {
-    return preferencesService.update(ctx.user.id, input);
+    return preferencesService.update(ctx.user.id, input as UpdatePreferencesInput);
   }),
 });

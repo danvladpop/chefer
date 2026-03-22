@@ -66,6 +66,8 @@ export interface UpdatePreferencesInput {
   cuisinePreferences?: string[];
   mealsPerDay?: number;
   servingSize?: number;
+  deliveryAddress?: string | null;
+  deliveryCurrency?: string | null;
 }
 
 export interface PreferencesDto {
@@ -200,6 +202,8 @@ export class PreferencesService {
       cuisinePreferences,
       mealsPerDay,
       servingSize,
+      deliveryAddress,
+      deliveryCurrency,
     } = input;
 
     // Recompute calorie target only when enough body-metric fields are provided
@@ -210,6 +214,8 @@ export class PreferencesService {
     if (heightCm !== undefined) profileData.heightCm = heightCm;
     if (weightKg !== undefined) profileData.weightKg = weightKg;
     if (activityLevel !== undefined) profileData.activityLevel = activityLevel;
+    if (deliveryAddress !== undefined) profileData.deliveryAddress = deliveryAddress;
+    if (deliveryCurrency !== undefined) profileData.deliveryCurrency = deliveryCurrency;
 
     if (Object.keys(profileData).length > 0) {
       // If all body metrics are known, recompute calorie target

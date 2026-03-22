@@ -179,12 +179,21 @@ Handles `SIGTERM` and `SIGINT`: closes HTTP server, disconnects Prisma.
 
 #### Page Map
 
-| Route                    | Type             | Description                                        |
-| ------------------------ | ---------------- | -------------------------------------------------- |
-| `/`                      | Server Component | Landing page — hero, feature list, tech stack      |
-| `/user`                  | Server Component | Displays first user from DB via tRPC server client |
-| `/(auth)/login`          | Client Component | Login form (react-hook-form + Zod)                 |
-| `/(dashboard)/dashboard` | Server Component | Dashboard placeholder                              |
+| Route                           | Type             | Description                                                                          |
+| ------------------------------- | ---------------- | ------------------------------------------------------------------------------------ |
+| `/`                             | Server Component | Landing page — hero, feature list, tech stack                                        |
+| `/user`                         | Server Component | Displays first user from DB via tRPC server client                                   |
+| `/(auth)/login`                 | Client Component | Login form (react-hook-form + Zod)                                                   |
+| `/(auth)/register`              | Client Component | Registration form, redirects to `/onboarding`                                        |
+| `/(dashboard)/dashboard`        | Client Component | Daily overview — greeting, weekly outlook strip, Next Meal spotlight, NutritionPanel |
+| `/(dashboard)/meal-plan`        | Client Component | 7-column week grid; Generate / Regenerate button; GenerateOverlay spinner            |
+| `/(dashboard)/recipes`          | Client Component | Browse all/saved recipes; search; heart toggle favourite                             |
+| `/(dashboard)/recipes/[id]`     | Client Component | Recipe detail — ingredients, instructions, macros, Swap/Save, StarRatingWidget       |
+| `/(dashboard)/preferences`      | Client Component | Edit ChefProfile + DietaryPreferences + delivery address/currency                    |
+| `/(dashboard)/shopping-list`    | Client Component | Smart Shopping List — week navigator, categorised items, store panel + order summary |
+| `/(dashboard)/history`          | Client Component | Meal Plan History — ACTIVE/ARCHIVED plan cards with Restore button                   |
+| `/(dashboard)/history/[planId]` | Client Component | Read-only plan grid for a historical plan                                            |
+| `/(dashboard)/onboarding`       | Client Component | 4-step wizard (Goals → Metrics → Diet → Cuisine & Cadence)                           |
 
 #### tRPC Client Setup
 
@@ -217,7 +226,12 @@ src/
 ├── client.ts          # Prisma singleton (dev hot-reload safe)
 ├── repositories/
 │   ├── index.ts
-│   └── user.repository.ts   # UserRepository + IUserRepository interface
+│   ├── user.repository.ts               # UserRepository + IUserRepository
+│   ├── chef-profile.repository.ts       # ChefProfileRepository + IChefProfileRepository
+│   ├── dietary-preferences.repository.ts
+│   ├── meal-plan.repository.ts          # MealPlanRepository + IMealPlanRepository
+│   ├── favourite-recipe.repository.ts   # FavouriteRecipeRepository + IFavouriteRecipeRepository
+│   └── meal-rating.repository.ts        # MealRatingRepository + IMealRatingRepository
 ├── index.ts           # Public exports
 └── seed.ts            # Development seed script
 prisma/
@@ -225,7 +239,7 @@ prisma/
 └── migrations/        # Auto-generated migration history
 ```
 
-**Exports:** `prisma`, `PrismaClient`, `UserRepository`, `userRepository`, `IUserRepository`, Prisma model types, enums.
+**Exports:** `prisma`, `PrismaClient`, all repository classes, singleton instances, and interfaces; all Prisma model types (`User`, `ChefProfile`, `DietaryPreferences`, `Recipe`, `MealPlan`, `MealPlanDay`, `FavouriteRecipe`, `MealRating`); enums (`UserRole`, `PostStatus`, `MealPlanStatus`, `BiologicalSex`, `Prisma`).
 
 ### 5.2 `@chefer/types`
 
@@ -295,12 +309,18 @@ Exports are per-file (e.g., `import { Button } from '@chefer/ui/button'`).
 ### Entity Relationship Summary
 
 ```
-User ─────────── UserProfile      (1:1, cascade delete)
-User ─────────── Account[]        (1:N, cascade delete, OAuth)
-User ─────────── Session[]        (1:N, cascade delete)
-User ─────────── Post[]           (1:N, cascade delete)
-Post ─────────── PostTag[]        (1:N, cascade delete)
-Tag  ─────────── PostTag[]        (1:N, cascade delete)
+User ─────────── UserProfile        (1:1, cascade delete)
+User ─────────── Account[]          (1:N, cascade delete, OAuth)
+User ─────────── Session[]          (1:N, cascade delete)
+User ─────────── Post[]             (1:N, cascade delete)
+User ─────────── ChefProfile        (1:1, cascade delete)
+User ─────────── DietaryPreferences (1:1, cascade delete)
+User ─────────── MealPlan[]         (1:N, cascade delete)
+User ─────────── FavouriteRecipe[]  (1:N, cascade delete)
+User ─────────── MealRating[]       (1:N, cascade delete)
+MealPlan ──────── MealPlanDay[]     (1:N, cascade delete)
+Post ─────────── PostTag[]          (1:N, cascade delete)
+Tag  ─────────── PostTag[]          (1:N, cascade delete)
 PostTag          (composite PK: postId + tagId)
 VerificationToken (standalone, for email verification flows)
 ```
@@ -331,11 +351,106 @@ VerificationToken (standalone, for email verification flows)
 | published | Boolean       | Default: false  |
 | authorId  | String        | FK → User       |
 
+**ChefProfile**
+
+| Field              | Type           | Notes                                          |
+| ------------------ | -------------- | ---------------------------------------------- |
+| id                 | String (cuid)  | PK                                             |
+| userId             | String         | Unique FK → User, cascade delete               |
+| displayName        | String?        | —                                              |
+| biologicalSex      | BiologicalSex? | MALE / FEMALE / OTHER                          |
+| age                | Int?           | —                                              |
+| heightCm           | Float?         | —                                              |
+| weightKg           | Float?         | —                                              |
+| activityLevel      | ActivityLevel? | SEDENTARY/LIGHTLY_ACTIVE/…/ATHLETE             |
+| goal               | Goal?          | LOSE_WEIGHT/MAINTAIN/GAIN_MUSCLE/EAT_HEALTHIER |
+| dailyCalorieTarget | Int?           | Computed by Mifflin-St Jeor at save            |
+| deliveryAddress    | String?        | Full address string for grocery delivery       |
+| deliveryCurrency   | String?        | ISO 4217 currency code (EUR/USD/GBP/RON)       |
+| updatedAt          | DateTime       | Auto-managed                                   |
+
+**DietaryPreferences**
+
+| Field               | Type     | Notes                            |
+| ------------------- | -------- | -------------------------------- |
+| id                  | String   | PK                               |
+| userId              | String   | Unique FK → User, cascade delete |
+| cuisinePreferences  | String[] | —                                |
+| dietaryRestrictions | String[] | Vegan, Gluten-Free, etc.         |
+| allergies           | String[] | —                                |
+| dislikedIngredients | String[] | —                                |
+| mealsPerDay         | Int      | Default 3                        |
+| servingSize         | Int      | Default 1                        |
+
+**Recipe**
+
+| Field         | Type          | Notes                               |
+| ------------- | ------------- | ----------------------------------- |
+| id            | String (cuid) | PK — reuses AI fixture id           |
+| name          | String        | —                                   |
+| description   | String        | —                                   |
+| ingredients   | Json          | `[{ name, quantity, unit }]`        |
+| instructions  | String[]      | —                                   |
+| nutritionInfo | Json          | `{ calories, protein, carbs, fat }` |
+| cuisineType   | String        | —                                   |
+| dietaryTags   | String[]      | —                                   |
+| prepTimeMins  | Int           | —                                   |
+| cookTimeMins  | Int           | —                                   |
+| servings      | Int           | —                                   |
+| imageUrl      | String?       | —                                   |
+
+**MealPlan**
+
+| Field         | Type           | Notes                     |
+| ------------- | -------------- | ------------------------- |
+| id            | String (cuid)  | PK                        |
+| userId        | String         | FK → User, cascade delete |
+| weekStartDate | DateTime       | Monday of the plan week   |
+| status        | MealPlanStatus | ACTIVE / ARCHIVED         |
+| createdAt     | DateTime       | Auto-managed              |
+
+**MealPlanDay**
+
+| Field      | Type          | Notes                         |
+| ---------- | ------------- | ----------------------------- | ----------------------- |
+| id         | String (cuid) | PK                            |
+| mealPlanId | String        | FK → MealPlan, cascade delete |
+| dayOfWeek  | Int           | 0 = Monday … 6 = Sunday       |
+| meals      | Json          | `[{ type: 'breakfast'         | …, recipeId: string }]` |
+
+**FavouriteRecipe**
+
+| Field         | Type          | Notes                       |
+| ------------- | ------------- | --------------------------- |
+| id            | String (cuid) | PK                          |
+| userId        | String        | FK → User, cascade delete   |
+| recipeId      | String        | FK → Recipe, cascade delete |
+| savedAt       | DateTime      | Default now()               |
+| useInNextPlan | Boolean       | Default false               |
+| (unique)      |               | `[userId, recipeId]`        |
+
+**MealRating**
+
+| Field    | Type          | Notes                            |
+| -------- | ------------- | -------------------------------- |
+| id       | String (cuid) | PK                               |
+| userId   | String        | FK → User, cascade delete        |
+| recipeId | String        | FK → Recipe, cascade delete      |
+| rating   | Int           | 1–5                              |
+| notes    | String?       | Optional free-text comment       |
+| ratedAt  | DateTime      | Default now(), updates on upsert |
+| (unique) |               | `[userId, recipeId]`             |
+
 ### Enums
 
 ```prisma
-enum UserRole   { USER  MODERATOR  ADMIN }
-enum PostStatus { DRAFT  PUBLISHED  ARCHIVED }
+enum UserRole       { USER  MODERATOR  ADMIN }
+enum PostStatus     { DRAFT  PUBLISHED  ARCHIVED }
+enum MealPlanStatus { ACTIVE  ARCHIVED }
+enum BiologicalSex  { MALE  FEMALE  OTHER }
+enum ActivityLevel  { SEDENTARY  LIGHTLY_ACTIVE  MODERATELY_ACTIVE  VERY_ACTIVE  ATHLETE }
+enum Goal           { LOSE_WEIGHT  MAINTAIN  GAIN_MUSCLE  EAT_HEALTHIER }
+enum RecipeSource   { AI_GENERATED  USER_CREATED  IMPORTED }
 ```
 
 ---
@@ -356,6 +471,50 @@ Router (tRPC)          ← thin, only input/output + auth guard
 Wraps `IUserRepository`. Methods: `findById`, `findByEmail`, `list`, `create`, `update`, `delete`.
 Maps domain errors (e.g., `UserNotFoundError`) to tRPC error codes.
 
+### PreferencesService (application layer)
+
+`apps/api/src/application/preferences/preferences.service.ts`. Methods: `hasProfile`, `get`, `setup`, `update`.
+Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a Prisma `$transaction`. Recomputes `dailyCalorieTarget` via Mifflin-St Jeor on every update. Accepts `deliveryAddress` and `deliveryCurrency` fields.
+
+### MealPlanService (application layer)
+
+`apps/api/src/application/meal-plan/meal-plan.service.ts`. Methods: `generate`, `getActive`, `getRecipe`, `swapRecipe`, `getShoppingList`, `list`, `restore`, `getById`.
+
+- `generate` — reads prefs → calls `IAIService.generateMealPlan` → upserts recipes → archives old plan → creates new `ACTIVE` plan.
+- `getShoppingList` — aggregates ingredients across all plan recipes, merges by name+unit, groups by `CATEGORY_MAP` keyword matching.
+- `list` / `restore` / `getById` — history + restore support.
+
+### ShoppingListService (application layer)
+
+`apps/api/src/application/shopping-list/shopping-list.service.ts`. Methods: `getForWeek`, `searchStores`.
+
+- `getForWeek` — builds categorised ingredient list for the active plan.
+- `searchStores` — delegates to `IGroceryAIService.searchNearbyStores`, passes user's delivery address and currency from ChefProfile.
+
+### RecipeService (application layer)
+
+`apps/api/src/application/recipe/recipe.service.ts`. Methods: `list`, `isSaved`, `toggleFavourite`, `toggleUseInNextPlan`, `rate`, `getMyRating`.
+
+- `rate` — upserts a `MealRating` row (1–5 stars + optional notes).
+- `getMyRating` — fetches the user's rating for a given recipe.
+
+### DashboardService (application layer)
+
+`apps/api/src/application/dashboard/dashboard.service.ts`. Method: `summary`.
+Aggregates active meal plan, today's meals, recent favourites for the dashboard page.
+
+### GroceryAIService (lib layer)
+
+`apps/api/src/lib/grocery-ai/`. Implements `IGroceryAIService` interface.
+
+| File                                 | Purpose                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------ |
+| `types.ts`                           | `IGroceryAIService`, `GrocerySearchInput`, `GroceryStore`, `GroceryItem` |
+| `mock.ts`                            | `MockGroceryAIService` — deterministic fixture data, ~300ms delay        |
+| `claude.ts`                          | `ClaudeGroceryAIService` stub — real Anthropic API call (not yet wired)  |
+| `index.ts`                           | Factory — returns mock when `GROCERY_AI_MOCK_ENABLED=true`               |
+| `fixtures/grocery-stores.fixture.ts` | Static Lidl / Carrefour / Kaufland item data                             |
+
 ### PrismaUserRepository (infrastructure layer)
 
 Implements `IUserRepository` from `@chefer/database`. Lives in `apps/api/src/infrastructure/prisma/`.
@@ -366,15 +525,40 @@ Implements `IUserRepository` from `@chefer/database`. Lives in `apps/api/src/inf
 
 All procedures live under the `/trpc` HTTP endpoint and are batched automatically.
 
-| Procedure            | Access                    | Type     | Input                                                |
-| -------------------- | ------------------------- | -------- | ---------------------------------------------------- |
-| `user.me`            | Protected (auth required) | Query    | —                                                    |
-| `user.getById`       | Public                    | Query    | `{ id: cuid }`                                       |
-| `user.list`          | Admin only                | Query    | `{ page, limit, search?, role?, sortBy, sortOrder }` |
-| `user.create`        | Admin only                | Mutation | `{ email, name?, password, role? }`                  |
-| `user.update`        | Protected                 | Mutation | `{ id, name?, email?, role?, image? }`               |
-| `user.delete`        | Admin only                | Mutation | `{ id: cuid }`                                       |
-| `user.updateProfile` | Protected                 | Mutation | `{ name?, image? }`                                  |
+| Procedure                    | Access    | Type     | Input                                                                                                                                                                |
+| ---------------------------- | --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `user.me`                    | Protected | Query    | —                                                                                                                                                                    |
+| `user.getById`               | Public    | Query    | `{ id: cuid }`                                                                                                                                                       |
+| `user.list`                  | Admin     | Query    | `{ page, limit, search?, role?, sortBy, sortOrder }`                                                                                                                 |
+| `user.create`                | Admin     | Mutation | `{ email, name?, password, role? }`                                                                                                                                  |
+| `user.update`                | Protected | Mutation | `{ id, name?, email?, role?, image? }`                                                                                                                               |
+| `user.delete`                | Admin     | Mutation | `{ id: cuid }`                                                                                                                                                       |
+| `user.updateProfile`         | Protected | Mutation | `{ name?, image? }`                                                                                                                                                  |
+| `auth.register`              | Public    | Mutation | `{ email, password, firstName, lastName }`                                                                                                                           |
+| `auth.login`                 | Public    | Mutation | `{ email, password }`                                                                                                                                                |
+| `auth.logout`                | Public    | Mutation | —                                                                                                                                                                    |
+| `auth.me`                    | Protected | Query    | —                                                                                                                                                                    |
+| `preferences.hasProfile`     | Protected | Query    | —                                                                                                                                                                    |
+| `preferences.get`            | Protected | Query    | —                                                                                                                                                                    |
+| `preferences.setup`          | Protected | Mutation | `{ goal, biologicalSex, age, heightCm, weightKg, activityLevel, cuisinePreferences, dietaryRestrictions, allergies, dislikedIngredients, mealsPerDay, servingSize }` |
+| `preferences.update`         | Protected | Mutation | Same as setup but all fields optional + `deliveryAddress?`, `deliveryCurrency?`                                                                                      |
+| `mealPlan.generate`          | Protected | Mutation | —                                                                                                                                                                    |
+| `mealPlan.getActive`         | Protected | Query    | —                                                                                                                                                                    |
+| `mealPlan.getRecipe`         | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
+| `mealPlan.swapRecipe`        | Protected | Mutation | `{ planId, dayOfWeek, mealType, currentRecipeId }`                                                                                                                   |
+| `mealPlan.getShoppingList`   | Protected | Query    | —                                                                                                                                                                    |
+| `mealPlan.list`              | Protected | Query    | `{ limit?, offset? }`                                                                                                                                                |
+| `mealPlan.restore`           | Protected | Mutation | `{ planId: string }`                                                                                                                                                 |
+| `mealPlan.getById`           | Protected | Query    | `{ planId: string }`                                                                                                                                                 |
+| `recipe.list`                | Protected | Query    | `{ search?, savedOnly? }`                                                                                                                                            |
+| `recipe.isSaved`             | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
+| `recipe.toggleFavourite`     | Protected | Mutation | `{ recipeId: string }`                                                                                                                                               |
+| `recipe.toggleUseInNextPlan` | Protected | Mutation | `{ recipeId: string }`                                                                                                                                               |
+| `recipe.rate`                | Protected | Mutation | `{ recipeId: string, rating: 1-5, notes?: string }`                                                                                                                  |
+| `recipe.getMyRating`         | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
+| `shoppingList.getForWeek`    | Protected | Query    | `{ weekOffset?: number }`                                                                                                                                            |
+| `shoppingList.searchStores`  | Protected | Query    | `{ weekOffset?: number }`                                                                                                                                            |
+| `dashboard.summary`          | Protected | Query    | —                                                                                                                                                                    |
 
 ### Middleware Stack
 
@@ -415,20 +599,24 @@ The `createContext` function in `apps/api/src/interfaces/http/middleware/auth.mi
 
 ### `apps/api/.env`
 
-| Variable                   | Required | Default               | Description                     |
-| -------------------------- | -------- | --------------------- | ------------------------------- |
-| `NODE_ENV`                 | No       | development           | Runtime environment             |
-| `PORT`                     | No       | 3001                  | HTTP listen port                |
-| `HOST`                     | No       | 0.0.0.0               | HTTP listen host                |
-| `DATABASE_URL`             | **Yes**  | —                     | PostgreSQL connection string    |
-| `JWT_SECRET`               | **Yes**  | —                     | Min 32 chars                    |
-| `JWT_EXPIRES_IN`           | No       | 15m                   | Access token TTL                |
-| `REFRESH_TOKEN_SECRET`     | **Yes**  | —                     | Min 32 chars                    |
-| `REFRESH_TOKEN_EXPIRES_IN` | No       | 30d                   | Refresh token TTL               |
-| `CORS_ORIGINS`             | No       | http://localhost:3000 | Comma-separated allowed origins |
-| `REDIS_URL`                | No       | —                     | Redis connection string         |
-| `RATE_LIMIT_MAX`           | No       | 100                   | Max requests per window         |
-| `RATE_LIMIT_WINDOW_MS`     | No       | 60000                 | Rate limit window (ms)          |
+| Variable                   | Required | Default               | Description                                     |
+| -------------------------- | -------- | --------------------- | ----------------------------------------------- |
+| `NODE_ENV`                 | No       | development           | Runtime environment                             |
+| `PORT`                     | No       | 3001                  | HTTP listen port                                |
+| `HOST`                     | No       | 0.0.0.0               | HTTP listen host                                |
+| `DATABASE_URL`             | **Yes**  | —                     | PostgreSQL connection string                    |
+| `JWT_SECRET`               | **Yes**  | —                     | Min 32 chars                                    |
+| `JWT_EXPIRES_IN`           | No       | 15m                   | Access token TTL                                |
+| `REFRESH_TOKEN_SECRET`     | **Yes**  | —                     | Min 32 chars                                    |
+| `REFRESH_TOKEN_EXPIRES_IN` | No       | 30d                   | Refresh token TTL                               |
+| `CORS_ORIGINS`             | No       | http://localhost:3000 | Comma-separated allowed origins                 |
+| `REDIS_URL`                | No       | —                     | Redis connection string                         |
+| `RATE_LIMIT_MAX`           | No       | 100                   | Max requests per window                         |
+| `RATE_LIMIT_WINDOW_MS`     | No       | 60000                 | Rate limit window (ms)                          |
+| `AI_MOCK_ENABLED`          | No       | true                  | Use fixture AI responses (no OpenAI call)       |
+| `GROCERY_AI_MOCK_ENABLED`  | No       | true                  | Use fixture grocery store data (no Claude call) |
+| `OPENAI_API_KEY`           | No       | —                     | Required when `AI_MOCK_ENABLED=false`           |
+| `ANTHROPIC_API_KEY`        | No       | —                     | Required when `GROCERY_AI_MOCK_ENABLED=false`   |
 
 ### `apps/web/.env.local`
 

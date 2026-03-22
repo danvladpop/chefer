@@ -77,7 +77,6 @@ const CATEGORY_MAP: Record<string, string> = {
   soy: 'Grains & Pantry',
   honey: 'Grains & Pantry',
   salt: 'Grains & Pantry',
-  pepper: 'Grains & Pantry',
   cumin: 'Grains & Pantry',
   paprika: 'Grains & Pantry',
   cinnamon: 'Grains & Pantry',
@@ -88,6 +87,23 @@ const CATEGORY_MAP: Record<string, string> = {
   walnut: 'Grains & Pantry',
   cashew: 'Grains & Pantry',
 };
+
+// ─── Summary DTO ──────────────────────────────────────────────────────────────
+
+export interface MealPlanSummaryDto {
+  id: string;
+  weekStartDate: Date;
+  weekEndDate: Date;
+  status: string;
+  createdAt: Date;
+  recipePreview: string[]; // up to 3 recipe names
+  macroSummary: {
+    avgKcal: number;
+    avgProtein: number;
+    avgCarbs: number;
+    avgFat: number;
+  };
+}
 
 // ─── Output DTOs ──────────────────────────────────────────────────────────────
 
@@ -331,6 +347,110 @@ export class MealPlanService {
     await this.repo.updateDayMeal(planId, dayOfWeek, mealType, newRecipe.id);
 
     return toRecipeDto(newRecipe);
+  }
+
+  async list(userId: string, limit = 10, offset = 0): Promise<MealPlanSummaryDto[]> {
+    const plans = await this.repo.findAllByUserId(userId, limit, offset);
+    if (plans.length === 0) return [];
+
+    // Collect all recipe IDs across all plans
+    type MealSlotJson = { type: string; recipeId: string };
+    const allIds = new Set<string>();
+    for (const plan of plans) {
+      for (const day of plan.days) {
+        for (const m of day.meals as MealSlotJson[]) allIds.add(m.recipeId);
+      }
+    }
+    const recipeRows = await this.repo.findRecipesByIds([...allIds]);
+    const recipeMap = new Map<string, Recipe>(recipeRows.map((r) => [r.id, r]));
+
+    return plans.map((plan) => {
+      const allMeals = plan.days.flatMap((d) => d.meals as MealSlotJson[]);
+      const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
+      const previewNames = uniqueIds.slice(0, 3).map((id) => recipeMap.get(id)?.name ?? 'Unknown');
+
+      // Calculate average daily macros
+      const dayTotals = plan.days.map((day) => {
+        const dayMeals = (day.meals as MealSlotJson[]).map((m) => recipeMap.get(m.recipeId));
+        let kcal = 0,
+          protein = 0,
+          carbs = 0,
+          fat = 0;
+        for (const recipe of dayMeals) {
+          if (!recipe) continue;
+          const n = recipe.nutritionInfo as NutritionInfo;
+          kcal += n.calories ?? 0;
+          protein += n.protein ?? 0;
+          carbs += n.carbs ?? 0;
+          fat += n.fat ?? 0;
+        }
+        return { kcal, protein, carbs, fat };
+      });
+
+      const dayCount = dayTotals.length || 1;
+      const avg = (arr: number[]) => Math.round(arr.reduce((a, b) => a + b, 0) / dayCount);
+
+      const weekStart = new Date(plan.weekStartDate);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+
+      return {
+        id: plan.id,
+        weekStartDate: weekStart,
+        weekEndDate: weekEnd,
+        status: plan.status,
+        createdAt: plan.createdAt,
+        recipePreview: previewNames,
+        macroSummary: {
+          avgKcal: avg(dayTotals.map((d) => d.kcal)),
+          avgProtein: avg(dayTotals.map((d) => d.protein)),
+          avgCarbs: avg(dayTotals.map((d) => d.carbs)),
+          avgFat: avg(dayTotals.map((d) => d.fat)),
+        },
+      };
+    });
+  }
+
+  async restore(userId: string, planId: string): Promise<WeekPlanDto> {
+    // Verify plan belongs to user
+    const plans = await this.repo.findAllByUserId(userId, 100, 0);
+    const target = plans.find((p) => p.id === planId);
+    if (!target) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found.' });
+    }
+
+    // Archive current active plans and set target to ACTIVE
+    await this.repo.restorePlan(userId, planId);
+
+    return this.getActive(userId) as Promise<WeekPlanDto>;
+  }
+
+  async getById(userId: string, planId: string): Promise<WeekPlanDto> {
+    const plan = await this.repo.findByIdForUser(userId, planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found.' });
+    }
+
+    type MealSlotJson = { type: string; recipeId: string };
+    const allMeals = plan.days.flatMap((d: { meals: unknown }) => d.meals as MealSlotJson[]);
+    const uniqueIds = [...new Set(allMeals.map((m: MealSlotJson) => m.recipeId))];
+    const recipeRows: Recipe[] = await this.repo.findRecipesByIds(uniqueIds);
+    const recipeMap = new Map<string, Recipe>(recipeRows.map((r) => [r.id, r]));
+
+    const days: DayPlanDto[] = plan.days.map((d: { dayOfWeek: number; meals: unknown }) => {
+      const meals = (d.meals as MealSlotJson[]).map((m: MealSlotJson) => {
+        const row = recipeMap.get(m.recipeId);
+        if (!row)
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Recipe ${m.recipeId} not found.`,
+          });
+        return { type: m.type as MealType, recipe: rowToRecipeDto(row) };
+      });
+      return { dayOfWeek: d.dayOfWeek, meals };
+    });
+
+    return { planId: plan.id, weekStartDate: plan.weekStartDate, days };
   }
 
   /**

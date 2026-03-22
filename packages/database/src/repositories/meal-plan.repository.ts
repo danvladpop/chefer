@@ -1,6 +1,6 @@
 import type { MealPlan, MealPlanDay, Prisma, Recipe } from '@prisma/client';
 import { MealPlanStatus } from '@prisma/client';
-import { prisma } from '../client';
+import { prisma } from '../client.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,6 +47,11 @@ export interface IMealPlanRepository {
     limit?: number,
     offset?: number,
   ): Promise<(MealPlan & { days: MealPlanDay[] })[]>;
+  restorePlan(userId: string, planId: string): Promise<void>;
+  findByIdForUser(
+    userId: string,
+    planId: string,
+  ): Promise<(MealPlan & { days: MealPlanDay[] }) | null>;
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -65,9 +70,9 @@ export class MealPlanRepository implements IMealPlanRepository {
             id: r.id,
             name: r.name,
             description: r.description,
-            ingredients: r.ingredients,
+            ingredients: r.ingredients as Prisma.InputJsonValue,
             instructions: r.instructions,
-            nutritionInfo: r.nutritionInfo,
+            nutritionInfo: r.nutritionInfo as Prisma.InputJsonValue,
             cuisineType: r.cuisineType,
             dietaryTags: r.dietaryTags,
             prepTimeMins: r.prepTimeMins,
@@ -173,6 +178,29 @@ export class MealPlanRepository implements IMealPlanRepository {
       orderBy: { createdAt: 'desc' },
       take: limit,
       skip: offset,
+    });
+  }
+
+  async restorePlan(userId: string, planId: string): Promise<void> {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.mealPlan.updateMany({
+        where: { userId, status: MealPlanStatus.ACTIVE },
+        data: { status: MealPlanStatus.ARCHIVED },
+      });
+      await tx.mealPlan.update({
+        where: { id: planId },
+        data: { status: MealPlanStatus.ACTIVE },
+      });
+    });
+  }
+
+  async findByIdForUser(
+    userId: string,
+    planId: string,
+  ): Promise<(MealPlan & { days: MealPlanDay[] }) | null> {
+    return prisma.mealPlan.findFirst({
+      where: { id: planId, userId },
+      include: { days: { orderBy: { dayOfWeek: 'asc' } } },
     });
   }
 }

@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { Clock, Flame } from 'lucide-react';
 import { getRecipeImageProps } from '@/lib/recipe-image';
+import { Clock, Flame } from 'lucide-react';
 
 interface NutritionInfo {
   calories: number;
@@ -27,6 +27,7 @@ interface MealCardProps {
   recipe: RecipeDto;
   planId: string;
   dayOfWeek: number;
+  readOnly?: boolean;
 }
 
 const MEAL_TYPE_LABELS: Record<string, string> = {
@@ -43,16 +44,13 @@ const MEAL_TYPE_COLORS: Record<string, string> = {
   snack: 'bg-purple-100 text-purple-800',
 };
 
-export function MealCard({ mealType, recipe, planId, dayOfWeek }: MealCardProps) {
+export function MealCard({ mealType, recipe, planId, dayOfWeek, readOnly = false }: MealCardProps) {
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const href = `/recipes/${recipe.id}?planId=${planId}&day=${dayOfWeek}&meal=${mealType}`;
   const imgProps = getRecipeImageProps(recipe.imageUrl);
 
-  return (
-    <Link
-      href={href}
-      className="group block overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all hover:border-[#944a00]/40 hover:shadow-md"
-    >
+  const inner = (
+    <>
       {/* Recipe thumbnail */}
       <div className="relative h-24 w-full overflow-hidden">
         <Image
@@ -92,6 +90,23 @@ export function MealCard({ mealType, recipe, planId, dayOfWeek }: MealCardProps)
           </span>
         </div>
       </div>
+    </>
+  );
+
+  if (readOnly) {
+    return (
+      <div className="group block overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className="group block overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all hover:border-[#944a00]/40 hover:shadow-md"
+    >
+      {inner}
     </Link>
   );
 }

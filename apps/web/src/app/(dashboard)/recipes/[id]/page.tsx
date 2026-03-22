@@ -4,9 +4,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useState } from 'react';
-import { trpc } from '@/lib/trpc';
-import { ArrowLeft, ChefHat, Clock, Flame, Heart, RefreshCw, Users } from 'lucide-react';
+import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { getRecipeImageProps } from '@/lib/recipe-image';
+import { trpc } from '@/lib/trpc';
+import { ArrowLeft, Clock, Flame, Heart, RefreshCw, Users } from 'lucide-react';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -31,11 +32,13 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const planId = searchParams.get('planId');
   const day = searchParams.get('day');
   const meal = searchParams.get('meal');
+  const dayParam = day !== null ? parseInt(day, 10) : null;
 
   const hasSwapContext = Boolean(planId && day !== null && meal);
 
   const { data: recipe, isLoading, isError } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
   const { data: savedData } = trpc.recipe.isSaved.useQuery({ recipeId: id });
+  const { data: myRating } = trpc.recipe.getMyRating.useQuery({ recipeId: id });
   const isSaved = savedData?.isSaved ?? false;
 
   const utils = trpc.useUtils();
@@ -282,6 +285,17 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           <NutritionRow label="Fat" value={`${n.fat}g`} />
         </div>
       </div>
+
+      {/* Star rating — shown when recipe was accessed from a meal plan day */}
+      {dayParam !== null && (
+        <div className="mt-8">
+          <StarRatingWidget
+            recipeId={id}
+            initialRating={myRating?.rating}
+            initialNotes={myRating?.notes}
+          />
+        </div>
+      )}
 
       {/* Swap error */}
       {swapMutation.isError && (

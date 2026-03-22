@@ -1,4 +1,4 @@
-export { prisma, type PrismaClient } from './client';
+export { prisma, type PrismaClient } from './client.js';
 export {
   UserRepository,
   userRepository,
@@ -11,7 +11,6 @@ export {
   type IChefProfileRepository,
   type UpsertChefProfileData,
   type ActivityLevel,
-  type BiologicalSex,
   type Goal,
   DietaryPreferencesRepository,
   dietaryPreferencesRepository,
@@ -26,7 +25,10 @@ export {
   favouriteRecipeRepository,
   type IFavouriteRecipeRepository,
   type FavouriteRecipeWithRecipe,
-} from './repositories/index';
+  MealRatingRepository,
+  mealRatingRepository,
+  type IMealRatingRepository,
+} from './repositories/index.js';
 
 // Re-export Prisma types for convenience
 export type {
@@ -43,5 +45,6 @@ export type {
   MealPlan,
   MealPlanDay,
   FavouriteRecipe,
+  MealRating,
 } from '@prisma/client';
 export { UserRole, PostStatus, Prisma, BiologicalSex, MealPlanStatus } from '@prisma/client';

@@ -59,4 +59,27 @@ export const mealPlanRouter = router({
   getShoppingList: protectedProcedure.query(async ({ ctx }) => {
     return mealPlanService.getShoppingList(ctx.user.id);
   }),
+
+  list: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(50).default(10),
+        offset: z.number().int().min(0).default(0),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      return mealPlanService.list(ctx.user.id, input.limit, input.offset);
+    }),
+
+  restore: protectedProcedure
+    .input(z.object({ planId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      return mealPlanService.restore(ctx.user.id, input.planId);
+    }),
+
+  getById: protectedProcedure
+    .input(z.object({ planId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      return mealPlanService.getById(ctx.user.id, input.planId);
+    }),
 });

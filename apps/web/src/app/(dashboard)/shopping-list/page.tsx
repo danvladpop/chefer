@@ -1,158 +1,508 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { AvailabilityBadge } from '@/features/shopping-list/components/AvailabilityBadge';
+import { WeekNavigator } from '@/features/shopping-list/components/WeekNavigator';
+import { useLocalStorage } from '@/hooks/use-local-storage';
 import { trpc } from '@/lib/trpc';
-import { Check, Printer, ShoppingCart } from 'lucide-react';
+import type { RouterOutputs } from '@/lib/trpc';
+import {
+  AlertCircle,
+  CheckCircle2,
+  Lightbulb,
+  MapPin,
+  Printer,
+  ShoppingCart,
+  Smartphone,
+  Store,
+  Truck,
+} from 'lucide-react';
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+type GroceryStore = RouterOutputs['shoppingList']['searchStores']['stores'][0];
+type GroceryItem = GroceryStore['items'][0];
+
+const FALLBACK_IMAGE =
+  'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=120&h=120&fit=crop&q=80';
+
+const CATEGORY_ORDER = ['produce', 'proteins', 'dairy', 'grains', 'frozen', 'other'] as const;
+const CATEGORY_LABELS: Record<string, string> = {
+  produce: 'Produce',
+  proteins: 'Proteins',
+  dairy: 'Dairy & Eggs',
+  grains: 'Grains & Pantry',
+  frozen: 'Frozen',
+  other: 'Other',
+};
+
+function getMondayOfWeek(offset: number): Date {
+  const now = new Date();
+  const day = now.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday + offset * 7);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
 
 export default function ShoppingListPage() {
-  const { data: groups, isLoading } = trpc.mealPlan.getShoppingList.useQuery();
-  // Track checked items in local state (keyed by "name")
-  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [mode, setMode] = useState<'in-store' | 'delivery'>('in-store');
+  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
+  const [userLat, setUserLat] = useState<number | undefined>();
+  const [userLng, setUserLng] = useState<number | undefined>();
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'granted' | 'denied' | 'loading'>(
+    'idle',
+  );
+  const [checkedItems, setCheckedItems, clearChecked] = useLocalStorage<string[]>(
+    'shopping-checked',
+    [],
+  );
 
-  const toggle = (key: string) => {
-    setChecked((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
+  const weekStart = getMondayOfWeek(weekOffset);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+
+  // Request GPS location on mount
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    setLocationStatus('loading');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLat(pos.coords.latitude);
+        setUserLng(pos.coords.longitude);
+        setLocationStatus('granted');
+      },
+      () => setLocationStatus('denied'),
+      { timeout: 10000 },
+    );
+  }, []);
+
+  // Fetch shopping list for the selected week
+  const { data: weekList, isLoading: listLoading } = trpc.shoppingList.getForWeek.useQuery(
+    { weekOffset },
+    { staleTime: 60_000 },
+  );
+
+  // Fetch store data (enabled only when we have a planId)
+  const { data: storeResult, isLoading: storesLoading } = trpc.shoppingList.searchStores.useQuery(
+    {
+      planId: weekList?.planId ?? '',
+      lat: userLat,
+      lng: userLng,
+    },
+    {
+      enabled: !!weekList?.planId,
+      staleTime: 5 * 60_000,
+    },
+  );
+
+  // Auto-select first (cheapest) store
+  useEffect(() => {
+    const firstStore = storeResult?.stores[0];
+    if (firstStore && !selectedStoreId) {
+      setSelectedStoreId(firstStore.id);
+    }
+  }, [storeResult, selectedStoreId]);
+
+  // Reset checked items when week changes
+  const handleWeekChange = useCallback(
+    (offset: number) => {
+      setWeekOffset(offset);
+      clearChecked();
+      setSelectedStoreId('');
+    },
+    [clearChecked],
+  );
+
+  const selectedStore = storeResult?.stores.find((s) => s.id === selectedStoreId);
+  const bestValueStore = storeResult?.stores[0]; // sorted by totalEur ascending
+
+  // Group items by category
+  const items = weekList?.items ?? [];
+  const grouped = CATEGORY_ORDER.map((cat) => ({
+    category: cat,
+    label: CATEGORY_LABELS[cat],
+    items: items.filter((i) => i.category === cat),
+  })).filter((g) => g.items.length > 0);
+
+  const totalItems = items.length;
+  const checkedCount = checkedItems.filter((key) => items.some((i) => i.key === key)).length;
+
+  // Find store item for a shopping list item
+  const getStoreItem = (ingredientName: string): GroceryItem | undefined => {
+    if (!selectedStore) return undefined;
+    const nameLower = ingredientName.toLowerCase();
+    const firstWord = nameLower.split(' ')[0] ?? nameLower;
+    return selectedStore.items.find((si) => {
+      const siNameLower = si.ingredientName.toLowerCase();
+      const siFirstWord = siNameLower.split(' ')[0] ?? siNameLower;
+      return (
+        siNameLower === nameLower ||
+        siNameLower.includes(firstWord) ||
+        nameLower.includes(siFirstWord)
+      );
     });
   };
 
-  if (isLoading) return <ShoppingListSkeleton />;
+  const toggleItem = (key: string) => {
+    setCheckedItems((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  };
 
-  const hasItems = groups && groups.some((g) => g.items.length > 0);
-
-  if (!hasItems) {
+  if (listLoading) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
-        <ShoppingCart className="h-12 w-12 text-gray-300" />
-        <div>
-          <h2 className="font-serif text-xl font-semibold text-gray-900">No shopping list yet</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Generate a meal plan to automatically build your grocery list.
-          </p>
+      <div className="space-y-4 p-6">
+        <div className="h-8 w-64 animate-pulse rounded-lg bg-neutral-200" />
+        <div className="grid grid-cols-[1fr_300px] gap-6">
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-16 animate-pulse rounded-xl bg-neutral-100" />
+            ))}
+          </div>
+          <div className="h-80 animate-pulse rounded-2xl bg-neutral-100" />
         </div>
-        <Link
-          href="/meal-plan"
-          className="rounded-full bg-[#944a00] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
-        >
-          Go to Meal Planner →
-        </Link>
       </div>
     );
   }
 
-  const totalItems = groups!.reduce((sum, g) => sum + g.items.length, 0);
-  const checkedCount = checked.size;
-
   return (
-    <div className="mx-auto max-w-2xl px-6 py-8">
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
-            This Week
-          </p>
-          <h1 className="font-serif text-2xl font-bold text-gray-900">Shopping List</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {checkedCount} of {totalItems} items checked off
-          </p>
-        </div>
-        <button
-          onClick={() => window.print()}
-          className="flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-        >
-          <Printer className="h-4 w-4" />
-          Print
-        </button>
-      </div>
-
-      {/* Progress bar */}
-      <div className="mb-6 h-2 w-full overflow-hidden rounded-full bg-gray-100">
-        <div
-          className="h-full rounded-full bg-[#944a00] transition-all"
-          style={{ width: `${Math.round((checkedCount / totalItems) * 100)}%` }}
-        />
-      </div>
-
-      {/* Grouped items */}
-      <div className="flex flex-col gap-6">
-        {groups!.map((group) => (
-          <div key={group.category}>
-            <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
-              {group.category}
-            </h2>
-            <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-              {group.items.map((item, idx) => {
-                const key = item.name;
-                const isDone = checked.has(key);
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => toggle(key)}
-                    className={`flex w-full items-center gap-4 border-b px-5 py-3.5 text-left last:border-b-0 transition-colors hover:bg-gray-50 ${isDone ? 'opacity-50' : ''}`}
-                  >
-                    <span
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                        isDone ? 'border-[#944a00] bg-[#944a00]' : 'border-gray-300'
-                      }`}
-                    >
-                      {isDone && <Check className="h-3 w-3 text-white" />}
-                    </span>
-                    <span
-                      className={`flex-1 text-sm font-medium capitalize ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}
-                    >
-                      {item.name}
-                    </span>
-                    <span className="text-sm text-gray-400">
-                      {item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1)}{' '}
-                      {item.unit}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Chef's Tip */}
-      <div className="mt-6 flex items-start gap-3 rounded-2xl bg-[#fff3e8] px-5 py-4">
-        <span className="text-xl" aria-hidden="true">
-          💡
-        </span>
-        <p className="text-sm text-[#7a3d00]">
-          <strong>Chef&apos;s Tip:</strong> Shop produce last so it stays fresh during the rest of
-          your shopping trip. Store high-protein items with airtight packaging for meal prep.
+    <div className="p-4 lg:p-6">
+      {/* Page header */}
+      <div className="mb-4">
+        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+          THIS WEEK
         </p>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold tracking-tight">Shopping List</h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50"
+            >
+              <Printer className="h-3.5 w-3.5" /> Print
+            </button>
+            <button
+              className="flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50"
+              title="Send to Mobile — coming soon"
+            >
+              <Smartphone className="h-3.5 w-3.5" /> Send to Mobile
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-  );
-}
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
+      {/* Week Navigator + Location badge */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <WeekNavigator
+          weekOffset={weekOffset}
+          onOffsetChange={handleWeekChange}
+          weekStart={weekStart}
+          weekEnd={weekEnd}
+        />
+        <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+          <MapPin className="h-3.5 w-3.5" />
+          {locationStatus === 'granted' && (
+            <span className="text-green-600">Using your current location</span>
+          )}
+          {locationStatus === 'denied' && (
+            <span>
+              Location denied.{' '}
+              <Link href="/preferences" className="underline">
+                Set delivery address
+              </Link>
+            </span>
+          )}
+          {locationStatus === 'loading' && <span>Detecting location…</span>}
+          {locationStatus === 'idle' && <span>Enable location for nearby store results</span>}
+        </div>
+      </div>
 
-function ShoppingListSkeleton() {
-  return (
-    <div className="mx-auto max-w-2xl animate-pulse px-6 py-8">
-      <div className="mb-6 h-10 w-48 rounded-xl bg-gray-100" />
-      <div className="mb-6 h-2 w-full rounded-full bg-gray-100" />
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="mb-6">
-          <div className="mb-2 h-3 w-24 rounded bg-gray-100" />
-          <div className="overflow-hidden rounded-2xl border bg-white">
-            {[1, 2, 3].map((j) => (
-              <div key={j} className="flex items-center gap-4 border-b px-5 py-3.5 last:border-b-0">
-                <div className="h-5 w-5 rounded-full bg-gray-100" />
-                <div className="h-4 flex-1 rounded bg-gray-100" />
-                <div className="h-4 w-16 rounded bg-gray-100" />
-              </div>
+      {/* Mode toggle + progress bar */}
+      <div className="mb-5 flex flex-wrap items-center gap-4">
+        <div className="flex rounded-xl border border-neutral-200 bg-neutral-50 p-1">
+          <button
+            onClick={() => setMode('in-store')}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${mode === 'in-store' ? 'bg-white text-neutral-800 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+          >
+            <Store className="h-3.5 w-3.5" /> In-Store
+          </button>
+          <button
+            onClick={() => setMode('delivery')}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${mode === 'delivery' ? 'bg-white text-neutral-800 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+          >
+            <Truck className="h-3.5 w-3.5" /> Delivery
+          </button>
+        </div>
+
+        {totalItems > 0 && (
+          <div className="flex flex-1 items-center gap-3">
+            <div
+              className="max-w-xs flex-1 overflow-hidden rounded-full bg-neutral-100"
+              style={{ height: '8px' }}
+            >
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${totalItems > 0 ? (checkedCount / totalItems) * 100 : 0}%` }}
+              />
+            </div>
+            <span className="whitespace-nowrap text-xs text-neutral-500">
+              {checkedCount}/{totalItems} checked
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Empty state */}
+      {!weekList?.hasPlan ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-200 py-16 text-center">
+          <ShoppingCart className="mb-4 h-10 w-10 text-neutral-300" />
+          <h2 className="mb-2 font-semibold text-neutral-700">No meal plan for this week</h2>
+          <p className="mb-6 max-w-xs text-sm text-neutral-500">
+            Generate a meal plan to get a personalised shopping list.
+          </p>
+          <Link
+            href="/meal-plan"
+            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90"
+          >
+            Go to Meal Planner
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
+          {/* LEFT: Ingredient list */}
+          <div className="space-y-6">
+            {grouped.map(({ category, label, items: catItems }) => (
+              <section key={category}>
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                  {label} ({catItems.length} item{catItems.length !== 1 ? 's' : ''})
+                </h2>
+                <div className="space-y-2">
+                  {catItems.map((item) => {
+                    const storeItem = getStoreItem(item.ingredientName);
+                    const isChecked = checkedItems.includes(item.key);
+
+                    return (
+                      <div
+                        key={item.key}
+                        className={`flex items-center gap-3 rounded-xl border p-3 transition ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
+                      >
+                        {/* Thumbnail */}
+                        <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg">
+                          <Image
+                            src={storeItem?.imageUrl ?? FALLBACK_IMAGE}
+                            alt={item.ingredientName}
+                            fill
+                            sizes="48px"
+                            className="object-cover"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE;
+                            }}
+                          />
+                        </div>
+
+                        {/* Details */}
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={`text-sm font-medium ${isChecked ? 'line-through text-neutral-400' : 'text-neutral-800'}`}
+                          >
+                            {item.ingredientName}
+                          </p>
+                          <p className="text-xs text-neutral-500">
+                            {item.quantity} {item.unit}
+                          </p>
+                          {!isChecked &&
+                            (mode === 'in-store'
+                              ? storeItem?.aisleHint
+                              : storeItem?.deliveryNote) && (
+                              <p className="truncate text-xs text-neutral-400">
+                                {mode === 'in-store'
+                                  ? storeItem?.aisleHint
+                                  : storeItem?.deliveryNote}
+                              </p>
+                            )}
+                        </div>
+
+                        {/* Price + availability */}
+                        <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                          {storeItem ? (
+                            <span className="text-sm font-semibold text-neutral-700">
+                              {storeResult?.currencyCode === 'EUR' ? '€' : '$'}
+                              {storeItem.priceEur.toFixed(2)}
+                            </span>
+                          ) : storesLoading ? (
+                            <span className="text-sm text-neutral-300">—</span>
+                          ) : null}
+
+                          {isChecked ? (
+                            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500">
+                              ✓ BOUGHT
+                            </span>
+                          ) : storeItem ? (
+                            <AvailabilityBadge status={storeItem.availabilityStatus} />
+                          ) : null}
+                        </div>
+
+                        {/* Checkbox */}
+                        <button
+                          onClick={() => toggleItem(item.key)}
+                          aria-label={`${item.ingredientName}, ${item.quantity} ${item.unit}`}
+                          className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 transition ${isChecked ? 'border-primary bg-primary' : 'border-neutral-300 hover:border-primary'}`}
+                        >
+                          {isChecked && <CheckCircle2 className="h-4 w-4 fill-white text-white" />}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
             ))}
           </div>
+
+          {/* RIGHT: Store panel */}
+          <div className="space-y-4">
+            {/* Store selector */}
+            <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                Compare Stores
+              </h2>
+
+              {storesLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-16 animate-pulse rounded-xl bg-neutral-100" />
+                  ))}
+                  <p className="text-center text-xs text-neutral-400">Finding nearby stores…</p>
+                </div>
+              ) : !storeResult?.stores.length ? (
+                <p className="text-sm text-neutral-500">No stores found.</p>
+              ) : (
+                <div className="space-y-2">
+                  {storeResult.stores.map((store) => {
+                    const isBestValue = store.id === bestValueStore?.id;
+                    const isSelected = store.id === selectedStoreId;
+                    return (
+                      <button
+                        key={store.id}
+                        onClick={() => setSelectedStoreId(store.id)}
+                        className={`w-full rounded-xl border-2 p-3 text-left transition ${isSelected ? 'border-primary bg-primary/5' : 'border-neutral-200 hover:border-neutral-300'}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-neutral-800">
+                                {store.name}
+                              </span>
+                              {isBestValue && (
+                                <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">
+                                  ★ Best Value
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-neutral-500">{store.distanceKm} km away</p>
+                            {store.unavailableItemCount > 0 && (
+                              <p className="text-xs text-red-500">
+                                {store.unavailableItemCount} items not available
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-lg font-bold text-neutral-800">
+                            €{store.totalEur.toFixed(2)}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Order summary */}
+            {selectedStore && (
+              <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                  Order Summary
+                </h2>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between text-neutral-600">
+                    <span>Subtotal ({selectedStore.availableItemCount} items)</span>
+                    <span>€{selectedStore.subtotalEur.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-neutral-600">
+                    <span>Est. Taxes</span>
+                    <span>€{selectedStore.taxEur.toFixed(2)}</span>
+                  </div>
+                  {mode === 'delivery' && (
+                    <div className="flex justify-between text-neutral-600">
+                      <span>Delivery Fee</span>
+                      <span>
+                        {selectedStore.deliveryFeeEur === 0
+                          ? 'Free'
+                          : `€${selectedStore.deliveryFeeEur.toFixed(2)}`}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-neutral-100 pt-2 font-semibold text-neutral-800">
+                    <span>Total Estimated</span>
+                    <span className="text-primary">
+                      €
+                      {(
+                        selectedStore.subtotalEur +
+                        selectedStore.taxEur +
+                        (mode === 'delivery' ? selectedStore.deliveryFeeEur : 0)
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                {mode === 'delivery' && (
+                  <button
+                    disabled
+                    title="Coming soon — delivery ordering integration"
+                    className="mt-4 w-full cursor-not-allowed rounded-xl bg-primary/50 py-2.5 text-sm font-medium text-white"
+                  >
+                    <Truck className="mr-1.5 inline h-4 w-4" />
+                    Order via Delivery
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Chef's Tip */}
+            <div className="rounded-2xl border-l-4 border-amber-400 bg-amber-50 p-4">
+              <div className="flex gap-2">
+                <Lightbulb className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+                <div>
+                  <h3 className="mb-1 text-xs font-semibold text-amber-800">Chef's Tip</h3>
+                  <p className="text-xs leading-relaxed text-amber-700">
+                    Buy ingredients for meal prep on Sunday to save time during the week. Check your
+                    pantry for spices, oils, and condiments before shopping — they often last
+                    several weeks.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Location prompt if no location */}
+            {locationStatus === 'denied' && (
+              <div className="flex gap-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-neutral-400" />
+                <div className="text-xs text-neutral-500">
+                  <p className="mb-1 font-medium">Location access denied</p>
+                  <p>
+                    <Link href="/preferences" className="text-primary underline">
+                      Set your delivery address
+                    </Link>{' '}
+                    in Preferences for accurate local store results.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }

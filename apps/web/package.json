@@ -20,6 +20,7 @@
     "@chefer/ui": "workspace:*",
     "@chefer/utils": "workspace:*",
     "@hookform/resolvers": "^3.9.0",
+    "date-fns": "^3.6.0",
     "@tanstack/react-query": "^5.50.0",
     "@trpc/client": "^11.0.0-rc.446",
     "@trpc/react-query": "^11.0.0-rc.446",

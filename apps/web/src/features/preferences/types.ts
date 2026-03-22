@@ -8,6 +8,8 @@ export interface ChefProfileData {
   weightKg: number | null;
   activityLevel: string | null;
   dailyCalorieTarget: number | null;
+  deliveryAddress?: string | null;
+  deliveryCurrency?: string | null;
 }
 
 export interface DietaryPreferencesData {
