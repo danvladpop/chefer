@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "C:/Program Files/nodejs/node.exe",
+      "runtimeArgs": [
+        "C:/Users/popda/AppData/Roaming/npm/node_modules/pnpm/bin/pnpm.cjs",
+        "--filter",
+        "@chefer/web",
+        "dev"
+      ],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "C:/Program Files/nodejs/node.exe",
+      "runtimeArgs": [
+        "C:/Users/popda/AppData/Roaming/npm/node_modules/pnpm/bin/pnpm.cjs",
+        "--filter",
+        "@chefer/api",
+        "dev"
+      ],
+      "port": 3001,
+      "autoPort": true
+    }
+  ]
+}

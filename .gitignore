@@ -62,3 +62,18 @@ prisma/*.db-journal
 *.njsproj
 *.sln
 *.sw?
+
+# Compiled package outputs (packages build into src alongside .ts sources)
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
+
+# Claude Code worktrees (temporary isolated branches)
+.claude/worktrees/
+apps/**/.claude/worktrees/
+
+# Claude Code local settings (personal, not project-wide)
+.claude/settings.local.json
+.claude/initial_prompt.md
+apps/**/.claude/settings.local.json
