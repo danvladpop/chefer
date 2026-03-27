@@ -26,6 +26,16 @@ type GroceryItem = GroceryStore['items'][0];
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=120&h=120&fit=crop&q=80';
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  EUR: '€',
+  USD: '$',
+  GBP: '£',
+  RON: 'RON ',
+};
+function currencySymbol(code: string | undefined): string {
+  return CURRENCY_SYMBOLS[code ?? ''] ?? (code ? `${code} ` : '€');
+}
+
 const CATEGORY_ORDER = ['produce', 'proteins', 'dairy', 'grains', 'frozen', 'other'] as const;
 const CATEGORY_LABELS: Record<string, string> = {
   produce: 'Produce',
@@ -351,7 +361,7 @@ export default function ShoppingListPage() {
                         <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
                           {storeItem ? (
                             <span className="text-sm font-semibold text-neutral-700">
-                              {storeResult?.currencyCode === 'EUR' ? '€' : '$'}
+                              {currencySymbol(storeResult?.currencyCode)}
                               {storeItem.priceEur.toFixed(2)}
                             </span>
                           ) : storesLoading ? (
@@ -434,7 +444,8 @@ export default function ShoppingListPage() {
                             )}
                           </div>
                           <span className="text-lg font-bold text-neutral-800">
-                            €{store.totalEur.toFixed(2)}
+                            {currencySymbol(storeResult?.currencyCode)}
+                            {store.totalEur.toFixed(2)}
                           </span>
                         </div>
                       </button>
@@ -453,11 +464,17 @@ export default function ShoppingListPage() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between text-neutral-600">
                     <span>Subtotal ({selectedStore.availableItemCount} items)</span>
-                    <span>€{selectedStore.subtotalEur.toFixed(2)}</span>
+                    <span>
+                      {currencySymbol(storeResult?.currencyCode)}
+                      {selectedStore.subtotalEur.toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-neutral-600">
                     <span>Est. Taxes</span>
-                    <span>€{selectedStore.taxEur.toFixed(2)}</span>
+                    <span>
+                      {currencySymbol(storeResult?.currencyCode)}
+                      {selectedStore.taxEur.toFixed(2)}
+                    </span>
                   </div>
                   {mode === 'delivery' && (
                     <div className="flex justify-between text-neutral-600">
@@ -465,14 +482,14 @@ export default function ShoppingListPage() {
                       <span>
                         {selectedStore.deliveryFeeEur === 0
                           ? 'Free'
-                          : `€${selectedStore.deliveryFeeEur.toFixed(2)}`}
+                          : `${currencySymbol(storeResult?.currencyCode)}${selectedStore.deliveryFeeEur.toFixed(2)}`}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between border-t border-neutral-100 pt-2 font-semibold text-neutral-800">
                     <span>Total Estimated</span>
                     <span className="text-primary">
-                      €
+                      {currencySymbol(storeResult?.currencyCode)}
                       {(
                         selectedStore.subtotalEur +
                         selectedStore.taxEur +
