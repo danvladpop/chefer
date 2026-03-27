@@ -2,9 +2,10 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useState } from 'react';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
-import { ArrowRight, ChevronRight, Clock, Flame } from 'lucide-react';
+import { ArrowRight, ChevronRight, Clock, Flame, UtensilsCrossed } from 'lucide-react';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -19,6 +20,8 @@ const MEAL_COLOURS: Record<string, string> = {
 
 export default function DashboardPage() {
   const { data, isLoading } = trpc.dashboard.summary.useQuery();
+
+  const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
 
   if (isLoading) return <DashboardSkeleton />;
 
@@ -87,23 +90,93 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="flex gap-2">
-            {days.map((day) => (
-              <div
-                key={day.idx}
-                className={`flex flex-1 flex-col items-center gap-1 rounded-xl py-2.5 ${
-                  day.idx === todayIdx ? 'bg-[#944a00] text-white' : 'bg-gray-50 text-gray-600'
-                }`}
-              >
-                <span className="text-[10px] font-semibold uppercase">{day.label}</span>
-                <span className="text-sm font-bold">{day.num}</span>
-                {day.hasMeals && (
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${day.idx === todayIdx ? 'bg-white/70' : 'bg-[#944a00]'}`}
-                  />
-                )}
-              </div>
-            ))}
+            {days.map((day) => {
+              const isToday = day.idx === todayIdx;
+              const isSelected = selectedDayIdx === day.idx;
+              return (
+                <button
+                  key={day.idx}
+                  type="button"
+                  onClick={() => setSelectedDayIdx(isSelected ? null : day.idx)}
+                  className={`flex flex-1 flex-col items-center gap-1 rounded-xl py-2.5 transition-all ${
+                    isToday
+                      ? 'bg-[#944a00] text-white'
+                      : isSelected
+                        ? 'bg-[#944a00]/15 text-[#944a00] ring-1 ring-[#944a00]/40'
+                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="text-[10px] font-semibold uppercase">{day.label}</span>
+                  <span className="text-sm font-bold">{day.num}</span>
+                  {day.hasMeals && (
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${isToday ? 'bg-white/70' : 'bg-[#944a00]'}`}
+                    />
+                  )}
+                </button>
+              );
+            })}
           </div>
+
+          {/* Day meals panel */}
+          {selectedDayIdx !== null &&
+            (() => {
+              const dayData = days[selectedDayIdx];
+              const dayPlan = d.weekPlan.find((wp) => wp.dayOfWeek === selectedDayIdx);
+              const dayMeals = dayPlan?.meals ?? [];
+              const isToday = selectedDayIdx === todayIdx;
+              const isPast = selectedDayIdx < todayIdx;
+              return (
+                <div className="mt-4 border-t pt-4">
+                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+                    {isToday
+                      ? "Today's Meals"
+                      : isPast
+                        ? `${dayData?.label} ${dayData?.num} — Past`
+                        : `${dayData?.label} ${dayData?.num} — Upcoming`}
+                  </p>
+                  {dayMeals.length === 0 ? (
+                    <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-400">
+                      <UtensilsCrossed className="h-4 w-4" />
+                      No meals planned for this day.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {dayMeals.map((meal) => (
+                        <Link
+                          key={`${meal.mealType}-${meal.recipeId}`}
+                          href={`/recipes/${meal.recipeId}`}
+                          className="flex items-center gap-3 rounded-xl border bg-gray-50 p-2.5 transition-all hover:border-[#944a00]/30 hover:bg-white hover:shadow-sm"
+                        >
+                          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg">
+                            <Image
+                              {...getRecipeImageProps(meal.imageUrl)}
+                              alt={meal.recipeName}
+                              fill
+                              sizes="48px"
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                            >
+                              {meal.mealType}
+                            </span>
+                            <p className="mt-0.5 truncate text-sm font-medium text-gray-800">
+                              {meal.recipeName}
+                            </p>
+                          </div>
+                          {meal.kcal > 0 && (
+                            <span className="shrink-0 text-xs text-gray-400">{meal.kcal} kcal</span>
+                          )}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
         </div>
 
         {/* Next Meal spotlight */}

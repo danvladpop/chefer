@@ -12,7 +12,13 @@ export interface DashboardSummary {
   today: { date: string; dayOfWeek: number };
   weekPlan: {
     dayOfWeek: number;
-    meals: { mealType: string; recipeId: string; recipeName: string }[];
+    meals: {
+      mealType: string;
+      recipeId: string;
+      recipeName: string;
+      imageUrl: string | null;
+      kcal: number;
+    }[];
   }[];
   nextMeal: {
     mealType: string;
@@ -110,11 +116,17 @@ export class DashboardService {
     // Build weekPlan
     const weekPlan = allMealSlots.map(({ dayOfWeek, meals }) => ({
       dayOfWeek,
-      meals: meals.map((m) => ({
-        mealType: m.type,
-        recipeId: m.recipeId,
-        recipeName: recipeMap.get(m.recipeId)?.name ?? 'Unknown',
-      })),
+      meals: meals.map((m) => {
+        const recipe = recipeMap.get(m.recipeId);
+        const nutrition = recipe?.nutritionInfo as NutritionInfo | undefined;
+        return {
+          mealType: m.type,
+          recipeId: m.recipeId,
+          recipeName: recipe?.name ?? 'Unknown',
+          imageUrl: recipe?.imageUrl ?? null,
+          kcal: nutrition?.calories ?? 0,
+        };
+      }),
     }));
 
     // Get today's meals
