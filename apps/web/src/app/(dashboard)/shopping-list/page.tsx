@@ -59,6 +59,7 @@ export default function ShoppingListPage() {
     'shopping-checked',
     [],
   );
+  const [popupItem, setPopupItem] = useState<{ name: string; imageUrl: string } | null>(null);
 
   const weekStart = getMondayOfWeek(weekOffset);
   const weekEnd = new Date(weekStart);
@@ -293,15 +294,23 @@ export default function ShoppingListPage() {
                     const storeItem = getStoreItem(item.ingredientName);
                     const isChecked = checkedItems.includes(item.key);
 
+                    const itemImageUrl = storeItem?.imageUrl ?? FALLBACK_IMAGE;
                     return (
                       <div
                         key={item.key}
-                        className={`flex items-center gap-3 rounded-xl border p-3 transition ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
+                        onClick={() => toggleItem(item.key)}
+                        className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
                       >
-                        {/* Thumbnail */}
-                        <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg">
+                        {/* Thumbnail — click opens detail popup */}
+                        <div
+                          className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPopupItem({ name: item.ingredientName, imageUrl: itemImageUrl });
+                          }}
+                        >
                           <Image
-                            src={storeItem?.imageUrl ?? FALLBACK_IMAGE}
+                            src={itemImageUrl}
                             alt={item.ingredientName}
                             fill
                             sizes="48px"
@@ -315,7 +324,11 @@ export default function ShoppingListPage() {
                         {/* Details */}
                         <div className="min-w-0 flex-1">
                           <p
-                            className={`text-sm font-medium ${isChecked ? 'line-through text-neutral-400' : 'text-neutral-800'}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPopupItem({ name: item.ingredientName, imageUrl: itemImageUrl });
+                            }}
+                            className={`cursor-pointer text-sm font-medium underline-offset-2 hover:underline ${isChecked ? 'line-through text-neutral-400' : 'text-neutral-800'}`}
                           >
                             {item.ingredientName}
                           </p>
@@ -354,9 +367,12 @@ export default function ShoppingListPage() {
                           ) : null}
                         </div>
 
-                        {/* Checkbox */}
+                        {/* Checkbox — stopPropagation so card click doesn't double-toggle */}
                         <button
-                          onClick={() => toggleItem(item.key)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleItem(item.key);
+                          }}
                           aria-label={`${item.ingredientName}, ${item.quantity} ${item.unit}`}
                           className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 transition ${isChecked ? 'border-primary bg-primary' : 'border-neutral-300 hover:border-primary'}`}
                         >
@@ -509,6 +525,39 @@ export default function ShoppingListPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Item detail popup */}
+      {popupItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setPopupItem(null)}
+        >
+          <div
+            className="flex w-72 flex-col items-center gap-4 rounded-2xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative h-48 w-48 overflow-hidden rounded-xl">
+              <Image
+                src={popupItem.imageUrl}
+                alt={popupItem.name}
+                fill
+                sizes="192px"
+                className="object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE;
+                }}
+              />
+            </div>
+            <p className="text-center text-base font-semibold text-neutral-800">{popupItem.name}</p>
+            <button
+              onClick={() => setPopupItem(null)}
+              className="text-xs text-neutral-400 hover:text-neutral-600"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
