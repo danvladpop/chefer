@@ -257,8 +257,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Rest of Today */}
-        {d.restOfToday.length > 0 && (
+        {/* Rest of Today — only when today is selected (or nothing selected) */}
+        {d.restOfToday.length > 0 && (selectedDayIdx === null || selectedDayIdx === todayIdx) && (
           <div className="rounded-2xl border bg-white p-5 shadow-sm">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
               Rest of Today
