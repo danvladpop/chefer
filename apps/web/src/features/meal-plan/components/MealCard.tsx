@@ -68,8 +68,8 @@ export function MealCard({ mealType, recipe, planId, dayOfWeek, readOnly = false
         </span>
       </div>
 
-      {/* Card body */}
-      <div className="p-3">
+      {/* Card body — fixed height so all cards are uniform regardless of title length */}
+      <div className="h-28 overflow-hidden p-3">
         {/* Recipe name */}
         <p className="mb-1 line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900 group-hover:text-[#944a00]">
           {recipe.name}
