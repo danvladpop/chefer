@@ -2,9 +2,9 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { ArrowRight, ChevronRight, Clock, Flame } from 'lucide-react';
-import { getRecipeImageProps } from '@/lib/recipe-image';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -277,39 +277,39 @@ export default function DashboardPage() {
           </div>
 
           {/* Calorie ring */}
-          <div className="flex flex-col items-center gap-1 py-2">
-            <svg
-              width="128"
-              height="128"
-              viewBox="0 0 128 128"
-              role="img"
-              aria-label="Calorie progress ring"
-            >
-              <circle cx="64" cy="64" r={R} fill="none" stroke="#f3f4f6" strokeWidth="12" />
-              <circle
-                cx="64"
-                cy="64"
-                r={R}
-                fill="none"
-                stroke="#944a00"
-                strokeWidth="12"
-                strokeLinecap="round"
-                strokeDasharray={CIRCUM}
-                strokeDashoffset={ringFill}
-                transform="rotate(-90 64 64)"
-              />
-            </svg>
-            <div className="-mt-16 text-center">
-              <p className="text-xl font-bold text-gray-900">{n.plannedKcal.toLocaleString()}</p>
-              <p className="text-[10px] text-gray-400">
-                of {n.dailyCalorieTarget.toLocaleString()} kcal
-              </p>
+          <div className="flex flex-col items-center gap-2 py-2">
+            <div className="relative">
+              <svg
+                width="128"
+                height="128"
+                viewBox="0 0 128 128"
+                role="img"
+                aria-label="Calorie progress ring"
+              >
+                <circle cx="64" cy="64" r={R} fill="none" stroke="#f3f4f6" strokeWidth="12" />
+                <circle
+                  cx="64"
+                  cy="64"
+                  r={R}
+                  fill="none"
+                  stroke="#944a00"
+                  strokeWidth="12"
+                  strokeLinecap="round"
+                  strokeDasharray={CIRCUM}
+                  strokeDashoffset={ringFill}
+                  transform="rotate(-90 64 64)"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <p className="text-xl font-bold text-gray-900">{n.plannedKcal.toLocaleString()}</p>
+                <p className="text-[10px] text-gray-400">
+                  of {n.dailyCalorieTarget.toLocaleString()} kcal
+                </p>
+              </div>
             </div>
-            <div className="mt-14">
-              <p className="text-center text-xs text-gray-500">
-                {remaining.toLocaleString()} remaining
-              </p>
-            </div>
+            <p className="text-center text-xs text-gray-500">
+              {remaining.toLocaleString()} remaining
+            </p>
           </div>
 
           {/* Macro bars */}
