@@ -32,6 +32,8 @@ export default async function PreferencesPage() {
         weightKg: result.chefProfile.weightKg,
         activityLevel: result.chefProfile.activityLevel,
         dailyCalorieTarget: result.chefProfile.dailyCalorieTarget,
+        deliveryAddress: result.chefProfile.deliveryAddress,
+        deliveryCurrency: result.chefProfile.deliveryCurrency,
       };
     }
 

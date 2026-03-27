@@ -79,6 +79,12 @@ export default function ShoppingListPage() {
     );
   }, []);
 
+  // Fetch user preferences to get delivery address fallback
+  const { data: preferencesData } = trpc.preferences.get.useQuery(undefined, {
+    staleTime: 5 * 60_000,
+  });
+  const savedDeliveryAddress = preferencesData?.chefProfile?.deliveryAddress ?? null;
+
   // Fetch shopping list for the selected week
   const { data: weekList, isLoading: listLoading } = trpc.shoppingList.getForWeek.useQuery(
     { weekOffset },
@@ -91,6 +97,8 @@ export default function ShoppingListPage() {
       planId: weekList?.planId ?? '',
       lat: userLat,
       lng: userLng,
+      deliveryAddress:
+        locationStatus === 'denied' && savedDeliveryAddress ? savedDeliveryAddress : undefined,
     },
     {
       enabled: !!weekList?.planId,
@@ -130,19 +138,17 @@ export default function ShoppingListPage() {
   const totalItems = items.length;
   const checkedCount = checkedItems.filter((key) => items.some((i) => i.key === key)).length;
 
-  // Find store item for a shopping list item
+  // Find store item for a shopping list item — exact match first, fuzzy fallback
   const getStoreItem = (ingredientName: string): GroceryItem | undefined => {
     if (!selectedStore) return undefined;
     const nameLower = ingredientName.toLowerCase();
     const firstWord = nameLower.split(' ')[0] ?? nameLower;
+    const exact = selectedStore.items.find((si) => si.ingredientName.toLowerCase() === nameLower);
+    if (exact) return exact;
     return selectedStore.items.find((si) => {
       const siNameLower = si.ingredientName.toLowerCase();
       const siFirstWord = siNameLower.split(' ')[0] ?? siNameLower;
-      return (
-        siNameLower === nameLower ||
-        siNameLower.includes(firstWord) ||
-        nameLower.includes(siFirstWord)
-      );
+      return siNameLower.includes(firstWord) || nameLower.includes(siFirstWord);
     });
   };
 
@@ -207,7 +213,10 @@ export default function ShoppingListPage() {
           {locationStatus === 'granted' && (
             <span className="text-green-600">Using your current location</span>
           )}
-          {locationStatus === 'denied' && (
+          {locationStatus === 'denied' && savedDeliveryAddress && (
+            <span className="text-blue-600">Using saved delivery address</span>
+          )}
+          {locationStatus === 'denied' && !savedDeliveryAddress && (
             <span>
               Location denied.{' '}
               <Link href="/preferences" className="underline">
@@ -485,8 +494,8 @@ export default function ShoppingListPage() {
               </div>
             </div>
 
-            {/* Location prompt if no location */}
-            {locationStatus === 'denied' && (
+            {/* Location prompt if no location and no saved address */}
+            {locationStatus === 'denied' && !savedDeliveryAddress && (
               <div className="flex gap-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                 <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-neutral-400" />
                 <div className="text-xs text-neutral-500">

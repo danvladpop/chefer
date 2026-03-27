@@ -1,11 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  experimental: {
-    // Enable React 19 features
-    reactCompiler: false,
-    // Server actions are stable in Next.js 15
-  },
+  reactCompiler: false,
   transpilePackages: ['@chefer/ui', '@chefer/utils', '@chefer/types'],
   images: {
     remotePatterns: [

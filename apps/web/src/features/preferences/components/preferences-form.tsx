@@ -101,6 +101,8 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
       cuisinePreferences: data.cuisinePreferences,
       mealsPerDay: data.mealsPerDay,
       servingSize: data.servingSize,
+      deliveryAddress: data.deliveryAddress || null,
+      deliveryCurrency: data.deliveryCurrency as 'EUR' | 'USD' | 'GBP' | 'RON',
     });
   }
 
