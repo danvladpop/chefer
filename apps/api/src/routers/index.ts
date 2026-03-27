@@ -5,6 +5,7 @@ import { mealPlanRouter } from './meal-plan.router.js';
 import { preferencesRouter } from './preferences.router.js';
 import { recipeRouter } from './recipe.router.js';
 import { shoppingListRouter } from './shopping-list.router.js';
+import { trackerRouter } from './tracker.router.js';
 import { userRouter } from './user.router.js';
 
 export const appRouter = router({
@@ -14,6 +15,7 @@ export const appRouter = router({
   preferences: preferencesRouter,
   recipe: recipeRouter,
   shoppingList: shoppingListRouter,
+  tracker: trackerRouter,
   user: userRouter,
 });
 

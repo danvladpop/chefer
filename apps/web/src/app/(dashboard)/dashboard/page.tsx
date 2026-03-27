@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
+import { format, parseISO } from 'date-fns';
 import { ArrowRight, ChevronRight, Clock, Flame, UtensilsCrossed } from 'lucide-react';
+import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -20,6 +22,9 @@ const MEAL_COLOURS: Record<string, string> = {
 
 export default function DashboardPage() {
   const { data, isLoading } = trpc.dashboard.summary.useQuery();
+  const { data: weekSummary } = trpc.tracker.weeklySummary.useQuery(undefined, {
+    staleTime: 60_000,
+  });
 
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
 
@@ -279,6 +284,45 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Weekly Progress Chart */}
+        {weekSummary && weekSummary.days.some((d) => d.hasLog) && (
+          <div className="rounded-2xl border bg-white p-5 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+                This Week — Calories
+              </p>
+              <Link href="/progress" className="text-xs font-medium text-[#944a00] hover:underline">
+                Full Progress →
+              </Link>
+            </div>
+            <ResponsiveContainer width="100%" height={80}>
+              <LineChart
+                data={weekSummary.days.map((d) => ({
+                  date: format(parseISO(d.date), 'EEE'),
+                  logged: d.hasLog ? d.totalKcal : null,
+                  target: weekSummary.dailyCalorieTarget,
+                }))}
+              >
+                <XAxis dataKey="date" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(val) => [`${String(val)} kcal`]} />
+                <ReferenceLine
+                  y={weekSummary.dailyCalorieTarget}
+                  stroke="#d1d5db"
+                  strokeDasharray="3 3"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="logged"
+                  stroke="#944a00"
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                  connectNulls={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         )}
 

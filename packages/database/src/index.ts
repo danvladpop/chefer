@@ -28,6 +28,15 @@ export {
   MealRatingRepository,
   mealRatingRepository,
   type IMealRatingRepository,
+  DailyLogRepository,
+  dailyLogRepository,
+  type IDailyLogRepository,
+  type LoggedMealEntry,
+  type UpsertDailyLogData,
+  WeightEntryRepository,
+  weightEntryRepository,
+  type IWeightEntryRepository,
+  type CreateWeightEntryData,
 } from './repositories/index.js';
 
 // Re-export Prisma types for convenience
@@ -46,5 +55,7 @@ export type {
   MealPlanDay,
   FavouriteRecipe,
   MealRating,
+  DailyLog,
+  WeightEntry,
 } from '@prisma/client';
 export { UserRole, PostStatus, Prisma, BiologicalSex, MealPlanStatus } from '@prisma/client';

@@ -1,3 +1,4 @@
+import { ChatWidget } from '@/features/chat/components/ChatWidget';
 import { DashboardShell } from '@/features/nav/components/dashboard-shell';
 
 interface DashboardLayoutProps {
@@ -5,5 +6,10 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  return <DashboardShell>{children}</DashboardShell>;
+  return (
+    <DashboardShell>
+      {children}
+      <ChatWidget />
+    </DashboardShell>
+  );
 }

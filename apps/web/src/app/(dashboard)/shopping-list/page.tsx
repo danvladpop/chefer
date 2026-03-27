@@ -20,6 +20,20 @@ import {
   Truck,
 } from 'lucide-react';
 
+const PRINT_STYLES = `
+@media print {
+  nav, aside, header,
+  [data-print-hide] { display: none !important; }
+  body { margin: 0; font-family: serif; }
+  .lg\\:grid-cols-\\[1fr_300px\\] { display: block !important; }
+  .lg\\:grid-cols-\\[1fr_300px\\] > *:last-child { display: none !important; }
+  button, input, [role="button"] { display: none !important; }
+  .rounded-xl, .rounded-2xl { border-radius: 0 !important; box-shadow: none !important; }
+  .shopping-list-print-header { display: block !important; font-size: 18px; font-weight: bold; margin-bottom: 16px; border-bottom: 2px solid #000; padding-bottom: 8px; }
+}
+.shopping-list-print-header { display: none; }
+`;
+
 type GroceryStore = RouterOutputs['shoppingList']['searchStores']['stores'][0];
 type GroceryItem = GroceryStore['items'][0];
 
@@ -187,8 +201,18 @@ export default function ShoppingListPage() {
 
   return (
     <div className="p-4 lg:p-6">
+      {/* Print styles */}
+      {/* eslint-disable-next-line react/no-danger */}
+      <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
+
+      {/* Print-only header */}
+      <div className="shopping-list-print-header">
+        Chefer Shopping List — Week of{' '}
+        {weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+      </div>
+
       {/* Page header */}
-      <div className="mb-4">
+      <div className="mb-4" data-print-hide>
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
           THIS WEEK
         </p>

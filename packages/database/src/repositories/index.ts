@@ -44,3 +44,18 @@ export {
   mealRatingRepository,
   type IMealRatingRepository,
 } from './meal-rating.repository.js';
+
+export {
+  DailyLogRepository,
+  dailyLogRepository,
+  type IDailyLogRepository,
+  type LoggedMealEntry,
+  type UpsertDailyLogData,
+} from './daily-log.repository.js';
+
+export {
+  WeightEntryRepository,
+  weightEntryRepository,
+  type IWeightEntryRepository,
+  type CreateWeightEntryData,
+} from './weight-entry.repository.js';
