@@ -69,39 +69,38 @@ export function MealCard({ mealType, recipe, planId, dayOfWeek, readOnly = false
         </span>
       </div>
 
-      {/* Card body */}
-      <div className="overflow-hidden p-3">
+      {/* Card body — fixed height so all cards are the same size */}
+      <div className="flex h-[88px] flex-col justify-between overflow-hidden p-2.5">
         {/* Recipe name */}
-        <p className="mb-1 line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900 group-hover:text-[#944a00]">
+        <p className="line-clamp-2 text-[12px] font-semibold leading-snug text-gray-900 group-hover:text-[#944a00]">
           {recipe.name}
         </p>
 
-        {/* Cuisine */}
-        <p className="mb-2 text-[11px] text-gray-400">{recipe.cuisineType}</p>
-
-        {/* Time + calories */}
-        <div className="mb-2 flex items-center gap-2 text-[11px] text-gray-500">
-          <span className="flex items-center gap-1">
-            <Clock className="h-3 w-3" aria-hidden="true" />
-            {totalTime} min
-          </span>
-          <span className="text-gray-300">·</span>
-          <span className="font-medium text-gray-700">{n.calories} kcal</span>
-        </div>
-
-        {/* Macros stacked */}
-        <div className="space-y-0.5">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-blue-500">Protein</span>
-            <span className="font-medium text-gray-700">{n.protein}g</span>
+        {/* Bottom row: left = time · kcal, right = stacked macros */}
+        <div className="flex items-end justify-between gap-1">
+          {/* Time + calories */}
+          <div className="flex flex-col gap-0.5 text-[10px] text-gray-500">
+            <span className="flex items-center gap-0.5">
+              <Clock className="h-2.5 w-2.5" aria-hidden="true" />
+              {totalTime} min
+            </span>
+            <span className="font-medium text-gray-700">{n.calories} kcal</span>
           </div>
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-amber-500">Carbs</span>
-            <span className="font-medium text-gray-700">{n.carbs}g</span>
-          </div>
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-green-500">Fat</span>
-            <span className="font-medium text-gray-700">{n.fat}g</span>
+
+          {/* Macros stacked — compact, right-aligned */}
+          <div className="space-y-px text-right text-[10px] leading-tight">
+            <div>
+              <span className="text-blue-500">P </span>
+              <span className="font-medium text-gray-700">{n.protein}g</span>
+            </div>
+            <div>
+              <span className="text-amber-500">C </span>
+              <span className="font-medium text-gray-700">{n.carbs}g</span>
+            </div>
+            <div>
+              <span className="text-green-500">F </span>
+              <span className="font-medium text-gray-700">{n.fat}g</span>
+            </div>
           </div>
         </div>
       </div>
