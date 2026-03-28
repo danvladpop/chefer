@@ -37,6 +37,7 @@ export {
   favouriteRecipeRepository,
   type IFavouriteRecipeRepository,
   type FavouriteRecipeWithRecipe,
+  type CreateManualRecipeData,
 } from './favourite-recipe.repository.js';
 
 export {

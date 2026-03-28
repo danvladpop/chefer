@@ -82,6 +82,7 @@ model User {
   mealRatings        MealRating[]
   dailyLogs          DailyLog[]
   weightEntries      WeightEntry[]
+  createdRecipes     Recipe[]            @relation("CreatedRecipes")
 
   @@index([email])
   @@map("users")
@@ -153,11 +154,14 @@ model Recipe {
   servings      Int
   imageUrl      String?
   source        RecipeSource @default(AI)
+  creatorId     String?
   createdAt     DateTime     @default(now())
 
-  favourites    FavouriteRecipe[]
-  mealRatings   MealRating[]
+  creator     User?             @relation("CreatedRecipes", fields: [creatorId], references: [id])
+  favourites  FavouriteRecipe[]
+  mealRatings MealRating[]
 
+  @@index([creatorId])
   @@map("recipes")
 }
 

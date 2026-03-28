@@ -25,6 +25,7 @@ export {
   favouriteRecipeRepository,
   type IFavouriteRecipeRepository,
   type FavouriteRecipeWithRecipe,
+  type CreateManualRecipeData,
   MealRatingRepository,
   mealRatingRepository,
   type IMealRatingRepository,

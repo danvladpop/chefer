@@ -2,19 +2,24 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { trpc } from '@/lib/trpc';
-import { Clock, Flame, Heart, Search } from 'lucide-react';
 import { getRecipeImageProps } from '@/lib/recipe-image';
+import { trpc } from '@/lib/trpc';
+import { Clock, Flame, Heart, Pencil, Plus, Search } from 'lucide-react';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+type Tab = 'all' | 'saved' | 'my';
+
 export default function RecipesPage() {
   const searchParams = useSearchParams();
-  const initialFilter = searchParams.get('filter') === 'saved' ? 'saved' : 'all';
+  const router = useRouter();
 
-  const [tab, setTab] = useState<'all' | 'saved'>(initialFilter);
+  const rawFilter = searchParams.get('filter') ?? searchParams.get('tab') ?? 'all';
+  const initialTab: Tab = rawFilter === 'saved' ? 'saved' : rawFilter === 'my' ? 'my' : 'all';
+
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -30,6 +35,7 @@ export default function RecipesPage() {
   const { data: recipes, isLoading } = trpc.recipe.list.useQuery({
     search: debouncedSearch || undefined,
     savedOnly: tab === 'saved',
+    myRecipesOnly: tab === 'my',
     limit: 30,
   });
 
@@ -43,29 +49,49 @@ export default function RecipesPage() {
   // Check saved status for each recipe
   const savedIds = new Set(tab === 'saved' ? recipes?.map((r) => r.id) : []);
 
+  const handleTabChange = (t: Tab) => {
+    setTab(t);
+    router.replace(`/recipes?tab=${t}`, { scroll: false });
+  };
+
   return (
     <div className="px-6 py-8">
       {/* Header */}
-      <div className="mb-6">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
-          Your Collection
-        </p>
-        <h1 className="font-serif text-2xl font-bold text-gray-900">Recipes</h1>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+            Your Collection
+          </p>
+          <h1 className="font-serif text-2xl font-bold text-gray-900">Recipes</h1>
+        </div>
+        <Link
+          href="/recipes/new"
+          className="flex items-center gap-1.5 rounded-xl bg-[#944a00] px-4 py-2 text-sm font-semibold text-white hover:bg-[#7a3d00] transition-colors shadow-sm"
+        >
+          <Plus className="h-4 w-4" />
+          Create Recipe
+        </Link>
       </div>
 
       {/* Tabs */}
       <div className="mb-4 flex gap-1 border-b">
-        {(['all', 'saved'] as const).map((t) => (
+        {(
+          [
+            { key: 'all', label: 'All Recipes' },
+            { key: 'saved', label: '♥ Saved' },
+            { key: 'my', label: '✎ My Recipes' },
+          ] as const
+        ).map(({ key, label }) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={key}
+            onClick={() => handleTabChange(key)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
-              tab === t
+              tab === key
                 ? 'border-b-2 border-[#944a00] text-[#944a00]'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            {t === 'all' ? 'All Recipes' : '♥ Saved'}
+            {label}
           </button>
         ))}
       </div>
@@ -111,19 +137,31 @@ export default function RecipesPage() {
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     className="object-cover transition-transform duration-300 group-hover:scale-105"
                   />
-                  {/* Heart overlay */}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      toggleFav.mutate({ recipeId: recipe.id });
-                    }}
-                    className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur-sm hover:scale-110 transition-transform"
-                    aria-label={isSaved ? 'Remove from favourites' : 'Save to favourites'}
-                  >
-                    <Heart
-                      className={`h-4 w-4 ${isSaved ? 'fill-[#944a00] text-[#944a00]' : 'text-gray-400'}`}
-                    />
-                  </button>
+                  {/* Overlay buttons */}
+                  <div className="absolute right-3 top-3 flex gap-1.5">
+                    {tab === 'my' && (
+                      <Link
+                        href={`/recipes/${recipe.id}/edit`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur-sm hover:scale-110 transition-transform"
+                        aria-label="Edit recipe"
+                      >
+                        <Pencil className="h-3.5 w-3.5 text-[#944a00]" />
+                      </Link>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        toggleFav.mutate({ recipeId: recipe.id });
+                      }}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur-sm hover:scale-110 transition-transform"
+                      aria-label={isSaved ? 'Remove from favourites' : 'Save to favourites'}
+                    >
+                      <Heart
+                        className={`h-4 w-4 ${isSaved ? 'fill-[#944a00] text-[#944a00]' : 'text-gray-400'}`}
+                      />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Content */}
@@ -170,7 +208,7 @@ function Chip({ label, value }: { label: string; value: number }) {
   );
 }
 
-function EmptyState({ tab }: { tab: 'all' | 'saved' }) {
+function EmptyState({ tab }: { tab: Tab }) {
   if (tab === 'saved') {
     return (
       <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-gray-50 py-16 text-center">
@@ -188,6 +226,30 @@ function EmptyState({ tab }: { tab: 'all' | 'saved' }) {
       </div>
     );
   }
+
+  if (tab === 'my') {
+    return (
+      <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed bg-gray-50 py-16 text-center">
+        <span className="text-4xl" aria-hidden="true">
+          ✎
+        </span>
+        <div>
+          <p className="font-medium text-gray-700">No custom recipes yet</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Create your first recipe and it will appear here.
+          </p>
+        </div>
+        <Link
+          href="/recipes/new"
+          className="flex items-center gap-1.5 rounded-xl bg-[#944a00] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
+        >
+          <Plus className="h-4 w-4" />
+          Create Recipe
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed bg-gray-50 py-16 text-center">
       <span className="text-4xl" aria-hidden="true">

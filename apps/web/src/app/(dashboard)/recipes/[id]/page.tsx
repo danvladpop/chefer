@@ -7,9 +7,9 @@ import { use, useState } from 'react';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
-import { ArrowLeft, Clock, Flame, Heart, RefreshCw, Users } from 'lucide-react';
+import { ArrowLeft, Clock, Flame, Heart, Library, RefreshCw, Search, Users, X } from 'lucide-react';
 
-// ─── Meal type colours ─────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const MEAL_COLOURS: Record<string, string> = {
   breakfast: 'bg-emerald-100 text-emerald-700',
@@ -17,6 +17,8 @@ const MEAL_COLOURS: Record<string, string> = {
   dinner: 'bg-indigo-100 text-indigo-700',
   snack: 'bg-purple-100 text-purple-700',
 };
+
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -36,6 +38,11 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
   const hasSwapContext = Boolean(planId && day !== null && meal);
 
+  // ── Context label ──────────────────────────────────────────────────────────
+  const dayLabel = dayParam !== null ? (DAY_NAMES[dayParam] ?? '') : '';
+  const mealLabel = meal ? meal.charAt(0).toUpperCase() + meal.slice(1) : '';
+  const contextLabel = dayLabel && mealLabel ? `${mealLabel} · ${dayLabel}` : '';
+
   const { data: recipe, isLoading, isError } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
   const { data: savedData } = trpc.recipe.isSaved.useQuery({ recipeId: id });
   const { data: myRating } = trpc.recipe.getMyRating.useQuery({ recipeId: id });
@@ -53,8 +60,15 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
     onSuccess: (newRecipe) => {
-      // Navigate to the new recipe in the same meal plan context
       void utils.mealPlan.getActive.invalidate();
+      router.push(`/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}`);
+    },
+  });
+
+  const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    onSuccess: (newRecipe) => {
+      void utils.mealPlan.getActive.invalidate();
+      setShowPicker(false);
       router.push(`/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}`);
     },
   });
@@ -65,9 +79,13 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const selectedServings = servings ?? baseServings;
   const scale = selectedServings / baseServings;
 
+  // Saved-recipe picker state
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+
   // ── Back destination ───────────────────────────────────────────────────────
   const backHref = planId ? '/meal-plan' : '/recipes';
-  const backLabel = planId ? '← Back to Meal Planner' : '← Back to Recipes';
+  const backLabel = planId ? 'Back to Meal Planner' : 'Back to Recipes';
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {
@@ -100,14 +118,26 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
-      {/* Back link */}
-      <Link
-        href={backHref}
-        className="mb-6 flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {backLabel}
-      </Link>
+      {/* Back link + context label row */}
+      <div className="mb-6 flex items-center justify-between">
+        <Link
+          href={backHref}
+          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          {backLabel}
+        </Link>
+
+        {/* Meal-plan context pill — only when opened from the planner */}
+        {hasSwapContext && contextLabel && (
+          <span className="flex items-center gap-1.5 rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-xs font-semibold text-[#944a00]">
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${MEAL_COLOURS[meal ?? '']?.split(' ')[0] ?? 'bg-gray-400'}`}
+            />
+            {contextLabel}
+          </span>
+        )}
+      </div>
 
       {/* Hero image */}
       <div className="relative mb-6 h-56 w-full overflow-hidden rounded-2xl">
@@ -119,7 +149,6 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           sizes="(max-width: 768px) 100vw, 768px"
           className="object-cover"
         />
-        {/* Subtle gradient overlay for text legibility below */}
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent" />
       </div>
 
@@ -152,7 +181,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {/* Save button */}
           <button
             onClick={() => toggleFav.mutate({ recipeId: id })}
@@ -167,26 +196,39 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             {isSaved ? 'Saved' : 'Save'}
           </button>
 
-          {/* Swap button — only when accessed from a meal plan */}
+          {/* Meal-plan action buttons — only when accessed from the planner */}
           {hasSwapContext && (
-            <button
-              onClick={() => {
-                if (planId && day !== null && meal) {
-                  swapMutation.mutate({
-                    planId,
-                    dayOfWeek: parseInt(day, 10),
-                    mealType: meal as 'breakfast' | 'lunch' | 'dinner' | 'snack',
-                  });
-                }
-              }}
-              disabled={swapMutation.isPending}
-              className="flex items-center gap-1.5 rounded-xl border border-[#944a00]/30 bg-white px-3 py-2 text-xs font-medium text-[#944a00] shadow-sm hover:bg-[#fff3e8] disabled:opacity-60"
-            >
-              <RefreshCw
-                className={`h-3.5 w-3.5 ${swapMutation.isPending ? 'animate-spin' : ''}`}
-              />
-              {swapMutation.isPending ? 'Swapping…' : 'Swap Recipe'}
-            </button>
+            <>
+              {/* Choose a recipe from saved or my recipes */}
+              <button
+                onClick={() => setShowPicker(true)}
+                disabled={replaceMutation.isPending}
+                className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00] disabled:opacity-60"
+              >
+                <Library className="h-3.5 w-3.5" />
+                Choose Recipe
+              </button>
+
+              {/* AI Swap */}
+              <button
+                onClick={() => {
+                  if (planId && day !== null && meal) {
+                    swapMutation.mutate({
+                      planId,
+                      dayOfWeek: parseInt(day, 10),
+                      mealType: meal as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+                    });
+                  }
+                }}
+                disabled={swapMutation.isPending}
+                className="flex items-center gap-1.5 rounded-xl border border-[#944a00]/30 bg-white px-3 py-2 text-xs font-medium text-[#944a00] shadow-sm hover:bg-[#fff3e8] disabled:opacity-60"
+              >
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${swapMutation.isPending ? 'animate-spin' : ''}`}
+                />
+                {swapMutation.isPending ? 'Swapping…' : 'Swap Recipe'}
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -311,6 +353,206 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           </button>
         </div>
       )}
+
+      {/* Replace error */}
+      {replaceMutation.isError && (
+        <div className="mt-4 flex items-center justify-between rounded-xl bg-red-50 px-4 py-3">
+          <p className="text-sm text-red-600">
+            {replaceMutation.error?.message ?? 'Failed to replace recipe. Please try again.'}
+          </p>
+          <button
+            onClick={() => replaceMutation.reset()}
+            className="text-xs text-red-500 hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Saved recipe picker modal */}
+      {showPicker && planId && day !== null && meal && (
+        <SavedRecipePicker
+          contextLabel={contextLabel}
+          currentRecipeId={id}
+          onSelect={(recipeId) => {
+            replaceMutation.mutate({
+              planId,
+              dayOfWeek: parseInt(day, 10),
+              mealType: meal as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+              recipeId,
+            });
+          }}
+          onClose={() => setShowPicker(false)}
+          isPending={replaceMutation.isPending}
+          search={pickerSearch}
+          onSearchChange={setPickerSearch}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Saved Recipe Picker Modal ─────────────────────────────────────────────────
+
+interface SavedRecipePickerProps {
+  contextLabel: string;
+  currentRecipeId: string;
+  onSelect: (recipeId: string) => void;
+  onClose: () => void;
+  isPending: boolean;
+  search: string;
+  onSearchChange: (v: string) => void;
+}
+
+function SavedRecipePicker({
+  contextLabel,
+  currentRecipeId,
+  onSelect,
+  onClose,
+  isPending,
+  search,
+  onSearchChange,
+}: SavedRecipePickerProps) {
+  const { data: savedRecipes, isLoading: loadingSaved } = trpc.recipe.list.useQuery({
+    savedOnly: true,
+    search: search || undefined,
+    limit: 50,
+  });
+
+  const { data: myRecipes, isLoading: loadingMy } = trpc.recipe.list.useQuery({
+    myRecipesOnly: true,
+    search: search || undefined,
+    limit: 50,
+  });
+
+  const isLoading = loadingSaved || loadingMy;
+
+  // Merge, deduplicate by id, exclude the current recipe
+  const myIds = new Set((myRecipes ?? []).map((r) => r.id));
+  const combined = [
+    ...(myRecipes ?? []).map((r) => ({ ...r, _source: 'mine' as const })),
+    ...(savedRecipes ?? [])
+      .filter((r) => !myIds.has(r.id))
+      .map((r) => ({ ...r, _source: 'saved' as const })),
+  ].filter((r) => r.id !== currentRecipeId);
+
+  return (
+    /* Backdrop */
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      {/* Panel */}
+      <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        {/* Header */}
+        <div className="flex items-start justify-between border-b px-5 py-4">
+          <div>
+            <h2 className="font-serif text-base font-semibold text-gray-900">Choose a Recipe</h2>
+            {contextLabel && (
+              <p className="mt-0.5 text-xs text-gray-400">
+                Replacing <span className="font-medium text-[#944a00]">{contextLabel}</span>
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="border-b px-4 py-3">
+          <div className="flex items-center gap-2 rounded-xl border bg-gray-50 px-3 py-2">
+            <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search your recipes…"
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        {/* Recipe list */}
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="space-y-3 p-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex animate-pulse items-center gap-3">
+                  <div className="h-14 w-14 shrink-0 rounded-xl bg-gray-200" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3.5 w-2/3 rounded bg-gray-200" />
+                    <div className="h-3 w-1/2 rounded bg-gray-200" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : combined.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+              <Library className="h-8 w-8 text-gray-300" />
+              <p className="text-sm text-gray-500">
+                {search ? 'No recipes match your search.' : 'No recipes in your collection yet.'}
+              </p>
+              <p className="text-xs text-gray-400">
+                Save recipes with ♥ or create your own under My Recipes.
+              </p>
+            </div>
+          ) : (
+            <ul className="divide-y">
+              {combined.map((r) => (
+                <li key={r.id}>
+                  <button
+                    onClick={() => onSelect(r.id)}
+                    disabled={isPending}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[#fff3e8] disabled:opacity-60"
+                  >
+                    {/* Thumbnail */}
+                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+                      <Image
+                        {...getRecipeImageProps(r.imageUrl ?? null)}
+                        alt={r.name}
+                        fill
+                        sizes="56px"
+                        className="object-cover"
+                      />
+                    </div>
+                    {/* Info */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate text-sm font-medium text-gray-900">{r.name}</p>
+                        {r._source === 'mine' && (
+                          <span className="shrink-0 rounded-full bg-[#fff3e8] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#944a00]">
+                            Mine
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {r.cuisineType} ·{' '}
+                        {(r.nutritionInfo as { calories?: number }).calories ?? '—'} kcal
+                      </p>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t px-5 py-3">
+          <p className="text-center text-xs text-gray-400">
+            {combined.length > 0
+              ? `${combined.length} recipe${combined.length === 1 ? '' : 's'} · saved & yours`
+              : 'Save or create recipes to use them here'}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

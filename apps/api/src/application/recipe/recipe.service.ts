@@ -3,16 +3,49 @@ import type { Recipe } from '@chefer/database';
 import {
   favouriteRecipeRepository,
   mealRatingRepository,
+  type CreateManualRecipeData,
   type IMealRatingRepository,
 } from '@chefer/database';
 
+type UpdateManualRecipeData = Partial<CreateManualRecipeData>;
+
 export class RecipeService {
   constructor(private readonly ratingRepo: IMealRatingRepository = mealRatingRepository) {}
+
   async list(
     userId: string,
-    opts: { search?: string; savedOnly?: boolean; cursor?: string; limit?: number },
+    opts: {
+      search?: string | undefined;
+      savedOnly?: boolean | undefined;
+      myRecipesOnly?: boolean | undefined;
+      cursor?: string | undefined;
+      limit?: number | undefined;
+    },
   ): Promise<Recipe[]> {
     return favouriteRecipeRepository.findAllRecipesForUser(userId, opts);
+  }
+
+  async create(userId: string, data: CreateManualRecipeData): Promise<Recipe> {
+    return favouriteRecipeRepository.createManualRecipe(userId, data);
+  }
+
+  async getMyRecipe(userId: string, recipeId: string): Promise<Recipe> {
+    const recipe = await favouriteRecipeRepository.findManualRecipeById(userId, recipeId);
+    if (!recipe) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+    return recipe;
+  }
+
+  async update(userId: string, recipeId: string, data: UpdateManualRecipeData): Promise<Recipe> {
+    const existing = await favouriteRecipeRepository.findManualRecipeById(userId, recipeId);
+    if (!existing) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Recipe not found or you do not have permission to edit it.',
+      });
+    }
+    return favouriteRecipeRepository.updateManualRecipe(userId, recipeId, data);
   }
 
   async toggleFavourite(userId: string, recipeId: string): Promise<{ isSaved: boolean }> {
