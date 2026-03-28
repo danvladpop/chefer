@@ -36,9 +36,10 @@ const envSchema = z.object({
     .default('true')
     .transform((val) => val === 'true'),
   AI_MOCK_DELAY_MS: z.coerce.number().int().nonnegative().default(0),
-  AI_PROVIDER: z.enum(['openai', 'anthropic']).default('openai'),
+  AI_PROVIDER: z.enum(['openai', 'anthropic', 'gemini']).default('openai'),
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
 });
 
 type EnvSchema = z.infer<typeof envSchema>;
@@ -55,7 +56,22 @@ function validateEnv(): EnvSchema {
     throw new Error(`❌ Invalid environment variables:\n${errorMessage}`);
   }
 
-  return parsed.data;
+  const data = parsed.data;
+
+  // Provider-specific key guards — fail fast so the error is obvious at startup.
+  if (!data.AI_MOCK_ENABLED) {
+    if (data.AI_PROVIDER === 'gemini' && !data.GEMINI_API_KEY) {
+      throw new Error('❌ GEMINI_API_KEY is required when AI_PROVIDER=gemini');
+    }
+    if (data.AI_PROVIDER === 'openai' && !data.OPENAI_API_KEY) {
+      throw new Error('❌ OPENAI_API_KEY is required when AI_PROVIDER=openai');
+    }
+    if (data.AI_PROVIDER === 'anthropic' && !data.ANTHROPIC_API_KEY) {
+      throw new Error('❌ ANTHROPIC_API_KEY is required when AI_PROVIDER=anthropic');
+    }
+  }
+
+  return data;
 }
 
 export const env = validateEnv();

@@ -503,6 +503,22 @@ Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a
 `apps/api/src/application/dashboard/dashboard.service.ts`. Method: `summary`.
 Aggregates active meal plan, today's meals, recent favourites for the dashboard page.
 
+### MealPlanAIService (lib layer)
+
+`apps/api/src/lib/ai/`. Implements `IAIService` — the contract used by `MealPlanService` for all LLM calls.
+
+| File         | Purpose                                                                                                                                                                               |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`   | `IAIService` interface + all shared types (`MealPlanInput`, `WeekPlanResponse`, …)                                                                                                    |
+| `mock.ts`    | `MockAIService` — returns fixture data instantly, used when `AI_MOCK_ENABLED=true`                                                                                                    |
+| `gemini.ts`  | `GeminiAIService` — live implementation using `gemini-2.5-flash` via `@google/genai`. Uses structured output (`responseSchema`) to guarantee valid JSON. Validates response with Zod. |
+| `openai.ts`  | `LiveAIService` stub — placeholder for future OpenAI integration                                                                                                                      |
+| `prompts.ts` | System prompts + user prompt builders for meal plan generation, recipe swap, chat                                                                                                     |
+| `index.ts`   | Factory — selects provider via `AI_MOCK_ENABLED` + `AI_PROVIDER` env vars                                                                                                             |
+| `fixtures/`  | Hardcoded week plan + swap recipes used by `MockAIService`                                                                                                                            |
+
+**Switching providers:** set `AI_PROVIDER=gemini|openai|anthropic` + the corresponding API key. No other code changes required.
+
 ### GroceryAIService (lib layer)
 
 `apps/api/src/lib/grocery-ai/`. Implements `IGroceryAIService` interface.
@@ -599,24 +615,26 @@ The `createContext` function in `apps/api/src/interfaces/http/middleware/auth.mi
 
 ### `apps/api/.env`
 
-| Variable                   | Required | Default               | Description                                     |
-| -------------------------- | -------- | --------------------- | ----------------------------------------------- |
-| `NODE_ENV`                 | No       | development           | Runtime environment                             |
-| `PORT`                     | No       | 3001                  | HTTP listen port                                |
-| `HOST`                     | No       | 0.0.0.0               | HTTP listen host                                |
-| `DATABASE_URL`             | **Yes**  | —                     | PostgreSQL connection string                    |
-| `JWT_SECRET`               | **Yes**  | —                     | Min 32 chars                                    |
-| `JWT_EXPIRES_IN`           | No       | 15m                   | Access token TTL                                |
-| `REFRESH_TOKEN_SECRET`     | **Yes**  | —                     | Min 32 chars                                    |
-| `REFRESH_TOKEN_EXPIRES_IN` | No       | 30d                   | Refresh token TTL                               |
-| `CORS_ORIGINS`             | No       | http://localhost:3000 | Comma-separated allowed origins                 |
-| `REDIS_URL`                | No       | —                     | Redis connection string                         |
-| `RATE_LIMIT_MAX`           | No       | 100                   | Max requests per window                         |
-| `RATE_LIMIT_WINDOW_MS`     | No       | 60000                 | Rate limit window (ms)                          |
-| `AI_MOCK_ENABLED`          | No       | true                  | Use fixture AI responses (no OpenAI call)       |
-| `GROCERY_AI_MOCK_ENABLED`  | No       | true                  | Use fixture grocery store data (no Claude call) |
-| `OPENAI_API_KEY`           | No       | —                     | Required when `AI_MOCK_ENABLED=false`           |
-| `ANTHROPIC_API_KEY`        | No       | —                     | Required when `GROCERY_AI_MOCK_ENABLED=false`   |
+| Variable                   | Required | Default               | Description                                           |
+| -------------------------- | -------- | --------------------- | ----------------------------------------------------- |
+| `NODE_ENV`                 | No       | development           | Runtime environment                                   |
+| `PORT`                     | No       | 3001                  | HTTP listen port                                      |
+| `HOST`                     | No       | 0.0.0.0               | HTTP listen host                                      |
+| `DATABASE_URL`             | **Yes**  | —                     | PostgreSQL connection string                          |
+| `JWT_SECRET`               | **Yes**  | —                     | Min 32 chars                                          |
+| `JWT_EXPIRES_IN`           | No       | 15m                   | Access token TTL                                      |
+| `REFRESH_TOKEN_SECRET`     | **Yes**  | —                     | Min 32 chars                                          |
+| `REFRESH_TOKEN_EXPIRES_IN` | No       | 30d                   | Refresh token TTL                                     |
+| `CORS_ORIGINS`             | No       | http://localhost:3000 | Comma-separated allowed origins                       |
+| `REDIS_URL`                | No       | —                     | Redis connection string                               |
+| `RATE_LIMIT_MAX`           | No       | 100                   | Max requests per window                               |
+| `RATE_LIMIT_WINDOW_MS`     | No       | 60000                 | Rate limit window (ms)                                |
+| `AI_MOCK_ENABLED`          | No       | true                  | `true` = fixture data; `false` = real AI provider     |
+| `AI_PROVIDER`              | No       | openai                | Active provider: `gemini` \| `openai` \| `anthropic`  |
+| `GEMINI_API_KEY`           | No       | —                     | Required when `AI_PROVIDER=gemini` + mock disabled    |
+| `OPENAI_API_KEY`           | No       | —                     | Required when `AI_PROVIDER=openai` + mock disabled    |
+| `ANTHROPIC_API_KEY`        | No       | —                     | Required when `AI_PROVIDER=anthropic` + mock disabled |
+| `GROCERY_AI_MOCK_ENABLED`  | No       | true                  | Use fixture grocery store data (no Claude call)       |
 
 ### `apps/web/.env.local`
 
