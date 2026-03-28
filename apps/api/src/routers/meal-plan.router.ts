@@ -7,11 +7,18 @@ import { protectedProcedure, router } from '../lib/trpc.js';
 export const mealPlanRouter = router({
   /**
    * Generates a new 7-day meal plan for the authenticated user.
-   * Archives any previously active plan.
+   * Only the plan for the specified week is archived — other weeks are untouched.
+   * weekOffset: 0 = current week, 1 = next week (past weeks are rejected).
    */
-  generate: protectedProcedure.mutation(async ({ ctx }) => {
-    return mealPlanService.generate(ctx.user.id);
-  }),
+  generate: protectedProcedure
+    .input(
+      z.object({
+        weekOffset: z.number().int().min(0).max(52).default(0),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return mealPlanService.generate(ctx.user.id, input.weekOffset);
+    }),
 
   /**
    * Returns the user's current active meal plan with all recipes, or null.

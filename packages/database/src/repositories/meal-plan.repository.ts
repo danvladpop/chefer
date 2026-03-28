@@ -99,16 +99,18 @@ export class MealPlanRepository implements IMealPlanRepository {
   }
 
   /**
-   * Archives all existing plans for the user then creates a new ACTIVE plan
-   * with its days inside a single transaction.
+   * Archives any existing ACTIVE plan for the same week, then creates a new
+   * ACTIVE plan with its days inside a single transaction.
+   * Plans for other weeks are left untouched, so current-week and next-week
+   * plans can coexist independently.
    */
   async createPlan(data: CreateMealPlanData): Promise<MealPlan> {
     const { userId, weekStartDate, days } = data;
 
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Archive all previous plans
+      // Archive only plans for the same week (same weekStartDate), not all active plans.
       await tx.mealPlan.updateMany({
-        where: { userId, status: MealPlanStatus.ACTIVE },
+        where: { userId, status: MealPlanStatus.ACTIVE, weekStartDate },
         data: { status: MealPlanStatus.ARCHIVED },
       });
 

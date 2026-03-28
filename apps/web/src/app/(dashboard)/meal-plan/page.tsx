@@ -63,7 +63,7 @@ export default function MealPlanPage() {
     onError: (err) => alert(`Failed to generate meal plan: ${err.message}`),
   });
 
-  const handleGenerate = () => generateMutation.mutate();
+  const handleGenerate = () => generateMutation.mutate({ weekOffset });
 
   // ── Navigation bar (always visible) ───────────────────────────────────────
   // Always derive label from weekOffset so it updates instantly on click,

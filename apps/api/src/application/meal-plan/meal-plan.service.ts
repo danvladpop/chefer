@@ -8,6 +8,7 @@ import {
 } from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient, MealType, NutritionInfo, RecipeData } from '../../lib/ai/index.js';
+import { pickRecipeImage } from '../../lib/ai/recipe-images.js';
 
 // ─── Shopping list types ───────────────────────────────────────────────────────
 
@@ -157,9 +158,12 @@ export class MealPlanService {
 
   /**
    * Generates a fresh 7-day meal plan for the user, persists it, and returns
-   * the assembled DTO. Archives any previously active plan.
+   * the assembled DTO. Only the plan for the targeted week is archived —
+   * plans for other weeks are left untouched.
+   *
+   * @param weekOffset 0 = current week, 1 = next week, etc.
    */
-  async generate(userId: string): Promise<WeekPlanDto> {
+  async generate(userId: string, weekOffset = 0): Promise<WeekPlanDto> {
     // 1. Load user preferences
     const [chefProfile, dietaryPrefs] = await Promise.all([
       chefProfileRepository.findByUserId(userId),
@@ -203,11 +207,15 @@ export class MealPlanService {
       });
     }
 
-    // 4. Collect unique recipes across all days
+    // 4. Collect unique recipes and assign Unsplash images (AI always returns null)
     const recipeMap = new Map<string, RecipeData>();
     for (const day of weekPlan.days) {
       for (const slot of day.meals) {
-        recipeMap.set(slot.recipe.id, slot.recipe);
+        const recipe = slot.recipe;
+        if (!recipe.imageUrl) {
+          recipe.imageUrl = pickRecipeImage(recipe.id, recipe.name, slot.type);
+        }
+        recipeMap.set(recipe.id, recipe);
       }
     }
     const recipes = Array.from(recipeMap.values());
@@ -230,8 +238,8 @@ export class MealPlanService {
       })),
     );
 
-    // 6. Persist the meal plan (archives old active plan)
-    const weekStartDate = getMondayOfCurrentWeek();
+    // 6. Persist the meal plan (archives only the plan for the same week)
+    const weekStartDate = getMondayOfWeek(weekOffset);
     const plan = await this.repo.createPlan({
       userId,
       weekStartDate,
@@ -384,6 +392,11 @@ export class MealPlanService {
       });
     }
 
+    // Assign image if AI returned null
+    if (!newRecipe.imageUrl) {
+      newRecipe.imageUrl = pickRecipeImage(newRecipe.id, newRecipe.name, mealType);
+    }
+
     // Persist new recipe
     await this.repo.upsertRecipes([
       {
@@ -398,7 +411,7 @@ export class MealPlanService {
         prepTimeMins: newRecipe.prepTimeMins,
         cookTimeMins: newRecipe.cookTimeMins,
         servings: newRecipe.servings,
-        imageUrl: newRecipe.imageUrl ?? null,
+        imageUrl: newRecipe.imageUrl,
       },
     ]);
 
@@ -593,16 +606,6 @@ export class MealPlanService {
 export const mealPlanService = new MealPlanService(mealPlanRepository);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getMondayOfCurrentWeek(): Date {
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun … 6=Sat
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diffToMonday);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-}
 
 function toRecipeDto(r: RecipeData): RecipeDto {
   return {
