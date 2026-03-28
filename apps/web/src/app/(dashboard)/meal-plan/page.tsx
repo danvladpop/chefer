@@ -183,9 +183,9 @@ export default function MealPlanPage() {
             const isToday = isCurrent && day.dayOfWeek === todayIndex;
             return (
               <div key={day.dayOfWeek} className="flex flex-col gap-2">
-                {/* Day header */}
+                {/* Day header — fixed height so all headers are the same size */}
                 <div
-                  className={`rounded-lg px-3 py-2 text-center transition-colors ${
+                  className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-center transition-colors ${
                     isToday ? 'bg-[#944a00] shadow-sm' : 'bg-gray-100'
                   }`}
                 >
@@ -195,16 +195,16 @@ export default function MealPlanPage() {
                     {DAY_NAMES[day.dayOfWeek]}
                   </p>
                   {isToday && (
-                    <p className="text-[9px] font-medium uppercase tracking-wide text-white/80">
+                    <span className="rounded-full bg-white/25 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-white">
                       Today
-                    </p>
+                    </span>
                   )}
                 </div>
 
                 {/* Column highlight wrapper for today */}
                 <div
                   className={`flex flex-col gap-2 rounded-xl p-1 ${
-                    isToday ? 'bg-[#944a00]/5 ring-1 ring-[#944a00]/20' : ''
+                    isToday ? 'bg-[#944a00]/10 ring-2 ring-[#944a00]/40' : ''
                   }`}
                 >
                   {/* Meal cards */}
