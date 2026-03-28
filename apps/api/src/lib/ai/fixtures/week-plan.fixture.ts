@@ -8,8 +8,7 @@ import type { WeekPlanResponse } from '../types.js';
 // All served at 800×600 (4:3) via the recipe-image utility.
 // To migrate to Cloudinary, run `pnpm upload:images` with your credentials.
 
-const U = (id: string) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=800&h=600&q=80`;
+const U = (id: string) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=800&h=600&q=80`;
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
 export const RECIPE_LIBRARY = {
@@ -39,7 +38,7 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 5,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: U('photo-1488477181946-6428a0291777'),
+    imageUrl: U('photo-1542691457-cbe4df041eb2'),
   },
 
   avocadoToast: {
@@ -97,7 +96,7 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 5,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: U('photo-1517673408408-cb25f2e0fb8a'),
+    imageUrl: U('photo-1541809570-cce873416d94'),
   },
 
   spinachOmelette: {
@@ -127,7 +126,7 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 5,
     cookTimeMins: 8,
     servings: 1,
-    imageUrl: U('photo-1510693206972-df098062cb71'),
+    imageUrl: U('photo-1609272270052-5aa27050b578'),
   },
 
   // ── LUNCHES ─────────────────────────────────────────────────────────────────
@@ -283,7 +282,7 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 15,
     cookTimeMins: 25,
     servings: 1,
-    imageUrl: U('photo-1512058564366-18510be2db19'),
+    imageUrl: U('photo-1628025114288-1693ac3bcac1'),
   },
 
   mediterraneanCod: {
@@ -315,7 +314,7 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 10,
     cookTimeMins: 25,
     servings: 1,
-    imageUrl: U('photo-1519708227418-c8fd9a32b7a2'),
+    imageUrl: U('photo-1656945764473-6157c129817e'),
   },
 
   lentilCurry: {
@@ -375,7 +374,7 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 3,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: U('photo-1568702846914-96b305d2aaeb'),
+    imageUrl: U('photo-1580062760649-1250019c0623'),
   },
 
   proteinSmoothie: {
@@ -401,7 +400,7 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 5,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: U('photo-1553530666-ba11a7da3888'),
+    imageUrl: U('photo-1650265929240-fbf163e0d003'),
   },
 
   mixedNuts: {
@@ -424,7 +423,7 @@ export const RECIPE_LIBRARY = {
     prepTimeMins: 1,
     cookTimeMins: 0,
     servings: 1,
-    imageUrl: U('photo-1508061253366-f7da158b6d46'),
+    imageUrl: U('photo-1769255484646-16988ad5552d'),
   },
 };
 

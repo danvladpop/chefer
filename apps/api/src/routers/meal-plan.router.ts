@@ -21,6 +21,19 @@ export const mealPlanRouter = router({
   }),
 
   /**
+   * Returns the meal plan for a given week offset (0 = current, -1 = last week, 1 = next week).
+   */
+  getForWeek: protectedProcedure
+    .input(
+      z.object({
+        weekOffset: z.number().int().min(-52).max(52).default(0),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      return mealPlanService.getForWeek(ctx.user.id, input.weekOffset);
+    }),
+
+  /**
    * Returns a single recipe by ID. Used by the recipe detail page.
    */
   getRecipe: protectedProcedure
@@ -49,6 +62,28 @@ export const mealPlanRouter = router({
         input.dayOfWeek,
         input.mealType,
         input.reason,
+      );
+    }),
+
+  /**
+   * Replaces a single meal slot with a specific saved recipe chosen by the user.
+   */
+  replaceRecipe: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        dayOfWeek: z.number().int().min(0).max(6),
+        mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+        recipeId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return mealPlanService.replaceRecipe(
+        ctx.user.id,
+        input.planId,
+        input.dayOfWeek,
+        input.mealType,
+        input.recipeId,
       );
     }),
 

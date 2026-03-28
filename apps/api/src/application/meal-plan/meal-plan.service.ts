@@ -138,6 +138,18 @@ export interface WeekPlanDto {
   days: DayPlanDto[];
 }
 
+// ─── Week helper ──────────────────────────────────────────────────────────────
+
+function getMondayOfWeek(offset: number): Date {
+  const now = new Date();
+  const day = now.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday + offset * 7);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class MealPlanService {
@@ -281,6 +293,53 @@ export class MealPlanService {
   }
 
   /**
+   * Returns the meal plan for a given week offset (0 = current, -1 = last week, 1 = next week).
+   * Returns null if no plan exists for that week.
+   */
+  async getForWeek(userId: string, weekOffset: number): Promise<WeekPlanDto | null> {
+    const monday = getMondayOfWeek(weekOffset);
+    const allPlans = await this.repo.findAllByUserId(userId, 52, 0);
+
+    // Find plan whose weekStartDate matches this week's Monday
+    let plan = allPlans.find((p) => {
+      const planMonday = new Date(p.weekStartDate);
+      planMonday.setHours(0, 0, 0, 0);
+      const target = new Date(monday);
+      target.setHours(0, 0, 0, 0);
+      return Math.abs(planMonday.getTime() - target.getTime()) < 7 * 24 * 60 * 60 * 1000;
+    });
+
+    // For offset 0, fall back to active plan
+    if (!plan && weekOffset === 0) {
+      plan = (await this.repo.findActiveWithDays(userId)) ?? undefined;
+    }
+
+    if (!plan) return null;
+
+    type MealSlotJson = { type: string; recipeId: string };
+    const allMeals = plan.days.flatMap((d: { meals: unknown }) => d.meals as MealSlotJson[]);
+    const uniqueIds = [...new Set(allMeals.map((m: MealSlotJson) => m.recipeId))];
+    const recipeRows: Recipe[] = await this.repo.findRecipesByIds(uniqueIds);
+    const recipeMap = new Map<string, Recipe>(recipeRows.map((r) => [r.id, r]));
+
+    const days: DayPlanDto[] = plan.days.map((d: { dayOfWeek: number; meals: unknown }) => {
+      const meals = (d.meals as MealSlotJson[]).map((m: MealSlotJson) => {
+        const row = recipeMap.get(m.recipeId);
+        if (!row) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Recipe ${m.recipeId} not found in database.`,
+          });
+        }
+        return { type: m.type as MealType, recipe: rowToRecipeDto(row) };
+      });
+      return { dayOfWeek: d.dayOfWeek, meals };
+    });
+
+    return { planId: plan.id, weekStartDate: plan.weekStartDate, days };
+  }
+
+  /**
    * Returns a single recipe by ID. Accessible to any authenticated user so
    * recipe detail pages work without a meal plan.
    */
@@ -347,6 +406,31 @@ export class MealPlanService {
     await this.repo.updateDayMeal(planId, dayOfWeek, mealType, newRecipe.id);
 
     return toRecipeDto(newRecipe);
+  }
+
+  /**
+   * Replaces a single meal slot with a specific saved recipe chosen by the user.
+   */
+  async replaceRecipe(
+    userId: string,
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    recipeId: string,
+  ): Promise<RecipeDto> {
+    const plan = await this.repo.findActiveWithDays(userId);
+    if (!plan || plan.id !== planId) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Active meal plan not found.' });
+    }
+
+    const recipe = await this.repo.findRecipeById(recipeId);
+    if (!recipe) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+
+    await this.repo.updateDayMeal(planId, dayOfWeek, mealType, recipeId);
+
+    return rowToRecipeDto(recipe);
   }
 
   async list(userId: string, limit = 10, offset = 0): Promise<MealPlanSummaryDto[]> {

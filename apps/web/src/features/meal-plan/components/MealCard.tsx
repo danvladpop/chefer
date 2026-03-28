@@ -1,7 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { getRecipeImageProps } from '@/lib/recipe-image';
-import { Clock, Flame } from 'lucide-react';
+import { Clock } from 'lucide-react';
+import { MacroDonut } from './MacroDonut';
 
 interface NutritionInfo {
   calories: number;
@@ -48,6 +49,7 @@ export function MealCard({ mealType, recipe, planId, dayOfWeek, readOnly = false
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const href = `/recipes/${recipe.id}?planId=${planId}&day=${dayOfWeek}&meal=${mealType}`;
   const imgProps = getRecipeImageProps(recipe.imageUrl);
+  const n = recipe.nutritionInfo;
 
   const inner = (
     <>
@@ -60,7 +62,7 @@ export function MealCard({ mealType, recipe, planId, dayOfWeek, readOnly = false
           sizes="(max-width: 1280px) 130px, 160px"
           className="object-cover transition-transform duration-300 group-hover:scale-105"
         />
-        {/* Meal type badge overlaid on image */}
+        {/* Meal type badge */}
         <span
           className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide backdrop-blur-sm ${MEAL_TYPE_COLORS[mealType] ?? 'bg-gray-100 text-gray-700'}`}
         >
@@ -68,7 +70,7 @@ export function MealCard({ mealType, recipe, planId, dayOfWeek, readOnly = false
         </span>
       </div>
 
-      {/* Card body — fixed height so all cards are uniform regardless of title length */}
+      {/* Card body */}
       <div className="h-28 overflow-hidden p-3">
         {/* Recipe name */}
         <p className="mb-1 line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900 group-hover:text-[#944a00]">
@@ -78,16 +80,23 @@ export function MealCard({ mealType, recipe, planId, dayOfWeek, readOnly = false
         {/* Cuisine */}
         <p className="mb-2 text-[11px] text-gray-400">{recipe.cuisineType}</p>
 
-        {/* Stats row */}
-        <div className="flex items-center gap-3 text-[11px] text-gray-500">
-          <span className="flex items-center gap-1">
-            <Flame className="h-3 w-3 text-[#944a00]" aria-hidden="true" />
-            {recipe.nutritionInfo.calories} kcal
-          </span>
-          <span className="flex items-center gap-1">
-            <Clock className="h-3 w-3" aria-hidden="true" />
-            {totalTime} min
-          </span>
+        {/* Stats row: time + donut chart */}
+        <div className="flex items-center justify-between text-[11px] text-gray-500">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" aria-hidden="true" />
+              {totalTime} min
+            </span>
+            <span className="text-gray-300">·</span>
+            <span className="font-medium text-gray-700">{n.calories} kcal</span>
+          </div>
+          <MacroDonut
+            protein={n.protein}
+            carbs={n.carbs}
+            fat={n.fat}
+            calories={n.calories}
+            size={34}
+          />
         </div>
       </div>
     </>

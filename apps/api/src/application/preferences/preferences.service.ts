@@ -22,18 +22,75 @@ const ACTIVITY_MULTIPLIERS: Record<string, number> = {
   ATHLETE: 1.9,
 };
 
+const GOAL_ADJUSTMENTS: Record<string, number> = {
+  LOSE_WEIGHT: -500,
+  MAINTAIN: 0,
+  GAIN_MUSCLE: 300,
+  EAT_HEALTHIER: 0,
+};
+
+const GOAL_MACRO_SPLITS: Record<string, { protein: number; carbs: number; fat: number }> = {
+  LOSE_WEIGHT: { protein: 0.35, carbs: 0.35, fat: 0.3 },
+  GAIN_MUSCLE: { protein: 0.35, carbs: 0.4, fat: 0.25 },
+  MAINTAIN: { protein: 0.25, carbs: 0.45, fat: 0.3 },
+  EAT_HEALTHIER: { protein: 0.2, carbs: 0.5, fat: 0.3 },
+};
+
 function computeCalorieTarget(
   weightKg: number,
   heightCm: number,
   age: number,
   activityLevel: string,
   biologicalSex: string | null,
+  goal?: string | null,
 ): number {
   // Mifflin-St Jeor: male +5, female −161, unknown average −78
   const sexConstant = biologicalSex === 'MALE' ? 5 : biologicalSex === 'FEMALE' ? -161 : -78;
   const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + sexConstant;
   const multiplier = ACTIVITY_MULTIPLIERS[activityLevel] ?? 1.55;
-  return Math.round(bmr * multiplier);
+  const tdee = Math.round(bmr * multiplier);
+  const adjustment = goal ? (GOAL_ADJUSTMENTS[goal] ?? 0) : 0;
+  return Math.max(1200, tdee + adjustment); // minimum 1200 kcal
+}
+
+// ─── Macro targets ────────────────────────────────────────────────────────────
+
+export interface MacroTargets {
+  dailyCalorieTarget: number;
+  proteinPct: number;
+  carbsPct: number;
+  fatPct: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+export function computeMacroTargets(
+  weightKg: number,
+  heightCm: number,
+  age: number,
+  activityLevel: string,
+  biologicalSex: string | null,
+  goal: string,
+): MacroTargets {
+  const calories = computeCalorieTarget(
+    weightKg,
+    heightCm,
+    age,
+    activityLevel,
+    biologicalSex,
+    goal,
+  );
+  const split = GOAL_MACRO_SPLITS[goal] ?? GOAL_MACRO_SPLITS['MAINTAIN']!;
+  return {
+    dailyCalorieTarget: calories,
+    proteinPct: Math.round(split.protein * 100),
+    carbsPct: Math.round(split.carbs * 100),
+    fatPct: Math.round(split.fat * 100),
+    proteinG: Math.round((calories * split.protein) / 4),
+    carbsG: Math.round((calories * split.carbs) / 4),
+    fatG: Math.round((calories * split.fat) / 9),
+  };
 }
 
 // ─── Input / Output Types ─────────────────────────────────────────────────────
@@ -128,6 +185,7 @@ export class PreferencesService {
       age,
       activityLevel,
       biologicalSex,
+      goal,
     );
 
     try {
@@ -227,12 +285,14 @@ export class PreferencesService {
       const mergedSex = biologicalSex ?? existing?.biologicalSex ?? null;
 
       if (mergedWeight && mergedHeight && mergedAge && mergedActivity) {
+        const mergedGoal = goal ?? existing?.goal ?? null;
         profileData.dailyCalorieTarget = computeCalorieTarget(
           mergedWeight,
           mergedHeight,
           mergedAge,
           mergedActivity,
           mergedSex,
+          mergedGoal,
         );
       }
     }

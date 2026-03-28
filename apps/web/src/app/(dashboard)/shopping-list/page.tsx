@@ -14,6 +14,7 @@ import {
   Lightbulb,
   MapPin,
   Printer,
+  RefreshCw,
   ShoppingCart,
   Smartphone,
   Store,
@@ -111,10 +112,12 @@ export default function ShoppingListPage() {
   const savedDeliveryAddress = preferencesData?.chefProfile?.deliveryAddress ?? null;
 
   // Fetch shopping list for the selected week
-  const { data: weekList, isLoading: listLoading } = trpc.shoppingList.getForWeek.useQuery(
-    { weekOffset },
-    { staleTime: 60_000 },
-  );
+  const {
+    data: weekList,
+    isLoading: listLoading,
+    isFetching: listFetching,
+    refetch: refetchList,
+  } = trpc.shoppingList.getForWeek.useQuery({ weekOffset }, { staleTime: 60_000 });
 
   // Fetch store data (enabled only when we have a planId)
   const { data: storeResult, isLoading: storesLoading } = trpc.shoppingList.searchStores.useQuery(
@@ -219,6 +222,14 @@ export default function ShoppingListPage() {
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold tracking-tight">Shopping List</h1>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => refetchList()}
+              disabled={listFetching}
+              className="flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${listFetching ? 'animate-spin' : ''}`} />
+              {listFetching ? 'Regenerating…' : 'Regenerate shopping list'}
+            </button>
             <button
               onClick={() => window.print()}
               className="flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50"
