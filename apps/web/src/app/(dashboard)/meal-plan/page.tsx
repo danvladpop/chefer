@@ -65,19 +65,10 @@ export default function MealPlanPage() {
 
   const handleGenerate = () => generateMutation.mutate();
 
-  // ── Loading ────────────────────────────────────────────────────────────────
-  if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#944a00]/20 border-t-[#944a00]" />
-      </div>
-    );
-  }
-
   // ── Navigation bar (always visible) ───────────────────────────────────────
-  const weekLabel = plan
-    ? formatWeekLabel(plan.weekStartDate)
-    : formatWeekLabel(getMondayOfWeekClient(weekOffset));
+  // Always derive label from weekOffset so it updates instantly on click,
+  // regardless of whether a plan has loaded yet.
+  const weekLabel = formatWeekLabel(getMondayOfWeekClient(weekOffset));
 
   const navBar = (
     <div className="flex shrink-0 items-center justify-between px-6 py-4">
@@ -136,11 +127,20 @@ export default function MealPlanPage() {
     </div>
   );
 
-  // ── Empty state ────────────────────────────────────────────────────────────
-  if (!plan) {
-    return (
-      <div className="flex h-full flex-col">
-        {navBar}
+  // ── Always render navBar; swap only the body area ─────────────────────────
+  return (
+    <div className="flex h-full flex-col">
+      {navBar}
+
+      {/* Loading */}
+      {isLoading && (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#944a00]/20 border-t-[#944a00]" />
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!isLoading && !plan && (
         <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 text-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-[#fff3e8] text-4xl">
             🍽️
@@ -166,67 +166,61 @@ export default function MealPlanPage() {
             </button>
           )}
         </div>
-        {isGenerating && <GenerateOverlay />}
-      </div>
-    );
-  }
+      )}
 
-  // ── Week view ──────────────────────────────────────────────────────────────
-  return (
-    <div className="flex h-full flex-col">
-      {navBar}
-
-      {/* 7-day grid — horizontally scrollable on small screens */}
-      <div className="flex-1 overflow-x-auto px-4 pb-6">
-        <div className="grid min-w-[900px] grid-cols-7 gap-3">
-          {plan.days.map((day) => {
-            const isToday = isCurrent && day.dayOfWeek === todayIndex;
-            return (
-              <div key={day.dayOfWeek} className="flex flex-col gap-2">
-                {/* Day header — fixed height so all headers are the same size */}
-                <div
-                  className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-center transition-colors ${
-                    isToday ? 'bg-[#944a00] shadow-sm' : 'bg-gray-100'
-                  }`}
-                >
-                  <p
-                    className={`text-xs font-semibold ${isToday ? 'text-white' : 'text-gray-700'}`}
+      {/* Week grid */}
+      {!isLoading && plan && (
+        <div className="flex-1 overflow-x-auto px-4 pb-6">
+          <div className="grid min-w-[900px] grid-cols-7 gap-3">
+            {plan.days.map((day) => {
+              const isToday = isCurrent && day.dayOfWeek === todayIndex;
+              return (
+                <div key={day.dayOfWeek} className="flex flex-col gap-2">
+                  {/* Day header — fixed height so all headers are the same size */}
+                  <div
+                    className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-center transition-colors ${
+                      isToday ? 'bg-[#944a00] shadow-sm' : 'bg-gray-100'
+                    }`}
                   >
-                    {DAY_NAMES[day.dayOfWeek]}
-                  </p>
-                  {isToday && (
-                    <span className="rounded-full bg-white/25 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-white">
-                      Today
-                    </span>
-                  )}
-                </div>
+                    <p
+                      className={`text-xs font-semibold ${isToday ? 'text-white' : 'text-gray-700'}`}
+                    >
+                      {DAY_NAMES[day.dayOfWeek]}
+                    </p>
+                    {isToday && (
+                      <span className="rounded-full bg-white/25 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-white">
+                        Today
+                      </span>
+                    )}
+                  </div>
 
-                {/* Column highlight wrapper for today */}
-                <div
-                  className={`flex flex-col gap-2 rounded-xl p-1 ${
-                    isToday ? 'bg-[#944a00]/10 ring-2 ring-[#944a00]/40' : ''
-                  }`}
-                >
-                  {/* Meal cards */}
-                  {day.meals.map((slot) => (
-                    <MealCard
-                      key={slot.type}
-                      mealType={slot.type}
-                      recipe={slot.recipe}
-                      planId={plan.planId}
-                      dayOfWeek={day.dayOfWeek}
-                      readOnly={isPast}
-                    />
-                  ))}
+                  {/* Column highlight wrapper for today */}
+                  <div
+                    className={`flex flex-col gap-2 rounded-xl p-1 ${
+                      isToday ? 'bg-[#944a00]/10 ring-2 ring-[#944a00]/40' : ''
+                    }`}
+                  >
+                    {/* Meal cards */}
+                    {day.meals.map((slot) => (
+                      <MealCard
+                        key={slot.type}
+                        mealType={slot.type}
+                        recipe={slot.recipe}
+                        planId={plan.planId}
+                        dayOfWeek={day.dayOfWeek}
+                        readOnly={isPast}
+                      />
+                    ))}
 
-                  {/* Day totals */}
-                  <DayRecapBar meals={day.meals} />
+                    {/* Day totals */}
+                    <DayRecapBar meals={day.meals} />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {isGenerating && <GenerateOverlay />}
     </div>
