@@ -2,7 +2,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { Clock } from 'lucide-react';
-import { MacroDonut } from './MacroDonut';
 
 interface NutritionInfo {
   calories: number;
@@ -71,7 +70,7 @@ export function MealCard({ mealType, recipe, planId, dayOfWeek, readOnly = false
       </div>
 
       {/* Card body */}
-      <div className="h-28 overflow-hidden p-3">
+      <div className="overflow-hidden p-3">
         {/* Recipe name */}
         <p className="mb-1 line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900 group-hover:text-[#944a00]">
           {recipe.name}
@@ -80,23 +79,30 @@ export function MealCard({ mealType, recipe, planId, dayOfWeek, readOnly = false
         {/* Cuisine */}
         <p className="mb-2 text-[11px] text-gray-400">{recipe.cuisineType}</p>
 
-        {/* Stats row: time + donut chart */}
-        <div className="flex items-center justify-between text-[11px] text-gray-500">
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" aria-hidden="true" />
-              {totalTime} min
-            </span>
-            <span className="text-gray-300">·</span>
-            <span className="font-medium text-gray-700">{n.calories} kcal</span>
+        {/* Time + calories */}
+        <div className="mb-2 flex items-center gap-2 text-[11px] text-gray-500">
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" aria-hidden="true" />
+            {totalTime} min
+          </span>
+          <span className="text-gray-300">·</span>
+          <span className="font-medium text-gray-700">{n.calories} kcal</span>
+        </div>
+
+        {/* Macros stacked */}
+        <div className="space-y-0.5">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-blue-500">Protein</span>
+            <span className="font-medium text-gray-700">{n.protein}g</span>
           </div>
-          <MacroDonut
-            protein={n.protein}
-            carbs={n.carbs}
-            fat={n.fat}
-            calories={n.calories}
-            size={34}
-          />
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-amber-500">Carbs</span>
+            <span className="font-medium text-gray-700">{n.carbs}g</span>
+          </div>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-green-500">Fat</span>
+            <span className="font-medium text-gray-700">{n.fat}g</span>
+          </div>
         </div>
       </div>
     </>
