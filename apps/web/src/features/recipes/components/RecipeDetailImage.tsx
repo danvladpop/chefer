@@ -22,7 +22,7 @@ export function RecipeDetailImage({
   const [imageUrl, setImageUrl] = useState(initialImageUrl);
   const [imageStatus, setImageStatus] = useState(initialImageStatus);
 
-  const isPending = initialImageStatus === 'PENDING' || initialImageStatus === 'GENERATING';
+  const isPending = imageStatus === 'PENDING' || imageStatus === 'GENERATING';
 
   const handleUpdate = useCallback(
     (update: { recipeId: string; imageUrl: string | null; status: string }) => {

@@ -59,12 +59,10 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   });
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
-    onSuccess: () => {
+    onSuccess: (newRecipe) => {
       void utils.mealPlan.getForWeek.invalidate();
       void utils.mealPlan.getActive.invalidate();
-      // Navigate back to the meal plan so the shimmer → image transition is visible
-      // (the new recipe starts as PENDING; the SSE hook on the plan page picks it up)
-      router.push('/meal-plan');
+      router.push(`/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}`);
     },
     onError: (err) => {
       console.error('Swap recipe failed:', err.message);
