@@ -59,4 +59,4 @@ export type {
   DailyLog,
   WeightEntry,
 } from '@prisma/client';
-export { UserRole, PostStatus, Prisma, BiologicalSex, MealPlanStatus } from '@prisma/client';
+export { UserRole, PostStatus, Prisma, BiologicalSex, MealPlanStatus, ImageStatus } from '@prisma/client';
