@@ -26,6 +26,11 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'res.cloudinary.com',
       },
+      {
+        // Pollinations.ai — AI-generated recipe images
+        protocol: 'https',
+        hostname: 'image.pollinations.ai',
+      },
     ],
   },
   async headers() {
