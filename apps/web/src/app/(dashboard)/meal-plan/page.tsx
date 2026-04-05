@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
@@ -45,7 +46,24 @@ function getMondayOfWeekClient(offset: number): Date {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MealPlanPage() {
-  const [weekOffset, setWeekOffset] = useState(0);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const rawOffset = parseInt(searchParams.get('week') ?? '0', 10);
+  const weekOffset = Number.isNaN(rawOffset)
+    ? 0
+    : Math.max(MIN_OFFSET, Math.min(MAX_OFFSET, rawOffset));
+
+  const setWeekOffset = (offset: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (offset === 0) {
+      params.delete('week');
+    } else {
+      params.set('week', String(offset));
+    }
+    router.replace(`/meal-plan?${params.toString()}`, { scroll: false });
+  };
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [imageOverrides, setImageOverrides] = useState<
     Record<string, { imageUrl: string | null; status: ImageStatusType }>
@@ -105,7 +123,7 @@ export default function MealPlanPage() {
       {/* Week navigator */}
       <div className="flex items-center gap-3">
         <button
-          onClick={() => setWeekOffset((o) => Math.max(MIN_OFFSET, o - 1))}
+          onClick={() => setWeekOffset(Math.max(MIN_OFFSET, weekOffset - 1))}
           disabled={weekOffset <= MIN_OFFSET}
           aria-label="Previous week"
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
@@ -134,7 +152,7 @@ export default function MealPlanPage() {
         </div>
 
         <button
-          onClick={() => setWeekOffset((o) => Math.min(MAX_OFFSET, o + 1))}
+          onClick={() => setWeekOffset(Math.min(MAX_OFFSET, weekOffset + 1))}
           disabled={weekOffset >= MAX_OFFSET}
           aria-label="Next week"
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
