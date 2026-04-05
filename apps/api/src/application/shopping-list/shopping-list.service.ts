@@ -1,4 +1,4 @@
-import { chefProfileRepository, mealPlanRepository } from '@chefer/database';
+import { AiCallType, chefProfileRepository, mealPlanRepository, prisma } from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient } from '../../lib/ai/types.js';
 import { groceryAIService } from '../../lib/grocery-ai/index.js';
@@ -250,6 +250,8 @@ export class ShoppingListService {
       ingredients: rawIngredients,
       weekLabel,
     });
+
+    void prisma.aiCallLog.create({ data: { userId, callType: AiCallType.SHOPPING_LIST } });
 
     const items: ShoppingListItemForWeek[] = aiResult.items.map((item) => ({
       key: `${targetPlan!.id}-ai-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}`,

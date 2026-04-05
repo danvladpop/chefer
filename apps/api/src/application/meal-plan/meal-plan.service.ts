@@ -1,8 +1,10 @@
 import { TRPCError } from '@trpc/server';
 import {
+  AiCallType,
   chefProfileRepository,
   dietaryPreferencesRepository,
   mealPlanRepository,
+  prisma,
   type IMealPlanRepository,
   type Recipe,
 } from '@chefer/database';
@@ -207,6 +209,9 @@ export class MealPlanService {
       });
     }
 
+    // Log AI call (fire-and-forget — don't block plan generation on logging)
+    void prisma.aiCallLog.create({ data: { userId, callType: AiCallType.MEAL_PLAN } });
+
     // 4. Collect unique recipes — no image assignment, the worker handles this async
     const recipeMap = new Map<string, RecipeData>();
     for (const day of weekPlan.days) {
@@ -404,6 +409,8 @@ export class MealPlanService {
         message: 'Failed to swap recipe. Please try again.',
       });
     }
+
+    void prisma.aiCallLog.create({ data: { userId, callType: AiCallType.RECIPE_SWAP } });
 
     // Persist new recipe — imageStatus PENDING set by repository create block
     await this.repo.upsertRecipes([

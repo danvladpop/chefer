@@ -1,4 +1,4 @@
-import { ImageStatus, prisma } from '@chefer/database';
+import { AiCallType, ImageStatus, prisma } from '@chefer/database';
 import {
   generateAndUploadRecipeImage,
   ImagenContentFilterError,
@@ -57,7 +57,7 @@ export class RecipeImageWorker {
     try {
       const recipe = await prisma.recipe.findFirst({
         where: { imageStatus: ImageStatus.PENDING },
-        select: { id: true, name: true, cuisineType: true, description: true },
+        select: { id: true, name: true, cuisineType: true, description: true, creatorId: true },
         orderBy: { createdAt: 'asc' },
       });
 
@@ -86,6 +86,7 @@ export class RecipeImageWorker {
     name: string;
     cuisineType: string;
     description: string;
+    creatorId: string | null;
   }): Promise<void> {
     try {
       const cdnUrl = await generateAndUploadRecipeImage({
@@ -99,6 +100,13 @@ export class RecipeImageWorker {
         where: { id: recipe.id },
         data: { imageUrl: cdnUrl, imageStatus: ImageStatus.DONE },
       });
+
+      // Log image generation against the recipe's creator (if known)
+      if (recipe.creatorId) {
+        void prisma.aiCallLog.create({
+          data: { userId: recipe.creatorId, callType: AiCallType.IMAGE_GENERATION },
+        });
+      }
 
       recipeImageEventEmitter.emit(recipe.id, { imageUrl: cdnUrl, status: 'DONE' });
       console.log(`[RecipeImageWorker] ✓ ${recipe.id} (${recipe.name})`);

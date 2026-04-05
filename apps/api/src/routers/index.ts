@@ -3,6 +3,7 @@ import { authRouter } from './auth.router.js';
 import { dashboardRouter } from './dashboard.router.js';
 import { mealPlanRouter } from './meal-plan.router.js';
 import { preferencesRouter } from './preferences.router.js';
+import { profileRouter } from './profile.router.js';
 import { recipeRouter } from './recipe.router.js';
 import { shoppingListRouter } from './shopping-list.router.js';
 import { trackerRouter } from './tracker.router.js';
@@ -13,6 +14,7 @@ export const appRouter = router({
   dashboard: dashboardRouter,
   mealPlan: mealPlanRouter,
   preferences: preferencesRouter,
+  profile: profileRouter,
   recipe: recipeRouter,
   shoppingList: shoppingListRouter,
   tracker: trackerRouter,

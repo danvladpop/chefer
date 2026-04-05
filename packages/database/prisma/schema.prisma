@@ -62,6 +62,13 @@ enum MealPlanStatus {
   ARCHIVED
 }
 
+enum AiCallType {
+  MEAL_PLAN
+  RECIPE_SWAP
+  SHOPPING_LIST
+  IMAGE_GENERATION
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -90,6 +97,7 @@ model User {
   dailyLogs          DailyLog[]
   weightEntries      WeightEntry[]
   createdRecipes     Recipe[]            @relation("CreatedRecipes")
+  aiCallLogs         AiCallLog[]
 
   @@index([email])
   @@map("users")
@@ -351,4 +359,16 @@ model PostTag {
 
   @@id([postId, tagId])
   @@map("post_tags")
+}
+
+model AiCallLog {
+  id        String      @id @default(cuid())
+  userId    String
+  callType  AiCallType
+  createdAt DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("ai_call_logs")
 }

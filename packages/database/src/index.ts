@@ -60,6 +60,7 @@ export type {
   WeightEntry,
 } from '@prisma/client';
 export {
+  AiCallType,
   UserRole,
   PostStatus,
   Prisma,
