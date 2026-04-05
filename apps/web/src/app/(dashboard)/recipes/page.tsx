@@ -1,10 +1,9 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { getRecipeImageProps } from '@/lib/recipe-image';
+import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { trpc } from '@/lib/trpc';
 import { Clock, Flame, Heart, Pencil, Plus, Search } from 'lucide-react';
 
@@ -130,12 +129,11 @@ export default function RecipesPage() {
               >
                 {/* Photo */}
                 <div className="relative h-40 overflow-hidden">
-                  <Image
-                    {...getRecipeImageProps(recipe.imageUrl)}
-                    alt={recipe.name}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                  <RecipeImage
+                    imageUrl={recipe.imageUrl ?? null}
+                    imageStatus={(recipe.imageStatus ?? 'DONE') as ImageStatusType}
+                    recipeName={recipe.name}
+                    className="h-full w-full transition-transform duration-300 group-hover:scale-105"
                   />
                   {/* Overlay buttons */}
                   <div className="absolute right-3 top-3 flex gap-1.5">
