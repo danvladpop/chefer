@@ -1,7 +1,8 @@
-import { uploadRecipeImage } from '../image-cdn/cloudinary.js';
-import { generateRecipeImage } from './imagen.js';
+import { buildPollinationsUrl } from './pollinations.js';
 import { buildRecipeImagePrompt } from './prompt.js';
 
+// Re-export error classes so callers don't need to know where they come from.
+// The worker references these types — keep them even if Imagen is no longer used.
 export { ImagenRateLimitError, ImagenContentFilterError } from './imagen.js';
 
 export interface RecipeImageInput {
@@ -12,11 +13,12 @@ export interface RecipeImageInput {
 }
 
 /**
- * Full pipeline: generate → upload → return CDN URL.
- * Does not catch errors — the worker is responsible for classifying failures.
+ * Builds a stable, CDN-cached Pollinations.ai image URL for the recipe.
+ * No API call is made here — the URL is deterministic and the image is
+ * generated/cached by Pollinations on first browser request.
+ * Returns the URL immediately so the worker can mark the recipe DONE fast.
  */
 export async function generateAndUploadRecipeImage(input: RecipeImageInput): Promise<string> {
   const prompt = buildRecipeImagePrompt(input.recipeName, input.cuisineType, input.description);
-  const { base64, mimeType } = await generateRecipeImage(prompt);
-  return uploadRecipeImage(base64, mimeType, input.recipeId);
+  return buildPollinationsUrl(prompt, input.recipeId);
 }
