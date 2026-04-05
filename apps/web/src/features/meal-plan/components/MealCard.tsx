@@ -1,6 +1,5 @@
-import Image from 'next/image';
 import Link from 'next/link';
-import { getRecipeImageProps } from '@/lib/recipe-image';
+import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { Clock } from 'lucide-react';
 
 interface NutritionInfo {
@@ -20,6 +19,7 @@ interface RecipeDto {
   cookTimeMins: number;
   nutritionInfo: NutritionInfo;
   imageUrl?: string | null;
+  imageStatus?: ImageStatusType;
 }
 
 interface MealCardProps {
@@ -28,6 +28,8 @@ interface MealCardProps {
   planId: string;
   dayOfWeek: number;
   readOnly?: boolean;
+  imageUrlOverride?: string | null;
+  imageStatusOverride?: ImageStatusType;
 }
 
 const MEAL_TYPE_LABELS: Record<string, string> = {
@@ -44,22 +46,32 @@ const MEAL_TYPE_COLORS: Record<string, string> = {
   snack: 'bg-purple-100 text-purple-800',
 };
 
-export function MealCard({ mealType, recipe, planId, dayOfWeek, readOnly = false }: MealCardProps) {
+export function MealCard({
+  mealType,
+  recipe,
+  planId,
+  dayOfWeek,
+  readOnly = false,
+  imageUrlOverride,
+  imageStatusOverride,
+}: MealCardProps) {
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const href = `/recipes/${recipe.id}?planId=${planId}&day=${dayOfWeek}&meal=${mealType}`;
-  const imgProps = getRecipeImageProps(recipe.imageUrl);
   const n = recipe.nutritionInfo;
+
+  const effectiveImageUrl =
+    imageUrlOverride !== undefined ? imageUrlOverride : (recipe.imageUrl ?? null);
+  const effectiveImageStatus: ImageStatusType = imageStatusOverride ?? recipe.imageStatus ?? 'DONE';
 
   const inner = (
     <>
       {/* Recipe thumbnail */}
       <div className="relative h-24 w-full overflow-hidden">
-        <Image
-          {...imgProps}
-          alt={recipe.name}
-          fill
-          sizes="(max-width: 1280px) 130px, 160px"
-          className="object-cover transition-transform duration-300 group-hover:scale-105"
+        <RecipeImage
+          imageUrl={effectiveImageUrl}
+          imageStatus={effectiveImageStatus}
+          recipeName={recipe.name}
+          className="h-full w-full transition-transform duration-300 group-hover:scale-105"
         />
         {/* Meal type badge */}
         <span

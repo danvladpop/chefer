@@ -7,6 +7,8 @@ import {
 } from './interfaces/http/middleware/auth.middleware.js';
 import { env } from './lib/env.js';
 import { appRouter } from './routers/index.js';
+import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
+import { recipeImageWorker } from './workers/recipe-image.worker.js';
 
 const app = express();
 
@@ -60,6 +62,10 @@ app.get('/api/health', async (_req, res) => {
       .json({ ok: false, timestamp: new Date().toISOString(), error: 'Database unavailable' });
   }
 });
+
+// ─── SSE — Recipe Images ──────────────────────────────────────────────────────
+
+app.use('/api/recipe-images', recipeImagesSseRouter);
 
 // ─── tRPC ─────────────────────────────────────────────────────────────────────
 
@@ -123,12 +129,18 @@ const server = app.listen(env.PORT, env.HOST, () => {
   }
 
   console.log('');
+
+  // Start the background recipe image worker
+  void recipeImageWorker.start();
 });
 
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────
 
 async function gracefulShutdown(signal: string): Promise<void> {
   console.log(`\n📴 Received ${signal}. Starting graceful shutdown...`);
+
+  // Stop the image worker first (waits for in-flight job to complete)
+  await recipeImageWorker.stop();
 
   server.close(() => {
     console.log('✅ HTTP server closed');

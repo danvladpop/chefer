@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
+import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
+import { useRecipeImageStream, type RecipeImageUpdate } from '@/hooks/useRecipeImageStream';
 import { trpc } from '@/lib/trpc';
 import { CalendarDays, ChevronLeft, ChevronRight, RefreshCw, Wand2 } from 'lucide-react';
 
@@ -45,6 +47,9 @@ function getMondayOfWeekClient(offset: number): Date {
 export default function MealPlanPage() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [imageOverrides, setImageOverrides] = useState<
+    Record<string, { imageUrl: string | null; status: ImageStatusType }>
+  >({});
 
   const isPast = weekOffset < 0;
   const isCurrent = weekOffset === 0;
@@ -55,6 +60,31 @@ export default function MealPlanPage() {
     isLoading,
     refetch,
   } = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { retry: false });
+
+  // Collect pending recipe IDs for SSE subscription
+  const pendingRecipeIds = useMemo(
+    () =>
+      plan
+        ? plan.days
+            .flatMap((d) => d.meals)
+            .map((m) => m.recipe)
+            .filter((r) => {
+              const imageStatus = (r.imageStatus ?? 'DONE') as ImageStatusType;
+              return imageStatus === 'PENDING' || imageStatus === 'GENERATING';
+            })
+            .map((r) => r.id)
+        : [],
+    [plan],
+  );
+
+  const handleImageUpdate = useCallback((update: RecipeImageUpdate) => {
+    setImageOverrides((prev) => ({
+      ...prev,
+      [update.recipeId]: { imageUrl: update.imageUrl, status: update.status as ImageStatusType },
+    }));
+  }, []);
+
+  useRecipeImageStream(pendingRecipeIds, handleImageUpdate);
 
   const generateMutation = trpc.mealPlan.generate.useMutation({
     onMutate: () => setIsGenerating(true),
@@ -201,16 +231,21 @@ export default function MealPlanPage() {
                     }`}
                   >
                     {/* Meal cards */}
-                    {day.meals.map((slot) => (
-                      <MealCard
-                        key={slot.type}
-                        mealType={slot.type}
-                        recipe={slot.recipe}
-                        planId={plan.planId}
-                        dayOfWeek={day.dayOfWeek}
-                        readOnly={isPast}
-                      />
-                    ))}
+                    {day.meals.map((slot) => {
+                      const override = imageOverrides[slot.recipe.id];
+                      return (
+                        <MealCard
+                          key={slot.type}
+                          mealType={slot.type}
+                          recipe={slot.recipe}
+                          planId={plan.planId}
+                          dayOfWeek={day.dayOfWeek}
+                          readOnly={isPast}
+                          imageUrlOverride={override?.imageUrl}
+                          imageStatusOverride={override?.status}
+                        />
+                      );
+                    })}
 
                     {/* Day totals */}
                     <DayRecapBar meals={day.meals} />

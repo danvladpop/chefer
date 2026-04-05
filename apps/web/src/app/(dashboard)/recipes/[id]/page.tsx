@@ -1,11 +1,11 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useState } from 'react';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
-import { getRecipeImageProps } from '@/lib/recipe-image';
+import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
+import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, Clock, Flame, Heart, Library, RefreshCw, Search, Users, X } from 'lucide-react';
 
@@ -146,13 +146,12 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
       {/* Hero image */}
       <div className="relative mb-6 h-56 w-full overflow-hidden rounded-2xl">
-        <Image
-          {...getRecipeImageProps(recipe.imageUrl)}
-          alt={recipe.name}
-          fill
-          priority
-          sizes="(max-width: 768px) 100vw, 768px"
-          className="object-cover"
+        <RecipeDetailImage
+          recipeId={id}
+          recipeName={recipe.name}
+          initialImageUrl={recipe.imageUrl ?? null}
+          initialImageStatus={(recipe.imageStatus ?? 'DONE') as ImageStatusType}
+          className="h-full w-full"
         />
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent" />
       </div>
@@ -523,13 +522,12 @@ function SavedRecipePicker({
                     className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[#fff3e8] disabled:opacity-60"
                   >
                     {/* Thumbnail */}
-                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-gray-100">
-                      <Image
-                        {...getRecipeImageProps(r.imageUrl ?? null)}
-                        alt={r.name}
-                        fill
-                        sizes="56px"
-                        className="object-cover"
+                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+                      <RecipeImage
+                        imageUrl={r.imageUrl ?? null}
+                        imageStatus={(r.imageStatus ?? 'DONE') as ImageStatusType}
+                        recipeName={r.name}
+                        className="h-full w-full"
                       />
                     </div>
                     {/* Info */}

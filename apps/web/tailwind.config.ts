@@ -3,10 +3,7 @@ import { fontFamily } from 'tailwindcss/defaultTheme';
 
 const config: Config = {
   darkMode: ['class'],
-  content: [
-    './src/**/*.{ts,tsx}',
-    '../../packages/ui/src/**/*.{ts,tsx}',
-  ],
+  content: ['./src/**/*.{ts,tsx}', '../../packages/ui/src/**/*.{ts,tsx}'],
   theme: {
     container: {
       center: true,
@@ -76,6 +73,9 @@ const config: Config = {
         'slide-in-from-right': {
           from: { transform: 'translateX(100%)' },
           to: { transform: 'translateX(0)' },
+        },
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' },
         },
       },
       animation: {

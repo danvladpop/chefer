@@ -8,7 +8,6 @@ import {
 } from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient, MealType, NutritionInfo, RecipeData } from '../../lib/ai/index.js';
-import { pickRecipeImage } from '../../lib/ai/recipe-images.js';
 
 // ─── Shopping list types ───────────────────────────────────────────────────────
 
@@ -121,6 +120,7 @@ export interface RecipeDto {
   cookTimeMins: number;
   servings: number;
   imageUrl: string | null;
+  imageStatus: 'PENDING' | 'GENERATING' | 'DONE' | 'FAILED';
 }
 
 export interface MealSlotDto {
@@ -207,15 +207,11 @@ export class MealPlanService {
       });
     }
 
-    // 4. Collect unique recipes and assign Unsplash images (AI always returns null)
+    // 4. Collect unique recipes — no image assignment, the worker handles this async
     const recipeMap = new Map<string, RecipeData>();
     for (const day of weekPlan.days) {
       for (const slot of day.meals) {
-        const recipe = slot.recipe;
-        if (!recipe.imageUrl) {
-          recipe.imageUrl = pickRecipeImage(recipe.id, recipe.name, slot.type);
-        }
-        recipeMap.set(recipe.id, recipe);
+        recipeMap.set(slot.recipe.id, slot.recipe);
       }
     }
     const recipes = Array.from(recipeMap.values());
@@ -234,7 +230,6 @@ export class MealPlanService {
         prepTimeMins: r.prepTimeMins,
         cookTimeMins: r.cookTimeMins,
         servings: r.servings,
-        imageUrl: r.imageUrl ?? null,
       })),
     );
 
@@ -410,12 +405,7 @@ export class MealPlanService {
       });
     }
 
-    // Assign image if AI returned null
-    if (!newRecipe.imageUrl) {
-      newRecipe.imageUrl = pickRecipeImage(newRecipe.id, newRecipe.name, mealType);
-    }
-
-    // Persist new recipe
+    // Persist new recipe — imageStatus PENDING set by repository create block
     await this.repo.upsertRecipes([
       {
         id: newRecipe.id,
@@ -429,7 +419,6 @@ export class MealPlanService {
         prepTimeMins: newRecipe.prepTimeMins,
         cookTimeMins: newRecipe.cookTimeMins,
         servings: newRecipe.servings,
-        imageUrl: newRecipe.imageUrl,
       },
     ]);
 
@@ -638,7 +627,9 @@ function toRecipeDto(r: RecipeData): RecipeDto {
     prepTimeMins: r.prepTimeMins,
     cookTimeMins: r.cookTimeMins,
     servings: r.servings,
-    imageUrl: r.imageUrl,
+    imageUrl: r.imageUrl ?? null,
+    // New AI-generated recipes have no imageUrl — treat as PENDING so the worker will generate one
+    imageStatus: 'PENDING' as const,
   };
 }
 
@@ -666,6 +657,7 @@ function rowToRecipeDto(row: {
   cookTimeMins: number;
   servings: number;
   imageUrl: string | null;
+  imageStatus?: unknown;
 }): RecipeDto {
   return {
     id: row.id,
@@ -680,5 +672,6 @@ function rowToRecipeDto(row: {
     cookTimeMins: row.cookTimeMins,
     servings: row.servings,
     imageUrl: row.imageUrl,
+    imageStatus: (row.imageStatus as 'PENDING' | 'GENERATING' | 'DONE' | 'FAILED') ?? 'DONE',
   };
 }

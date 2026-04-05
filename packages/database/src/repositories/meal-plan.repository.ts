@@ -17,6 +17,8 @@ export interface CreateRecipeData {
   cookTimeMins: number;
   servings: number;
   imageUrl?: string | null;
+  imageStatus?: 'PENDING' | 'GENERATING' | 'DONE' | 'FAILED';
+  imageRetries?: number;
 }
 
 export interface CreateMealPlanData {
@@ -78,11 +80,16 @@ export class MealPlanRepository implements IMealPlanRepository {
             prepTimeMins: r.prepTimeMins,
             cookTimeMins: r.cookTimeMins,
             servings: r.servings,
-            imageUrl: r.imageUrl ?? null,
+            imageUrl: null,
+            imageStatus: r.imageStatus ?? 'PENDING',
+            imageRetries: 0,
           },
           update: {
             name: r.name,
             description: r.description,
+            // imageUrl and imageStatus are intentionally NOT updated here —
+            // the worker owns these fields. Re-generating a plan that returns
+            // the same recipe ID must not reset its image.
           },
         }),
       ),

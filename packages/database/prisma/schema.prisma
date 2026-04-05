@@ -49,6 +49,13 @@ enum RecipeSource {
   MANUAL
 }
 
+enum ImageStatus {
+  PENDING
+  GENERATING
+  DONE
+  FAILED
+}
+
 enum MealPlanStatus {
   DRAFT
   ACTIVE
@@ -153,6 +160,8 @@ model Recipe {
   cookTimeMins  Int
   servings      Int
   imageUrl      String?
+  imageStatus   ImageStatus  @default(DONE)
+  imageRetries  Int          @default(0)
   source        RecipeSource @default(AI)
   creatorId     String?
   createdAt     DateTime     @default(now())
