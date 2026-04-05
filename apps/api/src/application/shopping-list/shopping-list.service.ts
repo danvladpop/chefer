@@ -255,8 +255,8 @@ export class ShoppingListService {
       .create({ data: { userId, callType: AiCallType.SHOPPING_LIST } })
       .catch((err) => console.error('[aiCallLog] Failed to log SHOPPING_LIST call:', err));
 
-    const items: ShoppingListItemForWeek[] = aiResult.items.map((item) => ({
-      key: `${targetPlan!.id}-ai-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}`,
+    const items: ShoppingListItemForWeek[] = aiResult.items.map((item, i) => ({
+      key: `${targetPlan!.id}-ai-${i}-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}`,
       ingredientName: item.ingredientName,
       quantity: item.quantity,
       unit: item.unit,
