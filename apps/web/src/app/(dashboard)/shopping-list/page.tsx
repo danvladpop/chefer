@@ -112,12 +112,19 @@ export default function ShoppingListPage() {
   const savedDeliveryAddress = preferencesData?.chefProfile?.deliveryAddress ?? null;
 
   // Fetch shopping list for the selected week
-  const {
-    data: weekList,
-    isLoading: listLoading,
-    isFetching: listFetching,
-    refetch: refetchList,
-  } = trpc.shoppingList.getForWeek.useQuery({ weekOffset }, { staleTime: 60_000 });
+  const { data: weekList, isLoading: listLoading } = trpc.shoppingList.getForWeek.useQuery(
+    { weekOffset },
+    { staleTime: 60_000 },
+  );
+
+  const utils = trpc.useUtils();
+
+  // AI-regenerate mutation — updates the getForWeek cache inline on success
+  const regenerateMutation = trpc.shoppingList.regenerate.useMutation({
+    onSuccess: (data) => {
+      utils.shoppingList.getForWeek.setData({ weekOffset }, data);
+    },
+  });
 
   // Fetch store data (enabled only when we have a planId)
   const { data: storeResult, isLoading: storesLoading } = trpc.shoppingList.searchStores.useQuery(
@@ -223,12 +230,15 @@ export default function ShoppingListPage() {
           <h1 className="text-2xl font-bold tracking-tight">Shopping List</h1>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => refetchList()}
-              disabled={listFetching}
+              onClick={() => regenerateMutation.mutate({ weekOffset })}
+              disabled={regenerateMutation.isPending || !weekList?.hasPlan}
+              title={!weekList?.hasPlan ? 'Generate a meal plan first' : undefined}
               className="flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${listFetching ? 'animate-spin' : ''}`} />
-              {listFetching ? 'Regenerating…' : 'Regenerate shopping list'}
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${regenerateMutation.isPending ? 'animate-spin' : ''}`}
+              />
+              {regenerateMutation.isPending ? 'Regenerating…' : 'Regenerate shopping list'}
             </button>
             <button
               onClick={() => window.print()}

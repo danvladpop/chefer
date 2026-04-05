@@ -43,6 +43,7 @@ export const aiService: IAIService = createAIService();
 // Re-export types for convenience
 export type { IAIService } from './types.js';
 export type {
+  AiShoppingListItem,
   ChatContext,
   ChatMessage,
   DayPlan,
@@ -52,6 +53,9 @@ export type {
   MealType,
   NutritionInfo,
   RecipeData,
+  ShoppingCategory,
+  ShoppingListInput,
+  ShoppingListResponse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';

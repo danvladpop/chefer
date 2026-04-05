@@ -308,13 +308,15 @@ export class MealPlanService {
     const monday = getMondayOfWeek(weekOffset);
     const allPlans = await this.repo.findAllByUserId(userId, 52, 0);
 
-    // Find plan whose weekStartDate matches this week's Monday
+    // Find plan whose weekStartDate falls on the same calendar Monday.
+    // Use toDateString() comparison (local date, no hours) so timezones don't
+    // accidentally make two different Mondays "close enough" under the old
+    // < 7-day range heuristic.
+    const targetDateStr = monday.toDateString();
     let plan = allPlans.find((p) => {
       const planMonday = new Date(p.weekStartDate);
       planMonday.setHours(0, 0, 0, 0);
-      const target = new Date(monday);
-      target.setHours(0, 0, 0, 0);
-      return Math.abs(planMonday.getTime() - target.getTime()) < 7 * 24 * 60 * 60 * 1000;
+      return planMonday.toDateString() === targetDateStr;
     });
 
     // For offset 0, fall back to active plan
@@ -367,13 +369,25 @@ export class MealPlanService {
     planId: string,
     dayOfWeek: number,
     mealType: string,
-    reason?: string,
+    _reason?: string,
   ): Promise<RecipeDto> {
-    // Verify the plan belongs to this user
-    const plan = await this.repo.findActiveWithDays(userId);
-    if (!plan || plan.id !== planId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Active meal plan not found.' });
+    // Verify the plan belongs to this user (look up by ID so it works for any week)
+    const plan = await this.repo.findByIdForUser(userId, planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
     }
+
+    // Load dietary preferences for the swap prompt
+    const [, dietaryPrefs] = await Promise.all([
+      chefProfileRepository.findByUserId(userId),
+      dietaryPreferencesRepository.findByUserId(userId),
+    ]);
+
+    // Find the current recipe name in the plan day
+    type MealSlotJson = { type: string; recipeId: string };
+    const day = plan.days.find((d: { dayOfWeek: number }) => d.dayOfWeek === dayOfWeek);
+    const slot = day ? (day.meals as MealSlotJson[]).find((m) => m.type === mealType) : undefined;
+    const currentRecipe = slot ? await this.repo.findRecipeById(slot.recipeId) : null;
 
     // Call AI swap
     let newRecipe: RecipeData;
@@ -381,8 +395,12 @@ export class MealPlanService {
       newRecipe = await aiService.generateRecipeSwap({
         userId,
         mealType: mealType as MealType,
-        currentRecipeId: '',
-        reason,
+        originalRecipeName: currentRecipe?.name ?? mealType,
+        preferences: {
+          dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
+          allergies: dietaryPrefs?.allergies ?? [],
+          cuisinePreferences: dietaryPrefs?.cuisinePreferences ?? [],
+        },
       });
     } catch (err) {
       console.error('AI generateRecipeSwap failed:', err);
@@ -431,9 +449,9 @@ export class MealPlanService {
     mealType: string,
     recipeId: string,
   ): Promise<RecipeDto> {
-    const plan = await this.repo.findActiveWithDays(userId);
-    if (!plan || plan.id !== planId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Active meal plan not found.' });
+    const plan = await this.repo.findByIdForUser(userId, planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
     }
 
     const recipe = await this.repo.findRecipeById(recipeId);

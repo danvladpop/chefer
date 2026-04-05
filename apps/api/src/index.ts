@@ -1,10 +1,12 @@
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import cors from 'cors';
 import express from 'express';
-
+import {
+  createContext,
+  requestIdMiddleware,
+} from './interfaces/http/middleware/auth.middleware.js';
 import { env } from './lib/env.js';
 import { appRouter } from './routers/index.js';
-import { createContext, requestIdMiddleware } from './interfaces/http/middleware/auth.middleware.js';
 
 const app = express();
 
@@ -53,7 +55,9 @@ app.get('/api/health', async (_req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ ok: true, timestamp: new Date().toISOString() });
   } catch {
-    res.status(503).json({ ok: false, timestamp: new Date().toISOString(), error: 'Database unavailable' });
+    res
+      .status(503)
+      .json({ ok: false, timestamp: new Date().toISOString(), error: 'Database unavailable' });
   }
 });
 
@@ -66,7 +70,9 @@ app.use(
     createContext: ({ req, res }) => createContext(req, res),
     onError({ error, path }) {
       if (error.code === 'INTERNAL_SERVER_ERROR') {
-        console.error(`❌ tRPC error on ${path ?? 'unknown'}:`, error);
+        console.error(`❌ tRPC error on ${path ?? 'unknown'}:`, error.message, error.cause);
+      } else if (env.NODE_ENV === 'development') {
+        console.warn(`⚠️  tRPC ${error.code} on ${path ?? 'unknown'}:`, error.message);
       }
     },
   }),
@@ -83,13 +89,15 @@ app.use((_req, res) => {
 
 // ─── Error Handler ────────────────────────────────────────────────────────────
 
-app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({
-    success: false,
-    error: { code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' },
-  });
-});
+app.use(
+  (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('Unhandled error:', err);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' },
+    });
+  },
+);
 
 // ─── Server Start ─────────────────────────────────────────────────────────────
 
@@ -99,13 +107,19 @@ const server = app.listen(env.PORT, env.HOST, () => {
   console.log(`📡 tRPC endpoint: http://${env.HOST}:${env.PORT}/trpc`);
   console.log(`💚 Health check: http://${env.HOST}:${env.PORT}/api/health`);
   console.log(`🌍 Environment: ${env.NODE_ENV}`);
-  console.log(`🤖 AI mode: ${env.AI_MOCK_ENABLED ? 'MOCK (no tokens consumed)' : `LIVE (${env.AI_PROVIDER})`}`);
+  console.log(
+    `🤖 AI mode: ${env.AI_MOCK_ENABLED ? 'MOCK (no tokens consumed)' : `LIVE (${env.AI_PROVIDER})`}`,
+  );
 
   if (!env.AI_MOCK_ENABLED && !env.OPENAI_API_KEY && !env.ANTHROPIC_API_KEY) {
-    console.warn('⚠️  AI_MOCK_ENABLED=false but no OPENAI_API_KEY or ANTHROPIC_API_KEY is set — AI calls will fail');
+    console.warn(
+      '⚠️  AI_MOCK_ENABLED=false but no OPENAI_API_KEY or ANTHROPIC_API_KEY is set — AI calls will fail',
+    );
   }
   if (env.AI_MOCK_ENABLED && (env.OPENAI_API_KEY ?? env.ANTHROPIC_API_KEY)) {
-    console.warn('⚠️  AI_MOCK_ENABLED=true but an API key is also set — the key will not be used (mock takes precedence)');
+    console.warn(
+      '⚠️  AI_MOCK_ENABLED=true but an API key is also set — the key will not be used (mock takes precedence)',
+    );
   }
 
   console.log('');

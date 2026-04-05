@@ -1,4 +1,5 @@
 import { chefProfileRepository, mealPlanRepository } from '@chefer/database';
+import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient } from '../../lib/ai/types.js';
 import { groceryAIService } from '../../lib/grocery-ai/index.js';
 import type { GroceryCategory, GrocerySearchResult } from '../../lib/grocery-ai/index.js';
@@ -113,13 +114,12 @@ export class ShoppingListService {
     // Find plan for this week
     const allPlans = await mealPlanRepository.findAllByUserId(userId, 52, 0);
 
-    // Find plan whose weekStartDate is closest to weekStart
+    // Find plan whose weekStartDate exactly matches the target Monday
+    const targetDateStr = weekStart.toDateString();
     let targetPlan = allPlans.find((p) => {
       const planMonday = new Date(p.weekStartDate);
       planMonday.setHours(0, 0, 0, 0);
-      const targetMonday = new Date(weekStart);
-      targetMonday.setHours(0, 0, 0, 0);
-      return Math.abs(planMonday.getTime() - targetMonday.getTime()) < 7 * 24 * 60 * 60 * 1000;
+      return planMonday.toDateString() === targetDateStr;
     });
 
     // If no plan for this week, for offset 0 use active plan
@@ -184,6 +184,80 @@ export class ShoppingListService {
       unit: data.unit,
       category: data.category,
       recipeNames: [...data.recipeIds].map((id) => recipeMap.get(id)?.name ?? '').filter(Boolean),
+    }));
+
+    return {
+      planId: targetPlan.id,
+      weekStartDate: weekStart.toISOString(),
+      weekEndDate: weekEnd.toISOString(),
+      hasPlan: true,
+      items,
+      weekOffset,
+    };
+  }
+
+  async regenerate(userId: string, weekOffset: number): Promise<WeekShoppingList> {
+    const weekStart = getMondayOfWeek(weekOffset);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    const allPlans = await mealPlanRepository.findAllByUserId(userId, 56, 0);
+    const targetDateStr = weekStart.toDateString();
+    let targetPlan = allPlans.find((p) => {
+      const planMonday = new Date(p.weekStartDate);
+      planMonday.setHours(0, 0, 0, 0);
+      return planMonday.toDateString() === targetDateStr;
+    });
+
+    if (!targetPlan && weekOffset === 0) {
+      targetPlan = (await mealPlanRepository.findActiveWithDays(userId)) ?? undefined;
+    }
+
+    if (!targetPlan) {
+      return {
+        planId: null,
+        weekStartDate: weekStart.toISOString(),
+        weekEndDate: weekEnd.toISOString(),
+        hasPlan: false,
+        items: [],
+        weekOffset,
+      };
+    }
+
+    type MealSlotJson = { type: string; recipeId: string };
+    const uniqueIds = [
+      ...new Set(
+        targetPlan.days.flatMap((d) => (d.meals as MealSlotJson[]).map((m) => m.recipeId)),
+      ),
+    ];
+    const recipes = await mealPlanRepository.findRecipesByIds(uniqueIds);
+
+    // Collect all raw ingredients (unmerged — let AI consolidate)
+    const rawIngredients: { name: string; quantity: number; unit: string }[] = [];
+    for (const day of targetPlan.days) {
+      for (const slot of day.meals as MealSlotJson[]) {
+        const recipe = recipes.find((r) => r.id === slot.recipeId);
+        if (!recipe) continue;
+        for (const ing of recipe.ingredients as unknown as Ingredient[]) {
+          rawIngredients.push({ name: ing.name, quantity: ing.quantity, unit: ing.unit });
+        }
+      }
+    }
+
+    const weekLabel = `${weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${weekEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+
+    const aiResult = await aiService.generateShoppingList({
+      ingredients: rawIngredients,
+      weekLabel,
+    });
+
+    const items: ShoppingListItemForWeek[] = aiResult.items.map((item) => ({
+      key: `${targetPlan!.id}-ai-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}`,
+      ingredientName: item.ingredientName,
+      quantity: item.quantity,
+      unit: item.unit,
+      category: item.category,
+      recipeNames: [],
     }));
 
     return {

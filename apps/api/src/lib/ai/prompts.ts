@@ -1,27 +1,26 @@
-import type { MealPlanInput, SwapInput } from './types.js';
+import type { MealPlanInput, ShoppingListInput, SwapInput } from './types.js';
 
 // ─── Meal Plan ────────────────────────────────────────────────────────────────
 
 export const MEAL_PLAN_SYSTEM_PROMPT = `\
-You are Chefer, an expert nutritionist and personal chef.
-Your job is to design complete, realistic 7-day meal plans tailored to a person's goals, \
-body metrics, dietary needs, and cuisine tastes.
+You are Chefer, an expert nutritionist. Generate 7-day meal plans.
 
-Rules you must follow absolutely:
-- NEVER include ingredients the user is allergic to — this is a safety requirement.
-- NEVER include ingredients the user dislikes.
-- Honour every dietary restriction (vegan, gluten-free, halal, etc.) without exception.
-- Each recipe must have accurate, realistic nutritional information.
-- Spread calories across the day according to meal type: \
-  breakfast 20–25%, lunch 30–35%, dinner 35–40%, snack 10–15%.
-- Ensure variety: no recipe name should repeat across the 7 days.
-- Adapt portion sizes to the serving size multiplier provided.
-- Prefer the user's listed cuisines while ensuring the week stays nutritionally balanced.
-- Every recipe must be practical to prepare at home (real ingredients, real techniques).
-- prepTimeMins and cookTimeMins must be realistic for the dish.
-- Set imageUrl to null — it will be filled in separately.
-- Generate a stable id for each recipe using the format: \
-  "recipe_<slug_of_name>" (e.g. "recipe_grilled_salmon_bowl").`;
+OUTPUT SIZE RULES (mandatory — minimise tokens):
+- description: ≤10 words
+- ingredients: exactly 5 items
+- instructions: exactly 3 steps
+- dietaryTags: ≤2 tags
+- imageUrl: always null
+- id format: "recipe_<snake_case_name>" e.g. "recipe_grilled_salmon"
+
+NUTRITION RULES:
+- Calories: breakfast 20-25%, lunch 30-35%, dinner 35-40%, snack 10-15%
+- No recipe name repeats across 7 days
+- Accurate macros (calories, protein, carbs, fat, fiber)
+- Realistic prepTimeMins and cookTimeMins
+
+SAFETY (non-negotiable): Never include allergens or disliked ingredients.
+Honour all dietary restrictions (vegan, gluten-free, halal, etc.).`;
 
 const GOAL_LABELS: Record<string, string> = {
   LOSE_WEIGHT: 'lose weight (caloric deficit, high protein, low refined carbs)',
@@ -54,33 +53,14 @@ export function buildMealPlanUserPrompt(input: MealPlanInput): string {
     : 'no preference — vary widely across world cuisines';
 
   return `\
-Create a personalised 7-day meal plan for this person:
-
-PROFILE
-  Goal:            ${goal}
-  Sex:             ${input.biologicalSex}
-  Age:             ${input.age} years
-  Height:          ${input.heightCm} cm
-  Weight:          ${input.weightKg} kg
-  Activity level:  ${activity}
-
-NUTRITION TARGETS
-  Daily calories:  ${input.dailyCalorieTarget} kcal
-  Meals per day:   ${input.mealsPerDay} (${mealTypes.join(', ')})
-  Serving size:    ${input.servingSize} ${input.servingSize === 1 ? 'person' : 'people'}
-
-DIETARY CONSTRAINTS (non-negotiable)
-  Allergies:             ${allergies}
-  Dietary restrictions:  ${restrictions}
-  Disliked ingredients:  ${dislikes}
-
-PREFERENCES
-  Preferred cuisines: ${cuisines}
-
-Generate all 7 days (dayOfWeek 0 = Monday … 6 = Sunday). \
-Each day must have exactly ${input.mealsPerDay} meal(s): ${mealTypes.join(', ')}. \
-Total daily calories across all meals should sum to approximately \
-${input.dailyCalorieTarget} kcal ± 100 kcal.`;
+7-day plan for: ${input.biologicalSex} ${input.age}yo ${input.heightCm}cm ${input.weightKg}kg, ${activity}
+Goal: ${goal}
+Target: ${input.dailyCalorieTarget} kcal/day, ${input.mealsPerDay} meals/day (${mealTypes.join('+')}), serving ${input.servingSize}
+Allergies: ${allergies}
+Restrictions: ${restrictions}
+Dislikes: ${dislikes}
+Cuisines: ${cuisines}
+Days: 0=Mon…6=Sun. Exactly ${input.mealsPerDay} meals per day.`;
 }
 
 // ─── Recipe Swap ──────────────────────────────────────────────────────────────
@@ -109,6 +89,25 @@ Constraints:
 
 Return one alternative ${input.mealType} recipe with similar nutrition. \
 Use id format "recipe_<slug_of_name>".`;
+}
+
+// ─── Shopping List ────────────────────────────────────────────────────────────
+
+export const SHOPPING_LIST_SYSTEM_PROMPT = `\
+You are Chefer, a smart kitchen assistant. Consolidate a raw ingredient list into an optimised weekly shopping list.
+
+RULES (mandatory):
+- Merge duplicate ingredients — combine quantities with the same unit (e.g. two entries of "olive oil 2 tbsp" + "olive oil 1 tbsp" → "olive oil 3 tbsp")
+- Normalise units: prefer g/ml/kg/L for weights and volumes; tsp/tbsp/cup for small recipe quantities
+- Assign the correct category for every item: produce, proteins, dairy, grains, frozen, or other
+- Output exactly one entry per unique ingredient — no duplicates
+- quantity must be a numeric string (e.g. "500" or "2.5"), no fractions
+- ingredientName in Title Case (e.g. "Chicken Breast", "Olive Oil")
+- Exclude pure seasonings/spices already in most pantries (salt, black pepper, generic "spices")`;
+
+export function buildShoppingListPrompt(input: ShoppingListInput): string {
+  const lines = input.ingredients.map((i) => `${i.name}: ${i.quantity} ${i.unit}`).join('\n');
+  return `Consolidate this raw ingredient list for the week of ${input.weekLabel}:\n\n${lines}`;
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────

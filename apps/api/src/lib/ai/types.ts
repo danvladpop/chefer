@@ -73,6 +73,24 @@ export interface SwapInput {
   };
 }
 
+export interface ShoppingListInput {
+  ingredients: { name: string; quantity: number; unit: string }[];
+  weekLabel: string; // e.g., "Mon 24 Mar – Sun 30 Mar 2025"
+}
+
+export type ShoppingCategory = 'produce' | 'proteins' | 'dairy' | 'grains' | 'frozen' | 'other';
+
+export interface AiShoppingListItem {
+  ingredientName: string;
+  quantity: string; // numeric string, e.g. "500" or "2.5"
+  unit: string;
+  category: ShoppingCategory;
+}
+
+export interface ShoppingListResponse {
+  items: AiShoppingListItem[];
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -88,5 +106,6 @@ export interface ChatContext {
 export interface IAIService {
   generateMealPlan(input: MealPlanInput): Promise<WeekPlanResponse>;
   generateRecipeSwap(input: SwapInput): Promise<RecipeData>;
+  generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse>;
   chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream>;
 }

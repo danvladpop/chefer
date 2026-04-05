@@ -6,6 +6,8 @@ import type {
   IAIService,
   MealPlanInput,
   RecipeData,
+  ShoppingListInput,
+  ShoppingListResponse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -38,6 +40,34 @@ export class MockAIService implements IAIService {
 
     // Return the recipe with a fresh ID so repeated swaps don't collide
     return { ...recipe, id: `swap-${Date.now()}` };
+  }
+
+  async generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse> {
+    await delay(400);
+    // Merge duplicates by name+unit, return with simple category inference
+    const merged = new Map<string, { quantity: number; unit: string }>();
+    for (const ing of input.ingredients) {
+      const key = `${ing.name.toLowerCase().trim()}|${ing.unit}`;
+      const existing = merged.get(key);
+      if (existing) {
+        existing.quantity += ing.quantity;
+      } else {
+        merged.set(key, { quantity: ing.quantity, unit: ing.unit });
+      }
+    }
+    return {
+      items: [...merged.entries()].map(([key, data]) => {
+        const name = key.split('|')[0] ?? key;
+        return {
+          ingredientName: name.charAt(0).toUpperCase() + name.slice(1),
+          quantity: Number.isInteger(data.quantity)
+            ? String(data.quantity)
+            : data.quantity.toFixed(1),
+          unit: data.unit,
+          category: 'other' as const,
+        };
+      }),
+    };
   }
 
   async chat(messages: ChatMessage[], _context: ChatContext): Promise<ReadableStream> {

@@ -31,7 +31,7 @@ export function WeekNavigator({
       </span>
       <button
         onClick={() => onOffsetChange(weekOffset + 1)}
-        disabled={weekOffset >= 0}
+        disabled={weekOffset >= 1}
         className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 text-neutral-500 transition hover:bg-neutral-100 disabled:opacity-30"
         aria-label="Next week"
       >

@@ -4,6 +4,8 @@ import type {
   IAIService,
   MealPlanInput,
   RecipeData,
+  ShoppingListInput,
+  ShoppingListResponse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -26,6 +28,12 @@ export class LiveAIService implements IAIService {
   async generateRecipeSwap(_input: SwapInput): Promise<RecipeData> {
     throw new Error(
       'LiveAIService.generateRecipeSwap is not implemented yet — set AI_MOCK_ENABLED=true or implement Phase 3 (T-031).',
+    );
+  }
+
+  async generateShoppingList(_input: ShoppingListInput): Promise<ShoppingListResponse> {
+    throw new Error(
+      'LiveAIService.generateShoppingList is not implemented yet — set AI_MOCK_ENABLED=true or implement Phase 3 (T-031).',
     );
   }
 

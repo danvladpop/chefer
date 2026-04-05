@@ -60,13 +60,18 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
     onSuccess: (newRecipe) => {
+      void utils.mealPlan.getForWeek.invalidate();
       void utils.mealPlan.getActive.invalidate();
       router.push(`/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}`);
+    },
+    onError: (err) => {
+      console.error('Swap recipe failed:', err.message);
     },
   });
 
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
     onSuccess: (newRecipe) => {
+      void utils.mealPlan.getForWeek.invalidate();
       void utils.mealPlan.getActive.invalidate();
       setShowPicker(false);
       router.push(`/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}`);
@@ -228,6 +233,11 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
                 />
                 {swapMutation.isPending ? 'Swapping…' : 'Swap Recipe'}
               </button>
+              {swapMutation.isError && (
+                <p className="w-full text-center text-xs text-red-500">
+                  {swapMutation.error?.message ?? 'Swap failed. Please try again.'}
+                </p>
+              )}
             </>
           )}
         </div>

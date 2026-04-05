@@ -4,9 +4,15 @@ import { protectedProcedure, router } from '../lib/trpc.js';
 
 export const shoppingListRouter = router({
   getForWeek: protectedProcedure
-    .input(z.object({ weekOffset: z.number().int().min(-52).max(0).default(0) }))
+    .input(z.object({ weekOffset: z.number().int().min(-52).max(1).default(0) }))
     .query(async ({ ctx, input }) => {
       return shoppingListService.getForWeek(ctx.user.id, input.weekOffset);
+    }),
+
+  regenerate: protectedProcedure
+    .input(z.object({ weekOffset: z.number().int().min(-52).max(1).default(0) }))
+    .mutation(async ({ ctx, input }) => {
+      return shoppingListService.regenerate(ctx.user.id, input.weekOffset);
     }),
 
   searchStores: protectedProcedure

@@ -3,9 +3,11 @@ import type { Schema } from '@google/genai';
 import { z } from 'zod';
 import {
   buildMealPlanUserPrompt,
+  buildShoppingListPrompt,
   buildSwapUserPrompt,
   CHAT_SYSTEM_PROMPT,
   MEAL_PLAN_SYSTEM_PROMPT,
+  SHOPPING_LIST_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
 } from './prompts.js';
 import type {
@@ -14,6 +16,8 @@ import type {
   IAIService,
   MealPlanInput,
   RecipeData,
+  ShoppingListInput,
+  ShoppingListResponse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -158,6 +162,41 @@ const WEEK_PLAN_SCHEMA: Schema = {
   required: ['days'],
 };
 
+// ─── Shopping list schemas ────────────────────────────────────────────────────
+
+const aiShoppingListItemSchema = z.object({
+  ingredientName: z.string(),
+  quantity: z.string(),
+  unit: z.string(),
+  category: z.enum(['produce', 'proteins', 'dairy', 'grains', 'frozen', 'other']),
+});
+
+const shoppingListResponseSchema = z.object({
+  items: z.array(aiShoppingListItemSchema),
+});
+
+const AI_SHOPPING_LIST_ITEM_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    ingredientName: { type: Type.STRING },
+    quantity: { type: Type.STRING },
+    unit: { type: Type.STRING },
+    category: {
+      type: Type.STRING,
+      enum: ['produce', 'proteins', 'dairy', 'grains', 'frozen', 'other'],
+    },
+  },
+  required: ['ingredientName', 'quantity', 'unit', 'category'],
+};
+
+const SHOPPING_LIST_RESPONSE_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    items: { type: Type.ARRAY, items: AI_SHOPPING_LIST_ITEM_SCHEMA },
+  },
+  required: ['items'],
+};
+
 // ─── GeminiAIService ──────────────────────────────────────────────────────────
 
 export class GeminiAIService implements IAIService {
@@ -177,14 +216,33 @@ export class GeminiAIService implements IAIService {
         responseMimeType: 'application/json',
         responseSchema: WEEK_PLAN_SCHEMA,
         temperature: 0.7,
-        maxOutputTokens: 8192,
+        maxOutputTokens: 16384,
+        // Disable extended thinking to reduce latency; the structured schema
+        // already constrains output quality adequately.
+        thinkingConfig: { thinkingBudget: 0 },
       },
     });
 
-    const raw = response.text;
+    let raw: string | null | undefined;
+    try {
+      raw = response.text;
+    } catch (err) {
+      throw new Error(
+        `GeminiAIService: could not read response text — ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
     if (!raw) throw new Error('GeminiAIService: empty response from generateMealPlan');
 
-    const parsed = weekPlanResponseSchema.safeParse(JSON.parse(raw));
+    let parsed;
+    try {
+      parsed = weekPlanResponseSchema.safeParse(JSON.parse(raw));
+    } catch (err) {
+      throw new Error(
+        `GeminiAIService: response JSON is malformed (output may have been truncated) — ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
     if (!parsed.success) {
       throw new Error(
         `GeminiAIService: meal plan response failed validation — ${parsed.error.message}`,
@@ -203,17 +261,61 @@ export class GeminiAIService implements IAIService {
         responseMimeType: 'application/json',
         responseSchema: RECIPE_SCHEMA,
         temperature: 0.8,
-        maxOutputTokens: 2048,
+        maxOutputTokens: 4096,
+        thinkingConfig: { thinkingBudget: 0 },
       },
     });
 
-    const raw = response.text;
+    let raw: string | null | undefined;
+    try {
+      raw = response.text;
+    } catch (err) {
+      throw new Error(
+        `GeminiAIService: could not read swap response — ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
     if (!raw) throw new Error('GeminiAIService: empty response from generateRecipeSwap');
 
     const parsed = recipeSchema.safeParse(JSON.parse(raw));
     if (!parsed.success) {
       throw new Error(
         `GeminiAIService: recipe swap response failed validation — ${parsed.error.message}`,
+      );
+    }
+
+    return parsed.data;
+  }
+
+  async generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse> {
+    const response = await this.client.models.generateContent({
+      model: MODEL,
+      contents: buildShoppingListPrompt(input),
+      config: {
+        systemInstruction: SHOPPING_LIST_SYSTEM_PROMPT,
+        responseMimeType: 'application/json',
+        responseSchema: SHOPPING_LIST_RESPONSE_SCHEMA,
+        temperature: 0.2, // low temperature for deterministic consolidation
+        maxOutputTokens: 4096,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+
+    let raw: string | null | undefined;
+    try {
+      raw = response.text;
+    } catch (err) {
+      throw new Error(
+        `GeminiAIService: could not read shopping list response — ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    if (!raw) throw new Error('GeminiAIService: empty response from generateShoppingList');
+
+    const parsed = shoppingListResponseSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) {
+      throw new Error(
+        `GeminiAIService: shopping list response failed validation — ${parsed.error.message}`,
       );
     }
 
