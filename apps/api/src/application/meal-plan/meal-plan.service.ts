@@ -209,8 +209,10 @@ export class MealPlanService {
       });
     }
 
-    // Log AI call (fire-and-forget — don't block plan generation on logging)
-    void prisma.aiCallLog.create({ data: { userId, callType: AiCallType.MEAL_PLAN } });
+    // Log AI call (fire-and-forget — never crash the server if logging fails)
+    prisma.aiCallLog
+      .create({ data: { userId, callType: AiCallType.MEAL_PLAN } })
+      .catch((err) => console.error('[aiCallLog] Failed to log MEAL_PLAN call:', err));
 
     // 4. Collect unique recipes — no image assignment, the worker handles this async
     const recipeMap = new Map<string, RecipeData>();
@@ -410,7 +412,9 @@ export class MealPlanService {
       });
     }
 
-    void prisma.aiCallLog.create({ data: { userId, callType: AiCallType.RECIPE_SWAP } });
+    prisma.aiCallLog
+      .create({ data: { userId, callType: AiCallType.RECIPE_SWAP } })
+      .catch((err) => console.error('[aiCallLog] Failed to log RECIPE_SWAP call:', err));
 
     // Persist new recipe — imageStatus PENDING set by repository create block
     await this.repo.upsertRecipes([

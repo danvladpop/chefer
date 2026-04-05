@@ -103,9 +103,9 @@ export class RecipeImageWorker {
 
       // Log image generation against the recipe's creator (if known)
       if (recipe.creatorId) {
-        void prisma.aiCallLog.create({
-          data: { userId: recipe.creatorId, callType: AiCallType.IMAGE_GENERATION },
-        });
+        prisma.aiCallLog
+          .create({ data: { userId: recipe.creatorId, callType: AiCallType.IMAGE_GENERATION } })
+          .catch((err) => console.error('[aiCallLog] Failed to log IMAGE_GENERATION call:', err));
       }
 
       recipeImageEventEmitter.emit(recipe.id, { imageUrl: cdnUrl, status: 'DONE' });

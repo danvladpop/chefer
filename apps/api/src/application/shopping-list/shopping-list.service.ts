@@ -251,7 +251,9 @@ export class ShoppingListService {
       weekLabel,
     });
 
-    void prisma.aiCallLog.create({ data: { userId, callType: AiCallType.SHOPPING_LIST } });
+    prisma.aiCallLog
+      .create({ data: { userId, callType: AiCallType.SHOPPING_LIST } })
+      .catch((err) => console.error('[aiCallLog] Failed to log SHOPPING_LIST call:', err));
 
     const items: ShoppingListItemForWeek[] = aiResult.items.map((item) => ({
       key: `${targetPlan!.id}-ai-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}`,
