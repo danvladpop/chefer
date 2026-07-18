@@ -2801,7 +2801,7 @@ const KAUFLAND_ITEMS: GroceryItem[] = [
 
 // ─── Compute totals ────────────────────────────────────────────────────────────
 
-function computeStoreTotals(
+export function computeStoreTotals(
   items: GroceryItem[],
   deliveryFeeEur: number,
 ): {
@@ -2834,8 +2834,10 @@ export const GROCERY_STORES_FIXTURE: GroceryStore[] = [
     deliveryFeeEur: 2.99,
     minimumOrderEur: 30,
     estimatedDeliveryTime: '45-60 min',
-    items: LIDL_ITEMS,
+    websiteSearchUrl: 'https://www.lidl.ro/q/search?q=',
+    items: LIDL_ITEMS.map((i) => ({ ...i, isEstimated: true })),
     ...computeStoreTotals(LIDL_ITEMS, 2.99),
+    liveItemCount: 0,
   },
   {
     id: 'carrefour-city',
@@ -2849,8 +2851,10 @@ export const GROCERY_STORES_FIXTURE: GroceryStore[] = [
     deliveryFeeEur: 0,
     minimumOrderEur: 50,
     estimatedDeliveryTime: '30-45 min',
-    items: CARREFOUR_ITEMS,
+    websiteSearchUrl: 'https://carrefour.ro/catalogsearch/result/?q=',
+    items: CARREFOUR_ITEMS.map((i) => ({ ...i, isEstimated: true })),
     ...computeStoreTotals(CARREFOUR_ITEMS, 0),
+    liveItemCount: 0,
   },
   {
     id: 'kaufland-west',
@@ -2864,7 +2868,9 @@ export const GROCERY_STORES_FIXTURE: GroceryStore[] = [
     deliveryFeeEur: 3.99,
     minimumOrderEur: 25,
     estimatedDeliveryTime: 'Tomorrow by 10 AM',
-    items: KAUFLAND_ITEMS,
+    websiteSearchUrl: 'https://www.kaufland.ro/products/search.html?search_value=',
+    items: KAUFLAND_ITEMS.map((i) => ({ ...i, isEstimated: true })),
     ...computeStoreTotals(KAUFLAND_ITEMS, 3.99),
+    liveItemCount: 0,
   },
 ];

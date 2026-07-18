@@ -11,6 +11,7 @@ import type { RouterOutputs } from '@/lib/trpc';
 import {
   AlertCircle,
   CheckCircle2,
+  ExternalLink,
   Lightbulb,
   MapPin,
   Printer,
@@ -349,7 +350,11 @@ export default function ShoppingListPage() {
                     const storeItem = getStoreItem(item.ingredientName);
                     const isChecked = checkedItems.includes(item.key);
 
-                    const itemImageUrl = storeItem?.imageUrl ?? FALLBACK_IMAGE;
+                    const itemImageUrl = item.imageUrl;
+                    const productUrl =
+                      selectedStore && storeItem
+                        ? `${selectedStore.websiteSearchUrl}${encodeURIComponent(item.ingredientName)}`
+                        : null;
                     return (
                       <div
                         key={item.key}
@@ -381,7 +386,7 @@ export default function ShoppingListPage() {
                           <p
                             onClick={(e) => {
                               e.stopPropagation();
-                              setPopupItem({ name: item.ingredientName, imageUrl: itemImageUrl });
+                              setPopupItem({ name: item.ingredientName, imageUrl: item.imageUrl });
                             }}
                             className={`cursor-pointer text-sm font-medium underline-offset-2 hover:underline ${isChecked ? 'line-through text-neutral-400' : 'text-neutral-800'}`}
                           >
@@ -402,10 +407,34 @@ export default function ShoppingListPage() {
                             )}
                         </div>
 
+                        {/* Store product link */}
+                        {productUrl && (
+                          <a
+                            href={productUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`View on ${selectedStore!.name}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-neutral-400 transition hover:text-primary"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+
                         {/* Price + availability */}
                         <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
                           {storeItem ? (
-                            <span className="text-sm font-semibold text-neutral-700">
+                            <span
+                              title={
+                                storeItem.liveProductName
+                                  ? `${storeItem.liveProductName}`
+                                  : undefined
+                              }
+                              className={`text-sm font-semibold ${storeItem.isEstimated ? 'text-neutral-400' : 'text-neutral-700'}`}
+                            >
+                              {storeItem.isEstimated && (
+                                <span className="mr-0.5 text-xs font-normal">~</span>
+                              )}
                               {currencySymbol(storeResult?.currencyCode)}
                               {storeItem.priceEur.toFixed(2)}
                             </span>
@@ -416,6 +445,10 @@ export default function ShoppingListPage() {
                           {isChecked ? (
                             <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500">
                               ✓ BOUGHT
+                            </span>
+                          ) : storeItem && !storeItem.isEstimated ? (
+                            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                              Live
                             </span>
                           ) : storeItem ? (
                             <AvailabilityBadge status={storeItem.availabilityStatus} />
@@ -478,6 +511,15 @@ export default function ShoppingListPage() {
                               {isBestValue && (
                                 <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">
                                   ★ Best Value
+                                </span>
+                              )}
+                              {store.liveItemCount > 0 ? (
+                                <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
+                                  🟢 Live prices
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-400">
+                                  ~ Estimated
                                 </span>
                               )}
                             </div>

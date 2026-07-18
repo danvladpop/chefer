@@ -14,6 +14,10 @@ export interface GroceryItem {
   availabilityStatus: AvailabilityStatus;
   aisleHint?: string;
   deliveryNote?: string;
+  /** true = fixture/estimated price; false = live price scraped from store website */
+  isEstimated: boolean;
+  /** The real product name found on the store website (only set when isEstimated = false) */
+  liveProductName?: string;
 }
 
 export interface GroceryStore {
@@ -27,12 +31,20 @@ export interface GroceryStore {
   deliveryFeeEur: number;
   minimumOrderEur: number;
   estimatedDeliveryTime: string;
+  /**
+   * Base URL for product search on the store's website.
+   * Append encodeURIComponent(productName) to form a full search URL.
+   * Example: "https://www.lidl.de/search?q=" + encodeURIComponent("LIDL Avocado Ready to Eat")
+   */
+  websiteSearchUrl: string;
   items: GroceryItem[];
   subtotalEur: number;
   taxEur: number;
   totalEur: number;
   availableItemCount: number;
   unavailableItemCount: number;
+  /** Number of items with live (scraped) prices. 0 means all prices are estimated. */
+  liveItemCount: number;
 }
 
 export interface GrocerySearchInput {

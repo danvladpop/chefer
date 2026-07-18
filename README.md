@@ -9,21 +9,21 @@ A fully-configured, production-grade TypeScript monorepo built with the latest a
 
 ## Stack
 
-| Layer | Technology |
-|---|---|
-| **Runtime** | Node.js 20, pnpm 9 |
-| **Monorepo** | Turborepo 2 |
-| **Frontend** | Next.js 15 (App Router), React 19 |
-| **Language** | TypeScript 5 (strict) |
-| **Styling** | TailwindCSS 3, shadcn/ui primitives |
-| **API** | tRPC v11, Express 4 |
-| **Database** | Prisma 5, PostgreSQL 16 |
-| **Validation** | Zod |
-| **Testing** | Vitest, React Testing Library, Playwright |
-| **Code Quality** | ESLint 9 flat config, Prettier |
-| **Git Hooks** | Husky, lint-staged, commitlint |
-| **CI/CD** | GitHub Actions |
-| **Infrastructure** | Docker, docker-compose |
+| Layer              | Technology                                |
+| ------------------ | ----------------------------------------- |
+| **Runtime**        | Node.js 20, pnpm 9                        |
+| **Monorepo**       | Turborepo 2                               |
+| **Frontend**       | Next.js 15 (App Router), React 19         |
+| **Language**       | TypeScript 5 (strict)                     |
+| **Styling**        | TailwindCSS 3, shadcn/ui primitives       |
+| **API**            | tRPC v11, Express 4                       |
+| **Database**       | Prisma 5, PostgreSQL 16                   |
+| **Validation**     | Zod                                       |
+| **Testing**        | Vitest, React Testing Library, Playwright |
+| **Code Quality**   | ESLint 9 flat config, Prettier            |
+| **Git Hooks**      | Husky, lint-staged, commitlint            |
+| **CI/CD**          | GitHub Actions                            |
+| **Infrastructure** | Docker, docker-compose                    |
 
 ---
 
@@ -77,6 +77,7 @@ pnpm dev
 ```
 
 The setup script will:
+
 1. Check prerequisites (Node, pnpm, Docker)
 2. Copy `.env.example` files to `.env.local` / `.env`
 3. Install all dependencies
@@ -111,13 +112,13 @@ pnpm dev
 
 ### Development URLs
 
-| Service | URL |
-|---|---|
-| **Web App** | http://localhost:3000 |
-| **API Server** | http://localhost:3001 |
-| **tRPC Endpoint** | http://localhost:3001/trpc |
-| **Health Check** | http://localhost:3001/health |
-| **Prisma Studio** | http://localhost:5555 (via `pnpm db:studio`) |
+| Service           | URL                             |
+| ----------------- | ------------------------------- |
+| **Web App**       | http://localhost:3000           |
+| **API Server**    | http://localhost:3001           |
+| **tRPC Endpoint** | http://localhost:3001/trpc      |
+| **Health Check**  | http://localhost:3001/health    |
+| **Prisma Studio** | http://localhost:5555 (via ` `) |
 
 ---
 
@@ -184,6 +185,7 @@ pnpm clean             # Remove all build artifacts and node_modules
 ### `@chefer/types`
 
 Shared TypeScript types used across the monorepo:
+
 - `User`, `Post`, `UserRole` enum, `PostStatus` enum
 - `ApiResponse<T>`, `PaginatedResponse<T>`, `ApiError`
 - `AuthSession`, `JwtPayload`, `LoginInput`
@@ -192,6 +194,7 @@ Shared TypeScript types used across the monorepo:
 ### `@chefer/utils`
 
 Pure utility functions:
+
 - `cn()` — Tailwind class merging with clsx + tailwind-merge
 - `formatDate()`, `formatRelativeTime()` — date-fns wrappers
 - `pick()`, `omit()`, `deepMerge()`, `groupBy()`, `keyBy()` — object utilities
@@ -202,6 +205,7 @@ Pure utility functions:
 ### `@chefer/database`
 
 Prisma-powered database layer:
+
 - Singleton `PrismaClient` with dev hot-reload support
 - `UserRepository` with `findById`, `findByEmail`, `create`, `update`, `delete`, `findManyWithCount`
 - Seed script with realistic data
@@ -211,6 +215,7 @@ Prisma-powered database layer:
 ### `@chefer/ui`
 
 Accessible React component library:
+
 - `Button` — 6 variants (default, destructive, outline, secondary, ghost, link), 4 sizes, loading state
 - `Input` — with label, error, hint, left/right icon support
 - `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`
@@ -220,6 +225,7 @@ Accessible React component library:
 ### `@chefer/tsconfig`
 
 Shared TypeScript configurations:
+
 - `base.json` — strict mode, ESNext, bundler moduleResolution
 - `nextjs.json` — Next.js specific (JSX preserve, Next plugin)
 - `node.json` — Node.js specific (NodeNext modules, emit enabled)
@@ -227,6 +233,7 @@ Shared TypeScript configurations:
 ### `@chefer/eslint-config`
 
 ESLint 9 flat config:
+
 - `base` — TypeScript, import ordering, general rules
 - `nextjs` — extends base with Next.js and React hooks rules
 - `node` — extends base with Node.js specific rules
@@ -250,6 +257,7 @@ src/
 ```
 
 **tRPC Procedures:**
+
 - `publicProcedure` — unauthenticated
 - `protectedProcedure` — requires valid session
 - `adminProcedure` — requires ADMIN role
@@ -304,6 +312,7 @@ Tested browsers: Chromium, Firefox, WebKit, Mobile Chrome, Mobile Safari.
 ### Prisma Schema
 
 Key models:
+
 - **User** — id, email, name, role, passwordHash, emailVerified, image
 - **UserProfile** — bio, website, social links (1:1 with User)
 - **Account** — OAuth provider accounts (NextAuth compatible)
@@ -352,6 +361,7 @@ docker build -f infrastructure/docker/Dockerfile.api \
 ```
 
 Both Dockerfiles use multi-stage builds:
+
 1. **deps** — install dependencies
 2. **builder** — compile TypeScript / Next.js
 3. **runner** — minimal production image (non-root user, health checks)
@@ -363,6 +373,7 @@ Both Dockerfiles use multi-stage builds:
 ### GitHub Actions
 
 **CI** (`.github/workflows/ci.yml`) — runs on every PR and push to `main`/`develop`:
+
 1. Install dependencies (with pnpm cache)
 2. Lint (ESLint + Prettier check)
 3. Type-check (tsc)
@@ -371,6 +382,7 @@ Both Dockerfiles use multi-stage builds:
 6. E2E tests (Playwright, on PRs only)
 
 **Deploy** (`.github/workflows/deploy.yml`) — runs on push to `main`:
+
 1. Build and push Docker images to GHCR
 2. Run database migrations
 3. Deploy to server (placeholder — replace with your hosting)
@@ -401,11 +413,11 @@ chore(deps): update prisma to v5.16
 
 After running `pnpm db:seed`:
 
-| Email | Password | Role |
-|---|---|---|
-| admin@chefer.dev | Admin@123! | ADMIN |
-| alice@chefer.dev | User@123! | USER |
-| bob@chefer.dev | User@123! | MODERATOR |
+| Email            | Password   | Role      |
+| ---------------- | ---------- | --------- |
+| admin@chefer.dev | Admin@123! | ADMIN     |
+| alice@chefer.dev | User@123!  | USER      |
+| bob@chefer.dev   | User@123!  | MODERATOR |
 
 ---
 

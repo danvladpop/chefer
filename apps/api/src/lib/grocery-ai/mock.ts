@@ -1,5 +1,13 @@
-import { GROCERY_STORES_FIXTURE } from './fixtures/grocery-stores.fixture.js';
-import type { GrocerySearchInput, GrocerySearchResult, IGroceryAIService } from './types.js';
+import { fetchCarrefourPriceCachedOnly } from '../carrefour/scraper.js';
+import { computeStoreTotals, GROCERY_STORES_FIXTURE } from './fixtures/grocery-stores.fixture.js';
+import type {
+  GroceryItem,
+  GrocerySearchInput,
+  GrocerySearchResult,
+  IGroceryAIService,
+} from './types.js';
+
+// ─── Currency helpers ─────────────────────────────────────────────────────────
 
 // Exchange rates relative to EUR (base currency)
 const EUR_RATES: Record<string, number> = {
@@ -9,9 +17,17 @@ const EUR_RATES: Record<string, number> = {
   RON: 5.1,
 };
 
+const RON_TO_EUR = 1 / EUR_RATES.RON;
+
 function toPreferred(eurAmount: number, rate: number): number {
   return Math.round(eurAmount * rate * 100) / 100;
 }
+
+// ─── Carrefour store id ───────────────────────────────────────────────────────
+
+const CARREFOUR_ID = 'carrefour-city';
+
+// ─── Service ──────────────────────────────────────────────────────────────────
 
 export class MockGroceryAIService implements IGroceryAIService {
   async searchNearbyStores(input: GrocerySearchInput): Promise<GrocerySearchResult> {
@@ -23,7 +39,7 @@ export class MockGroceryAIService implements IGroceryAIService {
     // Map fixture items to the ingredient names from the shopping list
     const ingredientNames = new Set(input.ingredients.map((i) => i.name.toLowerCase()));
 
-    const stores = GROCERY_STORES_FIXTURE.map((store) => {
+    const storePromises = GROCERY_STORES_FIXTURE.map(async (store) => {
       // Filter items to only those matching the current shopping list
       const matchedItems = store.items.filter(
         (item) =>
@@ -36,10 +52,37 @@ export class MockGroceryAIService implements IGroceryAIService {
       );
 
       // If no matches, return all fixture items (for demo purposes)
-      const items = matchedItems.length > 0 ? matchedItems : store.items;
+      const baseItems = matchedItems.length > 0 ? matchedItems : store.items;
 
-      // Convert each item's price to the preferred currency
-      const convertedItems = items.map((item) => ({
+      // ── Enrich Carrefour items with live prices ──────────────────────────
+      let enrichedItems: GroceryItem[];
+      let liveItemCount = 0;
+
+      if (store.id === CARREFOUR_ID) {
+        enrichedItems = await Promise.all(
+          baseItems.map(async (item) => {
+            const live = await fetchCarrefourPriceCachedOnly(item.ingredientName);
+            if (live) {
+              liveItemCount++;
+              return {
+                ...item,
+                // Convert RON → EUR so existing currency conversion works correctly
+                priceEur: live.priceRon * RON_TO_EUR,
+                isEstimated: false,
+                liveProductName: live.productName,
+              };
+            }
+            // No live price found — keep fixture price, mark as estimated
+            return { ...item, isEstimated: true };
+          }),
+        );
+      } else {
+        // LIDL / Kaufland — all estimated
+        enrichedItems = baseItems.map((item) => ({ ...item, isEstimated: true }));
+      }
+
+      // Convert prices to preferred currency
+      const convertedItems = enrichedItems.map((item) => ({
         ...item,
         priceEur: toPreferred(item.priceEur, rate),
       }));
@@ -48,6 +91,10 @@ export class MockGroceryAIService implements IGroceryAIService {
       const tax = toPreferred(subtotal * 0.08, 1);
       const deliveryFee = toPreferred(store.deliveryFeeEur, rate);
       const total = toPreferred(subtotal + tax + deliveryFee, 1);
+      const totals = computeStoreTotals(
+        convertedItems.map((i) => ({ ...i, priceEur: i.priceEur })),
+        deliveryFee,
+      );
 
       return {
         ...store,
@@ -57,12 +104,13 @@ export class MockGroceryAIService implements IGroceryAIService {
         subtotalEur: Math.round(subtotal * 100) / 100,
         taxEur: tax,
         totalEur: total,
-        availableItemCount: convertedItems.filter((i) => i.availabilityStatus !== 'OUT_OF_STOCK')
-          .length,
-        unavailableItemCount: convertedItems.filter((i) => i.availabilityStatus === 'OUT_OF_STOCK')
-          .length,
+        availableItemCount: totals.availableItemCount,
+        unavailableItemCount: totals.unavailableItemCount,
+        liveItemCount,
       };
     });
+
+    const stores = await Promise.all(storePromises);
 
     return {
       stores: stores.sort((a, b) => a.totalEur - b.totalEur),

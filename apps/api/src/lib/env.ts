@@ -45,6 +45,9 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
+
+  // Unsplash (optional — ingredient images fall back to category images without this)
+  UNSPLASH_ACCESS_KEY: z.string().optional(),
 });
 
 type EnvSchema = z.infer<typeof envSchema>;

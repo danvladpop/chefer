@@ -3,6 +3,7 @@ import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient } from '../../lib/ai/types.js';
 import { groceryAIService } from '../../lib/grocery-ai/index.js';
 import type { GroceryCategory, GrocerySearchResult } from '../../lib/grocery-ai/index.js';
+import { resolveIngredientImage } from '../../lib/ingredient-images/index.js';
 
 export interface ShoppingListItemForWeek {
   key: string;
@@ -11,6 +12,7 @@ export interface ShoppingListItemForWeek {
   unit: string;
   category: GroceryCategory;
   recipeNames: string[];
+  imageUrl: string;
 }
 
 export interface WeekShoppingList {
@@ -177,7 +179,7 @@ export class ShoppingListService {
       }
     }
 
-    const items: ShoppingListItemForWeek[] = [...merged.entries()].map(([name, data]) => ({
+    const rawItems = [...merged.entries()].map(([name, data]) => ({
       key: `${targetPlan!.id}-${name}`,
       ingredientName: name.charAt(0).toUpperCase() + name.slice(1),
       quantity: Number.isInteger(data.quantity) ? String(data.quantity) : data.quantity.toFixed(1),
@@ -185,6 +187,13 @@ export class ShoppingListService {
       category: data.category,
       recipeNames: [...data.recipeIds].map((id) => recipeMap.get(id)?.name ?? '').filter(Boolean),
     }));
+
+    const items: ShoppingListItemForWeek[] = await Promise.all(
+      rawItems.map(async (item) => ({
+        ...item,
+        imageUrl: await resolveIngredientImage(item.ingredientName),
+      })),
+    );
 
     return {
       planId: targetPlan.id,
@@ -255,14 +264,21 @@ export class ShoppingListService {
       .create({ data: { userId, callType: AiCallType.SHOPPING_LIST } })
       .catch((err) => console.error('[aiCallLog] Failed to log SHOPPING_LIST call:', err));
 
-    const items: ShoppingListItemForWeek[] = aiResult.items.map((item, i) => ({
+    const rawItems = aiResult.items.map((item, i) => ({
       key: `${targetPlan!.id}-ai-${i}-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}`,
       ingredientName: item.ingredientName,
       quantity: item.quantity,
       unit: item.unit,
       category: item.category,
-      recipeNames: [],
+      recipeNames: [] as string[],
     }));
+
+    const items: ShoppingListItemForWeek[] = await Promise.all(
+      rawItems.map(async (item) => ({
+        ...item,
+        imageUrl: await resolveIngredientImage(item.ingredientName),
+      })),
+    );
 
     return {
       planId: targetPlan.id,
