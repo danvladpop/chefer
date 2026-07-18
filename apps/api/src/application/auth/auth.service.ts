@@ -1,7 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import bcrypt from 'bcryptjs';
 import type { Response } from 'express';
-
 import { prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 
@@ -60,6 +59,7 @@ export class AuthService {
       email: user.email,
       name: user.name,
       role: user.role as UserProfile['role'],
+      planTier: user.planTier as UserProfile['planTier'],
       image: user.image,
     };
   }
@@ -93,6 +93,7 @@ export class AuthService {
       email: user.email,
       name: user.name,
       role: user.role as UserProfile['role'],
+      planTier: user.planTier as UserProfile['planTier'],
       image: user.image,
     };
   }
@@ -103,10 +104,7 @@ export class AuthService {
         // Ignore errors — cookie is cleared regardless
       });
     }
-    res.setHeader(
-      'Set-Cookie',
-      `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
-    );
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
   }
 
   // ─── Private ───────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { PreferencesForm } from '@/features/preferences/components/preferences-form';
 import type { ChefProfileData, DietaryPreferencesData } from '@/features/preferences/types';
+import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { createServerClient } from '@/lib/trpc-server';
 
 export const metadata: Metadata = {
@@ -16,11 +17,16 @@ export const metadata: Metadata = {
 export default async function PreferencesPage() {
   let chefProfile: ChefProfileData | null = null;
   let dietaryPreferences: DietaryPreferencesData | null = null;
+  let isPremium = true; // fail open to the form; mutations are server-gated anyway
 
   try {
     const headerStore = await headers();
     const cookieHeader = headerStore.get('cookie') ?? '';
     const client = createServerClient(cookieHeader);
+
+    const me = await client.user.me.query();
+    isPremium = me.planTier === 'PREMIUM' || me.role === 'ADMIN';
+
     const result = await client.preferences.get.query();
 
     if (result.chefProfile) {
@@ -50,6 +56,25 @@ export default async function PreferencesPage() {
   } catch {
     // If the API is unreachable, render the empty form — the user can still
     // fill and save. On next reload the data will be re-fetched.
+  }
+
+  // Profile personalisation is a premium feature — free users see the upgrade
+  // panel instead of the form (the API also enforces this on mutations).
+  if (!isPremium) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-10">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold tracking-tight">Preferences</h1>
+          <p className="mt-1 text-muted-foreground">
+            Personal goals, body metrics and dietary preferences are part of the premium plan.
+          </p>
+        </div>
+        <UpgradeCard
+          title="Unlock your personal profile"
+          description="Set your goals, body metrics, allergies and dietary preferences, and let the AI chef build meal plans around them. On the free plan you get chef-curated generic recipes instead."
+        />
+      </div>
+    );
   }
 
   return (

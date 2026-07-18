@@ -19,6 +19,9 @@ export interface CreateRecipeData {
   imageUrl?: string | null;
   imageStatus?: 'PENDING' | 'GENERATING' | 'DONE' | 'FAILED';
   imageRetries?: number;
+  imagePriority?: number; // lower = generated first (0 = today's meals)
+  source?: 'AI' | 'MANUAL' | 'CURATED';
+  creatorId?: string | null;
 }
 
 export interface CreateMealPlanData {
@@ -35,6 +38,8 @@ export interface IMealPlanRepository {
   upsertRecipes(recipes: CreateRecipeData[]): Promise<void>;
   findRecipesByIds(ids: string[]): Promise<Recipe[]>;
   findRecipeById(id: string): Promise<Recipe | null>;
+  findRecipeImagesByNames(names: string[]): Promise<Map<string, string>>;
+  findRecipesBySource(source: 'AI' | 'MANUAL' | 'CURATED'): Promise<Recipe[]>;
   createPlan(data: CreateMealPlanData): Promise<MealPlan>;
   findActiveWithDays(userId: string): Promise<(MealPlan & { days: MealPlanDay[] }) | null>;
   archiveOldPlans(userId: string): Promise<void>;
@@ -80,13 +85,17 @@ export class MealPlanRepository implements IMealPlanRepository {
             prepTimeMins: r.prepTimeMins,
             cookTimeMins: r.cookTimeMins,
             servings: r.servings,
-            imageUrl: null,
+            imageUrl: r.imageUrl ?? null,
             imageStatus: r.imageStatus ?? 'PENDING',
             imageRetries: 0,
+            imagePriority: r.imagePriority ?? 100,
+            source: r.source ?? 'AI',
+            creatorId: r.creatorId ?? null,
           },
           update: {
             name: r.name,
             description: r.description,
+            imagePriority: r.imagePriority ?? 100,
             // imageUrl and imageStatus are intentionally NOT updated here —
             // the worker owns these fields. Re-generating a plan that returns
             // the same recipe ID must not reset its image.
@@ -103,6 +112,34 @@ export class MealPlanRepository implements IMealPlanRepository {
 
   async findRecipeById(id: string): Promise<Recipe | null> {
     return prisma.recipe.findUnique({ where: { id } });
+  }
+
+  /**
+   * Returns a map of lowercased recipe name → imageUrl for recipes that already
+   * have a completed image. Lets a fresh plan generation reuse images for dishes
+   * that were generated before (LLM recipe IDs differ between runs, names don't).
+   */
+  async findRecipeImagesByNames(names: string[]): Promise<Map<string, string>> {
+    if (names.length === 0) return new Map();
+    const rows = await prisma.recipe.findMany({
+      where: {
+        name: { in: names, mode: 'insensitive' },
+        imageStatus: 'DONE',
+        imageUrl: { not: null },
+      },
+      select: { name: true, imageUrl: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      const key = row.name.toLowerCase();
+      if (!map.has(key) && row.imageUrl) map.set(key, row.imageUrl);
+    }
+    return map;
+  }
+
+  async findRecipesBySource(source: 'AI' | 'MANUAL' | 'CURATED'): Promise<Recipe[]> {
+    return prisma.recipe.findMany({ where: { source } });
   }
 
   /**

@@ -1,11 +1,9 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-
 import { UserRole } from '@chefer/types';
-
-import { adminProcedure, protectedProcedure, publicProcedure, router } from '../lib/trpc.js';
 import { UserService } from '../application/user/user.service.js';
 import { PrismaUserRepository } from '../infrastructure/prisma/prisma-user.repository.js';
+import { adminProcedure, protectedProcedure, publicProcedure, router } from '../lib/trpc.js';
 
 const userService = new UserService(new PrismaUserRepository());
 
@@ -52,31 +50,27 @@ export const userRouter = router({
   /**
    * Get a user by ID.
    */
-  getById: publicProcedure
-    .input(z.object({ id: z.string().cuid() }))
-    .query(async ({ input }) => {
-      const user = await userService.findById(input.id);
-      if (!user) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
-      }
-      return user;
-    }),
+  getById: publicProcedure.input(z.object({ id: z.string().cuid() })).query(async ({ input }) => {
+    const user = await userService.findById(input.id);
+    if (!user) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+    }
+    return user;
+  }),
 
   /**
    * List users with pagination and filtering. Admin only.
    */
-  list: adminProcedure
-    .input(listUsersSchema)
-    .query(async ({ input }) => {
-      return userService.list({
-        page: input.page,
-        limit: input.limit,
-        search: input.search,
-        role: input.role,
-        sortBy: input.sortBy,
-        sortOrder: input.sortOrder,
-      });
-    }),
+  list: adminProcedure.input(listUsersSchema).query(async ({ input }) => {
+    return userService.list({
+      page: input.page,
+      limit: input.limit,
+      search: input.search,
+      role: input.role,
+      sortBy: input.sortBy,
+      sortOrder: input.sortOrder,
+    });
+  }),
 
   /**
    * Create a new user. Admin only.
@@ -129,6 +123,14 @@ export const userRouter = router({
       await userService.delete(input.id);
       return { success: true };
     }),
+
+  /**
+   * Upgrades the current user to the PREMIUM plan.
+   * Demo flow — no payment integration; the click itself flips the tier.
+   */
+  upgradePlan: protectedProcedure.mutation(async ({ ctx }) => {
+    return userService.update(ctx.user.id, { planTier: 'PREMIUM' });
+  }),
 
   /**
    * Update the current user's own profile.

@@ -18,6 +18,11 @@ enum UserRole {
   ADMIN
 }
 
+enum PlanTier {
+  FREE
+  PREMIUM
+}
+
 enum PostStatus {
   DRAFT
   PUBLISHED
@@ -47,6 +52,7 @@ enum Goal {
 enum RecipeSource {
   AI
   MANUAL
+  CURATED
 }
 
 enum ImageStatus {
@@ -80,6 +86,7 @@ model User {
   lastName      String?
   image         String?
   role          UserRole  @default(USER)
+  planTier      PlanTier  @default(FREE)
   passwordHash  String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -170,6 +177,7 @@ model Recipe {
   imageUrl      String?
   imageStatus   ImageStatus  @default(DONE)
   imageRetries  Int          @default(0)
+  imagePriority Int          @default(100) // lower = generated first (0 = today)
   source        RecipeSource @default(AI)
   creatorId     String?
   createdAt     DateTime     @default(now())
@@ -371,4 +379,21 @@ model AiCallLog {
 
   @@index([userId, createdAt])
   @@map("ai_call_logs")
+}
+
+model IngredientImage {
+  ingredientName String   @id
+  imageUrl       String
+  resolvedAt     DateTime @default(now())
+
+  @@map("ingredient_images")
+}
+
+model CarrefourPriceCache {
+  ingredientName String   @id
+  productName    String
+  priceRon       Float
+  resolvedAt     DateTime @default(now())
+
+  @@map("carrefour_price_cache")
 }

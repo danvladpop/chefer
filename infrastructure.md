@@ -337,6 +337,7 @@ VerificationToken (standalone, for email verification flows)
 | name                  | String?       | Display name                                      |
 | image                 | String?       | Avatar URL                                        |
 | role                  | UserRole      | Default: USER                                     |
+| planTier              | PlanTier      | Default: FREE — PREMIUM unlocks AI features       |
 | passwordHash          | String?       | SHA-256 in seed (use bcrypt/argon2 in production) |
 | emailVerified         | DateTime?     | —                                                 |
 | createdAt / updatedAt | DateTime      | Auto-managed                                      |
@@ -384,20 +385,25 @@ VerificationToken (standalone, for email verification flows)
 
 **Recipe**
 
-| Field         | Type          | Notes                               |
-| ------------- | ------------- | ----------------------------------- |
-| id            | String (cuid) | PK — reuses AI fixture id           |
-| name          | String        | —                                   |
-| description   | String        | —                                   |
-| ingredients   | Json          | `[{ name, quantity, unit }]`        |
-| instructions  | String[]      | —                                   |
-| nutritionInfo | Json          | `{ calories, protein, carbs, fat }` |
-| cuisineType   | String        | —                                   |
-| dietaryTags   | String[]      | —                                   |
-| prepTimeMins  | Int           | —                                   |
-| cookTimeMins  | Int           | —                                   |
-| servings      | Int           | —                                   |
-| imageUrl      | String?       | —                                   |
+| Field         | Type          | Notes                                                    |
+| ------------- | ------------- | -------------------------------------------------------- |
+| id            | String (cuid) | PK — reuses AI fixture id                                |
+| name          | String        | —                                                        |
+| description   | String        | —                                                        |
+| ingredients   | Json          | `[{ name, quantity, unit }]`                             |
+| instructions  | String[]      | —                                                        |
+| nutritionInfo | Json          | `{ calories, protein, carbs, fat }`                      |
+| cuisineType   | String        | —                                                        |
+| dietaryTags   | String[]      | —                                                        |
+| prepTimeMins  | Int           | —                                                        |
+| cookTimeMins  | Int           | —                                                        |
+| servings      | Int           | —                                                        |
+| imageUrl      | String?       | —                                                        |
+| imageStatus   | ImageStatus   | PENDING / GENERATING / DONE / FAILED                     |
+| imageRetries  | Int           | Transient-failure retry counter                          |
+| imagePriority | Int           | Default 100; lower = generated first (0 = today's meals) |
+| source        | RecipeSource  | AI / MANUAL / CURATED                                    |
+| creatorId     | String?       | FK → User — used for AI usage logging                    |
 
 **MealPlan**
 
@@ -441,16 +447,28 @@ VerificationToken (standalone, for email verification flows)
 | ratedAt  | DateTime      | Default now(), updates on upsert |
 | (unique) |               | `[userId, recipeId]`             |
 
+**IngredientImage**
+
+| Field          | Type     | Notes                                                                     |
+| -------------- | -------- | ------------------------------------------------------------------------- |
+| ingredientName | String   | PK (lowercase, normalized ingredient name)                                |
+| imageUrl       | String   | Resolved Unsplash URL (API) or category fallback                          |
+| resolvedAt     | DateTime | When the image was last resolved — auto-set on create, updated on refresh |
+
+Standalone lookup cache — no user FK. Populated on first request for each unique ingredient name, then served from cache on all subsequent requests.
+
 ### Enums
 
 ```prisma
 enum UserRole       { USER  MODERATOR  ADMIN }
+enum PlanTier       { FREE  PREMIUM }
 enum PostStatus     { DRAFT  PUBLISHED  ARCHIVED }
 enum MealPlanStatus { ACTIVE  ARCHIVED }
 enum BiologicalSex  { MALE  FEMALE  OTHER }
 enum ActivityLevel  { SEDENTARY  LIGHTLY_ACTIVE  MODERATELY_ACTIVE  VERY_ACTIVE  ATHLETE }
 enum Goal           { LOSE_WEIGHT  MAINTAIN  GAIN_MUSCLE  EAT_HEALTHIER }
-enum RecipeSource   { AI_GENERATED  USER_CREATED  IMPORTED }
+enum RecipeSource   { AI  MANUAL  CURATED }
+enum ImageStatus    { PENDING  GENERATING  DONE  FAILED }
 ```
 
 ---
@@ -480,16 +498,45 @@ Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a
 
 `apps/api/src/application/meal-plan/meal-plan.service.ts`. Methods: `generate`, `getActive`, `getRecipe`, `swapRecipe`, `getShoppingList`, `list`, `restore`, `getById`.
 
-- `generate` — reads prefs → calls `IAIService.generateMealPlan` → upserts recipes → archives old plan → creates new `ACTIVE` plan.
+- `generate(userId, weekOffset, premium)` — **tier-branched**:
+  - _Premium_ (or ADMIN): reads prefs → calls `IAIService.generateMealPlan` → reuses existing images by recipe name (`findRecipeImagesByNames`) → upserts recipes with `imagePriority` (day-distance from today) → archives old plan → creates new `ACTIVE` plan → `recipeImageWorker.wake()`.
+  - _Free_: `generateCurated` — random breakfast/lunch/dinner selection from the curated pool for each of 7 days (shuffled cycling, no AI calls, preset stock images, preferences ignored).
+- `swapRecipe(..., premium)` — premium: AI-generated alternative (with name-based image reuse + worker wake); free: random curated recipe of the same meal type.
 - `getShoppingList` — aggregates ingredients across all plan recipes, merges by name+unit, groups by `CATEGORY_MAP` keyword matching.
 - `list` / `restore` / `getById` — history + restore support.
 
+### CuratedRecipes (lib)
+
+`apps/api/src/lib/curated-recipes/index.ts`. Generic recipe pool for FREE-tier users, built from the AI fixtures under deterministic `curated-*` IDs (`source: CURATED`, `imageStatus: DONE`, stock Unsplash images). `ensureCuratedRecipes()` idempotently upserts the pool on first free-tier generation; `pickRandomCurated(mealType, excludeId?)` powers free swaps.
+
+### RecipeImageWorker (worker)
+
+`apps/api/src/workers/recipe-image.worker.ts`. Background generator for recipe photos via Pollinations.ai:
+
+- Claims up to **5 PENDING recipes at a time** (atomic per-row claim, horizontal-scale safe) and generates them in parallel, draining the queue until empty; 5 s poll interval is only a discovery fallback.
+- `wake()` — called by MealPlanService right after persisting, so generation starts with zero poll delay.
+- Queue is ordered by `imagePriority` asc (today's meals first), then `createdAt`.
+- Image URLs are deterministic: Pollinations seed + prompt derive from _normalised recipe name + cuisine_ (never the LLM description), so the same dish always maps to the same CDN-cached URL across regenerations. Images render at 512×384.
+
 ### ShoppingListService (application layer)
 
-`apps/api/src/application/shopping-list/shopping-list.service.ts`. Methods: `getForWeek`, `searchStores`.
+`apps/api/src/application/shopping-list/shopping-list.service.ts`. Methods: `getForWeek`, `regenerate`, `searchStores`.
 
-- `getForWeek` — builds categorised ingredient list for the active plan.
+- `getForWeek` — builds categorised ingredient list for the active plan; resolves an `imageUrl` for every item via `resolveIngredientImage`.
+- `regenerate` — calls the AI to consolidate ingredients, then resolves images for each AI-returned item.
 - `searchStores` — delegates to `IGroceryAIService.searchNearbyStores`, passes user's delivery address and currency from ChefProfile.
+
+### IngredientImageResolver (lib)
+
+`apps/api/src/lib/ingredient-images/index.ts`. Single export: `resolveIngredientImage(name: string): Promise<string>`.
+
+Resolution order:
+
+1. **DB cache** — `IngredientImage` table lookup (instant, zero network cost after first resolution).
+2. **Unsplash Search API** — `GET /search/photos?query={name}+food+ingredient` (only if `UNSPLASH_ACCESS_KEY` is set).
+3. **Category fallback** — keyword-matched category image (produce / proteins / dairy / grains / other).
+
+The Unsplash API is called at most once per unique ingredient name ever seen. All results are persisted in `ingredient_images`.
 
 ### RecipeService (application layer)
 
@@ -550,15 +597,16 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `user.update`                | Protected | Mutation | `{ id, name?, email?, role?, image? }`                                                                                                                               |
 | `user.delete`                | Admin     | Mutation | `{ id: cuid }`                                                                                                                                                       |
 | `user.updateProfile`         | Protected | Mutation | `{ name?, image? }`                                                                                                                                                  |
+| `user.upgradePlan`           | Protected | Mutation | — (demo upgrade: sets `planTier = PREMIUM` for the current user)                                                                                                     |
 | `auth.register`              | Public    | Mutation | `{ email, password, firstName, lastName }`                                                                                                                           |
 | `auth.login`                 | Public    | Mutation | `{ email, password }`                                                                                                                                                |
 | `auth.logout`                | Public    | Mutation | —                                                                                                                                                                    |
 | `auth.me`                    | Protected | Query    | —                                                                                                                                                                    |
 | `preferences.hasProfile`     | Protected | Query    | —                                                                                                                                                                    |
 | `preferences.get`            | Protected | Query    | —                                                                                                                                                                    |
-| `preferences.setup`          | Protected | Mutation | `{ goal, biologicalSex, age, heightCm, weightKg, activityLevel, cuisinePreferences, dietaryRestrictions, allergies, dislikedIngredients, mealsPerDay, servingSize }` |
-| `preferences.update`         | Protected | Mutation | Same as setup but all fields optional + `deliveryAddress?`, `deliveryCurrency?`                                                                                      |
-| `mealPlan.generate`          | Protected | Mutation | `{ weekOffset?: number }` — 0=current week (default), 1=next week; min 0, max 52                                                                                     |
+| `preferences.setup`          | Premium   | Mutation | `{ goal, biologicalSex, age, heightCm, weightKg, activityLevel, cuisinePreferences, dietaryRestrictions, allergies, dislikedIngredients, mealsPerDay, servingSize }` |
+| `preferences.update`         | Premium   | Mutation | Same as setup but all fields optional + `deliveryAddress?`, `deliveryCurrency?`                                                                                      |
+| `mealPlan.generate`          | Protected | Mutation | `{ weekOffset?: number }` — 0=current week (default), 1=next week; min 0, max 52. Premium: AI plan; free: random curated pool                                        |
 | `mealPlan.getActive`         | Protected | Query    | —                                                                                                                                                                    |
 | `mealPlan.getRecipe`         | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
 | `mealPlan.swapRecipe`        | Protected | Mutation | `{ planId, dayOfWeek, mealType, currentRecipeId }`                                                                                                                   |
@@ -581,6 +629,7 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 ```
 publicProcedure     → timingMiddleware
 protectedProcedure  → timingMiddleware → isAuthenticated
+premiumProcedure    → timingMiddleware → isPremium   (PREMIUM tier or ADMIN role)
 adminProcedure      → timingMiddleware → isAuthenticated → isAdmin
 ```
 
@@ -603,6 +652,13 @@ The `createContext` function in `apps/api/src/interfaces/http/middleware/auth.mi
 | `MODERATOR` | USER + moderation capabilities (reserved) |
 | `ADMIN`     | Full access — list/create/delete any user |
 
+**Plan tiers** (orthogonal to roles, enforced by `premiumProcedure` / service branching):
+
+| Tier      | Capabilities                                                                                             |
+| --------- | -------------------------------------------------------------------------------------------------------- |
+| `FREE`    | Curated generic meal plans + swaps (random from pool); profile personalisation locked behind upgrade CTA |
+| `PREMIUM` | AI-personalised plans and swaps, full preferences/onboarding. ADMIN role counts as premium               |
+
 **Notes:**
 
 - The database schema is **NextAuth.js compatible** (Account, Session, VerificationToken models exist)
@@ -615,26 +671,27 @@ The `createContext` function in `apps/api/src/interfaces/http/middleware/auth.mi
 
 ### `apps/api/.env`
 
-| Variable                   | Required | Default               | Description                                           |
-| -------------------------- | -------- | --------------------- | ----------------------------------------------------- |
-| `NODE_ENV`                 | No       | development           | Runtime environment                                   |
-| `PORT`                     | No       | 3001                  | HTTP listen port                                      |
-| `HOST`                     | No       | 0.0.0.0               | HTTP listen host                                      |
-| `DATABASE_URL`             | **Yes**  | —                     | PostgreSQL connection string                          |
-| `JWT_SECRET`               | **Yes**  | —                     | Min 32 chars                                          |
-| `JWT_EXPIRES_IN`           | No       | 15m                   | Access token TTL                                      |
-| `REFRESH_TOKEN_SECRET`     | **Yes**  | —                     | Min 32 chars                                          |
-| `REFRESH_TOKEN_EXPIRES_IN` | No       | 30d                   | Refresh token TTL                                     |
-| `CORS_ORIGINS`             | No       | http://localhost:3000 | Comma-separated allowed origins                       |
-| `REDIS_URL`                | No       | —                     | Redis connection string                               |
-| `RATE_LIMIT_MAX`           | No       | 100                   | Max requests per window                               |
-| `RATE_LIMIT_WINDOW_MS`     | No       | 60000                 | Rate limit window (ms)                                |
-| `AI_MOCK_ENABLED`          | No       | true                  | `true` = fixture data; `false` = real AI provider     |
-| `AI_PROVIDER`              | No       | openai                | Active provider: `gemini` \| `openai` \| `anthropic`  |
-| `GEMINI_API_KEY`           | No       | —                     | Required when `AI_PROVIDER=gemini` + mock disabled    |
-| `OPENAI_API_KEY`           | No       | —                     | Required when `AI_PROVIDER=openai` + mock disabled    |
-| `ANTHROPIC_API_KEY`        | No       | —                     | Required when `AI_PROVIDER=anthropic` + mock disabled |
-| `GROCERY_AI_MOCK_ENABLED`  | No       | true                  | Use fixture grocery store data (no Claude call)       |
+| Variable                   | Required | Default               | Description                                                                                                                         |
+| -------------------------- | -------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                 | No       | development           | Runtime environment                                                                                                                 |
+| `PORT`                     | No       | 3001                  | HTTP listen port                                                                                                                    |
+| `HOST`                     | No       | 0.0.0.0               | HTTP listen host                                                                                                                    |
+| `DATABASE_URL`             | **Yes**  | —                     | PostgreSQL connection string                                                                                                        |
+| `JWT_SECRET`               | **Yes**  | —                     | Min 32 chars                                                                                                                        |
+| `JWT_EXPIRES_IN`           | No       | 15m                   | Access token TTL                                                                                                                    |
+| `REFRESH_TOKEN_SECRET`     | **Yes**  | —                     | Min 32 chars                                                                                                                        |
+| `REFRESH_TOKEN_EXPIRES_IN` | No       | 30d                   | Refresh token TTL                                                                                                                   |
+| `CORS_ORIGINS`             | No       | http://localhost:3000 | Comma-separated allowed origins                                                                                                     |
+| `REDIS_URL`                | No       | —                     | Redis connection string                                                                                                             |
+| `RATE_LIMIT_MAX`           | No       | 100                   | Max requests per window                                                                                                             |
+| `RATE_LIMIT_WINDOW_MS`     | No       | 60000                 | Rate limit window (ms)                                                                                                              |
+| `AI_MOCK_ENABLED`          | No       | true                  | `true` = fixture data; `false` = real AI provider                                                                                   |
+| `AI_PROVIDER`              | No       | openai                | Active provider: `gemini` \| `openai` \| `anthropic`                                                                                |
+| `GEMINI_API_KEY`           | No       | —                     | Required when `AI_PROVIDER=gemini` + mock disabled                                                                                  |
+| `OPENAI_API_KEY`           | No       | —                     | Required when `AI_PROVIDER=openai` + mock disabled                                                                                  |
+| `ANTHROPIC_API_KEY`        | No       | —                     | Required when `AI_PROVIDER=anthropic` + mock disabled                                                                               |
+| `GROCERY_AI_MOCK_ENABLED`  | No       | true                  | Use fixture grocery store data (no Claude call)                                                                                     |
+| `UNSPLASH_ACCESS_KEY`      | No       | —                     | Unsplash API key for ingredient images; falls back to category images without it. Get a free key at https://unsplash.com/developers |
 
 ### `apps/web/.env.local`
 

@@ -1,4 +1,9 @@
-export function GenerateOverlay() {
+interface GenerateOverlayProps {
+  /** Premium runs the AI pipeline; free picks from the curated pool. */
+  premium?: boolean;
+}
+
+export function GenerateOverlay({ premium = true }: GenerateOverlayProps) {
   return (
     <div
       role="status"
@@ -14,9 +19,13 @@ export function GenerateOverlay() {
           </span>
         </div>
         <div className="text-center">
-          <p className="text-lg font-semibold text-gray-900">Crafting your week…</p>
+          <p className="text-lg font-semibold text-gray-900">
+            {premium ? 'Crafting your week…' : 'Picking this week’s recipes…'}
+          </p>
           <p className="mt-1 text-sm text-gray-500">
-            Picking recipes tailored to your goals and preferences
+            {premium
+              ? 'Picking recipes tailored to your goals and preferences'
+              : 'Selecting balanced meals from our chef-curated collection'}
           </p>
         </div>
       </div>

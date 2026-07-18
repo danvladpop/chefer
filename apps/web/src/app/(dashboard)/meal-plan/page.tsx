@@ -5,10 +5,20 @@ import { useCallback, useMemo, useState } from 'react';
 import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
+import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
+import { useIsPremium } from '@/hooks/useIsPremium';
 import { useRecipeImageStream, type RecipeImageUpdate } from '@/hooks/useRecipeImageStream';
 import { trpc } from '@/lib/trpc';
-import { CalendarDays, ChevronLeft, ChevronRight, RefreshCw, Wand2 } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  ImageIcon,
+  RefreshCw,
+  Sparkles,
+  Wand2,
+} from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -64,6 +74,7 @@ export default function MealPlanPage() {
     router.replace(`/meal-plan?${params.toString()}`, { scroll: false });
   };
 
+  const isPremium = useIsPremium();
   const [isGenerating, setIsGenerating] = useState(false);
   const [imageOverrides, setImageOverrides] = useState<
     Record<string, { imageUrl: string | null; status: ImageStatusType }>
@@ -102,7 +113,18 @@ export default function MealPlanPage() {
     }));
   }, []);
 
-  useRecipeImageStream(pendingRecipeIds, handleImageUpdate);
+  // On SSE timeout, refetch real statuses from the DB instead of faking
+  // failures — still-pending recipes re-open a fresh subscription.
+  const handleStreamTimeout = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+
+  useRecipeImageStream(pendingRecipeIds, handleImageUpdate, handleStreamTimeout);
+
+  // Photo generation progress (drives the pill next to Regenerate)
+  const photosTotal = pendingRecipeIds.length;
+  const photosReady = pendingRecipeIds.filter((id) => imageOverrides[id]).length;
+  const photosInProgress = photosTotal > 0 && photosReady < photosTotal;
 
   const generateMutation = trpc.mealPlan.generate.useMutation({
     onMutate: () => setIsGenerating(true),
@@ -162,16 +184,26 @@ export default function MealPlanPage() {
       </div>
 
       {/* Actions — only available for current/future weeks */}
-      {!isPast && (
-        <button
-          onClick={handleGenerate}
-          disabled={isGenerating}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
-          {plan ? 'Regenerate' : 'Generate'}
-        </button>
-      )}
+      <div className="flex items-center gap-2">
+        {/* Photo generation progress */}
+        {photosInProgress && (
+          <span className="flex items-center gap-1.5 rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-[11px] font-medium text-[#944a00]">
+            <ImageIcon className="h-3 w-3 animate-pulse" />
+            {photosReady} of {photosTotal} photos ready
+          </span>
+        )}
+
+        {!isPast && (
+          <button
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
+            {plan ? 'Regenerate' : 'Generate'}
+          </button>
+        )}
+      </div>
     </div>
   );
 
@@ -179,6 +211,18 @@ export default function MealPlanPage() {
   return (
     <div className="flex h-full flex-col">
       {navBar}
+
+      {/* Free-tier hint — generic plans, upgrade for personalisation */}
+      {isPremium === false && (
+        <div className="mx-6 mb-2 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5">
+          <p className="flex items-center gap-2 text-xs text-amber-900">
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+            You&apos;re on the free plan: chef-picked generic recipes. Upgrade for AI plans tailored
+            to your goals, allergies and preferences.
+          </p>
+          <UpgradeButton className="shrink-0" />
+        </div>
+      )}
 
       {/* Loading */}
       {isLoading && (
@@ -275,7 +319,7 @@ export default function MealPlanPage() {
         </div>
       )}
 
-      {isGenerating && <GenerateOverlay />}
+      {isGenerating && <GenerateOverlay premium={isPremium !== false} />}
     </div>
   );
 }

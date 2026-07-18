@@ -14,6 +14,7 @@
 6. [User Management (Admin) Flow](#6-user-management-admin-flow)
 7. [Post Lifecycle Flow](#7-post-lifecycle-flow)
 8. [API Request Lifecycle](#8-api-request-lifecycle)
+9. [Premium Tier & Meal Plan Generation Flow](#9-premium-tier--meal-plan-generation-flow)
 
 ---
 
@@ -102,6 +103,7 @@ Incoming HTTP request
               └─ Procedure middleware checks ctx.user:
                     publicProcedure    → always allowed
                     protectedProcedure → requires ctx.user != null
+                    premiumProcedure   → requires planTier === 'PREMIUM' OR role === 'ADMIN'
                     adminProcedure     → requires ctx.user.role === 'ADMIN'
 ```
 
@@ -283,3 +285,52 @@ Express Server (apps/api, port 3001)
 | Unauthenticated access       | tRPC `UNAUTHORIZED`                              |
 | Insufficient role            | tRPC `FORBIDDEN`                                 |
 | Unhandled exception          | tRPC `INTERNAL_SERVER_ERROR` (logged to console) |
+
+---
+
+## 9. Premium Tier & Meal Plan Generation Flow
+
+Users have a `planTier` (`FREE` by default, `PREMIUM` after upgrading). Admins are treated as premium everywhere.
+
+### Upgrade flow (demo — no payment integration)
+
+```
+"Upgrade plan" button (sidebar / meal-plan banner / preferences / profile)
+  → confirmation dialog
+  → user.upgradePlan mutation (protected)
+  → planTier = PREMIUM
+  → user.me invalidated → UI unlocks instantly
+```
+
+### Weekly plan generation
+
+`mealPlan.generate` is available to both tiers — the behaviour branches in `MealPlanService`:
+
+```
+mealPlan.generate { weekOffset }
+  │
+  ├─ FREE user
+  │    ├─ ensureCuratedRecipes()          (idempotent upsert of curated pool)
+  │    ├─ random breakfast/lunch/dinner per day (shuffled cycling, 7 days)
+  │    ├─ no AI call, no chef profile required, preferences ignored
+  │    └─ recipes ship with preset stock images (imageStatus DONE) → instant board
+  │
+  └─ PREMIUM user (or ADMIN)
+       ├─ load ChefProfile + DietaryPreferences (profile required)
+       ├─ IAIService.generateMealPlan (Gemini) → 21 personalised recipes
+       ├─ image reuse: recipes whose name matches a previously generated
+       │   DONE image are marked DONE immediately
+       ├─ remaining recipes upserted as PENDING with imagePriority
+       │   (0 = today) → RecipeImageWorker.wake()
+       └─ worker generates up to 5 images in parallel (Pollinations),
+           streaming DONE events to the client over SSE
+```
+
+### Meal swap
+
+`mealPlan.swapRecipe` — premium: AI-generated alternative; free: random curated recipe of the same meal type (excluding the current one).
+
+### Profile personalisation gating
+
+- `preferences.setup` / `preferences.update` use `premiumProcedure` → free users receive `FORBIDDEN` ("This feature requires a premium plan…").
+- The Preferences page and Onboarding wizard render an upgrade panel instead of the form for free users.

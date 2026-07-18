@@ -28,8 +28,8 @@ interface MealCardProps {
   planId: string;
   dayOfWeek: number;
   readOnly?: boolean;
-  imageUrlOverride?: string | null;
-  imageStatusOverride?: ImageStatusType;
+  imageUrlOverride?: string | null | undefined;
+  imageStatusOverride?: ImageStatusType | undefined;
 }
 
 const MEAL_TYPE_LABELS: Record<string, string> = {
@@ -71,6 +71,7 @@ export function MealCard({
           imageUrl={effectiveImageUrl}
           imageStatus={effectiveImageStatus}
           recipeName={recipe.name}
+          cuisineType={recipe.cuisineType}
           className="h-full w-full transition-transform duration-300 group-hover:scale-105"
         />
         {/* Meal type badge */}

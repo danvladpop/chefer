@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { useIsPremium } from '@/hooks/useIsPremium';
 import {
   Activity,
   BookOpen,
@@ -10,6 +12,7 @@ import {
   LayoutDashboard,
   Settings,
   ShoppingCart,
+  Sparkles,
   TrendingUp,
   User,
 } from 'lucide-react';
@@ -33,6 +36,7 @@ const NAV_ITEMS = [
 
 export function SideBar() {
   const pathname = usePathname();
+  const isPremium = useIsPremium();
 
   return (
     <aside className="flex h-screen w-56 shrink-0 flex-col border-r bg-white">
@@ -75,8 +79,24 @@ export function SideBar() {
         </ul>
       </nav>
 
-      {/* Footer spacer */}
-      <div className="h-4" />
+      {/* Plan footer — upgrade CTA for free users, badge for premium */}
+      <div className="border-t px-3 py-3">
+        {isPremium === false && (
+          <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3">
+            <p className="text-xs font-semibold text-gray-800">Free plan</p>
+            <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
+              Generic recipes only. Go premium for your personal AI chef.
+            </p>
+            <UpgradeButton className="mt-2 w-full" />
+          </div>
+        )}
+        {isPremium === true && (
+          <div className="flex items-center gap-2 rounded-xl bg-[#fff3e8] px-3 py-2">
+            <Sparkles className="h-4 w-4 text-[#944a00]" />
+            <span className="text-xs font-semibold text-[#944a00]">Premium plan</span>
+          </div>
+        )}
+      </div>
     </aside>
   );
 }

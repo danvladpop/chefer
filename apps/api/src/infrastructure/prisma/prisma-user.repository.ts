@@ -1,7 +1,6 @@
 import type { Prisma, User } from '@prisma/client';
-
 import { prisma } from '@chefer/database';
-import type { UserRole } from '@chefer/types';
+import type { PlanTier, UserRole } from '@chefer/types';
 
 // ─── Interface ────────────────────────────────────────────────────────────────
 
@@ -26,6 +25,7 @@ export interface UpdateUserInput {
   email?: string;
   passwordHash?: string;
   role?: UserRole;
+  planTier?: PlanTier;
   image?: string;
   emailVerified?: Date;
 }

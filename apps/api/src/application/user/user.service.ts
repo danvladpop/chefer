@@ -1,13 +1,11 @@
 import { TRPCError } from '@trpc/server';
-
-import type { UserRole } from '@chefer/types';
-
-import type { IUserRepository } from '../../infrastructure/prisma/prisma-user.repository.js';
+import type { PlanTier, UserRole } from '@chefer/types';
 import {
   domainErrorToTRPCCode,
   UserEmailConflictError,
   UserNotFoundError,
 } from '../../domain/user/user.errors.js';
+import type { IUserRepository } from '../../infrastructure/prisma/prisma-user.repository.js';
 
 // ─── Input Types ──────────────────────────────────────────────────────────────
 
@@ -21,6 +19,7 @@ export interface UpdateUserInput {
   name?: string;
   email?: string;
   role?: UserRole;
+  planTier?: PlanTier;
   image?: string;
 }
 
@@ -42,6 +41,7 @@ export interface UserDto {
   firstName: string | null;
   lastName: string | null;
   role: UserRole;
+  planTier: PlanTier;
   image: string | null;
   emailVerified: Date | null;
   createdAt: Date;
@@ -202,6 +202,7 @@ export class UserService {
     firstName?: string | null;
     lastName?: string | null;
     role: UserRole;
+    planTier?: PlanTier;
     image: string | null;
     emailVerified: Date | null;
     createdAt: Date;
@@ -214,6 +215,7 @@ export class UserService {
       firstName: user.firstName ?? null,
       lastName: user.lastName ?? null,
       role: user.role,
+      planTier: user.planTier ?? 'FREE',
       image: user.image,
       emailVerified: user.emailVerified,
       createdAt: user.createdAt,

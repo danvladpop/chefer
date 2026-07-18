@@ -1,5 +1,6 @@
 'use client';
 
+import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { trpc } from '@/lib/trpc';
 
 // ─── Usage bar ────────────────────────────────────────────────────────────────
@@ -107,11 +108,34 @@ export default function ProfilePage() {
         <div>
           <p className="font-semibold text-gray-900">{displayName}</p>
           <p className="text-sm text-gray-500">{user?.email}</p>
-          <p className="mt-0.5 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500 inline-block">
-            {user?.role ?? '…'}
-          </p>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">
+              {user?.role ?? '…'}
+            </span>
+            {user && (
+              <span
+                className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                  user.planTier === 'PREMIUM'
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+                    : 'bg-gray-100 text-gray-500'
+                }`}
+              >
+                {user.planTier === 'PREMIUM' ? 'Premium' : 'Free plan'}
+              </span>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Upgrade CTA for free users (admins are implicitly premium) */}
+      {user && user.planTier !== 'PREMIUM' && user.role !== 'ADMIN' && (
+        <div className="mb-6">
+          <UpgradeCard
+            title="Go Premium"
+            description="Unlock AI meal plans tailored to your goals, AI-powered swaps, and your personal nutrition profile."
+          />
+        </div>
+      )}
 
       {/* AI usage */}
       {isLoading ? (

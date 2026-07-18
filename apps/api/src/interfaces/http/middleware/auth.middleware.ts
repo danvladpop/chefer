@@ -1,10 +1,8 @@
-import type { Request, Response, NextFunction } from 'express';
-
-import type { UserProfile } from '@chefer/types';
+import type { NextFunction, Request, Response } from 'express';
 import { prisma } from '@chefer/database';
-
-import type { Context } from '../../../lib/trpc.js';
+import type { UserProfile } from '@chefer/types';
 import { env } from '../../../lib/env.js';
+import type { Context } from '../../../lib/trpc.js';
 
 declare module 'express' {
   interface Request {
@@ -53,6 +51,7 @@ async function resolveUserFromSession(token: string): Promise<UserProfile | null
             email: true,
             name: true,
             role: true,
+            planTier: true,
             image: true,
           },
         },
@@ -68,6 +67,7 @@ async function resolveUserFromSession(token: string): Promise<UserProfile | null
       email: session.user.email,
       name: session.user.name,
       role: session.user.role as UserProfile['role'],
+      planTier: session.user.planTier as UserProfile['planTier'],
       image: session.user.image,
     };
   } catch {
@@ -79,9 +79,7 @@ async function resolveUserFromSession(token: string): Promise<UserProfile | null
  * Middleware that creates the tRPC context from an Express request/response pair.
  */
 export async function createContext(req: Request, res: Response): Promise<Context> {
-  const requestId =
-    (req.headers['x-request-id'] as string | undefined) ??
-    crypto.randomUUID();
+  const requestId = (req.headers['x-request-id'] as string | undefined) ?? crypto.randomUUID();
 
   const ipAddress =
     (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
@@ -124,11 +122,7 @@ export function requestIdMiddleware(req: Request, res: Response, next: NextFunct
  * Express middleware that requires authentication.
  * Attaches the user to req.user.
  */
-export async function requireAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const sessionToken = extractSessionToken(req.headers.cookie);
   const bearerToken = extractBearerToken(req.headers.authorization);
 

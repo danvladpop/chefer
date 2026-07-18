@@ -10,6 +10,12 @@ import {
 } from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient, MealType, NutritionInfo, RecipeData } from '../../lib/ai/index.js';
+import {
+  CURATED_POOL_BY_TYPE,
+  ensureCuratedRecipes,
+  pickRandomCurated,
+} from '../../lib/curated-recipes/index.js';
+import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
 
 // ─── Shopping list types ───────────────────────────────────────────────────────
 
@@ -153,6 +159,23 @@ function getMondayOfWeek(offset: number): Date {
   return monday;
 }
 
+/** 0=Monday … 6=Sunday for today (matches dayOfWeek in plans). */
+function getTodayDayIndex(): number {
+  const jsDay = new Date().getDay(); // 0=Sun … 6=Sat
+  return jsDay === 0 ? 6 : jsDay - 1;
+}
+
+/**
+ * Image generation priority for a plan day: distance in days from today
+ * (0 = today's meals generate first). Next week's days sort after this week's.
+ */
+function dayImagePriority(dayOfWeek: number, weekOffset: number): number {
+  if (weekOffset <= 0) {
+    return (dayOfWeek - getTodayDayIndex() + 7) % 7;
+  }
+  return weekOffset * 7 + dayOfWeek;
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class MealPlanService {
@@ -163,9 +186,16 @@ export class MealPlanService {
    * the assembled DTO. Only the plan for the targeted week is archived —
    * plans for other weeks are left untouched.
    *
+   * Premium users get an AI-personalised plan; free users get a random
+   * selection from the curated generic recipe pool (no AI calls, preset
+   * stock images, dietary preferences intentionally ignored).
+   *
    * @param weekOffset 0 = current week, 1 = next week, etc.
    */
-  async generate(userId: string, weekOffset = 0): Promise<WeekPlanDto> {
+  async generate(userId: string, weekOffset = 0, premium = false): Promise<WeekPlanDto> {
+    if (!premium) {
+      return this.generateCurated(userId, weekOffset);
+    }
     // 1. Load user preferences
     const [chefProfile, dietaryPrefs] = await Promise.all([
       chefProfileRepository.findByUserId(userId),
@@ -214,33 +244,55 @@ export class MealPlanService {
       .create({ data: { userId, callType: AiCallType.MEAL_PLAN } })
       .catch((err) => console.error('[aiCallLog] Failed to log MEAL_PLAN call:', err));
 
-    // 4. Collect unique recipes — no image assignment, the worker handles this async
+    // 4. Collect unique recipes and their image priority (min day-distance
+    //    across the slots each recipe appears in — today's meals first)
     const recipeMap = new Map<string, RecipeData>();
+    const priorityMap = new Map<string, number>();
     for (const day of weekPlan.days) {
+      const dayPriority = dayImagePriority(day.dayOfWeek, weekOffset);
       for (const slot of day.meals) {
         recipeMap.set(slot.recipe.id, slot.recipe);
+        const prev = priorityMap.get(slot.recipe.id);
+        priorityMap.set(slot.recipe.id, Math.min(prev ?? 100, dayPriority));
       }
     }
     const recipes = Array.from(recipeMap.values());
 
-    // 5. Persist recipes (upsert so reruns are idempotent)
+    // 5. Reuse images for dishes we've generated before. LLM recipe IDs are
+    //    fresh every run, but names are stable — a name match with a DONE image
+    //    means the (deterministic, name-seeded) image already exists.
+    const knownImages = await this.repo.findRecipeImagesByNames(recipes.map((r) => r.name));
+    const resolvedImage = (r: RecipeData): { imageUrl: string | null; done: boolean } => {
+      if (r.imageUrl) return { imageUrl: r.imageUrl, done: true };
+      const reused = knownImages.get(r.name.toLowerCase());
+      return reused ? { imageUrl: reused, done: true } : { imageUrl: null, done: false };
+    };
+
+    // 6. Persist recipes (upsert so reruns are idempotent)
     await this.repo.upsertRecipes(
-      recipes.map((r) => ({
-        id: r.id,
-        name: r.name,
-        description: r.description,
-        ingredients: r.ingredients,
-        instructions: r.instructions,
-        nutritionInfo: r.nutritionInfo,
-        cuisineType: r.cuisineType,
-        dietaryTags: r.dietaryTags,
-        prepTimeMins: r.prepTimeMins,
-        cookTimeMins: r.cookTimeMins,
-        servings: r.servings,
-      })),
+      recipes.map((r) => {
+        const img = resolvedImage(r);
+        return {
+          id: r.id,
+          name: r.name,
+          description: r.description,
+          ingredients: r.ingredients,
+          instructions: r.instructions,
+          nutritionInfo: r.nutritionInfo,
+          cuisineType: r.cuisineType,
+          dietaryTags: r.dietaryTags,
+          prepTimeMins: r.prepTimeMins,
+          cookTimeMins: r.cookTimeMins,
+          servings: r.servings,
+          imageUrl: img.imageUrl,
+          imageStatus: img.done ? ('DONE' as const) : ('PENDING' as const),
+          imagePriority: priorityMap.get(r.id) ?? 100,
+          creatorId: userId,
+        };
+      }),
     );
 
-    // 6. Persist the meal plan (archives only the plan for the same week)
+    // 7. Persist the meal plan (archives only the plan for the same week)
     const weekStartDate = getMondayOfWeek(weekOffset);
     const plan = await this.repo.createPlan({
       userId,
@@ -252,15 +304,88 @@ export class MealPlanService {
       recipeIds: recipes.map((r) => r.id),
     });
 
-    // 7. Assemble the DTO
+    // 8. Start image generation immediately — don't wait for the worker's poll
+    recipeImageWorker.wake();
+
+    // 9. Assemble the DTO
     return {
       planId: plan.id,
       weekStartDate: plan.weekStartDate,
       days: weekPlan.days.map((d) => ({
         dayOfWeek: d.dayOfWeek,
+        meals: d.meals.map((m) => {
+          const img = resolvedImage(m.recipe);
+          return {
+            type: m.type as MealType,
+            recipe: toRecipeDto(m.recipe, {
+              imageUrl: img.imageUrl,
+              imageStatus: img.done ? 'DONE' : 'PENDING',
+            }),
+          };
+        }),
+      })),
+    };
+  }
+
+  /**
+   * FREE-tier plan generation: a random selection from the curated generic
+   * recipe pool. No AI calls, no personalisation, images are preset stock
+   * photos (instantly DONE).
+   */
+  private async generateCurated(userId: string, weekOffset = 0): Promise<WeekPlanDto> {
+    await ensureCuratedRecipes();
+
+    const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner'];
+
+    // Shuffled cycling per meal type: variety across the week, no repeats
+    // until a pool is exhausted.
+    const cyclers = new Map<MealType, { pool: RecipeData[]; idx: number }>();
+    for (const type of MEAL_TYPES) {
+      const pool = [...(CURATED_POOL_BY_TYPE[type] ?? [])];
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+      }
+      cyclers.set(type, { pool, idx: 0 });
+    }
+    const nextRecipe = (type: MealType): RecipeData => {
+      const cycler = cyclers.get(type);
+      if (!cycler || cycler.pool.length === 0) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `No curated recipes available for ${type}.`,
+        });
+      }
+      const recipe = cycler.pool[cycler.idx % cycler.pool.length]!;
+      cycler.idx += 1;
+      return recipe;
+    };
+
+    const days = Array.from({ length: 7 }, (_, dayOfWeek) => ({
+      dayOfWeek,
+      meals: MEAL_TYPES.map((type) => ({ type, recipe: nextRecipe(type) })),
+    }));
+
+    const uniqueRecipeIds = [...new Set(days.flatMap((d) => d.meals.map((m) => m.recipe.id)))];
+    const weekStartDate = getMondayOfWeek(weekOffset);
+    const plan = await this.repo.createPlan({
+      userId,
+      weekStartDate,
+      days: days.map((d) => ({
+        dayOfWeek: d.dayOfWeek,
+        meals: d.meals.map((m) => ({ type: m.type, recipeId: m.recipe.id })),
+      })),
+      recipeIds: uniqueRecipeIds,
+    });
+
+    return {
+      planId: plan.id,
+      weekStartDate: plan.weekStartDate,
+      days: days.map((d) => ({
+        dayOfWeek: d.dayOfWeek,
         meals: d.meals.map((m) => ({
-          type: m.type as MealType,
-          recipe: toRecipeDto(m.recipe),
+          type: m.type,
+          recipe: toRecipeDto(m.recipe, { imageUrl: m.recipe.imageUrl, imageStatus: 'DONE' }),
         })),
       })),
     };
@@ -364,7 +489,8 @@ export class MealPlanService {
   }
 
   /**
-   * Swaps a single meal slot with an AI-generated alternative recipe.
+   * Swaps a single meal slot. Premium users get an AI-generated alternative;
+   * free users get a random curated recipe of the same meal type.
    */
   async swapRecipe(
     userId: string,
@@ -372,11 +498,16 @@ export class MealPlanService {
     dayOfWeek: number,
     mealType: string,
     _reason?: string,
+    premium = false,
   ): Promise<RecipeDto> {
     // Verify the plan belongs to this user (look up by ID so it works for any week)
     const plan = await this.repo.findByIdForUser(userId, planId);
     if (!plan) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+
+    if (!premium) {
+      return this.swapCurated(planId, dayOfWeek, mealType, plan);
     }
 
     // Load dietary preferences for the swap prompt
@@ -416,7 +547,10 @@ export class MealPlanService {
       .create({ data: { userId, callType: AiCallType.RECIPE_SWAP } })
       .catch((err) => console.error('[aiCallLog] Failed to log RECIPE_SWAP call:', err));
 
-    // Persist new recipe — imageStatus PENDING set by repository create block
+    // Reuse an existing image if we've generated this dish before
+    const knownImages = await this.repo.findRecipeImagesByNames([newRecipe.name]);
+    const reusedUrl = newRecipe.imageUrl ?? knownImages.get(newRecipe.name.toLowerCase()) ?? null;
+
     await this.repo.upsertRecipes([
       {
         id: newRecipe.id,
@@ -430,13 +564,43 @@ export class MealPlanService {
         prepTimeMins: newRecipe.prepTimeMins,
         cookTimeMins: newRecipe.cookTimeMins,
         servings: newRecipe.servings,
+        imageUrl: reusedUrl,
+        imageStatus: reusedUrl ? ('DONE' as const) : ('PENDING' as const),
+        imagePriority: dayImagePriority(dayOfWeek, 0),
+        creatorId: userId,
       },
     ]);
 
     // Update the day's meal slot
     await this.repo.updateDayMeal(planId, dayOfWeek, mealType, newRecipe.id);
 
-    return toRecipeDto(newRecipe);
+    if (!reusedUrl) recipeImageWorker.wake();
+
+    return toRecipeDto(newRecipe, {
+      imageUrl: reusedUrl,
+      imageStatus: reusedUrl ? 'DONE' : 'PENDING',
+    });
+  }
+
+  /**
+   * FREE-tier swap: random curated recipe of the same meal type (no AI).
+   */
+  private async swapCurated(
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    plan: { days: Array<{ dayOfWeek: number; meals: unknown }> },
+  ): Promise<RecipeDto> {
+    await ensureCuratedRecipes();
+
+    type MealSlotJson = { type: string; recipeId: string };
+    const day = plan.days.find((d) => d.dayOfWeek === dayOfWeek);
+    const slot = day ? (day.meals as MealSlotJson[]).find((m) => m.type === mealType) : undefined;
+
+    const newRecipe = pickRandomCurated(mealType as MealType, slot?.recipeId);
+    await this.repo.updateDayMeal(planId, dayOfWeek, mealType, newRecipe.id);
+
+    return toRecipeDto(newRecipe, { imageUrl: newRecipe.imageUrl, imageStatus: 'DONE' });
   }
 
   /**
@@ -625,7 +789,10 @@ export const mealPlanService = new MealPlanService(mealPlanRepository);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function toRecipeDto(r: RecipeData): RecipeDto {
+function toRecipeDto(
+  r: RecipeData,
+  image?: { imageUrl: string | null; imageStatus: RecipeDto['imageStatus'] },
+): RecipeDto {
   return {
     id: r.id,
     name: r.name,
@@ -638,9 +805,10 @@ function toRecipeDto(r: RecipeData): RecipeDto {
     prepTimeMins: r.prepTimeMins,
     cookTimeMins: r.cookTimeMins,
     servings: r.servings,
-    imageUrl: r.imageUrl ?? null,
-    // New AI-generated recipes have no imageUrl — treat as PENDING so the worker will generate one
-    imageStatus: 'PENDING' as const,
+    imageUrl: image?.imageUrl ?? r.imageUrl ?? null,
+    // Without an explicit resolution, new AI recipes have no image yet —
+    // treat as PENDING so the worker generates one.
+    imageStatus: image?.imageStatus ?? 'PENDING',
   };
 }
 

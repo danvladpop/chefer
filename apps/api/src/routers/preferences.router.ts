@@ -4,7 +4,7 @@ import {
   preferencesService,
   type UpdatePreferencesInput,
 } from '../application/preferences/preferences.service.js';
-import { protectedProcedure, router } from '../lib/trpc.js';
+import { premiumProcedure, protectedProcedure, router } from '../lib/trpc.js';
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -45,12 +45,15 @@ export const preferencesRouter = router({
     return preferencesService.get(ctx.user.id);
   }),
 
-  setup: protectedProcedure.input(setupSchema).mutation(async ({ input, ctx }) => {
+  // Profile personalisation is a premium feature — free users use the curated
+  // generic plans and are prompted to upgrade. Reads stay open so the locked
+  // UI can still render existing state.
+  setup: premiumProcedure.input(setupSchema).mutation(async ({ input, ctx }) => {
     await preferencesService.setup(ctx.user.id, input);
     return { success: true as const };
   }),
 
-  update: protectedProcedure.input(updateSchema).mutation(async ({ input, ctx }) => {
+  update: premiumProcedure.input(updateSchema).mutation(async ({ input, ctx }) => {
     return preferencesService.update(ctx.user.id, input as UpdatePreferencesInput);
   }),
 

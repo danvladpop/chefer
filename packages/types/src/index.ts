@@ -30,11 +30,14 @@ export interface User extends BaseEntity {
   image: string | null;
 }
 
+export type PlanTier = 'FREE' | 'PREMIUM';
+
 export interface UserProfile {
   id: string;
   email: string;
   name: string | null;
   role: UserRole;
+  planTier: PlanTier;
   image: string | null;
 }
 
