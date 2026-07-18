@@ -8,6 +8,18 @@ import { recipeImageEventEmitter } from '../lib/sse/recipe-image-emitter.js';
 
 const POLL_INTERVAL_MS = 5_000;
 const MAX_RETRIES = 3;
+// How many images generate in parallel. Pollinations' anonymous tier rate-limits
+// aggressively (429 on concurrent generation requests) — 3 gives some overlap
+// while the 429→rate-limit back-off (see image-gen/index.ts) absorbs rejections
+// without burning retry budgets. 1-at-a-time made a full plan take 5-12 minutes.
+const CONCURRENCY = 3;
+
+interface ClaimedRecipe {
+  id: string;
+  name: string;
+  cuisineType: string;
+  creatorId: string | null;
+}
 
 export class RecipeImageWorker {
   private timer: NodeJS.Timeout | null = null;
@@ -27,10 +39,19 @@ export class RecipeImageWorker {
       console.log(`[RecipeImageWorker] recovered ${recovered.count} stuck GENERATING recipes`);
     }
 
-    console.log('[RecipeImageWorker] started');
+    console.log(`[RecipeImageWorker] started (concurrency ${CONCURRENCY})`);
     this.timer = setInterval(() => {
       void this.tick();
     }, POLL_INTERVAL_MS);
+    void this.tick();
+  }
+
+  /**
+   * Triggers an immediate processing pass. Called by services right after they
+   * enqueue new PENDING recipes so image generation starts with zero poll delay.
+   * Safe to call at any time — no-op if a pass is already running.
+   */
+  wake(): void {
     void this.tick();
   }
 
@@ -41,7 +62,7 @@ export class RecipeImageWorker {
     }
     // Wait for any in-flight generation to complete before the process exits
     if (this.inFlight) {
-      console.log('[RecipeImageWorker] waiting for in-flight job to finish…');
+      console.log('[RecipeImageWorker] waiting for in-flight jobs to finish…');
       await this.inFlight;
     }
     console.log('[RecipeImageWorker] stopped');
@@ -49,30 +70,22 @@ export class RecipeImageWorker {
 
   private async tick(): Promise<void> {
     if (this.running) return;
-
-    // Honour rate-limit back-off
     if (Date.now() < this.rateLimitUntil) return;
 
     this.running = true;
     try {
-      const recipe = await prisma.recipe.findFirst({
-        where: { imageStatus: ImageStatus.PENDING },
-        select: { id: true, name: true, cuisineType: true, description: true, creatorId: true },
-        orderBy: { createdAt: 'asc' },
-      });
+      // Drain the queue: keep claiming batches until nothing is PENDING or a
+      // rate-limit back-off engages. The poll interval is only a discovery
+      // fallback — a plan generation calls wake() and the whole queue drains here.
+      for (;;) {
+        if (Date.now() < this.rateLimitUntil) break;
 
-      if (!recipe) return;
+        const batch = await this.claimBatch();
+        if (batch.length === 0) break;
 
-      // Atomically claim the recipe to prevent another instance picking it up
-      // (relevant if the API is ever horizontally scaled)
-      const claimed = await prisma.recipe.updateMany({
-        where: { id: recipe.id, imageStatus: ImageStatus.PENDING },
-        data: { imageStatus: ImageStatus.GENERATING },
-      });
-      if (claimed.count === 0) return; // already claimed by another instance
-
-      this.inFlight = this.processOne(recipe);
-      await this.inFlight;
+        this.inFlight = this.processBatch(batch);
+        await this.inFlight;
+      }
     } catch (err) {
       console.error('[RecipeImageWorker] tick error', err);
     } finally {
@@ -81,19 +94,41 @@ export class RecipeImageWorker {
     }
   }
 
-  private async processOne(recipe: {
-    id: string;
-    name: string;
-    cuisineType: string;
-    description: string;
-    creatorId: string | null;
-  }): Promise<void> {
+  /**
+   * Atomically claims up to CONCURRENCY pending recipes, lowest imagePriority
+   * first (0 = today's meals) so the images the user is looking at resolve first.
+   * The per-row updateMany guard keeps this safe if the API is ever scaled
+   * horizontally — a row claimed by another instance is simply skipped.
+   */
+  private async claimBatch(): Promise<ClaimedRecipe[]> {
+    const candidates = await prisma.recipe.findMany({
+      where: { imageStatus: ImageStatus.PENDING },
+      select: { id: true, name: true, cuisineType: true, creatorId: true },
+      orderBy: [{ imagePriority: 'asc' }, { createdAt: 'asc' }],
+      take: CONCURRENCY,
+    });
+
+    const claimed: ClaimedRecipe[] = [];
+    for (const recipe of candidates) {
+      const res = await prisma.recipe.updateMany({
+        where: { id: recipe.id, imageStatus: ImageStatus.PENDING },
+        data: { imageStatus: ImageStatus.GENERATING },
+      });
+      if (res.count > 0) claimed.push(recipe);
+    }
+    return claimed;
+  }
+
+  private async processBatch(batch: ClaimedRecipe[]): Promise<void> {
+    await Promise.allSettled(batch.map((recipe) => this.processOne(recipe)));
+  }
+
+  private async processOne(recipe: ClaimedRecipe): Promise<void> {
     try {
       const cdnUrl = await generateAndUploadRecipeImage({
         recipeId: recipe.id,
         recipeName: recipe.name,
         cuisineType: recipe.cuisineType,
-        description: recipe.description,
       });
 
       await prisma.recipe.update({

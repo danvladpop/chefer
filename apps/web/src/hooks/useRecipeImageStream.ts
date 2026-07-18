@@ -9,20 +9,26 @@ export interface RecipeImageUpdate {
 const API_URL = process.env['NEXT_PUBLIC_API_URL'];
 if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set');
 
-const CLIENT_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
+const CLIENT_TIMEOUT_MS = 6 * 60 * 1000; // 6 minutes
 
 /**
  * Opens an SSE connection to stream image updates for the given recipe IDs.
  * Calls `onUpdate` for each resolved recipe.
  * Closes the connection when all IDs are resolved or on unmount.
- * Forces FAILED status for any IDs still pending after CLIENT_TIMEOUT_MS.
+ *
+ * On timeout the hook does NOT fabricate FAILED states (the server may simply
+ * still be generating) — it closes the stream and calls `onTimeout`, letting
+ * the caller refetch real statuses from the DB and re-subscribe if needed.
  */
 export function useRecipeImageStream(
   recipeIds: string[],
   onUpdate: (update: RecipeImageUpdate) => void,
+  onTimeout?: () => void,
 ) {
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
+  const onTimeoutRef = useRef(onTimeout);
+  onTimeoutRef.current = onTimeout;
 
   // Sort for stable comparison — avoids reconnect on array reference churn
   const stableKey = [...recipeIds].sort().join(',');
@@ -56,16 +62,11 @@ export function useRecipeImageStream(
       // The server will re-send DONE/FAILED state on reconnect.
     };
 
-    // Client-side timeout: if images haven't arrived after CLIENT_TIMEOUT_MS,
-    // stop waiting and show the failure fallback so shimmer doesn't run forever.
+    // Client-side timeout: stop holding the connection open forever. Real
+    // statuses live in the DB — the caller refetches and re-subscribes.
     const timeout = setTimeout(() => {
-      for (const id of ids) {
-        if (!resolved.has(id)) {
-          onUpdateRef.current({ recipeId: id, imageUrl: null, status: 'FAILED' });
-          resolved.add(id);
-        }
-      }
       es.close();
+      onTimeoutRef.current?.();
     }, CLIENT_TIMEOUT_MS);
 
     return () => {
