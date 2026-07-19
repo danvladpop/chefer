@@ -4,6 +4,11 @@ import type { Ingredient } from '../../lib/ai/types.js';
 import { groceryAIService } from '../../lib/grocery-ai/index.js';
 import type { GroceryCategory, GrocerySearchResult } from '../../lib/grocery-ai/index.js';
 import { resolveIngredientImage } from '../../lib/ingredient-images/index.js';
+import {
+  estimateItemPriceEur,
+  normalizeIngredientName,
+} from '../../lib/ingredient-prices/index.js';
+import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js';
 
 export interface ShoppingListItemForWeek {
   key: string;
@@ -13,6 +18,8 @@ export interface ShoppingListItemForWeek {
   category: GroceryCategory;
   recipeNames: string[];
   imageUrl: string;
+  /** Store-agnostic baseline estimate from the price vocabulary; null while unpriced. */
+  estimatedPriceEur: number | null;
 }
 
 export interface WeekShoppingList {
@@ -22,6 +29,20 @@ export interface WeekShoppingList {
   hasPlan: boolean;
   items: ShoppingListItemForWeek[];
   weekOffset: number;
+  /** Sum of the per-item estimates (items without an estimate excluded). */
+  estimatedTotalEur: number | null;
+  /** True when the served list is a persisted AI-consolidated list. */
+  aiGenerated: boolean;
+}
+
+/** Items as persisted in the ShoppingList table (images/prices re-resolved on read). */
+interface StoredShoppingListItem {
+  key: string;
+  ingredientName: string;
+  quantity: string;
+  unit: string;
+  category: GroceryCategory;
+  recipeNames: string[];
 }
 
 const CATEGORY_MAP: Record<string, GroceryCategory> = {
@@ -108,6 +129,48 @@ function getMondayOfWeek(offset: number): Date {
 }
 
 export class ShoppingListService {
+  /**
+   * Resolves images and vocabulary price estimates for the raw items and
+   * computes the estimated total. Wakes the price worker when the list
+   * contains ingredients the vocabulary hasn't priced yet, so they resolve
+   * shortly after (next page load shows them).
+   */
+  private async finalizeItems(rawItems: StoredShoppingListItem[]): Promise<{
+    items: ShoppingListItemForWeek[];
+    estimatedTotalEur: number | null;
+  }> {
+    const normalizedNames = rawItems.map((i) => normalizeIngredientName(i.ingredientName));
+    const priceRows = await prisma.ingredientPrice.findMany({
+      where: { ingredientName: { in: normalizedNames } },
+    });
+    const priceMap = new Map(priceRows.map((p) => [p.ingredientName, p]));
+
+    const items: ShoppingListItemForWeek[] = await Promise.all(
+      rawItems.map(async (item) => {
+        const price = priceMap.get(normalizeIngredientName(item.ingredientName));
+        return {
+          ...item,
+          imageUrl: await resolveIngredientImage(item.ingredientName),
+          estimatedPriceEur: price
+            ? estimateItemPriceEur(price, parseFloat(item.quantity), item.unit)
+            : null,
+        };
+      }),
+    );
+
+    if (items.some((i) => i.estimatedPriceEur === null)) {
+      ingredientPriceWorker.wake();
+    }
+
+    const priced = items.filter((i) => i.estimatedPriceEur !== null);
+    const estimatedTotalEur =
+      priced.length > 0
+        ? Math.round(priced.reduce((sum, i) => sum + (i.estimatedPriceEur ?? 0), 0) * 100) / 100
+        : null;
+
+    return { items, estimatedTotalEur };
+  }
+
   async getForWeek(userId: string, weekOffset: number): Promise<WeekShoppingList> {
     const weekStart = getMondayOfWeek(weekOffset);
     const weekEnd = new Date(weekStart);
@@ -137,6 +200,27 @@ export class ShoppingListService {
         hasPlan: false,
         items: [],
         weekOffset,
+        estimatedTotalEur: null,
+        aiGenerated: false,
+      };
+    }
+
+    // Serve the persisted AI-consolidated list when one exists for this plan
+    // (written by regenerate) — images and prices are re-resolved fresh.
+    const stored = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
+    if (stored) {
+      const { items, estimatedTotalEur } = await this.finalizeItems(
+        stored.items as unknown as StoredShoppingListItem[],
+      );
+      return {
+        planId: targetPlan.id,
+        weekStartDate: weekStart.toISOString(),
+        weekEndDate: weekEnd.toISOString(),
+        hasPlan: true,
+        items,
+        weekOffset,
+        estimatedTotalEur,
+        aiGenerated: stored.aiGenerated,
       };
     }
 
@@ -150,10 +234,18 @@ export class ShoppingListService {
     const recipes = await mealPlanRepository.findRecipesByIds(uniqueIds);
     const recipeMap = new Map(recipes.map((r) => [r.id, r]));
 
-    // Aggregate ingredients
+    // Aggregate ingredients. Merge key includes the unit: the same ingredient
+    // with two different units becomes two lines — previously the second unit
+    // silently overwrote the first, dropping its quantity.
     const merged = new Map<
       string,
-      { quantity: number; unit: string; category: GroceryCategory; recipeIds: Set<string> }
+      {
+        name: string;
+        quantity: number;
+        unit: string;
+        category: GroceryCategory;
+        recipeIds: Set<string>;
+      }
     >();
 
     for (const day of targetPlan.days) {
@@ -162,13 +254,15 @@ export class ShoppingListService {
         if (!recipe) continue;
         const ingredients = recipe.ingredients as unknown as Ingredient[];
         for (const ing of ingredients) {
-          const key = ing.name.toLowerCase().trim();
+          const name = ing.name.toLowerCase().trim();
+          const key = `${name}|${ing.unit.toLowerCase().trim()}`;
           const existing = merged.get(key);
-          if (existing && existing.unit === ing.unit) {
+          if (existing) {
             existing.quantity += ing.quantity;
             existing.recipeIds.add(slot.recipeId);
           } else {
             merged.set(key, {
+              name,
               quantity: ing.quantity,
               unit: ing.unit,
               category: inferCategory(ing.name),
@@ -179,21 +273,16 @@ export class ShoppingListService {
       }
     }
 
-    const rawItems = [...merged.entries()].map(([name, data]) => ({
-      key: `${targetPlan!.id}-${name}`,
-      ingredientName: name.charAt(0).toUpperCase() + name.slice(1),
+    const rawItems = [...merged.entries()].map(([key, data]) => ({
+      key: `${targetPlan!.id}-${key}`,
+      ingredientName: data.name.charAt(0).toUpperCase() + data.name.slice(1),
       quantity: Number.isInteger(data.quantity) ? String(data.quantity) : data.quantity.toFixed(1),
       unit: data.unit,
       category: data.category,
       recipeNames: [...data.recipeIds].map((id) => recipeMap.get(id)?.name ?? '').filter(Boolean),
     }));
 
-    const items: ShoppingListItemForWeek[] = await Promise.all(
-      rawItems.map(async (item) => ({
-        ...item,
-        imageUrl: await resolveIngredientImage(item.ingredientName),
-      })),
-    );
+    const { items, estimatedTotalEur } = await this.finalizeItems(rawItems);
 
     return {
       planId: targetPlan.id,
@@ -202,6 +291,8 @@ export class ShoppingListService {
       hasPlan: true,
       items,
       weekOffset,
+      estimatedTotalEur,
+      aiGenerated: false,
     };
   }
 
@@ -230,6 +321,8 @@ export class ShoppingListService {
         hasPlan: false,
         items: [],
         weekOffset,
+        estimatedTotalEur: null,
+        aiGenerated: false,
       };
     }
 
@@ -264,8 +357,9 @@ export class ShoppingListService {
       .create({ data: { userId, callType: AiCallType.SHOPPING_LIST } })
       .catch((err) => console.error('[aiCallLog] Failed to log SHOPPING_LIST call:', err));
 
-    const rawItems = aiResult.items.map((item, i) => ({
-      key: `${targetPlan!.id}-ai-${i}-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}`,
+    const rawItems: StoredShoppingListItem[] = aiResult.items.map((item) => ({
+      // Stable key (no index): checked-off state in the UI survives reloads
+      key: `${targetPlan!.id}-ai-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}-${item.unit.toLowerCase()}`,
       ingredientName: item.ingredientName,
       quantity: item.quantity,
       unit: item.unit,
@@ -273,12 +367,19 @@ export class ShoppingListService {
       recipeNames: [] as string[],
     }));
 
-    const items: ShoppingListItemForWeek[] = await Promise.all(
-      rawItems.map(async (item) => ({
-        ...item,
-        imageUrl: await resolveIngredientImage(item.ingredientName),
-      })),
-    );
+    // Persist so the AI-consolidated list survives reloads — getForWeek
+    // serves it from now on (until the plan itself is regenerated).
+    await prisma.shoppingList.upsert({
+      where: { planId: targetPlan.id },
+      create: {
+        planId: targetPlan.id,
+        items: rawItems as unknown as object[],
+        aiGenerated: true,
+      },
+      update: { items: rawItems as unknown as object[], aiGenerated: true },
+    });
+
+    const { items, estimatedTotalEur } = await this.finalizeItems(rawItems);
 
     return {
       planId: targetPlan.id,
@@ -287,6 +388,8 @@ export class ShoppingListService {
       hasPlan: true,
       items,
       weekOffset,
+      estimatedTotalEur,
+      aiGenerated: true,
     };
   }
 

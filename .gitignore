@@ -77,3 +77,6 @@ apps/**/.claude/worktrees/
 .claude/settings.local.json
 .claude/initial_prompt.md
 apps/**/.claude/settings.local.json
+
+# User-uploaded images (dev-local storage)
+apps/api/uploads/

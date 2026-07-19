@@ -169,5 +169,5 @@ After running `pnpm db:seed`:
 | Email            | Password   | Role      |
 | ---------------- | ---------- | --------- |
 | admin@chefer.dev | Admin@123! | ADMIN     |
-| alice@chefer.dev | User@123!  | USER      |
+| alice@chefer.dev | User@123!  | ADMIN     |
 | bob@chefer.dev   | User@123!  | MODERATOR |

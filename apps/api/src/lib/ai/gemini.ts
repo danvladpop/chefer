@@ -2,10 +2,12 @@ import { GoogleGenAI, Type } from '@google/genai';
 import type { Schema } from '@google/genai';
 import { z } from 'zod';
 import {
+  buildIngredientPricesPrompt,
   buildMealPlanUserPrompt,
   buildShoppingListPrompt,
   buildSwapUserPrompt,
   CHAT_SYSTEM_PROMPT,
+  INGREDIENT_PRICES_SYSTEM_PROMPT,
   MEAL_PLAN_SYSTEM_PROMPT,
   SHOPPING_LIST_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
@@ -14,6 +16,7 @@ import type {
   ChatContext,
   ChatMessage,
   IAIService,
+  IngredientPriceEstimate,
   MealPlanInput,
   RecipeData,
   ShoppingListInput,
@@ -197,6 +200,77 @@ const SHOPPING_LIST_RESPONSE_SCHEMA: Schema = {
   required: ['items'],
 };
 
+// ─── Ingredient price schemas ────────────────────────────────────────────────
+
+const ingredientPriceEstimateSchema = z.object({
+  ingredientName: z.string(),
+  pricePer100gEur: z.number().nullable(),
+  pricePer100mlEur: z.number().nullable(),
+  pricePerPieceEur: z.number().nullable(),
+  caloriesPer100g: z.number().nullable(),
+  proteinPer100g: z.number().nullable(),
+  carbsPer100g: z.number().nullable(),
+  fatPer100g: z.number().nullable(),
+  fiberPer100g: z.number().nullable(),
+  gramsPerPiece: z.number().nullable(),
+});
+
+const ingredientPricesResponseSchema = z.object({
+  items: z.array(ingredientPriceEstimateSchema),
+});
+
+const INGREDIENT_PRICES_RESPONSE_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    items: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          ingredientName: { type: Type.STRING },
+          pricePer100gEur: { type: Type.NUMBER, nullable: true },
+          pricePer100mlEur: { type: Type.NUMBER, nullable: true },
+          pricePerPieceEur: { type: Type.NUMBER, nullable: true },
+          caloriesPer100g: { type: Type.NUMBER, nullable: true },
+          proteinPer100g: { type: Type.NUMBER, nullable: true },
+          carbsPer100g: { type: Type.NUMBER, nullable: true },
+          fatPer100g: { type: Type.NUMBER, nullable: true },
+          fiberPer100g: { type: Type.NUMBER, nullable: true },
+          gramsPerPiece: { type: Type.NUMBER, nullable: true },
+        },
+        required: [
+          'ingredientName',
+          'pricePer100gEur',
+          'pricePer100mlEur',
+          'pricePerPieceEur',
+          'caloriesPer100g',
+          'proteinPer100g',
+          'carbsPer100g',
+          'fatPer100g',
+          'fiberPer100g',
+          'gramsPerPiece',
+        ],
+      },
+    },
+  },
+  required: ['items'],
+};
+
+// ─── Transient error handling ────────────────────────────────────────────────
+
+/**
+ * Gemini intermittently returns 503 UNAVAILABLE ("model experiencing high
+ * demand") and 429 RESOURCE_EXHAUSTED on the free tier. Both are transient —
+ * a single failed attempt should not surface as a user-facing failure.
+ */
+export function isTransientAiError(err: unknown): boolean {
+  const status = (err as { status?: number }).status;
+  return status === 429 || status === 500 || status === 503;
+}
+
+const RETRY_ATTEMPTS = 3;
+const RETRY_DELAYS_MS = [2_000, 6_000]; // between attempt 1→2 and 2→3
+
 // ─── GeminiAIService ──────────────────────────────────────────────────────────
 
 export class GeminiAIService implements IAIService {
@@ -207,8 +281,33 @@ export class GeminiAIService implements IAIService {
     this.client = new GoogleGenAI({ apiKey });
   }
 
+  /**
+   * generateContent with retry on transient errors (429/500/503).
+   * Non-transient errors and the final failed attempt are rethrown.
+   */
+  private async generateWithRetry(
+    params: Parameters<GoogleGenAI['models']['generateContent']>[0],
+    label = 'generateContent',
+  ): ReturnType<GoogleGenAI['models']['generateContent']> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+      try {
+        return await this.client.models.generateContent(params);
+      } catch (err) {
+        lastError = err;
+        if (!isTransientAiError(err) || attempt === RETRY_ATTEMPTS) throw err;
+        const delay = RETRY_DELAYS_MS[attempt - 1] ?? 6_000;
+        console.warn(
+          `[GeminiAIService] ${label}: transient error (attempt ${attempt}/${RETRY_ATTEMPTS}), retrying in ${delay}ms…`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+    throw lastError; // unreachable, satisfies TS
+  }
+
   async generateMealPlan(input: MealPlanInput): Promise<WeekPlanResponse> {
-    const response = await this.client.models.generateContent({
+    const response = await this.generateWithRetry({
       model: MODEL,
       contents: buildMealPlanUserPrompt(input),
       config: {
@@ -249,11 +348,20 @@ export class GeminiAIService implements IAIService {
       );
     }
 
+    // A live LLM can only hallucinate image URLs (historically it echoed the
+    // same Unsplash photo for multiple dishes). Images come exclusively from
+    // our own pipeline — strip whatever the model returned.
+    for (const day of parsed.data.days) {
+      for (const meal of day.meals) {
+        meal.recipe.imageUrl = null;
+      }
+    }
+
     return parsed.data;
   }
 
   async generateRecipeSwap(input: SwapInput): Promise<RecipeData> {
-    const response = await this.client.models.generateContent({
+    const response = await this.generateWithRetry({
       model: MODEL,
       contents: buildSwapUserPrompt(input),
       config: {
@@ -284,11 +392,12 @@ export class GeminiAIService implements IAIService {
       );
     }
 
-    return parsed.data;
+    // Strip any hallucinated image URL — images come from our own pipeline
+    return { ...parsed.data, imageUrl: null };
   }
 
   async generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse> {
-    const response = await this.client.models.generateContent({
+    const response = await this.generateWithRetry({
       model: MODEL,
       contents: buildShoppingListPrompt(input),
       config: {
@@ -320,6 +429,43 @@ export class GeminiAIService implements IAIService {
     }
 
     return parsed.data;
+  }
+
+  async estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]> {
+    if (ingredientNames.length === 0) return [];
+
+    const response = await this.generateWithRetry({
+      model: MODEL,
+      contents: buildIngredientPricesPrompt(ingredientNames),
+      config: {
+        systemInstruction: INGREDIENT_PRICES_SYSTEM_PROMPT,
+        responseMimeType: 'application/json',
+        responseSchema: INGREDIENT_PRICES_RESPONSE_SCHEMA,
+        temperature: 0.1, // prices should be as deterministic as possible
+        maxOutputTokens: 8192,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+
+    let raw: string | null | undefined;
+    try {
+      raw = response.text;
+    } catch (err) {
+      throw new Error(
+        `GeminiAIService: could not read ingredient prices response — ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    if (!raw) throw new Error('GeminiAIService: empty response from estimateIngredientPrices');
+
+    const parsed = ingredientPricesResponseSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) {
+      throw new Error(
+        `GeminiAIService: ingredient prices response failed validation — ${parsed.error.message}`,
+      );
+    }
+
+    return parsed.data.items;
   }
 
   async chat(messages: ChatMessage[], _context: ChatContext): Promise<ReadableStream> {

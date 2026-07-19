@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { shoppingListService } from '../application/shopping-list/shopping-list.service.js';
-import { protectedProcedure, router } from '../lib/trpc.js';
+import { premiumProcedure, protectedProcedure, router } from '../lib/trpc.js';
 
 export const shoppingListRouter = router({
   getForWeek: protectedProcedure
@@ -9,7 +9,9 @@ export const shoppingListRouter = router({
       return shoppingListService.getForWeek(ctx.user.id, input.weekOffset);
     }),
 
-  regenerate: protectedProcedure
+  // AI consolidation is a premium feature — free users keep the
+  // deterministic merge that getForWeek produces.
+  regenerate: premiumProcedure
     .input(z.object({ weekOffset: z.number().int().min(-52).max(1).default(0) }))
     .mutation(async ({ ctx, input }) => {
       return shoppingListService.regenerate(ctx.user.id, input.weekOffset);

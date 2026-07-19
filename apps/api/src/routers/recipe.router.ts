@@ -1,8 +1,25 @@
 import { z } from 'zod';
 import { recipeService } from '../application/recipe/recipe.service.js';
+import { buildPollinationsUrl } from '../lib/image-gen/pollinations.js';
+import { buildRecipeImagePrompt } from '../lib/image-gen/prompt.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
 
 export const recipeRouter = router({
+  /**
+   * Deterministic AI-generated image URL for a recipe (Pollinations — the
+   * image is generated on first fetch and CDN-cached; same name+cuisine
+   * always maps to the same URL). Used by the create-recipe form's
+   * "Generate with AI" option.
+   */
+  aiImageUrl: protectedProcedure
+    .input(z.object({ name: z.string().min(2).max(120), cuisineType: z.string().max(60) }))
+    .query(async ({ input }) => {
+      const cuisine = input.cuisineType || 'international';
+      return {
+        url: buildPollinationsUrl(buildRecipeImagePrompt(input.name, cuisine), input.name, cuisine),
+      };
+    }),
+
   /**
    * Returns all recipes for the user (from their meal plan history).
    * When savedOnly=true, returns only favourited recipes.

@@ -2,6 +2,7 @@ import type {
   ChatContext,
   ChatMessage,
   IAIService,
+  IngredientPriceEstimate,
   MealPlanInput,
   RecipeData,
   ShoppingListInput,
@@ -34,6 +35,12 @@ export class LiveAIService implements IAIService {
   async generateShoppingList(_input: ShoppingListInput): Promise<ShoppingListResponse> {
     throw new Error(
       'LiveAIService.generateShoppingList is not implemented yet — set AI_MOCK_ENABLED=true or implement Phase 3 (T-031).',
+    );
+  }
+
+  async estimateIngredientPrices(_ingredientNames: string[]): Promise<IngredientPriceEstimate[]> {
+    throw new Error(
+      'LiveAIService.estimateIngredientPrices is not implemented yet — set AI_MOCK_ENABLED=true or use AI_PROVIDER=gemini.',
     );
   }
 

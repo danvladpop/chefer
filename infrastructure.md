@@ -152,11 +152,14 @@ src/
 
 #### HTTP Endpoints
 
-| Method | Path            | Description                         |
-| ------ | --------------- | ----------------------------------- |
-| GET    | `/health`       | Returns server status, env, version |
-| GET    | `/health/ready` | Checks live DB connectivity         |
-| \*     | `/trpc/*`       | tRPC batch endpoint (all API calls) |
+| Method | Path                        | Description                                          |
+| ------ | --------------------------- | ---------------------------------------------------- |
+| GET    | `/health`                   | Returns server status, env, version                  |
+| GET    | `/health/ready`             | Checks live DB connectivity                          |
+| GET    | `/api/recipe-images/stream` | SSE stream of recipe image status updates            |
+| POST   | `/api/uploads/image`        | Session-authenticated raw-body image upload (≤ 5 MB) |
+| GET    | `/uploads/*`                | Statically served uploaded images                    |
+| \*     | `/trpc/*`                   | tRPC batch endpoint (all API calls)                  |
 
 #### Middleware Chain (every request)
 
@@ -179,21 +182,22 @@ Handles `SIGTERM` and `SIGINT`: closes HTTP server, disconnects Prisma.
 
 #### Page Map
 
-| Route                           | Type             | Description                                                                          |
-| ------------------------------- | ---------------- | ------------------------------------------------------------------------------------ |
-| `/`                             | Server Component | Landing page — hero, feature list, tech stack                                        |
-| `/user`                         | Server Component | Displays first user from DB via tRPC server client                                   |
-| `/(auth)/login`                 | Client Component | Login form (react-hook-form + Zod)                                                   |
-| `/(auth)/register`              | Client Component | Registration form, redirects to `/onboarding`                                        |
-| `/(dashboard)/dashboard`        | Client Component | Daily overview — greeting, weekly outlook strip, Next Meal spotlight, NutritionPanel |
-| `/(dashboard)/meal-plan`        | Client Component | 7-column week grid; Generate / Regenerate button; GenerateOverlay spinner            |
-| `/(dashboard)/recipes`          | Client Component | Browse all/saved recipes; search; heart toggle favourite                             |
-| `/(dashboard)/recipes/[id]`     | Client Component | Recipe detail — ingredients, instructions, macros, Swap/Save, StarRatingWidget       |
-| `/(dashboard)/preferences`      | Client Component | Edit ChefProfile + DietaryPreferences + delivery address/currency                    |
-| `/(dashboard)/shopping-list`    | Client Component | Smart Shopping List — week navigator, categorised items, store panel + order summary |
-| `/(dashboard)/history`          | Client Component | Meal Plan History — ACTIVE/ARCHIVED plan cards with Restore button                   |
-| `/(dashboard)/history/[planId]` | Client Component | Read-only plan grid for a historical plan                                            |
-| `/(dashboard)/onboarding`       | Client Component | 4-step wizard (Goals → Metrics → Diet → Cuisine & Cadence)                           |
+| Route                           | Type             | Description                                                                                    |
+| ------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------- |
+| `/`                             | Server Component | Landing page — hero, feature list, tech stack                                                  |
+| `/user`                         | Server Component | Displays first user from DB via tRPC server client                                             |
+| `/(auth)/login`                 | Client Component | Login form (react-hook-form + Zod)                                                             |
+| `/(auth)/register`              | Client Component | Registration form, redirects to `/onboarding`                                                  |
+| `/(dashboard)/dashboard`        | Client Component | Daily overview — greeting, weekly outlook strip, Next Meal spotlight, NutritionPanel           |
+| `/(dashboard)/meal-plan`        | Client Component | 7-column week grid; Generate / Regenerate button; GenerateOverlay spinner                      |
+| `/(dashboard)/recipes`          | Client Component | Browse all/saved recipes; search; heart toggle favourite                                       |
+| `/(dashboard)/ingredients`      | Client Component | Ingredient catalog — All/Mine tabs, search, permissioned edit/delete, add custom               |
+| `/(dashboard)/recipes/[id]`     | Client Component | Recipe detail — ingredients, instructions, macros, Swap/Save, StarRatingWidget                 |
+| `/(dashboard)/preferences`      | Client Component | Edit ChefProfile + DietaryPreferences + delivery address/currency                              |
+| `/(dashboard)/shopping-list`    | Client Component | Shopping List — week navigator, categorised items with vocabulary price estimates + est. total |
+| `/(dashboard)/history`          | Client Component | Meal Plan History — ACTIVE/ARCHIVED plan cards with Restore button                             |
+| `/(dashboard)/history/[planId]` | Client Component | Read-only plan grid for a historical plan                                                      |
+| `/(dashboard)/onboarding`       | Client Component | 4-step wizard (Goals → Metrics → Diet → Cuisine & Cadence)                                     |
 
 #### tRPC Client Setup
 
@@ -457,6 +461,33 @@ VerificationToken (standalone, for email verification flows)
 
 Standalone lookup cache — no user FK. Populated on first request for each unique ingredient name, then served from cache on all subsequent requests.
 
+**IngredientPrice** (the ingredient catalog)
+
+| Field                                                                       | Type     | Notes                                                                                                 |
+| --------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| ingredientName                                                              | String   | PK (lowercase, normalized)                                                                            |
+| pricePer100gEur                                                             | Float?   | Mass-based price (null if family doesn't apply)                                                       |
+| pricePer100mlEur                                                            | Float?   | Volume-based price                                                                                    |
+| pricePerPieceEur                                                            | Float?   | Count-based price (1 medium banana, 1 egg, …)                                                         |
+| caloriesPer100g / proteinPer100g / carbsPer100g / fatPer100g / fiberPer100g | Float?   | Macros — drive auto-computed recipe nutrition                                                         |
+| gramsPerPiece                                                               | Float?   | Count-unit → grams ("1 medium banana ≈ 118 g")                                                        |
+| imageUrl                                                                    | String?  | Catalog thumbnail (custom ingredients)                                                                |
+| creatorId                                                                   | String?  | null = global vocabulary; set = user's private custom ingredient (`source: USER`, never AI-refreshed) |
+| source                                                                      | String   | `AI_ESTIMATE` \| `USER`                                                                               |
+| estimatedAt                                                                 | DateTime | Refreshed weekly by IngredientPriceWorker                                                             |
+
+Store-agnostic price + nutrition vocabulary — self-building from all recipe ingredients ever generated.
+
+**ShoppingList**
+
+| Field       | Type     | Notes                                                  |
+| ----------- | -------- | ------------------------------------------------------ |
+| id          | String   | PK (cuid)                                              |
+| planId      | String   | Unique — one persisted list per meal plan              |
+| items       | Json     | Consolidated items (images/prices re-resolved on read) |
+| aiGenerated | Boolean  | True when written by the premium AI regenerate         |
+| updatedAt   | DateTime | Auto-managed                                           |
+
 ### Enums
 
 ```prisma
@@ -469,6 +500,7 @@ enum ActivityLevel  { SEDENTARY  LIGHTLY_ACTIVE  MODERATELY_ACTIVE  VERY_ACTIVE 
 enum Goal           { LOSE_WEIGHT  MAINTAIN  GAIN_MUSCLE  EAT_HEALTHIER }
 enum RecipeSource   { AI  MANUAL  CURATED }
 enum ImageStatus    { PENDING  GENERATING  DONE  FAILED }
+enum AiCallType     { MEAL_PLAN  RECIPE_SWAP  SHOPPING_LIST  IMAGE_GENERATION  INGREDIENT_PRICES }
 ```
 
 ---
@@ -499,7 +531,7 @@ Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a
 `apps/api/src/application/meal-plan/meal-plan.service.ts`. Methods: `generate`, `getActive`, `getRecipe`, `swapRecipe`, `getShoppingList`, `list`, `restore`, `getById`.
 
 - `generate(userId, weekOffset, premium)` — **tier-branched**:
-  - _Premium_ (or ADMIN): reads prefs → calls `IAIService.generateMealPlan` → reuses existing images by recipe name (`findRecipeImagesByNames`) → upserts recipes with `imagePriority` (day-distance from today) → archives old plan → creates new `ACTIVE` plan → `recipeImageWorker.wake()`.
+  - _Premium_ (or ADMIN): reads prefs → **recomputes the daily calorie target live** from body metrics + goal via `computeCalorieTarget` (the stored `dailyCalorieTarget` is a display snapshot and may be stale) → calls `IAIService.generateMealPlan` → reuses existing images by recipe name (`findRecipeImagesByNames`) → upserts recipes with `imagePriority` (day-distance from today) → archives old plan → creates new `ACTIVE` plan → `recipeImageWorker.wake()`.
   - _Free_: `generateCurated` — random breakfast/lunch/dinner selection from the curated pool for each of 7 days (shuffled cycling, no AI calls, preset stock images, preferences ignored).
 - `swapRecipe(..., premium)` — premium: AI-generated alternative (with name-based image reuse + worker wake); free: random curated recipe of the same meal type.
 - `getShoppingList` — aggregates ingredients across all plan recipes, merges by name+unit, groups by `CATEGORY_MAP` keyword matching.
@@ -508,6 +540,35 @@ Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a
 ### CuratedRecipes (lib)
 
 `apps/api/src/lib/curated-recipes/index.ts`. Generic recipe pool for FREE-tier users, built from the AI fixtures under deterministic `curated-*` IDs (`source: CURATED`, `imageStatus: DONE`, stock Unsplash images). `ensureCuratedRecipes()` idempotently upserts the pool on first free-tier generation; `pickRandomCurated(mealType, excludeId?)` powers free swaps.
+
+### IngredientsService (application layer)
+
+`apps/api/src/application/ingredients/ingredients.service.ts`. Methods: `search`,
+`list`, `createCustom`, `update`, `delete`, `computeNutrition`, `getUnits`.
+Powers the create-recipe form and the Ingredients page: catalog search/listing
+(global + private custom rows — other users' custom rows are hidden even from
+admins), custom-ingredient creation, permissioned edit/delete (owners for custom
+rows, admins for global rows; manual edits set `source` USER/ADMIN so the AI
+refresher never overwrites them), and server-side nutrition computation (unit
+conversion × per-100g macros ÷ servings, with unmatched-name reporting).
+
+### IngredientPriceWorker (worker)
+
+`apps/api/src/workers/ingredient-price.worker.ts`. Builds and maintains the
+store-agnostic **ingredient price vocabulary** (`IngredientPrice` table):
+
+- On start and every 12 h sweep: collects distinct ingredient names from all
+  recipes in the DB, prices missing entries, and re-estimates entries older
+  than 7 days (weekly cadence; single constant to change for monthly).
+- Prices AND per-100g macros come from `IAIService.estimateIngredientPrices`
+  (Gemini structured output, batches of 40; deterministic hash values in mock
+  mode). Rows without macros count as stale so price-only rows self-upgrade.
+  User custom ingredients (`creatorId` set) are never AI-refreshed.
+- `wake()` — called by ShoppingListService when it serves a list containing
+  unpriced ingredients.
+
+`apps/api/src/lib/ingredient-prices/` converts recipe units (g/kg/ml/tbsp/cup/
+piece/clove/…) to the base families and computes per-line price estimates.
 
 ### RecipeImageWorker (worker)
 
@@ -522,9 +583,9 @@ Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a
 
 `apps/api/src/application/shopping-list/shopping-list.service.ts`. Methods: `getForWeek`, `regenerate`, `searchStores`.
 
-- `getForWeek` — builds categorised ingredient list for the active plan; resolves an `imageUrl` for every item via `resolveIngredientImage`.
-- `regenerate` — calls the AI to consolidate ingredients, then resolves images for each AI-returned item.
-- `searchStores` — delegates to `IGroceryAIService.searchNearbyStores`, passes user's delivery address and currency from ChefProfile.
+- `getForWeek` — serves the persisted AI list for the plan when one exists; otherwise builds the categorised ingredient list (merge key is `name|unit`, so mixed-unit duplicates become separate lines instead of overwriting). Every item gets an `imageUrl` (resolveIngredientImage) and an `estimatedPriceEur` from the ingredient price vocabulary; the list carries `estimatedTotalEur`. Unpriced ingredients wake the IngredientPriceWorker.
+- `regenerate` (premium) — calls the AI to consolidate ingredients and **persists** the result in the `ShoppingList` table (keyed by planId) so it survives reloads.
+- `searchStores` — delegates to `IGroceryAIService.searchNearbyStores`, passes user's delivery address and currency from ChefProfile. **Dormant**: the store-compare UI was removed from the shopping-list page (store prices come back with per-store price books); the procedure and the grocery-ai/carrefour libs remain for that phase.
 
 ### IngredientImageResolver (lib)
 
@@ -588,41 +649,50 @@ Implements `IUserRepository` from `@chefer/database`. Lives in `apps/api/src/inf
 
 All procedures live under the `/trpc` HTTP endpoint and are batched automatically.
 
-| Procedure                    | Access    | Type     | Input                                                                                                                                                                |
-| ---------------------------- | --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `user.me`                    | Protected | Query    | —                                                                                                                                                                    |
-| `user.getById`               | Public    | Query    | `{ id: cuid }`                                                                                                                                                       |
-| `user.list`                  | Admin     | Query    | `{ page, limit, search?, role?, sortBy, sortOrder }`                                                                                                                 |
-| `user.create`                | Admin     | Mutation | `{ email, name?, password, role? }`                                                                                                                                  |
-| `user.update`                | Protected | Mutation | `{ id, name?, email?, role?, image? }`                                                                                                                               |
-| `user.delete`                | Admin     | Mutation | `{ id: cuid }`                                                                                                                                                       |
-| `user.updateProfile`         | Protected | Mutation | `{ name?, image? }`                                                                                                                                                  |
-| `user.upgradePlan`           | Protected | Mutation | — (demo upgrade: sets `planTier = PREMIUM` for the current user)                                                                                                     |
-| `auth.register`              | Public    | Mutation | `{ email, password, firstName, lastName }`                                                                                                                           |
-| `auth.login`                 | Public    | Mutation | `{ email, password }`                                                                                                                                                |
-| `auth.logout`                | Public    | Mutation | —                                                                                                                                                                    |
-| `auth.me`                    | Protected | Query    | —                                                                                                                                                                    |
-| `preferences.hasProfile`     | Protected | Query    | —                                                                                                                                                                    |
-| `preferences.get`            | Protected | Query    | —                                                                                                                                                                    |
-| `preferences.setup`          | Premium   | Mutation | `{ goal, biologicalSex, age, heightCm, weightKg, activityLevel, cuisinePreferences, dietaryRestrictions, allergies, dislikedIngredients, mealsPerDay, servingSize }` |
-| `preferences.update`         | Premium   | Mutation | Same as setup but all fields optional + `deliveryAddress?`, `deliveryCurrency?`                                                                                      |
-| `mealPlan.generate`          | Protected | Mutation | `{ weekOffset?: number }` — 0=current week (default), 1=next week; min 0, max 52. Premium: AI plan; free: random curated pool                                        |
-| `mealPlan.getActive`         | Protected | Query    | —                                                                                                                                                                    |
-| `mealPlan.getRecipe`         | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
-| `mealPlan.swapRecipe`        | Protected | Mutation | `{ planId, dayOfWeek, mealType, currentRecipeId }`                                                                                                                   |
-| `mealPlan.getShoppingList`   | Protected | Query    | —                                                                                                                                                                    |
-| `mealPlan.list`              | Protected | Query    | `{ limit?, offset? }`                                                                                                                                                |
-| `mealPlan.restore`           | Protected | Mutation | `{ planId: string }`                                                                                                                                                 |
-| `mealPlan.getById`           | Protected | Query    | `{ planId: string }`                                                                                                                                                 |
-| `recipe.list`                | Protected | Query    | `{ search?, savedOnly? }`                                                                                                                                            |
-| `recipe.isSaved`             | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
-| `recipe.toggleFavourite`     | Protected | Mutation | `{ recipeId: string }`                                                                                                                                               |
-| `recipe.toggleUseInNextPlan` | Protected | Mutation | `{ recipeId: string }`                                                                                                                                               |
-| `recipe.rate`                | Protected | Mutation | `{ recipeId: string, rating: 1-5, notes?: string }`                                                                                                                  |
-| `recipe.getMyRating`         | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
-| `shoppingList.getForWeek`    | Protected | Query    | `{ weekOffset?: number }`                                                                                                                                            |
-| `shoppingList.searchStores`  | Protected | Query    | `{ weekOffset?: number }`                                                                                                                                            |
-| `dashboard.summary`          | Protected | Query    | —                                                                                                                                                                    |
+| Procedure                      | Access    | Type     | Input                                                                                                                                                                |
+| ------------------------------ | --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `user.me`                      | Protected | Query    | —                                                                                                                                                                    |
+| `user.getById`                 | Public    | Query    | `{ id: cuid }`                                                                                                                                                       |
+| `user.list`                    | Admin     | Query    | `{ page, limit, search?, role?, sortBy, sortOrder }`                                                                                                                 |
+| `user.create`                  | Admin     | Mutation | `{ email, name?, password, role? }`                                                                                                                                  |
+| `user.update`                  | Protected | Mutation | `{ id, name?, email?, role?, image? }`                                                                                                                               |
+| `user.delete`                  | Admin     | Mutation | `{ id: cuid }`                                                                                                                                                       |
+| `user.updateProfile`           | Protected | Mutation | `{ name?, image? }`                                                                                                                                                  |
+| `user.upgradePlan`             | Protected | Mutation | — (demo upgrade: sets `planTier = PREMIUM` for the current user)                                                                                                     |
+| `auth.register`                | Public    | Mutation | `{ email, password, firstName, lastName }`                                                                                                                           |
+| `auth.login`                   | Public    | Mutation | `{ email, password }`                                                                                                                                                |
+| `auth.logout`                  | Public    | Mutation | —                                                                                                                                                                    |
+| `auth.me`                      | Protected | Query    | —                                                                                                                                                                    |
+| `preferences.hasProfile`       | Protected | Query    | —                                                                                                                                                                    |
+| `preferences.get`              | Protected | Query    | —                                                                                                                                                                    |
+| `preferences.setup`            | Premium   | Mutation | `{ goal, biologicalSex, age, heightCm, weightKg, activityLevel, cuisinePreferences, dietaryRestrictions, allergies, dislikedIngredients, mealsPerDay, servingSize }` |
+| `preferences.update`           | Premium   | Mutation | Same as setup but all fields optional + `deliveryAddress?`, `deliveryCurrency?`                                                                                      |
+| `mealPlan.generate`            | Protected | Mutation | `{ weekOffset?: number }` — 0=current week (default), 1=next week; min 0, max 52. Premium: AI plan; free: random curated pool                                        |
+| `mealPlan.getActive`           | Protected | Query    | —                                                                                                                                                                    |
+| `mealPlan.getRecipe`           | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
+| `mealPlan.swapRecipe`          | Protected | Mutation | `{ planId, dayOfWeek, mealType, currentRecipeId }`                                                                                                                   |
+| `mealPlan.getShoppingList`     | Protected | Query    | —                                                                                                                                                                    |
+| `mealPlan.list`                | Protected | Query    | `{ limit?, offset? }`                                                                                                                                                |
+| `mealPlan.restore`             | Protected | Mutation | `{ planId: string }`                                                                                                                                                 |
+| `mealPlan.getById`             | Protected | Query    | `{ planId: string }`                                                                                                                                                 |
+| `recipe.aiImageUrl`            | Protected | Query    | `{ name, cuisineType }` — deterministic Pollinations image URL for the create-recipe form                                                                            |
+| `ingredients.search`           | Protected | Query    | `{ query }` — catalog search (global vocabulary + own custom ingredients)                                                                                            |
+| `ingredients.units`            | Protected | Query    | — canonical unit list for recipe forms                                                                                                                               |
+| `ingredients.createCustom`     | Protected | Mutation | `{ name, imageUrl?, generateAiImage?, caloriesPer100g, proteinPer100g, carbsPer100g, fatPer100g, fiberPer100g?, gramsPerPiece? }`                                    |
+| `ingredients.list`             | Protected | Query    | `{ search?, mineOnly?, limit?, offset? }` — full-detail catalog rows with per-row `canEdit`                                                                          |
+| `ingredients.update`           | Protected | Mutation | Macros/image/prices — own custom rows; global rows only when ADMIN (`source: 'ADMIN'`, exempt from AI refresh)                                                       |
+| `ingredients.delete`           | Protected | Mutation | `{ name }` — own custom rows; admins may delete global rows                                                                                                          |
+| `ingredients.computeNutrition` | Protected | Query    | `{ ingredients[], servings }` — per-serving NutritionInfo + unmatched ingredient names                                                                               |
+| `recipe.list`                  | Protected | Query    | `{ search?, savedOnly? }`                                                                                                                                            |
+| `recipe.isSaved`               | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
+| `recipe.toggleFavourite`       | Protected | Mutation | `{ recipeId: string }`                                                                                                                                               |
+| `recipe.toggleUseInNextPlan`   | Protected | Mutation | `{ recipeId: string }`                                                                                                                                               |
+| `recipe.rate`                  | Protected | Mutation | `{ recipeId: string, rating: 1-5, notes?: string }`                                                                                                                  |
+| `recipe.getMyRating`           | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
+| `shoppingList.getForWeek`      | Protected | Query    | `{ weekOffset?: number }` — items include `estimatedPriceEur` + list-level `estimatedTotalEur`; serves the persisted AI list when one exists                         |
+| `shoppingList.regenerate`      | Premium   | Mutation | `{ weekOffset?: number }` — AI-consolidates the list and persists it (ShoppingList table)                                                                            |
+| `shoppingList.searchStores`    | Protected | Query    | `{ weekOffset?: number }`                                                                                                                                            |
+| `dashboard.summary`            | Protected | Query    | —                                                                                                                                                                    |
 
 ### Middleware Stack
 
@@ -646,11 +716,11 @@ The `createContext` function in `apps/api/src/interfaces/http/middleware/auth.mi
 
 **Roles:**
 
-| Role        | Capabilities                              |
-| ----------- | ----------------------------------------- |
-| `USER`      | Read public resources, update own profile |
-| `MODERATOR` | USER + moderation capabilities (reserved) |
-| `ADMIN`     | Full access — list/create/delete any user |
+| Role        | Capabilities                                                                                                     |
+| ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| `USER`      | Read public resources, update own profile, manage own custom ingredients                                         |
+| `MODERATOR` | USER + moderation capabilities (reserved)                                                                        |
+| `ADMIN`     | Full access — list/create/delete any user; edit/delete **global** ingredients (others' custom rows stay private) |
 
 **Plan tiers** (orthogonal to roles, enforced by `premiumProcedure` / service branching):
 
@@ -827,7 +897,7 @@ pnpm db:generate      # Regenerate Prisma client after schema change
 | Email            | Password   | Role      |
 | ---------------- | ---------- | --------- |
 | admin@chefer.dev | Admin@123! | ADMIN     |
-| alice@chefer.dev | User@123!  | USER      |
+| alice@chefer.dev | User@123!  | ADMIN     |
 | bob@chefer.dev   | User@123!  | MODERATOR |
 
 ---

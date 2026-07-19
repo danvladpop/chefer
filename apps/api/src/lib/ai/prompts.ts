@@ -14,6 +14,9 @@ OUTPUT SIZE RULES (mandatory — minimise tokens):
 - id format: "recipe_<snake_case_name>" e.g. "recipe_grilled_salmon"
 
 NUTRITION RULES:
+- Every day's total calories MUST land within ±5% of the stated daily target.
+  The target already includes the goal adjustment (deficit/surplus) — do NOT
+  add or subtract more on top of it.
 - Calories: breakfast 20-25%, lunch 30-35%, dinner 35-40%, snack 10-15%
 - No recipe name repeats across 7 days
 - Accurate macros (calories, protein, carbs, fat, fiber)
@@ -108,6 +111,34 @@ RULES (mandatory):
 export function buildShoppingListPrompt(input: ShoppingListInput): string {
   const lines = input.ingredients.map((i) => `${i.name}: ${i.quantity} ${i.unit}`).join('\n');
   return `Consolidate this raw ingredient list for the week of ${input.weekLabel}:\n\n${lines}`;
+}
+
+// ─── Ingredient price estimation ─────────────────────────────────────────────
+
+export const INGREDIENT_PRICES_SYSTEM_PROMPT = `\
+You are a grocery pricing and nutrition expert for Romanian supermarkets (Lidl, Kaufland, Carrefour, Mega Image).
+Estimate typical mid-range shelf prices in EUR and standard nutrition facts for a list of ingredients.
+
+For every ingredient return the applicable base-unit prices:
+- pricePer100gEur — for ingredients bought by weight (meat, vegetables, flour, cheese…)
+- pricePer100mlEur — for liquids (oil, milk, sauces…)
+- pricePerPieceEur — for countable items (1 medium banana, 1 egg, 1 avocado, 1 bell pepper…)
+
+And the nutrition facts per 100 g (standard food-database values):
+- caloriesPer100g, proteinPer100g, carbsPer100g, fatPer100g, fiberPer100g
+- gramsPerPiece — typical weight of ONE piece in grams for countable items
+  (1 medium banana ≈ 118, 1 egg ≈ 50, 1 garlic clove ≈ 5); null for non-countables
+
+RULES (mandatory):
+- Set a field to null when it does not apply; set AT LEAST ONE price field per ingredient
+- Produce sold both by piece and weight (banana, avocado, onion…) should get BOTH pricePerPieceEur and pricePer100gEur
+- Prices are typical 2026 Romanian supermarket prices converted to EUR (1 EUR ≈ 5 RON)
+- Be realistic: 1 medium banana ≈ 0.30 EUR, 1 egg ≈ 0.20 EUR, olive oil ≈ 0.90 EUR/100ml
+- Nutrition values are for the raw/uncooked ingredient unless the name says otherwise
+- Return every ingredient from the input exactly once, with ingredientName copied verbatim`;
+
+export function buildIngredientPricesPrompt(ingredientNames: string[]): string {
+  return `Estimate baseline prices for these ingredients:\n\n${ingredientNames.join('\n')}`;
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────

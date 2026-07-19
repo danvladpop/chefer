@@ -4,6 +4,7 @@ import type {
   ChatContext,
   ChatMessage,
   IAIService,
+  IngredientPriceEstimate,
   MealPlanInput,
   RecipeData,
   ShoppingListInput,
@@ -68,6 +69,30 @@ export class MockAIService implements IAIService {
         };
       }),
     };
+  }
+
+  async estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]> {
+    await delay(200);
+    // Deterministic pseudo-prices derived from the name hash so dev renders
+    // stable, plausible-looking values without any API call.
+    return ingredientNames.map((name) => {
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+      const base = 0.3 + (Math.abs(hash) % 250) / 100; // €0.30 – €2.79
+      const round = (v: number) => Math.round(v * 100) / 100;
+      return {
+        ingredientName: name,
+        pricePer100gEur: round(base),
+        pricePer100mlEur: round(base * 0.8),
+        pricePerPieceEur: round(base * 1.2),
+        caloriesPer100g: Math.round(40 + (Math.abs(hash) % 300)),
+        proteinPer100g: round(2 + (Math.abs(hash) % 20)),
+        carbsPer100g: round(5 + (Math.abs(hash) % 40)),
+        fatPer100g: round(1 + (Math.abs(hash) % 15)),
+        fiberPer100g: round(Math.abs(hash) % 8),
+        gramsPerPiece: 50 + (Math.abs(hash) % 150),
+      };
+    });
   }
 
   async chat(messages: ChatMessage[], _context: ChatContext): Promise<ReadableStream> {

@@ -8,6 +8,7 @@ import { TopHeader } from './top-header';
 const TITLE_MAP: Array<[string, string]> = [
   ['/meal-plan', 'Meal Planner'],
   ['/recipes', 'Recipes'],
+  ['/ingredients', 'Ingredients'],
   ['/shopping-list', 'Shopping List'],
   ['/tracker', 'Tracker'],
   ['/progress', 'Progress'],

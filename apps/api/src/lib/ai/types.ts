@@ -91,6 +91,25 @@ export interface ShoppingListResponse {
   items: AiShoppingListItem[];
 }
 
+// ─── Ingredient price & macro estimation ─────────────────────────────────────
+// Store-agnostic baseline prices per base-unit family plus per-100g macros.
+// At least one price field is set per ingredient; null means the family
+// doesn't apply (e.g. no per-piece price for olive oil).
+
+export interface IngredientPriceEstimate {
+  ingredientName: string;
+  pricePer100gEur: number | null;
+  pricePer100mlEur: number | null;
+  pricePerPieceEur: number | null;
+  caloriesPer100g: number | null;
+  proteinPer100g: number | null;
+  carbsPer100g: number | null;
+  fatPer100g: number | null;
+  fiberPer100g: number | null;
+  /** Typical weight of one piece in grams (banana ≈ 118), null for non-countables. */
+  gramsPerPiece: number | null;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -107,5 +126,6 @@ export interface IAIService {
   generateMealPlan(input: MealPlanInput): Promise<WeekPlanResponse>;
   generateRecipeSwap(input: SwapInput): Promise<RecipeData>;
   generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse>;
+  estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]>;
   chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream>;
 }

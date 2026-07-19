@@ -58,6 +58,8 @@ export type {
   MealRating,
   DailyLog,
   WeightEntry,
+  IngredientPrice,
+  ShoppingList,
 } from '@prisma/client';
 export {
   AiCallType,

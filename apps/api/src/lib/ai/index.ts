@@ -48,6 +48,7 @@ export type {
   ChatMessage,
   DayPlan,
   Ingredient,
+  IngredientPriceEstimate,
   MealPlanInput,
   MealSlot,
   MealType,

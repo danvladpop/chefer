@@ -67,11 +67,28 @@ export class MealPlanRepository implements IMealPlanRepository {
   /**
    * Upserts a batch of recipes. Uses the AI fixture id as the primary key so
    * repeated plan generations don't create duplicate recipe rows.
+   *
+   * LLM-generated IDs are name-derived slugs, so the same ID can resurface
+   * months later attached to a DIFFERENT dish (or the same dish with a stale
+   * image from an earlier pipeline). When the stored name differs from the
+   * incoming one, the old image no longer belongs to this recipe — reset it
+   * (or apply the caller-resolved image) instead of preserving it.
    */
   async upsertRecipes(recipes: CreateRecipeData[]): Promise<void> {
+    const existing = await prisma.recipe.findMany({
+      where: { id: { in: recipes.map((r) => r.id) } },
+      select: { id: true, name: true },
+    });
+    const existingNames = new Map(existing.map((e) => [e.id, e.name]));
+
     await prisma.$transaction(
-      recipes.map((r) =>
-        prisma.recipe.upsert({
+      recipes.map((r) => {
+        const storedName = existingNames.get(r.id);
+        const nameChanged =
+          storedName !== undefined &&
+          storedName.toLowerCase().trim() !== r.name.toLowerCase().trim();
+
+        return prisma.recipe.upsert({
           where: { id: r.id },
           create: {
             id: r.id,
@@ -96,12 +113,20 @@ export class MealPlanRepository implements IMealPlanRepository {
             name: r.name,
             description: r.description,
             imagePriority: r.imagePriority ?? 100,
-            // imageUrl and imageStatus are intentionally NOT updated here —
-            // the worker owns these fields. Re-generating a plan that returns
-            // the same recipe ID must not reset its image.
+            // Same dish (name unchanged): imageUrl/imageStatus are NOT touched —
+            // the worker owns them and the existing image stays valid.
+            // Different dish under a colliding ID: the stored image is wrong —
+            // apply the caller-resolved image or reset to PENDING.
+            ...(nameChanged
+              ? {
+                  imageUrl: r.imageUrl ?? null,
+                  imageStatus: r.imageStatus ?? 'PENDING',
+                  imageRetries: 0,
+                }
+              : {}),
           },
-        }),
-      ),
+        });
+      }),
     );
   }
 

@@ -1,5 +1,5 @@
-import bcrypt from 'bcryptjs';
 import { PostStatus, PrismaClient, UserRole } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -63,7 +63,8 @@ async function main(): Promise<void> {
     data: {
       email: 'alice@chefer.dev',
       name: 'Alice Johnson',
-      role: UserRole.USER,
+      // Alice is the demo admin: full access, may edit global ingredients
+      role: UserRole.ADMIN,
       passwordHash: userPassword,
       emailVerified: new Date(),
       profile: {

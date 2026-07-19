@@ -36,7 +36,13 @@ const GOAL_MACRO_SPLITS: Record<string, { protein: number; carbs: number; fat: n
   EAT_HEALTHIER: { protein: 0.2, carbs: 0.5, fat: 0.3 },
 };
 
-function computeCalorieTarget(
+/**
+ * Goal-adjusted daily calorie target (Mifflin-St Jeor TDEE + goal adjustment,
+ * e.g. −500 kcal for LOSE_WEIGHT). Exported so meal-plan generation can
+ * recompute it live from body metrics — the stored ChefProfile value is only
+ * a display snapshot and may predate goal/metric changes.
+ */
+export function computeCalorieTarget(
   weightKg: number,
   heightCm: number,
   age: number,

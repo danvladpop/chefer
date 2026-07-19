@@ -73,6 +73,7 @@ enum AiCallType {
   RECIPE_SWAP
   SHOPPING_LIST
   IMAGE_GENERATION
+  INGREDIENT_PRICES
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────
@@ -387,6 +388,46 @@ model IngredientImage {
   resolvedAt     DateTime @default(now())
 
   @@map("ingredient_images")
+}
+
+// The ingredient catalog / "vocabulary": store-agnostic baseline prices AND
+// per-100g macros, per base-unit family so recipe quantities can be scaled
+// (250 g spinach = 2.5 × pricePer100gEur). Refreshed periodically by
+// IngredientPriceWorker (source AI_ESTIMATE). Rows with creatorId are a
+// user's private custom ingredients (source USER, never AI-refreshed).
+model IngredientPrice {
+  ingredientName   String   @id // normalized lowercase
+  pricePer100gEur  Float?
+  pricePer100mlEur Float?
+  pricePerPieceEur Float?
+  // Macros per 100 g — drive auto-computed recipe nutrition
+  caloriesPer100g  Float?
+  proteinPer100g   Float?
+  carbsPer100g     Float?
+  fatPer100g       Float?
+  fiberPer100g     Float?
+  // Count-unit → grams conversion ("1 medium banana ≈ 118 g")
+  gramsPerPiece    Float?
+  imageUrl         String?
+  creatorId        String? // null = global vocabulary; set = private custom ingredient
+  source           String   @default("AI_ESTIMATE")
+  estimatedAt      DateTime @default(now())
+
+  @@index([creatorId])
+  @@map("ingredient_prices")
+}
+
+// Persisted (AI-consolidated) shopping list for a meal plan. Written by
+// shoppingList.regenerate so the Gemini result survives reloads; getForWeek
+// serves it when present.
+model ShoppingList {
+  id          String   @id @default(cuid())
+  planId      String   @unique
+  items       Json     // ShoppingListItemForWeek[] minus images/prices (re-resolved)
+  aiGenerated Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+
+  @@map("shopping_lists")
 }
 
 model CarrefourPriceCache {

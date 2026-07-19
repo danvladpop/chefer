@@ -8,6 +8,8 @@ import {
 import { env } from './lib/env.js';
 import { appRouter } from './routers/index.js';
 import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
+import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
+import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
 import { recipeImageWorker } from './workers/recipe-image.worker.js';
 
 const app = express();
@@ -66,6 +68,11 @@ app.get('/api/health', async (_req, res) => {
 // ─── SSE — Recipe Images ──────────────────────────────────────────────────────
 
 app.use('/api/recipe-images', recipeImagesSseRouter);
+
+// ─── Image uploads (recipe & ingredient photos) ──────────────────────────────
+
+app.use('/api/uploads', uploadsRouter);
+app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d', immutable: true }));
 
 // ─── tRPC ─────────────────────────────────────────────────────────────────────
 
@@ -132,6 +139,9 @@ const server = app.listen(env.PORT, env.HOST, () => {
 
   // Start the background recipe image worker
   void recipeImageWorker.start();
+
+  // Build/refresh the ingredient price vocabulary (weekly cadence)
+  ingredientPriceWorker.start();
 });
 
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────
@@ -139,7 +149,8 @@ const server = app.listen(env.PORT, env.HOST, () => {
 async function gracefulShutdown(signal: string): Promise<void> {
   console.log(`\n📴 Received ${signal}. Starting graceful shutdown...`);
 
-  // Stop the image worker first (waits for in-flight job to complete)
+  // Stop the workers first (image worker waits for in-flight jobs)
+  ingredientPriceWorker.stop();
   await recipeImageWorker.stop();
 
   server.close(() => {

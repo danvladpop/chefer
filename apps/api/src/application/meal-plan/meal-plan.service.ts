@@ -16,6 +16,7 @@ import {
   pickRandomCurated,
 } from '../../lib/curated-recipes/index.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
+import { computeCalorieTarget } from '../preferences/preferences.service.js';
 
 // ─── Shopping list types ───────────────────────────────────────────────────────
 
@@ -209,7 +210,23 @@ export class MealPlanService {
       });
     }
 
-    // 2. Build the AI input from stored preferences
+    // 2. Build the AI input from stored preferences.
+    // The calorie target is recomputed live from body metrics + goal so the
+    // plan always matches the Preferences page (the stored dailyCalorieTarget
+    // is a snapshot and can predate goal-adjustment logic or metric changes —
+    // e.g. holding the raw TDEE without the fat-loss deficit).
+    const liveCalorieTarget =
+      chefProfile.weightKg && chefProfile.heightCm && chefProfile.age && chefProfile.activityLevel
+        ? computeCalorieTarget(
+            chefProfile.weightKg,
+            chefProfile.heightCm,
+            chefProfile.age,
+            chefProfile.activityLevel,
+            chefProfile.biologicalSex,
+            chefProfile.goal,
+          )
+        : null;
+
     const aiInput = {
       userId,
       goal: chefProfile.goal ?? 'MAINTAIN',
@@ -218,7 +235,7 @@ export class MealPlanService {
       heightCm: chefProfile.heightCm ?? 175,
       weightKg: chefProfile.weightKg ?? 75,
       activityLevel: chefProfile.activityLevel ?? 'MODERATELY_ACTIVE',
-      dailyCalorieTarget: chefProfile.dailyCalorieTarget ?? 2000,
+      dailyCalorieTarget: liveCalorieTarget ?? chefProfile.dailyCalorieTarget ?? 2000,
       dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
       allergies: dietaryPrefs?.allergies ?? [],
       dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
@@ -235,7 +252,7 @@ export class MealPlanService {
       console.error('AI generateMealPlan failed:', err);
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
-        message: 'Failed to generate meal plan. Please try again.',
+        message: aiFailureMessage(err, 'Failed to generate meal plan. Please try again.'),
       });
     }
 
@@ -539,7 +556,7 @@ export class MealPlanService {
       console.error('AI generateRecipeSwap failed:', err);
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
-        message: 'Failed to swap recipe. Please try again.',
+        message: aiFailureMessage(err, 'Failed to swap recipe. Please try again.'),
       });
     }
 
@@ -788,6 +805,19 @@ export class MealPlanService {
 export const mealPlanService = new MealPlanService(mealPlanRepository);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * User-facing message for a failed AI call. Transient provider overloads
+ * (Gemini 429/503 — already retried by the AI layer) get an honest
+ * "try again shortly" instead of a generic failure.
+ */
+function aiFailureMessage(err: unknown, fallback: string): string {
+  const status = (err as { status?: number }).status;
+  if (status === 429 || status === 503) {
+    return 'The AI service is temporarily overloaded. Please try again in a minute.';
+  }
+  return fallback;
+}
 
 function toRecipeDto(
   r: RecipeData,

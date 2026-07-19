@@ -30,6 +30,7 @@ export const profileRouter = router({
       [AiCallType.RECIPE_SWAP]: 0,
       [AiCallType.SHOPPING_LIST]: 0,
       [AiCallType.IMAGE_GENERATION]: 0,
+      [AiCallType.INGREDIENT_PRICES]: 0,
     };
     for (const log of logs) {
       counts[log.callType]++;

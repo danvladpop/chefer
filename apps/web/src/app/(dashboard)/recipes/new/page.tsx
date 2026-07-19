@@ -2,24 +2,49 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { IngredientFormModal } from '@/features/ingredients/components/IngredientFormModal';
+import { IngredientPicker } from '@/features/recipes/components/IngredientPicker';
 import { trpc } from '@/lib/trpc';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { uploadImage } from '@/lib/upload-image';
+import { ArrowLeft, Plus, Sparkles, Trash2, Upload, X } from 'lucide-react';
+
+// ─── Presets ──────────────────────────────────────────────────────────────────
+
+const CUISINE_PRESETS = [
+  'Italian',
+  'Mediterranean',
+  'Mexican',
+  'Asian',
+  'Thai',
+  'Japanese',
+  'Chinese',
+  'Indian',
+  'French',
+  'American',
+  'Middle Eastern',
+  'Romanian',
+];
+
+const DIETARY_TAG_PRESETS = [
+  'vegan',
+  'vegetarian',
+  'gluten-free',
+  'dairy-free',
+  'keto',
+  'paleo',
+  'low-carb',
+  'high-protein',
+  'pescatarian',
+  'nut-free',
+];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Ingredient {
+interface IngredientRow {
   name: string;
   quantity: string;
   unit: string;
-}
-
-interface NutritionInfo {
-  calories: string;
-  protein: string;
-  carbs: string;
-  fat: string;
-  fiber: string;
 }
 
 interface FormErrors {
@@ -42,23 +67,33 @@ export default function NewRecipePage() {
   // Basic fields
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [cuisineType, setCuisineType] = useState('');
+  const [cuisineChip, setCuisineChip] = useState<string | null>(null);
+  const [cuisineCustom, setCuisineCustom] = useState('');
+  const [useCustomCuisine, setUseCustomCuisine] = useState(false);
   const [prepTimeMins, setPrepTimeMins] = useState('');
   const [cookTimeMins, setCookTimeMins] = useState('');
   const [servings, setServings] = useState('1');
-  const [imageUrl, setImageUrl] = useState('');
-  const [dietaryTags, setDietaryTags] = useState('');
 
-  // Ingredients
-  const [ingredients, setIngredients] = useState<Ingredient[]>([
-    { name: '', quantity: '', unit: '' },
+  // Dietary tags: preset chips + free-text additions
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+
+  // Image
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageSource, setImageSource] = useState<'upload' | 'ai' | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Ingredients & instructions
+  const [ingredients, setIngredients] = useState<IngredientRow[]>([
+    { name: '', quantity: '', unit: 'g' },
   ]);
-
-  // Instructions
+  const [customModalFor, setCustomModalFor] = useState<{ row: number; query: string } | null>(null);
   const [instructions, setInstructions] = useState<string[]>(['']);
 
-  // Nutrition
-  const [nutrition, setNutrition] = useState<NutritionInfo>({
+  // Nutrition: auto-computed with manual fallback
+  const [manualNutrition, setManualNutrition] = useState(false);
+  const [manual, setManual] = useState({
     calories: '',
     protein: '',
     carbs: '',
@@ -68,50 +103,118 @@ export default function NewRecipePage() {
 
   const [errors, setErrors] = useState<FormErrors>({});
 
+  const cuisineType = useCustomCuisine ? cuisineCustom.trim() : (cuisineChip ?? '');
+
+  const { data: units } = trpc.ingredients.units.useQuery(undefined, { staleTime: Infinity });
+  const unitOptions = units ?? ['g', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'cup', 'piece'];
+
+  // ── Auto nutrition ─────────────────────────────────────────────────────────
+  const validRows = useMemo(
+    () =>
+      ingredients
+        .filter((i) => i.name.trim() && Number(i.quantity) > 0 && i.unit)
+        .map((i) => ({ name: i.name.trim(), quantity: Number(i.quantity), unit: i.unit })),
+    [ingredients],
+  );
+
+  // Debounce the computation input so we don't call on every keystroke
+  const [debouncedRows, setDebouncedRows] = useState(validRows);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedRows(validRows), 600);
+    return () => clearTimeout(t);
+  }, [validRows]);
+
+  const servingsNum = Math.max(1, Number(servings) || 1);
+  const { data: computed, isFetching: computing } = trpc.ingredients.computeNutrition.useQuery(
+    { ingredients: debouncedRows, servings: servingsNum },
+    { enabled: !manualNutrition && debouncedRows.length > 0, placeholderData: (p) => p },
+  );
+
+  const nutrition = manualNutrition
+    ? {
+        calories: Number(manual.calories) || 0,
+        protein: Number(manual.protein) || 0,
+        carbs: Number(manual.carbs) || 0,
+        fat: Number(manual.fat) || 0,
+        fiber: Number(manual.fiber) || 0,
+      }
+    : (computed?.perServing ?? { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+
+  // ── AI image generation (deterministic URL from name + cuisine) ────────────
+  const aiImageQuery = trpc.recipe.aiImageUrl.useQuery(
+    { name: name.trim(), cuisineType },
+    { enabled: false },
+  );
+
+  const generateAiImage = async () => {
+    setUploadError(null);
+    const res = await aiImageQuery.refetch();
+    if (res.data) {
+      setImageUrl(res.data.url);
+      setImageSource('ai');
+    }
+  };
+
+  const handleUpload = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const url = await uploadImage(file);
+      setImageUrl(url);
+      setImageSource('upload');
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // ── Mutation ───────────────────────────────────────────────────────────────
   const createMutation = trpc.recipe.create.useMutation({
     onSuccess: () => {
       router.push('/recipes?tab=my');
     },
   });
 
-  // ─── Helpers ────────────────────────────────────────────────────────────────
-
+  // ── Row helpers ────────────────────────────────────────────────────────────
   const addIngredient = () =>
-    setIngredients((prev) => [...prev, { name: '', quantity: '', unit: '' }]);
-
+    setIngredients((prev) => [...prev, { name: '', quantity: '', unit: 'g' }]);
   const removeIngredient = (i: number) =>
     setIngredients((prev) => prev.filter((_, idx) => idx !== i));
-
-  const updateIngredient = (i: number, field: keyof Ingredient, value: string) =>
+  const updateIngredient = (i: number, field: keyof IngredientRow, value: string) =>
     setIngredients((prev) =>
       prev.map((ing, idx) => (idx === i ? { ...ing, [field]: value } : ing)),
     );
 
   const addInstruction = () => setInstructions((prev) => [...prev, '']);
-
   const removeInstruction = (i: number) =>
     setInstructions((prev) => prev.filter((_, idx) => idx !== i));
-
   const updateInstruction = (i: number, value: string) =>
     setInstructions((prev) => prev.map((ins, idx) => (idx === i ? value : ins)));
 
-  // ─── Validation & Submit ────────────────────────────────────────────────────
+  const addTag = (tag: string) => {
+    const t = tag.trim().toLowerCase();
+    if (t && !tags.includes(t)) setTags((prev) => [...prev, t]);
+    setTagInput('');
+  };
 
+  // ── Validation & submit ────────────────────────────────────────────────────
   const validate = (): boolean => {
     const errs: FormErrors = {};
     if (!name.trim()) errs.name = 'Recipe name is required.';
     if (!description.trim()) errs.description = 'Description is required.';
-    if (!cuisineType.trim()) errs.cuisineType = 'Cuisine type is required.';
+    if (!cuisineType) errs.cuisineType = 'Pick a cuisine or enter your own.';
     if (!prepTimeMins || Number(prepTimeMins) < 0) errs.prepTimeMins = 'Enter prep time (0+).';
     if (!cookTimeMins || Number(cookTimeMins) < 0) errs.cookTimeMins = 'Enter cook time (0+).';
     if (!servings || Number(servings) < 1) errs.servings = 'At least 1 serving.';
-    const validIngredients = ingredients.filter(
-      (i) => i.name.trim() && i.quantity && i.unit.trim(),
-    );
-    if (validIngredients.length === 0) errs.ingredients = 'Add at least one ingredient.';
-    const validInstructions = instructions.filter((s) => s.trim());
-    if (validInstructions.length === 0) errs.instructions = 'Add at least one instruction step.';
-    if (!nutrition.calories || Number(nutrition.calories) < 0) errs.calories = 'Enter calories.';
+    if (validRows.length === 0) errs.ingredients = 'Add at least one ingredient.';
+    if (instructions.filter((s) => s.trim()).length === 0)
+      errs.instructions = 'Add at least one instruction step.';
+    if (nutrition.calories <= 0)
+      errs.calories = manualNutrition
+        ? 'Enter calories.'
+        : 'Nutrition could not be computed — check your ingredients or enter it manually.';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -120,34 +223,23 @@ export default function NewRecipePage() {
     e.preventDefault();
     if (!validate()) return;
 
-    const validIngredients = ingredients
-      .filter((i) => i.name.trim() && i.quantity && i.unit.trim())
-      .map((i) => ({ name: i.name.trim(), quantity: Number(i.quantity), unit: i.unit.trim() }));
-
-    const validInstructions = instructions.filter((s) => s.trim()).map((s) => s.trim());
-
-    const tags = dietaryTags
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
-
     createMutation.mutate({
       name: name.trim(),
       description: description.trim(),
-      cuisineType: cuisineType.trim(),
+      cuisineType,
       prepTimeMins: Number(prepTimeMins),
       cookTimeMins: Number(cookTimeMins),
-      servings: Number(servings),
-      imageUrl: imageUrl.trim() || undefined,
+      servings: servingsNum,
+      imageUrl: imageUrl ?? undefined,
       dietaryTags: tags,
-      ingredients: validIngredients,
-      instructions: validInstructions,
+      ingredients: validRows,
+      instructions: instructions.filter((s) => s.trim()).map((s) => s.trim()),
       nutritionInfo: {
-        calories: Number(nutrition.calories),
-        protein: Number(nutrition.protein) || 0,
-        carbs: Number(nutrition.carbs) || 0,
-        fat: Number(nutrition.fat) || 0,
-        fiber: Number(nutrition.fiber) || 0,
+        calories: Math.round(nutrition.calories),
+        protein: nutrition.protein,
+        carbs: nutrition.carbs,
+        fat: nutrition.fat,
+        fiber: nutrition.fiber,
       },
     });
   };
@@ -160,7 +252,7 @@ export default function NewRecipePage() {
       <div className="mb-6 flex items-center gap-3">
         <Link
           href="/recipes"
-          className="flex h-9 w-9 items-center justify-center rounded-full border bg-white text-gray-500 hover:text-gray-800 shadow-sm transition-colors"
+          className="flex h-9 w-9 items-center justify-center rounded-full border bg-white text-gray-500 shadow-sm transition-colors hover:text-gray-800"
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
@@ -195,26 +287,89 @@ export default function NewRecipePage() {
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Cuisine Type" error={errors.cuisineType}>
+          {/* Cuisine chips + free text */}
+          <Field label="Cuisine" error={errors.cuisineType}>
+            <div className="flex flex-wrap gap-1.5">
+              {CUISINE_PRESETS.map((c) => (
+                <Chip
+                  key={c}
+                  label={c}
+                  active={!useCustomCuisine && cuisineChip === c}
+                  onClick={() => {
+                    setCuisineChip(c);
+                    setUseCustomCuisine(false);
+                  }}
+                />
+              ))}
+              <Chip
+                label="Other…"
+                active={useCustomCuisine}
+                onClick={() => setUseCustomCuisine(true)}
+              />
+            </div>
+            {useCustomCuisine && (
               <input
                 type="text"
-                value={cuisineType}
-                onChange={(e) => setCuisineType(e.target.value)}
-                placeholder="e.g. Italian"
-                className={inputCls(!!errors.cuisineType)}
+                value={cuisineCustom}
+                onChange={(e) => setCuisineCustom(e.target.value)}
+                placeholder="e.g. Fusion, Nordic…"
+                className={`mt-2 ${inputCls(!!errors.cuisineType)}`}
               />
-            </Field>
-            <Field label="Dietary Tags (comma-separated)">
-              <input
-                type="text"
-                value={dietaryTags}
-                onChange={(e) => setDietaryTags(e.target.value)}
-                placeholder="e.g. vegan, gluten-free"
-                className={inputCls(false)}
-              />
-            </Field>
-          </div>
+            )}
+          </Field>
+
+          {/* Dietary tag chips + free text */}
+          <Field label="Dietary Tags">
+            <div className="flex flex-wrap gap-1.5">
+              {DIETARY_TAG_PRESETS.map((t) => (
+                <Chip
+                  key={t}
+                  label={t}
+                  active={tags.includes(t)}
+                  onClick={() =>
+                    setTags((prev) =>
+                      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
+                    )
+                  }
+                />
+              ))}
+            </div>
+            {/* Custom tags the user added */}
+            {tags.filter((t) => !DIETARY_TAG_PRESETS.includes(t)).length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {tags
+                  .filter((t) => !DIETARY_TAG_PRESETS.includes(t))
+                  .map((t) => (
+                    <span
+                      key={t}
+                      className="flex items-center gap-1 rounded-full bg-[#fff3e8] px-2.5 py-1 text-xs font-medium text-[#944a00]"
+                    >
+                      {t}
+                      <button
+                        type="button"
+                        onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
+                        aria-label={`Remove ${t}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+              </div>
+            )}
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault();
+                  addTag(tagInput);
+                }
+              }}
+              placeholder="Add your own tag and press Enter…"
+              className={`mt-2 ${inputCls(false)}`}
+            />
+          </Field>
 
           <div className="grid grid-cols-3 gap-4">
             <Field label="Prep Time (mins)" error={errors.prepTimeMins}>
@@ -245,16 +400,70 @@ export default function NewRecipePage() {
               />
             </Field>
           </div>
+        </Section>
 
-          <Field label="Image URL (optional)">
-            <input
-              type="text"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://…"
-              className={inputCls(false)}
-            />
-          </Field>
+        {/* ── Photo ──────────────────────────────────────────────────── */}
+        <Section title="Photo">
+          <div className="flex items-start gap-4">
+            {imageUrl ? (
+              <div className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imageUrl}
+                  alt="Recipe preview"
+                  className="h-28 w-36 rounded-xl border object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImageUrl(null);
+                    setImageSource(null);
+                  }}
+                  aria-label="Remove image"
+                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-white shadow hover:bg-gray-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+                {imageSource === 'ai' && (
+                  <span className="absolute bottom-1 left-1 rounded-full bg-black/50 px-1.5 py-0.5 text-[9px] font-medium text-white">
+                    AI generated
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="flex h-28 w-36 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-3xl">
+                🍽️
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              <label className="flex w-fit cursor-pointer items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50">
+                <Upload className="h-3.5 w-3.5" />
+                {uploading ? 'Uploading…' : 'Upload from device'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => void handleUpload(e.target.files?.[0])}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void generateAiImage()}
+                disabled={name.trim().length < 2 || aiImageQuery.isFetching}
+                title={name.trim().length < 2 ? 'Enter a recipe name first' : undefined}
+                className="flex w-fit items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {aiImageQuery.isFetching ? 'Generating…' : 'Generate with AI'}
+              </button>
+              <p className="text-[11px] text-gray-400">
+                Upload a photo from your phone or computer, or let AI create one from the recipe
+                name. The AI image may take ~20 s to appear the first time.
+              </p>
+              {uploadError && <p className="text-xs text-red-500">{uploadError}</p>}
+            </div>
+          </div>
         </Section>
 
         {/* ── Ingredients ────────────────────────────────────────────── */}
@@ -262,12 +471,10 @@ export default function NewRecipePage() {
           <div className="space-y-2">
             {ingredients.map((ing, i) => (
               <div key={i} className="flex items-center gap-2">
-                <input
-                  type="text"
+                <IngredientPicker
                   value={ing.name}
-                  onChange={(e) => updateIngredient(i, 'name', e.target.value)}
-                  placeholder="Ingredient"
-                  className="flex-1 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
+                  onSelect={(selected) => updateIngredient(i, 'name', selected)}
+                  onCreateCustom={(query) => setCustomModalFor({ row: i, query })}
                 />
                 <input
                   type="number"
@@ -278,18 +485,22 @@ export default function NewRecipePage() {
                   placeholder="Qty"
                   className="w-20 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
                 />
-                <input
-                  type="text"
+                <select
                   value={ing.unit}
                   onChange={(e) => updateIngredient(i, 'unit', e.target.value)}
-                  placeholder="Unit"
-                  className="w-24 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
-                />
+                  className="w-28 rounded-xl border bg-white px-2 py-2 text-sm text-gray-800 focus:border-[#944a00] focus:outline-none"
+                >
+                  {unitOptions.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
                 {ingredients.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeIngredient(i)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -326,7 +537,7 @@ export default function NewRecipePage() {
                   <button
                     type="button"
                     onClick={() => removeInstruction(i)}
-                    className="mt-2 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                    className="mt-2 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -344,59 +555,69 @@ export default function NewRecipePage() {
           </button>
         </Section>
 
-        {/* ── Nutrition ──────────────────────────────────────────────── */}
-        <Section title="Nutrition (per serving)">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-            <Field label="Calories (kcal)" error={errors.calories}>
-              <input
-                type="number"
-                min={0}
-                value={nutrition.calories}
-                onChange={(e) => setNutrition((n) => ({ ...n, calories: e.target.value }))}
-                className={inputCls(!!errors.calories)}
-              />
-            </Field>
-            <Field label="Protein (g)">
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={nutrition.protein}
-                onChange={(e) => setNutrition((n) => ({ ...n, protein: e.target.value }))}
-                className={inputCls(false)}
-              />
-            </Field>
-            <Field label="Carbs (g)">
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={nutrition.carbs}
-                onChange={(e) => setNutrition((n) => ({ ...n, carbs: e.target.value }))}
-                className={inputCls(false)}
-              />
-            </Field>
-            <Field label="Fat (g)">
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={nutrition.fat}
-                onChange={(e) => setNutrition((n) => ({ ...n, fat: e.target.value }))}
-                className={inputCls(false)}
-              />
-            </Field>
-            <Field label="Fiber (g)">
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={nutrition.fiber}
-                onChange={(e) => setNutrition((n) => ({ ...n, fiber: e.target.value }))}
-                className={inputCls(false)}
-              />
-            </Field>
-          </div>
+        {/* ── Nutrition (auto-computed) ──────────────────────────────── */}
+        <Section title="Nutrition (per serving)" error={errors.calories}>
+          {!manualNutrition ? (
+            <div className="rounded-xl border bg-gray-50 p-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <Stat label="Calories" value={`${Math.round(nutrition.calories)} kcal`} />
+                <Stat label="Protein" value={`${nutrition.protein} g`} />
+                <Stat label="Carbs" value={`${nutrition.carbs} g`} />
+                <Stat label="Fat" value={`${nutrition.fat} g`} />
+                <Stat label="Fiber" value={`${nutrition.fiber} g`} />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-500">
+                <span>
+                  {computing
+                    ? 'Computing from ingredients…'
+                    : computed && computed.unmatched.length > 0
+                      ? `Estimated from ${computed.matchedCount} of ${computed.totalCount} ingredients — no data yet for: ${computed.unmatched.join(', ')}`
+                      : computed
+                        ? 'Computed automatically from your ingredients and servings.'
+                        : 'Add ingredients to compute nutrition automatically.'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setManualNutrition(true)}
+                  className="font-medium text-[#944a00] hover:underline"
+                >
+                  Enter manually instead
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+                {(
+                  [
+                    ['calories', 'Calories (kcal)'],
+                    ['protein', 'Protein (g)'],
+                    ['carbs', 'Carbs (g)'],
+                    ['fat', 'Fat (g)'],
+                    ['fiber', 'Fiber (g)'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <Field key={key} label={label}>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.1"
+                      value={manual[key]}
+                      onChange={(e) => setManual((m) => ({ ...m, [key]: e.target.value }))}
+                      className={inputCls(key === 'calories' && !!errors.calories)}
+                    />
+                  </Field>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setManualNutrition(false)}
+                className="mt-1 text-[11px] font-medium text-[#944a00] hover:underline"
+              >
+                Compute automatically from ingredients instead
+              </button>
+            </>
+          )}
         </Section>
 
         {/* ── Submit ─────────────────────────────────────────────────── */}
@@ -409,24 +630,62 @@ export default function NewRecipePage() {
         <div className="flex justify-end gap-3 pb-8">
           <Link
             href="/recipes"
-            className="rounded-xl border bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+            className="rounded-xl border bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
           >
             Cancel
           </Link>
           <button
             type="submit"
             disabled={createMutation.isPending}
-            className="rounded-xl bg-[#944a00] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-60 transition-colors"
+            className="rounded-xl bg-[#944a00] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] disabled:opacity-60"
           >
             {createMutation.isPending ? 'Saving…' : 'Save Recipe'}
           </button>
         </div>
       </form>
+
+      {/* Custom ingredient modal */}
+      {customModalFor && (
+        <IngredientFormModal
+          mode="create"
+          initialName={customModalFor.query}
+          onClose={() => setCustomModalFor(null)}
+          onSaved={(displayName) => {
+            updateIngredient(customModalFor.row, 'name', displayName);
+            setCustomModalFor(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+        active
+          ? 'border-[#944a00] bg-[#944a00] text-white'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-[#944a00]/40 hover:text-[#944a00]'
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="text-center">
+      <p className="text-sm font-bold text-gray-900">{value}</p>
+      <p className="text-[11px] text-gray-500">{label}</p>
+    </div>
+  );
+}
 
 function Section({
   title,
@@ -439,7 +698,7 @@ function Section({
 }) {
   return (
     <div>
-      <h2 className="mb-4 font-semibold text-gray-900 border-b pb-2">{title}</h2>
+      <h2 className="mb-4 border-b pb-2 font-semibold text-gray-900">{title}</h2>
       <div className="space-y-4">{children}</div>
       {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
     </div>

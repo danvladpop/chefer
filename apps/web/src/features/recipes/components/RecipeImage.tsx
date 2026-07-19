@@ -57,12 +57,13 @@ function placeholderStyle(recipeName: string, cuisineType?: string) {
 function Placeholder({
   recipeName,
   cuisineType,
-  generating,
+  label,
   className,
 }: {
   recipeName: string;
   cuisineType?: string | undefined;
-  generating: boolean;
+  /** 'generating' pulses with "Preparing photo…"; 'unavailable' shows a static hint; 'none' is emoji-only. */
+  label: 'generating' | 'unavailable' | 'none';
   className?: string | undefined;
 }) {
   const { emoji, gradient } = placeholderStyle(recipeName, cuisineType);
@@ -70,15 +71,23 @@ function Placeholder({
     <div
       className={cn('relative overflow-hidden bg-gradient-to-br', gradient, className)}
       role="img"
-      aria-label={generating ? `Preparing photo for ${recipeName}` : recipeName}
+      aria-label={label === 'generating' ? `Preparing photo for ${recipeName}` : recipeName}
     >
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-        <span className={cn('text-3xl', generating && 'animate-pulse')} aria-hidden="true">
+        <span
+          className={cn('text-3xl', label === 'generating' && 'animate-pulse')}
+          aria-hidden="true"
+        >
           {emoji}
         </span>
-        {generating && (
+        {label === 'generating' && (
           <span className="rounded-full bg-white/60 px-2 py-0.5 text-[9px] font-medium text-gray-600">
             Preparing photo…
+          </span>
+        )}
+        {label === 'unavailable' && (
+          <span className="rounded-full bg-white/60 px-2 py-0.5 text-[9px] font-medium text-gray-500">
+            Photo unavailable
           </span>
         )}
       </div>
@@ -103,19 +112,20 @@ export function RecipeImage({
       <Placeholder
         recipeName={recipeName}
         cuisineType={cuisineType}
-        generating
+        label="generating"
         className={className}
       />
     );
   }
 
   if (imageStatus === 'FAILED' || !imageUrl || imgError) {
-    // Same placeholder without the "preparing" hint — looks intentional, not broken.
+    // Distinguishable from "Preparing photo…" so a final failure doesn't read
+    // as an eternally-loading card.
     return (
       <Placeholder
         recipeName={recipeName}
         cuisineType={cuisineType}
-        generating={false}
+        label="unavailable"
         className={className}
       />
     );
@@ -127,7 +137,7 @@ export function RecipeImage({
         <Placeholder
           recipeName={recipeName}
           cuisineType={cuisineType}
-          generating
+          label="generating"
           className="absolute inset-0"
         />
       )}

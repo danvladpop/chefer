@@ -317,6 +317,9 @@ mealPlan.generate { weekOffset }
   │
   └─ PREMIUM user (or ADMIN)
        ├─ load ChefProfile + DietaryPreferences (profile required)
+       ├─ calorie target recomputed LIVE from body metrics + goal
+       │   (Mifflin-St Jeor TDEE ± goal adjustment — the stored
+       │   dailyCalorieTarget is only a display snapshot)
        ├─ IAIService.generateMealPlan (Gemini) → 21 personalised recipes
        ├─ image reuse: recipes whose name matches a previously generated
        │   DONE image are marked DONE immediately
@@ -329,6 +332,44 @@ mealPlan.generate { weekOffset }
 ### Meal swap
 
 `mealPlan.swapRecipe` — premium: AI-generated alternative; free: random curated recipe of the same meal type (excluding the current one).
+
+### Shopping list & ingredient price vocabulary
+
+```
+shoppingList.getForWeek { weekOffset }
+  |
+  +- persisted AI list exists for the plan? -> serve it (aiGenerated: true)
+  +- else deterministic merge of recipe ingredients (merge key: name|unit)
+  |
+  +- every item joined against IngredientPrice (store-agnostic vocabulary):
+  |    estimatedPriceEur = quantity x pricePer100g / per100ml / perPiece
+  |    unpriced ingredients -> IngredientPriceWorker.wake()
+  +- estimatedTotalEur = sum of item estimates
+
+shoppingList.regenerate { weekOffset }   (PREMIUM only)
+  +- Gemini consolidates raw ingredients -> persisted in ShoppingList table
+     (keyed by planId) -> subsequent getForWeek calls serve it
+
+Ingredient catalog permissions
+  +- global rows (creatorId null): visible to all; edit/delete = ADMIN only
+  |    (admin edits set source ADMIN -> exempt from weekly AI refresh)
+  +- custom rows (creatorId set): visible/editable ONLY by their creator
+  |    (hidden even from admins; others get NOT_FOUND)
+  +- /ingredients page: All / My Ingredients tabs, search, add/edit/delete
+
+Recipe creation (revamped form)
+  +- ingredients.search picks from the catalog; ingredients.createCustom adds
+  |    private ingredients (manual macros, uploaded or AI-generated image)
+  +- ingredients.computeNutrition auto-fills per-serving nutrition from
+  |    ingredient quantities (unit conversion x per-100g macros)
+  +- recipe photo: device upload (POST /api/uploads/image) or deterministic
+  |    AI image (recipe.aiImageUrl)
+
+IngredientPriceWorker (background)
+  +- start + every 12 h: distinct ingredient names from ALL recipes
+  +- prices missing entries, refreshes entries older than 7 days
+  +- IAIService.estimateIngredientPrices (Gemini, batches of 40)
+```
 
 ### Profile personalisation gating
 

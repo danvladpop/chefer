@@ -1,6 +1,7 @@
 import { router } from '../lib/trpc.js';
 import { authRouter } from './auth.router.js';
 import { dashboardRouter } from './dashboard.router.js';
+import { ingredientsRouter } from './ingredients.router.js';
 import { mealPlanRouter } from './meal-plan.router.js';
 import { preferencesRouter } from './preferences.router.js';
 import { profileRouter } from './profile.router.js';
@@ -12,6 +13,7 @@ import { userRouter } from './user.router.js';
 export const appRouter = router({
   auth: authRouter,
   dashboard: dashboardRouter,
+  ingredients: ingredientsRouter,
   mealPlan: mealPlanRouter,
   preferences: preferencesRouter,
   profile: profileRouter,
