@@ -73,24 +73,29 @@ function Placeholder({
       role="img"
       aria-label={label === 'generating' ? `Preparing photo for ${recipeName}` : recipeName}
     >
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-        <span
-          className={cn('text-3xl', label === 'generating' && 'animate-pulse')}
-          aria-hidden="true"
-        >
-          {emoji}
-        </span>
-        {label === 'generating' && (
-          <span className="rounded-full bg-white/60 px-2 py-0.5 text-[9px] font-medium text-gray-600">
-            Preparing photo…
+      {label === 'generating' ? (
+        // Food-prep animation conveys "photo being generated" — no text needed
+        <div className="absolute inset-0 flex items-center justify-center p-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/food-prep.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-full max-h-24 w-auto max-w-full object-contain"
+          />
+        </div>
+      ) : (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+          <span className="text-3xl" aria-hidden="true">
+            {emoji}
           </span>
-        )}
-        {label === 'unavailable' && (
-          <span className="rounded-full bg-white/60 px-2 py-0.5 text-[9px] font-medium text-gray-500">
-            Photo unavailable
-          </span>
-        )}
-      </div>
+          {label === 'unavailable' && (
+            <span className="rounded-full bg-white/60 px-2 py-0.5 text-[9px] font-medium text-gray-500">
+              Photo unavailable
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

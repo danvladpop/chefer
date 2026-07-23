@@ -7,6 +7,7 @@ import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { WeekNavigator } from '@/features/shopping-list/components/WeekNavigator';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { useIsPremium } from '@/hooks/useIsPremium';
+import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { trpc } from '@/lib/trpc';
 import {
   CheckCircle2,
@@ -16,6 +17,7 @@ import {
   ShoppingCart,
   Smartphone,
 } from 'lucide-react';
+import { formatQuantity } from '@chefer/utils';
 
 const PRINT_STYLES = `
 @media print {
@@ -60,6 +62,7 @@ export default function ShoppingListPage() {
   );
   const [popupItem, setPopupItem] = useState<{ name: string; imageUrl: string } | null>(null);
   const isPremium = useIsPremium();
+  const unitSystem = useUnitSystem();
 
   const weekStart = getMondayOfWeek(weekOffset);
   const weekEnd = new Date(weekStart);
@@ -227,7 +230,24 @@ export default function ShoppingListPage() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="relative space-y-6">
+          {/* Regenerating overlay — dims the current list while the AI consolidates */}
+          {regenerateMutation.isPending && (
+            <div className="absolute inset-0 z-10 flex items-start justify-center rounded-2xl bg-white/70 pt-10 backdrop-blur-[1px]">
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-neutral-200 bg-white px-8 py-6 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/restaurant-food-loading.svg"
+                  alt=""
+                  aria-hidden="true"
+                  className="h-28 w-28"
+                />
+                <p className="text-sm font-medium text-neutral-600">
+                  Consolidating your list with AI…
+                </p>
+              </div>
+            </div>
+          )}
           {grouped.map(({ category, label, items: catItems }) => (
             <section key={category}>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-400">
@@ -275,7 +295,9 @@ export default function ShoppingListPage() {
                           {item.ingredientName}
                         </p>
                         <p className="text-xs text-neutral-500">
-                          {item.quantity} {item.unit}
+                          {Number.isFinite(Number(item.quantity))
+                            ? formatQuantity(Number(item.quantity), item.unit, unitSystem)
+                            : `${item.quantity} ${item.unit}`}
                         </p>
                       </div>
 
