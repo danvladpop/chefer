@@ -99,6 +99,7 @@ interface FormData {
   servingSize: number;
   deliveryAddress: string;
   deliveryCurrency: string;
+  preferredUnits: 'METRIC' | 'IMPERIAL';
 }
 
 interface PreferencesFormProps {
@@ -130,13 +131,18 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
     servingSize: dietaryPreferences?.servingSize ?? 1,
     deliveryAddress: chefProfile?.deliveryAddress ?? '',
     deliveryCurrency: chefProfile?.deliveryCurrency ?? 'EUR',
+    preferredUnits: (chefProfile?.preferredUnits as 'METRIC' | 'IMPERIAL' | undefined) ?? 'METRIC',
   });
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const utils = trpc.useUtils();
 
   const updateMutation = trpc.preferences.update.useMutation({
     onSuccess: () => {
       setToast({ message: 'Preferences saved successfully.', type: 'success' });
+      // Unit system, calorie target etc. are read elsewhere (shopping list,
+      // recipe pages) via preferences.get — refresh those caches immediately
+      void utils.preferences.get.invalidate();
     },
     onError: (err) => {
       setToast({ message: err.message || 'Failed to save preferences.', type: 'error' });
@@ -175,6 +181,7 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
       servingSize: data.servingSize,
       deliveryAddress: data.deliveryAddress || null,
       deliveryCurrency: data.deliveryCurrency as 'EUR' | 'USD' | 'GBP' | 'RON',
+      preferredUnits: data.preferredUnits,
     });
   }
 
@@ -257,6 +264,36 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
                 <option value="GBP">GBP — British Pound (£)</option>
                 <option value="RON">RON — Romanian Leu</option>
               </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-foreground">
+                Measurement Units
+              </label>
+              <div className="flex gap-2">
+                {(
+                  [
+                    ['METRIC', 'Metric (g, ml)'],
+                    ['IMPERIAL', 'Imperial (oz, cups)'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setData((d) => ({ ...d, preferredUnits: value }))}
+                    className={`rounded-xl border px-4 py-2 text-sm font-medium transition ${
+                      data.preferredUnits === value
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-input text-muted-foreground hover:border-primary/40'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                All recipe and shopping-list quantities are displayed in this system, whatever units
+                the original recipe uses.
+              </p>
             </div>
           </div>
         </Section>

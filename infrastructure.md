@@ -499,6 +499,7 @@ enum BiologicalSex  { MALE  FEMALE  OTHER }
 enum ActivityLevel  { SEDENTARY  LIGHTLY_ACTIVE  MODERATELY_ACTIVE  VERY_ACTIVE  ATHLETE }
 enum Goal           { LOSE_WEIGHT  MAINTAIN  GAIN_MUSCLE  EAT_HEALTHIER }
 enum RecipeSource   { AI  MANUAL  CURATED }
+enum UnitSystem     { METRIC  IMPERIAL }
 enum ImageStatus    { PENDING  GENERATING  DONE  FAILED }
 enum AiCallType     { MEAL_PLAN  RECIPE_SWAP  SHOPPING_LIST  IMAGE_GENERATION  INGREDIENT_PRICES }
 ```
@@ -615,15 +616,15 @@ Aggregates active meal plan, today's meals, recent favourites for the dashboard 
 
 `apps/api/src/lib/ai/`. Implements `IAIService` — the contract used by `MealPlanService` for all LLM calls.
 
-| File         | Purpose                                                                                                                                                                               |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `types.ts`   | `IAIService` interface + all shared types (`MealPlanInput`, `WeekPlanResponse`, …)                                                                                                    |
-| `mock.ts`    | `MockAIService` — returns fixture data instantly, used when `AI_MOCK_ENABLED=true`                                                                                                    |
-| `gemini.ts`  | `GeminiAIService` — live implementation using `gemini-2.5-flash` via `@google/genai`. Uses structured output (`responseSchema`) to guarantee valid JSON. Validates response with Zod. |
-| `openai.ts`  | `LiveAIService` stub — placeholder for future OpenAI integration                                                                                                                      |
-| `prompts.ts` | System prompts + user prompt builders for meal plan generation, recipe swap, chat                                                                                                     |
-| `index.ts`   | Factory — selects provider via `AI_MOCK_ENABLED` + `AI_PROVIDER` env vars                                                                                                             |
-| `fixtures/`  | Hardcoded week plan + swap recipes used by `MockAIService`                                                                                                                            |
+| File         | Purpose                                                                                                                                                                                                                                         |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`   | `IAIService` interface + all shared types (`MealPlanInput`, `WeekPlanResponse`, …)                                                                                                                                                              |
+| `mock.ts`    | `MockAIService` — returns fixture data instantly, used when `AI_MOCK_ENABLED=true`                                                                                                                                                              |
+| `gemini.ts`  | `GeminiAIService` — live implementation using `gemini-2.5-flash` (`gemini-2.5-flash-lite` for shopping-list consolidation) via `@google/genai`. Uses structured output (`responseSchema`) to guarantee valid JSON. Validates response with Zod. |
+| `openai.ts`  | `LiveAIService` stub — placeholder for future OpenAI integration                                                                                                                                                                                |
+| `prompts.ts` | System prompts + user prompt builders for meal plan generation, recipe swap, chat                                                                                                                                                               |
+| `index.ts`   | Factory — selects provider via `AI_MOCK_ENABLED` + `AI_PROVIDER` env vars                                                                                                                                                                       |
+| `fixtures/`  | Hardcoded week plan + swap recipes used by `MockAIService`                                                                                                                                                                                      |
 
 **Switching providers:** set `AI_PROVIDER=gemini|openai|anthropic` + the corresponding API key. No other code changes required.
 
@@ -666,7 +667,7 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `preferences.hasProfile`       | Protected | Query    | —                                                                                                                                                                    |
 | `preferences.get`              | Protected | Query    | —                                                                                                                                                                    |
 | `preferences.setup`            | Premium   | Mutation | `{ goal, biologicalSex, age, heightCm, weightKg, activityLevel, cuisinePreferences, dietaryRestrictions, allergies, dislikedIngredients, mealsPerDay, servingSize }` |
-| `preferences.update`           | Premium   | Mutation | Same as setup but all fields optional + `deliveryAddress?`, `deliveryCurrency?`                                                                                      |
+| `preferences.update`           | Premium   | Mutation | Same as setup but all fields optional + `deliveryAddress?`, `deliveryCurrency?`, `preferredUnits?` (METRIC/IMPERIAL display units)                                   |
 | `mealPlan.generate`            | Protected | Mutation | `{ weekOffset?: number }` — 0=current week (default), 1=next week; min 0, max 52. Premium: AI plan; free: random curated pool                                        |
 | `mealPlan.getActive`           | Protected | Query    | —                                                                                                                                                                    |
 | `mealPlan.getRecipe`           | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |

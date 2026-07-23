@@ -346,6 +346,10 @@ shoppingList.getForWeek { weekOffset }
   |    unpriced ingredients -> IngredientPriceWorker.wake()
   +- estimatedTotalEur = sum of item estimates
 
+All displayed quantities (shopping list + recipe pages) are converted to the
+user's preferred unit system (ChefProfile.preferredUnits, set in Preferences):
+METRIC shows g/kg/ml/l (cups -> ml), IMPERIAL shows oz/lb/fl oz/cups.
+
 shoppingList.regenerate { weekOffset }   (PREMIUM only)
   +- Gemini consolidates raw ingredients -> persisted in ShoppingList table
      (keyed by planId) -> subsequent getForWeek calls serve it

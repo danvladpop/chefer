@@ -6,8 +6,10 @@ import { use, useState } from 'react';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
+import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, Clock, Flame, Heart, Library, RefreshCw, Search, Users, X } from 'lucide-react';
+import { formatQuantity } from '@chefer/utils';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -30,6 +32,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const { id } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const unitSystem = useUnitSystem();
 
   const planId = searchParams.get('planId');
   const day = searchParams.get('day');
@@ -294,11 +297,10 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           </div>
           <ul className="space-y-2">
             {recipe.ingredients.map((ing, i) => {
-              const qty = Math.round(ing.quantity * scale * 10) / 10;
               return (
                 <li key={i} className="flex items-baseline gap-2 text-sm">
                   <span className="shrink-0 font-medium text-gray-900">
-                    {qty % 1 === 0 ? qty : qty.toFixed(1)} {ing.unit}
+                    {formatQuantity(ing.quantity * scale, ing.unit, unitSystem)}
                   </span>
                   <span className="text-gray-600">{ing.name}</span>
                 </li>

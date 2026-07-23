@@ -16,6 +16,7 @@ export interface UpsertChefProfileData {
   dailyCalorieTarget?: number | null;
   deliveryAddress?: string | null;
   deliveryCurrency?: string | null;
+  preferredUnits?: 'METRIC' | 'IMPERIAL';
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────

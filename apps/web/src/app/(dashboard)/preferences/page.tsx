@@ -40,6 +40,7 @@ export default async function PreferencesPage() {
         dailyCalorieTarget: result.chefProfile.dailyCalorieTarget,
         deliveryAddress: result.chefProfile.deliveryAddress,
         deliveryCurrency: result.chefProfile.deliveryCurrency,
+        preferredUnits: result.chefProfile.preferredUnits,
       };
     }
 

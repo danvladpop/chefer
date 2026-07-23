@@ -10,6 +10,7 @@ export interface ChefProfileData {
   dailyCalorieTarget: number | null;
   deliveryAddress?: string | null;
   deliveryCurrency?: string | null;
+  preferredUnits?: string | null;
 }
 
 export interface DietaryPreferencesData {

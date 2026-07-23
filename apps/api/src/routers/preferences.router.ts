@@ -32,6 +32,7 @@ const setupSchema = z.object({
 const updateSchema = setupSchema.partial().extend({
   deliveryAddress: z.string().nullable().optional(),
   deliveryCurrency: z.enum(['EUR', 'USD', 'GBP', 'RON']).nullable().optional(),
+  preferredUnits: z.enum(['METRIC', 'IMPERIAL']).optional(),
 });
 
 // ─── Router ───────────────────────────────────────────────────────────────────
