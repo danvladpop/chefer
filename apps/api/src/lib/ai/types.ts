@@ -84,7 +84,8 @@ export interface AiShoppingListItem {
   ingredientName: string;
   quantity: string; // numeric string, e.g. "500" or "2.5"
   unit: string;
-  category: ShoppingCategory;
+  /** Optional — the live AI no longer returns it (inferred locally); mock still does. */
+  category?: ShoppingCategory;
 }
 
 export interface ShoppingListResponse {

@@ -29,6 +29,11 @@ import type {
 
 const MODEL = 'gemini-2.5-flash';
 
+// Faster, cheaper model for mechanical tasks (shopping-list consolidation)
+// where creative quality doesn't matter — roughly 2-3× lower latency and a
+// separate free-tier quota from the main model.
+const FAST_MODEL = 'gemini-2.5-flash-lite';
+
 // ─── Zod validators — parse + validate the raw AI response ───────────────────
 // These are the source of truth for what we consider a valid response.
 // If Gemini ever returns something malformed, Zod catches it here.
@@ -171,7 +176,8 @@ const aiShoppingListItemSchema = z.object({
   ingredientName: z.string(),
   quantity: z.string(),
   unit: z.string(),
-  category: z.enum(['produce', 'proteins', 'dairy', 'grains', 'frozen', 'other']),
+  // category is inferred locally (inferCategory) — omitting it from the AI
+  // output cuts ~25% of the response tokens and shaves call latency.
 });
 
 const shoppingListResponseSchema = z.object({
@@ -184,12 +190,8 @@ const AI_SHOPPING_LIST_ITEM_SCHEMA: Schema = {
     ingredientName: { type: Type.STRING },
     quantity: { type: Type.STRING },
     unit: { type: Type.STRING },
-    category: {
-      type: Type.STRING,
-      enum: ['produce', 'proteins', 'dairy', 'grains', 'frozen', 'other'],
-    },
   },
-  required: ['ingredientName', 'quantity', 'unit', 'category'],
+  required: ['ingredientName', 'quantity', 'unit'],
 };
 
 const SHOPPING_LIST_RESPONSE_SCHEMA: Schema = {
@@ -398,7 +400,7 @@ export class GeminiAIService implements IAIService {
 
   async generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse> {
     const response = await this.generateWithRetry({
-      model: MODEL,
+      model: FAST_MODEL,
       contents: buildShoppingListPrompt(input),
       config: {
         systemInstruction: SHOPPING_LIST_SYSTEM_PROMPT,

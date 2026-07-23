@@ -27,7 +27,10 @@ export const ingredientsRouter = router({
       z.object({
         search: z.string().max(60).optional(),
         mineOnly: z.boolean().optional(),
-        limit: z.number().int().min(1).max(100).default(60),
+        // The page's "Load more" grows the limit in 60-item steps — the cap
+        // must comfortably exceed the catalog size (a 100 cap silently broke
+        // the second page: zod rejected limit=120).
+        limit: z.number().int().min(1).max(1000).default(60),
         offset: z.number().int().min(0).default(0),
       }),
     )

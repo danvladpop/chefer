@@ -36,7 +36,7 @@ export default function IngredientsPage() {
     }, 300);
   };
 
-  const { data, isLoading } = trpc.ingredients.list.useQuery(
+  const { data, isLoading, isFetching } = trpc.ingredients.list.useQuery(
     {
       search: debouncedSearch || undefined,
       mineOnly: tab === 'mine',
@@ -212,9 +212,13 @@ export default function IngredientsPage() {
             <div className="mt-6 flex justify-center">
               <button
                 onClick={() => setLimit((l) => l + PAGE_SIZE)}
-                className="rounded-xl border bg-white px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                disabled={isFetching}
+                className="flex items-center gap-2 rounded-xl border bg-white px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
               >
-                Load more
+                {isFetching && (
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-[#944a00]" />
+                )}
+                {isFetching ? 'Loading…' : 'Load more'}
               </button>
             </div>
           )}

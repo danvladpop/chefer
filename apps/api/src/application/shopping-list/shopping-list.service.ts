@@ -334,17 +334,26 @@ export class ShoppingListService {
     ];
     const recipes = await mealPlanRepository.findRecipesByIds(uniqueIds);
 
-    // Collect all raw ingredients (unmerged — let AI consolidate)
-    const rawIngredients: { name: string; quantity: number; unit: string }[] = [];
+    // Pre-merge exact name+unit duplicates before the AI call — the model only
+    // needs to do the *hard* consolidation (unit conversion, name variants).
+    // This roughly halves the prompt and speeds the call up noticeably.
+    const preMerged = new Map<string, { name: string; quantity: number; unit: string }>();
     for (const day of targetPlan.days) {
       for (const slot of day.meals as MealSlotJson[]) {
         const recipe = recipes.find((r) => r.id === slot.recipeId);
         if (!recipe) continue;
         for (const ing of recipe.ingredients as unknown as Ingredient[]) {
-          rawIngredients.push({ name: ing.name, quantity: ing.quantity, unit: ing.unit });
+          const key = `${ing.name.toLowerCase().trim()}|${ing.unit.toLowerCase().trim()}`;
+          const existing = preMerged.get(key);
+          if (existing) {
+            existing.quantity += ing.quantity;
+          } else {
+            preMerged.set(key, { name: ing.name, quantity: ing.quantity, unit: ing.unit });
+          }
         }
       }
     }
+    const rawIngredients = [...preMerged.values()];
 
     const weekLabel = `${weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${weekEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
@@ -363,7 +372,8 @@ export class ShoppingListService {
       ingredientName: item.ingredientName,
       quantity: item.quantity,
       unit: item.unit,
-      category: item.category,
+      // The AI no longer categorises (saves output tokens) — infer locally
+      category: item.category ?? inferCategory(item.ingredientName),
       recipeNames: [] as string[],
     }));
 
