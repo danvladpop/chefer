@@ -95,7 +95,8 @@ services:
     environment:
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
     volumes:
-      - ./infrastructure/docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      # ':ro,Z' relabels for SELinux hosts (Oracle Linux); harmless elsewhere
+      - ./infrastructure/docker/Caddyfile:/etc/caddy/Caddyfile:ro,Z
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
