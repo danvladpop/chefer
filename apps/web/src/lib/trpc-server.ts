@@ -2,9 +2,11 @@ import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import superjson from 'superjson';
 import type { AppRouter } from '@chefer/api';
 
-const API_URL = process.env['NEXT_PUBLIC_API_URL']
-  ? `${process.env['NEXT_PUBLIC_API_URL']}/trpc`
-  : 'http://localhost:3001/trpc';
+// Server-only: prefer the internal Docker network URL so RSC calls stay on the
+// private network in production; fall back to the public URL, then localhost.
+const API_URL = `${
+  process.env['API_INTERNAL_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
+}/trpc`;
 
 export const serverClient = createTRPCClient<AppRouter>({
   links: [

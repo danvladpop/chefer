@@ -14,6 +14,10 @@ import { recipeImageWorker } from './workers/recipe-image.worker.js';
 
 const app = express();
 
+// Behind a reverse proxy (Caddy/Cloudflare) in production — trust X-Forwarded-*
+// so client IP and protocol are read correctly.
+app.set('trust proxy', 1);
+
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
 app.use(

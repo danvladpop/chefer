@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-
 import { TRPCProvider } from '@/lib/trpc-provider';
 import './globals.css';
 
@@ -15,6 +14,11 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
   display: 'swap',
 });
+
+// The app is fully authenticated and data-driven — render every route
+// dynamically. This also avoids static-prerender pitfalls (useSearchParams /
+// cookies) during `next build`.
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: {
@@ -74,9 +78,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background font-sans antialiased`}
       >
         <TRPCProvider>
-          <div className="relative flex min-h-screen flex-col">
-            {children}
-          </div>
+          <div className="relative flex min-h-screen flex-col">{children}</div>
         </TRPCProvider>
       </body>
     </html>

@@ -1,12 +1,18 @@
+# API image — runs the TypeScript source directly with tsx (same as dev).
+#
+# Why tsx and not a tsc build: the monorepo resolves @chefer/* workspace packages
+# as SOURCE (their package exports point at src/*.ts), so a project-wide `tsc`
+# emit isn't set up (rootDir/paths conflicts). tsx transpiles on load and
+# resolves the workspace source exactly like `pnpm dev`. Type safety is enforced
+# separately via `pnpm typecheck`.
+
 # ─── Stage 1: Dependencies ────────────────────────────────────────────────────
 FROM node:20-alpine AS deps
 
-# Install pnpm
 RUN corepack enable && corepack prepare pnpm@9 --activate
-
 WORKDIR /app
 
-# Copy workspace manifests first for better layer caching
+# The API depends on these workspace packages (source):
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/config/tsconfig/package.json ./packages/config/tsconfig/
 COPY packages/types/package.json ./packages/types/
@@ -14,105 +20,48 @@ COPY packages/utils/package.json ./packages/utils/
 COPY packages/database/package.json ./packages/database/
 COPY apps/api/package.json ./apps/api/
 
-# Install all dependencies (including dev for build)
+# Full install (includes tsx, which the runtime uses)
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# ─── Stage 2: Builder ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# ─── Stage 2: Runner ──────────────────────────────────────────────────────────
+FROM node:20-alpine AS runner
 
-RUN corepack enable && corepack prepare pnpm@9 --activate
-
+RUN apk add --no-cache dumb-init curl
 WORKDIR /app
 
-# Copy dependencies
+ENV NODE_ENV=production
+ENV PORT=3001
+ENV HOST=0.0.0.0
+
+# node_modules (root + per-package)
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/config/tsconfig/node_modules ./packages/config/tsconfig/node_modules
 COPY --from=deps /app/packages/types/node_modules ./packages/types/node_modules
 COPY --from=deps /app/packages/utils/node_modules ./packages/utils/node_modules
 COPY --from=deps /app/packages/database/node_modules ./packages/database/node_modules
 COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 
-# Copy source files
-COPY turbo.json ./
+# Source
 COPY packages/config/tsconfig ./packages/config/tsconfig
 COPY packages/types ./packages/types
 COPY packages/utils ./packages/utils
 COPY packages/database ./packages/database
 COPY apps/api ./apps/api
 
-ENV NODE_ENV=production
-
-# Generate Prisma client
+# Generate the Prisma client (binaryTargets includes linux-musl-arm64 for ARM VMs)
 RUN cd packages/database && npx prisma generate
 
-# Build TypeScript
-RUN pnpm --filter @chefer/api build
-
-# ─── Stage 3: Production Dependencies ────────────────────────────────────────
-FROM node:20-alpine AS prod-deps
-
-RUN corepack enable && corepack prepare pnpm@9 --activate
-
-WORKDIR /app
-
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
-COPY packages/config/tsconfig/package.json ./packages/config/tsconfig/
-COPY packages/types/package.json ./packages/types/
-COPY packages/utils/package.json ./packages/utils/
-COPY packages/database/package.json ./packages/database/
-COPY apps/api/package.json ./apps/api/
-
-# Install only production dependencies
-RUN pnpm install --frozen-lockfile --prod --ignore-scripts
-
-# ─── Stage 4: Runner ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
-
-WORKDIR /app
-
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init curl
-
-# Security: run as non-root user
+# Non-root
 RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 apiuser
-
-ENV NODE_ENV=production
-ENV PORT=3001
-ENV HOST=0.0.0.0
-
-# Copy production node_modules
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=prod-deps /app/packages/types/node_modules ./packages/types/node_modules
-COPY --from=prod-deps /app/packages/utils/node_modules ./packages/utils/node_modules
-COPY --from=prod-deps /app/packages/database/node_modules ./packages/database/node_modules
-COPY --from=prod-deps /app/apps/api/node_modules ./apps/api/node_modules
-
-# Copy built artifacts
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/packages/types/src ./packages/types/src
-COPY --from=builder /app/packages/utils/src ./packages/utils/src
-COPY --from=builder /app/packages/database/src ./packages/database/src
-
-# Copy Prisma schema and generated client
-COPY --from=builder /app/packages/database/prisma ./packages/database/prisma
-COPY --from=builder /app/packages/database/node_modules/.prisma ./packages/database/node_modules/.prisma
-
-# Copy package.json files for module resolution
-COPY --from=builder /app/packages/types/package.json ./packages/types/
-COPY --from=builder /app/packages/utils/package.json ./packages/utils/
-COPY --from=builder /app/packages/database/package.json ./packages/database/
-COPY --from=builder /app/apps/api/package.json ./apps/api/
-
-RUN chown -R apiuser:nodejs /app
-
+    adduser --system --uid 1001 apiuser && \
+    chown -R apiuser:nodejs /app
 USER apiuser
 
 EXPOSE 3001
 
-# Health check using curl (installed above)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=45s --retries=3 \
   CMD curl -f http://localhost:3001/health || exit 1
 
+# tsx runs the TS entrypoint; workspace @chefer/* imports resolve to source.
+# tsx bin lives in the api package's node_modules (pnpm doesn't hoist it to root).
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "apps/api/dist/index.js"]
+CMD ["apps/api/node_modules/.bin/tsx", "apps/api/src/index.ts"]

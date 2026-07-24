@@ -674,7 +674,7 @@ export class MealPlanService {
           fat = 0;
         for (const recipe of dayMeals) {
           if (!recipe) continue;
-          const n = recipe.nutritionInfo as NutritionInfo;
+          const n = recipe.nutritionInfo as unknown as NutritionInfo;
           kcal += n.calories ?? 0;
           protein += n.protein ?? 0;
           carbs += n.carbs ?? 0;
@@ -767,7 +767,7 @@ export class MealPlanService {
     const merged = new Map<string, { quantity: number; unit: string; category: string }>();
 
     for (const recipe of recipes) {
-      const ingredients = recipe.ingredients as Ingredient[];
+      const ingredients = recipe.ingredients as unknown as Ingredient[];
       for (const ing of ingredients) {
         const key = ing.name.toLowerCase().trim();
         const existing = merged.get(key);

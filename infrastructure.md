@@ -819,18 +819,30 @@ Start tools: `docker compose --profile tools up -d`
 
 ### Production Dockerfiles
 
-**`Dockerfile.api`** — 4-stage multi-stage build:
+**`Dockerfile.api`** — runs the API via **`tsx`** (the monorepo resolves `@chefer/*` as
+source, so there is no project-wide `tsc` emit; the container transpiles TS on load exactly
+like `pnpm dev`). Stages: `deps` (install incl. tsx) → `runner` (source + Prisma client with
+the `linux-musl-arm64` engine for ARM VMs, non-root `apiuser`, dumb-init, health check).
 
-1. `deps` — install all deps (frozen lockfile)
-2. `builder` — compile TypeScript, generate Prisma client
-3. `prod-deps` — install production deps only
-4. `runner` — minimal alpine, non-root user `apiuser`, dumb-init, health check
+**`Dockerfile.web`** — 3-stage `next build` (standalone). Includes the `@chefer/api` +
+`@chefer/database` workspace deps (needed for end-to-end tRPC types) and runs `prisma generate`.
 
-**`Dockerfile.web`** — 3-stage:
+### Production deployment (self-hosted, ~$0)
 
-1. `deps` — install deps
-2. `builder` — `next build` (standalone mode)
-3. `runner` — minimal alpine, non-root user `nextjs`, health check
+Deployed as containers on a single always-on VM (Oracle Always Free ARM), single origin behind
+Caddy. See **`docs/plan-deployment.md`** for the full plan. Key files:
+
+- `docker-compose.deploy.yml` (repo root) — `postgres` + `api` + `web` + `caddy` (no Redis/nginx),
+  persistent `pgdata`/`uploads` volumes.
+- `infrastructure/docker/Caddyfile` — TLS + single-origin path routing (`/trpc`, `/api/uploads/*`,
+  `/api/recipe-images/*`, `/uploads/*` → API; rest → web).
+- `.env.production.example` — deploy env template.
+- `infrastructure/scripts/{deploy,restore-dump,backup-db,duckdns-update}.sh`.
+
+Ingress is single-origin, so there is no CORS or cross-subdomain cookie. SSR calls the API on the
+internal Docker network via `API_INTERNAL_URL`. The app forces dynamic rendering
+(`app/layout.tsx`) and the prod build sets `typescript.ignoreBuildErrors` (pre-existing
+cross-package type debt; `pnpm typecheck` still enforces it).
 
 ---
 

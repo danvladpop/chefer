@@ -1,11 +1,10 @@
 'use client';
 
-import { QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { httpBatchLink, loggerLink } from '@trpc/client';
 import superjson from 'superjson';
-
-import { trpc, makeQueryClient } from './trpc';
+import { makeQueryClient, trpc } from './trpc';
 
 let browserQueryClient: ReturnType<typeof makeQueryClient> | undefined;
 
@@ -24,13 +23,13 @@ function getTrpcUrl(): string {
   if (typeof window !== 'undefined') {
     return '/trpc';
   }
-  // On the server (SSR), call the API directly.
-  if (process.env['VERCEL_URL']) {
-    return `https://${process.env['VERCEL_URL']}/trpc`;
-  }
-  return process.env['NEXT_PUBLIC_API_URL']
-    ? `${process.env['NEXT_PUBLIC_API_URL']}/trpc`
-    : 'http://localhost:3001/trpc';
+  // On the server (SSR), call the API directly. Prefer the internal Docker
+  // network URL (API_INTERNAL_URL) so RSC calls don't round-trip the public edge.
+  const base =
+    process.env['API_INTERNAL_URL'] ??
+    process.env['NEXT_PUBLIC_API_URL'] ??
+    'http://localhost:3001';
+  return `${base}/trpc`;
 }
 
 /**

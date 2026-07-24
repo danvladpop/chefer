@@ -75,7 +75,9 @@ uploadsRouter.post(
     await mkdir(UPLOADS_DIR, { recursive: true });
     await writeFile(path.join(UPLOADS_DIR, filename), body);
 
-    // Absolute URL so the web app (different origin) can render it directly
+    // Absolute URL built from the (proxy-aware) request origin. With
+    // `trust proxy` + Caddy forwarding Host/X-Forwarded-Proto this yields the
+    // public https URL in prod and the direct localhost URL in dev.
     const url = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
     res.status(201).json({ url });
   },

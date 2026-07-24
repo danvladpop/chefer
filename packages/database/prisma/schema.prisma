@@ -3,6 +3,9 @@
 
 generator client {
   provider = "prisma-client-js"
+  // "native" for local dev; the musl-arm64 engine is required for the
+  // production image (Alpine + Oracle Cloud Ampere/ARM64 VM).
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
 }
 
 datasource db {

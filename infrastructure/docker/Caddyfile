@@ -1,0 +1,38 @@
+# Caddy reverse proxy for the single-origin Chefer deployment.
+# Terminates TLS automatically via Let's Encrypt for ${PUBLIC_DOMAIN}
+# (e.g. chefer.duckdns.org) and path-routes to the two app containers.
+#
+#   /trpc/*, /api/uploads/*, /api/recipe-images/*, /uploads/*  -> api:3001
+#   everything else (pages, /api/health, /api/chat, static)     -> web:3000
+#
+# The api and web hostnames resolve over the compose network.
+
+{$PUBLIC_DOMAIN} {
+	encode gzip
+
+	# tRPC API
+	@trpc path /trpc/*
+	handle @trpc {
+		reverse_proxy api:3001
+	}
+
+	# Backend-only API paths (uploads endpoint + SSE image stream)
+	@apiBackend path /api/uploads/* /api/recipe-images/*
+	handle @apiBackend {
+		reverse_proxy api:3001 {
+			# SSE: don't buffer the image-status stream
+			flush_interval -1
+		}
+	}
+
+	# Uploaded files served statically by the API
+	@uploads path /uploads/*
+	handle @uploads {
+		reverse_proxy api:3001
+	}
+
+	# Everything else -> Next.js web (pages, /api/health, /api/chat, assets)
+	handle {
+		reverse_proxy web:3000
+	}
+}
