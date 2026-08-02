@@ -848,24 +848,42 @@ cross-package type debt; `pnpm typecheck` still enforces it).
 
 ## 13. CI/CD
 
-### `ci.yml` — Runs on push/PR to `main` and `develop`
+### `ci.yml` — lint / typecheck / test on push & PR
 
-| Step           | Description                                            |
-| -------------- | ------------------------------------------------------ |
-| Lint           | ESLint + Prettier check                                |
-| Typecheck      | `tsc --noEmit` all packages                            |
-| Test           | Vitest + Codecov coverage upload                       |
-| Build          | Turborepo build with cache                             |
-| E2E (PRs only) | Playwright against a live PostgreSQL service container |
+### `deploy.yml` — one-button production deploy
 
-### `deploy.yml` — Runs on push to `main`
+Triggered by **Actions → Deploy → Run workflow**, `gh workflow run deploy.yml`, or any push to
+`master` that touches code (`**.md` and `docs/**` are ignored).
 
-| Step         | Description                                                              |
-| ------------ | ------------------------------------------------------------------------ |
-| docker-build | Build & push images to GHCR (`ghcr.io/<owner>/chefer-web`, `chefer-api`) |
-| migrate      | `prisma migrate deploy` (requires `DATABASE_URL` secret)                 |
-| deploy       | Placeholder — SSH / kubectl / ECS deploy                                 |
-| smoke-test   | Polls `/health` endpoint after deploy                                    |
+```
+setup (resolve tag)
+  └─ build (matrix: api + web, in parallel)      GitHub runner, buildx + GHA layer cache
+        push → ghcr.io/<owner>/chefer-{api,web}:latest and :sha-<short>
+  └─ deploy (ssh to the VM)                      TAG=<tag> ./infrastructure/scripts/deploy.sh
+        git pull → docker compose pull → up -d --no-build → prune
+  └─ verify                                      polls <DEPLOYMENT_URL>/api/health, fails if unhealthy
+```
+
+**Why images are built in CI:** the production VM is 1 OCPU / 1 GB, where `next build` takes
+15–40 minutes. A runner does it in ~4–6 min cold, ~1–3 min with the layer cache, and the VM only
+pulls. `infrastructure/scripts/deploy-local-build.sh` keeps the build-on-VM path as a fallback.
+
+**Rollback:** Run workflow with `tag = sha-<short>` of a previous build (skips the build jobs).
+
+**Required repo configuration**
+
+| Kind     | Name                                          | Value                                          |
+| -------- | --------------------------------------------- | ---------------------------------------------- |
+| Secret   | `DEPLOY_HOST`                                 | VM public IP                                   |
+| Secret   | `DEPLOY_USER`                                 | `ubuntu`                                       |
+| Secret   | `DEPLOY_SSH_KEY`                              | private half of a **dedicated** deploy keypair |
+| Variable | `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_APP_URL` | `https://chefer.duckdns.org`                   |
+| Variable | `NEXT_PUBLIC_APP_NAME`                        | `Chefer`                                       |
+| Variable | `DEPLOYMENT_URL`                              | `https://chefer.duckdns.org`                   |
+
+`NEXT_PUBLIC_*` are baked into the web bundle at build time — changing them requires a rebuild
+(updating `.env.production` on the VM alone has no effect on the client bundle). Application
+secrets never enter CI: `.env.production` lives only on the VM.
 
 ---
 

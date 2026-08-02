@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# One-command (re)deploy — run on the VM after the one-time Phase 0 setup.
-#   ./infrastructure/scripts/deploy.sh
+# Pull-based deploy — images are built in GitHub Actions and pulled from GHCR.
+# This is what CI runs over SSH, and what you can run by hand on the VM:
+#   ./infrastructure/scripts/deploy.sh            # deploy :latest
+#   TAG=sha-abc1234 ./infrastructure/scripts/deploy.sh   # roll back to a build
+#
+# Building on this VM is slow (1 GB RAM). If you ever need it (e.g. GitHub is
+# down), use ./infrastructure/scripts/deploy-local-build.sh instead.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."   # repo root
@@ -10,21 +15,19 @@ if [ ! -f .env.production ]; then
   exit 1
 fi
 
+export TAG="${TAG:-latest}"
 COMPOSE="docker compose --env-file .env.production -f docker-compose.deploy.yml"
 
-echo "==> Pulling latest code"
+echo "==> Updating repo (compose file, Caddyfile, scripts)"
 git pull --ff-only
 
-# Build one image at a time. Compose builds in parallel by default, which
-# exhausts RAM on small (1 GB) VMs — sequential builds keep peak memory low.
-echo "==> Building api image"
-$COMPOSE build api
-
-echo "==> Building web image (slow on small VMs)"
-$COMPOSE build web
+echo "==> Pulling images (TAG=$TAG)"
+$COMPOSE pull
 
 echo "==> Starting containers"
-$COMPOSE up -d
+# --no-build: never build on this box; the migrate service applies the schema
+# before api starts.
+$COMPOSE up -d --no-build
 
 echo "==> Pruning dangling images"
 docker image prune -f >/dev/null
@@ -32,6 +35,3 @@ docker image prune -f >/dev/null
 echo "==> Status"
 $COMPOSE ps
 echo "Done → https://$(grep -E '^PUBLIC_DOMAIN=' .env.production | cut -d= -f2)"
-
-# Schema changes are applied automatically: the one-shot `migrate` service runs
-# `prisma db push` after postgres is healthy and before the api starts.

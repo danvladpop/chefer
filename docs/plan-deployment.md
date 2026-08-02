@@ -30,9 +30,12 @@ uploads all run natively on the always-on VM (no refactor).
 - `.env.production.example` — every var you need.
 - `infrastructure/scripts/` — `deploy.sh` (one-command redeploy), `restore-dump.sh` (local dump → VM), `backup-db.sh` (nightly), `duckdns-update.sh`.
 
-**Future deploys are one command:** on the VM, `./infrastructure/scripts/deploy.sh`
-(`git pull` + `docker compose up -d --build`). Optionally wire a GitHub Action later to SSH in
-and run it on push. Phase 0 below is **one-time**.
+**Future deploys are one button.** Superseded by [`plan-cicd.md`](./plan-cicd.md), now implemented:
+images are built in GitHub Actions and pushed to GHCR, and the VM only pulls them
+(`infrastructure/scripts/deploy.sh` = `git pull` → `compose pull` → `up -d --no-build`). Deploy via
+**Actions → Deploy → Run workflow**, `gh workflow run deploy.yml`, or any code push to `master`;
+roll back by running the workflow with `tag = sha-<short>`. Building on the VM still exists as a
+fallback (`deploy-local-build.sh`). Phase 0 below is **one-time**.
 
 ---
 

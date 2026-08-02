@@ -33,10 +33,12 @@ services:
   # deploy (idempotent), so schema changes ship automatically. Reuses the API
   # image, which has the Prisma CLI available.
   migrate:
+    # Images are built in CI and pulled from GHCR. The build: block stays as an
+    # emergency fallback (infrastructure/scripts/deploy-local-build.sh).
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.api
-    image: chefer-api:latest
+    image: ghcr.io/danvladpop/chefer-api:${TAG:-latest}
     container_name: chefer-migrate
     restart: 'no'
     env_file:
@@ -52,7 +54,7 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.api
-    image: chefer-api:latest
+    image: ghcr.io/danvladpop/chefer-api:${TAG:-latest}
     container_name: chefer-api
     restart: always
     env_file:
@@ -85,7 +87,7 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
         NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME}
-    image: chefer-web:latest
+    image: ghcr.io/danvladpop/chefer-web:${TAG:-latest}
     container_name: chefer-web
     restart: always
     environment:
