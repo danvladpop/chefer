@@ -109,6 +109,25 @@ jobs:
       (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
+      # Without this, missing secrets produce ssh's usage dump, which reads like
+      # a workflow bug rather than "you haven't configured the repo yet".
+      - name: Check deploy secrets are configured
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          missing=()
+          [ -n "$DEPLOY_HOST" ]    || missing+=(DEPLOY_HOST)
+          [ -n "$DEPLOY_USER" ]    || missing+=(DEPLOY_USER)
+          [ -n "$DEPLOY_SSH_KEY" ] || missing+=(DEPLOY_SSH_KEY)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repo secret(s): ${missing[*]}"
+            echo "Add them under Settings → Secrets and variables → Actions → Secrets."
+            echo "The images for this commit were still built and pushed to GHCR."
+            exit 1
+          fi
+
       # Plain ssh rather than a third-party action: no extra dependency to pin
       # or trust with the deploy key.
       - name: Deploy over SSH
