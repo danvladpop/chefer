@@ -374,6 +374,9 @@ export default function DashboardPage() {
             </p>
           )}
         </div>
+
+        {/* Sign-off */}
+        <p className="pb-2 text-center text-xs italic text-gray-400">You&apos;ve got this, chef.</p>
       </div>
 
       {/* ── Right column — Nutrition Panel ──────────────────────────────────── */}
