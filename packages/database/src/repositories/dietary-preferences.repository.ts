@@ -1,5 +1,5 @@
 import type { DietaryPreferences, Prisma } from '@prisma/client';
-import { prisma } from '../client.js';
+import { prisma } from '../client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import type { FavouriteRecipe, Recipe } from '@prisma/client';
 import { RecipeSource } from '@prisma/client';
-import { prisma } from '../client.js';
+import { prisma } from '../client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

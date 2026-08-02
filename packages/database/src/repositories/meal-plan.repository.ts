@@ -1,6 +1,6 @@
 import type { MealPlan, MealPlanDay, Prisma, Recipe } from '@prisma/client';
 import { MealPlanStatus } from '@prisma/client';
-import { prisma } from '../client.js';
+import { prisma } from '../client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

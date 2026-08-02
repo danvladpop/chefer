@@ -1,6 +1,12 @@
 {
   "extends": "@chefer/tsconfig/node.json",
   "compilerOptions": {
+    // Bundler resolution accepts both extensionless imports (used by the
+    // source-consumed @chefer/* workspace packages) and the .js specifiers
+    // used in this app's own source. The API runs via tsx, which resolves
+    // both the same way — NodeNext would reject the former.
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "rootDir": "src",
     "outDir": "dist",
     "baseUrl": ".",

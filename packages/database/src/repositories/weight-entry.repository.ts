@@ -1,5 +1,5 @@
 import type { WeightEntry } from '@prisma/client';
-import { prisma } from '../client.js';
+import { prisma } from '../client';
 
 export interface CreateWeightEntryData {
   userId: string;

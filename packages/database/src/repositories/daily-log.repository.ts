@@ -1,5 +1,5 @@
 import type { DailyLog, Prisma } from '@prisma/client';
-import { prisma } from '../client.js';
+import { prisma } from '../client';
 
 export interface LoggedMealEntry {
   recipeId: string;

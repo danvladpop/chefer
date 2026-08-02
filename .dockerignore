@@ -19,6 +19,14 @@ dist
 out
 build
 
+# Stale compiled artifacts inside package sources. These are gitignored, so a
+# fresh clone (i.e. the deploy VM) never has them — letting them into the build
+# context makes local builds succeed while the server build fails.
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts.map
+
 # Cache
 .turbo
 **/.turbo

@@ -1,6 +1,13 @@
 {
   "extends": "@chefer/tsconfig/node.json",
   "compilerOptions": {
+    // This package is consumed as SOURCE (its exports point at src/*.ts) by
+    // both the API (tsx) and the web app (Next/Turbopack). NodeNext would
+    // require explicit .js extensions on relative imports, which Turbopack
+    // cannot resolve against .ts files — so use bundler resolution, matching
+    // the repo convention of extensionless imports (see CLAUDE.md).
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "rootDir": "src",
     "baseUrl": ".",
     "outDir": "dist",

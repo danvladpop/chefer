@@ -1,4 +1,4 @@
-export { prisma, type PrismaClient } from './client.js';
+export { prisma, type PrismaClient } from './client';
 export {
   UserRepository,
   userRepository,
@@ -38,7 +38,7 @@ export {
   weightEntryRepository,
   type IWeightEntryRepository,
   type CreateWeightEntryData,
-} from './repositories/index.js';
+} from './repositories/index';
 
 // Re-export Prisma types for convenience
 export type {
