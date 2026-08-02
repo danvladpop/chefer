@@ -29,6 +29,25 @@ services:
     networks:
       - chefer
 
+  # One-shot: applies the Prisma schema before the API starts. Runs on every
+  # deploy (idempotent), so schema changes ship automatically. Reuses the API
+  # image, which has the Prisma CLI available.
+  migrate:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.api
+    image: chefer-api:latest
+    container_name: chefer-migrate
+    restart: 'no'
+    env_file:
+      - .env.production
+    command: sh -c "cd packages/database && npx prisma db push --skip-generate"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - chefer
+
   api:
     build:
       context: .
@@ -45,6 +64,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - uploads:/app/uploads
     healthcheck:

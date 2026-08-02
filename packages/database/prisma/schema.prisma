@@ -3,9 +3,11 @@
 
 generator client {
   provider = "prisma-client-js"
-  // "native" for local dev; the musl-arm64 engine is required for the
-  // production image (Alpine + Oracle Cloud Ampere/ARM64 VM).
-  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+  // "native" for local dev. The production image is Alpine (musl) with
+  // OpenSSL 3 — "native" alone resolves to the OpenSSL 1.1 musl engine there
+  // and fails at runtime with `libssl.so.1.1: No such file`. Both musl
+  // OpenSSL-3 engines are listed so the image works on x86_64 and ARM64 VMs.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
 }
 
 datasource db {

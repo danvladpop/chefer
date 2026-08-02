@@ -33,7 +33,5 @@ echo "==> Status"
 $COMPOSE ps
 echo "Done → https://$(grep -E '^PUBLIC_DOMAIN=' .env.production | cut -d= -f2)"
 
-# NOTE: if you changed the Prisma schema, sync the prod DB once after deploy:
-#   docker run --rm --network chefer -e DATABASE_URL="$(grep -E '^DATABASE_URL=' .env.production | cut -d= -f2-)" \
-#     -v "$PWD/packages/database:/db" -w /db node:20-alpine \
-#     sh -c 'corepack enable && npx prisma db push --skip-generate'
+# Schema changes are applied automatically: the one-shot `migrate` service runs
+# `prisma db push` after postgres is healthy and before the api starts.

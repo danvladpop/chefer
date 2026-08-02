@@ -30,13 +30,20 @@ export class RecipeImageWorker {
   async start(): Promise<void> {
     if (this.timer) return;
 
-    // Recover any recipes left stuck in GENERATING from a previous crash
-    const recovered = await prisma.recipe.updateMany({
-      where: { imageStatus: ImageStatus.GENERATING },
-      data: { imageStatus: ImageStatus.PENDING },
-    });
-    if (recovered.count > 0) {
-      console.log(`[RecipeImageWorker] recovered ${recovered.count} stuck GENERATING recipes`);
+    // Recover any recipes left stuck in GENERATING from a previous crash.
+    // Never let a DB hiccup here take down the API process: the server may boot
+    // before the database is reachable/migrated (fresh deploy), and the global
+    // unhandledRejection handler exits the process.
+    try {
+      const recovered = await prisma.recipe.updateMany({
+        where: { imageStatus: ImageStatus.GENERATING },
+        data: { imageStatus: ImageStatus.PENDING },
+      });
+      if (recovered.count > 0) {
+        console.log(`[RecipeImageWorker] recovered ${recovered.count} stuck GENERATING recipes`);
+      }
+    } catch (err) {
+      console.warn('[RecipeImageWorker] startup recovery skipped (database not ready):', err);
     }
 
     console.log(`[RecipeImageWorker] started (concurrency ${CONCURRENCY})`);

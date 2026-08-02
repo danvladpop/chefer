@@ -1,5 +1,5 @@
 # ─── Stage 1: Dependencies ────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:20-alpine3.20 AS deps
 
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
@@ -21,21 +21,16 @@ COPY apps/web/package.json ./apps/web/
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # ─── Stage 2: Builder ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:20-alpine3.20 AS builder
 
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
 WORKDIR /app
 
-# Dependencies
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/config/tsconfig/node_modules ./packages/config/tsconfig/node_modules
-COPY --from=deps /app/packages/types/node_modules ./packages/types/node_modules
-COPY --from=deps /app/packages/utils/node_modules ./packages/utils/node_modules
-COPY --from=deps /app/packages/ui/node_modules ./packages/ui/node_modules
-COPY --from=deps /app/packages/database/node_modules ./packages/database/node_modules
-COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+# Dependencies — copy the whole installed tree. Enumerating per-package
+# node_modules is brittle: workspace packages with no dependencies (e.g.
+# @chefer/tsconfig) never get a node_modules dir, and the COPY then fails.
+COPY --from=deps /app ./
 
 # Source (include database + api for the tRPC AppRouter type closure)
 COPY turbo.json ./
@@ -65,7 +60,7 @@ RUN cd packages/database && npx prisma generate
 RUN pnpm --filter @chefer/web build
 
 # ─── Stage 3: Runner ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:20-alpine3.20 AS runner
 
 WORKDIR /app
 

@@ -1,0 +1,63 @@
+# Docker only honours .dockerignore at the BUILD CONTEXT ROOT. The compose
+# builds use `context: .` (repo root), so this file is the effective one.
+# Without it the host's node_modules (built for the host OS) get copied into
+# the image and clobber the container's installed dependencies.
+
+# Version control
+.git
+.gitignore
+
+# Dependencies — reinstalled inside the image for the target platform
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+**/dist
+.next
+**/.next
+out
+build
+
+# Cache
+.turbo
+**/.turbo
+.cache
+
+# Testing
+coverage
+playwright-report
+test-results
+
+# Environment files (secrets never enter the image)
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+*.pem
+.vscode
+.idea
+*.sw?
+
+# Docker / CI (not needed inside the image)
+Dockerfile*
+docker-compose*
+.dockerignore
+.github
+
+# Docs
+docs
+*.md
+!README.md
+
+# Runtime data
+apps/api/uploads
