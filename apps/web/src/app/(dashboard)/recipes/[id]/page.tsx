@@ -8,7 +8,8 @@ import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailIma
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { trpc } from '@/lib/trpc';
-import { ArrowLeft, Clock, Flame, Heart, Library, RefreshCw, Search, Users, X } from 'lucide-react';
+import { ArrowLeft, Clock, Flame, Heart, Library, RefreshCw, Search, Users } from 'lucide-react';
+import { Sheet } from '@chefer/ui';
 import { formatQuantity } from '@chefer/utils';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -98,7 +99,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl animate-pulse px-6 py-8">
+      <div className="mx-auto max-w-3xl animate-pulse px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-6 h-4 w-32 rounded bg-gray-200" />
         <div className="mb-6 h-56 w-full rounded-2xl bg-gray-200" />
         <div className="mb-2 h-8 w-2/3 rounded bg-gray-200" />
@@ -112,7 +113,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
   if (isError || !recipe) {
     return (
-      <div className="mx-auto max-w-3xl px-6 py-8 text-center">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center">
         <p className="text-gray-500">Recipe not found.</p>
         <Link href={backHref} className="mt-4 inline-block text-sm text-[#944a00] hover:underline">
           {backLabel}
@@ -125,15 +126,17 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const { nutritionInfo: n } = recipe;
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
       {/* Back link + context label row */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between gap-3">
         <Link
           href={backHref}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
+          className="flex min-h-11 shrink-0 items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {backLabel}
+          {/* Full label plus the context pill overflows a 375px row */}
+          <span className="sm:hidden">Back</span>
+          <span className="hidden sm:inline">{backLabel}</span>
         </Link>
 
         {/* Meal-plan context pill — only when opened from the planner */}
@@ -148,7 +151,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       </div>
 
       {/* Hero image */}
-      <div className="relative mb-6 h-56 w-full overflow-hidden rounded-2xl">
+      <div className="relative mb-6 h-48 w-full overflow-hidden rounded-2xl sm:h-56 lg:h-72">
         <RecipeDetailImage
           recipeId={id}
           recipeName={recipe.name}
@@ -187,13 +190,14 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           <p className="mt-1 text-sm text-gray-500">{recipe.description}</p>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex flex-wrap gap-2">
+        {/* Action buttons — up to three ~110px buttons wrap raggedly on a
+            phone; a two-up grid keeps them even. */}
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           {/* Save button */}
           <button
             onClick={() => toggleFav.mutate({ recipeId: id })}
             disabled={toggleFav.isPending}
-            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium shadow-sm transition-colors ${
+            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium min-h-11 sm:min-h-0 shadow-sm transition-colors ${
               isSaved
                 ? 'border-[#944a00]/30 bg-[#fff3e8] text-[#944a00]'
                 : 'border-gray-200 bg-white text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]'
@@ -248,12 +252,12 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       {/* Stats row */}
       <div className="mb-8 grid grid-cols-3 divide-x rounded-xl border bg-white">
         <Stat
-          icon={<Clock className="h-4 w-4 text-gray-400" />}
+          icon={<Clock className="h-4 w-4 text-gray-500" />}
           label="Total time"
           value={`${totalTime} min`}
         />
         <Stat
-          icon={<Users className="h-4 w-4 text-gray-400" />}
+          icon={<Users className="h-4 w-4 text-gray-500" />}
           label="Servings"
           value={String(selectedServings)}
         />
@@ -278,18 +282,22 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         <section>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-serif text-lg font-semibold text-gray-900">Ingredients</h2>
-            {/* Servings adjuster */}
-            <div className="flex items-center gap-2 rounded-xl border px-2 py-1">
+            {/* Servings adjuster — was 20x20px per button */}
+            <div className="flex items-center gap-1 rounded-xl border px-1">
               <button
                 onClick={() => setServings(Math.max(1, selectedServings - 1))}
-                className="h-5 w-5 rounded-full text-gray-600 hover:bg-gray-100"
+                aria-label="Decrease servings"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
               >
                 −
               </button>
-              <span className="w-8 text-center text-sm font-medium">{selectedServings}</span>
+              <span aria-live="polite" className="w-8 text-center text-sm font-medium tabular-nums">
+                {selectedServings}
+              </span>
               <button
                 onClick={() => setServings(Math.min(8, selectedServings + 1))}
-                className="h-5 w-5 rounded-full text-gray-600 hover:bg-gray-100"
+                aria-label="Increase servings"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
               >
                 +
               </button>
@@ -329,7 +337,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       <div className="mt-8 rounded-2xl border bg-white p-5">
         <h2 className="mb-3 font-serif text-sm font-semibold text-gray-900">
           Nutrition Facts{' '}
-          <span className="text-xs font-normal text-gray-400">per {recipe.servings} servings</span>
+          <span className="text-xs font-normal text-gray-500">per {recipe.servings} servings</span>
         </h2>
         <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <NutritionRow label="Calories" value={`${n.calories} kcal`} />
@@ -448,37 +456,30 @@ function SavedRecipePicker({
   ].filter((r) => r.id !== currentRecipeId);
 
   return (
-    /* Backdrop */
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <Sheet
+      open
+      onClose={onClose}
+      title="Choose a Recipe"
+      description={
+        contextLabel ? (
+          <>
+            Replacing <span className="font-medium text-[#944a00]">{contextLabel}</span>
+          </>
+        ) : undefined
+      }
+      footer={
+        <p className="text-center text-xs text-gray-500">
+          {combined.length > 0
+            ? `${combined.length} recipe${combined.length === 1 ? '' : 's'} · saved & yours`
+            : 'Save or create recipes to use them here'}
+        </p>
+      }
     >
-      {/* Panel */}
-      <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        {/* Header */}
-        <div className="flex items-start justify-between border-b px-5 py-4">
-          <div>
-            <h2 className="font-serif text-base font-semibold text-gray-900">Choose a Recipe</h2>
-            {contextLabel && (
-              <p className="mt-0.5 text-xs text-gray-400">
-                Replacing <span className="font-medium text-[#944a00]">{contextLabel}</span>
-              </p>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
+      <div className="flex h-full flex-col">
         {/* Search */}
-        <div className="border-b px-4 py-3">
+        <div className="border-y px-4 py-3">
           <div className="flex items-center gap-2 rounded-xl border bg-gray-50 px-3 py-2">
-            <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+            <Search className="h-3.5 w-3.5 shrink-0 text-gray-500" />
             <input
               type="text"
               placeholder="Search your recipes…"
@@ -510,7 +511,7 @@ function SavedRecipePicker({
               <p className="text-sm text-gray-500">
                 {search ? 'No recipes match your search.' : 'No recipes in your collection yet.'}
               </p>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-500">
                 Save recipes with ♥ or create your own under My Recipes.
               </p>
             </div>
@@ -521,7 +522,7 @@ function SavedRecipePicker({
                   <button
                     onClick={() => onSelect(r.id)}
                     disabled={isPending}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[#fff3e8] disabled:opacity-60"
+                    className="flex min-h-11 w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[#fff3e8] disabled:opacity-60"
                   >
                     {/* Thumbnail */}
                     <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-gray-100">
@@ -542,7 +543,7 @@ function SavedRecipePicker({
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 text-xs text-gray-400">
+                      <p className="mt-0.5 text-xs text-gray-500">
                         {r.cuisineType} ·{' '}
                         {(r.nutritionInfo as { calories?: number }).calories ?? '—'} kcal
                       </p>
@@ -553,17 +554,8 @@ function SavedRecipePicker({
             </ul>
           )}
         </div>
-
-        {/* Footer */}
-        <div className="border-t px-5 py-3">
-          <p className="text-center text-xs text-gray-400">
-            {combined.length > 0
-              ? `${combined.length} recipe${combined.length === 1 ? '' : 's'} · saved & yours`
-              : 'Save or create recipes to use them here'}
-          </p>
-        </div>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -574,7 +566,7 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
     <div className="flex flex-col items-center gap-1 py-4">
       {icon}
       <span className="text-base font-semibold text-gray-900">{value}</span>
-      <span className="text-[11px] text-gray-400">{label}</span>
+      <span className="text-[11px] text-gray-500">{label}</span>
     </div>
   );
 }
