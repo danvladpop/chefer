@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-
 import { LoginForm } from '@/features/auth/components/login-form';
+import { getSessionUser } from '@/features/auth/lib/session';
 
 export const metadata: Metadata = {
   title: 'Sign In',
@@ -12,8 +11,9 @@ export const metadata: Metadata = {
 };
 
 export default async function LoginPage() {
-  const cookieStore = await cookies();
-  if (cookieStore.get('chefer_session')?.value) {
+  // Validate the session rather than trusting the cookie's presence — a stale
+  // cookie must still land on the form so the user can sign in again.
+  if (await getSessionUser()) {
     redirect('/dashboard');
   }
 
@@ -23,13 +23,13 @@ export default async function LoginPage() {
         {/* Logo / Brand */}
         <div className="text-center">
           <Link href="/" className="inline-flex items-center gap-2 text-2xl font-bold">
-            <span className="text-3xl" aria-hidden="true">🍽️</span>
+            <span className="text-3xl" aria-hidden="true">
+              🍽️
+            </span>
             <span>PersonalChef.ai</span>
           </Link>
           <h1 className="mt-4 text-2xl font-bold tracking-tight">Welcome back</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Sign in to your account to continue
-          </p>
+          <p className="mt-2 text-sm text-muted-foreground">Sign in to your account to continue</p>
         </div>
 
         {/* Login Form Card */}
