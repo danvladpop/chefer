@@ -11,12 +11,15 @@ import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { trpc } from '@/lib/trpc';
 import {
   CheckCircle2,
+  Info,
   Lightbulb,
+  MoreHorizontal,
   Printer,
   RefreshCw,
   ShoppingCart,
   Smartphone,
 } from 'lucide-react';
+import { Sheet } from '@chefer/ui';
 import { formatQuantity } from '@chefer/utils';
 
 const PRINT_STYLES = `
@@ -61,6 +64,7 @@ export default function ShoppingListPage() {
     [],
   );
   const [popupItem, setPopupItem] = useState<{ name: string; imageUrl: string } | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const isPremium = useIsPremium();
   const unitSystem = useUnitSystem();
 
@@ -136,40 +140,79 @@ export default function ShoppingListPage() {
 
       {/* Page header */}
       <div className="mb-4" data-print-hide>
-        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
           THIS WEEK
         </p>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">Shopping List</h1>
-          <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Shopping List</h1>
+
+          {/* Three ~150px buttons do not fit a phone header. Regenerate stays
+              primary; Print and Send-to-Mobile move into an overflow menu —
+              printing from a phone is a rare intent anyway. */}
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             {/* AI consolidation is premium — free users see the upgrade CTA instead */}
             {isPremium !== false ? (
               <button
                 onClick={() => regenerateMutation.mutate({ weekOffset })}
                 disabled={regenerateMutation.isPending || !weekList?.hasPlan}
                 title={!weekList?.hasPlan ? 'Generate a meal plan first' : undefined}
-                className="flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50"
+                className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50 sm:min-h-0 sm:flex-none"
               >
                 <RefreshCw
-                  className={`h-3.5 w-3.5 ${regenerateMutation.isPending ? 'animate-spin' : ''}`}
+                  className={`h-3.5 w-3.5 shrink-0 ${regenerateMutation.isPending ? 'animate-spin' : ''}`}
                 />
-                {regenerateMutation.isPending ? 'Regenerating…' : 'Regenerate shopping list'}
+                <span className="truncate">
+                  {regenerateMutation.isPending ? 'Regenerating…' : 'Regenerate list'}
+                </span>
               </button>
             ) : (
-              <UpgradeButton />
+              <UpgradeButton className="min-h-11 flex-1 sm:min-h-0 sm:flex-none" />
             )}
-            <button
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50"
-            >
-              <Printer className="h-3.5 w-3.5" /> Print
-            </button>
-            <button
-              className="flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50"
-              title="Send to Mobile — coming soon"
-            >
-              <Smartphone className="h-3.5 w-3.5" /> Send to Mobile
-            </button>
+
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setMenuOpen((o) => !o)}
+                aria-label="More list actions"
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-200 text-neutral-600 transition hover:bg-neutral-50 sm:h-9 sm:w-9"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+              {menuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    aria-hidden="true"
+                    onClick={() => setMenuOpen(false)}
+                  />
+                  <div
+                    role="menu"
+                    className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-xl border bg-white py-1 shadow-lg"
+                  >
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        window.print();
+                      }}
+                      className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm text-neutral-700 hover:bg-neutral-50"
+                    >
+                      <Printer className="h-4 w-4 text-neutral-500" /> Print
+                    </button>
+                    <button
+                      role="menuitem"
+                      disabled
+                      title="Coming soon"
+                      className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm text-neutral-500"
+                    >
+                      <Smartphone className="h-4 w-4" /> Send to Mobile
+                      <span className="ml-auto text-[10px] uppercase">Soon</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -250,85 +293,82 @@ export default function ShoppingListPage() {
           )}
           {grouped.map(({ category, label, items: catItems }) => (
             <section key={category}>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">
                 {label} ({catItems.length} item{catItems.length !== 1 ? 's' : ''})
               </h2>
               <div className="space-y-2">
                 {catItems.map((item) => {
                   const isChecked = checkedItems.includes(item.key);
                   const itemImageUrl = item.imageUrl;
+                  const quantityLabel = Number.isFinite(Number(item.quantity))
+                    ? formatQuantity(Number(item.quantity), item.unit, unitSystem)
+                    : `${item.quantity} ${item.unit}`;
                   return (
+                    // Exactly two targets per row. Previously the whole card
+                    // toggled while the thumbnail and name stopped propagation
+                    // to open a popup, so on touch the same tap did different
+                    // things depending on which pixel you hit.
                     <div
                       key={item.key}
-                      onClick={() => toggleItem(item.key)}
-                      className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
+                      className={`flex items-center gap-1 rounded-xl border transition ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
                     >
-                      {/* Thumbnail — click opens detail popup */}
-                      <div
-                        className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPopupItem({ name: item.ingredientName, imageUrl: itemImageUrl });
-                        }}
-                      >
-                        <Image
-                          src={itemImageUrl}
-                          alt={item.ingredientName}
-                          fill
-                          sizes="48px"
-                          className="object-cover"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE;
-                          }}
-                        />
-                      </div>
-
-                      {/* Details */}
-                      <div className="min-w-0 flex-1">
-                        <p
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPopupItem({ name: item.ingredientName, imageUrl: item.imageUrl });
-                          }}
-                          className={`cursor-pointer text-sm font-medium underline-offset-2 hover:underline ${isChecked ? 'line-through text-neutral-400' : 'text-neutral-800'}`}
-                        >
-                          {item.ingredientName}
-                        </p>
-                        <p className="text-xs text-neutral-500">
-                          {Number.isFinite(Number(item.quantity))
-                            ? formatQuantity(Number(item.quantity), item.unit, unitSystem)
-                            : `${item.quantity} ${item.unit}`}
-                        </p>
-                      </div>
-
-                      {/* Estimated price + bought badge */}
-                      <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
-                        {item.estimatedPriceEur != null && (
-                          <span
-                            title="Estimated typical supermarket price"
-                            className="text-sm font-semibold text-neutral-500"
-                          >
-                            <span className="mr-0.5 text-xs font-normal">~</span>€
-                            {item.estimatedPriceEur.toFixed(2)}
-                          </span>
-                        )}
-                        {isChecked && (
-                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500">
-                            ✓ BOUGHT
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Checkbox — stopPropagation so card click doesn't double-toggle */}
+                      {/* Primary target — the whole row toggles bought/not */}
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleItem(item.key);
-                        }}
-                        aria-label={`${item.ingredientName}, ${item.quantity} ${item.unit}`}
-                        className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 transition ${isChecked ? 'border-primary bg-primary' : 'border-neutral-300 hover:border-primary'}`}
+                        type="button"
+                        onClick={() => toggleItem(item.key)}
+                        aria-pressed={isChecked}
+                        className="flex min-h-11 flex-1 items-center gap-3 rounded-xl p-2 text-left sm:p-3"
                       >
-                        {isChecked && <CheckCircle2 className="h-4 w-4 fill-white text-white" />}
+                        <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg">
+                          <Image
+                            src={itemImageUrl}
+                            alt=""
+                            fill
+                            sizes="48px"
+                            className="object-cover"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE;
+                            }}
+                          />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={`truncate text-sm font-medium ${isChecked ? 'text-neutral-500 line-through' : 'text-neutral-800'}`}
+                          >
+                            {item.ingredientName}
+                          </p>
+                          {/* Quantity and price share a line — as separate
+                              columns the name was squeezed to ~150px. */}
+                          <p className="truncate text-xs text-neutral-500">
+                            {quantityLabel}
+                            {item.estimatedPriceEur != null && (
+                              <span className="ml-2 font-medium">
+                                ~€{item.estimatedPriceEur.toFixed(2)}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+
+                        <span
+                          aria-hidden="true"
+                          className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 transition ${isChecked ? 'border-primary bg-primary' : 'border-neutral-300'}`}
+                        >
+                          {isChecked && <CheckCircle2 className="h-4 w-4 fill-white text-white" />}
+                        </span>
+                      </button>
+
+                      {/* Secondary target — ingredient detail */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPopupItem({ name: item.ingredientName, imageUrl: itemImageUrl })
+                        }
+                        aria-label={`Details for ${item.ingredientName}`}
+                        className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-neutral-100 hover:text-neutral-500"
+                        data-print-hide
+                      >
+                        <Info className="h-4 w-4" />
                       </button>
                     </div>
                   );
@@ -354,38 +394,30 @@ export default function ShoppingListPage() {
         </div>
       )}
 
-      {/* Item detail popup */}
-      {popupItem && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setPopupItem(null)}
-        >
-          <div
-            className="flex w-72 flex-col items-center gap-4 rounded-2xl bg-white p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="relative h-48 w-48 overflow-hidden rounded-xl">
+      {/* Item detail — bottom sheet on phones, centred dialog at sm+ */}
+      <Sheet
+        open={popupItem !== null}
+        onClose={() => setPopupItem(null)}
+        title={popupItem?.name ?? ''}
+        size="sm"
+      >
+        <div className="flex flex-col items-center gap-4 px-5 pb-6">
+          <div className="relative aspect-square w-full max-w-[220px] overflow-hidden rounded-xl">
+            {popupItem && (
               <Image
                 src={popupItem.imageUrl}
                 alt={popupItem.name}
                 fill
-                sizes="192px"
+                sizes="220px"
                 className="object-cover"
                 onError={(e) => {
                   (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE;
                 }}
               />
-            </div>
-            <p className="text-center text-base font-semibold text-neutral-800">{popupItem.name}</p>
-            <button
-              onClick={() => setPopupItem(null)}
-              className="text-xs text-neutral-400 hover:text-neutral-600"
-            >
-              Close
-            </button>
+            )}
           </div>
         </div>
-      )}
+      </Sheet>
     </div>
   );
 }

@@ -134,42 +134,46 @@ export default function TrackerPage() {
   const pct = (v: number, t: number) => Math.min(Math.round((v / (t || 1)) * 100), 100);
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
+    <div className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
       {/* Header */}
       <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
           DAILY LOG
         </p>
         <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">Tracker</h1>
       </div>
 
       {/* Date selector */}
-      <div className="mb-6 flex items-center justify-between rounded-2xl border bg-white px-4 py-3 shadow-sm">
+      <div className="mb-6 flex items-center justify-between gap-2 rounded-2xl border bg-white px-2 py-2 shadow-sm sm:px-4 sm:py-3">
         <button
           type="button"
           onClick={() => changeDate(-1)}
-          className="rounded-xl p-1.5 hover:bg-neutral-100"
+          aria-label="Previous day"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl hover:bg-neutral-100"
         >
           <ChevronLeft className="h-5 w-5 text-neutral-500" />
         </button>
-        <div className="text-center">
-          <p className="text-sm font-semibold text-neutral-800">
+        <div className="min-w-0 text-center">
+          <p className="truncate text-sm font-semibold text-neutral-800">
             {isToday ? 'Today' : format(selectedDate, 'EEEE')}
           </p>
-          <p className="text-xs text-neutral-400">{format(selectedDate, 'dd MMMM yyyy')}</p>
+          <p className="truncate text-xs text-neutral-500">
+            {format(selectedDate, 'dd MMMM yyyy')}
+          </p>
         </div>
         <button
           type="button"
           onClick={() => changeDate(1)}
           disabled={isToday}
-          className="rounded-xl p-1.5 hover:bg-neutral-100 disabled:opacity-30"
+          aria-label="Next day"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl hover:bg-neutral-100 disabled:opacity-30"
         >
           <ChevronRight className="h-5 w-5 text-neutral-500" />
         </button>
       </div>
 
       {isFuture && (
-        <div className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-400">
+        <div className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-500">
           Can&apos;t log future meals.
         </div>
       )}
@@ -187,7 +191,7 @@ export default function TrackerPage() {
           {/* Macro summary */}
           <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
                 {isToday ? "Today's Progress" : 'Day Progress'}
               </p>
               <span className="flex items-center gap-1 text-sm font-bold text-neutral-700">
@@ -204,7 +208,7 @@ export default function TrackerPage() {
               <div key={label} className="mb-2">
                 <div className="mb-1 flex justify-between text-xs">
                   <span className="text-neutral-600">{label}</span>
-                  <span className="text-neutral-400">
+                  <span className="text-neutral-500">
                     {Math.round(v)}
                     {unit} / {t}
                     {unit}
@@ -222,7 +226,7 @@ export default function TrackerPage() {
 
           {/* Meal list */}
           {data.plannedMeals.length === 0 ? (
-            <div className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-400">
+            <div className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-500">
               No meals planned for this day.{' '}
               <a href="/meal-plan" className="text-[#944a00] hover:underline">
                 Go to Meal Planner →
@@ -253,9 +257,9 @@ export default function TrackerPage() {
                     </div>
 
                     {/* Details */}
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex min-w-0 flex-1 flex-col gap-2">
                       <div className="flex items-start justify-between gap-2">
-                        <div>
+                        <div className="min-w-0">
                           <span
                             className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                           >
@@ -265,31 +269,45 @@ export default function TrackerPage() {
                             {meal.recipeName}
                           </p>
                         </div>
+                        {/* 24px was the smallest target on the page's primary
+                            action. Visual size holds; the hit area is 44px. */}
                         <button
                           type="button"
                           onClick={() => toggleMeal(meal.recipeId, meal.mealType)}
-                          className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-all ${isChecked ? 'border-[#944a00] bg-[#944a00] text-white' : 'border-neutral-300 text-transparent hover:border-[#944a00]/50'}`}
+                          aria-pressed={isChecked}
+                          className="-m-2.5 flex h-11 w-11 shrink-0 items-center justify-center p-2.5"
                           aria-label={`${isChecked ? 'Uncheck' : 'Check'} ${meal.recipeName}`}
                         >
-                          {isChecked && <span className="text-[10px] font-bold">✓</span>}
+                          <span
+                            aria-hidden="true"
+                            className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all ${isChecked ? 'border-[#944a00] bg-[#944a00] text-white' : 'border-neutral-300 text-transparent'}`}
+                          >
+                            {isChecked && <span className="text-[10px] font-bold">✓</span>}
+                          </span>
                         </button>
                       </div>
 
-                      {/* Portion + kcal */}
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
+                      {/* Portion + kcal — a four-up segmented control that fills
+                          the row, rather than four ~34x20px pills. */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div
+                          role="group"
+                          aria-label={`Portion size for ${meal.recipeName}`}
+                          className="flex flex-1 gap-1 sm:flex-none"
+                        >
                           {PORTION_OPTIONS.map((p) => (
                             <button
                               key={p}
                               type="button"
                               onClick={() => setPortion(meal.recipeId, meal.mealType, p)}
-                              className={`rounded-lg px-2 py-0.5 text-xs font-medium transition-all ${portion === p && isChecked ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'}`}
+                              aria-pressed={portion === p && isChecked}
+                              className={`min-h-9 flex-1 rounded-lg px-2 text-xs font-medium transition-all sm:min-h-0 sm:flex-none sm:py-0.5 ${portion === p && isChecked ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
                             >
                               {PORTION_LABELS[p]}
                             </button>
                           ))}
                         </div>
-                        <span className="text-xs text-neutral-400">{scaledKcal} kcal</span>
+                        <span className="shrink-0 text-xs text-neutral-500">{scaledKcal} kcal</span>
                       </div>
                     </div>
                   </div>
@@ -298,13 +316,14 @@ export default function TrackerPage() {
             </div>
           )}
 
-          {/* Save button */}
+          {/* Save button — sticky just above the mobile tab bar so it stays
+              reachable without scrolling past every meal. */}
           {data.plannedMeals.length > 0 && (
             <button
               type="button"
               onClick={handleSave}
               disabled={loggedMeals.length === 0 || upsertMutation.isPending || savedSuccess}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#944a00] py-3 text-sm font-semibold text-white transition hover:bg-[#7a3d00] disabled:opacity-50"
+              className="sticky bottom-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#944a00] py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-[#7a3d00] disabled:opacity-50 lg:static lg:shadow-none"
             >
               {upsertMutation.isPending ? (
                 'Saving…'
