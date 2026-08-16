@@ -110,7 +110,7 @@ export function Sheet({
         )}
 
         {/* Body — the only scrollable region; overscroll-contain stops the
-            scroll from chaining to the (locked) page behind. */}
+            scroll from chaining to the locked page behind. */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
 
         {footer && <div className="shrink-0 border-t px-5 py-3">{footer}</div>}

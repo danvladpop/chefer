@@ -104,9 +104,11 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
             { label: 'Fat', v: n.fat.planned, t: n.fat.targetG },
           ].map(({ label, v, t }) => (
             <div key={label}>
-              <div className="mb-1 flex justify-between text-xs">
+              {/* gap-2 + whitespace-nowrap: in the 288px rail a three-digit
+                  pair ("135g / 140g") butted straight up against the label. */}
+              <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
                 <span className="font-medium text-gray-700">{label}</span>
-                <span className="text-gray-500">
+                <span className="whitespace-nowrap text-gray-500">
                   {v}g / {t}g
                 </span>
               </div>
