@@ -715,6 +715,20 @@ The `createContext` function in `apps/api/src/interfaces/http/middleware/auth.mi
 1. Reads the session cookie or `Authorization: Bearer <token>` header
 2. Hydrates `ctx.user` (null if unauthenticated)
 
+**Web-side session gating** — the cookie is opaque, so its presence never implies a
+live session (the row may have been deleted or expired):
+
+| Layer                                            | Check                        | Rationale                                                                     |
+| ------------------------------------------------ | ---------------------------- | ----------------------------------------------------------------------------- |
+| `apps/web/src/middleware.ts`                     | Cookie **presence** only     | Cheap edge gate on protected routes; deliberately does not call the API       |
+| `getSessionUser()` (`features/auth/lib/session`) | Validates via `auth.me`      | Used by `/`, `/login`, `/register` before redirecting an "authenticated" user |
+| `makeQueryClient()` (`lib/trpc.ts`)              | Redirects to `/login` on 401 | Catches sessions the edge gate let through; covers both queries and mutations |
+
+Server components that branch on "is the user signed in" must call `getSessionUser()`,
+never `cookies().get('chefer_session')` — a presence check bounces a user holding a dead
+cookie from `/login` to `/dashboard`, where every query 401s and the sign-out control is
+hidden, leaving no way back to the login form.
+
 **Roles:**
 
 | Role        | Capabilities                                                                                                     |

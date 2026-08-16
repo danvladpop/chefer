@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-
 import { RegisterForm } from '@/features/auth/components/register-form';
+import { getSessionUser } from '@/features/auth/lib/session';
 
 export const metadata: Metadata = {
   title: 'Create Account',
@@ -12,18 +11,21 @@ export const metadata: Metadata = {
 };
 
 export default async function RegisterPage() {
-  const cookieStore = await cookies();
-  if (cookieStore.get('chefer_session')?.value) {
+  // Validate the session rather than trusting the cookie's presence — see
+  // getSessionUser for why a stale cookie must not bounce to /dashboard.
+  if (await getSessionUser()) {
     redirect('/dashboard');
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
+    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-md space-y-8">
         {/* Logo / Brand */}
         <div className="text-center">
           <Link href="/" className="inline-flex items-center gap-2 text-2xl font-bold">
-            <span className="text-3xl" aria-hidden="true">🍽️</span>
+            <span className="text-3xl" aria-hidden="true">
+              🍽️
+            </span>
             <span>PersonalChef.ai</span>
           </Link>
           <h1 className="mt-4 text-2xl font-bold tracking-tight">Create your account</h1>

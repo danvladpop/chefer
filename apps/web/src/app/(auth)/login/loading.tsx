@@ -1,6 +1,6 @@
 export default function LoginLoading() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
+    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <div className="mx-auto mb-4 h-10 w-32 animate-pulse rounded-lg bg-muted" />

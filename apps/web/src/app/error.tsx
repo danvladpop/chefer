@@ -14,7 +14,7 @@ export default function ErrorPage({ error, reset }: ErrorProps) {
   }, [error]);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
+    <div className="flex min-h-dvh flex-col items-center justify-center px-4 text-center">
       <div className="mb-6 text-6xl">⚠️</div>
       <h1 className="mb-2 text-3xl font-bold tracking-tight">Something went wrong</h1>
       <p className="mb-6 max-w-md text-muted-foreground">

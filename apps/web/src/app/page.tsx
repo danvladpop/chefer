@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { getSessionUser } from '@/features/auth/lib/session';
 
 export const metadata: Metadata = {
   title: 'PersonalChef.ai — Your AI-Powered Meal Planner',
@@ -31,10 +31,9 @@ const FEATURES = [
 ] as const;
 
 export default async function HomePage() {
-  // Redirect authenticated users straight to their dashboard
-  const cookieStore = await cookies();
-  const session = cookieStore.get('chefer_session');
-  if (session?.value) {
+  // Redirect authenticated users straight to their dashboard. Validate the
+  // session — a stale cookie should see the landing page, not an empty dashboard.
+  if (await getSessionUser()) {
     redirect('/dashboard');
   }
 
@@ -108,9 +107,7 @@ export default async function HomePage() {
 
       {/* ── Footer ── */}
       <footer className="border-t px-4 py-8 text-center text-sm text-muted-foreground">
-        <p>
-          &copy; {new Date().getFullYear()} PersonalChef.ai &mdash; All rights reserved.
-        </p>
+        <p>&copy; {new Date().getFullYear()} PersonalChef.ai &mdash; All rights reserved.</p>
       </footer>
     </div>
   );

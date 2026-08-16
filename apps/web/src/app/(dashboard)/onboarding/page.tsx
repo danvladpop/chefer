@@ -13,28 +13,39 @@ export default async function OnboardingPage() {
   const headerStore = await headers();
   const cookieHeader = headerStore.get('cookie') ?? '';
 
+  // Defaults are the fall-through state: if the API call fails (network error,
+  // etc.) we let the wizard render — the worst case is the user goes through
+  // onboarding again (idempotent upsert).
+  let isPremium = true;
+  let hasProfile = false;
+
   try {
     const client = createServerClient(cookieHeader);
 
     const me = await client.user.me.query();
-    const isPremium = me.planTier === 'PREMIUM' || me.role === 'ADMIN';
-    if (!isPremium) {
-      return (
-        <div className="mx-auto max-w-2xl px-4 py-10">
-          <UpgradeCard
-            title="Profile setup is a premium feature"
-            description="Tell the AI chef about your goals, body metrics and dietary needs, and get personalised weekly plans. On the free plan you can generate chef-curated generic plans right away — no setup needed."
-          />
-        </div>
-      );
-    }
+    isPremium = me.planTier === 'PREMIUM' || me.role === 'ADMIN';
 
-    const hasProfile = await client.preferences.hasProfile.query();
-    if (hasProfile) redirect('/dashboard');
+    if (isPremium) {
+      hasProfile = await client.preferences.hasProfile.query();
+    }
   } catch {
-    // If the API call fails (network error, etc.) let the wizard render —
-    // the worst case is the user goes through onboarding again (idempotent upsert).
+    // Swallow API failures and render the wizard (see above). Note that
+    // redirect() must stay outside this block — it signals by throwing a
+    // NEXT_REDIRECT error that a bare catch would silently discard.
   }
+
+  if (!isPremium) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-10">
+        <UpgradeCard
+          title="Profile setup is a premium feature"
+          description="Tell the AI chef about your goals, body metrics and dietary needs, and get personalised weekly plans. On the free plan you can generate chef-curated generic plans right away — no setup needed."
+        />
+      </div>
+    );
+  }
+
+  if (hasProfile) redirect('/dashboard');
 
   return <OnboardingWizard />;
 }

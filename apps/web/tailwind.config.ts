@@ -53,6 +53,13 @@ const config: Config = {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      spacing: {
+        // Height of the mobile bottom tab bar. Page content reserves this much
+        // bottom padding below `lg` so nothing hides behind the bar.
+        nav: '4rem',
+        // Bottom tab bar height + the iOS home-indicator inset.
+        'nav-safe': 'calc(4rem + env(safe-area-inset-bottom))',
+      },
       fontFamily: {
         sans: ['var(--font-geist-sans)', ...fontFamily.sans],
         mono: ['var(--font-geist-mono)', ...fontFamily.mono],
@@ -74,6 +81,18 @@ const config: Config = {
           from: { transform: 'translateX(100%)' },
           to: { transform: 'translateX(0)' },
         },
+        'slide-in-from-left': {
+          from: { transform: 'translateX(-100%)' },
+          to: { transform: 'translateX(0)' },
+        },
+        'slide-in-from-bottom': {
+          from: { transform: 'translateY(100%)' },
+          to: { transform: 'translateY(0)' },
+        },
+        'fade-in-overlay': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
         shimmer: {
           '100%': { transform: 'translateX(100%)' },
         },
@@ -83,6 +102,9 @@ const config: Config = {
         'accordion-up': 'accordion-up 0.2s ease-out',
         'fade-in': 'fade-in 0.3s ease-out',
         'slide-in-from-right': 'slide-in-from-right 0.3s ease-out',
+        'slide-in-from-left': 'slide-in-from-left 0.25s ease-out',
+        'slide-in-from-bottom': 'slide-in-from-bottom 0.25s ease-out',
+        'fade-in-overlay': 'fade-in-overlay 0.2s ease-out',
       },
     },
   },

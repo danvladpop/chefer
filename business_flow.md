@@ -107,6 +107,26 @@ Incoming HTTP request
                     adminProcedure     → requires ctx.user.role === 'ADMIN'
 ```
 
+**How the web app handles an expired or deleted session:**
+
+```
+Browser still holds a chefer_session cookie whose row is gone
+  │
+  ├─ Navigate to /dashboard
+  │     ├─ middleware.ts sees a cookie value → allows the request through
+  │     └─ Client queries fire → API returns UNAUTHORIZED
+  │           └─ QueryCache/MutationCache onError (lib/trpc.ts)
+  │                 └─ window.location.replace('/login?from=…')
+  │
+  └─ Navigate to /, /login or /register
+        └─ getSessionUser() calls auth.me
+              ├─ user  → redirect('/dashboard')
+              └─ null  → render the page (login form is reachable)
+```
+
+The stale cookie is not explicitly cleared — server components cannot modify cookies
+during render. A successful login overwrites it via `Set-Cookie`.
+
 **Role capabilities:**
 
 | Role              | What they can do                                                                          |

@@ -1,5 +1,4 @@
 import { prisma } from '@chefer/database';
-
 import { serverClient } from '../../lib/trpc-server';
 
 export default async function UserPage() {
@@ -7,7 +6,7 @@ export default async function UserPage() {
 
   if (!first) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
+      <main className="flex min-h-dvh items-center justify-center">
         <p className="text-muted-foreground">No user found. Run the seed script first.</p>
       </main>
     );
@@ -16,7 +15,7 @@ export default async function UserPage() {
   const user = await serverClient.user.getById.query({ id: first.id });
 
   return (
-    <main className="flex min-h-screen items-center justify-center">
+    <main className="flex min-h-dvh items-center justify-center">
       <div className="rounded-lg border bg-card p-8 shadow-sm">
         <h1 className="mb-4 text-2xl font-bold">User</h1>
         <dl className="space-y-2 text-sm">

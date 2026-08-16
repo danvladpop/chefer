@@ -4,44 +4,24 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { useIsPremium } from '@/hooks/useIsPremium';
-import {
-  Activity,
-  BookOpen,
-  CalendarDays,
-  Carrot,
-  Clock,
-  LayoutDashboard,
-  Settings,
-  ShoppingCart,
-  Sparkles,
-  TrendingUp,
-  User,
-} from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { cn } from '@chefer/utils';
-
-// ─── Navigation Items ─────────────────────────────────────────────────────────
-
-const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/meal-plan', label: 'Meal Planner', icon: CalendarDays },
-  { href: '/recipes', label: 'Recipes', icon: BookOpen },
-  { href: '/ingredients', label: 'Ingredients', icon: Carrot },
-  { href: '/shopping-list', label: 'Shopping List', icon: ShoppingCart },
-  { href: '/tracker', label: 'Tracker', icon: Activity },
-  { href: '/progress', label: 'Progress', icon: TrendingUp },
-  { href: '/history', label: 'History', icon: Clock },
-  { href: '/profile', label: 'Profile', icon: User },
-  { href: '/preferences', label: 'Preferences', icon: Settings },
-] as const;
+import { isNavItemActive, NAV_ITEMS } from '../nav-items';
 
 // ─── Component ────────────────────────────────────────────────────────────────
+// Desktop-only (lg+) full navigation rail. Below lg the BottomNav and
+// MobileNavDrawer cover the same destinations — all three read NAV_ITEMS.
 
-export function SideBar() {
+interface SideBarProps {
+  className?: string;
+}
+
+export function SideBar({ className }: SideBarProps) {
   const pathname = usePathname();
   const isPremium = useIsPremium();
 
   return (
-    <aside className="flex h-screen w-56 shrink-0 flex-col border-r bg-white">
+    <aside className={cn('flex h-dvh w-56 shrink-0 flex-col border-r bg-white', className)}>
       {/* Logo */}
       <div className="flex h-16 items-center gap-2 border-b px-5">
         <span className="text-xl" aria-hidden="true">
@@ -51,14 +31,15 @@ export function SideBar() {
       </div>
 
       {/* Nav links */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav aria-label="Primary" className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const isActive = pathname === href || pathname.startsWith(`${href}/`);
+            const isActive = isNavItemActive(pathname, href);
             return (
               <li key={href}>
                 <Link
                   href={href}
+                  aria-current={isActive ? 'page' : undefined}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                     isActive
