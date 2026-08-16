@@ -53,21 +53,23 @@ export function ChatWidget() {
 
   return (
     <>
-      {/* FAB */}
+      {/* FAB — sits above the mobile tab bar, back in the corner at lg+ */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#944a00] text-white shadow-lg transition hover:scale-105 hover:bg-[#7a3d00]"
-        aria-label="Open AI Chef chat"
+        className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#944a00] text-white shadow-lg transition hover:scale-105 hover:bg-[#7a3d00] lg:bottom-6 lg:right-6"
+        aria-label={open ? 'Close AI Chef chat' : 'Open AI Chef chat'}
+        aria-expanded={open}
       >
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
       </button>
 
-      {/* Panel */}
+      {/* Panel — full-width bottom sheet on phones (a 320px floating card
+          overflows a 320px screen), floating card from sm up. */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 flex w-80 flex-col rounded-2xl border border-neutral-200 bg-white shadow-2xl sm:w-96">
+        <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-2xl border border-neutral-200 bg-white pb-safe shadow-2xl sm:inset-x-auto sm:bottom-24 sm:right-6 sm:w-96 sm:rounded-2xl sm:pb-0">
           {/* Header */}
-          <div className="flex items-center gap-3 rounded-t-2xl border-b bg-[#944a00] px-4 py-3">
+          <div className="flex shrink-0 items-center gap-3 rounded-t-2xl border-b bg-[#944a00] px-4 py-3">
             <span className="text-xl">🍳</span>
             <div>
               <p className="text-sm font-semibold text-white">Ask Your Chef</p>
@@ -76,14 +78,15 @@ export function ChatWidget() {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="ml-auto text-white/80 hover:text-white"
+              aria-label="Close chat"
+              className="-mr-2 ml-auto flex h-11 w-11 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {/* Messages */}
-          <div className="flex max-h-80 flex-col gap-3 overflow-y-auto p-4">
+          <div className="flex max-h-[55dvh] flex-col gap-3 overflow-y-auto overscroll-contain p-4 sm:max-h-80">
             {messages.length === 0 && (
               <div>
                 <p className="mb-3 text-xs text-neutral-400">Try asking:</p>
@@ -93,7 +96,7 @@ export function ChatWidget() {
                       key={prompt}
                       type="button"
                       onClick={() => sendSuggested(prompt)}
-                      className="rounded-xl border border-neutral-200 px-3 py-2 text-left text-xs text-neutral-600 transition-colors hover:border-[#944a00]/30 hover:bg-[#fff8f0]"
+                      className="rounded-xl border border-neutral-200 px-3 py-2.5 text-left text-sm text-neutral-600 transition-colors hover:border-[#944a00]/30 hover:bg-[#fff8f0] sm:text-xs"
                     >
                       {prompt}
                     </button>
@@ -140,20 +143,21 @@ export function ChatWidget() {
           </div>
 
           {/* Input */}
-          <div className="flex gap-2 border-t p-3">
+          <div className="flex shrink-0 gap-2 border-t p-3">
             <input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask your chef anything…"
               disabled={isLoading}
-              className="flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-sm focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00] disabled:opacity-50"
+              className="min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00] disabled:opacity-50 sm:text-sm"
             />
             <button
               type="button"
               onClick={handleSend}
               disabled={!inputValue.trim() || isLoading}
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#944a00] text-white transition hover:bg-[#7a3d00] disabled:opacity-40"
+              aria-label="Send message"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#944a00] text-white transition hover:bg-[#7a3d00] disabled:opacity-40 sm:h-9 sm:w-9"
             >
               <Send className="h-4 w-4" />
             </button>
