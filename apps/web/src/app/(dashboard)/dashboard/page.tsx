@@ -3,10 +3,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
+import { NutritionSummary } from '@/features/dashboard/components/nutrition-summary';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
-import { ArrowRight, ChevronRight, Clock, Flame, UtensilsCrossed } from 'lucide-react';
+import { ArrowRight, Clock, Flame, UtensilsCrossed } from 'lucide-react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
@@ -50,30 +51,22 @@ export default function DashboardPage() {
     };
   });
 
-  // Macro bar width helper (capped at 100%)
-  const pct = (v: number, t: number) => Math.min(Math.round((v / (t || 1)) * 100), 100);
-  const n = d.nutrition;
-  const calPct = pct(n.plannedKcal, n.dailyCalorieTarget);
-  const isOverTarget = n.plannedKcal > n.dailyCalorieTarget;
-  const remaining = Math.max(n.dailyCalorieTarget - n.plannedKcal, 0);
-
-  // SVG ring
-  const R = 52;
-  const CIRCUM = 2 * Math.PI * R;
-  const ringFill = CIRCUM - (CIRCUM * calPct) / 100;
-
   return (
-    <div className="flex h-full gap-6 p-6">
-      {/* ── Left column ─────────────────────────────────────────────────────── */}
-      <div className="flex min-w-0 flex-1 flex-col gap-6">
+    // Single column on phones; the nutrition rail only splits off at xl, where
+    // there is room for sidebar + content + 288px rail.
+    <div className="flex flex-col gap-4 p-4 xl:flex-row xl:gap-6 xl:p-6">
+      {/* ── Main column ─────────────────────────────────────────────────────── */}
+      <div className="flex min-w-0 flex-1 flex-col gap-4 sm:gap-6">
         {/* Header */}
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
             Welcome Back, Chef
           </p>
-          <div className="mt-0.5 flex items-center justify-between">
-            <h1 className="font-serif text-2xl font-bold text-gray-900">Your Daily Overview</h1>
-            <div className="flex items-center gap-2">
+          <div className="mt-0.5 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <h1 className="font-serif text-xl font-bold text-gray-900 sm:text-2xl">
+              Your Daily Overview
+            </h1>
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-gray-500">{d.today.date}</span>
               {hasPlan && (
                 <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
@@ -85,16 +78,22 @@ export default function DashboardPage() {
         </div>
 
         {/* Weekly Outlook card */}
-        <div className="rounded-2xl border bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+        <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
               Weekly Outlook
             </p>
-            <Link href="/meal-plan" className="text-xs font-medium text-[#944a00] hover:underline">
+            <Link
+              href="/meal-plan"
+              className="shrink-0 whitespace-nowrap text-xs font-medium text-[#944a00] hover:underline"
+            >
               Full Schedule →
             </Link>
           </div>
-          <div className="flex gap-2">
+          {/* Seven equal chips would be ~41px wide at 375px — under the touch
+              minimum. Below sm they become fixed-width snap chips that scroll;
+              from sm up there is room to divide the row evenly. */}
+          <div className="scroll-rail -mx-1 gap-1.5 px-1 sm:mx-0 sm:grid sm:grid-cols-7 sm:gap-2 sm:overflow-visible sm:px-0">
             {days.map((day) => {
               const isToday = day.idx === todayIdx;
               const isSelected = selectedDayIdx === day.idx;
@@ -103,7 +102,8 @@ export default function DashboardPage() {
                   key={day.idx}
                   type="button"
                   onClick={() => setSelectedDayIdx(isSelected ? null : day.idx)}
-                  className={`flex flex-1 flex-col items-center gap-1 rounded-xl py-2.5 transition-all ${
+                  aria-pressed={isSelected}
+                  className={`flex w-[52px] shrink-0 snap-start flex-col items-center gap-1 rounded-xl py-3 transition-all sm:w-auto ${
                     isToday
                       ? 'bg-[#944a00] text-white'
                       : isSelected
@@ -113,11 +113,12 @@ export default function DashboardPage() {
                 >
                   <span className="text-[10px] font-semibold uppercase">{day.label}</span>
                   <span className="text-sm font-bold">{day.num}</span>
-                  {day.hasMeals && (
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${isToday ? 'bg-white/70' : 'bg-[#944a00]'}`}
-                    />
-                  )}
+                  <span
+                    aria-hidden="true"
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      !day.hasMeals ? 'bg-transparent' : isToday ? 'bg-white/70' : 'bg-[#944a00]'
+                    }`}
+                  />
                 </button>
               );
             })}
@@ -133,7 +134,7 @@ export default function DashboardPage() {
               const isPast = selectedDayIdx < todayIdx;
               return (
                 <div className="mt-4 border-t pt-4">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-500">
                     {isToday
                       ? "Today's Meals"
                       : isPast
@@ -141,7 +142,7 @@ export default function DashboardPage() {
                         : `${dayData?.label} ${dayData?.num} — Upcoming`}
                   </p>
                   {dayMeals.length === 0 ? (
-                    <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-400">
+                    <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-500">
                       <UtensilsCrossed className="h-4 w-4" />
                       No meals planned for this day.
                     </div>
@@ -173,7 +174,7 @@ export default function DashboardPage() {
                             </p>
                           </div>
                           {meal.kcal > 0 && (
-                            <span className="shrink-0 text-xs text-gray-400">{meal.kcal} kcal</span>
+                            <span className="shrink-0 text-xs text-gray-500">{meal.kcal} kcal</span>
                           )}
                         </Link>
                       ))}
@@ -184,23 +185,32 @@ export default function DashboardPage() {
             })()}
         </div>
 
+        {/* Nutrition — inline here below xl, in the right rail above it. */}
+        <NutritionSummary
+          nutrition={d.nutrition}
+          nextMealName={d.nextMeal?.recipe.name}
+          className="xl:hidden"
+        />
+
         {/* Next Meal spotlight */}
         {d.nextMeal ? (
           <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-            <div className="flex gap-4 p-5">
+            {/* Stacked on phones — a 128px fixed photo beside text leaves the
+                title ~150px and it wraps to four lines. */}
+            <div className="flex flex-col gap-4 p-4 sm:flex-row sm:p-5">
               {/* Recipe photo */}
-              <div className="relative h-28 w-32 shrink-0 overflow-hidden rounded-xl">
+              <div className="relative h-40 w-full shrink-0 overflow-hidden rounded-xl sm:h-28 sm:w-32">
                 <Image
                   {...getRecipeImageProps(d.nextMeal.recipe.imageUrl)}
                   alt={d.nextMeal.recipe.name}
                   fill
-                  sizes="128px"
+                  sizes="(max-width: 639px) 100vw, 128px"
                   className="object-cover"
                 />
               </div>
-              <div className="flex min-w-0 flex-col justify-between">
+              <div className="flex min-w-0 flex-1 flex-col justify-between gap-3">
                 <div>
-                  <div className="mb-1 flex gap-2">
+                  <div className="mb-1 flex flex-wrap gap-2">
                     <span className="rounded-full bg-[#944a00] px-2.5 py-0.5 text-[10px] font-semibold uppercase text-white">
                       Next Meal
                     </span>
@@ -210,14 +220,14 @@ export default function DashboardPage() {
                       {d.nextMeal.mealType}
                     </span>
                   </div>
-                  <h2 className="font-serif text-lg font-bold text-gray-900 leading-snug">
+                  <h2 className="font-serif text-lg font-bold leading-snug text-gray-900">
                     {d.nextMeal.recipe.name}
                   </h2>
                   <p className="mt-0.5 line-clamp-2 text-xs text-gray-500">
                     {d.nextMeal.recipe.description}
                   </p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                   <span className="flex items-center gap-1 text-xs text-gray-500">
                     <Clock className="h-3.5 w-3.5" />
                     {d.nextMeal.recipe.prepTimeMins} min
@@ -228,7 +238,7 @@ export default function DashboardPage() {
                   </span>
                   <Link
                     href={`/recipes/${d.nextMeal.recipe.id}`}
-                    className="ml-auto flex items-center gap-1 rounded-full bg-[#944a00] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#7a3d00]"
+                    className="flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-[#944a00] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#7a3d00] sm:ml-auto sm:min-h-0 sm:w-auto"
                   >
                     Start Cooking <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
@@ -264,23 +274,32 @@ export default function DashboardPage() {
 
         {/* Rest of Today — only when today is selected (or nothing selected) */}
         {d.restOfToday.length > 0 && (selectedDayIdx === null || selectedDayIdx === todayIdx) && (
-          <div className="rounded-2xl border bg-white p-5 shadow-sm">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+          <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-500">
               Rest of Today
             </p>
             <div className="flex flex-col divide-y">
               {d.restOfToday.map((meal, i) => (
-                <div key={i} className="flex items-center justify-between py-2.5">
-                  <div className="flex items-center gap-3">
-                    <span className="w-16 text-xs text-gray-400">{meal.scheduledLabel}</span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
-                    >
-                      {meal.mealType}
+                <div key={i} className="flex items-start justify-between gap-3 py-2.5">
+                  {/* Time + badge on one line, name below — the original single
+                      row had no min-w-0 and long recipe names pushed the kcal
+                      column off the card. */}
+                  <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 sm:w-16">{meal.scheduledLabel}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                      >
+                        {meal.mealType}
+                      </span>
+                    </div>
+                    <span className="truncate text-sm font-medium text-gray-700">
+                      {meal.recipeName}
                     </span>
-                    <span className="text-sm font-medium text-gray-700">{meal.recipeName}</span>
                   </div>
-                  <span className="text-xs text-gray-400">{meal.kcal} kcal</span>
+                  <span className="shrink-0 whitespace-nowrap text-xs text-gray-500">
+                    {meal.kcal} kcal
+                  </span>
                 </div>
               ))}
             </div>
@@ -291,7 +310,7 @@ export default function DashboardPage() {
         {weekSummary && weekSummary.days.some((d) => d.hasLog) && (
           <div className="rounded-2xl border bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
                 This Week — Calories
               </p>
               <Link href="/progress" className="text-xs font-medium text-[#944a00] hover:underline">
@@ -327,25 +346,27 @@ export default function DashboardPage() {
         )}
 
         {/* Recent Favourites */}
-        <div className="rounded-2xl border bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+        <div className="overflow-hidden rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
               Recent Favourites
             </p>
             <Link
               href="/recipes?filter=saved"
-              className="text-xs font-medium text-[#944a00] hover:underline"
+              className="shrink-0 whitespace-nowrap text-xs font-medium text-[#944a00] hover:underline"
             >
               View All →
             </Link>
           </div>
           {d.recentFavourites.length > 0 ? (
-            <div className="flex gap-4 overflow-x-auto pb-1">
+            // Negative margin + matching padding lets cards bleed to the card
+            // edge as you scroll, which reads as "there is more this way".
+            <div className="scroll-rail -mx-4 gap-4 px-4 pb-1 sm:-mx-5 sm:px-5">
               {d.recentFavourites.map((fav) => (
                 <Link
                   key={fav.id}
                   href={`/recipes/${fav.id}`}
-                  className="flex w-36 shrink-0 flex-col gap-2 rounded-xl border p-1 pb-2 hover:border-[#944a00]/40 hover:shadow-md transition-all"
+                  className="flex w-36 shrink-0 snap-start flex-col gap-2 rounded-xl border p-1 pb-2 transition-all hover:border-[#944a00]/40 hover:shadow-md"
                 >
                   <div className="relative h-24 overflow-hidden rounded-lg">
                     <Image
@@ -358,7 +379,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="px-1">
                     <p className="truncate text-xs font-semibold text-gray-800">{fav.name}</p>
-                    <p className="text-[10px] uppercase tracking-wide text-gray-400">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
                       {fav.cuisineType} · {fav.prepTimeMins}m
                     </p>
                   </div>
@@ -366,7 +387,7 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-500">
               Save a recipe to see it here.{' '}
               <Link href="/meal-plan" className="text-[#944a00] hover:underline">
                 Go to Meal Planner →
@@ -376,112 +397,17 @@ export default function DashboardPage() {
         </div>
 
         {/* Sign-off */}
-        <p className="pb-2 text-center text-xs italic text-gray-400">You&apos;ve got this, chef.</p>
+        <p className="pb-2 text-center text-xs italic text-gray-500">You&apos;ve got this, chef.</p>
       </div>
 
-      {/* ── Right column — Nutrition Panel ──────────────────────────────────── */}
-      <div className="hidden w-72 shrink-0 flex-col gap-4 lg:flex">
-        <div className="sticky top-6 rounded-2xl border bg-white p-5 shadow-sm">
-          {/* Header */}
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
-              Planned Today
-            </p>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
-                isOverTarget ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
-              }`}
-            >
-              {isOverTarget ? 'Over Target' : 'On Track'}
-            </span>
-          </div>
-
-          {/* Calorie ring */}
-          <div className="flex flex-col items-center gap-2 py-2">
-            <div className="relative">
-              <svg
-                width="128"
-                height="128"
-                viewBox="0 0 128 128"
-                role="img"
-                aria-label="Calorie progress ring"
-              >
-                <circle cx="64" cy="64" r={R} fill="none" stroke="#f3f4f6" strokeWidth="12" />
-                <circle
-                  cx="64"
-                  cy="64"
-                  r={R}
-                  fill="none"
-                  stroke="#944a00"
-                  strokeWidth="12"
-                  strokeLinecap="round"
-                  strokeDasharray={CIRCUM}
-                  strokeDashoffset={ringFill}
-                  transform="rotate(-90 64 64)"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-xl font-bold text-gray-900">{n.plannedKcal.toLocaleString()}</p>
-                <p className="text-[10px] text-gray-400">
-                  of {n.dailyCalorieTarget.toLocaleString()} kcal
-                </p>
-              </div>
-            </div>
-            <p className="text-center text-xs text-gray-500">
-              {remaining.toLocaleString()} remaining
-            </p>
-          </div>
-
-          {/* Macro bars */}
-          <div className="mt-2 flex flex-col gap-3">
-            {[
-              { label: 'Protein', v: n.protein.planned, t: n.protein.targetG },
-              { label: 'Carbs', v: n.carbs.planned, t: n.carbs.targetG },
-              { label: 'Fat', v: n.fat.planned, t: n.fat.targetG },
-            ].map(({ label, v, t }) => (
-              <div key={label}>
-                <div className="mb-1 flex justify-between text-xs">
-                  <span className="font-medium text-gray-700">{label}</span>
-                  <span className="text-gray-400">
-                    {v}g / {t}g
-                  </span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
-                  <div
-                    className="h-full rounded-full bg-[#944a00] transition-all"
-                    style={{ width: `${pct(v, t)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* AI hint */}
-          {d.nextMeal && (
-            <div className="mt-4 rounded-xl bg-[#fff3e8] px-3 py-2.5">
-              <p className="text-xs text-[#944a00]">
-                🤖 Your upcoming <strong>{d.nextMeal.recipe.name}</strong> supports your daily
-                nutrition goals.
-              </p>
-            </div>
-          )}
-
-          {/* Quick links */}
-          <div className="mt-4 flex flex-col gap-1.5">
-            <Link
-              href="/meal-plan"
-              className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]"
-            >
-              Meal Planner <ChevronRight className="h-3.5 w-3.5" />
-            </Link>
-            <Link
-              href="/shopping-list"
-              className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]"
-            >
-              Shopping List <ChevronRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-        </div>
+      {/* ── Right rail — xl+ only. Below that the same panel renders inline
+             in the main column above. ─────────────────────────────────────── */}
+      <div className="hidden w-72 shrink-0 flex-col gap-4 xl:flex">
+        <NutritionSummary
+          nutrition={d.nutrition}
+          nextMealName={d.nextMeal?.recipe.name}
+          className="sticky top-6"
+        />
       </div>
     </div>
   );
@@ -491,14 +417,15 @@ export default function DashboardPage() {
 
 function DashboardSkeleton() {
   return (
-    <div className="flex h-full gap-6 p-6">
-      <div className="flex min-w-0 flex-1 flex-col gap-6">
+    <div className="flex flex-col gap-4 p-4 xl:flex-row xl:gap-6 xl:p-6">
+      <div className="flex min-w-0 flex-1 flex-col gap-4 sm:gap-6">
         <div className="h-12 w-56 animate-pulse rounded-xl bg-gray-100" />
         <div className="h-24 w-full animate-pulse rounded-2xl bg-gray-100" />
+        <div className="h-64 w-full animate-pulse rounded-2xl bg-gray-100 xl:hidden" />
         <div className="h-36 w-full animate-pulse rounded-2xl bg-gray-100" />
         <div className="h-32 w-full animate-pulse rounded-2xl bg-gray-100" />
       </div>
-      <div className="hidden w-72 lg:block">
+      <div className="hidden w-72 xl:block">
         <div className="h-96 w-full animate-pulse rounded-2xl bg-gray-100" />
       </div>
     </div>
