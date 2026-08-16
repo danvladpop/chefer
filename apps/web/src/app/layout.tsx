@@ -65,6 +65,9 @@ export const viewport: Viewport = {
   ],
   width: 'device-width',
   initialScale: 1,
+  // Lets content extend into the notch/home-indicator area and makes
+  // env(safe-area-inset-*) resolve to real values instead of 0.
+  viewportFit: 'cover',
 };
 
 interface RootLayoutProps {
@@ -75,10 +78,10 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} min-h-dvh bg-background font-sans antialiased`}
       >
         <TRPCProvider>
-          <div className="relative flex min-h-screen flex-col">{children}</div>
+          <div className="relative flex min-h-dvh flex-col">{children}</div>
         </TRPCProvider>
       </body>
     </html>

@@ -70,25 +70,67 @@
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+
+  html {
+    /* Kill the grey tap flash and iOS's font inflation in landscape. */
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  body {
+    @apply bg-background text-foreground;
+    /* Nothing in the app may cause a horizontal document scroll.
+       `clip` rather than `hidden` on purpose: `overflow-x: hidden` computes
+       overflow-y to `auto`, which turns <body> into a scroll container and
+       breaks `position: sticky` on descendants (the TopHeader). `clip`
+       creates no scroll container, so sticky keeps working. */
+    overflow-x: clip;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-semibold tracking-tight;
   }
 
+  /* Headings scale with the viewport — the previous fixed desktop sizes
+     (text-4xl/3xl/2xl) overflowed narrow screens. */
   h1 {
-    @apply text-4xl;
+    @apply text-2xl sm:text-3xl lg:text-4xl;
   }
 
   h2 {
-    @apply text-3xl;
+    @apply text-xl sm:text-2xl lg:text-3xl;
   }
 
   h3 {
-    @apply text-2xl;
+    @apply text-lg sm:text-xl lg:text-2xl;
+  }
+}
+
+/* iOS Safari auto-zooms any focused control whose font-size is below 16px and
+   never zooms back out. Force 16px below `sm`; above it the element's own
+   classes take over again and the denser 14px desktop sizing returns.
+
+   The `[class]` selector form is load-bearing: nearly every input in this app
+   carries an explicit `text-sm` utility, and a plain element selector in
+   @layer base would lose to it on specificity. `[class]` scores (0,1,1) and
+   wins. Do NOT "fix" the zoom with maximum-scale=1 — that disables pinch-zoom
+   for everyone. */
+@media (max-width: 639.98px) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea,
+  input[class]:not([type='checkbox']):not([type='radio']),
+  select[class],
+  textarea[class] {
+    font-size: 16px;
   }
 }
 
@@ -99,5 +141,49 @@
 
   .animate-fade-in {
     animation: fade-in 0.3s ease-out;
+  }
+
+  /* iOS safe-area insets. Require `viewportFit: 'cover'` on the viewport
+     export to resolve to anything other than 0. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Horizontal snap rail for card strips (day pickers, favourites). */
+  .scroll-rail {
+    @apply flex snap-x snap-mandatory overflow-x-auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .scroll-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Expands a small control's hit area to the 44px minimum without changing
+     its visual size. Apply to the control itself; it must be positioned. */
+  .touch-target::after {
+    content: '';
+    position: absolute;
+    inset: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
