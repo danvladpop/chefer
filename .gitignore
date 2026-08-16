@@ -85,3 +85,6 @@ apps/api/uploads/
 # tokens. Move them between machines out-of-band, never through the repo.
 *.dump
 *.sql.gz
+
+# Playwright signed-in browser state (contains a live session cookie)
+tests/.auth/
