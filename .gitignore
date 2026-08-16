@@ -80,3 +80,8 @@ apps/**/.claude/settings.local.json
 
 # User-uploaded images (dev-local storage)
 apps/api/uploads/
+
+# Database dumps — these carry real user rows, password hashes and session
+# tokens. Move them between machines out-of-band, never through the repo.
+*.dump
+*.sql.gz
