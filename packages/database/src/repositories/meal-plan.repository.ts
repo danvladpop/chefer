@@ -59,6 +59,10 @@ export interface IMealPlanRepository {
     userId: string,
     planId: string,
   ): Promise<(MealPlan & { days: MealPlanDay[] }) | null>;
+  findByWeekStart(
+    userId: string,
+    weekStart: Date,
+  ): Promise<(MealPlan & { days: MealPlanDay[] }) | null>;
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -271,6 +275,28 @@ export class MealPlanRepository implements IMealPlanRepository {
   ): Promise<(MealPlan & { days: MealPlanDay[] }) | null> {
     return prisma.mealPlan.findFirst({
       where: { id: planId, userId },
+      include: { days: { orderBy: { dayOfWeek: 'asc' } } },
+    });
+  }
+
+  /**
+   * The plan whose weekStartDate falls on the given calendar day (compared as
+   * a same-day range so stored times don't matter). Newest first — matches the
+   * previous scan-and-filter behaviour, where regeneration archives the old
+   * plan and the newest one is the one to show.
+   */
+  async findByWeekStart(
+    userId: string,
+    weekStart: Date,
+  ): Promise<(MealPlan & { days: MealPlanDay[] }) | null> {
+    const dayStart = new Date(weekStart);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    return prisma.mealPlan.findFirst({
+      where: { userId, weekStartDate: { gte: dayStart, lt: dayEnd } },
+      orderBy: { createdAt: 'desc' },
       include: { days: { orderBy: { dayOfWeek: 'asc' } } },
     });
   }

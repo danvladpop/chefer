@@ -18,85 +18,6 @@ import {
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 
-// ─── Shopping list types ───────────────────────────────────────────────────────
-
-export interface ShoppingListItem {
-  name: string;
-  quantity: number;
-  unit: string;
-  category: string;
-}
-
-export interface ShoppingListGroup {
-  category: string;
-  items: ShoppingListItem[];
-}
-
-// Simple keyword → category mapping
-const CATEGORY_MAP: Record<string, string> = {
-  // Produce
-  tomato: 'Produce',
-  spinach: 'Produce',
-  onion: 'Produce',
-  garlic: 'Produce',
-  lemon: 'Produce',
-  lime: 'Produce',
-  avocado: 'Produce',
-  mushroom: 'Produce',
-  pepper: 'Produce',
-  lettuce: 'Produce',
-  cucumber: 'Produce',
-  zucchini: 'Produce',
-  carrot: 'Produce',
-  broccoli: 'Produce',
-  celery: 'Produce',
-  kale: 'Produce',
-  // Proteins
-  chicken: 'Proteins',
-  beef: 'Proteins',
-  salmon: 'Proteins',
-  tuna: 'Proteins',
-  egg: 'Proteins',
-  tofu: 'Proteins',
-  shrimp: 'Proteins',
-  turkey: 'Proteins',
-  pork: 'Proteins',
-  lamb: 'Proteins',
-  cod: 'Proteins',
-  // Dairy
-  milk: 'Dairy',
-  cheese: 'Dairy',
-  yogurt: 'Dairy',
-  butter: 'Dairy',
-  cream: 'Dairy',
-  parmesan: 'Dairy',
-  mozzarella: 'Dairy',
-  feta: 'Dairy',
-  // Grains & Pantry
-  rice: 'Grains & Pantry',
-  pasta: 'Grains & Pantry',
-  flour: 'Grains & Pantry',
-  bread: 'Grains & Pantry',
-  oat: 'Grains & Pantry',
-  quinoa: 'Grains & Pantry',
-  lentil: 'Grains & Pantry',
-  bean: 'Grains & Pantry',
-  oil: 'Grains & Pantry',
-  vinegar: 'Grains & Pantry',
-  soy: 'Grains & Pantry',
-  honey: 'Grains & Pantry',
-  salt: 'Grains & Pantry',
-  cumin: 'Grains & Pantry',
-  paprika: 'Grains & Pantry',
-  cinnamon: 'Grains & Pantry',
-  stock: 'Grains & Pantry',
-  broth: 'Grains & Pantry',
-  coconut: 'Grains & Pantry',
-  almond: 'Grains & Pantry',
-  walnut: 'Grains & Pantry',
-  cashew: 'Grains & Pantry',
-};
-
 // ─── Summary DTO ──────────────────────────────────────────────────────────────
 
 export interface MealPlanSummaryDto {
@@ -170,7 +91,7 @@ function getTodayDayIndex(): number {
  * Image generation priority for a plan day: distance in days from today
  * (0 = today's meals generate first). Next week's days sort after this week's.
  */
-function dayImagePriority(dayOfWeek: number, weekOffset: number): number {
+export function dayImagePriority(dayOfWeek: number, weekOffset: number): number {
   if (weekOffset <= 0) {
     return (dayOfWeek - getTodayDayIndex() + 7) % 7;
   }
@@ -397,75 +318,24 @@ export class MealPlanService {
   }
 
   /**
-   * Returns the active meal plan for the user with all recipes joined,
-   * or null if no active plan exists.
+   * Joins a plan's day JSON against its recipe rows and assembles the
+   * WeekPlanDto. The one implementation behind getActive / getForWeek /
+   * getById — this logic used to be copy-pasted three times, which is where
+   * single-copy bug fixes went to die (roadmap P0-7).
    */
-  async getActive(userId: string): Promise<WeekPlanDto | null> {
-    const plan = await this.repo.findActiveWithDays(userId);
-    if (!plan) return null;
-
+  private async assemblePlanDto(plan: {
+    id: string;
+    weekStartDate: Date;
+    days: { dayOfWeek: number; meals: unknown }[];
+  }): Promise<WeekPlanDto> {
     type MealSlotJson = { type: string; recipeId: string };
-
-    // Collect all recipe IDs referenced in the day JSON
-    const allMeals = plan.days.flatMap((d: { meals: unknown }) => d.meals as MealSlotJson[]);
-    const uniqueIds = [...new Set(allMeals.map((m: MealSlotJson) => m.recipeId))];
+    const allMeals = plan.days.flatMap((d) => d.meals as MealSlotJson[]);
+    const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
     const recipeRows: Recipe[] = await this.repo.findRecipesByIds(uniqueIds);
     const recipeMap = new Map<string, Recipe>(recipeRows.map((r) => [r.id, r]));
 
-    const days: DayPlanDto[] = plan.days.map((d: { dayOfWeek: number; meals: unknown }) => {
-      const meals = (d.meals as MealSlotJson[]).map((m: MealSlotJson) => {
-        const row = recipeMap.get(m.recipeId);
-        if (!row) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: `Recipe ${m.recipeId} not found in database.`,
-          });
-        }
-        return {
-          type: m.type as MealType,
-          recipe: rowToRecipeDto(row),
-        };
-      });
-      return { dayOfWeek: d.dayOfWeek, meals };
-    });
-
-    return { planId: plan.id, weekStartDate: plan.weekStartDate, days };
-  }
-
-  /**
-   * Returns the meal plan for a given week offset (0 = current, -1 = last week, 1 = next week).
-   * Returns null if no plan exists for that week.
-   */
-  async getForWeek(userId: string, weekOffset: number): Promise<WeekPlanDto | null> {
-    const monday = getMondayOfWeek(weekOffset);
-    const allPlans = await this.repo.findAllByUserId(userId, 52, 0);
-
-    // Find plan whose weekStartDate falls on the same calendar Monday.
-    // Use toDateString() comparison (local date, no hours) so timezones don't
-    // accidentally make two different Mondays "close enough" under the old
-    // < 7-day range heuristic.
-    const targetDateStr = monday.toDateString();
-    let plan = allPlans.find((p) => {
-      const planMonday = new Date(p.weekStartDate);
-      planMonday.setHours(0, 0, 0, 0);
-      return planMonday.toDateString() === targetDateStr;
-    });
-
-    // For offset 0, fall back to active plan
-    if (!plan && weekOffset === 0) {
-      plan = (await this.repo.findActiveWithDays(userId)) ?? undefined;
-    }
-
-    if (!plan) return null;
-
-    type MealSlotJson = { type: string; recipeId: string };
-    const allMeals = plan.days.flatMap((d: { meals: unknown }) => d.meals as MealSlotJson[]);
-    const uniqueIds = [...new Set(allMeals.map((m: MealSlotJson) => m.recipeId))];
-    const recipeRows: Recipe[] = await this.repo.findRecipesByIds(uniqueIds);
-    const recipeMap = new Map<string, Recipe>(recipeRows.map((r) => [r.id, r]));
-
-    const days: DayPlanDto[] = plan.days.map((d: { dayOfWeek: number; meals: unknown }) => {
-      const meals = (d.meals as MealSlotJson[]).map((m: MealSlotJson) => {
+    const days: DayPlanDto[] = plan.days.map((d) => {
+      const meals = (d.meals as MealSlotJson[]).map((m) => {
         const row = recipeMap.get(m.recipeId);
         if (!row) {
           throw new TRPCError({
@@ -479,6 +349,33 @@ export class MealPlanService {
     });
 
     return { planId: plan.id, weekStartDate: plan.weekStartDate, days };
+  }
+
+  /**
+   * Returns the active meal plan for the user with all recipes joined,
+   * or null if no active plan exists.
+   */
+  async getActive(userId: string): Promise<WeekPlanDto | null> {
+    const plan = await this.repo.findActiveWithDays(userId);
+    if (!plan) return null;
+    return this.assemblePlanDto(plan);
+  }
+
+  /**
+   * Returns the meal plan for a given week offset (0 = current, -1 = last week, 1 = next week).
+   * Returns null if no plan exists for that week.
+   */
+  async getForWeek(userId: string, weekOffset: number): Promise<WeekPlanDto | null> {
+    const monday = getMondayOfWeek(weekOffset);
+    let plan = await this.repo.findByWeekStart(userId, monday);
+
+    // For offset 0, fall back to the active plan
+    if (!plan && weekOffset === 0) {
+      plan = await this.repo.findActiveWithDays(userId);
+    }
+
+    if (!plan) return null;
+    return this.assemblePlanDto(plan);
   }
 
   /**
@@ -696,9 +593,8 @@ export class MealPlanService {
   }
 
   async restore(userId: string, planId: string): Promise<WeekPlanDto> {
-    // Verify plan belongs to user
-    const plans = await this.repo.findAllByUserId(userId, 100, 0);
-    const target = plans.find((p) => p.id === planId);
+    // Ownership check via a single indexed lookup (previously a 100-row scan)
+    const target = await this.repo.findByIdForUser(userId, planId);
     if (!target) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found.' });
     }
@@ -714,77 +610,7 @@ export class MealPlanService {
     if (!plan) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found.' });
     }
-
-    type MealSlotJson = { type: string; recipeId: string };
-    const allMeals = plan.days.flatMap((d: { meals: unknown }) => d.meals as MealSlotJson[]);
-    const uniqueIds = [...new Set(allMeals.map((m: MealSlotJson) => m.recipeId))];
-    const recipeRows: Recipe[] = await this.repo.findRecipesByIds(uniqueIds);
-    const recipeMap = new Map<string, Recipe>(recipeRows.map((r) => [r.id, r]));
-
-    const days: DayPlanDto[] = plan.days.map((d: { dayOfWeek: number; meals: unknown }) => {
-      const meals = (d.meals as MealSlotJson[]).map((m: MealSlotJson) => {
-        const row = recipeMap.get(m.recipeId);
-        if (!row)
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: `Recipe ${m.recipeId} not found.`,
-          });
-        return { type: m.type as MealType, recipe: rowToRecipeDto(row) };
-      });
-      return { dayOfWeek: d.dayOfWeek, meals };
-    });
-
-    return { planId: plan.id, weekStartDate: plan.weekStartDate, days };
-  }
-
-  /**
-   * Aggregates all ingredients from the active plan, merges duplicates,
-   * and groups them by category.
-   */
-  async getShoppingList(userId: string): Promise<ShoppingListGroup[]> {
-    const plan = await this.repo.findActiveWithDays(userId);
-    if (!plan) return [];
-
-    // Collect all recipe IDs
-    type MealSlotJson = { type: string; recipeId: string };
-    const allMeals = plan.days.flatMap((d: { meals: unknown }) => d.meals as MealSlotJson[]);
-    const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
-    const recipes = await this.repo.findRecipesByIds(uniqueIds);
-
-    // Aggregate ingredients
-    const merged = new Map<string, { quantity: number; unit: string; category: string }>();
-
-    for (const recipe of recipes) {
-      const ingredients = recipe.ingredients as unknown as Ingredient[];
-      for (const ing of ingredients) {
-        const key = ing.name.toLowerCase().trim();
-        const existing = merged.get(key);
-        if (existing?.unit === ing.unit) {
-          existing.quantity += ing.quantity;
-        } else {
-          merged.set(key, {
-            quantity: ing.quantity,
-            unit: ing.unit,
-            category: inferCategory(ing.name),
-          });
-        }
-      }
-    }
-
-    // Group by category
-    const grouped = new Map<string, ShoppingListItem[]>();
-    for (const [name, data] of merged) {
-      const { category, quantity, unit } = data;
-      const items = grouped.get(category) ?? [];
-      items.push({ name, quantity, unit, category });
-      grouped.set(category, items);
-    }
-
-    const CATEGORY_ORDER = ['Produce', 'Proteins', 'Dairy', 'Grains & Pantry', 'Other'];
-    return CATEGORY_ORDER.filter((c) => grouped.has(c)).map((c) => ({
-      category: c,
-      items: grouped.get(c)!.sort((a, b) => a.name.localeCompare(b.name)),
-    }));
+    return this.assemblePlanDto(plan);
   }
 }
 
@@ -828,16 +654,6 @@ function toRecipeDto(
     // treat as PENDING so the worker generates one.
     imageStatus: image?.imageStatus ?? 'PENDING',
   };
-}
-
-// ─── Shopping list helper ──────────────────────────────────────────────────────
-
-function inferCategory(ingredientName: string): string {
-  const lower = ingredientName.toLowerCase();
-  for (const [keyword, category] of Object.entries(CATEGORY_MAP)) {
-    if (lower.includes(keyword)) return category;
-  }
-  return 'Other';
 }
 
 // Converts a Prisma Recipe row (with JSON fields) to a RecipeDto

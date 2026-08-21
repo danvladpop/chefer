@@ -51,18 +51,18 @@ Everything gated must answer "does this get better because the app knows me?" �
 
 All from `roadmap.md`, in this order:
 
-| Step | Ticket           | What                                                                                                                                                                                                       |
-| ---- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A1   | **P0-0**         | Repair the quality gates (lint/test/typecheck/e2e) — **✅ done, see §6**                                                                                                                                   |
-| A2   | **P0-2** ✅      | Delete `/user` PII leak, close public read, guard `/ingredients` — done 2026-08-21                                                                                                                         |
-| A3   | **P0-1** ✅      | Fix dashboard next-meal logic — done 2026-08-21, verified live at 19:40 (dinner hero)                                                                                                                      |
-| A4   | **P0-3** ✅      | CI on `master`, deploys gated on green — done 2026-08-21; branch protection = user's manual step                                                                                                           |
-| A5   | **P0-4** ✅      | Rate limiting + helmet + per-user AI quotas — done 2026-08-21, all limits verified live (429s)                                                                                                             |
-| A6   | **P0-5** ✅      | Unify calorie target — done 2026-08-21 via `resolveDailyTargets()`; custom macroSplit column deferred (goal-based splits already personalise)                                                              |
-| A7   | **P0-6** ✅      | Password reset — done 2026-08-21; full flow verified live incl. session invalidation + single-use tokens                                                                                                   |
-| A8   | **P0-7 / P0-8**  | Plan-assembly refactor + backend test foundation                                                                                                                                                           |
-| A9   | **P2-2**         | Observability — **pulled forward from roadmap P2**: Sentry, pino, funnel analytics. A paywall without an upgrade funnel dashboard is flying blind, and production without error tracking isn't production. |
-| A10  | **P0-9 / P0-10** | Stale docs + mobile a11y quick wins                                                                                                                                                                        |
+| Step | Ticket             | What                                                                                                                                                                                                       |
+| ---- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1   | **P0-0**           | Repair the quality gates (lint/test/typecheck/e2e) — **✅ done, see §6**                                                                                                                                   |
+| A2   | **P0-2** ✅        | Delete `/user` PII leak, close public read, guard `/ingredients` — done 2026-08-21                                                                                                                         |
+| A3   | **P0-1** ✅        | Fix dashboard next-meal logic — done 2026-08-21, verified live at 19:40 (dinner hero)                                                                                                                      |
+| A4   | **P0-3** ✅        | CI on `master`, deploys gated on green — done 2026-08-21; branch protection = user's manual step                                                                                                           |
+| A5   | **P0-4** ✅        | Rate limiting + helmet + per-user AI quotas — done 2026-08-21, all limits verified live (429s)                                                                                                             |
+| A6   | **P0-5** ✅        | Unify calorie target — done 2026-08-21 via `resolveDailyTargets()`; custom macroSplit column deferred (goal-based splits already personalise)                                                              |
+| A7   | **P0-6** ✅        | Password reset — done 2026-08-21; full flow verified live incl. session invalidation + single-use tokens                                                                                                   |
+| A8   | **P0-7 / P0-8** ✅ | Refactor + test foundation — done 2026-08-21; 37 api tests, coverage ratchet (25% floor → 60% target), all query paths verified live                                                                       |
+| A9   | **P2-2**           | Observability — **pulled forward from roadmap P2**: Sentry, pino, funnel analytics. A paywall without an upgrade funnel dashboard is flying blind, and production without error tracking isn't production. |
+| A10  | **P0-9 / P0-10**   | Stale docs + mobile a11y quick wins                                                                                                                                                                        |
 
 **Also in Phase A, not previously ticketed:**
 

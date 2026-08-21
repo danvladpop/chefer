@@ -15,6 +15,7 @@ import {
   normalizeIngredientName,
 } from '../../lib/ingredient-prices/index.js';
 import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js';
+import { inferCategory } from '../shared/category-map.js';
 
 export interface ShoppingListItemForWeek {
   key: string;
@@ -49,79 +50,6 @@ interface StoredShoppingListItem {
   unit: string;
   category: GroceryCategory;
   recipeNames: string[];
-}
-
-const CATEGORY_MAP: Record<string, GroceryCategory> = {
-  tomato: 'produce',
-  spinach: 'produce',
-  onion: 'produce',
-  garlic: 'produce',
-  lemon: 'produce',
-  lime: 'produce',
-  avocado: 'produce',
-  mushroom: 'produce',
-  pepper: 'produce',
-  lettuce: 'produce',
-  cucumber: 'produce',
-  zucchini: 'produce',
-  carrot: 'produce',
-  broccoli: 'produce',
-  celery: 'produce',
-  kale: 'produce',
-  apple: 'produce',
-  banana: 'produce',
-  berry: 'produce',
-  fruit: 'produce',
-  shallot: 'produce',
-  herb: 'produce',
-  cilantro: 'produce',
-  parsley: 'produce',
-  chicken: 'proteins',
-  beef: 'proteins',
-  salmon: 'proteins',
-  tuna: 'proteins',
-  egg: 'proteins',
-  tofu: 'proteins',
-  shrimp: 'proteins',
-  turkey: 'proteins',
-  pork: 'proteins',
-  lamb: 'proteins',
-  cod: 'proteins',
-  fish: 'proteins',
-  milk: 'dairy',
-  cheese: 'dairy',
-  yogurt: 'dairy',
-  butter: 'dairy',
-  cream: 'dairy',
-  parmesan: 'dairy',
-  mozzarella: 'dairy',
-  feta: 'dairy',
-  rice: 'grains',
-  pasta: 'grains',
-  flour: 'grains',
-  bread: 'grains',
-  oat: 'grains',
-  quinoa: 'grains',
-  lentil: 'grains',
-  bean: 'grains',
-  oil: 'grains',
-  vinegar: 'grains',
-  soy: 'grains',
-  honey: 'grains',
-  almond: 'grains',
-  walnut: 'grains',
-  cashew: 'grains',
-  nut: 'grains',
-  chickpea: 'grains',
-  coconut: 'grains',
-};
-
-function inferCategory(name: string): GroceryCategory {
-  const lower = name.toLowerCase();
-  for (const [keyword, cat] of Object.entries(CATEGORY_MAP)) {
-    if (lower.includes(keyword)) return cat;
-  }
-  return 'other';
 }
 
 function getMondayOfWeek(offset: number): Date {
@@ -182,20 +110,11 @@ export class ShoppingListService {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
 
-    // Find plan for this week
-    const allPlans = await mealPlanRepository.findAllByUserId(userId, 52, 0);
-
-    // Find plan whose weekStartDate exactly matches the target Monday
-    const targetDateStr = weekStart.toDateString();
-    let targetPlan = allPlans.find((p) => {
-      const planMonday = new Date(p.weekStartDate);
-      planMonday.setHours(0, 0, 0, 0);
-      return planMonday.toDateString() === targetDateStr;
-    });
-
-    // If no plan for this week, for offset 0 use active plan
+    // Find the plan for this week (single indexed query); for offset 0 fall
+    // back to the active plan.
+    let targetPlan = await mealPlanRepository.findByWeekStart(userId, weekStart);
     if (!targetPlan && weekOffset === 0) {
-      targetPlan = (await mealPlanRepository.findActiveWithDays(userId)) ?? undefined;
+      targetPlan = await mealPlanRepository.findActiveWithDays(userId);
     }
 
     if (!targetPlan) {

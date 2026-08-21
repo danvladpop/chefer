@@ -584,13 +584,12 @@ Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a
 
 ### MealPlanService (application layer)
 
-`apps/api/src/application/meal-plan/meal-plan.service.ts`. Methods: `generate`, `getActive`, `getRecipe`, `swapRecipe`, `getShoppingList`, `list`, `restore`, `getById`.
+`apps/api/src/application/meal-plan/meal-plan.service.ts`. Methods: `generate`, `getActive`, `getForWeek`, `getRecipe`, `swapRecipe`, `replaceRecipe`, `list`, `restore`, `getById` — the plan→DTO join lives once in the private `assemblePlanDto` and week lookups use the indexed `findByWeekStart` (no more 52-plan scans). Ingredient categorisation is shared: `application/shared/category-map.ts` (word-boundary matching, longest keyword first — "pepperoni" no longer lands in produce via "pepper").
 
 - `generate(userId, weekOffset, premium)` — **tier-branched**:
   - _Premium_ (or ADMIN): reads prefs → **recomputes the daily calorie target live** from body metrics + goal via `computeCalorieTarget` (the stored `dailyCalorieTarget` is a display snapshot and may be stale) → calls `IAIService.generateMealPlan` → reuses existing images by recipe name (`findRecipeImagesByNames`) → upserts recipes with `imagePriority` (day-distance from today) → archives old plan → creates new `ACTIVE` plan → `recipeImageWorker.wake()`.
   - _Free_: `generateCurated` — random breakfast/lunch/dinner selection from the curated pool for each of 7 days (shuffled cycling, no AI calls, preset stock images, preferences ignored).
 - `swapRecipe(..., premium)` — premium: AI-generated alternative (with name-based image reuse + worker wake); free: random curated recipe of the same meal type.
-- `getShoppingList` — aggregates ingredients across all plan recipes, merges by name+unit, groups by `CATEGORY_MAP` keyword matching.
 - `list` / `restore` / `getById` — history + restore support.
 
 ### CuratedRecipes (lib)
@@ -729,7 +728,6 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `mealPlan.getActive`           | Protected | Query    | —                                                                                                                                                                    |
 | `mealPlan.getRecipe`           | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
 | `mealPlan.swapRecipe`          | Protected | Mutation | `{ planId, dayOfWeek, mealType, currentRecipeId }`                                                                                                                   |
-| `mealPlan.getShoppingList`     | Protected | Query    | —                                                                                                                                                                    |
 | `mealPlan.list`                | Protected | Query    | `{ limit?, offset? }`                                                                                                                                                |
 | `mealPlan.restore`             | Protected | Mutation | `{ planId: string }`                                                                                                                                                 |
 | `mealPlan.getById`             | Protected | Query    | `{ planId: string }`                                                                                                                                                 |

@@ -136,16 +136,23 @@ export const trackerService = {
     });
   },
 
-  async weeklySummary(userId: string): Promise<{ days: DaySummary[]; dailyCalorieTarget: number }> {
+  /**
+   * Daily totals for the trailing `dayCount` days (today inclusive), zero-
+   * filled for unlogged days. weeklySummary/monthlySummary used to be
+   * byte-identical copies of this differing only in N.
+   */
+  async summary(
+    userId: string,
+    dayCount: number,
+  ): Promise<{ days: DaySummary[]; dailyCalorieTarget: number }> {
     const [logs, profile] = await Promise.all([
-      dailyLogRepository.findLastN(userId, 7),
+      dailyLogRepository.findLastN(userId, dayCount),
       chefProfileRepository.findByUserId(userId),
     ]);
     const dailyCalorieTarget = resolveDailyTargets(profile).dailyCalorieTarget;
 
-    // Build last 7 days
     const days: DaySummary[] = [];
-    for (let i = 6; i >= 0; i--) {
+    for (let i = dayCount - 1; i >= 0; i--) {
       const d = new Date();
       d.setUTCDate(d.getUTCDate() - i);
       d.setUTCHours(0, 0, 0, 0);
@@ -167,36 +174,14 @@ export const trackerService = {
     return { days, dailyCalorieTarget };
   },
 
+  async weeklySummary(userId: string): Promise<{ days: DaySummary[]; dailyCalorieTarget: number }> {
+    return this.summary(userId, 7);
+  },
+
   async monthlySummary(
     userId: string,
   ): Promise<{ days: DaySummary[]; dailyCalorieTarget: number }> {
-    const [logs, profile] = await Promise.all([
-      dailyLogRepository.findLastN(userId, 28),
-      chefProfileRepository.findByUserId(userId),
-    ]);
-    const dailyCalorieTarget = resolveDailyTargets(profile).dailyCalorieTarget;
-
-    const days: DaySummary[] = [];
-    for (let i = 27; i >= 0; i--) {
-      const d = new Date();
-      d.setUTCDate(d.getUTCDate() - i);
-      d.setUTCHours(0, 0, 0, 0);
-      const dateStr = d.toISOString().split('T')[0]!;
-      const log = logs.find((l) => {
-        const ld = new Date(l.date);
-        ld.setUTCHours(0, 0, 0, 0);
-        return ld.toISOString().split('T')[0] === dateStr;
-      });
-      days.push({
-        date: dateStr,
-        totalKcal: log?.totalKcal ?? 0,
-        totalProtein: log?.totalProtein ?? 0,
-        totalCarbs: log?.totalCarbs ?? 0,
-        totalFat: log?.totalFat ?? 0,
-        hasLog: !!log,
-      });
-    }
-    return { days, dailyCalorieTarget };
+    return this.summary(userId, 28);
   },
 
   async logWeight(userId: string, weightKg: number, dateStr?: string) {

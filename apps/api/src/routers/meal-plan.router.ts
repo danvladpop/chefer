@@ -104,14 +104,6 @@ export const mealPlanRouter = router({
       );
     }),
 
-  /**
-   * Returns the aggregated shopping list for the user's active plan,
-   * grouped by category (Produce, Proteins, Dairy, Grains & Pantry, Other).
-   */
-  getShoppingList: protectedProcedure.query(async ({ ctx }) => {
-    return mealPlanService.getShoppingList(ctx.user.id);
-  }),
-
   list: protectedProcedure
     .input(
       z.object({
