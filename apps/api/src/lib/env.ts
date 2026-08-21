@@ -41,6 +41,19 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
 
+  // Email — mock is enabled by default so local dev never sends real mail;
+  // the mock logs the message (including reset links) to the console instead.
+  EMAIL_MOCK_ENABLED: z
+    .string()
+    .default('true')
+    .transform((val) => val === 'true'),
+  RESEND_API_KEY: z.string().optional(),
+  // The shared Resend sender only delivers to the account owner's inbox —
+  // swap for a verified-domain address before real users need email.
+  EMAIL_FROM: z.string().default('Chefer <onboarding@resend.dev>'),
+  // Base URL used in emailed links (reset password, etc.)
+  APP_URL: z.string().url().default('http://localhost:3000'),
+
   // Cloudinary (optional — image generation will fail gracefully without these)
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
@@ -77,6 +90,10 @@ function validateEnv(): EnvSchema {
     if (data.AI_PROVIDER === 'anthropic' && !data.ANTHROPIC_API_KEY) {
       throw new Error('❌ ANTHROPIC_API_KEY is required when AI_PROVIDER=anthropic');
     }
+  }
+
+  if (!data.EMAIL_MOCK_ENABLED && !data.RESEND_API_KEY) {
+    throw new Error('❌ RESEND_API_KEY is required when EMAIL_MOCK_ENABLED=false');
   }
 
   return data;

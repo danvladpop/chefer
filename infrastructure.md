@@ -718,6 +718,8 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `auth.register`                | Public    | Mutation | `{ email, password, firstName, lastName }`                                                                                                                           |
 | `auth.login`                   | Public    | Mutation | `{ email, password }`                                                                                                                                                |
 | `auth.logout`                  | Public    | Mutation | —                                                                                                                                                                    |
+| `auth.requestPasswordReset`    | Public    | Mutation | `{ email }` — enumeration-safe (always succeeds); rate-limited per IP (5/15 min) and per address (3/h)                                                               |
+| `auth.resetPassword`           | Public    | Mutation | `{ token, password }` — single-use 1 h token (sha256-stored); invalidates all sessions                                                                               |
 | `auth.me`                      | Protected | Query    | —                                                                                                                                                                    |
 | `preferences.hasProfile`       | Protected | Query    | —                                                                                                                                                                    |
 | `preferences.get`              | Protected | Query    | —                                                                                                                                                                    |
@@ -811,27 +813,31 @@ hidden, leaving no way back to the login form.
 
 ### `apps/api/.env`
 
-| Variable                   | Required | Default               | Description                                                                                                                         |
-| -------------------------- | -------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`                 | No       | development           | Runtime environment                                                                                                                 |
-| `PORT`                     | No       | 3001                  | HTTP listen port                                                                                                                    |
-| `HOST`                     | No       | 0.0.0.0               | HTTP listen host                                                                                                                    |
-| `DATABASE_URL`             | **Yes**  | —                     | PostgreSQL connection string                                                                                                        |
-| `JWT_SECRET`               | **Yes**  | —                     | Min 32 chars                                                                                                                        |
-| `JWT_EXPIRES_IN`           | No       | 15m                   | Access token TTL                                                                                                                    |
-| `REFRESH_TOKEN_SECRET`     | **Yes**  | —                     | Min 32 chars                                                                                                                        |
-| `REFRESH_TOKEN_EXPIRES_IN` | No       | 30d                   | Refresh token TTL                                                                                                                   |
-| `CORS_ORIGINS`             | No       | http://localhost:3000 | Comma-separated allowed origins                                                                                                     |
-| `REDIS_URL`                | No       | —                     | Redis connection string                                                                                                             |
-| `RATE_LIMIT_MAX`           | No       | 100                   | Max requests per window                                                                                                             |
-| `RATE_LIMIT_WINDOW_MS`     | No       | 60000                 | Rate limit window (ms)                                                                                                              |
-| `AI_MOCK_ENABLED`          | No       | true                  | `true` = fixture data; `false` = real AI provider                                                                                   |
-| `AI_PROVIDER`              | No       | openai                | Active provider: `gemini` \| `openai` \| `anthropic`                                                                                |
-| `GEMINI_API_KEY`           | No       | —                     | Required when `AI_PROVIDER=gemini` + mock disabled                                                                                  |
-| `OPENAI_API_KEY`           | No       | —                     | Required when `AI_PROVIDER=openai` + mock disabled                                                                                  |
-| `ANTHROPIC_API_KEY`        | No       | —                     | Required when `AI_PROVIDER=anthropic` + mock disabled                                                                               |
-| `GROCERY_AI_MOCK_ENABLED`  | No       | true                  | Use fixture grocery store data (no Claude call)                                                                                     |
-| `UNSPLASH_ACCESS_KEY`      | No       | —                     | Unsplash API key for ingredient images; falls back to category images without it. Get a free key at https://unsplash.com/developers |
+| Variable                   | Required | Default                        | Description                                                                                                                         |
+| -------------------------- | -------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                 | No       | development                    | Runtime environment                                                                                                                 |
+| `PORT`                     | No       | 3001                           | HTTP listen port                                                                                                                    |
+| `HOST`                     | No       | 0.0.0.0                        | HTTP listen host                                                                                                                    |
+| `DATABASE_URL`             | **Yes**  | —                              | PostgreSQL connection string                                                                                                        |
+| `JWT_SECRET`               | **Yes**  | —                              | Min 32 chars                                                                                                                        |
+| `JWT_EXPIRES_IN`           | No       | 15m                            | Access token TTL                                                                                                                    |
+| `REFRESH_TOKEN_SECRET`     | **Yes**  | —                              | Min 32 chars                                                                                                                        |
+| `REFRESH_TOKEN_EXPIRES_IN` | No       | 30d                            | Refresh token TTL                                                                                                                   |
+| `CORS_ORIGINS`             | No       | http://localhost:3000          | Comma-separated allowed origins                                                                                                     |
+| `REDIS_URL`                | No       | —                              | Redis connection string                                                                                                             |
+| `RATE_LIMIT_MAX`           | No       | 100                            | Max requests per window                                                                                                             |
+| `RATE_LIMIT_WINDOW_MS`     | No       | 60000                          | Rate limit window (ms)                                                                                                              |
+| `AI_MOCK_ENABLED`          | No       | true                           | `true` = fixture data; `false` = real AI provider                                                                                   |
+| `AI_PROVIDER`              | No       | openai                         | Active provider: `gemini` \| `openai` \| `anthropic`                                                                                |
+| `GEMINI_API_KEY`           | No       | —                              | Required when `AI_PROVIDER=gemini` + mock disabled                                                                                  |
+| `OPENAI_API_KEY`           | No       | —                              | Required when `AI_PROVIDER=openai` + mock disabled                                                                                  |
+| `ANTHROPIC_API_KEY`        | No       | —                              | Required when `AI_PROVIDER=anthropic` + mock disabled                                                                               |
+| `GROCERY_AI_MOCK_ENABLED`  | No       | true                           | Use fixture grocery store data (no Claude call)                                                                                     |
+| `UNSPLASH_ACCESS_KEY`      | No       | —                              | Unsplash API key for ingredient images; falls back to category images without it. Get a free key at https://unsplash.com/developers |
+| `EMAIL_MOCK_ENABLED`       | No       | true                           | Mock logs emails (incl. reset links) to the console instead of sending                                                              |
+| `RESEND_API_KEY`           | No       | —                              | Required when `EMAIL_MOCK_ENABLED=false`                                                                                            |
+| `EMAIL_FROM`               | No       | Chefer <onboarding@resend.dev> | Sender address; shared Resend sender only delivers to the account owner — use a verified domain for real users                      |
+| `APP_URL`                  | No       | http://localhost:3000          | Base URL used in emailed links (password reset)                                                                                     |
 
 ### `apps/web/.env.local`
 

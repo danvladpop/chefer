@@ -426,3 +426,32 @@ dashboard.summary
 
 The web hero card (`/dashboard`) renders `nextMeal`, else `tomorrowFirstMeal`
 (badged "Tomorrow", CTA "View Recipe"), else the "all caught up" empty state.
+
+---
+
+## 11. Password Reset Flow
+
+> Added 2026-08-21 (roadmap P0-6). Email goes through `IEmailService`
+> (`apps/api/src/lib/email`): a console-logging mock when
+> `EMAIL_MOCK_ENABLED=true` (default — the logged link is the local testing
+> workflow), Resend otherwise.
+
+```
+/forgot-password → auth.requestPasswordReset { email }   (public)
+  ├─ rate limits: 5/15 min per IP, 3/h per target address
+  ├─ ALWAYS returns success — responses must not reveal which
+  │   addresses have accounts (enumeration)
+  └─ if the account exists:
+       ├─ delete any previous reset tokens for the address
+       ├─ VerificationToken { identifier: "reset:<email>",
+       │    token: sha256(random 32 bytes), expires: +1 h }
+       │    (only the hash is stored — a DB leak can't reset passwords)
+       └─ email link: APP_URL/reset-password?token=<raw>
+
+/reset-password?token=… → auth.resetPassword { token, password }   (public)
+  ├─ look up sha256(token); reject invalid / expired / non-reset rows
+  └─ transaction:
+       ├─ user.passwordHash = bcrypt(newPassword, 12)
+       ├─ delete all reset tokens for the address (single-use)
+       └─ delete ALL of the user's sessions — every device signs out
+```
