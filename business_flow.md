@@ -140,32 +140,9 @@ during render. A successful login overwrites it via `Set-Cookie`.
 
 ## 5. View User Profile Flow
 
-> **Status:** Implemented at `/user`.
-
-```
-1. Browser requests GET /user
-2. Next.js Server Component renders on the server:
-    a. prisma.user.findFirst({ select: { id } })
-       └── Returns the first user in the DB (any user)
-    b. serverClient.user.getById.query({ id })
-       └── HTTP GET to http://localhost:3001/trpc/user.getById?input={"id":"..."}
-       └── API: UserService.findById(id)
-       └── API: UserRepository.findById(id) → Prisma SELECT
-       └── Returns User object
-3. Server Component renders user card with firstName, lastName, email, id
-4. HTML is sent to the browser (no client-side JS needed for this page)
-```
-
-**Data path:**
-
-```
-/user page
-  └── prisma.user.findFirst()       ← direct DB (ID only)
-  └── tRPC serverClient.user.getById ← via API server
-        └── UserService.findById
-              └── PrismaUserRepository.findById
-                    └── Prisma Client → PostgreSQL
-```
+> **Status:** Removed 2026-08-21 (roadmap P0-2). The `/user` dev scaffold rendered the first
+> account's name and email to anonymous visitors and was deleted; `user.getById` is now a
+> `protectedProcedure`. Authenticated users see their own data via `user.me` on `/profile`.
 
 ---
 

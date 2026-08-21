@@ -191,7 +191,6 @@ Handles `SIGTERM` and `SIGINT`: closes HTTP server, disconnects Prisma.
 | Route                           | Type             | Description                                                                                    |
 | ------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------- |
 | `/`                             | Server Component | Landing page — hero, feature list, tech stack                                                  |
-| `/user`                         | Server Component | Displays first user from DB via tRPC server client                                             |
 | `/(auth)/login`                 | Client Component | Login form (react-hook-form + Zod)                                                             |
 | `/(auth)/register`              | Client Component | Registration form, redirects to `/onboarding`                                                  |
 | `/(dashboard)/dashboard`        | Client Component | Daily overview — greeting, weekly outlook strip, Next Meal spotlight, NutritionSummary         |
@@ -694,7 +693,7 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | Procedure                      | Access    | Type     | Input                                                                                                                                                                |
 | ------------------------------ | --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `user.me`                      | Protected | Query    | —                                                                                                                                                                    |
-| `user.getById`                 | Public    | Query    | `{ id: cuid }`                                                                                                                                                       |
+| `user.getById`                 | Protected | Query    | `{ id: cuid }`                                                                                                                                                       |
 | `user.list`                    | Admin     | Query    | `{ page, limit, search?, role?, sortBy, sortOrder }`                                                                                                                 |
 | `user.create`                  | Admin     | Mutation | `{ email, name?, password, role? }`                                                                                                                                  |
 | `user.update`                  | Protected | Mutation | `{ id, name?, email?, role?, image? }`                                                                                                                               |

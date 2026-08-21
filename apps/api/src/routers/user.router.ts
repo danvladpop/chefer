@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { UserRole } from '@chefer/types';
 import { UserService } from '../application/user/user.service.js';
 import { PrismaUserRepository } from '../infrastructure/prisma/prisma-user.repository.js';
-import { adminProcedure, protectedProcedure, publicProcedure, router } from '../lib/trpc.js';
+import { adminProcedure, protectedProcedure, router } from '../lib/trpc.js';
 
 const userService = new UserService(new PrismaUserRepository());
 
@@ -48,15 +48,18 @@ export const userRouter = router({
   }),
 
   /**
-   * Get a user by ID.
+   * Get a user by ID. Requires authentication — the returned DTO includes
+   * email and name, which must not be readable anonymously.
    */
-  getById: publicProcedure.input(z.object({ id: z.string().cuid() })).query(async ({ input }) => {
-    const user = await userService.findById(input.id);
-    if (!user) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
-    }
-    return user;
-  }),
+  getById: protectedProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .query(async ({ input }) => {
+      const user = await userService.findById(input.id);
+      if (!user) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+      }
+      return user;
+    }),
 
   /**
    * List users with pagination and filtering. Admin only.

@@ -137,7 +137,7 @@ Run `cd tests && pnpm exec playwright test --project=mobile` after layout change
 
 ## Architecture Rules
 
-1. **No direct DB access from `apps/web`** — the web app should call the API via tRPC. The current `/user` page uses `prisma.user.findFirst` only to get an ID; all data fetching goes through `serverClient`.
+1. **No direct DB access from `apps/web`** — the web app should call the API via tRPC. All data fetching goes through `serverClient` (server components) or the tRPC React client. Known exception pending cleanup: `app/api/chat/route.ts` (removed by roadmap P1-4).
 
 2. **Layered API architecture** — respect the layer order: Router → Service → Repository → Prisma. Do not skip layers (e.g., no Prisma calls in routers).
 

@@ -53,6 +53,18 @@ test.describe('Navigation', () => {
     await expect(page.getByText('Page not found')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Return home' })).toBeVisible();
   });
+
+  test('the deleted /user dev scaffold stays deleted', async ({ page }) => {
+    // /user rendered a real account's name and email to anonymous visitors
+    // before it was removed (roadmap P0-2). It must never resolve again.
+    const response = await page.goto('/user');
+    expect(response?.status()).toBe(404);
+  });
+
+  test('anonymous /ingredients redirects to login server-side', async ({ page }) => {
+    await page.goto('/ingredients');
+    await expect(page).toHaveURL(/\/login\?from=%2Fingredients/);
+  });
 });
 
 test.describe('Login Page', () => {
