@@ -2,9 +2,12 @@ import { expect, test } from '@playwright/test';
 import { gotoAndSettle } from './helpers/layout';
 
 // ─── Charts on touch ──────────────────────────────────────────────────────────
-// Recharts tooltips default to a hover trigger. Touch screens have no hover, so
-// every number behind the progress charts used to be unreachable on a phone.
-// The page switches to a click trigger on coarse pointers; this guards that.
+// Guards the user-facing guarantee: a tap surfaces the numbers behind a chart.
+//
+// Note what this does NOT prove. Tapping fires compatibility mouse events
+// (mouseover/mousemove/click), so a hover-triggered tooltip opens on tap too —
+// this passes under either trigger. It is a regression guard against the chart
+// or its tooltip disappearing, not a discriminator between trigger modes.
 
 test.describe('progress charts are usable without a mouse', () => {
   test.use({ viewport: { width: 390, height: 844 } });

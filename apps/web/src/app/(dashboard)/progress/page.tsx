@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
 import { Flame, Scale, TrendingUp } from 'lucide-react';
@@ -22,13 +21,17 @@ export default function ProgressPage() {
   const [weightInput, setWeightInput] = useState('');
   const [weightSaved, setWeightSaved] = useState(false);
 
-  // Touch has no hover, so hover-triggered tooltips are simply unreachable on a
-  // phone — the numbers behind every chart on this page were inaccessible.
-  // Tapping opens them instead, while a mouse keeps the lighter hover feel.
-  const isTouch = useCoarsePointer();
-  const tooltipTrigger = isTouch ? 'click' : 'hover';
-  /** Bigger hit area for the dot you have to tap to open a tooltip. */
-  const activeDot = isTouch ? { r: 7 } : { r: 5 };
+  // Tooltips stay on the default hover trigger. Tapping a chart already opens
+  // them: browsers fire compatibility mouse events (mouseover/mousemove/click)
+  // on tap, which is what Recharts listens for. Measured against a click
+  // trigger on an emulated touch device, both opened on tap and neither
+  // dismissed on tapping away — so switching gained nothing and cost a
+  // pointer-detection hook.
+  //
+  // The non-dismissal is a genuine touch problem, but it affects both triggers
+  // and needs a different fix.
+  /** Slightly larger than the default, so the point under a fingertip reads. */
+  const activeDot = { r: 6 };
 
   const { data: monthly, isLoading } = trpc.tracker.monthlySummary.useQuery(undefined, {
     staleTime: 60_000,
@@ -147,7 +150,7 @@ export default function ProgressPage() {
                     minTickGap={24}
                   />
                   <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={40} />
-                  <Tooltip trigger={tooltipTrigger} formatter={(val) => [`${String(val)} kcal`]} />
+                  <Tooltip formatter={(val) => [`${String(val)} kcal`]} />
                   <ReferenceLine
                     y={target}
                     stroke="#d1d5db"
@@ -190,7 +193,7 @@ export default function ProgressPage() {
                     minTickGap={24}
                   />
                   <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={30} />
-                  <Tooltip trigger={tooltipTrigger} />
+                  <Tooltip />
                   <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
                   <Bar dataKey="protein" name="Protein" stackId="a" fill="#3b82f6" />
                   <Bar dataKey="carbs" name="Carbs" stackId="a" fill="#10b981" />
@@ -245,7 +248,7 @@ export default function ProgressPage() {
                     width={40}
                     domain={['auto', 'auto']}
                   />
-                  <Tooltip trigger={tooltipTrigger} formatter={(val) => [`${String(val)} kg`]} />
+                  <Tooltip formatter={(val) => [`${String(val)} kg`]} />
                   <Line
                     type="monotone"
                     dataKey="weight"
