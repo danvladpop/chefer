@@ -24,8 +24,18 @@ setup('authenticate', async ({ page }) => {
   if (!email || !password) {
     throw new Error(
       'E2E_EMAIL and E2E_PASSWORD must be set to run the authenticated suite.\n' +
-        'Example: E2E_EMAIL=admin@chefer.dev E2E_PASSWORD=... pnpm test:e2e\n' +
+        "Example: E2E_EMAIL='admin@chefer.dev' E2E_PASSWORD='...' pnpm test:e2e\n" +
         'Seeded local accounts are listed in CLAUDE.md.',
+    );
+  }
+
+  // Fail fast on documentation placeholders rather than burning a browser
+  // launch and a round trip to the API to be told the credentials are wrong.
+  const PLACEHOLDERS = ['you@example.com', 'your-email', 'your-password', 'your_password'];
+  if (PLACEHOLDERS.includes(email) || PLACEHOLDERS.includes(password)) {
+    throw new Error(
+      'E2E_EMAIL / E2E_PASSWORD still hold the example placeholder values.\n' +
+        'Substitute a real account before running — the seeded local accounts are in CLAUDE.md.',
     );
   }
 
