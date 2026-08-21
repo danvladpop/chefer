@@ -1,3 +1,4 @@
+import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test as setup } from '@playwright/test';
@@ -17,7 +18,24 @@ import { expect, test as setup } from '@playwright/test';
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const AUTH_FILE = path.join(here, '..', '.auth', 'user.json');
 
+/** How long a saved session is trusted before we sign in again. */
+const AUTH_TTL_MS = 8 * 60 * 60 * 1000;
+
 setup('authenticate', async ({ page }) => {
+  // Reuse a recent session so the suite runs without credentials in the
+  // environment. Only the first run of the day needs them.
+  if (process.env['E2E_FORCE_LOGIN'] !== '1' && existsSync(AUTH_FILE)) {
+    const ageMs = Date.now() - statSync(AUTH_FILE).mtimeMs;
+    if (ageMs < AUTH_TTL_MS) {
+      setup.skip(
+        true,
+        `Reusing saved session (${Math.round(ageMs / 60_000)}m old). ` +
+          'Set E2E_FORCE_LOGIN=1 to sign in again.',
+      );
+      return;
+    }
+  }
+
   const email = process.env['E2E_EMAIL'];
   const password = process.env['E2E_PASSWORD'];
 

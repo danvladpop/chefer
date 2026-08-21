@@ -86,20 +86,27 @@ test.describe('more drawer', () => {
 
   test('locks the page behind it and restores scroll on close', async ({ page }) => {
     await gotoAndSettle(page, '/dashboard');
+
+    // Read back the real offset rather than assuming the requested one: a short
+    // page clamps the scroll, and the lock must capture wherever we landed.
     await page.evaluate(() => window.scrollTo(0, 400));
+    const scrolled = await page.evaluate(() => Math.round(window.scrollY));
+    expect(scrolled, 'dashboard must be scrollable for this test to mean anything').toBeGreaterThan(
+      0,
+    );
 
     await bottomNav(page).getByRole('button', { name: 'More' }).click();
     await expect(page.getByRole('dialog', { name: 'More navigation' })).toBeVisible();
 
     // While locked the body is pinned with a negative offset, not scrolled.
     expect(await page.evaluate(() => document.body.style.position)).toBe('fixed');
-    expect(await page.evaluate(() => document.body.style.top)).toBe('-400px');
+    expect(await page.evaluate(() => document.body.style.top)).toBe(`-${scrolled}px`);
 
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog', { name: 'More navigation' })).toBeHidden();
 
     expect(await page.evaluate(() => document.body.style.position)).toBe('');
-    expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(400);
+    expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(scrolled);
   });
 
   test('closes after navigating from it', async ({ page }) => {
