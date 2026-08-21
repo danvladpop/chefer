@@ -96,7 +96,7 @@ export function StepCuisine({ value, onChange }: StepCuisineProps) {
               How many meals do you typically eat?
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {MEALS_OPTIONS.map((n) => (
               <button
                 key={n}
@@ -119,7 +119,7 @@ export function StepCuisine({ value, onChange }: StepCuisineProps) {
               How many people are you cooking for?
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {SERVING_OPTIONS.map((n) => (
               <button
                 key={n}

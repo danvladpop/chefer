@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { use } from 'react';
+import { use, useState } from 'react';
+import { DayView } from '@/features/meal-plan/components/day-view';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
 import { trpc } from '@/lib/trpc';
 import { format } from 'date-fns';
@@ -12,6 +13,9 @@ const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 
 export default function HistoryPlanPage({ params }: { params: Promise<{ planId: string }> }) {
   const { planId } = use(params);
+  // Local state is enough here: unlike the planner there is no week param to
+  // stay in sync with, and this is a read-only view.
+  const [selectedDay, setSelectedDay] = useState(0);
 
   const { data: plan, isLoading } = trpc.mealPlan.getById.useQuery(
     { planId },
@@ -22,7 +26,7 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
     return (
       <div className="p-6">
         <div className="mb-6 h-6 w-48 animate-pulse rounded bg-neutral-200" />
-        <div className="grid grid-cols-7 gap-3">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-7">
           {Array.from({ length: 7 }).map((_, i) => (
             <div key={i} className="space-y-3">
               <div className="h-6 animate-pulse rounded bg-neutral-200" />
@@ -68,8 +72,20 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
         <h1 className="text-xl font-bold">Week of {format(weekStart, 'dd MMM yyyy')}</h1>
       </div>
 
-      {/* Week grid */}
-      <div className="overflow-x-auto">
+      {/* Mobile: one day at a time, same component the planner uses */}
+      <div className="lg:hidden">
+        <DayView
+          days={plan.days}
+          planId={plan.planId}
+          selectedDay={selectedDay}
+          onSelectDay={setSelectedDay}
+          weekStartDate={weekStart}
+          readOnly
+        />
+      </div>
+
+      {/* Desktop: the full week grid */}
+      <div className="hidden overflow-x-auto lg:block">
         <div className="grid min-w-[700px] grid-cols-7 gap-3">
           {DAY_LABELS.map((label, colIdx) => {
             const dayPlan = plan.days.find((d) => d.dayOfWeek === colIdx);

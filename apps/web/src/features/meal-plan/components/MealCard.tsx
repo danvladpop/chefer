@@ -30,6 +30,12 @@ interface MealCardProps {
   readOnly?: boolean;
   imageUrlOverride?: string | null | undefined;
   imageStatusOverride?: ImageStatusType | undefined;
+  /**
+   * `grid` is the tall card used by the desktop week grid, sized for a ~120px
+   * column. `row` is the wide horizontal card used by the mobile day view,
+   * where the full width is available and the grid proportions look starved.
+   */
+  variant?: 'grid' | 'row';
 }
 
 const MEAL_TYPE_LABELS: Record<string, string> = {
@@ -54,6 +60,7 @@ export function MealCard({
   readOnly = false,
   imageUrlOverride,
   imageStatusOverride,
+  variant = 'grid',
 }: MealCardProps) {
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const href = `/recipes/${recipe.id}?planId=${planId}&day=${dayOfWeek}&meal=${mealType}`;
@@ -63,6 +70,65 @@ export function MealCard({
     imageUrlOverride !== undefined ? imageUrlOverride : (recipe.imageUrl ?? null);
   const effectiveImageStatus: ImageStatusType = imageStatusOverride ?? recipe.imageStatus ?? 'DONE';
 
+  // ── Row variant — image left, details right, full container width ─────────
+  if (variant === 'row') {
+    const rowInner = (
+      <>
+        <div className="relative h-[88px] w-[88px] shrink-0 overflow-hidden rounded-l-xl">
+          <RecipeImage
+            imageUrl={effectiveImageUrl}
+            imageStatus={effectiveImageStatus}
+            recipeName={recipe.name}
+            cuisineType={recipe.cuisineType}
+            className="h-full w-full"
+          />
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col justify-between gap-1 py-2.5 pl-3 pr-3">
+          <div className="min-w-0">
+            <span
+              className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${MEAL_TYPE_COLORS[mealType] ?? 'bg-gray-100 text-gray-700'}`}
+            >
+              {MEAL_TYPE_LABELS[mealType] ?? mealType}
+            </span>
+            <p className="mt-1 line-clamp-2 text-sm font-semibold leading-snug text-gray-900">
+              {recipe.name}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-gray-600">
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" aria-hidden="true" />
+              {totalTime} min
+            </span>
+            <span className="font-medium text-gray-800">{n.calories} kcal</span>
+            <span className="text-gray-500">
+              P {n.protein}g · C {n.carbs}g · F {n.fat}g
+            </span>
+          </div>
+        </div>
+      </>
+    );
+
+    if (readOnly) {
+      return (
+        <div className="flex overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          {rowInner}
+        </div>
+      );
+    }
+
+    return (
+      <Link
+        href={href}
+        className="flex min-h-11 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all hover:border-[#944a00]/40 hover:shadow-md"
+      >
+        {rowInner}
+      </Link>
+    );
+  }
+
+  // ── Grid variant — the original tall card ─────────────────────────────────
   const inner = (
     <>
       {/* Recipe thumbnail */}

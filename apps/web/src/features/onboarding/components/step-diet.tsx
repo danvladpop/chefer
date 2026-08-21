@@ -269,19 +269,22 @@ export function StepDiet({ value, onChange }: StepDietProps) {
 
           {/* Free-text add */}
           <div className="flex gap-2">
+            {/* min-w-0: a flex item defaults to min-width:auto, so the input
+                refused to shrink below its intrinsic width and pushed the Add
+                button off-screen at 320px. */}
             <input
               type="text"
               placeholder="Add another ingredient…"
               value={dislikeInput}
               onChange={(e) => setDislikeInput(e.target.value)}
               onKeyDown={handleDislikeKeyDown}
-              className={`${inputCls} flex-1`}
+              className={`${inputCls} min-w-0 flex-1`}
             />
             <button
               type="button"
               onClick={addCustomDislike}
               disabled={!dislikeInput.trim()}
-              className="inline-flex h-10 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 shrink-0 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Add
             </button>
