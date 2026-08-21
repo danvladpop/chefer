@@ -10,6 +10,7 @@
     }
   },
   "scripts": {
+    "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "db:push": "prisma db push",
