@@ -1,9 +1,9 @@
 // @ts-check
-import { base } from './base.js';
-import tseslint from 'typescript-eslint';
 import nextPlugin from '@next/eslint-plugin-next';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
+import tseslint from 'typescript-eslint';
+import { base } from './base.js';
 
 /** @type {import('typescript-eslint').ConfigArray} */
 export const nextjs = tseslint.config(...base, {

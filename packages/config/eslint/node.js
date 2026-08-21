@@ -1,7 +1,7 @@
 // @ts-check
-import { base } from './base.js';
-import tseslint from 'typescript-eslint';
 import nodePlugin from 'eslint-plugin-n';
+import tseslint from 'typescript-eslint';
+import { base } from './base.js';
 
 /** @type {import('typescript-eslint').ConfigArray} */
 export const node = tseslint.config(...base, {

@@ -2,7 +2,12 @@
   "name": "@chefer/eslint-config",
   "version": "0.0.0",
   "private": true,
-  "files": ["base.js", "nextjs.js", "node.js"],
+  "type": "module",
+  "files": [
+    "base.js",
+    "nextjs.js",
+    "node.js"
+  ],
   "description": "Shared ESLint configurations for the chefer monorepo",
   "exports": {
     "./base": "./base.js",
@@ -10,11 +15,14 @@
     "./node": "./node.js"
   },
   "dependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
+    "@eslint/js": "^9.7.0",
+    "@next/eslint-plugin-next": "^16.1.6",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.1",
-    "eslint-plugin-unicorn": "^55.0.0"
+    "eslint-plugin-n": "^17.9.0",
+    "eslint-plugin-react": "^7.35.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "typescript-eslint": "^8.0.0"
   },
   "peerDependencies": {
     "eslint": ">=9.0.0"

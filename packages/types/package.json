@@ -11,10 +11,12 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src"
   },
   "devDependencies": {
+    "@chefer/eslint-config": "workspace:^",
     "@chefer/tsconfig": "workspace:*",
+    "eslint": "^9.7.0",
     "typescript": "^5.5.2"
   }
 }

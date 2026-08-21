@@ -27,7 +27,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts,.tsx"
+    "lint": "eslint src"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -41,9 +41,11 @@
     "tailwind-merge": "^2.3.0"
   },
   "devDependencies": {
+    "@chefer/eslint-config": "workspace:^",
     "@chefer/tsconfig": "workspace:*",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "eslint": "^9.7.0",
     "react": "^19.0.0",
     "typescript": "^5.5.2"
   }
