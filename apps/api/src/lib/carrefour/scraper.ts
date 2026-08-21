@@ -174,13 +174,13 @@ function toRomanian(ingredientName: string): string {
   const key = cleaned.toLowerCase();
 
   // Exact match
-  if (EN_TO_RO[key]) return EN_TO_RO[key]!;
+  if (EN_TO_RO[key]) return EN_TO_RO[key];
 
   // Prefix match — try progressively shorter phrases
   const words = key.split(/\s+/);
   for (let len = words.length - 1; len >= 1; len--) {
     const phrase = words.slice(0, len).join(' ');
-    if (EN_TO_RO[phrase]) return EN_TO_RO[phrase]!;
+    if (EN_TO_RO[phrase]) return EN_TO_RO[phrase];
   }
 
   // No translation found — return cleaned original (works if already Romanian)
@@ -188,17 +188,6 @@ function toRomanian(ingredientName: string): string {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/**
- * Strip parenthetical qualifiers and common adjectives so we get a clean
- * search term: "Chicken breast (boneless)" → "Chicken breast"
- */
-function normalizeForSearch(ingredientName: string): string {
-  return ingredientName
-    .replace(/\s*\([^)]*\)/g, '') // remove (...)
-    .replace(/\s*\[[^\]]*\]/g, '') // remove [...]
-    .trim();
-}
 
 function isCacheValid(resolvedAt: Date): boolean {
   const ageMs = Date.now() - resolvedAt.getTime();
@@ -510,14 +499,14 @@ const NON_FOOD_KEYWORDS = [
  */
 function parseDataLayer(html: string, searchTerm?: string): CarrefourProduct | null {
   // Find the impressions array — it is always a flat JSON array in the HTML
-  const match = html.match(/"impressions"\s*:\s*(\[[\s\S]*?\])\s*[,}]/);
+  const match = /"impressions"\s*:\s*(\[[\s\S]*?\])\s*[,}]/.exec(html);
   if (!match) return null;
 
   try {
-    const impressions = JSON.parse(match[1]!) as Array<{
+    const impressions = JSON.parse(match[1]!) as {
       name?: string;
       price?: string | number;
-    }>;
+    }[];
 
     // Strip Romanian diacritics for fuzzy matching (ă→a, â→a, î→i, ș→s, ț→t)
     const stripDiacritics = (s: string) =>
@@ -557,8 +546,7 @@ function parseDataLayer(html: string, searchTerm?: string): CarrefourProduct | n
     for (const item of impressions) {
       if (!item.name) continue;
       if (isNonFood(item.name)) continue;
-      const priceRon =
-        typeof item.price === 'number' ? item.price : parseFloat(String(item.price ?? ''));
+      const priceRon = typeof item.price === 'number' ? item.price : parseFloat(item.price ?? '');
       if (!isPriceOk(priceRon)) continue;
       if (!isRelevant(item.name)) continue;
       return { productName: item.name, priceRon };

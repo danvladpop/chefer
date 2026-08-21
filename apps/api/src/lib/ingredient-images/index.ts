@@ -135,7 +135,7 @@ async function fetchFromUnsplash(name: string): Promise<string | null> {
         }
 
         const data = (await res.json()) as {
-          results: Array<{ urls: { small: string } }>;
+          results: { urls: { small: string } }[];
         };
         resolve(data.results[0]?.urls.small ?? null);
       } catch {

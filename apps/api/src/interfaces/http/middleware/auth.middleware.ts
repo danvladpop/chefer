@@ -50,6 +50,7 @@ async function resolveUserFromSession(token: string): Promise<UserProfile | null
             id: true,
             email: true,
             name: true,
+            firstName: true,
             role: true,
             planTier: true,
             image: true,
@@ -66,8 +67,9 @@ async function resolveUserFromSession(token: string): Promise<UserProfile | null
       id: session.user.id,
       email: session.user.email,
       name: session.user.name,
-      role: session.user.role as UserProfile['role'],
-      planTier: session.user.planTier as UserProfile['planTier'],
+      firstName: session.user.firstName,
+      role: session.user.role,
+      planTier: session.user.planTier,
       image: session.user.image,
     };
   } catch {

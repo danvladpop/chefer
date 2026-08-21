@@ -68,7 +68,7 @@ export class IngredientPriceWorker {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
         console.warn('[IngredientPriceWorker] rate limited — retrying remaining batches in 90s');
-        setTimeout(() => this.tick(), 90_000);
+        setTimeout(() => void this.tick(), 90_000);
       } else {
         console.error('[IngredientPriceWorker] tick error', err);
       }

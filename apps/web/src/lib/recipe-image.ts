@@ -18,8 +18,7 @@ const UNSPLASH_BASE = 'https://images.unsplash.com';
 const UNSPLASH_PARAMS = 'auto=format&fit=crop&w=800&h=600&q=80';
 
 /** Fallback shown when Recipe.imageUrl is null/undefined */
-export const RECIPE_FALLBACK_URL =
-  `${UNSPLASH_BASE}/photo-1490645935967-10de6ba17061?${UNSPLASH_PARAMS}`;
+export const RECIPE_FALLBACK_URL = `${UNSPLASH_BASE}/photo-1490645935967-10de6ba17061?${UNSPLASH_PARAMS}`;
 
 /**
  * Tiny inline base64 LQIP (Low Quality Image Placeholder) — warm saffron tint.

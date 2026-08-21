@@ -8,7 +8,7 @@ import { SideBar } from './side-bar';
 import { TopHeader } from './top-header';
 
 // Map route prefixes to page titles
-const TITLE_MAP: Array<[string, string]> = [
+const TITLE_MAP: [string, string][] = [
   ['/meal-plan', 'Meal Planner'],
   ['/recipes', 'Recipes'],
   ['/ingredients', 'Ingredients'],

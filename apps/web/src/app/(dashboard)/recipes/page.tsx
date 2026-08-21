@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
+import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { trpc } from '@/lib/trpc';
 import { Clock, Flame, Heart, Pencil, Plus, Search } from 'lucide-react';
 
@@ -134,7 +134,7 @@ export default function RecipesPage() {
                 <div className="relative h-40 overflow-hidden">
                   <RecipeImage
                     imageUrl={recipe.imageUrl ?? null}
-                    imageStatus={(recipe.imageStatus ?? 'DONE') as ImageStatusType}
+                    imageStatus={recipe.imageStatus ?? 'DONE'}
                     recipeName={recipe.name}
                     className="h-full w-full transition-transform duration-300 group-hover:scale-105"
                   />

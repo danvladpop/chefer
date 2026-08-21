@@ -1,10 +1,13 @@
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
-export enum UserRole {
-  ADMIN = 'ADMIN',
-  USER = 'USER',
-  MODERATOR = 'MODERATOR',
-}
+// Const object + union (not a TS enum) so Prisma's generated string enums
+// assign cleanly — a TS enum is nominally typed and rejects the literal.
+export const UserRole = {
+  ADMIN: 'ADMIN',
+  USER: 'USER',
+  MODERATOR: 'MODERATOR',
+} as const;
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
 export enum PostStatus {
   DRAFT = 'DRAFT',
@@ -36,6 +39,7 @@ export interface UserProfile {
   id: string;
   email: string;
   name: string | null;
+  firstName: string | null;
   role: UserRole;
   planTier: PlanTier;
   image: string | null;

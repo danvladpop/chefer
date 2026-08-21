@@ -1,4 +1,10 @@
-import { AiCallType, chefProfileRepository, mealPlanRepository, prisma } from '@chefer/database';
+import {
+  AiCallType,
+  chefProfileRepository,
+  mealPlanRepository,
+  prisma,
+  type Prisma,
+} from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient } from '../../lib/ai/types.js';
 import { groceryAIService } from '../../lib/grocery-ai/index.js';
@@ -274,7 +280,7 @@ export class ShoppingListService {
     }
 
     const rawItems = [...merged.entries()].map(([key, data]) => ({
-      key: `${targetPlan!.id}-${key}`,
+      key: `${targetPlan.id}-${key}`,
       ingredientName: data.name.charAt(0).toUpperCase() + data.name.slice(1),
       quantity: Number.isInteger(data.quantity) ? String(data.quantity) : data.quantity.toFixed(1),
       unit: data.unit,
@@ -368,7 +374,7 @@ export class ShoppingListService {
 
     const rawItems: StoredShoppingListItem[] = aiResult.items.map((item) => ({
       // Stable key (no index): checked-off state in the UI survives reloads
-      key: `${targetPlan!.id}-ai-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}-${item.unit.toLowerCase()}`,
+      key: `${targetPlan.id}-ai-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}-${item.unit.toLowerCase()}`,
       ingredientName: item.ingredientName,
       quantity: item.quantity,
       unit: item.unit,
@@ -379,14 +385,15 @@ export class ShoppingListService {
 
     // Persist so the AI-consolidated list survives reloads — getForWeek
     // serves it from now on (until the plan itself is regenerated).
+    const itemsJson = rawItems as unknown as Prisma.InputJsonValue;
     await prisma.shoppingList.upsert({
       where: { planId: targetPlan.id },
       create: {
         planId: targetPlan.id,
-        items: rawItems as unknown as object[],
+        items: itemsJson,
         aiGenerated: true,
       },
-      update: { items: rawItems as unknown as object[], aiGenerated: true },
+      update: { items: itemsJson, aiGenerated: true },
     });
 
     const { items, estimatedTotalEur } = await this.finalizeItems(rawItems);

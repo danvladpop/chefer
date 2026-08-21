@@ -141,7 +141,7 @@ export class DashboardService {
     for (const slot of todayMeals) {
       const recipe = recipeMap.get(slot.recipeId);
       if (recipe) {
-        const n = recipe.nutritionInfo as NutritionInfo;
+        const n = recipe.nutritionInfo as unknown as NutritionInfo;
         plannedKcal += n.calories;
         plannedProtein += n.protein;
         plannedCarbs += n.carbs;
@@ -164,7 +164,7 @@ export class DashboardService {
       if (!slot) continue;
       const recipe = recipeMap.get(slot.recipeId);
       if (!recipe) continue;
-      const n = recipe.nutritionInfo as NutritionInfo;
+      const n = recipe.nutritionInfo as unknown as NutritionInfo;
 
       if (i === nextMealIndex && !nextMeal) {
         nextMeal = {

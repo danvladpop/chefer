@@ -6,15 +6,15 @@ export interface RecipeImageEvent {
 }
 
 class RecipeImageEventEmitter extends EventEmitter {
-  emit(recipeId: string, payload: RecipeImageEvent): boolean {
+  override emit(recipeId: string, payload: RecipeImageEvent): boolean {
     return super.emit(recipeId, payload);
   }
 
-  on(recipeId: string, listener: (payload: RecipeImageEvent) => void): this {
+  override on(recipeId: string, listener: (payload: RecipeImageEvent) => void): this {
     return super.on(recipeId, listener);
   }
 
-  off(recipeId: string, listener: (payload: RecipeImageEvent) => void): this {
+  override off(recipeId: string, listener: (payload: RecipeImageEvent) => void): this {
     return super.off(recipeId, listener);
   }
 }

@@ -77,7 +77,7 @@ export async function generateRecipeImage(prompt: string): Promise<ImagenResult>
   }
 
   const json = (await res.json()) as {
-    predictions: Array<{ bytesBase64Encoded: string; mimeType?: string }>;
+    predictions: { bytesBase64Encoded: string; mimeType?: string }[];
   };
 
   const prediction = json.predictions[0];

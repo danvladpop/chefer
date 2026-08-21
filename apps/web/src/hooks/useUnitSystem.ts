@@ -9,5 +9,5 @@ import type { UnitSystem } from '@chefer/utils';
  */
 export function useUnitSystem(): UnitSystem {
   const { data } = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
-  return (data?.chefProfile?.preferredUnits as UnitSystem | undefined) ?? 'METRIC';
+  return data?.chefProfile?.preferredUnits ?? 'METRIC';
 }

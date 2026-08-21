@@ -10,7 +10,6 @@ import type { WeekPlanResponse } from '../types.js';
 
 const U = (id: string) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=800&h=600&q=80`;
 
-// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
 export const RECIPE_LIBRARY = {
   // ── BREAKFASTS ──────────────────────────────────────────────────────────────
   greekYogurtParfait: {

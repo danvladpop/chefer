@@ -29,9 +29,10 @@ export function omit<T extends Record<string, unknown>, K extends keyof T>(
 ): Omit<T, K> {
   const result = { ...obj };
   for (const key of keys) {
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- keys is a typed keyof-T list; delete-from-a-copy is the standard omit shape
     delete result[key];
   }
-  return result as Omit<T, K>;
+  return result;
 }
 
 /**
@@ -82,13 +83,11 @@ export function deepMerge<T extends Record<string, unknown>>(target: T, source: 
 /**
  * Removes undefined and null values from an object (shallow).
  */
-export function removeNullish<T extends Record<string, unknown>>(
-  obj: T,
-): { [K in keyof T]: NonNullable<T[K]> } {
+export function removeNullish<T extends object>(obj: T): { [K in keyof T]: NonNullable<T[K]> } {
   const result = {} as { [K in keyof T]: NonNullable<T[K]> };
   for (const key in obj) {
     if (obj[key] !== null && obj[key] !== undefined) {
-      result[key] = obj[key] as NonNullable<T[typeof key]>;
+      result[key] = obj[key];
     }
   }
   return result;
@@ -107,10 +106,7 @@ export function groupBy<T extends Record<string, unknown>>(
 ): Record<string, T[]> {
   return items.reduce<Record<string, T[]>>((acc, item) => {
     const groupKey = String(item[key]);
-    if (!acc[groupKey]) {
-      acc[groupKey] = [];
-    }
-    acc[groupKey].push(item);
+    (acc[groupKey] ??= []).push(item);
     return acc;
   }, {});
 }
@@ -138,10 +134,7 @@ export function keyBy<T extends Record<string, unknown>>(
  * @example
  * flattenObject({ a: { b: { c: 1 } } }) // { 'a.b.c': 1 }
  */
-export function flattenObject(
-  obj: Record<string, unknown>,
-  prefix = '',
-): Record<string, unknown> {
+export function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
   for (const key in obj) {
@@ -153,7 +146,7 @@ export function flattenObject(
     const value = obj[key];
 
     if (isPlainObject(value)) {
-      Object.assign(result, flattenObject(value as Record<string, unknown>, newKey));
+      Object.assign(result, flattenObject(value, newKey));
     } else {
       result[newKey] = value;
     }

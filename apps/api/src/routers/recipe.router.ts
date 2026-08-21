@@ -83,6 +83,7 @@ export const recipeRouter = router({
     .mutation(async ({ ctx, input }) => {
       return recipeService.create(ctx.user.id, {
         ...input,
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- '' from a cleared form field must also become null
         imageUrl: input.imageUrl || null,
       });
     }),
@@ -123,6 +124,7 @@ export const recipeRouter = router({
       const { recipeId, imageUrl, ...data } = input;
       return recipeService.update(ctx.user.id, recipeId, {
         ...data,
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- '' from a cleared form field must also become null
         imageUrl: imageUrl || null,
       });
     }),

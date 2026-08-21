@@ -149,7 +149,7 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
     const recipeIds = new Set<string>();
     for (const plan of plans) {
       for (const day of plan.days) {
-        const meals = day.meals as Array<{ type: string; recipeId: string }>;
+        const meals = day.meals as { type: string; recipeId: string }[];
         for (const m of meals) {
           recipeIds.add(m.recipeId);
         }

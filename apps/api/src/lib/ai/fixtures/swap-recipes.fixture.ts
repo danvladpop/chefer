@@ -4,8 +4,7 @@ import type { RecipeData } from '../types.js';
 // A pool of alternative recipes used by MockAIService.generateRecipeSwap.
 // The mock cycles through this list deterministically.
 
-const U = (id: string) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=800&h=600&q=80`;
+const U = (id: string) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=800&h=600&q=80`;
 
 export const SWAP_BREAKFAST_POOL: RecipeData[] = [
   {

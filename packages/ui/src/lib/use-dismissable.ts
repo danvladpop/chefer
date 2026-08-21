@@ -104,13 +104,13 @@ export function useDismissable<T extends HTMLElement>({
         (n) => n.getClientRects().length > 0,
       );
 
-      if (nodes.length === 0) {
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (!first || !last) {
         e.preventDefault();
         return;
       }
 
-      const first = nodes[0]!;
-      const last = nodes[nodes.length - 1]!;
       const active = document.activeElement;
 
       if (e.shiftKey && (active === first || active === panelRef.current)) {
@@ -127,7 +127,7 @@ export function useDismissable<T extends HTMLElement>({
     return () => {
       document.removeEventListener('keydown', handleKeyDown, true);
       unlockBodyScroll();
-      restoreRef.current?.focus?.();
+      restoreRef.current?.focus();
     };
   }, [open, closeOnEscape]);
 

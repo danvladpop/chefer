@@ -10,12 +10,12 @@ import type {
 // ─── Currency helpers ─────────────────────────────────────────────────────────
 
 // Exchange rates relative to EUR (base currency)
-const EUR_RATES: Record<string, number> = {
+const EUR_RATES = {
   EUR: 1.0,
   USD: 1.08,
   GBP: 0.85,
   RON: 5.1,
-};
+} as const satisfies Record<string, number>;
 
 const RON_TO_EUR = 1 / EUR_RATES.RON;
 
@@ -34,7 +34,10 @@ export class MockGroceryAIService implements IGroceryAIService {
     const locationUsed =
       input.userLat != null ? 'gps' : input.deliveryAddress ? 'address' : 'default';
 
-    const rate = EUR_RATES[input.preferredCurrency] ?? 1.0;
+    const rate =
+      input.preferredCurrency in EUR_RATES
+        ? EUR_RATES[input.preferredCurrency as keyof typeof EUR_RATES]
+        : 1.0;
 
     // Map fixture items to the ingredient names from the shopping list
     const ingredientNames = new Set(input.ingredients.map((i) => i.name.toLowerCase()));

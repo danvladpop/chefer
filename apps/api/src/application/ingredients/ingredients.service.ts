@@ -292,7 +292,7 @@ export class IngredientsService {
     if (existing && existing.creatorId !== userId && existing.creatorId !== null) {
       throw new TRPCError({ code: 'CONFLICT', message: 'Ingredient name is already taken.' });
     }
-    if (existing && existing.creatorId === null) {
+    if (existing?.creatorId === null) {
       throw new TRPCError({
         code: 'CONFLICT',
         message: `"${titleCase(name)}" already exists in the catalog — search for it instead.`,

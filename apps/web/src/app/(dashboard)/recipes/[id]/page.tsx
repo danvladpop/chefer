@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useState } from 'react';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
-import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
+import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, Clock, Flame, Heart, Library, RefreshCw, Search, Users } from 'lucide-react';
@@ -156,7 +156,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           recipeId={id}
           recipeName={recipe.name}
           initialImageUrl={recipe.imageUrl ?? null}
-          initialImageStatus={(recipe.imageStatus ?? 'DONE') as ImageStatusType}
+          initialImageStatus={recipe.imageStatus ?? 'DONE'}
           className="h-full w-full"
         />
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent" />
@@ -528,7 +528,7 @@ function SavedRecipePicker({
                     <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-gray-100">
                       <RecipeImage
                         imageUrl={r.imageUrl ?? null}
-                        imageStatus={(r.imageStatus ?? 'DONE') as ImageStatusType}
+                        imageStatus={r.imageStatus ?? 'DONE'}
                         recipeName={r.name}
                         className="h-full w-full"
                       />

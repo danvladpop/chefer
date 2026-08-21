@@ -110,7 +110,7 @@ export default function MealPlanPage() {
             .flatMap((d) => d.meals)
             .map((m) => m.recipe)
             .filter((r) => {
-              const imageStatus = (r.imageStatus ?? 'DONE') as ImageStatusType;
+              const imageStatus = r.imageStatus ?? 'DONE';
               return imageStatus === 'PENDING' || imageStatus === 'GENERATING';
             })
             .map((r) => r.id)
@@ -121,7 +121,7 @@ export default function MealPlanPage() {
   const handleImageUpdate = useCallback((update: RecipeImageUpdate) => {
     setImageOverrides((prev) => ({
       ...prev,
-      [update.recipeId]: { imageUrl: update.imageUrl, status: update.status as ImageStatusType },
+      [update.recipeId]: { imageUrl: update.imageUrl, status: update.status },
     }));
   }, []);
 

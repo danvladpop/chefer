@@ -14,8 +14,8 @@ const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 export interface RegisterInput {
   email: string;
   password: string;
-  firstName?: string;
-  lastName?: string;
+  firstName?: string | undefined;
+  lastName?: string | undefined;
 }
 
 export interface LoginInput {
@@ -58,8 +58,9 @@ export class AuthService {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role as UserProfile['role'],
-      planTier: user.planTier as UserProfile['planTier'],
+      firstName: user.firstName,
+      role: user.role,
+      planTier: user.planTier,
       image: user.image,
     };
   }
@@ -92,8 +93,9 @@ export class AuthService {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role as UserProfile['role'],
-      planTier: user.planTier as UserProfile['planTier'],
+      firstName: user.firstName,
+      role: user.role,
+      planTier: user.planTier,
       image: user.image,
     };
   }

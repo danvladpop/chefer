@@ -1,10 +1,10 @@
 import { TRPCError } from '@trpc/server';
-import type { Recipe } from '@chefer/database';
 import {
   favouriteRecipeRepository,
   mealRatingRepository,
   type CreateManualRecipeData,
   type IMealRatingRepository,
+  type Recipe,
 } from '@chefer/database';
 
 type UpdateManualRecipeData = Partial<CreateManualRecipeData>;

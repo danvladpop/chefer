@@ -20,7 +20,7 @@ type EnvSchema = z.infer<typeof envSchema>;
 
 function validateEnv(): EnvSchema {
   const parsed = envSchema.safeParse({
-    NODE_ENV: process.env['NODE_ENV'],
+    NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_URL: process.env['NEXT_PUBLIC_APP_URL'],
     NEXT_PUBLIC_APP_NAME: process.env['NEXT_PUBLIC_APP_NAME'],
     NEXT_PUBLIC_API_URL: process.env['NEXT_PUBLIC_API_URL'],

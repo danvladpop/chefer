@@ -16,10 +16,7 @@ type SetValue<T> = (value: T | ((prevValue: T) => T)) => void;
  * @example
  * const [theme, setTheme, removeTheme] = useLocalStorage('theme', 'light');
  */
-export function useLocalStorage<T>(
-  key: string,
-  initialValue: T,
-): [T, SetValue<T>, () => void] {
+export function useLocalStorage<T>(key: string, initialValue: T): [T, SetValue<T>, () => void] {
   // Initialize state with the value from localStorage (or default)
   const [storedValue, setStoredValue] = useState<T>(() => {
     if (typeof window === 'undefined') {
@@ -48,7 +45,9 @@ export function useLocalStorage<T>(
         window.localStorage.setItem(key, JSON.stringify(valueToStore));
 
         // Dispatch a custom event so other hooks with the same key can sync
-        window.dispatchEvent(new StorageEvent('storage', { key, newValue: JSON.stringify(valueToStore) }));
+        window.dispatchEvent(
+          new StorageEvent('storage', { key, newValue: JSON.stringify(valueToStore) }),
+        );
       } catch (error) {
         console.warn(`Error setting localStorage key "${key}":`, error);
       }
@@ -77,9 +76,7 @@ export function useLocalStorage<T>(
       }
 
       try {
-        const newValue = event.newValue !== null
-          ? (JSON.parse(event.newValue) as T)
-          : initialValue;
+        const newValue = event.newValue !== null ? (JSON.parse(event.newValue) as T) : initialValue;
         setStoredValue(newValue);
       } catch (error) {
         console.warn(`Error parsing storage event for key "${key}":`, error);

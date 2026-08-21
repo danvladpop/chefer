@@ -1,6 +1,6 @@
-import type { Prisma, User } from '@prisma/client';
-import { prisma } from '@chefer/database';
+import { prisma, type Prisma, type User } from '@chefer/database';
 import type { PlanTier, UserRole } from '@chefer/types';
+import { removeNullish } from '@chefer/utils';
 
 // ─── Interface ────────────────────────────────────────────────────────────────
 
@@ -12,22 +12,25 @@ export interface FindManyWithCountOptions {
   include?: Prisma.UserInclude;
 }
 
+// Optionals accept explicit undefined so caller objects built from zod-parsed
+// input assign under exactOptionalPropertyTypes; update() strips undefineds
+// before they reach Prisma.
 export interface CreateUserInput {
   email: string;
-  name?: string;
-  passwordHash?: string;
-  role?: UserRole;
-  image?: string;
+  name?: string | undefined;
+  passwordHash?: string | undefined;
+  role?: UserRole | undefined;
+  image?: string | undefined;
 }
 
 export interface UpdateUserInput {
-  name?: string;
-  email?: string;
-  passwordHash?: string;
-  role?: UserRole;
-  planTier?: PlanTier;
-  image?: string;
-  emailVerified?: Date;
+  name?: string | undefined;
+  email?: string | undefined;
+  passwordHash?: string | undefined;
+  role?: UserRole | undefined;
+  planTier?: PlanTier | undefined;
+  image?: string | undefined;
+  emailVerified?: Date | undefined;
 }
 
 export interface IUserRepository {
@@ -60,19 +63,20 @@ export class PrismaUserRepository implements IUserRepository {
   async create(data: CreateUserInput): Promise<User> {
     return prisma.user.create({
       data: {
-        ...data,
+        ...removeNullish(data),
         email: data.email.toLowerCase().trim(),
-        role: (data.role as Prisma.EnumUserRoleFilter['equals']) ?? 'USER',
+        role: data.role ?? 'USER',
       },
     });
   }
 
   async update(id: string, data: UpdateUserInput): Promise<User> {
+    const { email, ...rest } = data;
     return prisma.user.update({
       where: { id },
       data: {
-        ...data,
-        email: data.email ? data.email.toLowerCase().trim() : undefined,
+        ...removeNullish(rest),
+        ...(email !== undefined && { email: email.toLowerCase().trim() }),
         updatedAt: new Date(),
       },
     });
@@ -88,14 +92,20 @@ export class PrismaUserRepository implements IUserRepository {
     const { where, orderBy = { createdAt: 'desc' }, skip = 0, take = 20, include } = options;
 
     const [users, total] = await prisma.$transaction([
-      prisma.user.findMany({ where, orderBy, skip, take, include }),
-      prisma.user.count({ where }),
+      prisma.user.findMany({
+        ...(where !== undefined && { where }),
+        orderBy,
+        skip,
+        take,
+        ...(include !== undefined && { include }),
+      }),
+      prisma.user.count({ where: where ?? {} }),
     ]);
 
     return { users, total };
   }
 
   async count(where?: Prisma.UserWhereInput): Promise<number> {
-    return prisma.user.count({ where });
+    return prisma.user.count({ where: where ?? {} });
   }
 }

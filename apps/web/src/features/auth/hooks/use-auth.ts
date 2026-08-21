@@ -1,7 +1,6 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-
 import { trpc } from '@/lib/trpc';
 
 /**
@@ -10,7 +9,11 @@ import { trpc } from '@/lib/trpc';
 export function useAuth() {
   const router = useRouter();
 
-  const { data: user, isLoading, refetch } = trpc.auth.me.useQuery(undefined, {
+  const {
+    data: user,
+    isLoading,
+    refetch,
+  } = trpc.auth.me.useQuery(undefined, {
     retry: false,
     staleTime: 60 * 1000,
   });

@@ -68,11 +68,7 @@ export class UserAccountLockedError extends DomainError {
  */
 export class EmailNotVerifiedError extends DomainError {
   constructor() {
-    super(
-      'Please verify your email address before continuing',
-      'EMAIL_NOT_VERIFIED',
-      403,
-    );
+    super('Please verify your email address before continuing', 'EMAIL_NOT_VERIFIED', 403);
     this.name = 'EmailNotVerifiedError';
   }
 }

@@ -27,10 +27,10 @@ export interface CreateRecipeData {
 export interface CreateMealPlanData {
   userId: string;
   weekStartDate: Date;
-  days: Array<{
+  days: {
     dayOfWeek: number;
-    meals: Array<{ type: string; recipeId: string }>;
-  }>;
+    meals: { type: string; recipeId: string }[];
+  }[];
   recipeIds: string[]; // ids already persisted
 }
 
@@ -229,7 +229,7 @@ export class MealPlanRepository implements IMealPlanRepository {
     });
     if (!day) throw new Error(`Day ${dayOfWeek} not found in plan ${planId}`);
 
-    const meals = day.meals as Array<{ type: string; recipeId: string }>;
+    const meals = day.meals as { type: string; recipeId: string }[];
     const updated = meals.map((m) => (m.type === mealType ? { ...m, recipeId: newRecipeId } : m));
 
     await prisma.mealPlanDay.update({

@@ -129,7 +129,7 @@ export default function ShoppingListPage() {
   return (
     <div className="mx-auto max-w-3xl p-4 lg:p-6">
       {/* Print styles */}
-      {/* eslint-disable-next-line react/no-danger */}
+      {}
       <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
 
       {/* Print-only header */}
@@ -327,7 +327,7 @@ export default function ShoppingListPage() {
                             sizes="48px"
                             className="object-cover"
                             onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE;
+                              e.currentTarget.src = FALLBACK_IMAGE;
                             }}
                           />
                         </div>
@@ -411,7 +411,7 @@ export default function ShoppingListPage() {
                 sizes="220px"
                 className="object-cover"
                 onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE;
+                  e.currentTarget.src = FALLBACK_IMAGE;
                 }}
               />
             )}

@@ -18,7 +18,7 @@ interface RecipeImageProps {
 // cuisine-tinted gradient + food emoji instead of a grey "broken" shimmer.
 // Deterministic per recipe so the board looks intentional and stable.
 
-const CUISINE_EMOJI: Array<[RegExp, string]> = [
+const CUISINE_EMOJI: [RegExp, string][] = [
   [/italian/i, '🍝'],
   [/mexican/i, '🌮'],
   [/japanese|sushi/i, '🍣'],

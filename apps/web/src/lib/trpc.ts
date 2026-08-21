@@ -2,7 +2,7 @@
 
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 import { createTRPCReact } from '@trpc/react-query';
-import { type inferRouterInputs, type inferRouterOutputs } from '@trpc/server';
+import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '@chefer/api';
 
 // Create the tRPC React client

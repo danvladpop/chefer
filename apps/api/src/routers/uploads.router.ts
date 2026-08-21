@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import express, { Router, type Request, type Response } from 'express';
 import { prisma } from '@chefer/database';
+import { asyncHandler } from '../lib/async-handler.js';
 
 // ─── Image uploads ────────────────────────────────────────────────────────────
 // Session-authenticated raw-body upload (no multipart, no extra deps): the
@@ -46,12 +47,12 @@ async function resolveUserId(cookieHeader: string | undefined): Promise<string |
   }
 }
 
-export const uploadsRouter = Router();
+export const uploadsRouter: Router = Router();
 
 uploadsRouter.post(
   '/image',
   express.raw({ type: 'image/*', limit: MAX_BYTES }),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const userId = await resolveUserId(req.headers.cookie);
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
@@ -80,5 +81,5 @@ uploadsRouter.post(
     // public https URL in prod and the direct localhost URL in dev.
     const url = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
     res.status(201).json({ url });
-  },
+  }),
 );

@@ -63,6 +63,7 @@ export function toUserProfile(user: {
   id: string;
   email: string;
   name: string | null;
+  firstName?: string | null;
   role: UserRole;
   planTier?: UserProfile['planTier'];
   image: string | null;
@@ -71,6 +72,7 @@ export function toUserProfile(user: {
     id: user.id,
     email: user.email,
     name: user.name,
+    firstName: user.firstName ?? null,
     role: user.role,
     planTier: user.planTier ?? 'FREE',
     image: user.image,

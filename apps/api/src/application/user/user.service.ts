@@ -9,27 +9,29 @@ import type { IUserRepository } from '../../infrastructure/prisma/prisma-user.re
 
 // ─── Input Types ──────────────────────────────────────────────────────────────
 
+// Optionals accept explicit undefined so zod-inferred inputs (where an absent
+// field parses to `prop: T | undefined`) assign under exactOptionalPropertyTypes.
 export interface CreateUserInput {
   email: string;
-  name?: string;
-  role?: UserRole;
+  name?: string | undefined;
+  role?: UserRole | undefined;
 }
 
 export interface UpdateUserInput {
-  name?: string;
-  email?: string;
-  role?: UserRole;
-  planTier?: PlanTier;
-  image?: string;
+  name?: string | undefined;
+  email?: string | undefined;
+  role?: UserRole | undefined;
+  planTier?: PlanTier | undefined;
+  image?: string | undefined;
 }
 
 export interface ListUsersInput {
   page: number;
   limit: number;
-  search?: string;
-  role?: UserRole;
-  sortBy?: 'createdAt' | 'name' | 'email';
-  sortOrder?: 'asc' | 'desc';
+  search?: string | undefined;
+  role?: UserRole | undefined;
+  sortBy?: 'createdAt' | 'name' | 'email' | undefined;
+  sortOrder?: 'asc' | 'desc' | undefined;
 }
 
 // ─── Output Types ─────────────────────────────────────────────────────────────

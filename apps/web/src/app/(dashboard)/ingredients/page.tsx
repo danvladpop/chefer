@@ -1,10 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  IngredientFormModal,
-  type IngredientFormInitial,
-} from '@/features/ingredients/components/IngredientFormModal';
+import { IngredientFormModal } from '@/features/ingredients/components/IngredientFormModal';
 import { trpc } from '@/lib/trpc';
 import type { RouterOutputs } from '@/lib/trpc';
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
@@ -154,7 +151,7 @@ export default function IngredientsPage() {
                   alt={ing.displayName}
                   className="h-16 w-16 shrink-0 rounded-xl object-cover"
                   onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE;
+                    e.currentTarget.src = FALLBACK_IMAGE;
                   }}
                 />
                 <div className="min-w-0 flex-1">
@@ -243,7 +240,7 @@ export default function IngredientsPage() {
       {editTarget && (
         <IngredientFormModal
           mode="edit"
-          initial={editTarget as IngredientFormInitial}
+          initial={editTarget}
           onClose={() => setEditTarget(null)}
           onSaved={() => {
             setEditTarget(null);

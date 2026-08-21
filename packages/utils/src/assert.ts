@@ -18,10 +18,7 @@ export function invariant(condition: unknown, message: string): asserts conditio
  * @example
  * const user = assertDefined(getUser(), 'User not found');
  */
-export function assertDefined<T>(
-  value: T | null | undefined,
-  message: string,
-): asserts value is T {
+export function assertDefined<T>(value: T | null | undefined, message: string): asserts value is T {
   invariant(value !== null && value !== undefined, message);
 }
 

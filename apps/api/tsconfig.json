@@ -7,8 +7,10 @@
     // both the same way — NodeNext would reject the former.
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "rootDir": "src",
-    "outDir": "dist",
+    // No rootDir/outDir: the API never emits — production runs the TS source
+    // via tsx (see Dockerfile.api). "build" is a typecheck. rootDir would also
+    // false-positive TS6059 on the source-consumed @chefer/* packages below.
+    "noEmit": true,
     "baseUrl": ".",
     "paths": {
       "@chefer/types": ["../../packages/types/src/index.ts"],

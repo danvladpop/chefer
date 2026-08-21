@@ -3,11 +3,6 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   reactCompiler: false,
   transpilePackages: ['@chefer/ui', '@chefer/utils', '@chefer/types'],
-  // The production build skips type gating because the monorepo carries some
-  // pre-existing cross-package strictness errors (exactOptionalPropertyTypes in
-  // @chefer/database, etc.) that don't affect runtime. Type safety is enforced
-  // separately via `pnpm typecheck`. Remove once that debt is cleared.
-  typescript: { ignoreBuildErrors: true },
   images: {
     // On the small production VM, skip Next's image optimizer: it removes a CPU/
     // memory load and lets same-host uploaded images render without per-host
@@ -77,7 +72,7 @@ const nextConfig: NextConfig = {
       fullUrl: process.env.NODE_ENV === 'development',
     },
   },
-  output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
+  ...(process.env['BUILD_STANDALONE'] === 'true' && { output: 'standalone' as const }),
 };
 
 export default nextConfig;

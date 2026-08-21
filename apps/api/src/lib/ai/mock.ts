@@ -122,7 +122,7 @@ function stringToReadableStream(text: string): ReadableStream {
       let i = 0;
       const push = () => {
         if (i < words.length) {
-          controller.enqueue(encoder.encode((i === 0 ? '' : ' ') + words[i]));
+          controller.enqueue(encoder.encode((i === 0 ? '' : ' ') + (words[i] ?? '')));
           i += 1;
           setTimeout(push, 30);
         } else {

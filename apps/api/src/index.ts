@@ -5,6 +5,7 @@ import {
   createContext,
   requestIdMiddleware,
 } from './interfaces/http/middleware/auth.middleware.js';
+import { asyncHandler } from './lib/async-handler.js';
 import { env } from './lib/env.js';
 import { appRouter } from './routers/index.js';
 import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
@@ -12,7 +13,7 @@ import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
 import { recipeImageWorker } from './workers/recipe-image.worker.js';
 
-const app = express();
+const app: express.Express = express();
 
 // Behind a reverse proxy (Caddy/Cloudflare) in production — trust X-Forwarded-*
 // so client IP and protocol are read correctly.
@@ -44,30 +45,36 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.get('/health/ready', async (_req, res) => {
-  try {
-    // Check database connectivity
-    const { prisma } = await import('@chefer/database');
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'ready', database: 'connected' });
-  } catch {
-    res.status(503).json({ status: 'not ready', database: 'disconnected' });
-  }
-});
+app.get(
+  '/health/ready',
+  asyncHandler(async (_req, res) => {
+    try {
+      // Check database connectivity
+      const { prisma } = await import('@chefer/database');
+      await prisma.$queryRaw`SELECT 1`;
+      res.json({ status: 'ready', database: 'connected' });
+    } catch {
+      res.status(503).json({ status: 'not ready', database: 'disconnected' });
+    }
+  }),
+);
 
 // Canonical health check used by the PRD browser tests and external monitors.
 // Returns { ok: true } on success, { ok: false } with 503 when DB is unreachable.
-app.get('/api/health', async (_req, res) => {
-  try {
-    const { prisma } = await import('@chefer/database');
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ ok: true, timestamp: new Date().toISOString() });
-  } catch {
-    res
-      .status(503)
-      .json({ ok: false, timestamp: new Date().toISOString(), error: 'Database unavailable' });
-  }
-});
+app.get(
+  '/api/health',
+  asyncHandler(async (_req, res) => {
+    try {
+      const { prisma } = await import('@chefer/database');
+      await prisma.$queryRaw`SELECT 1`;
+      res.json({ ok: true, timestamp: new Date().toISOString() });
+    } catch {
+      res
+        .status(503)
+        .json({ ok: false, timestamp: new Date().toISOString(), error: 'Database unavailable' });
+    }
+  }),
+);
 
 // ─── SSE — Recipe Images ──────────────────────────────────────────────────────
 

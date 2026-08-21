@@ -110,7 +110,7 @@ export function IngredientPicker({
                 </button>
               </li>
             ))}
-            {results && results.length === 0 && !isFetching && (
+            {results?.length === 0 && !isFetching && (
               <li className="px-3 py-2 text-xs text-gray-400">No matches in the catalog.</li>
             )}
             {isFetching && !results?.length && (

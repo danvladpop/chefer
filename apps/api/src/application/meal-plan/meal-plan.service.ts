@@ -333,7 +333,7 @@ export class MealPlanService {
         meals: d.meals.map((m) => {
           const img = resolvedImage(m.recipe);
           return {
-            type: m.type as MealType,
+            type: m.type,
             recipe: toRecipeDto(m.recipe, {
               imageUrl: img.imageUrl,
               imageStatus: img.done ? 'DONE' : 'PENDING',
@@ -606,7 +606,7 @@ export class MealPlanService {
     planId: string,
     dayOfWeek: number,
     mealType: string,
-    plan: { days: Array<{ dayOfWeek: number; meals: unknown }> },
+    plan: { days: { dayOfWeek: number; meals: unknown }[] },
   ): Promise<RecipeDto> {
     await ensureCuratedRecipes();
 
@@ -771,7 +771,7 @@ export class MealPlanService {
       for (const ing of ingredients) {
         const key = ing.name.toLowerCase().trim();
         const existing = merged.get(key);
-        if (existing && existing.unit === ing.unit) {
+        if (existing?.unit === ing.unit) {
           existing.quantity += ing.quantity;
         } else {
           merged.set(key, {

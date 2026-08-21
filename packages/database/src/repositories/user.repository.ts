@@ -63,11 +63,11 @@ export class UserRepository implements IUserRepository {
     const { where, orderBy = { createdAt: 'desc' }, skip = 0, take = 20, include } = options;
 
     return prisma.user.findMany({
-      where,
+      ...(where !== undefined && { where }),
       orderBy,
       skip,
       take,
-      include,
+      ...(include !== undefined && { include }),
     });
   }
 
@@ -88,11 +88,12 @@ export class UserRepository implements IUserRepository {
    * Updates an existing user by ID.
    */
   async update(id: string, data: UpdateUserData): Promise<User> {
+    const { email, ...rest } = data;
     return prisma.user.update({
       where: { id },
       data: {
-        ...data,
-        email: data.email ? data.email.toLowerCase().trim() : undefined,
+        ...rest,
+        ...(email !== undefined && { email: email.toLowerCase().trim() }),
         updatedAt: new Date(),
       },
     });
@@ -111,7 +112,7 @@ export class UserRepository implements IUserRepository {
    * Counts users matching the given criteria.
    */
   async count(where?: Prisma.UserWhereInput): Promise<number> {
-    return prisma.user.count({ where });
+    return prisma.user.count({ where: where ?? {} });
   }
 
   /**
@@ -141,11 +142,17 @@ export class UserRepository implements IUserRepository {
   async findManyWithCount(
     options: FindManyOptions = {},
   ): Promise<{ users: User[]; total: number }> {
-    const { where } = options;
+    const { where, orderBy, skip, take, include } = options;
 
     const [users, total] = await prisma.$transaction([
-      prisma.user.findMany(options),
-      prisma.user.count({ where }),
+      prisma.user.findMany({
+        ...(where !== undefined && { where }),
+        ...(orderBy !== undefined && { orderBy }),
+        ...(skip !== undefined && { skip }),
+        ...(take !== undefined && { take }),
+        ...(include !== undefined && { include }),
+      }),
+      prisma.user.count({ where: where ?? {} }),
     ]);
 
     return { users, total };

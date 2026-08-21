@@ -82,11 +82,11 @@ export default function EditRecipePage() {
     setImageUrl(recipe.imageUrl ?? '');
     setDietaryTags(recipe.dietaryTags.join(', '));
 
-    const rawIngredients = recipe.ingredients as Array<{
+    const rawIngredients = recipe.ingredients as {
       name: string;
       quantity: number;
       unit: string;
-    }>;
+    }[];
     setIngredients(
       rawIngredients.length > 0
         ? rawIngredients.map((i) => ({
@@ -163,7 +163,7 @@ export default function EditRecipePage() {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (!validate()) return;
 

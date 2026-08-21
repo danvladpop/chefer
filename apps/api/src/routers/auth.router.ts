@@ -1,7 +1,6 @@
 import { z } from 'zod';
-
-import { router, publicProcedure } from '../lib/trpc.js';
 import { authService } from '../application/auth/auth.service.js';
+import { publicProcedure, router } from '../lib/trpc.js';
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -23,17 +22,13 @@ const loginSchema = z.object({
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export const authRouter = router({
-  register: publicProcedure
-    .input(registerSchema)
-    .mutation(async ({ input, ctx }) => {
-      return authService.register(input, ctx.res);
-    }),
+  register: publicProcedure.input(registerSchema).mutation(async ({ input, ctx }) => {
+    return authService.register(input, ctx.res);
+  }),
 
-  login: publicProcedure
-    .input(loginSchema)
-    .mutation(async ({ input, ctx }) => {
-      return authService.login(input, ctx.res);
-    }),
+  login: publicProcedure.input(loginSchema).mutation(async ({ input, ctx }) => {
+    return authService.login(input, ctx.res);
+  }),
 
   logout: publicProcedure.mutation(async ({ ctx }) => {
     await authService.logout(ctx.sessionToken, ctx.res);

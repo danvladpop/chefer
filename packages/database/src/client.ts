@@ -9,11 +9,7 @@ function createPrismaClient(): PrismaClient {
   const isTest = process.env['NODE_ENV'] === 'test';
 
   return new PrismaClient({
-    log: isDevelopment
-      ? ['query', 'error', 'warn']
-      : isTest
-        ? ['error']
-        : ['error'],
+    log: isDevelopment ? ['query', 'error', 'warn'] : isTest ? ['error'] : ['error'],
     errorFormat: isDevelopment ? 'pretty' : 'minimal',
   });
 }
