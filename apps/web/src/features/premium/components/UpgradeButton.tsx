@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
-import { Check, Sparkles, X } from 'lucide-react';
+import { Check, Sparkles } from 'lucide-react';
+import { Sheet } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 
 // ─── Upgrade button + confirmation dialog ─────────────────────────────────────
@@ -39,58 +40,44 @@ export function UpgradeButton({ className }: { className?: string }) {
         Upgrade plan
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Upgrade to premium"
-        >
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <div className="mb-4 flex items-start justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <button
-                onClick={() => setOpen(false)}
-                aria-label="Close"
-                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <h2 className="text-lg font-bold text-gray-900">Go Premium</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Unlock the personal AI chef. This is a demo upgrade — it activates instantly, no
-              payment needed.
-            </p>
-
-            <ul className="mt-4 space-y-2">
-              {PREMIUM_PERKS.map((perk) => (
-                <li key={perk} className="flex items-start gap-2 text-sm text-gray-700">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                  {perk}
-                </li>
-              ))}
-            </ul>
-
-            {upgradeMutation.isError && (
-              <p className="mt-3 text-sm text-red-600">
-                Upgrade failed: {upgradeMutation.error.message}
-              </p>
-            )}
-
-            <button
-              onClick={() => upgradeMutation.mutate()}
-              disabled={upgradeMutation.isPending}
-              className="mt-5 w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50"
-            >
-              {upgradeMutation.isPending ? 'Upgrading…' : 'Upgrade now — free demo'}
-            </button>
-          </div>
+      {/* Sheet (bottom sheet on phones, dialog at sm+) supplies scroll lock,
+          focus trap and Escape — the previous hand-rolled fixed-inset div
+          had none of those (CLAUDE.md overlay rule, roadmap P0-10). */}
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Go Premium"
+        description="Unlock the personal AI chef. This is a demo upgrade — it activates instantly, no payment needed."
+        size="sm"
+        footer={
+          <button
+            onClick={() => upgradeMutation.mutate()}
+            disabled={upgradeMutation.isPending}
+            className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {upgradeMutation.isPending ? 'Upgrading…' : 'Upgrade now — free demo'}
+          </button>
+        }
+      >
+        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white">
+          <Sparkles className="h-5 w-5" />
         </div>
-      )}
+
+        <ul className="space-y-2">
+          {PREMIUM_PERKS.map((perk) => (
+            <li key={perk} className="flex items-start gap-2 text-sm text-gray-700">
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+              {perk}
+            </li>
+          ))}
+        </ul>
+
+        {upgradeMutation.isError && (
+          <p className="mt-3 text-sm text-red-600">
+            Upgrade failed: {upgradeMutation.error.message}
+          </p>
+        )}
+      </Sheet>
     </>
   );
 }

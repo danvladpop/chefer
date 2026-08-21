@@ -60,7 +60,7 @@ project so it cannot mask the responsive suites.
 
 ## 2. Responsive debt still open
 
-### 2.1 Contrast — 17 instances · `S`
+### 2.1 Contrast — 17 instances · `S` — ✅ RESOLVED 2026-08-21 (roadmap P0-10)
 
 17 uses of `text-gray-400` / `text-neutral-400` remain on white. That is **3.0:1**, below the
 WCAG AA minimum of 4.5:1 for body text. `text-*-500` measures 4.6:1 and was the substitution used
@@ -71,7 +71,7 @@ Files: `history/[planId]/page.tsx`, `ChatWidget.tsx`, `IngredientPicker.tsx`, `P
 
 Mechanical, but check each one — a few are on non-white backgrounds where 400 is fine.
 
-### 2.2 `UpgradeButton` dialog → `Sheet` · `S`
+### 2.2 `UpgradeButton` dialog → `Sheet` · `S` — ✅ RESOLVED 2026-08-21 (roadmap P0-10)
 
 `features/premium/components/UpgradeButton.tsx` still hand-rolls `fixed inset-0 z-50`. It is a
 real dialog and has no scroll lock, no focus trap and no Escape handling. `Sheet` provides all

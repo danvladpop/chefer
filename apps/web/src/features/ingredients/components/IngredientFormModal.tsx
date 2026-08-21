@@ -210,7 +210,7 @@ export function IngredientFormModal({
                 ] as const
               ).map(([key, label]) => (
                 <div key={key}>
-                  <span className="mb-0.5 block text-center text-[10px] text-gray-400">
+                  <span className="mb-0.5 block text-center text-[10px] text-gray-500">
                     {label}
                   </span>
                   <input
@@ -229,7 +229,7 @@ export function IngredientFormModal({
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">
               Grams per piece{' '}
-              <span className="text-gray-400">(optional — for countable items)</span>
+              <span className="text-gray-500">(optional — for countable items)</span>
             </label>
             <input
               type="number"
@@ -246,7 +246,7 @@ export function IngredientFormModal({
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">
                 Baseline prices (EUR){' '}
-                <span className="text-gray-400">— leave empty when not applicable</span>
+                <span className="text-gray-500">— leave empty when not applicable</span>
               </label>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {(
@@ -257,7 +257,7 @@ export function IngredientFormModal({
                   ] as const
                 ).map(([key, label]) => (
                   <div key={key}>
-                    <span className="mb-0.5 block text-center text-[10px] text-gray-400">
+                    <span className="mb-0.5 block text-center text-[10px] text-gray-500">
                       {label}
                     </span>
                     <input

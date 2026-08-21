@@ -66,7 +66,7 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
 
       {/* Header */}
       <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
           READ-ONLY VIEW
         </p>
         <h1 className="text-xl font-bold">Week of {format(weekStart, 'dd MMM yyyy')}</h1>

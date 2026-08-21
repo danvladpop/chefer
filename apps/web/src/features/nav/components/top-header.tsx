@@ -57,7 +57,7 @@ export function TopHeader({ title, onOpenMenu }: TopHeaderProps) {
               {initials}
             </div>
             <span className="hidden font-medium text-gray-700 md:block">{displayName}</span>
-            <ChevronDown className="h-4 w-4 text-gray-400" aria-hidden="true" />
+            <ChevronDown className="h-4 w-4 text-gray-500" aria-hidden="true" />
           </button>
 
           {open && (

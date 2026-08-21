@@ -44,7 +44,7 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
           type="button"
           onClick={onClose}
           aria-label="Close menu"
-          className="-mr-2 flex h-11 w-11 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          className="-mr-2 flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-600"
         >
           <X className="h-5 w-5" />
         </button>
@@ -73,7 +73,7 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
                   )}
                 >
                   <Icon
-                    className={cn('h-5 w-5 shrink-0', active ? 'text-[#944a00]' : 'text-gray-400')}
+                    className={cn('h-5 w-5 shrink-0', active ? 'text-[#944a00]' : 'text-gray-500')}
                     aria-hidden="true"
                   />
                   {label}

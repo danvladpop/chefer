@@ -51,7 +51,7 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
       {/* Header row */}
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-neutral-400" />
+          <Calendar className="h-4 w-4 text-neutral-500" />
           <span className="text-sm font-semibold">
             Week of {format(weekStart, 'dd MMM')} – {format(weekEnd, 'dd MMM yyyy')}
           </span>

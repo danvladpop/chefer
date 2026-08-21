@@ -50,7 +50,7 @@ export function SideBar({ className }: SideBarProps) {
                   <Icon
                     className={cn(
                       'h-[18px] w-[18px] shrink-0',
-                      isActive ? 'text-[#944a00]' : 'text-gray-400',
+                      isActive ? 'text-[#944a00]' : 'text-gray-500',
                     )}
                     aria-hidden="true"
                   />

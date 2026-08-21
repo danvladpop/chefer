@@ -63,7 +63,7 @@ export function IngredientPicker({
   return (
     <div ref={containerRef} className="relative flex-1">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
         <input
           type="text"
           value={query}
@@ -111,10 +111,10 @@ export function IngredientPicker({
               </li>
             ))}
             {results?.length === 0 && !isFetching && (
-              <li className="px-3 py-2 text-xs text-gray-400">No matches in the catalog.</li>
+              <li className="px-3 py-2 text-xs text-gray-500">No matches in the catalog.</li>
             )}
             {isFetching && !results?.length && (
-              <li className="px-3 py-2 text-xs text-gray-400">Searching…</li>
+              <li className="px-3 py-2 text-xs text-gray-500">Searching…</li>
             )}
           </ul>
 

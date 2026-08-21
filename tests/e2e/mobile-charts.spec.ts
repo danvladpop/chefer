@@ -24,9 +24,16 @@ test.describe('progress charts are usable without a mouse', () => {
       return;
     }
 
-    const box = (await chart.boundingBox())!;
-
-    // Tap in the middle of the plot area, where a data point should sit.
+    // Tap ON a rendered data point, not the middle of the plot: the tooltip
+    // only surfaces logged days, and an account whose logs cluster at the
+    // edge of the 28-day window has nothing at the centre — tapping there
+    // legitimately shows no tooltip.
+    const dot = page.locator('.recharts-surface circle').first();
+    if ((await dot.count()) === 0) {
+      test.skip(true, 'No plotted data points on this account.');
+      return;
+    }
+    const box = (await dot.boundingBox())!;
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
 
     const tooltip = page.locator('.recharts-tooltip-wrapper').first();

@@ -89,7 +89,7 @@ export function ChatWidget() {
           <div className="flex max-h-[55dvh] flex-col gap-3 overflow-y-auto overscroll-contain p-4 sm:max-h-80">
             {messages.length === 0 && (
               <div>
-                <p className="mb-3 text-xs text-neutral-400">Try asking:</p>
+                <p className="mb-3 text-xs text-neutral-500">Try asking:</p>
                 <div className="flex flex-col gap-2">
                   {SUGGESTED_PROMPTS.map((prompt) => (
                     <button

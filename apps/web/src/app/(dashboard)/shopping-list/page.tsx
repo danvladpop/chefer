@@ -317,7 +317,7 @@ export default function ShoppingListPage() {
                         type="button"
                         onClick={() => toggleItem(item.key)}
                         aria-pressed={isChecked}
-                        className="flex min-h-11 flex-1 items-center gap-3 rounded-xl p-2 text-left sm:p-3"
+                        className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl p-2 text-left sm:p-3"
                       >
                         <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg">
                           <Image

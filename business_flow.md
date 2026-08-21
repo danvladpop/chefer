@@ -15,6 +15,8 @@
 7. [Post Lifecycle Flow](#7-post-lifecycle-flow)
 8. [API Request Lifecycle](#8-api-request-lifecycle)
 9. [Premium Tier & Meal Plan Generation Flow](#9-premium-tier--meal-plan-generation-flow)
+10. [Dashboard Summary Flow](#10-dashboard-summary-flow)
+11. [Password Reset Flow](#11-password-reset-flow)
 
 ---
 
@@ -34,55 +36,54 @@ Browser
 
 ## 2. User Registration Flow
 
-> **Status:** Schema and types are in place. The registration endpoint and UI are not yet implemented.
-
-**Planned flow:**
+> **Status:** Implemented (self-service at `/register`).
 
 ```
-1. User fills in RegisterForm (email, password, name)
-2. Client validates input with Zod (react-hook-form)
-3. POST /trpc/user.create (admin) OR a future public register endpoint
-4. UserService.create()
-    └── Hash password (bcrypt/argon2)
-    └── UserRepository.create()
-    └── Prisma INSERT into users table
-5. Return new User object (without passwordHash)
-6. Redirect to /login
+1. User fills in RegisterForm at /(auth)/register
+   └── email, password, firstName?, lastName? (react-hook-form + Zod)
+2. auth.register (public tRPC mutation, rate-limited 10/15 min per IP)
+   └── AuthService.register
+        ├── reject with CONFLICT when the email already has an account
+        ├── bcrypt.hash(password, 12)
+        ├── prisma.user.create (role USER, planTier FREE)
+        └── createSession → chefer_session cookie
+            (HttpOnly, SameSite=Strict, Secure in prod, 30 days)
+3. Client redirects to /onboarding
 ```
 
-**Current state:** Admin can create users via `user.create` (admin-only tRPC mutation). A self-service registration route does not yet exist.
+Admins can additionally create users via `user.create` (admin-only).
 
 ---
 
 ## 3. User Login Flow
 
-> **Status:** Login form UI exists. The backend auth endpoint is not yet implemented.
-
-**Planned flow:**
+> **Status:** Implemented.
 
 ```
 1. User fills in LoginForm at /(auth)/login
-   └── Email + password (react-hook-form + Zod validation)
-2. Form submits to POST /api/auth/login (Next.js API route, not yet built)
-3. API route calls tRPC or directly validates credentials:
-    └── UserRepository.findByEmail(email)
-    └── Compare hash (bcrypt.compare)
-    └── If match → generate JWT access token + refresh token
-4. Set session cookie (chefer_session) or return JWT in response
-5. Redirect to /(dashboard)/dashboard
+   └── email + password (react-hook-form + Zod)
+2. auth.login (public tRPC mutation, rate-limited 10/15 min per IP)
+   └── AuthService.login
+        ├── prisma.user.findUnique by normalised email
+        ├── bcrypt.compare — identical UNAUTHORIZED for wrong email
+        │   and wrong password (no account probing)
+        └── createSession → chefer_session cookie
+            (HttpOnly, SameSite=Strict, Secure in prod, 30 days)
+3. Client router.push('/dashboard')
 ```
 
-**Current state:**
-
-- `LoginForm` component at `apps/web/src/features/auth/components/LoginForm.tsx` submits to `/api/auth/login`
-- The route handler and token generation are not yet implemented
-- The database schema is NextAuth.js compatible (Account, Session, VerificationToken tables exist)
+Sessions are DB rows (`sessions` table), not JWTs — resolution is a lookup on
+every request (see §4), and logout / password reset delete the rows.
+"Forgot password?" on the form starts the reset flow (§11).
 
 ---
 
 ## 4. Session & Authorization Flow
 
-> **Status:** Context scaffolding exists. Full JWT issuance is not yet implemented.
+> **Status:** Implemented — DB-backed sessions resolved from the
+> `chefer_session` cookie. The `Authorization: Bearer` branch in
+> `createContext` is scaffolding for a possible future token flow and is
+> currently a no-op.
 
 **How the API resolves the current user on every request:**
 
@@ -129,12 +130,12 @@ during render. A successful login overwrites it via `Set-Cookie`.
 
 **Role capabilities:**
 
-| Role              | What they can do                                                                          |
-| ----------------- | ----------------------------------------------------------------------------------------- |
-| (unauthenticated) | `user.getById`                                                                            |
-| USER              | All public + `user.me`, `user.update` (own), `user.updateProfile`                         |
-| MODERATOR         | Same as USER (moderation capabilities reserved for future)                                |
-| ADMIN             | Everything, including `user.list`, `user.create`, `user.delete`, `user.update` (any user) |
+| Role              | What they can do                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| (unauthenticated) | `auth.register`, `auth.login`, `auth.requestPasswordReset`, `auth.resetPassword`, `auth.me`                                     |
+| USER              | All protected procedures: `user.me`, `user.update` (own), plans, recipes, tracker, …                                            |
+| MODERATOR         | Same as USER (moderation capabilities reserved for future)                                                                      |
+| ADMIN             | Everything, incl. `user.list`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure` |
 
 ---
 
@@ -205,7 +206,10 @@ adminProcedure user.delete
 
 ## 7. Post Lifecycle Flow
 
-> **Status:** Post schema exists. Post tRPC router is not yet implemented.
+> **Status:** Starter-template scaffolding — no router, no UI, no plans to
+> build it. The `Post`/`Tag`/`PostTag` models are slated for deletion
+> (roadmap §8 "explicitly out of scope"); the section below is kept only
+> until the schema cleanup lands.
 
 **Planned states:**
 
