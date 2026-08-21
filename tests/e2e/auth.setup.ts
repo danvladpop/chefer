@@ -51,16 +51,19 @@ setup('authenticate', async ({ page }) => {
   // The app redirects to /dashboard on success. If credentials are wrong we
   // stay on /login with an error — surface that clearly rather than timing out
   // on an opaque navigation wait.
-  // `.first()` because the form also renders per-field validation alerts; any
-  // of them appearing means we did not get in.
-  const errorAlert = page.getByRole('alert').first();
+  // Scope the alert to the form. A bare getByRole('alert') also matches the
+  // Next.js dev-tools live region, which is present and empty from page load —
+  // racing against that made the failure branch win instantly on every run,
+  // including successful logins. Inside the form, an alert is either the
+  // server error or a field validation message; both mean we did not get in.
+  const formAlert = page.locator('form [role="alert"]').first();
 
   await Promise.race([
-    page.waitForURL('**/dashboard', { timeout: 15_000 }),
-    errorAlert.waitFor({ timeout: 15_000 }).then(async () => {
+    page.waitForURL('**/dashboard', { timeout: 20_000 }),
+    formAlert.waitFor({ timeout: 20_000 }).then(async () => {
       // Give React a beat to fill the alert — it mounts before its text lands.
       await page.waitForTimeout(250);
-      const message = (await errorAlert.textContent())?.trim();
+      const message = (await formAlert.textContent())?.trim();
       throw new Error(
         `Login failed for ${email}: ${message || 'the form rejected the credentials'}`,
       );
