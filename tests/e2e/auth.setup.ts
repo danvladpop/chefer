@@ -31,22 +31,30 @@ setup('authenticate', async ({ page }) => {
 
   await page.goto('/login');
 
-  await page.getByLabel(/email address/i).fill(email);
-  await page.getByLabel(/password/i).fill(password);
-  await page.getByRole('button', { name: /sign in/i }).click();
+  // Role locators, not getByLabel: the login form's visibility toggle carries
+  // aria-label="Show password", so getByLabel(/password/i) matches both it and
+  // the input and trips Playwright's strict mode.
+  await page.getByRole('textbox', { name: /email address/i }).fill(email);
+  await page.getByRole('textbox', { name: 'Password' }).fill(password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
   // The app redirects to /dashboard on success. If credentials are wrong we
   // stay on /login with an error — surface that clearly rather than timing out
   // on an opaque navigation wait.
+  // `.first()` because the form also renders per-field validation alerts; any
+  // of them appearing means we did not get in.
+  const errorAlert = page.getByRole('alert').first();
+
   await Promise.race([
     page.waitForURL('**/dashboard', { timeout: 15_000 }),
-    page
-      .getByRole('alert')
-      .waitFor({ timeout: 15_000 })
-      .then(async () => {
-        const message = await page.getByRole('alert').textContent();
-        throw new Error(`Login failed: ${message?.trim() ?? 'unknown error'}`);
-      }),
+    errorAlert.waitFor({ timeout: 15_000 }).then(async () => {
+      // Give React a beat to fill the alert — it mounts before its text lands.
+      await page.waitForTimeout(250);
+      const message = (await errorAlert.textContent())?.trim();
+      throw new Error(
+        `Login failed for ${email}: ${message || 'the form rejected the credentials'}`,
+      );
+    }),
   ]);
 
   await expect(page.getByRole('navigation', { name: 'Primary' }).first()).toBeAttached();
