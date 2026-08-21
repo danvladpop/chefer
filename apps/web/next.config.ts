@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 const nextConfig: NextConfig = {
   reactCompiler: false,
@@ -75,4 +76,22 @@ const nextConfig: NextConfig = {
   ...(process.env['BUILD_STANDALONE'] === 'true' && { output: 'standalone' as const }),
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: 'chefer',
+  project: 'javascript-nextjs',
+
+  // Only print source-map upload logs in CI.
+  silent: !process.env['CI'],
+
+  // Upload a larger set of source maps for prettier stack traces.
+  widenClientFileUpload: true,
+
+  // Source-map upload needs SENTRY_AUTH_TOKEN (repo secret / local
+  // .env.sentry-build-plugin). Builds without it — e.g. the Docker image
+  // build, which doesn't receive secrets yet — skip the upload cleanly
+  // instead of failing.
+  sourcemaps: { disable: !process.env['SENTRY_AUTH_TOKEN'] },
+
+  // Strip Sentry's own debug statements from production bundles.
+  disableLogger: true,
+});

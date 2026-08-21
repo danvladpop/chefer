@@ -88,3 +88,6 @@ apps/api/uploads/
 
 # Playwright signed-in browser state (contains a live session cookie)
 tests/.auth/
+
+# Sentry Config File
+.env.sentry-build-plugin
