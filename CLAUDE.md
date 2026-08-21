@@ -108,6 +108,30 @@ For business flows see [`business_flow.md`](./business_flow.md).
 - Shared UI goes in `packages/ui` — do not build one-off components in the app that belong in the library
 - Use `cn()` from `@chefer/utils` for conditional class merging
 - Component variants use `class-variance-authority`
+- Overlays use `Sheet` (dialogs) or `Drawer` (slide-overs) from `@chefer/ui` — never a hand-rolled `fixed inset-0` div, which skips scroll locking, focus trapping and Escape handling
+
+### Responsive design
+
+Write mobile-first: unprefixed classes are the phone layout, breakpoints add to it.
+
+| Token    | Width  | Meaning in Chefer                                         |
+| -------- | ------ | --------------------------------------------------------- |
+| _(base)_ | 0–639  | Phone portrait. Single column, bottom tab bar.            |
+| `sm`     | ≥ 640  | Large phone landscape / small tablet. Two-column grids.   |
+| `md`     | ≥ 768  | Tablet portrait.                                          |
+| `lg`     | ≥ 1024 | **Shell boundary — sidebar replaces the bottom tab bar.** |
+| `xl`     | ≥ 1280 | Dashboard nutrition rail appears.                         |
+
+Rules that are easy to get wrong:
+
+- **Never `h-screen` / `100vh`** — use `dvh`. `100vh` excludes mobile browser chrome, so the bottom of the page sits under the toolbar.
+- **44×44px minimum touch target.** Keep a control visually small if the design needs it, but pad the hit area (`min-h-11`, or a larger transparent wrapper).
+- **Inputs render at 16px below `sm`.** Handled globally in `globals.css`; do not "fix" mobile zoom with `maximum-scale=1`, which disables pinch-zoom.
+- **`min-w-0` on flex children that contain text.** Flex items default to `min-width: auto` and refuse to shrink, which pushes siblings off-screen — the single most common overflow cause in this codebase.
+- **Nothing may scroll the document horizontally.** `body` uses `overflow-x: clip` (not `hidden`, which would make `body` a scroll container and break `position: sticky`), but that only masks the symptom — fix the source.
+- Content below `lg` must clear the fixed tab bar; `<main>` already reserves `pb-nav-safe`.
+
+Run `cd tests && pnpm exec playwright test --project=mobile` after layout changes. It sweeps every route at 320/375/390/430px for overflow and checks touch-target sizes.
 
 ---
 

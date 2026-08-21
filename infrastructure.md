@@ -188,16 +188,38 @@ Handles `SIGTERM` and `SIGINT`: closes HTTP server, disconnects Prisma.
 | `/user`                         | Server Component | Displays first user from DB via tRPC server client                                             |
 | `/(auth)/login`                 | Client Component | Login form (react-hook-form + Zod)                                                             |
 | `/(auth)/register`              | Client Component | Registration form, redirects to `/onboarding`                                                  |
-| `/(dashboard)/dashboard`        | Client Component | Daily overview — greeting, weekly outlook strip, Next Meal spotlight, NutritionPanel           |
-| `/(dashboard)/meal-plan`        | Client Component | 7-column week grid; Generate / Regenerate button; GenerateOverlay spinner                      |
+| `/(dashboard)/dashboard`        | Client Component | Daily overview — greeting, weekly outlook strip, Next Meal spotlight, NutritionSummary         |
+| `/(dashboard)/meal-plan`        | Client Component | Week grid at `lg`+, single-day view below; Generate / Regenerate; GenerateOverlay spinner      |
 | `/(dashboard)/recipes`          | Client Component | Browse all/saved recipes; search; heart toggle favourite                                       |
 | `/(dashboard)/ingredients`      | Client Component | Ingredient catalog — All/Mine tabs, search, permissioned edit/delete, add custom               |
 | `/(dashboard)/recipes/[id]`     | Client Component | Recipe detail — ingredients, instructions, macros, Swap/Save, StarRatingWidget                 |
 | `/(dashboard)/preferences`      | Client Component | Edit ChefProfile + DietaryPreferences + delivery address/currency                              |
 | `/(dashboard)/shopping-list`    | Client Component | Shopping List — week navigator, categorised items with vocabulary price estimates + est. total |
 | `/(dashboard)/history`          | Client Component | Meal Plan History — ACTIVE/ARCHIVED plan cards with Restore button                             |
-| `/(dashboard)/history/[planId]` | Client Component | Read-only plan grid for a historical plan                                                      |
+| `/(dashboard)/history/[planId]` | Client Component | Read-only plan — week grid at `lg`+, single-day view below                                     |
 | `/(dashboard)/onboarding`       | Client Component | 4-step wizard (Goals → Metrics → Diet → Cuisine & Cadence)                                     |
+
+#### App Shell & Navigation
+
+`DashboardShell` runs two layout modes around a single `lg` (1024px) boundary:
+
+| Breakpoint | Shell                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| `< lg`     | Document scrolls. Sticky `TopHeader` with a drawer trigger, fixed `BottomNav`, `MobileNavDrawer` |
+| `≥ lg`     | Fixed shell (`h-dvh`, `overflow-hidden`); only `<main>` scrolls. `SideBar` visible               |
+
+Below `lg` the **document** scrolls rather than a nested container — that is what
+lets iOS Safari auto-hide its URL bar, keeps momentum scrolling native, and lets
+the browser restore scroll position on back-navigation.
+
+Navigation components all read `src/features/nav/nav-items.ts`, the single source
+of truth for routes:
+
+| Component         | Role                                                                |
+| ----------------- | ------------------------------------------------------------------- |
+| `SideBar`         | Desktop rail, all 10 destinations (`lg`+)                           |
+| `BottomNav`       | Mobile tab bar — 4 primary destinations plus a More button (`< lg`) |
+| `MobileNavDrawer` | Slide-over holding the remaining 6, plus the plan/upgrade footer    |
 
 #### tRPC Client Setup
 
@@ -284,6 +306,19 @@ React component library. Peer deps: `react`, `react-dom`. Built with `class-vari
 | `Input`   | label, error message, hint text, icon slots                                                                            |
 | `Card`    | CardHeader, CardTitle, CardDescription, CardContent, CardFooter                                                        |
 | `Badge`   | default, secondary, destructive, outline, success, warning, info                                                       |
+| `Toast`   | success / error, auto-dismiss                                                                                          |
+| `Sheet`   | Responsive dialog — bottom sheet below `sm`, centred dialog above. Sizes sm/md/lg/xl, optional footer slot             |
+| `Drawer`  | Edge slide-over (left/right). Used for the mobile navigation menu                                                      |
+
+`Sheet` and `Drawer` share `lib/use-dismissable.ts`, which provides a
+ref-counted body scroll lock, a Tab focus trap, Escape-to-close and focus
+restore. **New overlays should use `Sheet` rather than a hand-rolled
+`fixed inset-0` div** — six of those existed before and none had scroll
+locking or focus management.
+
+Every control steps up to a 44px touch target below `sm` and returns to the
+denser desktop scale above it. `Input` also renders at 16px on mobile, because
+iOS Safari zooms into any focused field below that and never zooms back.
 
 Exports are per-file (e.g., `import { Button } from '@chefer/ui/button'`).
 

@@ -1,8 +1,30 @@
 # Mobile Responsiveness Plan — Chefer Web
 
-> Status: **plan only, not implemented.**
+> Status: **Phases 0–5 implemented.** Phase 6 (device sweep) outstanding — see §10.
 > Scope: `apps/web` + `packages/ui`. No API, schema, or business-logic changes.
 > Audit date: 2026-08-16. Audited every route under `apps/web/src/app` and every component under `apps/web/src/features`.
+>
+> **What actually shipped, and where it differed from this plan:**
+>
+> - The shared `recipe-form` extraction (§4.5) was **not** done. The two forms
+>   differ more than the audit implied — `new` has a photo section, auto-computed
+>   nutrition, a searchable picker and chip inputs that `edit` lacks. Folding that
+>   refactor into a responsive change would have made the diff unreviewable, so
+>   the fixes were applied twice and the extraction was split out.
+> - `body` uses `overflow-x: clip`, not `hidden` as §2.3 specified. `hidden`
+>   computes `overflow-y` to `auto`, which makes `body` a scroll container and
+>   breaks `position: sticky` on the header.
+> - The iOS 16px input rule needs an `input[class]` selector, not the plain
+>   element selector in §2.3 — nearly every input carries an explicit `text-sm`
+>   utility, which wins on specificity against `@layer base`.
+> - `clip` does **not** stop `html` from scrolling, so the "no horizontal scroll"
+>   guarantee in §6.1 is thinner than assumed. This is deliberate: masking would
+>   have hidden the two real 320px bugs the suite later found.
+> - The dashboard nutrition rail moved from `lg` to `xl` (§4.1 #8) — the one
+>   intentional desktop change.
+>
+> **Known gap:** both meal-plan layouts render on every device and are toggled
+> with CSS, so phones still fetch the hidden grid's images. Tracked separately.
 
 ---
 

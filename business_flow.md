@@ -349,6 +349,28 @@ mealPlan.generate { weekOffset }
            streaming DONE events to the client over SSE
 ```
 
+### Viewing the plan
+
+The generated week is presented two ways, chosen by viewport rather than by any
+user setting:
+
+```
+/meal-plan
+  │
+  ├─ ≥ lg (1024px)   7-column week grid — the whole week at once
+  │
+  └─ < lg            Single-day view
+       ├─ horizontal day picker (Mon–Sun), today selected by default
+       ├─ that day's meals as full-width row cards + day totals
+       └─ selected day is held in the URL as ?day=N, alongside ?week=N,
+          so back/forward/refresh return to the day being viewed
+```
+
+A 7-column grid needs ~900px, so on a phone it showed roughly a third of one
+column and reaching Sunday meant scrolling sideways through the whole week. The
+single-day view is a different information architecture, not a scaled-down grid.
+`/history/[planId]` renders the same component in read-only mode.
+
 ### Meal swap
 
 `mealPlan.swapRecipe` — premium: AI-generated alternative; free: random curated recipe of the same meal type (excluding the current one).
