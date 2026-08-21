@@ -169,11 +169,26 @@ src/
 
 #### Middleware Chain (every request)
 
-1. CORS (configurable origins, credentials)
-2. `express.json` (10 MB limit)
-3. `express.urlencoded`
-4. `requestIdMiddleware` — attaches `X-Request-ID`
-5. tRPC adapter → `timingMiddleware` → procedure-specific middleware
+1. `helmet` — security headers (CORP relaxed to `cross-origin` so `/uploads` images render on the web origin)
+2. CORS (configurable origins, credentials)
+3. `express.json` (10 MB limit)
+4. `express.urlencoded`
+5. `requestIdMiddleware` — attaches `X-Request-ID`
+6. `express-rate-limit` on `/trpc` — `RATE_LIMIT_MAX` requests per `RATE_LIMIT_WINDOW_MS` per IP (standard `RateLimit` headers)
+7. tRPC adapter → `timingMiddleware` → procedure-specific middleware
+
+#### Rate Limits & Daily Quotas
+
+| Limit                          | Scope                        | Value                                                     | Where                                                             |
+| ------------------------------ | ---------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------- |
+| Global tRPC flood              | per IP                       | `RATE_LIMIT_MAX`/`RATE_LIMIT_WINDOW_MS` (default 100/min) | `index.ts` (express-rate-limit)                                   |
+| `auth.login` / `auth.register` | per IP                       | 10 per 15 min                                             | `auth.router.ts` → `lib/rate-limit.ts` (in-memory sliding window) |
+| Plan generations               | per user per UTC day         | FREE 3 / PREMIUM 20 (counted from `meal_plans` rows)      | `meal-plan.router.ts` → `lib/quotas.ts`                           |
+| AI swaps                       | per premium user per UTC day | 30 (counted from `ai_call_logs`)                          | `meal-plan.router.ts` → `lib/quotas.ts`                           |
+
+The in-memory stores assume a single API instance; move to Redis (`REDIS_URL`
+is already in the env schema) before scaling horizontally. Quota numbers are
+paywall surface — they migrate into the `PLAN_FEATURES` matrix with PW-1.
 
 #### Graceful Shutdown
 

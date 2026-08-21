@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { UserProfile } from '@chefer/types';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
+import { assertAiSwapQuota, assertPlanGenerationQuota } from '../lib/quotas.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
 
 /** Admins count as premium — AI features are enabled for both. */
@@ -23,6 +24,7 @@ export const mealPlanRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertPlanGenerationQuota(ctx.user);
       return mealPlanService.generate(ctx.user.id, input.weekOffset, isPremiumUser(ctx.user));
     }),
 
@@ -69,6 +71,7 @@ export const mealPlanRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertAiSwapQuota(ctx.user);
       return mealPlanService.swapRecipe(
         ctx.user.id,
         input.planId,

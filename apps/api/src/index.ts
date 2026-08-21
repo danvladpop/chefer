@@ -4,6 +4,8 @@ import * as Sentry from '@sentry/node';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import cors from 'cors';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 import {
   createContext,
   requestIdMiddleware,
@@ -23,6 +25,15 @@ const app: express.Express = express();
 app.set('trust proxy', 1);
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
+
+app.use(
+  helmet({
+    // The API serves images (/uploads) to the web app, which is a different
+    // origin in dev (3000 → 3001); the default same-origin CORP would block
+    // them. CORS still governs who may actually fetch.
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }),
+);
 
 app.use(
   cors({
@@ -89,6 +100,21 @@ app.use('/api/uploads', uploadsRouter);
 app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d', immutable: true }));
 
 // ─── tRPC ─────────────────────────────────────────────────────────────────────
+
+// Blunt per-IP flood protection for the whole tRPC surface. The finer
+// per-procedure limits (auth attempts, AI quotas) live in the routers.
+app.use(
+  '/trpc',
+  rateLimit({
+    windowMs: env.RATE_LIMIT_WINDOW_MS,
+    limit: env.RATE_LIMIT_MAX,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: {
+      error: { code: 'TOO_MANY_REQUESTS', message: 'Too many requests — slow down.' },
+    },
+  }),
+);
 
 app.use(
   '/trpc',

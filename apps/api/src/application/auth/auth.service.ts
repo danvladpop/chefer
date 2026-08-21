@@ -106,7 +106,7 @@ export class AuthService {
         // Ignore errors — cookie is cleared regardless
       });
     }
-    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
   }
 
   // ─── Private ───────────────────────────────────────────────────────────────
@@ -121,9 +121,12 @@ export class AuthService {
 
     const isProd = process.env['NODE_ENV'] === 'production';
     const securePart = isProd ? '; Secure' : '';
+    // Strict, not Lax: the app has no legitimate cross-site navigation that
+    // needs the session (no OAuth callbacks, no cross-site links into
+    // authenticated pages that can't survive one extra login redirect).
     res.setHeader(
       'Set-Cookie',
-      `${SESSION_COOKIE}=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(SESSION_EXPIRY_MS / 1000)}${securePart}`,
+      `${SESSION_COOKIE}=${sessionToken}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${Math.floor(SESSION_EXPIRY_MS / 1000)}${securePart}`,
     );
   }
 }
