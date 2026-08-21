@@ -25,7 +25,14 @@ round trip, `Sheet` as a bottom sheet, the meal-plan day view, and the desktop s
 
 ## 1. Broken quality gates — start here
 
-Three of the four checks `CLAUDE.md` tells contributors to run do not work. None of this was
+> **✅ RESOLVED 2026-08-21** (roadmap P0-0): all six workspaces now carry an `eslint.config.js`
+> wired to `@chefer/eslint-config` (lint: 0 errors, staged-adoption warnings ratcheted in the two
+> app configs); the 23 `exactOptionalPropertyTypes` errors are fixed and `ignoreBuildErrors` is
+> gone from `next.config.ts`; `@chefer/utils` and `@chefer/web` have real unit tests;
+> `home.spec.ts` was rewritten against the current landing page (17/17 passing). The table below
+> is kept for the record.
+
+Three of the four checks `CLAUDE.md` tells contributors to run did not work. None of this was
 caused by the mobile work; all of it predates `b80fa8b`.
 
 | Command             | Actual result                                                                                                                                                                                           |

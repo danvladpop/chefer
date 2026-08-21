@@ -1,14 +1,14 @@
 # Chefer — Phase 3–5 Completion & Smart Shopping List PRD
 
-| Field                 | Value                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------ |
-| **Version**           | 2.0.0                                                                                |
-| **Status**            | Active — Staff Engineering Backlog                                                   |
-| **Author**            | Senior Engineering Manager / Product Owner                                           |
-| **Date**              | 2026-03-22                                                                           |
-| **Stack**             | Next.js 16 · Express + tRPC v11 · Prisma 5 · PostgreSQL 16 · Tailwind CSS 3         |
-| **Design Source**     | Stitch project `14879881194424758396` — screen `3026367cb60140dbb887e329f42985c6` ("Chefer: AI Smart Shopping List (Rethought)") |
-| **Predecessor**       | `PersonalChef_PRD.md` v1.6.0 — all Phase 0–2 tasks complete; Phase 3 partially done |
+| Field             | Value                                                                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Version**       | 2.0.0                                                                                                                            |
+| **Status**        | Active — Staff Engineering Backlog                                                                                               |
+| **Author**        | Senior Engineering Manager / Product Owner                                                                                       |
+| **Date**          | 2026-03-22                                                                                                                       |
+| **Stack**         | Next.js 16 · Express + tRPC v11 · Prisma 5 · PostgreSQL 16 · Tailwind CSS 3                                                      |
+| **Design Source** | Stitch project `14879881194424758396` — screen `3026367cb60140dbb887e329f42985c6` ("Chefer: AI Smart Shopping List (Rethought)") |
+| **Predecessor**   | `PersonalChef_PRD.md` v1.6.0 — all Phase 0–2 tasks complete; Phase 3 partially done                                              |
 
 ---
 
@@ -57,37 +57,37 @@
 
 The following tasks from `PersonalChef_PRD.md` are fully implemented, committed, and pushed to master:
 
-| Phase | Task Range | Description | Status |
-|---|---|---|---|
-| 0 | T-001 – T-006 | Foundation: scaffolding, DB schema, auth, navigation | ✅ Complete |
-| 1 | T-007 – T-013 | User preferences: onboarding wizard, preferences CRUD | ✅ Complete |
-| 2 | T-014 – T-020 + T-016A | AI meal plan generation, sidebar nav, meal planner page, recipe detail, nutrition panel | ✅ Complete |
-| 3 | T-021 | Dashboard "Your Daily Overview" | ✅ Complete |
-| 3 | T-022 | Recipe swap (AI-powered) | ✅ Complete |
-| 3 | T-023 | Shopping list — basic grouped checklist with print button | ✅ Complete (superseded by T-023B in this PRD) |
-| 3 | T-025 | Recipes browse page + favourites | ✅ Complete |
+| Phase | Task Range             | Description                                                                             | Status                                         |
+| ----- | ---------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| 0     | T-001 – T-006          | Foundation: scaffolding, DB schema, auth, navigation                                    | ✅ Complete                                    |
+| 1     | T-007 – T-013          | User preferences: onboarding wizard, preferences CRUD                                   | ✅ Complete                                    |
+| 2     | T-014 – T-020 + T-016A | AI meal plan generation, sidebar nav, meal planner page, recipe detail, nutrition panel | ✅ Complete                                    |
+| 3     | T-021                  | Dashboard "Your Daily Overview"                                                         | ✅ Complete                                    |
+| 3     | T-022                  | Recipe swap (AI-powered)                                                                | ✅ Complete                                    |
+| 3     | T-023                  | Shopping list — basic grouped checklist with print button                               | ✅ Complete (superseded by T-023B in this PRD) |
+| 3     | T-025                  | Recipes browse page + favourites                                                        | ✅ Complete                                    |
 
 ### 1.2 What Remains
 
-| Phase | Task | Description | Effort | Priority |
-|---|---|---|---|---|
-| 3 | T-024 | Meal plan history & archives | M | P1 |
-| 3 | T-023B | **Smart Shopping List — full redesign** (this PRD) | XL | P0 |
-| 3 | T-026 | Meal ratings & feedback loop | M | P2 |
-| 4 | T-027 | Calorie & macro tracker | L | P1 |
-| 4 | T-028 | Progress charts | M | P1 |
-| 4 | T-029 | Weight tracking & goal progress | M | P2 |
-| 4 | T-030 | Email notifications | M | P2 |
-| 4 | T-031 | Shopping list PDF export & share link | M | P2 |
-| 4 | T-032 | AI chat — Ask Your Chef | XL | P2 |
-| 5 | T-033 | Responsive design & mobile polish | L | P1 |
-| 5 | T-034 | Error handling & empty states | M | P1 |
-| 5 | T-035 | Accessibility baseline | M | P1 |
-| 5 | T-036 | Performance & Core Web Vitals | L | P1 |
-| 5 | T-037 | End-to-end tests with Playwright | L | P2 |
-| 5 | T-038 | Deployment to Vercel | M | P1 |
-| 5 | T-039 | Analytics & monitoring | M | P2 |
-| 5 | T-040 | Subscription & paywall stub | XL | P2 |
+| Phase | Task   | Description                                        | Effort | Priority |
+| ----- | ------ | -------------------------------------------------- | ------ | -------- |
+| 3     | T-024  | Meal plan history & archives                       | M      | P1       |
+| 3     | T-023B | **Smart Shopping List — full redesign** (this PRD) | XL     | P0       |
+| 3     | T-026  | Meal ratings & feedback loop                       | M      | P2       |
+| 4     | T-027  | Calorie & macro tracker                            | L      | P1       |
+| 4     | T-028  | Progress charts                                    | M      | P1       |
+| 4     | T-029  | Weight tracking & goal progress                    | M      | P2       |
+| 4     | T-030  | Email notifications                                | M      | P2       |
+| 4     | T-031  | Shopping list PDF export & share link              | M      | P2       |
+| 4     | T-032  | AI chat — Ask Your Chef                            | XL     | P2       |
+| 5     | T-033  | Responsive design & mobile polish                  | L      | P1       |
+| 5     | T-034  | Error handling & empty states                      | M      | P1       |
+| 5     | T-035  | Accessibility baseline                             | M      | P1       |
+| 5     | T-036  | Performance & Core Web Vitals                      | L      | P1       |
+| 5     | T-037  | End-to-end tests with Playwright                   | L      | P2       |
+| 5     | T-038  | Deployment to Vercel                               | M      | P1       |
+| 5     | T-039  | Analytics & monitoring                             | M      | P2       |
+| 5     | T-040  | Subscription & paywall stub                        | XL     | P2       |
 
 **Total remaining effort:** ~145–185 engineering hours across 18 tasks.
 
@@ -157,15 +157,15 @@ Build `apps/web/src/app/(dashboard)/history/[planId]/page.tsx`:
 
 #### Files
 
-| Action | File |
-|---|---|
+| Action | File                                                                          |
+| ------ | ----------------------------------------------------------------------------- |
 | Modify | `apps/api/src/routers/meal-plan.router.ts` (add `list`, `restore`, `getById`) |
-| Modify | `apps/api/src/application/meal-plan/meal-plan.service.ts` |
-| Modify | `packages/database/src/repositories/meal-plan.repository.ts` |
-| Create | `apps/web/src/app/(dashboard)/history/page.tsx` |
-| Create | `apps/web/src/app/(dashboard)/history/loading.tsx` |
-| Create | `apps/web/src/app/(dashboard)/history/[planId]/page.tsx` |
-| Create | `apps/web/src/features/history/components/PlanHistoryCard.tsx` |
+| Modify | `apps/api/src/application/meal-plan/meal-plan.service.ts`                     |
+| Modify | `packages/database/src/repositories/meal-plan.repository.ts`                  |
+| Create | `apps/web/src/app/(dashboard)/history/page.tsx`                               |
+| Create | `apps/web/src/app/(dashboard)/history/loading.tsx`                            |
+| Create | `apps/web/src/app/(dashboard)/history/[planId]/page.tsx`                      |
+| Create | `apps/web/src/features/history/components/PlanHistoryCard.tsx`                |
 
 > **Definition of Done:** TypeScript compiles clean. `pnpm lint` passes. Navigate to `/history` — confirm cards render with date ranges, recipe previews, and macro summaries. Click `Restore` on an archived plan — confirm it becomes active and appears on `/meal-plan`. Click `View` — confirm the read-only grid renders without Swap/Regenerate controls.
 
@@ -207,6 +207,7 @@ Add to `apps/api/src/routers/recipe.router.ts`:
   - Returns `{ rating: number; notes: string | null }`.
 
 Add `recipe.getMyRating` — `protectedProcedure` query:
+
 - Input: `{ recipeId: string }`.
 - Returns `{ rating: number; notes: string | null } | null`.
 
@@ -215,11 +216,13 @@ Extend `RecipeService` in `apps/api/src/application/recipe/recipe.service.ts` wi
 **AI prompt integration** (live mode only — `AI_MOCK_ENABLED=false`):
 
 Extend `apps/api/src/lib/ai/prompts.ts` to accept a `ratingHints` parameter:
+
 ```ts
 // Append to the meal plan generation system prompt:
 // "These recipes are highly rated by the user (4–5 stars): {names}. Prefer similar styles."
 // "These recipes are disliked by the user (1–2 stars): {names}. Avoid similar styles."
 ```
+
 The `MealPlanService.generate()` method fetches this data before building the prompt. In mock mode, skip this step entirely.
 
 #### Frontend
@@ -239,17 +242,17 @@ On `apps/web/src/app/(dashboard)/recipes/page.tsx`:
 
 #### Files
 
-| Action | File |
-|---|---|
-| Modify | `packages/database/prisma/schema.prisma` |
+| Action | File                                                                                  |
+| ------ | ------------------------------------------------------------------------------------- |
+| Modify | `packages/database/prisma/schema.prisma`                                              |
 | Modify | `packages/database/src/repositories/favourite-recipe.repository.ts` (add rating repo) |
-| Create | `packages/database/src/repositories/meal-rating.repository.ts` |
-| Modify | `apps/api/src/routers/recipe.router.ts` |
-| Modify | `apps/api/src/application/recipe/recipe.service.ts` |
-| Modify | `apps/api/src/lib/ai/prompts.ts` |
-| Modify | `apps/web/src/app/(dashboard)/recipes/[id]/page.tsx` |
-| Modify | `apps/web/src/app/(dashboard)/recipes/page.tsx` |
-| Create | `apps/web/src/features/recipe/components/StarRatingWidget.tsx` |
+| Create | `packages/database/src/repositories/meal-rating.repository.ts`                        |
+| Modify | `apps/api/src/routers/recipe.router.ts`                                               |
+| Modify | `apps/api/src/application/recipe/recipe.service.ts`                                   |
+| Modify | `apps/api/src/lib/ai/prompts.ts`                                                      |
+| Modify | `apps/web/src/app/(dashboard)/recipes/[id]/page.tsx`                                  |
+| Modify | `apps/web/src/app/(dashboard)/recipes/page.tsx`                                       |
+| Create | `apps/web/src/features/recipe/components/StarRatingWidget.tsx`                        |
 
 > **Definition of Done:** Navigate to `/recipes/[id]?day=0` where day 0 is in the past — confirm the star widget renders. Click 4 stars and Save — confirm toast appears. Revisit — confirm the 4-star pre-selection. In `/recipes`, confirm the recipe shows a gold star badge. Verify the badge is absent for unrated recipes.
 
@@ -265,19 +268,20 @@ The current T-023 implementation is a basic grouped checklist. This redesign ele
 
 **Core capabilities to add:**
 
-| Capability | Description |
-|---|---|
-| **Week navigation** | Previous / current / next week selector in the page header |
-| **Item images** | Thumbnail photo of each grocery item using Unsplash CDN or store product image |
-| **Store availability** | Per-item status: `IN_STOCK` / `LIMITED` / `OUT_OF_STOCK` / `BOUGHT` |
-| **Estimated price** | Per-item and total estimated cost in the user's local currency |
-| **In-Store vs Delivery toggle** | Switches between in-store aisle hints and delivery-specific options |
-| **Store selector** | Compare multiple nearby stores (LIDL, Carrefour, Kaufland) side-by-side |
-| **Order summary** | Subtotal, estimated taxes, delivery fee, total — per store |
-| **Order actions** | "Order via Delivery", "Print List", "Send to Mobile" |
-| **Chef's Tip** | Contextual tip (e.g. leftover ingredients from last week) |
+| Capability                      | Description                                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| **Week navigation**             | Previous / current / next week selector in the page header                     |
+| **Item images**                 | Thumbnail photo of each grocery item using Unsplash CDN or store product image |
+| **Store availability**          | Per-item status: `IN_STOCK` / `LIMITED` / `OUT_OF_STOCK` / `BOUGHT`            |
+| **Estimated price**             | Per-item and total estimated cost in the user's local currency                 |
+| **In-Store vs Delivery toggle** | Switches between in-store aisle hints and delivery-specific options            |
+| **Store selector**              | Compare multiple nearby stores (LIDL, Carrefour, Kaufland) side-by-side        |
+| **Order summary**               | Subtotal, estimated taxes, delivery fee, total — per store                     |
+| **Order actions**               | "Order via Delivery", "Print List", "Send to Mobile"                           |
+| **Chef's Tip**                  | Contextual tip (e.g. leftover ingredients from last week)                      |
 
 **AI integration strategy:**
+
 - **Now (Phase 1):** A `MockGroceryAIService` returns a deterministic, fully-typed fixture that matches the exact production data contract. All UI is built against this contract.
 - **Future (Phase 2):** A `ClaudeGroceryAIService` uses Claude with web search/computer_use tools to fetch real prices and availability from nearby stores. Swapping providers requires only changing `GROCERY_AI_MOCK_ENABLED=false`. No UI changes required.
 
@@ -300,41 +304,38 @@ apps/api/src/lib/grocery-ai/
 **Interface (`apps/api/src/lib/grocery-ai/types.ts`):**
 
 ```ts
-export type AvailabilityStatus =
-  | 'IN_STOCK'
-  | 'LIMITED'
-  | 'OUT_OF_STOCK';
+export type AvailabilityStatus = 'IN_STOCK' | 'LIMITED' | 'OUT_OF_STOCK';
 
 export interface GroceryItem {
-  ingredientName: string;       // Matches the shopping list ingredient name
-  quantity: string;             // e.g. "1 bag", "400g", "3 units"
-  unit: string;                 // normalised unit for display
-  category: string;             // 'produce' | 'proteins' | 'dairy' | 'grains' | 'frozen'
-  imageUrl: string;             // Unsplash CDN URL (800×600)
-  storeSku?: string;            // Store-specific product ID
-  storeProductName?: string;    // Store's own product name (may differ from ingredient name)
-  priceEur: number;             // Estimated price in EUR (or local currency)
+  ingredientName: string; // Matches the shopping list ingredient name
+  quantity: string; // e.g. "1 bag", "400g", "3 units"
+  unit: string; // normalised unit for display
+  category: string; // 'produce' | 'proteins' | 'dairy' | 'grains' | 'frozen'
+  imageUrl: string; // Unsplash CDN URL (800×600)
+  storeSku?: string; // Store-specific product ID
+  storeProductName?: string; // Store's own product name (may differ from ingredient name)
+  priceEur: number; // Estimated price in EUR (or local currency)
   availabilityStatus: AvailabilityStatus;
-  aisleHint?: string;           // e.g. "Produce Section • Organic", "Aisle 4"
-  deliveryNote?: string;        // e.g. "Ships within 2 hours"
+  aisleHint?: string; // e.g. "Produce Section • Organic", "Aisle 4"
+  deliveryNote?: string; // e.g. "Ships within 2 hours"
 }
 
 export interface GroceryStore {
-  id: string;                   // 'lidl' | 'carrefour' | 'kaufland'
-  name: string;                 // Display name: "LIDL"
-  logoUrl: string;              // Brand logo URL
-  address: string;              // Nearest store address
-  distanceKm: number;           // Distance from user's location
+  id: string; // 'lidl' | 'carrefour' | 'kaufland'
+  name: string; // Display name: "LIDL"
+  logoUrl: string; // Brand logo URL
+  address: string; // Nearest store address
+  distanceKm: number; // Distance from user's location
   inStoreAvailable: boolean;
   deliveryAvailable: boolean;
-  deliveryFeeEur: number;       // 0 if above minimum order threshold
+  deliveryFeeEur: number; // 0 if above minimum order threshold
   minimumOrderEur: number;
   estimatedDeliveryTime: string; // "45–60 min" or "Tomorrow by 10 AM"
-  items: GroceryItem[];         // All shopping list items priced for this store
-  subtotalEur: number;          // Sum of all item prices
-  taxEur: number;               // Estimated tax (varies by country)
-  totalEur: number;             // subtotal + tax + delivery fee
-  availableItemCount: number;   // Items with IN_STOCK or LIMITED status
+  items: GroceryItem[]; // All shopping list items priced for this store
+  subtotalEur: number; // Sum of all item prices
+  taxEur: number; // Estimated tax (varies by country)
+  totalEur: number; // subtotal + tax + delivery fee
+  availableItemCount: number; // Items with IN_STOCK or LIMITED status
   unavailableItemCount: number; // Items with OUT_OF_STOCK status
 }
 
@@ -350,11 +351,11 @@ export interface GrocerySearchInput {
     lng: number;
   } | null;
   deliveryAddress: string | null;
-  preferredCurrency: string;    // ISO 4217, e.g. "EUR"
+  preferredCurrency: string; // ISO 4217, e.g. "EUR"
 }
 
 export interface GrocerySearchResult {
-  stores: GroceryStore[];       // 1–4 stores, sorted by totalEur ascending
+  stores: GroceryStore[]; // 1–4 stores, sorted by totalEur ascending
   searchedAt: Date;
   locationUsed: 'gps' | 'address' | 'default';
   currencyCode: string;
@@ -381,8 +382,8 @@ export class MockGroceryAIService implements IGroceryAIService {
 **Factory (`apps/api/src/lib/grocery-ai/index.ts`):**
 
 ```ts
-import { MockGroceryAIService } from './mock';
 import { ClaudeGroceryAIService } from './claude';
+import { MockGroceryAIService } from './mock';
 
 export const groceryAIService: IGroceryAIService =
   process.env.GROCERY_AI_MOCK_ENABLED === 'false'
@@ -420,7 +421,8 @@ export const GROCERY_STORES_FIXTURE: GroceryStore[] = [
         quantity: '0.5 medium',
         unit: 'medium',
         category: 'produce',
-        imageUrl: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=120&h=120&fit=crop',
+        imageUrl:
+          'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=120&h=120&fit=crop',
         storeProductName: 'Avocado Ready to Eat',
         priceEur: 0.89,
         availabilityStatus: 'IN_STOCK',
@@ -430,7 +432,7 @@ export const GROCERY_STORES_FIXTURE: GroceryStore[] = [
       // ... all other items
     ],
     // subtotalEur, taxEur, totalEur are computed values — calculate from items array.
-    subtotalEur: 47.60,
+    subtotalEur: 47.6,
     taxEur: 3.57,
     totalEur: 54.16, // subtotal + tax + deliveryFee
     availableItemCount: 19,
@@ -460,6 +462,7 @@ export const GROCERY_STORES_FIXTURE: GroceryStore[] = [
 ```
 
 **Key mock constraints:**
+
 - Each store must have a distinct price point per item (±10–25% variance).
 - At least 2 items per store must be `LIMITED`.
 - At least 1 item per store must be `OUT_OF_STOCK` (different items per store).
@@ -537,10 +540,11 @@ All procedures added to `apps/api/src/routers/shopping-list.router.ts` (new rout
 Input: z.object({
   weekOffset: z.number().int().min(-52).max(0).default(0),
   // 0 = current week, -1 = last week, -2 = two weeks ago
-})
+});
 ```
 
 Returns:
+
 ```ts
 {
   planId: string | null;
@@ -563,6 +567,7 @@ type ShoppingListItem = {
 ```
 
 Implementation in `apps/api/src/application/shopping-list/shopping-list.service.ts`:
+
 - Fetch the `MealPlan` for the target week (offset from current week start date).
 - If `weekOffset = 0` and no ACTIVE plan exists, try the most recent ARCHIVED plan for that week.
 - Aggregate all `Recipe.ingredients[]` across all days/meals, merge duplicates, sum quantities.
@@ -576,12 +581,13 @@ Input: z.object({
   lat: z.number().optional(),
   lng: z.number().optional(),
   deliveryAddress: z.string().optional(),
-})
+});
 ```
 
 Returns: `GrocerySearchResult` (see §4.2).
 
 Implementation in `apps/api/src/application/shopping-list/shopping-list.service.ts`:
+
 - Fetch `ShoppingListItem[]` for the given `planId`.
 - Fetch `ChefProfile.deliveryCurrency` for the user.
 - Call `groceryAIService.searchNearbyStores(...)`.
@@ -596,6 +602,7 @@ Add `shoppingListRouter` to `apps/api/src/routers/index.ts`.
 #### Page: `apps/web/src/app/(dashboard)/shopping-list/page.tsx`
 
 This is a **client component** (`'use client'`) because it manages:
+
 - GPS geolocation state
 - Week offset navigation state
 - In-store vs Delivery toggle state
@@ -668,7 +675,7 @@ ShoppingListPage (client)
 ```tsx
 // Props
 interface WeekNavigatorProps {
-  weekOffset: number;           // 0 = current, -1 = last, etc.
+  weekOffset: number; // 0 = current, -1 = last, etc.
   onOffsetChange: (offset: number) => void;
   weekStart: Date;
   weekEnd: Date;
@@ -684,7 +691,7 @@ interface WeekNavigatorProps {
 ```tsx
 interface IngredientRowProps {
   item: ShoppingListItem;
-  groceryItem?: GroceryItem;    // From selected store; undefined until store data loaded
+  groceryItem?: GroceryItem; // From selected store; undefined until store data loaded
   isChecked: boolean;
   mode: 'in-store' | 'delivery';
   onToggle: (key: string) => void;
@@ -692,6 +699,7 @@ interface IngredientRowProps {
 ```
 
 Layout:
+
 - Left: 48×48 px thumbnail (`next/image`, `object-cover`, rounded). Source: `groceryItem.imageUrl` when available, else Unsplash ingredient fallback.
 - Centre-left: Item name (bold) + quantity.
 - Centre-right: Price in selected currency (e.g. `€ 0.89`). Show `—` when store data is loading.
@@ -702,11 +710,11 @@ Layout:
 
 #### Component: `AvailabilityBadge`
 
-| Status | Colour | Label |
-|---|---|---|
-| `IN_STOCK` | Green pill `bg-green-100 text-green-700` | `🟢 In Stock` |
-| `LIMITED` | Amber pill `bg-amber-100 text-amber-700` | `🟡 Limited` |
-| `OUT_OF_STOCK` | Red pill `bg-red-100 text-red-700` | `🔴 Not Available` |
+| Status         | Colour                                   | Label              |
+| -------------- | ---------------------------------------- | ------------------ |
+| `IN_STOCK`     | Green pill `bg-green-100 text-green-700` | `🟢 In Stock`      |
+| `LIMITED`      | Amber pill `bg-amber-100 text-amber-700` | `🟡 Limited`       |
+| `OUT_OF_STOCK` | Red pill `bg-red-100 text-red-700`       | `🔴 Not Available` |
 
 #### Component: `StoreTile`
 
@@ -714,7 +722,7 @@ Layout:
 interface StoreTileProps {
   store: GroceryStore;
   isSelected: boolean;
-  isBestValue: boolean;         // true if store has lowest totalEur
+  isBestValue: boolean; // true if store has lowest totalEur
   onSelect: () => void;
 }
 ```
@@ -731,6 +739,7 @@ interface StoreTileProps {
 #### Component: `OrderSummary`
 
 Displays for the selected store:
+
 - Subtotal: `€ {subtotalEur.toFixed(2)}`
 - Est. Taxes: `€ {taxEur.toFixed(2)}`
 - Delivery Fee: `€ {deliveryFeeEur.toFixed(2)}` (or `"Free"` if 0)
@@ -740,6 +749,7 @@ Displays for the selected store:
 #### Component: `ChefsTipCard`
 
 An amber-tinted callout card (`bg-amber-50 border-l-4 border-amber-400`):
+
 - Icon: 💡
 - Title: `"Chef's Tip"`
 - Content: static tip derived from the shopping list. Logic:
@@ -760,37 +770,38 @@ Checked items are persisted in `localStorage` keyed by `item.key` (`"{planId}-{n
 #### Empty State
 
 When `hasPlan === false` for the selected week:
+
 - Centred illustration + heading `"No meal plan for this week"`.
 - Subtext: `"Generate a meal plan to get a personalised shopping list."`.
 - Button: `"Go to Meal Planner"` → `/meal-plan`.
 
 #### Files
 
-| Action | File |
-|---|---|
-| **Modify** | `packages/database/prisma/schema.prisma` (add `deliveryAddress`, `deliveryCurrency` to `ChefProfile`) |
-| **Create** | `apps/api/src/lib/grocery-ai/types.ts` |
-| **Create** | `apps/api/src/lib/grocery-ai/mock.ts` |
-| **Create** | `apps/api/src/lib/grocery-ai/claude.ts` (skeleton only — see §4.9) |
-| **Create** | `apps/api/src/lib/grocery-ai/index.ts` |
-| **Create** | `apps/api/src/lib/grocery-ai/fixtures/grocery-stores.fixture.ts` |
-| **Create** | `apps/api/src/routers/shopping-list.router.ts` |
-| **Create** | `apps/api/src/application/shopping-list/shopping-list.service.ts` |
-| **Modify** | `apps/api/src/routers/index.ts` (add `shoppingListRouter`) |
-| **Modify** | `apps/api/src/routers/preferences.router.ts` (add `deliveryAddress`, `deliveryCurrency` to update schema) |
-| **Rewrite** | `apps/web/src/app/(dashboard)/shopping-list/page.tsx` |
-| **Create** | `apps/web/src/features/shopping-list/components/WeekNavigator.tsx` |
-| **Create** | `apps/web/src/features/shopping-list/components/ModeToggle.tsx` |
-| **Create** | `apps/web/src/features/shopping-list/components/IngredientRow.tsx` |
-| **Create** | `apps/web/src/features/shopping-list/components/AvailabilityBadge.tsx` |
-| **Create** | `apps/web/src/features/shopping-list/components/StoreTile.tsx` |
-| **Create** | `apps/web/src/features/shopping-list/components/StoreSelector.tsx` |
-| **Create** | `apps/web/src/features/shopping-list/components/OrderSummary.tsx` |
-| **Create** | `apps/web/src/features/shopping-list/components/ChefsTipCard.tsx` |
-| **Modify** | `apps/web/src/app/(dashboard)/preferences/page.tsx` (add delivery address section) |
-| **Modify** | `apps/web/.env.example` (add `GROCERY_AI_MOCK_ENABLED`) |
-| **Modify** | `infrastructure.md` (update §1, §4, §7, §8, §10, §12 per CLAUDE.md rules) |
-| **Modify** | `currentImplementation.md` |
+| Action      | File                                                                                                      |
+| ----------- | --------------------------------------------------------------------------------------------------------- |
+| **Modify**  | `packages/database/prisma/schema.prisma` (add `deliveryAddress`, `deliveryCurrency` to `ChefProfile`)     |
+| **Create**  | `apps/api/src/lib/grocery-ai/types.ts`                                                                    |
+| **Create**  | `apps/api/src/lib/grocery-ai/mock.ts`                                                                     |
+| **Create**  | `apps/api/src/lib/grocery-ai/claude.ts` (skeleton only — see §4.9)                                        |
+| **Create**  | `apps/api/src/lib/grocery-ai/index.ts`                                                                    |
+| **Create**  | `apps/api/src/lib/grocery-ai/fixtures/grocery-stores.fixture.ts`                                          |
+| **Create**  | `apps/api/src/routers/shopping-list.router.ts`                                                            |
+| **Create**  | `apps/api/src/application/shopping-list/shopping-list.service.ts`                                         |
+| **Modify**  | `apps/api/src/routers/index.ts` (add `shoppingListRouter`)                                                |
+| **Modify**  | `apps/api/src/routers/preferences.router.ts` (add `deliveryAddress`, `deliveryCurrency` to update schema) |
+| **Rewrite** | `apps/web/src/app/(dashboard)/shopping-list/page.tsx`                                                     |
+| **Create**  | `apps/web/src/features/shopping-list/components/WeekNavigator.tsx`                                        |
+| **Create**  | `apps/web/src/features/shopping-list/components/ModeToggle.tsx`                                           |
+| **Create**  | `apps/web/src/features/shopping-list/components/IngredientRow.tsx`                                        |
+| **Create**  | `apps/web/src/features/shopping-list/components/AvailabilityBadge.tsx`                                    |
+| **Create**  | `apps/web/src/features/shopping-list/components/StoreTile.tsx`                                            |
+| **Create**  | `apps/web/src/features/shopping-list/components/StoreSelector.tsx`                                        |
+| **Create**  | `apps/web/src/features/shopping-list/components/OrderSummary.tsx`                                         |
+| **Create**  | `apps/web/src/features/shopping-list/components/ChefsTipCard.tsx`                                         |
+| **Modify**  | `apps/web/src/app/(dashboard)/preferences/page.tsx` (add delivery address section)                        |
+| **Modify**  | `apps/web/.env.example` (add `GROCERY_AI_MOCK_ENABLED`)                                                   |
+| **Modify**  | `infrastructure.md` (update §1, §4, §7, §8, §10, §12 per CLAUDE.md rules)                                 |
+| **Modify**  | `currentImplementation.md`                                                                                |
 
 ---
 
@@ -822,18 +833,20 @@ export class ClaudeGroceryAIService implements IGroceryAIService {
     //   - tool: "web_search" for finding store locations
     //   - tool: "web_search" for fetching product prices per store
     // Parse response with Zod. Fall back to MockGroceryAIService on failure.
-    throw new Error('ClaudeGroceryAIService not yet implemented — set GROCERY_AI_MOCK_ENABLED=true');
+    throw new Error(
+      'ClaudeGroceryAIService not yet implemented — set GROCERY_AI_MOCK_ENABLED=true',
+    );
   }
 }
 ```
 
 #### Environment Variables (Phase 2)
 
-| Variable | Purpose |
-|---|---|
-| `GROCERY_AI_MOCK_ENABLED` | `true` now; `false` in production Phase 2 |
-| `ANTHROPIC_API_KEY` | Already in env; reused for grocery search |
-| `GEOCODING_API_KEY` | Google Maps or similar; optional — Nominatim is free |
+| Variable                  | Purpose                                              |
+| ------------------------- | ---------------------------------------------------- |
+| `GROCERY_AI_MOCK_ENABLED` | `true` now; `false` in production Phase 2            |
+| `ANTHROPIC_API_KEY`       | Already in env; reused for grocery search            |
+| `GEOCODING_API_KEY`       | Google Maps or similar; optional — Nominatim is free |
 
 #### Why This Approach Is Safe
 
@@ -1063,15 +1076,15 @@ Add `<ChatWidget />` to `apps/web/src/app/(dashboard)/layout.tsx` so it appears 
 
 **Required changes per page:**
 
-| Page | Mobile Change |
-|---|---|
-| `/meal-plan` | Grid collapses to 1-day swipeable carousel. `DayRecapBar` remains visible. Day pills in header become a horizontally scrollable strip. |
-| `/dashboard` | Two-column layout stacks vertically: NutritionPanel moves below left column. Recent Favourites remains horizontal scroll. |
-| `/shopping-list` | Two-column layout stacks. StorePanel moves below IngredientList. |
-| `/recipes` | Grid goes from 3-col to 1-col on mobile. |
-| `/recipes/[id]` | Single-column layout. Hero image full-width. Ingredients and Nutrition Facts stack. |
-| `/preferences` | Full single column. All form sections stack. |
-| **Navigation** | Sidebar converts to a bottom tab bar (5 primary items: Dashboard, Meal Planner, Recipes, Shopping List, More). The `More` tab opens a sheet with remaining items. |
+| Page             | Mobile Change                                                                                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/meal-plan`     | Grid collapses to 1-day swipeable carousel. `DayRecapBar` remains visible. Day pills in header become a horizontally scrollable strip.                            |
+| `/dashboard`     | Two-column layout stacks vertically: NutritionPanel moves below left column. Recent Favourites remains horizontal scroll.                                         |
+| `/shopping-list` | Two-column layout stacks. StorePanel moves below IngredientList.                                                                                                  |
+| `/recipes`       | Grid goes from 3-col to 1-col on mobile.                                                                                                                          |
+| `/recipes/[id]`  | Single-column layout. Hero image full-width. Ingredients and Nutrition Facts stack.                                                                               |
+| `/preferences`   | Full single column. All form sections stack.                                                                                                                      |
+| **Navigation**   | Sidebar converts to a bottom tab bar (5 primary items: Dashboard, Meal Planner, Recipes, Shopping List, More). The `More` tab opens a sheet with remaining items. |
 
 **Touch targets:** All interactive elements must be `min-h-[44px]` on mobile.
 
@@ -1093,15 +1106,15 @@ Add `<ChatWidget />` to `apps/web/src/app/(dashboard)/layout.tsx` so it appears 
 
 **Per-page empty states** (ensure all are implemented):
 
-| Page | Empty State |
-|---|---|
-| `/meal-plan` | No active plan: illustration + "Generate My Week" CTA |
-| `/history` | No past plans: illustration + "Go to Meal Planner" CTA |
-| `/recipes` (All tab) | No recipes: illustration + "Go to Meal Planner" CTA |
-| `/recipes` (Saved tab) | No saved: copy + link to All tab |
-| `/tracker` | No plan for today: copy + link to Meal Planner |
-| `/shopping-list` | No plan: illustration + "Go to Meal Planner" CTA |
-| `/progress` | No log data: copy + link to Tracker |
+| Page                   | Empty State                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `/meal-plan`           | No active plan: illustration + "Generate My Week" CTA  |
+| `/history`             | No past plans: illustration + "Go to Meal Planner" CTA |
+| `/recipes` (All tab)   | No recipes: illustration + "Go to Meal Planner" CTA    |
+| `/recipes` (Saved tab) | No saved: copy + link to All tab                       |
+| `/tracker`             | No plan for today: copy + link to Meal Planner         |
+| `/shopping-list`       | No plan: illustration + "Go to Meal Planner" CTA       |
+| `/progress`            | No log data: copy + link to Tracker                    |
 
 > **Definition of Done:** Break the API URL in `.env.local` and reload each page — confirm error boundaries render cleanly. Navigate to `/nonexistent-page` — confirm 404 page renders. Throttle to Slow 3G — confirm skeleton loaders appear before content on all data pages.
 
@@ -1154,6 +1167,7 @@ The Playwright config exists at `tests/playwright.config.ts`. All tests run with
 **Test files to create in `tests/e2e/`:**
 
 **`onboarding.spec.ts`**
+
 1. Register a new user.
 2. Confirm redirect to `/onboarding`.
 3. Complete Step 1 (select "Lose Weight").
@@ -1164,6 +1178,7 @@ The Playwright config exists at `tests/playwright.config.ts`. All tests run with
 8. Assert sidebar renders with all 9 items.
 
 **`meal-plan.spec.ts`**
+
 1. Log in as `alice@chefer.dev`.
 2. Navigate to `/meal-plan`.
 3. Click "Regenerate Weekly Plan".
@@ -1177,6 +1192,7 @@ The Playwright config exists at `tests/playwright.config.ts`. All tests run with
 11. Assert navigation back to `/meal-plan`.
 
 **`swap.spec.ts`**
+
 1. Log in as `alice@chefer.dev` with an active plan.
 2. Navigate to `/recipes/[id]?planId=...&day=0&meal=breakfast` for any recipe.
 3. Click "Swap Recipe".
@@ -1184,6 +1200,7 @@ The Playwright config exists at `tests/playwright.config.ts`. All tests run with
 5. After redirect, assert the new recipe name is different from the original.
 
 **`shopping-list.spec.ts`**
+
 1. Log in as `alice@chefer.dev`.
 2. Navigate to `/shopping-list`.
 3. Assert at least 5 category sections are visible.
@@ -1197,6 +1214,7 @@ The Playwright config exists at `tests/playwright.config.ts`. All tests run with
 11. Assert the checked item is still checked (localStorage persistence).
 
 **`preferences.spec.ts`**
+
 1. Log in as `alice@chefer.dev`.
 2. Navigate to `/preferences`.
 3. Change the goal from current to "Gain Muscle".
@@ -1207,6 +1225,7 @@ The Playwright config exists at `tests/playwright.config.ts`. All tests run with
 8. Assert the goal shows "Gain Muscle" and the delivery address is populated.
 
 **`history.spec.ts`**
+
 1. Log in as `alice@chefer.dev` (with at least 1 meal plan).
 2. Navigate to `/history`.
 3. Assert at least 1 plan card is visible.
@@ -1217,6 +1236,7 @@ The Playwright config exists at `tests/playwright.config.ts`. All tests run with
 **CI Configuration:**
 
 Create `.github/workflows/e2e.yml`:
+
 - Trigger: push to `main`, pull request to `main`.
 - Steps: checkout, install Node, `pnpm install`, `pnpm db:push`, `pnpm db:seed`, `pnpm test:e2e`.
 - Upload `playwright-report/` as a workflow artifact.
@@ -1257,15 +1277,15 @@ Install `@vercel/analytics` or `posthog-js`. Add the provider to `apps/web/src/a
 
 Track the following custom events from client components:
 
-| Event | Trigger | Properties |
-|---|---|---|
-| `plan_generated` | After `mealPlan.generate` succeeds | `{ planId, weekOffset: 0 }` |
-| `recipe_swapped` | After `mealPlan.swapRecipe` succeeds | `{ recipeId, mealType }` |
-| `shopping_list_opened` | On `/shopping-list` page mount | `{ weekOffset }` |
-| `store_selected` | When user clicks a StoreTile | `{ storeId, storeName }` |
-| `recipe_favourited` | After `recipe.toggleFavourite` (saves) | `{ recipeId }` |
-| `recipe_rated` | After `recipe.rate` | `{ recipeId, rating }` |
-| `chat_message_sent` | After chat message submit | `{ messageCount }` |
+| Event                  | Trigger                                | Properties                  |
+| ---------------------- | -------------------------------------- | --------------------------- |
+| `plan_generated`       | After `mealPlan.generate` succeeds     | `{ planId, weekOffset: 0 }` |
+| `recipe_swapped`       | After `mealPlan.swapRecipe` succeeds   | `{ recipeId, mealType }`    |
+| `shopping_list_opened` | On `/shopping-list` page mount         | `{ weekOffset }`            |
+| `store_selected`       | When user clicks a StoreTile           | `{ storeId, storeName }`    |
+| `recipe_favourited`    | After `recipe.toggleFavourite` (saves) | `{ recipeId }`              |
+| `recipe_rated`         | After `recipe.rate`                    | `{ recipeId, rating }`      |
+| `chat_message_sent`    | After chat message submit              | `{ messageCount }`          |
 
 **Server monitoring (Sentry):**
 
@@ -1320,6 +1340,7 @@ export function requirePro(ctx: Context, feature: string): void {
 ```
 
 Apply to:
+
 - `mealPlan.generate` — throw `FORBIDDEN` if FREE user has already generated 1 plan this week.
 - `mealPlan.list` — truncate result to 4 most recent weeks for FREE users.
 - `/api/chat` route — return 403 for FREE users.
@@ -1335,10 +1356,12 @@ Create `apps/web/src/features/subscription/components/UpgradeModal.tsx`:
 #### Stripe Integration
 
 Add `subscription.createCheckoutSession` — `protectedProcedure` mutation:
+
 - Uses Stripe SDK to create a Checkout Session in `subscription` mode.
 - Returns `{ checkoutUrl: string }`.
 
 Build `apps/web/src/app/api/stripe-webhook/route.ts`:
+
 - Verifies Stripe signature using `STRIPE_WEBHOOK_SECRET`.
 - Handles `checkout.session.completed`: updates `User.subscriptionPlan` to `PRO`.
 
@@ -1348,28 +1371,29 @@ Build `apps/web/src/app/api/stripe-webhook/route.ts`:
 
 ## 7. Effort & Priority Summary
 
-| Task | Description | Effort | Priority | Phase |
-|---|---|---|---|---|
-| T-023B | Smart Shopping List (full redesign + grocery AI) | XL (10–14h) | P0 | 3 |
-| T-024 | Meal plan history & archives | M (3–4h) | P1 | 3 |
-| T-026 | Meal ratings & feedback loop | M (3–4h) | P2 | 3 |
-| T-027 | Calorie & macro tracking | L (5–8h) | P1 | 4 |
-| T-028 | Progress charts | M (3–4h) | P1 | 4 |
-| T-029 | Weight tracking | M (3–4h) | P2 | 4 |
-| T-030 | Email notifications | M (3–4h) | P2 | 4 |
-| T-031 | Shopping list PDF & share | M (3–4h) | P2 | 4 |
-| T-032 | AI chat | XL (8–12h) | P2 | 4 |
-| T-033 | Responsive design | L (5–8h) | P1 | 5 |
-| T-034 | Error handling & empty states | M (3–4h) | P1 | 5 |
-| T-035 | Accessibility | M (3–4h) | P1 | 5 |
-| T-036 | Performance | L (5–8h) | P1 | 5 |
-| T-037 | E2E tests | L (5–8h) | P2 | 5 |
-| T-038 | Deployment | M (3–4h) | P1 | 5 |
-| T-039 | Analytics & monitoring | M (3–4h) | P2 | 5 |
-| T-040 | Subscription & paywall | XL (8–12h) | P2 | 5 |
-| **Total** | | **~100–140h** | | |
+| Task      | Description                                      | Effort        | Priority | Phase |
+| --------- | ------------------------------------------------ | ------------- | -------- | ----- |
+| T-023B    | Smart Shopping List (full redesign + grocery AI) | XL (10–14h)   | P0       | 3     |
+| T-024     | Meal plan history & archives                     | M (3–4h)      | P1       | 3     |
+| T-026     | Meal ratings & feedback loop                     | M (3–4h)      | P2       | 3     |
+| T-027     | Calorie & macro tracking                         | L (5–8h)      | P1       | 4     |
+| T-028     | Progress charts                                  | M (3–4h)      | P1       | 4     |
+| T-029     | Weight tracking                                  | M (3–4h)      | P2       | 4     |
+| T-030     | Email notifications                              | M (3–4h)      | P2       | 4     |
+| T-031     | Shopping list PDF & share                        | M (3–4h)      | P2       | 4     |
+| T-032     | AI chat                                          | XL (8–12h)    | P2       | 4     |
+| T-033     | Responsive design                                | L (5–8h)      | P1       | 5     |
+| T-034     | Error handling & empty states                    | M (3–4h)      | P1       | 5     |
+| T-035     | Accessibility                                    | M (3–4h)      | P1       | 5     |
+| T-036     | Performance                                      | L (5–8h)      | P1       | 5     |
+| T-037     | E2E tests                                        | L (5–8h)      | P2       | 5     |
+| T-038     | Deployment                                       | M (3–4h)      | P1       | 5     |
+| T-039     | Analytics & monitoring                           | M (3–4h)      | P2       | 5     |
+| T-040     | Subscription & paywall                           | XL (8–12h)    | P2       | 5     |
+| **Total** |                                                  | **~100–140h** |          |       |
 
 **Recommended execution order:**
+
 1. T-023B (Shopping List redesign — highest visibility, P0)
 2. T-024 (History — completes Phase 3)
 3. T-027 → T-028 (Tracker + Charts — closes the product feedback loop)
@@ -1388,6 +1412,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 ### Scenario Group A — Shopping List (T-023B)
 
 **A-1: Basic render**
+
 1. Log in as `alice@chefer.dev` (with an active meal plan).
 2. Navigate to `/shopping-list`.
 3. ✅ Page title shows "Shopping List" and eyebrow "THIS WEEK".
@@ -1400,6 +1425,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 10. ✅ ChefsTipCard is visible with a non-empty tip.
 
 **A-2: Week navigation**
+
 1. Click `← Previous` — week label changes to the prior week.
 2. ✅ If a plan exists for that week, ingredient rows update.
 3. ✅ If no plan exists for that week, empty state renders with "No meal plan for this week".
@@ -1408,6 +1434,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 6. ✅ `← Previous` is disabled after 52 steps back.
 
 **A-3: In-Store / Delivery toggle**
+
 1. Default mode: In-Store.
 2. ✅ Aisle hints are visible below each ingredient name (e.g. "Produce Section • Organic").
 3. Click "Delivery" toggle.
@@ -1417,6 +1444,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 7. ✅ Aisle hints return. Delivery fee line disappears.
 
 **A-4: Store selection**
+
 1. Click the Carrefour tile.
 2. ✅ Carrefour tile gets an orange border.
 3. ✅ LIDL tile loses its border.
@@ -1426,12 +1454,14 @@ This section documents every scenario a Staff Engineer must verify after complet
 7. ✅ Kaufland tile is selected. Prices update again.
 
 **A-5: Availability badges**
+
 1. ✅ At least 2 items show "🟡 Limited" badge.
 2. ✅ At least 1 item shows "🔴 Not Available" badge.
 3. ✅ "Not Available" items still render in the list (they are not hidden).
 4. ✅ The OrderSummary shows `"{n} items not available"` note when > 0.
 
 **A-6: Checkbox & persistence**
+
 1. Check 3 ingredient rows.
 2. ✅ Progress bar increments from `0/{total}` to `3/{total}`.
 3. ✅ Checked items get strikethrough text.
@@ -1442,6 +1472,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 8. ✅ Current week's checked items are still persisted.
 
 **A-7: Location resolution**
+
 1. Allow browser location permission.
 2. ✅ A "📍 Using your current location" badge appears in the page header.
 3. ✅ Store distances update (mock: always shows fixture distances).
@@ -1453,6 +1484,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 9. ✅ A banner prompts the user to set a delivery address in Preferences.
 
 **A-8: Loading states**
+
 1. Throttle network to Slow 3G in Chrome DevTools.
 2. Navigate to `/shopping-list`.
 3. ✅ Skeleton rows appear in the ingredient list before content loads.
@@ -1461,12 +1493,14 @@ This section documents every scenario a Staff Engineer must verify after complet
 6. ✅ After both requests complete, full data renders without layout shift.
 
 **A-9: Empty state**
+
 1. Log in as a user with no active or recent meal plan.
 2. Navigate to `/shopping-list`.
 3. ✅ Empty state illustration and heading "No meal plan for this week" render.
 4. ✅ "Go to Meal Planner" CTA button is visible and navigates to `/meal-plan`.
 
 **A-10: Preferences delivery address**
+
 1. Navigate to `/preferences`.
 2. ✅ A "Shopping & Delivery" section is visible below the existing dietary sections.
 3. Enter a delivery address and select a currency.
@@ -1480,6 +1514,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 ### Scenario Group B — Meal Plan History (T-024)
 
 **B-1: History list**
+
 1. Generate 2+ plans for `alice@chefer.dev`.
 2. Navigate to `/history`.
 3. ✅ At least 2 plan cards render with date ranges and recipe preview chips.
@@ -1488,6 +1523,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 6. ✅ Each card shows the average daily kcal/protein/carbs/fat.
 
 **B-2: Restore a plan**
+
 1. Click "Restore" on an archived plan.
 2. ✅ A spinner appears on the button while the mutation is in-flight.
 3. ✅ A success toast appears after completion.
@@ -1497,6 +1533,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 7. ✅ The restored plan's recipes are displayed in the week grid.
 
 **B-3: Read-only view**
+
 1. Click "View" on any plan.
 2. ✅ Navigate to `/history/[planId]`.
 3. ✅ The full 7-day meal grid renders correctly.
@@ -1506,6 +1543,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 7. ✅ The `DayRecapBar` is visible but the tracker chevron link is absent.
 
 **B-4: Pagination**
+
 1. Generate 12+ plans (or seed the DB with extra plan rows).
 2. Navigate to `/history`.
 3. ✅ The first 10 cards render.
@@ -1518,6 +1556,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 ### Scenario Group C — Meal Ratings (T-026)
 
 **C-1: Rating widget visibility**
+
 1. Navigate to `/recipes/[id]?day=0` where day 0 was in the past (e.g. Monday and today is Wednesday).
 2. ✅ The `StarRatingWidget` is visible at the bottom of the page.
 3. Navigate to `/recipes/[id]?day=6` (Sunday, future day).
@@ -1526,6 +1565,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 6. ✅ The `StarRatingWidget` is NOT visible.
 
 **C-2: Submit a rating**
+
 1. Click 4 stars in the widget.
 2. Optionally enter notes.
 3. Click "Save Rating".
@@ -1535,6 +1575,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 7. ✅ Notes field is pre-populated.
 
 **C-3: Recipe list badges**
+
 1. After rating a recipe 4+ stars, navigate to `/recipes`.
 2. ✅ The rated recipe card has a gold star badge in its top-left corner.
 3. Rate a different recipe 1 star.
@@ -1545,12 +1586,14 @@ This section documents every scenario a Staff Engineer must verify after complet
 ### Scenario Group D — Calorie Tracker (T-027)
 
 **D-1: Pre-populated meals**
+
 1. Navigate to `/tracker`.
 2. ✅ Today's date is shown in the header.
 3. ✅ Today's planned meals from the active plan are pre-populated.
 4. ✅ Each row shows: checkbox, recipe name, meal type badge, portion selector, kcal.
 
 **D-2: Log meals**
+
 1. Check 2 meal rows.
 2. Change one portion to `2×`.
 3. ✅ The macro summary bar updates (kcal for the 2× meal doubles).
@@ -1561,6 +1604,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 8. ✅ Macro bars reflect the saved totals.
 
 **D-3: Day navigation**
+
 1. Click `← Previous day` from today.
 2. ✅ Yesterday's planned meals are pre-populated.
 3. ✅ If yesterday was already logged, checked state reflects the saved log.
@@ -1574,6 +1618,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 ### Scenario Group E — Progress Charts (T-028)
 
 **E-1: Dashboard charts**
+
 1. Log tracker data for 3 days.
 2. Navigate to `/dashboard`.
 3. ✅ A weekly calorie line chart is visible with 2 lines (Logged + Target).
@@ -1582,6 +1627,7 @@ This section documents every scenario a Staff Engineer must verify after complet
 6. Hover a bar — ✅ tooltip shows kcal/macro values for that day.
 
 **E-2: Progress page charts**
+
 1. Navigate to `/progress`.
 2. ✅ Both charts show 28-day range.
 3. ✅ Days without logged data are shown as zero/flat.
@@ -1593,20 +1639,21 @@ This section documents every scenario a Staff Engineer must verify after complet
 
 Run `pnpm test:e2e` and confirm all the following pass:
 
-| Test File | Expected Result |
-|---|---|
-| `onboarding.spec.ts` | ✅ All 8 steps pass |
-| `meal-plan.spec.ts` | ✅ All 11 steps pass |
-| `swap.spec.ts` | ✅ All 5 steps pass |
+| Test File               | Expected Result      |
+| ----------------------- | -------------------- |
+| `onboarding.spec.ts`    | ✅ All 8 steps pass  |
+| `meal-plan.spec.ts`     | ✅ All 11 steps pass |
+| `swap.spec.ts`          | ✅ All 5 steps pass  |
 | `shopping-list.spec.ts` | ✅ All 11 steps pass |
-| `preferences.spec.ts` | ✅ All 8 steps pass |
-| `history.spec.ts` | ✅ All 6 steps pass |
+| `preferences.spec.ts`   | ✅ All 8 steps pass  |
+| `history.spec.ts`       | ✅ All 6 steps pass  |
 
 ---
 
 ### Scenario Group G — Production Readiness (T-033 to T-040)
 
 **G-1: Mobile responsiveness**
+
 1. Open Chrome DevTools → iPhone 14 Pro (390px).
 2. ✅ `/meal-plan` shows a 1-day carousel, not a 7-column grid.
 3. ✅ Swiping left/right changes the displayed day.
@@ -1616,11 +1663,13 @@ Run `pnpm test:e2e` and confirm all the following pass:
 7. ✅ All tap targets are ≥ 44px.
 
 **G-2: Accessibility**
+
 1. Run axe DevTools on `/meal-plan`, `/dashboard`, `/recipes/[id]`, `/shopping-list`, `/onboarding`.
 2. ✅ 0 critical violations on each page.
 3. Tab through `/shopping-list` — ✅ focus ring visible on all interactive elements.
 
 **G-3: Error boundaries**
+
 1. Break the API URL in `.env.local` (set to a non-existent port).
 2. Navigate to `/meal-plan`.
 3. ✅ Error boundary renders with "Something went wrong" and a retry button.
@@ -1630,12 +1679,14 @@ Run `pnpm test:e2e` and confirm all the following pass:
 7. ✅ Page loads correctly after retry.
 
 **G-4: Performance**
+
 1. Run Lighthouse (Desktop) on `/meal-plan` and `/dashboard`.
 2. ✅ Score > 85 on both pages.
 3. ✅ LCP < 2.5s.
 4. ✅ CLS < 0.1.
 
 **G-5: Deployment health**
+
 1. Push to `main`.
 2. Vercel preview deployment completes.
 3. Navigate to `{preview-url}/api/health`.
@@ -1649,24 +1700,24 @@ Run `pnpm test:e2e` and confirm all the following pass:
 
 All variables should be added to `.env.example` and validated with Zod in `apps/api/src/lib/env.ts`.
 
-| Variable | Default | Phase | Purpose |
-|---|---|---|---|
-| `DATABASE_URL` | (required) | 0 | PostgreSQL connection string |
-| `SESSION_SECRET` | (required) | 0 | JWT signing for sessions and share tokens |
-| `NEXTAUTH_URL` | `http://localhost:3000` | 0 | App base URL |
-| `AI_MOCK_ENABLED` | `true` | 2 | `true` = use fixture data; `false` = call real LLM |
-| `AI_MOCK_DELAY_MS` | `0` | 2 | Artificial delay for mock responses (UX testing) |
-| `AI_PROVIDER` | `anthropic` | 2 | `anthropic` or `openai` — ignored when mocked |
-| `OPENAI_API_KEY` | (omit locally) | 2 | OpenAI API key — only when `AI_MOCK_ENABLED=false` |
-| `ANTHROPIC_API_KEY` | (omit locally) | 2 | Anthropic API key — only when `AI_MOCK_ENABLED=false` |
-| `GROCERY_AI_MOCK_ENABLED` | `true` | 3 (T-023B) | `true` = fixture stores; `false` = Claude web search |
-| `GEOCODING_API_KEY` | (omit locally) | 3 (T-023B future) | Google Maps / Nominatim — for Phase 2 grocery AI |
-| `RESEND_API_KEY` | (omit locally) | 4 | Transactional email — silently skipped if absent |
-| `SENTRY_DSN` | (omit locally) | 5 | Sentry error tracking |
-| `STRIPE_SECRET_KEY` | (omit locally) | 5 | Stripe payments |
-| `STRIPE_WEBHOOK_SECRET` | (omit locally) | 5 | Stripe webhook signature verification |
-| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | (optional) | — | Cloudinary image CDN (future migration from Unsplash) |
+| Variable                            | Default                 | Phase             | Purpose                                               |
+| ----------------------------------- | ----------------------- | ----------------- | ----------------------------------------------------- |
+| `DATABASE_URL`                      | (required)              | 0                 | PostgreSQL connection string                          |
+| `SESSION_SECRET`                    | (required)              | 0                 | JWT signing for sessions and share tokens             |
+| `NEXTAUTH_URL`                      | `http://localhost:3000` | 0                 | App base URL                                          |
+| `AI_MOCK_ENABLED`                   | `true`                  | 2                 | `true` = use fixture data; `false` = call real LLM    |
+| `AI_MOCK_DELAY_MS`                  | `0`                     | 2                 | Artificial delay for mock responses (UX testing)      |
+| `AI_PROVIDER`                       | `anthropic`             | 2                 | `anthropic` or `openai` — ignored when mocked         |
+| `OPENAI_API_KEY`                    | (omit locally)          | 2                 | OpenAI API key — only when `AI_MOCK_ENABLED=false`    |
+| `ANTHROPIC_API_KEY`                 | (omit locally)          | 2                 | Anthropic API key — only when `AI_MOCK_ENABLED=false` |
+| `GROCERY_AI_MOCK_ENABLED`           | `true`                  | 3 (T-023B)        | `true` = fixture stores; `false` = Claude web search  |
+| `GEOCODING_API_KEY`                 | (omit locally)          | 3 (T-023B future) | Google Maps / Nominatim — for Phase 2 grocery AI      |
+| `RESEND_API_KEY`                    | (omit locally)          | 4                 | Transactional email — silently skipped if absent      |
+| `SENTRY_DSN`                        | (omit locally)          | 5                 | Sentry error tracking                                 |
+| `STRIPE_SECRET_KEY`                 | (omit locally)          | 5                 | Stripe payments                                       |
+| `STRIPE_WEBHOOK_SECRET`             | (omit locally)          | 5                 | Stripe webhook signature verification                 |
+| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | (optional)              | —                 | Cloudinary image CDN (future migration from Unsplash) |
 
 ---
 
-*This document supersedes the Shopping List section of `PersonalChef_PRD.md` (T-023). All other tasks from `PersonalChef_PRD.md` remain authoritative for their respective implementation details. This document adds the T-023B redesign and fills in the remaining task specifications at Staff Engineer detail level.*
+_This document supersedes the Shopping List section of `PersonalChef_PRD.md` (T-023). All other tasks from `PersonalChef_PRD.md` remain authoritative for their respective implementation details. This document adds the T-023B redesign and fills in the remaining task specifications at Staff Engineer detail level._

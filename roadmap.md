@@ -231,6 +231,23 @@ test. `MealPlanService` (886 lines), `ShoppingListService` (457), `IngredientsSe
 `DashboardService` (261) are untested — including the calorie maths and the plan-assembly logic
 that F-1 and F-5 live in.
 
+### 🟡 F-11 — Accessibility and mobile-performance debt (from the mobile audit)
+
+Carried over from [`mobile_followups.md`](./mobile_followups.md) §2 so it has a place in the queue:
+
+- **Contrast:** 17 uses of `text-gray-400`/`text-neutral-400` on white — 3.0:1, below the WCAG AA
+  4.5:1 minimum for body text (§2.1).
+- **Hand-rolled dialog:** `UpgradeButton.tsx` uses a raw `fixed inset-0` div — no scroll lock, no
+  focus trap, no Escape — in direct violation of the `CLAUDE.md` overlay rule (§2.2).
+- **Double image load:** the meal-plan and plan-history pages mount both the mobile day view and
+  the desktop week grid, CSS-toggled; `display: none` doesn't stop image fetches, and
+  `next.config.ts:15` sets `images.unoptimized: true` in production, so phones download the whole
+  week's images at desktop resolution (§2.4).
+- **Never tested on a real device:** every sub-504px verification was WebKit emulation. iOS input
+  zoom, `dvh` URL-bar behaviour, landscape, and the on-screen-keyboard-vs-sticky-bar interactions
+  are genuinely unknown, not probably-fine (§3 — and that section's tooltip anecdote is exactly
+  why emulation can't be trusted here).
+
 ---
 
 ## 4. Product Analysis
@@ -318,6 +335,9 @@ secondary page and denominated in EUR against Romanian price assumptions
 | No structured logging, no APM, no error tracking              | —                                                                                             | Production failures are invisible          |
 | Ingredient category inference is substring matching           | both `inferCategory()`                                                                        | `"pepperoni"` → Produce (matches `pepper`) |
 | `business_flow.md` §2–7 describe auth as unimplemented        | `business_flow.md:37,59,85`                                                                   | Docs actively mislead; §9 is accurate      |
+| Recipe form duplicated: new (730 lines) vs edit (544)         | `recipes/new/page.tsx`, `recipes/[id]/edit/page.tsx`                                          | Every form change lands twice (P2-6)       |
+| Web build skips type checking                                 | `next.config.ts:10` — `ignoreBuildErrors: true`                                               | Type errors ship silently (P0-0)           |
+| Prod images unoptimized + both layouts mounted                | `next.config.ts:15`; meal-plan & history pages                                                | Phones fetch ~21 desktop-res images (P1-7) |
 
 ### 5.3 Architectural decisions to revisit
 
@@ -341,9 +361,54 @@ Estimates assume one engineer. `S` ≤ 2h, `M` ≤ 1 day, `L` ≤ 3 days, `XL` �
 
 ### P0 — Stop the Bleeding (Week 1)
 
-> **Goal:** nothing user-facing is broken, nothing leaks, and CI actually guards `master`.
+> **Goal:** the quality gates pass, nothing user-facing is broken, nothing leaks, and CI actually
+> guards `master`.
 > **Exit criteria:** all P0 tickets merged; CI green on a PR to `master`; F-1/F-2 verified fixed
 > in a running app.
+> **Order matters here:** P0-0 first — every other ticket's "typecheck && test && lint clean"
+> acceptance criterion is unverifiable until the gates work. P0-0 is also the long pole (a
+> never-linted app plus 23 type errors); if P0 spills a few days into week 2, let it — do not
+> skip gate repairs to stay on calendar.
+
+---
+
+#### `P0-0` — Repair the quality gates · `L` · fixes F-10 · **do this first**
+
+**Problem:** `pnpm lint` and `pnpm test` fail outright; `pnpm typecheck` has 23 pre-existing
+errors; the web build hides them with `ignoreBuildErrors: true`. Everything else in P0 asserts
+"gates clean" and cannot until this lands. (Full measurement: `mobile_followups.md` §1.)
+
+**Files:** new `apps/web/eslint.config.js`, `packages/utils/package.json` (or a new test file),
+`apps/api/**`, `packages/database/**` (typecheck fixes), `apps/web/next.config.ts`,
+`tests/e2e/home.spec.ts`
+
+**Steps:**
+
+1. **Restore the `apps/web` ESLint config.** `packages/config/eslint` already exports shared flat
+   configs — wire the Next.js variant into a new `apps/web/eslint.config.js`. Expect a wave of
+   findings on a never-linted app: fix the mechanical ones, `eslint-disable` with a comment only
+   where a rule is genuinely wrong, and don't weaken the shared config to make the number go down.
+2. **Fix `@chefer/utils`'s test script.** Preferred: write real tests — `units.ts` (conversions),
+   `date.ts`, and `cn()` are pure functions begging for them, and P0-8 wants them anyway.
+   Minimum: `vitest run --passWithNoTests`. Do not delete the script.
+3. **Fix the 23 `exactOptionalPropertyTypes` errors** in `apps/api` and `packages/database`.
+   These are almost always `foo: maybeUndefined` → spread-when-defined
+   (`...(x !== undefined && { x })`) or an explicit `| undefined` on the receiving type. Fix the
+   types; do not turn the compiler option off — it catches real bugs in Prisma input objects.
+4. **Delete `typescript.ignoreBuildErrors: true`** from `apps/web/next.config.ts:10` once step 3
+   is green. The production build must type-check again.
+5. **Fix `tests/e2e/home.spec.ts`:** update the 13 stale copy assertions to the current landing
+   page, and scope `getByLabel(/password/i)` with `getByRole('textbox')` (or an exact label) so it
+   stops matching the "Show password" toggle.
+
+**Acceptance criteria:**
+
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm format:check` all exit 0 from a clean clone.
+- `next.config.ts` contains no `ignoreBuildErrors`.
+- The full Playwright suite (including `home.spec.ts`) passes.
+- No shared ESLint rule was disabled repo-wide to get there.
+
+**Docs:** `infrastructure.md` §13; delete the "known debt" comment in `next.config.ts`.
 
 ---
 
@@ -412,12 +477,13 @@ Estimates assume one engineer. `S` ≤ 2h, `M` ≤ 1 day, `L` ≤ 3 days, `XL` �
 
 ---
 
-#### `P0-3` — Make CI run · `S` · fixes F-3
+#### `P0-3` — Make CI run · `S` · fixes F-3 · **requires P0-0**
 
 **Files:** `.github/workflows/ci.yml`
 
 **Steps:**
 
+0. Confirm P0-0 is merged — the gates must pass locally before they're enforced remotely.
 1. Change both triggers to `branches: [master]`. (Prefer this over renaming the default branch —
    `deploy.yml`, `docs/plan-cicd.md`, and the deploy scripts all assume `master`.)
 2. Change the e2e job's `if:` so it runs on PRs to `master`.
@@ -599,6 +665,34 @@ renumber. Add the flows introduced by P0-1 and P0-6.
 
 ---
 
+#### `P0-10` — Mobile a11y quick wins · `S` · fixes F-11 (partial)
+
+The two "a morning" items from `mobile_followups.md` §6. Small, zero product risk, and one of
+them is a standing `CLAUDE.md` violation.
+
+**Steps:**
+
+1. **Contrast (§2.1):** audit the 17 `text-gray-400`/`text-neutral-400` instances in
+   `history/[planId]/page.tsx`, `ChatWidget.tsx`, `IngredientPicker.tsx`, `PlanHistoryCard.tsx`,
+   `IngredientFormModal.tsx`, `top-header.tsx`, `side-bar.tsx`, `mobile-nav-drawer.tsx`. Bump to
+   `-500` where the background is white; leave the ones on dark/tinted backgrounds (check each —
+   don't sed it blindly).
+2. **`UpgradeButton` dialog → `Sheet` (§2.2):** replace the hand-rolled `fixed inset-0` div with
+   the `Sheet` primitive from `@chefer/ui`, gaining scroll lock, focus trap, and Escape for free,
+   plus bottom-sheet presentation on phones. Leave `GenerateOverlay.tsx` alone — it's a
+   full-screen loading state, not a dialog.
+
+**Acceptance criteria:**
+
+- No body text on white measures below 4.5:1.
+- The upgrade dialog traps focus, locks scroll, closes on Escape, and presents as a bottom sheet
+  below `sm`.
+- `pnpm exec playwright test --project=mobile` still green.
+
+**Docs:** none needed (no architectural change).
+
+---
+
 ### P1 — Make the Core Loop Actually Work (Weeks 2–3)
 
 > **Goal:** the app learns from the user, and free users get something safe to eat.
@@ -704,7 +798,10 @@ usage.
 
 **Acceptance criteria:**
 
-- Screen stays awake through a 10-step recipe on iOS Safari and Android Chrome.
+- Screen stays awake through a 10-step recipe on iOS Safari and Android Chrome — **on real
+  devices**, not emulation. The `wakeLock` API, on-screen keyboard, and swipe gestures are all in
+  `mobile_followups.md` §3's never-emulated category, so run P1-6's sweep first (or fold cook-mode
+  checks into it).
 - Servings scaling updates every quantity, correctly, in both unit systems.
 - "Made it!" creates a `DailyLog` entry with the right macros and prompts for a rating.
 
@@ -762,6 +859,69 @@ For a mobile-first grocery flow that's the wrong storage.
 - Works offline-optimistically and reconciles on reconnect.
 
 **Docs:** `infrastructure.md` §6, §8.
+
+---
+
+#### `P1-6` — Real-device verification sweep · `M` · fixes F-11 (partial)
+
+**Problem:** every sub-504px check so far was WebKit emulation (`mobile_followups.md` §3), and
+that document records a case where emulation and reasoning were wrong _in the same direction_.
+The core claim of the responsive workstream — the app works on a phone — currently rests on
+emulation alone. This ticket needs a person with an iPhone and an Android phone; nothing
+substitutes.
+
+**Steps:**
+
+1. Test on real iOS Safari and Android Chrome against the deployed app (or a tunnel to local dev):
+   - Input focus at every form — confirm no zoom-on-focus (the 16px rule's actual target).
+   - `dvh` behaviour as the URL bar collapses/expands on dashboard, meal-plan, and recipe detail.
+   - Landscape (844×390): sticky header + fixed tab bar on a short viewport.
+   - On-screen keyboard vs the sticky bars: tracker Save, preferences save bar, chat input.
+     If the keyboard occludes them, apply `interactive-widget=resizes-content` and re-test.
+   - `prefers-reduced-motion` against the drawer and sheet transitions.
+   - Chart tooltips on the progress page (feeds the P2 polish backlog item).
+2. File everything found as issues tagged `mobile-device`; fix the blockers in this ticket,
+   queue the rest.
+3. Record the device/OS matrix actually tested at the top of `mobile_followups.md` and flip its
+   §3 items to verified/failed.
+
+**Acceptance criteria:**
+
+- Every §3 row in `mobile_followups.md` is marked tested, with device + OS version.
+- No P1-blocking defect remains open (zoom-on-focus, unreachable save buttons, broken landscape).
+
+**Docs:** update `mobile_followups.md` §0 and §3.
+
+---
+
+#### `P1-7` — Stop the mobile double-image load · `M` · fixes F-11 (partial)
+
+**Problem:** `meal-plan/page.tsx` and `history/[planId]/page.tsx` mount both layouts and toggle
+with CSS; hidden images still download. With `images.unoptimized: true` in production
+(`next.config.ts:15`), a phone fetches the entire week's recipe images at desktop resolution to
+show ~4 of them.
+
+**Steps:**
+
+1. Implement the preferred option from `mobile_followups.md` §2.4: an SSR-safe `useMediaQuery`
+   hook returning `null` on first render, mounting only the correct branch after hydration.
+   Watch for layout shift on the neither-branch frame; reserve height with a skeleton.
+2. Apply to both pages; delete the CSS-toggle classes.
+3. Revisit `images.unoptimized`. It was presumably set to avoid running the Next image optimizer
+   on the VM — `docs/plan-image-performance.md` already exists; reconcile with it. Cheapest path:
+   Cloudinary is already integrated (`lib/image-cdn/cloudinary.ts`) and supports on-the-fly
+   `w_`/`q_auto` transforms — request width-appropriate variants via the existing URLs instead of
+   the Next optimizer.
+4. Measure before/after: image request count and total bytes at a 390px viewport on the meal-plan
+   page. Record both numbers in the PR description.
+
+**Acceptance criteria:**
+
+- At 390px, the meal-plan page fetches only the visible day's images (~4, not ~21).
+- No hydration warning and no visible layout shift on either branch.
+- Desktop week grid unchanged at 1280px+.
+
+**Docs:** `infrastructure.md` §4 if the rendering approach changes; update `mobile_followups.md` §2.4.
 
 ---
 
@@ -908,6 +1068,31 @@ GDPR, and you're deploying in the EU.
 
 ---
 
+#### `P2-6` — Mobile polish backlog · `M`
+
+The deferred remainder of `mobile_followups.md`, batched because each item is small but none is
+urgent:
+
+1. **Micro-typography (§2.3):** decide the intended mobile density _first_ — 40 uses of
+   `text-[9px]`/`text-[10px]` are mostly deliberate meta-text (macro chips, meal badges, day
+   totals). Pick a floor (recommendation: `text-[11px]` ≈ 0.6875rem for meta-text, nothing below
+   it), encode it as `text-2xs` in `tailwind.config.ts`, then apply in one mechanical pass.
+   A blanket bump without the decision is a design change made by accident.
+2. **Chart tooltip dismissal (§4):** tooltips stay open after touch. Trigger changes are proven
+   ineffective (`2bbf4e7` reverted one); implement an outside-tap handler that clears the active
+   tooltip state on `pointerdown` outside the chart container.
+3. **Shared `recipe-form` extraction (§5):** `recipes/new/page.tsx` (730 lines) and
+   `recipes/[id]/edit/page.tsx` (544) are near-duplicates — the responsive pass had to be applied
+   twice. Extract `features/recipes/components/recipe-form.tsx` taking `initialValues` +
+   `onSubmit`. Do this **before** any further recipe-form feature work, or the duplication tax
+   compounds.
+
+**Acceptance criteria:** no text below the agreed floor; tapping outside a chart dismisses its
+tooltip; the two recipe pages share one form component and `pnpm exec playwright test
+--project=mobile` stays green.
+
+---
+
 ### P3 — Differentiation (Weeks 7–10)
 
 Pick **two**. Do not attempt all five.
@@ -996,28 +1181,33 @@ Named so nobody rebuilds them by accident:
 
 ## 9. Ticket Index
 
-| ID         | Title                                    | Size | Fixes    | Depends on       |
-| ---------- | ---------------------------------------- | ---- | -------- | ---------------- |
-| **P0-1**   | Fix dashboard next-meal logic            | M    | F-1      | —                |
-| **P0-2**   | Delete `/user`, close public read        | S    | F-2, F-8 | —                |
-| **P0-3**   | Make CI run on `master`                  | S    | F-3      | —                |
-| **P0-4**   | Rate limiting + helmet + AI quotas       | M    | F-6      | —                |
-| **P0-5**   | Unify calorie target                     | M    | F-5      | —                |
-| **P0-6**   | Password reset flow                      | M    | F-7      | P0-4             |
-| **P0-7**   | Refactor plan assembly, kill duplication | M    | —        | —                |
-| **P0-8**   | Backend test foundation                  | L    | F-9      | P0-1, P0-7       |
-| **P0-9**   | Correct stale docs                       | S    | —        | P0-1, P0-2, P0-6 |
-| **P1-1**   | Close the feedback loop                  | L    | —        | P0-7, P0-8       |
-| **P1-2**   | Free allergies & restrictions            | M    | —        | P0-8             |
-| **P1-3**   | Cook mode                                | L    | —        | P0-5             |
-| **P1-4**   | Make the AI chef real                    | M    | —        | P0-4             |
-| **P1-5**   | Sync shopping-list check-off             | S    | —        | —                |
-| **P2-1**   | Stripe subscriptions                     | L    | F-4      | P1-2             |
-| **P2-2**   | Observability                            | M    | —        | P0-3             |
-| **P2-3**   | Weekly planning ritual                   | L    | —        | P0-6, P2-2       |
-| **P2-4**   | Lead with the price                      | M    | —        | P0-5             |
-| **P2-5**   | Account self-service & GDPR              | M    | —        | P0-6             |
-| **P3-1…5** | Differentiation — pick two               | XL   | —        | P2-2             |
+| ID         | Title                                            | Size | Fixes    | Depends on       |
+| ---------- | ------------------------------------------------ | ---- | -------- | ---------------- |
+| **P0-0**   | Repair the quality gates                         | L    | F-10     | — (first)        |
+| **P0-1**   | Fix dashboard next-meal logic                    | M    | F-1      | —                |
+| **P0-2**   | Delete `/user`, close public read                | S    | F-2, F-8 | —                |
+| **P0-3**   | Make CI run on `master`                          | S    | F-3      | P0-0             |
+| **P0-4**   | Rate limiting + helmet + AI quotas               | M    | F-6      | —                |
+| **P0-5**   | Unify calorie target                             | M    | F-5      | —                |
+| **P0-6**   | Password reset flow                              | M    | F-7      | P0-4             |
+| **P0-7**   | Refactor plan assembly, kill duplication         | M    | —        | —                |
+| **P0-8**   | Backend test foundation                          | L    | F-9      | P0-0, P0-1, P0-7 |
+| **P0-9**   | Correct stale docs                               | S    | —        | P0-1, P0-2, P0-6 |
+| **P0-10**  | Mobile a11y quick wins (contrast, Sheet dialog)  | S    | F-11     | —                |
+| **P1-1**   | Close the feedback loop                          | L    | —        | P0-7, P0-8       |
+| **P1-2**   | Free allergies & restrictions                    | M    | —        | P0-8             |
+| **P1-3**   | Cook mode                                        | L    | —        | P0-5, P1-6       |
+| **P1-4**   | Make the AI chef real                            | M    | —        | P0-4             |
+| **P1-5**   | Sync shopping-list check-off                     | S    | —        | —                |
+| **P1-6**   | Real-device verification sweep                   | M    | F-11     | — (needs phones) |
+| **P1-7**   | Stop the mobile double-image load                | M    | F-11     | —                |
+| **P2-1**   | Stripe subscriptions                             | L    | F-4      | P1-2             |
+| **P2-2**   | Observability                                    | M    | —        | P0-3             |
+| **P2-3**   | Weekly planning ritual                           | L    | —        | P0-6, P2-2       |
+| **P2-4**   | Lead with the price                              | M    | —        | P0-5             |
+| **P2-5**   | Account self-service & GDPR                      | M    | —        | P0-6             |
+| **P2-6**   | Mobile polish backlog (type, tooltips, form dup) | M    | —        | P1-6             |
+| **P3-1…5** | Differentiation — pick two                       | XL   | —        | P2-2             |
 
 ---
 
