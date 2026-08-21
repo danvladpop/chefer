@@ -47,7 +47,7 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
   const weekEnd = new Date(plan.weekEndDate);
 
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+    <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5 transition hover:shadow-md">
       {/* Header row */}
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -78,7 +78,7 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
       )}
 
       {/* Macro summary */}
-      <div className="mb-4 flex gap-4 text-xs text-neutral-500">
+      <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
         <span>
           <span className="font-medium text-neutral-700">{plan.macroSummary.avgKcal}</span> kcal avg
         </span>
@@ -98,7 +98,7 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
       <div className="flex gap-2">
         <Link
           href={`/history/${plan.id}`}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+          className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 px-3 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
         >
           View <ChevronRight className="h-3 w-3" />
         </Link>
@@ -106,7 +106,7 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
           <button
             onClick={() => restoreMutation.mutate({ planId: plan.id })}
             disabled={restoreMutation.isPending}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-orange-300 px-3 py-2 text-xs font-medium text-orange-600 transition hover:bg-orange-50 disabled:opacity-50"
+            className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-orange-300 px-3 text-xs font-medium text-orange-600 transition hover:bg-orange-50 disabled:opacity-50"
           >
             {restoreMutation.isPending ? (
               <span className="h-3 w-3 animate-spin rounded-full border border-orange-400 border-t-transparent" />

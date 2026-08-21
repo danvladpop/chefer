@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
 import { Flame, Scale, TrendingUp } from 'lucide-react';
@@ -20,6 +21,14 @@ import {
 export default function ProgressPage() {
   const [weightInput, setWeightInput] = useState('');
   const [weightSaved, setWeightSaved] = useState(false);
+
+  // Touch has no hover, so hover-triggered tooltips are simply unreachable on a
+  // phone — the numbers behind every chart on this page were inaccessible.
+  // Tapping opens them instead, while a mouse keeps the lighter hover feel.
+  const isTouch = useCoarsePointer();
+  const tooltipTrigger = isTouch ? 'click' : 'hover';
+  /** Bigger hit area for the dot you have to tap to open a tooltip. */
+  const activeDot = isTouch ? { r: 7 } : { r: 5 };
 
   const { data: monthly, isLoading } = trpc.tracker.monthlySummary.useQuery(undefined, {
     staleTime: 60_000,
@@ -67,10 +76,10 @@ export default function ProgressPage() {
     latestWeight != null && firstWeight != null ? latestWeight - firstWeight : null;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
       {/* Header */}
       <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">INSIGHTS</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">INSIGHTS</p>
         <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">Progress</h1>
       </div>
 
@@ -79,22 +88,22 @@ export default function ProgressPage() {
         {[
           {
             icon: <Flame className="h-4 w-4 text-[#944a00]" />,
-            label: 'Days logged (28d)',
+            label: 'Days logged',
             value: `${daysLogged}`,
           },
           {
             icon: <TrendingUp className="h-4 w-4 text-blue-500" />,
-            label: 'Avg daily kcal',
+            label: 'Avg kcal',
             value: avgKcal > 0 ? avgKcal.toLocaleString() : '—',
           },
           {
             icon: <Scale className="h-4 w-4 text-emerald-500" />,
-            label: 'vs. target',
+            label: 'vs target',
             value: avgKcal > 0 ? `${diffPct > 0 ? '+' : ''}${diffPct}%` : '—',
           },
         ].map((s, i) => (
           <div key={i} className="flex flex-col gap-1 rounded-2xl border bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-1.5 text-xs text-neutral-400">
+            <div className="flex items-center gap-1.5 text-xs text-neutral-500">
               {s.icon}
               {s.label}
             </div>
@@ -114,12 +123,12 @@ export default function ProgressPage() {
       {!isLoading && (
         <>
           {/* Calorie line chart */}
-          <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm">
-            <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+          <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
               Calories — Last 28 Days
             </p>
             {daysLogged === 0 ? (
-              <div className="flex h-40 items-center justify-center text-sm text-neutral-400">
+              <div className="flex h-40 items-center justify-center text-sm text-neutral-500">
                 No log data yet — start tracking in the{' '}
                 <a href="/tracker" className="ml-1 text-[#944a00] hover:underline">
                   Tracker
@@ -134,10 +143,11 @@ export default function ProgressPage() {
                     tick={{ fontSize: 10 }}
                     tickLine={false}
                     axisLine={false}
-                    interval={3}
+                    interval="preserveStartEnd"
+                    minTickGap={24}
                   />
                   <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={40} />
-                  <Tooltip formatter={(val) => [`${String(val)} kcal`]} />
+                  <Tooltip trigger={tooltipTrigger} formatter={(val) => [`${String(val)} kcal`]} />
                   <ReferenceLine
                     y={target}
                     stroke="#d1d5db"
@@ -150,6 +160,7 @@ export default function ProgressPage() {
                     stroke="#944a00"
                     strokeWidth={2}
                     dot={{ r: 3 }}
+                    activeDot={activeDot}
                     connectNulls={false}
                     name="Logged"
                   />
@@ -159,12 +170,12 @@ export default function ProgressPage() {
           </div>
 
           {/* Macro stacked bar chart */}
-          <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm">
-            <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+          <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
               Macros — Last 28 Days (g)
             </p>
             {daysLogged === 0 ? (
-              <div className="flex h-40 items-center justify-center text-sm text-neutral-400">
+              <div className="flex h-40 items-center justify-center text-sm text-neutral-500">
                 No log data yet.
               </div>
             ) : (
@@ -175,10 +186,11 @@ export default function ProgressPage() {
                     tick={{ fontSize: 10 }}
                     tickLine={false}
                     axisLine={false}
-                    interval={3}
+                    interval="preserveStartEnd"
+                    minTickGap={24}
                   />
                   <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={30} />
-                  <Tooltip />
+                  <Tooltip trigger={tooltipTrigger} />
                   <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
                   <Bar dataKey="protein" name="Protein" stackId="a" fill="#3b82f6" />
                   <Bar dataKey="carbs" name="Carbs" stackId="a" fill="#10b981" />
@@ -189,8 +201,8 @@ export default function ProgressPage() {
           </div>
 
           {/* Weight section */}
-          <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm">
-            <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+          <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
               Weight Tracking
             </p>
 
@@ -198,12 +210,12 @@ export default function ProgressPage() {
             {latestWeight != null && (
               <div className="mb-4 flex gap-4 text-sm">
                 <div>
-                  <span className="text-neutral-400">Current: </span>
+                  <span className="text-neutral-500">Current: </span>
                   <span className="font-semibold">{latestWeight} kg</span>
                 </div>
                 {firstWeight != null && firstWeight !== latestWeight && (
                   <div>
-                    <span className="text-neutral-400">Change: </span>
+                    <span className="text-neutral-500">Change: </span>
                     <span
                       className={`font-semibold ${weightDelta && weightDelta < 0 ? 'text-emerald-600' : 'text-red-500'}`}
                     >
@@ -233,19 +245,20 @@ export default function ProgressPage() {
                     width={40}
                     domain={['auto', 'auto']}
                   />
-                  <Tooltip formatter={(val) => [`${String(val)} kg`]} />
+                  <Tooltip trigger={tooltipTrigger} formatter={(val) => [`${String(val)} kg`]} />
                   <Line
                     type="monotone"
                     dataKey="weight"
                     stroke="#10b981"
                     strokeWidth={2}
                     dot={{ r: 3 }}
+                    activeDot={activeDot}
                     name="Weight (kg)"
                   />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <p className="mb-4 text-sm text-neutral-400">
+              <p className="mb-4 text-sm text-neutral-500">
                 No weight entries yet. Log your first entry below.
               </p>
             )}
@@ -259,8 +272,10 @@ export default function ProgressPage() {
                 max="300"
                 value={weightInput}
                 onChange={(e) => setWeightInput(e.target.value)}
-                placeholder="Weight in kg (e.g. 72.5)"
-                className="flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-sm focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00]"
+                placeholder="72.5"
+                inputMode="decimal"
+                aria-label="Weight in kilograms"
+                className="min-h-11 min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-sm focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00]"
               />
               <button
                 type="button"
@@ -269,7 +284,7 @@ export default function ProgressPage() {
                   if (!isNaN(kg) && kg > 0) logWeightMutation.mutate({ weightKg: kg });
                 }}
                 disabled={!weightInput || logWeightMutation.isPending || weightSaved}
-                className="rounded-xl bg-[#944a00] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#7a3d00] disabled:opacity-50"
+                className="min-h-11 shrink-0 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition hover:bg-[#7a3d00] disabled:opacity-50"
               >
                 {weightSaved ? '✓ Saved' : 'Log'}
               </button>

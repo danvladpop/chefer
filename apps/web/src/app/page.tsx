@@ -40,35 +40,35 @@ export default async function HomePage() {
   return (
     <div className="flex flex-col">
       {/* ── Hero ── */}
-      <section className="flex flex-col items-center bg-gradient-to-b from-background to-muted/40 px-4 py-28 text-center">
+      <section className="flex flex-col items-center bg-gradient-to-b from-background to-muted/40 px-4 py-16 text-center sm:py-24 lg:py-28">
         <div className="mx-auto max-w-3xl">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border bg-muted px-4 py-1.5 text-sm font-medium text-muted-foreground">
             <span aria-hidden="true">🍽️</span>
             Powered by AI — no nutritionist required
           </div>
 
-          <h1 className="mb-5 text-5xl font-bold tracking-tight sm:text-6xl">
+          <h1 className="mb-5 text-3xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
             Your personal chef,{' '}
             <span className="bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">
               powered by AI
             </span>
           </h1>
 
-          <p className="mx-auto mb-10 max-w-xl text-xl text-muted-foreground">
+          <p className="mx-auto mb-10 max-w-xl text-base text-muted-foreground sm:text-xl">
             Generate a fully personalized 7-day meal plan in seconds — tailored to your goals,
             dietary needs, and taste preferences.
           </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-4">
+          <div className="flex w-full flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
             <Link
               href="/register"
-              className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex h-12 w-full items-center justify-center rounded-md bg-primary px-8 sm:w-auto text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               Get started for free
             </Link>
             <Link
               href="/login"
-              className="inline-flex h-12 items-center justify-center rounded-md border border-input bg-background px-8 text-sm font-semibold transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex h-12 w-full items-center justify-center rounded-md border border-input bg-background px-8 sm:w-auto text-sm font-semibold transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               Sign in
             </Link>
@@ -77,10 +77,10 @@ export default async function HomePage() {
       </section>
 
       {/* ── 3-column Features ── */}
-      <section className="px-4 py-20">
+      <section className="px-4 py-12 sm:py-20">
         <div className="mx-auto max-w-5xl">
           <div className="mb-14 text-center">
-            <h2 className="mb-3 text-3xl font-bold tracking-tight">
+            <h2 className="mb-3 text-2xl font-bold tracking-tight sm:text-3xl">
               Everything you need to eat well
             </h2>
             <p className="text-lg text-muted-foreground">
@@ -92,7 +92,7 @@ export default async function HomePage() {
             {FEATURES.map(({ icon, title, description }) => (
               <div
                 key={title}
-                className="flex flex-col items-center rounded-xl border bg-card p-8 text-center shadow-sm"
+                className="flex flex-col items-center rounded-xl border bg-card p-6 text-center shadow-sm sm:p-8"
               >
                 <div className="mb-4 text-4xl" aria-hidden="true">
                   {icon}

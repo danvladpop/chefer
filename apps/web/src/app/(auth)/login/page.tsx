@@ -18,7 +18,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-12">
+    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-8 sm:py-12">
       <div className="w-full max-w-md space-y-8">
         {/* Logo / Brand */}
         <div className="text-center">
@@ -33,7 +33,7 @@ export default async function LoginPage() {
         </div>
 
         {/* Login Form Card */}
-        <div className="rounded-xl border bg-card p-8 shadow-sm">
+        <div className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
           <LoginForm />
         </div>
 

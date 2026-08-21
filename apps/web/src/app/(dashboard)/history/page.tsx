@@ -26,10 +26,10 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
+    <div className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
       {/* Header */}
       <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
           PAST PLANS
         </p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight">History</h1>

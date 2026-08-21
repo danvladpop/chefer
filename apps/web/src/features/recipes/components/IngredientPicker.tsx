@@ -85,7 +85,7 @@ export function IngredientPicker({
                 <button
                   type="button"
                   onClick={() => pick(r.displayName)}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-[#fff3e8]"
+                  className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm hover:bg-[#fff3e8]"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -124,7 +124,7 @@ export function IngredientPicker({
               setOpen(false);
               onCreateCustom(query.trim());
             }}
-            className="flex w-full items-center gap-1.5 border-t border-gray-100 px-3 py-2 text-left text-xs font-medium text-[#944a00] hover:bg-[#fff3e8]"
+            className="flex min-h-11 w-full items-center gap-1.5 border-t border-gray-100 px-3 py-2.5 text-left text-xs font-medium text-[#944a00] hover:bg-[#fff3e8]"
           >
             <Plus className="h-3.5 w-3.5" />
             Create &ldquo;{query.trim()}&rdquo; as a custom ingredient

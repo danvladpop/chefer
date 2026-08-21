@@ -44,14 +44,14 @@ function StatRow({
         <span className="text-sm font-semibold text-gray-900">
           {used}
           {limit ? (
-            <span className="font-normal text-gray-400"> / {limit}</span>
+            <span className="font-normal text-gray-500"> / {limit}</span>
           ) : (
-            <span className="font-normal text-gray-400"> / ∞</span>
+            <span className="font-normal text-gray-500"> / ∞</span>
           )}
         </span>
       </div>
       <UsageBar used={used} limit={limit} />
-      {sublabel && <p className="mt-0.5 text-[11px] text-gray-400">{sublabel}</p>}
+      {sublabel && <p className="mt-0.5 text-[11px] text-gray-500">{sublabel}</p>}
     </div>
   );
 }
@@ -68,7 +68,7 @@ function Card({
   badge?: string;
 }) {
   return (
-    <div className="rounded-2xl border bg-white p-5 shadow-sm">
+    <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-4 flex items-center gap-2">
         <h2 className="font-semibold text-gray-800">{title}</h2>
         {badge && (
@@ -93,15 +93,15 @@ export default function ProfilePage() {
     : (user?.name ?? user?.email ?? '—');
 
   return (
-    <div className="mx-auto max-w-lg px-6 py-8">
+    <div className="mx-auto max-w-lg px-4 py-6 sm:px-6 sm:py-8">
       {/* Header */}
       <div className="mb-6">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Account</p>
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Account</p>
         <h1 className="font-serif text-2xl font-bold text-gray-900">Profile</h1>
       </div>
 
       {/* User info */}
-      <div className="mb-6 flex items-center gap-4 rounded-2xl border bg-white p-5 shadow-sm">
+      <div className="mb-6 flex items-center gap-4 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#fff3e8] text-2xl font-bold text-[#944a00]">
           {displayName.charAt(0).toUpperCase()}
         </div>
@@ -186,7 +186,7 @@ export default function ProfilePage() {
             />
           </Card>
 
-          <p className="text-center text-[11px] text-gray-400">
+          <p className="text-center text-[11px] text-gray-500">
             Usage resets at midnight · Limits are approximate and may change
           </p>
         </div>
