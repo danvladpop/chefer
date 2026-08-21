@@ -103,7 +103,7 @@ export function OnboardingWizard() {
   const isSubmitting = setupMutation.isPending;
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+    <div className="flex min-h-[calc(100dvh-4rem)] flex-col">
       {/* ── Progress bar ── */}
       <div className="border-b bg-background px-4 py-4">
         <div className="mx-auto max-w-2xl">
@@ -127,7 +127,7 @@ export function OnboardingWizard() {
       </div>
 
       {/* ── Step content ── */}
-      <div className="flex-1 px-4 py-10">
+      <div className="flex-1 px-4 py-6 sm:py-10">
         <div className="mx-auto max-w-2xl">
           {error && (
             <div className="mb-6 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -180,13 +180,13 @@ export function OnboardingWizard() {
       </div>
 
       {/* ── Navigation ── */}
-      <div className="border-t bg-background px-4 py-4">
+      <div className="sticky bottom-0 z-10 border-t bg-background px-4 py-4 pb-safe">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <button
             type="button"
             onClick={handleBack}
             disabled={isSubmitting}
-            className="inline-flex h-10 items-center justify-center rounded-md border border-input bg-background px-6 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center rounded-md sm:h-10 border border-input bg-background px-6 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {step === 1 ? 'Cancel' : 'Back'}
           </button>
@@ -195,7 +195,7 @@ export function OnboardingWizard() {
             type="button"
             onClick={handleContinue}
             disabled={!canContinue() || isSubmitting}
-            className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center rounded-md sm:h-10 bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? 'Saving…' : step === TOTAL_STEPS ? 'Finish' : 'Continue'}
           </button>

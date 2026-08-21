@@ -63,7 +63,7 @@ export default async function PreferencesPage() {
   // panel instead of the form (the API also enforces this on mutations).
   if (!isPremium) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10">
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:py-10">
         <div className="mb-8">
           <h1 className="text-2xl font-bold tracking-tight">Preferences</h1>
           <p className="mt-1 text-muted-foreground">
@@ -79,7 +79,7 @@ export default async function PreferencesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
+    <div className="mx-auto max-w-2xl px-4 py-6 sm:py-10">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Preferences</h1>
         <p className="mt-1 text-muted-foreground">

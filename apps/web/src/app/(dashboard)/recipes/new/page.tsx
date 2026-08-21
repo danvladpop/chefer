@@ -247,7 +247,7 @@ export default function NewRecipePage() {
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-8">
+    <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
       {/* Header */}
       <div className="mb-6 flex items-center gap-3">
         <Link
@@ -257,7 +257,7 @@ export default function NewRecipePage() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
             My Recipes
           </p>
           <h1 className="font-serif text-2xl font-bold text-gray-900">Create Recipe</h1>
@@ -372,7 +372,7 @@ export default function NewRecipePage() {
           </Field>
 
           <div className="grid grid-cols-3 gap-4">
-            <Field label="Prep Time (mins)" error={errors.prepTimeMins}>
+            <Field label="Prep (min)" error={errors.prepTimeMins}>
               <input
                 type="number"
                 min={0}
@@ -381,7 +381,7 @@ export default function NewRecipePage() {
                 className={inputCls(!!errors.prepTimeMins)}
               />
             </Field>
-            <Field label="Cook Time (mins)" error={errors.cookTimeMins}>
+            <Field label="Cook (min)" error={errors.cookTimeMins}>
               <input
                 type="number"
                 min={0}
@@ -404,14 +404,14 @@ export default function NewRecipePage() {
 
         {/* ── Photo ──────────────────────────────────────────────────── */}
         <Section title="Photo">
-          <div className="flex items-start gap-4">
+          <div className="flex flex-col items-start gap-4 sm:flex-row">
             {imageUrl ? (
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={imageUrl}
                   alt="Recipe preview"
-                  className="h-28 w-36 rounded-xl border object-cover"
+                  className="h-40 w-full rounded-xl border object-cover sm:h-28 sm:w-36"
                 />
                 <button
                   type="button"
@@ -431,13 +431,13 @@ export default function NewRecipePage() {
                 )}
               </div>
             ) : (
-              <div className="flex h-28 w-36 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-3xl">
+              <div className="flex h-40 w-full items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-3xl sm:h-28 sm:w-36">
                 🍽️
               </div>
             )}
 
-            <div className="flex flex-col gap-2">
-              <label className="flex w-fit cursor-pointer items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50">
+            <div className="flex w-full flex-col gap-2 sm:w-auto">
+              <label className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 sm:min-h-0 sm:w-fit sm:justify-start">
                 <Upload className="h-3.5 w-3.5" />
                 {uploading ? 'Uploading…' : 'Upload from device'}
                 <input
@@ -452,12 +452,12 @@ export default function NewRecipePage() {
                 onClick={() => void generateAiImage()}
                 disabled={name.trim().length < 2 || aiImageQuery.isFetching}
                 title={name.trim().length < 2 ? 'Enter a recipe name first' : undefined}
-                className="flex w-fit items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50 sm:min-h-0 sm:w-fit sm:justify-start"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 {aiImageQuery.isFetching ? 'Generating…' : 'Generate with AI'}
               </button>
-              <p className="text-[11px] text-gray-400">
+              <p className="text-[11px] text-gray-500">
                 Upload a photo from your phone or computer, or let AI create one from the recipe
                 name. The AI image may take ~20 s to appear the first time.
               </p>
@@ -469,42 +469,54 @@ export default function NewRecipePage() {
         {/* ── Ingredients ────────────────────────────────────────────── */}
         <Section title="Ingredients" error={errors.ingredients}>
           <div className="space-y-2">
+            {/* Two rows on a phone. Side by side, the quantity (80px), unit
+                (112px) and delete (32px) controls plus gaps consume 248px of
+                fixed width, leaving the ingredient name about 95px at 375px. */}
             {ingredients.map((ing, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div
+                key={i}
+                className="flex flex-col gap-2 rounded-xl border p-2 sm:flex-row sm:items-center sm:border-0 sm:p-0"
+              >
                 <IngredientPicker
                   value={ing.name}
                   onSelect={(selected) => updateIngredient(i, 'name', selected)}
                   onCreateCustom={(query) => setCustomModalFor({ row: i, query })}
                 />
-                <input
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={ing.quantity}
-                  onChange={(e) => updateIngredient(i, 'quantity', e.target.value)}
-                  placeholder="Qty"
-                  className="w-20 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
-                />
-                <select
-                  value={ing.unit}
-                  onChange={(e) => updateIngredient(i, 'unit', e.target.value)}
-                  className="w-28 rounded-xl border bg-white px-2 py-2 text-sm text-gray-800 focus:border-[#944a00] focus:outline-none"
-                >
-                  {unitOptions.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-                {ingredients.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeIngredient(i)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    value={ing.quantity}
+                    onChange={(e) => updateIngredient(i, 'quantity', e.target.value)}
+                    placeholder="Qty"
+                    aria-label={`Quantity for ingredient ${i + 1}`}
+                    className="w-20 shrink-0 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
+                  />
+                  <select
+                    value={ing.unit}
+                    onChange={(e) => updateIngredient(i, 'unit', e.target.value)}
+                    aria-label={`Unit for ingredient ${i + 1}`}
+                    className="w-28 shrink-0 rounded-xl border bg-white px-2 py-2 text-sm text-gray-800 focus:border-[#944a00] focus:outline-none"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
+                    {unitOptions.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                  {ingredients.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeIngredient(i)}
+                      aria-label={`Remove ingredient ${i + 1}`}
+                      className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 sm:ml-0 sm:h-8 sm:w-8"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -537,7 +549,7 @@ export default function NewRecipePage() {
                   <button
                     type="button"
                     onClick={() => removeInstruction(i)}
-                    className="mt-2 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                    className="mt-2 flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -627,17 +639,17 @@ export default function NewRecipePage() {
           </p>
         )}
 
-        <div className="flex justify-end gap-3 pb-8">
+        <div className="flex flex-col-reverse gap-3 pb-8 sm:flex-row sm:justify-end">
           <Link
             href="/recipes"
-            className="rounded-xl border bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+            className="flex min-h-11 items-center justify-center rounded-xl border bg-white px-5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
           >
             Cancel
           </Link>
           <button
             type="submit"
             disabled={createMutation.isPending}
-            className="rounded-xl bg-[#944a00] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] disabled:opacity-60"
+            className="flex min-h-11 items-center justify-center rounded-xl bg-[#944a00] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] disabled:opacity-60"
           >
             {createMutation.isPending ? 'Saving…' : 'Save Recipe'}
           </button>

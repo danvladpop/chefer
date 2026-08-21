@@ -133,7 +133,7 @@ export function StepDiet({ value, onChange }: StepDietProps) {
     <div className="space-y-8">
       {/* Heading */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold tracking-tight">Diet & restrictions</h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Diet & restrictions</h1>
         <p className="mt-2 text-muted-foreground">
           All fields are optional — skip anything that doesn&apos;t apply.
         </p>

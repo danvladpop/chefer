@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { uploadImage } from '@/lib/upload-image';
-import { Sparkles, Upload, X } from 'lucide-react';
+import { Sparkles, Upload } from 'lucide-react';
+import { Sheet } from '@chefer/ui';
 
 // ─── Ingredient create/edit modal ─────────────────────────────────────────────
 // Create mode: adds a private custom ingredient (used by the recipe form's
@@ -123,32 +124,27 @@ export function IngredientFormModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label={isEdit ? 'Edit ingredient' : 'Create custom ingredient'}
+    <Sheet
+      open
+      onClose={onClose}
+      title={isEdit ? 'Edit ingredient' : 'Custom ingredient'}
+      description={
+        isEdit
+          ? undefined
+          : 'Only you will see this ingredient. Nutrition values are per 100 g and drive the automatic recipe nutrition.'
+      }
+      footer={
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!canSubmit || mutation.isPending || uploading}
+          className="min-h-11 w-full rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-50"
+        >
+          {mutation.isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Create ingredient'}
+        </button>
+      }
     >
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">
-            {isEdit ? 'Edit ingredient' : 'Custom ingredient'}
-          </h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        {!isEdit && (
-          <p className="mb-4 text-xs text-gray-500">
-            Only you will see this ingredient. Nutrition values are per 100 g and drive the
-            automatic recipe nutrition.
-          </p>
-        )}
-
+      <div className="px-5 pb-5">
         <div className="space-y-4">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Name</label>
@@ -203,7 +199,7 @@ export function IngredientFormModal({
             <label className="mb-1 block text-xs font-medium text-gray-600">
               Nutrition per 100 g
             </label>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               {(
                 [
                   ['calories', 'kcal'],
@@ -252,7 +248,7 @@ export function IngredientFormModal({
                 Baseline prices (EUR){' '}
                 <span className="text-gray-400">— leave empty when not applicable</span>
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {(
                   [
                     ['per100g', 'per 100 g'],
@@ -279,17 +275,8 @@ export function IngredientFormModal({
           )}
 
           {mutation.isError && <p className="text-xs text-red-500">{mutation.error.message}</p>}
-
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!canSubmit || mutation.isPending || uploading}
-            className="w-full rounded-xl bg-[#944a00] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-50"
-          >
-            {mutation.isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Create ingredient'}
-          </button>
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }

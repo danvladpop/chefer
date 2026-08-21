@@ -8,6 +8,7 @@ import {
 import { trpc } from '@/lib/trpc';
 import type { RouterOutputs } from '@/lib/trpc';
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Sheet } from '@chefer/ui';
 
 type IngredientItem = RouterOutputs['ingredients']['list']['items'][0];
 
@@ -67,26 +68,27 @@ export default function IngredientsPage() {
   };
 
   return (
-    <div className="px-6 py-8">
+    <div className="px-4 py-6 sm:px-6 sm:py-8">
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
             Catalog
           </p>
-          <h1 className="font-serif text-2xl font-bold text-gray-900">Ingredients</h1>
+          <h1 className="font-serif text-xl font-bold text-gray-900 sm:text-2xl">Ingredients</h1>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 rounded-xl bg-[#944a00] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a3d00]"
+          className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a3d00]"
         >
           <Plus className="h-4 w-4" />
-          Add Ingredient
+          <span className="sm:hidden">Add</span>
+          <span className="hidden sm:inline">Add Ingredient</span>
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="mb-4 flex gap-1 border-b">
+      <div className="scroll-rail mb-4 gap-1 border-b">
         {(
           [
             { key: 'all', label: 'All Ingredients' },
@@ -96,7 +98,7 @@ export default function IngredientsPage() {
           <button
             key={key}
             onClick={() => handleTabChange(key)}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
+            className={`min-h-11 shrink-0 whitespace-nowrap px-4 text-sm font-medium transition-colors ${
               tab === key
                 ? 'border-b-2 border-[#944a00] text-[#944a00]'
                 : 'text-gray-500 hover:text-gray-700'
@@ -109,7 +111,7 @@ export default function IngredientsPage() {
 
       {/* Search */}
       <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
         <input
           type="search"
           value={search}
@@ -172,10 +174,10 @@ export default function IngredientsPage() {
                     <p className="mt-0.5 text-[11px] text-gray-500">
                       {Math.round(ing.caloriesPer100g)} kcal · P {ing.proteinPer100g ?? 0} · C{' '}
                       {ing.carbsPer100g ?? 0} · F {ing.fatPer100g ?? 0}{' '}
-                      <span className="text-gray-400">/ 100 g</span>
+                      <span className="text-gray-500">/ 100 g</span>
                     </p>
                   ) : (
-                    <p className="mt-0.5 text-[11px] italic text-gray-400">
+                    <p className="mt-0.5 text-[11px] italic text-gray-500">
                       Nutrition being estimated…
                     </p>
                   )}
@@ -188,16 +190,16 @@ export default function IngredientsPage() {
 
                   {/* Actions */}
                   {ing.canEdit && (
-                    <div className="mt-1.5 flex gap-2">
+                    <div className="mt-1.5 flex gap-4">
                       <button
                         onClick={() => setEditTarget(ing)}
-                        className="flex items-center gap-1 text-[11px] font-medium text-[#944a00] hover:underline"
+                        className="flex min-h-11 items-center gap-1 text-xs font-medium text-[#944a00] hover:underline sm:min-h-0 sm:text-[11px]"
                       >
                         <Pencil className="h-3 w-3" /> Edit
                       </button>
                       <button
                         onClick={() => setDeleteTarget(ing)}
-                        className="flex items-center gap-1 text-[11px] font-medium text-red-500 hover:underline"
+                        className="flex min-h-11 items-center gap-1 text-xs font-medium text-red-500 hover:underline sm:min-h-0 sm:text-[11px]"
                       >
                         <Trash2 className="h-3 w-3" /> Delete
                       </button>
@@ -251,41 +253,41 @@ export default function IngredientsPage() {
       )}
 
       {/* Delete confirmation */}
-      {deleteTarget && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Delete ingredient"
-        >
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="text-lg font-bold text-gray-900">Delete ingredient?</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              &ldquo;{deleteTarget.displayName}&rdquo; will be removed from the catalog.
-              {!deleteTarget.isCustom &&
-                ' Global ingredients may be re-added automatically with AI estimates if recipes still use them.'}
-            </p>
-            {deleteMutation.isError && (
-              <p className="mt-2 text-xs text-red-500">{deleteMutation.error.message}</p>
-            )}
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                className="rounded-xl border px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteMutation.mutate({ name: deleteTarget.name })}
-                disabled={deleteMutation.isPending}
-                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
+      <Sheet
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete ingredient?"
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              onClick={() => setDeleteTarget(null)}
+              className="min-h-11 rounded-xl border px-4 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => deleteTarget && deleteMutation.mutate({ name: deleteTarget.name })}
+              disabled={deleteMutation.isPending}
+              className="min-h-11 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+            </button>
           </div>
+        }
+      >
+        <div className="px-5 pb-5">
+          <p className="text-sm text-gray-500">
+            &ldquo;{deleteTarget?.displayName}&rdquo; will be removed from the catalog.
+            {deleteTarget &&
+              !deleteTarget.isCustom &&
+              ' Global ingredients may be re-added automatically with AI estimates if recipes still use them.'}
+          </p>
+          {deleteMutation.isError && (
+            <p className="mt-2 text-xs text-red-500">{deleteMutation.error.message}</p>
+          )}
         </div>
-      )}
+      </Sheet>
     </div>
   );
 }

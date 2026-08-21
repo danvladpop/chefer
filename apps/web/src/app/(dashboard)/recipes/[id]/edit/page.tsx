@@ -204,7 +204,7 @@ export default function EditRecipePage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-2xl px-6 py-8">
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="animate-pulse space-y-4">
           <div className="h-8 w-48 rounded bg-gray-100" />
           <div className="h-64 rounded-2xl bg-gray-100" />
@@ -215,7 +215,7 @@ export default function EditRecipePage() {
 
   if (loadError || !recipe) {
     return (
-      <div className="mx-auto max-w-2xl px-6 py-8 text-center">
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8 text-center">
         <p className="text-gray-500">
           Recipe not found or you don&apos;t have permission to edit it.
         </p>
@@ -232,7 +232,7 @@ export default function EditRecipePage() {
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-8">
+    <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
       {/* Header */}
       <div className="mb-6 flex items-center gap-3">
         <Link
@@ -242,7 +242,7 @@ export default function EditRecipePage() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
             My Recipes
           </p>
           <h1 className="font-serif text-2xl font-bold text-gray-900">Edit Recipe</h1>
@@ -290,7 +290,7 @@ export default function EditRecipePage() {
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <Field label="Prep Time (mins)" error={errors.prepTimeMins}>
+            <Field label="Prep (min)" error={errors.prepTimeMins}>
               <input
                 type="number"
                 min={0}
@@ -299,7 +299,7 @@ export default function EditRecipePage() {
                 className={inputCls(!!errors.prepTimeMins)}
               />
             </Field>
-            <Field label="Cook Time (mins)" error={errors.cookTimeMins}>
+            <Field label="Cook (min)" error={errors.cookTimeMins}>
               <input
                 type="number"
                 min={0}
@@ -333,40 +333,53 @@ export default function EditRecipePage() {
         {/* ── Ingredients ────────────────────────────────────────────── */}
         <Section title="Ingredients" error={errors.ingredients}>
           <div className="space-y-2">
+            {/* Two rows on a phone — see the matching comment in recipes/new.
+                The fixed-width quantity, unit and delete controls leave the
+                name field about 95px at 375px when laid out side by side. */}
             {ingredients.map((ing, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div
+                key={i}
+                className="flex flex-col gap-2 rounded-xl border p-2 sm:flex-row sm:items-center sm:border-0 sm:p-0"
+              >
                 <input
                   type="text"
                   value={ing.name}
                   onChange={(e) => updateIngredient(i, 'name', e.target.value)}
                   placeholder="Ingredient"
-                  className="flex-1 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
+                  aria-label={`Name for ingredient ${i + 1}`}
+                  className="min-w-0 flex-1 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
                 />
-                <input
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={ing.quantity}
-                  onChange={(e) => updateIngredient(i, 'quantity', e.target.value)}
-                  placeholder="Qty"
-                  className="w-20 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
-                />
-                <input
-                  type="text"
-                  value={ing.unit}
-                  onChange={(e) => updateIngredient(i, 'unit', e.target.value)}
-                  placeholder="Unit"
-                  className="w-24 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
-                />
-                {ingredients.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeIngredient(i)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    value={ing.quantity}
+                    onChange={(e) => updateIngredient(i, 'quantity', e.target.value)}
+                    placeholder="Qty"
+                    aria-label={`Quantity for ingredient ${i + 1}`}
+                    className="w-20 shrink-0 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={ing.unit}
+                    onChange={(e) => updateIngredient(i, 'unit', e.target.value)}
+                    placeholder="Unit"
+                    aria-label={`Unit for ingredient ${i + 1}`}
+                    className="w-24 shrink-0 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
+                  />
+                  {ingredients.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeIngredient(i)}
+                      aria-label={`Remove ingredient ${i + 1}`}
+                      className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 sm:ml-0 sm:h-8 sm:w-8"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -399,7 +412,7 @@ export default function EditRecipePage() {
                   <button
                     type="button"
                     onClick={() => removeInstruction(i)}
-                    className="mt-2 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                    className="mt-2 flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-red-50 hover:text-red-500 transition-colors"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -479,7 +492,7 @@ export default function EditRecipePage() {
           </p>
         )}
 
-        <div className="flex justify-end gap-3 pb-8">
+        <div className="flex flex-col-reverse gap-3 pb-8 sm:flex-row sm:justify-end">
           <Link
             href="/recipes?tab=my"
             className="rounded-xl border bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"

@@ -203,7 +203,7 @@ export function StepMetrics({ value, onChange }: StepMetricsProps) {
     'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 
   const toggleBtnCls = (active: boolean) =>
-    `px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none ${
+    `min-h-11 px-4 text-sm font-medium transition-colors focus-visible:outline-none sm:min-h-0 sm:px-3 sm:py-1.5 ${
       active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
     }`;
 
@@ -211,7 +211,7 @@ export function StepMetrics({ value, onChange }: StepMetricsProps) {
     <div className="space-y-8">
       {/* Heading */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold tracking-tight">Your body metrics</h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Your body metrics</h1>
         <p className="mt-2 text-muted-foreground">
           Used to calculate your personalised daily calorie target.
         </p>

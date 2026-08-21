@@ -54,7 +54,7 @@ export function StepCuisine({ value, onChange }: StepCuisineProps) {
     <div className="space-y-8">
       {/* Heading */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold tracking-tight">Cuisine & meal cadence</h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Cuisine & meal cadence</h1>
         <p className="mt-2 text-muted-foreground">
           Tell us what cuisines you love and how you like to eat.
         </p>

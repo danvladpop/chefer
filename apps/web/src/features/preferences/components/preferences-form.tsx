@@ -110,7 +110,7 @@ interface PreferencesFormProps {
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 
 function Section({ children }: { children: React.ReactNode }) {
-  return <section className="rounded-xl border bg-card p-6 shadow-sm">{children}</section>;
+  return <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-6">{children}</section>;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -280,7 +280,7 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
                     key={value}
                     type="button"
                     onClick={() => setData((d) => ({ ...d, preferredUnits: value }))}
-                    className={`rounded-xl border px-4 py-2 text-sm font-medium transition ${
+                    className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-medium transition ${
                       data.preferredUnits === value
                         ? 'border-primary bg-primary/5 text-primary'
                         : 'border-input text-muted-foreground hover:border-primary/40'
@@ -338,7 +338,7 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
         })()}
 
         {/* Save bar */}
-        <div className="flex items-center justify-end gap-4 rounded-xl border bg-card px-6 py-4 shadow-sm">
+        <div className="flex flex-col-reverse items-stretch gap-3 rounded-xl border bg-card px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-end sm:gap-4 sm:px-6">
           {!canSave && (
             <p className="text-sm text-muted-foreground">
               Fill in your goal, biological sex, age, height, weight, and activity level to save.
@@ -348,7 +348,7 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
             type="button"
             onClick={handleSave}
             disabled={!canSave || updateMutation.isPending}
-            className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10"
           >
             {updateMutation.isPending ? 'Saving…' : 'Save preferences'}
           </button>
