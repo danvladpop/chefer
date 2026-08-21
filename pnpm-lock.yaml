@@ -50,6 +50,9 @@ importers:
       '@google/genai':
         specifier: ^1.47.0
         version: 1.47.0
+      '@sentry/node':
+        specifier: ^10
+        version: 10.70.0(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))
       '@trpc/server':
         specifier: ^11.0.0-rc.446
         version: 11.12.0(typescript@5.9.3)
@@ -9681,7 +9684,7 @@ snapshots:
 
   webpack@5.109.2(postcss@8.5.8):
     dependencies:
-      '@types/estree': 1.0.8
+      '@types/estree': 1.0.9
       '@types/json-schema': 7.0.15
       '@webassemblyjs/ast': 1.14.1
       '@webassemblyjs/wasm-edit': 1.14.1

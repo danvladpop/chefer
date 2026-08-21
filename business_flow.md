@@ -275,13 +275,13 @@ Express Server (apps/api, port 3001)
 
 ### Error Handling
 
-| Source                       | How it surfaces                                  |
-| ---------------------------- | ------------------------------------------------ |
-| Zod validation failure       | tRPC `BAD_REQUEST` with field-level errors       |
-| `UserNotFoundError` (domain) | Mapped to tRPC `NOT_FOUND`                       |
-| Unauthenticated access       | tRPC `UNAUTHORIZED`                              |
-| Insufficient role            | tRPC `FORBIDDEN`                                 |
-| Unhandled exception          | tRPC `INTERNAL_SERVER_ERROR` (logged to console) |
+| Source                       | How it surfaces                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Zod validation failure       | tRPC `BAD_REQUEST` with field-level errors                                                                    |
+| `UserNotFoundError` (domain) | Mapped to tRPC `NOT_FOUND`                                                                                    |
+| Unauthenticated access       | tRPC `UNAUTHORIZED`                                                                                           |
+| Insufficient role            | tRPC `FORBIDDEN`                                                                                              |
+| Unhandled exception          | tRPC `INTERNAL_SERVER_ERROR` — captured to Sentry (with tRPC path, request ID, user ID) and logged to console |
 
 ---
 

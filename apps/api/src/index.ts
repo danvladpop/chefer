@@ -1,3 +1,6 @@
+// Must be first — Sentry instruments http/express/prisma at require time.
+import './instrument.js';
+import * as Sentry from '@sentry/node';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import cors from 'cors';
 import express from 'express';
@@ -92,8 +95,15 @@ app.use(
   createExpressMiddleware({
     router: appRouter,
     createContext: ({ req, res }) => createContext(req, res),
-    onError({ error, path }) {
+    onError({ error, path, ctx }) {
       if (error.code === 'INTERNAL_SERVER_ERROR') {
+        // Expected errors (UNAUTHORIZED, NOT_FOUND, …) are product flow, not
+        // defects — only unexpected failures go to Sentry.
+        Sentry.captureException(error.cause ?? error, {
+          tags: { trpcPath: path ?? 'unknown' },
+          extra: { requestId: ctx?.requestId ?? 'unknown' },
+          ...(ctx?.user && { user: { id: ctx.user.id } }),
+        });
         console.error(`❌ tRPC error on ${path ?? 'unknown'}:`, error.message, error.cause);
       } else if (env.NODE_ENV === 'development') {
         console.warn(`⚠️  tRPC ${error.code} on ${path ?? 'unknown'}:`, error.message);
@@ -101,6 +111,19 @@ app.use(
     },
   }),
 );
+
+// ─── Sentry verification (dev only) ──────────────────────────────────────────
+
+if (env.NODE_ENV === 'development') {
+  app.get(
+    '/api/sentry-test',
+    asyncHandler(async (_req, res) => {
+      const eventId = Sentry.captureException(new Error('Sentry example API error'));
+      const flushed = await Sentry.flush(3000);
+      res.json({ eventId, delivered: flushed });
+    }),
+  );
+}
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
 
@@ -112,6 +135,10 @@ app.use((_req, res) => {
 });
 
 // ─── Error Handler ────────────────────────────────────────────────────────────
+
+// Reports errors that reach Express (asyncHandler forwards, sync throws)
+// before the JSON error response below renders them.
+Sentry.setupExpressErrorHandler(app);
 
 app.use(
   (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

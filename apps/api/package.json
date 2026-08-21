@@ -24,6 +24,7 @@
     "@chefer/types": "workspace:*",
     "@chefer/utils": "workspace:*",
     "@google/genai": "^1.47.0",
+    "@sentry/node": "^10",
     "@trpc/server": "^11.0.0-rc.446",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.10.1",
