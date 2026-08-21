@@ -1,10 +1,13 @@
 name: CI
 
+# The default branch is master — [main, develop] here meant CI never ran
+# (roadmap F-3). The Deploy workflow's "Wait for CI" gate polls the four
+# job names below by exact name; rename them there too if they change here.
 on:
   push:
-    branches: [main, develop]
+    branches: [master]
   pull_request:
-    branches: [main, develop]
+    branches: [master]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -193,7 +196,11 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'https://api.chefer.dev' }}
           NEXT_PUBLIC_TRPC_URL: ${{ vars.NEXT_PUBLIC_TRPC_URL || 'https://api.chefer.dev/trpc' }}
 
-  # ─── E2E Tests ────────────────────────────────────────────────────────────────
+  # ─── E2E Tests (public project) ──────────────────────────────────────────────
+  # Runs the unauthenticated `public` Playwright project only. The `mobile` and
+  # `desktop` projects sign in and assert against real plan data, so they need
+  # a seeded fixture dataset in CI — that lands with roadmap P0-8. Locally they
+  # run against the dev database: cd tests && pnpm exec playwright test.
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
@@ -213,6 +220,11 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/chefer_test
+      # CI-only dummies — the api env schema requires 32+ chars at startup.
+      JWT_SECRET: ci-only-jwt-secret-0123456789abcdef0123456789abcdef
+      REFRESH_TOKEN_SECRET: ci-only-refresh-secret-0123456789abcdef012345
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -232,24 +244,22 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: pnpm --filter @chefer/web exec playwright install --with-deps chromium
+        run: pnpm --filter @chefer/e2e exec playwright install --with-deps chromium
 
       - name: Setup test database
         run: pnpm db:push
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/chefer_test
 
       - name: Build
         run: pnpm build
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/chefer_test
           NEXT_PUBLIC_APP_URL: http://localhost:3000
           NEXT_PUBLIC_API_URL: http://localhost:3001
+          NEXT_PUBLIC_TRPC_URL: http://localhost:3001/trpc
 
-      - name: Run E2E tests
-        run: pnpm test:e2e
+      - name: Run public E2E suite
+        working-directory: tests
+        run: pnpm exec playwright test --project=public
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/chefer_test
           CI: true
 
       - name: Upload Playwright report
@@ -257,5 +267,5 @@ jobs:
         if: always()
         with:
           name: playwright-report
-          path: playwright-report/
+          path: tests/playwright-report/
           retention-days: 30

@@ -50,10 +50,60 @@ jobs:
             echo "build=true" >> "$GITHUB_OUTPUT"
           fi
 
+  # ─── Gate on CI — production must not deploy on red ─────────────────────────
+  # CI (ci.yml) runs on the same push; this job polls its check runs for THIS
+  # commit and fails if any required check fails. Skipped on the rollback path
+  # (build=false) — an already-built image was CI'd when it was first pushed.
+  gate:
+    name: Wait for CI
+    needs: setup
+    if: needs.setup.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
+    steps:
+      - name: Wait for CI checks on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Exact job names from ci.yml — update both files together.
+          required=("Lint" "Type Check" "Unit Tests" "Build")
+          echo "Waiting for CI on ${{ github.sha }}: ${required[*]}"
+          for attempt in $(seq 1 80); do  # 80 × 15 s = 20 min
+            json=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs?per_page=100" \
+              --jq '[.check_runs[] | {name, status, conclusion}]')
+            green=0; failed=""
+            for name in "${required[@]}"; do
+              status=$(echo "$json" | jq -r --arg n "$name" '[.[] | select(.name == $n)] | first | .status // "missing"')
+              conclusion=$(echo "$json" | jq -r --arg n "$name" '[.[] | select(.name == $n)] | first | .conclusion // ""')
+              if [ "$status" = "completed" ]; then
+                if [ "$conclusion" = "success" ]; then
+                  green=$((green + 1))
+                else
+                  failed="$failed $name($conclusion)"
+                fi
+              fi
+            done
+            if [ -n "$failed" ]; then
+              echo "::error::CI is red on this commit:$failed — refusing to deploy"
+              exit 1
+            fi
+            if [ "$green" -eq "${#required[@]}" ]; then
+              echo "✅ All ${#required[@]} CI checks green — deploying"
+              exit 0
+            fi
+            echo "  attempt $attempt/80: $green/${#required[@]} green, retrying in 15 s…"
+            sleep 15
+          done
+          echo "::error::Timed out waiting for CI after 20 min"
+          exit 1
+
   # ─── Build both images in parallel ──────────────────────────────────────────
   build:
     name: Build ${{ matrix.app }}
-    needs: setup
+    needs: [setup, gate]
     if: needs.setup.outputs.build == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -102,10 +152,13 @@ jobs:
   # ─── Deploy to the VM over SSH ──────────────────────────────────────────────
   deploy:
     name: Deploy to VM
-    needs: [setup, build]
-    # Runs even when the build jobs were skipped (rollback path).
+    needs: [setup, gate, build]
+    # Runs even when gate+build were skipped (rollback path: build=false).
+    # A FAILED gate must block — a failed dependency only auto-skips build,
+    # and always() would otherwise let the deploy proceed around it.
     if: |
       always() && needs.setup.result == 'success' &&
+      (needs.gate.result == 'success' || needs.gate.result == 'skipped') &&
       (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-latest
     steps:

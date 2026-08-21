@@ -902,21 +902,35 @@ cross-package type debt; `pnpm typecheck` still enforces it).
 
 ## 13. CI/CD
 
-### `ci.yml` — lint / typecheck / test on push & PR
+### `ci.yml` — lint / typecheck / test / build on push & PR to `master`
 
-### `deploy.yml` — one-button production deploy
+Jobs: `Lint` (ESLint + prettier check), `Type Check`, `Unit Tests` (vitest, all
+workspaces), `Build`, and `E2E Tests` (PRs only — the unauthenticated `public`
+Playwright project; the authenticated `mobile`/`desktop` projects need a seeded
+fixture dataset, planned with roadmap P0-8). The four job names are polled by
+name from `deploy.yml`'s gate — rename them in both files together.
+
+### `deploy.yml` — one-button production deploy, gated on green CI
 
 Triggered by **Actions → Deploy → Run workflow**, `gh workflow run deploy.yml`, or any push to
 `master` that touches code (`**.md` and `docs/**` are ignored).
 
 ```
 setup (resolve tag)
+  └─ gate (Wait for CI)                          polls this commit's Lint / Type Check /
+        Unit Tests / Build check runs; fails the deploy if any is red;
+        skipped on the rollback path (the image was CI'd when first built)
   └─ build (matrix: api + web, in parallel)      GitHub runner, buildx + GHA layer cache
         push → ghcr.io/<owner>/chefer-{api,web}:latest and :sha-<short>
   └─ deploy (ssh to the VM)                      TAG=<tag> ./infrastructure/scripts/deploy.sh
         git pull → docker compose pull → up -d --no-build → prune
   └─ verify                                      polls <DEPLOYMENT_URL>/api/health, fails if unhealthy
 ```
+
+**Branch protection (manual, repo Settings → Branches → `master`):** require the
+`Lint`, `Type Check`, `Unit Tests`, and `Build` status checks. This is the second
+half of the gate — the deploy gate stops red code _shipping_; protection stops it
+_merging_.
 
 **Why images are built in CI:** the production VM is 1 OCPU / 1 GB, where `next build` takes
 15–40 minutes. A runner does it in ~4–6 min cold, ~1–3 min with the layer cache, and the VM only
