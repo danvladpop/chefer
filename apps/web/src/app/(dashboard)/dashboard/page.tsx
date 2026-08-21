@@ -36,6 +36,11 @@ export default function DashboardPage() {
 
   const hasPlan = d.weekPlan.length > 0;
 
+  // After the last meal window of the day the API sends tomorrow's first meal
+  // instead — the spotlight stays populated, just badged "Tomorrow".
+  const heroMeal = d.nextMeal ?? d.tomorrowFirstMeal;
+  const heroIsTomorrow = !d.nextMeal && d.tomorrowFirstMeal !== null;
+
   // Day‑of‑week labels Mon–Sun
   const today = new Date();
   const jsDay = today.getDay();
@@ -193,7 +198,7 @@ export default function DashboardPage() {
         />
 
         {/* Next Meal spotlight */}
-        {d.nextMeal ? (
+        {heroMeal ? (
           <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
             {/* Stacked on phones — a 128px fixed photo beside text leaves the
                 title ~150px and it wraps to four lines. */}
@@ -201,8 +206,8 @@ export default function DashboardPage() {
               {/* Recipe photo */}
               <div className="relative h-40 w-full shrink-0 overflow-hidden rounded-xl sm:h-28 sm:w-32">
                 <Image
-                  {...getRecipeImageProps(d.nextMeal.recipe.imageUrl)}
-                  alt={d.nextMeal.recipe.name}
+                  {...getRecipeImageProps(heroMeal.recipe.imageUrl)}
+                  alt={heroMeal.recipe.name}
                   fill
                   sizes="(max-width: 639px) 100vw, 128px"
                   className="object-cover"
@@ -212,35 +217,36 @@ export default function DashboardPage() {
                 <div>
                   <div className="mb-1 flex flex-wrap gap-2">
                     <span className="rounded-full bg-[#944a00] px-2.5 py-0.5 text-[10px] font-semibold uppercase text-white">
-                      Next Meal
+                      {heroIsTomorrow ? 'Tomorrow' : 'Next Meal'}
                     </span>
                     <span
-                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase ${MEAL_COLOURS[d.nextMeal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase ${MEAL_COLOURS[heroMeal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                     >
-                      {d.nextMeal.mealType}
+                      {heroMeal.mealType}
                     </span>
                   </div>
                   <h2 className="font-serif text-lg font-bold leading-snug text-gray-900">
-                    {d.nextMeal.recipe.name}
+                    {heroMeal.recipe.name}
                   </h2>
                   <p className="mt-0.5 line-clamp-2 text-xs text-gray-500">
-                    {d.nextMeal.recipe.description}
+                    {heroMeal.recipe.description}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                   <span className="flex items-center gap-1 text-xs text-gray-500">
                     <Clock className="h-3.5 w-3.5" />
-                    {d.nextMeal.recipe.prepTimeMins} min
+                    {heroMeal.recipe.prepTimeMins} min
                   </span>
                   <span className="flex items-center gap-1 text-xs text-gray-500">
                     <Flame className="h-3.5 w-3.5 text-[#944a00]" />
-                    {d.nextMeal.recipe.kcal} kcal
+                    {heroMeal.recipe.kcal} kcal
                   </span>
                   <Link
-                    href={`/recipes/${d.nextMeal.recipe.id}`}
+                    href={`/recipes/${heroMeal.recipe.id}`}
                     className="flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-[#944a00] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#7a3d00] sm:ml-auto sm:min-h-0 sm:w-auto"
                   >
-                    Start Cooking <ArrowRight className="h-3.5 w-3.5" />
+                    {heroIsTomorrow ? 'View Recipe' : 'Start Cooking'}{' '}
+                    <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
                 </div>
               </div>

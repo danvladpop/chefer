@@ -398,3 +398,29 @@ IngredientPriceWorker (background)
 
 - `preferences.setup` / `preferences.update` use `premiumProcedure` → free users receive `FORBIDDEN` ("This feature requires a premium plan…").
 - The Preferences page and Onboarding wizard render an upgrade panel instead of the form for free users.
+
+---
+
+## 10. Dashboard Summary Flow
+
+`dashboard.summary` (protected) assembles the daily overview in `DashboardService.getSummary`:
+
+```
+dashboard.summary
+  ├─ load ChefProfile + active MealPlan + recent favourites (parallel)
+  ├─ join all recipe IDs across the plan's days
+  ├─ nextMeal: resolved by MEAL TYPE, not position (getNextMealType)
+  │    └─ first meal type present in today's plan whose window is still
+  │       open — MEAL_WINDOW_END: breakfast <10, lunch <14, snack <17,
+  │       dinner <21. A 3-meal plan therefore surfaces dinner from 14:00
+  │       (its snack window doesn't exist), a 4-meal plan surfaces the
+  │       snack first.
+  ├─ restOfToday: today's meals whose type sorts after nextMeal
+  ├─ tomorrowFirstMeal: set only when every window has passed (late
+  │    evening) — the first meal of day (today+1) % 7, so the dashboard
+  │    hero renders a "Tomorrow" card instead of going blank
+  └─ nutrition: planned kcal/macros for today vs targets
+```
+
+The web hero card (`/dashboard`) renders `nextMeal`, else `tomorrowFirstMeal`
+(badged "Tomorrow", CTA "View Recipe"), else the "all caught up" empty state.

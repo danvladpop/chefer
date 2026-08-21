@@ -32,6 +32,8 @@ export interface DashboardSummary {
       prepTimeMins: number;
     };
   } | null;
+  /** Set when every meal window today has passed — tomorrow's first meal. */
+  tomorrowFirstMeal: DashboardSummary['nextMeal'];
   restOfToday: {
     mealType: string;
     scheduledLabel: string;
@@ -63,15 +65,34 @@ const MEAL_SCHEDULE: Record<string, string> = {
   dinner: '7:00 PM',
 };
 
-const MEAL_ORDER = ['breakfast', 'lunch', 'snack', 'dinner'];
+export const MEAL_ORDER = ['breakfast', 'lunch', 'snack', 'dinner'];
 
-// Determine the "next" meal type based on current hour
-function getNextMealIndex(currentHour: number): number {
-  if (currentHour < 10) return 0; // breakfast
-  if (currentHour < 14) return 1; // lunch
-  if (currentHour < 17) return 2; // snack
-  if (currentHour < 21) return 3; // dinner
-  return -1; // all done for today
+/** The hour (exclusive) at which each meal's window closes. */
+export const MEAL_WINDOW_END: Record<string, number> = {
+  breakfast: 10,
+  lunch: 14,
+  snack: 17,
+  dinner: 21,
+};
+
+/**
+ * The next meal to surface, resolved by TYPE against the meals the plan
+ * actually contains: the first still-open window among `availableTypes`.
+ *
+ * Resolving by position broke 3-meal plans (the default): the old index
+ * pointed into the fixed 4-slot MEAL_ORDER, so from 17:00 it addressed a
+ * fourth slot that didn't exist and the dashboard hero went blank at
+ * dinner time — and from 14:00 it surfaced dinner while the snack window
+ * was still open on 4-meal plans.
+ *
+ * Returns null when every window has passed (late evening).
+ */
+export function getNextMealType(currentHour: number, availableTypes: string[]): string | null {
+  for (const type of MEAL_ORDER) {
+    if (!availableTypes.includes(type)) continue;
+    if (currentHour < (MEAL_WINDOW_END[type] ?? 0)) return type;
+  }
+  return null;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -149,37 +170,48 @@ export class DashboardService {
       }
     }
 
-    // Determine next meal and rest of today
+    // Determine next meal and rest of today — resolved by meal TYPE against
+    // the meals this plan actually contains (see getNextMealType).
     const currentHour = now.getHours();
-    const nextMealIndex = getNextMealIndex(currentHour);
     const orderedMeals = MEAL_ORDER.map((type) => todayMeals.find((m) => m.type === type)).filter(
-      Boolean,
-    ) as MealSlot[];
+      (slot): slot is MealSlot => slot !== undefined,
+    );
+    const nextMealType = getNextMealType(
+      currentHour,
+      orderedMeals.map((m) => m.type),
+    );
+
+    const toHeroMeal = (slot: MealSlot): DashboardSummary['nextMeal'] => {
+      const recipe = recipeMap.get(slot.recipeId);
+      if (!recipe) return null;
+      const n = recipe.nutritionInfo as unknown as NutritionInfo;
+      return {
+        mealType: slot.type,
+        recipe: {
+          id: recipe.id,
+          name: recipe.name,
+          description: recipe.description,
+          imageUrl: recipe.imageUrl,
+          kcal: n.calories,
+          servings: recipe.servings,
+          prepTimeMins: recipe.prepTimeMins,
+        },
+      };
+    };
 
     let nextMeal: DashboardSummary['nextMeal'] = null;
     const restOfToday: DashboardSummary['restOfToday'] = [];
+    let pastNext = false;
 
-    for (let i = 0; i < orderedMeals.length; i++) {
-      const slot = orderedMeals[i];
-      if (!slot) continue;
+    for (const slot of orderedMeals) {
       const recipe = recipeMap.get(slot.recipeId);
       if (!recipe) continue;
       const n = recipe.nutritionInfo as unknown as NutritionInfo;
 
-      if (i === nextMealIndex && !nextMeal) {
-        nextMeal = {
-          mealType: slot.type,
-          recipe: {
-            id: recipe.id,
-            name: recipe.name,
-            description: recipe.description,
-            imageUrl: recipe.imageUrl,
-            kcal: n.calories,
-            servings: recipe.servings,
-            prepTimeMins: recipe.prepTimeMins,
-          },
-        };
-      } else if (i > nextMealIndex && nextMealIndex >= 0) {
+      if (slot.type === nextMealType) {
+        nextMeal = toHeroMeal(slot);
+        pastNext = true;
+      } else if (pastNext) {
         restOfToday.push({
           mealType: slot.type,
           scheduledLabel: MEAL_SCHEDULE[slot.type] ?? '',
@@ -187,6 +219,21 @@ export class DashboardService {
           kcal: n.calories,
         });
       }
+    }
+
+    // Late evening: every window has passed — surface tomorrow's first meal
+    // so the hero card is never blank while an active plan exists.
+    let tomorrowFirstMeal: DashboardSummary['tomorrowFirstMeal'] = null;
+    if (!nextMeal) {
+      const tomorrowIndex = (todayIndex + 1) % 7;
+      const tomorrowDay = plan.days.find(
+        (d: { dayOfWeek: number }) => d.dayOfWeek === tomorrowIndex,
+      );
+      const tomorrowMeals = tomorrowDay ? (tomorrowDay.meals as MealSlot[]) : [];
+      const firstSlot = MEAL_ORDER.map((type) => tomorrowMeals.find((m) => m.type === type)).find(
+        (slot) => slot !== undefined,
+      );
+      if (firstSlot) tomorrowFirstMeal = toHeroMeal(firstSlot);
     }
 
     // Macro targets (simple % of daily calories approach)
@@ -202,6 +249,7 @@ export class DashboardService {
       },
       weekPlan,
       nextMeal,
+      tomorrowFirstMeal,
       restOfToday,
       recentFavourites: favourites.map((f) => ({
         id: f.recipe.id,
@@ -239,6 +287,7 @@ export class DashboardService {
       },
       weekPlan: [],
       nextMeal: null,
+      tomorrowFirstMeal: null,
       restOfToday: [],
       recentFavourites: favourites.map((f) => ({
         id: f.recipe.id,
