@@ -153,6 +153,25 @@ export async function gotoAndSettle(page: Page, route: string): Promise<void> {
       /* Some pages keep a pulsing element (e.g. image placeholders) — proceed. */
     });
 
-  // Lets late layout shifts (image loads, font swap) land before measuring.
-  await page.waitForTimeout(400);
+  await waitForStableLayout(page);
+}
+
+/**
+ * Waits until the page width stops changing.
+ *
+ * A fixed sleep is not enough: against `next dev` a cold route compile can push
+ * first paint past any reasonable constant, and measuring mid-render produces
+ * failures that vanish on re-run. Polling for two identical measurements
+ * returns almost immediately on a settled page and waits only when it must.
+ */
+export async function waitForStableLayout(page: Page, timeout = 10_000): Promise<void> {
+  const start = Date.now();
+  let previous = -1;
+
+  while (Date.now() - start < timeout) {
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    if (width === previous) return;
+    previous = width;
+    await page.waitForTimeout(150);
+  }
 }
