@@ -5,6 +5,7 @@ import {
   weightEntryRepository,
 } from '@chefer/database';
 import type { LoggedMealEntry } from '@chefer/database';
+import { resolveDailyTargets } from '../preferences/preferences.service.js';
 
 export type { LoggedMealEntry };
 
@@ -59,7 +60,7 @@ export const trackerService = {
       dailyLogRepository.findByDate(userId, date),
     ]);
 
-    const dailyCalorieTarget = profile?.dailyCalorieTarget ?? 2000;
+    const dailyCalorieTarget = resolveDailyTargets(profile).dailyCalorieTarget;
 
     // Determine day-of-week (0=Mon)
     const jsDay = date.getUTCDay();
@@ -140,7 +141,7 @@ export const trackerService = {
       dailyLogRepository.findLastN(userId, 7),
       chefProfileRepository.findByUserId(userId),
     ]);
-    const dailyCalorieTarget = profile?.dailyCalorieTarget ?? 2000;
+    const dailyCalorieTarget = resolveDailyTargets(profile).dailyCalorieTarget;
 
     // Build last 7 days
     const days: DaySummary[] = [];
@@ -173,7 +174,7 @@ export const trackerService = {
       dailyLogRepository.findLastN(userId, 28),
       chefProfileRepository.findByUserId(userId),
     ]);
-    const dailyCalorieTarget = profile?.dailyCalorieTarget ?? 2000;
+    const dailyCalorieTarget = resolveDailyTargets(profile).dailyCalorieTarget;
 
     const days: DaySummary[] = [];
     for (let i = 27; i >= 0; i--) {

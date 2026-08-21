@@ -4,6 +4,7 @@ import {
   mealPlanRepository,
 } from '@chefer/database';
 import type { NutritionInfo } from '../../lib/ai/index.js';
+import { resolveDailyTargets, type DailyTargets } from '../preferences/preferences.service.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -110,17 +111,10 @@ export class DashboardService {
       favouriteRecipeRepository.findByUserId(userId, 4),
     ]);
 
-    const dailyCalorieTarget = chefProfile?.dailyCalorieTarget ?? 2000;
+    const targets = resolveDailyTargets(chefProfile);
 
     if (!plan) {
-      return this.emptyDashboard(
-        userId,
-        firstName,
-        now,
-        todayIndex,
-        dailyCalorieTarget,
-        favourites,
-      );
+      return this.emptyDashboard(userId, firstName, now, todayIndex, targets, favourites);
     }
 
     // Join all recipe IDs
@@ -236,11 +230,6 @@ export class DashboardService {
       if (firstSlot) tomorrowFirstMeal = toHeroMeal(firstSlot);
     }
 
-    // Macro targets (simple % of daily calories approach)
-    const proteinTargetG = Math.round((dailyCalorieTarget * 0.3) / 4);
-    const carbsTargetG = Math.round((dailyCalorieTarget * 0.45) / 4);
-    const fatTargetG = Math.round((dailyCalorieTarget * 0.25) / 9);
-
     return {
       user: { firstName, displayName: chefProfile?.displayName ?? null },
       today: {
@@ -259,11 +248,11 @@ export class DashboardService {
         prepTimeMins: f.recipe.prepTimeMins,
       })),
       nutrition: {
-        dailyCalorieTarget,
+        dailyCalorieTarget: targets.dailyCalorieTarget,
         plannedKcal,
-        protein: { planned: Math.round(plannedProtein), targetG: proteinTargetG },
-        carbs: { planned: Math.round(plannedCarbs), targetG: carbsTargetG },
-        fat: { planned: Math.round(plannedFat), targetG: fatTargetG },
+        protein: { planned: Math.round(plannedProtein), targetG: targets.proteinG },
+        carbs: { planned: Math.round(plannedCarbs), targetG: targets.carbsG },
+        fat: { planned: Math.round(plannedFat), targetG: targets.fatG },
       },
     };
   }
@@ -273,12 +262,9 @@ export class DashboardService {
     firstName: string | null,
     now: Date,
     todayIndex: number,
-    dailyCalorieTarget: number,
+    targets: DailyTargets,
     favourites: Awaited<ReturnType<typeof favouriteRecipeRepository.findByUserId>>,
   ): DashboardSummary {
-    const proteinTargetG = Math.round((dailyCalorieTarget * 0.3) / 4);
-    const carbsTargetG = Math.round((dailyCalorieTarget * 0.45) / 4);
-    const fatTargetG = Math.round((dailyCalorieTarget * 0.25) / 9);
     return {
       user: { firstName, displayName: null },
       today: {
@@ -297,11 +283,11 @@ export class DashboardService {
         prepTimeMins: f.recipe.prepTimeMins,
       })),
       nutrition: {
-        dailyCalorieTarget,
+        dailyCalorieTarget: targets.dailyCalorieTarget,
         plannedKcal: 0,
-        protein: { planned: 0, targetG: proteinTargetG },
-        carbs: { planned: 0, targetG: carbsTargetG },
-        fat: { planned: 0, targetG: fatTargetG },
+        protein: { planned: 0, targetG: targets.proteinG },
+        carbs: { planned: 0, targetG: targets.carbsG },
+        fat: { planned: 0, targetG: targets.fatG },
       },
     };
   }

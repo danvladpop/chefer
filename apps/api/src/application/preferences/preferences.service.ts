@@ -99,6 +99,64 @@ export function computeMacroTargets(
   };
 }
 
+// ─── Unified daily targets ────────────────────────────────────────────────────
+
+export interface DailyTargets {
+  dailyCalorieTarget: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+const DEFAULT_CALORIE_TARGET = 2000;
+
+/**
+ * THE single source of the user's daily calorie + macro targets. Dashboard,
+ * tracker and meal-plan generation must all read targets through this —
+ * before it existed each computed its own (live TDEE here, stale snapshot
+ * there, hardcoded 30/45/25 splits elsewhere), so changing a goal moved the
+ * generated plan but not the dashboard ring (roadmap F-5).
+ *
+ * Pure over an already-loaded profile row so callers don't re-query:
+ *  - complete body metrics → live Mifflin-St Jeor TDEE ± goal adjustment,
+ *    macros from the goal's split
+ *  - incomplete metrics    → stored snapshot (or 2000), macros from the
+ *    goal's split applied to that number
+ */
+export function resolveDailyTargets(
+  profile: {
+    weightKg: number | null;
+    heightCm: number | null;
+    age: number | null;
+    activityLevel: string | null;
+    biologicalSex: string | null;
+    goal: string | null;
+    dailyCalorieTarget: number | null;
+  } | null,
+): DailyTargets {
+  const goal = profile?.goal ?? 'MAINTAIN';
+  const split = GOAL_MACRO_SPLITS[goal] ?? GOAL_MACRO_SPLITS['MAINTAIN']!;
+
+  const calories =
+    profile?.weightKg && profile.heightCm && profile.age && profile.activityLevel
+      ? computeCalorieTarget(
+          profile.weightKg,
+          profile.heightCm,
+          profile.age,
+          profile.activityLevel,
+          profile.biologicalSex,
+          profile.goal,
+        )
+      : (profile?.dailyCalorieTarget ?? DEFAULT_CALORIE_TARGET);
+
+  return {
+    dailyCalorieTarget: calories,
+    proteinG: Math.round((calories * split.protein) / 4),
+    carbsG: Math.round((calories * split.carbs) / 4),
+    fatG: Math.round((calories * split.fat) / 9),
+  };
+}
+
 // ─── Input / Output Types ─────────────────────────────────────────────────────
 
 export interface SetupPreferencesInput {

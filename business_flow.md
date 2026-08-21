@@ -314,9 +314,11 @@ mealPlan.generate { weekOffset }
   │
   └─ PREMIUM user (or ADMIN)
        ├─ load ChefProfile + DietaryPreferences (profile required)
-       ├─ calorie target recomputed LIVE from body metrics + goal
-       │   (Mifflin-St Jeor TDEE ± goal adjustment — the stored
-       │   dailyCalorieTarget is only a display snapshot)
+       ├─ calorie + macro targets from resolveDailyTargets()
+       │   (preferences.service — THE single source: live Mifflin-St Jeor
+       │   TDEE ± goal adjustment when metrics are complete, else the stored
+       │   snapshot. The dashboard ring and tracker read the same resolver,
+       │   so a goal change moves all three together.)
        ├─ IAIService.generateMealPlan (Gemini) → 21 personalised recipes
        ├─ image reuse: recipes whose name matches a previously generated
        │   DONE image are marked DONE immediately

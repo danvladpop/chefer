@@ -16,7 +16,7 @@ import {
   pickRandomCurated,
 } from '../../lib/curated-recipes/index.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
-import { computeCalorieTarget } from '../preferences/preferences.service.js';
+import { resolveDailyTargets } from '../preferences/preferences.service.js';
 
 // ─── Shopping list types ───────────────────────────────────────────────────────
 
@@ -210,22 +210,10 @@ export class MealPlanService {
       });
     }
 
-    // 2. Build the AI input from stored preferences.
-    // The calorie target is recomputed live from body metrics + goal so the
-    // plan always matches the Preferences page (the stored dailyCalorieTarget
-    // is a snapshot and can predate goal-adjustment logic or metric changes —
-    // e.g. holding the raw TDEE without the fat-loss deficit).
-    const liveCalorieTarget =
-      chefProfile.weightKg && chefProfile.heightCm && chefProfile.age && chefProfile.activityLevel
-        ? computeCalorieTarget(
-            chefProfile.weightKg,
-            chefProfile.heightCm,
-            chefProfile.age,
-            chefProfile.activityLevel,
-            chefProfile.biologicalSex,
-            chefProfile.goal,
-          )
-        : null;
+    // 2. Build the AI input from stored preferences. Targets come from the
+    // shared resolver so the generated plan always matches what the dashboard
+    // ring and tracker display.
+    const liveCalorieTarget = resolveDailyTargets(chefProfile).dailyCalorieTarget;
 
     const aiInput = {
       userId,
@@ -235,7 +223,7 @@ export class MealPlanService {
       heightCm: chefProfile.heightCm ?? 175,
       weightKg: chefProfile.weightKg ?? 75,
       activityLevel: chefProfile.activityLevel ?? 'MODERATELY_ACTIVE',
-      dailyCalorieTarget: liveCalorieTarget ?? chefProfile.dailyCalorieTarget ?? 2000,
+      dailyCalorieTarget: liveCalorieTarget,
       dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
       allergies: dietaryPrefs?.allergies ?? [],
       dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
