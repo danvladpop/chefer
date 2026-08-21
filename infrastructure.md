@@ -96,14 +96,20 @@ chefer/
 
 ### pnpm Workspaces
 
-`pnpm-workspace.yaml` declares three workspace roots:
+`pnpm-workspace.yaml` declares four workspace roots:
 
 ```yaml
 packages:
   - 'apps/*'
   - 'packages/*'
   - 'packages/config/*'
+  - 'tests'
 ```
+
+`tests` is the `@chefer/e2e` package. It owns the Playwright dependency and
+config so the suite can be run from the repo root (`pnpm test:e2e`); previously
+Playwright lived in `apps/web` while the config sat in `tests/`, and neither
+location could actually run it.
 
 All internal packages are referenced via `workspace:*` protocol (e.g., `"@chefer/database": "workspace:*"`).
 
