@@ -6,49 +6,38 @@ test.describe('Home Page', () => {
   });
 
   test('renders the hero section with correct heading', async ({ page }) => {
-    // Check the main heading
     const heading = page.getByRole('heading', { level: 1 });
     await expect(heading).toBeVisible();
-    await expect(heading).toContainText('confidence');
-  });
-
-  test('renders the tech stack section', async ({ page }) => {
-    await expect(page.getByText('Built with industry-standard tools')).toBeVisible();
-    await expect(page.getByText('Next.js 15')).toBeVisible();
-    await expect(page.getByText('TypeScript 5')).toBeVisible();
-    await expect(page.getByText('tRPC v11')).toBeVisible();
+    await expect(heading).toContainText('personal chef');
   });
 
   test('renders all feature cards', async ({ page }) => {
-    await expect(page.getByText('Type-Safe API')).toBeVisible();
-    await expect(page.getByText('Modern Stack')).toBeVisible();
-    await expect(page.getByText('Database Ready')).toBeVisible();
-    await expect(page.getByText('Testing Suite')).toBeVisible();
-    await expect(page.getByText('DX First')).toBeVisible();
-    await expect(page.getByText('Production Ready')).toBeVisible();
+    await expect(page.getByText('Weekly AI Meal Plans')).toBeVisible();
+    await expect(page.getByText('Personalized Goals')).toBeVisible();
+    await expect(page.getByText('Smart Shopping Lists')).toBeVisible();
   });
 
-  test('Get Started button links to dashboard', async ({ page }) => {
-    const getStartedLink = page.getByRole('link', { name: 'Get Started' });
-    await expect(getStartedLink).toBeVisible();
-    await expect(getStartedLink).toHaveAttribute('href', '/dashboard');
+  test('hero CTAs link to register and login', async ({ page }) => {
+    const getStarted = page.getByRole('link', { name: /get started for free/i });
+    await expect(getStarted).toBeVisible();
+    await expect(getStarted).toHaveAttribute('href', '/register');
+
+    const signIn = page.getByRole('link', { name: /^sign in$/i });
+    await expect(signIn).toBeVisible();
+    await expect(signIn).toHaveAttribute('href', '/login');
   });
 
   test('has the correct page title', async ({ page }) => {
-    await expect(page).toHaveTitle(/Chefer/);
+    await expect(page).toHaveTitle(/PersonalChef/);
   });
 
   test('has proper meta description', async ({ page }) => {
     const metaDescription = page.locator('meta[name="description"]');
-    await expect(metaDescription).toHaveAttribute('content', /monorepo/i);
+    await expect(metaDescription).toHaveAttribute('content', /meal plan/i);
   });
 
-  test('footer contains license text', async ({ page }) => {
-    await expect(page.getByText('MIT License')).toBeVisible();
-  });
-
-  test('CTA section has setup command', async ({ page }) => {
-    await expect(page.getByText(/setup\.sh/)).toBeVisible();
+  test('footer contains the copyright line', async ({ page }) => {
+    await expect(page.getByText(/All rights reserved/)).toBeVisible();
   });
 });
 
@@ -71,9 +60,13 @@ test.describe('Login Page', () => {
     await page.goto('/login');
   });
 
+  // /^password/ avoids the strict-mode clash with the "Show password" toggle,
+  // whose accessible name also matches a bare /password/i.
+  const passwordField = (page: import('@playwright/test').Page) => page.getByLabel(/^password/i);
+
   test('renders login form with all required fields', async ({ page }) => {
     await expect(page.getByLabel(/email address/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+    await expect(passwordField(page)).toBeVisible();
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
   });
 
@@ -86,7 +79,7 @@ test.describe('Login Page', () => {
 
   test('shows error for invalid email format', async ({ page }) => {
     await page.getByLabel(/email address/i).fill('not-an-email');
-    await page.getByLabel(/password/i).fill('password123');
+    await passwordField(page).fill('password123');
     await page.getByRole('button', { name: /sign in/i }).click();
 
     await expect(page.getByText('Please enter a valid email address')).toBeVisible();
@@ -101,8 +94,10 @@ test.describe('Login Page', () => {
   });
 
   test('password visibility toggle works', async ({ page }) => {
-    const passwordInput = page.getByLabel(/password/i);
-    const toggleButton = page.getByRole('button', { name: /show password/i });
+    const passwordInput = passwordField(page);
+    // The toggle's accessible name flips between "Show password" and
+    // "Hide password" — match both so the second click still resolves.
+    const toggleButton = page.getByRole('button', { name: /(show|hide) password/i });
 
     await expect(passwordInput).toHaveAttribute('type', 'password');
     await toggleButton.click();
@@ -116,12 +111,12 @@ test.describe('Accessibility', () => {
   test('home page has no critical accessibility violations', async ({ page }) => {
     await page.goto('/');
 
-    // Check for proper heading hierarchy
     const h1 = page.getByRole('heading', { level: 1 });
     await expect(h1).toBeVisible();
 
-    // Check that all images have alt text
-    const images = page.getByRole('img');
+    // Scope to real <img> elements — inline SVGs also expose the img role but
+    // take aria-label/<title> rather than alt.
+    const images = page.locator('img');
     const imageCount = await images.count();
     for (let i = 0; i < imageCount; i++) {
       await expect(images.nth(i)).toHaveAttribute('alt');
@@ -132,13 +127,12 @@ test.describe('Accessibility', () => {
     await page.goto('/login');
 
     await expect(page.getByLabel(/email address/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+    await expect(page.getByLabel(/^password/i)).toBeVisible();
   });
 
   test('keyboard navigation works on home page', async ({ page }) => {
     await page.goto('/');
 
-    // Tab through interactive elements
     await page.keyboard.press('Tab');
     const focusedElement = page.locator(':focus');
     await expect(focusedElement).toBeVisible();
