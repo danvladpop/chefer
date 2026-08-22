@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useAuth } from '@/features/auth/hooks/use-auth';
-import { ChevronDown, LogOut, Menu, Settings, User } from 'lucide-react';
+import { ChevronDown, LogOut, Menu, Settings, ShieldCheck, User } from 'lucide-react';
 import { cn } from '@chefer/utils';
 
 interface TopHeaderProps {
@@ -89,6 +89,16 @@ export function TopHeader({ title, onOpenMenu }: TopHeaderProps) {
                   <Settings className="h-4 w-4 text-gray-500" aria-hidden="true" />
                   Preferences
                 </Link>
+                {user.role === 'ADMIN' && (
+                  <Link
+                    href="/admin/users"
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-11 w-full items-center gap-2 border-b px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <ShieldCheck className="h-4 w-4 text-gray-500" aria-hidden="true" />
+                    Admin · Users
+                  </Link>
+                )}
                 <button
                   onClick={() => {
                     setOpen(false);

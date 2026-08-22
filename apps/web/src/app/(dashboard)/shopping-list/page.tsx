@@ -166,7 +166,10 @@ export default function ShoppingListPage() {
                 </span>
               </button>
             ) : (
-              <UpgradeButton className="min-h-11 flex-1 sm:min-h-0 sm:flex-none" />
+              <UpgradeButton
+                className="min-h-11 flex-1 sm:min-h-0 sm:flex-none"
+                source="shopping-list"
+              />
             )}
 
             <div className="relative shrink-0">

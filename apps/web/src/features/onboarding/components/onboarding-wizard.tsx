@@ -180,6 +180,7 @@ export function OnboardingWizard({ isPremium }: { isPremium: boolean }) {
                 </p>
               </div>
               <UpgradeCard
+                source="onboarding"
                 title="Go further with a personal profile"
                 description="Premium adds goals, body metrics and calorie targets — and the AI chef generates every week around them."
               />

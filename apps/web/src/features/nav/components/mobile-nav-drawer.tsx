@@ -92,7 +92,7 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
             <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
               Generic recipes only. Go premium for your personal AI chef.
             </p>
-            <UpgradeButton className="mt-2 w-full" />
+            <UpgradeButton className="mt-2 w-full" source="mobile-drawer" />
           </div>
         )}
         {isPremium === true && (

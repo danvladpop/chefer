@@ -303,15 +303,28 @@ Users have a `planTier` (`FREE` by default, `PREMIUM` after upgrading). Admins a
 
 Changing a limit or moving a feature between tiers is an edit to that one file; enforcement and marketing copy follow automatically.
 
-### Upgrade flow (demo — no payment integration)
+### Upgrade & downgrade flow (soft paywall, PW-2 — no payment integration)
 
 ```
-"Upgrade plan" button (sidebar / meal-plan banner / preferences / profile)
-  → confirmation dialog
-  → user.upgradePlan mutation (protected)
-  → planTier = PREMIUM
-  → user.me invalidated → UI unlocks instantly
+UpgradeButton (ONE shared surface; every touchpoint passes a `source`)
+  sources: sidebar, mobile-drawer, meal-plan-banner, pool-exhaustion,
+           shopping-list, preferences-locked, onboarding, profile-page, swap
+  → capture('upgrade_prompt_shown' { source })
+  → Sheet dialog ("free during the beta") → capture('upgrade_clicked')
+  → user.upgradePlan (protected) → planTier = PREMIUM
+  → capture('upgrade_completed') → full cache invalidate + router.refresh
+
+DowngradeButton (profile page, premium users)
+  → inline confirm → user.downgradePlan → planTier = FREE
+  → capture('downgrade_completed')
+
+Admin (/admin/users, adminProcedure-gated)
+  → user.list search + user.aiCallsToday usage → user.setPlanTier flips
+    any user's tier without touching prod psql
 ```
+
+The `source`-tagged events are the input to the PW-3 funnel (prompt → click →
+complete conversion by touchpoint).
 
 ### Weekly plan generation
 

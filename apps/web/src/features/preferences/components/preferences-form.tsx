@@ -238,6 +238,7 @@ export function PreferencesForm({
             upgrade panel instead (mutations are server-gated regardless). */}
         {!isPremium && (
           <UpgradeCard
+            source="preferences-locked"
             title="Unlock your personal targets"
             description="Set your goal, body metrics and cuisine preferences, and the AI chef builds every plan around them. Your allergies and restrictions above are always respected — on any plan."
           />

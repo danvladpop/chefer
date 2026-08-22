@@ -338,7 +338,10 @@ export default function MealPlanPage() {
             <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
             {poolExhaustedMessage}
           </p>
-          <UpgradeButton className="min-h-11 w-full sm:min-h-0 sm:w-auto sm:shrink-0" />
+          <UpgradeButton
+            className="min-h-11 w-full sm:min-h-0 sm:w-auto sm:shrink-0"
+            source="pool-exhaustion"
+          />
         </div>
       )}
 
@@ -350,7 +353,10 @@ export default function MealPlanPage() {
             You&apos;re on the free plan: chef-picked recipes that respect your allergies and
             restrictions. Upgrade for AI plans tailored to your goals and taste.
           </p>
-          <UpgradeButton className="min-h-11 w-full sm:min-h-0 sm:w-auto sm:shrink-0" />
+          <UpgradeButton
+            className="min-h-11 w-full sm:min-h-0 sm:w-auto sm:shrink-0"
+            source="meal-plan-banner"
+          />
         </div>
       )}
 

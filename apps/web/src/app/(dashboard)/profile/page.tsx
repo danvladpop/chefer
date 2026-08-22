@@ -1,6 +1,6 @@
 'use client';
 
-import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
+import { DowngradeButton, UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { trpc } from '@/lib/trpc';
 
 // ─── Usage bar ────────────────────────────────────────────────────────────────
@@ -131,9 +131,17 @@ export default function ProfilePage() {
       {user && user.planTier !== 'PREMIUM' && user.role !== 'ADMIN' && (
         <div className="mb-6">
           <UpgradeCard
+            source="profile-page"
             title="Go Premium"
             description="Unlock AI meal plans tailored to your goals, AI-powered swaps, and your personal nutrition profile."
           />
+        </div>
+      )}
+
+      {/* Self-service downgrade (PW-2) — honest during the free beta */}
+      {user?.planTier === 'PREMIUM' && (
+        <div className="mb-6 flex justify-end">
+          <DowngradeButton />
         </div>
       )}
 

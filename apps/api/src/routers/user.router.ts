@@ -136,6 +136,42 @@ export const userRouter = router({
   }),
 
   /**
+   * Self-service downgrade back to FREE (PW-2). Needed to test both sides of
+   * every gate, and honest during a free beta.
+   */
+  downgradePlan: protectedProcedure.mutation(async ({ ctx }) => {
+    return userService.update(ctx.user.id, { planTier: 'FREE' });
+  }),
+
+  /**
+   * Admin tier management (PW-2) — "a DB flag that can be changed" without
+   * SSH-ing into prod psql. Backs the /admin/users page.
+   */
+  setPlanTier: adminProcedure
+    .input(z.object({ userId: z.string().cuid(), planTier: z.enum(['FREE', 'PREMIUM']) }))
+    .mutation(async ({ input }) => {
+      return userService.update(input.userId, { planTier: input.planTier });
+    }),
+
+  /**
+   * Today's AI call counts for a set of users (PW-2 admin page). Same direct
+   * aiCallLog read the profile router uses.
+   */
+  aiCallsToday: adminProcedure
+    .input(z.object({ userIds: z.array(z.string().cuid()).min(1).max(100) }))
+    .query(async ({ input }) => {
+      const { prisma } = await import('@chefer/database');
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const rows = await prisma.aiCallLog.groupBy({
+        by: ['userId'],
+        where: { userId: { in: input.userIds }, createdAt: { gte: todayStart } },
+        _count: { _all: true },
+      });
+      return Object.fromEntries(rows.map((r) => [r.userId, r._count._all]));
+    }),
+
+  /**
    * Update the current user's own profile.
    */
   updateProfile: protectedProcedure

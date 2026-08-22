@@ -12,6 +12,7 @@ const PROTECTED_ROUTES = [
   '/progress',
   '/shopping-list',
   '/profile',
+  '/admin',
 ];
 
 export function middleware(request: NextRequest) {
@@ -48,6 +49,7 @@ export const config = {
     '/ingredients/:path*',
     '/progress/:path*',
     '/shopping-list/:path*',
+    '/admin/:path*',
     '/profile/:path*',
   ],
 };

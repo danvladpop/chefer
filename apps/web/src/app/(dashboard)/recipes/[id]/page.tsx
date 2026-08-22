@@ -3,9 +3,11 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useState } from 'react';
+import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
+import { useIsPremium } from '@/hooks/useIsPremium';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, Clock, Flame, Heart, Library, RefreshCw, Search, Users } from 'lucide-react';
@@ -34,6 +36,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const unitSystem = useUnitSystem();
+  const isPremium = useIsPremium();
 
   const planId = searchParams.get('planId');
   const day = searchParams.get('day');
@@ -243,6 +246,15 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
                 <p className="w-full text-center text-xs text-red-500">
                   {swapMutation.error?.message ?? 'Swap failed. Please try again.'}
                 </p>
+              )}
+
+              {/* Swap touchpoint (PW-2): free swaps draw from the curated
+                  pool — the moment of need for the AI alternative. */}
+              {isPremium === false && (
+                <span className="flex w-full items-center justify-center gap-2 pt-1 text-[11px] text-gray-500">
+                  Free swaps pick from the chef-curated pool.
+                  <UpgradeButton className="px-2 py-1 text-[11px]" source="swap" />
+                </span>
               )}
             </>
           )}
