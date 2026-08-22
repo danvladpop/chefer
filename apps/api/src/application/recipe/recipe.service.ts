@@ -68,6 +68,15 @@ export class RecipeService {
     return favouriteRecipeRepository.isSaved(userId, recipeId);
   }
 
+  /** Saved + pinned state in one lookup — backs the recipe page toggle. */
+  async getFavouriteState(
+    userId: string,
+    recipeId: string,
+  ): Promise<{ isSaved: boolean; useInNextPlan: boolean }> {
+    const favourite = await favouriteRecipeRepository.findFavourite(userId, recipeId);
+    return { isSaved: favourite !== null, useInNextPlan: favourite?.useInNextPlan ?? false };
+  }
+
   async toggleUseInNextPlan(
     userId: string,
     recipeId: string,

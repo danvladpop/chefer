@@ -10,6 +10,7 @@ import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { useRecipeImageStream, type RecipeImageUpdate } from '@/hooks/useRecipeImageStream';
+import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import {
   CalendarDays,
@@ -169,11 +170,13 @@ export default function MealPlanPage() {
     },
     onSettled: () => setIsGenerating(false),
     onSuccess: (data) => {
+      capture('plan_generated', { tier: isPremium ? 'premium' : 'free', weekOffset });
       setPersonalisation(data.personalisation ?? null);
       void refetch();
     },
     onError: (err) => {
       if (err.data?.code === 'PRECONDITION_FAILED') {
+        capture('pool_exhausted');
         setPoolExhaustedMessage(err.message);
       } else {
         alert(`Failed to generate meal plan: ${err.message}`);

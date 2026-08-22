@@ -324,7 +324,12 @@ Admin (/admin/users, adminProcedure-gated)
 ```
 
 The `source`-tagged events are the input to the PW-3 funnel (prompt → click →
-complete conversion by touchpoint).
+complete conversion by touchpoint). PW-3 adds per-feature usage events
+(`plan_generated`, `meal_swapped`, `chat_message_sent`,
+`shopping_list_regenerated`, `preferences_saved`, `recipe_rated`,
+`recipe_pinned`, `pool_exhausted`) and a `planTier` person property on
+identify — the full dictionary and the one-time PostHog/Sentry dashboard
+setup live in [`docs/analytics-funnel.md`](./docs/analytics-funnel.md).
 
 ### Weekly plan generation
 

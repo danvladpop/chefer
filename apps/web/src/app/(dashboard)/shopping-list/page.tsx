@@ -8,6 +8,7 @@ import { WeekNavigator } from '@/features/shopping-list/components/WeekNavigator
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
+import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import {
   CheckCircle2,
@@ -83,6 +84,7 @@ export default function ShoppingListPage() {
   // AI-regenerate mutation — updates the getForWeek cache inline on success
   const regenerateMutation = trpc.shoppingList.regenerate.useMutation({
     onSuccess: (data) => {
+      capture('shopping_list_regenerated');
       utils.shoppingList.getForWeek.setData({ weekOffset }, data);
     },
   });

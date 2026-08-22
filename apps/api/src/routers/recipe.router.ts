@@ -135,8 +135,9 @@ export const recipeRouter = router({
   isSaved: protectedProcedure
     .input(z.object({ recipeId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
-      const saved = await recipeService.isSaved(ctx.user.id, input.recipeId);
-      return { isSaved: saved };
+      // Includes the pin state so the recipe page can render the
+      // "use in next plan" toggle (P1-1's producer side).
+      return recipeService.getFavouriteState(ctx.user.id, input.recipeId);
     }),
 
   /**

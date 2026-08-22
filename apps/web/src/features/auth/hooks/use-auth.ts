@@ -26,8 +26,8 @@ export function useAuth() {
   // registrations and returning sessions alike, since they all resolve
   // auth.me on the app shell. identify() is idempotent.
   useEffect(() => {
-    if (user?.id) identifyUser(user.id);
-  }, [user?.id]);
+    if (user?.id) identifyUser(user.id, user.planTier);
+  }, [user?.id, user?.planTier]);
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSettled: () => {

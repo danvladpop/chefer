@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Star } from 'lucide-react';
 
@@ -19,6 +20,7 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
   const utils = trpc.useUtils();
   const rateMutation = trpc.recipe.rate.useMutation({
     onSuccess: (data) => {
+      capture('recipe_rated', { rating: data.rating });
       setSelected(data.rating);
       setNotes(data.notes ?? '');
       setSaved(true);

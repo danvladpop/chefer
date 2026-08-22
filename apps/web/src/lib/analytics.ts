@@ -25,9 +25,11 @@ export function initAnalytics(): void {
   posthog.register({ environment: process.env.NODE_ENV });
 }
 
-/** Ties events to the account. User ID only — no email or name (PII stays out). */
-export function identifyUser(userId: string): void {
-  if (enabled) posthog.identify(userId);
+/** Ties events to the account. User ID + plan tier only — no email or name
+    (PII stays out). The tier person-property lets every insight segment
+    premium vs free (PW-3). */
+export function identifyUser(userId: string, planTier?: string): void {
+  if (enabled) posthog.identify(userId, planTier ? { planTier } : undefined);
 }
 
 /** Called on logout so the next session isn't attributed to the old account. */

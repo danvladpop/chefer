@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { capture } from '@/lib/analytics';
 import { useChat } from '@ai-sdk/react';
 import { TextStreamChatTransport, type UIMessage } from 'ai';
 import { MessageCircle, Send, X } from 'lucide-react';
@@ -40,12 +41,14 @@ export function ChatWidget() {
     if (!text || isLoading) return;
     setInputValue('');
     setChatError(null);
+    capture('chat_message_sent');
     void sendMessage({ text });
   };
 
   const sendSuggested = (prompt: string) => {
     if (isLoading) return;
     setChatError(null);
+    capture('chat_message_sent', { suggested: true });
     void sendMessage({ text: prompt });
   };
 

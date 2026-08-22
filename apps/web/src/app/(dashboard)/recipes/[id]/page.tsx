@@ -9,8 +9,19 @@ import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailIma
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
+import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import { ArrowLeft, Clock, Flame, Heart, Library, RefreshCw, Search, Users } from 'lucide-react';
+import {
+  ArrowLeft,
+  Clock,
+  Flame,
+  Heart,
+  Library,
+  Pin,
+  RefreshCw,
+  Search,
+  Users,
+} from 'lucide-react';
 import { Sheet } from '@chefer/ui';
 import { formatQuantity } from '@chefer/utils';
 
@@ -65,8 +76,18 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
     },
   });
 
+  // Pin for next plan (P1-1's producer side — generation reads this flag).
+  const isPinned = savedData?.useInNextPlan ?? false;
+  const togglePin = trpc.recipe.toggleUseInNextPlan.useMutation({
+    onSuccess: (data) => {
+      capture('recipe_pinned', { pinned: data.useInNextPlan });
+      void utils.recipe.isSaved.invalidate({ recipeId: id });
+    },
+  });
+
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
     onSuccess: (newRecipe) => {
+      capture('meal_swapped', { tier: isPremium ? 'premium' : 'free' });
       void utils.mealPlan.getForWeek.invalidate();
       void utils.mealPlan.getActive.invalidate();
       router.push(`/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}`);
@@ -209,6 +230,23 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             <Heart className={`h-3.5 w-3.5 ${isSaved ? 'fill-[#944a00]' : ''}`} />
             {isSaved ? 'Saved' : 'Save'}
           </button>
+
+          {/* Pin for the next generated plan — only meaningful once saved */}
+          {isSaved && (
+            <button
+              onClick={() => togglePin.mutate({ recipeId: id, useInNextPlan: !isPinned })}
+              disabled={togglePin.isPending}
+              title="Pinned recipes are guaranteed a slot in your next generated plan"
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium shadow-sm disabled:opacity-60 ${
+                isPinned
+                  ? 'border-[#944a00] bg-[#fff3e8] text-[#944a00]'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]'
+              }`}
+            >
+              <Pin className={`h-3.5 w-3.5 ${isPinned ? 'fill-[#944a00]' : ''}`} />
+              {isPinned ? 'Pinned for next plan' : 'Pin for next plan'}
+            </button>
+          )}
 
           {/* Meal-plan action buttons — only when accessed from the planner */}
           {hasSwapContext && (

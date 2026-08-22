@@ -8,6 +8,7 @@ import { StepGoal } from '@/features/onboarding/components/step-goal';
 import { StepMetrics } from '@/features/onboarding/components/step-metrics';
 import type { ActivityLevel, BiologicalSex, Goal } from '@/features/onboarding/types';
 import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
+import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Toast } from '@chefer/ui';
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
@@ -156,6 +157,7 @@ export function PreferencesForm({
   const isSaving = safetyMutation.isPending || targetsMutation.isPending;
 
   function onSaved() {
+    capture('preferences_saved', { premium: isPremium });
     setToast({ message: 'Preferences saved — taking you to your dashboard…', type: 'success' });
     // Unit system, calorie target etc. are read elsewhere (shopping list,
     // recipe pages) via preferences.get — refresh those caches immediately
