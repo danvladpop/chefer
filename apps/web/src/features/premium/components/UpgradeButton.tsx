@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Check, Sparkles } from 'lucide-react';
@@ -19,10 +20,16 @@ const PREMIUM_PERKS = [
 export function UpgradeButton({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const utils = trpc.useUtils();
+  const router = useRouter();
 
   const upgradeMutation = trpc.user.upgradePlan.useMutation({
     onSuccess: () => {
-      void utils.user.me.invalidate();
+      // The tier gates data everywhere (plans, preferences, quotas) — drop the
+      // whole client cache, and refresh server components: the upgrade panels
+      // on /onboarding and /preferences are rendered server-side, so a client
+      // cache invalidation alone leaves them visible after upgrading.
+      void utils.invalidate();
+      router.refresh();
       setOpen(false);
     },
   });

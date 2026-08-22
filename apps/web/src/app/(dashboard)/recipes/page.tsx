@@ -31,22 +31,32 @@ export default function RecipesPage() {
     }, 300);
   };
 
-  const { data: recipes, isLoading } = trpc.recipe.list.useQuery({
+  const listInput = {
     search: debouncedSearch || undefined,
     savedOnly: tab === 'saved',
     myRecipesOnly: tab === 'my',
     limit: 30,
-  });
+  };
+  const { data: recipes, isLoading } = trpc.recipe.list.useQuery(listInput);
 
   const utils = trpc.useUtils();
   const toggleFav = trpc.recipe.toggleFavourite.useMutation({
-    onSuccess: () => {
+    // Optimistic: flip the heart immediately, reconcile with the server after.
+    onMutate: async ({ recipeId }) => {
+      await utils.recipe.list.cancel(listInput);
+      const previous = utils.recipe.list.getData(listInput);
+      utils.recipe.list.setData(listInput, (old) =>
+        old?.map((r) => (r.id === recipeId ? { ...r, isFavourite: !r.isFavourite } : r)),
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) utils.recipe.list.setData(listInput, context.previous);
+    },
+    onSettled: () => {
       void utils.recipe.list.invalidate();
     },
   });
-
-  // Check saved status for each recipe
-  const savedIds = new Set(tab === 'saved' ? recipes?.map((r) => r.id) : []);
 
   const handleTabChange = (t: Tab) => {
     setTab(t);
@@ -124,7 +134,7 @@ export default function RecipesPage() {
               carbs: number;
               fat: number;
             };
-            const isSaved = savedIds.has(recipe.id) || tab === 'saved';
+            const isSaved = recipe.isFavourite;
             return (
               <div
                 key={recipe.id}

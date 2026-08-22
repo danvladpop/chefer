@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -21,11 +22,16 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
+      // The query cache is a module-level singleton that survives client-side
+      // navigation — without a clear, everything cached for the previous
+      // account (auth.me, plans, dashboard) is served to the new one.
+      queryClient.clear();
       router.push('/dashboard');
       router.refresh();
     },

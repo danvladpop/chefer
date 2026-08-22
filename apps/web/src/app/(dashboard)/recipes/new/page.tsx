@@ -98,7 +98,7 @@ export default function NewRecipePage() {
     protein: '',
     carbs: '',
     fat: '',
-    fiber: '0',
+    fiber: '',
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -616,6 +616,7 @@ export default function NewRecipePage() {
                       step="0.1"
                       value={manual[key]}
                       onChange={(e) => setManual((m) => ({ ...m, [key]: e.target.value }))}
+                      onFocus={(e) => e.currentTarget.select()}
                       className={inputCls(key === 'calories' && !!errors.calories)}
                     />
                   </Field>

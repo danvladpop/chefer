@@ -439,6 +439,7 @@ export default function EditRecipePage() {
                 min={0}
                 value={nutrition.calories}
                 onChange={(e) => setNutrition((n) => ({ ...n, calories: e.target.value }))}
+                onFocus={(e) => e.currentTarget.select()}
                 className={inputCls(!!errors.calories)}
               />
             </Field>
@@ -449,6 +450,7 @@ export default function EditRecipePage() {
                 step="0.1"
                 value={nutrition.protein}
                 onChange={(e) => setNutrition((n) => ({ ...n, protein: e.target.value }))}
+                onFocus={(e) => e.currentTarget.select()}
                 className={inputCls(false)}
               />
             </Field>
@@ -459,6 +461,7 @@ export default function EditRecipePage() {
                 step="0.1"
                 value={nutrition.carbs}
                 onChange={(e) => setNutrition((n) => ({ ...n, carbs: e.target.value }))}
+                onFocus={(e) => e.currentTarget.select()}
                 className={inputCls(false)}
               />
             </Field>
@@ -469,6 +472,7 @@ export default function EditRecipePage() {
                 step="0.1"
                 value={nutrition.fat}
                 onChange={(e) => setNutrition((n) => ({ ...n, fat: e.target.value }))}
+                onFocus={(e) => e.currentTarget.select()}
                 className={inputCls(false)}
               />
             </Field>
@@ -479,6 +483,7 @@ export default function EditRecipePage() {
                 step="0.1"
                 value={nutrition.fiber}
                 onChange={(e) => setNutrition((n) => ({ ...n, fiber: e.target.value }))}
+                onFocus={(e) => e.currentTarget.select()}
                 className={inputCls(false)}
               />
             </Field>

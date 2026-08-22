@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { StepCuisine } from '@/features/onboarding/components/step-cuisine';
 import { StepDiet } from '@/features/onboarding/components/step-diet';
@@ -136,13 +137,19 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const utils = trpc.useUtils();
+  const router = useRouter();
 
   const updateMutation = trpc.preferences.update.useMutation({
     onSuccess: () => {
-      setToast({ message: 'Preferences saved successfully.', type: 'success' });
+      setToast({ message: 'Preferences saved — taking you to your dashboard…', type: 'success' });
       // Unit system, calorie target etc. are read elsewhere (shopping list,
       // recipe pages) via preferences.get — refresh those caches immediately
       void utils.preferences.get.invalidate();
+      void utils.dashboard.invalidate();
+      // Brief pause so the confirmation is seen before leaving the page.
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 900);
     },
     onError: (err) => {
       setToast({ message: err.message || 'Failed to save preferences.', type: 'error' });
@@ -231,40 +238,13 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
           />
         </Section>
 
-        {/* Shopping & Delivery */}
+        {/* Units. Delivery address and currency were removed from this form
+            (2026-08-22): no shipped feature reads the address, and prices are
+            EUR-only until roadmap P2-4 honours deliveryCurrency end-to-end.
+            The stored values pass through handleSave untouched. */}
         <Section>
-          <h2 className="mb-4 text-base font-semibold">Shopping &amp; Delivery</h2>
+          <h2 className="mb-4 text-base font-semibold">Units</h2>
           <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">
-                Delivery Address
-              </label>
-              <textarea
-                value={data.deliveryAddress}
-                onChange={(e) => setData((d) => ({ ...d, deliveryAddress: e.target.value }))}
-                placeholder="Enter your delivery address…"
-                rows={2}
-                className="w-full resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Used for local store suggestions and delivery estimates in the Shopping List.
-              </p>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">
-                Preferred Currency
-              </label>
-              <select
-                value={data.deliveryCurrency}
-                onChange={(e) => setData((d) => ({ ...d, deliveryCurrency: e.target.value }))}
-                className="rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="EUR">EUR — Euro (€)</option>
-                <option value="USD">USD — US Dollar ($)</option>
-                <option value="GBP">GBP — British Pound (£)</option>
-                <option value="RON">RON — Romanian Leu</option>
-              </select>
-            </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-foreground">
                 Measurement Units

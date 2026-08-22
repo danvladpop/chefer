@@ -21,8 +21,13 @@ export class RecipeService {
       cursor?: string | undefined;
       limit?: number | undefined;
     },
-  ): Promise<Recipe[]> {
-    return favouriteRecipeRepository.findAllRecipesForUser(userId, opts);
+  ): Promise<(Recipe & { isFavourite: boolean })[]> {
+    const [recipes, savedIds] = await Promise.all([
+      favouriteRecipeRepository.findAllRecipesForUser(userId, opts),
+      favouriteRecipeRepository.findSavedRecipeIds(userId),
+    ]);
+    const saved = new Set(savedIds);
+    return recipes.map((recipe) => ({ ...recipe, isFavourite: saved.has(recipe.id) }));
   }
 
   async create(userId: string, data: CreateManualRecipeData): Promise<Recipe> {

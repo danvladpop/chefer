@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 const registerSchema = z
@@ -24,11 +25,14 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export function RegisterForm() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const registerMutation = trpc.auth.register.useMutation({
     onSuccess: () => {
+      // Same as login: drop anything cached for a previously signed-in account.
+      queryClient.clear();
       router.push('/onboarding');
       router.refresh();
     },

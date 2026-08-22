@@ -10,8 +10,10 @@ export const metadata: Metadata = {
 
 export default function ForgotPasswordPage() {
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-8 sm:py-12">
-      <div className="w-full max-w-md space-y-8">
+    <div className="flex min-h-dvh flex-col items-center px-4 py-8 sm:py-12">
+      {/* my-auto (not justify-center on the parent): auto margins collapse to 0
+          when the card overflows a short phone viewport, keeping the top reachable. */}
+      <div className="my-auto w-full max-w-md space-y-8">
         <div className="text-center">
           <Link href="/" className="inline-flex items-center gap-2 text-2xl font-bold">
             <span className="text-3xl" aria-hidden="true">

@@ -4,12 +4,14 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { identifyUser, resetAnalytics } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
+import { useQueryClient } from '@tanstack/react-query';
 
 /**
  * Hook for accessing and managing authentication state via tRPC.
  */
 export function useAuth() {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const {
     data: user,
@@ -30,6 +32,9 @@ export function useAuth() {
   const logoutMutation = trpc.auth.logout.useMutation({
     onSettled: () => {
       resetAnalytics();
+      // Drop every cached query — the singleton query cache would otherwise
+      // keep serving this account's data to whoever signs in next.
+      queryClient.clear();
       router.push('/login');
       router.refresh();
     },

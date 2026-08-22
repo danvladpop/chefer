@@ -23,6 +23,7 @@ export interface CreateManualRecipeData {
 export interface IFavouriteRecipeRepository {
   findByUserId(userId: string, limit?: number): Promise<FavouriteRecipeWithRecipe[]>;
   isSaved(userId: string, recipeId: string): Promise<boolean>;
+  findSavedRecipeIds(userId: string): Promise<string[]>;
   save(userId: string, recipeId: string): Promise<FavouriteRecipe>;
   remove(userId: string, recipeId: string): Promise<void>;
   toggleUseInNextPlan(
@@ -66,6 +67,14 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
       where: { userId_recipeId: { userId, recipeId } },
     });
     return row !== null;
+  }
+
+  async findSavedRecipeIds(userId: string): Promise<string[]> {
+    const rows = await prisma.favouriteRecipe.findMany({
+      where: { userId },
+      select: { recipeId: true },
+    });
+    return rows.map((r: { recipeId: string }) => r.recipeId);
   }
 
   async save(userId: string, recipeId: string): Promise<FavouriteRecipe> {
