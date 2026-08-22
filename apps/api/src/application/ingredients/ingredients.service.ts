@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
-import { prisma } from '@chefer/database';
+import { AiCallType, prisma } from '@chefer/database';
+import { aiService } from '../../lib/ai/index.js';
 import { buildPollinationsUrl } from '../../lib/image-gen/pollinations.js';
 import { resolveIngredientImage } from '../../lib/ingredient-images/index.js';
 import {
@@ -326,6 +327,83 @@ export class IngredientsService {
       imageUrl: row.imageUrl ?? (await resolveIngredientImage(row.ingredientName)),
       hasMacros: true,
       isCustom: true,
+    };
+  }
+
+  /**
+   * Estimates per-100g nutrition (and typical piece weight / baseline prices)
+   * for a single ingredient name, for the "Auto-fill" button on the ingredient
+   * form. Catalog rows that already carry macros are returned without an AI
+   * call; only genuinely unknown names cost a Gemini request.
+   */
+  async estimateNutrition(
+    userId: string,
+    rawName: string,
+  ): Promise<{
+    caloriesPer100g: number | null;
+    proteinPer100g: number | null;
+    carbsPer100g: number | null;
+    fatPer100g: number | null;
+    fiberPer100g: number | null;
+    gramsPerPiece: number | null;
+    pricePer100gEur: number | null;
+    pricePer100mlEur: number | null;
+    pricePerPieceEur: number | null;
+    source: 'catalog' | 'ai';
+  } | null> {
+    const name = normalizeIngredientName(rawName);
+
+    const existing = await prisma.ingredientPrice.findFirst({
+      where: {
+        ingredientName: name,
+        OR: [{ creatorId: null }, { creatorId: userId }],
+        caloriesPer100g: { not: null },
+      },
+    });
+    if (existing) {
+      return {
+        caloriesPer100g: existing.caloriesPer100g,
+        proteinPer100g: existing.proteinPer100g,
+        carbsPer100g: existing.carbsPer100g,
+        fatPer100g: existing.fatPer100g,
+        fiberPer100g: existing.fiberPer100g,
+        gramsPerPiece: existing.gramsPerPiece,
+        pricePer100gEur: existing.pricePer100gEur,
+        pricePer100mlEur: existing.pricePer100mlEur,
+        pricePerPieceEur: existing.pricePerPieceEur,
+        source: 'catalog',
+      };
+    }
+
+    let estimate;
+    try {
+      const estimates = await aiService.estimateIngredientPrices([name]);
+      estimate = estimates[0];
+    } catch (err) {
+      console.error('AI estimateIngredientPrices failed:', err);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Could not estimate nutrition right now. Please fill it in manually.',
+      });
+    }
+    if (!estimate) return null;
+
+    // Log AI call (fire-and-forget — never crash the request if logging fails)
+    prisma.aiCallLog
+      .create({ data: { userId, callType: AiCallType.INGREDIENT_PRICES } })
+      .catch((err) => console.error('[aiCallLog] Failed to log INGREDIENT_PRICES call:', err));
+
+    return {
+      caloriesPer100g: estimate.caloriesPer100g,
+      proteinPer100g: estimate.proteinPer100g,
+      carbsPer100g: estimate.carbsPer100g,
+      fatPer100g: estimate.fatPer100g,
+      fiberPer100g: estimate.fiberPer100g,
+      gramsPerPiece: estimate.gramsPerPiece,
+      pricePer100gEur: estimate.pricePer100gEur,
+      pricePer100mlEur: estimate.pricePer100mlEur,
+      pricePerPieceEur: estimate.pricePerPieceEur,
+      source: 'ai',
     };
   }
 

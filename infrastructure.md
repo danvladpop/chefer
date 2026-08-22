@@ -203,21 +203,21 @@ Handles `SIGTERM` and `SIGINT`: closes HTTP server, disconnects Prisma.
 
 #### Page Map
 
-| Route                           | Type             | Description                                                                                    |
-| ------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------- |
-| `/`                             | Server Component | Landing page — hero, feature list, tech stack                                                  |
-| `/(auth)/login`                 | Client Component | Login form (react-hook-form + Zod)                                                             |
-| `/(auth)/register`              | Client Component | Registration form, redirects to `/onboarding`                                                  |
-| `/(dashboard)/dashboard`        | Client Component | Daily overview — greeting, weekly outlook strip, Next Meal spotlight, NutritionSummary         |
-| `/(dashboard)/meal-plan`        | Client Component | Week grid at `lg`+, single-day view below; Generate / Regenerate; GenerateOverlay spinner      |
-| `/(dashboard)/recipes`          | Client Component | Browse all/saved recipes; search; heart toggle favourite                                       |
-| `/(dashboard)/ingredients`      | Client Component | Ingredient catalog — All/Mine tabs, search, permissioned edit/delete, add custom               |
-| `/(dashboard)/recipes/[id]`     | Client Component | Recipe detail — ingredients, instructions, macros, Swap/Save, StarRatingWidget                 |
-| `/(dashboard)/preferences`      | Client Component | Edit ChefProfile + DietaryPreferences + delivery address/currency                              |
-| `/(dashboard)/shopping-list`    | Client Component | Shopping List — week navigator, categorised items with vocabulary price estimates + est. total |
-| `/(dashboard)/history`          | Client Component | Meal Plan History — ACTIVE/ARCHIVED plan cards with Restore button                             |
-| `/(dashboard)/history/[planId]` | Client Component | Read-only plan — week grid at `lg`+, single-day view below                                     |
-| `/(dashboard)/onboarding`       | Client Component | 4-step wizard (Goals → Metrics → Diet → Cuisine & Cadence)                                     |
+| Route                           | Type             | Description                                                                                                                                                                                      |
+| ------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/`                             | Server Component | Landing page — hero, feature list, tech stack                                                                                                                                                    |
+| `/(auth)/login`                 | Client Component | Login form (react-hook-form + Zod)                                                                                                                                                               |
+| `/(auth)/register`              | Client Component | Registration form, redirects to `/onboarding`                                                                                                                                                    |
+| `/(dashboard)/dashboard`        | Client Component | Daily overview — greeting, weekly outlook strip, Next Meal spotlight, NutritionSummary                                                                                                           |
+| `/(dashboard)/meal-plan`        | Client Component | Week grid at `lg`+, single-day view below; Generate / Regenerate; GenerateOverlay spinner                                                                                                        |
+| `/(dashboard)/recipes`          | Client Component | Browse all/saved recipes; search; heart toggle favourite                                                                                                                                         |
+| `/(dashboard)/ingredients`      | Client Component | Ingredient catalog — All/Mine tabs, search, permissioned edit/delete, add custom                                                                                                                 |
+| `/(dashboard)/recipes/[id]`     | Client Component | Recipe detail — ingredients, instructions, macros, Swap/Save, StarRatingWidget                                                                                                                   |
+| `/(dashboard)/preferences`      | Client Component | Edit ChefProfile + DietaryPreferences + display units; saves redirect to `/dashboard`. Delivery address/currency inputs removed 2026-08-22 (schema fields remain; currency UI returns with P2-4) |
+| `/(dashboard)/shopping-list`    | Client Component | Shopping List — week navigator, categorised items with vocabulary price estimates + est. total                                                                                                   |
+| `/(dashboard)/history`          | Client Component | Meal Plan History — ACTIVE/ARCHIVED plan cards with Restore button                                                                                                                               |
+| `/(dashboard)/history/[planId]` | Client Component | Read-only plan — week grid at `lg`+, single-day view below                                                                                                                                       |
+| `/(dashboard)/onboarding`       | Client Component | 4-step wizard (Goals → Metrics → Diet → Cuisine & Cadence)                                                                                                                                       |
 
 #### App Shell & Navigation
 
@@ -599,7 +599,8 @@ Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a
 ### IngredientsService (application layer)
 
 `apps/api/src/application/ingredients/ingredients.service.ts`. Methods: `search`,
-`list`, `createCustom`, `update`, `delete`, `computeNutrition`, `getUnits`.
+`list`, `createCustom`, `update`, `delete`, `computeNutrition`, `estimateNutrition`,
+`getUnits`.
 Powers the create-recipe form and the Ingredients page: catalog search/listing
 (global + private custom rows — other users' custom rows are hidden even from
 admins), custom-ingredient creation, permissioned edit/delete (owners for custom
@@ -704,51 +705,52 @@ Implements `IUserRepository` from `@chefer/database`. Lives in `apps/api/src/inf
 
 All procedures live under the `/trpc` HTTP endpoint and are batched automatically.
 
-| Procedure                      | Access    | Type     | Input                                                                                                                                                                |
-| ------------------------------ | --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `user.me`                      | Protected | Query    | —                                                                                                                                                                    |
-| `user.getById`                 | Protected | Query    | `{ id: cuid }`                                                                                                                                                       |
-| `user.list`                    | Admin     | Query    | `{ page, limit, search?, role?, sortBy, sortOrder }`                                                                                                                 |
-| `user.create`                  | Admin     | Mutation | `{ email, name?, password, role? }`                                                                                                                                  |
-| `user.update`                  | Protected | Mutation | `{ id, name?, email?, role?, image? }`                                                                                                                               |
-| `user.delete`                  | Admin     | Mutation | `{ id: cuid }`                                                                                                                                                       |
-| `user.updateProfile`           | Protected | Mutation | `{ name?, image? }`                                                                                                                                                  |
-| `user.upgradePlan`             | Protected | Mutation | — (demo upgrade: sets `planTier = PREMIUM` for the current user)                                                                                                     |
-| `auth.register`                | Public    | Mutation | `{ email, password, firstName, lastName }`                                                                                                                           |
-| `auth.login`                   | Public    | Mutation | `{ email, password }`                                                                                                                                                |
-| `auth.logout`                  | Public    | Mutation | —                                                                                                                                                                    |
-| `auth.requestPasswordReset`    | Public    | Mutation | `{ email }` — enumeration-safe (always succeeds); rate-limited per IP (5/15 min) and per address (3/h)                                                               |
-| `auth.resetPassword`           | Public    | Mutation | `{ token, password }` — single-use 1 h token (sha256-stored); invalidates all sessions                                                                               |
-| `auth.me`                      | Protected | Query    | —                                                                                                                                                                    |
-| `preferences.hasProfile`       | Protected | Query    | —                                                                                                                                                                    |
-| `preferences.get`              | Protected | Query    | —                                                                                                                                                                    |
-| `preferences.setup`            | Premium   | Mutation | `{ goal, biologicalSex, age, heightCm, weightKg, activityLevel, cuisinePreferences, dietaryRestrictions, allergies, dislikedIngredients, mealsPerDay, servingSize }` |
-| `preferences.update`           | Premium   | Mutation | Same as setup but all fields optional + `deliveryAddress?`, `deliveryCurrency?`, `preferredUnits?` (METRIC/IMPERIAL display units)                                   |
-| `mealPlan.generate`            | Protected | Mutation | `{ weekOffset?: number }` — 0=current week (default), 1=next week; min 0, max 52. Premium: AI plan; free: random curated pool                                        |
-| `mealPlan.getActive`           | Protected | Query    | —                                                                                                                                                                    |
-| `mealPlan.getRecipe`           | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
-| `mealPlan.swapRecipe`          | Protected | Mutation | `{ planId, dayOfWeek, mealType, currentRecipeId }`                                                                                                                   |
-| `mealPlan.list`                | Protected | Query    | `{ limit?, offset? }`                                                                                                                                                |
-| `mealPlan.restore`             | Protected | Mutation | `{ planId: string }`                                                                                                                                                 |
-| `mealPlan.getById`             | Protected | Query    | `{ planId: string }`                                                                                                                                                 |
-| `recipe.aiImageUrl`            | Protected | Query    | `{ name, cuisineType }` — deterministic Pollinations image URL for the create-recipe form                                                                            |
-| `ingredients.search`           | Protected | Query    | `{ query }` — catalog search (global vocabulary + own custom ingredients)                                                                                            |
-| `ingredients.units`            | Protected | Query    | — canonical unit list for recipe forms                                                                                                                               |
-| `ingredients.createCustom`     | Protected | Mutation | `{ name, imageUrl?, generateAiImage?, caloriesPer100g, proteinPer100g, carbsPer100g, fatPer100g, fiberPer100g?, gramsPerPiece? }`                                    |
-| `ingredients.list`             | Protected | Query    | `{ search?, mineOnly?, limit?, offset? }` — full-detail catalog rows with per-row `canEdit`                                                                          |
-| `ingredients.update`           | Protected | Mutation | Macros/image/prices — own custom rows; global rows only when ADMIN (`source: 'ADMIN'`, exempt from AI refresh)                                                       |
-| `ingredients.delete`           | Protected | Mutation | `{ name }` — own custom rows; admins may delete global rows                                                                                                          |
-| `ingredients.computeNutrition` | Protected | Query    | `{ ingredients[], servings }` — per-serving NutritionInfo + unmatched ingredient names                                                                               |
-| `recipe.list`                  | Protected | Query    | `{ search?, savedOnly? }`                                                                                                                                            |
-| `recipe.isSaved`               | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
-| `recipe.toggleFavourite`       | Protected | Mutation | `{ recipeId: string }`                                                                                                                                               |
-| `recipe.toggleUseInNextPlan`   | Protected | Mutation | `{ recipeId: string }`                                                                                                                                               |
-| `recipe.rate`                  | Protected | Mutation | `{ recipeId: string, rating: 1-5, notes?: string }`                                                                                                                  |
-| `recipe.getMyRating`           | Protected | Query    | `{ recipeId: string }`                                                                                                                                               |
-| `shoppingList.getForWeek`      | Protected | Query    | `{ weekOffset?: number }` — items include `estimatedPriceEur` + list-level `estimatedTotalEur`; serves the persisted AI list when one exists                         |
-| `shoppingList.regenerate`      | Premium   | Mutation | `{ weekOffset?: number }` — AI-consolidates the list and persists it (ShoppingList table)                                                                            |
-| `shoppingList.searchStores`    | Protected | Query    | `{ weekOffset?: number }`                                                                                                                                            |
-| `dashboard.summary`            | Protected | Query    | —                                                                                                                                                                    |
+| Procedure                       | Access    | Type     | Input                                                                                                                                                                    |
+| ------------------------------- | --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `user.me`                       | Protected | Query    | —                                                                                                                                                                        |
+| `user.getById`                  | Protected | Query    | `{ id: cuid }`                                                                                                                                                           |
+| `user.list`                     | Admin     | Query    | `{ page, limit, search?, role?, sortBy, sortOrder }`                                                                                                                     |
+| `user.create`                   | Admin     | Mutation | `{ email, name?, password, role? }`                                                                                                                                      |
+| `user.update`                   | Protected | Mutation | `{ id, name?, email?, role?, image? }`                                                                                                                                   |
+| `user.delete`                   | Admin     | Mutation | `{ id: cuid }`                                                                                                                                                           |
+| `user.updateProfile`            | Protected | Mutation | `{ name?, image? }`                                                                                                                                                      |
+| `user.upgradePlan`              | Protected | Mutation | — (demo upgrade: sets `planTier = PREMIUM` for the current user)                                                                                                         |
+| `auth.register`                 | Public    | Mutation | `{ email, password, firstName, lastName }`                                                                                                                               |
+| `auth.login`                    | Public    | Mutation | `{ email, password }`                                                                                                                                                    |
+| `auth.logout`                   | Public    | Mutation | —                                                                                                                                                                        |
+| `auth.requestPasswordReset`     | Public    | Mutation | `{ email }` — enumeration-safe (always succeeds); rate-limited per IP (5/15 min) and per address (3/h)                                                                   |
+| `auth.resetPassword`            | Public    | Mutation | `{ token, password }` — single-use 1 h token (sha256-stored); invalidates all sessions                                                                                   |
+| `auth.me`                       | Protected | Query    | —                                                                                                                                                                        |
+| `preferences.hasProfile`        | Protected | Query    | —                                                                                                                                                                        |
+| `preferences.get`               | Protected | Query    | —                                                                                                                                                                        |
+| `preferences.setup`             | Premium   | Mutation | `{ goal, biologicalSex, age, heightCm, weightKg, activityLevel, cuisinePreferences, dietaryRestrictions, allergies, dislikedIngredients, mealsPerDay, servingSize }`     |
+| `preferences.update`            | Premium   | Mutation | Same as setup but all fields optional + `deliveryAddress?`, `deliveryCurrency?`, `preferredUnits?` (METRIC/IMPERIAL display units)                                       |
+| `mealPlan.generate`             | Protected | Mutation | `{ weekOffset?: number }` — 0=current week (default), 1=next week; min 0, max 52. Premium: AI plan; free: random curated pool                                            |
+| `mealPlan.getActive`            | Protected | Query    | —                                                                                                                                                                        |
+| `mealPlan.getRecipe`            | Protected | Query    | `{ recipeId: string }`                                                                                                                                                   |
+| `mealPlan.swapRecipe`           | Protected | Mutation | `{ planId, dayOfWeek, mealType, currentRecipeId }`                                                                                                                       |
+| `mealPlan.list`                 | Protected | Query    | `{ limit?, offset? }`                                                                                                                                                    |
+| `mealPlan.restore`              | Protected | Mutation | `{ planId: string }`                                                                                                                                                     |
+| `mealPlan.getById`              | Protected | Query    | `{ planId: string }`                                                                                                                                                     |
+| `recipe.aiImageUrl`             | Protected | Query    | `{ name, cuisineType }` — deterministic Pollinations image URL for the create-recipe form                                                                                |
+| `ingredients.search`            | Protected | Query    | `{ query }` — catalog search (global vocabulary + own custom ingredients)                                                                                                |
+| `ingredients.units`             | Protected | Query    | — canonical unit list for recipe forms                                                                                                                                   |
+| `ingredients.createCustom`      | Protected | Mutation | `{ name, imageUrl?, generateAiImage?, caloriesPer100g, proteinPer100g, carbsPer100g, fatPer100g, fiberPer100g?, gramsPerPiece? }`                                        |
+| `ingredients.list`              | Protected | Query    | `{ search?, mineOnly?, limit?, offset? }` — full-detail catalog rows with per-row `canEdit`                                                                              |
+| `ingredients.update`            | Protected | Mutation | Macros/image/prices — own custom rows; global rows only when ADMIN (`source: 'ADMIN'`, exempt from AI refresh)                                                           |
+| `ingredients.delete`            | Protected | Mutation | `{ name }` — own custom rows; admins may delete global rows                                                                                                              |
+| `ingredients.computeNutrition`  | Protected | Query    | `{ ingredients[], servings }` — per-serving NutritionInfo + unmatched ingredient names                                                                                   |
+| `ingredients.estimateNutrition` | Protected | Mutation | `{ name }` — per-100g macros + gramsPerPiece + baseline prices for one ingredient; catalog rows answer free, unknown names cost one AI call (logged `INGREDIENT_PRICES`) |
+| `recipe.list`                   | Protected | Query    | `{ search?, savedOnly?, myRecipesOnly?, cursor?, limit? }` — rows carry `isFavourite` for the heart toggle                                                               |
+| `recipe.isSaved`                | Protected | Query    | `{ recipeId: string }`                                                                                                                                                   |
+| `recipe.toggleFavourite`        | Protected | Mutation | `{ recipeId: string }`                                                                                                                                                   |
+| `recipe.toggleUseInNextPlan`    | Protected | Mutation | `{ recipeId: string }`                                                                                                                                                   |
+| `recipe.rate`                   | Protected | Mutation | `{ recipeId: string, rating: 1-5, notes?: string }`                                                                                                                      |
+| `recipe.getMyRating`            | Protected | Query    | `{ recipeId: string }`                                                                                                                                                   |
+| `shoppingList.getForWeek`       | Protected | Query    | `{ weekOffset?: number }` — items include `estimatedPriceEur` + list-level `estimatedTotalEur`; serves the persisted AI list when one exists                             |
+| `shoppingList.regenerate`       | Premium   | Mutation | `{ weekOffset?: number }` — AI-consolidates the list and persists it (ShoppingList table)                                                                                |
+| `shoppingList.searchStores`     | Protected | Query    | `{ weekOffset?: number }`                                                                                                                                                |
+| `dashboard.summary`             | Protected | Query    | —                                                                                                                                                                        |
 
 ### Middleware Stack
 

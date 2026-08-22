@@ -7,30 +7,37 @@ const GOALS: {
   label: string;
   icon: string;
   description: string;
+  /** How the goal changes the daily calorie target — shown on the card so the
+      adjustment is visible at the moment of choosing, not just in the preview. */
+  calorieEffect: string;
 }[] = [
   {
     value: 'LOSE_WEIGHT',
     label: 'Lose Weight',
     icon: '⚖️',
     description: 'Reduce body fat and reach a healthier weight',
+    calorieEffect: '−500 kcal/day deficit',
   },
   {
     value: 'MAINTAIN',
     label: 'Maintain Weight',
     icon: '🎯',
     description: 'Keep your current weight while eating well',
+    calorieEffect: 'Maintenance calories',
   },
   {
     value: 'GAIN_MUSCLE',
     label: 'Gain Muscle',
     icon: '💪',
     description: 'Build strength and increase lean muscle mass',
+    calorieEffect: '+300 kcal/day surplus',
   },
   {
     value: 'EAT_HEALTHIER',
     label: 'Eat Healthier',
     icon: '🥗',
     description: 'Improve overall nutrition and eating habits',
+    calorieEffect: 'Maintenance calories, better macros',
   },
 ];
 
@@ -52,7 +59,7 @@ export function StepGoal({ value, onChange }: StepGoalProps) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {GOALS.map(({ value: v, label, icon, description }) => {
+        {GOALS.map(({ value: v, label, icon, description, calorieEffect }) => {
           const selected = value === v;
           return (
             <button
@@ -70,6 +77,13 @@ export function StepGoal({ value, onChange }: StepGoalProps) {
               <div>
                 <p className="font-semibold">{label}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+                <span
+                  className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    selected ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {calorieEffect}
+                </span>
               </div>
             </button>
           );

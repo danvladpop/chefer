@@ -52,12 +52,15 @@ export function IngredientFormModal({
   const [generateAiImage, setGenerateAiImage] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // All numeric fields start empty rather than '0' — a controlled input showing
+  // 0 forces the user to select-and-delete before typing. Blanks coerce to 0 on
+  // submit.
   const [macros, setMacros] = useState({
     calories: numStr(initial?.caloriesPer100g),
     protein: numStr(initial?.proteinPer100g),
     carbs: numStr(initial?.carbsPer100g),
     fat: numStr(initial?.fatPer100g),
-    fiber: initial?.fiberPer100g != null ? String(initial.fiberPer100g) : '0',
+    fiber: numStr(initial?.fiberPer100g),
   });
   const [gramsPerPiece, setGramsPerPiece] = useState(numStr(initial?.gramsPerPiece));
   const [prices, setPrices] = useState({
@@ -73,6 +76,27 @@ export function IngredientFormModal({
     onSuccess: (row) => onSaved(row.displayName),
   });
   const mutation = isEdit ? updateMutation : createMutation;
+
+  const estimateMutation = trpc.ingredients.estimateNutrition.useMutation({
+    onSuccess: (est) => {
+      if (!est) return;
+      setMacros({
+        calories: numStr(est.caloriesPer100g),
+        protein: numStr(est.proteinPer100g),
+        carbs: numStr(est.carbsPer100g),
+        fat: numStr(est.fatPer100g),
+        fiber: numStr(est.fiberPer100g),
+      });
+      if (est.gramsPerPiece != null) setGramsPerPiece(String(est.gramsPerPiece));
+      if (isEdit) {
+        setPrices({
+          per100g: numStr(est.pricePer100gEur),
+          per100ml: numStr(est.pricePer100mlEur),
+          perPiece: numStr(est.pricePerPieceEur),
+        });
+      }
+    },
+  });
 
   const handleUpload = async (file: File | undefined) => {
     if (!file) return;
@@ -196,9 +220,28 @@ export function IngredientFormModal({
 
           {/* Macros per 100 g */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">
-              Nutrition per 100 g
-            </label>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="block text-xs font-medium text-gray-600">Nutrition per 100 g</label>
+              <button
+                type="button"
+                onClick={() => estimateMutation.mutate({ name: name.trim() })}
+                disabled={name.trim().length < 2 || estimateMutation.isPending}
+                className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-50"
+              >
+                <Sparkles className="h-3 w-3" />
+                {estimateMutation.isPending ? 'Estimating…' : 'Auto-fill'}
+              </button>
+            </div>
+            {estimateMutation.isError && (
+              <p className="mb-1 text-[11px] text-red-500">{estimateMutation.error.message}</p>
+            )}
+            {estimateMutation.data && !estimateMutation.isPending && (
+              <p className="mb-1 text-[11px] text-gray-500">
+                {estimateMutation.data.source === 'catalog'
+                  ? 'Filled from the ingredient catalog — adjust if needed.'
+                  : 'AI estimate — double-check before saving.'}
+              </p>
+            )}
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               {(
                 [
@@ -219,6 +262,7 @@ export function IngredientFormModal({
                     step="0.1"
                     value={macros[key]}
                     onChange={(e) => setMacros((m) => ({ ...m, [key]: e.target.value }))}
+                    onFocus={(e) => e.currentTarget.select()}
                     className="w-full rounded-lg border bg-white px-2 py-1.5 text-center text-sm focus:border-[#944a00] focus:outline-none"
                   />
                 </div>
@@ -236,6 +280,7 @@ export function IngredientFormModal({
               min={1}
               value={gramsPerPiece}
               onChange={(e) => setGramsPerPiece(e.target.value)}
+              onFocus={(e) => e.currentTarget.select()}
               placeholder="e.g. 118 for a banana"
               className="w-full rounded-xl border bg-white px-3 py-2 text-sm focus:border-[#944a00] focus:outline-none"
             />
@@ -266,6 +311,7 @@ export function IngredientFormModal({
                       step="0.01"
                       value={prices[key]}
                       onChange={(e) => setPrices((p) => ({ ...p, [key]: e.target.value }))}
+                      onFocus={(e) => e.currentTarget.select()}
                       className="w-full rounded-lg border bg-white px-2 py-1.5 text-center text-sm focus:border-[#944a00] focus:outline-none"
                     />
                   </div>

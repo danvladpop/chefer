@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 import { NutritionSummary } from '@/features/dashboard/components/nutrition-summary';
+import { useIsPremium } from '@/hooks/useIsPremium';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
@@ -26,6 +27,15 @@ export default function DashboardPage() {
   const { data: weekSummary } = trpc.tracker.weeklySummary.useQuery(undefined, {
     staleTime: 60_000,
   });
+
+  // Profile completion nudge: surface it here rather than letting the user
+  // discover the gap only when "Generate plan" asks for a profile.
+  const isPremium = useIsPremium();
+  const { data: hasProfile } = trpc.preferences.hasProfile.useQuery(undefined, {
+    enabled: isPremium === true,
+    staleTime: 60_000,
+  });
+  const showProfileNudge = isPremium === true && hasProfile === false;
 
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
 
@@ -62,6 +72,25 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-4 p-4 xl:flex-row xl:gap-6 xl:p-6">
       {/* ── Main column ─────────────────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col gap-4 sm:gap-6">
+        {showProfileNudge && (
+          <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#944a00]/20 bg-[#fff3e8] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-[#944a00]">Complete your profile</p>
+              <p className="mt-0.5 text-xs text-[#944a00]/80">
+                Tell the AI chef your goals, body metrics and dietary needs so your meal plans are
+                built for you.
+              </p>
+            </div>
+            <Link
+              href="/onboarding"
+              className="flex min-h-11 shrink-0 items-center gap-1 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] sm:min-h-0 sm:py-2"
+            >
+              Set up now
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        )}
+
         {/* Header */}
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">

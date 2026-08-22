@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { useAuth } from '@/features/auth/hooks/use-auth';
-import { ChevronDown, LogOut, Menu } from 'lucide-react';
+import { ChevronDown, LogOut, Menu, Settings, User } from 'lucide-react';
 import { cn } from '@chefer/utils';
 
 interface TopHeaderProps {
@@ -72,6 +73,22 @@ export function TopHeader({ title, onOpenMenu }: TopHeaderProps) {
                   <p className="truncate text-sm font-medium text-gray-900">{displayName}</p>
                   <p className="truncate text-xs text-gray-500">{user.email}</p>
                 </div>
+                <Link
+                  href="/profile"
+                  onClick={() => setOpen(false)}
+                  className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  <User className="h-4 w-4 text-gray-500" aria-hidden="true" />
+                  Profile
+                </Link>
+                <Link
+                  href="/preferences"
+                  onClick={() => setOpen(false)}
+                  className="flex min-h-11 w-full items-center gap-2 border-b px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  <Settings className="h-4 w-4 text-gray-500" aria-hidden="true" />
+                  Preferences
+                </Link>
                 <button
                   onClick={() => {
                     setOpen(false);

@@ -94,6 +94,16 @@ export const ingredientsRouter = router({
     }),
 
   /**
+   * Estimates per-100g nutrition for one ingredient name (catalog first, AI
+   * fallback) — powers the "Auto-fill" button on the ingredient form.
+   */
+  estimateNutrition: protectedProcedure
+    .input(z.object({ name: z.string().min(2).max(60) }))
+    .mutation(async ({ ctx, input }) => {
+      return ingredientsService.estimateNutrition(ctx.user.id, input.name);
+    }),
+
+  /**
    * Computes per-serving nutrition from ingredient lines via catalog macros.
    * Returns unmatched ingredient names so the UI can show estimate coverage.
    */
