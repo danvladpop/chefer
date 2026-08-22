@@ -27,6 +27,9 @@ $COMPOSE build web
 echo "==> Starting containers"
 $COMPOSE up -d
 
+# Caddyfile is a bind mount — reload so route changes actually apply.
+docker exec chefer-caddy caddy reload --config /etc/caddy/Caddyfile || true
+
 echo "==> Pruning dangling images"
 docker image prune -f >/dev/null
 
