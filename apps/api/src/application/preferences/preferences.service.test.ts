@@ -216,4 +216,25 @@ describe('resolveDailyTargets', () => {
     // Rounding each macro independently can drift a few kcal.
     expect(Math.abs(kcalFromMacros - t.dailyCalorieTarget)).toBeLessThan(20);
   });
+
+  it('caps protein at 2.2 g/kg and moves the freed calories into carbs (#8)', () => {
+    // The E2E case: 75 kg gain-muscle at ~2,982 kcal gave 261 g protein
+    // (3.5 g/kg) from the raw 35% split.
+    const t = resolveDailyTargets({
+      ...METRICS,
+      weightKg: 75,
+      goal: 'GAIN_MUSCLE',
+      dailyCalorieTarget: null,
+    });
+    expect(t.proteinG).toBe(Math.round(75 * 2.2)); // 165, not 261
+    // Calories stay accounted for — the cap redistributes, not deletes.
+    const kcalFromMacros = t.proteinG * 4 + t.carbsG * 4 + t.fatG * 9;
+    expect(Math.abs(kcalFromMacros - t.dailyCalorieTarget)).toBeLessThan(20);
+  });
+
+  it('no cap without a known body weight — the snapshot path keeps its split', () => {
+    const t = resolveDailyTargets({ ...METRICS, weightKg: null, goal: 'GAIN_MUSCLE' });
+    // 1500-kcal snapshot at 35% protein = 131 g; no weight → no cap applied.
+    expect(t.proteinG).toBe(Math.round((1500 * 0.35) / 4));
+  });
 });

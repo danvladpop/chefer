@@ -61,6 +61,38 @@ export function computeCalorieTarget(
 
 // ─── Macro targets ────────────────────────────────────────────────────────────
 
+/**
+ * Evidence-based ceiling for daily protein (~2.2 g/kg body weight). Pure
+ * percentage splits blew past it at high TDEEs — 35% of a 2,982-kcal
+ * gain-muscle target is 261 g (3.5 g/kg), which no generated plan delivers,
+ * so the tracker read "half your protein target" forever (prod-followups #8).
+ */
+const MAX_PROTEIN_G_PER_KG = 2.2;
+
+/**
+ * Converts calories + a goal split into gram targets, capping protein at
+ * MAX_PROTEIN_G_PER_KG when body weight is known. The calories freed by the
+ * cap move to carbs (both 4 kcal/g), so the grams still sum to the target.
+ */
+function splitToGrams(
+  calories: number,
+  split: { protein: number; carbs: number; fat: number },
+  weightKg: number | null,
+): { proteinG: number; carbsG: number; fatG: number } {
+  let proteinG = (calories * split.protein) / 4;
+  let carbsG = (calories * split.carbs) / 4;
+  const proteinCap = weightKg ? weightKg * MAX_PROTEIN_G_PER_KG : null;
+  if (proteinCap !== null && proteinG > proteinCap) {
+    carbsG += proteinG - proteinCap; // 4 kcal/g on both sides
+    proteinG = proteinCap;
+  }
+  return {
+    proteinG: Math.round(proteinG),
+    carbsG: Math.round(carbsG),
+    fatG: Math.round((calories * split.fat) / 9),
+  };
+}
+
 export interface MacroTargets {
   dailyCalorieTarget: number;
   proteinPct: number;
@@ -88,14 +120,15 @@ export function computeMacroTargets(
     goal,
   );
   const split = GOAL_MACRO_SPLITS[goal] ?? GOAL_MACRO_SPLITS['MAINTAIN']!;
+  const grams = splitToGrams(calories, split, weightKg);
   return {
     dailyCalorieTarget: calories,
-    proteinPct: Math.round(split.protein * 100),
-    carbsPct: Math.round(split.carbs * 100),
-    fatPct: Math.round(split.fat * 100),
-    proteinG: Math.round((calories * split.protein) / 4),
-    carbsG: Math.round((calories * split.carbs) / 4),
-    fatG: Math.round((calories * split.fat) / 9),
+    // Percentages derive from the (possibly capped) grams so the two never
+    // disagree on screen.
+    proteinPct: Math.round(((grams.proteinG * 4) / calories) * 100),
+    carbsPct: Math.round(((grams.carbsG * 4) / calories) * 100),
+    fatPct: Math.round(((grams.fatG * 9) / calories) * 100),
+    ...grams,
   };
 }
 
@@ -151,9 +184,7 @@ export function resolveDailyTargets(
 
   return {
     dailyCalorieTarget: calories,
-    proteinG: Math.round((calories * split.protein) / 4),
-    carbsG: Math.round((calories * split.carbs) / 4),
-    fatG: Math.round((calories * split.fat) / 9),
+    ...splitToGrams(calories, split, profile?.weightKg ?? null),
   };
 }
 
