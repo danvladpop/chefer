@@ -8,6 +8,7 @@ import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay
 import { MealCard } from '@/features/meal-plan/components/MealCard';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
+import { useHasMounted } from '@/hooks/useHasMounted';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { useRecipeImageStream, type RecipeImageUpdate } from '@/hooks/useRecipeImageStream';
 import { capture } from '@/lib/analytics';
@@ -22,6 +23,7 @@ import {
   Sparkles,
   Wand2,
 } from 'lucide-react';
+import MealPlanLoading from './loading';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -89,6 +91,7 @@ export default function MealPlanPage() {
     router.replace(`/meal-plan?${params.toString()}`, { scroll: false });
   };
 
+  const hasMounted = useHasMounted();
   const isPremium = useIsPremium();
   const [isGenerating, setIsGenerating] = useState(false);
   const [imageOverrides, setImageOverrides] = useState<
@@ -185,6 +188,14 @@ export default function MealPlanPage() {
   });
 
   const handleGenerate = () => generateMutation.mutate({ weekOffset });
+
+  // Everything below reads client-only state: react-query data (which may
+  // already be resolved when this lazily-hydrated boundary hydrates — the
+  // #418 bug) and `new Date()` (server timezone ≠ client timezone near
+  // midnight). The server can never render more than the pending state, so
+  // render exactly the loading fallback until mounted — SSR HTML and the
+  // hydration pass stay byte-identical.
+  if (!hasMounted) return <MealPlanLoading />;
 
   // ── Navigation bar (always visible) ───────────────────────────────────────
   // Always derive label from weekOffset so it updates instantly on click,

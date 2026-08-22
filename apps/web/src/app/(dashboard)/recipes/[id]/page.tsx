@@ -7,6 +7,7 @@ import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
+import { useHasMounted } from '@/hooks/useHasMounted';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
@@ -45,6 +46,7 @@ interface RecipePageProps {
 
 export default function RecipeDetailPage({ params }: RecipePageProps) {
   const { id } = use(params);
+  const hasMounted = useHasMounted();
   const router = useRouter();
   const searchParams = useSearchParams();
   const unitSystem = useUnitSystem();
@@ -122,7 +124,10 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const backLabel = planId ? 'Back to Meal Planner' : 'Back to Recipes';
 
   // ── Loading ────────────────────────────────────────────────────────────────
-  if (isLoading) {
+  // `!hasMounted` keeps the hydration render identical to the SSR HTML even
+  // when the shared query cache already holds this recipe (this page hydrates
+  // lazily under its loading.tsx boundary — see useHasMounted).
+  if (!hasMounted || isLoading) {
     return (
       <div className="mx-auto max-w-3xl animate-pulse px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-6 h-4 w-32 rounded bg-gray-200" />
