@@ -12,6 +12,7 @@ import {
 } from './interfaces/http/middleware/auth.middleware.js';
 import { asyncHandler } from './lib/async-handler.js';
 import { env } from './lib/env.js';
+import { logger } from './lib/logger.js';
 import { appRouter } from './routers/index.js';
 import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
@@ -130,9 +131,12 @@ app.use(
           extra: { requestId: ctx?.requestId ?? 'unknown' },
           ...(ctx?.user && { user: { id: ctx.user.id } }),
         });
-        console.error(`❌ tRPC error on ${path ?? 'unknown'}:`, error.message, error.cause);
+        logger.error(
+          { requestId: ctx?.requestId, path, err: error.cause ?? error },
+          `trpc INTERNAL_SERVER_ERROR on ${path ?? 'unknown'}`,
+        );
       } else if (env.NODE_ENV === 'development') {
-        console.warn(`⚠️  tRPC ${error.code} on ${path ?? 'unknown'}:`, error.message);
+        logger.warn({ path, code: error.code }, error.message);
       }
     },
   }),
@@ -168,7 +172,7 @@ Sentry.setupExpressErrorHandler(app);
 
 app.use(
   (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error('Unhandled error:', err);
+    logger.error({ err }, 'unhandled express error');
     res.status(500).json({
       success: false,
       error: { code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' },
@@ -179,27 +183,23 @@ app.use(
 // ─── Server Start ─────────────────────────────────────────────────────────────
 
 const server = app.listen(env.PORT, env.HOST, () => {
-  console.log('');
-  console.log(`🚀 API server running at http://${env.HOST}:${env.PORT}`);
-  console.log(`📡 tRPC endpoint: http://${env.HOST}:${env.PORT}/trpc`);
-  console.log(`💚 Health check: http://${env.HOST}:${env.PORT}/api/health`);
-  console.log(`🌍 Environment: ${env.NODE_ENV}`);
-  console.log(
-    `🤖 AI mode: ${env.AI_MOCK_ENABLED ? 'MOCK (no tokens consumed)' : `LIVE (${env.AI_PROVIDER})`}`,
+  logger.info(
+    {
+      host: env.HOST,
+      port: env.PORT,
+      environment: env.NODE_ENV,
+      aiMode: env.AI_MOCK_ENABLED ? 'mock' : env.AI_PROVIDER,
+      emailMode: env.EMAIL_MOCK_ENABLED ? 'mock' : 'resend',
+    },
+    'api server listening',
   );
 
   if (!env.AI_MOCK_ENABLED && !env.OPENAI_API_KEY && !env.ANTHROPIC_API_KEY) {
-    console.warn(
-      '⚠️  AI_MOCK_ENABLED=false but no OPENAI_API_KEY or ANTHROPIC_API_KEY is set — AI calls will fail',
-    );
+    logger.warn('AI_MOCK_ENABLED=false but no AI API key is set — AI calls will fail');
   }
   if (env.AI_MOCK_ENABLED && (env.OPENAI_API_KEY ?? env.ANTHROPIC_API_KEY)) {
-    console.warn(
-      '⚠️  AI_MOCK_ENABLED=true but an API key is also set — the key will not be used (mock takes precedence)',
-    );
+    logger.warn('AI_MOCK_ENABLED=true but an API key is also set — the mock takes precedence');
   }
-
-  console.log('');
 
   // Start the background recipe image worker
   void recipeImageWorker.start();
@@ -211,22 +211,22 @@ const server = app.listen(env.PORT, env.HOST, () => {
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────
 
 async function gracefulShutdown(signal: string): Promise<void> {
-  console.log(`\n📴 Received ${signal}. Starting graceful shutdown...`);
+  logger.info({ signal }, 'graceful shutdown started');
 
   // Stop the workers first (image worker waits for in-flight jobs)
   ingredientPriceWorker.stop();
   await recipeImageWorker.stop();
 
   server.close(() => {
-    console.log('✅ HTTP server closed');
+    logger.info('http server closed');
   });
 
   try {
     const { prisma } = await import('@chefer/database');
     await prisma.$disconnect();
-    console.log('✅ Database disconnected');
+    logger.info('database disconnected');
   } catch (err) {
-    console.error('❌ Error disconnecting database:', err);
+    logger.error({ err }, 'error disconnecting database');
   }
 
   process.exit(0);
@@ -237,12 +237,12 @@ process.on('SIGINT', () => void gracefulShutdown('SIGINT'));
 
 // Handle unhandled rejections
 process.on('unhandledRejection', (reason) => {
-  console.error('❌ Unhandled promise rejection:', reason);
+  logger.fatal({ err: reason }, 'unhandled promise rejection');
   process.exit(1);
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught exception:', error);
+  logger.fatal({ err: error }, 'uncaught exception');
   process.exit(1);
 });
 

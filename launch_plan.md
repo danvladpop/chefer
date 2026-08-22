@@ -51,25 +51,25 @@ Everything gated must answer "does this get better because the app knows me?" �
 
 All from `roadmap.md`, in this order:
 
-| Step | Ticket              | What                                                                                                                                                                                                       |
-| ---- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A1   | **P0-0**            | Repair the quality gates (lint/test/typecheck/e2e) — **✅ done, see §6**                                                                                                                                   |
-| A2   | **P0-2** ✅         | Delete `/user` PII leak, close public read, guard `/ingredients` — done 2026-08-21                                                                                                                         |
-| A3   | **P0-1** ✅         | Fix dashboard next-meal logic — done 2026-08-21, verified live at 19:40 (dinner hero)                                                                                                                      |
-| A4   | **P0-3** ✅         | CI on `master`, deploys gated on green — done 2026-08-21; branch protection = user's manual step                                                                                                           |
-| A5   | **P0-4** ✅         | Rate limiting + helmet + per-user AI quotas — done 2026-08-21, all limits verified live (429s)                                                                                                             |
-| A6   | **P0-5** ✅         | Unify calorie target — done 2026-08-21 via `resolveDailyTargets()`; custom macroSplit column deferred (goal-based splits already personalise)                                                              |
-| A7   | **P0-6** ✅         | Password reset — done 2026-08-21; full flow verified live incl. session invalidation + single-use tokens                                                                                                   |
-| A8   | **P0-7 / P0-8** ✅  | Refactor + test foundation — done 2026-08-21; 37 api tests, coverage ratchet (25% floor → 60% target), all query paths verified live                                                                       |
-| A9   | **P2-2**            | Observability — **pulled forward from roadmap P2**: Sentry, pino, funnel analytics. A paywall without an upgrade funnel dashboard is flying blind, and production without error tracking isn't production. |
-| A10  | **P0-9 / P0-10** ✅ | Stale docs + mobile a11y — done 2026-08-21; also fixed a shopping-list overflow (missing min-w-0) and the never-passing chart-tooltip spec found on the way                                                |
+| Step | Ticket              | What                                                                                                                                                                                                                             |
+| ---- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1   | **P0-0**            | Repair the quality gates (lint/test/typecheck/e2e) — **✅ done, see §6**                                                                                                                                                         |
+| A2   | **P0-2** ✅         | Delete `/user` PII leak, close public read, guard `/ingredients` — done 2026-08-21                                                                                                                                               |
+| A3   | **P0-1** ✅         | Fix dashboard next-meal logic — done 2026-08-21, verified live at 19:40 (dinner hero)                                                                                                                                            |
+| A4   | **P0-3** ✅         | CI on `master`, deploys gated on green — done 2026-08-21; branch protection = user's manual step                                                                                                                                 |
+| A5   | **P0-4** ✅         | Rate limiting + helmet + per-user AI quotas — done 2026-08-21, all limits verified live (429s)                                                                                                                                   |
+| A6   | **P0-5** ✅         | Unify calorie target — done 2026-08-21 via `resolveDailyTargets()`; custom macroSplit column deferred (goal-based splits already personalise)                                                                                    |
+| A7   | **P0-6** ✅         | Password reset — done 2026-08-21; full flow verified live incl. session invalidation + single-use tokens                                                                                                                         |
+| A8   | **P0-7 / P0-8** ✅  | Refactor + test foundation — done 2026-08-21; 37 api tests, coverage ratchet (25% floor → 60% target), all query paths verified live                                                                                             |
+| A9   | **P2-2** ✅         | Observability — done 2026-08-22: Sentry both apps (verified deliveries), pino structured request logs w/ requestId, PostHog EU wired (pageviews + identify verified, `/e/` 200). Sentry alert rules + dashboards land with PW-3. |
+| A10  | **P0-9 / P0-10** ✅ | Stale docs + mobile a11y — done 2026-08-21; also fixed a shopping-list overflow (missing min-w-0) and the never-passing chart-tooltip spec found on the way                                                                      |
 
 **Also in Phase A, not previously ticketed:**
 
-- **A11 — Backup verification `S`:** `infrastructure/scripts/backup-db.sh` exists; nobody has
+- **A11 — Backup verification `S` (deferred by user 2026-08-22 — revisit before real users):** `infrastructure/scripts/backup-db.sh` exists; nobody has
   restored from one. Schedule it (cron on the VM), verify a restore into a scratch DB, document
   RPO/RTO in `infrastructure.md` §12.
-- **A12 — Uptime monitoring `S`:** external monitor on `/api/health` (UptimeRobot free tier is
+- **A12 — Uptime monitoring `S` (deferred by user 2026-08-22 — revisit before real users):** external monitor on `/api/health` (UptimeRobot free tier is
   fine), alerting to email.
 
 ### Phase B — Premium value + soft paywall

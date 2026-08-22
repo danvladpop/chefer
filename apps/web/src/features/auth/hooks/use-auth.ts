@@ -1,6 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { identifyUser, resetAnalytics } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 
 /**
@@ -18,8 +20,16 @@ export function useAuth() {
     staleTime: 60 * 1000,
   });
 
+  // Ties analytics events to the account (ID only). Covers fresh logins,
+  // registrations and returning sessions alike, since they all resolve
+  // auth.me on the app shell. identify() is idempotent.
+  useEffect(() => {
+    if (user?.id) identifyUser(user.id);
+  }, [user?.id]);
+
   const logoutMutation = trpc.auth.logout.useMutation({
     onSettled: () => {
+      resetAnalytics();
       router.push('/login');
       router.refresh();
     },

@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import superjson from 'superjson';
 import { ZodError } from 'zod';
 import type { UserProfile } from '@chefer/types';
+import { logger } from './logger.js';
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -36,17 +37,25 @@ const t = initTRPC.context<Context>().create({
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
 /**
- * Logging middleware — logs all procedure calls in development.
+ * Request logging middleware — one structured line per procedure call, with
+ * the request ID threaded through so a Sentry event's requestId greps
+ * straight to its log lines.
  */
-const timingMiddleware = t.middleware(async ({ next, path, type }) => {
+const timingMiddleware = t.middleware(async ({ ctx, next, path, type }) => {
   const start = Date.now();
   const result = await next();
-  const duration = Date.now() - start;
 
-  if (process.env['NODE_ENV'] === 'development') {
-    const status = result.ok ? '✅' : '❌';
-    console.log(`${status} ${type} ${path} (${duration}ms)`);
-  }
+  logger.info(
+    {
+      requestId: ctx.requestId,
+      type,
+      path,
+      durationMs: Date.now() - start,
+      ok: result.ok,
+      ...(ctx.user && { userId: ctx.user.id }),
+    },
+    `trpc ${path}`,
+  );
 
   return result;
 });

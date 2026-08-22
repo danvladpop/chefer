@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs';
 import { SENTRY_DSN } from './instrumentation';
+import { initAnalytics } from './lib/analytics';
 
 Sentry.init({
   dsn: SENTRY_DSN,
@@ -8,5 +9,7 @@ Sentry.init({
   tracesSampleRate: 1,
   enableLogs: true,
 });
+
+initAnalytics();
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

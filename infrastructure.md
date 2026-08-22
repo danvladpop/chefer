@@ -175,7 +175,7 @@ src/
 4. `express.urlencoded`
 5. `requestIdMiddleware` — attaches `X-Request-ID`
 6. `express-rate-limit` on `/trpc` — `RATE_LIMIT_MAX` requests per `RATE_LIMIT_WINDOW_MS` per IP (standard `RateLimit` headers)
-7. tRPC adapter → `timingMiddleware` → procedure-specific middleware
+7. tRPC adapter → `timingMiddleware` (one structured pino line per procedure: requestId, path, duration, ok, userId) → procedure-specific middleware
 
 #### Rate Limits & Daily Quotas
 
@@ -839,14 +839,15 @@ hidden, leaving no way back to the login form.
 
 ### `apps/web/.env.local`
 
-| Variable               | Required | Default                    | Description                |
-| ---------------------- | -------- | -------------------------- | -------------------------- |
-| `NEXT_PUBLIC_APP_URL`  | No       | http://localhost:3000      | Public app base URL        |
-| `NEXT_PUBLIC_APP_NAME` | No       | Chefer                     | App display name           |
-| `NEXT_PUBLIC_API_URL`  | No       | http://localhost:3001      | API server URL             |
-| `NEXT_PUBLIC_TRPC_URL` | No       | http://localhost:3001/trpc | tRPC endpoint URL          |
-| `NEXTAUTH_URL`         | No       | —                          | NextAuth callback base URL |
-| `NEXTAUTH_SECRET`      | No       | —                          | Min 32 chars               |
+| Variable                  | Required | Default                    | Description                                                                                    |
+| ------------------------- | -------- | -------------------------- | ---------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_APP_URL`     | No       | http://localhost:3000      | Public app base URL                                                                            |
+| `NEXT_PUBLIC_APP_NAME`    | No       | Chefer                     | App display name                                                                               |
+| `NEXT_PUBLIC_API_URL`     | No       | http://localhost:3001      | API server URL                                                                                 |
+| `NEXT_PUBLIC_TRPC_URL`    | No       | http://localhost:3001/trpc | tRPC endpoint URL                                                                              |
+| `NEXTAUTH_URL`            | No       | —                          | NextAuth callback base URL                                                                     |
+| `NEXTAUTH_SECRET`         | No       | —                          | Min 32 chars                                                                                   |
+| `NEXT_PUBLIC_POSTHOG_DEV` | No       | —                          | Set `1` to send PostHog events from dev (normally production-only; see `src/lib/analytics.ts`) |
 
 ### `packages/database/.env`
 
