@@ -117,11 +117,14 @@ export class MealPlanRepository implements IMealPlanRepository {
             name: r.name,
             description: r.description,
             imagePriority: r.imagePriority ?? 100,
-            // Same dish (name unchanged): imageUrl/imageStatus are NOT touched —
-            // the worker owns them and the existing image stays valid.
-            // Different dish under a colliding ID: the stored image is wrong —
-            // apply the caller-resolved image or reset to PENDING.
-            ...(nameChanged
+            // Same dish (name unchanged): imageUrl/imageStatus are NOT touched
+            // for AI recipes — the worker owns them and the existing image
+            // stays valid. CURATED recipes are the exception: their images
+            // ship with the fixture, so a fixture image fix must reach the
+            // stored row (a dead stock URL was unfixable otherwise —
+            // prod-followups #5). Different dish under a colliding ID: the
+            // stored image is wrong — apply the caller's or reset to PENDING.
+            ...(nameChanged || (r.source === 'CURATED' && r.imageUrl)
               ? {
                   imageUrl: r.imageUrl ?? null,
                   imageStatus: r.imageStatus ?? 'PENDING',
