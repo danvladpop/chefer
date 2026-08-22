@@ -6,7 +6,18 @@
 
 ---
 
-## 1. `/meal-plan` sticks on the loading fallback (hydration error)
+## ~~1. `/meal-plan` sticks on the loading fallback (hydration error)~~
+
+**FIXED 2026-08-22** (commit `0a82b30`, verified on prod after deploy). Root cause: pages under
+a route-level `loading.tsx` hydrate **lazily**, so by hydration time the already-hydrated
+dashboard shell had resolved shared react-query data (`user.me`) and the page's hydration render
+(free-tier banner + grid) mismatched the SSR pending-spinner HTML → React #418, route stuck on
+the Suspense fallback. The tier flip was incidental — any resolved query wins the race. Fix:
+`useHasMounted()` gates the query-driven UI on `/meal-plan` and `/recipes/[id]` so the hydration
+render is byte-identical to the SSR output. Prod verification: `funnel-test@chefer.dev`, repeated
+hard reloads + upgrade→downgrade→revisit — grid renders every time, zero console errors.
+**Rule for future pages:** a client page placed under a `loading.tsx` must not read react-query
+data (or `new Date()`) in its hydration render — gate with `useHasMounted()`.
 
 **Found:** 2026-08-22, fresh account `funnel-test@chefer.dev`. **Severity: high** —
 it's the core page, and a beta user who hits this sees an infinite spinner.
