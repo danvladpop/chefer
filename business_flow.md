@@ -17,7 +17,8 @@
 9. [Premium Tier & Meal Plan Generation Flow](#9-premium-tier--meal-plan-generation-flow)
 10. [Dashboard Summary Flow](#10-dashboard-summary-flow)
 11. [Password Reset Flow](#11-password-reset-flow)
-12. [AI Chat Flow](#12-ai-chat-flow)
+12. [Cook Mode Flow](#12-cook-mode-flow)
+13. [AI Chat Flow](#13-ai-chat-flow)
 
 ---
 
@@ -530,7 +531,38 @@ The web hero card (`/dashboard`) renders `nextMeal`, else `tomorrowFirstMeal`
 
 ---
 
-## 12. AI Chat Flow
+## 12. Cook Mode Flow
+
+> P1-3 — the single highest-leverage interaction: finishing a cook session
+> closes the tracker loop AND the personalisation loop in one tap.
+
+```
+/recipes/[id]/cook?meal=<type>       (entry: recipe page "Cook" button,
+  │                                   dashboard next-meal "Start Cooking";
+  │                                   meal defaults by time of day)
+  ├─ full-screen stepper — one instruction at a time, large type,
+  │    tap or swipe to advance (step index clamped against rapid taps)
+  ├─ screen wake lock (feature-detected, reacquired on tab return,
+  │    silent degrade on iOS < 16.4)
+  ├─ inline timer for steps mentioning a duration (upper bound of
+  │    ranges, ≤ 4 h sanity cap; Android vibrates at zero)
+  ├─ servings scaler + collapsible ingredients checklist
+  │    (quantities scale live in the user's unit system)
+  └─ Finish → "Made it!"
+       ├─ tracker.getDay + tracker.upsertDay: APPENDS one serving of the
+       │    recipe's macros to today's log (portionMultiplier 1 — cooking
+       │    for 4 doesn't mean you ate 4×)
+       ├─ capture('meal_cooked' { mealType })
+       └─ StarRatingWidget — "your rating shapes what the chef cooks up
+            next week" (P1-1 signal)
+```
+
+Real-device acceptance (wake lock, swipe, keyboard) is tracked in
+[`docs/device-checklist.md`](./docs/device-checklist.md) (P1-6).
+
+---
+
+## 13. AI Chat Flow
 
 The AI chef chat (P1-4) is a real assistant over the user's data, not canned
 responses. The widget (`ChatWidget.tsx`, every dashboard page) posts the

@@ -13,6 +13,7 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import {
   ArrowLeft,
+  ChefHat,
   Clock,
   Flame,
   Heart,
@@ -230,6 +231,15 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             <Heart className={`h-3.5 w-3.5 ${isSaved ? 'fill-[#944a00]' : ''}`} />
             {isSaved ? 'Saved' : 'Save'}
           </button>
+
+          {/* Cook mode (P1-3) — the primary action on a recipe you're about to make */}
+          <Link
+            href={`/recipes/${id}/cook${meal ? `?meal=${meal}` : ''}`}
+            className="flex items-center gap-1.5 rounded-xl bg-[#944a00] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#7a3d00]"
+          >
+            <ChefHat className="h-3.5 w-3.5" />
+            Cook
+          </Link>
 
           {/* Pin for the next generated plan — only meaningful once saved */}
           {isSaved && (

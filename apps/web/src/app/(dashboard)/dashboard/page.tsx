@@ -292,7 +292,11 @@ export default function DashboardPage() {
                     {heroMeal.recipe.kcal} kcal
                   </span>
                   <Link
-                    href={`/recipes/${heroMeal.recipe.id}`}
+                    href={
+                      heroIsTomorrow
+                        ? `/recipes/${heroMeal.recipe.id}`
+                        : `/recipes/${heroMeal.recipe.id}/cook?meal=${heroMeal.mealType}`
+                    }
                     className="flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-[#944a00] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#7a3d00] sm:ml-auto sm:min-h-0 sm:w-auto"
                   >
                     {heroIsTomorrow ? 'View Recipe' : 'Start Cooking'}{' '}
