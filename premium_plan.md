@@ -7,7 +7,7 @@
 >
 > **Execution model:** one orchestrating session + parallel subagents in isolated git
 > worktrees. The plan is structured around the codebase's actual contention points so
-> agents don't collide — see §2 and §7 before spawning anything.
+> agents don't collide — see §2 and §8 before spawning anything.
 
 ---
 
@@ -148,6 +148,13 @@ present, UI appears per wave).
 `pantry_confirmed`, `plan_used_pantry {itemCount}` — plus upgrade sources: `coach-review`,
 `snap-scan`, `recipe-import`, `household`, `pantry`.
 
+### 3.5 Merchandising baseline
+
+Per §6.2/§6.3: the `/premium` showcase page (skeleton + matrix-driven comparison table +
+existing five pillars' cards), the source-aware upgrade dialog v2, the nudge
+frequency-cap helper, and the `premium_page_viewed` event. Wave agents plug their cards
+and ghost states into these rails.
+
 **Wave 0 exit gate:** typecheck/test/lint green, `db push` applied in dev + deployed
 (schema is additive — zero behavior change), doc tables updated (§6 schema, §8 no new
 procedures yet), THEN branches for wave 1 are cut.
@@ -189,7 +196,8 @@ review banner components (new files), tracker read-only usage.
    upgrade to read the review", source `coach-review`). Chat tool `getMyReview`.
 5. **Tests:** adjustment policy table-driven (≥10 cases incl. floors/plateau/low
    adherence); EWMA; worker idempotency; targets-ordering with protein cap.
-6. **Acceptance:** seeded user with 2 weeks of logs+weights gets a review whose
+6. **Merchandising (§6.4):** blurred-review ghost state + /premium card.
+7. **Acceptance:** seeded user with 2 weeks of logs+weights gets a review whose
    adjustment propagates to dashboard/tracker targets AND the next generated week's
    calorie budget; second worker run same Sunday = no-op.
 
@@ -220,7 +228,8 @@ fat, portionNote }`. Prompt demands ranges honesty; response includes `low|med|h
    photo scan + rebalance premium (source `snap-scan` on the camera button for free
    users).
 5. **Tests:** rebalance selection logic (fixtures), quota, custom-entry rendering, undo.
-6. **Acceptance (dev, real Gemini):** photo of a plate → plausible estimate → confirmed
+6. **Merchandising (§6.4):** demo-scan sheet for free users + /premium card.
+7. **Acceptance (dev, real Gemini):** photo of a plate → plausible estimate → confirmed
    → tracker + progress reflect it; overshoot triggers exactly one rebalance with undo.
 
 ### W1-C · `import` (F5 Cheferize) — effort M
@@ -246,7 +255,8 @@ readability strip, size caps, SSRF guard — http(s) only, no private IPs), impo
    other users, no full-text republication. Note in business_flow.
 6. **Tests:** extractor fixtures (2–3 saved HTML pages), allergen re-validation (the
    "AI missed the peanut" case MUST fail closed), quota, macro cross-check.
-7. **Acceptance (dev):** real blog URL → preview matches page → cheferized for a
+7. **Merchandising (§6.4):** free preview-then-blurred-diff flow + /premium card.
+8. **Acceptance (dev):** real blog URL → preview matches page → cheferized for a
    peanut-allergic vegetarian → saved → pinned → appears in a generated week.
 
 ### Wave 1 integration (orchestrator, serial, ~1 session)
@@ -283,7 +293,8 @@ display (recipe page, cook mode servings default, shopping list multiplier).
 3. Lists/cook mode: scaled quantities; cook mode servings pre-set to household size;
    week cost shows per-household + per-person.
 4. Ratings: optional "who liked it" chips on rate → stored in notes (v1 — no schema).
-5. Tests: merge logic, portion math, generation servings; acceptance: 2-member household
+5. Merchandising (§6.4): ghost member chips + sample merged week + /premium card.
+6. Tests: merge logic, portion math, generation servings; acceptance: 2-member household
    (one vegan+nut allergy) generates a compliant week, list scales, cook mode defaults.
 
 ### W2-E · `pantry` (F3) — effort L (v1 scoped)
@@ -309,7 +320,8 @@ page/sheet UI, prompt's use-first section via provider, chat tool `whatCanIMake`
 5. **Leftovers toggle:** generation option "cook once eat twice" → prompt pairs 2–3
    dinner→next-lunch slots with doubled servings; slots labeled "Leftovers from Tuesday"
    (MealSlot gains optional `leftoverOf` — Json, no schema change).
-6. Tests: seeding from check-offs (staples excluded), subtraction math, savings counter,
+6. Merchandising (§6.4): post-check-off savings tease + /premium card.
+7. Tests: seeding from check-offs (staples excluded), subtraction math, savings counter,
    leftover slot pairing; acceptance: buy week 1 → check off → week 2 generation uses
    ≥2 pantry items, list shows "have it" chips and a savings figure.
 
@@ -319,7 +331,104 @@ Merge `household` → `pantry`; wire the pantry provider into the household-owne
 combined e2e (household of 2 + pantry from last week's check-offs → one compliant,
 scaled, pantry-aware week); docs; merge to master per feature with prod verification.
 
-## 6. Verification protocol (every wave)
+## 6. Merchandising — make premium visible, attractive, and obviously worth it
+
+Building the features is half the job; the funnel only moves if free users can _see_ what
+they're missing. Five principles, then concrete surfaces with owners.
+
+### 6.1 Principles
+
+1. **Demo on their data, never stock screenshots.** The highest-converting paywall
+   pattern is a "ghost state": the feature actually runs on the user's own data and shows
+   a real, partially-revealed result. "Your chef noticed something about your Tuesdays…"
+   beats any bullet list.
+2. **Every locked state is a mini-demo, one tap from unlock.** Value first, lock second —
+   a locked surface must show what it _would_ do before it says "premium".
+3. **One honest comparison, generated from the matrix.** The free-vs-premium table
+   renders from `PLAN_FEATURES` (the PW-1 principle extended to marketing) so pricing
+   copy and enforcement can never drift.
+4. **Quantify in euros wherever possible.** Pantry savings, budget adherence, "what these
+   tools cost as separate apps" (MacroFactor $72/yr + MFP $80/yr + Samsung Food $30/yr —
+   the anchor stack from the research doc).
+5. **Beta framing with a price anchor.** "Free during the beta" converts curiosity but
+   anchors the product at €0. Show the future price on the showcase page ("€6.99/month
+   after beta — beta members lock in early-bird pricing") so the eventual Phase C price
+   is an expected event, not a rug-pull. _(Exact price and whether to promise early-bird
+   pricing = product owner's call before this text ships.)_
+
+### 6.2 The `/premium` showcase page — NEW, wave 0 (orchestrator)
+
+Today the entire pitch is one Sheet dialog with a bullet list. Build a real page:
+
+- Hero: one sentence ("A chef that knows you — and your week") + primary CTA.
+- **Feature cards**, one per premium pillar (existing five + the new five as they land):
+  small illustrative mock or live mini-widget, outcome-phrased one-liner, "see it in
+  action" scroll anchor. Each wave agent ships their card with their feature.
+- **Free vs Premium comparison table** rendered from `PLAN_FEATURES` (labels,
+  descriptions, limits — e.g. "Chat: 5/day → unlimited").
+- The euro anchor stack (principle 4) and beta price framing (principle 5).
+- FAQ: cancel anytime, what happens on downgrade (nothing is deleted), beta terms.
+- Every entry point deep-links here preserving its `source`
+  (`/premium?source=chat-quota`), CTA fires the standard funnel events.
+- The upgrade dialog gains a "See everything premium does →" link to this page.
+
+### 6.3 Upgrade dialog v2 — wave 0 (orchestrator)
+
+Keep the Sheet (it converts in-context) but make it **source-aware**: the perk list
+reorders so the feature that triggered it comes first with its description expanded, the
+rest collapse to a compact row. From the shopping-list touchpoint you see the AI list +
+pantry first; from chat-quota, unlimited chat + the chef's tools. Pure presentation —
+reads the same matrix, keyed off the existing `source` prop.
+
+### 6.4 Per-feature ghost states (the money-makers)
+
+Each feature agent builds their own ghost state as part of their workstream — it is a
+deliverable, not a nice-to-have. All fire `upgrade_prompt_shown {source}`.
+
+| Feature   | Free-tier ghost state                                                                                                                                                                                | Surface                        | `source`        |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------- |
+| coach     | Free users with ≥3 logged days get a REAL review generated — first line visible, rest blurred: "Your chef noticed something about your week…" Weight logging itself stays free (it feeds the tease). | Monday banner + dashboard card | `coach-review`  |
+| snap      | Camera button visible in tracker; tap opens a demo sheet (sample scan animating → macros appear) + "scan your own meals with premium".                                                               | Tracker + chat                 | `snap-scan`     |
+| import    | Import button visible; free users get the extraction PREVIEW (1/day) on their own URL — then the Cheferize diff renders blurred with the changes count visible ("3 adaptations for your allergies"). | /recipes                       | `recipe-import` |
+| household | Preferences shows "My household" with ghost member chips ("+ add your partner"); tapping renders a sample merged week using their own diet + one fictional member.                                   | Preferences                    | `household`     |
+| pantry    | After any check-off session: "You now have 14 items in your kitchen — premium plans cook from them" + a REAL computed savings figure ("this week that would have saved ~€6").                        | Shopping list header           | `pantry`        |
+
+### 6.5 Moment-based nudges (copy triggers on existing surfaces)
+
+- After a rating is saved (free user): "Premium turns your ratings into next week's menu"
+  — the P1-1 pitch at the exact moment they generated the signal. `source: post-rating`.
+- Monday, free users with a stale week: "Premium members woke up to a fresh week today."
+  `source: monday-nudge`.
+- **Frequency + taste rules (hard):** max one contextual nudge per day, every nudge
+  dismissible and the dismissal remembered (localStorage per source, 7-day cooldown),
+  nudges never interrupt a task in progress, no fake urgency/countdown patterns. The
+  soft paywall's credibility is a launch asset — don't spend it.
+
+### 6.6 Onboarding
+
+The existing "You're all set / Go further" step (step 2) swaps its static perk list for
+the same feature cards (compact carousel) + the comparison-table link. Source stays
+`onboarding`.
+
+### 6.7 Instrumentation & success criteria
+
+New events: `premium_page_viewed {source}`, `teaser_engaged {feature}`; new sources
+listed above join the funnel-by-source insight automatically (PostHog breakdown picks up
+new values). Success = the existing Phase C gate metrics, now measurable per
+merchandising surface: which ghost state actually converts, which nudge gets dismissed.
+Kill or rework any surface with high impressions and near-zero clicks within two weeks
+of data — merchandising that doesn't convert is just noise.
+
+### 6.8 Ownership summary
+
+| Deliverable                                                                                               | Owner                        | When                |
+| --------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------- |
+| `/premium` page skeleton + matrix comparison table + dialog v2 + nudge cap helper + `premium_page_viewed` | Orchestrator                 | Wave 0              |
+| Ghost state + `/premium` feature card + sources, per feature                                              | That feature's agent         | Their wave          |
+| Post-rating + Monday nudges, onboarding carousel                                                          | Orchestrator                 | Wave 1 integration  |
+| Funnel review of new sources (kill/keep)                                                                  | Product owner + orchestrator | 2 weeks post-launch |
+
+## 7. Verification protocol (every wave)
 
 1. `pnpm lint && pnpm typecheck && pnpm test` green (agents run this before handoff;
    integrator re-runs on the merge result) + `pnpm --filter @chefer/web build`.
@@ -332,9 +441,9 @@ test --project=mobile`).
    throwaway account (register fresh; restore/downgrade after; seed data via psql on the
    VM only when unavoidable and clean it up).
 5. Docs in the SAME commit as the feature (CLAUDE.md table: §6 schema, §8 procedures,
-   business_flow flows, analytics dictionary, this file's §9 progress table).
+   business_flow flows, analytics dictionary, this file's §10 progress table).
 
-## 7. Parallelization mechanics (read before spawning agents)
+## 8. Parallelization mechanics (read before spawning agents)
 
 - **Worktrees:** every wave-1/2 agent runs with `isolation: worktree` on its own branch.
   Agents commit to their branch; they NEVER push, NEVER touch master, NEVER run
@@ -358,7 +467,7 @@ test --project=mobile`).
   Gemini. Vision/import prompts get fixture-based tests so quality iteration doesn't
   burn live calls.
 
-## 8. Rough sizing
+## 9. Rough sizing
 
 | Phase                      | Wall-clock estimate                         |
 | -------------------------- | ------------------------------------------- |
@@ -367,7 +476,7 @@ test --project=mobile`).
 | Wave 2 (2 agents parallel) | 1½–2 days + ½–1 day integration/prod-verify |
 | **Total**                  | **~4–6 working days** vs ~9–12 serial       |
 
-## 9. Progress
+## 10. Progress
 
 | Step                      | Status |
 | ------------------------- | ------ |
