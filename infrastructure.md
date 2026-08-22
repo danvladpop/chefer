@@ -418,21 +418,22 @@ VerificationToken (standalone, for email verification flows)
 
 **ChefProfile**
 
-| Field              | Type           | Notes                                          |
-| ------------------ | -------------- | ---------------------------------------------- |
-| id                 | String (cuid)  | PK                                             |
-| userId             | String         | Unique FK → User, cascade delete               |
-| displayName        | String?        | —                                              |
-| biologicalSex      | BiologicalSex? | MALE / FEMALE / OTHER                          |
-| age                | Int?           | —                                              |
-| heightCm           | Float?         | —                                              |
-| weightKg           | Float?         | —                                              |
-| activityLevel      | ActivityLevel? | SEDENTARY/LIGHTLY_ACTIVE/…/ATHLETE             |
-| goal               | Goal?          | LOSE_WEIGHT/MAINTAIN/GAIN_MUSCLE/EAT_HEALTHIER |
-| dailyCalorieTarget | Int?           | Computed by Mifflin-St Jeor at save            |
-| deliveryAddress    | String?        | Full address string for grocery delivery       |
-| deliveryCurrency   | String?        | ISO 4217 currency code (EUR/USD/GBP/RON)       |
-| updatedAt          | DateTime       | Auto-managed                                   |
+| Field              | Type           | Notes                                                                               |
+| ------------------ | -------------- | ----------------------------------------------------------------------------------- |
+| id                 | String (cuid)  | PK                                                                                  |
+| userId             | String         | Unique FK → User, cascade delete                                                    |
+| displayName        | String?        | —                                                                                   |
+| biologicalSex      | BiologicalSex? | MALE / FEMALE / OTHER                                                               |
+| age                | Int?           | —                                                                                   |
+| heightCm           | Float?         | —                                                                                   |
+| weightKg           | Float?         | —                                                                                   |
+| activityLevel      | ActivityLevel? | SEDENTARY/LIGHTLY_ACTIVE/…/ATHLETE                                                  |
+| goal               | Goal?          | LOSE_WEIGHT/MAINTAIN/GAIN_MUSCLE/EAT_HEALTHIER                                      |
+| dailyCalorieTarget | Int?           | Computed by Mifflin-St Jeor at save                                                 |
+| weeklyBudgetEur    | Float?         | Weekly ingredient budget ceiling (P2-4) — generation treats it as a hard constraint |
+| deliveryAddress    | String?        | Full address string for grocery delivery                                            |
+| deliveryCurrency   | String?        | ISO 4217 currency code (EUR/USD/GBP/RON)                                            |
+| updatedAt          | DateTime       | Auto-managed                                                                        |
 
 **DietaryPreferences**
 
@@ -600,6 +601,7 @@ Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a
   - _Free_: `generateCurated` — random breakfast/lunch/dinner selection from the **safety-filtered** curated pool (allergies, dietary restrictions, dislikes — P1-2) for each of 7 days (shuffled cycling, no AI calls, preset images). If any meal type keeps fewer than `MIN_SAFE_POOL_SIZE` safe recipes, throws `PRECONDITION_FAILED` — the meal-plan page renders it as the contextual upgrade prompt.
 - `swapRecipe(..., premium)` — premium: AI-generated alternative (with name-based image reuse + worker wake); free: random curated recipe of the same meal type from the safety-filtered pool (`PRECONDITION_FAILED` when nothing safe remains).
 - `list` / `restore` / `getById` — history + restore support.
+- Every assembled `WeekPlanDto` carries `estimatedCost` (P2-4): `application/shared/plan-cost.ts` sums per-line EUR estimates from the ingredient price vocabulary across all slots. Premium generation feeds `ChefProfile.weeklyBudgetEur` into the prompt as a hard budget constraint; the meal-plan page shows the week cost on every tier and an over-budget warning when the estimate exceeds the budget.
 
 ### CuratedRecipes (lib)
 

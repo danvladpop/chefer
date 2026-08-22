@@ -341,13 +341,18 @@ mealPlan.generate { weekOffset }
        │   so a goal change moves all three together.)
        ├─ IAIService.generateMealPlan (Gemini) → 21 personalised recipes
        │   (prompt carries "Liked recently (4-5★)…" / "Disliked recently
-       │   (1-2★)… do not repeat" / "Already booked: <pinned names>")
+       │   (1-2★)… do not repeat" / "Already booked: <pinned names>" /
+       │   "Budget (hard constraint): stay under €X" when set — P2-4)
        ├─ pinned favourites REPLACE matching meal slots verbatim (exact
        │   saved recipe, meal type inferred from recent plans, spread
        │   across the week); useInNextPlan flags cleared after success
        ├─ response.personalisation { pinnedDishNames, likedCount,
        │   dislikedCount } → meal-plan page shows "Built for you from N
        │   dishes you rated and M pinned favourites"
+       ├─ response.estimatedCost (every tier, also on curated plans and
+       │   plan loads): week cost from the price vocabulary → cost chip
+       │   on the planner; over-budget warning when it exceeds the
+       │   premium weeklyBudgetEur (P2-4)
        ├─ image reuse: recipes whose name matches a previously generated
        │   DONE image are marked DONE immediately
        ├─ remaining recipes upserted as PENDING with imagePriority

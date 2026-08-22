@@ -49,4 +49,11 @@ describe('buildMealPlanUserPrompt — learning signals (P1-1)', () => {
     expect(prompt).toContain('Already booked into this week');
     expect(prompt).toContain('Herb-Crusted Salmon');
   });
+
+  it('renders the weekly budget as a hard constraint (P2-4)', () => {
+    expect(buildMealPlanUserPrompt(baseInput)).not.toContain('Budget');
+    const prompt = buildMealPlanUserPrompt({ ...baseInput, weeklyBudgetEur: 60 });
+    expect(prompt).toContain('Budget (hard constraint)');
+    expect(prompt).toContain('under €60');
+  });
 });

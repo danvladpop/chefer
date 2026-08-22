@@ -14,6 +14,7 @@ export interface UpsertChefProfileData {
   activityLevel?: ActivityLevel | null;
   goal?: Goal | null;
   dailyCalorieTarget?: number | null;
+  weeklyBudgetEur?: number | null;
   deliveryAddress?: string | null;
   deliveryCurrency?: string | null;
   preferredUnits?: 'METRIC' | 'IMPERIAL';

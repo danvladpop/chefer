@@ -74,6 +74,11 @@ export function buildMealPlanUserPrompt(input: MealPlanInput): string {
       `Already booked into this week by the user (do NOT generate these or near-duplicates): ${input.pinnedDishNames.join(', ')}.`,
     );
   }
+  if (input.weeklyBudgetEur != null) {
+    signalLines.push(
+      `Budget (hard constraint): total ingredient cost for the whole week must stay under €${input.weeklyBudgetEur} at typical Romanian supermarket prices. Prefer affordable staples (legumes, eggs, seasonal vegetables, chicken or pork over beef, canned fish over fresh salmon) as needed to stay within it.`,
+    );
+  }
 
   return `\
 7-day plan for: ${input.biologicalSex} ${input.age}yo ${input.heightCm}cm ${input.weightKg}kg, ${activity}

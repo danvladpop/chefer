@@ -68,6 +68,12 @@ vi.mock('../../workers/recipe-image.worker.js', () => ({
   recipeImageWorker: { wake: vi.fn() },
 }));
 
+vi.mock('../shared/plan-cost.js', () => ({
+  estimatePlanCostEur: vi
+    .fn()
+    .mockResolvedValue({ totalEur: 42.5, pricedLines: 10, totalLines: 12 }),
+}));
+
 // ─── Fake repository ──────────────────────────────────────────────────────────
 
 function makeRepo() {
@@ -277,6 +283,23 @@ describe('MealPlanService.generate', () => {
     expect(plan.personalisation).toMatchObject({ likedCount: 2, dislikedCount: 1 });
     // No pins → nothing to clear.
     expect(favouriteRecipeRepository.clearNextPlanFlags).not.toHaveBeenCalled();
+  });
+
+  it('premium: the weekly budget reaches the AI input and the cost lands on the DTO (P2-4)', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue({
+      ...CHEF_PROFILE,
+      weeklyBudgetEur: 60,
+    } as never);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+
+    const plan = await service.generate('user1', 0, true);
+
+    const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
+    expect(input.weeklyBudgetEur).toBe(60);
+    expect(plan.estimatedCost?.totalEur).toBe(42.5);
   });
 
   it('premium without a chef profile is rejected with BAD_REQUEST', async () => {

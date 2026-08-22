@@ -15,6 +15,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Euro,
   ImageIcon,
   RefreshCw,
   Sparkles,
@@ -101,6 +102,16 @@ export default function MealPlanPage() {
     isLoading,
     refetch,
   } = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { retry: false });
+
+  // Week cost + budget (P2-4). Every tier sees the cost; the budget is a
+  // premium preference and simply comes back null for free users.
+  const { data: prefs } = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
+  const weekCost = plan?.estimatedCost?.totalEur ?? null;
+  const weeklyBudget = prefs?.chefProfile?.weeklyBudgetEur ?? null;
+  const overBudget =
+    weekCost !== null && weeklyBudget !== null && weekCost > weeklyBudget
+      ? Math.round((weekCost - weeklyBudget) * 100) / 100
+      : null;
 
   // Collect pending recipe IDs for SSE subscription
   const pendingRecipeIds = useMemo(
@@ -227,6 +238,20 @@ export default function MealPlanPage() {
 
       {/* Actions — only available for current/future weeks */}
       <div className="flex flex-wrap items-center gap-2">
+        {/* Estimated week cost (P2-4) — the priced-list wedge, on the plan */}
+        {weekCost !== null && (
+          <span
+            className={`flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-medium ${
+              overBudget !== null
+                ? 'border-amber-300 bg-amber-50 text-amber-800'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            }`}
+            title="Estimated ingredient cost for the whole week"
+          >
+            <Euro className="h-3 w-3" aria-hidden="true" />≈ €{weekCost.toFixed(2)} this week
+          </span>
+        )}
+
         {/* Photo generation progress */}
         {photosInProgress && (
           <span className="flex items-center gap-1.5 rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-[11px] font-medium text-[#944a00]">
@@ -293,6 +318,18 @@ export default function MealPlanPage() {
             </p>
           </div>
         )}
+
+      {/* Over-budget warning (P2-4) */}
+      {overBudget !== null && (
+        <div className="mx-4 mb-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 sm:mx-6">
+          <p className="flex items-start gap-2 text-xs text-amber-900">
+            <Euro className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
+            This week comes to ≈ €{weekCost?.toFixed(2)} — about €{overBudget.toFixed(2)} over your
+            €{weeklyBudget} budget. Regenerate for a cheaper week, or raise the budget in
+            Preferences.
+          </p>
+        </div>
+      )}
 
       {/* Contextual upsell — the free pool can't cover these restrictions */}
       {poolExhaustedMessage && (

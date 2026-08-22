@@ -45,6 +45,8 @@ const targetsSchema = setupSchema
     deliveryAddress: z.string().nullable().optional(),
     deliveryCurrency: z.enum(['EUR', 'USD', 'GBP', 'RON']).nullable().optional(),
     preferredUnits: z.enum(['METRIC', 'IMPERIAL']).optional(),
+    // P2-4: weekly ingredient budget — null clears it.
+    weeklyBudgetEur: z.number().positive().max(2000).nullable().optional(),
   });
 
 // ─── Router ───────────────────────────────────────────────────────────────────

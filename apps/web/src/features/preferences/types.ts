@@ -8,6 +8,7 @@ export interface ChefProfileData {
   weightKg: number | null;
   activityLevel: string | null;
   dailyCalorieTarget: number | null;
+  weeklyBudgetEur?: number | null;
   deliveryAddress?: string | null;
   deliveryCurrency?: string | null;
   preferredUnits?: string | null;

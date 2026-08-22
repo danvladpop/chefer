@@ -62,6 +62,14 @@ export const PLAN_FEATURES = {
       'Swap any meal for an AI alternative that fits your macros — free swaps draw from the curated pool.',
     upsell: true,
   },
+  budgetAwarePlanning: {
+    free: false,
+    premium: true,
+    label: 'Budget-aware weekly plans',
+    description:
+      'Set "keep my week under €X" and generation favours affordable meals to stay within it — every tier sees the estimated week cost.',
+    upsell: true,
+  },
   aiShoppingList: {
     free: false,
     premium: true,

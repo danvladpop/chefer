@@ -102,6 +102,8 @@ interface FormData {
   deliveryAddress: string;
   deliveryCurrency: string;
   preferredUnits: 'METRIC' | 'IMPERIAL';
+  /** Weekly ingredient budget in EUR as input text; '' = no budget (P2-4). */
+  weeklyBudget: string;
 }
 
 interface PreferencesFormProps {
@@ -140,6 +142,7 @@ export function PreferencesForm({
     deliveryAddress: chefProfile?.deliveryAddress ?? '',
     deliveryCurrency: chefProfile?.deliveryCurrency ?? 'EUR',
     preferredUnits: (chefProfile?.preferredUnits as 'METRIC' | 'IMPERIAL' | undefined) ?? 'METRIC',
+    weeklyBudget: chefProfile?.weeklyBudgetEur != null ? String(chefProfile.weeklyBudgetEur) : '',
   });
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -203,6 +206,7 @@ export function PreferencesForm({
           deliveryAddress: data.deliveryAddress || null,
           deliveryCurrency: data.deliveryCurrency as 'EUR' | 'USD' | 'GBP' | 'RON',
           preferredUnits: data.preferredUnits,
+          weeklyBudgetEur: data.weeklyBudget.trim() ? Number(data.weeklyBudget) : null,
         });
       }
       onSaved();
@@ -273,6 +277,30 @@ export function PreferencesForm({
                 }}
                 onChange={(cuisine) => setData((d) => ({ ...d, ...cuisine }))}
               />
+            </Section>
+
+            {/* Weekly budget (P2-4) — generation treats it as a hard ceiling */}
+            <Section>
+              <h2 className="mb-1 text-base font-semibold">Weekly Budget</h2>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Keep my week under a set amount — the AI chef plans affordable meals to stay within
+                it. Leave empty for no budget.
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-medium text-muted-foreground">€</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={2000}
+                  step="1"
+                  value={data.weeklyBudget}
+                  onChange={(e) => setData((d) => ({ ...d, weeklyBudget: e.target.value }))}
+                  onFocus={(e) => e.currentTarget.select()}
+                  placeholder="e.g. 60"
+                  className="w-32 rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <span className="text-sm text-muted-foreground">per week</span>
+              </div>
             </Section>
           </>
         )}

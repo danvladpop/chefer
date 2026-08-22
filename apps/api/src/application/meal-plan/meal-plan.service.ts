@@ -22,6 +22,7 @@ import {
 } from '../../lib/curated-recipes/index.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
+import { estimatePlanCostEur, type PlanCostEstimate } from '../shared/plan-cost.js';
 
 // ─── Summary DTO ──────────────────────────────────────────────────────────────
 
@@ -72,6 +73,11 @@ export interface WeekPlanDto {
   planId: string;
   weekStartDate: Date;
   days: DayPlanDto[];
+  /**
+   * Estimated week cost from the ingredient price vocabulary (P2-4) —
+   * the priced-shopping-list wedge, surfaced on the plan itself.
+   */
+  estimatedCost?: PlanCostEstimate;
   /**
    * What the generation learned from (P1-1) — present only on the response of
    * a premium generate, so the UI can show "built from N dishes you rated".
@@ -176,6 +182,9 @@ export class MealPlanService {
       pinnedDishNames: pinnedFavourites.map((f) => f.recipe.name),
       likedDishes,
       dislikedDishes,
+      ...(chefProfile.weeklyBudgetEur != null && {
+        weeklyBudgetEur: chefProfile.weeklyBudgetEur,
+      }),
     };
 
     // 3. Call AI service
@@ -296,6 +305,7 @@ export class MealPlanService {
           };
         }),
       })),
+      estimatedCost: await estimatePlanCostEur(weekPlan.days),
       personalisation: {
         pinnedDishNames: placedPinNames,
         likedCount: likedDishes.length,
@@ -430,6 +440,7 @@ export class MealPlanService {
           recipe: toRecipeDto(m.recipe, { imageUrl: m.recipe.imageUrl, imageStatus: 'DONE' }),
         })),
       })),
+      estimatedCost: await estimatePlanCostEur(days),
     };
   }
 
@@ -464,7 +475,12 @@ export class MealPlanService {
       return { dayOfWeek: d.dayOfWeek, meals };
     });
 
-    return { planId: plan.id, weekStartDate: plan.weekStartDate, days };
+    return {
+      planId: plan.id,
+      weekStartDate: plan.weekStartDate,
+      days,
+      estimatedCost: await estimatePlanCostEur(days),
+    };
   }
 
   /**

@@ -149,6 +149,7 @@ model ChefProfile {
   activityLevel      ActivityLevel?
   goal               Goal?
   dailyCalorieTarget Int?
+  weeklyBudgetEur    Float?
   deliveryAddress    String?
   deliveryCurrency   String?        @default("EUR")
   preferredUnits     UnitSystem     @default(METRIC)

@@ -67,6 +67,8 @@ export interface MealPlanInput {
   likedDishes?: string[];
   /** Recently disliked (1–2★) dish names — do not repeat or closely imitate. */
   dislikedDishes?: string[];
+  /** Hard weekly ingredient-cost ceiling in EUR (P2-4, premium). */
+  weeklyBudgetEur?: number;
 }
 
 export interface SwapInput {

@@ -190,6 +190,7 @@ export interface UpdatePreferencesInput {
   deliveryAddress?: string | null;
   deliveryCurrency?: string | null;
   preferredUnits?: 'METRIC' | 'IMPERIAL';
+  weeklyBudgetEur?: number | null;
 }
 
 export interface PreferencesDto {
@@ -328,6 +329,7 @@ export class PreferencesService {
       deliveryAddress,
       deliveryCurrency,
       preferredUnits,
+      weeklyBudgetEur,
     } = input;
 
     // Recompute calorie target only when enough body-metric fields are provided
@@ -341,6 +343,7 @@ export class PreferencesService {
     if (deliveryAddress !== undefined) profileData.deliveryAddress = deliveryAddress;
     if (deliveryCurrency !== undefined) profileData.deliveryCurrency = deliveryCurrency;
     if (preferredUnits !== undefined) profileData.preferredUnits = preferredUnits;
+    if (weeklyBudgetEur !== undefined) profileData.weeklyBudgetEur = weeklyBudgetEur;
 
     if (Object.keys(profileData).length > 0) {
       // If all body metrics are known, recompute calorie target
