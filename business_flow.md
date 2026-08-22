@@ -17,6 +17,7 @@
 9. [Premium Tier & Meal Plan Generation Flow](#9-premium-tier--meal-plan-generation-flow)
 10. [Dashboard Summary Flow](#10-dashboard-summary-flow)
 11. [Password Reset Flow](#11-password-reset-flow)
+12. [AI Chat Flow](#12-ai-chat-flow)
 
 ---
 
@@ -484,3 +485,38 @@ The web hero card (`/dashboard`) renders `nextMeal`, else `tomorrowFirstMeal`
        ├─ delete all reset tokens for the address (single-use)
        └─ delete ALL of the user's sessions — every device signs out
 ```
+
+---
+
+## 12. AI Chat Flow
+
+The AI chef chat (P1-4) is a real assistant over the user's data, not canned
+responses. The widget (`ChatWidget.tsx`, every dashboard page) posts the
+message history to `POST /api/chat` on the API and renders the plain-text
+stream.
+
+```
+POST /api/chat (session cookie)
+  ├─ resolve user from session (401 without)
+  ├─ ChatService.assertChatQuota
+  │    └─ FREE: 5 messages/day (PLAN_FEATURES.chatMessagesPerDay, counted
+  │       from ai_call_logs CHAT rows) — over quota streams the upgrade
+  │       message as a normal reply
+  ├─ build fresh context from REAL data:
+  │    today's meals + macros + day totals, weekly overview, resolved
+  │    daily targets, allergies/restrictions/dislikes, recent ratings
+  ├─ log AiCallLog CHAT
+  └─ aiService.chat(messages, { contextSummary, tools })
+       ├─ Gemini: bounded function-calling loop, then streams the answer
+       │    ├─ swapMeal(dayOfWeek, mealType) → MealPlanService.swapRecipe
+       │    │    (a chat swap IS a plan swap — the meal-plan page reflects it)
+       │    └─ scaleRecipe(recipeName, servings) → quantities rescaled from
+       │         the active plan
+       └─ mock: echoes the same context and exercises the same tools
+```
+
+Routing: Caddy sends `/api/chat` to the API in production; a Next.js rewrite
+proxies it in dev. `apps/web` no longer touches Prisma anywhere (Architecture
+Rule 1 exception removed).
+
+---

@@ -123,9 +123,27 @@ export interface ChatMessage {
   content: string;
 }
 
+/**
+ * Tool implementations the chat model may invoke (P1-4). Implemented by
+ * ChatService over the real services; each returns a plain-text result that
+ * is fed back to the model.
+ */
+export interface ChatTools {
+  /** Swaps a slot in the user's active plan. dayOfWeek: 0=Monday…6=Sunday. */
+  swapMeal(args: { dayOfWeek: number; mealType: string }): Promise<string>;
+  /** Rescales a recipe from the active plan to a serving count. */
+  scaleRecipe(args: { recipeName: string; servings: number }): Promise<string>;
+}
+
 export interface ChatContext {
-  activePlanId?: string;
   userId: string;
+  /**
+   * Prompt-ready summary of the user's real data: today's meals with macros,
+   * daily targets, allergies/restrictions, recent ratings. Built fresh per
+   * message by ChatService — the model answers from THIS, not from guesses.
+   */
+  contextSummary: string;
+  tools?: ChatTools;
 }
 
 // ─── Service Interface ────────────────────────────────────────────────────────

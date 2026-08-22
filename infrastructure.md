@@ -158,14 +158,15 @@ src/
 
 #### HTTP Endpoints
 
-| Method | Path                        | Description                                          |
-| ------ | --------------------------- | ---------------------------------------------------- |
-| GET    | `/health`                   | Returns server status, env, version                  |
-| GET    | `/health/ready`             | Checks live DB connectivity                          |
-| GET    | `/api/recipe-images/stream` | SSE stream of recipe image status updates            |
-| POST   | `/api/uploads/image`        | Session-authenticated raw-body image upload (≤ 5 MB) |
-| GET    | `/uploads/*`                | Statically served uploaded images                    |
-| \*     | `/trpc/*`                   | tRPC batch endpoint (all API calls)                  |
+| Method | Path                        | Description                                                                                           |
+| ------ | --------------------------- | ----------------------------------------------------------------------------------------------------- |
+| GET    | `/health`                   | Returns server status, env, version                                                                   |
+| GET    | `/health/ready`             | Checks live DB connectivity                                                                           |
+| GET    | `/api/recipe-images/stream` | SSE stream of recipe image status updates                                                             |
+| POST   | `/api/uploads/image`        | Session-authenticated raw-body image upload (≤ 5 MB)                                                  |
+| GET    | `/uploads/*`                | Statically served uploaded images                                                                     |
+| POST   | `/api/chat`                 | AI chef chat (P1-4) — session-authenticated, streams plain text; tool-capable (swapMeal, scaleRecipe) |
+| \*     | `/trpc/*`                   | tRPC batch endpoint (all API calls)                                                                   |
 
 #### Middleware Chain (every request)
 
@@ -185,6 +186,7 @@ src/
 | `auth.login` / `auth.register` | per IP                       | 10 per 15 min                                             | `auth.router.ts` → `lib/rate-limit.ts` (in-memory sliding window) |
 | Plan generations               | per user per UTC day         | from `PLAN_FEATURES` (counted from `meal_plans` rows)     | `meal-plan.router.ts` → `lib/quotas.ts`                           |
 | AI swaps                       | per premium user per UTC day | from `PLAN_FEATURES` (counted from `ai_call_logs`)        | `meal-plan.router.ts` → `lib/quotas.ts`                           |
+| Chat messages                  | per FREE user per UTC day    | from `PLAN_FEATURES` (counted from `ai_call_logs` CHAT)   | `chat.router.ts` → `ChatService.assertChatQuota`                  |
 
 The in-memory stores assume a single API instance; move to Redis (`REDIS_URL`
 is already in the env schema) before scaling horizontally. Per-tier quota
@@ -584,6 +586,10 @@ Maps domain errors (e.g., `UserNotFoundError`) to tRPC error codes.
 
 `apps/api/src/application/preferences/preferences.service.ts`. Methods: `hasProfile`, `get`, `setup`, `update` (backing both `preferences.updateSafety` and `preferences.updateTargets` — the split is enforced at the router's auth level, P1-2).
 Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a Prisma `$transaction`. Recomputes `dailyCalorieTarget` via Mifflin-St Jeor on every update. Accepts `deliveryAddress` and `deliveryCurrency` fields.
+
+### ChatService (application layer)
+
+`apps/api/src/application/chat/chat.service.ts` (P1-4). Backs `POST /api/chat`: enforces the matrix chat quota (`chatMessagesPerDay` — FREE 5/day counted from `ai_call_logs` CHAT rows, premium unlimited), builds a fresh per-message context from the user's REAL data (today's meals with macros + day totals, weekly overview, resolved daily targets, allergies/restrictions/dislikes, recent rating signals) and hands the model tools over the real services: `swapMeal` (performs an actual plan swap through MealPlanService, respecting the swap quota) and `scaleRecipe` (rescales ingredient quantities from the active plan). The Gemini implementation runs a bounded function-calling loop and streams the final answer; the mock echoes the same context and exercises the same tool handlers.
 
 ### MealPlanService (application layer)
 

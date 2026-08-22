@@ -5,10 +5,11 @@ import { useChat } from '@ai-sdk/react';
 import { TextStreamChatTransport, type UIMessage } from 'ai';
 import { MessageCircle, Send, X } from 'lucide-react';
 
+// Showcase what the chat can actually DO with the user's real plan (P1-4).
 const SUGGESTED_PROMPTS = [
-  'What can I substitute for chicken?',
-  'How do I meal prep quinoa?',
-  'Make me a high-protein breakfast idea',
+  'How much protein am I eating today?',
+  "Swap tomorrow's lunch for something else",
+  "Scale tonight's dinner for 4 people",
 ];
 
 function getMessageText(m: UIMessage): string {
@@ -23,8 +24,10 @@ export function ChatWidget() {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const [chatError, setChatError] = useState<string | null>(null);
   const { messages, sendMessage, status } = useChat({
     transport: new TextStreamChatTransport({ api: '/api/chat' }),
+    onError: () => setChatError('The chef is unavailable right now — please try again.'),
   });
   const isLoading = status === 'submitted' || status === 'streaming';
 
@@ -36,11 +39,13 @@ export function ChatWidget() {
     const text = inputValue.trim();
     if (!text || isLoading) return;
     setInputValue('');
+    setChatError(null);
     void sendMessage({ text });
   };
 
   const sendSuggested = (prompt: string) => {
     if (isLoading) return;
+    setChatError(null);
     void sendMessage({ text: prompt });
   };
 
@@ -129,6 +134,11 @@ export function ChatWidget() {
                 </div>
               );
             })}
+            {chatError && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                {chatError}
+              </div>
+            )}
             {isLoading && (
               <div className="flex justify-start">
                 <span className="mr-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#944a00] text-[10px] font-bold text-white">

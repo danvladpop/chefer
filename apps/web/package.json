@@ -14,10 +14,8 @@
     "clean": "rm -rf .next dist"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.48",
     "@ai-sdk/react": "^3.0.142",
     "@chefer/api": "workspace:*",
-    "@chefer/database": "workspace:*",
     "@chefer/types": "workspace:*",
     "@chefer/ui": "workspace:*",
     "@chefer/utils": "workspace:*",

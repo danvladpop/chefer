@@ -63,6 +63,12 @@ const nextConfig: NextConfig = {
         source: '/trpc/:path*',
         destination: `${process.env['API_INTERNAL_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'}/trpc/:path*`,
       },
+      {
+        // Same for the AI chef chat endpoint — it lives on the API (P1-4);
+        // Caddy routes it there in production, this rewrite covers dev.
+        source: '/api/chat',
+        destination: `${process.env['API_INTERNAL_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'}/api/chat`,
+      },
     ];
   },
   async redirects() {

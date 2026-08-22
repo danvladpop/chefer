@@ -78,8 +78,7 @@ export const PLAN_FEATURES = {
     upsell: false,
   },
   chatMessagesPerDay: {
-    // Enforced when the AI chef chat goes live (roadmap P1-4); declared here
-    // so the limit ships from the matrix on day one.
+    // Enforced by ChatService.assertChatQuota (P1-4).
     free: 5,
     premium: true,
     label: 'Unlimited AI chef chat',

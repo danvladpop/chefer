@@ -13,6 +13,7 @@ import {
 import { asyncHandler } from './lib/async-handler.js';
 import { env } from './lib/env.js';
 import { logger } from './lib/logger.js';
+import { chatRouter } from './routers/chat.router.js';
 import { appRouter } from './routers/index.js';
 import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
@@ -99,6 +100,10 @@ app.use('/api/recipe-images', recipeImagesSseRouter);
 
 app.use('/api/uploads', uploadsRouter);
 app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d', immutable: true }));
+
+// ─── AI chef chat (P1-4) — plain-text streaming, session-authenticated ───────
+
+app.use('/api/chat', chatRouter);
 
 // ─── tRPC ─────────────────────────────────────────────────────────────────────
 

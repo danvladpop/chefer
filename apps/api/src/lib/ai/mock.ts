@@ -95,13 +95,44 @@ export class MockAIService implements IAIService {
     });
   }
 
-  async chat(messages: ChatMessage[], _context: ChatContext): Promise<ReadableStream> {
+  async chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream> {
     await delay(200);
 
+    // The mock echoes the REAL per-message context and exercises the same
+    // tool handlers the live path uses (P1-4) — so local dev tests the whole
+    // pipeline, not a canned regex script.
     const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
-    const response = lastUserMessage
-      ? `(Mock) You asked: "${lastUserMessage.content}". In a real deployment this would be answered by the live AI. For now, check the meal plan and enjoy your week!`
-      : '(Mock) Hi! I am Chefer, your personal chef AI. How can I help you today?';
+    const question = lastUserMessage?.content ?? '';
+
+    let response: string;
+    if (/swap/i.test(question) && context.tools) {
+      const dayMatch =
+        /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tomorrow)\b/i.exec(
+          question,
+        );
+      const jsDay = new Date().getDay();
+      const today = jsDay === 0 ? 6 : jsDay - 1;
+      const DAY_INDEX: Record<string, number> = {
+        monday: 0,
+        tuesday: 1,
+        wednesday: 2,
+        thursday: 3,
+        friday: 4,
+        saturday: 5,
+        sunday: 6,
+        today,
+        tomorrow: (today + 1) % 7,
+      };
+      const dayOfWeek = DAY_INDEX[dayMatch?.[1]?.toLowerCase() ?? 'today'] ?? today;
+      const mealType =
+        /\b(breakfast|lunch|dinner|snack)\b/i.exec(question)?.[1]?.toLowerCase() ?? 'lunch';
+      const result = await context.tools.swapMeal({ dayOfWeek, mealType });
+      response = `(Mock) ${result}`;
+    } else if (question) {
+      response = `(Mock) You asked: "${question}". Here is what I know about your day:\n${context.contextSummary}`;
+    } else {
+      response = '(Mock) Hi! I am Chefer, your personal chef AI. How can I help you today?';
+    }
 
     return stringToReadableStream(response);
   }

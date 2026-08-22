@@ -84,6 +84,7 @@ enum AiCallType {
   SHOPPING_LIST
   IMAGE_GENERATION
   INGREDIENT_PRICES
+  CHAT
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────

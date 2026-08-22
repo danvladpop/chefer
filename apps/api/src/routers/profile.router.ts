@@ -31,16 +31,18 @@ export const profileRouter = router({
       [AiCallType.SHOPPING_LIST]: 0,
       [AiCallType.IMAGE_GENERATION]: 0,
       [AiCallType.INGREDIENT_PRICES]: 0,
+      [AiCallType.CHAT]: 0,
     };
     for (const log of logs) {
       counts[log.callType]++;
     }
 
-    // Total Gemini calls (meal plan + swap + shopping list)
+    // Total Gemini calls (meal plan + swap + shopping list + chat)
     const geminiTotal =
       counts[AiCallType.MEAL_PLAN] +
       counts[AiCallType.RECIPE_SWAP] +
-      counts[AiCallType.SHOPPING_LIST];
+      counts[AiCallType.SHOPPING_LIST] +
+      counts[AiCallType.CHAT];
 
     return {
       today: counts,

@@ -46,6 +46,7 @@ export type {
   AiShoppingListItem,
   ChatContext,
   ChatMessage,
+  ChatTools,
   DayPlan,
   Ingredient,
   IngredientPriceEstimate,

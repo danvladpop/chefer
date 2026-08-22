@@ -470,34 +470,127 @@ export class GeminiAIService implements IAIService {
     return parsed.data.items;
   }
 
-  async chat(messages: ChatMessage[], _context: ChatContext): Promise<ReadableStream> {
+  async chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream> {
     // Convert our internal ChatMessage format to what Gemini expects.
     // Gemini uses 'model' for the assistant role.
-    const contents = messages.map((m) => ({
+    const contents: {
+      role: 'user' | 'model';
+      parts: Record<string, unknown>[];
+    }[] = messages.map((m) => ({
       role: m.role === 'assistant' ? ('model' as const) : ('user' as const),
       parts: [{ text: m.content }],
     }));
 
-    const stream = await this.client.models.generateContentStream({
-      model: MODEL,
-      contents,
-      config: {
-        systemInstruction: CHAT_SYSTEM_PROMPT,
-        temperature: 0.9,
-        maxOutputTokens: 1024,
-      },
-    });
+    const systemInstruction = `${CHAT_SYSTEM_PROMPT}\n\n${context.contextSummary}`;
 
+    const toolDeclarations = context.tools
+      ? [
+          {
+            functionDeclarations: [
+              {
+                name: 'swapMeal',
+                description:
+                  "Swaps one meal slot in the user's active weekly plan for an alternative recipe. Use when the user asks to swap, change or replace a meal.",
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    dayOfWeek: {
+                      type: Type.NUMBER,
+                      description: 'Day to swap: 0=Monday … 6=Sunday',
+                    },
+                    mealType: {
+                      type: Type.STRING,
+                      description: 'One of: breakfast, lunch, dinner, snack',
+                    },
+                  },
+                  required: ['dayOfWeek', 'mealType'],
+                } as Schema,
+              },
+              {
+                name: 'scaleRecipe',
+                description:
+                  "Rescales the ingredient quantities of a recipe from the user's active plan to a different number of servings.",
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    recipeName: {
+                      type: Type.STRING,
+                      description: 'Name (or distinctive part of the name) of the recipe to scale',
+                    },
+                    servings: { type: Type.NUMBER, description: 'Desired number of servings' },
+                  },
+                  required: ['recipeName', 'servings'],
+                } as Schema,
+              },
+            ],
+          },
+        ]
+      : undefined;
+
+    // Tool loop (bounded): resolve function calls with the real services,
+    // feed results back, then stream the final text answer. Tool rounds are
+    // non-streamed — only the final prose streams to the widget.
+    const MAX_TOOL_ROUNDS = 3;
+    let finalText = '';
+    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+      const response = await this.client.models.generateContent({
+        model: MODEL,
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+          maxOutputTokens: 1024,
+          ...(toolDeclarations && round < MAX_TOOL_ROUNDS ? { tools: toolDeclarations } : {}),
+        },
+      });
+
+      const calls = response.functionCalls;
+      if (!calls?.length || !context.tools) {
+        finalText = response.text ?? '';
+        break;
+      }
+
+      contents.push({
+        role: 'model',
+        parts: calls.map((call) => ({ functionCall: call })),
+      });
+      for (const call of calls) {
+        let result: string;
+        try {
+          const args = call.args ?? {};
+          if (call.name === 'swapMeal') {
+            result = await context.tools.swapMeal({
+              dayOfWeek: Number(args['dayOfWeek']),
+              mealType: String(args['mealType']),
+            });
+          } else if (call.name === 'scaleRecipe') {
+            result = await context.tools.scaleRecipe({
+              recipeName: String(args['recipeName']),
+              servings: Number(args['servings']),
+            });
+          } else {
+            result = `Unknown tool: ${call.name}`;
+          }
+        } catch (err) {
+          result = `Tool failed: ${err instanceof Error ? err.message : 'unknown error'}`;
+        }
+        contents.push({
+          role: 'user',
+          parts: [{ functionResponse: { name: call.name, response: { result } } }],
+        });
+      }
+    }
+
+    // Stream the final answer in word chunks so the widget's streaming UX is
+    // preserved even though tool resolution was request/response.
     const encoder = new TextEncoder();
-
+    const words = finalText.split(/(?<= )/);
     return new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of stream) {
-            const text = chunk.text;
-            if (text) {
-              controller.enqueue(encoder.encode(text));
-            }
+          for (const word of words) {
+            controller.enqueue(encoder.encode(word));
+            await new Promise((r) => setTimeout(r, 12));
           }
         } finally {
           controller.close();

@@ -117,17 +117,17 @@ more surface than it has depth.
 
 ### 2.2 Built but inert
 
-| Surface                                          | Evidence                                                                     |
-| ------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `FavouriteRecipe.useInNextPlan`                  | ~~read by nothing~~ → consumed by premium generation since P1-1 (2026-08-22) |
-| `MealRating`                                     | ~~read by nothing~~ → feeds the generation prompt since P1-1 (2026-08-22)    |
-| AI chat                                          | `apps/web/src/app/api/chat/route.ts:6` — mock-by-default, regex responses    |
-| `mealPlan.getShoppingList`                       | `meal-plan.router.ts:108` — superseded by `shoppingList.*`, still exposed    |
-| `Post` / `Tag` / `PostTag` models                | `schema.prisma:336-382` — no router, no UI                                   |
-| `UserProfile` model (bio/website/twitter/github) | `schema.prisma:124` — never read or written                                  |
-| `/user` page                                     | `apps/web/src/app/user/page.tsx` — dev scaffold, still routable              |
-| `JWT_SECRET`, `REFRESH_TOKEN_SECRET`             | Required by env schema, never used                                           |
-| `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS`         | Configured, no rate limiter installed                                        |
+| Surface                                          | Evidence                                                                         |
+| ------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `FavouriteRecipe.useInNextPlan`                  | ~~read by nothing~~ → consumed by premium generation since P1-1 (2026-08-22)     |
+| `MealRating`                                     | ~~read by nothing~~ → feeds the generation prompt since P1-1 (2026-08-22)        |
+| AI chat                                          | ~~mock regex route~~ → real tool-capable chat on the API since P1-4 (2026-08-22) |
+| `mealPlan.getShoppingList`                       | `meal-plan.router.ts:108` — superseded by `shoppingList.*`, still exposed        |
+| `Post` / `Tag` / `PostTag` models                | `schema.prisma:336-382` — no router, no UI                                       |
+| `UserProfile` model (bio/website/twitter/github) | `schema.prisma:124` — never read or written                                      |
+| `/user` page                                     | `apps/web/src/app/user/page.tsx` — dev scaffold, still routable                  |
+| `JWT_SECRET`, `REFRESH_TOKEN_SECRET`             | Required by env schema, never used                                               |
+| `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS`         | Configured, no rate limiter installed                                            |
 
 ---
 
