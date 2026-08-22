@@ -213,10 +213,13 @@ jobs:
     steps:
       - name: Poll health endpoint
         run: |
+          # /api/health routes to the API since A12 (Caddy @apiBackend): it
+          # checks API + DB and answers {"ok":true} — same check the external
+          # uptime monitor watches.
           URL="${{ vars.DEPLOYMENT_URL || 'https://chefer.duckdns.org' }}/api/health"
           echo "Checking $URL"
           for i in $(seq 1 12); do
-            if curl -fsS --max-time 10 "$URL" | grep -q '"status":"ok"'; then
+            if curl -fsS --max-time 10 "$URL" | grep -q '"ok":true'; then
               echo "✅ Healthy after ${i} attempt(s)"
               exit 0
             fi
@@ -225,4 +228,20 @@ jobs:
           done
           echo "❌ Site did not become healthy"
           echo "   Debug on the VM: docker compose --env-file .env.production -f docker-compose.deploy.yml logs --tail 50"
+          exit 1
+
+      - name: Check web homepage
+        run: |
+          # /api/health only proves API + DB now — make sure web serves pages too.
+          URL="${{ vars.DEPLOYMENT_URL || 'https://chefer.duckdns.org' }}/"
+          for i in $(seq 1 12); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL")
+            if [ "$CODE" = "200" ]; then
+              echo "✅ Homepage 200 after ${i} attempt(s)"
+              exit 0
+            fi
+            echo "  attempt $i: homepage returned $CODE, retrying in 5s…"
+            sleep 5
+          done
+          echo "❌ Homepage did not return 200"
           exit 1

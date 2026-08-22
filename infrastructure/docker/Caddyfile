@@ -2,8 +2,9 @@
 # Terminates TLS automatically via Let's Encrypt for ${PUBLIC_DOMAIN}
 # (e.g. chefer.duckdns.org) and path-routes to the two app containers.
 #
-#   /trpc/*, /api/uploads/*, /api/recipe-images/*, /api/chat, /uploads/*  -> api:3001
-#   everything else (pages, /api/health, static)                           -> web:3000
+#   /trpc/*, /api/uploads/*, /api/recipe-images/*, /api/chat, /api/health,
+#   /uploads/*                                                             -> api:3001
+#   everything else (pages, static)                                        -> web:3000
 #
 # The api and web hostnames resolve over the compose network.
 
@@ -16,8 +17,10 @@
 		reverse_proxy api:3001
 	}
 
-	# Backend-only API paths (uploads endpoint + SSE image stream + AI chat)
-	@apiBackend path /api/uploads/* /api/recipe-images/* /api/chat
+	# Backend-only API paths (uploads endpoint + SSE image stream + AI chat +
+	# the canonical health check: API + DB, 503 when the DB is unreachable —
+	# this is what the external uptime monitor watches, A12)
+	@apiBackend path /api/uploads/* /api/recipe-images/* /api/chat /api/health
 	handle @apiBackend {
 		reverse_proxy api:3001 {
 			# Streams (SSE image status, chat text): don't buffer
@@ -31,7 +34,7 @@
 		reverse_proxy api:3001
 	}
 
-	# Everything else -> Next.js web (pages, /api/health, /api/chat, assets)
+	# Everything else -> Next.js web (pages, assets)
 	handle {
 		reverse_proxy web:3000
 	}

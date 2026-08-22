@@ -934,7 +934,7 @@ Caddy. See **`docs/plan-deployment.md`** for the full plan. Key files:
 - `docker-compose.deploy.yml` (repo root) — `postgres` + `api` + `web` + `caddy` (no Redis/nginx),
   persistent `pgdata`/`uploads` volumes.
 - `infrastructure/docker/Caddyfile` — TLS + single-origin path routing (`/trpc`, `/api/uploads/*`,
-  `/api/recipe-images/*`, `/uploads/*` → API; rest → web).
+  `/api/recipe-images/*`, `/api/chat`, `/api/health`, `/uploads/*` → API; rest → web).
 - `.env.production.example` — deploy env template.
 - `infrastructure/scripts/{deploy,restore-dump,backup-db,duckdns-update}.sh`.
 
@@ -969,7 +969,21 @@ current size.
   the DB and its backups. Before real users, add an off-VM copy (e.g. `rclone` to object storage
   or a nightly `scp` pull from another machine).
 
----
+### Uptime monitoring (A12)
+
+External monitoring via **UptimeRobot** (free tier: 50 monitors, 5-minute interval, email
+alerts), on the account belonging to the project owner. Two monitors:
+
+| Monitor      | URL                                     | Type / check                                  | Proves                 |
+| ------------ | --------------------------------------- | --------------------------------------------- | ---------------------- |
+| `chefer-api` | `https://chefer.duckdns.org/api/health` | Keyword: alert when `"ok":true` is **absent** | Caddy + API + Postgres |
+| `chefer-web` | `https://chefer.duckdns.org/`           | HTTP 200                                      | Caddy + Next.js web    |
+
+`/api/health` is served by the **API** (Caddy `@apiBackend` routes it since A12, 2026-08-22): it
+runs `SELECT 1` against Postgres and answers `{"ok":true}`, or **503** `{"ok":false}` when the DB
+is unreachable. The web app keeps its own `/api/health` liveness route, but it is only reachable
+container-locally (Docker healthcheck in `docker-compose.deploy.yml`) — publicly the path always
+hits the API. The deploy pipeline's `verify` job polls the same two URLs.
 
 ## 13. CI/CD
 
@@ -995,7 +1009,8 @@ setup (resolve tag)
         push → ghcr.io/<owner>/chefer-{api,web}:latest and :sha-<short>
   └─ deploy (ssh to the VM)                      TAG=<tag> ./infrastructure/scripts/deploy.sh
         git pull → docker compose pull → up -d --no-build → prune
-  └─ verify                                      polls <DEPLOYMENT_URL>/api/health, fails if unhealthy
+  └─ verify                                      polls <DEPLOYMENT_URL>/api/health (API + DB,
+        expects {"ok":true}) and the homepage (web, expects 200); fails if either stays unhealthy
 ```
 
 **Branch protection (manual, repo Settings → Branches → `master`):** require the
