@@ -1,109 +1,20 @@
 import { prisma } from '@chefer/database';
 import { env } from '../env.js';
+import { buildPollinationsUrl } from '../image-gen/pollinations.js';
 
-// ─── Category fallback images ────────────────────────────────────────────────
-// Used when no Unsplash API key is configured, or as a last resort.
-// Photo IDs are taken from the existing grocery fixture — known to be valid.
+// ─── Generated fallback ───────────────────────────────────────────────────────
+// When Unsplash is unavailable (no key configured — prod's situation — or a
+// failed call), generate a per-ingredient photo through Pollinations instead
+// of a shared category stock photo. The old category fallbacks left rows of
+// identical thumbnails (20 of 37 items shared 3 photos in the E2E sweep —
+// prod-followups #6). Deterministic seed per name → the CDN caches it, and
+// persisting the URL in IngredientImage stays valid forever.
 
-const FALLBACK =
-  'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=120&h=120&fit=crop&q=80';
-
-const CATEGORY_FALLBACKS: Record<string, string> = {
-  produce: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=120&h=120&fit=crop&q=80',
-  proteins:
-    'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=120&h=120&fit=crop&q=80',
-  dairy: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=120&h=120&fit=crop&q=80',
-  grains: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=120&h=120&fit=crop&q=80',
-  frozen: FALLBACK,
-  other: FALLBACK,
-};
-
-// Keyword → category used to pick the right fallback when no API key is present
-const KEYWORD_CATEGORY: [string, string][] = [
-  ['tomato', 'produce'],
-  ['spinach', 'produce'],
-  ['onion', 'produce'],
-  ['garlic', 'produce'],
-  ['lemon', 'produce'],
-  ['lime', 'produce'],
-  ['avocado', 'produce'],
-  ['mushroom', 'produce'],
-  ['pepper', 'produce'],
-  ['lettuce', 'produce'],
-  ['cucumber', 'produce'],
-  ['zucchini', 'produce'],
-  ['carrot', 'produce'],
-  ['broccoli', 'produce'],
-  ['celery', 'produce'],
-  ['kale', 'produce'],
-  ['apple', 'produce'],
-  ['banana', 'produce'],
-  ['berry', 'produce'],
-  ['shallot', 'produce'],
-  ['herb', 'produce'],
-  ['cilantro', 'produce'],
-  ['parsley', 'produce'],
-  ['basil', 'produce'],
-  ['ginger', 'produce'],
-  ['potato', 'produce'],
-  ['sweet potato', 'produce'],
-  ['asparagus', 'produce'],
-  ['cauliflower', 'produce'],
-  ['cabbage', 'produce'],
-  ['chicken', 'proteins'],
-  ['beef', 'proteins'],
-  ['salmon', 'proteins'],
-  ['tuna', 'proteins'],
-  ['egg', 'proteins'],
-  ['tofu', 'proteins'],
-  ['shrimp', 'proteins'],
-  ['turkey', 'proteins'],
-  ['pork', 'proteins'],
-  ['lamb', 'proteins'],
-  ['cod', 'proteins'],
-  ['fish', 'proteins'],
-  ['prawn', 'proteins'],
-  ['steak', 'proteins'],
-  ['mince', 'proteins'],
-  ['milk', 'dairy'],
-  ['cheese', 'dairy'],
-  ['yogurt', 'dairy'],
-  ['butter', 'dairy'],
-  ['cream', 'dairy'],
-  ['parmesan', 'dairy'],
-  ['mozzarella', 'dairy'],
-  ['feta', 'dairy'],
-  ['cheddar', 'dairy'],
-  ['ricotta', 'dairy'],
-  ['rice', 'grains'],
-  ['pasta', 'grains'],
-  ['flour', 'grains'],
-  ['bread', 'grains'],
-  ['oat', 'grains'],
-  ['quinoa', 'grains'],
-  ['lentil', 'grains'],
-  ['bean', 'grains'],
-  ['oil', 'grains'],
-  ['vinegar', 'grains'],
-  ['soy', 'grains'],
-  ['honey', 'grains'],
-  ['almond', 'grains'],
-  ['walnut', 'grains'],
-  ['cashew', 'grains'],
-  ['nut', 'grains'],
-  ['chickpea', 'grains'],
-  ['coconut', 'grains'],
-  ['noodle', 'grains'],
-  ['couscous', 'grains'],
-  ['barley', 'grains'],
-];
-
-function getCategoryFallback(name: string): string {
-  const lower = name.toLowerCase();
-  for (const [keyword, cat] of KEYWORD_CATEGORY) {
-    if (lower.includes(keyword)) return CATEGORY_FALLBACKS[cat] ?? FALLBACK;
-  }
-  return FALLBACK;
+function generatedIngredientImage(name: string): string {
+  const prompt =
+    `A clean product photo of ${name}, single food ingredient on a plain light background, ` +
+    'top-down, soft natural light, no text, no hands, no packaging branding.';
+  return buildPollinationsUrl(prompt, name, 'ingredient', 256, 256);
 }
 
 // ─── Unsplash rate-limit guard ───────────────────────────────────────────────
@@ -151,7 +62,7 @@ async function fetchFromUnsplash(name: string): Promise<string | null> {
  * Resolution order:
  *   1. DB cache (IngredientImage table) — instant, no network call
  *   2. Unsplash search API (if UNSPLASH_ACCESS_KEY is configured)
- *   3. Category-based fallback image
+ *   3. Per-ingredient generated image (Pollinations, keyless)
  *
  * The result is always cached so Unsplash is called at most once per
  * unique ingredient name across all users.
@@ -167,7 +78,7 @@ export async function resolveIngredientImage(name: string): Promise<string> {
 
   // 2. Unsplash API (if key is present)
   const unsplashUrl = await fetchFromUnsplash(name);
-  const imageUrl = unsplashUrl ?? getCategoryFallback(name);
+  const imageUrl = unsplashUrl ?? generatedIngredientImage(name);
 
   // 3. Persist to cache (upsert in case of a race condition)
   await prisma.ingredientImage.upsert({
