@@ -65,7 +65,12 @@ honoured (€29 plan); AI list consolidation 98 → 37 items, no dupes; premium 
 cuisine+diet; no horizontal overflow on any page at 375px; cook-mode timer counts down;
 past-week read-only, 404 page, login/logout all fine.
 
-## 3. Price estimator mishandles non-standard units · **medium**
+## ~~3. Price estimator mishandles non-standard units~~ · **medium**
+
+**FIXED 2026-08-23** — `normalizeUnit` strips comma/paren prep qualifiers before lookup and
+pinch/dash/to-taste became sub-gram mass units. Prod-verified on a fresh curated list:
+lentils "100 g, dry" → **€0.35** (was €52.50), "1 pinch" saffron → **€0.90** (was €22.50);
+week total €120 → €51. 7 regression tests.
 
 Derived (free) shopping list: **"Red lentils, 100 g, dry" → €52.50** (the unit string is
 `g, dry`, which the estimator fails to parse as grams) and **"Saffron, 1 pinch" → €22.50**
@@ -73,20 +78,34 @@ Derived (free) shopping list: **"Red lentils, 100 g, dry" → €52.50** (the un
 Fix in `lib/ingredient-prices` unit parsing (strip qualifiers like ", dry"; map pinch/dash
 to ~0). Curated fixture ingredients carry the odd units.
 
-## 4. Tracker macro targets disagree with the dashboard's · **medium**
+## ~~4. Tracker macro targets disagree with the dashboard's~~ · **medium**
+
+**FIXED 2026-08-23** — `tracker.getDay` now returns the full `resolveDailyTargets()` output
+and the page renders from it; the hardcoded 150/250/70 is gone. Prod-verified: tracker and
+dashboard both show 165/394/83 for the same profile.
 
 For the same default 2,000 kcal, `/tracker` showed targets **P150/C250/F70** (sums to
 2,230 kcal — internally inconsistent) while the dashboard showed **P125/C225/F67** (sums to
 2,003 ✓). The tracker appears to use its own hardcoded split instead of
 `resolveDailyTargets()` — a P0-5 unification leftover.
 
-## 5. Dead curated recipe image · **low**
+## ~~5. Dead curated recipe image~~ · **low**
+
+**FIXED 2026-08-23** — the recipe now uses the Pollinations pipeline (prod row patched and
+verified 200 image/jpeg); plus a durable repository fix: `upsertRecipes` treats CURATED
+fixture images as authoritative, so future fixture image fixes propagate on their own.
 
 "Lentil & Roasted Veg Salad" (swap pool, `photo-1540189549336-e6e99eb4f7c9`) 404s on
 Unsplash → "Photo unavailable" on the plan card and detail hero. The only dead id out of
 22 fixture images (all others verified 200).
 
-## 6. Ingredient thumbnails repeat generic fallbacks · **low**
+## ~~6. Ingredient thumbnails repeat generic fallbacks~~ · **low**
+
+**FIXED 2026-08-23** — prod has no Unsplash key, so everything fell to 3 shared stock photos
+(and was cached that way forever). The fallback now generates a distinct per-ingredient
+Pollinations product shot; 117 poisoned cache rows purged on the VM. Prod-verified: 0 images
+shared by >2 items on a 101-item list (48 distinct generated shots). First view of a new
+ingredient generates cold (~2–20 s) then CDN-caches.
 
 AI-plan shopping list: 20 of 37 items shared just 3 stock photos ("Rolled Oats", "Red
 Lentils", "Basmati Rice", "Gram Flour" +7 more → one image; "Green Chili", "Mint Chutney",
@@ -94,20 +113,33 @@ Lentils", "Basmati Rice", "Gram Flour" +7 more → one image; "Green Chili", "Mi
 another). Rows of identical images in one section read as broken. `resolveIngredientImage`
 coverage is thin outside common western ingredients.
 
-## 7. Category inference weak — 40% of items land in "Other" · **low**
+## ~~7. Category inference weak — 40% of items land in "Other"~~ · **low**
+
+**FIXED 2026-08-23** — ~70 new keywords plus a real matcher bug: the bare `s?` plural missed
+-es/-ies, so "Cherry tomatoes" and "Blueberries" failed their _existing_ keywords.
+Prod-verified: "Other" 41% → **18%** on a comparable curated list.
 
 40 of 98 derived-list items were bucketed "Other", including obvious produce (blueberries,
 raspberries, cherry tomatoes, courgette, sweet potato, mixed leaves), dairy (halloumi) and
 grains (buckwheat groats, corn tortillas). Extend `application/shared/category-map.ts`.
 
-## 8. Gain-muscle protein target unrealistic vs what plans deliver · **low, product**
+## ~~8. Gain-muscle protein target unrealistic vs what plans deliver~~ · **low, product**
+
+**FIXED 2026-08-23** — protein targets capped at 2.2 g/kg body weight, freed calories
+redistributed to carbs (grams still sum to the calorie target). Prod-verified: the E2E
+profile now targets 165 g (was 261 g), identical on dashboard and tracker.
 
 The gain-muscle split yields **P261g at 2,982 kcal (3.5 g/kg)** — above evidence-based
 ranges (~1.6–2.2 g/kg) — while the AI plans actually deliver 120–161g/day. So protein reads
 ~50% of target forever on the tracker/dashboard. The plans are the sane side; revisit the
 macro split so targets and generation agree.
 
-## 9. Minor / polish (batch when nearby)
+## ~~9. Minor / polish~~ (batch when nearby)
+
+**FIXED 2026-08-23** — all rebranded to Chefer (prod login page verified); "Generate My
+Week" now auto-starts generation via `/meal-plan?generate=1` (fires once, param stripped;
+verified: existing plan untouched, empty week generated); "per 1 serving" pluralised. The
+pin-rebalancing note moved below as an open idea.
 
 - Auth pages still branded **"PersonalChef.ai"** (register heading/logo, sign-in metadata)
   while everything else says Chefer.
