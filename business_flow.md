@@ -453,6 +453,13 @@ Recipe creation (revamped form)
   +- recipe photo: device upload (POST /api/uploads/image) or deterministic
   |    AI image (recipe.aiImageUrl)
 
+Synced check-off (P1-5)
+  +- shoppingList.getForWeek returns checkedKeys; ticking an item calls
+  |    shoppingList.toggleItems (optimistic client update, per-key
+  |    add/remove under SERIALIZABLE + retry server-side) — checks made
+  |    on one phone appear on the other on its next fetch
+  +- pre-P1-5 localStorage checks migrate to the server once, then clear
+
 IngredientPriceWorker (background)
   +- start + every 12 h: distinct ingredient names from ALL recipes
   +- prices missing entries, refreshes entries older than 7 days

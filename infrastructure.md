@@ -542,13 +542,14 @@ Store-agnostic price + nutrition vocabulary — self-building from all recipe in
 
 **ShoppingList**
 
-| Field       | Type     | Notes                                                  |
-| ----------- | -------- | ------------------------------------------------------ |
-| id          | String   | PK (cuid)                                              |
-| planId      | String   | Unique — one persisted list per meal plan              |
-| items       | Json     | Consolidated items (images/prices re-resolved on read) |
-| aiGenerated | Boolean  | True when written by the premium AI regenerate         |
-| updatedAt   | DateTime | Auto-managed                                           |
+| Field       | Type     | Notes                                                   |
+| ----------- | -------- | ------------------------------------------------------- |
+| id          | String   | PK (cuid)                                               |
+| planId      | String   | Unique — one persisted list per meal plan               |
+| items       | Json     | Consolidated items (images/prices re-resolved on read)  |
+| checkedKeys | String[] | Synced check-off state (P1-5), cleared on AI regenerate |
+| aiGenerated | Boolean  | True when written by the premium AI regenerate          |
+| updatedAt   | DateTime | Auto-managed                                            |
 
 ### Enums
 
@@ -767,7 +768,8 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `recipe.toggleUseInNextPlan`    | Protected | Mutation | `{ recipeId: string }`                                                                                                                                                                                       |
 | `recipe.rate`                   | Protected | Mutation | `{ recipeId: string, rating: 1-5, notes?: string }`                                                                                                                                                          |
 | `recipe.getMyRating`            | Protected | Query    | `{ recipeId: string }`                                                                                                                                                                                       |
-| `shoppingList.getForWeek`       | Protected | Query    | `{ weekOffset?: number }` — items include `estimatedPriceEur` + list-level `estimatedTotalEur`; serves the persisted AI list when one exists                                                                 |
+| `shoppingList.getForWeek`       | Protected | Query    | `{ weekOffset?: number }` — items include `estimatedPriceEur` + list-level `estimatedTotalEur`; serves the persisted AI list when one exists; response carries `checkedKeys` (P1-5)                          |
+| `shoppingList.toggleItems`      | Protected | Mutation | `{ planId, keys[], checked }` — synced check-off (P1-5): per-key add/remove under a SERIALIZABLE transaction with retry, so rapid/concurrent toggles merge instead of clobbering                             |
 | `shoppingList.regenerate`       | Premium   | Mutation | `{ weekOffset?: number }` — AI-consolidates the list and persists it (ShoppingList table)                                                                                                                    |
 | `shoppingList.searchStores`     | Protected | Query    | `{ weekOffset?: number }`                                                                                                                                                                                    |
 | `dashboard.summary`             | Protected | Query    | —                                                                                                                                                                                                            |

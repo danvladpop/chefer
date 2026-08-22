@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import {
   AiCallType,
   chefProfileRepository,
@@ -40,6 +41,8 @@ export interface WeekShoppingList {
   estimatedTotalEur: number | null;
   /** True when the served list is a persisted AI-consolidated list. */
   aiGenerated: boolean;
+  /** Item keys the user has checked off — synced across devices (P1-5). */
+  checkedKeys: string[];
 }
 
 /** Items as persisted in the ShoppingList table (images/prices re-resolved on read). */
@@ -127,13 +130,17 @@ export class ShoppingListService {
         weekOffset,
         estimatedTotalEur: null,
         aiGenerated: false,
+        checkedKeys: [],
       };
     }
 
-    // Serve the persisted AI-consolidated list when one exists for this plan
-    // (written by regenerate) — images and prices are re-resolved fresh.
+    // The stored row serves two jobs: the AI-consolidated item list (written
+    // by regenerate, aiGenerated=true) and the synced check-off state (P1-5,
+    // which may exist on a bare row before any regenerate). Only AI rows are
+    // an ITEM source — a bare row must not shadow the derived list.
     const stored = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
-    if (stored) {
+    const checkedKeys = [...new Set(stored?.checkedKeys ?? [])];
+    if (stored?.aiGenerated) {
       const { items, estimatedTotalEur } = await this.finalizeItems(
         stored.items as unknown as StoredShoppingListItem[],
       );
@@ -145,7 +152,8 @@ export class ShoppingListService {
         items,
         weekOffset,
         estimatedTotalEur,
-        aiGenerated: stored.aiGenerated,
+        aiGenerated: true,
+        checkedKeys,
       };
     }
 
@@ -218,7 +226,59 @@ export class ShoppingListService {
       weekOffset,
       estimatedTotalEur,
       aiGenerated: false,
+      checkedKeys,
     };
+  }
+
+  /**
+   * Toggles membership of `keys` in the plan's checked set (P1-5). Additive
+   * per-key semantics (not whole-array replace) so two devices checking
+   * different items concurrently both win. Creates a bare row when the plan
+   * has no persisted list yet.
+   */
+  async toggleItems(
+    userId: string,
+    planId: string,
+    keys: string[],
+    checked: boolean,
+  ): Promise<{ checkedKeys: string[] }> {
+    const plan = await mealPlanRepository.findByIdForUser(userId, planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+
+    // Read-modify-write under SERIALIZABLE with retry: two rapid toggles (or
+    // two devices) otherwise both read the same array and the second write
+    // silently drops the first key — observed on the very first manual test.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const checkedKeys = await prisma.$transaction(
+          async (tx) => {
+            const existing = await tx.shoppingList.findUnique({ where: { planId } });
+            const current = new Set(existing?.checkedKeys ?? []);
+            for (const key of keys) {
+              if (checked) current.add(key);
+              else current.delete(key);
+            }
+            const next = [...current];
+            await tx.shoppingList.upsert({
+              where: { planId },
+              create: { planId, items: [], aiGenerated: false, checkedKeys: next },
+              update: { checkedKeys: next },
+            });
+            return next;
+          },
+          { isolationLevel: 'Serializable' },
+        );
+        return { checkedKeys };
+      } catch (err) {
+        // P2034: transaction conflict — the concurrent writer won; retry on
+        // top of its result.
+        const conflict =
+          typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2034';
+        if (!conflict || attempt >= 3) throw err;
+      }
+    }
   }
 
   async regenerate(userId: string, weekOffset: number): Promise<WeekShoppingList> {
@@ -248,6 +308,7 @@ export class ShoppingListService {
         weekOffset,
         estimatedTotalEur: null,
         aiGenerated: false,
+        checkedKeys: [],
       };
     }
 
@@ -303,7 +364,9 @@ export class ShoppingListService {
     }));
 
     // Persist so the AI-consolidated list survives reloads — getForWeek
-    // serves it from now on (until the plan itself is regenerated).
+    // serves it from now on (until the plan itself is regenerated). The AI
+    // list has fresh item keys, so previous check-offs no longer apply —
+    // clear them rather than leaving orphans (P1-5).
     const itemsJson = rawItems as unknown as Prisma.InputJsonValue;
     await prisma.shoppingList.upsert({
       where: { planId: targetPlan.id },
@@ -312,7 +375,7 @@ export class ShoppingListService {
         items: itemsJson,
         aiGenerated: true,
       },
-      update: { items: itemsJson, aiGenerated: true },
+      update: { items: itemsJson, aiGenerated: true, checkedKeys: [] },
     });
 
     const { items, estimatedTotalEur } = await this.finalizeItems(rawItems);
@@ -326,6 +389,7 @@ export class ShoppingListService {
       weekOffset,
       estimatedTotalEur,
       aiGenerated: true,
+      checkedKeys: [],
     };
   }
 

@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { WeekNavigator } from '@/features/shopping-list/components/WeekNavigator';
 import { useLocalStorage } from '@/hooks/use-local-storage';
@@ -60,10 +60,9 @@ function getMondayOfWeek(offset: number): Date {
 
 export default function ShoppingListPage() {
   const [weekOffset, setWeekOffset] = useState(0);
-  const [checkedItems, setCheckedItems, clearChecked] = useLocalStorage<string[]>(
-    'shopping-checked',
-    [],
-  );
+  // Legacy localStorage keys are migrated to the server once (P1-5), then
+  // cleared — the server's checkedKeys is the source of truth from then on.
+  const [legacyChecked, , clearLegacyChecked] = useLocalStorage<string[]>('shopping-checked', []);
   const [popupItem, setPopupItem] = useState<{ name: string; imageUrl: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const isPremium = useIsPremium();
@@ -89,14 +88,11 @@ export default function ShoppingListPage() {
     },
   });
 
-  // Reset checked items when week changes
-  const handleWeekChange = useCallback(
-    (offset: number) => {
-      setWeekOffset(offset);
-      clearChecked();
-    },
-    [clearChecked],
-  );
+  // Checked state is per-plan on the server — switching weeks just shows the
+  // other plan's state.
+  const handleWeekChange = useCallback((offset: number) => {
+    setWeekOffset(offset);
+  }, []);
 
   // Group items by category
   const items = weekList?.items ?? [];
@@ -107,13 +103,58 @@ export default function ShoppingListPage() {
   })).filter((g) => g.items.length > 0);
 
   const totalItems = items.length;
+  const checkedItems = weekList?.checkedKeys ?? [];
   const checkedCount = checkedItems.filter((key) => items.some((i) => i.key === key)).length;
 
+  // Optimistic per-key toggle (P1-5): flip in the cache immediately, sync in
+  // the background — the shop has bad signal. Server semantics are per-key
+  // add/remove, so concurrent devices merge instead of clobbering.
+  const toggleMutation = trpc.shoppingList.toggleItems.useMutation({
+    onMutate: async ({ keys, checked }) => {
+      await utils.shoppingList.getForWeek.cancel({ weekOffset });
+      const previous = utils.shoppingList.getForWeek.getData({ weekOffset });
+      utils.shoppingList.getForWeek.setData({ weekOffset }, (old) =>
+        old
+          ? {
+              ...old,
+              checkedKeys: checked
+                ? [...new Set([...old.checkedKeys, ...keys])]
+                : old.checkedKeys.filter((k) => !keys.includes(k)),
+            }
+          : old,
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        utils.shoppingList.getForWeek.setData({ weekOffset }, context.previous);
+      }
+    },
+  });
+
   const toggleItem = (key: string) => {
-    setCheckedItems((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
+    if (!weekList?.planId) return;
+    toggleMutation.mutate({
+      planId: weekList.planId,
+      keys: [key],
+      checked: !checkedItems.includes(key),
+    });
   };
+
+  // One-time migration of pre-P1-5 localStorage checks: keys that match the
+  // current plan's items are pushed to the server, then the local copy is
+  // cleared so it never overrides another device again.
+  const migratedRef = useRef(false);
+  useEffect(() => {
+    if (migratedRef.current || !weekList?.planId || legacyChecked.length === 0) return;
+    const matching = legacyChecked.filter((key) => items.some((i) => i.key === key));
+    migratedRef.current = true;
+    if (matching.length > 0 && weekList.checkedKeys.length === 0) {
+      toggleMutation.mutate({ planId: weekList.planId, keys: matching, checked: true });
+    }
+    clearLegacyChecked();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when the list first loads
+  }, [weekList?.planId]);
 
   if (listLoading) {
     return (

@@ -438,6 +438,7 @@ model ShoppingList {
   planId      String   @unique
   items       Json     // ShoppingListItemForWeek[] minus images/prices (re-resolved)
   aiGenerated Boolean  @default(false)
+  checkedKeys String[] @default([]) // synced check-off state (P1-5)
   updatedAt   DateTime @updatedAt
 
   @@map("shopping_lists")

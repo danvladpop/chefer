@@ -11,6 +11,22 @@ export const shoppingListRouter = router({
 
   // AI consolidation is a premium feature — free users keep the
   // deterministic merge that getForWeek produces.
+  /**
+   * Synced check-off (P1-5): toggles item keys in the plan's checked set.
+   * Per-key semantics — safe for two devices checking concurrently.
+   */
+  toggleItems: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        keys: z.array(z.string().min(1).max(200)).min(1).max(200),
+        checked: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return shoppingListService.toggleItems(ctx.user.id, input.planId, input.keys, input.checked);
+    }),
+
   regenerate: premiumProcedure
     .input(z.object({ weekOffset: z.number().int().min(-52).max(1).default(0) }))
     .mutation(async ({ ctx, input }) => {
