@@ -51,8 +51,12 @@ const UNIT_TABLE: Record<string, NormalizedUnit> = {
   cans: { family: 'count', toBase: 1.5 },
   bunch: { family: 'count', toBase: 1 },
   handful: { family: 'count', toBase: 0.5 },
-  pinch: { family: 'count', toBase: 0.05 },
-  'to taste': { family: 'count', toBase: 0.05 },
+  // Tiny amounts are MASS, not count: as count they'd be multiplied by a
+  // ~150 g/piece assumption, which priced "1 pinch of saffron" at €22.50
+  // (prod-followups #3). A pinch is ~0.3 g, a dash ~0.6 g.
+  pinch: { family: 'mass', toBase: 0.3 / 100 },
+  dash: { family: 'mass', toBase: 0.6 / 100 },
+  'to taste': { family: 'mass', toBase: 0.5 / 100 },
   sprig: { family: 'count', toBase: 0.1 },
   sprigs: { family: 'count', toBase: 0.1 },
   stalk: { family: 'count', toBase: 0.3 },
@@ -61,7 +65,22 @@ const UNIT_TABLE: Record<string, NormalizedUnit> = {
 
 function normalizeUnit(unit: string): NormalizedUnit {
   const key = unit.toLowerCase().trim();
-  return UNIT_TABLE[key] ?? { family: 'count', toBase: 1 };
+  const direct = UNIT_TABLE[key];
+  if (direct) return direct;
+
+  // Fixture/AI units often carry prep qualifiers — "g, dry", "cloves, minced",
+  // "medium, sliced", "g (dry)". Unrecognised as-is they fell back to count×1,
+  // which priced "100 g, dry" of lentils as 100 PIECES → €52.50
+  // (prod-followups #3). Strip the qualifier and retry before giving up.
+  const stripped = key.split(/[,(]/)[0]?.trim() ?? '';
+  if (stripped && stripped !== key) {
+    const match = UNIT_TABLE[stripped];
+    if (match) return match;
+  }
+
+  // Bare prep words used as units ("pitted", "halved", "lemon") mean one
+  // prepared piece — the generic fallback is right for those.
+  return { family: 'count', toBase: 1 };
 }
 
 /** Canonical unit options for recipe forms — keep in sync with UNIT_TABLE keys. */
