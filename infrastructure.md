@@ -943,6 +943,32 @@ internal Docker network via `API_INTERNAL_URL`. The app forces dynamic rendering
 (`app/layout.tsx`) and the prod build sets `typescript.ignoreBuildErrors` (pre-existing
 cross-package type debt; `pnpm typecheck` still enforces it).
 
+### Backups & disaster recovery (A11)
+
+Nightly `pg_dump` of the production database, installed in the `ubuntu` user's crontab on the VM
+(2026-08-22):
+
+```
+0 3 * * * /home/ubuntu/chefer/infrastructure/scripts/backup-db.sh >> /home/ubuntu/chefer-backup.log 2>&1
+```
+
+`backup-db.sh` writes a custom-format dump to `~/chefer-backups/chefer-<timestamp>.dump` and keeps
+the **14 most recent** (≈2 weeks). Restore procedure: `restore-dump.sh <dumpfile>` (pg_restore
+`--clean --if-exists` into the live DB), or restore into a scratch DB first to inspect.
+
+**Restore rehearsal 2026-08-22:** a fresh backup (144 KB) was restored into a scratch database
+(`chefer_restore_test`) on the VM; all row counts matched live (users 6, meal_plans 18, recipes
+298, daily_logs 6, shopping_lists 4) and seed accounts were present. Restore time: ~1 s at
+current size.
+
+- **RPO: 24 h** — nightly at 03:00 UTC; anything written since the last dump is lost.
+- **RTO: ~5 min** if the VM survives (drop/recreate DB + `restore-dump.sh` + container restart);
+  **~1–2 h** if the VM is lost (new VM, Docker + repo + `.env.production` re-setup, DNS move,
+  then restore) — bounded by VM provisioning, not by the restore itself.
+- **Known gap:** dumps live on the same VM disk as the database. A disk-level failure loses both
+  the DB and its backups. Before real users, add an off-VM copy (e.g. `rclone` to object storage
+  or a nightly `scp` pull from another machine).
+
 ---
 
 ## 13. CI/CD
