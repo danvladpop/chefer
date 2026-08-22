@@ -582,7 +582,7 @@ Maps domain errors (e.g., `UserNotFoundError`) to tRPC error codes.
 
 ### PreferencesService (application layer)
 
-`apps/api/src/application/preferences/preferences.service.ts`. Methods: `hasProfile`, `get`, `setup`, `update`.
+`apps/api/src/application/preferences/preferences.service.ts`. Methods: `hasProfile`, `get`, `setup`, `update` (backing both `preferences.updateSafety` and `preferences.updateTargets` — the split is enforced at the router's auth level, P1-2).
 Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a Prisma `$transaction`. Recomputes `dailyCalorieTarget` via Mifflin-St Jeor on every update. Accepts `deliveryAddress` and `deliveryCurrency` fields.
 
 ### MealPlanService (application layer)
@@ -591,13 +591,13 @@ Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a
 
 - `generate(userId, weekOffset, premium)` — **tier-branched**:
   - _Premium_ (or ADMIN): reads prefs → **recomputes the daily calorie target live** from body metrics + goal via `computeCalorieTarget` (the stored `dailyCalorieTarget` is a display snapshot and may be stale) → calls `IAIService.generateMealPlan` → reuses existing images by recipe name (`findRecipeImagesByNames`) → upserts recipes with `imagePriority` (day-distance from today) → archives old plan → creates new `ACTIVE` plan → `recipeImageWorker.wake()`.
-  - _Free_: `generateCurated` — random breakfast/lunch/dinner selection from the curated pool for each of 7 days (shuffled cycling, no AI calls, preset stock images, preferences ignored).
-- `swapRecipe(..., premium)` — premium: AI-generated alternative (with name-based image reuse + worker wake); free: random curated recipe of the same meal type.
+  - _Free_: `generateCurated` — random breakfast/lunch/dinner selection from the **safety-filtered** curated pool (allergies, dietary restrictions, dislikes — P1-2) for each of 7 days (shuffled cycling, no AI calls, preset images). If any meal type keeps fewer than `MIN_SAFE_POOL_SIZE` safe recipes, throws `PRECONDITION_FAILED` — the meal-plan page renders it as the contextual upgrade prompt.
+- `swapRecipe(..., premium)` — premium: AI-generated alternative (with name-based image reuse + worker wake); free: random curated recipe of the same meal type from the safety-filtered pool (`PRECONDITION_FAILED` when nothing safe remains).
 - `list` / `restore` / `getById` — history + restore support.
 
 ### CuratedRecipes (lib)
 
-`apps/api/src/lib/curated-recipes/index.ts`. Generic recipe pool for FREE-tier users, built from the AI fixtures under deterministic `curated-*` IDs (`source: CURATED`, `imageStatus: DONE`, stock Unsplash images). `ensureCuratedRecipes()` idempotently upserts the pool on first free-tier generation; `pickRandomCurated(mealType, excludeId?)` powers free swaps.
+`apps/api/src/lib/curated-recipes/`. Generic recipe pool for FREE-tier users: the original AI fixtures plus the 42-recipe expansion in `extra-pool.ts` (64 total, ≥3 compliant options per plan meal type for vegan/vegetarian/pescatarian/gluten-free/dairy-free and the major allergens — pinned by `safety.test.ts`), under deterministic `curated-*` IDs (`source: CURATED`, `imageStatus: DONE`; fixture recipes use stock Unsplash images, expansion recipes use deterministic Pollinations URLs warmed on first use). `safety.ts` implements the P1-2 filter: allergen/dislike term-matching over recipe name + ingredients (with synonym expansion, e.g. "nuts" → almond/cashew/coconut/…) and restriction rules that require the dietaryTag AND scan ingredients so mis-tagged recipes fail safe. `ensureCuratedRecipes()` idempotently upserts the pool on first free-tier generation; `safeCuratedPools(prefs)` / `pickRandomCurated(mealType, excludeId?, prefs?)` power filtered generation and swaps.
 
 ### IngredientsService (application layer)
 
@@ -727,7 +727,8 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `preferences.hasProfile`        | Protected | Query    | —                                                                                                                                                                        |
 | `preferences.get`               | Protected | Query    | —                                                                                                                                                                        |
 | `preferences.setup`             | Premium   | Mutation | `{ goal, biologicalSex, age, heightCm, weightKg, activityLevel, cuisinePreferences, dietaryRestrictions, allergies, dislikedIngredients, mealsPerDay, servingSize }`     |
-| `preferences.update`            | Premium   | Mutation | Same as setup but all fields optional + `deliveryAddress?`, `deliveryCurrency?`, `preferredUnits?` (METRIC/IMPERIAL display units)                                       |
+| `preferences.updateSafety`      | Protected | Mutation | `{ dietaryRestrictions, allergies, dislikedIngredients }` — free for every account (P1-2); filters free curated plans and feeds premium AI generation                    |
+| `preferences.updateTargets`     | Premium   | Mutation | Setup fields minus the safety arrays, all optional + `deliveryAddress?`, `deliveryCurrency?`, `preferredUnits?` (METRIC/IMPERIAL display units)                          |
 | `mealPlan.generate`             | Protected | Mutation | `{ weekOffset?: number }` — 0=current week (default), 1=next week; min 0, max 52. Premium: AI plan; free: random curated pool                                            |
 | `mealPlan.getActive`            | Protected | Query    | —                                                                                                                                                                        |
 | `mealPlan.getRecipe`            | Protected | Query    | `{ recipeId: string }`                                                                                                                                                   |

@@ -27,20 +27,31 @@ export interface PlanFeature {
 }
 
 export const PLAN_FEATURES = {
+  safetyPreferences: {
+    // Free on purpose (P1-2): allergies and restrictions are safety, not an
+    // upsell. Free curated plans are filtered by them; premium AI plans honour
+    // them in generation.
+    free: true,
+    premium: true,
+    label: 'Allergies, restrictions & dislikes respected',
+    description:
+      'Declare allergies, dietary restrictions and disliked ingredients — every plan on every tier avoids them.',
+    upsell: false,
+  },
   aiMealPlans: {
     free: false,
     premium: true,
     label: 'AI meal plans tailored to you',
     description:
-      'Weekly plans generated from your goals, body metrics, allergies and preferences — free plans use a chef-curated generic pool.',
+      'Weekly plans generated from your goals, body metrics and preferences — free plans draw from a chef-curated pool filtered by your restrictions.',
     upsell: true,
   },
   profilePersonalisation: {
     free: false,
     premium: true,
-    label: 'Personal profile: goals, body metrics, dietary needs',
+    label: 'Personal targets: goals, body metrics, calories',
     description:
-      'Set your goal, body metrics, calorie targets, allergies and dietary restrictions, and every plan is built around them.',
+      'Set your goal, body metrics and calorie targets, and every plan is built around them.',
     upsell: true,
   },
   aiMealSwaps: {

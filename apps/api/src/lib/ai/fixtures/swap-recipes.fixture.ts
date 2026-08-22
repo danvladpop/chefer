@@ -170,7 +170,7 @@ export const SWAP_DINNER_POOL: RecipeData[] = [
     ],
     nutritionInfo: { calories: 490, protein: 18, carbs: 72, fat: 16, fiber: 16 },
     cuisineType: 'Mexican',
-    dietaryTags: ['vegan', 'high-fiber'],
+    dietaryTags: ['vegetarian', 'high-fiber'],
     prepTimeMins: 10,
     cookTimeMins: 30,
     servings: 1,

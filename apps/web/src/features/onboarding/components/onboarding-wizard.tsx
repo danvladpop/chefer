@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { trpc } from '@/lib/trpc';
 import { TOTAL_STEPS, type Goal, type WizardData } from '../types';
 import { StepCuisine } from './step-cuisine';
@@ -10,9 +11,14 @@ import { StepGoal } from './step-goal';
 import { StepMetrics } from './step-metrics';
 
 // ─── Wizard Component ─────────────────────────────────────────────────────────
+// Premium: 4 steps (goal → metrics → diet → cuisine) saved via
+// preferences.setup. Free (P1-2): 2 steps — the safety step (allergies,
+// restrictions, dislikes; saved via the free preferences.updateSafety) and a
+// preview of what premium personalisation adds.
 
-export function OnboardingWizard() {
+export function OnboardingWizard({ isPremium }: { isPremium: boolean }) {
   const router = useRouter();
+  const totalSteps = isPremium ? TOTAL_STEPS : 2;
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<WizardData>({
@@ -35,9 +41,15 @@ export function OnboardingWizard() {
     onError: (err) => setError(err.message),
   });
 
+  const safetyMutation = trpc.preferences.updateSafety.useMutation({
+    onSuccess: () => router.push('/dashboard'),
+    onError: (err) => setError(err.message),
+  });
+
   // ── Validation ──────────────────────────────────────────────────────────────
 
   function canContinue(): boolean {
+    if (!isPremium) return true; // both free steps are optional
     if (step === 1) return data.goal !== null;
     if (step === 2)
       return (
@@ -56,7 +68,7 @@ export function OnboardingWizard() {
   // ── Navigation ──────────────────────────────────────────────────────────────
 
   function handleContinue() {
-    if (step < TOTAL_STEPS) {
+    if (step < totalSteps) {
       setStep((s) => s + 1);
     } else {
       handleFinish();
@@ -72,6 +84,15 @@ export function OnboardingWizard() {
   }
 
   function handleFinish() {
+    if (!isPremium) {
+      safetyMutation.mutate({
+        dietaryRestrictions: data.dietaryRestrictions,
+        allergies: data.allergies,
+        dislikedIngredients: data.dislikedIngredients,
+      });
+      return;
+    }
+
     if (
       data.goal === null ||
       data.biologicalSex === null ||
@@ -99,8 +120,8 @@ export function OnboardingWizard() {
     });
   }
 
-  const progressPct = Math.round((step / TOTAL_STEPS) * 100);
-  const isSubmitting = setupMutation.isPending;
+  const progressPct = Math.round((step / totalSteps) * 100);
+  const isSubmitting = setupMutation.isPending || safetyMutation.isPending;
 
   return (
     <div className="flex min-h-[calc(100dvh-4rem)] flex-col">
@@ -109,7 +130,7 @@ export function OnboardingWizard() {
         <div className="mx-auto max-w-2xl">
           <div className="mb-2 flex items-center justify-between text-sm text-muted-foreground">
             <span>
-              Step {step} of {TOTAL_STEPS}
+              Step {step} of {totalSteps}
             </span>
             <span>{progressPct}% complete</span>
           </div>
@@ -120,7 +141,7 @@ export function OnboardingWizard() {
               role="progressbar"
               aria-valuenow={step}
               aria-valuemin={1}
-              aria-valuemax={TOTAL_STEPS}
+              aria-valuemax={totalSteps}
             />
           </div>
         </div>
@@ -135,14 +156,44 @@ export function OnboardingWizard() {
             </div>
           )}
 
-          {step === 1 && (
+          {/* Free flow: safety first, then a preview of premium personalisation */}
+          {!isPremium && step === 1 && (
+            <StepDiet
+              value={{
+                dietaryRestrictions: data.dietaryRestrictions,
+                allergies: data.allergies,
+                dislikedIngredients: data.dislikedIngredients,
+              }}
+              onChange={(diet) => setData((d) => ({ ...d, ...diet }))}
+            />
+          )}
+
+          {!isPremium && step === 2 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                  You&apos;re all set
+                </h1>
+                <p className="mt-2 text-muted-foreground">
+                  Every plan we build will respect the allergies and restrictions you just set. Want
+                  plans built around your goals and body too?
+                </p>
+              </div>
+              <UpgradeCard
+                title="Go further with a personal profile"
+                description="Premium adds goals, body metrics and calorie targets — and the AI chef generates every week around them."
+              />
+            </div>
+          )}
+
+          {isPremium && step === 1 && (
             <StepGoal
               value={data.goal}
               onChange={(goal: Goal) => setData((d) => ({ ...d, goal }))}
             />
           )}
 
-          {step === 2 && (
+          {isPremium && step === 2 && (
             <StepMetrics
               value={{
                 biologicalSex: data.biologicalSex,
@@ -155,7 +206,7 @@ export function OnboardingWizard() {
             />
           )}
 
-          {step === 3 && (
+          {isPremium && step === 3 && (
             <StepDiet
               value={{
                 dietaryRestrictions: data.dietaryRestrictions,
@@ -166,7 +217,7 @@ export function OnboardingWizard() {
             />
           )}
 
-          {step === 4 && (
+          {isPremium && step === 4 && (
             <StepCuisine
               value={{
                 cuisinePreferences: data.cuisinePreferences,
@@ -197,7 +248,7 @@ export function OnboardingWizard() {
             disabled={!canContinue() || isSubmitting}
             className="inline-flex h-11 items-center justify-center rounded-md sm:h-10 bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSubmitting ? 'Saving…' : step === TOTAL_STEPS ? 'Finish' : 'Continue'}
+            {isSubmitting ? 'Saving…' : step === totalSteps ? 'Finish' : 'Continue'}
           </button>
         </div>
       </div>

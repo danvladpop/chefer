@@ -29,11 +29,23 @@ const setupSchema = z.object({
   servingSize: z.number().int().min(1).max(6),
 });
 
-const updateSchema = setupSchema.partial().extend({
-  deliveryAddress: z.string().nullable().optional(),
-  deliveryCurrency: z.enum(['EUR', 'USD', 'GBP', 'RON']).nullable().optional(),
-  preferredUnits: z.enum(['METRIC', 'IMPERIAL']).optional(),
+// Safety fields are free for every account (P1-2): a plan that ignores an
+// allergy is not a lesser product, it's a dangerous one. Only the
+// personalisation-depth fields (goal, body metrics, cadence) stay premium.
+const safetySchema = z.object({
+  dietaryRestrictions: z.array(z.string().max(60)).max(20),
+  allergies: z.array(z.string().max(60)).max(20),
+  dislikedIngredients: z.array(z.string().max(60)).max(30),
 });
+
+const targetsSchema = setupSchema
+  .omit({ dietaryRestrictions: true, allergies: true, dislikedIngredients: true })
+  .partial()
+  .extend({
+    deliveryAddress: z.string().nullable().optional(),
+    deliveryCurrency: z.enum(['EUR', 'USD', 'GBP', 'RON']).nullable().optional(),
+    preferredUnits: z.enum(['METRIC', 'IMPERIAL']).optional(),
+  });
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -46,15 +58,21 @@ export const preferencesRouter = router({
     return preferencesService.get(ctx.user.id);
   }),
 
-  // Profile personalisation is a premium feature — free users use the curated
-  // generic plans and are prompted to upgrade. Reads stay open so the locked
-  // UI can still render existing state.
+  // Personalisation depth (goal, body metrics, cadence) is premium — free
+  // users use the curated plans and are prompted to upgrade. Reads stay open
+  // so the locked UI can still render existing state.
   setup: premiumProcedure.input(setupSchema).mutation(async ({ input, ctx }) => {
     await preferencesService.setup(ctx.user.id, input);
     return { success: true as const };
   }),
 
-  update: premiumProcedure.input(updateSchema).mutation(async ({ input, ctx }) => {
+  /** Allergies, restrictions, dislikes — free for every account (P1-2). */
+  updateSafety: protectedProcedure.input(safetySchema).mutation(async ({ input, ctx }) => {
+    return preferencesService.update(ctx.user.id, input);
+  }),
+
+  /** Goal, body metrics, cuisine and cadence — premium personalisation. */
+  updateTargets: premiumProcedure.input(targetsSchema).mutation(async ({ input, ctx }) => {
     return preferencesService.update(ctx.user.id, input as UpdatePreferencesInput);
   }),
 

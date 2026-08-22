@@ -11,9 +11,11 @@ import {
 import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient, MealType, NutritionInfo, RecipeData } from '../../lib/ai/index.js';
 import {
-  CURATED_POOL_BY_TYPE,
   ensureCuratedRecipes,
+  MIN_SAFE_POOL_SIZE,
   pickRandomCurated,
+  safeCuratedPools,
+  type SafetyPrefs,
 } from '../../lib/curated-recipes/index.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
@@ -109,8 +111,8 @@ export class MealPlanService {
    * plans for other weeks are left untouched.
    *
    * Premium users get an AI-personalised plan; free users get a random
-   * selection from the curated generic recipe pool (no AI calls, preset
-   * stock images, dietary preferences intentionally ignored).
+   * selection from the curated generic recipe pool, filtered by their
+   * allergies/restrictions/dislikes (no AI calls, preset stock images).
    *
    * @param weekOffset 0 = current week, 1 = next week, etc.
    */
@@ -255,19 +257,39 @@ export class MealPlanService {
 
   /**
    * FREE-tier plan generation: a random selection from the curated generic
-   * recipe pool. No AI calls, no personalisation, images are preset stock
-   * photos (instantly DONE).
+   * recipe pool, filtered by the user's allergies, dietary restrictions and
+   * dislikes (P1-2 — safety is free; only personalisation depth is premium).
+   * No AI calls; images are preset stock photos (instantly DONE).
    */
   private async generateCurated(userId: string, weekOffset = 0): Promise<WeekPlanDto> {
     await ensureCuratedRecipes();
 
+    const dietaryPrefs = await dietaryPreferencesRepository.findByUserId(userId);
+    const safety: SafetyPrefs = {
+      allergies: dietaryPrefs?.allergies ?? [],
+      dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
+      dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
+    };
+    const pools = safeCuratedPools(safety);
+
     const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner'];
+
+    // Pool exhaustion is an upgrade moment, not an error: the free pool can't
+    // cover this combination of restrictions, but AI generation can.
+    const exhausted = MEAL_TYPES.filter((type) => pools[type].length < MIN_SAFE_POOL_SIZE);
+    if (exhausted.length > 0) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message:
+          "We don't have enough free recipes matching your restrictions — upgrade for AI-generated plans that always fit your needs.",
+      });
+    }
 
     // Shuffled cycling per meal type: variety across the week, no repeats
     // until a pool is exhausted.
     const cyclers = new Map<MealType, { pool: RecipeData[]; idx: number }>();
     for (const type of MEAL_TYPES) {
-      const pool = [...(CURATED_POOL_BY_TYPE[type] ?? [])];
+      const pool = [...pools[type]];
       for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j]!, pool[i]!];
@@ -409,7 +431,7 @@ export class MealPlanService {
     }
 
     if (!premium) {
-      return this.swapCurated(planId, dayOfWeek, mealType, plan);
+      return this.swapCurated(userId, planId, dayOfWeek, mealType, plan);
     }
 
     // Load dietary preferences for the swap prompt
@@ -485,9 +507,11 @@ export class MealPlanService {
   }
 
   /**
-   * FREE-tier swap: random curated recipe of the same meal type (no AI).
+   * FREE-tier swap: random curated recipe of the same meal type (no AI),
+   * drawn only from the user's safety-filtered pool.
    */
   private async swapCurated(
+    userId: string,
     planId: string,
     dayOfWeek: number,
     mealType: string,
@@ -495,11 +519,25 @@ export class MealPlanService {
   ): Promise<RecipeDto> {
     await ensureCuratedRecipes();
 
+    const dietaryPrefs = await dietaryPreferencesRepository.findByUserId(userId);
+    const safety: SafetyPrefs = {
+      allergies: dietaryPrefs?.allergies ?? [],
+      dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
+      dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
+    };
+
     type MealSlotJson = { type: string; recipeId: string };
     const day = plan.days.find((d) => d.dayOfWeek === dayOfWeek);
     const slot = day ? (day.meals as MealSlotJson[]).find((m) => m.type === mealType) : undefined;
 
-    const newRecipe = pickRandomCurated(mealType as MealType, slot?.recipeId);
+    const newRecipe = pickRandomCurated(mealType as MealType, slot?.recipeId, safety);
+    if (!newRecipe) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message:
+          "We don't have another free recipe matching your restrictions — upgrade for AI swaps that always fit your needs.",
+      });
+    }
     await this.repo.updateDayMeal(planId, dayOfWeek, mealType, newRecipe.id);
 
     return toRecipeDto(newRecipe, { imageUrl: newRecipe.imageUrl, imageStatus: 'DONE' });

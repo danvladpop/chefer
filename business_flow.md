@@ -320,10 +320,13 @@ Changing a limit or moving a feature between tiers is an edit to that one file; 
 mealPlan.generate { weekOffset }
   │
   ├─ FREE user
-  │    ├─ ensureCuratedRecipes()          (idempotent upsert of curated pool)
+  │    ├─ ensureCuratedRecipes()          (idempotent upsert of the 64-recipe pool)
+  │    ├─ safeCuratedPools(prefs)         (filter by allergies/restrictions/dislikes)
+  │    │    └─ any plan meal type < MIN_SAFE_POOL_SIZE safe recipes
+  │    │         → PRECONDITION_FAILED → contextual upgrade prompt in the UI
   │    ├─ random breakfast/lunch/dinner per day (shuffled cycling, 7 days)
-  │    ├─ no AI call, no chef profile required, preferences ignored
-  │    └─ recipes ship with preset stock images (imageStatus DONE) → instant board
+  │    ├─ no AI call, no chef profile required
+  │    └─ recipes ship with preset images (imageStatus DONE) → instant board
   │
   └─ PREMIUM user (or ADMIN)
        ├─ load ChefProfile + DietaryPreferences (profile required)
@@ -409,10 +412,12 @@ IngredientPriceWorker (background)
   +- IAIService.estimateIngredientPrices (Gemini, batches of 40)
 ```
 
-### Profile personalisation gating
+### Profile personalisation gating (P1-2: safety is free)
 
-- `preferences.setup` / `preferences.update` use `premiumProcedure` → free users receive `FORBIDDEN` ("This feature requires a premium plan…").
-- The Preferences page and Onboarding wizard render an upgrade panel instead of the form for free users.
+- **Safety is free on every tier**: `preferences.updateSafety` (`protectedProcedure`) writes allergies, dietary restrictions and disliked ingredients. Free curated plans and free swaps are filtered by them (`lib/curated-recipes/safety.ts`); premium AI generation feeds them into the prompt.
+- **Personalisation depth is premium**: `preferences.setup` / `preferences.updateTargets` (`premiumProcedure`) own goal, body metrics, calorie targets, cuisine and meal cadence → free users receive `FORBIDDEN`.
+- The Preferences page shows free users the editable safety section plus a locked-targets upgrade panel; the Onboarding wizard branches — free: 2 steps (safety → premium preview), premium: 4 steps (goal → metrics → diet → cuisine).
+- **Pool exhaustion is the upsell**: when the curated pool keeps fewer than `MIN_SAFE_POOL_SIZE` safe recipes for any plan meal type, `mealPlan.generate` / free swap throw `PRECONDITION_FAILED` and the meal-plan page renders a contextual upgrade prompt ("not enough free recipes matching your restrictions") instead of an error.
 
 ---
 

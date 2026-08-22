@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { PreferencesForm } from '@/features/preferences/components/preferences-form';
 import type { ChefProfileData, DietaryPreferencesData } from '@/features/preferences/types';
-import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { createServerClient } from '@/lib/trpc-server';
 
 export const metadata: Metadata = {
@@ -59,33 +58,18 @@ export default async function PreferencesPage() {
     // fill and save. On next reload the data will be re-fetched.
   }
 
-  // Profile personalisation is a premium feature — free users see the upgrade
-  // panel instead of the form (the API also enforces this on mutations).
-  if (!isPremium) {
-    return (
-      <div className="mx-auto max-w-2xl px-4 py-6 sm:py-10">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight">Preferences</h1>
-          <p className="mt-1 text-muted-foreground">
-            Personal goals, body metrics and dietary preferences are part of the premium plan.
-          </p>
-        </div>
-        <UpgradeCard
-          title="Unlock your personal profile"
-          description="Set your goals, body metrics, allergies and dietary preferences, and let the AI chef build meal plans around them. On the free plan you get chef-curated generic recipes instead."
-        />
-      </div>
-    );
-  }
-
+  // Safety preferences (allergies, restrictions, dislikes) are free (P1-2);
+  // the form itself locks the premium-only target sections.
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:py-10">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Preferences</h1>
         <p className="mt-1 text-muted-foreground">
-          Update your goals, body metrics, and dietary preferences at any time.
+          {isPremium
+            ? 'Update your goals, body metrics, and dietary preferences at any time.'
+            : 'Your allergies and dietary restrictions apply to every plan — free or premium.'}
         </p>
-        {chefProfile?.dailyCalorieTarget && (
+        {isPremium && chefProfile?.dailyCalorieTarget && (
           <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
             <span className="font-medium text-primary">
               {chefProfile.dailyCalorieTarget.toLocaleString()} kcal / day
@@ -95,7 +79,11 @@ export default async function PreferencesPage() {
         )}
       </div>
 
-      <PreferencesForm chefProfile={chefProfile} dietaryPreferences={dietaryPreferences} />
+      <PreferencesForm
+        chefProfile={chefProfile}
+        dietaryPreferences={dietaryPreferences}
+        isPremium={isPremium}
+      />
     </div>
   );
 }

@@ -138,11 +138,24 @@ export default function MealPlanPage() {
   const photosReady = pendingRecipeIds.filter((id) => imageOverrides[id]).length;
   const photosInProgress = photosTotal > 0 && photosReady < photosTotal;
 
+  // PRECONDITION_FAILED = the free curated pool can't satisfy the user's
+  // restrictions (P1-2). That's an upgrade moment, not an error dialog.
+  const [poolExhaustedMessage, setPoolExhaustedMessage] = useState<string | null>(null);
+
   const generateMutation = trpc.mealPlan.generate.useMutation({
-    onMutate: () => setIsGenerating(true),
+    onMutate: () => {
+      setIsGenerating(true);
+      setPoolExhaustedMessage(null);
+    },
     onSettled: () => setIsGenerating(false),
     onSuccess: () => refetch(),
-    onError: (err) => alert(`Failed to generate meal plan: ${err.message}`),
+    onError: (err) => {
+      if (err.data?.code === 'PRECONDITION_FAILED') {
+        setPoolExhaustedMessage(err.message);
+      } else {
+        alert(`Failed to generate meal plan: ${err.message}`);
+      }
+    },
   });
 
   const handleGenerate = () => generateMutation.mutate({ weekOffset });
@@ -229,13 +242,24 @@ export default function MealPlanPage() {
     <div className="flex h-full flex-col">
       {navBar}
 
+      {/* Contextual upsell — the free pool can't cover these restrictions */}
+      {poolExhaustedMessage && (
+        <div className="mx-4 mb-2 flex flex-col items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 sm:mx-6 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <p className="flex items-start gap-2 text-sm text-amber-900">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
+            {poolExhaustedMessage}
+          </p>
+          <UpgradeButton className="min-h-11 w-full sm:min-h-0 sm:w-auto sm:shrink-0" />
+        </div>
+      )}
+
       {/* Free-tier hint — generic plans, upgrade for personalisation */}
       {isPremium === false && (
         <div className="mx-4 mb-2 flex flex-col items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 sm:mx-6 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <p className="flex items-start gap-2 text-xs text-amber-900">
             <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
-            You&apos;re on the free plan: chef-picked generic recipes. Upgrade for AI plans tailored
-            to your goals, allergies and preferences.
+            You&apos;re on the free plan: chef-picked recipes that respect your allergies and
+            restrictions. Upgrade for AI plans tailored to your goals and taste.
           </p>
           <UpgradeButton className="min-h-11 w-full sm:min-h-0 sm:w-auto sm:shrink-0" />
         </div>

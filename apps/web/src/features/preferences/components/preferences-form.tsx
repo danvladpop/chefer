@@ -7,6 +7,7 @@ import { StepDiet } from '@/features/onboarding/components/step-diet';
 import { StepGoal } from '@/features/onboarding/components/step-goal';
 import { StepMetrics } from '@/features/onboarding/components/step-metrics';
 import type { ActivityLevel, BiologicalSex, Goal } from '@/features/onboarding/types';
+import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { trpc } from '@/lib/trpc';
 import { Toast } from '@chefer/ui';
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
@@ -106,6 +107,8 @@ interface FormData {
 interface PreferencesFormProps {
   chefProfile: ChefProfileData | null;
   dietaryPreferences: DietaryPreferencesData | null;
+  /** Free users edit only the safety section; the rest renders locked (P1-2). */
+  isPremium: boolean;
 }
 
 // ─── Section wrapper ──────────────────────────────────────────────────────────
@@ -116,7 +119,11 @@ function Section({ children }: { children: React.ReactNode }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function PreferencesForm({ chefProfile, dietaryPreferences }: PreferencesFormProps) {
+export function PreferencesForm({
+  chefProfile,
+  dietaryPreferences,
+  isPremium,
+}: PreferencesFormProps) {
   const [data, setData] = useState<FormData>({
     goal: (chefProfile?.goal as Goal | null) ?? null,
     biologicalSex: (chefProfile?.biologicalSex as BiologicalSex | null) ?? null,
@@ -139,82 +146,79 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
   const utils = trpc.useUtils();
   const router = useRouter();
 
-  const updateMutation = trpc.preferences.update.useMutation({
-    onSuccess: () => {
-      setToast({ message: 'Preferences saved — taking you to your dashboard…', type: 'success' });
-      // Unit system, calorie target etc. are read elsewhere (shopping list,
-      // recipe pages) via preferences.get — refresh those caches immediately
-      void utils.preferences.get.invalidate();
-      void utils.dashboard.invalidate();
-      // Brief pause so the confirmation is seen before leaving the page.
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 900);
-    },
-    onError: (err) => {
-      setToast({ message: err.message || 'Failed to save preferences.', type: 'error' });
-    },
-  });
+  // Safety (allergies/restrictions/dislikes) saves through the free
+  // updateSafety procedure; everything else is premium-only updateTargets.
+  const safetyMutation = trpc.preferences.updateSafety.useMutation();
+  const targetsMutation = trpc.preferences.updateTargets.useMutation();
+  const isSaving = safetyMutation.isPending || targetsMutation.isPending;
+
+  function onSaved() {
+    setToast({ message: 'Preferences saved — taking you to your dashboard…', type: 'success' });
+    // Unit system, calorie target etc. are read elsewhere (shopping list,
+    // recipe pages) via preferences.get — refresh those caches immediately
+    void utils.preferences.get.invalidate();
+    void utils.dashboard.invalidate();
+    void utils.mealPlan.invalidate();
+    // Brief pause so the confirmation is seen before leaving the page.
+    setTimeout(() => {
+      router.push('/dashboard');
+    }, 900);
+  }
 
   // ── Validation ──────────────────────────────────────────────────────────────
 
   const canSave =
-    data.goal !== null &&
-    data.biologicalSex !== null &&
-    data.age !== null &&
-    data.age > 0 &&
-    data.heightCm !== null &&
-    data.heightCm > 0 &&
-    data.weightKg !== null &&
-    data.weightKg > 0 &&
-    data.activityLevel !== null;
+    !isPremium ||
+    (data.goal !== null &&
+      data.biologicalSex !== null &&
+      data.age !== null &&
+      data.age > 0 &&
+      data.heightCm !== null &&
+      data.heightCm > 0 &&
+      data.weightKg !== null &&
+      data.weightKg > 0 &&
+      data.activityLevel !== null);
 
   // ── Save handler ────────────────────────────────────────────────────────────
 
-  function handleSave() {
-    if (!canSave) return;
-    updateMutation.mutate({
-      goal: data.goal!,
-      biologicalSex: data.biologicalSex!,
-      age: data.age!,
-      heightCm: data.heightCm!,
-      weightKg: data.weightKg!,
-      activityLevel: data.activityLevel!,
-      dietaryRestrictions: data.dietaryRestrictions,
-      allergies: data.allergies,
-      dislikedIngredients: data.dislikedIngredients,
-      cuisinePreferences: data.cuisinePreferences,
-      mealsPerDay: data.mealsPerDay,
-      servingSize: data.servingSize,
-      deliveryAddress: data.deliveryAddress || null,
-      deliveryCurrency: data.deliveryCurrency as 'EUR' | 'USD' | 'GBP' | 'RON',
-      preferredUnits: data.preferredUnits,
-    });
+  async function handleSave() {
+    if (!canSave || isSaving) return;
+    try {
+      await safetyMutation.mutateAsync({
+        dietaryRestrictions: data.dietaryRestrictions,
+        allergies: data.allergies,
+        dislikedIngredients: data.dislikedIngredients,
+      });
+      if (isPremium) {
+        await targetsMutation.mutateAsync({
+          goal: data.goal!,
+          biologicalSex: data.biologicalSex!,
+          age: data.age!,
+          heightCm: data.heightCm!,
+          weightKg: data.weightKg!,
+          activityLevel: data.activityLevel!,
+          cuisinePreferences: data.cuisinePreferences,
+          mealsPerDay: data.mealsPerDay,
+          servingSize: data.servingSize,
+          deliveryAddress: data.deliveryAddress || null,
+          deliveryCurrency: data.deliveryCurrency as 'EUR' | 'USD' | 'GBP' | 'RON',
+          preferredUnits: data.preferredUnits,
+        });
+      }
+      onSaved();
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : 'Failed to save preferences.',
+        type: 'error',
+      });
+    }
   }
 
   return (
     <>
       <div className="space-y-6">
-        {/* Goal */}
-        <Section>
-          <StepGoal value={data.goal} onChange={(goal: Goal) => setData((d) => ({ ...d, goal }))} />
-        </Section>
-
-        {/* Body metrics */}
-        <Section>
-          <StepMetrics
-            value={{
-              biologicalSex: data.biologicalSex,
-              age: data.age,
-              heightCm: data.heightCm,
-              weightKg: data.weightKg,
-              activityLevel: data.activityLevel,
-            }}
-            onChange={(metrics) => setData((d) => ({ ...d, ...metrics }))}
-          />
-        </Section>
-
-        {/* Diet & restrictions */}
+        {/* Diet & restrictions — the safety section, free for every account.
+            Rendered first so free users see their editable section on top. */}
         <Section>
           <StepDiet
             value={{
@@ -226,60 +230,99 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
           />
         </Section>
 
-        {/* Cuisine & meal cadence */}
-        <Section>
-          <StepCuisine
-            value={{
-              cuisinePreferences: data.cuisinePreferences,
-              mealsPerDay: data.mealsPerDay,
-              servingSize: data.servingSize,
-            }}
-            onChange={(cuisine) => setData((d) => ({ ...d, ...cuisine }))}
+        {/* Personal targets — premium personalisation. Free users see the
+            upgrade panel instead (mutations are server-gated regardless). */}
+        {!isPremium && (
+          <UpgradeCard
+            title="Unlock your personal targets"
+            description="Set your goal, body metrics and cuisine preferences, and the AI chef builds every plan around them. Your allergies and restrictions above are always respected — on any plan."
           />
-        </Section>
+        )}
+
+        {isPremium && (
+          <>
+            {/* Goal */}
+            <Section>
+              <StepGoal
+                value={data.goal}
+                onChange={(goal: Goal) => setData((d) => ({ ...d, goal }))}
+              />
+            </Section>
+
+            {/* Body metrics */}
+            <Section>
+              <StepMetrics
+                value={{
+                  biologicalSex: data.biologicalSex,
+                  age: data.age,
+                  heightCm: data.heightCm,
+                  weightKg: data.weightKg,
+                  activityLevel: data.activityLevel,
+                }}
+                onChange={(metrics) => setData((d) => ({ ...d, ...metrics }))}
+              />
+            </Section>
+
+            {/* Cuisine & meal cadence */}
+            <Section>
+              <StepCuisine
+                value={{
+                  cuisinePreferences: data.cuisinePreferences,
+                  mealsPerDay: data.mealsPerDay,
+                  servingSize: data.servingSize,
+                }}
+                onChange={(cuisine) => setData((d) => ({ ...d, ...cuisine }))}
+              />
+            </Section>
+          </>
+        )}
 
         {/* Units. Delivery address and currency were removed from this form
             (2026-08-22): no shipped feature reads the address, and prices are
             EUR-only until roadmap P2-4 honours deliveryCurrency end-to-end.
-            The stored values pass through handleSave untouched. */}
-        <Section>
-          <h2 className="mb-4 text-base font-semibold">Units</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">
-                Measurement Units
-              </label>
-              <div className="flex gap-2">
-                {(
-                  [
-                    ['METRIC', 'Metric (g, ml)'],
-                    ['IMPERIAL', 'Imperial (oz, cups)'],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setData((d) => ({ ...d, preferredUnits: value }))}
-                    className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-medium transition ${
-                      data.preferredUnits === value
-                        ? 'border-primary bg-primary/5 text-primary'
-                        : 'border-input text-muted-foreground hover:border-primary/40'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+            The stored values pass through handleSave untouched. Premium-only
+            because it saves through updateTargets. */}
+        {isPremium && (
+          <Section>
+            <h2 className="mb-4 text-base font-semibold">Units</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-foreground">
+                  Measurement Units
+                </label>
+                <div className="flex gap-2">
+                  {(
+                    [
+                      ['METRIC', 'Metric (g, ml)'],
+                      ['IMPERIAL', 'Imperial (oz, cups)'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setData((d) => ({ ...d, preferredUnits: value }))}
+                      className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-medium transition ${
+                        data.preferredUnits === value
+                          ? 'border-primary bg-primary/5 text-primary'
+                          : 'border-input text-muted-foreground hover:border-primary/40'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  All recipe and shopping-list quantities are displayed in this system, whatever
+                  units the original recipe uses.
+                </p>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                All recipe and shopping-list quantities are displayed in this system, whatever units
-                the original recipe uses.
-              </p>
             </div>
-          </div>
-        </Section>
+          </Section>
+        )}
 
         {/* Nutrition Preview */}
         {(() => {
+          if (!isPremium) return null;
           const preview = computePreviewTargets(data);
           if (!preview) return null;
           return (
@@ -326,11 +369,11 @@ export function PreferencesForm({ chefProfile, dietaryPreferences }: Preferences
           )}
           <button
             type="button"
-            onClick={handleSave}
-            disabled={!canSave || updateMutation.isPending}
+            onClick={() => void handleSave()}
+            disabled={!canSave || isSaving}
             className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10"
           >
-            {updateMutation.isPending ? 'Saving…' : 'Save preferences'}
+            {isSaving ? 'Saving…' : 'Save preferences'}
           </button>
         </div>
       </div>

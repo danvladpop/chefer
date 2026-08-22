@@ -1,13 +1,13 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wizard';
-import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { createServerClient } from '@/lib/trpc-server';
 
 // ─── Onboarding Page ──────────────────────────────────────────────────────────
 // Server component — checks if the user already has a profile and redirects
 // to /dashboard if so. Otherwise renders the client-side wizard.
-// Profile setup is a premium feature — free users see the upgrade panel.
+// Free users get the 2-step safety flow (allergies & restrictions are free,
+// P1-2); premium users get the full 4-step personalisation flow.
 
 export default async function OnboardingPage() {
   const headerStore = await headers();
@@ -34,18 +34,7 @@ export default async function OnboardingPage() {
     // NEXT_REDIRECT error that a bare catch would silently discard.
   }
 
-  if (!isPremium) {
-    return (
-      <div className="mx-auto max-w-2xl px-4 py-10">
-        <UpgradeCard
-          title="Profile setup is a premium feature"
-          description="Tell the AI chef about your goals, body metrics and dietary needs, and get personalised weekly plans. On the free plan you can generate chef-curated generic plans right away — no setup needed."
-        />
-      </div>
-    );
-  }
-
   if (hasProfile) redirect('/dashboard');
 
-  return <OnboardingWizard />;
+  return <OnboardingWizard isPremium={isPremium} />;
 }

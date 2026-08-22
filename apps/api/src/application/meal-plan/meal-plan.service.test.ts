@@ -35,15 +35,22 @@ vi.mock('../../lib/curated-recipes/index.js', () => {
     servings: 1,
     imageUrl: 'https://img.example/x.jpg',
   });
+  const pools = {
+    breakfast: [
+      mkRecipe('b1', 'breakfast'),
+      mkRecipe('b2', 'breakfast'),
+      mkRecipe('b3', 'breakfast'),
+    ],
+    lunch: [mkRecipe('l1', 'lunch'), mkRecipe('l2', 'lunch'), mkRecipe('l3', 'lunch')],
+    dinner: [mkRecipe('d1', 'dinner'), mkRecipe('d2', 'dinner'), mkRecipe('d3', 'dinner')],
+    snack: [mkRecipe('s1', 'snack')],
+  };
   return {
     ensureCuratedRecipes: vi.fn().mockResolvedValue(undefined),
     pickRandomCurated: vi.fn((type: string) => mkRecipe('swap', type)),
-    CURATED_POOL_BY_TYPE: {
-      breakfast: [mkRecipe('b1', 'breakfast'), mkRecipe('b2', 'breakfast')],
-      lunch: [mkRecipe('l1', 'lunch'), mkRecipe('l2', 'lunch')],
-      dinner: [mkRecipe('d1', 'dinner'), mkRecipe('d2', 'dinner')],
-      snack: [mkRecipe('s1', 'snack')],
-    },
+    safeCuratedPools: vi.fn(() => pools),
+    MIN_SAFE_POOL_SIZE: 3,
+    CURATED_POOL_BY_TYPE: pools,
   };
 });
 
@@ -124,6 +131,42 @@ describe('MealPlanService.generate', () => {
     }
     expect(aiService.generateMealPlan).not.toHaveBeenCalled();
     expect(repo.createPlan).toHaveBeenCalledOnce();
+  });
+
+  it('free tier: filters the curated pool by safety prefs before assembling', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    const curated = await import('../../lib/curated-recipes/index.js');
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      dietaryRestrictions: ['Vegan'],
+      allergies: ['peanuts'],
+      dislikedIngredients: [],
+    } as never);
+
+    await service.generate('user1', 0, false);
+
+    expect(curated.safeCuratedPools).toHaveBeenCalledWith(
+      expect.objectContaining({ allergies: ['peanuts'], dietaryRestrictions: ['Vegan'] }),
+    );
+  });
+
+  it('free tier: pool exhaustion throws PRECONDITION_FAILED (the upgrade moment), not a plan', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    const curated = await import('../../lib/curated-recipes/index.js');
+    // Only 2 safe dinners left — below MIN_SAFE_POOL_SIZE.
+    vi.mocked(curated.safeCuratedPools).mockReturnValueOnce({
+      breakfast: [1, 2, 3],
+      lunch: [1, 2, 3],
+      dinner: [1, 2],
+      snack: [],
+    } as never);
+
+    await expect(service.generate('user1', 0, false)).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+    });
+    expect(repo.createPlan).not.toHaveBeenCalled();
+    expect(aiService.generateMealPlan).not.toHaveBeenCalled();
   });
 
   it('premium: passes allergies, restrictions and the LIVE calorie target to the AI', async () => {
