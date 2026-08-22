@@ -24,6 +24,8 @@ export interface IFavouriteRecipeRepository {
   findByUserId(userId: string, limit?: number): Promise<FavouriteRecipeWithRecipe[]>;
   isSaved(userId: string, recipeId: string): Promise<boolean>;
   findSavedRecipeIds(userId: string): Promise<string[]>;
+  findPinnedForNextPlan(userId: string): Promise<FavouriteRecipeWithRecipe[]>;
+  clearNextPlanFlags(userId: string): Promise<void>;
   save(userId: string, recipeId: string): Promise<FavouriteRecipe>;
   remove(userId: string, recipeId: string): Promise<void>;
   toggleUseInNextPlan(
@@ -75,6 +77,26 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
       select: { recipeId: true },
     });
     return rows.map((r: { recipeId: string }) => r.recipeId);
+  }
+
+  /** Favourites the user pinned for their next generated plan (P1-1). */
+  async findPinnedForNextPlan(userId: string): Promise<FavouriteRecipeWithRecipe[]> {
+    return prisma.favouriteRecipe.findMany({
+      where: { userId, useInNextPlan: true },
+      include: { recipe: true },
+      orderBy: { savedAt: 'desc' },
+    });
+  }
+
+  /**
+   * Resets all useInNextPlan flags after a successful generation — a pin
+   * means "next plan", not "every plan forever".
+   */
+  async clearNextPlanFlags(userId: string): Promise<void> {
+    await prisma.favouriteRecipe.updateMany({
+      where: { userId, useInNextPlan: true },
+      data: { useInNextPlan: false },
+    });
   }
 
   async save(userId: string, recipeId: string): Promise<FavouriteRecipe> {

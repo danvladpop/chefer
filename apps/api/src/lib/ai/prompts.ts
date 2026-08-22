@@ -55,6 +55,26 @@ export function buildMealPlanUserPrompt(input: MealPlanInput): string {
     ? input.cuisinePreferences.join(', ')
     : 'no preference — vary widely across world cuisines';
 
+  // Learning signals (P1-1): recent ratings steer taste; pinned dishes are
+  // inserted verbatim after generation, so the AI only needs to avoid
+  // duplicating them.
+  const signalLines: string[] = [];
+  if (input.likedDishes?.length) {
+    signalLines.push(
+      `Liked recently (4-5 stars): ${input.likedDishes.join(', ')}. Favour the cuisines and techniques of these dishes.`,
+    );
+  }
+  if (input.dislikedDishes?.length) {
+    signalLines.push(
+      `Disliked recently (1-2 stars): ${input.dislikedDishes.join(', ')}. Do not repeat these dishes or close variants.`,
+    );
+  }
+  if (input.pinnedDishNames?.length) {
+    signalLines.push(
+      `Already booked into this week by the user (do NOT generate these or near-duplicates): ${input.pinnedDishNames.join(', ')}.`,
+    );
+  }
+
   return `\
 7-day plan for: ${input.biologicalSex} ${input.age}yo ${input.heightCm}cm ${input.weightKg}kg, ${activity}
 Goal: ${goal}
@@ -62,7 +82,7 @@ Target: ${input.dailyCalorieTarget} kcal/day, ${input.mealsPerDay} meals/day (${
 Allergies: ${allergies}
 Restrictions: ${restrictions}
 Dislikes: ${dislikes}
-Cuisines: ${cuisines}
+Cuisines: ${cuisines}${signalLines.length ? `\n${signalLines.join('\n')}` : ''}
 Days: 0=Mon…6=Sun. Exactly ${input.mealsPerDay} meals per day.`;
 }
 

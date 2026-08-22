@@ -60,6 +60,13 @@ export interface MealPlanInput {
   cuisinePreferences: string[];
   mealsPerDay: number;
   servingSize: number;
+  // ── Learning signals (P1-1) — optional so mocks/tests stay minimal ──
+  /** Dishes the pinned favourites will occupy — the AI must not duplicate them. */
+  pinnedDishNames?: string[];
+  /** Recently liked (4–5★): "name (cuisine)" strings. */
+  likedDishes?: string[];
+  /** Recently disliked (1–2★) dish names — do not repeat or closely imitate. */
+  dislikedDishes?: string[];
 }
 
 export interface SwapInput {

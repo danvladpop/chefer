@@ -330,12 +330,23 @@ mealPlan.generate { weekOffset }
   │
   └─ PREMIUM user (or ADMIN)
        ├─ load ChefProfile + DietaryPreferences (profile required)
+       ├─ load learning signals (P1-1): pinned favourites
+       │   (useInNextPlan=true) + 20 most recent MealRatings joined to
+       │   recipe name/cuisine
        ├─ calorie + macro targets from resolveDailyTargets()
        │   (preferences.service — THE single source: live Mifflin-St Jeor
        │   TDEE ± goal adjustment when metrics are complete, else the stored
        │   snapshot. The dashboard ring and tracker read the same resolver,
        │   so a goal change moves all three together.)
        ├─ IAIService.generateMealPlan (Gemini) → 21 personalised recipes
+       │   (prompt carries "Liked recently (4-5★)…" / "Disliked recently
+       │   (1-2★)… do not repeat" / "Already booked: <pinned names>")
+       ├─ pinned favourites REPLACE matching meal slots verbatim (exact
+       │   saved recipe, meal type inferred from recent plans, spread
+       │   across the week); useInNextPlan flags cleared after success
+       ├─ response.personalisation { pinnedDishNames, likedCount,
+       │   dislikedCount } → meal-plan page shows "Built for you from N
+       │   dishes you rated and M pinned favourites"
        ├─ image reuse: recipes whose name matches a previously generated
        │   DONE image are marked DONE immediately
        ├─ remaining recipes upserted as PENDING with imagePriority

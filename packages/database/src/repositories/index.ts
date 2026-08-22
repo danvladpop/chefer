@@ -44,6 +44,7 @@ export {
   MealRatingRepository,
   mealRatingRepository,
   type IMealRatingRepository,
+  type RatingSignal,
 } from './meal-rating.repository';
 
 export {

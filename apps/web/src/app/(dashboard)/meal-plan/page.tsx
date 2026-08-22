@@ -142,13 +142,25 @@ export default function MealPlanPage() {
   // restrictions (P1-2). That's an upgrade moment, not an error dialog.
   const [poolExhaustedMessage, setPoolExhaustedMessage] = useState<string | null>(null);
 
+  // What the last generation learned from (P1-1) — the learning has to be
+  // VISIBLE or users won't believe the plan adapts to their ratings.
+  const [personalisation, setPersonalisation] = useState<{
+    pinnedDishNames: string[];
+    likedCount: number;
+    dislikedCount: number;
+  } | null>(null);
+
   const generateMutation = trpc.mealPlan.generate.useMutation({
     onMutate: () => {
       setIsGenerating(true);
       setPoolExhaustedMessage(null);
+      setPersonalisation(null);
     },
     onSettled: () => setIsGenerating(false),
-    onSuccess: () => refetch(),
+    onSuccess: (data) => {
+      setPersonalisation(data.personalisation ?? null);
+      void refetch();
+    },
     onError: (err) => {
       if (err.data?.code === 'PRECONDITION_FAILED') {
         setPoolExhaustedMessage(err.message);
@@ -241,6 +253,46 @@ export default function MealPlanPage() {
   return (
     <div className="flex h-full flex-col">
       {navBar}
+
+      {/* Learning signals used by the last generation (P1-1) */}
+      {personalisation &&
+        (personalisation.pinnedDishNames.length > 0 ||
+          personalisation.likedCount + personalisation.dislikedCount > 0) && (
+          <div className="mx-4 mb-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 sm:mx-6">
+            <p className="flex items-start gap-2 text-xs text-emerald-900">
+              <Wand2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
+              <span>
+                Built for you
+                {personalisation.likedCount + personalisation.dislikedCount > 0 && (
+                  <>
+                    {' '}
+                    from{' '}
+                    <strong>
+                      {personalisation.likedCount + personalisation.dislikedCount} dish
+                      {personalisation.likedCount + personalisation.dislikedCount === 1
+                        ? ''
+                        : 'es'}{' '}
+                      you rated
+                    </strong>
+                  </>
+                )}
+                {personalisation.pinnedDishNames.length > 0 && (
+                  <>
+                    {personalisation.likedCount + personalisation.dislikedCount > 0
+                      ? ' and '
+                      : ' with '}
+                    <strong>
+                      {personalisation.pinnedDishNames.length} pinned favourite
+                      {personalisation.pinnedDishNames.length === 1 ? '' : 's'}
+                    </strong>{' '}
+                    ({personalisation.pinnedDishNames.join(', ')})
+                  </>
+                )}
+                .
+              </span>
+            </p>
+          </div>
+        )}
 
       {/* Contextual upsell — the free pool can't cover these restrictions */}
       {poolExhaustedMessage && (

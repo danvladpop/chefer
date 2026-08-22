@@ -3,8 +3,11 @@ import {
   AiCallType,
   chefProfileRepository,
   dietaryPreferencesRepository,
+  favouriteRecipeRepository,
   mealPlanRepository,
+  mealRatingRepository,
   prisma,
+  type FavouriteRecipeWithRecipe,
   type IMealPlanRepository,
   type Recipe,
 } from '@chefer/database';
@@ -69,6 +72,15 @@ export interface WeekPlanDto {
   planId: string;
   weekStartDate: Date;
   days: DayPlanDto[];
+  /**
+   * What the generation learned from (P1-1) — present only on the response of
+   * a premium generate, so the UI can show "built from N dishes you rated".
+   */
+  personalisation?: {
+    pinnedDishNames: string[];
+    likedCount: number;
+    dislikedCount: number;
+  };
 }
 
 // ─── Week helper ──────────────────────────────────────────────────────────────
@@ -120,10 +132,13 @@ export class MealPlanService {
     if (!premium) {
       return this.generateCurated(userId, weekOffset);
     }
-    // 1. Load user preferences
-    const [chefProfile, dietaryPrefs] = await Promise.all([
+    // 1. Load user preferences + learning signals (P1-1: pinned favourites
+    // and recent ratings feed the generation).
+    const [chefProfile, dietaryPrefs, pinnedFavourites, ratingSignals] = await Promise.all([
       chefProfileRepository.findByUserId(userId),
       dietaryPreferencesRepository.findByUserId(userId),
+      favouriteRecipeRepository.findPinnedForNextPlan(userId),
+      mealRatingRepository.findSignalsForUser(userId),
     ]);
 
     if (!chefProfile) {
@@ -132,6 +147,11 @@ export class MealPlanService {
         message: 'Complete your profile setup before generating a meal plan.',
       });
     }
+
+    const likedDishes = ratingSignals
+      .filter((s) => s.rating >= 4)
+      .map((s) => `${s.recipeName} (${s.cuisineType})`);
+    const dislikedDishes = ratingSignals.filter((s) => s.rating <= 2).map((s) => s.recipeName);
 
     // 2. Build the AI input from stored preferences. Targets come from the
     // shared resolver so the generated plan always matches what the dashboard
@@ -153,6 +173,9 @@ export class MealPlanService {
       cuisinePreferences: dietaryPrefs?.cuisinePreferences ?? [],
       mealsPerDay: dietaryPrefs?.mealsPerDay ?? 3,
       servingSize: dietaryPrefs?.servingSize ?? 1,
+      pinnedDishNames: pinnedFavourites.map((f) => f.recipe.name),
+      likedDishes,
+      dislikedDishes,
     };
 
     // 3. Call AI service
@@ -171,6 +194,17 @@ export class MealPlanService {
     prisma.aiCallLog
       .create({ data: { userId, callType: AiCallType.MEAL_PLAN } })
       .catch((err) => console.error('[aiCallLog] Failed to log MEAL_PLAN call:', err));
+
+    // 3b. Place pinned favourites into the plan verbatim (P1-1). Done as a
+    // post-processing step, not via the prompt: the user pinned a SPECIFIC
+    // saved recipe, and only slot replacement guarantees that exact recipe
+    // (id, image and all) appears — an LLM asked to "include dish X" invents
+    // a fresh variant.
+    const pinnedIds = new Set(pinnedFavourites.map((f) => f.recipe.id));
+    let placedPinNames: string[] = [];
+    if (pinnedFavourites.length > 0) {
+      placedPinNames = await this.placePinnedRecipes(userId, weekPlan, pinnedFavourites);
+    }
 
     // 4. Collect unique recipes and their image priority (min day-distance
     //    across the slots each recipe appears in — today's meals first)
@@ -196,28 +230,32 @@ export class MealPlanService {
       return reused ? { imageUrl: reused, done: true } : { imageUrl: null, done: false };
     };
 
-    // 6. Persist recipes (upsert so reruns are idempotent)
+    // 6. Persist recipes (upsert so reruns are idempotent). Pinned favourites
+    // already exist as rows — and must NOT be re-upserted: that would stamp
+    // this user's creatorId (and AI source) onto shared curated rows.
     await this.repo.upsertRecipes(
-      recipes.map((r) => {
-        const img = resolvedImage(r);
-        return {
-          id: r.id,
-          name: r.name,
-          description: r.description,
-          ingredients: r.ingredients,
-          instructions: r.instructions,
-          nutritionInfo: r.nutritionInfo,
-          cuisineType: r.cuisineType,
-          dietaryTags: r.dietaryTags,
-          prepTimeMins: r.prepTimeMins,
-          cookTimeMins: r.cookTimeMins,
-          servings: r.servings,
-          imageUrl: img.imageUrl,
-          imageStatus: img.done ? ('DONE' as const) : ('PENDING' as const),
-          imagePriority: priorityMap.get(r.id) ?? 100,
-          creatorId: userId,
-        };
-      }),
+      recipes
+        .filter((r) => !pinnedIds.has(r.id))
+        .map((r) => {
+          const img = resolvedImage(r);
+          return {
+            id: r.id,
+            name: r.name,
+            description: r.description,
+            ingredients: r.ingredients,
+            instructions: r.instructions,
+            nutritionInfo: r.nutritionInfo,
+            cuisineType: r.cuisineType,
+            dietaryTags: r.dietaryTags,
+            prepTimeMins: r.prepTimeMins,
+            cookTimeMins: r.cookTimeMins,
+            servings: r.servings,
+            imageUrl: img.imageUrl,
+            imageStatus: img.done ? ('DONE' as const) : ('PENDING' as const),
+            imagePriority: priorityMap.get(r.id) ?? 100,
+            creatorId: userId,
+          };
+        }),
     );
 
     // 7. Persist the meal plan (archives only the plan for the same week)
@@ -234,6 +272,12 @@ export class MealPlanService {
 
     // 8. Start image generation immediately — don't wait for the worker's poll
     recipeImageWorker.wake();
+
+    // 8b. A pin means "next plan", not "every plan forever" — reset the flags
+    // now that the plan they were pinned for exists.
+    if (pinnedFavourites.length > 0) {
+      await favouriteRecipeRepository.clearNextPlanFlags(userId);
+    }
 
     // 9. Assemble the DTO
     return {
@@ -252,7 +296,57 @@ export class MealPlanService {
           };
         }),
       })),
+      personalisation: {
+        pinnedDishNames: placedPinNames,
+        likedCount: likedDishes.length,
+        dislikedCount: dislikedDishes.length,
+      },
     };
+  }
+
+  /**
+   * Replaces plan slots with the user's pinned favourite recipes (P1-1).
+   * Meal types are inferred from where each recipe last appeared in the
+   * user's recent plans (falling back to dinner); pins of the same type are
+   * spread across the week rather than stacked on consecutive days.
+   */
+  private async placePinnedRecipes(
+    userId: string,
+    weekPlan: { days: { dayOfWeek: number; meals: { type: string; recipe: RecipeData }[] }[] },
+    pinnedFavourites: FavouriteRecipeWithRecipe[],
+  ): Promise<string[]> {
+    // recipeId → meal type from the most recent plan that contains it.
+    const typeByRecipe = new Map<string, string>();
+    const recentPlans = await this.repo.findAllByUserId(userId, 10);
+    for (const plan of recentPlans) {
+      for (const day of plan.days) {
+        for (const slot of day.meals as { type: string; recipeId: string }[]) {
+          if (!typeByRecipe.has(slot.recipeId)) typeByRecipe.set(slot.recipeId, slot.type);
+        }
+      }
+    }
+
+    // Spread pins across the week (Mon, Thu, Sat, Tue, Fri, Sun, Wed).
+    const DAY_SPREAD = [0, 3, 5, 1, 4, 6, 2];
+    const taken = new Set<string>();
+    const placed: string[] = [];
+
+    for (const favourite of pinnedFavourites) {
+      const recipe = favourite.recipe;
+      const mealType = typeByRecipe.get(recipe.id) ?? 'dinner';
+
+      for (const dayOfWeek of DAY_SPREAD) {
+        if (taken.has(`${dayOfWeek}:${mealType}`)) continue;
+        const day = weekPlan.days.find((d) => d.dayOfWeek === dayOfWeek);
+        const slot = day?.meals.find((m) => m.type === mealType);
+        if (!slot) continue;
+        slot.recipe = rowToRecipeData(recipe);
+        taken.add(`${dayOfWeek}:${mealType}`);
+        placed.push(recipe.name);
+        break;
+      }
+    }
+    return placed;
   }
 
   /**
@@ -691,6 +785,25 @@ function toRecipeDto(
     // Without an explicit resolution, new AI recipes have no image yet —
     // treat as PENDING so the worker generates one.
     imageStatus: image?.imageStatus ?? 'PENDING',
+  };
+}
+
+// Converts a Prisma Recipe row into the RecipeData shape the plan-assembly
+// pipeline works with — used to inject pinned favourites into AI plans (P1-1).
+function rowToRecipeData(row: Recipe): RecipeData {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    ingredients: row.ingredients as unknown as Ingredient[],
+    instructions: row.instructions,
+    nutritionInfo: row.nutritionInfo as unknown as NutritionInfo,
+    cuisineType: row.cuisineType,
+    dietaryTags: row.dietaryTags,
+    prepTimeMins: row.prepTimeMins,
+    cookTimeMins: row.cookTimeMins,
+    servings: row.servings,
+    imageUrl: row.imageUrl,
   };
 }
 

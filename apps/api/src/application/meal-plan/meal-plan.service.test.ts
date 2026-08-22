@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { chefProfileRepository, dietaryPreferencesRepository } from '@chefer/database';
+import {
+  chefProfileRepository,
+  dietaryPreferencesRepository,
+  favouriteRecipeRepository,
+  mealRatingRepository,
+} from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
 import { dayImagePriority, MealPlanService } from './meal-plan.service.js';
 
@@ -12,6 +17,11 @@ vi.mock('@chefer/database', async (importOriginal) => {
     prisma: { aiCallLog: { create: vi.fn().mockResolvedValue({}) } },
     chefProfileRepository: { findByUserId: vi.fn() },
     dietaryPreferencesRepository: { findByUserId: vi.fn() },
+    favouriteRecipeRepository: {
+      findPinnedForNextPlan: vi.fn().mockResolvedValue([]),
+      clearNextPlanFlags: vi.fn().mockResolvedValue(undefined),
+    },
+    mealRatingRepository: { findSignalsForUser: vi.fn().mockResolvedValue([]) },
     mealPlanRepository: {},
   };
 });
@@ -113,6 +123,10 @@ const CHEF_PROFILE = {
 describe('MealPlanService.generate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // clearAllMocks keeps implementations — restore the no-signal defaults so
+    // one test's pins/ratings don't leak into the next.
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([]);
+    vi.mocked(mealRatingRepository.findSignalsForUser).mockResolvedValue([]);
   });
 
   it('free tier: builds a 7-day curated plan with ZERO AI calls', async () => {
@@ -194,6 +208,75 @@ describe('MealPlanService.generate', () => {
     expect(input.dailyCalorieTarget).not.toBe(2500);
     expect(input.dailyCalorieTarget).toBeLessThan(2500);
     expect(repo.upsertRecipes).toHaveBeenCalledOnce();
+  });
+
+  it('premium: a pinned favourite is placed verbatim, flags cleared, row not re-upserted (P1-1)', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+    const pinnedRecipe = {
+      id: 'curated-fix-r-999',
+      name: 'Shakshuka with Peppers',
+      description: 'd',
+      ingredients: [{ name: 'eggs', quantity: 2, unit: 'large' }],
+      instructions: ['cook'],
+      nutritionInfo: { calories: 380, protein: 18, carbs: 24, fat: 24, fiber: 6 },
+      cuisineType: 'Middle Eastern',
+      dietaryTags: ['vegetarian'],
+      prepTimeMins: 10,
+      cookTimeMins: 20,
+      servings: 1,
+      imageUrl: 'https://img.example/shakshuka.jpg',
+    };
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([
+      { recipe: pinnedRecipe } as never,
+    ]);
+
+    const plan = await service.generate('user1', 0, true);
+
+    // Placed verbatim (exact id + DONE image), reported in personalisation.
+    const dinner = plan.days[0]!.meals.find((m) => m.type === 'dinner')!;
+    expect(dinner.recipe.id).toBe('curated-fix-r-999');
+    expect(dinner.recipe.imageStatus).toBe('DONE');
+    expect(plan.personalisation?.pinnedDishNames).toEqual(['Shakshuka with Peppers']);
+
+    // The AI was told not to duplicate the pinned dish.
+    const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
+    expect(input.pinnedDishNames).toEqual(['Shakshuka with Peppers']);
+
+    // A pin means "next plan", not "forever".
+    expect(favouriteRecipeRepository.clearNextPlanFlags).toHaveBeenCalledWith('user1');
+
+    // The existing row must not be re-upserted (would stamp creatorId/source).
+    const upserted = vi.mocked(repo.upsertRecipes).mock.calls[0]![0] as { id: string }[];
+    expect(upserted.map((r) => r.id)).not.toContain('curated-fix-r-999');
+  });
+
+  it('premium: recent ratings become liked/disliked signals in the AI input (P1-1)', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+    vi.mocked(mealRatingRepository.findSignalsForUser).mockResolvedValue([
+      { rating: 5, recipeName: 'Thai Green Curry', cuisineType: 'Thai', dietaryTags: [] },
+      { rating: 4, recipeName: 'Shakshuka', cuisineType: 'Middle Eastern', dietaryTags: [] },
+      { rating: 3, recipeName: 'Plain Rice', cuisineType: 'generic', dietaryTags: [] },
+      { rating: 1, recipeName: 'Quinoa Buddha Bowl', cuisineType: 'American', dietaryTags: [] },
+    ]);
+
+    const plan = await service.generate('user1', 0, true);
+
+    const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
+    expect(input.likedDishes).toEqual(['Thai Green Curry (Thai)', 'Shakshuka (Middle Eastern)']);
+    expect(input.dislikedDishes).toEqual(['Quinoa Buddha Bowl']);
+    // 3-star ratings are neutral — not in either list.
+    expect(input.likedDishes).not.toContain('Plain Rice (generic)');
+    expect(plan.personalisation).toMatchObject({ likedCount: 2, dislikedCount: 1 });
+    // No pins → nothing to clear.
+    expect(favouriteRecipeRepository.clearNextPlanFlags).not.toHaveBeenCalled();
   });
 
   it('premium without a chef profile is rejected with BAD_REQUEST', async () => {
