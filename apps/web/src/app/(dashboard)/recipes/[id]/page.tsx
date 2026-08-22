@@ -402,7 +402,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       <div className="mt-8 rounded-2xl border bg-white p-5">
         <h2 className="mb-3 font-serif text-sm font-semibold text-gray-900">
           Nutrition Facts{' '}
-          <span className="text-xs font-normal text-gray-500">per {recipe.servings} servings</span>
+          <span className="text-xs font-normal text-gray-500">
+            per {recipe.servings} serving{recipe.servings === 1 ? '' : 's'}
+          </span>
         </h2>
         <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <NutritionRow label="Calories" value={`${n.calories} kcal`} />

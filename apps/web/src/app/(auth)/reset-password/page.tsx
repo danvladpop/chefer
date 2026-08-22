@@ -20,7 +20,7 @@ export default function ResetPasswordPage() {
             <span className="text-3xl" aria-hidden="true">
               🍽️
             </span>
-            <span>PersonalChef.ai</span>
+            <span>Chefer</span>
           </Link>
           <h1 className="mt-4 text-2xl font-bold tracking-tight">Choose a new password</h1>
           <p className="mt-2 text-sm text-muted-foreground">

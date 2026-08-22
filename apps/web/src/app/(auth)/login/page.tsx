@@ -6,7 +6,7 @@ import { getSessionUser } from '@/features/auth/lib/session';
 
 export const metadata: Metadata = {
   title: 'Sign In',
-  description: 'Sign in to your PersonalChef.ai account',
+  description: 'Sign in to your Chefer account',
   robots: { index: false },
 };
 
@@ -28,7 +28,7 @@ export default async function LoginPage() {
             <span className="text-3xl" aria-hidden="true">
               🍽️
             </span>
-            <span>PersonalChef.ai</span>
+            <span>Chefer</span>
           </Link>
           <h1 className="mt-4 text-2xl font-bold tracking-tight">Welcome back</h1>
           <p className="mt-2 text-sm text-muted-foreground">Sign in to your account to continue</p>

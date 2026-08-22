@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DayView } from '@/features/meal-plan/components/day-view';
 import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
@@ -188,6 +188,19 @@ export default function MealPlanPage() {
   });
 
   const handleGenerate = () => generateMutation.mutate({ weekOffset });
+
+  // ?generate=1 (dashboard's "Generate My Week", prod-followups #9): start
+  // generation on arrival when the week has no plan yet. Fires at most once
+  // and strips the param immediately so a reload can't double-generate.
+  const autoGenerateFired = useRef(false);
+  const wantsAutoGenerate = searchParams.get('generate') === '1';
+  useEffect(() => {
+    if (!wantsAutoGenerate || autoGenerateFired.current || isLoading) return;
+    autoGenerateFired.current = true;
+    router.replace('/meal-plan', { scroll: false });
+    if (!plan && !isGenerating) generateMutation.mutate({ weekOffset });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once trigger keyed on load completion
+  }, [wantsAutoGenerate, isLoading]);
 
   // Everything below reads client-only state: react-query data (which may
   // already be resolved when this lazily-hydrated boundary hydrates — the

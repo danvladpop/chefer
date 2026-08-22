@@ -6,7 +6,7 @@ import { getSessionUser } from '@/features/auth/lib/session';
 
 export const metadata: Metadata = {
   title: 'Create Account',
-  description: 'Create your PersonalChef.ai account',
+  description: 'Create your Chefer account',
   robots: { index: false },
 };
 
@@ -28,7 +28,7 @@ export default async function RegisterPage() {
             <span className="text-3xl" aria-hidden="true">
               🍽️
             </span>
-            <span>PersonalChef.ai</span>
+            <span>Chefer</span>
           </Link>
           <h1 className="mt-4 text-2xl font-bold tracking-tight">Create your account</h1>
           <p className="mt-2 text-sm text-muted-foreground">

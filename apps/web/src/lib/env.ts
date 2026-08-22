@@ -6,7 +6,7 @@ const envSchema = z.object({
 
   // App
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
-  NEXT_PUBLIC_APP_NAME: z.string().default('PersonalChef.ai'),
+  NEXT_PUBLIC_APP_NAME: z.string().default('Chefer'),
 
   // API / tRPC
   NEXT_PUBLIC_API_URL: z.string().url().default('http://localhost:3001'),

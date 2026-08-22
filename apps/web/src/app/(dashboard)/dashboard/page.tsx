@@ -323,8 +323,10 @@ export default function DashboardPage() {
                 Let AI craft a personalised 7-day plan for you.
               </p>
             </div>
+            {/* ?generate=1 starts generation on arrival — the button used to
+                say "Generate" but only navigated (prod-followups #9) */}
             <Link
-              href="/meal-plan"
+              href="/meal-plan?generate=1"
               className="rounded-full bg-[#944a00] px-5 py-2 text-sm font-semibold text-white hover:bg-[#7a3d00]"
             >
               Generate My Week

@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { getSessionUser } from '@/features/auth/lib/session';
 
 export const metadata: Metadata = {
-  title: 'PersonalChef.ai — Your AI-Powered Meal Planner',
+  title: 'Chefer — Your AI-Powered Meal Planner',
   description:
     'Generate fully personalized 7-day meal plans tailored to your health goals, dietary restrictions, and food preferences — powered by AI.',
 };
@@ -107,7 +107,7 @@ export default async function HomePage() {
 
       {/* ── Footer ── */}
       <footer className="border-t px-4 py-8 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} PersonalChef.ai &mdash; All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} Chefer &mdash; All rights reserved.</p>
       </footer>
     </div>
   );
