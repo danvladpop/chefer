@@ -199,7 +199,11 @@ jobs:
               -o UserKnownHostsFile=~/.ssh/known_hosts \
               -o ConnectTimeout=20 \
               "$DEPLOY_USER@$DEPLOY_HOST" \
-              "cd ~/chefer && TAG='$TAG' ./infrastructure/scripts/deploy.sh"
+              "cd ~/chefer && git pull --ff-only && TAG='$TAG' ./infrastructure/scripts/deploy.sh"
+        # The pull runs BEFORE the script is invoked (not just inside it):
+        # bash executes the file it opened, so a script updated by its own
+        # git pull only took effect one deploy later. Pulling first means
+        # every deploy runs the deploy script it shipped with.
 
   # ─── Verify the site is actually healthy ────────────────────────────────────
   verify:
