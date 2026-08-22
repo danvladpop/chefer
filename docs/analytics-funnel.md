@@ -42,7 +42,13 @@ Weekly auto-generation (PW-5) is server-side and shows up as plans whose
 `createdAt` precedes their `weekStartDate` — count it in SQL/Postgres, not
 PostHog, until server-side capture is worth adding.
 
-## ☐ PostHog dashboard — "Upgrade funnel" (one-time setup)
+## ✅ PostHog dashboard — "Upgrade funnel" (built 2026-08-22)
+
+All four insights live on the "Upgrade funnel" dashboard. Event definitions
+were seeded with a throwaway prod account (`funnel-test@chefer.dev`, left on
+FREE) because definitions only appear in pickers after an event has fired
+once. Note: the owner's own browser blocks `eu.i.posthog.com` (ad-blocker),
+so their sessions won't appear in analytics.
 
 1. **Funnel insight**: `upgrade_prompt_shown` → `upgrade_clicked` →
    `upgrade_completed`, conversion window 1 day, **breakdown by `source`**.
@@ -56,17 +62,21 @@ PostHog, until server-side capture is worth adding.
    `chat_message_sent`, `shopping_list_regenerated` — stacked, broken down
    by `planTier`.
 
-## ☐ Sentry alert rules (deferred from A9/P2-2, land here)
+## ✅ Sentry alert rules (built 2026-08-22; one ☐ deferred)
 
-In both Sentry projects (api, web):
-
-1. **AI failure spike**: issues alert on events matching
-   `AI generateMealPlan failed` OR `Chat failed` — more than 5 events in
-   15 minutes → email.
-2. **New issue anywhere**: "a new issue is created" → email (low volume at
-   this stage; tighten later).
-3. **API p95 latency** (api project, metric alert when tracing volume
+1. ✅ **AI failure spike — api**: event captured AND message contains
+   `failed` AND issue seen > 5 times in 15 min → team email. (`contains
+"failed"` covers both `AI generateMealPlan failed` and `Chat failed`;
+   the frequency AND keeps it from firing on isolated errors.)
+2. ✅ **New issue — api** / **New issue — web**: "a new issue is created" →
+   team email (low volume at this stage; tighten later). The web project is
+   still named `javascript-nextjs` in Sentry.
+3. ☐ **API p95 latency** (api project, metric alert when tracing volume
    allows): `trpc mealPlan.generate` p95 > 30s over 15 min.
+
+Sentry's auto-created "Send a notification for high priority issues" rules
+(one per project) overlap with the New-issue rules — high-priority issues
+email twice. Keep or delete at will.
 
 Once the four PostHog insights and Sentry rules exist, tick the launch-plan
 Definition-of-Done line "Funnel dashboard shows prompt→upgrade conversion by
