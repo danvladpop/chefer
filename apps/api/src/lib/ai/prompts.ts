@@ -40,6 +40,34 @@ const ACTIVITY_LABELS: Record<string, string> = {
   ATHLETE: 'athlete (twice-daily training or physical job)',
 };
 
+// ── Seam section builders (premium_plan.md §3.3) ─────────────────────────────
+// One builder per MealPlanInput seam field, each owned by exactly one wave-2
+// feature. Every builder returns '' when its field is absent, so the base
+// prompt is byte-identical until a feature actually fills its seam.
+
+/** F2 household — owned by feat/household. */
+export function buildHouseholdSection(input: MealPlanInput): string {
+  const h = input.householdContext;
+  if (!h) return '';
+  const lines = [
+    `Household: cooking for ${h.memberCount + 1} people total; every recipe must use servings=${h.portionSum}.`,
+  ];
+  if (h.dislikeNotes.length) {
+    lines.push(
+      `Per-person dislikes (soft — avoid where easy, or note who the dish suits): ${h.dislikeNotes.join('; ')}.`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/** F3 pantry — owned by feat/pantry. */
+export function buildUseFirstSection(input: MealPlanInput): string {
+  const items = input.useFirstIngredients;
+  if (!items?.length) return '';
+  const list = items.map((i) => `${i.name} (${i.quantity} ${i.unit} — ${i.reason})`).join(', ');
+  return `Pantry (soft constraint, like budget): the user already has ${list}. Prefer recipes that use these up before they go to waste; do not force them into every meal.`;
+}
+
 export function buildMealPlanUserPrompt(input: MealPlanInput): string {
   const mealTypes = ['breakfast', 'lunch', 'dinner'];
   if (input.mealsPerDay >= 4) mealTypes.push('snack');
@@ -78,6 +106,10 @@ export function buildMealPlanUserPrompt(input: MealPlanInput): string {
     signalLines.push(
       `Budget (hard constraint): total ingredient cost for the whole week must stay under €${input.weeklyBudgetEur} at typical Romanian supermarket prices. Prefer affordable staples (legumes, eggs, seasonal vegetables, chicken or pork over beef, canned fish over fresh salmon) as needed to stay within it.`,
     );
+  }
+  // Wave-2 seams — each returns '' until its feature fills the field.
+  for (const section of [buildHouseholdSection(input), buildUseFirstSection(input)]) {
+    if (section) signalLines.push(section);
   }
 
   return `\

@@ -2,15 +2,27 @@ import { z } from 'zod';
 import { trackerService } from '../application/tracker/tracker.service.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
 
-const loggedMealSchema = z.object({
-  recipeId: z.string(),
-  mealType: z.string(),
-  portionMultiplier: z.number().min(0.5).max(2),
-  kcal: z.number(),
-  protein: z.number(),
-  carbs: z.number(),
-  fat: z.number(),
-});
+// Planned recipes carry recipeId; custom entries (photo scans, quick-adds —
+// F4) carry `custom` instead. Exactly one of the two must be present.
+const loggedMealSchema = z
+  .object({
+    recipeId: z.string().optional(),
+    custom: z
+      .object({
+        name: z.string().min(1).max(200),
+        estimatedBy: z.enum(['vision', 'manual']),
+      })
+      .optional(),
+    mealType: z.string(),
+    portionMultiplier: z.number().min(0.5).max(2),
+    kcal: z.number(),
+    protein: z.number(),
+    carbs: z.number(),
+    fat: z.number(),
+  })
+  .refine((m) => (m.recipeId != null) !== (m.custom != null), {
+    message: 'A logged meal needs exactly one of recipeId or custom',
+  });
 
 export const trackerRouter = router({
   getDay: protectedProcedure

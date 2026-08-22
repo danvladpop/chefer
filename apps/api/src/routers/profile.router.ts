@@ -32,17 +32,21 @@ export const profileRouter = router({
       [AiCallType.IMAGE_GENERATION]: 0,
       [AiCallType.INGREDIENT_PRICES]: 0,
       [AiCallType.CHAT]: 0,
+      [AiCallType.SCAN]: 0,
+      [AiCallType.RECIPE_IMPORT]: 0,
     };
     for (const log of logs) {
       counts[log.callType]++;
     }
 
-    // Total Gemini calls (meal plan + swap + shopping list + chat)
+    // Total Gemini calls (meal plan + swap + shopping list + chat + vision)
     const geminiTotal =
       counts[AiCallType.MEAL_PLAN] +
       counts[AiCallType.RECIPE_SWAP] +
       counts[AiCallType.SHOPPING_LIST] +
-      counts[AiCallType.CHAT];
+      counts[AiCallType.CHAT] +
+      counts[AiCallType.SCAN] +
+      counts[AiCallType.RECIPE_IMPORT];
 
     return {
       today: counts,

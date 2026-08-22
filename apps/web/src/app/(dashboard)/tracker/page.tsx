@@ -43,12 +43,16 @@ export default function TrackerPage() {
 
   const getKey = (recipeId: string, mealType: string) => `${recipeId}:${mealType}`;
 
-  // When data loads, pre-populate from existing log (only once per dateStr)
+  // When data loads, pre-populate from existing log (only once per dateStr).
+  // Entries without a recipeId are custom (Snap-to-Log quick-adds, F4) — they
+  // don't map to a planned-meal row, so they're skipped here and preserved
+  // verbatim on save instead.
   useEffect(() => {
     if (!data || initialised === dateStr) return;
     if (data.log) {
       const init: Record<string, { checked: boolean; portion: PortionKey }> = {};
       for (const m of data.log.loggedMeals) {
+        if (!m.recipeId) continue;
         init[getKey(m.recipeId, m.mealType)] = {
           checked: true,
           portion: m.portionMultiplier as PortionKey,
@@ -84,9 +88,13 @@ export default function TrackerPage() {
     setSavedSuccess(false);
   };
 
+  // Custom entries already logged for this day (no recipeId). upsertDay
+  // REPLACES the day's list, so they must ride along on every save.
+  const customEntries = (data?.log?.loggedMeals ?? []).filter((m) => !m.recipeId);
+
   const handleSave = () => {
     if (!data) return;
-    const loggedMeals = data.plannedMeals
+    const plannedLogged = data.plannedMeals
       .filter((m) => checkedMeals[getKey(m.recipeId, m.mealType)]?.checked)
       .map((m) => {
         const portion = checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1;
@@ -100,6 +108,7 @@ export default function TrackerPage() {
           fat: Math.round(m.fat * portion * 10) / 10,
         };
       });
+    const loggedMeals = [...plannedLogged, ...customEntries];
     if (loggedMeals.length === 0) return;
     upsertMutation.mutate({ date: dateStr, loggedMeals });
   };
@@ -111,25 +120,35 @@ export default function TrackerPage() {
     setInitialised(null);
   };
 
-  // Compute logged totals from current UI state
+  // Compute logged totals from current UI state, plus already-saved custom
+  // entries (their macros are stored pre-scaled, so no portion multiply).
   const loggedMeals =
     data?.plannedMeals.filter((m) => checkedMeals[getKey(m.recipeId, m.mealType)]?.checked) ?? [];
-  const loggedKcal = loggedMeals.reduce(
-    (s, m) => s + Math.round(m.kcal * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1)),
-    0,
-  );
-  const loggedProtein = loggedMeals.reduce(
-    (s, m) => s + m.protein * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
-    0,
-  );
-  const loggedCarbs = loggedMeals.reduce(
-    (s, m) => s + m.carbs * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
-    0,
-  );
-  const loggedFat = loggedMeals.reduce(
-    (s, m) => s + m.fat * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
-    0,
-  );
+  const customKcal = customEntries.reduce((s, m) => s + m.kcal, 0);
+  const customProtein = customEntries.reduce((s, m) => s + m.protein, 0);
+  const customCarbs = customEntries.reduce((s, m) => s + m.carbs, 0);
+  const customFat = customEntries.reduce((s, m) => s + m.fat, 0);
+  const loggedKcal =
+    loggedMeals.reduce(
+      (s, m) =>
+        s + Math.round(m.kcal * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1)),
+      0,
+    ) + customKcal;
+  const loggedProtein =
+    loggedMeals.reduce(
+      (s, m) => s + m.protein * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
+      0,
+    ) + customProtein;
+  const loggedCarbs =
+    loggedMeals.reduce(
+      (s, m) => s + m.carbs * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
+      0,
+    ) + customCarbs;
+  const loggedFat =
+    loggedMeals.reduce(
+      (s, m) => s + m.fat * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
+      0,
+    ) + customFat;
   // All four targets come from the API's resolveDailyTargets — the same
   // source the dashboard uses, so the two surfaces can never disagree
   // (prod-followups #4). Fallbacks only cover the pre-data render.

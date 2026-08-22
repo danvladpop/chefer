@@ -15,10 +15,13 @@ import {
 import type {
   ChatContext,
   ChatMessage,
+  ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
+  MealPhotoEstimate,
   MealPlanInput,
   RecipeData,
+  RecipeExtractionSource,
   ShoppingListInput,
   ShoppingListResponse,
   SwapInput,
@@ -468,6 +471,16 @@ export class GeminiAIService implements IAIService {
     }
 
     return parsed.data.items;
+  }
+
+  // Wave-0 seam stubs (premium_plan.md §3.3) — the real multimodal
+  // implementations land with feat/snap and feat/import in wave 1.
+  async analyzeMealPhoto(_imageBase64: string, _mimeType: string): Promise<MealPhotoEstimate> {
+    throw new Error('GeminiAIService.analyzeMealPhoto lands with feat/snap (wave 1).');
+  }
+
+  async extractRecipe(_source: RecipeExtractionSource): Promise<ExtractedRecipe> {
+    throw new Error('GeminiAIService.extractRecipe lands with feat/import (wave 1).');
   }
 
   async chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream> {

@@ -3,10 +3,13 @@ import { WEEK_PLAN_FIXTURE } from './fixtures/week-plan.fixture.js';
 import type {
   ChatContext,
   ChatMessage,
+  ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
+  MealPhotoEstimate,
   MealPlanInput,
   RecipeData,
+  RecipeExtractionSource,
   ShoppingListInput,
   ShoppingListResponse,
   SwapInput,
@@ -93,6 +96,50 @@ export class MockAIService implements IAIService {
         gramsPerPiece: 50 + (Math.abs(hash) % 150),
       };
     });
+  }
+
+  async analyzeMealPhoto(_imageBase64: string, _mimeType: string): Promise<MealPhotoEstimate> {
+    await delay(400);
+    // Deterministic fixture (premium_plan.md §3.3) so F4's confirm-sheet UI
+    // and quota tests iterate without live vision calls.
+    return {
+      dishName: 'Grilled chicken with rice and vegetables',
+      confidence: 'med',
+      kcal: 520,
+      protein: 38,
+      carbs: 55,
+      fat: 14,
+      portionNote: 'assuming a standard 350 g plate',
+    };
+  }
+
+  async extractRecipe(source: RecipeExtractionSource): Promise<ExtractedRecipe> {
+    await delay(400);
+    // Deterministic fixture keyed loosely off the source so F5's preview/edit
+    // sheet renders plausibly in dev.
+    const via = source.url ? 'link' : source.imageBase64 ? 'photo' : 'text';
+    return {
+      name: `Rustic Tomato Basil Pasta (imported via ${via})`,
+      description: 'Simple weeknight pasta with a fresh tomato sauce.',
+      ingredients: [
+        { name: 'spaghetti', quantity: 400, unit: 'g' },
+        { name: 'tomato', quantity: 600, unit: 'g' },
+        { name: 'garlic', quantity: 3, unit: 'piece' },
+        { name: 'olive oil', quantity: 3, unit: 'tbsp' },
+        { name: 'basil', quantity: 20, unit: 'g' },
+      ],
+      instructions: [
+        'Cook the spaghetti in salted water until al dente.',
+        'Soften garlic in olive oil, add chopped tomatoes and simmer 10 minutes.',
+        'Toss the pasta with the sauce and torn basil; season and serve.',
+      ],
+      nutritionInfo: { calories: 480, protein: 14, carbs: 82, fat: 11, fiber: 6 },
+      cuisineType: 'Italian',
+      dietaryTags: ['vegetarian'],
+      prepTimeMins: 10,
+      cookTimeMins: 20,
+      servings: 4,
+    };
   }
 
   async chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream> {

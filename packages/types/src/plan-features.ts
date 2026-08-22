@@ -103,6 +103,74 @@ export const PLAN_FEATURES = {
     description: 'Ask the AI chef anything about your plan — free users get 5 messages a day.',
     upsell: false,
   },
+  // ── Premium expansion (premium_plan.md) — keys land in wave 0, features
+  //    per wave. Copy is live on upgrade surfaces from day one.
+  adaptiveCoaching: {
+    free: false,
+    premium: true,
+    label: 'A chef that adapts to your progress',
+    description:
+      'Weekly reviews of what you actually ate and how your weight is trending — your calorie targets adjust automatically, like a coach would.',
+    upsell: true,
+  },
+  photoLogging: {
+    free: false,
+    premium: true,
+    label: 'Snap a photo, log the meal',
+    description:
+      'Photograph any plate and the chef estimates the dish and macros — then quietly rebalances the rest of your week to keep you on track.',
+    upsell: true,
+  },
+  recipeImport: {
+    free: false,
+    premium: true,
+    label: 'Cheferize any recipe from the internet',
+    description:
+      'Paste a link or snap a cookbook page — the chef imports it, adapts it to your allergies and goals, and slots it into your week.',
+    upsell: true,
+  },
+  householdPlans: {
+    free: false,
+    premium: true,
+    label: 'One plan that feeds the whole table',
+    description:
+      'Add your partner and kids with their own allergies and portions — plans, servings and the shopping list scale for everyone.',
+    upsell: true,
+  },
+  pantryPlanning: {
+    free: false,
+    premium: true,
+    label: 'Plans that cook from your pantry',
+    description:
+      'Chefer remembers what you bought and plans around it — fewer duplicates, visible savings, zero-waste weeks.',
+    upsell: true,
+  },
+  mealScansPerDay: {
+    // Enforced via AiCallLog type SCAN (F4). Pure limit plumbing.
+    free: false,
+    premium: 10,
+    label: 'Daily photo meal scans',
+    description: 'How many meal photos can be analysed per day. Resets at midnight UTC.',
+    upsell: false,
+  },
+  recipeImportsPerDay: {
+    // Enforced via AiCallLog type RECIPE_IMPORT (F5). Free tier gets one
+    // extraction preview a day (the §6.4 ghost state); premium gets the
+    // full import + Cheferize flow.
+    free: 1,
+    premium: 5,
+    label: 'Daily recipe imports',
+    description: 'How many recipes can be imported per day. Resets at midnight UTC.',
+    upsell: false,
+  },
+  householdMembers: {
+    // Cap on HouseholdMember rows per user (F2). Pure limit plumbing.
+    free: false,
+    premium: 5,
+    label: 'Household members',
+    description: 'How many household members can share your plan.',
+    upsell: false,
+  },
 } as const satisfies Record<string, PlanFeature>;
 
 export type PlanFeatureKey = keyof typeof PLAN_FEATURES;

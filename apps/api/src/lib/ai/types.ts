@@ -69,7 +69,48 @@ export interface MealPlanInput {
   dislikedDishes?: string[];
   /** Hard weekly ingredient-cost ceiling in EUR (P2-4, premium). */
   weeklyBudgetEur?: number;
+  // ── Premium-expansion seams (premium_plan.md §3.3) — each optional field
+  //    is owned by exactly ONE feature; prompts.ts has one section builder
+  //    per seam that no-ops when the field is absent. ──
+  /** Household generation context (F2 — feat/household fills this). */
+  householdContext?: {
+    memberCount: number;
+    /** ceil(Σ portionFactor) including the owner — drives servings. */
+    portionSum: number;
+    /** Union of every member's allergies + restrictions with the owner's. */
+    mergedSafety: { allergies: string[]; dietaryRestrictions: string[] };
+    /** Soft per-member dislikes, e.g. "avoid mushrooms for Maria". */
+    dislikeNotes: string[];
+  };
+  /** Pantry items generation should prefer (F3 — feat/pantry fills this). */
+  useFirstIngredients?: { name: string; quantity: number; unit: string; reason: string }[];
 }
+
+// ─── Meal photo analysis (F4 Snap-to-Log) ────────────────────────────────────
+
+export interface MealPhotoEstimate {
+  dishName: string;
+  confidence: 'low' | 'med' | 'high';
+  kcal: number;
+  protein: number; // grams
+  carbs: number; // grams
+  fat: number; // grams
+  /** Human note on the assumed portion, e.g. "assuming a 350 g plate". */
+  portionNote: string;
+}
+
+// ─── Recipe extraction (F5 Cheferize) ────────────────────────────────────────
+
+/** Exactly one of url/text/imageBase64 is set; mimeType accompanies images. */
+export interface RecipeExtractionSource {
+  url?: string;
+  text?: string;
+  imageBase64?: string;
+  mimeType?: string;
+}
+
+/** RecipeData minus id/imageUrl — the AI extracts content, not identity. */
+export type ExtractedRecipe = Omit<RecipeData, 'id' | 'imageUrl'>;
 
 export interface SwapInput {
   userId: string;
@@ -160,4 +201,8 @@ export interface IAIService {
   generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse>;
   estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]>;
   chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream>;
+  /** F4 Snap-to-Log — Gemini implementation lands with feat/snap (wave 1). */
+  analyzeMealPhoto(imageBase64: string, mimeType: string): Promise<MealPhotoEstimate>;
+  /** F5 Cheferize — Gemini implementation lands with feat/import (wave 1). */
+  extractRecipe(source: RecipeExtractionSource): Promise<ExtractedRecipe>;
 }

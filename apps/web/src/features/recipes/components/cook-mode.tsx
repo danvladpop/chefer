@@ -188,8 +188,11 @@ export function CookMode({ recipeId }: { recipeId: string }) {
     const today = todayIso();
     // upsertDay REPLACES the day's meals — fetch what's already logged and append.
     const day = await utils.tracker.getDay.fetch({ date: today });
+    // Entries may be planned recipes (recipeId) or custom quick-adds
+    // (custom) — both ride along verbatim.
     const existing = (day.log?.loggedMeals ?? []) as {
-      recipeId: string;
+      recipeId?: string;
+      custom?: { name: string; estimatedBy: 'vision' | 'manual' };
       mealType: string;
       portionMultiplier: number;
       kcal: number;

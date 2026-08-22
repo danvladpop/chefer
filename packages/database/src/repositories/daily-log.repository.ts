@@ -1,8 +1,19 @@
 import type { DailyLog, Prisma } from '@prisma/client';
 import { prisma } from '../client';
 
+// A logged meal is EITHER a planned recipe (recipeId set) OR a custom entry
+// (custom set — Snap-to-Log photo scans and manual quick-adds, F4). Readers
+// must treat entries without recipeId as valid (premium_plan.md wave 0).
 export interface LoggedMealEntry {
-  recipeId: string;
+  // `| undefined` keeps zod-parsed inputs assignable under
+  // exactOptionalPropertyTypes.
+  recipeId?: string | undefined;
+  custom?:
+    | {
+        name: string;
+        estimatedBy: 'vision' | 'manual';
+      }
+    | undefined;
   mealType: string;
   portionMultiplier: number;
   kcal: number;

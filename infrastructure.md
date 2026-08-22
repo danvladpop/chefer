@@ -384,6 +384,9 @@ User ─────────── DietaryPreferences (1:1, cascade delete)
 User ─────────── MealPlan[]         (1:N, cascade delete)
 User ─────────── FavouriteRecipe[]  (1:N, cascade delete)
 User ─────────── MealRating[]       (1:N, cascade delete)
+User ─────────── ChefReview[]       (1:N, cascade delete, F1 weekly reviews)
+User ─────────── HouseholdMember[]  (1:N, cascade delete, F2)
+User ─────────── PantryItem[]       (1:N, cascade delete, F3)
 MealPlan ──────── MealPlanDay[]     (1:N, cascade delete)
 Post ─────────── PostTag[]          (1:N, cascade delete)
 Tag  ─────────── PostTag[]          (1:N, cascade delete)
@@ -420,22 +423,23 @@ VerificationToken (standalone, for email verification flows)
 
 **ChefProfile**
 
-| Field              | Type           | Notes                                                                               |
-| ------------------ | -------------- | ----------------------------------------------------------------------------------- |
-| id                 | String (cuid)  | PK                                                                                  |
-| userId             | String         | Unique FK → User, cascade delete                                                    |
-| displayName        | String?        | —                                                                                   |
-| biologicalSex      | BiologicalSex? | MALE / FEMALE / OTHER                                                               |
-| age                | Int?           | —                                                                                   |
-| heightCm           | Float?         | —                                                                                   |
-| weightKg           | Float?         | —                                                                                   |
-| activityLevel      | ActivityLevel? | SEDENTARY/LIGHTLY_ACTIVE/…/ATHLETE                                                  |
-| goal               | Goal?          | LOSE_WEIGHT/MAINTAIN/GAIN_MUSCLE/EAT_HEALTHIER                                      |
-| dailyCalorieTarget | Int?           | Computed by Mifflin-St Jeor at save                                                 |
-| weeklyBudgetEur    | Float?         | Weekly ingredient budget ceiling (P2-4) — generation treats it as a hard constraint |
-| deliveryAddress    | String?        | Full address string for grocery delivery                                            |
-| deliveryCurrency   | String?        | ISO 4217 currency code (EUR/USD/GBP/RON)                                            |
-| updatedAt          | DateTime       | Auto-managed                                                                        |
+| Field                | Type           | Notes                                                                                                    |
+| -------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
+| id                   | String (cuid)  | PK                                                                                                       |
+| userId               | String         | Unique FK → User, cascade delete                                                                         |
+| displayName          | String?        | —                                                                                                        |
+| biologicalSex        | BiologicalSex? | MALE / FEMALE / OTHER                                                                                    |
+| age                  | Int?           | —                                                                                                        |
+| heightCm             | Float?         | —                                                                                                        |
+| weightKg             | Float?         | —                                                                                                        |
+| activityLevel        | ActivityLevel? | SEDENTARY/LIGHTLY_ACTIVE/…/ATHLETE                                                                       |
+| goal                 | Goal?          | LOSE_WEIGHT/MAINTAIN/GAIN_MUSCLE/EAT_HEALTHIER                                                           |
+| dailyCalorieTarget   | Int?           | Computed by Mifflin-St Jeor at save                                                                      |
+| weeklyBudgetEur      | Float?         | Weekly ingredient budget ceiling (P2-4) — generation treats it as a hard constraint                      |
+| targetAdjustmentKcal | Int            | Default 0 — cumulative Adaptive Chef dial (F1), applied by resolveDailyTargets after the goal adjustment |
+| deliveryAddress      | String?        | Full address string for grocery delivery                                                                 |
+| deliveryCurrency     | String?        | ISO 4217 currency code (EUR/USD/GBP/RON)                                                                 |
+| updatedAt            | DateTime       | Auto-managed                                                                                             |
 
 **DietaryPreferences**
 
@@ -470,6 +474,7 @@ VerificationToken (standalone, for email verification flows)
 | imageRetries  | Int           | Transient-failure retry counter                          |
 | imagePriority | Int           | Default 100; lower = generated first (0 = today's meals) |
 | source        | RecipeSource  | AI / MANUAL / CURATED                                    |
+| sourceUrl     | String?       | Provenance of imported recipes (F5 Cheferize)            |
 | creatorId     | String?       | FK → User — used for AI usage logging                    |
 
 **MealPlan**
@@ -553,20 +558,67 @@ Store-agnostic price + nutrition vocabulary — self-building from all recipe in
 | customItems | Json     | User-added items (chat tool + page add-input) — overlay the derived/AI list, survive regenerate |
 | updatedAt   | DateTime | Auto-managed                                                                                    |
 
+**DailyLog**
+
+| Field                       | Type      | Notes                                                                                                                                                                                                       |
+| --------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id                          | String    | PK (cuid)                                                                                                                                                                                                   |
+| userId                      | String    | FK → User, cascade delete                                                                                                                                                                                   |
+| date                        | Date      | UTC midnight; unique `[userId, date]`                                                                                                                                                                       |
+| loggedMeals                 | Json      | `LoggedMealEntry[]` — either `{ recipeId, … }` (planned) or `{ custom: { name, estimatedBy: 'vision'\|'manual' }, … }` (F4 quick-adds/scans); plus `mealType, portionMultiplier, kcal, protein, carbs, fat` |
+| totalKcal/Protein/Carbs/Fat | Int/Float | Denormalised sums over loggedMeals                                                                                                                                                                          |
+
+**ChefReview** (F1 Adaptive Chef — one row per user-week)
+
+| Field          | Type     | Notes                                                                    |
+| -------------- | -------- | ------------------------------------------------------------------------ |
+| id             | String   | PK (cuid)                                                                |
+| userId         | String   | FK → User, cascade delete                                                |
+| weekStart      | DateTime | UTC midnight of the reviewed week's Monday; unique `[userId, weekStart]` |
+| adherencePct   | Int      | Days with ≥1 logged meal / 7                                             |
+| avgDailyKcal   | Int      | Σ logged kcal / logged days                                              |
+| weightTrendKg  | Float?   | EWMA delta over the window; null until enough data                       |
+| adjustmentKcal | Int      | Delta applied by THIS review (cumulative dial on ChefProfile)            |
+| savedEur       | Float?   | Pantry savings surfaced in the review (F3 seam)                          |
+| reviewText     | String   | Gemini-written summary (mock: template string)                           |
+
+**HouseholdMember** (F2)
+
+| Field                                                 | Type     | Notes                                         |
+| ----------------------------------------------------- | -------- | --------------------------------------------- |
+| id                                                    | String   | PK (cuid)                                     |
+| userId                                                | String   | FK → User, cascade delete                     |
+| name                                                  | String   | —                                             |
+| portionFactor                                         | Float    | Default 1 (0.5 kid … 1.5 big eater)           |
+| isKid                                                 | Boolean  | Default false                                 |
+| allergies / dietaryRestrictions / dislikedIngredients | String[] | Unioned with the owner's for safety filtering |
+
+**PantryItem** (F3)
+
+| Field          | Type     | Notes                                               |
+| -------------- | -------- | --------------------------------------------------- |
+| id             | String   | PK (cuid)                                           |
+| userId         | String   | FK → User, cascade delete                           |
+| ingredientName | String   | Normalized; unique `[userId, ingredientName, unit]` |
+| quantity       | Float    | —                                                   |
+| unit           | String   | —                                                   |
+| source         | String   | `PURCHASE` (shopping-list check-off) \| `MANUAL`    |
+| updatedAt      | DateTime | Auto-managed                                        |
+
 ### Enums
 
 ```prisma
 enum UserRole       { USER  MODERATOR  ADMIN }
 enum PlanTier       { FREE  PREMIUM }
 enum PostStatus     { DRAFT  PUBLISHED  ARCHIVED }
-enum MealPlanStatus { ACTIVE  ARCHIVED }
-enum BiologicalSex  { MALE  FEMALE  OTHER }
+enum MealPlanStatus { DRAFT  ACTIVE  ARCHIVED }
+enum BiologicalSex  { MALE  FEMALE }
 enum ActivityLevel  { SEDENTARY  LIGHTLY_ACTIVE  MODERATELY_ACTIVE  VERY_ACTIVE  ATHLETE }
 enum Goal           { LOSE_WEIGHT  MAINTAIN  GAIN_MUSCLE  EAT_HEALTHIER }
 enum RecipeSource   { AI  MANUAL  CURATED }
 enum UnitSystem     { METRIC  IMPERIAL }
 enum ImageStatus    { PENDING  GENERATING  DONE  FAILED }
-enum AiCallType     { MEAL_PLAN  RECIPE_SWAP  SHOPPING_LIST  IMAGE_GENERATION  INGREDIENT_PRICES }
+enum AiCallType     { MEAL_PLAN  RECIPE_SWAP  SHOPPING_LIST  IMAGE_GENERATION  INGREDIENT_PRICES  CHAT  SCAN  RECIPE_IMPORT }
 ```
 
 ---

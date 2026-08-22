@@ -1,10 +1,13 @@
 import type {
   ChatContext,
   ChatMessage,
+  ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
+  MealPhotoEstimate,
   MealPlanInput,
   RecipeData,
+  RecipeExtractionSource,
   ShoppingListInput,
   ShoppingListResponse,
   SwapInput,
@@ -47,6 +50,18 @@ export class LiveAIService implements IAIService {
   async chat(_messages: ChatMessage[], _context: ChatContext): Promise<ReadableStream> {
     throw new Error(
       'LiveAIService.chat is not implemented yet — set AI_MOCK_ENABLED=true or implement Phase 3 (T-031).',
+    );
+  }
+
+  async analyzeMealPhoto(_imageBase64: string, _mimeType: string): Promise<MealPhotoEstimate> {
+    throw new Error(
+      'LiveAIService.analyzeMealPhoto is not implemented yet — set AI_MOCK_ENABLED=true or use AI_PROVIDER=gemini.',
+    );
+  }
+
+  async extractRecipe(_source: RecipeExtractionSource): Promise<ExtractedRecipe> {
+    throw new Error(
+      'LiveAIService.extractRecipe is not implemented yet — set AI_MOCK_ENABLED=true or use AI_PROVIDER=gemini.',
     );
   }
 }
