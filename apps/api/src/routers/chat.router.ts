@@ -98,6 +98,10 @@ chatRouter.post(
       if (err instanceof TRPCError && err.code === 'TOO_MANY_REQUESTS') {
         // Deliver the quota message as a normal chat reply (200 text stream)
         // — the widget renders it inline instead of a generic transport error.
+        // The header is the machine-readable signal: the widget swaps its
+        // input for the shared upgrade surface (source: chat-quota), so this
+        // touchpoint feeds the PW-3 funnel like every other gate.
+        res.setHeader('X-Chat-Quota-Exhausted', '1');
         res.setHeader('Content-Type', 'text/plain; charset=utf-8');
         res.send(err.message);
         return;

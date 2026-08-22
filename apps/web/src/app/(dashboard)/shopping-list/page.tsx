@@ -15,10 +15,12 @@ import {
   Info,
   Lightbulb,
   MoreHorizontal,
+  Plus,
   Printer,
   RefreshCw,
   ShoppingCart,
   Smartphone,
+  X,
 } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
 import { formatQuantity } from '@chefer/utils';
@@ -47,6 +49,20 @@ const CATEGORY_LABELS: Record<string, string> = {
   frozen: 'Frozen',
   other: 'Other',
 };
+
+/**
+ * "2 kg flour" → {quantity: 2, unit: 'kg', name: 'flour'}; plain text is a
+ * name-only item (quantity defaults server-side).
+ */
+function parseCustomItemInput(raw: string): { name: string; quantity?: number; unit?: string } {
+  const match = /^(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l|pcs|x)?\s+(.+)$/i.exec(raw.trim());
+  if (!match) return { name: raw.trim() };
+  return {
+    name: (match[3] ?? '').trim(),
+    quantity: parseFloat((match[1] ?? '1').replace(',', '.')),
+    ...(match[2] ? { unit: match[2].toLowerCase() } : {}),
+  };
+}
 
 function getMondayOfWeek(offset: number): Date {
   const now = new Date();
@@ -139,6 +155,25 @@ export default function ShoppingListPage() {
       keys: [key],
       checked: !checkedItems.includes(key),
     });
+  };
+
+  // Custom items (the chat's addToShoppingList tool writes the same overlay)
+  const [newItemText, setNewItemText] = useState('');
+  const addItemMutation = trpc.shoppingList.addCustomItems.useMutation({
+    onSuccess: () => {
+      capture('shopping_list_item_added', { via: 'manual' });
+      setNewItemText('');
+      void utils.shoppingList.getForWeek.invalidate({ weekOffset });
+    },
+  });
+  const removeItemMutation = trpc.shoppingList.removeCustomItem.useMutation({
+    onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
+  });
+
+  const handleAddItem = () => {
+    const parsed = parseCustomItemInput(newItemText);
+    if (!parsed.name || !weekList?.planId || addItemMutation.isPending) return;
+    addItemMutation.mutate({ planId: weekList.planId, items: [parsed] });
   };
 
   // One-time migration of pre-P1-5 localStorage checks: keys that match the
@@ -337,6 +372,33 @@ export default function ShoppingListPage() {
               </div>
             </div>
           )}
+          {/* Add your own item — same overlay the AI chef's
+              addToShoppingList tool writes to */}
+          <div className="flex gap-2" data-print-hide>
+            <input
+              value={newItemText}
+              onChange={(e) => setNewItemText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddItem();
+                }
+              }}
+              placeholder="Add an item… e.g. 2 kg flour"
+              disabled={addItemMutation.isPending}
+              className="min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
+            />
+            <button
+              type="button"
+              onClick={handleAddItem}
+              disabled={!newItemText.trim() || addItemMutation.isPending}
+              aria-label="Add item to shopping list"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-40"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+
           {grouped.map(({ category, label, items: catItems }) => (
             <section key={category}>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">
@@ -404,18 +466,36 @@ export default function ShoppingListPage() {
                         </span>
                       </button>
 
-                      {/* Secondary target — ingredient detail */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPopupItem({ name: item.ingredientName, imageUrl: itemImageUrl })
-                        }
-                        aria-label={`Details for ${item.ingredientName}`}
-                        className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-neutral-100 hover:text-neutral-500"
-                        data-print-hide
-                      >
-                        <Info className="h-4 w-4" />
-                      </button>
+                      {/* Secondary target — detail for derived items, remove
+                          for user-added ones */}
+                      {item.isCustom ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            weekList?.planId &&
+                            removeItemMutation.mutate({ planId: weekList.planId, key: item.key })
+                          }
+                          disabled={removeItemMutation.isPending}
+                          aria-label={`Remove ${item.ingredientName} from the list`}
+                          title="Added by you — remove"
+                          className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                          data-print-hide
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPopupItem({ name: item.ingredientName, imageUrl: itemImageUrl })
+                          }
+                          aria-label={`Details for ${item.ingredientName}`}
+                          className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-neutral-100 hover:text-neutral-500"
+                          data-print-hide
+                        >
+                          <Info className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}

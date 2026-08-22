@@ -309,7 +309,10 @@ Changing a limit or moving a feature between tiers is an edit to that one file; 
 ```
 UpgradeButton (ONE shared surface; every touchpoint passes a `source`)
   sources: sidebar, mobile-drawer, meal-plan-banner, pool-exhaustion,
-           shopping-list, preferences-locked, onboarding, profile-page, swap
+           shopping-list, preferences-locked, onboarding, profile-page, swap,
+           chat-quota (the widget swaps its input for the shared surface when
+           the API answers with X-Chat-Quota-Exhausted; upgrading re-enables
+           the chat in place)
   → capture('upgrade_prompt_shown' { source })
   → Sheet dialog ("free during the beta") → capture('upgrade_clicked')
   → user.upgradePlan (protected) → planTier = PREMIUM
@@ -575,7 +578,8 @@ POST /api/chat (session cookie)
   ├─ ChatService.assertChatQuota
   │    └─ FREE: 5 messages/day (PLAN_FEATURES.chatMessagesPerDay, counted
   │       from ai_call_logs CHAT rows) — over quota streams the upgrade
-  │       message as a normal reply
+  │       message as a normal reply + X-Chat-Quota-Exhausted header; the
+  │       widget then swaps its input for UpgradeButton (source: chat-quota)
   ├─ build fresh context from REAL data:
   │    today's meals + macros + day totals, weekly overview, resolved
   │    daily targets, allergies/restrictions/dislikes, recent ratings
@@ -584,8 +588,11 @@ POST /api/chat (session cookie)
        ├─ Gemini: bounded function-calling loop, then streams the answer
        │    ├─ swapMeal(dayOfWeek, mealType) → MealPlanService.swapRecipe
        │    │    (a chat swap IS a plan swap — the meal-plan page reflects it)
-       │    └─ scaleRecipe(recipeName, servings) → quantities rescaled from
-       │         the active plan
+       │    ├─ scaleRecipe(recipeName, servings) → quantities rescaled from
+       │    │    the active plan
+       │    └─ addToShoppingList(items[]) → ShoppingListService.addCustomItems
+       │         (items land in the customItems overlay — visible and
+       │         removable on the Shopping List page)
        └─ mock: echoes the same context and exercises the same tools
 ```
 

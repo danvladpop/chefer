@@ -128,6 +128,20 @@ export class MockAIService implements IAIService {
         /\b(breakfast|lunch|dinner|snack)\b/i.exec(question)?.[1]?.toLowerCase() ?? 'lunch';
       const result = await context.tools.swapMeal({ dayOfWeek, mealType });
       response = `(Mock) ${result}`;
+    } else if (/add\b.*\b(shopping|grocery) list/i.test(question) && context.tools) {
+      // "add milk and 2 kg flour to my shopping list" → name-only items; the
+      // point is exercising the real tool handler, not NLP.
+      const itemsText = question
+        .replace(/^.*?\badd\b/i, '')
+        .replace(/\b(to|on)\b.*\b(shopping|grocery) list.*$/i, '');
+      const items = itemsText
+        .split(/,|\band\b/i)
+        .map((s) => ({ name: s.trim() }))
+        .filter((i) => i.name.length > 0);
+      const result = await context.tools.addToShoppingList({
+        items: items.length > 0 ? items : [{ name: 'mock item' }],
+      });
+      response = `(Mock) ${result}`;
     } else if (question) {
       response = `(Mock) You asked: "${question}". Here is what I know about your day:\n${context.contextSummary}`;
     } else {

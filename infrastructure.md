@@ -543,14 +543,15 @@ Store-agnostic price + nutrition vocabulary — self-building from all recipe in
 
 **ShoppingList**
 
-| Field       | Type     | Notes                                                   |
-| ----------- | -------- | ------------------------------------------------------- |
-| id          | String   | PK (cuid)                                               |
-| planId      | String   | Unique — one persisted list per meal plan               |
-| items       | Json     | Consolidated items (images/prices re-resolved on read)  |
-| checkedKeys | String[] | Synced check-off state (P1-5), cleared on AI regenerate |
-| aiGenerated | Boolean  | True when written by the premium AI regenerate          |
-| updatedAt   | DateTime | Auto-managed                                            |
+| Field       | Type     | Notes                                                                                           |
+| ----------- | -------- | ----------------------------------------------------------------------------------------------- |
+| id          | String   | PK (cuid)                                                                                       |
+| planId      | String   | Unique — one persisted list per meal plan                                                       |
+| items       | Json     | Consolidated items (images/prices re-resolved on read)                                          |
+| checkedKeys | String[] | Synced check-off state (P1-5), cleared on AI regenerate                                         |
+| aiGenerated | Boolean  | True when written by the premium AI regenerate                                                  |
+| customItems | Json     | User-added items (chat tool + page add-input) — overlay the derived/AI list, survive regenerate |
+| updatedAt   | DateTime | Auto-managed                                                                                    |
 
 ### Enums
 
@@ -655,10 +656,11 @@ piece/clove/…) to the base families and computes per-line price estimates.
 
 ### ShoppingListService (application layer)
 
-`apps/api/src/application/shopping-list/shopping-list.service.ts`. Methods: `getForWeek`, `regenerate`, `searchStores`.
+`apps/api/src/application/shopping-list/shopping-list.service.ts`. Methods: `getForWeek`, `toggleItems`, `addCustomItems`, `removeCustomItem`, `regenerate`, `searchStores`.
 
 - `getForWeek` — serves the persisted AI list for the plan when one exists; otherwise builds the categorised ingredient list (merge key is `name|unit`, so mixed-unit duplicates become separate lines instead of overwriting). Every item gets an `imageUrl` (resolveIngredientImage) and an `estimatedPriceEur` from the ingredient price vocabulary; the list carries `estimatedTotalEur`. Unpriced ingredients wake the IngredientPriceWorker.
-- `regenerate` (premium) — calls the AI to consolidate ingredients and **persists** the result in the `ShoppingList` table (keyed by planId) so it survives reloads.
+- `addCustomItems` / `removeCustomItem` — user-added items (the page's add-input and the chat's `addToShoppingList` tool) stored in the `customItems` overlay column, so they never shadow the derived list and survive an AI regenerate. Same-name+unit re-add replaces; removal also clears the item's check-off key. Both use the SERIALIZABLE+retry pattern (JSON read-modify-write hazard).
+- `regenerate` (premium) — calls the AI to consolidate ingredients and **persists** the result in the `ShoppingList` table (keyed by planId) so it survives reloads. `customItems` and their keys are untouched.
 - `searchStores` — delegates to `IGroceryAIService.searchNearbyStores`, passes user's delivery address and currency from ChefProfile. **Dormant**: the store-compare UI was removed from the shopping-list page (store prices come back with per-store price books); the procedure and the grocery-ai/carrefour libs remain for that phase.
 
 ### IngredientImageResolver (lib)
@@ -771,7 +773,9 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `recipe.getMyRating`            | Protected | Query    | `{ recipeId: string }`                                                                                                                                                                                       |
 | `shoppingList.getForWeek`       | Protected | Query    | `{ weekOffset?: number }` — items include `estimatedPriceEur` + list-level `estimatedTotalEur`; serves the persisted AI list when one exists; response carries `checkedKeys` (P1-5)                          |
 | `shoppingList.toggleItems`      | Protected | Mutation | `{ planId, keys[], checked }` — synced check-off (P1-5): per-key add/remove under a SERIALIZABLE transaction with retry, so rapid/concurrent toggles merge instead of clobbering                             |
-| `shoppingList.regenerate`       | Premium   | Mutation | `{ weekOffset?: number }` — AI-consolidates the list and persists it (ShoppingList table)                                                                                                                    |
+| `shoppingList.addCustomItems`   | Protected | Mutation | `{ planId, items: [{ name, quantity?, unit? }] }` — user-added items into the customItems overlay (also written by the chat `addToShoppingList` tool)                                                        |
+| `shoppingList.removeCustomItem` | Protected | Mutation | `{ planId, key }` — removes one user-added item and its check-off state                                                                                                                                      |
+| `shoppingList.regenerate`       | Premium   | Mutation | `{ weekOffset?: number }` — AI-consolidates the list and persists it (ShoppingList table); customItems survive                                                                                               |
 | `shoppingList.searchStores`     | Protected | Query    | `{ weekOffset?: number }`                                                                                                                                                                                    |
 | `dashboard.summary`             | Protected | Query    | —                                                                                                                                                                                                            |
 

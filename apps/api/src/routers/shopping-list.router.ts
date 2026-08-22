@@ -27,6 +27,36 @@ export const shoppingListRouter = router({
       return shoppingListService.toggleItems(ctx.user.id, input.planId, input.keys, input.checked);
     }),
 
+  /**
+   * User-added items (chat tool + the page's add-input). Stored in the
+   * customItems overlay so they never shadow the derived list.
+   */
+  addCustomItems: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        items: z
+          .array(
+            z.object({
+              name: z.string().min(1).max(80),
+              quantity: z.number().positive().max(999).optional(),
+              unit: z.string().max(20).optional(),
+            }),
+          )
+          .min(1)
+          .max(20),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return shoppingListService.addCustomItems(ctx.user.id, input.planId, input.items);
+    }),
+
+  removeCustomItem: protectedProcedure
+    .input(z.object({ planId: z.string().min(1), key: z.string().min(1).max(200) }))
+    .mutation(async ({ ctx, input }) => {
+      return shoppingListService.removeCustomItem(ctx.user.id, input.planId, input.key);
+    }),
+
   regenerate: premiumProcedure
     .input(z.object({ weekOffset: z.number().int().min(-52).max(1).default(0) }))
     .mutation(async ({ ctx, input }) => {

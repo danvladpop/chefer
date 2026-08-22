@@ -439,6 +439,7 @@ model ShoppingList {
   items       Json     // ShoppingListItemForWeek[] minus images/prices (re-resolved)
   aiGenerated Boolean  @default(false)
   checkedKeys String[] @default([]) // synced check-off state (P1-5)
+  customItems Json     @default("[]") // user-added items overlaying the derived list (chat tool + manual add)
   updatedAt   DateTime @updatedAt
 
   @@map("shopping_lists")

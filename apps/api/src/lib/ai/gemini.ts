@@ -522,6 +522,36 @@ export class GeminiAIService implements IAIService {
                   required: ['recipeName', 'servings'],
                 } as Schema,
               },
+              {
+                name: 'addToShoppingList',
+                description:
+                  "Adds one or more items to the user's shopping list for this week. Use when the user asks to add, put or remember something on the shopping/grocery list.",
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    items: {
+                      type: Type.ARRAY,
+                      description: 'Items to add',
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          name: { type: Type.STRING, description: 'Ingredient or product name' },
+                          quantity: {
+                            type: Type.NUMBER,
+                            description: 'Amount (defaults to 1 if omitted)',
+                          },
+                          unit: {
+                            type: Type.STRING,
+                            description: 'Unit, e.g. g, kg, ml, l, pcs (defaults to pcs)',
+                          },
+                        },
+                        required: ['name'],
+                      },
+                    },
+                  },
+                  required: ['items'],
+                } as Schema,
+              },
             ],
           },
         ]
@@ -567,6 +597,12 @@ export class GeminiAIService implements IAIService {
             result = await context.tools.scaleRecipe({
               recipeName: String(args['recipeName']),
               servings: Number(args['servings']),
+            });
+          } else if (call.name === 'addToShoppingList') {
+            result = await context.tools.addToShoppingList({
+              items: Array.isArray(args['items'])
+                ? (args['items'] as { name: string; quantity?: number; unit?: string }[])
+                : [],
             });
           } else {
             result = `Unknown tool: ${call.name}`;

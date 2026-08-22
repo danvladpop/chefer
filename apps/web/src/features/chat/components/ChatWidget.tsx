@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
 import { useChat } from '@ai-sdk/react';
 import { TextStreamChatTransport, type UIMessage } from 'ai';
-import { MessageCircle, Send, X } from 'lucide-react';
+import { MessageCircle, Send, Sparkles, X } from 'lucide-react';
 
 // Showcase what the chat can actually DO with the user's real plan (P1-4).
 const SUGGESTED_PROMPTS = [
@@ -26,8 +28,26 @@ export function ChatWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [chatError, setChatError] = useState<string | null>(null);
+
+  // Over-quota is an upgrade moment, not an error: the API answers the last
+  // free message with a 200 text reply plus this header, and the widget swaps
+  // the input for the shared upgrade surface (PW-2's 10th touchpoint,
+  // source: chat-quota — it was a bare text reply until now).
+  const [quotaExhausted, setQuotaExhausted] = useState(false);
+  const isPremium = useIsPremium();
+  useEffect(() => {
+    if (isPremium) setQuotaExhausted(false);
+  }, [isPremium]);
+
   const { messages, sendMessage, status } = useChat({
-    transport: new TextStreamChatTransport({ api: '/api/chat' }),
+    transport: new TextStreamChatTransport({
+      api: '/api/chat',
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        const res = await fetch(input, init);
+        if (res.headers.get('X-Chat-Quota-Exhausted') === '1') setQuotaExhausted(true);
+        return res;
+      },
+    }),
     onError: () => setChatError('The chef is unavailable right now — please try again.'),
   });
   const isLoading = status === 'submitted' || status === 'streaming';
@@ -38,7 +58,7 @@ export function ChatWidget() {
 
   const handleSend = () => {
     const text = inputValue.trim();
-    if (!text || isLoading) return;
+    if (!text || isLoading || quotaExhausted) return;
     setInputValue('');
     setChatError(null);
     capture('chat_message_sent');
@@ -46,7 +66,7 @@ export function ChatWidget() {
   };
 
   const sendSuggested = (prompt: string) => {
-    if (isLoading) return;
+    if (isLoading || quotaExhausted) return;
     setChatError(null);
     capture('chat_message_sent', { suggested: true });
     void sendMessage({ text: prompt });
@@ -142,6 +162,19 @@ export function ChatWidget() {
                 {chatError}
               </div>
             )}
+            {quotaExhausted && (
+              <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                <p className="flex items-start gap-2 text-xs text-amber-900">
+                  <Sparkles
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500"
+                    aria-hidden="true"
+                  />
+                  You&apos;ve used today&apos;s free messages. Premium chats without limits — and
+                  can swap meals and build your list for you.
+                </p>
+                <UpgradeButton className="min-h-11 w-full sm:min-h-9" source="chat-quota" />
+              </div>
+            )}
             {isLoading && (
               <div className="flex justify-start">
                 <span className="mr-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#944a00] text-[10px] font-bold text-white">
@@ -161,8 +194,10 @@ export function ChatWidget() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask your chef anything…"
-              disabled={isLoading}
+              placeholder={
+                quotaExhausted ? 'Out of free messages today' : 'Ask your chef anything…'
+              }
+              disabled={isLoading || quotaExhausted}
               className="min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00] disabled:opacity-50 sm:text-sm"
             />
             <button

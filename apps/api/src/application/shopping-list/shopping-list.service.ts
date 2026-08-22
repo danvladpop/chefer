@@ -28,6 +28,8 @@ export interface ShoppingListItemForWeek {
   imageUrl: string;
   /** Store-agnostic baseline estimate from the price vocabulary; null while unpriced. */
   estimatedPriceEur: number | null;
+  /** True for user-added items (chat tool or manual add) — removable in the UI. */
+  isCustom?: boolean;
 }
 
 export interface WeekShoppingList {
@@ -53,6 +55,24 @@ interface StoredShoppingListItem {
   unit: string;
   category: GroceryCategory;
   recipeNames: string[];
+  isCustom?: boolean;
+}
+
+/** One item the user asked to add (chat tool or the page's add-input). */
+export interface CustomItemInput {
+  name: string;
+  quantity?: number | undefined;
+  unit?: string | undefined;
+}
+
+/** Parses the customItems Json column; marks every row for the UI. */
+function readCustomItems(raw: unknown): StoredShoppingListItem[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as StoredShoppingListItem[]).map((i) => ({ ...i, isCustom: true }));
+}
+
+function customItemKey(planId: string, name: string, unit: string): string {
+  return `${planId}-custom-${name.toLowerCase().trim().replace(/\s+/g, '-')}-${unit.toLowerCase().trim()}`;
 }
 
 function getMondayOfWeek(offset: number): Date {
@@ -140,10 +160,13 @@ export class ShoppingListService {
     // an ITEM source — a bare row must not shadow the derived list.
     const stored = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
     const checkedKeys = [...new Set(stored?.checkedKeys ?? [])];
+    // User-added items overlay whichever list is served (derived or AI).
+    const customItems = readCustomItems(stored?.customItems);
     if (stored?.aiGenerated) {
-      const { items, estimatedTotalEur } = await this.finalizeItems(
-        stored.items as unknown as StoredShoppingListItem[],
-      );
+      const { items, estimatedTotalEur } = await this.finalizeItems([
+        ...(stored.items as unknown as StoredShoppingListItem[]),
+        ...customItems,
+      ]);
       return {
         planId: targetPlan.id,
         weekStartDate: weekStart.toISOString(),
@@ -215,7 +238,7 @@ export class ShoppingListService {
       recipeNames: [...data.recipeIds].map((id) => recipeMap.get(id)?.name ?? '').filter(Boolean),
     }));
 
-    const { items, estimatedTotalEur } = await this.finalizeItems(rawItems);
+    const { items, estimatedTotalEur } = await this.finalizeItems([...rawItems, ...customItems]);
 
     return {
       planId: targetPlan.id,
@@ -274,6 +297,111 @@ export class ShoppingListService {
       } catch (err) {
         // P2034: transaction conflict — the concurrent writer won; retry on
         // top of its result.
+        const conflict =
+          typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2034';
+        if (!conflict || attempt >= 3) throw err;
+      }
+    }
+  }
+
+  /**
+   * Adds user-chosen items to the plan's list (chat `addToShoppingList` tool
+   * + the page's add-input). Stored in the customItems overlay so they never
+   * shadow the derived list; same name+unit replaces (idempotent re-add).
+   * Same Serializable+retry pattern as toggleItems — the JSON column has the
+   * identical read-modify-write hazard.
+   */
+  async addCustomItems(
+    userId: string,
+    planId: string,
+    inputs: CustomItemInput[],
+  ): Promise<{ added: string[] }> {
+    const plan = await mealPlanRepository.findByIdForUser(userId, planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+
+    const newItems: StoredShoppingListItem[] = inputs.map((input) => {
+      const name = input.name.trim();
+      const unit = (input.unit ?? 'pcs').trim() || 'pcs';
+      const quantity = input.quantity != null && input.quantity > 0 ? input.quantity : 1;
+      return {
+        key: customItemKey(planId, name, unit),
+        ingredientName: name.charAt(0).toUpperCase() + name.slice(1),
+        quantity: Number.isInteger(quantity) ? String(quantity) : quantity.toFixed(1),
+        unit,
+        category: inferCategory(name),
+        recipeNames: [],
+      };
+    });
+
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await prisma.$transaction(
+          async (tx) => {
+            const existing = await tx.shoppingList.findUnique({ where: { planId } });
+            const byKey = new Map(
+              readCustomItems(existing?.customItems).map((i) => [i.key, { ...i }]),
+            );
+            for (const item of newItems) byKey.set(item.key, item);
+            if (byKey.size > 100) {
+              throw new TRPCError({
+                code: 'PRECONDITION_FAILED',
+                message: 'The list already has 100 custom items — remove some first.',
+              });
+            }
+            // isCustom is a read-time marker, not persisted state
+            const next = [...byKey.values()].map(({ isCustom: _isCustom, ...rest }) => rest);
+            await tx.shoppingList.upsert({
+              where: { planId },
+              create: {
+                planId,
+                items: [],
+                aiGenerated: false,
+                customItems: next,
+              },
+              update: { customItems: next },
+            });
+          },
+          { isolationLevel: 'Serializable' },
+        );
+        return { added: newItems.map((i) => i.ingredientName) };
+      } catch (err) {
+        const conflict =
+          typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2034';
+        if (!conflict || attempt >= 3) throw err;
+      }
+    }
+  }
+
+  /** Removes one user-added item (and its check-off state, if any). */
+  async removeCustomItem(userId: string, planId: string, key: string): Promise<void> {
+    const plan = await mealPlanRepository.findByIdForUser(userId, planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await prisma.$transaction(
+          async (tx) => {
+            const existing = await tx.shoppingList.findUnique({ where: { planId } });
+            if (!existing) return;
+            const next = readCustomItems(existing.customItems)
+              .filter((i) => i.key !== key)
+              .map(({ isCustom: _isCustom, ...rest }) => rest);
+            await tx.shoppingList.update({
+              where: { planId },
+              data: {
+                customItems: next,
+                checkedKeys: existing.checkedKeys.filter((k) => k !== key),
+              },
+            });
+          },
+          { isolationLevel: 'Serializable' },
+        );
+        return;
+      } catch (err) {
         const conflict =
           typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2034';
         if (!conflict || attempt >= 3) throw err;
@@ -375,10 +503,16 @@ export class ShoppingListService {
         items: itemsJson,
         aiGenerated: true,
       },
+      // customItems is deliberately untouched — user-added items survive an
+      // AI regenerate (their keys are stable, unlike the AI rows').
       update: { items: itemsJson, aiGenerated: true, checkedKeys: [] },
     });
 
-    const { items, estimatedTotalEur } = await this.finalizeItems(rawItems);
+    const stored = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
+    const { items, estimatedTotalEur } = await this.finalizeItems([
+      ...rawItems,
+      ...readCustomItems(stored?.customItems),
+    ]);
 
     return {
       planId: targetPlan.id,

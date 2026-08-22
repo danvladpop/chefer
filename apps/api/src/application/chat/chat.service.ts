@@ -13,6 +13,7 @@ import { getLimit, isPremiumUser } from '../../lib/entitlements.js';
 import { assertAiSwapQuota } from '../../lib/quotas.js';
 import { mealPlanService, type WeekPlanDto } from '../meal-plan/meal-plan.service.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
+import { shoppingListService } from '../shopping-list/shopping-list.service.js';
 
 // ─── AI chef chat (P1-4) ──────────────────────────────────────────────────────
 // Replaces the web app's mock regex route. Every message gets a fresh context
@@ -136,6 +137,24 @@ export class ChatService {
           isPremiumUser(user),
         );
         return `Swapped ${DAY_NAMES[dayOfWeek]}'s ${mealType}${before ? ` (${before})` : ''} for "${swapped.name}" (${swapped.nutritionInfo.calories} kcal, ${swapped.nutritionInfo.protein}g protein). The meal plan is updated.`;
+      },
+
+      addToShoppingList: async ({ items }) => {
+        if (!plan) return 'No active meal plan — generate a plan first, then I can add items.';
+        if (!Array.isArray(items) || items.length === 0) return 'No items given.';
+        const cleaned = items
+          .map((i) => ({
+            name: i.name.trim().slice(0, 80),
+            ...(Number.isFinite(Number(i.quantity)) && Number(i.quantity) > 0
+              ? { quantity: Number(i.quantity) }
+              : {}),
+            ...(i.unit ? { unit: i.unit.slice(0, 20) } : {}),
+          }))
+          .filter((i) => i.name.length > 0)
+          .slice(0, 20);
+        if (cleaned.length === 0) return 'No valid items given.';
+        const { added } = await shoppingListService.addCustomItems(user.id, plan.planId, cleaned);
+        return `Added to this week's shopping list: ${added.join(', ')}. The user can see and remove them on the Shopping List page.`;
       },
 
       scaleRecipe: async ({ recipeName, servings }) => {

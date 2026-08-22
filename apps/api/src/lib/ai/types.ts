@@ -135,6 +135,10 @@ export interface ChatTools {
   swapMeal(args: { dayOfWeek: number; mealType: string }): Promise<string>;
   /** Rescales a recipe from the active plan to a serving count. */
   scaleRecipe(args: { recipeName: string; servings: number }): Promise<string>;
+  /** Adds user-requested items to this week's shopping list (custom overlay). */
+  addToShoppingList(args: {
+    items: { name: string; quantity?: number; unit?: string }[];
+  }): Promise<string>;
 }
 
 export interface ChatContext {

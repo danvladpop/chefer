@@ -24,19 +24,22 @@ Capture is production-only (`NEXT_PUBLIC_POSTHOG_DEV=1` to test locally).
 
 `source` values: `sidebar`, `mobile-drawer`, `meal-plan-banner`,
 `pool-exhaustion`, `shopping-list`, `preferences-locked`, `onboarding`,
-`profile-page`, `swap`.
+`profile-page`, `swap`, `chat-quota` (added 2026-08-22 — the chat widget's
+over-quota state now renders the shared UpgradeButton instead of a bare text
+reply; the funnel-by-source insight picks the new value up automatically).
 
 ### Feature usage (PW-1 matrix coverage)
 
-| Event                       | Properties           | Matrix feature           |
-| --------------------------- | -------------------- | ------------------------ |
-| `plan_generated`            | `tier`, `weekOffset` | aiMealPlans / plan quota |
-| `meal_swapped`              | `tier`               | aiMealSwaps              |
-| `chat_message_sent`         | `suggested?`         | chatMessagesPerDay       |
-| `shopping_list_regenerated` | —                    | aiShoppingList           |
-| `preferences_saved`         | `premium`            | safety / personalisation |
-| `recipe_rated`              | `rating`             | (P1-1 signal fuel)       |
-| `recipe_pinned`             | `pinned`             | (P1-1 signal fuel)       |
+| Event                       | Properties           | Matrix feature                                                            |
+| --------------------------- | -------------------- | ------------------------------------------------------------------------- |
+| `plan_generated`            | `tier`, `weekOffset` | aiMealPlans / plan quota                                                  |
+| `meal_swapped`              | `tier`               | aiMealSwaps                                                               |
+| `chat_message_sent`         | `suggested?`         | chatMessagesPerDay                                                        |
+| `shopping_list_regenerated` | —                    | aiShoppingList                                                            |
+| `shopping_list_item_added`  | `via`                | custom items (page add-input; chat-tool adds are server-side, uncaptured) |
+| `preferences_saved`         | `premium`            | safety / personalisation                                                  |
+| `recipe_rated`              | `rating`             | (P1-1 signal fuel)                                                        |
+| `recipe_pinned`             | `pinned`             | (P1-1 signal fuel)                                                        |
 
 Weekly auto-generation (PW-5) is server-side and shows up as plans whose
 `createdAt` precedes their `weekStartDate` — count it in SQL/Postgres, not

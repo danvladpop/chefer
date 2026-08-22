@@ -49,6 +49,14 @@ vi.mock('../../lib/ai/index.js', () => ({
   aiService: { chat: vi.fn().mockResolvedValue(new ReadableStream()) },
 }));
 
+// The real module pulls in env validation (via ingredient-images) — mock it
+// like the other service dependencies.
+vi.mock('../shopping-list/shopping-list.service.js', () => ({
+  shoppingListService: {
+    addCustomItems: vi.fn().mockResolvedValue({ added: ['Oat milk', 'Flour'] }),
+  },
+}));
+
 vi.mock('../../lib/quotas.js', () => ({
   assertAiSwapQuota: vi.fn().mockResolvedValue(undefined),
 }));
@@ -168,5 +176,39 @@ describe('ChatService', () => {
     // 2 servings → 4 servings doubles the 100 g line.
     const result = await context.tools!.scaleRecipe({ recipeName: 'risotto', servings: 4 });
     expect(result).toContain('thing: 200 g');
+  });
+
+  it('addToShoppingList sanitises items and writes through the shopping-list service', async () => {
+    const { shoppingListService } = await import('../shopping-list/shopping-list.service.js');
+    vi.mocked(mealPlanService.getActive).mockResolvedValue(PLAN);
+    const { aiService } = await import('../../lib/ai/index.js');
+    await service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]);
+    const context = vi.mocked(aiService.chat).mock.calls[0]![1];
+
+    const result = await context.tools!.addToShoppingList({
+      items: [
+        { name: '  oat milk ', quantity: 2, unit: 'l' },
+        { name: 'flour' }, // no quantity/unit → defaults applied server-side
+        { name: '   ' }, // blank → dropped
+      ],
+    });
+
+    expect(shoppingListService.addCustomItems).toHaveBeenCalledWith('u1', 'plan1', [
+      { name: 'oat milk', quantity: 2, unit: 'l' },
+      { name: 'flour' },
+    ]);
+    expect(result).toContain('Oat milk');
+  });
+
+  it('addToShoppingList without an active plan does not touch the service', async () => {
+    const { shoppingListService } = await import('../shopping-list/shopping-list.service.js');
+    vi.mocked(mealPlanService.getActive).mockResolvedValue(null);
+    const { aiService } = await import('../../lib/ai/index.js');
+    await service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]);
+    const context = vi.mocked(aiService.chat).mock.calls.at(-1)![1];
+
+    const result = await context.tools!.addToShoppingList({ items: [{ name: 'milk' }] });
+    expect(result).toContain('generate a plan first');
+    expect(shoppingListService.addCustomItems).not.toHaveBeenCalled();
   });
 });
