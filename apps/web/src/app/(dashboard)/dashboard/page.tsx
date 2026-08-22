@@ -8,7 +8,7 @@ import { useIsPremium } from '@/hooks/useIsPremium';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
-import { ArrowRight, Clock, Flame, UtensilsCrossed } from 'lucide-react';
+import { ArrowRight, Clock, Flame, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
@@ -72,6 +72,27 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-4 p-4 xl:flex-row xl:gap-6 xl:p-6">
       {/* ── Main column ─────────────────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col gap-4 sm:gap-6">
+        {/* PW-5: the Sunday worker (or planning ahead) left this week ready */}
+        {d.weekReady && d.today.dayOfWeek === 0 && (
+          <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-semibold text-emerald-900">Your week is ready</p>
+              <p className="mt-0.5 text-xs text-emerald-800">
+                The chef prepared this week&apos;s plan for you on Sunday
+                {d.weekReady.ratedCount > 0 && (
+                  <>
+                    {' '}
+                    — built from <strong>{d.weekReady.ratedCount}</strong> dish
+                    {d.weekReady.ratedCount === 1 ? '' : 'es'} you rated
+                  </>
+                )}
+                .
+              </p>
+            </div>
+          </div>
+        )}
+
         {showProfileNudge && (
           <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#944a00]/20 bg-[#fff3e8] p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>

@@ -637,6 +637,10 @@ store-agnostic **ingredient price vocabulary** (`IngredientPrice` table):
 `apps/api/src/lib/ingredient-prices/` converts recipe units (g/kg/ml/tbsp/cup/
 piece/clove/…) to the base families and computes per-line price estimates.
 
+### WeeklyPlanWorker (worker)
+
+`apps/api/src/workers/weekly-plan.worker.ts` (PW-5). Hourly tick; on Sundays from 08:00 UTC it pre-generates NEXT week's plan for every `planTier = PREMIUM` user with a complete chef profile (admins get access-premium, not subscriber perks). Uses `MealPlanService.generate(userId, 1, true)`, so pinned favourites, rating signals, budget and safety prefs all apply (P1-1/P2-4), and the image worker picks the recipes up as usual. Idempotency comes from the data — a user who already has a plan for next week (`findByWeekStart`) is skipped, so restarts and repeated ticks are safe; per-user failures are logged and don't starve the sweep. Router-level daily generation quotas don't apply to worker calls. The dashboard celebrates the result: `dashboard.summary` returns `weekReady { preparedAt, ratedCount }` when the active plan was created before its week began, and the dashboard shows "Your week is ready — built from N dishes you rated" on Mondays.
+
 ### RecipeImageWorker (worker)
 
 `apps/api/src/workers/recipe-image.worker.ts`. Background generator for recipe photos via Pollinations.ai:

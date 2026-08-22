@@ -78,6 +78,16 @@ export const PLAN_FEATURES = {
       'Regenerate your shopping list with AI consolidation — merged quantities, sensible categories.',
     upsell: false,
   },
+  weeklyAutoGeneration: {
+    // Enforced by WeeklyPlanWorker's eligibility query (PW-5) — subscribers
+    // only (admins get access-premium, not subscriber perks).
+    free: false,
+    premium: true,
+    label: 'Your week, ready every Monday',
+    description:
+      'Every Sunday the chef pre-generates next week around your ratings, pins and targets — open the app Monday to a finished plan.',
+    upsell: true,
+  },
   planGenerationsPerDay: {
     free: 3,
     premium: 20,

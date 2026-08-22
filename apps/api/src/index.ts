@@ -19,6 +19,7 @@ import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
 import { recipeImageWorker } from './workers/recipe-image.worker.js';
+import { weeklyPlanWorker } from './workers/weekly-plan.worker.js';
 
 const app: express.Express = express();
 
@@ -211,6 +212,9 @@ const server = app.listen(env.PORT, env.HOST, () => {
 
   // Build/refresh the ingredient price vocabulary (weekly cadence)
   ingredientPriceWorker.start();
+
+  // Sunday pre-generation of next week's plan for premium users (PW-5)
+  weeklyPlanWorker.start();
 });
 
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────
@@ -220,6 +224,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
 
   // Stop the workers first (image worker waits for in-flight jobs)
   ingredientPriceWorker.stop();
+  weeklyPlanWorker.stop();
   await recipeImageWorker.stop();
 
   server.close(() => {

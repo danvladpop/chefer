@@ -361,6 +361,18 @@ mealPlan.generate { weekOffset }
            streaming DONE events to the client over SSE
 ```
 
+### Weekly auto-generation (PW-5, premium)
+
+```
+WeeklyPlanWorker (hourly tick; acts Sundays ≥ 08:00 UTC)
+  ├─ eligible: planTier = PREMIUM AND complete chef profile
+  ├─ skip users who already have next week's plan (findByWeekStart)
+  ├─ MealPlanService.generate(userId, weekOffset=1, premium=true)
+  │    └─ full premium path: ratings + pins + budget + safety (P1-1/P2-4)
+  └─ Monday: dashboard.summary.weekReady { preparedAt, ratedCount }
+       → "Your week is ready — built from N dishes you rated" banner
+```
+
 ### Viewing the plan
 
 The generated week is presented two ways, chosen by viewport rather than by any

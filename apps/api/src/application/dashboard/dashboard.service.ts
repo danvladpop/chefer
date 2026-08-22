@@ -2,6 +2,7 @@ import {
   chefProfileRepository,
   favouriteRecipeRepository,
   mealPlanRepository,
+  mealRatingRepository,
 } from '@chefer/database';
 import type { NutritionInfo } from '../../lib/ai/index.js';
 import { resolveDailyTargets, type DailyTargets } from '../preferences/preferences.service.js';
@@ -55,6 +56,12 @@ export interface DashboardSummary {
     carbs: { planned: number; targetG: number };
     fat: { planned: number; targetG: number };
   };
+  /**
+   * Set when the active plan was created BEFORE its week began (PW-5 Sunday
+   * auto-generation, or planning ahead by hand) — the dashboard celebrates
+   * "your week is ready" at the start of the week.
+   */
+  weekReady: { preparedAt: Date; ratedCount: number } | null;
 }
 
 // ─── Meal type schedules ───────────────────────────────────────────────────────
@@ -230,6 +237,13 @@ export class DashboardService {
       if (firstSlot) tomorrowFirstMeal = toHeroMeal(firstSlot);
     }
 
+    // PW-5: was this week's plan waiting before the week started?
+    let weekReady: DashboardSummary['weekReady'] = null;
+    if (plan.createdAt < plan.weekStartDate) {
+      const signals = await mealRatingRepository.findSignalsForUser(userId, 20);
+      weekReady = { preparedAt: plan.createdAt, ratedCount: signals.length };
+    }
+
     return {
       user: { firstName, displayName: chefProfile?.displayName ?? null },
       today: {
@@ -240,6 +254,7 @@ export class DashboardService {
       nextMeal,
       tomorrowFirstMeal,
       restOfToday,
+      weekReady,
       recentFavourites: favourites.map((f) => ({
         id: f.recipe.id,
         name: f.recipe.name,
@@ -275,6 +290,7 @@ export class DashboardService {
       nextMeal: null,
       tomorrowFirstMeal: null,
       restOfToday: [],
+      weekReady: null,
       recentFavourites: favourites.map((f) => ({
         id: f.recipe.id,
         name: f.recipe.name,
