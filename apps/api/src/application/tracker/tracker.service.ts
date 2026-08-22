@@ -34,6 +34,9 @@ export interface DayTrackerData {
   } | null;
   targets: {
     dailyCalorieTarget: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
   };
 }
 
@@ -60,7 +63,10 @@ export const trackerService = {
       dailyLogRepository.findByDate(userId, date),
     ]);
 
-    const dailyCalorieTarget = resolveDailyTargets(profile).dailyCalorieTarget;
+    // Full resolved targets — the tracker's macro bars must show the SAME
+    // numbers as the dashboard (prod-followups #4: it used to hardcode
+    // 150/250/70, which doesn't even sum to the calorie target).
+    const { dailyCalorieTarget, proteinG, carbsG, fatG } = resolveDailyTargets(profile);
 
     // Determine day-of-week (0=Mon)
     const jsDay = date.getUTCDay();
@@ -111,7 +117,7 @@ export const trackerService = {
             totalFat: log.totalFat,
           }
         : null,
-      targets: { dailyCalorieTarget },
+      targets: { dailyCalorieTarget, proteinG, carbsG, fatG },
     };
   },
 

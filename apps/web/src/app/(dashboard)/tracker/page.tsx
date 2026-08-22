@@ -130,7 +130,13 @@ export default function TrackerPage() {
     (s, m) => s + m.fat * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
     0,
   );
+  // All four targets come from the API's resolveDailyTargets — the same
+  // source the dashboard uses, so the two surfaces can never disagree
+  // (prod-followups #4). Fallbacks only cover the pre-data render.
   const target = data?.targets.dailyCalorieTarget ?? 2000;
+  const proteinTarget = data?.targets.proteinG ?? 125;
+  const carbsTarget = data?.targets.carbsG ?? 225;
+  const fatTarget = data?.targets.fatG ?? 67;
   const pct = (v: number, t: number) => Math.min(Math.round((v / (t || 1)) * 100), 100);
 
   return (
@@ -201,9 +207,21 @@ export default function TrackerPage() {
             </div>
             {[
               { label: 'Calories', v: loggedKcal, t: target, unit: 'kcal', colour: 'bg-[#944a00]' },
-              { label: 'Protein', v: loggedProtein, t: 150, unit: 'g', colour: 'bg-blue-500' },
-              { label: 'Carbs', v: loggedCarbs, t: 250, unit: 'g', colour: 'bg-emerald-500' },
-              { label: 'Fat', v: loggedFat, t: 70, unit: 'g', colour: 'bg-amber-400' },
+              {
+                label: 'Protein',
+                v: loggedProtein,
+                t: proteinTarget,
+                unit: 'g',
+                colour: 'bg-blue-500',
+              },
+              {
+                label: 'Carbs',
+                v: loggedCarbs,
+                t: carbsTarget,
+                unit: 'g',
+                colour: 'bg-emerald-500',
+              },
+              { label: 'Fat', v: loggedFat, t: fatTarget, unit: 'g', colour: 'bg-amber-400' },
             ].map(({ label, v, t, unit, colour }) => (
               <div key={label} className="mb-2">
                 <div className="mb-1 flex justify-between text-xs">
