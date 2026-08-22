@@ -344,6 +344,15 @@ Admin (/admin/users, adminProcedure-gated)
   `useNudge(source)` (`features/premium/lib/nudge-cap.ts`): max one nudge per
   day across all sources, dismissal silences that source for 7 days
   (localStorage). No fake urgency, no countdowns.
+- **Live nudges (§6.5, via the shared `UpgradeNudge` component)** —
+  `post-rating` (free user saves a rating → "Premium turns your ratings into
+  next week's menu") and `monday-nudge` (free user opens a plan-less current
+  week on a Monday). Mounting counts as the impression:
+  `upgrade_prompt_shown { source }`; the CTA deep-links to `/premium`.
+- **Onboarding carousel (§6.6)** — the free flow's "You're all set" step
+  renders `UpgradeCard perkDisplay="carousel"`: the same feature-card
+  registry as `/premium`, horizontally scrollable, plus the comparison-table
+  link. Source stays `onboarding`.
 
 The `source`-tagged events are the input to the PW-3 funnel (prompt → click →
 complete conversion by touchpoint). PW-3 adds per-feature usage events

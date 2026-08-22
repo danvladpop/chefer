@@ -7,6 +7,7 @@ import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
 import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { useIsPremium } from '@/hooks/useIsPremium';
@@ -305,6 +306,17 @@ export default function MealPlanPage() {
   return (
     <div className="flex h-full flex-col">
       {navBar}
+
+      {/* §6.5 Monday nudge: free user opening a week that has no plan yet —
+          premium members woke up to one (PW-5). Mount-gated so the nudge
+          cap's daily slot is only consumed on the actual trigger moment. */}
+      {isPremium === false && isCurrent && !isLoading && !plan && new Date().getDay() === 1 && (
+        <UpgradeNudge
+          source="monday-nudge"
+          message="Premium members woke up to a fresh week today."
+          className="mx-4 mb-2 sm:mx-6"
+        />
+      )}
 
       {/* Learning signals used by the last generation (P1-1) */}
       {personalisation &&

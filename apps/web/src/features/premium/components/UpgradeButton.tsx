@@ -3,7 +3,10 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { SOURCE_FEATURE_PRIORITY } from '@/features/premium/premium-features';
+import {
+  PREMIUM_FEATURE_CARDS,
+  SOURCE_FEATURE_PRIORITY,
+} from '@/features/premium/premium-features';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Check, Sparkles } from 'lucide-react';
@@ -159,10 +162,13 @@ export function UpgradeCard({
   title,
   description,
   source,
+  perkDisplay = 'list',
 }: {
   title: string;
   description: string;
   source: string;
+  /** 'carousel' swaps the perk list for compact feature cards (§6.6). */
+  perkDisplay?: 'list' | 'carousel';
 }) {
   return (
     <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6 text-center">
@@ -171,14 +177,40 @@ export function UpgradeCard({
       </div>
       <h2 className="text-lg font-bold text-gray-900">{title}</h2>
       <p className="mx-auto mt-1 max-w-md text-sm text-gray-600">{description}</p>
-      <ul className="mx-auto mt-4 max-w-md space-y-1.5 text-left">
-        {PREMIUM_PERKS.map((perk) => (
-          <li key={perk} className="flex items-start gap-2 text-sm text-gray-700">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-            {perk}
-          </li>
-        ))}
-      </ul>
+      {perkDisplay === 'list' ? (
+        <ul className="mx-auto mt-4 max-w-md space-y-1.5 text-left">
+          {PREMIUM_PERKS.map((perk) => (
+            <li key={perk} className="flex items-start gap-2 text-sm text-gray-700">
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+              {perk}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <>
+          {/* Compact feature-card carousel — same registry as /premium */}
+          <div className="-mx-6 mt-4 flex snap-x gap-3 overflow-x-auto px-6 pb-2 text-left">
+            {PREMIUM_FEATURE_CARDS.map(({ key, icon: Icon }) => (
+              <div
+                key={key}
+                className="w-56 shrink-0 snap-start rounded-xl border border-amber-200/70 bg-white p-4"
+              >
+                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white">
+                  <Icon className="h-4 w-4" />
+                </div>
+                <p className="text-sm font-semibold text-gray-900">{PLAN_FEATURES[key].label}</p>
+                <p className="mt-1 text-xs text-gray-600">{PLAN_FEATURES[key].description}</p>
+              </div>
+            ))}
+          </div>
+          <Link
+            href={`/premium?source=${encodeURIComponent(source)}`}
+            className="mt-3 inline-block text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
+          >
+            See the full free-vs-premium comparison →
+          </Link>
+        </>
+      )}
       <div className="mt-4 flex justify-center">
         <UpgradeButton className="px-5 py-2 text-sm" source={source} />
       </div>

@@ -183,6 +183,7 @@ export function OnboardingWizard({ isPremium }: { isPremium: boolean }) {
                 source="onboarding"
                 title="Go further with a personal profile"
                 description="Premium adds goals, body metrics and calorie targets — and the AI chef generates every week around them."
+                perkDisplay="carousel"
               />
             </div>
           )}

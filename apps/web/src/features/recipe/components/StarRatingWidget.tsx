@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
+import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Star } from 'lucide-react';
@@ -16,6 +18,10 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
   const [selected, setSelected] = useState<number>(initialRating ?? 0);
   const [notes, setNotes] = useState(initialNotes ?? '');
   const [saved, setSaved] = useState(!!initialRating);
+  // Only a rating saved THIS session is a nudge moment — not revisiting an
+  // already-rated recipe.
+  const [justRated, setJustRated] = useState(false);
+  const isPremium = useIsPremium();
 
   const utils = trpc.useUtils();
   const rateMutation = trpc.recipe.rate.useMutation({
@@ -24,6 +30,7 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
       setSelected(data.rating);
       setNotes(data.notes ?? '');
       setSaved(true);
+      setJustRated(true);
       void utils.recipe.getMyRating.invalidate({ recipeId });
     },
   });
@@ -87,6 +94,15 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
           <span className="text-xs text-red-600">{rateMutation.error.message}</span>
         )}
       </div>
+
+      {/* §6.5: the P1-1 pitch at the exact moment they generated the signal */}
+      {justRated && isPremium === false && (
+        <UpgradeNudge
+          source="post-rating"
+          message="Premium turns your ratings into next week's menu."
+          className="mt-4"
+        />
+      )}
     </div>
   );
 }
