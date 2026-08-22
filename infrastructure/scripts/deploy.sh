@@ -29,11 +29,12 @@ echo "==> Starting containers"
 # before api starts.
 $COMPOSE up -d --no-build
 
-echo "==> Reloading Caddy config"
+echo "==> Restarting Caddy (picks up Caddyfile changes)"
 # The Caddyfile is a bind mount — `up -d` won't recreate the caddy container
-# when only the mounted file changed, so route changes (e.g. /api/chat → api)
-# would silently never apply without an explicit reload.
-docker exec chefer-caddy caddy reload --config /etc/caddy/Caddyfile || true
+# when only the mounted file changed. An in-place `caddy reload` proved
+# unreliable here (routes never applied), so restart the container instead:
+# ~1s of downtime, guaranteed fresh config, and failures fail the deploy.
+$COMPOSE restart caddy
 
 echo "==> Pruning dangling images"
 docker image prune -f >/dev/null
