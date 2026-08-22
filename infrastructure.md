@@ -969,9 +969,15 @@ current size.
 - **RTO: ~5 min** if the VM survives (drop/recreate DB + `restore-dump.sh` + container restart);
   **~1–2 h** if the VM is lost (new VM, Docker + repo + `.env.production` re-setup, DNS move,
   then restore) — bounded by VM provisioning, not by the restore itself.
-- **Known gap:** dumps live on the same VM disk as the database. A disk-level failure loses both
-  the DB and its backups. Before real users, add an off-VM copy (e.g. `rclone` to object storage
-  or a nightly `scp` pull from another machine).
+- **Off-VM copy (closed 2026-08-22):** dumps used to live only on the VM disk — a disk failure
+  would have lost the DB and every backup together. `infrastructure/scripts/pull-backups.sh` now
+  mirrors `~/chefer-backups` from the VM to the dev Mac (`~/chefer-backups-mirror`, keeps 30) via
+  the keyed `chefer` SSH alias, warns loudly when the newest dump is older than 48 h (a broken
+  VM cron), and runs daily at 09:30 via launchd (`~/Library/LaunchAgents/com.chefer.backup-pull.plist`,
+  log: `~/chefer-backup-pull.log`; a missed schedule re-runs on wake). The mirrored dump was
+  restore-tested on the Mac's local Postgres — the full chain VM dump → mirror → restore is
+  proven. The mirror is as fresh as the last day the Mac was on; move to object storage (rclone)
+  if that ever becomes too weak.
 
 ### Uptime monitoring (A12)
 
