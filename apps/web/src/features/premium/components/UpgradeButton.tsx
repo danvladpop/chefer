@@ -4,18 +4,18 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Check, Sparkles } from 'lucide-react';
+import { PLAN_FEATURES, PREMIUM_PERK_KEYS } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 
 // ─── Upgrade button + confirmation dialog ─────────────────────────────────────
 // Demo upgrade flow: one confirmed click flips the user's planTier to PREMIUM
 // (no payment integration — Stripe is a later phase).
+//
+// The perk list renders from the PLAN_FEATURES matrix (launch plan PW-1), so
+// marketing copy and enforcement share one source of truth.
 
-const PREMIUM_PERKS = [
-  'AI meal plans tailored to your goals, allergies and preferences',
-  'AI-powered meal swaps',
-  'Personal profile: body metrics, calorie targets, dietary restrictions',
-];
+const PREMIUM_PERKS = PREMIUM_PERK_KEYS.map((key) => PLAN_FEATURES[key].label);
 
 export function UpgradeButton({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
@@ -91,7 +91,8 @@ export function UpgradeButton({ className }: { className?: string }) {
 
 /**
  * Full-width locked-feature panel used on pages gated behind premium
- * (preferences, onboarding).
+ * (preferences, onboarding, profile). Title/description stay contextual per
+ * page; the perk list always comes from the PLAN_FEATURES matrix.
  */
 export function UpgradeCard({ title, description }: { title: string; description: string }) {
   return (
@@ -101,6 +102,14 @@ export function UpgradeCard({ title, description }: { title: string; description
       </div>
       <h2 className="text-lg font-bold text-gray-900">{title}</h2>
       <p className="mx-auto mt-1 max-w-md text-sm text-gray-600">{description}</p>
+      <ul className="mx-auto mt-4 max-w-md space-y-1.5 text-left">
+        {PREMIUM_PERKS.map((perk) => (
+          <li key={perk} className="flex items-start gap-2 text-sm text-gray-700">
+            <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+            {perk}
+          </li>
+        ))}
+      </ul>
       <div className="mt-4 flex justify-center">
         <UpgradeButton className="px-5 py-2 text-sm" />
       </div>

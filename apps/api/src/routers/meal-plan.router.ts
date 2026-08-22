@@ -1,13 +1,8 @@
 import { z } from 'zod';
-import type { UserProfile } from '@chefer/types';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
+import { isPremiumUser } from '../lib/entitlements.js';
 import { assertAiSwapQuota, assertPlanGenerationQuota } from '../lib/quotas.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
-
-/** Admins count as premium — AI features are enabled for both. */
-function isPremiumUser(user: UserProfile): boolean {
-  return user.planTier === 'PREMIUM' || user.role === 'ADMIN';
-}
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 

@@ -1,3 +1,5 @@
+export * from './plan-features';
+
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
 // Const object + union (not a TS enum) so Prisma's generated string enums

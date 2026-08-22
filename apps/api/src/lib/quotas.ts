@@ -1,18 +1,12 @@
 import { TRPCError } from '@trpc/server';
 import { AiCallType, prisma } from '@chefer/database';
+import { PLAN_FEATURES } from '@chefer/types';
 import type { UserProfile } from '@chefer/types';
+import { getLimit, isPremiumUser } from './entitlements.js';
 
 // ─── Daily usage quotas ───────────────────────────────────────────────────────
-// The per-tier numbers are paywall surface (launch plan §2). PW-1 will fold
-// them into the PLAN_FEATURES matrix; until then this file is their single
-// source of truth.
-
-export const DAILY_PLAN_GENERATIONS = { FREE: 3, PREMIUM: 20 } as const;
-export const DAILY_AI_SWAPS_PREMIUM = 30;
-
-function isPremium(user: UserProfile): boolean {
-  return user.planTier === 'PREMIUM' || user.role === 'ADMIN';
-}
+// The per-tier numbers live in the PLAN_FEATURES matrix (@chefer/types,
+// launch plan PW-1) — this file only enforces them.
 
 function startOfTodayUtc(): Date {
   const now = new Date();
@@ -25,16 +19,17 @@ function startOfTodayUtc(): Date {
  * path — which never calls the AI — is capped too).
  */
 export async function assertPlanGenerationQuota(user: UserProfile): Promise<void> {
-  const limit = isPremium(user) ? DAILY_PLAN_GENERATIONS.PREMIUM : DAILY_PLAN_GENERATIONS.FREE;
+  const limit = getLimit(user, 'planGenerationsPerDay');
+  if (limit === null) return;
   const used = await prisma.mealPlan.count({
     where: { userId: user.id, createdAt: { gte: startOfTodayUtc() } },
   });
   if (used >= limit) {
     throw new TRPCError({
       code: 'TOO_MANY_REQUESTS',
-      message: isPremium(user)
+      message: isPremiumUser(user)
         ? `You've hit today's limit of ${limit} plan generations. It resets at midnight UTC.`
-        : `You've used today's ${limit} free plan generations. Upgrade for ${DAILY_PLAN_GENERATIONS.PREMIUM} per day.`,
+        : `You've used today's ${limit} free plan generations. Upgrade for ${PLAN_FEATURES.planGenerationsPerDay.premium} per day.`,
     });
   }
 }
@@ -45,7 +40,9 @@ export async function assertPlanGenerationQuota(user: UserProfile): Promise<void
  * zero AI cost and are not capped.
  */
 export async function assertAiSwapQuota(user: UserProfile): Promise<void> {
-  if (!isPremium(user)) return;
+  if (!isPremiumUser(user)) return;
+  const limit = getLimit(user, 'aiMealSwaps');
+  if (limit === null) return;
   const used = await prisma.aiCallLog.count({
     where: {
       userId: user.id,
@@ -53,10 +50,10 @@ export async function assertAiSwapQuota(user: UserProfile): Promise<void> {
       createdAt: { gte: startOfTodayUtc() },
     },
   });
-  if (used >= DAILY_AI_SWAPS_PREMIUM) {
+  if (used >= limit) {
     throw new TRPCError({
       code: 'TOO_MANY_REQUESTS',
-      message: `You've hit today's limit of ${DAILY_AI_SWAPS_PREMIUM} AI swaps. It resets at midnight UTC.`,
+      message: `You've hit today's limit of ${limit} AI swaps. It resets at midnight UTC.`,
     });
   }
 }

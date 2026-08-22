@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import superjson from 'superjson';
 import { ZodError } from 'zod';
 import type { UserProfile } from '@chefer/types';
+import { isPremiumUser } from './entitlements.js';
 import { logger } from './logger.js';
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -80,8 +81,8 @@ const isAuthenticated = t.middleware(({ ctx, next }) => {
 
 /**
  * Premium middleware — ensures the user is on the PREMIUM tier (admins count
- * as premium). Free users receive a FORBIDDEN error the frontend maps to an
- * "Upgrade plan" prompt.
+ * as premium, via lib/entitlements). Free users receive a FORBIDDEN error the
+ * frontend maps to an "Upgrade plan" prompt.
  */
 const isPremium = t.middleware(({ ctx, next }) => {
   if (!ctx.user) {
@@ -90,7 +91,7 @@ const isPremium = t.middleware(({ ctx, next }) => {
       message: 'You must be logged in to perform this action',
     });
   }
-  if (ctx.user.planTier !== 'PREMIUM' && ctx.user.role !== 'ADMIN') {
+  if (!isPremiumUser(ctx.user)) {
     throw new TRPCError({
       code: 'FORBIDDEN',
       message: 'This feature requires a premium plan. Upgrade to unlock it.',

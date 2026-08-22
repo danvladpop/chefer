@@ -183,12 +183,15 @@ src/
 | ------------------------------ | ---------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------- |
 | Global tRPC flood              | per IP                       | `RATE_LIMIT_MAX`/`RATE_LIMIT_WINDOW_MS` (default 100/min) | `index.ts` (express-rate-limit)                                   |
 | `auth.login` / `auth.register` | per IP                       | 10 per 15 min                                             | `auth.router.ts` → `lib/rate-limit.ts` (in-memory sliding window) |
-| Plan generations               | per user per UTC day         | FREE 3 / PREMIUM 20 (counted from `meal_plans` rows)      | `meal-plan.router.ts` → `lib/quotas.ts`                           |
-| AI swaps                       | per premium user per UTC day | 30 (counted from `ai_call_logs`)                          | `meal-plan.router.ts` → `lib/quotas.ts`                           |
+| Plan generations               | per user per UTC day         | from `PLAN_FEATURES` (counted from `meal_plans` rows)     | `meal-plan.router.ts` → `lib/quotas.ts`                           |
+| AI swaps                       | per premium user per UTC day | from `PLAN_FEATURES` (counted from `ai_call_logs`)        | `meal-plan.router.ts` → `lib/quotas.ts`                           |
 
 The in-memory stores assume a single API instance; move to Redis (`REDIS_URL`
-is already in the env schema) before scaling horizontally. Quota numbers are
-paywall surface — they migrate into the `PLAN_FEATURES` matrix with PW-1.
+is already in the env schema) before scaling horizontally. Per-tier quota
+numbers live in the `PLAN_FEATURES` matrix (`packages/types/src/plan-features.ts`,
+PW-1) and are resolved through `lib/entitlements.ts` (`isPremiumUser` /
+`hasFeature` / `getLimit`) — the same helpers that back `premiumProcedure` and
+the tier branches, so enforcement has one source of truth.
 
 #### Graceful Shutdown
 
