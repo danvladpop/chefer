@@ -1,11 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { SOURCE_FEATURE_PRIORITY } from '@/features/premium/premium-features';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Check, Sparkles } from 'lucide-react';
-import { PLAN_FEATURES, PREMIUM_PERK_KEYS } from '@chefer/types';
+import { PLAN_FEATURES, PREMIUM_PERK_KEYS, type PlanFeatureKey } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 
@@ -22,6 +24,21 @@ import { cn } from '@chefer/utils';
 // marketing copy and enforcement share one source of truth.
 
 const PREMIUM_PERKS = PREMIUM_PERK_KEYS.map((key) => PLAN_FEATURES[key].label);
+
+/**
+ * Dialog v2 (premium_plan.md §6.3): the perk that triggered this dialog comes
+ * first with its description expanded; the rest collapse to compact rows.
+ * Pure presentation — same matrix, keyed off the existing `source` prop.
+ */
+function orderedPerkKeys(source: string): { expanded: PlanFeatureKey[]; rest: PlanFeatureKey[] } {
+  const priority = (SOURCE_FEATURE_PRIORITY[source] ?? []).filter((key) =>
+    PREMIUM_PERK_KEYS.includes(key),
+  );
+  return {
+    expanded: priority,
+    rest: PREMIUM_PERK_KEYS.filter((key) => !priority.includes(key)),
+  };
+}
 
 export interface UpgradeButtonProps {
   className?: string;
@@ -89,14 +106,39 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
           <Sparkles className="h-5 w-5" />
         </div>
 
-        <ul className="space-y-2">
-          {PREMIUM_PERKS.map((perk) => (
-            <li key={perk} className="flex items-start gap-2 text-sm text-gray-700">
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-              {perk}
-            </li>
-          ))}
-        </ul>
+        {(() => {
+          const { expanded, rest } = orderedPerkKeys(source);
+          return (
+            <ul className="space-y-2">
+              {expanded.map((key) => (
+                <li
+                  key={key}
+                  className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-sm"
+                >
+                  <span className="flex items-start gap-2 font-semibold text-gray-900">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                    {PLAN_FEATURES[key].label}
+                  </span>
+                  <p className="mt-1 pl-6 text-gray-600">{PLAN_FEATURES[key].description}</p>
+                </li>
+              ))}
+              {rest.map((key) => (
+                <li key={key} className="flex items-start gap-2 text-sm text-gray-700">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                  {PLAN_FEATURES[key].label}
+                </li>
+              ))}
+            </ul>
+          );
+        })()}
+
+        <Link
+          href={`/premium?source=${encodeURIComponent(source)}`}
+          onClick={() => setOpen(false)}
+          className="mt-4 block text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
+        >
+          See everything premium does →
+        </Link>
 
         {upgradeMutation.isError && (
           <p className="mt-3 text-sm text-red-600">

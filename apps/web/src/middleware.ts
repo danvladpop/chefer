@@ -13,6 +13,7 @@ const PROTECTED_ROUTES = [
   '/shopping-list',
   '/profile',
   '/admin',
+  '/premium',
 ];
 
 export function middleware(request: NextRequest) {
@@ -51,5 +52,6 @@ export const config = {
     '/shopping-list/:path*',
     '/admin/:path*',
     '/profile/:path*',
+    '/premium/:path*',
   ],
 };

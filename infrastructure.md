@@ -225,6 +225,7 @@ Handles `SIGTERM` and `SIGINT`: closes HTTP server, disconnects Prisma.
 | `/(dashboard)/history`           | Client Component | Meal Plan History — ACTIVE/ARCHIVED plan cards with Restore button                                                                                                                               |
 | `/(dashboard)/history/[planId]`  | Client Component | Read-only plan — week grid at `lg`+, single-day view below                                                                                                                                       |
 | `/(dashboard)/onboarding`        | Client Component | 4-step wizard (Goals → Metrics → Diet → Cuisine & Cadence)                                                                                                                                       |
+| `/(dashboard)/premium`           | Client Component | Premium showcase (premium_plan.md §6.2) — feature cards from the registry, matrix-driven Free-vs-Premium table, anchor stack, FAQ; deep-linked with `?source=` preserved into the funnel events  |
 
 #### App Shell & Navigation
 

@@ -478,13 +478,32 @@ test --project=mobile`).
 
 ## 10. Progress
 
-| Step                      | Status |
-| ------------------------- | ------ |
-| Wave 0 foundations        | ⬜     |
-| W1-A coach                | ⬜     |
-| W1-B snap                 | ⬜     |
-| W1-C import               | ⬜     |
-| Wave 1 integration + prod | ⬜     |
-| W2-D household            | ⬜     |
-| W2-E pantry               | ⬜     |
-| Wave 2 integration + prod | ⬜     |
+| Step                      | Status                                                                     |
+| ------------------------- | -------------------------------------------------------------------------- |
+| Wave 0 foundations        | ✅ 2026-08-23 (commits c2e4a3c + merchandising baseline; deviations below) |
+| W1-A coach                | ⬜                                                                         |
+| W1-B snap                 | ⬜                                                                         |
+| W1-C import               | ⬜                                                                         |
+| Wave 1 integration + prod | ⬜                                                                         |
+| W2-D household            | ⬜                                                                         |
+| W2-E pantry               | ⬜                                                                         |
+| Wave 2 integration + prod | ⬜                                                                         |
+
+### Wave-0 deviations (found against the real code, 2026-08-23)
+
+1. **No `WeightLog` model.** `WeightEntry` already exists with
+   `tracker.logWeight` / `tracker.weightHistory` procedures AND a working
+   weight quick-entry + chart on `/progress`. The coach reads
+   `weightEntryRepository` (multiple entries per day are fine for EWMA) and
+   W1-A's "dashboard weight card" scope shrinks to: reuse/link the existing
+   `/progress` entry, add a dashboard surface only if the review needs it.
+2. **`AiCallType.RECIPE_IMPORT` added** alongside `SCAN` — import metering
+   (`recipeImportsPerDay`) needs a countable call type and the schema freezes
+   after wave 0.
+3. **`ChefReview.savedEur Float?` added now** — §5's W2-E seam ("reviews
+   include optional savedEur") is schema, so it must land in wave 0.
+4. **`recipeImportsPerDay` free tier = 1** (not false) — encodes §6.4's
+   free extraction-preview ghost state in the matrix.
+5. **No future-price copy on `/premium`** — §6.1 principle 5 marks exact
+   price/early-bird wording as the product owner's call; the page ships the
+   anchor stack + "free during beta" only.

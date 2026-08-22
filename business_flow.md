@@ -327,6 +327,24 @@ Admin (/admin/users, adminProcedure-gated)
     any user's tier without touching prod psql
 ```
 
+**Merchandising rails (premium_plan.md §6, wave 0):**
+
+- **`/premium` showcase page** — the full pitch at one deep-linkable URL.
+  Feature cards render from `features/premium/premium-features.ts` (a registry
+  file — each wave agent appends its card when its feature ships); the
+  Free-vs-Premium table renders row-by-row from `PLAN_FEATURES`. Entry points
+  link `/premium?source=<their source>`; the page fires
+  `premium_page_viewed { source }` and its CTA keeps the ORIGIN source's
+  funnel attribution (falling back to `premium-page` on direct visits).
+- **Upgrade dialog v2 (source-aware)** — `SOURCE_FEATURE_PRIORITY` maps each
+  `source` to the matrix keys the user was looking at; those perks render
+  first and expanded, the rest collapse to compact rows. The dialog links to
+  `/premium` preserving its source.
+- **Nudge frequency cap** — every contextual nudge must render through
+  `useNudge(source)` (`features/premium/lib/nudge-cap.ts`): max one nudge per
+  day across all sources, dismissal silences that source for 7 days
+  (localStorage). No fake urgency, no countdowns.
+
 The `source`-tagged events are the input to the PW-3 funnel (prompt → click →
 complete conversion by touchpoint). PW-3 adds per-feature usage events
 (`plan_generated`, `meal_swapped`, `chat_message_sent`,
