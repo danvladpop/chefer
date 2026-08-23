@@ -6,6 +6,7 @@ import { DayView } from '@/features/meal-plan/components/day-view';
 import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
+import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
 import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
@@ -357,6 +358,13 @@ export default function MealPlanPage() {
             </p>
           </div>
         )}
+
+      {/* Week-rebalance banner (F4 Snap-to-Log): what the chef adjusted + undo */}
+      {isCurrent && plan && (
+        <div className="mx-4 sm:mx-6">
+          <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
+        </div>
+      )}
 
       {/* Over-budget warning (P2-4) */}
       {overBudget !== null && (

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
+import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
@@ -174,9 +175,12 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   // ── "Made it!": append to today's log, then rate ──
   const utils = trpc.useUtils();
   const upsertDay = trpc.tracker.upsertDay.useMutation({
-    onSuccess: () => {
+    onSuccess: (result) => {
       setLogged(true);
       capture('meal_cooked', { mealType });
+      // F4: a cook-mode log can trigger a week rebalance too — hand the swaps
+      // off to the meal-plan banner (with undo).
+      handleRebalanceResult(result.rebalance);
       void utils.tracker.getDay.invalidate();
       void utils.tracker.weeklySummary.invalidate();
       void utils.dashboard.summary.invalidate();

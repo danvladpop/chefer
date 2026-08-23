@@ -8,6 +8,8 @@ import {
   buildSwapUserPrompt,
   CHAT_SYSTEM_PROMPT,
   INGREDIENT_PRICES_SYSTEM_PROMPT,
+  MEAL_PHOTO_SYSTEM_PROMPT,
+  MEAL_PHOTO_USER_PROMPT,
   MEAL_PLAN_SYSTEM_PROMPT,
   SHOPPING_LIST_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
@@ -261,6 +263,63 @@ const INGREDIENT_PRICES_RESPONSE_SCHEMA: Schema = {
   required: ['items'],
 };
 
+// ─── Meal photo schemas (F4 Snap-to-Log) ─────────────────────────────────────
+
+const mealPhotoEstimateSchema = z.object({
+  dishName: z.string().min(1),
+  confidence: z.enum(['low', 'med', 'high']),
+  kcal: z.number().min(0).max(5000),
+  protein: z.number().min(0).max(500),
+  carbs: z.number().min(0).max(1000),
+  fat: z.number().min(0).max(500),
+  portionNote: z.string(),
+});
+
+const MEAL_PHOTO_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    dishName: { type: Type.STRING },
+    confidence: { type: Type.STRING, enum: ['low', 'med', 'high'] },
+    kcal: { type: Type.NUMBER },
+    protein: { type: Type.NUMBER },
+    carbs: { type: Type.NUMBER },
+    fat: { type: Type.NUMBER },
+    portionNote: { type: Type.STRING },
+  },
+  required: ['dishName', 'confidence', 'kcal', 'protein', 'carbs', 'fat', 'portionNote'],
+};
+
+/**
+ * Parses + validates a raw meal-photo model response. Exported so the
+ * validation (bounds, confidence enum, rounding) is fixture-testable without
+ * a live vision call (premium_plan.md §8 AI-cost rule).
+ */
+export function parseMealPhotoResponse(raw: string): MealPhotoEstimate {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(
+      `GeminiAIService: meal photo response JSON is malformed — ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  const parsed = mealPhotoEstimateSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new Error(
+      `GeminiAIService: meal photo response failed validation — ${parsed.error.message}`,
+    );
+  }
+  const e = parsed.data;
+  // Whole numbers only — the confirm sheet edits integers.
+  return {
+    ...e,
+    kcal: Math.round(e.kcal),
+    protein: Math.round(e.protein),
+    carbs: Math.round(e.carbs),
+    fat: Math.round(e.fat),
+  };
+}
+
 // ─── Transient error handling ────────────────────────────────────────────────
 
 /**
@@ -473,12 +532,51 @@ export class GeminiAIService implements IAIService {
     return parsed.data.items;
   }
 
-  // Wave-0 seam stubs (premium_plan.md §3.3) — the real multimodal
-  // implementations land with feat/snap and feat/import in wave 1.
-  async analyzeMealPhoto(_imageBase64: string, _mimeType: string): Promise<MealPhotoEstimate> {
-    throw new Error('GeminiAIService.analyzeMealPhoto lands with feat/snap (wave 1).');
+  /**
+   * F4 Snap-to-Log: multimodal dish + macro estimate for a meal photo. The
+   * prompt demands honesty about what a photo can't show; confidence
+   * (low|med|high) is surfaced verbatim in the confirm sheet.
+   */
+  async analyzeMealPhoto(imageBase64: string, mimeType: string): Promise<MealPhotoEstimate> {
+    const response = await this.generateWithRetry(
+      {
+        model: MODEL,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { inlineData: { mimeType, data: imageBase64 } },
+              { text: MEAL_PHOTO_USER_PROMPT },
+            ],
+          },
+        ],
+        config: {
+          systemInstruction: MEAL_PHOTO_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: MEAL_PHOTO_SCHEMA,
+          temperature: 0.2, // estimates should be stable, not creative
+          maxOutputTokens: 512,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      },
+      'analyzeMealPhoto',
+    );
+
+    let raw: string | null | undefined;
+    try {
+      raw = response.text;
+    } catch (err) {
+      throw new Error(
+        `GeminiAIService: could not read meal photo response — ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (!raw) throw new Error('GeminiAIService: empty response from analyzeMealPhoto');
+
+    return parseMealPhotoResponse(raw);
   }
 
+  // Wave-0 seam stub (premium_plan.md §3.3) — the real implementation lands
+  // with feat/import in wave 1.
   async extractRecipe(_source: RecipeExtractionSource): Promise<ExtractedRecipe> {
     throw new Error('GeminiAIService.extractRecipe lands with feat/import (wave 1).');
   }
@@ -574,6 +672,29 @@ export class GeminiAIService implements IAIService {
                   properties: {},
                 } as Schema,
               },
+              {
+                name: 'logMeal',
+                description:
+                  "Logs a meal the user says they ATE (off-plan food: 'I ate a burger', 'had a croissant') into today's tracker with your best realistic macro estimate. Do not use it for planned meals.",
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: {
+                      type: Type.STRING,
+                      description: 'Short dish name, e.g. "Cheeseburger"',
+                    },
+                    kcal: { type: Type.NUMBER, description: 'Estimated calories for the portion' },
+                    protein: { type: Type.NUMBER, description: 'Estimated protein in grams' },
+                    carbs: { type: Type.NUMBER, description: 'Estimated carbs in grams' },
+                    fat: { type: Type.NUMBER, description: 'Estimated fat in grams' },
+                    mealType: {
+                      type: Type.STRING,
+                      description: 'One of: breakfast, lunch, dinner, snack (default snack)',
+                    },
+                  },
+                  required: ['name', 'kcal'],
+                } as Schema,
+              },
             ],
           },
         ]
@@ -628,6 +749,16 @@ export class GeminiAIService implements IAIService {
             });
           } else if (call.name === 'getMyReview') {
             result = await context.tools.getMyReview();
+          } else if (call.name === 'logMeal') {
+            const mealType = typeof args['mealType'] === 'string' ? args['mealType'] : undefined;
+            result = await context.tools.logMeal({
+              name: typeof args['name'] === 'string' ? args['name'] : '',
+              kcal: Number(args['kcal']),
+              ...(args['protein'] != null ? { protein: Number(args['protein']) } : {}),
+              ...(args['carbs'] != null ? { carbs: Number(args['carbs']) } : {}),
+              ...(args['fat'] != null ? { fat: Number(args['fat']) } : {}),
+              ...(mealType !== undefined ? { mealType } : {}),
+            });
           } else {
             result = `Unknown tool: ${call.name}`;
           }

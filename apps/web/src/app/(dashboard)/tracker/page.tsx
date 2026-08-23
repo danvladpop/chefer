@@ -2,10 +2,19 @@
 
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
+import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
+import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
+import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
+import {
+  customEntryChipLabel,
+  customEntryRows,
+  customEntryTotals,
+} from '@/features/tracker/lib/tracker-utils';
+import { useIsPremium } from '@/hooks/useIsPremium';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { addDays, format } from 'date-fns';
-import { ChevronLeft, ChevronRight, Flame, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Flame, Save, Trash2 } from 'lucide-react';
 
 type PortionKey = 0.5 | 1 | 1.5 | 2;
 const PORTION_LABELS: Record<PortionKey, string> = { 0.5: '½×', 1: '1×', 1.5: '1½×', 2: '2×' };
@@ -65,12 +74,21 @@ export default function TrackerPage() {
     setInitialised(dateStr);
   }, [data, dateStr, initialised]);
 
+  const isPremium = useIsPremium();
+
   const upsertMutation = trpc.tracker.upsertDay.useMutation({
-    onSuccess: () => {
+    onSuccess: (result) => {
+      // F4: a save can trigger a week rebalance — hand the swaps off to the
+      // meal-plan banner (with undo) and fire the analytics event.
+      handleRebalanceResult(result.rebalance);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
       void refetch();
     },
+  });
+
+  const deleteCustomMutation = trpc.tracker.deleteCustomMeal.useMutation({
+    onSuccess: () => void refetch(),
   });
 
   const toggleMeal = (recipeId: string, mealType: string) => {
@@ -91,6 +109,9 @@ export default function TrackerPage() {
   // Custom entries already logged for this day (no recipeId). upsertDay
   // REPLACES the day's list, so they must ride along on every save.
   const customEntries = (data?.log?.loggedMeals ?? []).filter((m) => !m.recipeId);
+  // Rendered rows (F4): custom entries with their delete-target index into
+  // the FULL loggedMeals array preserved.
+  const customRows = customEntryRows(data?.log?.loggedMeals ?? []);
 
   const handleSave = () => {
     if (!data) return;
@@ -124,10 +145,12 @@ export default function TrackerPage() {
   // entries (their macros are stored pre-scaled, so no portion multiply).
   const loggedMeals =
     data?.plannedMeals.filter((m) => checkedMeals[getKey(m.recipeId, m.mealType)]?.checked) ?? [];
-  const customKcal = customEntries.reduce((s, m) => s + m.kcal, 0);
-  const customProtein = customEntries.reduce((s, m) => s + m.protein, 0);
-  const customCarbs = customEntries.reduce((s, m) => s + m.carbs, 0);
-  const customFat = customEntries.reduce((s, m) => s + m.fat, 0);
+  const {
+    kcal: customKcal,
+    protein: customProtein,
+    carbs: customCarbs,
+    fat: customFat,
+  } = customEntryTotals(data?.log?.loggedMeals ?? []);
   const loggedKcal =
     loggedMeals.reduce(
       (s, m) =>
@@ -213,6 +236,13 @@ export default function TrackerPage() {
 
       {!isFuture && !isLoading && data && (
         <>
+          {/* Snap-to-Log (F4): photo scan (premium; demo for free) + free
+              quick-add — the honesty tools for off-plan food. */}
+          <div className="mb-6 flex flex-wrap gap-2">
+            <ScanMealButton date={dateStr} isPremium={isPremium} onLogged={() => void refetch()} />
+            <QuickAddSheet date={dateStr} onLogged={() => void refetch()} />
+          </div>
+
           {/* Macro summary */}
           <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
@@ -350,6 +380,57 @@ export default function TrackerPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Custom entries (F4): photo scans + quick-adds. Saved server-side
+              the moment they're logged — no relation to the Save button. */}
+          {customRows.length > 0 && (
+            <div className="mb-6">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                Also logged
+              </p>
+              <div className="space-y-3">
+                {customRows.map((row) => (
+                  <div
+                    key={row.entryIndex}
+                    className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3"
+                  >
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${MEAL_COLOURS[row.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                        >
+                          {row.mealType}
+                        </span>
+                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-semibold uppercase text-neutral-500">
+                          {customEntryChipLabel(row.estimatedBy)}
+                        </span>
+                      </div>
+                      <p className="min-w-0 truncate text-sm font-medium text-neutral-800">
+                        {row.name}
+                      </p>
+                      <p className="text-xs text-neutral-500">
+                        {row.kcal} kcal
+                        {row.protein > 0 || row.carbs > 0 || row.fat > 0
+                          ? ` · ${Math.round(row.protein)}g P · ${Math.round(row.carbs)}g C · ${Math.round(row.fat)}g F`
+                          : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        deleteCustomMutation.mutate({ date: dateStr, entryIndex: row.entryIndex })
+                      }
+                      disabled={deleteCustomMutation.isPending}
+                      aria-label={`Delete ${row.name}`}
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

@@ -16,6 +16,7 @@ import { logger } from './lib/logger.js';
 import { chatRouter } from './routers/chat.router.js';
 import { appRouter } from './routers/index.js';
 import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
+import { scanRouter } from './routers/scan.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
 import { recipeImageWorker } from './workers/recipe-image.worker.js';
@@ -105,6 +106,10 @@ app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d', immutable: true
 // ─── AI chef chat (P1-4) — plain-text streaming, session-authenticated ───────
 
 app.use('/api/chat', chatRouter);
+
+// ─── Meal photo scan (F4 Snap-to-Log) — session-authenticated, metered ───────
+
+app.use('/api/scan-meal', scanRouter);
 
 // ─── tRPC ─────────────────────────────────────────────────────────────────────
 

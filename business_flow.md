@@ -20,6 +20,7 @@
 12. [Cook Mode Flow](#12-cook-mode-flow)
 13. [AI Chat Flow](#13-ai-chat-flow)
 14. [Adaptive Chef Weekly Review Flow](#14-adaptive-chef-weekly-review-flow)
+15. [Snap-to-Log Flow (F4)](#15-snap-to-log-flow-f4)
 
 ---
 
@@ -685,5 +686,82 @@ the adjusted target must shape next week's budget)
   procedures (`weight_logged` on save) + "log N more days" coaching hint.
 - Chat tool `getMyReview`: the model can quote the latest review; free users
   get the teaser line + an upgrade suggestion.
+
+---
+
+## 15. Snap-to-Log Flow (F4)
+
+Photo logging + week rebalance (premium*plan.md W1-B). The honesty principle:
+logging off-plan food is FREE (manual quick-add, chat "I ate this"); the
+\_vision* scan and the automatic week rebalance are premium
+(`PLAN_FEATURES.photoLogging`, `mealScansPerDay: 10`).
+
+### Photo scan (premium)
+
+```
+Tracker page → "Scan a meal" → native camera / file picker (≤5 MB image)
+POST /api/scan-meal (session cookie, raw image body — same transport as uploads)
+  ├─ resolve user from session (401 without)
+  ├─ assertMealScanQuota (lib/quotas.ts)
+  │    ├─ FREE → 403 { upgradeRequired: true } — client opens the snap-scan
+  │    │    demo sheet instead (upgrade source: snap-scan)
+  │    └─ ≥10 scans today (ai_call_logs SCAN rows since midnight UTC) → 429
+  ├─ log AiCallLog SCAN (attempts count, like chat)
+  └─ aiService.analyzeMealPhoto(base64, mime)
+       ├─ Gemini: multimodal structured output → { dishName, confidence
+       │    low|med|high, kcal, protein, carbs, fat, portionNote }; the
+       │    prompt demands honesty about what a photo can't show
+       └─ mock: deterministic fixture (520 kcal chicken plate)
+→ confirm Sheet: every number editable, confidence badge + portion note shown
+  ├─ confirm → tracker.logCustomMeal (custom entry, estimatedBy: 'vision')
+  │    → analytics meal_scanned { confirmed: true }
+  └─ discard → nothing logged; meal_scanned { confirmed: false }
+```
+
+Custom entries render on the tracker as their own rows (name + "estimated" /
+"quick add" chip, deletable via `tracker.deleteCustomMeal`) and count toward
+the day's progress bars. They are preserved verbatim when the planned-meal
+save flow rewrites the day (`tracker.upsertDay`).
+
+### Free-tier honesty tools
+
+- **Quick add** (tracker): name + kcal only → `tracker.logCustomMeal`
+  (`estimatedBy: 'manual'`, mealType snack). Free for every account.
+- **Chat "I ate this"**: the `logMeal` chat tool logs the model's own macro
+  estimate as a manual custom entry into today's log.
+- The camera button stays visible for free users; tapping it opens the
+  demo-scan ghost sheet (sample scan animating into macros) — fires
+  `upgrade_prompt_shown { source: 'snap-scan' }` + `teaser_engaged
+{ feature: 'snap' }` (§6.4 merchandising).
+
+### Week rebalance (premium)
+
+After ANY log write (tracker save, quick-add, photo scan, chat logMeal,
+cook-mode "Made it!"), `TrackerService.maybeRebalance` runs for users with
+`photoLogging` access:
+
+```
+rebalanceWeek(userId, activePlanId)   [application/meal-plan/rebalance.ts]
+  ├─ only the CURRENT week's plan; Sunday → no-op (no future days)
+  ├─ projection = Σ logged kcal Mon…today + Σ planned kcal for days AFTER today
+  ├─ |projection − 7×dailyTarget| ≤ 15% → no-op ("week is on track")
+  └─ else: greedy-swap up to 2 FUTURE slots for closer-calorie alternatives
+       from the safety-filtered curated pool (deterministic, no AI call);
+       stops early when back within 15% or no swap improves ≥2% of target
+       → applies via mealPlanRepository.updateDayMeal
+       → returns { rebalanced, swaps[previous↔new pairs], planId }
+```
+
+The client hands the swap pairs to localStorage
+(`features/tracker/lib/rebalance-storage.ts`); the meal-plan page shows the
+banner ("I adjusted Thursday dinner to keep your week on track") with one-tap
+**undo**, which replays `mealPlan.replaceRecipe(previousRecipeId)` per swap.
+Undo is per-device and expires after 24 h — nothing about the swap pairs is
+stored server-side (wave-0 schema freeze). Analytics: `week_rebalanced` fires
+on the client when a log's response carries an applied rebalance. Failures in
+the rebalance path never fail the log save itself.
+
+Routing: Caddy sends `/api/scan-meal` to the API in production; a Next.js
+rewrite proxies it in dev.
 
 ---

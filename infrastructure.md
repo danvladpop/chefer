@@ -158,15 +158,16 @@ src/
 
 #### HTTP Endpoints
 
-| Method | Path                        | Description                                                                                           |
-| ------ | --------------------------- | ----------------------------------------------------------------------------------------------------- |
-| GET    | `/health`                   | Returns server status, env, version                                                                   |
-| GET    | `/health/ready`             | Checks live DB connectivity                                                                           |
-| GET    | `/api/recipe-images/stream` | SSE stream of recipe image status updates                                                             |
-| POST   | `/api/uploads/image`        | Session-authenticated raw-body image upload (≤ 5 MB)                                                  |
-| GET    | `/uploads/*`                | Statically served uploaded images                                                                     |
-| POST   | `/api/chat`                 | AI chef chat (P1-4) — session-authenticated, streams plain text; tool-capable (swapMeal, scaleRecipe) |
-| \*     | `/trpc/*`                   | tRPC batch endpoint (all API calls)                                                                   |
+| Method | Path                        | Description                                                                                                                                         |
+| ------ | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/health`                   | Returns server status, env, version                                                                                                                 |
+| GET    | `/health/ready`             | Checks live DB connectivity                                                                                                                         |
+| GET    | `/api/recipe-images/stream` | SSE stream of recipe image status updates                                                                                                           |
+| POST   | `/api/uploads/image`        | Session-authenticated raw-body image upload (≤ 5 MB)                                                                                                |
+| GET    | `/uploads/*`                | Statically served uploaded images                                                                                                                   |
+| POST   | `/api/chat`                 | AI chef chat (P1-4) — session-authenticated, streams plain text; tool-capable (swapMeal, scaleRecipe)                                               |
+| POST   | `/api/scan-meal`            | Meal photo scan (F4) — session-authenticated raw-body image (≤ 5 MB) → vision macro estimate; premium-gated (403 `upgradeRequired`) + metered (429) |
+| \*     | `/trpc/*`                   | tRPC batch endpoint (all API calls)                                                                                                                 |
 
 #### Middleware Chain (every request)
 
@@ -180,13 +181,14 @@ src/
 
 #### Rate Limits & Daily Quotas
 
-| Limit                          | Scope                        | Value                                                     | Where                                                             |
-| ------------------------------ | ---------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------- |
-| Global tRPC flood              | per IP                       | `RATE_LIMIT_MAX`/`RATE_LIMIT_WINDOW_MS` (default 100/min) | `index.ts` (express-rate-limit)                                   |
-| `auth.login` / `auth.register` | per IP                       | 10 per 15 min                                             | `auth.router.ts` → `lib/rate-limit.ts` (in-memory sliding window) |
-| Plan generations               | per user per UTC day         | from `PLAN_FEATURES` (counted from `meal_plans` rows)     | `meal-plan.router.ts` → `lib/quotas.ts`                           |
-| AI swaps                       | per premium user per UTC day | from `PLAN_FEATURES` (counted from `ai_call_logs`)        | `meal-plan.router.ts` → `lib/quotas.ts`                           |
-| Chat messages                  | per FREE user per UTC day    | from `PLAN_FEATURES` (counted from `ai_call_logs` CHAT)   | `chat.router.ts` → `ChatService.assertChatQuota`                  |
+| Limit                          | Scope                        | Value                                                                          | Where                                                             |
+| ------------------------------ | ---------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| Global tRPC flood              | per IP                       | `RATE_LIMIT_MAX`/`RATE_LIMIT_WINDOW_MS` (default 100/min)                      | `index.ts` (express-rate-limit)                                   |
+| `auth.login` / `auth.register` | per IP                       | 10 per 15 min                                                                  | `auth.router.ts` → `lib/rate-limit.ts` (in-memory sliding window) |
+| Plan generations               | per user per UTC day         | from `PLAN_FEATURES` (counted from `meal_plans` rows)                          | `meal-plan.router.ts` → `lib/quotas.ts`                           |
+| AI swaps                       | per premium user per UTC day | from `PLAN_FEATURES` (counted from `ai_call_logs`)                             | `meal-plan.router.ts` → `lib/quotas.ts`                           |
+| Chat messages                  | per FREE user per UTC day    | from `PLAN_FEATURES` (counted from `ai_call_logs` CHAT)                        | `chat.router.ts` → `ChatService.assertChatQuota`                  |
+| Meal photo scans (F4)          | per premium user per UTC day | from `PLAN_FEATURES` (counted from `ai_call_logs` SCAN); free tier → FORBIDDEN | `scan.router.ts` → `lib/quotas.ts` (`assertMealScanQuota`)        |
 
 The in-memory stores assume a single API instance; move to Redis (`REDIS_URL`
 is already in the env schema) before scaling horizontally. Per-tier quota
@@ -665,7 +667,7 @@ teaser for free (the full text never leaves the server). Depends on `IChefReview
 
 ### ChatService (application layer)
 
-`apps/api/src/application/chat/chat.service.ts` (P1-4). Backs `POST /api/chat`: enforces the matrix chat quota (`chatMessagesPerDay` — FREE 5/day counted from `ai_call_logs` CHAT rows, premium unlimited), builds a fresh per-message context from the user's REAL data (today's meals with macros + day totals, weekly overview, resolved daily targets, allergies/restrictions/dislikes, recent rating signals) and hands the model tools over the real services: `swapMeal` (performs an actual plan swap through MealPlanService, respecting the swap quota) and `scaleRecipe` (rescales ingredient quantities from the active plan). The Gemini implementation runs a bounded function-calling loop and streams the final answer; the mock echoes the same context and exercises the same tool handlers.
+`apps/api/src/application/chat/chat.service.ts` (P1-4). Backs `POST /api/chat`: enforces the matrix chat quota (`chatMessagesPerDay` — FREE 5/day counted from `ai_call_logs` CHAT rows, premium unlimited), builds a fresh per-message context from the user's REAL data (today's meals with macros + day totals, weekly overview, resolved daily targets, allergies/restrictions/dislikes, recent rating signals) and hands the model tools over the real services: `swapMeal` (performs an actual plan swap through MealPlanService, respecting the swap quota), `scaleRecipe` (rescales ingredient quantities from the active plan), `addToShoppingList` (items land in the customItems overlay) and `logMeal` (F4 "I ate this" — logs a manual custom entry into today's tracker via TrackerService, rebalance included). The Gemini implementation runs a bounded function-calling loop and streams the final answer; the mock echoes the same context and exercises the same tool handlers.
 
 ### MealPlanService (application layer)
 
@@ -677,6 +679,16 @@ teaser for free (the full text never leaves the server). Depends on `IChefReview
 - `swapRecipe(..., premium)` — premium: AI-generated alternative (with name-based image reuse + worker wake); free: random curated recipe of the same meal type from the safety-filtered pool (`PRECONDITION_FAILED` when nothing safe remains).
 - `list` / `restore` / `getById` — history + restore support.
 - Every assembled `WeekPlanDto` carries `estimatedCost` (P2-4): `application/shared/plan-cost.ts` sums per-line EUR estimates from the ingredient price vocabulary across all slots. Premium generation feeds `ChefProfile.weeklyBudgetEur` into the prompt as a hard budget constraint; the meal-plan page shows the week cost on every tier and an over-budget warning when the estimate exceeds the budget.
+
+### TrackerService & ScanService (application layer) — F4 Snap-to-Log
+
+`apps/api/src/application/tracker/tracker.service.ts`. Day log CRUD (`getDay`, `upsertDay`, summaries, weight). F4 additions: `logCustomMeal` (appends a custom entry `{ custom: { name, estimatedBy: 'vision'|'manual' }, … }` to the day, portionMultiplier fixed at 1 — macros arrive pre-edited from the confirm sheet), `deleteCustomMeal` (removes one custom entry by its index in the day's `loggedMeals` array; planned entries are rejected), and the `maybeRebalance` hook: after every log write (`upsertDay` and `logCustomMeal` — cook-mode and chat log through these same paths), users with `photoLogging` access get `rebalanceWeek` run against their active plan. Rebalance failures are swallowed (a log save must never fail because of it); mutations return `{ log, rebalance }` so the client can hand applied swaps to the meal-plan banner.
+
+`apps/api/src/application/tracker/scan.service.ts`. Backs `POST /api/scan-meal`: `assertMealScanQuota` (FORBIDDEN for free, TOO_MANY_REQUESTS at the matrix limit), writes the `SCAN` AiCallLog row up front (quota counts attempts), then `IAIService.analyzeMealPhoto(base64, mime)` → `{ dishName, confidence low|med|high, kcal, protein, carbs, fat, portionNote }` (Gemini multimodal structured output validated by `parseMealPhotoResponse` in `lib/ai/gemini.ts`; deterministic fixture in mock mode). Confirming the estimate is a separate `tracker.logCustomMeal` call — discarded scans never touch the DailyLog.
+
+### Rebalance (application layer) — F4
+
+`apps/api/src/application/meal-plan/rebalance.ts` (the wave-0 seam module — meal-plan.service.ts untouched). `selectRebalanceSwaps` is a pure, fixture-tested greedy selector: project the week (Σ logged kcal Mon…today + Σ planned kcal for days strictly after today) against 7×dailyCalorieTarget; when off by more than ±15%, swap up to 2 FUTURE slots for the curated-pool alternative that most reduces the deviation (safety-filtered pool, no AI call, ≥2%-of-target minimum improvement so re-runs converge to a no-op, stops early once back within tolerance). `rebalanceWeek(userId, planId)` orchestrates: current-week plans only, Sunday no-ops, applies swaps via `mealPlanRepository.updateDayMeal` and returns the previous↔new recipe pairs (+ `planId`) for the client-side undo banner (undo replays `mealPlan.replaceRecipe`; pairs live in localStorage — nothing server-side, wave-0 schema freeze).
 
 ### CuratedRecipes (lib)
 
@@ -850,6 +862,14 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `shoppingList.searchStores`     | Protected | Query    | `{ weekOffset?: number }`                                                                                                                                                                                    |
 | `dashboard.summary`             | Protected | Query    | —                                                                                                                                                                                                            |
 | `coach.currentReview`           | Protected | Query    | — latest weekly chef review while fresh (≤14 days), shaped by entitlement (F1): `full` for adaptiveCoaching, `teaser` (first line only) for free, `none` + eligibility counts otherwise                      |
+| `tracker.getDay`                | Protected | Query    | `{ date: YYYY-MM-DD }` — planned meals + the day's log (incl. custom entries) + resolved targets                                                                                                             |
+| `tracker.upsertDay`             | Protected | Mutation | `{ date, loggedMeals[] }` — entries are `recipeId` XOR `custom { name, estimatedBy }`; REPLACES the day's list; returns `{ log, rebalance }` (F4 — rebalance non-null only when future meals were swapped)   |
+| `tracker.logCustomMeal`         | Protected | Mutation | `{ date, name, estimatedBy: vision\|manual, mealType, kcal, protein?, carbs?, fat? }` — appends one custom entry (F4; manual quick-adds are free); returns `{ log, rebalance }`                              |
+| `tracker.deleteCustomMeal`      | Protected | Mutation | `{ date, entryIndex }` — removes one custom entry by its index in the day's `loggedMeals` (F4)                                                                                                               |
+| `tracker.weeklySummary`         | Protected | Query    | — trailing 7 days of totals                                                                                                                                                                                  |
+| `tracker.monthlySummary`        | Protected | Query    | — trailing 28 days of totals                                                                                                                                                                                 |
+| `tracker.logWeight`             | Protected | Mutation | `{ weightKg, date? }`                                                                                                                                                                                        |
+| `tracker.weightHistory`         | Protected | Query    | `{ days? }` (default 90)                                                                                                                                                                                     |
 
 ### Middleware Stack
 

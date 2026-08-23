@@ -69,6 +69,12 @@ const nextConfig: NextConfig = {
         source: '/api/chat',
         destination: `${process.env['API_INTERNAL_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'}/api/chat`,
       },
+      {
+        // Meal photo scan (F4 Snap-to-Log) — same API-owned endpoint pattern;
+        // Caddy routes it in production, this rewrite covers dev.
+        source: '/api/scan-meal',
+        destination: `${process.env['API_INTERNAL_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'}/api/scan-meal`,
+      },
     ];
   },
   async redirects() {

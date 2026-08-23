@@ -182,6 +182,18 @@ export interface ChatTools {
   }): Promise<string>;
   /** Latest weekly chef review — adherence, trend, adjustment (F1, coach). */
   getMyReview(): Promise<string>;
+  /**
+   * "I ate this" (F4 Snap-to-Log): appends a custom entry to today's tracker
+   * log. Macros are the model's estimate; missing ones default to 0.
+   */
+  logMeal(args: {
+    name: string;
+    kcal: number;
+    protein?: number;
+    carbs?: number;
+    fat?: number;
+    mealType?: string;
+  }): Promise<string>;
 }
 
 export interface ChatContext {
