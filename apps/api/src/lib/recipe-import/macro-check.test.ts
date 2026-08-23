@@ -64,6 +64,18 @@ describe('crossCheckMacros', () => {
     expect(result.computedCaloriesPerServing).toBe(400);
   });
 
+  it('withholds the computed number when it is implausibly far (>3×) from the stated one', () => {
+    const result = crossCheckMacros(
+      // Stated 1300 vs computed 400 → ratio 3.25: our number is more likely a
+      // coverage artefact than the page being wrong — uncertain, not quoted.
+      recipe({ nutritionInfo: { calories: 1300, protein: 30, carbs: 40, fat: 10, fiber: 4 } }),
+      vocabulary,
+    );
+    expect(result.status).toBe('uncertain');
+    expect(result.computedCaloriesPerServing).toBeNull();
+    expect(result.statedCaloriesPerServing).toBe(1300);
+  });
+
   it('returns unknown when vocabulary coverage is below half the lines', () => {
     const result = crossCheckMacros(recipe(), [row('chicken breast', 200)].slice(0, 0));
     expect(result.status).toBe('unknown');

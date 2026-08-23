@@ -334,9 +334,19 @@ function PreviewStep({
         <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="min-w-0">
-            Calorie estimate uncertain — the page says {preview.macroCheck.statedCaloriesPerServing}{' '}
-            kcal/serving, our ingredient data computes ~
-            {preview.macroCheck.computedCaloriesPerServing} kcal.
+            {preview.macroCheck.computedCaloriesPerServing !== null ? (
+              <>
+                Calorie estimate uncertain — the page says{' '}
+                {preview.macroCheck.statedCaloriesPerServing} kcal/serving, our ingredient data
+                computes ~{preview.macroCheck.computedCaloriesPerServing} kcal.
+              </>
+            ) : (
+              <>
+                Calorie estimate uncertain — we couldn&apos;t verify the page&apos;s{' '}
+                {preview.macroCheck.statedCaloriesPerServing} kcal/serving against our ingredient
+                data. Treat the macros as approximate.
+              </>
+            )}
           </span>
         </p>
       )}

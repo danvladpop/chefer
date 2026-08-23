@@ -14,6 +14,19 @@ const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
 };
 
 /**
+ * Mirrors the API's GOAL_ADJUSTMENTS (preferences.service.ts) so the preview
+ * shows the SAME number the planner and dashboard will use — showing raw
+ * maintenance here while everything else showed target-minus-deficit was
+ * review finding P-3.
+ */
+const GOAL_ADJUSTMENTS: Record<string, number> = {
+  LOSE_WEIGHT: -500,
+  MAINTAIN: 0,
+  GAIN_MUSCLE: 300,
+  EAT_HEALTHIER: 0,
+};
+
+/**
  * Mifflin-St Jeor.
  * Male: BMR = 10w + 6.25h - 5a + 5
  * Female: BMR = 10w + 6.25h - 5a - 161
@@ -88,11 +101,13 @@ export interface StepMetricsValues {
 interface StepMetricsProps {
   value: StepMetricsValues;
   onChange: (value: StepMetricsValues) => void;
+  /** Selected goal — applies its kcal adjustment to the live estimate (P-3). */
+  goal?: string | null;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function StepMetrics({ value, onChange }: StepMetricsProps) {
+export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
   // Unit toggles
   const [heightUnit, setHeightUnit] = useState<'cm' | 'ft'>('cm');
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
@@ -187,7 +202,7 @@ export function StepMetrics({ value, onChange }: StepMetricsProps) {
     value.heightCm > 0 &&
     value.weightKg > 0;
 
-  const calorieEstimate = canPreview
+  const maintenanceEstimate = canPreview
     ? estimateCalories(
         value.weightKg!,
         value.heightCm!,
@@ -196,6 +211,10 @@ export function StepMetrics({ value, onChange }: StepMetricsProps) {
         value.biologicalSex,
       )
     : null;
+  const goalAdjustment = goal ? (GOAL_ADJUSTMENTS[goal] ?? 0) : 0;
+  // Same floor as the API (computeCalorieTarget): never below 1200 kcal.
+  const calorieEstimate =
+    maintenanceEstimate !== null ? Math.max(1200, maintenanceEstimate + goalAdjustment) : null;
 
   // ── Shared input class ───────────────────────────────────────────────────────
 
@@ -412,7 +431,11 @@ export function StepMetrics({ value, onChange }: StepMetricsProps) {
               {calorieEstimate.toLocaleString()}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              kcal / day · Mifflin-St Jeor estimate
+              {goalAdjustment !== 0 && maintenanceEstimate !== null
+                ? `kcal / day · ${maintenanceEstimate.toLocaleString()} maintenance ${
+                    goalAdjustment < 0 ? '−' : '+'
+                  } ${Math.abs(goalAdjustment)} for your goal`
+                : 'kcal / day · Mifflin-St Jeor estimate'}
             </p>
           </>
         ) : (

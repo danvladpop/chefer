@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import {
   AiCallType,
   chefProfileRepository,
+  dailyLogRepository,
   dietaryPreferencesRepository,
   mealRatingRepository,
   prisma,
@@ -63,10 +64,11 @@ export class ChatService {
    * facts.
    */
   async buildContextSummary(user: UserProfile, plan: WeekPlanDto | null): Promise<string> {
-    const [profile, prefs, signals] = await Promise.all([
+    const [profile, prefs, signals, todayLog] = await Promise.all([
       chefProfileRepository.findByUserId(user.id),
       dietaryPreferencesRepository.findByUserId(user.id),
       mealRatingRepository.findSignalsForUser(user.id, 10),
+      dailyLogRepository.findByDate(user.id, startOfTodayUtc()),
     ]);
 
     const targets = resolveDailyTargets(profile);
@@ -98,7 +100,7 @@ export class ChatService {
         });
         lines.push(`Today (${DAY_NAMES[todayIdx]}) on the active plan:`, ...mealLines);
         lines.push(
-          `Today's plan totals: ${totals.calories} kcal, ${totals.protein}g protein, ${totals.carbs}g carbs, ${totals.fat}g fat.`,
+          `Today's PLANNED totals (from the meal plan, not necessarily eaten): ${totals.calories} kcal, ${totals.protein}g protein, ${totals.carbs}g carbs, ${totals.fat}g fat.`,
         );
       }
       const weekDishes = plan.days
@@ -111,6 +113,19 @@ export class ChatService {
     } else {
       lines.push('No active meal plan for this week yet — suggest generating one.');
     }
+
+    // Claim precision (review F-4): the model must never present planned food
+    // as eaten food. Give it the logged truth and an explicit framing rule.
+    if (todayLog && (todayLog.loggedMeals as unknown[]).length > 0) {
+      lines.push(
+        `Today's LOGGED intake (actually eaten and checked off): ${todayLog.totalKcal} kcal, ${todayLog.totalProtein}g protein, ${todayLog.totalCarbs}g carbs, ${todayLog.totalFat}g fat.`,
+      );
+    } else {
+      lines.push('Nothing has been logged as eaten today.');
+    }
+    lines.push(
+      'When answering questions about what the user is eating or ate, distinguish PLANNED (on the meal plan) from LOGGED (actually eaten). If nothing is logged, say the numbers come from the plan and nothing is logged yet — never state planned intake as fact.',
+    );
 
     const liked = signals.filter((s) => s.rating >= 4).map((s) => s.recipeName);
     const disliked = signals.filter((s) => s.rating <= 2).map((s) => s.recipeName);

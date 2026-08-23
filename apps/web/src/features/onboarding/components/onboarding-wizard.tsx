@@ -205,6 +205,7 @@ export function OnboardingWizard({ isPremium }: { isPremium: boolean }) {
                 activityLevel: data.activityLevel,
               }}
               onChange={(metrics) => setData((d) => ({ ...d, ...metrics }))}
+              goal={data.goal}
             />
           )}
 

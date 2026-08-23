@@ -279,6 +279,7 @@ export function PreferencesForm({
                   activityLevel: data.activityLevel,
                 }}
                 onChange={(metrics) => setData((d) => ({ ...d, ...metrics }))}
+                goal={data.goal}
               />
             </Section>
 
