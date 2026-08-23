@@ -268,6 +268,34 @@ per-feature §6/§8/business_flow/analytics docs; merge to master **one feature 
 (each deploys + prod-verifies before the next), throwaway prod account per verification,
 tiers restored. Prod verify checklist lives in each agent's handoff file.
 
+## 4.5 Interlude W1.5 — mock realism + AI-error polish (single session, BEFORE wave 2)
+
+Added 2026-08-23 after wave-1 integration (see §10 deviation 6): the Gemini key
+stays on the free tier (hard 20 requests/day on gemini-2.5-flash) until real
+users justify upgrading, so dev/UI/Playwright testing must be able to drive
+every AI branch without live calls. One session, orchestrator-safe (no agent
+ownership conflicts; wave 2 must not start until this lands because W2 agents
+develop against the mock's seam handling).
+
+1. **Scenario-steerable MockAIService** (defaults unchanged — existing tests
+   keep passing): keyword-steered `extractRecipe` fixture library (satay/peanut
+   → allergen-bearing fixture, beef → meaty, "no-recipe" → NO_RECIPE_FOUND,
+   else current pasta); `cheferizeRecipe` becomes a real deterministic adapter
+   (substitution map + serving rescale + accurate changes[], with a magic
+   "UNSAFE" name that leaves the allergen in to demo the P1-2 fail-closed
+   path); `analyzeMealPhoto` derives estimate + confidence from an image-byte
+   hash with a reachable ~1500+ kcal case (demoes rebalance); `generateMealPlan`
+   honors the wave-0 seam fields minimally (portionSum servings scaling,
+   useFirstIngredients injection) — **wave-2 agents depend on this**. Steering
+   conventions documented in mock.ts + infrastructure.md §7.
+2. **Friendly AI-failure errors**: map upstream AI failures (429/timeouts) in
+   the recipe-import + scan services to a friendly TRPCError ("The chef is
+   over capacity…"), raw error kept in server logs — the import sheet
+   currently renders the raw 429 JSON blob.
+
+Gates + push per §7; mock changes are inert in prod (`AI_MOCK_ENABLED=false`
+there). Update §10 when done.
+
 ## 5. Wave 2 — two parallel workstreams
 
 Branches `feat/household`, `feat/pantry`. These two share the generation prompt; the
@@ -478,16 +506,17 @@ test --project=mobile`).
 
 ## 10. Progress
 
-| Step                      | Status                                                                                                                                                                                                                                                                                                                       |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Wave 0 foundations        | ✅ 2026-08-23 (commits c2e4a3c + ae72b2e; deployed + prod-verified; deviations below)                                                                                                                                                                                                                                        |
-| W1-A coach                | ✅ 2026-08-23 — feat/coach handoff (engine/worker/router/banner/teaser, 40 tests)                                                                                                                                                                                                                                            |
-| W1-B snap                 | ✅ 2026-08-23 — feat/snap handoff (scan route, vision, rebalance, custom rows, ghost)                                                                                                                                                                                                                                        |
-| W1-C import               | ✅ 2026-08-23 — feat/import handoff (SSRF-guarded extract, Cheferize, blurred-diff ghost, 67 tests)                                                                                                                                                                                                                          |
-| Wave 1 integration + prod | ✅ 2026-08-23 — three deploys (2cc6f75 coach, 13051d2 snap, 9005e52 import+fix), each prod-verified via throwaway (weight log + review eligibility; /api/scan-meal 403 through Caddy + live quick-add; SSRF rejection + import quota + all /premium cards). Real-Gemini quality spot-check pending quota reset (deviation 6) |
-| W2-D household            | ⬜                                                                                                                                                                                                                                                                                                                           |
-| W2-E pantry               | ⬜                                                                                                                                                                                                                                                                                                                           |
-| Wave 2 integration + prod | ⬜                                                                                                                                                                                                                                                                                                                           |
+| Step                             | Status                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wave 0 foundations               | ✅ 2026-08-23 (commits c2e4a3c + ae72b2e; deployed + prod-verified; deviations below)                                                                                                                                                                                                                                        |
+| W1-A coach                       | ✅ 2026-08-23 — feat/coach handoff (engine/worker/router/banner/teaser, 40 tests)                                                                                                                                                                                                                                            |
+| W1-B snap                        | ✅ 2026-08-23 — feat/snap handoff (scan route, vision, rebalance, custom rows, ghost)                                                                                                                                                                                                                                        |
+| W1-C import                      | ✅ 2026-08-23 — feat/import handoff (SSRF-guarded extract, Cheferize, blurred-diff ghost, 67 tests)                                                                                                                                                                                                                          |
+| Wave 1 integration + prod        | ✅ 2026-08-23 — three deploys (2cc6f75 coach, 13051d2 snap, 9005e52 import+fix), each prod-verified via throwaway (weight log + review eligibility; /api/scan-meal 403 through Caddy + live quick-add; SSRF rejection + import quota + all /premium cards). Real-Gemini quality spot-check pending quota reset (deviation 6) |
+| W1.5 mock realism + error polish | ⬜ — spec in §4.5; run in a fresh session BEFORE wave 2                                                                                                                                                                                                                                                                      |
+| W2-D household                   | ⬜                                                                                                                                                                                                                                                                                                                           |
+| W2-E pantry                      | ⬜                                                                                                                                                                                                                                                                                                                           |
+| Wave 2 integration + prod        | ⬜                                                                                                                                                                                                                                                                                                                           |
 
 ### Wave-0 deviations (found against the real code, 2026-08-23)
 
