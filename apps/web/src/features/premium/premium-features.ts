@@ -3,6 +3,7 @@ import {
   CalendarCheck,
   CalendarDays,
   Camera,
+  Link2,
   RefreshCw,
   Target,
   TrendingUp,
@@ -31,14 +32,11 @@ export const PREMIUM_FEATURE_CARDS: PremiumFeatureCard[] = [
   { key: 'weeklyAutoGeneration', icon: CalendarCheck },
   { key: 'adaptiveCoaching', icon: TrendingUp },
   { key: 'photoLogging', icon: Camera },
+  { key: 'recipeImport', icon: Link2 },
 ];
 
 /** Matrix keys announced on /premium as "cooking now" until their wave lands. */
-export const COMING_SOON_KEYS: PlanFeatureKey[] = [
-  'recipeImport',
-  'householdPlans',
-  'pantryPlanning',
-];
+export const COMING_SOON_KEYS: PlanFeatureKey[] = ['householdPlans', 'pantryPlanning'];
 
 // ── Source-aware perk ordering (upgrade dialog v2, premium_plan.md §6.3) ──
 // Maps each upgrade `source` to the feature keys the user was looking at when

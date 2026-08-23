@@ -14,6 +14,7 @@ import { assertAiSwapQuota } from '../../lib/quotas.js';
 import { coachService } from '../coach/coach.service.js';
 import { mealPlanService, type WeekPlanDto } from '../meal-plan/meal-plan.service.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
+import { recipeImportService } from '../recipe-import/recipe-import.service.js';
 import { shoppingListService } from '../shopping-list/shopping-list.service.js';
 import { trackerService } from '../tracker/tracker.service.js';
 
@@ -207,6 +208,32 @@ export class ChatService {
           ? ` I also adjusted ${rebalance.swaps.length} upcoming meal${rebalance.swaps.length > 1 ? 's' : ''} to keep the week on track — the meal plan shows the change (with undo).`
           : '';
         return `Logged "${cleanName}" (${Math.round(kcal)} kcal) as today's ${type}. It now counts toward today's progress in the tracker.${rebalanceNote}`;
+      },
+
+      importRecipe: async ({ url }) => {
+        if (!/^https?:\/\//i.test(url)) return 'That does not look like a valid http(s) link.';
+        try {
+          const preview = await recipeImportService.preview(user, { url });
+          if (!isPremiumUser(user)) {
+            return `Extracted a preview of "${preview.original.name}" (${preview.changes.length} adaptation(s) possible for the user's preferences). Saving imported recipes is a premium feature — suggest the Import button on the Recipes page to see the preview, or upgrading to save it.`;
+          }
+          const useAdapted = preview.safety.ok && preview.changes.length > 0;
+          const saved = await recipeImportService.save(user, {
+            recipe: useAdapted ? preview.adapted : preview.original,
+            variant: useAdapted ? 'adapted' : 'original',
+            sourceUrl: preview.sourceUrl,
+            ogImageUrl: preview.ogImageUrl,
+          });
+          const changeNote = useAdapted
+            ? ` Cheferized with ${preview.changes.length} adaptation(s): ${preview.changes
+                .map((c) => c.description)
+                .slice(0, 4)
+                .join('; ')}.`
+            : ' No adaptations were needed.';
+          return `Imported "${saved.name}" into the user's collection (Recipes page → My Recipes).${changeNote} They can rate it or pin it into next week's plan.`;
+        } catch (err) {
+          return `Import failed: ${err instanceof Error ? err.message : 'unknown error'}`;
+        }
       },
 
       scaleRecipe: async ({ recipeName, servings }) => {

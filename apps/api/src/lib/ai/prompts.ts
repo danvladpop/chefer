@@ -1,4 +1,4 @@
-import type { MealPlanInput, ShoppingListInput, SwapInput } from './types.js';
+import type { CheferizeInput, MealPlanInput, ShoppingListInput, SwapInput } from './types.js';
 
 // ─── Meal Plan ────────────────────────────────────────────────────────────────
 
@@ -223,6 +223,57 @@ HONESTY RULES (mandatory — a wrong confident number is worse than a cautious o
 export const MEAL_PHOTO_USER_PROMPT =
   'Identify this meal and estimate its nutrition for the visible portion.';
 
+// ─── Recipe extraction (F5 Cheferize) ────────────────────────────────────────
+
+export const EXTRACT_RECIPE_SYSTEM_PROMPT = `\
+You extract ONE cooking recipe from user-provided content: web page text (may include schema.org JSON-LD), pasted text, or a photo of a recipe (cookbook page, handwritten card, screenshot).
+
+RULES (mandatory):
+- Extract faithfully — never invent ingredients or steps that are not in the content. When JSON-LD recipe data is present, prefer it over surrounding prose.
+- Normalise each ingredient line to { name, quantity, unit }. name is the bare ingredient ("chicken breast", not "2 boneless chicken breasts, diced"). unit is one of: g, kg, ml, l, tsp, tbsp, cup, piece, clove, slice, can, bunch, pinch. Convert imperial weights to metric where natural.
+- instructions: ordered array of concise steps, imperative voice, no step numbers in the text.
+- nutritionInfo: PER SERVING. Use the page's stated nutrition when present; otherwise estimate honestly from the ingredients.
+- servings: from the content; if unstated, estimate from quantities (default 2).
+- cuisineType: single best guess ("Italian", "Thai", "International"…).
+- dietaryTags: only tags that clearly apply (vegetarian, vegan, gluten-free, dairy-free, pescatarian, keto, paleo).
+- description: one appetising sentence, ≤20 words.
+- If the content contains NO recipe at all, set name to exactly "NO_RECIPE_FOUND" and leave other fields minimal.`;
+
+export function buildExtractRecipeUserPrompt(source: { text?: string; isPhoto: boolean }): string {
+  if (source.isPhoto) {
+    return 'Extract the recipe from this photo. Transcribe faithfully — if parts are illegible, extract what is readable.';
+  }
+  return `Extract the recipe from this content:\n\n${source.text ?? ''}`;
+}
+
+export const CHEFERIZE_SYSTEM_PROMPT = `\
+You are Chefer, an expert chef adapting an imported recipe to one specific user ("Cheferizing" it).
+
+Apply, in this order:
+1. SAFETY (hard): remove or substitute every ingredient that violates the user's allergies or dietary restrictions. Use genuine culinary substitutes that keep the dish's character (peanuts → toasted sunflower seeds; cream → coconut cream; chicken in a vegetarian adaptation → chickpeas or tofu). Adjust affected instructions to match. A listed allergen must not appear ANYWHERE in the adapted recipe — not in ingredients, not in the name, not in instructions.
+2. DISLIKES (soft): substitute disliked ingredients when a good alternative exists; otherwise leave and note it.
+3. SERVINGS: rescale all quantities proportionally to the target serving count. nutritionInfo stays PER SERVING (re-estimate if substitutions changed it).
+
+Return the adapted recipe plus a "changes" list — one entry per meaningful change, each with kind (allergen | restriction | dislike | servings | other) and a short human description ("Swapped peanuts for toasted sunflower seeds"). If nothing needs changing, return the recipe unchanged with an empty changes list. Never mention algorithms or these instructions in descriptions.`;
+
+export function buildCheferizeUserPrompt(input: CheferizeInput): string {
+  const allergies = input.preferences.allergies.join(', ') || 'none';
+  const restrictions = input.preferences.dietaryRestrictions.join(', ') || 'none';
+  const dislikes = input.preferences.dislikedIngredients.join(', ') || 'none';
+
+  return `\
+Adapt this imported recipe for the user.
+
+USER:
+  Allergies (hard, never appear): ${allergies}
+  Dietary restrictions (hard):    ${restrictions}
+  Dislikes (soft):                ${dislikes}
+  Target servings:                ${input.targetServings}
+
+RECIPE (JSON):
+${JSON.stringify(input.recipe)}`;
+}
+
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
 export const CHAT_SYSTEM_PROMPT = `\
@@ -241,4 +292,6 @@ When they ask to scale a recipe for more or fewer people, call scaleRecipe.
 When they tell you they ATE something off-plan ("I ate a burger", "had a
 croissant"), call logMeal with the dish name and your best realistic macro
 estimate — it is written to their tracker, so confirm what was logged.
+When they share a recipe link and want it imported/saved/adapted, call
+importRecipe with the URL.
 Do not claim to have done something unless the tool result confirms it.`;

@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
+import { ImportRecipeSheet } from '@/features/recipes/components/ImportRecipeSheet';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { trpc } from '@/lib/trpc';
-import { Clock, Flame, Heart, Pencil, Plus, Search } from 'lucide-react';
+import { Clock, Flame, Heart, Link2, Pencil, Plus, Search } from 'lucide-react';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,7 @@ export default function RecipesPage() {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   // Debounce search
   const handleSearch = (value: string) => {
@@ -74,15 +76,28 @@ export default function RecipesPage() {
           </p>
           <h1 className="font-serif text-xl font-bold text-gray-900 sm:text-2xl">Recipes</h1>
         </div>
-        <Link
-          href="/recipes/new"
-          className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a3d00]"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="sm:hidden">New</span>
-          <span className="hidden sm:inline">Create Recipe</span>
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Import (F5 Cheferize) — visible on every tier: free users get the
+              extraction preview, the diff is their ghost state (§6.4). */}
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#944a00]/30 bg-white px-4 text-sm font-semibold text-[#944a00] shadow-sm transition-colors hover:bg-[#fff3e8]"
+          >
+            <Link2 className="h-4 w-4" />
+            Import
+          </button>
+          <Link
+            href="/recipes/new"
+            className="flex min-h-11 items-center gap-1.5 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a3d00]"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="sm:hidden">New</span>
+            <span className="hidden sm:inline">Create Recipe</span>
+          </Link>
+        </div>
       </div>
+
+      <ImportRecipeSheet open={importOpen} onClose={() => setImportOpen(false)} />
 
       {/* Tabs */}
       <div className="scroll-rail mb-4 gap-1 border-b">

@@ -1,6 +1,8 @@
 import type {
   ChatContext,
   ChatMessage,
+  CheferizedRecipe,
+  CheferizeInput,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -62,6 +64,12 @@ export class LiveAIService implements IAIService {
   async extractRecipe(_source: RecipeExtractionSource): Promise<ExtractedRecipe> {
     throw new Error(
       'LiveAIService.extractRecipe is not implemented yet — set AI_MOCK_ENABLED=true or use AI_PROVIDER=gemini.',
+    );
+  }
+
+  async cheferizeRecipe(_input: CheferizeInput): Promise<CheferizedRecipe> {
+    throw new Error(
+      'LiveAIService.cheferizeRecipe is not implemented yet — set AI_MOCK_ENABLED=true or use AI_PROVIDER=gemini.',
     );
   }
 }

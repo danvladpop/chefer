@@ -112,6 +112,33 @@ export interface RecipeExtractionSource {
 /** RecipeData minus id/imageUrl — the AI extracts content, not identity. */
 export type ExtractedRecipe = Omit<RecipeData, 'id' | 'imageUrl'>;
 
+/** One adaptation the Cheferize pass made, listed in the diff UI. */
+export interface RecipeChange {
+  kind: 'allergen' | 'restriction' | 'dislike' | 'servings' | 'other';
+  description: string;
+}
+
+export interface CheferizeInput {
+  recipe: ExtractedRecipe;
+  /** The user's preferred serving count — quantities rescale to it. */
+  targetServings: number;
+  preferences: {
+    allergies: string[];
+    dietaryRestrictions: string[];
+    dislikedIngredients: string[];
+  };
+}
+
+/**
+ * Cheferize result. The AI's output is NEVER trusted for safety — the
+ * recipe-import service re-validates `adapted` with the P1-2 allergen
+ * matcher and fails closed when an allergen survived the adaptation.
+ */
+export interface CheferizedRecipe {
+  adapted: ExtractedRecipe;
+  changes: RecipeChange[];
+}
+
 export interface SwapInput {
   userId: string;
   originalRecipeName: string;
@@ -194,6 +221,8 @@ export interface ChatTools {
     fat?: number;
     mealType?: string;
   }): Promise<string>;
+  /** Imports a recipe from a URL (F5 Cheferize) — premium saves it, free gets a preview note. */
+  importRecipe(args: { url: string }): Promise<string>;
 }
 
 export interface ChatContext {
@@ -217,6 +246,12 @@ export interface IAIService {
   chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream>;
   /** F4 Snap-to-Log — Gemini implementation lands with feat/snap (wave 1). */
   analyzeMealPhoto(imageBase64: string, mimeType: string): Promise<MealPhotoEstimate>;
-  /** F5 Cheferize — Gemini implementation lands with feat/import (wave 1). */
+  /**
+   * F5 Cheferize — extraction from page text, pasted text or a photo.
+   * URL sources are fetched/stripped by the recipe-import service first;
+   * implementations receive `text` (or `imageBase64`), never fetch.
+   */
   extractRecipe(source: RecipeExtractionSource): Promise<ExtractedRecipe>;
+  /** F5 Cheferize — adapts an extracted recipe to the user's safety prefs + servings. */
+  cheferizeRecipe(input: CheferizeInput): Promise<CheferizedRecipe>;
 }
