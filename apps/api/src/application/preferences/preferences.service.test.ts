@@ -238,3 +238,74 @@ describe('resolveDailyTargets', () => {
     expect(t.proteinG).toBe(Math.round((1500 * 0.35) / 4));
   });
 });
+
+// ─── Adaptive Chef dial ordering (F1 — premium_plan.md W1-A) ─────────────────
+// Contract: targetAdjustmentKcal applies AFTER the goal adjustment and BEFORE
+// the protein cap. resolveDailyTargets is the only place the dial folds in.
+
+describe('resolveDailyTargets — targetAdjustmentKcal ordering', () => {
+  const METRICS = {
+    weightKg: 80,
+    heightCm: 180,
+    age: 30,
+    activityLevel: 'MODERATELY_ACTIVE',
+    biologicalSex: 'MALE',
+    goal: 'LOSE_WEIGHT',
+    dailyCalorieTarget: null,
+  };
+
+  it('applies the dial ON TOP of the goal adjustment (not instead of it)', () => {
+    const withoutDial = resolveDailyTargets(METRICS);
+    const withDial = resolveDailyTargets({ ...METRICS, targetAdjustmentKcal: -100 });
+    // Goal adjustment (−500 for LOSE) is already inside withoutDial; the dial
+    // subtracts a further 100.
+    expect(withDial.dailyCalorieTarget).toBe(withoutDial.dailyCalorieTarget - 100);
+    const maintain = resolveDailyTargets({ ...METRICS, goal: 'MAINTAIN' });
+    expect(withDial.dailyCalorieTarget).toBe(maintain.dailyCalorieTarget - 500 - 100);
+  });
+
+  it('a dial of 0 (the ChefProfile default) changes nothing', () => {
+    expect(resolveDailyTargets({ ...METRICS, targetAdjustmentKcal: 0 })).toEqual(
+      resolveDailyTargets(METRICS),
+    );
+  });
+
+  it('the protein cap runs AFTER the dial — capped grams ignore the dial size', () => {
+    // 75 kg GAIN_MUSCLE blows past the 2.2 g/kg cap with or without a dial;
+    // if the cap ran before the dial the freed-calorie redistribution would
+    // be computed on the wrong calorie base.
+    const base = resolveDailyTargets({ ...METRICS, weightKg: 75, goal: 'GAIN_MUSCLE' });
+    const dialed = resolveDailyTargets({
+      ...METRICS,
+      weightKg: 75,
+      goal: 'GAIN_MUSCLE',
+      targetAdjustmentKcal: 200,
+    });
+    expect(dialed.dailyCalorieTarget).toBe(base.dailyCalorieTarget + 200);
+    // Cap still binds at the same gram ceiling…
+    expect(dialed.proteinG).toBe(Math.round(75 * 2.2));
+    // …and the dial's calories land in carbs, keeping the books balanced.
+    const kcalFromMacros = dialed.proteinG * 4 + dialed.carbsG * 4 + dialed.fatG * 9;
+    expect(Math.abs(kcalFromMacros - dialed.dailyCalorieTarget)).toBeLessThan(20);
+  });
+
+  it('applies the dial to the snapshot path too (incomplete metrics)', () => {
+    const t = resolveDailyTargets({
+      ...METRICS,
+      weightKg: null,
+      dailyCalorieTarget: 1800,
+      targetAdjustmentKcal: 100,
+    });
+    expect(t.dailyCalorieTarget).toBe(1900);
+  });
+
+  it('never lets the dial push the target below the 1200 kcal safety floor', () => {
+    const t = resolveDailyTargets({
+      ...METRICS,
+      weightKg: null,
+      dailyCalorieTarget: 1250,
+      targetAdjustmentKcal: -300,
+    });
+    expect(t.dailyCalorieTarget).toBe(1200);
+  });
+});

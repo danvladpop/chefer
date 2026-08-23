@@ -61,6 +61,26 @@ vi.mock('../../lib/quotas.js', () => ({
   assertAiSwapQuota: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Coach pulls env validation via its Gemini review-text module — mock it like
+// the other service dependencies (F1).
+vi.mock('../coach/coach.service.js', () => ({
+  coachService: {
+    getCurrentReview: vi.fn().mockResolvedValue({
+      status: 'full',
+      review: {
+        weekStart: new Date('2026-08-17T00:00:00Z'),
+        adherencePct: 71,
+        avgDailyKcal: 2100,
+        weightTrendKg: -0.2,
+        adjustmentKcal: -100,
+        savedEur: null,
+        reviewText: 'A steady week, chef.\nKeep the dinners light.',
+        createdAt: new Date('2026-08-23T12:00:00Z'),
+      },
+    }),
+  },
+}));
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const user = (over: Partial<UserProfile> = {}): UserProfile => ({
@@ -210,5 +230,40 @@ describe('ChatService', () => {
     const result = await context.tools!.addToShoppingList({ items: [{ name: 'milk' }] });
     expect(result).toContain('generate a plan first');
     expect(shoppingListService.addCustomItems).not.toHaveBeenCalled();
+  });
+
+  it('getMyReview surfaces the latest chef review through the coach service (F1)', async () => {
+    const { coachService } = await import('../coach/coach.service.js');
+    vi.mocked(mealPlanService.getActive).mockResolvedValue(PLAN);
+    const { aiService } = await import('../../lib/ai/index.js');
+    await service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]);
+    const context = vi.mocked(aiService.chat).mock.calls.at(-1)![1];
+
+    const result = await context.tools!.getMyReview();
+
+    expect(coachService.getCurrentReview).toHaveBeenCalled();
+    expect(result).toContain('adherence 71%');
+    expect(result).toContain('-100 kcal');
+    expect(result).toContain('A steady week, chef.');
+  });
+
+  it('getMyReview for free users returns only the teaser line + upgrade hint', async () => {
+    const { coachService } = await import('../coach/coach.service.js');
+    vi.mocked(coachService.getCurrentReview).mockResolvedValueOnce({
+      status: 'teaser',
+      weekStart: new Date('2026-08-17T00:00:00Z'),
+      firstLine: 'A steady week, chef.',
+      lockedLineCount: 3,
+    });
+    vi.mocked(mealPlanService.getActive).mockResolvedValue(PLAN);
+    const { aiService } = await import('../../lib/ai/index.js');
+    await service.chat(user(), [{ role: 'user', content: 'hi' }]);
+    const context = vi.mocked(aiService.chat).mock.calls.at(-1)![1];
+
+    const result = await context.tools!.getMyReview();
+
+    expect(result).toContain('A steady week, chef.');
+    expect(result).not.toContain('Keep the dinners light.');
+    expect(result).toMatch(/premium/i);
   });
 });

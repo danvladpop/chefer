@@ -565,6 +565,15 @@ export class GeminiAIService implements IAIService {
                   required: ['items'],
                 } as Schema,
               },
+              {
+                name: 'getMyReview',
+                description:
+                  "Fetches the user's latest weekly chef review: logging adherence, average calories, weight trend and any calorie-target adjustment. Use when the user asks about their weekly review, check-in, progress, or why their calorie budget changed.",
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {},
+                } as Schema,
+              },
             ],
           },
         ]
@@ -617,6 +626,8 @@ export class GeminiAIService implements IAIService {
                 ? (args['items'] as { name: string; quantity?: number; unit?: string }[])
                 : [],
             });
+          } else if (call.name === 'getMyReview') {
+            result = await context.tools.getMyReview();
           } else {
             result = `Unknown tool: ${call.name}`;
           }

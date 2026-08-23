@@ -285,7 +285,8 @@ src/
 │   ├── dietary-preferences.repository.ts
 │   ├── meal-plan.repository.ts          # MealPlanRepository + IMealPlanRepository
 │   ├── favourite-recipe.repository.ts   # FavouriteRecipeRepository + IFavouriteRecipeRepository
-│   └── meal-rating.repository.ts        # MealRatingRepository + IMealRatingRepository
+│   ├── meal-rating.repository.ts        # MealRatingRepository + IMealRatingRepository
+│   └── chef-review.repository.ts        # ChefReviewRepository + IChefReviewRepository (F1)
 ├── index.ts           # Public exports
 └── seed.ts            # Development seed script
 prisma/
@@ -293,7 +294,7 @@ prisma/
 └── migrations/        # Auto-generated migration history
 ```
 
-**Exports:** `prisma`, `PrismaClient`, all repository classes, singleton instances, and interfaces; all Prisma model types (`User`, `ChefProfile`, `DietaryPreferences`, `Recipe`, `MealPlan`, `MealPlanDay`, `FavouriteRecipe`, `MealRating`); enums (`UserRole`, `PostStatus`, `MealPlanStatus`, `BiologicalSex`, `Prisma`).
+**Exports:** `prisma`, `PrismaClient`, all repository classes, singleton instances, and interfaces; all Prisma model types (`User`, `ChefProfile`, `DietaryPreferences`, `Recipe`, `MealPlan`, `MealPlanDay`, `FavouriteRecipe`, `MealRating`, `DailyLog`, `WeightEntry`, `ChefReview`); enums (`UserRole`, `PostStatus`, `MealPlanStatus`, `BiologicalSex`, `Prisma`).
 
 ### 5.2 `@chefer/types`
 
@@ -645,6 +646,23 @@ Maps domain errors (e.g., `UserNotFoundError`) to tRPC error codes.
 `apps/api/src/application/preferences/preferences.service.ts`. Methods: `hasProfile`, `get`, `setup`, `update` (backing both `preferences.updateSafety` and `preferences.updateTargets` — the split is enforced at the router's auth level, P1-2).
 Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a Prisma `$transaction`. Recomputes `dailyCalorieTarget` via Mifflin-St Jeor on every update. Accepts `deliveryAddress` and `deliveryCurrency` fields.
 
+### CoachService (application layer)
+
+`apps/api/src/application/coach/coach.service.ts` (F1 Adaptive Chef). The Sunday review loop:
+`runReviewSweep` (called by WeeklyPlanWorker BEFORE plan generation) finds users with ≥3 logged
+days in the closing week and writes one `ChefReview` row per user-week, idempotently
+(`@@unique(userId, weekStart)`, weekStart = UTC Monday midnight). Metrics and the adjustment
+policy live in the PURE module `application/coach/review.service.ts` (adherence, avg kcal,
+EWMA α=0.25 weight trend over `WeightEntry` rows; LOSE plateau ×2 consecutive → −100 kcal
+floored at BMR×1.1, GAIN stall → +100 kcal ceilinged at TDEE+500, adherence <50% → no change).
+Premium adjustments accumulate in `ChefProfile.targetAdjustmentKcal`, which `resolveDailyTargets`
+applies AFTER the goal adjustment and BEFORE the protein cap — free-tier reviews are written
+teaser-only (dial untouched). Review prose comes from `application/coach/review-text.ts`
+(direct Gemini call, non-medical tone rules; deterministic template in mock mode or on failure).
+`getCurrentReview` shapes the payload by entitlement: full for `adaptiveCoaching`, first-line
+teaser for free (the full text never leaves the server). Depends on `IChefReviewRepository`,
+`IChefProfileRepository`, `IWeightEntryRepository` (constructor-injected for tests).
+
 ### ChatService (application layer)
 
 `apps/api/src/application/chat/chat.service.ts` (P1-4). Backs `POST /api/chat`: enforces the matrix chat quota (`chatMessagesPerDay` — FREE 5/day counted from `ai_call_logs` CHAT rows, premium unlimited), builds a fresh per-message context from the user's REAL data (today's meals with macros + day totals, weekly overview, resolved daily targets, allergies/restrictions/dislikes, recent rating signals) and hands the model tools over the real services: `swapMeal` (performs an actual plan swap through MealPlanService, respecting the swap quota) and `scaleRecipe` (rescales ingredient quantities from the active plan). The Gemini implementation runs a bounded function-calling loop and streams the final answer; the mock echoes the same context and exercises the same tool handlers.
@@ -831,6 +849,7 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `shoppingList.regenerate`       | Premium   | Mutation | `{ weekOffset?: number }` — AI-consolidates the list and persists it (ShoppingList table); customItems survive                                                                                               |
 | `shoppingList.searchStores`     | Protected | Query    | `{ weekOffset?: number }`                                                                                                                                                                                    |
 | `dashboard.summary`             | Protected | Query    | —                                                                                                                                                                                                            |
+| `coach.currentReview`           | Protected | Query    | — latest weekly chef review while fresh (≤14 days), shaped by entitlement (F1): `full` for adaptiveCoaching, `teaser` (first line only) for free, `none` + eligibility counts otherwise                      |
 
 ### Middleware Stack
 

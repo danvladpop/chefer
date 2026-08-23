@@ -61,3 +61,10 @@ export {
   type IWeightEntryRepository,
   type CreateWeightEntryData,
 } from './weight-entry.repository';
+
+export {
+  ChefReviewRepository,
+  chefReviewRepository,
+  type IChefReviewRepository,
+  type UpsertChefReviewData,
+} from './chef-review.repository';

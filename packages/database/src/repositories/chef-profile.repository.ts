@@ -14,6 +14,8 @@ export interface UpsertChefProfileData {
   activityLevel?: ActivityLevel | null;
   goal?: Goal | null;
   dailyCalorieTarget?: number | null;
+  /** Adaptive Chef (F1): cumulative weekly-review calorie dial. */
+  targetAdjustmentKcal?: number;
   weeklyBudgetEur?: number | null;
   deliveryAddress?: string | null;
   deliveryCurrency?: string | null;

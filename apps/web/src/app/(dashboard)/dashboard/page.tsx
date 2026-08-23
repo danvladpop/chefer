@@ -3,6 +3,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
+import { ChefReviewBanner } from '@/features/coach/components/ChefReviewBanner';
+import { WeightCard } from '@/features/coach/components/WeightCard';
 import { NutritionSummary } from '@/features/dashboard/components/nutrition-summary';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { getRecipeImageProps } from '@/lib/recipe-image';
@@ -92,6 +94,10 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* F1 Adaptive Chef: weekly review (full for premium, blurred teaser
+            for free) — renders nothing until a review exists and is fresh. */}
+        <ChefReviewBanner />
 
         {showProfileNudge && (
           <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#944a00]/20 bg-[#fff3e8] p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -406,6 +412,9 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
         )}
+
+        {/* F1: weight quick-entry + 30-day sparkline (free — feeds coaching) */}
+        <WeightCard />
 
         {/* Recent Favourites */}
         <div className="overflow-hidden rounded-2xl border bg-white p-4 shadow-sm sm:p-5">

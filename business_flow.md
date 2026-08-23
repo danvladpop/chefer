@@ -19,6 +19,7 @@
 11. [Password Reset Flow](#11-password-reset-flow)
 12. [Cook Mode Flow](#12-cook-mode-flow)
 13. [AI Chat Flow](#13-ai-chat-flow)
+14. [Adaptive Chef Weekly Review Flow](#14-adaptive-chef-weekly-review-flow)
 
 ---
 
@@ -626,5 +627,63 @@ POST /api/chat (session cookie)
 Routing: Caddy sends `/api/chat` to the API in production; a Next.js rewrite
 proxies it in dev. `apps/web` no longer touches Prisma anywhere (Architecture
 Rule 1 exception removed).
+
+---
+
+## 14. Adaptive Chef Weekly Review Flow
+
+**F1 (premium_plan.md W1-A).** Every Sunday the chef reviews the week that is
+ending and — for premium users — adjusts the calorie budget the next week is
+generated against. Free users keep static targets but still get a real review
+teaser (§6.4 ghost state).
+
+```
+WeeklyPlanWorker Sunday tick (BEFORE plan generation — ordering matters:
+the adjusted target must shape next week's budget)
+  ├─ CoachService.runReviewSweep(now)
+  │    ├─ candidates: users with ≥3 DailyLog rows since UTC Monday (groupBy)
+  │    └─ per user: runWeeklyReview(userId, now, applyAdjustment=premium?)
+  │         ├─ idempotency: existing ChefReview row for (userId, weekStart
+  │         │    = UTC Monday midnight, @@unique) → no-op; second tick on the
+  │         │    same Sunday changes nothing
+  │         ├─ <3 logged days → no review ("log more days" is itself the coach)
+  │         ├─ metrics (application/coach/review.service.ts — pure, unit-tested):
+  │         │    adherence = logged days / 7; avg kcal over logged days;
+  │         │    weight trend = EWMA (α=0.25) over ≤28 days of WeightEntry
+  │         │    rows, null unless ≥5 points spanning ≥10 days
+  │         ├─ adjustment policy (deterministic, conservative):
+  │         │    adherence <50% → nothing, coach the habit;
+  │         │    LOSE plateau (trend ≥ −0.1 kg/wk) for 2 CONSECUTIVE reviews
+  │         │    → −100 kcal (floor BMR×1.1, partial clamp);
+  │         │    GAIN stall (trend ≤ +0.05) → +100 kcal (ceiling TDEE+500);
+  │         │    free tier: policy skipped entirely (adjustmentKcal = 0)
+  │         ├─ dial: ChefProfile.targetAdjustmentKcal += adjustment.
+  │         │    resolveDailyTargets applies the dial AFTER the goal
+  │         │    adjustment and BEFORE the protein cap — so the dashboard
+  │         │    ring, tracker bars, chat context AND next week's generation
+  │         │    budget all move together (ordering unit-tested)
+  │         └─ prose: Gemini (application/coach/review-text.ts — warm,
+  │              non-medical, never mentions BMR/algorithms; first line
+  │              stands alone) with the deterministic template as mock/
+  │              failure fallback → ChefReview row written last
+  └─ plan generation sweep (PW-5) — reads the moved targets
+```
+
+**Surfaces:**
+
+- `coach.currentReview` (protected query) returns the latest review while
+  fresh (≤14 days after its weekStart), shaped by entitlement:
+  `full` for `adaptiveCoaching` accounts; `teaser` (FIRST line only +
+  `lockedLineCount` — the full text never leaves the server) for free;
+  `none` with `loggedDaysThisWeek`/`daysNeeded` otherwise.
+- Dashboard banner (`ChefReviewBanner`): premium sees summary chips + a
+  full-review Sheet (`chef_review_viewed`); free sees the blurred-teaser ghost
+  state (`upgrade_prompt_shown {source: 'coach-review'}` on impression,
+  `teaser_engaged {feature: 'coach'}` on interaction, UpgradeButton).
+- Dashboard `WeightCard`: free-for-everyone weight quick-entry + 30-day
+  sparkline over the existing `tracker.logWeight`/`tracker.weightHistory`
+  procedures (`weight_logged` on save) + "log N more days" coaching hint.
+- Chat tool `getMyReview`: the model can quote the latest review; free users
+  get the teaser line + an upgrade suggestion.
 
 ---
