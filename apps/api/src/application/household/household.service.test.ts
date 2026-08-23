@@ -161,7 +161,7 @@ describe('mergeHouseholdSafety — the hard union', () => {
 describe('HouseholdService — member limit (matrix householdMembers)', () => {
   it('free tier cannot add members (limit 0 → FORBIDDEN)', async () => {
     const repo = makeRepo();
-    const service = new HouseholdService(repo as never);
+    const service = new HouseholdService(repo);
 
     await expect(service.add(freeUser, { name: 'Maria' })).rejects.toMatchObject({
       code: 'FORBIDDEN',
@@ -171,7 +171,7 @@ describe('HouseholdService — member limit (matrix householdMembers)', () => {
 
   it('premium under the cap creates the member', async () => {
     const repo = makeRepo(4); // 4 existing < 5 cap
-    const service = new HouseholdService(repo as never);
+    const service = new HouseholdService(repo);
 
     const created = await service.add(premiumUser, { name: 'Maria', portionFactor: 0.5 });
 
@@ -181,7 +181,7 @@ describe('HouseholdService — member limit (matrix householdMembers)', () => {
 
   it('premium AT the cap (5) is rejected and nothing is created', async () => {
     const repo = makeRepo(5);
-    const service = new HouseholdService(repo as never);
+    const service = new HouseholdService(repo);
 
     await expect(service.add(premiumUser, { name: 'One More' })).rejects.toMatchObject({
       code: 'FORBIDDEN',
@@ -192,7 +192,7 @@ describe('HouseholdService — member limit (matrix householdMembers)', () => {
 
   it("update/remove of another user's member surface NOT_FOUND (ownership-scoped repo)", async () => {
     const repo = makeRepo();
-    const service = new HouseholdService(repo as never);
+    const service = new HouseholdService(repo);
 
     await expect(service.update('user-prem', 'not-mine', { name: 'X' })).rejects.toMatchObject({
       code: 'NOT_FOUND',

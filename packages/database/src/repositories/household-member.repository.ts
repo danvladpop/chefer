@@ -63,13 +63,15 @@ export class HouseholdMemberRepository implements IHouseholdMemberRepository {
     // updateMany so the WHERE can include userId (ownership without a
     // separate read); 0 rows touched = not this user's member. Undefined
     // fields are stripped — "not sent" must mean "unchanged".
-    const payload: Record<string, unknown> = {};
+    const payload: Prisma.HouseholdMemberUpdateManyMutationInput = {};
     for (const [key, value] of Object.entries(data)) {
-      if (value !== undefined) payload[key] = value;
+      if (value !== undefined) {
+        (payload as Record<string, unknown>)[key] = value;
+      }
     }
     const result = await prisma.householdMember.updateMany({
       where: { id: memberId, userId },
-      data: payload as Prisma.HouseholdMemberUpdateManyMutationInput,
+      data: payload,
     });
     if (result.count === 0) return null;
     return prisma.householdMember.findUnique({ where: { id: memberId } });

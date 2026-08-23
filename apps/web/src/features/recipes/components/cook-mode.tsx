@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
+import { useHousehold } from '@/hooks/useHousehold';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
@@ -111,6 +112,9 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   const mealType = searchParams.get('meal') ?? guessMealType();
 
   const { data: recipe, isLoading } = trpc.mealPlan.getRecipe.useQuery({ recipeId });
+  // F2: with household members, cooking defaults to the whole table's
+  // portion sum (the same number generation scaled the plan's servings to).
+  const { portionSum } = useHousehold();
 
   const [step, setStep] = useState(0);
   const [finished, setFinished] = useState(false);
@@ -120,7 +124,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   const [logged, setLogged] = useState(false);
 
   const baseServings = recipe?.servings ?? 1;
-  const selectedServings = servings ?? baseServings;
+  const selectedServings = servings ?? portionSum ?? baseServings;
   const scale = selectedServings / baseServings;
 
   // ── Wake lock: the screen must survive a 10-step recipe (feature-detect,

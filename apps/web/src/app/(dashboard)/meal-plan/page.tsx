@@ -11,6 +11,7 @@ import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
 import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { useHasMounted } from '@/hooks/useHasMounted';
+import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { useRecipeImageStream, type RecipeImageUpdate } from '@/hooks/useRecipeImageStream';
 import { capture } from '@/lib/analytics';
@@ -114,6 +115,10 @@ export default function MealPlanPage() {
   const { data: prefs } = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
   const weekCost = plan?.estimatedCost?.totalEur ?? null;
   const weeklyBudget = prefs?.chefProfile?.weeklyBudgetEur ?? null;
+  // F2: with household members the week feeds several people — show the cost
+  // per person next to the household total.
+  const { memberCount, peopleCount } = useHousehold();
+  const perPersonCost = weekCost !== null && memberCount > 0 ? weekCost / peopleCount : null;
   const overBudget =
     weekCost !== null && weeklyBudget !== null && weekCost > weeklyBudget
       ? Math.round((weekCost - weeklyBudget) * 100) / 100
@@ -278,6 +283,11 @@ export default function MealPlanPage() {
             title="Estimated ingredient cost for the whole week"
           >
             <Euro className="h-3 w-3" aria-hidden="true" />≈ €{weekCost.toFixed(2)} this week
+            {perPersonCost !== null && (
+              <span className="font-normal opacity-80">
+                · €{perPersonCost.toFixed(2)}/person for {peopleCount}
+              </span>
+            )}
           </span>
         )}
 
