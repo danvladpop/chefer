@@ -38,6 +38,10 @@ export {
   weightEntryRepository,
   type IWeightEntryRepository,
   type CreateWeightEntryData,
+  ChefReviewRepository,
+  chefReviewRepository,
+  type IChefReviewRepository,
+  type UpsertChefReviewData,
 } from './repositories/index';
 
 // Re-export Prisma types for convenience
@@ -58,6 +62,7 @@ export type {
   MealRating,
   DailyLog,
   WeightEntry,
+  ChefReview,
   IngredientPrice,
   ShoppingList,
 } from '@prisma/client';
