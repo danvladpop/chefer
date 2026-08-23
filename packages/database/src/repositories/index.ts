@@ -68,3 +68,10 @@ export {
   type IChefReviewRepository,
   type UpsertChefReviewData,
 } from './chef-review.repository';
+
+export {
+  PantryItemRepository,
+  pantryItemRepository,
+  type IPantryItemRepository,
+  type UpsertPantryItemData,
+} from './pantry-item.repository';
