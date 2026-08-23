@@ -7,6 +7,7 @@ import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
+import { PantryUsageBanner } from '@/features/pantry/components/PantryUsageBanner';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
 import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
@@ -20,6 +21,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  CookingPot,
   Euro,
   ImageIcon,
   RefreshCw,
@@ -170,7 +172,12 @@ export default function MealPlanPage() {
     pinnedDishNames: string[];
     likedCount: number;
     dislikedCount: number;
+    usedPantryItems?: string[];
   } | null>(null);
+
+  // F3 "cook once, eat twice" generation option (premium): pairs dinners with
+  // next-day leftover lunches. Plain state — remembered per visit, not stored.
+  const [leftovers, setLeftovers] = useState(false);
 
   const generateMutation = trpc.mealPlan.generate.useMutation({
     onMutate: () => {
@@ -194,7 +201,8 @@ export default function MealPlanPage() {
     },
   });
 
-  const handleGenerate = () => generateMutation.mutate({ weekOffset });
+  const handleGenerate = () =>
+    generateMutation.mutate({ weekOffset, ...(leftovers && { leftovers: true }) });
 
   // ?generate=1 (dashboard's "Generate My Week", prod-followups #9): start
   // generation on arrival when the week has no plan yet. Fires at most once
@@ -299,6 +307,24 @@ export default function MealPlanPage() {
           </span>
         )}
 
+        {/* F3 "cook once, eat twice" toggle — premium generation option */}
+        {!isPast && isPremium && (
+          <button
+            type="button"
+            onClick={() => setLeftovers((v) => !v)}
+            aria-pressed={leftovers}
+            title="Pair dinners with next-day leftover lunches (doubled servings)"
+            className={`flex min-h-11 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium shadow-sm transition-colors sm:min-h-0 ${
+              leftovers
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <CookingPot className="h-3.5 w-3.5" aria-hidden="true" />
+            Cook once, eat twice
+          </button>
+        )}
+
         {!isPast && (
           <button
             onClick={handleGenerate}
@@ -368,6 +394,13 @@ export default function MealPlanPage() {
             </p>
           </div>
         )}
+
+      {/* F3: "uses N things you already have" — fires plan_used_pantry itself */}
+      {personalisation?.usedPantryItems && personalisation.usedPantryItems.length > 0 && (
+        <div className="mx-4 mb-2 sm:mx-6">
+          <PantryUsageBanner usedPantryItems={personalisation.usedPantryItems} />
+        </div>
+      )}
 
       {/* Week-rebalance banner (F4 Snap-to-Log): what the chef adjusted + undo */}
       {isCurrent && plan && (
@@ -514,6 +547,7 @@ export default function MealPlanPage() {
                           readOnly={isPast}
                           imageUrlOverride={override?.imageUrl}
                           imageStatusOverride={override?.status}
+                          leftoverLabel={slot.leftoverOf}
                         />
                       );
                     })}

@@ -36,6 +36,8 @@ interface MealCardProps {
    * where the full width is available and the grid proportions look starved.
    */
   variant?: 'grid' | 'row';
+  /** F3 leftovers: source-day name ("Tuesday") when this slot re-plates a dinner. */
+  leftoverLabel?: string | undefined;
 }
 
 const MEAL_TYPE_LABELS: Record<string, string> = {
@@ -61,6 +63,7 @@ export function MealCard({
   imageUrlOverride,
   imageStatusOverride,
   variant = 'grid',
+  leftoverLabel,
 }: MealCardProps) {
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const href = `/recipes/${recipe.id}?planId=${planId}&day=${dayOfWeek}&meal=${mealType}`;
@@ -91,6 +94,11 @@ export function MealCard({
             >
               {MEAL_TYPE_LABELS[mealType] ?? mealType}
             </span>
+            {leftoverLabel && (
+              <span className="ml-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                Leftovers from {leftoverLabel}
+              </span>
+            )}
             <p className="mt-1 line-clamp-2 text-sm font-semibold leading-snug text-gray-900">
               {recipe.name}
             </p>
@@ -146,6 +154,11 @@ export function MealCard({
         >
           {MEAL_TYPE_LABELS[mealType] ?? mealType}
         </span>
+        {leftoverLabel && (
+          <span className="absolute bottom-2 left-2 rounded-full bg-emerald-100/90 px-2 py-0.5 text-[9px] font-semibold text-emerald-800 backdrop-blur-sm">
+            Leftovers · {leftoverLabel.slice(0, 3)}
+          </span>
+        )}
       </div>
 
       {/* Card body — fixed height so all cards are the same size */}

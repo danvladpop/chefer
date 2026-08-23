@@ -25,6 +25,8 @@ interface NutritionInfo {
 
 interface MealSlot {
   type: string;
+  /** F3 leftovers: source-day name when the slot re-plates a dinner. */
+  leftoverOf?: string;
   recipe: {
     id: string;
     name: string;
@@ -158,6 +160,7 @@ export function DayView({
                   readOnly={readOnly}
                   imageUrlOverride={override?.imageUrl}
                   imageStatusOverride={override?.status}
+                  leftoverLabel={slot.leftoverOf}
                 />
               );
             })}
