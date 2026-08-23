@@ -34,6 +34,12 @@ export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 export interface MealSlot {
   type: MealType;
   recipe: RecipeData;
+  /**
+   * F3 leftovers ("cook once, eat twice"): set on a lunch slot that reuses
+   * the previous day's doubled dinner — the source day's name ("Tuesday").
+   * Json-only label, no schema change (premium_plan.md §5 W2-E.5).
+   */
+  leftoverOf?: string;
 }
 
 export interface DayPlan {
@@ -84,6 +90,12 @@ export interface MealPlanInput {
   };
   /** Pantry items generation should prefer (F3 — feat/pantry fills this). */
   useFirstIngredients?: { name: string; quantity: number; unit: string; reason: string }[];
+  /**
+   * F3 "cook once, eat twice": prompts the model toward dinners that reheat
+   * well; the deterministic pairing itself is applied post-generation by
+   * `application/pantry/leftovers.ts#pairLeftovers`.
+   */
+  leftoversMode?: boolean;
 }
 
 // ─── Meal photo analysis (F4 Snap-to-Log) ────────────────────────────────────
@@ -223,6 +235,12 @@ export interface ChatTools {
   }): Promise<string>;
   /** Imports a recipe from a URL (F5 Cheferize) — premium saves it, free gets a preview note. */
   importRecipe(args: { url: string }): Promise<string>;
+  /**
+   * "What can I make?" (F3 pantry): ranks known recipes by how much of them
+   * the user's pantry already covers. Premium answers with matches; free
+   * gets an honest teaser.
+   */
+  whatCanIMake(): Promise<string>;
 }
 
 export interface ChatContext {

@@ -75,8 +75,25 @@ export function buildHouseholdSection(input: MealPlanInput): string {
 export function buildUseFirstSection(input: MealPlanInput): string {
   const items = input.useFirstIngredients;
   if (!items?.length) return '';
-  const list = items.map((i) => `${i.name} (${i.quantity} ${i.unit} — ${i.reason})`).join(', ');
-  return `Pantry (soft constraint, like budget): the user already has ${list}. Prefer recipes that use these up before they go to waste; do not force them into every meal.`;
+  // Quantity 0 is the pantry's "some" state (amount unknown) — never show
+  // a literal "0 g" to the model or it will plan around zero food.
+  const list = items
+    .map((i) => {
+      const amount = i.quantity > 0 ? `${i.quantity} ${i.unit}` : 'some';
+      return `${i.name} (${amount} — ${i.reason})`;
+    })
+    .join(', ');
+  return `Pantry (soft constraint, like budget): the user already has ${list}. Listed oldest first — the earlier an item appears, the more urgently it should be used up. Work at least the first two into this week's dinners or lunches where they fit naturally; do not force them into every meal, and never let a pantry item override the safety rules.`;
+}
+
+/** F3 leftovers ("cook once, eat twice") — owned by feat/pantry. */
+export function buildLeftoversSection(input: MealPlanInput): string {
+  if (!input.leftoversMode) return '';
+  // Soft steer only: the deterministic dinner→next-lunch pairing (doubled
+  // servings + "Leftovers from …" labels) is applied post-generation by
+  // application/pantry/leftovers.ts#pairLeftovers — the model just needs to
+  // produce dinners worth doubling.
+  return `Cook-once-eat-twice week: favour dinners that keep and reheat well (stews, curries, bakes, grain bowls) — 2-3 of them will be cooked in a double batch and eaten again as the next day's lunch. Avoid dinners that die overnight (fried textures, delicate seafood).`;
 }
 
 export function buildMealPlanUserPrompt(input: MealPlanInput): string {
@@ -119,7 +136,11 @@ export function buildMealPlanUserPrompt(input: MealPlanInput): string {
     );
   }
   // Wave-2 seams — each returns '' until its feature fills the field.
-  for (const section of [buildHouseholdSection(input), buildUseFirstSection(input)]) {
+  for (const section of [
+    buildHouseholdSection(input),
+    buildUseFirstSection(input),
+    buildLeftoversSection(input),
+  ]) {
     if (section) signalLines.push(section);
   }
 

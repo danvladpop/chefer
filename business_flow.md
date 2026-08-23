@@ -22,6 +22,8 @@
 14. [Adaptive Chef Weekly Review Flow](#14-adaptive-chef-weekly-review-flow)
 15. [Snap-to-Log Flow (F4)](#15-snap-to-log-flow-f4)
 16. [Recipe Import & Cheferize Flow](#16-recipe-import--cheferize-flow)
+17. _(reserved for the F2 Household flow — lands with feat/household)_
+18. [Zero-Waste Pantry Flow (F3)](#18-zero-waste-pantry-flow-f3)
 
 ---
 
@@ -872,3 +874,68 @@ keeps applying to free curated plans; add/edit come back with premium.
 **Events:** `household_member_added`, `upgrade_prompt_shown {source:
 'household'}`, `teaser_engaged {feature: 'household'}` (see
 docs/analytics-funnel.md).
+
+---
+
+## 18. Zero-Waste Pantry Flow (F3)
+
+**F3 "Zero-Waste Kitchen"** (premium_plan.md W2-E): Chefer remembers what the user
+bought, plans around it, and shows the savings in euros. v1 is deliberately honest —
+no per-recipe gram depletion; a weekly 60-second confirm instead.
+
+```
+SEEDING (all tiers — the free ghost state needs real data)
+shoppingList.toggleItems { keys, checked: true }        (protected)
+  ├─ P1-5 check-off transaction commits first (a pantry failure never
+  │    breaks the check-off)
+  └─ PantryService.seedFromPurchases: each checked item's name/qty/unit →
+       upsert PantryItem (source PURCHASE, name normalized,
+       @@unique(userId, ingredientName, unit) collapses re-buys)
+       ├─ STAPLES DENYLIST: salt, pepper, oil/vinegar/salt families, water,
+       │    sugar, dried spices… are NEVER tracked
+       └─ unchecking does NOT remove — you bought it last week, you have it
+
+DEPLETION v1 (premium)
+pantry.confirmWeekly { clearIds }                        (premium)
+  ├─ auto-prompted once per week on the shopping list (Sunday / first visit,
+  │    localStorage-cooldowned; also manual from the pantry page header)
+  ├─ tapped items are deleted ("used it up")
+  └─ kept rows older than 7 days decay quantity → 0 = the "some" state
+       (amount unknown; updatedAt PRESERVED so use-first order holds)
+
+PLANNING (premium — wired by the wave-2 integrator into the household-owned loader)
+mealPlan.generate
+  ├─ aiInput.useFirstIngredients ← getUseFirstIngredients(userId)
+  │    (application/pantry/pantry-context.ts — top 5, OLDEST updatedAt first,
+  │     human reason strings; buildUseFirstSection renders the soft-constraint
+  │     prompt section, quantity 0 rendered as "some")
+  ├─ optional leftoversMode → buildLeftoversSection steers dinners, then
+  │    pairLeftovers() pairs 2-3 dinner → next-day-lunch slots with doubled
+  │    servings and `leftoverOf` labels (Json only, no schema change)
+  └─ personalisation.usedPantryItems ← computeUsedPantryItemsForUser(...)
+       → meal-plan banner "uses N things you already have"
+       → analytics `plan_used_pantry {itemCount}`
+
+LIST SUBTRACTION (premium)
+shoppingList.getForWeek / regenerate
+  ├─ pantry-covered derived/AI items get `pantryCovered` ("Have it" chip),
+  │    are EXCLUDED from estimatedTotalEur; custom items never subtracted
+  ├─ header savings counter: pantry.savedEur = Σ estimated prices of covered
+  │    items ("saved ~€X this week")
+  ├─ one-tap re-add = pantry.markOutOfStock { ingredientName } — clears the
+  │    pantry rows, item returns to the buy list
+  └─ coach seam: PantryService.computeWeekPantrySavings(userId, weekStart)
+       → ChefReview.savedEur (written by coach code at review time)
+
+CHAT
+whatCanIMake tool → PantryService.whatCanIMake: ranks active-plan + curated
+recipes by pantry coverage (staples assumed on hand); free tier gets an
+honest teaser.
+```
+
+**Free-tier ghost state (§6.4):** check-offs really seed the pantry, so after any
+check-off session the shopping list header shows "You now have N items in your
+kitchen — premium plans cook from them" plus the REAL computed savings figure for
+this list. The `/pantry` page is visible read-only with the upsell. Events:
+`upgrade_prompt_shown {source: pantry}` (impression), `teaser_engaged {feature:
+pantry}`, `pantry_confirmed`, `plan_used_pantry {itemCount}`.

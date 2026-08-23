@@ -81,6 +81,17 @@ vi.mock('../coach/coach.service.js', () => ({
   },
 }));
 
+// Pantry pulls curated pools + price libs — stub the singleton (F3).
+vi.mock('../pantry/pantry.service.js', () => ({
+  pantryService: {
+    whatCanIMake: vi
+      .fn()
+      .mockResolvedValue(
+        "From the 2 item(s) in the user's kitchen, the best matches:\n- Halloumi Couscous Bowl",
+      ),
+  },
+}));
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const user = (over: Partial<UserProfile> = {}): UserProfile => ({
@@ -265,5 +276,19 @@ describe('ChatService', () => {
     expect(result).toContain('A steady week, chef.');
     expect(result).not.toContain('Keep the dinners light.');
     expect(result).toMatch(/premium/i);
+  });
+
+  it('whatCanIMake answers through the pantry service (F3)', async () => {
+    const { pantryService } = await import('../pantry/pantry.service.js');
+    vi.mocked(mealPlanService.getActive).mockResolvedValue(PLAN);
+    const { aiService } = await import('../../lib/ai/index.js');
+    const premium = user({ planTier: 'PREMIUM' });
+    await service.chat(premium, [{ role: 'user', content: 'hi' }]);
+    const context = vi.mocked(aiService.chat).mock.calls.at(-1)![1];
+
+    const result = await context.tools!.whatCanIMake();
+
+    expect(pantryService.whatCanIMake).toHaveBeenCalledWith(premium);
+    expect(result).toContain('Halloumi Couscous Bowl');
   });
 });

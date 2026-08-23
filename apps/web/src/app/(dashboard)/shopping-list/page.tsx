@@ -3,6 +3,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  PantryConfirmSheet,
+  PantryWeeklyConfirmAuto,
+} from '@/features/pantry/components/PantryConfirmSheet';
+import { PantryGhostBanner } from '@/features/pantry/components/PantryGhostBanner';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { WeekNavigator } from '@/features/shopping-list/components/WeekNavigator';
 import { useLocalStorage } from '@/hooks/use-local-storage';
@@ -12,12 +17,15 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import {
   CheckCircle2,
+  ClipboardCheck,
   Info,
   Lightbulb,
   MoreHorizontal,
   Plus,
   Printer,
   RefreshCw,
+  Refrigerator,
+  RotateCcw,
   ShoppingCart,
   Smartphone,
   X,
@@ -146,6 +154,11 @@ export default function ShoppingListPage() {
         utils.shoppingList.getForWeek.setData({ weekOffset }, context.previous);
       }
     },
+    // F3: checking off seeds the pantry server-side — refresh the (cheap)
+    // pantry list so kitchen counts update mid-session.
+    onSuccess: (_data, vars) => {
+      if (vars.checked) void utils.pantry.list.invalidate();
+    },
   });
 
   const toggleItem = (key: string) => {
@@ -169,6 +182,17 @@ export default function ShoppingListPage() {
   const removeItemMutation = trpc.shoppingList.removeCustomItem.useMutation({
     onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
   });
+
+  // F3: one-tap re-add on a "have it" item — clears the pantry row ("I'm out
+  // of it"), which puts the item back into the buy list and the total.
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const markOutMutation = trpc.pantry.markOutOfStock.useMutation({
+    onSuccess: () => {
+      void utils.shoppingList.getForWeek.invalidate();
+      void utils.pantry.list.invalidate();
+    },
+  });
+  const pantry = weekList?.pantry;
 
   const handleAddItem = () => {
     const parsed = parseCustomItemInput(newItemText);
@@ -336,7 +360,50 @@ export default function ShoppingListPage() {
             Est. total ~€{weekList.estimatedTotalEur.toFixed(2)}
           </span>
         )}
+
+        {/* F3 savings counter: Σ prices of pantry-covered items, already
+            excluded from the total above */}
+        {pantry?.entitled && pantry.savedEur > 0 && (
+          <span
+            title="Items you already have, subtracted from this list"
+            className="whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
+          >
+            Saved ~€{pantry.savedEur.toFixed(2)} this week
+          </span>
+        )}
+
+        {/* Kitchen link (+ manual weekly check for premium) */}
+        {pantry && pantry.itemCount > 0 && (
+          <span className="flex items-center gap-1">
+            <Link
+              href="/pantry"
+              className="flex min-h-11 items-center gap-1 whitespace-nowrap rounded-full border border-neutral-200 px-3 py-1 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 sm:min-h-0"
+            >
+              <Refrigerator className="h-3.5 w-3.5 shrink-0" />
+              Kitchen ({pantry.itemCount})
+            </Link>
+            {pantry.entitled && (
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(true)}
+                title="Still have these? Run the weekly kitchen check"
+                aria-label="Run the weekly kitchen check"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-200 text-neutral-500 transition hover:bg-neutral-50 sm:h-7 sm:w-7"
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </span>
+        )}
       </div>
+
+      {/* F3 §6.4 ghost state (free tier): real seeded item count + the real
+          savings this list would have seen */}
+      {pantry && !pantry.entitled && (
+        <div className="mb-5" data-print-hide>
+          <PantryGhostBanner savedEur={pantry.savedEur} />
+        </div>
+      )}
 
       {/* Empty state */}
       {!weekList?.hasPlan ? (
@@ -418,7 +485,7 @@ export default function ShoppingListPage() {
                     // things depending on which pixel you hit.
                     <div
                       key={item.key}
-                      className={`flex items-center gap-1 rounded-xl border transition ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
+                      className={`flex items-center gap-1 rounded-xl border transition ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : item.pantryCovered ? 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
                     >
                       {/* Primary target — the whole row toggles bought/not */}
                       <button
@@ -442,18 +509,29 @@ export default function ShoppingListPage() {
 
                         <div className="min-w-0 flex-1">
                           <p
-                            className={`truncate text-sm font-medium ${isChecked ? 'text-neutral-500 line-through' : 'text-neutral-800'}`}
+                            className={`flex items-center gap-1.5 text-sm font-medium ${isChecked ? 'text-neutral-500 line-through' : 'text-neutral-800'}`}
                           >
-                            {item.ingredientName}
+                            <span className="min-w-0 truncate">{item.ingredientName}</span>
+                            {/* F3 "have it" chip — the pantry covers this item */}
+                            {item.pantryCovered && (
+                              <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                                Have it
+                              </span>
+                            )}
                           </p>
                           {/* Quantity and price share a line — as separate
                               columns the name was squeezed to ~150px. */}
                           <p className="truncate text-xs text-neutral-500">
                             {quantityLabel}
                             {item.estimatedPriceEur != null && (
-                              <span className="ml-2 font-medium">
+                              <span
+                                className={`ml-2 font-medium ${item.pantryCovered ? 'line-through opacity-60' : ''}`}
+                              >
                                 ~€{item.estimatedPriceEur.toFixed(2)}
                               </span>
+                            )}
+                            {item.pantryCovered && (
+                              <span className="ml-2 text-emerald-600">in your kitchen</span>
                             )}
                           </p>
                         </div>
@@ -466,9 +544,24 @@ export default function ShoppingListPage() {
                         </span>
                       </button>
 
-                      {/* Secondary target — detail for derived items, remove
-                          for user-added ones */}
-                      {item.isCustom ? (
+                      {/* Secondary target — re-add for "have it" items,
+                          detail for derived items, remove for user-added
+                          ones */}
+                      {item.pantryCovered ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            markOutMutation.mutate({ ingredientName: item.ingredientName })
+                          }
+                          disabled={markOutMutation.isPending}
+                          aria-label={`Out of ${item.ingredientName} — add it back to the list`}
+                          title="I'm out of it — add back to the list"
+                          className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-emerald-500 transition hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+                          data-print-hide
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </button>
+                      ) : item.isCustom ? (
                         <button
                           type="button"
                           onClick={() =>
@@ -544,6 +637,11 @@ export default function ShoppingListPage() {
           </div>
         </div>
       </Sheet>
+
+      {/* F3: manual weekly kitchen check (header button) + the once-a-week
+          auto prompt (Sunday / first visit of the week, premium only) */}
+      <PantryConfirmSheet open={confirmOpen} onClose={() => setConfirmOpen(false)} />
+      <PantryWeeklyConfirmAuto />
     </div>
   );
 }

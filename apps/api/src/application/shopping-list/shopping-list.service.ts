@@ -3,11 +3,16 @@ import {
   AiCallType,
   chefProfileRepository,
   mealPlanRepository,
+  pantryItemRepository,
   prisma,
+  type MealPlan,
+  type MealPlanDay,
   type Prisma,
 } from '@chefer/database';
+import type { UserProfile } from '@chefer/types';
 import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient } from '../../lib/ai/types.js';
+import { hasFeature } from '../../lib/entitlements.js';
 import { groceryAIService } from '../../lib/grocery-ai/index.js';
 import type { GroceryCategory, GrocerySearchResult } from '../../lib/grocery-ai/index.js';
 import { resolveIngredientImage } from '../../lib/ingredient-images/index.js';
@@ -16,6 +21,8 @@ import {
   normalizeIngredientName,
 } from '../../lib/ingredient-prices/index.js';
 import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js';
+import { buildPantryMatcher } from '../pantry/pantry-match.js';
+import { pantryService } from '../pantry/pantry.service.js';
 import { inferCategory } from '../shared/category-map.js';
 
 export interface ShoppingListItemForWeek {
@@ -30,6 +37,27 @@ export interface ShoppingListItemForWeek {
   estimatedPriceEur: number | null;
   /** True for user-added items (chat tool or manual add) — removable in the UI. */
   isCustom?: boolean;
+  /**
+   * F3: the user's pantry already has this ingredient ("have it" chip) —
+   * excluded from `estimatedTotalEur`. Only ever set for `pantryPlanning`
+   * accounts; the one-tap re-add clears the pantry row (`pantry.markOutOfStock`).
+   */
+  pantryCovered?: boolean;
+}
+
+/** F3 pantry summary attached to every served list. */
+export interface ShoppingListPantryInfo {
+  /** Whether this account's tier gets the actual subtraction (pantryPlanning). */
+  entitled: boolean;
+  /** Total PantryItem rows the user has ("You now have N items…"). */
+  itemCount: number;
+  /**
+   * Σ estimated prices of pantry-covered items on THIS list. For entitled
+   * accounts these items are excluded from `estimatedTotalEur` ("saved ~€X
+   * this week"); for free accounts it is the §6.4 ghost figure ("would have
+   * saved ~€X") — the list total itself is untouched.
+   */
+  savedEur: number;
 }
 
 export interface WeekShoppingList {
@@ -45,6 +73,8 @@ export interface WeekShoppingList {
   aiGenerated: boolean;
   /** Item keys the user has checked off — synced across devices (P1-5). */
   checkedKeys: string[];
+  /** F3 pantry subtraction summary — always present (zeros when pantry is empty). */
+  pantry: ShoppingListPantryInfo;
 }
 
 /** Items as persisted in the ShoppingList table (images/prices re-resolved on read). */
@@ -128,59 +158,64 @@ export class ShoppingListService {
     return { items, estimatedTotalEur };
   }
 
-  async getForWeek(userId: string, weekOffset: number): Promise<WeekShoppingList> {
-    const weekStart = getMondayOfWeek(weekOffset);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-
-    // Find the plan for this week (single indexed query); for offset 0 fall
-    // back to the active plan.
-    let targetPlan = await mealPlanRepository.findByWeekStart(userId, weekStart);
-    if (!targetPlan && weekOffset === 0) {
-      targetPlan = await mealPlanRepository.findActiveWithDays(userId);
+  /**
+   * F3 pantry subtraction: marks pantry-covered items ("have it") and
+   * recomputes the totals. `pantryPlanning` accounts get the real
+   * subtraction — covered items leave `estimatedTotalEur` and `savedEur`
+   * counts what stays in the kitchen; free accounts keep their numbers and
+   * receive the ghost figures only (§6.4). Custom items are deliberate adds
+   * and are never subtracted.
+   */
+  private async applyPantry(
+    user: UserProfile,
+    items: ShoppingListItemForWeek[],
+    estimatedTotalEur: number | null,
+  ): Promise<{
+    items: ShoppingListItemForWeek[];
+    estimatedTotalEur: number | null;
+    pantry: ShoppingListPantryInfo;
+  }> {
+    const entitled = hasFeature(user, 'pantryPlanning');
+    const pantryRows = await pantryItemRepository.findByUser(user.id);
+    if (pantryRows.length === 0) {
+      return { items, estimatedTotalEur, pantry: { entitled, itemCount: 0, savedEur: 0 } };
     }
 
-    if (!targetPlan) {
-      return {
-        planId: null,
-        weekStartDate: weekStart.toISOString(),
-        weekEndDate: weekEnd.toISOString(),
-        hasPlan: false,
-        items: [],
-        weekOffset,
-        estimatedTotalEur: null,
-        aiGenerated: false,
-        checkedKeys: [],
-      };
-    }
+    const matcher = buildPantryMatcher(pantryRows.map((row) => row.ingredientName));
+    const coveredKeys = new Set(
+      items
+        .filter((item) => !item.isCustom && matcher(item.ingredientName) !== null)
+        .map((item) => item.key),
+    );
+    const round = (v: number) => Math.round(v * 100) / 100;
+    const savedEur = round(
+      items
+        .filter((item) => coveredKeys.has(item.key))
+        .reduce((sum, item) => sum + (item.estimatedPriceEur ?? 0), 0),
+    );
+    const pantry: ShoppingListPantryInfo = { entitled, itemCount: pantryRows.length, savedEur };
 
-    // The stored row serves two jobs: the AI-consolidated item list (written
-    // by regenerate, aiGenerated=true) and the synced check-off state (P1-5,
-    // which may exist on a bare row before any regenerate). Only AI rows are
-    // an ITEM source — a bare row must not shadow the derived list.
-    const stored = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
-    const checkedKeys = [...new Set(stored?.checkedKeys ?? [])];
-    // User-added items overlay whichever list is served (derived or AI).
-    const customItems = readCustomItems(stored?.customItems);
-    if (stored?.aiGenerated) {
-      const { items, estimatedTotalEur } = await this.finalizeItems([
-        ...(stored.items as unknown as StoredShoppingListItem[]),
-        ...customItems,
-      ]);
-      return {
-        planId: targetPlan.id,
-        weekStartDate: weekStart.toISOString(),
-        weekEndDate: weekEnd.toISOString(),
-        hasPlan: true,
-        items,
-        weekOffset,
-        estimatedTotalEur,
-        aiGenerated: true,
-        checkedKeys,
-      };
-    }
+    if (!entitled) return { items, estimatedTotalEur, pantry };
 
-    // Collect all recipe IDs
+    const marked = items.map((item) =>
+      coveredKeys.has(item.key) ? { ...item, pantryCovered: true } : item,
+    );
+    const priced = marked.filter((item) => item.estimatedPriceEur !== null);
+    const newTotal =
+      priced.length > 0
+        ? round(
+            priced
+              .filter((item) => !item.pantryCovered)
+              .reduce((sum, item) => sum + (item.estimatedPriceEur ?? 0), 0),
+          )
+        : null;
+    return { items: marked, estimatedTotalEur: newTotal, pantry };
+  }
+
+  /** Derived (non-AI) item lines from the plan's recipes — the P1-5 merge. */
+  private async buildDerivedRawItems(
+    targetPlan: MealPlan & { days: MealPlanDay[] },
+  ): Promise<StoredShoppingListItem[]> {
     type MealSlotJson = { type: string; recipeId: string };
     const uniqueIds = [
       ...new Set(
@@ -229,7 +264,7 @@ export class ShoppingListService {
       }
     }
 
-    const rawItems = [...merged.entries()].map(([key, data]) => ({
+    return [...merged.entries()].map(([key, data]) => ({
       key: `${targetPlan.id}-${key}`,
       ingredientName: data.name.charAt(0).toUpperCase() + data.name.slice(1),
       quantity: Number.isInteger(data.quantity) ? String(data.quantity) : data.quantity.toFixed(1),
@@ -237,8 +272,76 @@ export class ShoppingListService {
       category: data.category,
       recipeNames: [...data.recipeIds].map((id) => recipeMap.get(id)?.name ?? '').filter(Boolean),
     }));
+  }
 
-    const { items, estimatedTotalEur } = await this.finalizeItems([...rawItems, ...customItems]);
+  async getForWeek(user: UserProfile, weekOffset: number): Promise<WeekShoppingList> {
+    const userId = user.id;
+    const weekStart = getMondayOfWeek(weekOffset);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    // Find the plan for this week (single indexed query); for offset 0 fall
+    // back to the active plan.
+    let targetPlan = await mealPlanRepository.findByWeekStart(userId, weekStart);
+    if (!targetPlan && weekOffset === 0) {
+      targetPlan = await mealPlanRepository.findActiveWithDays(userId);
+    }
+
+    if (!targetPlan) {
+      const { pantry } = await this.applyPantry(user, [], null);
+      return {
+        planId: null,
+        weekStartDate: weekStart.toISOString(),
+        weekEndDate: weekEnd.toISOString(),
+        hasPlan: false,
+        items: [],
+        weekOffset,
+        estimatedTotalEur: null,
+        aiGenerated: false,
+        checkedKeys: [],
+        pantry,
+      };
+    }
+
+    // The stored row serves two jobs: the AI-consolidated item list (written
+    // by regenerate, aiGenerated=true) and the synced check-off state (P1-5,
+    // which may exist on a bare row before any regenerate). Only AI rows are
+    // an ITEM source — a bare row must not shadow the derived list.
+    const stored = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
+    const checkedKeys = [...new Set(stored?.checkedKeys ?? [])];
+    // User-added items overlay whichever list is served (derived or AI).
+    const customItems = readCustomItems(stored?.customItems);
+    if (stored?.aiGenerated) {
+      const finalized = await this.finalizeItems([
+        ...(stored.items as unknown as StoredShoppingListItem[]),
+        ...customItems,
+      ]);
+      const { items, estimatedTotalEur, pantry } = await this.applyPantry(
+        user,
+        finalized.items,
+        finalized.estimatedTotalEur,
+      );
+      return {
+        planId: targetPlan.id,
+        weekStartDate: weekStart.toISOString(),
+        weekEndDate: weekEnd.toISOString(),
+        hasPlan: true,
+        items,
+        weekOffset,
+        estimatedTotalEur,
+        aiGenerated: true,
+        checkedKeys,
+        pantry,
+      };
+    }
+
+    const rawItems = await this.buildDerivedRawItems(targetPlan);
+    const finalized = await this.finalizeItems([...rawItems, ...customItems]);
+    const { items, estimatedTotalEur, pantry } = await this.applyPantry(
+      user,
+      finalized.items,
+      finalized.estimatedTotalEur,
+    );
 
     return {
       planId: targetPlan.id,
@@ -250,7 +353,36 @@ export class ShoppingListService {
       estimatedTotalEur,
       aiGenerated: false,
       checkedKeys,
+      pantry,
     };
+  }
+
+  /**
+   * F3 seeding: checked-off items are purchases — upsert them into the
+   * pantry (source PURCHASE; staples excluded inside PantryService).
+   * Unchecking never removes: you bought it last week and still have it.
+   */
+  private async seedPantryFromKeys(
+    userId: string,
+    plan: MealPlan & { days: MealPlanDay[] },
+    keys: string[],
+  ): Promise<void> {
+    const stored = await prisma.shoppingList.findUnique({ where: { planId: plan.id } });
+    const candidates: StoredShoppingListItem[] = [
+      ...(stored?.aiGenerated
+        ? (stored.items as unknown as StoredShoppingListItem[])
+        : await this.buildDerivedRawItems(plan)),
+      ...readCustomItems(stored?.customItems),
+    ];
+    const wanted = new Set(keys);
+    const purchased = candidates
+      .filter((item) => wanted.has(item.key))
+      .map((item) => ({
+        name: item.ingredientName,
+        quantity: parseFloat(item.quantity),
+        unit: item.unit,
+      }));
+    await pantryService.seedFromPurchases(userId, purchased);
   }
 
   /**
@@ -293,6 +425,16 @@ export class ShoppingListService {
           },
           { isolationLevel: 'Serializable' },
         );
+        // F3: checking off = buying — seed the pantry (all tiers: the free
+        // ghost state needs the real item count/savings). Never let a pantry
+        // failure break the check-off itself.
+        if (checked) {
+          try {
+            await this.seedPantryFromKeys(userId, plan, keys);
+          } catch (err) {
+            console.error('[pantry] Failed to seed from check-off:', err);
+          }
+        }
         return { checkedKeys };
       } catch (err) {
         // P2034: transaction conflict — the concurrent writer won; retry on
@@ -409,7 +551,8 @@ export class ShoppingListService {
     }
   }
 
-  async regenerate(userId: string, weekOffset: number): Promise<WeekShoppingList> {
+  async regenerate(user: UserProfile, weekOffset: number): Promise<WeekShoppingList> {
+    const userId = user.id;
     const weekStart = getMondayOfWeek(weekOffset);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
@@ -427,6 +570,7 @@ export class ShoppingListService {
     }
 
     if (!targetPlan) {
+      const { pantry } = await this.applyPantry(user, [], null);
       return {
         planId: null,
         weekStartDate: weekStart.toISOString(),
@@ -437,6 +581,7 @@ export class ShoppingListService {
         estimatedTotalEur: null,
         aiGenerated: false,
         checkedKeys: [],
+        pantry,
       };
     }
 
@@ -509,10 +654,15 @@ export class ShoppingListService {
     });
 
     const stored = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
-    const { items, estimatedTotalEur } = await this.finalizeItems([
+    const finalized = await this.finalizeItems([
       ...rawItems,
       ...readCustomItems(stored?.customItems),
     ]);
+    const { items, estimatedTotalEur, pantry } = await this.applyPantry(
+      user,
+      finalized.items,
+      finalized.estimatedTotalEur,
+    );
 
     return {
       planId: targetPlan.id,
@@ -524,6 +674,7 @@ export class ShoppingListService {
       estimatedTotalEur,
       aiGenerated: true,
       checkedKeys: [],
+      pantry,
     };
   }
 

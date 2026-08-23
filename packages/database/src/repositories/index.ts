@@ -76,3 +76,10 @@ export {
   type CreateHouseholdMemberData,
   type UpdateHouseholdMemberData,
 } from './household-member.repository';
+
+export {
+  PantryItemRepository,
+  pantryItemRepository,
+  type IPantryItemRepository,
+  type UpsertPantryItemData,
+} from './pantry-item.repository';
