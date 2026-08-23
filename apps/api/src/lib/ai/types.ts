@@ -180,6 +180,8 @@ export interface ChatTools {
   addToShoppingList(args: {
     items: { name: string; quantity?: number; unit?: string }[];
   }): Promise<string>;
+  /** Latest weekly chef review — adherence, trend, adjustment (F1, coach). */
+  getMyReview(): Promise<string>;
 }
 
 export interface ChatContext {

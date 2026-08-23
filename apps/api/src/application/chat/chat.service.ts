@@ -11,6 +11,7 @@ import { aiService } from '../../lib/ai/index.js';
 import type { ChatContext, ChatMessage, ChatTools } from '../../lib/ai/index.js';
 import { getLimit, isPremiumUser } from '../../lib/entitlements.js';
 import { assertAiSwapQuota } from '../../lib/quotas.js';
+import { coachService } from '../coach/coach.service.js';
 import { mealPlanService, type WeekPlanDto } from '../meal-plan/meal-plan.service.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { shoppingListService } from '../shopping-list/shopping-list.service.js';
@@ -155,6 +156,28 @@ export class ChatService {
         if (cleaned.length === 0) return 'No valid items given.';
         const { added } = await shoppingListService.addCustomItems(user.id, plan.planId, cleaned);
         return `Added to this week's shopping list: ${added.join(', ')}. The user can see and remove them on the Shopping List page.`;
+      },
+
+      getMyReview: async () => {
+        const result = await coachService.getCurrentReview(user);
+        if (result.status === 'none') {
+          return result.daysNeeded > 0
+            ? `No weekly review yet — the chef writes one every Sunday once at least 3 days of meals were logged that week. ${result.loggedDaysThisWeek} day(s) logged so far; ${result.daysNeeded} more needed.`
+            : 'No weekly review yet — the first one is written on Sunday.';
+        }
+        if (result.status === 'teaser') {
+          return `The latest review starts: "${result.firstLine}" — the full review and automatic target adjustments are part of premium (Adaptive Coaching). Suggest upgrading to read it.`;
+        }
+        const r = result.review;
+        const trendLine =
+          r.weightTrendKg != null
+            ? `, weight trend ${r.weightTrendKg > 0 ? '+' : ''}${r.weightTrendKg.toFixed(2)} kg/week`
+            : '';
+        const adjLine =
+          r.adjustmentKcal !== 0
+            ? `, calorie budget adjusted by ${r.adjustmentKcal > 0 ? '+' : ''}${r.adjustmentKcal} kcal`
+            : '';
+        return `Latest chef review (week of ${r.weekStart.toISOString().slice(0, 10)}): adherence ${r.adherencePct}%, average ${r.avgDailyKcal} kcal/day${trendLine}${adjLine}.\n${r.reviewText}`;
       },
 
       scaleRecipe: async ({ recipeName, servings }) => {

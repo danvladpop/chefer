@@ -37,6 +37,25 @@ const GOAL_MACRO_SPLITS: Record<string, { protein: number; carbs: number; fat: n
 };
 
 /**
+ * Raw Mifflin-St Jeor BMR + activity-multiplied TDEE. Exported for the
+ * Adaptive Chef (F1): the weekly-review adjustment policy needs the safe
+ * bounds (floor BMR×1.1, ceiling TDEE+500) without the goal adjustment.
+ */
+export function computeBmrTdee(
+  weightKg: number,
+  heightCm: number,
+  age: number,
+  activityLevel: string,
+  biologicalSex: string | null,
+): { bmr: number; tdee: number } {
+  // Mifflin-St Jeor: male +5, female −161, unknown average −78
+  const sexConstant = biologicalSex === 'MALE' ? 5 : biologicalSex === 'FEMALE' ? -161 : -78;
+  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + sexConstant;
+  const multiplier = ACTIVITY_MULTIPLIERS[activityLevel] ?? 1.55;
+  return { bmr: Math.round(bmr), tdee: Math.round(bmr * multiplier) };
+}
+
+/**
  * Goal-adjusted daily calorie target (Mifflin-St Jeor TDEE + goal adjustment,
  * e.g. −500 kcal for LOSE_WEIGHT). Exported so meal-plan generation can
  * recompute it live from body metrics — the stored ChefProfile value is only
@@ -50,11 +69,7 @@ export function computeCalorieTarget(
   biologicalSex: string | null,
   goal?: string | null,
 ): number {
-  // Mifflin-St Jeor: male +5, female −161, unknown average −78
-  const sexConstant = biologicalSex === 'MALE' ? 5 : biologicalSex === 'FEMALE' ? -161 : -78;
-  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + sexConstant;
-  const multiplier = ACTIVITY_MULTIPLIERS[activityLevel] ?? 1.55;
-  const tdee = Math.round(bmr * multiplier);
+  const { tdee } = computeBmrTdee(weightKg, heightCm, age, activityLevel, biologicalSex);
   const adjustment = goal ? (GOAL_ADJUSTMENTS[goal] ?? 0) : 0;
   return Math.max(1200, tdee + adjustment); // minimum 1200 kcal
 }
@@ -165,12 +180,17 @@ export function resolveDailyTargets(
     biologicalSex: string | null;
     goal: string | null;
     dailyCalorieTarget: number | null;
+    /**
+     * Adaptive Chef cumulative dial (F1). Optional so partial call sites and
+     * tests keep compiling; ChefProfile rows always carry it (default 0).
+     */
+    targetAdjustmentKcal?: number | null;
   } | null,
 ): DailyTargets {
   const goal = profile?.goal ?? 'MAINTAIN';
   const split = GOAL_MACRO_SPLITS[goal] ?? GOAL_MACRO_SPLITS['MAINTAIN']!;
 
-  const calories =
+  const baseCalories =
     profile?.weightKg && profile.heightCm && profile.age && profile.activityLevel
       ? computeCalorieTarget(
           profile.weightKg,
@@ -181,6 +201,11 @@ export function resolveDailyTargets(
           profile.goal,
         )
       : (profile?.dailyCalorieTarget ?? DEFAULT_CALORIE_TARGET);
+
+  // F1 ordering contract (premium_plan.md W1-A): the coach's cumulative dial
+  // applies AFTER the goal adjustment (inside computeCalorieTarget above) and
+  // BEFORE the protein cap (splitToGrams below sees the adjusted calories).
+  const calories = Math.max(1200, baseCalories + (profile?.targetAdjustmentKcal ?? 0));
 
   return {
     dailyCalorieTarget: calories,

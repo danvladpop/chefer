@@ -1,4 +1,5 @@
 import { mealPlanRepository, prisma } from '@chefer/database';
+import { coachService } from '../application/coach/coach.service.js';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 
 // ─── Weekly auto-generation (PW-5) ────────────────────────────────────────────
@@ -54,6 +55,18 @@ export class WeeklyPlanWorker {
 
     this.running = true;
     try {
+      // F1 Adaptive Chef: reviews run BEFORE plan generation so this week's
+      // target adjustments shape next week's calorie budget (premium_plan.md
+      // W1-A#3). Idempotent via @@unique(userId, weekStart) — a second tick
+      // the same Sunday is a no-op. A review-sweep failure must never block
+      // plan generation.
+      try {
+        const { reviewed } = await coachService.runReviewSweep(now);
+        if (reviewed > 0) console.log(`[WeeklyPlanWorker] wrote ${reviewed} chef review(s)`);
+      } catch (err) {
+        console.error('[WeeklyPlanWorker] review sweep failed:', err);
+      }
+
       await this.generateForEligibleUsers(now);
     } catch (err) {
       console.error('[WeeklyPlanWorker] sweep failed:', err);

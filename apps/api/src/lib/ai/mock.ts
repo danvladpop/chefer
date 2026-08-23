@@ -189,6 +189,10 @@ export class MockAIService implements IAIService {
         items: items.length > 0 ? items : [{ name: 'mock item' }],
       });
       response = `(Mock) ${result}`;
+    } else if (/\breview\b|\bcheck.?in\b/i.test(question) && context.tools) {
+      // "what did my review say" — exercises the real getMyReview handler (F1).
+      const result = await context.tools.getMyReview();
+      response = `(Mock) ${result}`;
     } else if (question) {
       response = `(Mock) You asked: "${question}". Here is what I know about your day:\n${context.contextSummary}`;
     } else {

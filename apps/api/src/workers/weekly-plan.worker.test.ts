@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mealPlanRepository, prisma } from '@chefer/database';
+import { coachService } from '../application/coach/coach.service.js';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 import { WeeklyPlanWorker } from './weekly-plan.worker.js';
 
@@ -14,6 +15,10 @@ vi.mock('@chefer/database', async (importOriginal) => {
 
 vi.mock('../application/meal-plan/meal-plan.service.js', () => ({
   mealPlanService: { generate: vi.fn().mockResolvedValue({ planId: 'p1' }) },
+}));
+
+vi.mock('../application/coach/coach.service.js', () => ({
+  coachService: { runReviewSweep: vi.fn().mockResolvedValue({ reviewed: 0 }) },
 }));
 
 // A Sunday afternoon (UTC) — inside the generation window.
@@ -38,6 +43,27 @@ describe('WeeklyPlanWorker', () => {
   it('does nothing outside the Sunday window', async () => {
     await worker.tick(WEDNESDAY);
     expect(prisma.user.findMany).not.toHaveBeenCalled();
+    expect(coachService.runReviewSweep).not.toHaveBeenCalled();
+  });
+
+  it('runs the chef-review sweep BEFORE plan generation (F1 ordering)', async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
+
+    await worker.tick(SUNDAY);
+
+    expect(coachService.runReviewSweep).toHaveBeenCalledWith(SUNDAY);
+    const sweepOrder = vi.mocked(coachService.runReviewSweep).mock.invocationCallOrder[0]!;
+    const generateOrder = vi.mocked(mealPlanService.generate).mock.invocationCallOrder[0]!;
+    expect(sweepOrder).toBeLessThan(generateOrder);
+  });
+
+  it('a review-sweep failure never blocks plan generation', async () => {
+    vi.mocked(coachService.runReviewSweep).mockRejectedValueOnce(new Error('review down'));
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
+
+    await worker.tick(SUNDAY);
+
+    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true);
   });
 
   it('only targets PREMIUM subscribers with a complete profile', async () => {
