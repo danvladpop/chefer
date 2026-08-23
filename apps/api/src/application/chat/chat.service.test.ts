@@ -32,6 +32,9 @@ vi.mock('@chefer/database', async (importOriginal) => {
       }),
     },
     mealRatingRepository: { findSignalsForUser: vi.fn().mockResolvedValue([]) },
+    // buildContextSummary reads today's log (959e5ee) — must be mocked or the
+    // test reaches real Prisma and fails in CI's clean env (no DATABASE_URL).
+    dailyLogRepository: { findByDate: vi.fn().mockResolvedValue(null) },
   };
 });
 
