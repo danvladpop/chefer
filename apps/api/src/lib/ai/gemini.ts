@@ -2,11 +2,15 @@ import { GoogleGenAI, Type } from '@google/genai';
 import type { Schema } from '@google/genai';
 import { z } from 'zod';
 import {
+  buildCheferizeUserPrompt,
+  buildExtractRecipeUserPrompt,
   buildIngredientPricesPrompt,
   buildMealPlanUserPrompt,
   buildShoppingListPrompt,
   buildSwapUserPrompt,
   CHAT_SYSTEM_PROMPT,
+  CHEFERIZE_SYSTEM_PROMPT,
+  EXTRACT_RECIPE_SYSTEM_PROMPT,
   INGREDIENT_PRICES_SYSTEM_PROMPT,
   MEAL_PLAN_SYSTEM_PROMPT,
   SHOPPING_LIST_SYSTEM_PROMPT,
@@ -15,6 +19,8 @@ import {
 import type {
   ChatContext,
   ChatMessage,
+  CheferizedRecipe,
+  CheferizeInput,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -171,6 +177,72 @@ const WEEK_PLAN_SCHEMA: Schema = {
     },
   },
   required: ['days'],
+};
+
+// ─── Recipe extraction / Cheferize schemas (F5) ──────────────────────────────
+// ExtractedRecipe = RecipeData minus id/imageUrl — the AI extracts content,
+// not identity, and images come exclusively from our own pipeline.
+
+const extractedRecipeSchema = recipeSchema.omit({ id: true, imageUrl: true });
+
+const cheferizedRecipeSchema = z.object({
+  adapted: extractedRecipeSchema,
+  changes: z.array(
+    z.object({
+      kind: z.enum(['allergen', 'restriction', 'dislike', 'servings', 'other']),
+      description: z.string(),
+    }),
+  ),
+});
+
+const EXTRACTED_RECIPE_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    name: { type: Type.STRING },
+    description: { type: Type.STRING },
+    ingredients: { type: Type.ARRAY, items: INGREDIENT_SCHEMA },
+    instructions: { type: Type.ARRAY, items: { type: Type.STRING } },
+    nutritionInfo: NUTRITION_SCHEMA,
+    cuisineType: { type: Type.STRING },
+    dietaryTags: { type: Type.ARRAY, items: { type: Type.STRING } },
+    prepTimeMins: { type: Type.NUMBER },
+    cookTimeMins: { type: Type.NUMBER },
+    servings: { type: Type.NUMBER },
+  },
+  required: [
+    'name',
+    'description',
+    'ingredients',
+    'instructions',
+    'nutritionInfo',
+    'cuisineType',
+    'dietaryTags',
+    'prepTimeMins',
+    'cookTimeMins',
+    'servings',
+  ],
+};
+
+const CHEFERIZED_RECIPE_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    adapted: EXTRACTED_RECIPE_SCHEMA,
+    changes: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          kind: {
+            type: Type.STRING,
+            enum: ['allergen', 'restriction', 'dislike', 'servings', 'other'],
+          },
+          description: { type: Type.STRING },
+        },
+        required: ['kind', 'description'],
+      },
+    },
+  },
+  required: ['adapted', 'changes'],
 };
 
 // ─── Shopping list schemas ────────────────────────────────────────────────────
@@ -473,14 +545,95 @@ export class GeminiAIService implements IAIService {
     return parsed.data.items;
   }
 
-  // Wave-0 seam stubs (premium_plan.md §3.3) — the real multimodal
-  // implementations land with feat/snap and feat/import in wave 1.
+  // Wave-0 seam stub (premium_plan.md §3.3) — the real multimodal
+  // implementation lands with feat/snap in wave 1.
   async analyzeMealPhoto(_imageBase64: string, _mimeType: string): Promise<MealPhotoEstimate> {
     throw new Error('GeminiAIService.analyzeMealPhoto lands with feat/snap (wave 1).');
   }
 
-  async extractRecipe(_source: RecipeExtractionSource): Promise<ExtractedRecipe> {
-    throw new Error('GeminiAIService.extractRecipe lands with feat/import (wave 1).');
+  /**
+   * F5 Cheferize — structured extraction from page/pasted text or a photo.
+   * URL sources are fetched + stripped by the recipe-import service before
+   * this is called; this method never performs network fetches itself (the
+   * SSRF guard lives with the fetcher, not the AI layer).
+   */
+  async extractRecipe(source: RecipeExtractionSource): Promise<ExtractedRecipe> {
+    const isPhoto = Boolean(source.imageBase64);
+    if (!isPhoto && !source.text) {
+      throw new Error(
+        'GeminiAIService.extractRecipe: expected text or imageBase64 (URL sources must be fetched by the recipe-import service first).',
+      );
+    }
+
+    const parts: Record<string, unknown>[] = [];
+    if (source.imageBase64) {
+      parts.push({
+        inlineData: { mimeType: source.mimeType ?? 'image/jpeg', data: source.imageBase64 },
+      });
+    }
+    parts.push({ text: buildExtractRecipeUserPrompt({ isPhoto, text: source.text ?? '' }) });
+
+    const response = await this.generateWithRetry(
+      {
+        model: MODEL,
+        contents: [{ role: 'user', parts }],
+        config: {
+          systemInstruction: EXTRACT_RECIPE_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: EXTRACTED_RECIPE_SCHEMA,
+          temperature: 0.2, // extraction should be faithful, not creative
+          maxOutputTokens: 4096,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      },
+      'extractRecipe',
+    );
+
+    const raw = response.text;
+    if (!raw) throw new Error('GeminiAIService: empty response from extractRecipe');
+
+    const parsed = extractedRecipeSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) {
+      throw new Error(
+        `GeminiAIService: recipe extraction response failed validation — ${parsed.error.message}`,
+      );
+    }
+    return parsed.data;
+  }
+
+  /**
+   * F5 Cheferize — adapts an extracted recipe to the user's allergies,
+   * restrictions, dislikes and serving count. The caller (recipe-import
+   * service) re-validates the output with the P1-2 allergen matcher; this
+   * output is never trusted for safety on its own.
+   */
+  async cheferizeRecipe(input: CheferizeInput): Promise<CheferizedRecipe> {
+    const response = await this.generateWithRetry(
+      {
+        model: MODEL,
+        contents: buildCheferizeUserPrompt(input),
+        config: {
+          systemInstruction: CHEFERIZE_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: CHEFERIZED_RECIPE_SCHEMA,
+          temperature: 0.4,
+          maxOutputTokens: 4096,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      },
+      'cheferizeRecipe',
+    );
+
+    const raw = response.text;
+    if (!raw) throw new Error('GeminiAIService: empty response from cheferizeRecipe');
+
+    const parsed = cheferizedRecipeSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) {
+      throw new Error(
+        `GeminiAIService: cheferize response failed validation — ${parsed.error.message}`,
+      );
+    }
+    return parsed.data;
   }
 
   async chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream> {
@@ -565,6 +718,21 @@ export class GeminiAIService implements IAIService {
                   required: ['items'],
                 } as Schema,
               },
+              {
+                name: 'importRecipe',
+                description:
+                  "Imports a recipe from a web URL into the user's collection, adapted to their allergies and preferences (Cheferize). Use when the user shares a recipe link and wants it imported, saved or adapted.",
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    url: {
+                      type: Type.STRING,
+                      description: 'Full http(s) URL of the recipe page',
+                    },
+                  },
+                  required: ['url'],
+                } as Schema,
+              },
             ],
           },
         ]
@@ -611,6 +779,8 @@ export class GeminiAIService implements IAIService {
               recipeName: String(args['recipeName']),
               servings: Number(args['servings']),
             });
+          } else if (call.name === 'importRecipe') {
+            result = await context.tools.importRecipe({ url: String(args['url']) });
           } else if (call.name === 'addToShoppingList') {
             result = await context.tools.addToShoppingList({
               items: Array.isArray(args['items'])

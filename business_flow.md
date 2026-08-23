@@ -19,6 +19,7 @@
 11. [Password Reset Flow](#11-password-reset-flow)
 12. [Cook Mode Flow](#12-cook-mode-flow)
 13. [AI Chat Flow](#13-ai-chat-flow)
+14. [Recipe Import & Cheferize Flow](#14-recipe-import--cheferize-flow)
 
 ---
 
@@ -619,3 +620,49 @@ proxies it in dev. `apps/web` no longer touches Prisma anywhere (Architecture
 Rule 1 exception removed).
 
 ---
+
+## 14. Recipe Import & Cheferize Flow
+
+**F5 "Cheferize Anything"** (premium_plan.md W1-C): paste a link, paste text, or snap a
+cookbook page — the chef imports the recipe and adapts it to the user.
+
+```
+recipe.importPreview { url | text | imageBase64 }   (protected — free gets 1/day)
+  ├─ assertRecipeImportQuota (PLAN_FEATURES.recipeImportsPerDay: FREE 1 / PREMIUM 5,
+  │    counted from ai_call_logs RECIPE_IMPORT rows — attempts, not successes)
+  ├─ URL path: SSRF-guarded fetch (http(s) only, default ports, private/loopback/
+  │    link-local/metadata ranges rejected on EVERY resolved address and EVERY
+  │    redirect hop; 10 s timeout; 1 MB streaming cap)
+  │    → readability strip (schema.org Recipe JSON-LD preferred, chrome removed,
+  │      og:image captured, 20 k char cap)
+  ├─ IAIService.extractRecipe (structured output; photo path uses vision)
+  ├─ IAIService.cheferizeRecipe — allergen/restriction substitutions, soft dislike
+  │    swaps, servings rescaled to the profile serving size
+  ├─ P1-2 allergen matcher RE-VALIDATES the adapted output (AI never trusted for
+  │    safety) — surviving terms are listed and the adapted variant is unusable
+  └─ macro cross-check vs the ingredient vocabulary (>25% off → "estimate uncertain")
+
+recipe.importSave { recipe, variant, sourceUrl?, ogImageUrl? }   (premium)
+  ├─ variant=adapted → matcher re-runs server-side on the submitted payload:
+  │    a recipe that still violates the user's allergies/restrictions is REJECTED
+  │    (fail closed — the "AI missed the peanut" case cannot be saved as adapted)
+  ├─ image: og:image only when a guarded HEAD check confirms an image response,
+  │    else the deterministic name-seeded Pollinations URL
+  └─ Recipe created with source: MANUAL, creatorId, sourceUrl provenance
+       → rateable + pinnable → flows into P1-1 generation placement
+```
+
+**Free-tier ghost state (§6.4):** the Import button is visible to everyone; free users
+get one real extraction preview a day on their own URL, then the Cheferize diff renders
+BLURRED with the adaptation count visible ("3 adaptations for your preferences") and the
+upgrade CTA (`source: recipe-import`). Events: `recipe_imported {via}`,
+`recipe_cheferized`, `teaser_engaged {feature: import}`, `upgrade_prompt_shown`.
+
+**Chat entry point:** the `importRecipe(url)` chat tool runs the same flow — premium
+saves automatically (adapted when safe and changed, else original); free gets the
+preview summary and an upgrade pointer.
+
+**Copyright stance (deliberate):** imports are a personal collection only. Provenance
+is kept (`sourceUrl` on the recipe), imported recipes are owned by and visible to the
+importing user only, never served to other users or the curated pool, and no full page
+text is stored or republished — only the structured recipe data the user cooks from.

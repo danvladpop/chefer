@@ -3,6 +3,8 @@ import { WEEK_PLAN_FIXTURE } from './fixtures/week-plan.fixture.js';
 import type {
   ChatContext,
   ChatMessage,
+  CheferizedRecipe,
+  CheferizeInput,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -142,6 +144,64 @@ export class MockAIService implements IAIService {
     };
   }
 
+  async cheferizeRecipe(input: CheferizeInput): Promise<CheferizedRecipe> {
+    await delay(300);
+    // Deterministic adaptation: naive term-matching swaps + serving rescale,
+    // so the diff UI and the service's re-validation path exercise real
+    // change lists without live calls. (The REAL safety check is the P1-2
+    // matcher in the recipe-import service — this only produces plausible
+    // adapted output.)
+    const { recipe, targetServings, preferences } = input;
+    const changes: CheferizedRecipe['changes'] = [];
+    const hardTerms = [
+      ...preferences.allergies.map((t) => ({ term: t.toLowerCase(), kind: 'allergen' as const })),
+      ...preferences.dislikedIngredients.map((t) => ({
+        term: t.toLowerCase(),
+        kind: 'dislike' as const,
+      })),
+    ];
+
+    const SUBSTITUTES: Record<string, string> = {
+      peanut: 'toasted sunflower seeds',
+      nut: 'toasted sunflower seeds',
+      milk: 'oat milk',
+      cheese: 'nutritional yeast',
+      egg: 'chia gel',
+    };
+    const substituteFor = (term: string): string => {
+      const match = Object.keys(SUBSTITUTES).find((key) => term.includes(key));
+      return (match && SUBSTITUTES[match]) ?? 'chickpeas';
+    };
+
+    const factor = targetServings > 0 ? targetServings / Math.max(1, recipe.servings) : 1;
+    const round = (v: number) => Math.round(v * 100) / 100;
+
+    const ingredients = recipe.ingredients.map((ing) => {
+      const lower = ing.name.toLowerCase();
+      const hit = hardTerms.find(({ term }) => term.length > 0 && lower.includes(term));
+      const name = hit ? substituteFor(hit.term) : ing.name;
+      if (hit) {
+        changes.push({
+          kind: hit.kind,
+          description: `Swapped ${ing.name} for ${name}`,
+        });
+      }
+      return { name, quantity: round(ing.quantity * factor), unit: ing.unit };
+    });
+
+    if (factor !== 1) {
+      changes.push({
+        kind: 'servings',
+        description: `Rescaled from ${recipe.servings} to ${targetServings} servings`,
+      });
+    }
+
+    return {
+      adapted: { ...recipe, ingredients, servings: targetServings || recipe.servings },
+      changes,
+    };
+  }
+
   async chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream> {
     await delay(200);
 
@@ -152,7 +212,11 @@ export class MockAIService implements IAIService {
     const question = lastUserMessage?.content ?? '';
 
     let response: string;
-    if (/swap/i.test(question) && context.tools) {
+    const importUrlMatch = /\bimport\b[\s\S]*?(https?:\/\/\S+)/i.exec(question);
+    if (importUrlMatch?.[1] && context.tools) {
+      const result = await context.tools.importRecipe({ url: importUrlMatch[1] });
+      response = `(Mock) ${result}`;
+    } else if (/swap/i.test(question) && context.tools) {
       const dayMatch =
         /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tomorrow)\b/i.exec(
           question,

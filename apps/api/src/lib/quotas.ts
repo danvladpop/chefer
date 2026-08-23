@@ -35,6 +35,33 @@ export async function assertPlanGenerationQuota(user: UserProfile): Promise<void
 }
 
 /**
+ * Throws TOO_MANY_REQUESTS when the user has used today's recipe imports
+ * (counted from AiCallLog RECIPE_IMPORT rows — attempts, not successes).
+ * Unlike AI swaps, FREE has a numeric limit here (1/day): the extraction
+ * preview is the §6.4 ghost state, so free users get one real preview a day
+ * while the Cheferize diff + save stay premium. No early return on tier.
+ */
+export async function assertRecipeImportQuota(user: UserProfile): Promise<void> {
+  const limit = getLimit(user, 'recipeImportsPerDay');
+  if (limit === null) return;
+  const used = await prisma.aiCallLog.count({
+    where: {
+      userId: user.id,
+      callType: AiCallType.RECIPE_IMPORT,
+      createdAt: { gte: startOfTodayUtc() },
+    },
+  });
+  if (used >= limit) {
+    throw new TRPCError({
+      code: 'TOO_MANY_REQUESTS',
+      message: isPremiumUser(user)
+        ? `You've hit today's limit of ${limit} recipe imports. It resets at midnight UTC.`
+        : `You've used today's free import preview. Upgrade for ${PLAN_FEATURES.recipeImportsPerDay.premium} imports a day, adapted to you and saved to your collection.`,
+    });
+  }
+}
+
+/**
  * Throws TOO_MANY_REQUESTS when a premium user has exhausted today's AI
  * swaps (counted from AiCallLog). Free swaps draw from the curated pool at
  * zero AI cost and are not capped.
