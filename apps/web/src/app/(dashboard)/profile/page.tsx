@@ -2,6 +2,7 @@
 
 import { DowngradeButton, UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { trpc } from '@/lib/trpc';
+import { PLAN_FEATURES } from '@chefer/types';
 
 // ─── Usage bar ────────────────────────────────────────────────────────────────
 
@@ -145,11 +146,59 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* AI usage */}
+      {/* AI usage. Users see THEIR daily product quotas; the provider/vendor
+          telemetry (Gemini free-tier caps, Pollinations) is admin-only —
+          exposing the vendor stack confused users and read as debug UI
+          (review 5.3): "500 requests/day" next to "20 plans/day". */}
       {isLoading ? (
         <div className="animate-pulse space-y-4">
           <div className="h-40 rounded-2xl bg-gray-100" />
           <div className="h-32 rounded-2xl bg-gray-100" />
+        </div>
+      ) : usage && user && user.role !== 'ADMIN' ? (
+        <div className="space-y-4">
+          <Card
+            title="Today's AI usage"
+            badge={user.planTier === 'PREMIUM' ? 'Premium' : 'Free plan'}
+          >
+            <p className="text-xs text-gray-500">
+              Daily allowances reset at midnight. Upgrading raises every limit.
+            </p>
+            {(() => {
+              const tier = user.planTier === 'PREMIUM' ? 'premium' : 'free';
+              const lim = (key: keyof typeof PLAN_FEATURES): number | null => {
+                const access = PLAN_FEATURES[key][tier];
+                return typeof access === 'number' ? access : null;
+              };
+              const rows: { label: string; used: number; limit: number | null }[] = [
+                {
+                  label: 'Meal plans generated',
+                  used: usage.today.MEAL_PLAN,
+                  limit: lim('planGenerationsPerDay'),
+                },
+                {
+                  label: 'Chat messages',
+                  used: usage.today.CHAT,
+                  limit: lim('chatMessagesPerDay'),
+                },
+                {
+                  label: 'Recipe imports',
+                  used: usage.today.RECIPE_IMPORT,
+                  limit: lim('recipeImportsPerDay'),
+                },
+                {
+                  label: 'Meal photo scans',
+                  used: usage.today.SCAN,
+                  limit: lim('mealScansPerDay'),
+                },
+              ];
+              return rows
+                .filter((r) => r.limit !== 0)
+                .map((r) => (
+                  <StatRow key={r.label} label={r.label} used={r.used} limit={r.limit} />
+                ));
+            })()}
+          </Card>
         </div>
       ) : usage ? (
         <div className="space-y-4">

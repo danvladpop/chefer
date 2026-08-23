@@ -78,7 +78,7 @@ export function OnboardingWizard({ isPremium }: { isPremium: boolean }) {
     if (step < totalSteps) {
       setStep((s) => s + 1);
     } else {
-      handleFinish();
+      void handleFinish();
     }
   }
 

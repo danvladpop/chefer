@@ -59,10 +59,13 @@ interface DayViewProps {
   readOnly?: boolean;
   imageOverrides?: ImageOverrides;
   className?: string;
+  /** Daily calorie target for the DayRecapBar's off-target badge (P-1). */
+  calorieTarget?: number | undefined;
 }
 
 export function DayView({
   days,
+  calorieTarget,
   planId,
   selectedDay,
   onSelectDay,
@@ -165,7 +168,7 @@ export function DayView({
               );
             })}
           </div>
-          <DayRecapBar meals={meals} />
+          <DayRecapBar meals={meals} calorieTarget={calorieTarget} />
         </>
       )}
     </div>

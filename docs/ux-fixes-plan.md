@@ -41,11 +41,11 @@ Working branch: `integrate/wave-2` (== origin/master at start). Commit per item 
 
 ## Phase 4 — P1/P2: preferences & accessibility
 
-| #   | ID   | Item                                                                                                                      | Where                                                | Acceptance                                                                                    | Status |
-| --- | ---- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------ |
-| 4.1 | PR-1 | Sectioned saves: diet/household/goal-metrics/cadence/budget/units save independently (or relax all-or-nothing validation) | `features/preferences/` + preferences router/service | Changing only cuisine or budget saves without full body profile                               | ☐      |
-| 4.2 | PR-4 | Focus ring visually distinct from selected state on card selectors                                                        | goal cards / diet chips / sex buttons styles         | Tab focus ≠ selected; both visible simultaneously and distinct                                | ☐      |
-| 4.3 | PR-3 | A11y names: goal cards, sex buttons, activity radios (human labels, not enums)                                            | same components                                      | Screen reader announces "Lose Weight", "Male", "Moderately active"; axe/read_page shows names | ☐      |
+| #   | ID   | Item                                                                                                                      | Where                                                | Acceptance                                                                                    | Status     |
+| --- | ---- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------- |
+| 4.1 | PR-1 | Sectioned saves: diet/household/goal-metrics/cadence/budget/units save independently (or relax all-or-nothing validation) | `features/preferences/` + preferences router/service | Changing only cuisine or budget saves without full body profile                               | ✅ 9cd10ab |
+| 4.2 | PR-4 | Focus ring visually distinct from selected state on card selectors                                                        | goal cards / diet chips / sex buttons styles         | Tab focus ≠ selected; both visible simultaneously and distinct                                | ✅ 9cd10ab |
+| 4.3 | PR-3 | A11y names: goal cards, sex buttons, activity radios (human labels, not enums)                                            | same components                                      | Screen reader announces "Lose Weight", "Male", "Moderately active"; axe/read_page shows names | ✅ 9cd10ab |
 
 ## Phase 5 — P2: polish batch
 
@@ -72,3 +72,4 @@ Working branch: `integrate/wave-2` (== origin/master at start). Commit per item 
 - 2026-08-23 · Phase 1 DONE: 62056e7 (P-1 validation+retry, P-2 chip, planner badges), 959e5ee (P-3 preview, F-4 chat framing, import check), 5a396a7 (feedback channel + docs).
 - 2026-08-23 · Phase 2 DONE: d46f9d7 (brand tokens un-blued app-wide, landing rewrite, auth re-skin, /terms + /privacy created, favicon). Register console verified clean in dev; #418 was favicon/terms-404-adjacent — watch Sentry after deploy.
 - 2026-08-23 · Phase 3 DONE: 05d514d (3-step free onboarding + saveProfileBasics), 3d93db9 (dialog top-3, activation sheet, dismissible nav card, table labels, welcome/badge/chip fixes). All verified live in dev (fresh account ux-fixes-e2e@chefer.dev, left PREMIUM).
+- 2026-08-23 · Phase 4 DONE: 9cd10ab (sectioned/partial saves verified live, selected-check + aria labels).

@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PostUpgradeActivation } from '@/features/premium/components/PostUpgradeActivation';
 import { BottomNav } from './bottom-nav';
 import { MobileNavDrawer } from './mobile-nav-drawer';
@@ -21,6 +21,7 @@ const TITLE_MAP: [string, string][] = [
   ['/profile', 'Profile'],
   ['/preferences', 'Preferences'],
   ['/premium', 'Premium'],
+  ['/admin', 'Admin'],
   ['/onboarding', 'Get Started'],
   ['/dashboard', 'Dashboard'],
 ];
@@ -40,6 +41,13 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const pathname = usePathname();
   const title = getTitle(pathname);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Dashboard pages are client components and can't export per-route
+  // metadata, so browser-tab titles were a bare "Chefer" on most pages
+  // (review F-5). The shell already knows every page's name.
+  useEffect(() => {
+    document.title = title === 'Chefer' ? 'Chefer' : `${title} | Chefer`;
+  }, [title]);
 
   return (
     // Two layout modes. Below lg the *document* scrolls: that is what lets iOS

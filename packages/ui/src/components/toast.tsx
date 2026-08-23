@@ -14,12 +14,14 @@ export interface ToastProps {
   duration?: number;
   onClose: () => void;
   className?: string;
+  /** Optional inline action ("Undo") rendered before the dismiss button. */
+  action?: { label: string; onClick: () => void };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
-  ({ message, type = 'success', duration = 3000, onClose, className }, ref) => {
+  ({ message, type = 'success', duration = 3000, onClose, className, action }, ref) => {
     React.useEffect(() => {
       if (duration <= 0) return;
       const t = setTimeout(onClose, duration);
@@ -46,6 +48,15 @@ export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
           {type === 'success' ? '✓' : '✕'}
         </span>
         <p className="flex-1 text-sm font-medium">{message}</p>
+        {action && (
+          <button
+            type="button"
+            onClick={action.onClick}
+            className="shrink-0 text-sm font-bold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
+          >
+            {action.label}
+          </button>
+        )}
         <button
           type="button"
           onClick={onClose}

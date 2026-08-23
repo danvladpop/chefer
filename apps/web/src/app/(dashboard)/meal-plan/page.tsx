@@ -157,10 +157,29 @@ export default function MealPlanPage() {
 
   useRecipeImageStream(pendingRecipeIds, handleImageUpdate, handleStreamTimeout);
 
-  // Photo generation progress (drives the pill next to Regenerate)
-  const photosTotal = pendingRecipeIds.length;
-  const photosReady = pendingRecipeIds.filter((id) => imageOverrides[id]).length;
-  const photosInProgress = photosTotal > 0 && photosReady < photosTotal;
+  // Photo generation progress (drives the pill next to Regenerate).
+  // The batch size is LATCHED per plan (review 5.4): pendingRecipeIds shrinks
+  // whenever a refetch returns recipes already DONE, which made the pill
+  // count backwards ("1 of 17" → "0 of 11" → "0 of 8"). Total only grows for
+  // a given plan; ready = total − still unresolved.
+  const [photoBatch, setPhotoBatch] = useState<{ planId: string | null; total: number }>({
+    planId: null,
+    total: 0,
+  });
+  useEffect(() => {
+    const planId = plan?.planId ?? null;
+    setPhotoBatch((prev) =>
+      prev.planId === planId
+        ? prev.total >= pendingRecipeIds.length
+          ? prev
+          : { planId, total: pendingRecipeIds.length }
+        : { planId, total: pendingRecipeIds.length },
+    );
+  }, [plan?.planId, pendingRecipeIds.length]);
+  const stillPendingCount = pendingRecipeIds.filter((id) => !imageOverrides[id]).length;
+  const photosTotal = photoBatch.planId === (plan?.planId ?? null) ? photoBatch.total : 0;
+  const photosReady = Math.max(0, photosTotal - stillPendingCount);
+  const photosInProgress = photosTotal > 0 && stillPendingCount > 0;
 
   // PRECONDITION_FAILED = the free curated pool can't satisfy the user's
   // restrictions (P1-2). That's an upgrade moment, not an error dialog.
@@ -486,9 +505,10 @@ export default function MealPlanPage() {
         </div>
       )}
 
-      {/* ── Mobile: one day at a time ──────────────────────────────────────── */}
+      {/* ── Mobile: one day at a time. pb-20 clears the chat FAB, which
+          otherwise floats over the last card's macros (review M-2). ── */}
       {!isLoading && plan && (
-        <div className="px-4 pb-6 lg:hidden">
+        <div className="px-4 pb-20 lg:hidden">
           <DayView
             days={plan.days}
             planId={plan.planId}
@@ -498,6 +518,7 @@ export default function MealPlanPage() {
             weekStartDate={getMondayOfWeekClient(weekOffset)}
             readOnly={isPast}
             imageOverrides={imageOverrides}
+            calorieTarget={plan.calorieTarget}
           />
         </div>
       )}

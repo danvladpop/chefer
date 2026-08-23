@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { use, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
@@ -25,8 +25,42 @@ import {
   Search,
   Users,
 } from 'lucide-react';
-import { Sheet } from '@chefer/ui';
+import { Sheet, Toast } from '@chefer/ui';
 import { formatQuantity } from '@chefer/utils';
+
+// Swap-undo handoff (review F-2): the swap navigates to the NEW recipe's page,
+// so the undo offer travels through sessionStorage and is only honoured
+// briefly and for the exact same plan slot.
+const SWAP_UNDO_KEY = 'chefer.last-swap';
+const SWAP_UNDO_WINDOW_MS = 15_000;
+
+interface SwapUndoEntry {
+  planId: string;
+  day: string;
+  meal: string;
+  prevId: string;
+  ts: number;
+}
+
+function readSwapUndo(planId: string | null, day: string | null, meal: string | null) {
+  if (typeof window === 'undefined' || !planId) return null;
+  try {
+    const raw = sessionStorage.getItem(SWAP_UNDO_KEY);
+    if (!raw) return null;
+    const entry = JSON.parse(raw) as SwapUndoEntry;
+    if (
+      entry.planId !== planId ||
+      entry.day !== day ||
+      entry.meal !== meal ||
+      Date.now() - entry.ts > SWAP_UNDO_WINDOW_MS
+    ) {
+      return null;
+    }
+    return entry;
+  } catch {
+    return null;
+  }
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -94,10 +128,36 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       capture('meal_swapped', { tier: isPremium ? 'premium' : 'free' });
       void utils.mealPlan.getForWeek.invalidate();
       void utils.mealPlan.getActive.invalidate();
+      // Offer undo on the destination page (F-2): the swap itself is instant
+      // and unconfirmed, so a mis-tap needs a way back to the old recipe.
+      if (planId && day !== null && meal) {
+        const entry: SwapUndoEntry = { planId, day, meal, prevId: id, ts: Date.now() };
+        sessionStorage.setItem(SWAP_UNDO_KEY, JSON.stringify(entry));
+      }
       router.push(`/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}`);
     },
     onError: (err) => {
       console.error('Swap recipe failed:', err.message);
+    },
+  });
+
+  // Swap-undo toast: shown when this page was just navigated to by a swap.
+  // Read in an effect (not the render) so the hydration render stays
+  // byte-identical to SSR — this page sits under a route-level loading.tsx
+  // (the React #418 pattern from prod-followups #1).
+  const [swapUndo, setSwapUndo] = useState<SwapUndoEntry | null>(null);
+  useEffect(() => {
+    const entry = readSwapUndo(planId, day, meal);
+    if (entry) {
+      sessionStorage.removeItem(SWAP_UNDO_KEY);
+      setSwapUndo(entry);
+    }
+  }, [planId, day, meal]);
+  const undoMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    onSuccess: (restored) => {
+      void utils.mealPlan.getForWeek.invalidate();
+      void utils.mealPlan.getActive.invalidate();
+      router.push(`/recipes/${restored.id}?planId=${planId}&day=${day}&meal=${meal}`);
     },
   });
 
@@ -468,6 +528,28 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             Dismiss
           </button>
         </div>
+      )}
+
+      {/* Swap undo (F-2): brief window to restore the replaced recipe */}
+      {swapUndo && planId && dayParam !== null && meal && (
+        <Toast
+          message="Meal swapped."
+          duration={6000}
+          onClose={() => setSwapUndo(null)}
+          action={{
+            label: undoMutation.isPending ? 'Undoing…' : 'Undo',
+            onClick: () => {
+              if (undoMutation.isPending) return;
+              undoMutation.mutate({
+                planId,
+                dayOfWeek: dayParam,
+                mealType: meal as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+                recipeId: swapUndo.prevId,
+              });
+              setSwapUndo(null);
+            },
+          }}
+        />
       )}
 
       {/* Saved recipe picker modal */}

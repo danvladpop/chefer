@@ -17,6 +17,7 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import {
   CheckCircle2,
+  ChevronDown,
   ClipboardCheck,
   Info,
   Lightbulb,
@@ -129,6 +130,30 @@ export default function ShoppingListPage() {
   const totalItems = items.length;
   const checkedItems = weekList?.checkedKeys ?? [];
   const checkedCount = checkedItems.filter((key) => items.some((i) => i.key === key)).length;
+
+  // Collapsible categories (review F-3): a 97-item wall is intimidating —
+  // collapsed groups with "N items · M done" read like aisles. Expansion
+  // persists for the session so the list stays as you left it in the store.
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('chefer.shopping-expanded');
+      if (raw) setExpandedCategories(JSON.parse(raw) as Record<string, boolean>);
+    } catch {
+      // Ignore malformed storage — default (collapsed) wins.
+    }
+  }, []);
+  const toggleCategory = useCallback((cat: string) => {
+    setExpandedCategories((prev) => {
+      const next = { ...prev, [cat]: !prev[cat] };
+      try {
+        sessionStorage.setItem('chefer.shopping-expanded', JSON.stringify(next));
+      } catch {
+        // Storage full/blocked — expansion just won't persist.
+      }
+      return next;
+    });
+  }, []);
 
   // Optimistic per-key toggle (P1-5): flip in the cache immediately, sync in
   // the background — the shop has bad signal. Server semantics are per-key
@@ -466,135 +491,168 @@ export default function ShoppingListPage() {
             </button>
           </div>
 
-          {grouped.map(({ category, label, items: catItems }) => (
-            <section key={category}>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                {label} ({catItems.length} item{catItems.length !== 1 ? 's' : ''})
-              </h2>
-              <div className="space-y-2">
-                {catItems.map((item) => {
-                  const isChecked = checkedItems.includes(item.key);
-                  const itemImageUrl = item.imageUrl;
-                  const quantityLabel = Number.isFinite(Number(item.quantity))
-                    ? formatQuantity(Number(item.quantity), item.unit, unitSystem)
-                    : `${item.quantity} ${item.unit}`;
-                  return (
-                    // Exactly two targets per row. Previously the whole card
-                    // toggled while the thumbnail and name stopped propagation
-                    // to open a popup, so on touch the same tap did different
-                    // things depending on which pixel you hit.
-                    <div
-                      key={item.key}
-                      className={`flex items-center gap-1 rounded-xl border transition ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : item.pantryCovered ? 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
-                    >
-                      {/* Primary target — the whole row toggles bought/not */}
-                      <button
-                        type="button"
-                        onClick={() => toggleItem(item.key)}
-                        aria-pressed={isChecked}
-                        className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl p-2 text-left sm:p-3"
-                      >
-                        <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg">
-                          <Image
-                            src={itemImageUrl}
-                            alt=""
-                            fill
-                            sizes="48px"
-                            className="object-cover"
-                            onError={(e) => {
-                              e.currentTarget.src = FALLBACK_IMAGE;
-                            }}
-                          />
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className={`flex items-center gap-1.5 text-sm font-medium ${isChecked ? 'text-neutral-500 line-through' : 'text-neutral-800'}`}
-                          >
-                            <span className="min-w-0 truncate">{item.ingredientName}</span>
-                            {/* F3 "have it" chip — the pantry covers this item */}
-                            {item.pantryCovered && (
-                              <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                                Have it
-                              </span>
-                            )}
-                          </p>
-                          {/* Quantity and price share a line — as separate
-                              columns the name was squeezed to ~150px. */}
-                          <p className="truncate text-xs text-neutral-500">
-                            {quantityLabel}
-                            {item.estimatedPriceEur != null && (
-                              <span
-                                className={`ml-2 font-medium ${item.pantryCovered ? 'line-through opacity-60' : ''}`}
-                              >
-                                ~€{item.estimatedPriceEur.toFixed(2)}
-                              </span>
-                            )}
-                            {item.pantryCovered && (
-                              <span className="ml-2 text-emerald-600">in your kitchen</span>
-                            )}
-                          </p>
-                        </div>
-
-                        <span
-                          aria-hidden="true"
-                          className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 transition ${isChecked ? 'border-primary bg-primary' : 'border-neutral-300'}`}
+          {grouped.map(({ category, label, items: catItems }) => {
+            const isExpanded = expandedCategories[category] ?? false;
+            const catDone = catItems.filter((i) => checkedItems.includes(i.key)).length;
+            return (
+              <section key={category}>
+                <button
+                  type="button"
+                  onClick={() => toggleCategory(category)}
+                  aria-expanded={isExpanded}
+                  className="mb-3 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-1 text-left hover:bg-neutral-50"
+                >
+                  <span className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                    {label}
+                    <span className="ml-2 font-normal normal-case tracking-normal">
+                      {catItems.length} item{catItems.length !== 1 ? 's' : ''}
+                      {catDone > 0 ? ` · ${catDone} done` : ''}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    {catDone === catItems.length && catItems.length > 0 && (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                        ✓ all
+                      </span>
+                    )}
+                    <ChevronDown
+                      className={`h-4 w-4 text-neutral-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                      aria-hidden="true"
+                    />
+                  </span>
+                </button>
+                {isExpanded && (
+                  <div className="space-y-2">
+                    {catItems.map((item) => {
+                      const isChecked = checkedItems.includes(item.key);
+                      const itemImageUrl = item.imageUrl;
+                      const quantityLabel = Number.isFinite(Number(item.quantity))
+                        ? formatQuantity(Number(item.quantity), item.unit, unitSystem)
+                        : `${item.quantity} ${item.unit}`;
+                      return (
+                        // Exactly two targets per row. Previously the whole card
+                        // toggled while the thumbnail and name stopped propagation
+                        // to open a popup, so on touch the same tap did different
+                        // things depending on which pixel you hit.
+                        <div
+                          key={item.key}
+                          className={`flex items-center gap-1 rounded-xl border transition ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : item.pantryCovered ? 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
                         >
-                          {isChecked && <CheckCircle2 className="h-4 w-4 fill-white text-white" />}
-                        </span>
-                      </button>
+                          {/* Primary target — the whole row toggles bought/not */}
+                          <button
+                            type="button"
+                            onClick={() => toggleItem(item.key)}
+                            aria-pressed={isChecked}
+                            className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl p-2 text-left sm:p-3"
+                          >
+                            <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg">
+                              <Image
+                                src={itemImageUrl}
+                                alt=""
+                                fill
+                                sizes="48px"
+                                className="object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.src = FALLBACK_IMAGE;
+                                }}
+                              />
+                            </div>
 
-                      {/* Secondary target — re-add for "have it" items,
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={`flex items-center gap-1.5 text-sm font-medium ${isChecked ? 'text-neutral-500 line-through' : 'text-neutral-800'}`}
+                              >
+                                <span className="min-w-0 truncate">{item.ingredientName}</span>
+                                {/* F3 "have it" chip — the pantry covers this item */}
+                                {item.pantryCovered && (
+                                  <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                                    Have it
+                                  </span>
+                                )}
+                              </p>
+                              {/* Quantity and price share a line — as separate
+                              columns the name was squeezed to ~150px. */}
+                              <p className="truncate text-xs text-neutral-500">
+                                {quantityLabel}
+                                {item.estimatedPriceEur != null && (
+                                  <span
+                                    className={`ml-2 font-medium ${item.pantryCovered ? 'line-through opacity-60' : ''}`}
+                                  >
+                                    ~€{item.estimatedPriceEur.toFixed(2)}
+                                  </span>
+                                )}
+                                {item.pantryCovered && (
+                                  <span className="ml-2 text-emerald-600">in your kitchen</span>
+                                )}
+                              </p>
+                            </div>
+
+                            <span
+                              aria-hidden="true"
+                              className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 transition ${isChecked ? 'border-primary bg-primary' : 'border-neutral-300'}`}
+                            >
+                              {isChecked && (
+                                <CheckCircle2 className="h-4 w-4 fill-white text-white" />
+                              )}
+                            </span>
+                          </button>
+
+                          {/* Secondary target — re-add for "have it" items,
                           detail for derived items, remove for user-added
                           ones */}
-                      {item.pantryCovered ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            markOutMutation.mutate({ ingredientName: item.ingredientName })
-                          }
-                          disabled={markOutMutation.isPending}
-                          aria-label={`Out of ${item.ingredientName} — add it back to the list`}
-                          title="I'm out of it — add back to the list"
-                          className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-emerald-500 transition hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
-                          data-print-hide
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                        </button>
-                      ) : item.isCustom ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            weekList?.planId &&
-                            removeItemMutation.mutate({ planId: weekList.planId, key: item.key })
-                          }
-                          disabled={removeItemMutation.isPending}
-                          aria-label={`Remove ${item.ingredientName} from the list`}
-                          title="Added by you — remove"
-                          className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
-                          data-print-hide
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPopupItem({ name: item.ingredientName, imageUrl: itemImageUrl })
-                          }
-                          aria-label={`Details for ${item.ingredientName}`}
-                          className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-neutral-100 hover:text-neutral-500"
-                          data-print-hide
-                        >
-                          <Info className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
+                          {item.pantryCovered ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                markOutMutation.mutate({ ingredientName: item.ingredientName })
+                              }
+                              disabled={markOutMutation.isPending}
+                              aria-label={`Out of ${item.ingredientName} — add it back to the list`}
+                              title="I'm out of it — add back to the list"
+                              className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-emerald-500 transition hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+                              data-print-hide
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </button>
+                          ) : item.isCustom ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                weekList?.planId &&
+                                removeItemMutation.mutate({
+                                  planId: weekList.planId,
+                                  key: item.key,
+                                })
+                              }
+                              disabled={removeItemMutation.isPending}
+                              aria-label={`Remove ${item.ingredientName} from the list`}
+                              title="Added by you — remove"
+                              className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                              data-print-hide
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPopupItem({ name: item.ingredientName, imageUrl: itemImageUrl })
+                              }
+                              aria-label={`Details for ${item.ingredientName}`}
+                              className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-neutral-100 hover:text-neutral-500"
+                              data-print-hide
+                            >
+                              <Info className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            );
+          })}
 
           {/* Chef's Tip */}
           <div className="rounded-2xl border-l-4 border-amber-400 bg-amber-50 p-4" data-print-hide>
