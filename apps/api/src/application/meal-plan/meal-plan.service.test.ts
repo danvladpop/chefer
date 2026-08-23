@@ -24,6 +24,9 @@ vi.mock('@chefer/database', async (importOriginal) => {
     },
     mealRatingRepository: { findSignalsForUser: vi.fn().mockResolvedValue([]) },
     householdMemberRepository: { findByUserId: vi.fn().mockResolvedValue([]) },
+    // F3 wiring: generate loads use-first items + computes usedPantryItems —
+    // empty pantry keeps every existing expectation identical.
+    pantryItemRepository: { findByUser: vi.fn().mockResolvedValue([]) },
     mealPlanRepository: {},
   };
 });
