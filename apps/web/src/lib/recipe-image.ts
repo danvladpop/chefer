@@ -46,13 +46,39 @@ export function getRecipeImageUrl(imageUrl: string | null | undefined): string {
 }
 
 /**
+ * Hosts registered in next.config.ts `images.remotePatterns`. Anything else
+ * (imported recipes keep their page's og:image — F5, any domain) must render
+ * `unoptimized`, or next/image's dev-mode loader throws "unconfigured host"
+ * and takes the whole page down with it. Production is already unoptimized
+ * globally, so this only changes dev behavior.
+ */
+const OPTIMIZED_HOSTS = new Set([
+  'avatars.githubusercontent.com',
+  'lh3.googleusercontent.com',
+  'images.unsplash.com',
+  'res.cloudinary.com',
+  'image.pollinations.ai',
+]);
+
+function isOptimizedHost(url: string): boolean {
+  try {
+    return OPTIMIZED_HOSTS.has(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Returns `{ src, blurDataURL, placeholder }` props ready to spread onto
- * a next/image `<Image>` component.
+ * a next/image `<Image>` component. External hosts outside the configured
+ * allowlist get `unoptimized` so they render instead of throwing.
  */
 export function getRecipeImageProps(imageUrl: string | null | undefined) {
+  const src = getRecipeImageUrl(imageUrl);
   return {
-    src: getRecipeImageUrl(imageUrl),
+    src,
     blurDataURL: RECIPE_BLUR_DATA_URL,
     placeholder: 'blur' as const,
+    ...(isOptimizedHost(src) ? {} : { unoptimized: true }),
   };
 }
