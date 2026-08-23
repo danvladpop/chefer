@@ -68,3 +68,11 @@ export {
   type IChefReviewRepository,
   type UpsertChefReviewData,
 } from './chef-review.repository';
+
+export {
+  HouseholdMemberRepository,
+  householdMemberRepository,
+  type IHouseholdMemberRepository,
+  type CreateHouseholdMemberData,
+  type UpdateHouseholdMemberData,
+} from './household-member.repository';

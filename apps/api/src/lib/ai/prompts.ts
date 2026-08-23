@@ -50,8 +50,19 @@ export function buildHouseholdSection(input: MealPlanInput): string {
   const h = input.householdContext;
   if (!h) return '';
   const lines = [
-    `Household: cooking for ${h.memberCount + 1} people total; every recipe must use servings=${h.portionSum}.`,
+    `Household: cooking for ${h.memberCount + 1} people total; every recipe must use servings=${h.portionSum} and scale ingredient quantities to it (nutritionInfo stays PER SERVING).`,
   ];
+  const { allergies, dietaryRestrictions } = h.mergedSafety;
+  if (allergies.length || dietaryRestrictions.length) {
+    // The Allergies/Restrictions lines above already carry the union
+    // (meal-plan.service merges before building the input) — restated here so
+    // the model knows they cover EVERY eater, not just the account owner.
+    lines.push(
+      `The Allergies and Restrictions above are the combined household set (hard, non-negotiable for every dish): allergies ${
+        allergies.length ? allergies.join(', ') : 'none'
+      }; restrictions ${dietaryRestrictions.length ? dietaryRestrictions.join(', ') : 'none'}.`,
+    );
+  }
   if (h.dislikeNotes.length) {
     lines.push(
       `Per-person dislikes (soft — avoid where easy, or note who the dish suits): ${h.dislikeNotes.join('; ')}.`,

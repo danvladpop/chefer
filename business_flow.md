@@ -812,3 +812,63 @@ preview summary and an upgrade pointer.
 is kept (`sourceUrl` on the recipe), imported recipes are owned by and visible to the
 importing user only, never served to other users or the curated pool, and no full page
 text is stored or republished — only the structured recipe data the user cooks from.
+
+---
+
+## 17. Household Plans Flow (F2)
+
+**"Feed the Whole Table"** (premium_plan.md W2-D): the account owner adds the
+people they cook for — partner, kids, the flatmate with the nut allergy — and
+one generated week feeds all of them safely, at the right amounts.
+
+```
+Preferences → "My household" section
+  ├─ household.list (protected) — member chips with per-member safety summary
+  ├─ household.add (premium, cap PLAN_FEATURES.householdMembers = 5)
+  │    member = { name, portionFactor 0.25–3 (0.5 kid … 1.5 big eater),
+  │              isKid, allergies[], dietaryRestrictions[], dislikedIngredients[] }
+  │    → per-member editor reuses the onboarding StepDiet safety component
+  │    → `household_member_added` on save
+  ├─ household.update (premium) / household.remove (protected — a downgraded
+  │    user must still be able to manage the members that filter their plans)
+  └─ free tier ghost state (§6.4): ghost chips ("+ add your partner") → tap
+       renders a sample merged week from the user's OWN diet + one fictional
+       member; fires `upgrade_prompt_shown {source: 'household'}` +
+       `teaser_engaged {feature: 'household'}`; UpgradeButton source=household
+
+mealPlan.generate with members present
+  ├─ PREMIUM (AI): computeHouseholdContext →
+  │    MealPlanInput.householdContext {
+  │      memberCount, portionSum = ceil(1 + Σ portionFactor),
+  │      mergedSafety = union(owner + every member allergies/restrictions),
+  │      dislikeNotes = ["avoid mushrooms for Maria", …]  (soft)
+  │    }
+  │    ├─ merged union ALSO replaces the top-level Allergies/Restrictions
+  │    │    prompt fields (hard, every dish)
+  │    ├─ prompt: buildHouseholdSection — servings=portionSum, quantities
+  │    │    scaled, dislikes soft-balanced ("or note who the dish suits")
+  │    └─ recipes come back with servings = portionSum → shopping list
+  │         quantities scale automatically (list derives from ingredients)
+  └─ FREE (curated): loadMergedSafety → safeCuratedPools(mergedUnion) —
+       the SAME filterSafeRecipes, unchanged. SAFETY IS NEVER PREMIUM:
+       the matrix gates the members UI, but existing members keep
+       filtering every tier's plans (e.g. after a downgrade).
+       Swaps (curated AND AI) use the union too.
+
+Cooking & eating surfaces
+  ├─ recipe page: "cooking for your household of N" note under servings
+  ├─ cook mode: servings pre-set to the household portionSum (not the
+  │    recipe's stored servings) when members exist
+  ├─ meal-plan page: week cost shows per-household total AND ≈€/person
+  └─ ratings: optional "who liked it" member chips on the star widget →
+       stored as a "Liked by: Maria, Tom" line inside MealRating.notes
+       (v1 — no schema change; the P1-1 signal reader is unaffected)
+```
+
+**Downgrade semantics:** nothing is deleted (the /premium FAQ promise).
+Members stay visible in a read-only list with remove; their safety union
+keeps applying to free curated plans; add/edit come back with premium.
+
+**Events:** `household_member_added`, `upgrade_prompt_shown {source:
+'household'}`, `teaser_engaged {feature: 'household'}` (see
+docs/analytics-funnel.md).

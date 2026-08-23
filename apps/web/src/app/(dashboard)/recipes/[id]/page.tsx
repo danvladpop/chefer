@@ -8,6 +8,7 @@ import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget'
 import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { useHasMounted } from '@/hooks/useHasMounted';
+import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
@@ -109,10 +110,12 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
     },
   });
 
-  // Servings adjuster
+  // Servings adjuster. F2: with household members it defaults to the whole
+  // table's portion sum — the count generation scaled the plan's recipes to.
+  const { portionSum, peopleCount } = useHousehold();
   const [servings, setServings] = useState<number | null>(null);
   const baseServings = recipe?.servings ?? 1;
-  const selectedServings = servings ?? baseServings;
+  const selectedServings = servings ?? portionSum ?? baseServings;
   const scale = selectedServings / baseServings;
 
   // Saved-recipe picker state
@@ -332,6 +335,18 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           value={`${n.calories} kcal`}
         />
       </div>
+
+      {/* F2: per-person framing when a household is set up */}
+      {portionSum !== null && (
+        <p className="-mt-6 mb-8 flex items-center gap-1.5 text-xs text-gray-500">
+          <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0">
+            Quantities are set for your household of {peopleCount}
+            {selectedServings !== portionSum ? ` — adjusted to ${selectedServings} servings` : ''}.
+            Nutrition facts stay per serving.
+          </span>
+        </p>
+      )}
 
       {/* Macros */}
       <div className="mb-8 grid grid-cols-4 gap-3">

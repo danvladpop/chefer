@@ -42,6 +42,11 @@ export {
   chefReviewRepository,
   type IChefReviewRepository,
   type UpsertChefReviewData,
+  HouseholdMemberRepository,
+  householdMemberRepository,
+  type IHouseholdMemberRepository,
+  type CreateHouseholdMemberData,
+  type UpdateHouseholdMemberData,
 } from './repositories/index';
 
 // Re-export Prisma types for convenience
@@ -63,6 +68,7 @@ export type {
   DailyLog,
   WeightEntry,
   ChefReview,
+  HouseholdMember,
   IngredientPrice,
   ShoppingList,
 } from '@prisma/client';

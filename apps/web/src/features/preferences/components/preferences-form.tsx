@@ -12,6 +12,7 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Toast } from '@chefer/ui';
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
+import { HouseholdSection } from './household-section';
 
 // ─── Client-side nutrition computation ───────────────────────────────────────
 
@@ -235,6 +236,17 @@ export function PreferencesForm({
             onChange={(diet) => setData((d) => ({ ...d, ...diet }))}
           />
         </Section>
+
+        {/* My household (F2) — member chips + per-member safety editors for
+            premium; the §6.4 ghost state for free users. Self-contained
+            (its own tRPC state), so it sits outside the save flow. */}
+        <HouseholdSection
+          isPremium={isPremium}
+          ownerSafety={{
+            allergies: data.allergies,
+            dietaryRestrictions: data.dietaryRestrictions,
+          }}
+        />
 
         {/* Personal targets — premium personalisation. Free users see the
             upgrade panel instead (mutations are server-gated regardless). */}

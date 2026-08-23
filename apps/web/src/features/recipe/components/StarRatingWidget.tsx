@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
+import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Star } from 'lucide-react';
+import { composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from '../lib/liked-by';
 
 interface StarRatingWidgetProps {
   recipeId: string;
@@ -16,24 +18,34 @@ interface StarRatingWidgetProps {
 export function StarRatingWidget({ recipeId, initialRating, initialNotes }: StarRatingWidgetProps) {
   const [hovered, setHovered] = useState<number | null>(null);
   const [selected, setSelected] = useState<number>(initialRating ?? 0);
-  const [notes, setNotes] = useState(initialNotes ?? '');
+  // F2: the "Liked by" member chips live as a structured line INSIDE the
+  // notes column (v1 — no schema); the textarea shows only the free text.
+  const [notes, setNotes] = useState(stripLikedBy(initialNotes));
+  const [likedBy, setLikedBy] = useState<string[]>(parseLikedBy(initialNotes));
   const [saved, setSaved] = useState(!!initialRating);
   // Only a rating saved THIS session is a nudge moment — not revisiting an
   // already-rated recipe.
   const [justRated, setJustRated] = useState(false);
   const isPremium = useIsPremium();
+  const { members } = useHousehold();
 
   const utils = trpc.useUtils();
   const rateMutation = trpc.recipe.rate.useMutation({
     onSuccess: (data) => {
       capture('recipe_rated', { rating: data.rating });
       setSelected(data.rating);
-      setNotes(data.notes ?? '');
+      setNotes(stripLikedBy(data.notes));
+      setLikedBy(parseLikedBy(data.notes));
       setSaved(true);
       setJustRated(true);
       void utils.recipe.getMyRating.invalidate({ recipeId });
     },
   });
+
+  function toggleLikedBy(name: string) {
+    setLikedBy((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
+    setSaved(false);
+  }
 
   const displayRating = hovered ?? selected;
 
@@ -70,6 +82,33 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
         )}
       </div>
 
+      {/* Who liked it (F2) — optional member chips, stored in the notes */}
+      {members.length > 0 && (
+        <div className="mb-3">
+          <p className="mb-1.5 text-xs font-medium text-neutral-500">Who liked it?</p>
+          <div className="flex flex-wrap gap-1.5">
+            {['Me', ...members.map((m) => m.name)].map((name) => {
+              const active = likedBy.includes(name);
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => toggleLikedBy(name)}
+                  aria-pressed={active}
+                  className={`min-h-11 rounded-full border px-3 py-1 text-sm transition-colors ${
+                    active
+                      ? 'border-emerald-400 bg-emerald-50 font-medium text-emerald-700'
+                      : 'border-neutral-200 text-neutral-500 hover:border-neutral-300'
+                  }`}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Notes */}
       <textarea
         value={notes}
@@ -84,7 +123,13 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
 
       <div className="flex items-center gap-3">
         <button
-          onClick={() => rateMutation.mutate({ recipeId, rating: selected, notes })}
+          onClick={() =>
+            rateMutation.mutate({
+              recipeId,
+              rating: selected,
+              notes: composeNotesWithLikedBy(notes, likedBy),
+            })
+          }
           disabled={selected === 0 || rateMutation.isPending || saved}
           className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90 disabled:opacity-50"
         >
