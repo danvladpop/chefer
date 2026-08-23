@@ -4,9 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { FeedbackNavButton } from '@/features/feedback/components/FeedbackDialog';
-import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
-import { useIsPremium } from '@/hooks/useIsPremium';
-import { Sparkles, X } from 'lucide-react';
+import { PlanFooterCard } from '@/features/premium/components/PlanFooterCard';
+import { X } from 'lucide-react';
 import { Drawer } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 import { isNavItemActive, SECONDARY_NAV_ITEMS } from '../nav-items';
@@ -22,7 +21,6 @@ interface MobileNavDrawerProps {
 
 export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
   const pathname = usePathname();
-  const isPremium = useIsPremium();
 
   // Navigating from inside the drawer should dismiss it. Keyed on pathname so
   // it fires after the route actually changes, not on click.
@@ -90,23 +88,9 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
         <FeedbackNavButton />
       </div>
 
-      {/* Plan footer — mirrors the desktop sidebar */}
+      {/* Plan footer — mirrors the desktop sidebar (dismissible for free users) */}
       <div className="shrink-0 border-t px-3 py-3 pb-safe">
-        {isPremium === false && (
-          <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3">
-            <p className="text-xs font-semibold text-gray-800">Free plan</p>
-            <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
-              Generic recipes only. Go premium for your personal AI chef.
-            </p>
-            <UpgradeButton className="mt-2 w-full" source="mobile-drawer" />
-          </div>
-        )}
-        {isPremium === true && (
-          <div className="flex items-center gap-2 rounded-xl bg-[#fff3e8] px-3 py-2">
-            <Sparkles className="h-4 w-4 text-[#944a00]" />
-            <span className="text-xs font-semibold text-[#944a00]">Premium plan</span>
-          </div>
-        )}
+        <PlanFooterCard source="mobile-drawer" />
       </div>
     </Drawer>
   );

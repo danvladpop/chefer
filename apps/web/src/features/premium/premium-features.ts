@@ -46,6 +46,20 @@ export const COMING_SOON_KEYS: PlanFeatureKey[] = [];
 // Maps each upgrade `source` to the feature keys the user was looking at when
 // the dialog opened; those perks render first, expanded. Pure presentation —
 // unknown sources fall back to the default matrix order.
+/**
+ * Free-column labels for the comparison table (review P-4): where the free
+ * tier has a real (lesser) equivalent, name it instead of showing a dash —
+ * a FREE column that opens with three "—"s reads as "free gets nothing".
+ * Marketing copy only; the PLAN_FEATURES matrix stays the enforcement truth.
+ */
+export const FREE_EQUIVALENT_LABELS: Partial<Record<PlanFeatureKey, string>> = {
+  aiMealPlans: 'Chef-curated',
+  profilePersonalisation: 'Stored, shown on your dashboard',
+  aiMealSwaps: 'Curated swaps',
+  aiShoppingList: 'Standard list',
+  photoLogging: 'Manual quick-add',
+};
+
 export const SOURCE_FEATURE_PRIORITY: Partial<Record<string, PlanFeatureKey[]>> = {
   'meal-plan-banner': ['aiMealPlans', 'weeklyAutoGeneration'],
   'pool-exhaustion': ['aiMealPlans', 'aiMealSwaps'],

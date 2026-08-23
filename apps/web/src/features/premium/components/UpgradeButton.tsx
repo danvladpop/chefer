@@ -4,6 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import {
+  ACTIVATION_EVENT,
+  ACTIVATION_FLAG,
+} from '@/features/premium/components/PostUpgradeActivation';
+import {
   PREMIUM_FEATURE_CARDS,
   SOURCE_FEATURE_PRIORITY,
 } from '@/features/premium/premium-features';
@@ -57,6 +61,10 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
   const upgradeMutation = trpc.user.upgradePlan.useMutation({
     onSuccess: () => {
       capture('upgrade_completed', { source });
+      // Post-upgrade activation (review P-8) is shown by the shell-mounted
+      // PostUpgradeActivation — signalled via storage + event because THIS
+      // button usually sits in free-only UI that unmounts when the tier flips.
+      sessionStorage.setItem(ACTIVATION_FLAG, '1');
       // The tier gates data everywhere (plans, preferences, quotas) — drop the
       // whole client cache, and refresh server components: the upgrade panels
       // on /onboarding and /preferences are rendered server-side, so a client
@@ -64,6 +72,7 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
       void utils.invalidate();
       router.refresh();
       setOpen(false);
+      window.dispatchEvent(new Event(ACTIVATION_EVENT));
     },
   });
 
@@ -110,38 +119,38 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
         </div>
 
         {(() => {
+          // Top-3 pitch (review P-5): the source's own perks first, filled
+          // from the matrix — ten equal checkmarks read as marketing, three
+          // read as reasons. The rest collapse into the /premium link.
           const { expanded, rest } = orderedPerkKeys(source);
+          const visible = [...expanded, ...rest].slice(0, 3);
+          const hiddenCount = PREMIUM_PERK_KEYS.length - visible.length;
           return (
-            <ul className="space-y-2">
-              {expanded.map((key) => (
-                <li
-                  key={key}
-                  className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-sm"
-                >
-                  <span className="flex items-start gap-2 font-semibold text-gray-900">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                    {PLAN_FEATURES[key].label}
-                  </span>
-                  <p className="mt-1 pl-6 text-gray-600">{PLAN_FEATURES[key].description}</p>
-                </li>
-              ))}
-              {rest.map((key) => (
-                <li key={key} className="flex items-start gap-2 text-sm text-gray-700">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                  {PLAN_FEATURES[key].label}
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="space-y-2">
+                {visible.map((key) => (
+                  <li
+                    key={key}
+                    className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-sm"
+                  >
+                    <span className="flex items-start gap-2 font-semibold text-gray-900">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                      {PLAN_FEATURES[key].label}
+                    </span>
+                    <p className="mt-1 pl-6 text-gray-600">{PLAN_FEATURES[key].description}</p>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href={`/premium?source=${encodeURIComponent(source)}`}
+                onClick={() => setOpen(false)}
+                className="mt-4 block text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
+              >
+                …and {hiddenCount} more — see everything premium does →
+              </Link>
+            </>
           );
         })()}
-
-        <Link
-          href={`/premium?source=${encodeURIComponent(source)}`}
-          onClick={() => setOpen(false)}
-          className="mt-4 block text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
-        >
-          See everything premium does →
-        </Link>
 
         {upgradeMutation.isError && (
           <p className="mt-3 text-sm text-red-600">

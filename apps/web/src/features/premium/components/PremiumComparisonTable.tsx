@@ -1,5 +1,6 @@
 'use client';
 
+import { FREE_EQUIVALENT_LABELS } from '@/features/premium/premium-features';
 import { Check, Minus } from 'lucide-react';
 import { PLAN_FEATURES, type FeatureAccess, type PlanFeatureKey } from '@chefer/types';
 
@@ -14,8 +15,20 @@ const ORDERED_KEYS = [
   ...KEYS.filter((k) => !PLAN_FEATURES[k].upsell),
 ];
 
-function AccessCell({ access, perDay }: { access: FeatureAccess; perDay: boolean }) {
+function AccessCell({
+  access,
+  perDay,
+  freeLabel,
+}: {
+  access: FeatureAccess;
+  perDay: boolean;
+  /** Named free equivalent (review P-4) — shown instead of a dash. */
+  freeLabel?: string | undefined;
+}) {
   if (access === false || access === 0) {
+    if (freeLabel) {
+      return <span className="text-xs text-neutral-500">{freeLabel}</span>;
+    }
     return <Minus aria-label="Not included" className="mx-auto h-4 w-4 text-neutral-300" />;
   }
   if (access === true) {
@@ -61,7 +74,11 @@ export function PremiumComparisonTable() {
                   </span>
                 </th>
                 <td className="px-2 py-3 text-center">
-                  <AccessCell access={feature.free} perDay={perDay} />
+                  <AccessCell
+                    access={feature.free}
+                    perDay={perDay}
+                    freeLabel={FREE_EQUIVALENT_LABELS[key]}
+                  />
                 </td>
                 <td className="bg-amber-50/50 px-2 py-3 text-center">
                   <AccessCell access={feature.premium} perDay={perDay} />

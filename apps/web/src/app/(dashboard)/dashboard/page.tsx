@@ -121,7 +121,8 @@ export default function DashboardPage() {
         {/* Header */}
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
-            Welcome Back, Chef
+            {/* A brand-new account hasn't been anywhere to come "back" from (O-3). */}
+            {hasPlan ? 'Welcome Back, Chef' : 'Welcome, Chef'}
           </p>
           <div className="mt-0.5 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <h1 className="font-serif text-xl font-bold text-gray-900 sm:text-2xl">
@@ -129,11 +130,8 @@ export default function DashboardPage() {
             </h1>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-gray-500">{d.today.date}</span>
-              {hasPlan && (
-                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
-                  Sustainable Choice
-                </span>
-              )}
+              {/* "Sustainable Choice" badge removed (review M-1): it explained
+                  nothing and claimed something the product doesn't measure. */}
             </div>
           </div>
         </div>

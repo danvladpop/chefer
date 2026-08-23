@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { PostUpgradeActivation } from '@/features/premium/components/PostUpgradeActivation';
 import { BottomNav } from './bottom-nav';
 import { MobileNavDrawer } from './mobile-nav-drawer';
 import { SideBar } from './side-bar';
@@ -13,11 +14,13 @@ const TITLE_MAP: [string, string][] = [
   ['/recipes', 'Recipes'],
   ['/ingredients', 'Ingredients'],
   ['/shopping-list', 'Shopping List'],
+  ['/pantry', 'Pantry'],
   ['/tracker', 'Tracker'],
   ['/progress', 'Progress'],
   ['/history', 'History'],
   ['/profile', 'Profile'],
   ['/preferences', 'Preferences'],
+  ['/premium', 'Premium'],
   ['/onboarding', 'Get Started'],
   ['/dashboard', 'Dashboard'],
 ];
@@ -63,6 +66,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
         onOpenMore={() => setDrawerOpen(true)}
       />
       <MobileNavDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      {/* "3 things to do first" after an upgrade (P-8) — shell-mounted so it
+          survives the free-only upgrade button unmounting on tier flip. */}
+      <PostUpgradeActivation />
     </div>
   );
 }

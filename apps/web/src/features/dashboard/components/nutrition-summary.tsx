@@ -33,7 +33,9 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
   // for a Lose-Weight user the target already includes the deficit, so
   // under-planning stacks a second, unplanned one (review P-2).
   const ratio = n.plannedKcal / (n.dailyCalorieTarget || 1);
-  const targetStatus = ratio > 1.05 ? 'over' : ratio < 0.85 ? 'under' : 'on';
+  // An empty day isn't "under target", it's unplanned — don't scold (P-2).
+  const targetStatus =
+    n.plannedKcal === 0 ? 'none' : ratio > 1.05 ? 'over' : ratio < 0.85 ? 'under' : 'on';
   const remaining = Math.max(n.dailyCalorieTarget - n.plannedKcal, 0);
   const ringFill = RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * calPct) / 100;
 
@@ -50,13 +52,16 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
             targetStatus === 'over' && 'bg-red-100 text-red-700',
             targetStatus === 'under' && 'bg-amber-100 text-amber-700',
             targetStatus === 'on' && 'bg-emerald-100 text-emerald-700',
+            targetStatus === 'none' && 'bg-gray-100 text-gray-500',
           )}
         >
           {targetStatus === 'over'
             ? 'Over Target'
             : targetStatus === 'under'
               ? 'Under Target'
-              : 'On Track'}
+              : targetStatus === 'on'
+                ? 'On Track'
+                : 'No Meals Planned'}
         </span>
       </div>
 
