@@ -26,6 +26,21 @@ describe('isStapleIngredient (F3 denylist)', () => {
       expect(isStapleIngredient(name), name).toBe(false);
     }
   });
+
+  it('excludes compound seasonings whose every part is a staple (found in dev e2e)', () => {
+    for (const name of [
+      'Salt and black pepper',
+      'salt & pepper',
+      'salt and pepper to taste',
+      'Chilli flakes',
+    ]) {
+      expect(isStapleIngredient(name), name).toBe(true);
+    }
+    // …but mixed compounds with real food stay trackable.
+    for (const name of ['chicken and rice', 'salt and chicken', 'tomato and basil sauce']) {
+      expect(isStapleIngredient(name), name).toBe(false);
+    }
+  });
 });
 
 describe('namesMatch', () => {

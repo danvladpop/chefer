@@ -47,6 +47,7 @@ const STAPLE_EXACT = new Set([
   'chili powder',
   'chilli powder',
   'chili flakes',
+  'chilli flakes',
   'red pepper flakes',
   'garlic powder',
   'onion powder',
@@ -71,5 +72,18 @@ function normalize(name: string): string {
 export function isStapleIngredient(name: string): boolean {
   const normalized = normalize(name);
   if (STAPLE_EXACT.has(normalized)) return true;
-  return STAPLE_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
+  if (STAPLE_SUFFIXES.some((suffix) => normalized.endsWith(suffix))) return true;
+  // Compound seasonings ("salt and black pepper", "salt & pepper to taste"):
+  // a staple when EVERY part is itself a staple — "chicken and rice" is not.
+  const parts = normalized
+    .replace(/\bto taste\b/g, '')
+    .split(/\s*(?:,|&|\band\b)\s*/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (parts.length > 1) {
+    return parts.every(
+      (part) => STAPLE_EXACT.has(part) || STAPLE_SUFFIXES.some((s) => part.endsWith(s)),
+    );
+  }
+  return false;
 }
