@@ -1,10 +1,14 @@
+import { TRPCError } from '@trpc/server';
 import {
   chefProfileRepository,
   dailyLogRepository,
   mealPlanRepository,
   weightEntryRepository,
 } from '@chefer/database';
-import type { LoggedMealEntry } from '@chefer/database';
+import type { DailyLog, LoggedMealEntry } from '@chefer/database';
+import type { UserProfile } from '@chefer/types';
+import { hasFeature } from '../../lib/entitlements.js';
+import { rebalanceWeek, type RebalanceResult } from '../meal-plan/rebalance.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 
 export type { LoggedMealEntry };
@@ -121,7 +125,22 @@ export const trackerService = {
     };
   },
 
-  async upsertDay(userId: string, dateStr: string, loggedMeals: LoggedMealEntry[]) {
+  async upsertDay(
+    user: UserProfile,
+    dateStr: string,
+    loggedMeals: LoggedMealEntry[],
+  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
+    const log = await this.writeDay(user.id, dateStr, loggedMeals);
+    const rebalance = await this.maybeRebalance(user);
+    return { log, rebalance };
+  },
+
+  /** Persists a day's logged meals with recomputed totals (no rebalance). */
+  async writeDay(
+    userId: string,
+    dateStr: string,
+    loggedMeals: LoggedMealEntry[],
+  ): Promise<DailyLog> {
     const date = new Date(dateStr);
     date.setUTCHours(0, 0, 0, 0);
 
@@ -140,6 +159,80 @@ export const trackerService = {
       totalCarbs: Math.round(totalCarbs * 10) / 10,
       totalFat: Math.round(totalFat * 10) / 10,
     });
+  },
+
+  /**
+   * Appends one custom entry (photo scan or manual quick-add, F4) to the
+   * day's log. Custom entries store pre-scaled macros with portionMultiplier
+   * 1 — the confirm sheet already let the user edit the numbers.
+   */
+  async logCustomMeal(
+    user: UserProfile,
+    dateStr: string,
+    entry: {
+      name: string;
+      estimatedBy: 'vision' | 'manual';
+      mealType: string;
+      kcal: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+    },
+  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
+    const date = new Date(dateStr);
+    date.setUTCHours(0, 0, 0, 0);
+    const existing = await dailyLogRepository.findByDate(user.id, date);
+    const loggedMeals = [
+      ...((existing?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? []),
+      {
+        custom: { name: entry.name, estimatedBy: entry.estimatedBy },
+        mealType: entry.mealType,
+        portionMultiplier: 1,
+        kcal: entry.kcal,
+        protein: entry.protein,
+        carbs: entry.carbs,
+        fat: entry.fat,
+      },
+    ];
+    const log = await this.writeDay(user.id, dateStr, loggedMeals);
+    const rebalance = await this.maybeRebalance(user);
+    return { log, rebalance };
+  },
+
+  /**
+   * Removes one custom entry (by its index in the day's loggedMeals array).
+   * Planned-recipe entries are managed by the tracker page's save flow and
+   * cannot be deleted here.
+   */
+  async deleteCustomMeal(userId: string, dateStr: string, entryIndex: number): Promise<DailyLog> {
+    const date = new Date(dateStr);
+    date.setUTCHours(0, 0, 0, 0);
+    const existing = await dailyLogRepository.findByDate(userId, date);
+    const loggedMeals = (existing?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
+    const target = loggedMeals[entryIndex];
+    if (!target?.custom) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'No custom entry at that position.' });
+    }
+    const remaining = loggedMeals.filter((_, i) => i !== entryIndex);
+    return this.writeDay(userId, dateStr, remaining);
+  },
+
+  /**
+   * F4 rebalance hook — runs after any log write. Premium-only (gated by the
+   * photoLogging matrix key: free tier logs honestly but the chef doesn't
+   * re-plan the week). Failures are swallowed: a broken rebalance must never
+   * fail the log save itself.
+   */
+  async maybeRebalance(user: UserProfile): Promise<RebalanceResult | null> {
+    if (!hasFeature(user, 'photoLogging')) return null;
+    try {
+      const plan = await mealPlanRepository.findActiveWithDays(user.id);
+      if (!plan) return null;
+      return await rebalanceWeek(user.id, plan.id);
+    } catch (err) {
+      console.error('[tracker] rebalanceWeek failed (log save unaffected):', err);
+      return null;
+    }
   },
 
   /**

@@ -14,6 +14,7 @@ import { assertAiSwapQuota } from '../../lib/quotas.js';
 import { mealPlanService, type WeekPlanDto } from '../meal-plan/meal-plan.service.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { shoppingListService } from '../shopping-list/shopping-list.service.js';
+import { trackerService } from '../tracker/tracker.service.js';
 
 // ─── AI chef chat (P1-4) ──────────────────────────────────────────────────────
 // Replaces the web app's mock regex route. Every message gets a fresh context
@@ -155,6 +156,34 @@ export class ChatService {
         if (cleaned.length === 0) return 'No valid items given.';
         const { added } = await shoppingListService.addCustomItems(user.id, plan.planId, cleaned);
         return `Added to this week's shopping list: ${added.join(', ')}. The user can see and remove them on the Shopping List page.`;
+      },
+
+      logMeal: async ({ name, kcal, protein, carbs, fat, mealType }) => {
+        // "I ate this" (F4): append a manual custom entry to TODAY's log.
+        const cleanName = name.trim().slice(0, 200);
+        if (!cleanName) return 'No dish name given.';
+        if (!Number.isFinite(kcal) || kcal < 0 || kcal > 5000) {
+          return 'Calories must be between 0 and 5000.';
+        }
+        const clampMacro = (v: number | undefined, max: number) =>
+          Number.isFinite(v) ? Math.min(Math.max(v ?? 0, 0), max) : 0;
+        const type = ['breakfast', 'lunch', 'dinner', 'snack'].includes(mealType ?? '')
+          ? mealType!
+          : 'snack';
+        const today = new Date().toISOString().split('T')[0]!;
+        const { rebalance } = await trackerService.logCustomMeal(user, today, {
+          name: cleanName,
+          estimatedBy: 'manual',
+          mealType: type,
+          kcal: Math.round(kcal),
+          protein: clampMacro(protein, 500),
+          carbs: clampMacro(carbs, 1000),
+          fat: clampMacro(fat, 500),
+        });
+        const rebalanceNote = rebalance?.rebalanced
+          ? ` I also adjusted ${rebalance.swaps.length} upcoming meal${rebalance.swaps.length > 1 ? 's' : ''} to keep the week on track — the meal plan shows the change (with undo).`
+          : '';
+        return `Logged "${cleanName}" (${Math.round(kcal)} kcal) as today's ${type}. It now counts toward today's progress in the tracker.${rebalanceNote}`;
       },
 
       scaleRecipe: async ({ recipeName, servings }) => {

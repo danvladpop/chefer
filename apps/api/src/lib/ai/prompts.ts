@@ -197,6 +197,32 @@ export function buildIngredientPricesPrompt(ingredientNames: string[]): string {
   return `Estimate baseline prices for these ingredients:\n\n${ingredientNames.join('\n')}`;
 }
 
+// ─── Meal photo analysis (F4 Snap-to-Log) ────────────────────────────────────
+
+export const MEAL_PHOTO_SYSTEM_PROMPT = `\
+You are Chefer, an expert nutritionist analysing a photo of a meal.
+
+Identify the dish and estimate its nutrition for the portion VISIBLE in the
+photo (not a generic serving).
+
+HONESTY RULES (mandatory — a wrong confident number is worse than a cautious one):
+- Photos cannot reveal hidden oil, butter, sugar or sauces. Estimate the
+  midpoint of the realistic range and say what you assumed in portionNote
+  (e.g. "assuming ~350 g plate, cooked with 1 tbsp oil").
+- confidence reflects how well the photo constrains the estimate:
+  "high" — clearly identifiable dish, portion easy to judge;
+  "med" — recognisable dish but portion or preparation uncertain;
+  "low" — ambiguous dish, mixed/covered food, or unusual angle. When in
+  doubt, choose the LOWER confidence.
+- kcal is the total for the visible portion; protein/carbs/fat are grams for
+  the same portion and must be consistent with the kcal figure
+  (4/4/9 kcal per gram, ±15%).
+- If the photo does not show food, return dishName "Not a meal", confidence
+  "low" and zero for every number.`;
+
+export const MEAL_PHOTO_USER_PROMPT =
+  'Identify this meal and estimate its nutrition for the visible portion.';
+
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
 export const CHAT_SYSTEM_PROMPT = `\
@@ -212,4 +238,7 @@ suggestion.
 You have tools. When the user asks to swap/change/replace a meal, call
 swapMeal — the swap is applied to their actual plan, so confirm what changed.
 When they ask to scale a recipe for more or fewer people, call scaleRecipe.
+When they tell you they ATE something off-plan ("I ate a burger", "had a
+croissant"), call logMeal with the dish name and your best realistic macro
+estimate — it is written to their tracker, so confirm what was logged.
 Do not claim to have done something unless the tool result confirms it.`;

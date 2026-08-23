@@ -35,6 +35,35 @@ export async function assertPlanGenerationQuota(user: UserProfile): Promise<void
 }
 
 /**
+ * Throws FORBIDDEN for tiers without photo logging (free — the camera button
+ * is their upgrade touchpoint, source `snap-scan`) and TOO_MANY_REQUESTS when
+ * today's scan allowance is used up (counted from AiCallLog SCAN rows, F4).
+ */
+export async function assertMealScanQuota(user: UserProfile): Promise<void> {
+  const limit = getLimit(user, 'mealScansPerDay');
+  if (limit === 0) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Photo meal scanning is a premium feature. Upgrade to scan your meals.',
+    });
+  }
+  if (limit === null) return;
+  const used = await prisma.aiCallLog.count({
+    where: {
+      userId: user.id,
+      callType: AiCallType.SCAN,
+      createdAt: { gte: startOfTodayUtc() },
+    },
+  });
+  if (used >= limit) {
+    throw new TRPCError({
+      code: 'TOO_MANY_REQUESTS',
+      message: `You've hit today's limit of ${limit} meal scans. It resets at midnight UTC.`,
+    });
+  }
+}
+
+/**
  * Throws TOO_MANY_REQUESTS when a premium user has exhausted today's AI
  * swaps (counted from AiCallLog). Free swaps draw from the curated pool at
  * zero AI cost and are not capped.

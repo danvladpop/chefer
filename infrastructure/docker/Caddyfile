@@ -20,7 +20,7 @@
 	# Backend-only API paths (uploads endpoint + SSE image stream + AI chat +
 	# the canonical health check: API + DB, 503 when the DB is unreachable —
 	# this is what the external uptime monitor watches, A12)
-	@apiBackend path /api/uploads/* /api/recipe-images/* /api/chat /api/health
+	@apiBackend path /api/uploads/* /api/recipe-images/* /api/chat /api/scan-meal /api/health
 	handle @apiBackend {
 		reverse_proxy api:3001 {
 			# Streams (SSE image status, chat text): don't buffer

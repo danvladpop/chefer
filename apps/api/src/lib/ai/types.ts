@@ -180,6 +180,18 @@ export interface ChatTools {
   addToShoppingList(args: {
     items: { name: string; quantity?: number; unit?: string }[];
   }): Promise<string>;
+  /**
+   * "I ate this" (F4 Snap-to-Log): appends a custom entry to today's tracker
+   * log. Macros are the model's estimate; missing ones default to 0.
+   */
+  logMeal(args: {
+    name: string;
+    kcal: number;
+    protein?: number;
+    carbs?: number;
+    fat?: number;
+    mealType?: string;
+  }): Promise<string>;
 }
 
 export interface ChatContext {

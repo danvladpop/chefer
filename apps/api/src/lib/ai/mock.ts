@@ -175,6 +175,22 @@ export class MockAIService implements IAIService {
         /\b(breakfast|lunch|dinner|snack)\b/i.exec(question)?.[1]?.toLowerCase() ?? 'lunch';
       const result = await context.tools.swapMeal({ dayOfWeek, mealType });
       response = `(Mock) ${result}`;
+    } else if (/\bi (just )?(ate|had)\b/i.test(question) && context.tools) {
+      // "I ate a burger" → exercises the real logMeal tool handler (F4) with
+      // a deterministic estimate; the point is the pipeline, not NLP.
+      const dish = question
+        .replace(/^.*?\bi (just )?(ate|had)\b/i, '')
+        .replace(/[.!?].*$/, '')
+        .trim();
+      const result = await context.tools.logMeal({
+        name: dish.length > 0 ? dish : 'mock meal',
+        kcal: 450,
+        protein: 20,
+        carbs: 45,
+        fat: 18,
+        mealType: 'snack',
+      });
+      response = `(Mock) ${result}`;
     } else if (/add\b.*\b(shopping|grocery) list/i.test(question) && context.tools) {
       // "add milk and 2 kg flour to my shopping list" → name-only items; the
       // point is exercising the real tool handler, not NLP.
