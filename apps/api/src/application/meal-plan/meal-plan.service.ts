@@ -24,6 +24,8 @@ import {
 } from '../../lib/curated-recipes/index.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
 import { computeHouseholdContext, mergeHouseholdSafety } from '../household/household.service.js';
+import { pairLeftovers } from '../pantry/leftovers.js';
+import { computeUsedPantryItemsForUser, getUseFirstIngredients } from '../pantry/pantry-context.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { estimatePlanCostEur, type PlanCostEstimate } from '../shared/plan-cost.js';
 
@@ -65,6 +67,8 @@ export interface RecipeDto {
 export interface MealSlotDto {
   type: MealType;
   recipe: RecipeDto;
+  /** F3 leftovers: source-day name when this slot is "Leftovers from X". */
+  leftoverOf?: string;
 }
 
 export interface DayPlanDto {
@@ -89,6 +93,8 @@ export interface WeekPlanDto {
     pinnedDishNames: string[];
     likedCount: number;
     dislikedCount: number;
+    /** F3: pantry items the generated week actually uses (use-first order). */
+    usedPantryItems: string[];
   };
 }
 
@@ -140,7 +146,12 @@ export class MealPlanService {
    *
    * @param weekOffset 0 = current week, 1 = next week, etc.
    */
-  async generate(userId: string, weekOffset = 0, premium = false): Promise<WeekPlanDto> {
+  async generate(
+    userId: string,
+    weekOffset = 0,
+    premium = false,
+    options: { leftovers?: boolean } = {},
+  ): Promise<WeekPlanDto> {
     if (!premium) {
       return this.generateCurated(userId, weekOffset);
     }
@@ -183,12 +194,10 @@ export class MealPlanService {
     };
     const householdContext = computeHouseholdContext(householdMembers, ownerSafety);
 
-    // ── F3 INTEGRATION POINT (wave-2 integrator) ─────────────────────────────
-    // The pantry provider (application/pantry/pantry-context.ts, owned by
-    // feat/pantry) is wired HERE: load the user's use-first items and set
-    // `useFirstIngredients` on aiInput below. Household deliberately does not
-    // implement or import it (premium_plan.md §5).
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── F3 pantry seam (wired at wave-2 integration) ─────────────────────────
+    // Use-first items steer the prompt (soft constraint); an empty array
+    // keeps the prompt byte-identical — the section builder no-ops on empty.
+    const useFirstIngredients = await getUseFirstIngredients(userId);
 
     const aiInput = {
       userId,
@@ -214,6 +223,8 @@ export class MealPlanService {
         weeklyBudgetEur: chefProfile.weeklyBudgetEur,
       }),
       ...(householdContext && { householdContext }),
+      ...(useFirstIngredients.length > 0 && { useFirstIngredients }),
+      ...(options.leftovers && { leftoversMode: true }),
     };
 
     // 3. Call AI service
@@ -242,6 +253,13 @@ export class MealPlanService {
     let placedPinNames: string[] = [];
     if (pinnedFavourites.length > 0) {
       placedPinNames = await this.placePinnedRecipes(userId, weekPlan, pinnedFavourites);
+    }
+
+    // 3c. F3 leftovers ("cook once, eat twice"): deterministic post-processing
+    // pairs dinners with next-day lunches (doubled servings, `leftoverOf`
+    // labels). Runs AFTER pin placement so pins land in fresh slots first.
+    if (options.leftovers) {
+      weekPlan = pairLeftovers(weekPlan);
     }
 
     // 4. Collect unique recipes and their image priority (min day-distance
@@ -303,7 +321,11 @@ export class MealPlanService {
       weekStartDate,
       days: weekPlan.days.map((d) => ({
         dayOfWeek: d.dayOfWeek,
-        meals: d.meals.map((m) => ({ type: m.type, recipeId: m.recipe.id })),
+        meals: d.meals.map((m) => ({
+          type: m.type,
+          recipeId: m.recipe.id,
+          ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
+        })),
       })),
       recipeIds: recipes.map((r) => r.id),
     });
@@ -331,6 +353,7 @@ export class MealPlanService {
               imageUrl: img.imageUrl,
               imageStatus: img.done ? 'DONE' : 'PENDING',
             }),
+            ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
           };
         }),
       })),
@@ -339,6 +362,9 @@ export class MealPlanService {
         pinnedDishNames: placedPinNames,
         likedCount: likedDishes.length,
         dislikedCount: dislikedDishes.length,
+        // F3: which pantry items the week actually cooks from — feeds the
+        // "uses N things you already have" banner + plan_used_pantry event.
+        usedPantryItems: await computeUsedPantryItemsForUser(userId, weekPlan.days),
       },
     };
   }
@@ -504,7 +530,7 @@ export class MealPlanService {
     weekStartDate: Date;
     days: { dayOfWeek: number; meals: unknown }[];
   }): Promise<WeekPlanDto> {
-    type MealSlotJson = { type: string; recipeId: string };
+    type MealSlotJson = { type: string; recipeId: string; leftoverOf?: string };
     const allMeals = plan.days.flatMap((d) => d.meals as MealSlotJson[]);
     const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
     const recipeRows: Recipe[] = await this.repo.findRecipesByIds(uniqueIds);
@@ -519,7 +545,11 @@ export class MealPlanService {
             message: `Recipe ${m.recipeId} not found in database.`,
           });
         }
-        return { type: m.type as MealType, recipe: rowToRecipeDto(row) };
+        return {
+          type: m.type as MealType,
+          recipe: rowToRecipeDto(row),
+          ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
+        };
       });
       return { dayOfWeek: d.dayOfWeek, meals };
     });

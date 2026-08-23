@@ -16,11 +16,16 @@ export const mealPlanRouter = router({
     .input(
       z.object({
         weekOffset: z.number().int().min(0).max(52).default(0),
+        /** F3 "cook once, eat twice" — premium generation option. */
+        leftovers: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       await assertPlanGenerationQuota(ctx.user);
-      return mealPlanService.generate(ctx.user.id, input.weekOffset, isPremiumUser(ctx.user));
+      const premium = isPremiumUser(ctx.user);
+      return mealPlanService.generate(ctx.user.id, input.weekOffset, premium, {
+        leftovers: premium && input.leftovers === true,
+      });
     }),
 
   /**

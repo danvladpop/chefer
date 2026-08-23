@@ -11,6 +11,7 @@ import {
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { hasFeature } from '../../lib/entitlements.js';
+import { pantryService } from '../pantry/pantry.service.js';
 import { computeBmrTdee, resolveDailyTargets } from '../preferences/preferences.service.js';
 import { generateReviewText } from './review-text.js';
 import {
@@ -181,7 +182,12 @@ export class CoachService {
       avgDailyKcal: metrics.avgDailyKcal,
       weightTrendKg: metrics.weightTrendKg,
       adjustmentKcal,
-      savedEur: null, // F3 seam — pantry savings land in wave 2
+      // F3: what the pantry saved this week (null = no plan that week; a
+      // pantry failure must never block the review write).
+      savedEur: await pantryService.computeWeekPantrySavings(userId, weekStart).catch((err) => {
+        console.error('[coach] computeWeekPantrySavings failed:', err);
+        return null;
+      }),
       reviewText,
     });
   }

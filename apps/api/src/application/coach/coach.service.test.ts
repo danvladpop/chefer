@@ -37,6 +37,12 @@ vi.mock('./review-text.js', () => ({
     .mockResolvedValue('First line of the review.\nSecond line.\nThird line.'),
 }));
 
+// F3 seam: reviews carry the week's pantry savings — stubbed here so coach
+// tests stay isolated from the pantry service's repositories.
+vi.mock('../pantry/pantry.service.js', () => ({
+  pantryService: { computeWeekPantrySavings: vi.fn().mockResolvedValue(null) },
+}));
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 // Sunday afternoon UTC — when the worker tick runs. Week start: Mon 17 Aug.
