@@ -171,24 +171,26 @@ export function PreferencesForm({
     }, 900);
   }
 
-  // ── Validation ──────────────────────────────────────────────────────────────
+  // ── Profile completeness (informational only — see handleSave) ──────────────
 
-  const canSave =
-    !isPremium ||
-    (data.goal !== null &&
-      data.biologicalSex !== null &&
-      data.age !== null &&
-      data.age > 0 &&
-      data.heightCm !== null &&
-      data.heightCm > 0 &&
-      data.weightKg !== null &&
-      data.weightKg > 0 &&
-      data.activityLevel !== null);
+  const profileComplete =
+    data.goal !== null &&
+    data.biologicalSex !== null &&
+    data.age !== null &&
+    data.age > 0 &&
+    data.heightCm !== null &&
+    data.heightCm > 0 &&
+    data.weightKg !== null &&
+    data.weightKg > 0 &&
+    data.activityLevel !== null;
 
   // ── Save handler ────────────────────────────────────────────────────────────
+  // Saves whatever is filled (review PR-1): updateTargets accepts partials, so
+  // changing only a cuisine or the budget no longer demands a full body
+  // profile. The old all-or-nothing gate blocked exactly those small edits.
 
   async function handleSave() {
-    if (!canSave || isSaving) return;
+    if (isSaving) return;
     try {
       await safetyMutation.mutateAsync({
         dietaryRestrictions: data.dietaryRestrictions,
@@ -197,12 +199,12 @@ export function PreferencesForm({
       });
       if (isPremium) {
         await targetsMutation.mutateAsync({
-          goal: data.goal!,
-          biologicalSex: data.biologicalSex!,
-          age: data.age!,
-          heightCm: data.heightCm!,
-          weightKg: data.weightKg!,
-          activityLevel: data.activityLevel!,
+          ...(data.goal !== null && { goal: data.goal }),
+          ...(data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
+          ...(data.age !== null && data.age > 0 && { age: data.age }),
+          ...(data.heightCm !== null && data.heightCm > 0 && { heightCm: data.heightCm }),
+          ...(data.weightKg !== null && data.weightKg > 0 && { weightKg: data.weightKg }),
+          ...(data.activityLevel !== null && { activityLevel: data.activityLevel }),
           cuisinePreferences: data.cuisinePreferences,
           mealsPerDay: data.mealsPerDay,
           servingSize: data.servingSize,
@@ -406,15 +408,16 @@ export function PreferencesForm({
 
         {/* Save bar */}
         <div className="flex flex-col-reverse items-stretch gap-3 rounded-xl border bg-card px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-end sm:gap-4 sm:px-6">
-          {!canSave && (
+          {isPremium && !profileComplete && (
             <p className="text-sm text-muted-foreground">
-              Fill in your goal, biological sex, age, height, weight, and activity level to save.
+              Save works any time — complete goal + body metrics whenever you want your calorie
+              target computed from your body.
             </p>
           )}
           <button
             type="button"
             onClick={() => void handleSave()}
-            disabled={!canSave || isSaving}
+            disabled={isSaving}
             className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10"
           >
             {isSaving ? 'Saving…' : 'Save preferences'}

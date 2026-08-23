@@ -257,6 +257,7 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
                     value={sex}
                     checked={selected}
                     onChange={() => onChange({ ...value, biologicalSex: sex })}
+                    aria-label={sex === 'MALE' ? 'Male' : 'Female'}
                     className="sr-only"
                   />
                   {sex === 'MALE' ? 'Male' : 'Female'}
@@ -401,6 +402,7 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
                     value={v}
                     checked={selected}
                     onChange={() => onChange({ ...value, activityLevel: v })}
+                    aria-label={label}
                     className="mt-0.5 accent-primary"
                   />
                   <div>

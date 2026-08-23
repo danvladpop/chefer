@@ -1,5 +1,6 @@
 'use client';
 
+import { Check } from 'lucide-react';
 import type { Goal } from '../types';
 
 const GOALS: {
@@ -67,10 +68,19 @@ export function StepGoal({ value, onChange }: StepGoalProps) {
               type="button"
               onClick={() => onChange(v)}
               aria-pressed={selected}
-              className={`flex flex-col items-center gap-3 rounded-xl border-2 p-6 text-center transition-all hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+              aria-label={label}
+              className={`relative flex flex-col items-center gap-3 rounded-xl border-2 p-6 text-center transition-all hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                 selected ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-card'
               }`}
             >
+              {/* Explicit selected marker (review PR-4): the focus ring and the
+                  selected border share the brand colour, so keyboard users saw
+                  two "selected" cards — the check disambiguates. */}
+              {selected && (
+                <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </span>
+              )}
               <span className="text-4xl" aria-hidden="true">
                 {icon}
               </span>
