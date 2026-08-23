@@ -861,6 +861,15 @@ export class GeminiAIService implements IAIService {
                   required: ['url'],
                 } as Schema,
               },
+              {
+                name: 'whatCanIMake',
+                description:
+                  "Lists the recipes the user can (mostly) cook from what is already in their kitchen/pantry. Use when the user asks what they can make, cook or eat with what they have, or what's in their pantry.",
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {},
+                } as Schema,
+              },
             ],
           },
         ]
@@ -917,6 +926,8 @@ export class GeminiAIService implements IAIService {
             });
           } else if (call.name === 'getMyReview') {
             result = await context.tools.getMyReview();
+          } else if (call.name === 'whatCanIMake') {
+            result = await context.tools.whatCanIMake();
           } else if (call.name === 'logMeal') {
             const mealType = typeof args['mealType'] === 'string' ? args['mealType'] : undefined;
             result = await context.tools.logMeal({

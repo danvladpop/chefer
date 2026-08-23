@@ -13,6 +13,7 @@ import { getLimit, isPremiumUser } from '../../lib/entitlements.js';
 import { assertAiSwapQuota } from '../../lib/quotas.js';
 import { coachService } from '../coach/coach.service.js';
 import { mealPlanService, type WeekPlanDto } from '../meal-plan/meal-plan.service.js';
+import { pantryService } from '../pantry/pantry.service.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { recipeImportService } from '../recipe-import/recipe-import.service.js';
 import { shoppingListService } from '../shopping-list/shopping-list.service.js';
@@ -234,6 +235,12 @@ export class ChatService {
         } catch (err) {
           return `Import failed: ${err instanceof Error ? err.message : 'unknown error'}`;
         }
+      },
+
+      whatCanIMake: async () => {
+        // F3 pantry: coverage ranking over known recipes. PantryService
+        // handles the tier branch (free gets an honest teaser).
+        return pantryService.whatCanIMake(user);
       },
 
       scaleRecipe: async ({ recipeName, servings }) => {

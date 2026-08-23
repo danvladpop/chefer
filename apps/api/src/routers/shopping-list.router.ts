@@ -6,7 +6,9 @@ export const shoppingListRouter = router({
   getForWeek: protectedProcedure
     .input(z.object({ weekOffset: z.number().int().min(-52).max(1).default(0) }))
     .query(async ({ ctx, input }) => {
-      return shoppingListService.getForWeek(ctx.user.id, input.weekOffset);
+      // Full user (not just the id): the F3 pantry subtraction is shaped by
+      // the pantryPlanning entitlement.
+      return shoppingListService.getForWeek(ctx.user, input.weekOffset);
     }),
 
   // AI consolidation is a premium feature — free users keep the
@@ -60,7 +62,7 @@ export const shoppingListRouter = router({
   regenerate: premiumProcedure
     .input(z.object({ weekOffset: z.number().int().min(-52).max(1).default(0) }))
     .mutation(async ({ ctx, input }) => {
-      return shoppingListService.regenerate(ctx.user.id, input.weekOffset);
+      return shoppingListService.regenerate(ctx.user, input.weekOffset);
     }),
 
   searchStores: protectedProcedure
