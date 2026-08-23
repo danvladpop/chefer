@@ -96,6 +96,22 @@ export function buildLeftoversSection(input: MealPlanInput): string {
   return `Cook-once-eat-twice week: favour dinners that keep and reheat well (stews, curries, bakes, grain bowls) — 2-3 of them will be cooked in a double batch and eaten again as the next day's lunch. Avoid dinners that die overnight (fried textures, delicate seafood).`;
 }
 
+/**
+ * Corrective retry (trust P-1): present only on the second attempt, after the
+ * first plan's day totals failed the ±15% server-side validation.
+ */
+export function buildCalorieCorrectionSection(input: MealPlanInput): string {
+  const c = input.calorieCorrection;
+  if (!c) return '';
+  return `CALORIE CORRECTION — this is a retry; the previous plan failed validation. Its day totals were ${c.previousDayTotals.join(
+    ', ',
+  )} kcal against the ${c.target} kcal/day target. Every day MUST now total between ${Math.round(
+    c.target * 0.9,
+  )} and ${Math.round(
+    c.target * 1.1,
+  )} kcal. Fix it by scaling portion sizes (ingredient quantities AND nutritionInfo together), not by adding token side dishes.`;
+}
+
 export function buildMealPlanUserPrompt(input: MealPlanInput): string {
   const mealTypes = ['breakfast', 'lunch', 'dinner'];
   if (input.mealsPerDay >= 4) mealTypes.push('snack');
@@ -140,6 +156,7 @@ export function buildMealPlanUserPrompt(input: MealPlanInput): string {
     buildHouseholdSection(input),
     buildUseFirstSection(input),
     buildLeftoversSection(input),
+    buildCalorieCorrectionSection(input),
   ]) {
     if (section) signalLines.push(section);
   }

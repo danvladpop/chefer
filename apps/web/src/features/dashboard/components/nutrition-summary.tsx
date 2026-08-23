@@ -29,7 +29,11 @@ interface NutritionSummaryProps {
 
 export function NutritionSummary({ nutrition: n, nextMealName, className }: NutritionSummaryProps) {
   const calPct = pct(n.plannedKcal, n.dailyCalorieTarget);
-  const isOverTarget = n.plannedKcal > n.dailyCalorieTarget;
+  // Three-state honesty: a day planned 40% under target is NOT "on track" —
+  // for a Lose-Weight user the target already includes the deficit, so
+  // under-planning stacks a second, unplanned one (review P-2).
+  const ratio = n.plannedKcal / (n.dailyCalorieTarget || 1);
+  const targetStatus = ratio > 1.05 ? 'over' : ratio < 0.85 ? 'under' : 'on';
   const remaining = Math.max(n.dailyCalorieTarget - n.plannedKcal, 0);
   const ringFill = RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * calPct) / 100;
 
@@ -43,10 +47,16 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
         <span
           className={cn(
             'shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase',
-            isOverTarget ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700',
+            targetStatus === 'over' && 'bg-red-100 text-red-700',
+            targetStatus === 'under' && 'bg-amber-100 text-amber-700',
+            targetStatus === 'on' && 'bg-emerald-100 text-emerald-700',
           )}
         >
-          {isOverTarget ? 'Over Target' : 'On Track'}
+          {targetStatus === 'over'
+            ? 'Over Target'
+            : targetStatus === 'under'
+              ? 'Under Target'
+              : 'On Track'}
         </span>
       </div>
 

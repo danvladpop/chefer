@@ -81,6 +81,12 @@ export interface WeekPlanDto {
   weekStartDate: Date;
   days: DayPlanDto[];
   /**
+   * The daily calorie target the plan was (or should have been) built
+   * against — same resolver as the dashboard ring, so the planner can badge
+   * days that land off target (trust fix P-1/P-2 in docs/ux-fixes-plan.md).
+   */
+  calorieTarget?: number;
+  /**
    * Estimated week cost from the ingredient price vocabulary (P2-4) —
    * the priced-shopping-list wedge, surfaced on the plan itself.
    */
@@ -239,6 +245,29 @@ export class MealPlanService {
       });
     }
 
+    // 3a. Server-side day-total validation (trust P-1): the prompt demands
+    // ±5% but models routinely return days 25-45% under target. One corrective
+    // retry with the failed numbers in the prompt; keep whichever attempt is
+    // closer. The retry is intentionally NOT logged to aiCallLog — quota
+    // counts user actions, and the user asked once.
+    const firstTotals = planDayKcalTotals(weekPlan);
+    if (offTargetScore(firstTotals, liveCalorieTarget) > 0) {
+      try {
+        const retryPlan = await aiService.generateMealPlan({
+          ...aiInput,
+          calorieCorrection: { target: liveCalorieTarget, previousDayTotals: firstTotals },
+        });
+        if (
+          offTargetScore(planDayKcalTotals(retryPlan), liveCalorieTarget) <
+          offTargetScore(firstTotals, liveCalorieTarget)
+        ) {
+          weekPlan = retryPlan;
+        }
+      } catch (err) {
+        console.error('Calorie-correction retry failed; keeping first plan:', err);
+      }
+    }
+
     // Log AI call (fire-and-forget — never crash the server if logging fails)
     prisma.aiCallLog
       .create({ data: { userId, callType: AiCallType.MEAL_PLAN } })
@@ -343,6 +372,7 @@ export class MealPlanService {
     return {
       planId: plan.id,
       weekStartDate: plan.weekStartDate,
+      calorieTarget: liveCalorieTarget,
       days: weekPlan.days.map((d) => ({
         dayOfWeek: d.dayOfWeek,
         meals: d.meals.map((m) => {
@@ -486,6 +516,7 @@ export class MealPlanService {
     return {
       planId: plan.id,
       weekStartDate: plan.weekStartDate,
+      calorieTarget: await this.loadCalorieTarget(userId),
       days: days.map((d) => ({
         dayOfWeek: d.dayOfWeek,
         meals: d.meals.map((m) => ({
@@ -520,16 +551,28 @@ export class MealPlanService {
   }
 
   /**
+   * The user's live daily calorie target — same resolver the dashboard ring
+   * and premium generation use, so every surface shows one number (P-1/P-3).
+   */
+  private async loadCalorieTarget(userId: string): Promise<number> {
+    const chefProfile = await chefProfileRepository.findByUserId(userId);
+    return resolveDailyTargets(chefProfile ?? null).dailyCalorieTarget;
+  }
+
+  /**
    * Joins a plan's day JSON against its recipe rows and assembles the
    * WeekPlanDto. The one implementation behind getActive / getForWeek /
    * getById — this logic used to be copy-pasted three times, which is where
    * single-copy bug fixes went to die (roadmap P0-7).
    */
-  private async assemblePlanDto(plan: {
-    id: string;
-    weekStartDate: Date;
-    days: { dayOfWeek: number; meals: unknown }[];
-  }): Promise<WeekPlanDto> {
+  private async assemblePlanDto(
+    plan: {
+      id: string;
+      weekStartDate: Date;
+      days: { dayOfWeek: number; meals: unknown }[];
+    },
+    userId?: string,
+  ): Promise<WeekPlanDto> {
     type MealSlotJson = { type: string; recipeId: string; leftoverOf?: string };
     const allMeals = plan.days.flatMap((d) => d.meals as MealSlotJson[]);
     const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
@@ -559,6 +602,7 @@ export class MealPlanService {
       weekStartDate: plan.weekStartDate,
       days,
       estimatedCost: await estimatePlanCostEur(days),
+      ...(userId && { calorieTarget: await this.loadCalorieTarget(userId) }),
     };
   }
 
@@ -569,7 +613,7 @@ export class MealPlanService {
   async getActive(userId: string): Promise<WeekPlanDto | null> {
     const plan = await this.repo.findActiveWithDays(userId);
     if (!plan) return null;
-    return this.assemblePlanDto(plan);
+    return this.assemblePlanDto(plan, userId);
   }
 
   /**
@@ -586,7 +630,7 @@ export class MealPlanService {
     }
 
     if (!plan) return null;
-    return this.assemblePlanDto(plan);
+    return this.assemblePlanDto(plan, userId);
   }
 
   /**
@@ -835,7 +879,7 @@ export class MealPlanService {
     if (!plan) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found.' });
     }
-    return this.assemblePlanDto(plan);
+    return this.assemblePlanDto(plan, userId);
   }
 }
 
@@ -856,6 +900,26 @@ function aiFailureMessage(err: unknown, fallback: string): string {
     return 'The AI service is temporarily overloaded. Please try again in a minute.';
   }
   return fallback;
+}
+
+/**
+ * Per-day kcal totals of a generated week (per-serving nutrition — matches
+ * what the planner's "Day total" row displays).
+ */
+function planDayKcalTotals(weekPlan: { days: { meals: { recipe: RecipeData }[] }[] }): number[] {
+  return weekPlan.days.map((d) =>
+    d.meals.reduce((sum, m) => sum + (m.recipe.nutritionInfo?.calories ?? 0), 0),
+  );
+}
+
+/** How far a plan's days stray beyond the ±15% band around the target (0 = every day in band). */
+const PLAN_KCAL_TOLERANCE = 0.15;
+function offTargetScore(dayTotals: number[], target: number): number {
+  if (!target) return 0;
+  return dayTotals.reduce(
+    (sum, t) => sum + Math.max(0, Math.abs(t - target) / target - PLAN_KCAL_TOLERANCE),
+    0,
+  );
 }
 
 function toRecipeDto(

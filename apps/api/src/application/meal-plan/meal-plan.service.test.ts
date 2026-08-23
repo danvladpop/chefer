@@ -108,7 +108,10 @@ const AI_RECIPE = {
   description: 'd',
   ingredients: [{ name: 'salmon', quantity: 200, unit: 'g' }],
   instructions: ['cook'],
-  nutritionInfo: { calories: 600, protein: 40, carbs: 30, fat: 25, fiber: 4 },
+  // In-band for CHEF_PROFILE's ~2259 kcal live target (±15%) so the P-1
+  // calorie validation never triggers a retry in tests that assert a single
+  // generateMealPlan call.
+  nutritionInfo: { calories: 2200, protein: 40, carbs: 30, fat: 25, fiber: 4 },
   cuisineType: 'japanese',
   dietaryTags: [],
   prepTimeMins: 10,
@@ -317,6 +320,99 @@ describe('MealPlanService.generate', () => {
     await expect(service.generate('user1', 0, true)).rejects.toMatchObject({
       code: 'BAD_REQUEST',
     });
+    expect(aiService.generateMealPlan).not.toHaveBeenCalled();
+  });
+});
+
+describe('MealPlanService — day-total calorie validation (P-1)', () => {
+  const planWithKcal = (kcal: number, name = `Dish ${kcal}`) => ({
+    days: [
+      {
+        dayOfWeek: 0,
+        meals: [
+          {
+            type: 'dinner',
+            recipe: {
+              ...AI_RECIPE,
+              id: `r-${kcal}`,
+              name,
+              nutritionInfo: { ...AI_RECIPE.nutritionInfo, calories: kcal },
+            },
+          },
+        ],
+      },
+    ],
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([]);
+    vi.mocked(mealRatingRepository.findSignalsForUser).mockResolvedValue([]);
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+  });
+
+  it('an off-target first plan triggers exactly one corrective retry carrying the failed totals', async () => {
+    const service = new MealPlanService(makeRepo());
+    vi.mocked(aiService.generateMealPlan)
+      .mockResolvedValueOnce(planWithKcal(600, 'Tiny Salad') as never)
+      .mockResolvedValueOnce(planWithKcal(2200, 'Proper Dinner') as never);
+
+    const plan = await service.generate('user1', 0, true);
+
+    expect(aiService.generateMealPlan).toHaveBeenCalledTimes(2);
+    const firstInput = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
+    const retryInput = vi.mocked(aiService.generateMealPlan).mock.calls[1]![0];
+    expect(firstInput.calorieCorrection).toBeUndefined();
+    expect(retryInput.calorieCorrection).toEqual({
+      target: firstInput.dailyCalorieTarget,
+      previousDayTotals: [600],
+    });
+    // The in-band retry wins.
+    expect(plan.days[0]!.meals[0]!.recipe.name).toBe('Proper Dinner');
+    expect(plan.calorieTarget).toBe(firstInput.dailyCalorieTarget);
+  });
+
+  it('keeps the first plan when the retry is even further off target', async () => {
+    const service = new MealPlanService(makeRepo());
+    vi.mocked(aiService.generateMealPlan)
+      .mockResolvedValueOnce(planWithKcal(1700, 'Close Enough') as never)
+      .mockResolvedValueOnce(planWithKcal(300, 'Worse') as never);
+
+    const plan = await service.generate('user1', 0, true);
+
+    expect(aiService.generateMealPlan).toHaveBeenCalledTimes(2);
+    expect(plan.days[0]!.meals[0]!.recipe.name).toBe('Close Enough');
+  });
+
+  it('a failed retry keeps the first plan instead of throwing', async () => {
+    const service = new MealPlanService(makeRepo());
+    vi.mocked(aiService.generateMealPlan)
+      .mockResolvedValueOnce(planWithKcal(600, 'Tiny Salad') as never)
+      .mockRejectedValueOnce(new Error('provider down'));
+
+    const plan = await service.generate('user1', 0, true);
+
+    expect(plan.days[0]!.meals[0]!.recipe.name).toBe('Tiny Salad');
+  });
+
+  it('an in-band plan generates exactly once (no wasted AI call)', async () => {
+    const service = new MealPlanService(makeRepo());
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(planWithKcal(2200) as never);
+
+    await service.generate('user1', 0, true);
+
+    expect(aiService.generateMealPlan).toHaveBeenCalledOnce();
+  });
+
+  it('free tier: the DTO carries the default calorie target for the badge math', async () => {
+    const service = new MealPlanService(makeRepo());
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(null);
+
+    const plan = await service.generate('user1', 0, false);
+
+    expect(plan.calorieTarget).toBe(2000);
     expect(aiService.generateMealPlan).not.toHaveBeenCalled();
   });
 });

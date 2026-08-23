@@ -553,7 +553,7 @@ export default function MealPlanPage() {
                     })}
 
                     {/* Day totals */}
-                    <DayRecapBar meals={day.meals} />
+                    <DayRecapBar meals={day.meals} calorieTarget={plan.calorieTarget} />
                   </div>
                 </div>
               );

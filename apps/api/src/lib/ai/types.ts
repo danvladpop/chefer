@@ -96,6 +96,15 @@ export interface MealPlanInput {
    * `application/pantry/leftovers.ts#pairLeftovers`.
    */
   leftoversMode?: boolean;
+  /**
+   * Set only on the one corrective retry after server-side day-total
+   * validation fails (meal-plan.service). Carries the rejected attempt's
+   * numbers so the prompt can demand the model fix them.
+   */
+  calorieCorrection?: {
+    target: number;
+    previousDayTotals: number[];
+  };
 }
 
 // ─── Meal photo analysis (F4 Snap-to-Log) ────────────────────────────────────
