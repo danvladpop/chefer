@@ -36,10 +36,16 @@ const envSchema = z.object({
     .default('true')
     .transform((val) => val === 'true'),
   AI_MOCK_DELAY_MS: z.coerce.number().int().nonnegative().default(0),
-  AI_PROVIDER: z.enum(['openai', 'anthropic', 'gemini']).default('openai'),
-  OPENAI_API_KEY: z.string().optional(),
-  ANTHROPIC_API_KEY: z.string().optional(),
+  AI_PROVIDER: z.enum(['gemini', 'openai']).default('gemini'),
   GEMINI_API_KEY: z.string().optional(),
+  // Secondary OpenAI-compatible provider (premium_plan.md §5.5 W3-A).
+  // When AI_SECONDARY_API_KEY is set (and AI_PROVIDER=gemini), the factory
+  // wraps Gemini in a failover to this endpoint; unset = no failover (the
+  // deploy runs "dark" until the key lands). AI_PROVIDER=openai uses this
+  // client standalone. Defaults target Groq's free tier.
+  AI_SECONDARY_API_KEY: z.string().optional(),
+  AI_SECONDARY_BASE_URL: z.string().url().default('https://api.groq.com/openai/v1'),
+  AI_SECONDARY_MODEL: z.string().default('openai/gpt-oss-120b'),
 
   // Email — mock is enabled by default so local dev never sends real mail;
   // the mock logs the message (including reset links) to the console instead.
@@ -84,11 +90,8 @@ function validateEnv(): EnvSchema {
     if (data.AI_PROVIDER === 'gemini' && !data.GEMINI_API_KEY) {
       throw new Error('❌ GEMINI_API_KEY is required when AI_PROVIDER=gemini');
     }
-    if (data.AI_PROVIDER === 'openai' && !data.OPENAI_API_KEY) {
-      throw new Error('❌ OPENAI_API_KEY is required when AI_PROVIDER=openai');
-    }
-    if (data.AI_PROVIDER === 'anthropic' && !data.ANTHROPIC_API_KEY) {
-      throw new Error('❌ ANTHROPIC_API_KEY is required when AI_PROVIDER=anthropic');
+    if (data.AI_PROVIDER === 'openai' && !data.AI_SECONDARY_API_KEY) {
+      throw new Error('❌ AI_SECONDARY_API_KEY is required when AI_PROVIDER=openai');
     }
   }
 

@@ -205,10 +205,10 @@ const server = app.listen(env.PORT, env.HOST, () => {
     'api server listening',
   );
 
-  if (!env.AI_MOCK_ENABLED && !env.OPENAI_API_KEY && !env.ANTHROPIC_API_KEY) {
+  if (!env.AI_MOCK_ENABLED && !env.GEMINI_API_KEY && !env.AI_SECONDARY_API_KEY) {
     logger.warn('AI_MOCK_ENABLED=false but no AI API key is set — AI calls will fail');
   }
-  if (env.AI_MOCK_ENABLED && (env.OPENAI_API_KEY ?? env.ANTHROPIC_API_KEY)) {
+  if (env.AI_MOCK_ENABLED && (env.GEMINI_API_KEY ?? env.AI_SECONDARY_API_KEY)) {
     logger.warn('AI_MOCK_ENABLED=true but an API key is also set — the mock takes precedence');
   }
 

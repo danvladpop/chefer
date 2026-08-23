@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import type { Schema } from '@google/genai';
-import { z } from 'zod';
+import { CHAT_TOOL_DEFINITIONS, dispatchChatTool, streamText } from './chat-tools.js';
+import type { ChatToolParamSchema } from './chat-tools.js';
 import {
   buildCheferizeUserPrompt,
   buildExtractRecipeUserPrompt,
@@ -18,6 +19,15 @@ import {
   SHOPPING_LIST_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
 } from './prompts.js';
+import {
+  cheferizedRecipeSchema,
+  extractedRecipeSchema,
+  ingredientPricesResponseSchema,
+  parseMealPhotoResponse,
+  recipeSchema,
+  shoppingListResponseSchema,
+  weekPlanResponseSchema,
+} from './schemas.js';
 import type {
   ChatContext,
   ChatMessage,
@@ -45,52 +55,10 @@ const MODEL = 'gemini-2.5-flash';
 // separate free-tier quota from the main model.
 const FAST_MODEL = 'gemini-2.5-flash-lite';
 
-// ─── Zod validators — parse + validate the raw AI response ───────────────────
-// These are the source of truth for what we consider a valid response.
-// If Gemini ever returns something malformed, Zod catches it here.
-
-const nutritionSchema = z.object({
-  calories: z.number(),
-  protein: z.number(),
-  carbs: z.number(),
-  fat: z.number(),
-  fiber: z.number(),
-});
-
-const ingredientSchema = z.object({
-  name: z.string(),
-  quantity: z.number(),
-  unit: z.string(),
-});
-
-const recipeSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string(),
-  ingredients: z.array(ingredientSchema),
-  instructions: z.array(z.string()),
-  nutritionInfo: nutritionSchema,
-  cuisineType: z.string(),
-  dietaryTags: z.array(z.string()),
-  prepTimeMins: z.number(),
-  cookTimeMins: z.number(),
-  servings: z.number(),
-  imageUrl: z.string().nullable(),
-});
-
-const weekPlanResponseSchema = z.object({
-  days: z.array(
-    z.object({
-      dayOfWeek: z.number().int().min(0).max(6),
-      meals: z.array(
-        z.object({
-          type: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
-          recipe: recipeSchema,
-        }),
-      ),
-    }),
-  ),
-});
+// Zod validators live in schemas.ts — shared with the OpenAI-compatible
+// secondary so both providers pass the exact same validation gates.
+// parseMealPhotoResponse is re-exported for existing test imports.
+export { parseMealPhotoResponse };
 
 // ─── Gemini response schemas ──────────────────────────────────────────────────
 // Mirrors the Zod schemas above but in the Schema format Gemini understands.
@@ -185,18 +153,6 @@ const WEEK_PLAN_SCHEMA: Schema = {
 // ExtractedRecipe = RecipeData minus id/imageUrl — the AI extracts content,
 // not identity, and images come exclusively from our own pipeline.
 
-const extractedRecipeSchema = recipeSchema.omit({ id: true, imageUrl: true });
-
-const cheferizedRecipeSchema = z.object({
-  adapted: extractedRecipeSchema,
-  changes: z.array(
-    z.object({
-      kind: z.enum(['allergen', 'restriction', 'dislike', 'servings', 'other']),
-      description: z.string(),
-    }),
-  ),
-});
-
 const EXTRACTED_RECIPE_SCHEMA: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -249,18 +205,6 @@ const CHEFERIZED_RECIPE_SCHEMA: Schema = {
 
 // ─── Shopping list schemas ────────────────────────────────────────────────────
 
-const aiShoppingListItemSchema = z.object({
-  ingredientName: z.string(),
-  quantity: z.string(),
-  unit: z.string(),
-  // category is inferred locally (inferCategory) — omitting it from the AI
-  // output cuts ~25% of the response tokens and shaves call latency.
-});
-
-const shoppingListResponseSchema = z.object({
-  items: z.array(aiShoppingListItemSchema),
-});
-
 const AI_SHOPPING_LIST_ITEM_SCHEMA: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -280,23 +224,6 @@ const SHOPPING_LIST_RESPONSE_SCHEMA: Schema = {
 };
 
 // ─── Ingredient price schemas ────────────────────────────────────────────────
-
-const ingredientPriceEstimateSchema = z.object({
-  ingredientName: z.string(),
-  pricePer100gEur: z.number().nullable(),
-  pricePer100mlEur: z.number().nullable(),
-  pricePerPieceEur: z.number().nullable(),
-  caloriesPer100g: z.number().nullable(),
-  proteinPer100g: z.number().nullable(),
-  carbsPer100g: z.number().nullable(),
-  fatPer100g: z.number().nullable(),
-  fiberPer100g: z.number().nullable(),
-  gramsPerPiece: z.number().nullable(),
-});
-
-const ingredientPricesResponseSchema = z.object({
-  items: z.array(ingredientPriceEstimateSchema),
-});
 
 const INGREDIENT_PRICES_RESPONSE_SCHEMA: Schema = {
   type: Type.OBJECT,
@@ -337,16 +264,6 @@ const INGREDIENT_PRICES_RESPONSE_SCHEMA: Schema = {
 
 // ─── Meal photo schemas (F4 Snap-to-Log) ─────────────────────────────────────
 
-const mealPhotoEstimateSchema = z.object({
-  dishName: z.string().min(1),
-  confidence: z.enum(['low', 'med', 'high']),
-  kcal: z.number().min(0).max(5000),
-  protein: z.number().min(0).max(500),
-  carbs: z.number().min(0).max(1000),
-  fat: z.number().min(0).max(500),
-  portionNote: z.string(),
-});
-
 const MEAL_PHOTO_SCHEMA: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -361,34 +278,30 @@ const MEAL_PHOTO_SCHEMA: Schema = {
   required: ['dishName', 'confidence', 'kcal', 'protein', 'carbs', 'fat', 'portionNote'],
 };
 
-/**
- * Parses + validates a raw meal-photo model response. Exported so the
- * validation (bounds, confidence enum, rounding) is fixture-testable without
- * a live vision call (premium_plan.md §8 AI-cost rule).
- */
-export function parseMealPhotoResponse(raw: string): MealPhotoEstimate {
-  let json: unknown;
-  try {
-    json = JSON.parse(raw);
-  } catch (err) {
-    throw new Error(
-      `GeminiAIService: meal photo response JSON is malformed — ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-  const parsed = mealPhotoEstimateSchema.safeParse(json);
-  if (!parsed.success) {
-    throw new Error(
-      `GeminiAIService: meal photo response failed validation — ${parsed.error.message}`,
-    );
-  }
-  const e = parsed.data;
-  // Whole numbers only — the confirm sheet edits integers.
+// ─── Chat tool schema conversion ─────────────────────────────────────────────
+// The shared tool definitions (chat-tools.ts) use a neutral JSON-Schema
+// subset; Gemini wants its own Schema format with Type enum constants.
+
+const GEMINI_TYPE_MAP = {
+  object: Type.OBJECT,
+  string: Type.STRING,
+  number: Type.NUMBER,
+  array: Type.ARRAY,
+} as const;
+
+function toGeminiSchema(p: ChatToolParamSchema): Schema {
   return {
-    ...e,
-    kcal: Math.round(e.kcal),
-    protein: Math.round(e.protein),
-    carbs: Math.round(e.carbs),
-    fat: Math.round(e.fat),
+    type: GEMINI_TYPE_MAP[p.type],
+    ...(p.description ? { description: p.description } : {}),
+    ...(p.properties
+      ? {
+          properties: Object.fromEntries(
+            Object.entries(p.properties).map(([key, value]) => [key, toGeminiSchema(value)]),
+          ),
+        }
+      : {}),
+    ...(p.required ? { required: p.required } : {}),
+    ...(p.items ? { items: toGeminiSchema(p.items) } : {}),
   };
 }
 
@@ -748,129 +661,11 @@ export class GeminiAIService implements IAIService {
     const toolDeclarations = context.tools
       ? [
           {
-            functionDeclarations: [
-              {
-                name: 'swapMeal',
-                description:
-                  "Swaps one meal slot in the user's active weekly plan for an alternative recipe. Use when the user asks to swap, change or replace a meal.",
-                parameters: {
-                  type: Type.OBJECT,
-                  properties: {
-                    dayOfWeek: {
-                      type: Type.NUMBER,
-                      description: 'Day to swap: 0=Monday … 6=Sunday',
-                    },
-                    mealType: {
-                      type: Type.STRING,
-                      description: 'One of: breakfast, lunch, dinner, snack',
-                    },
-                  },
-                  required: ['dayOfWeek', 'mealType'],
-                } as Schema,
-              },
-              {
-                name: 'scaleRecipe',
-                description:
-                  "Rescales the ingredient quantities of a recipe from the user's active plan to a different number of servings.",
-                parameters: {
-                  type: Type.OBJECT,
-                  properties: {
-                    recipeName: {
-                      type: Type.STRING,
-                      description: 'Name (or distinctive part of the name) of the recipe to scale',
-                    },
-                    servings: { type: Type.NUMBER, description: 'Desired number of servings' },
-                  },
-                  required: ['recipeName', 'servings'],
-                } as Schema,
-              },
-              {
-                name: 'addToShoppingList',
-                description:
-                  "Adds one or more items to the user's shopping list for this week. Use when the user asks to add, put or remember something on the shopping/grocery list.",
-                parameters: {
-                  type: Type.OBJECT,
-                  properties: {
-                    items: {
-                      type: Type.ARRAY,
-                      description: 'Items to add',
-                      items: {
-                        type: Type.OBJECT,
-                        properties: {
-                          name: { type: Type.STRING, description: 'Ingredient or product name' },
-                          quantity: {
-                            type: Type.NUMBER,
-                            description: 'Amount (defaults to 1 if omitted)',
-                          },
-                          unit: {
-                            type: Type.STRING,
-                            description: 'Unit, e.g. g, kg, ml, l, pcs (defaults to pcs)',
-                          },
-                        },
-                        required: ['name'],
-                      },
-                    },
-                  },
-                  required: ['items'],
-                } as Schema,
-              },
-              {
-                name: 'getMyReview',
-                description:
-                  "Fetches the user's latest weekly chef review: logging adherence, average calories, weight trend and any calorie-target adjustment. Use when the user asks about their weekly review, check-in, progress, or why their calorie budget changed.",
-                parameters: {
-                  type: Type.OBJECT,
-                  properties: {},
-                } as Schema,
-              },
-              {
-                name: 'logMeal',
-                description:
-                  "Logs a meal the user says they ATE (off-plan food: 'I ate a burger', 'had a croissant') into today's tracker with your best realistic macro estimate. Do not use it for planned meals.",
-                parameters: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: {
-                      type: Type.STRING,
-                      description: 'Short dish name, e.g. "Cheeseburger"',
-                    },
-                    kcal: { type: Type.NUMBER, description: 'Estimated calories for the portion' },
-                    protein: { type: Type.NUMBER, description: 'Estimated protein in grams' },
-                    carbs: { type: Type.NUMBER, description: 'Estimated carbs in grams' },
-                    fat: { type: Type.NUMBER, description: 'Estimated fat in grams' },
-                    mealType: {
-                      type: Type.STRING,
-                      description: 'One of: breakfast, lunch, dinner, snack (default snack)',
-                    },
-                  },
-                  required: ['name', 'kcal'],
-                } as Schema,
-              },
-              {
-                name: 'importRecipe',
-                description:
-                  "Imports a recipe from a web URL into the user's collection, adapted to their allergies and preferences (Cheferize). Use when the user shares a recipe link and wants it imported, saved or adapted.",
-                parameters: {
-                  type: Type.OBJECT,
-                  properties: {
-                    url: {
-                      type: Type.STRING,
-                      description: 'Full http(s) URL of the recipe page',
-                    },
-                  },
-                  required: ['url'],
-                } as Schema,
-              },
-              {
-                name: 'whatCanIMake',
-                description:
-                  "Lists the recipes the user can (mostly) cook from what is already in their kitchen/pantry. Use when the user asks what they can make, cook or eat with what they have, or what's in their pantry.",
-                parameters: {
-                  type: Type.OBJECT,
-                  properties: {},
-                } as Schema,
-              },
-            ],
+            functionDeclarations: CHAT_TOOL_DEFINITIONS.map((def) => ({
+              name: def.name,
+              description: def.description,
+              parameters: toGeminiSchema(def.parameters),
+            })),
           },
         ]
       : undefined;
@@ -903,47 +698,7 @@ export class GeminiAIService implements IAIService {
         parts: calls.map((call) => ({ functionCall: call })),
       });
       for (const call of calls) {
-        let result: string;
-        try {
-          const args = call.args ?? {};
-          if (call.name === 'swapMeal') {
-            result = await context.tools.swapMeal({
-              dayOfWeek: Number(args['dayOfWeek']),
-              mealType: String(args['mealType']),
-            });
-          } else if (call.name === 'scaleRecipe') {
-            result = await context.tools.scaleRecipe({
-              recipeName: String(args['recipeName']),
-              servings: Number(args['servings']),
-            });
-          } else if (call.name === 'importRecipe') {
-            result = await context.tools.importRecipe({ url: String(args['url']) });
-          } else if (call.name === 'addToShoppingList') {
-            result = await context.tools.addToShoppingList({
-              items: Array.isArray(args['items'])
-                ? (args['items'] as { name: string; quantity?: number; unit?: string }[])
-                : [],
-            });
-          } else if (call.name === 'getMyReview') {
-            result = await context.tools.getMyReview();
-          } else if (call.name === 'whatCanIMake') {
-            result = await context.tools.whatCanIMake();
-          } else if (call.name === 'logMeal') {
-            const mealType = typeof args['mealType'] === 'string' ? args['mealType'] : undefined;
-            result = await context.tools.logMeal({
-              name: typeof args['name'] === 'string' ? args['name'] : '',
-              kcal: Number(args['kcal']),
-              ...(args['protein'] != null ? { protein: Number(args['protein']) } : {}),
-              ...(args['carbs'] != null ? { carbs: Number(args['carbs']) } : {}),
-              ...(args['fat'] != null ? { fat: Number(args['fat']) } : {}),
-              ...(mealType !== undefined ? { mealType } : {}),
-            });
-          } else {
-            result = `Unknown tool: ${call.name}`;
-          }
-        } catch (err) {
-          result = `Tool failed: ${err instanceof Error ? err.message : 'unknown error'}`;
-        }
+        const result = await dispatchChatTool(call.name ?? '', call.args ?? {}, context.tools);
         contents.push({
           role: 'user',
           parts: [{ functionResponse: { name: call.name, response: { result } } }],
@@ -951,21 +706,6 @@ export class GeminiAIService implements IAIService {
       }
     }
 
-    // Stream the final answer in word chunks so the widget's streaming UX is
-    // preserved even though tool resolution was request/response.
-    const encoder = new TextEncoder();
-    const words = finalText.split(/(?<= )/);
-    return new ReadableStream({
-      async start(controller) {
-        try {
-          for (const word of words) {
-            controller.enqueue(encoder.encode(word));
-            await new Promise((r) => setTimeout(r, 12));
-          }
-        } finally {
-          controller.close();
-        }
-      },
-    });
+    return streamText(finalText);
   }
 }
