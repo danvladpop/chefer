@@ -5,6 +5,7 @@ import {
   Camera,
   Link2,
   RefreshCw,
+  Refrigerator,
   Target,
   TrendingUp,
   Wallet,
@@ -33,10 +34,11 @@ export const PREMIUM_FEATURE_CARDS: PremiumFeatureCard[] = [
   { key: 'adaptiveCoaching', icon: TrendingUp },
   { key: 'photoLogging', icon: Camera },
   { key: 'recipeImport', icon: Link2 },
+  { key: 'pantryPlanning', icon: Refrigerator },
 ];
 
 /** Matrix keys announced on /premium as "cooking now" until their wave lands. */
-export const COMING_SOON_KEYS: PlanFeatureKey[] = ['householdPlans', 'pantryPlanning'];
+export const COMING_SOON_KEYS: PlanFeatureKey[] = ['householdPlans'];
 
 // ── Source-aware perk ordering (upgrade dialog v2, premium_plan.md §6.3) ──
 // Maps each upgrade `source` to the feature keys the user was looking at when
