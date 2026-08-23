@@ -939,3 +939,19 @@ kitchen — premium plans cook from them" plus the REAL computed savings figure 
 this list. The `/pantry` page is visible read-only with the upsell. Events:
 `upgrade_prompt_shown {source: pantry}` (impression), `teaser_engaged {feature:
 pantry}`, `pantry_confirmed`, `plan_used_pantry {itemCount}`.
+
+---
+
+## 19. Beta Feedback Flow
+
+Any signed-in user can send free-text feedback from the sidebar (desktop) or the
+More drawer (mobile): "Send feedback" opens a Sheet with one textarea.
+
+```
+User → Send feedback → feedback.submit { message, path } → FeedbackService.submit
+     → Feedback row (userId, message ≤2000, path, createdAt)
+```
+
+The current route is attached automatically as `path`. On success the client
+fires the `feedback_submitted { path }` PostHog event and thanks the chef.
+Feedback is write-only in-app; the team reads it via Prisma Studio/psql.

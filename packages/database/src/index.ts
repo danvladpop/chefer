@@ -51,6 +51,10 @@ export {
   pantryItemRepository,
   type IPantryItemRepository,
   type UpsertPantryItemData,
+  FeedbackRepository,
+  feedbackRepository,
+  type IFeedbackRepository,
+  type CreateFeedbackData,
 } from './repositories/index';
 
 // Re-export Prisma types for convenience

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
+import { FeedbackNavButton } from '@/features/feedback/components/FeedbackDialog';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { Sparkles, X } from 'lucide-react';
@@ -83,6 +84,11 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
           })}
         </ul>
       </nav>
+
+      {/* Beta feedback — mirrors the desktop sidebar */}
+      <div className="shrink-0 border-t px-3 py-2">
+        <FeedbackNavButton />
+      </div>
 
       {/* Plan footer — mirrors the desktop sidebar */}
       <div className="shrink-0 border-t px-3 py-3 pb-safe">

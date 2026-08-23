@@ -2,6 +2,7 @@ import { mergeRouters, router } from '../lib/trpc.js';
 import { authRouter } from './auth.router.js';
 import { coachRouter } from './coach.router.js';
 import { dashboardRouter } from './dashboard.router.js';
+import { feedbackRouter } from './feedback.router.js';
 import { householdRouter } from './household.router.js';
 import { importRouter } from './import.router.js';
 import { ingredientsRouter } from './ingredients.router.js';
@@ -18,6 +19,7 @@ export const appRouter = router({
   auth: authRouter,
   coach: coachRouter,
   dashboard: dashboardRouter,
+  feedback: feedbackRouter,
   household: householdRouter,
   ingredients: ingredientsRouter,
   mealPlan: mealPlanRouter,

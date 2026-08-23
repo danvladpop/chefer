@@ -122,9 +122,25 @@ model User {
   chefReviews        ChefReview[]
   householdMembers   HouseholdMember[]
   pantryItems        PantryItem[]
+  feedback           Feedback[]
 
   @@index([email])
   @@map("users")
+}
+
+// Beta feedback channel (ux-fixes-plan.md 1.6): free-text notes from any
+// signed-in user, tagged with the page they were on.
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String
+  message   String
+  path      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("feedback")
 }
 
 model UserProfile {

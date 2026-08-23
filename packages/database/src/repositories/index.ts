@@ -83,3 +83,10 @@ export {
   type IPantryItemRepository,
   type UpsertPantryItemData,
 } from './pantry-item.repository';
+
+export {
+  FeedbackRepository,
+  feedbackRepository,
+  type IFeedbackRepository,
+  type CreateFeedbackData,
+} from './feedback.repository';

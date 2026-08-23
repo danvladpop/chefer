@@ -610,6 +610,16 @@ Store-agnostic price + nutrition vocabulary — self-building from all recipe in
 | source         | String   | `PURCHASE` (shopping-list check-off) \| `MANUAL`                                                                                       |
 | updatedAt      | DateTime | Auto-managed; OLDEST-first = the use-first order. Decay preserves it (explicit set wins over `@updatedAt`) so decay ≠ a fresh purchase |
 
+**Feedback** (beta feedback channel, ux-fixes-plan.md 1.6)
+
+| Field     | Type     | Notes                                    |
+| --------- | -------- | ---------------------------------------- |
+| id        | String   | PK (cuid)                                |
+| userId    | String   | FK → User, cascade delete                |
+| message   | String   | Free text, ≤2000 chars (service-trimmed) |
+| path      | String?  | App route the user sent it from          |
+| createdAt | DateTime | Indexed `[userId, createdAt]`            |
+
 ### Enums
 
 ```prisma
@@ -760,6 +770,10 @@ piece/clove/…) to the base families and computes per-line price estimates.
 `apps/api/src/application/pantry/pantry.service.ts`. The user's kitchen inventory over `IPantryItemRepository` (+ `IMealPlanRepository`, both constructor-injected). Methods: `list` (oldest `updatedAt` first — the use-first order), `seedFromPurchases` (called by ShoppingListService on check-off: upserts PURCHASE rows, normalized names, **staples denylist** in `application/pantry/staples.ts` — salt/pepper/oil/vinegar/water/sugar/dried-spice families are never tracked), `addManual` (premium; rejects staples), `removeItem`, `markOutOfStock` (the list's one-tap re-add: deletes every row for the ingredient), `confirmWeekly` (v1 depletion: tapped ids deleted, kept rows older than 7 days decay to the "some" state — quantity 0 — with `updatedAt` preserved), `whatCanIMake` (chat tool: ranks active-plan + curated recipes by pantry coverage via the pure `application/pantry/pantry-match.ts`; free tier gets a teaser), and `computeWeekPantrySavings(userId, weekStart)` (Σ estimated EUR of pantry-covered plan lines — the coach writes it into `ChefReview.savedEur` at review time).
 
 **Pantry generation seam** — `apps/api/src/application/pantry/pantry-context.ts` (the provider the household-owned meal-plan loader calls, premium_plan.md §5): `getUseFirstIngredients(userId, limit=5)` returns the top-N OLDEST pantry items in the `MealPlanInput.useFirstIngredients` shape with human `reason` strings; `computeUsedPantryItemsForUser(userId, days)` computes the response `personalisation.usedPantryItems`. `application/pantry/leftovers.ts#pairLeftovers` is the pure "cook once, eat twice" post-processor (pairs 2–3 dinner→next-day-lunch slots, doubled servings, `leftoverOf` labels on the MealSlot Json — no schema change).
+
+### FeedbackService (application layer)
+
+`apps/api/src/application/feedback/feedback.service.ts`. Beta feedback channel (ux-fixes-plan.md 1.6) over `IFeedbackRepository` (constructor-injected). One method: `submit(userId, message, path?)` — trims, rejects empty, caps at 2000 chars and stores the row. Write-only from the app; read via Prisma Studio/psql.
 
 ### ShoppingListService (application layer)
 
@@ -921,6 +935,7 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `tracker.monthlySummary`        | Protected | Query    | — trailing 28 days of totals                                                                                                                                                                                                                                                                                                   |
 | `tracker.logWeight`             | Protected | Mutation | `{ weightKg, date? }`                                                                                                                                                                                                                                                                                                          |
 | `tracker.weightHistory`         | Protected | Query    | `{ days? }` (default 90)                                                                                                                                                                                                                                                                                                       |
+| `feedback.submit`               | Protected | Mutation | `{ message: 1-2000 chars, path? }` — beta feedback channel; stores a Feedback row (ux-fixes-plan.md 1.6)                                                                                                                                                                                                                       |
 
 ### Middleware Stack
 

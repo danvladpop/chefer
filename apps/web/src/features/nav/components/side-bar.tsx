@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { FeedbackNavButton } from '@/features/feedback/components/FeedbackDialog';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { Sparkles } from 'lucide-react';
@@ -61,6 +62,11 @@ export function SideBar({ className }: SideBarProps) {
           })}
         </ul>
       </nav>
+
+      {/* Beta feedback — every tester needs a way to tell us things */}
+      <div className="border-t px-3 py-2">
+        <FeedbackNavButton />
+      </div>
 
       {/* Plan footer — upgrade CTA for free users, badge for premium */}
       <div className="border-t px-3 py-3">
