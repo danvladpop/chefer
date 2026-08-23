@@ -78,6 +78,28 @@ export const preferencesRouter = router({
     return preferencesService.update(ctx.user.id, input as UpdatePreferencesInput);
   }),
 
+  /**
+   * Goal + body metrics are storable on EVERY tier (ux-fixes-plan.md 3.1):
+   * the dashboard ring and tracker then show a real target instead of the
+   * 2,000 kcal default. Consuming them for AI generation stays premium.
+   */
+  saveProfileBasics: protectedProcedure
+    .input(
+      setupSchema
+        .pick({
+          goal: true,
+          biologicalSex: true,
+          age: true,
+          heightCm: true,
+          weightKg: true,
+          activityLevel: true,
+        })
+        .partial(),
+    )
+    .mutation(async ({ input, ctx }) => {
+      return preferencesService.update(ctx.user.id, input as UpdatePreferencesInput);
+    }),
+
   computeTargets: protectedProcedure
     .input(
       z.object({

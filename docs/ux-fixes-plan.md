@@ -20,13 +20,13 @@ Working branch: `integrate/wave-2` (== origin/master at start). Commit per item 
 
 ## Phase 2 — P1: the front door
 
-| #   | ID  | Item                                                                                         | Where                                                                   | Acceptance                                                                                      | Status |
-| --- | --- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------ |
-| 2.1 | L-1 | Re-skin landing to app brand (cream/serif/brown)                                             | `apps/web/src/app/page.tsx`                                             | Landing uses the dashboard design tokens; no indigo/blue gradient; passes mobile sweep          | ☐      |
-| 2.2 | L-2 | Landing content: all 5 premium features, plan-grid visual, "free during beta" hook, mini-FAQ | `apps/web/src/app/page.tsx`                                             | Sections: hero + plan preview, feature grid (free+premium), beta banner, FAQ teaser, CTA repeat | ☐      |
-| 2.3 | L-3 | Footer credibility: who-makes-this line + Terms/Privacy/Contact links on landing             | landing footer                                                          | Footer has maker line + 3 links (terms, privacy, feedback mailto/contact)                       | ☐      |
-| 2.4 | L-1 | Re-skin auth pages (login/register/forgot/reset) to brand                                    | `apps/web/src/app/(auth)/` + `features/auth/components`                 | Auth pages share brand tokens (serif headings, brand buttons)                                   | ☐      |
-| 2.5 | L-5 | Fix register-page hydration error (#418) + the two 404 resources                             | `(auth)` pages; check `useHasMounted` pattern; find 404s in network tab | Console clean on register/login in prod build                                                   | ☐      |
+| #   | ID  | Item                                                                                         | Where                                                                   | Acceptance                                                                                      | Status     |
+| --- | --- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| 2.1 | L-1 | Re-skin landing to app brand (cream/serif/brown)                                             | `apps/web/src/app/page.tsx`                                             | Landing uses the dashboard design tokens; no indigo/blue gradient; passes mobile sweep          | ✅ d46f9d7 |
+| 2.2 | L-2 | Landing content: all 5 premium features, plan-grid visual, "free during beta" hook, mini-FAQ | `apps/web/src/app/page.tsx`                                             | Sections: hero + plan preview, feature grid (free+premium), beta banner, FAQ teaser, CTA repeat | ✅ d46f9d7 |
+| 2.3 | L-3 | Footer credibility: who-makes-this line + Terms/Privacy/Contact links on landing             | landing footer                                                          | Footer has maker line + 3 links (terms, privacy, feedback mailto/contact)                       | ✅ d46f9d7 |
+| 2.4 | L-1 | Re-skin auth pages (login/register/forgot/reset) to brand                                    | `apps/web/src/app/(auth)/` + `features/auth/components`                 | Auth pages share brand tokens (serif headings, brand buttons)                                   | ✅ d46f9d7 |
+| 2.5 | L-5 | Fix register-page hydration error (#418) + the two 404 resources                             | `(auth)` pages; check `useHasMounted` pattern; find 404s in network tab | Console clean on register/login in prod build                                                   | ✅ d46f9d7 |
 
 ## Phase 3 — P1: onboarding & premium funnel
 
@@ -70,3 +70,4 @@ Working branch: `integrate/wave-2` (== origin/master at start). Commit per item 
 
 - 2026-08-23 · plan created; working tree clean at b8d7840; execution: Phase 1 → 5 sequential.
 - 2026-08-23 · Phase 1 DONE: 62056e7 (P-1 validation+retry, P-2 chip, planner badges), 959e5ee (P-3 preview, F-4 chat framing, import check), 5a396a7 (feedback channel + docs).
+- 2026-08-23 · Phase 2 DONE: d46f9d7 (brand tokens un-blued app-wide, landing rewrite, auth re-skin, /terms + /privacy created, favicon). Register console verified clean in dev; #418 was favicon/terms-404-adjacent — watch Sentry after deploy.

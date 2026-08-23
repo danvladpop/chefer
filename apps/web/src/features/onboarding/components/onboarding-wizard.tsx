@@ -12,13 +12,15 @@ import { StepMetrics } from './step-metrics';
 
 // ─── Wizard Component ─────────────────────────────────────────────────────────
 // Premium: 4 steps (goal → metrics → diet → cuisine) saved via
-// preferences.setup. Free (P1-2): 2 steps — the safety step (allergies,
-// restrictions, dislikes; saved via the free preferences.updateSafety) and a
-// preview of what premium personalisation adds.
+// preferences.setup. Free (P1-2 + ux-fixes-plan.md 3.1): 3 steps — safety
+// (free preferences.updateSafety), then OPTIONAL goal and body metrics
+// (preferences.saveProfileBasics, free tier stores them so the dashboard
+// target is real). The old step 2 was a premium pitch masquerading as
+// onboarding progress (review O-1); the pitch is now a card under step 3.
 
 export function OnboardingWizard({ isPremium }: { isPremium: boolean }) {
   const router = useRouter();
-  const totalSteps = isPremium ? TOTAL_STEPS : 2;
+  const totalSteps = isPremium ? TOTAL_STEPS : 3;
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<WizardData>({
@@ -42,7 +44,12 @@ export function OnboardingWizard({ isPremium }: { isPremium: boolean }) {
   });
 
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
-    onSuccess: () => router.push('/dashboard'),
+    onError: (err) => setError(err.message),
+  });
+
+  // Free tier: goal + metrics are optional but storable (3.1) — saved in the
+  // same finish action as safety, then straight to the dashboard.
+  const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
     onError: (err) => setError(err.message),
   });
 
@@ -83,13 +90,29 @@ export function OnboardingWizard({ isPremium }: { isPremium: boolean }) {
     }
   }
 
-  function handleFinish() {
+  async function handleFinish() {
     if (!isPremium) {
-      safetyMutation.mutate({
-        dietaryRestrictions: data.dietaryRestrictions,
-        allergies: data.allergies,
-        dislikedIngredients: data.dislikedIngredients,
-      });
+      try {
+        await safetyMutation.mutateAsync({
+          dietaryRestrictions: data.dietaryRestrictions,
+          allergies: data.allergies,
+          dislikedIngredients: data.dislikedIngredients,
+        });
+        const basics = {
+          ...(data.goal !== null && { goal: data.goal }),
+          ...(data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
+          ...(data.age !== null && data.age > 0 && { age: data.age }),
+          ...(data.heightCm !== null && data.heightCm > 0 && { heightCm: data.heightCm }),
+          ...(data.weightKg !== null && data.weightKg > 0 && { weightKg: data.weightKg }),
+          ...(data.activityLevel !== null && { activityLevel: data.activityLevel }),
+        };
+        if (Object.keys(basics).length > 0) {
+          await profileBasicsMutation.mutateAsync(basics);
+        }
+        router.push('/dashboard');
+      } catch {
+        // onError already surfaced the message.
+      }
       return;
     }
 
@@ -169,20 +192,40 @@ export function OnboardingWizard({ isPremium }: { isPremium: boolean }) {
           )}
 
           {!isPremium && step === 2 && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                  You&apos;re all set
-                </h1>
-                <p className="mt-2 text-muted-foreground">
-                  Every plan we build will respect the allergies and restrictions you just set. Want
-                  plans built around your goals and body too?
+            <div className="space-y-4">
+              <p className="text-center text-sm text-muted-foreground">
+                Optional — skip if you just want chef-picked meals.
+              </p>
+              <StepGoal
+                value={data.goal}
+                onChange={(goal: Goal) => setData((d) => ({ ...d, goal }))}
+              />
+            </div>
+          )}
+
+          {!isPremium && step === 3 && (
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <p className="text-center text-sm text-muted-foreground">
+                  Optional — with these, your calorie target is computed from your body instead of a
+                  default.
                 </p>
+                <StepMetrics
+                  value={{
+                    biologicalSex: data.biologicalSex,
+                    age: data.age,
+                    heightCm: data.heightCm,
+                    weightKg: data.weightKg,
+                    activityLevel: data.activityLevel,
+                  }}
+                  onChange={(metrics) => setData((d) => ({ ...d, ...metrics }))}
+                  goal={data.goal}
+                />
               </div>
               <UpgradeCard
                 source="onboarding"
-                title="Go further with a personal profile"
-                description="Premium adds goals, body metrics and calorie targets — and the AI chef generates every week around them."
+                title="Want every week generated around this profile?"
+                description="Free plans are chef-picked and always respect your allergies. Premium — free during the beta — has the AI chef build each week around your goal, targets and taste."
                 perkDisplay="carousel"
               />
             </div>

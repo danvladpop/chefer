@@ -354,8 +354,8 @@ Admin (/admin/users, adminProcedure-gated)
   next week's menu") and `monday-nudge` (free user opens a plan-less current
   week on a Monday). Mounting counts as the impression:
   `upgrade_prompt_shown { source }`; the CTA deep-links to `/premium`.
-- **Onboarding carousel (§6.6)** — the free flow's "You're all set" step
-  renders `UpgradeCard perkDisplay="carousel"`: the same feature-card
+- **Onboarding carousel (§6.6)** — the free flow's final (body metrics) step
+  renders `UpgradeCard perkDisplay="carousel"` beneath the optional form: the same feature-card
   registry as `/premium`, horizontally scrollable, plus the comparison-table
   link. Source stays `onboarding`.
 
@@ -506,7 +506,7 @@ IngredientPriceWorker (background)
 
 - **Safety is free on every tier**: `preferences.updateSafety` (`protectedProcedure`) writes allergies, dietary restrictions and disliked ingredients. Free curated plans and free swaps are filtered by them (`lib/curated-recipes/safety.ts`); premium AI generation feeds them into the prompt.
 - **Personalisation depth is premium**: `preferences.setup` / `preferences.updateTargets` (`premiumProcedure`) own goal, body metrics, calorie targets, cuisine and meal cadence → free users receive `FORBIDDEN`.
-- The Preferences page shows free users the editable safety section plus a locked-targets upgrade panel; the Onboarding wizard branches — free: 2 steps (safety → premium preview), premium: 4 steps (goal → metrics → diet → cuisine).
+- The Preferences page shows free users the editable safety section plus a locked-targets upgrade panel; the Onboarding wizard branches — free: 3 steps (safety → optional goal → optional body metrics, stored via `preferences.saveProfileBasics` with the premium pitch as a card under step 3), premium: 4 steps (goal → metrics → diet → cuisine).
 - **Pool exhaustion is the upsell**: when the curated pool keeps fewer than `MIN_SAFE_POOL_SIZE` safe recipes for any plan meal type, `mealPlan.generate` / free swap throw `PRECONDITION_FAILED` and the meal-plan page renders a contextual upgrade prompt ("not enough free recipes matching your restrictions") instead of an error.
 
 ---
