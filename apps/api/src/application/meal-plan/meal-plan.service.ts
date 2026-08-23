@@ -4,10 +4,12 @@ import {
   chefProfileRepository,
   dietaryPreferencesRepository,
   favouriteRecipeRepository,
+  householdMemberRepository,
   mealPlanRepository,
   mealRatingRepository,
   prisma,
   type FavouriteRecipeWithRecipe,
+  type IHouseholdMemberRepository,
   type IMealPlanRepository,
   type Recipe,
 } from '@chefer/database';
@@ -21,6 +23,7 @@ import {
   type SafetyPrefs,
 } from '../../lib/curated-recipes/index.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
+import { computeHouseholdContext, mergeHouseholdSafety } from '../household/household.service.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { estimatePlanCostEur, type PlanCostEstimate } from '../shared/plan-cost.js';
 
@@ -121,7 +124,10 @@ export function dayImagePriority(dayOfWeek: number, weekOffset: number): number 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class MealPlanService {
-  constructor(private readonly repo: IMealPlanRepository) {}
+  constructor(
+    private readonly repo: IMealPlanRepository,
+    private readonly householdRepo: IHouseholdMemberRepository = householdMemberRepository,
+  ) {}
 
   /**
    * Generates a fresh 7-day meal plan for the user, persists it, and returns
@@ -139,13 +145,15 @@ export class MealPlanService {
       return this.generateCurated(userId, weekOffset);
     }
     // 1. Load user preferences + learning signals (P1-1: pinned favourites
-    // and recent ratings feed the generation).
-    const [chefProfile, dietaryPrefs, pinnedFavourites, ratingSignals] = await Promise.all([
-      chefProfileRepository.findByUserId(userId),
-      dietaryPreferencesRepository.findByUserId(userId),
-      favouriteRecipeRepository.findPinnedForNextPlan(userId),
-      mealRatingRepository.findSignalsForUser(userId),
-    ]);
+    // and recent ratings feed the generation) + household members (F2).
+    const [chefProfile, dietaryPrefs, pinnedFavourites, ratingSignals, householdMembers] =
+      await Promise.all([
+        chefProfileRepository.findByUserId(userId),
+        dietaryPreferencesRepository.findByUserId(userId),
+        favouriteRecipeRepository.findPinnedForNextPlan(userId),
+        mealRatingRepository.findSignalsForUser(userId),
+        this.householdRepo.findByUserId(userId),
+      ]);
 
     if (!chefProfile) {
       throw new TRPCError({
@@ -164,6 +172,24 @@ export class MealPlanService {
     // ring and tracker display.
     const liveCalorieTarget = resolveDailyTargets(chefProfile).dailyCalorieTarget;
 
+    // Household context (F2): the seam field carries servings (portionSum)
+    // and soft dislike notes; the HARD safety union is ALSO merged into the
+    // top-level allergies/restrictions so every prompt line and downstream
+    // check sees the whole table's constraints.
+    const ownerSafety: SafetyPrefs = {
+      allergies: dietaryPrefs?.allergies ?? [],
+      dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
+      dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
+    };
+    const householdContext = computeHouseholdContext(householdMembers, ownerSafety);
+
+    // ── F3 INTEGRATION POINT (wave-2 integrator) ─────────────────────────────
+    // The pantry provider (application/pantry/pantry-context.ts, owned by
+    // feat/pantry) is wired HERE: load the user's use-first items and set
+    // `useFirstIngredients` on aiInput below. Household deliberately does not
+    // implement or import it (premium_plan.md §5).
+    // ─────────────────────────────────────────────────────────────────────────
+
     const aiInput = {
       userId,
       goal: chefProfile.goal ?? 'MAINTAIN',
@@ -173,9 +199,11 @@ export class MealPlanService {
       weightKg: chefProfile.weightKg ?? 75,
       activityLevel: chefProfile.activityLevel ?? 'MODERATELY_ACTIVE',
       dailyCalorieTarget: liveCalorieTarget,
-      dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
-      allergies: dietaryPrefs?.allergies ?? [],
-      dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
+      dietaryRestrictions: householdContext
+        ? householdContext.mergedSafety.dietaryRestrictions
+        : ownerSafety.dietaryRestrictions,
+      allergies: householdContext ? householdContext.mergedSafety.allergies : ownerSafety.allergies,
+      dislikedIngredients: ownerSafety.dislikedIngredients,
       cuisinePreferences: dietaryPrefs?.cuisinePreferences ?? [],
       mealsPerDay: dietaryPrefs?.mealsPerDay ?? 3,
       servingSize: dietaryPrefs?.servingSize ?? 1,
@@ -185,6 +213,7 @@ export class MealPlanService {
       ...(chefProfile.weeklyBudgetEur != null && {
         weeklyBudgetEur: chefProfile.weeklyBudgetEur,
       }),
+      ...(householdContext && { householdContext }),
     };
 
     // 3. Call AI service
@@ -368,12 +397,10 @@ export class MealPlanService {
   private async generateCurated(userId: string, weekOffset = 0): Promise<WeekPlanDto> {
     await ensureCuratedRecipes();
 
-    const dietaryPrefs = await dietaryPreferencesRepository.findByUserId(userId);
-    const safety: SafetyPrefs = {
-      allergies: dietaryPrefs?.allergies ?? [],
-      dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
-      dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
-    };
+    // F2: household members' allergies/restrictions are unioned with the
+    // owner's — safety is never premium, so the filter applies on the free
+    // tier too whenever members exist (e.g. created before a downgrade).
+    const safety = await this.loadMergedSafety(userId);
     const pools = safeCuratedPools(safety);
 
     const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner'];
@@ -442,6 +469,28 @@ export class MealPlanService {
       })),
       estimatedCost: await estimatePlanCostEur(days),
     };
+  }
+
+  /**
+   * The user's SafetyPrefs with every household member's allergies and
+   * dietary restrictions unioned in (F2 — reused by the free curated path,
+   * curated swaps and AI swaps; premium generation merges via
+   * computeHouseholdContext). Filtering itself stays `filterSafeRecipes`,
+   * unchanged.
+   */
+  private async loadMergedSafety(userId: string): Promise<SafetyPrefs> {
+    const [dietaryPrefs, members] = await Promise.all([
+      dietaryPreferencesRepository.findByUserId(userId),
+      this.householdRepo.findByUserId(userId),
+    ]);
+    return mergeHouseholdSafety(
+      {
+        allergies: dietaryPrefs?.allergies ?? [],
+        dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
+        dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
+      },
+      members,
+    );
   }
 
   /**
@@ -544,10 +593,12 @@ export class MealPlanService {
       return this.swapCurated(userId, planId, dayOfWeek, mealType, plan);
     }
 
-    // Load dietary preferences for the swap prompt
-    const [, dietaryPrefs] = await Promise.all([
+    // Load dietary preferences for the swap prompt. Safety is the household
+    // union (F2) — a swapped-in dish must be safe for everyone at the table.
+    const [, dietaryPrefs, mergedSafety] = await Promise.all([
       chefProfileRepository.findByUserId(userId),
       dietaryPreferencesRepository.findByUserId(userId),
+      this.loadMergedSafety(userId),
     ]);
 
     // Find the current recipe name in the plan day
@@ -564,8 +615,8 @@ export class MealPlanService {
         mealType: mealType as MealType,
         originalRecipeName: currentRecipe?.name ?? mealType,
         preferences: {
-          dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
-          allergies: dietaryPrefs?.allergies ?? [],
+          dietaryRestrictions: mergedSafety.dietaryRestrictions,
+          allergies: mergedSafety.allergies,
           cuisinePreferences: dietaryPrefs?.cuisinePreferences ?? [],
         },
       });
@@ -629,12 +680,8 @@ export class MealPlanService {
   ): Promise<RecipeDto> {
     await ensureCuratedRecipes();
 
-    const dietaryPrefs = await dietaryPreferencesRepository.findByUserId(userId);
-    const safety: SafetyPrefs = {
-      allergies: dietaryPrefs?.allergies ?? [],
-      dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
-      dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
-    };
+    // F2: swap alternatives must be safe for the whole household too.
+    const safety = await this.loadMergedSafety(userId);
 
     type MealSlotJson = { type: string; recipeId: string };
     const day = plan.days.find((d) => d.dayOfWeek === dayOfWeek);

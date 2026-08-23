@@ -3,6 +3,7 @@ import {
   chefProfileRepository,
   dietaryPreferencesRepository,
   favouriteRecipeRepository,
+  householdMemberRepository,
   mealRatingRepository,
 } from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
@@ -22,6 +23,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
       clearNextPlanFlags: vi.fn().mockResolvedValue(undefined),
     },
     mealRatingRepository: { findSignalsForUser: vi.fn().mockResolvedValue([]) },
+    householdMemberRepository: { findByUserId: vi.fn().mockResolvedValue([]) },
     mealPlanRepository: {},
   };
 });
@@ -133,6 +135,7 @@ describe('MealPlanService.generate', () => {
     // one test's pins/ratings don't leak into the next.
     vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([]);
     vi.mocked(mealRatingRepository.findSignalsForUser).mockResolvedValue([]);
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
   });
 
   it('free tier: builds a 7-day curated plan with ZERO AI calls', async () => {
@@ -312,6 +315,96 @@ describe('MealPlanService.generate', () => {
       code: 'BAD_REQUEST',
     });
     expect(aiService.generateMealPlan).not.toHaveBeenCalled();
+  });
+});
+
+describe('MealPlanService — household context (F2)', () => {
+  const member = (over: Record<string, unknown> = {}) => ({
+    id: 'm1',
+    userId: 'user1',
+    name: 'Maria',
+    portionFactor: 1,
+    isKid: false,
+    allergies: [],
+    dietaryRestrictions: [],
+    dislikedIngredients: [],
+    ...over,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([]);
+    vi.mocked(mealRatingRepository.findSignalsForUser).mockResolvedValue([]);
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      dietaryRestrictions: [],
+      allergies: ['shellfish'],
+      dislikedIngredients: ['okra'],
+      cuisinePreferences: [],
+      mealsPerDay: 3,
+      servingSize: 1,
+    } as never);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+  });
+
+  it('premium: householdContext reaches the AI input with portion math + merged safety + dislike notes', async () => {
+    const service = new MealPlanService(makeRepo());
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([
+      member({
+        name: 'Maria',
+        portionFactor: 1,
+        allergies: ['peanuts'],
+        dietaryRestrictions: ['Vegan'],
+        dislikedIngredients: ['mushrooms'],
+      }),
+      member({ id: 'm2', name: 'Timmy', portionFactor: 0.5, isKid: true }),
+    ] as never);
+
+    await service.generate('user1', 0, true);
+
+    const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
+    // ceil(1 owner + 1 + 0.5) = 3 servings for the table.
+    expect(input.householdContext).toEqual({
+      memberCount: 2,
+      portionSum: 3,
+      mergedSafety: {
+        allergies: ['shellfish', 'peanuts'],
+        dietaryRestrictions: ['Vegan'],
+      },
+      dislikeNotes: ['avoid mushrooms for Maria'],
+    });
+    // The hard union ALSO lands on the top-level prompt fields; the owner's
+    // soft dislikes stay theirs alone.
+    expect(input.allergies).toEqual(['shellfish', 'peanuts']);
+    expect(input.dietaryRestrictions).toEqual(['Vegan']);
+    expect(input.dislikedIngredients).toEqual(['okra']);
+  });
+
+  it('premium: no members → no householdContext, prompt fields unchanged', async () => {
+    const service = new MealPlanService(makeRepo());
+
+    await service.generate('user1', 0, true);
+
+    const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
+    expect(input.householdContext).toBeUndefined();
+    expect(input.allergies).toEqual(['shellfish']);
+  });
+
+  it("free tier: a member's allergies join the curated safety filter (safety is never premium)", async () => {
+    const service = new MealPlanService(makeRepo());
+    const curated = await import('../../lib/curated-recipes/index.js');
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([
+      member({ allergies: ['peanuts'], dietaryRestrictions: ['Vegan'] }),
+    ] as never);
+
+    await service.generate('user1', 0, false);
+
+    expect(curated.safeCuratedPools).toHaveBeenCalledWith({
+      allergies: ['shellfish', 'peanuts'],
+      dietaryRestrictions: ['Vegan'],
+      dislikedIngredients: ['okra'],
+    });
   });
 });
 
