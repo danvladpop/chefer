@@ -15,13 +15,18 @@ export default function ForgotPasswordPage() {
           when the card overflows a short phone viewport, keeping the top reachable. */}
       <div className="my-auto w-full max-w-md space-y-8">
         <div className="text-center">
-          <Link href="/" className="inline-flex items-center gap-2 text-2xl font-bold">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 font-serif text-2xl font-semibold text-[#944a00]"
+          >
             <span className="text-3xl" aria-hidden="true">
               🍽️
             </span>
             <span>Chefer</span>
           </Link>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight">Forgot your password?</h1>
+          <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight">
+            Forgot your password?
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Enter your email and we&apos;ll send you a reset link
           </p>

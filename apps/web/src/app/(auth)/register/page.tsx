@@ -24,13 +24,18 @@ export default async function RegisterPage() {
       <div className="my-auto w-full max-w-md space-y-8">
         {/* Logo / Brand */}
         <div className="text-center">
-          <Link href="/" className="inline-flex items-center gap-2 text-2xl font-bold">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 font-serif text-2xl font-semibold text-[#944a00]"
+          >
             <span className="text-3xl" aria-hidden="true">
               🍽️
             </span>
             <span>Chefer</span>
           </Link>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight">Create your account</h1>
+          <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight">
+            Create your account
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Start your personal chef journey today
           </p>
