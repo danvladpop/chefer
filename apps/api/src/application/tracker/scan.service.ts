@@ -1,5 +1,6 @@
 import { AiCallType, prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type { MealPhotoEstimate } from '../../lib/ai/index.js';
 import { assertMealScanQuota } from '../../lib/quotas.js';
@@ -26,7 +27,17 @@ export class ScanService {
       .create({ data: { userId: user.id, callType: AiCallType.SCAN } })
       .catch((err) => console.error('[aiCallLog] Failed to log SCAN call:', err));
 
-    return aiService.analyzeMealPhoto(imageBase64, mimeType);
+    // Upstream AI failures (free-tier 429s, timeouts) become one friendly
+    // sentence (§4.5.2); the raw error stays in the server log.
+    try {
+      return await aiService.analyzeMealPhoto(imageBase64, mimeType);
+    } catch (err) {
+      throw toFriendlyAiError(
+        err,
+        'analyzeMealPhoto',
+        "The chef couldn't read that photo. Try again with a clearer shot.",
+      );
+    }
   }
 }
 

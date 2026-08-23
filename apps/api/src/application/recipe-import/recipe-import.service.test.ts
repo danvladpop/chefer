@@ -1,6 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { TRPCError } from '@trpc/server';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { MockAIService } from '../../lib/ai/mock.js';
 import type { CheferizedRecipe, ExtractedRecipe, IAIService } from '../../lib/ai/types.js';
 import { headCheckImage } from '../../lib/recipe-import/index.js';
 import { findSafetyIssues, RecipeImportService } from './recipe-import.service.js';
@@ -261,6 +263,84 @@ describe('RecipeImportService.save — fail closed', () => {
       variant: 'original',
     })) as unknown as { id: string };
     expect(saved.id).toBe('recipe-1');
+  });
+});
+
+describe('RecipeImportService.preview — friendly AI failures (§4.5.2)', () => {
+  const gemini429 = Object.assign(
+    new Error('{"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}'),
+    { status: 429 },
+  );
+
+  // NOTE: restore only this spy — vi.restoreAllMocks() would wipe the
+  // module-level prisma/fetch mock implementations later tests rely on.
+  const spyOnConsoleError = () => vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  let consoleSpy: ReturnType<typeof spyOnConsoleError>;
+  beforeEach(() => {
+    consoleSpy = spyOnConsoleError();
+  });
+  afterEach(() => {
+    consoleSpy.mockRestore();
+  });
+
+  it('maps an extractRecipe 429 to the friendly over-capacity error, not the raw blob', async () => {
+    const ai = makeAi();
+    (ai.extractRecipe as ReturnType<typeof vi.fn>).mockRejectedValue(gemini429);
+    const service = new RecipeImportService(ai, recipeRepo(), prefsRepo(peanutVegetarian));
+    const rejection = await service.preview(premiumUser, { text: 'A'.repeat(100) }).then(
+      () => null,
+      (err: TRPCError) => err,
+    );
+    expect(rejection?.code).toBe('SERVICE_UNAVAILABLE');
+    expect(rejection?.message).toMatch(/over capacity/);
+    expect(rejection?.message).not.toContain('RESOURCE_EXHAUSTED');
+  });
+
+  it('maps a cheferizeRecipe timeout to a friendly error too', async () => {
+    const ai = makeAi();
+    (ai.cheferizeRecipe as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('fetch failed: request timed out'),
+    );
+    const service = new RecipeImportService(ai, recipeRepo(), prefsRepo(peanutVegetarian));
+    await expect(service.preview(premiumUser, { text: 'A'.repeat(100) })).rejects.toMatchObject({
+      code: 'SERVICE_UNAVAILABLE',
+      message: expect.stringMatching(/over capacity/) as string,
+    });
+  });
+
+  it('leaves the quota TRPCError untouched (its copy is already friendly)', async () => {
+    aiCallLog().count.mockResolvedValue(5);
+    const service = new RecipeImportService(makeAi(), recipeRepo(), prefsRepo(peanutVegetarian));
+    await expect(service.preview(premiumUser, { text: 'A'.repeat(100) })).rejects.toMatchObject({
+      code: 'TOO_MANY_REQUESTS',
+    });
+  });
+});
+
+describe('RecipeImportService.preview — steered MockAIService end-to-end (§4.5.1)', () => {
+  it('the "unsafe" steering keyword drives the P1-2 fail-closed path through the real mock', async () => {
+    const service = new RecipeImportService(
+      new MockAIService(),
+      recipeRepo(),
+      prefsRepo(peanutVegetarian),
+    );
+    const preview = await service.preview(premiumUser, {
+      text: 'unsafe satay demo — the adaptation must not be trusted',
+    });
+    expect(preview.original.name).toMatch(/^UNSAFE/);
+    expect(preview.safety.ok).toBe(false);
+    expect(preview.safety.issues).toContain('peanuts');
+  });
+
+  it('the satay steering keyword yields a clean Cheferized diff with allergen changes', async () => {
+    const service = new RecipeImportService(
+      new MockAIService(),
+      recipeRepo(),
+      prefsRepo({ ...peanutVegetarian, dietaryRestrictions: [] }),
+    );
+    const preview = await service.preview(premiumUser, { text: 'grandma’s chicken satay recipe' });
+    expect(preview.changes.some((c) => c.kind === 'allergen')).toBe(true);
+    expect(preview.safety).toEqual({ ok: true, issues: [] });
   });
 });
 

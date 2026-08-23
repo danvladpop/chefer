@@ -9,8 +9,10 @@ import {
   type Recipe,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type {
+  CheferizedRecipe,
   ExtractedRecipe,
   IAIService,
   RecipeChange,
@@ -188,7 +190,18 @@ export class RecipeImportService {
       });
     }
 
-    const rawExtracted = await this.ai.extractRecipe(extractionSource);
+    // Upstream AI failures (free-tier 429s, timeouts) surface as one friendly
+    // sentence, never the raw provider blob (§4.5.2) — raw error in the log.
+    let rawExtracted: ExtractedRecipe;
+    try {
+      rawExtracted = await this.ai.extractRecipe(extractionSource);
+    } catch (err) {
+      throw toFriendlyAiError(
+        err,
+        'extractRecipe',
+        "The chef couldn't read that recipe — please try again.",
+      );
+    }
     if (rawExtracted.name.trim() === NO_RECIPE_SENTINEL || rawExtracted.ingredients.length === 0) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
@@ -208,11 +221,20 @@ export class RecipeImportService {
     };
     const targetServings = prefs?.servingSize ?? original.servings;
 
-    const cheferized = await this.ai.cheferizeRecipe({
-      recipe: original,
-      targetServings,
-      preferences: safetyPrefs,
-    });
+    let cheferized: CheferizedRecipe;
+    try {
+      cheferized = await this.ai.cheferizeRecipe({
+        recipe: original,
+        targetServings,
+        preferences: safetyPrefs,
+      });
+    } catch (err) {
+      throw toFriendlyAiError(
+        err,
+        'cheferizeRecipe',
+        "The chef couldn't adapt that recipe — please try again.",
+      );
+    }
     const adapted = sanitizeExtracted(cheferized.adapted);
 
     // AI output is never trusted for safety — re-validate with the P1-2

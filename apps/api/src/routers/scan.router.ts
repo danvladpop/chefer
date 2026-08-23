@@ -91,6 +91,12 @@ scanRouter.post(
         res.status(429).json({ error: err.message });
         return;
       }
+      if (err instanceof TRPCError && err.code === 'SERVICE_UNAVAILABLE') {
+        // Upstream AI capacity failure, already mapped to a friendly message
+        // by the scan service (§4.5.2) — raw error is in the server log.
+        res.status(503).json({ error: err.message });
+        return;
+      }
       console.error('Meal scan failed:', err);
       res
         .status(500)
