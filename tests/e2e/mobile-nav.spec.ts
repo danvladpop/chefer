@@ -75,7 +75,8 @@ test.describe('more drawer', () => {
 
     const drawer = page.getByRole('dialog', { name: 'More navigation' });
     await expect(drawer).toBeVisible();
-    await expect(drawer.getByRole('link')).toHaveCount(6);
+    // 11 destinations − 4 tab-bar slots = 7 drawer links (pantry joined in wave 2).
+    await expect(drawer.getByRole('link')).toHaveCount(7);
 
     // Focus must have moved inside the panel.
     expect(await drawer.evaluate((el) => el.contains(document.activeElement))).toBe(true);
