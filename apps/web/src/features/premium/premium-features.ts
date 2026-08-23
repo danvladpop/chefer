@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { CalendarCheck, CalendarDays, RefreshCw, Target, Wallet } from 'lucide-react';
+import { CalendarCheck, CalendarDays, Camera, RefreshCw, Target, Wallet } from 'lucide-react';
 import type { PlanFeatureKey } from '@chefer/types';
 
 // ─── /premium feature-card registry (premium_plan.md §6.2) ────────────────────
@@ -21,12 +21,12 @@ export const PREMIUM_FEATURE_CARDS: PremiumFeatureCard[] = [
   { key: 'aiMealSwaps', icon: RefreshCw },
   { key: 'budgetAwarePlanning', icon: Wallet },
   { key: 'weeklyAutoGeneration', icon: CalendarCheck },
+  { key: 'photoLogging', icon: Camera },
 ];
 
 /** Matrix keys announced on /premium as "cooking now" until their wave lands. */
 export const COMING_SOON_KEYS: PlanFeatureKey[] = [
   'adaptiveCoaching',
-  'photoLogging',
   'recipeImport',
   'householdPlans',
   'pantryPlanning',
