@@ -18,6 +18,8 @@ export interface CreateManualRecipeData {
   cookTimeMins: number;
   servings: number;
   imageUrl?: string | null;
+  /** Provenance of imported recipes (Cheferize F5) — never rendered as a republished page. */
+  sourceUrl?: string | null;
 }
 
 export interface IFavouriteRecipeRepository {
@@ -224,6 +226,7 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
         cookTimeMins: data.cookTimeMins,
         servings: data.servings,
         imageUrl: data.imageUrl ?? null,
+        sourceUrl: data.sourceUrl ?? null,
         source: RecipeSource.MANUAL,
         creatorId: userId,
       },
