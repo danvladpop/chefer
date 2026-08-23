@@ -478,16 +478,16 @@ test --project=mobile`).
 
 ## 10. Progress
 
-| Step                      | Status                                                                     |
-| ------------------------- | -------------------------------------------------------------------------- |
-| Wave 0 foundations        | ✅ 2026-08-23 (commits c2e4a3c + merchandising baseline; deviations below) |
-| W1-A coach                | ⬜                                                                         |
-| W1-B snap                 | ⬜                                                                         |
-| W1-C import               | ⬜                                                                         |
-| Wave 1 integration + prod | ⬜                                                                         |
-| W2-D household            | ⬜                                                                         |
-| W2-E pantry               | ⬜                                                                         |
-| Wave 2 integration + prod | ⬜                                                                         |
+| Step                      | Status                                                                                                                                                                                                                                                                                                                       |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wave 0 foundations        | ✅ 2026-08-23 (commits c2e4a3c + ae72b2e; deployed + prod-verified; deviations below)                                                                                                                                                                                                                                        |
+| W1-A coach                | ✅ 2026-08-23 — feat/coach handoff (engine/worker/router/banner/teaser, 40 tests)                                                                                                                                                                                                                                            |
+| W1-B snap                 | ✅ 2026-08-23 — feat/snap handoff (scan route, vision, rebalance, custom rows, ghost)                                                                                                                                                                                                                                        |
+| W1-C import               | ✅ 2026-08-23 — feat/import handoff (SSRF-guarded extract, Cheferize, blurred-diff ghost, 67 tests)                                                                                                                                                                                                                          |
+| Wave 1 integration + prod | ✅ 2026-08-23 — three deploys (2cc6f75 coach, 13051d2 snap, 9005e52 import+fix), each prod-verified via throwaway (weight log + review eligibility; /api/scan-meal 403 through Caddy + live quick-add; SSRF rejection + import quota + all /premium cards). Real-Gemini quality spot-check pending quota reset (deviation 6) |
+| W2-D household            | ⬜                                                                                                                                                                                                                                                                                                                           |
+| W2-E pantry               | ⬜                                                                                                                                                                                                                                                                                                                           |
+| Wave 2 integration + prod | ⬜                                                                                                                                                                                                                                                                                                                           |
 
 ### Wave-0 deviations (found against the real code, 2026-08-23)
 
@@ -507,3 +507,31 @@ test --project=mobile`).
 5. **No future-price copy on `/premium`** — §6.1 principle 5 marks exact
    price/early-bird wording as the product owner's call; the page ships the
    anchor stack + "free during beta" only.
+
+### Wave-1 integration deviations (2026-08-23)
+
+6. **Dev e2e ran on MOCK AI, not real Gemini** (§7.2 deviation). The Gemini
+   key is free tier with a hard **20 requests/day** limit on gemini-2.5-flash
+   (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`), and the day's bucket
+   was exhausted mid-acceptance. Everything mechanical was verified live in
+   dev (import preview→cheferize→save→pin→generation placement, scan→confirm
+   →tracker custom row, coach two-review plateau → −100 kcal dial →
+   target propagation → idempotency, all three §6.4 ghost states, chat
+   logMeal/getMyReview/import tools, quotas, 59-test mobile sweep);
+   AI-output _quality_ is spot-checked on prod during per-feature
+   verification instead. **Operational follow-up for the product owner: the
+   shared Gemini key's 20 RPD cannot support real usage — upgrade the
+   Google AI plan (or add a billing-enabled key) before promoting the AI
+   features.** Also note the extraction call succeeded and the quality of
+   the import flow's error surface for AI failures is poor (raw 429 JSON
+   rendered in the sheet) — small polish candidate.
+7. **Integration fix:** imported recipes keep any-domain og:images;
+   next/image's dev loader crashes on unconfigured hosts —
+   `getRecipeImageProps` now marks non-allowlisted hosts `unoptimized`
+   (prod already renders unoptimized globally).
+8. Agents' own deviations are recorded in their handoffs (summarised: coach
+   reuses WeightEntry + free users get real reviews with
+   `applyAdjustment=false`; snap uses raw-body upload, pool-based
+   deterministic rebalance with client-side undo; import runs the Cheferize
+   pass for free previews (2 AI calls, capped 1/day) and added
+   `IAIService.cheferizeRecipe` + `CreateManualRecipeData.sourceUrl`).
