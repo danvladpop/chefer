@@ -554,6 +554,20 @@ full ladder before declaring a task done.
    44pt touch targets still apply).
 8. **Do not run Metro via Bash in Claude Code sessions** as a blocking foreground process;
    background it, and prefer `bundle:check`/Jest/contract levels which don't need it.
+9. **pnpm strictness bites native/babel tooling twice** (found in Wave 1): NativeWind's
+   babel output imports `react-native-css-interop` and Reanimated's podspec resolves
+   `react-native-worklets` — both must be DIRECT deps of `apps/mobile`, not just
+   transitive ones, or bundling / `pod install` fails.
+10. **CocoaPods on this machine (Ruby 4.0 + cocoapods 1.17) crashes without a UTF-8
+    locale** (`Unicode Normalization not appropriate for ASCII-8BIT`) — and Expo's
+    internal `pod install` runs without one. ALWAYS `export LANG=en_US.UTF-8` before
+    `expo run:ios` / `expo prebuild` / manual `pod install`.
+11. **Metro ports on this machine:** 8081 (and sometimes 8082) are held by the user's
+    other project (`visiter`). Chefer mobile standardizes on **port 8083** — pass
+    `--port 8083` to both `expo run:ios` and `expo start`, and never kill the
+    processes holding 8081/8082.
+12. `ios/` and `android/` are generated (`expo prebuild`) and gitignored — never edit
+    or commit them; native config lives in `app.config.ts` plugins.
 
 ---
 
