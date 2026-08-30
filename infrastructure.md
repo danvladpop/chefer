@@ -38,7 +38,8 @@
 chefer/
 ├── apps/
 │   ├── api/                    # Express + tRPC backend (port 3001)
-│   └── web/                    # Next.js 15 frontend (port 3000)
+│   ├── web/                    # Next.js 15 frontend (port 3000)
+│   └── mobile/                 # Expo (React Native) app — iOS + Android
 ├── packages/
 │   ├── database/               # Prisma client, schema, repositories
 │   ├── types/                  # Shared TypeScript types & enums
@@ -270,6 +271,27 @@ Both use `superjson` as the transformer and point to `NEXT_PUBLIC_API_URL/trpc` 
 - Security headers on every response (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy)
 - Standalone output when `BUILD_STANDALONE=true` (used in Docker)
 
+### 4.3 Mobile (`apps/mobile`)
+
+Expo (SDK 57) React Native app — one codebase for iOS and Android. Being built
+out per [`mobile_native_plan.md`](./mobile_native_plan.md); currently a scaffold
+(expo-router shell + workspace-package wiring).
+
+- **Stack:** expo-router (file-based, deep-link scheme `chefer://`),
+  expo-dev-client, expo-secure-store (session token), tRPC + TanStack Query +
+  superjson at the same versions as web
+- **Monorepo:** `metro.config.js` watches the workspace root so `@chefer/types`
+  and `@chefer/utils` (raw-TS exports) resolve; `@chefer/ui` and
+  `@chefer/database` are forbidden by lint (platform boundary)
+- **Auth:** `Authorization: Bearer <sessionToken>` + `x-chefer-client: mobile`
+  header — see §9
+- **Scripts:** `start` (Metro; root: `pnpm dev:mobile` — deliberately not part
+  of `turbo dev`), `ios` / `android` (build + run on simulator/emulator),
+  `bundle:check` (headless Metro export, the fastest full-app smoke test),
+  `typecheck`, `lint`
+- **Bundle ids:** `dev.chefer.app` (placeholder until store release, plan M4-1)
+- Preflight for simulator/E2E work: `scripts/mobile-preflight.sh`
+
 ---
 
 ## 5. Packages
@@ -364,11 +386,12 @@ Exports are per-file (e.g., `import { Button } from '@chefer/ui/button'`).
 
 ### 5.6 `@chefer/eslint-config`
 
-| Config      | Target use                                 |
-| ----------- | ------------------------------------------ |
-| `base.js`   | TypeScript, import ordering, general rules |
-| `nextjs.js` | Extends base + Next.js + React hooks       |
-| `node.js`   | Extends base + Node.js rules               |
+| Config            | Target use                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `base.js`         | TypeScript, import ordering, general rules                                                             |
+| `nextjs.js`       | Extends base + Next.js + React hooks; forbids `react-native`/`expo*` imports (platform boundary)       |
+| `node.js`         | Extends base + Node.js rules                                                                           |
+| `react-native.js` | Extends base + React/hooks for `apps/mobile`; forbids `@chefer/ui`, `@chefer/database`, `next` imports |
 
 ---
 
@@ -1172,10 +1195,13 @@ hits the API. The deploy pipeline's `verify` job polls the same two URLs.
 ### `ci.yml` — lint / typecheck / test / build on push & PR to `master`
 
 Jobs: `Lint` (ESLint + prettier check), `Type Check`, `Unit Tests` (vitest, all
-workspaces), `Build`, and `E2E Tests` (PRs only — the unauthenticated `public`
-Playwright project; the authenticated `mobile`/`desktop` projects need a seeded
-fixture dataset, planned with roadmap P0-8). The four job names are polled by
-name from `deploy.yml`'s gate — rename them in both files together.
+workspaces), `Build`, `Mobile Bundle` (headless `expo export` of `apps/mobile` —
+catches Metro/monorepo-resolution breakage without a simulator; Maestro E2E is
+local-only, see `mobile_native_plan.md` M4-2), and `E2E Tests` (PRs only — the
+unauthenticated `public` Playwright project; the authenticated `mobile`/`desktop`
+projects need a seeded fixture dataset, planned with roadmap P0-8). The
+`Lint`/`Type Check`/`Unit Tests`/`Build` job names are polled by name from
+`deploy.yml`'s gate — rename them in both files together.
 
 ### `deploy.yml` — one-button production deploy, gated on green CI
 

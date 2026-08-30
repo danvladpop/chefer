@@ -25,6 +25,20 @@ export const nextjs = tseslint.config(...base, {
       'error',
       { checksVoidReturn: { attributes: false } },
     ],
+
+    // Platform boundary (CLAUDE.md Platform Parity): web never imports the
+    // native stack — those modules live in apps/mobile + packages/ui-mobile.
+    'no-restricted-imports': [
+      'error',
+      {
+        patterns: [
+          {
+            group: ['react-native', 'react-native/*', 'react-native-*', 'expo', 'expo-*'],
+            message: 'Native-only — belongs in apps/mobile / packages/ui-mobile.',
+          },
+        ],
+      },
+    ],
   },
   settings: {
     react: {

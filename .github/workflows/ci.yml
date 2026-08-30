@@ -152,6 +152,35 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
+  # ─── Mobile Bundle ────────────────────────────────────────────────────────────
+  # Headless Metro export of the Expo app — catches monorepo-resolution breakage
+  # and RN-incompatible imports without any simulator. Maestro E2E stays
+  # local-only (macOS runner cost — see mobile_native_plan.md M4-2).
+  mobile-bundle:
+    name: Mobile Bundle
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Export iOS bundle
+        run: pnpm mobile:bundle-check
+        env:
+          CI: true
+
   # ─── Build ────────────────────────────────────────────────────────────────────
   build:
     name: Build

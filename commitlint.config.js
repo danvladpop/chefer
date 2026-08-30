@@ -26,7 +26,9 @@ const config = {
       [
         'web',
         'api',
+        'mobile',
         'ui',
+        'ui-mobile',
         'database',
         'types',
         'utils',

@@ -210,7 +210,7 @@ cookie and return `UserProfile` only. Change:
 **Verify:** `pnpm --filter @chefer/api test && pnpm typecheck` green; the two-curl proof in
 M0-1 now works end-to-end.
 
-#### M0-3 · Scaffold `apps/mobile` (Expo) **[CRITICAL] [PARALLEL with M0-1/M0-2]**
+#### M0-3 · Scaffold `apps/mobile` (Expo) **[CRITICAL]** — ✅ DONE 2026-08-30 (`mobile/wave-0`; Expo SDK 57/RN 0.86, expo-router, expo-doctor 21/21, Metro resolves workspace pkgs with NO .npmrc hack; TS pinned ^5.5.2 via root pnpm override, excluded from expo-install validation)
 
 - `pnpm create expo-app@latest apps/mobile --template blank-typescript`, then rename the
   package to `@chefer/mobile`, align TS config to `@chefer/tsconfig` (strict), add
@@ -246,7 +246,7 @@ M0-1 now works end-to-end.
 a device — this is the headless smoke test agents should reach for);
 `pnpm --filter @chefer/mobile typecheck` green.
 
-#### M0-4 · Turborepo + root wiring **[CRITICAL] (after M0-3)**
+#### M0-4 · Turborepo + root wiring **[CRITICAL]** — ✅ DONE 2026-08-30 (mobile has `start` not `dev`, so `pnpm dev` stays web+api; root scripts dev:mobile / mobile:ios / mobile:android / mobile:bundle-check; turbo inputs extended with app/\*\*)
 
 - Mobile `package.json` scripts: `dev` (`expo start`), `ios` (`expo run:ios`), `android`
   (`expo run:android`), `typecheck`, `lint`, `test` (jest), `test:contract` (vitest run),
@@ -259,7 +259,7 @@ a device — this is the headless smoke test agents should reach for);
 **Verify:** from repo root, `pnpm typecheck` and `pnpm lint` include `@chefer/mobile` in
 turbo output; `pnpm dev` still behaves exactly as before (web+api only).
 
-#### M0-5 · Lint/format/boundary rules for mobile **[PARALLEL] (after M0-3)**
+#### M0-5 · Lint/format/boundary rules for mobile — ✅ DONE 2026-08-30 (`react-native.js` config + boundary rules both directions, violation-tested)
 
 - Extend `packages/config/eslint` with a React Native flat config (`eslint-plugin-react`,
   hooks, `eslint-plugin-react-native` if compatible with ESLint 9 — if not, skip it and
@@ -273,7 +273,7 @@ turbo output; `pnpm dev` still behaves exactly as before (web+api only).
 **Verify:** add a temp file importing `@chefer/ui` in mobile → `pnpm --filter @chefer/mobile lint`
 fails; remove it → passes.
 
-#### M0-6 · Commitlint scope + CI lanes **[PARALLEL] (after M0-3)**
+#### M0-6 · Commitlint scope + CI lanes — ✅ DONE 2026-08-30 (scopes mobile/ui-mobile; CI job "Mobile Bundle"; lint/typecheck/test lanes cover mobile via turbo automatically)
 
 - Add `mobile` and `ui-mobile` to allowed scopes in `commitlint.config.js` if scopes are
   enumerated.
@@ -284,7 +284,7 @@ fails; remove it → passes.
 
 **Verify:** CI passes on the PR itself.
 
-#### M0-7 · Preflight script for agents **[PARALLEL]**
+#### M0-7 · Preflight script for agents — ✅ DONE 2026-08-30 (`scripts/mobile-preflight.sh`, 11/11 on this machine)
 
 Create `scripts/mobile-preflight.sh`: checks and prints PASS/FAIL for node/pnpm versions,
 watchman, Xcode + at least one iOS simulator (`xcrun simctl list devices available`),
