@@ -1,4 +1,4 @@
-const API_URL = (process.env.CHEFER_API_URL as string | undefined) ?? 'http://localhost:3001';
+const API_URL = process.env.CHEFER_API_URL ?? 'http://localhost:3001';
 
 export default async function globalSetup(): Promise<void> {
   try {

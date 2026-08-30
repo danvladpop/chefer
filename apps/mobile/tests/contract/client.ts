@@ -2,8 +2,7 @@ import { createTRPCClient } from '@trpc/client';
 import type { AppRouter } from '@chefer/api';
 import { buildTrpcLinks } from '../../src/lib/trpc-links';
 
-export const API_URL =
-  (process.env.CHEFER_API_URL as string | undefined) ?? 'http://localhost:3001';
+export const API_URL = process.env.CHEFER_API_URL ?? 'http://localhost:3001';
 
 // Seeded dev account (CLAUDE.md). Read-only usage here — tests that mutate
 // state must register their own throwaway user instead.

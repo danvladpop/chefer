@@ -14,7 +14,6 @@ const envSchema = z.object({
 });
 
 export const env = envSchema.parse({
-  // Expo's process.env is typed `any` — the schema re-validates the values.
-  EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL as string | undefined,
-  EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN as string | undefined,
+  EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+  EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN,
 });
