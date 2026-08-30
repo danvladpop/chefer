@@ -1,0 +1,14 @@
+{
+  "extends": "@chefer/tsconfig/base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "nativewind",
+    "moduleResolution": "bundler",
+    "module": "esnext",
+    "noEmit": true,
+    "types": ["nativewind/types"]
+  },
+  "include": ["src"]
+}

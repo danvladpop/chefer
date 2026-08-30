@@ -13,6 +13,7 @@
     "mobile:ios": "pnpm --filter @chefer/mobile ios",
     "mobile:android": "pnpm --filter @chefer/mobile android",
     "mobile:bundle-check": "pnpm --filter @chefer/mobile bundle:check",
+    "mobile:contract": "pnpm --filter @chefer/mobile test:contract",
     "build": "turbo run build",
     "test": "turbo run test",
     "test:e2e": "pnpm --filter @chefer/e2e test:e2e",

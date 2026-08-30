@@ -299,7 +299,7 @@ improvising installs.
 
 ### Wave 1 — App shell & core infrastructure **[CRITICAL, mostly sequential]**
 
-#### M1-1 · Env & API URL handling **[CRITICAL]**
+#### M1-1 · Env & API URL handling **[CRITICAL]** — ✅ DONE 2026-08-30 (`mobile/wave-0`; env.ts + api-url.ts, platform defaults in code, unit-tested)
 
 - `src/lib/env.ts`: Zod-validated (per repo convention) reading `EXPO_PUBLIC_API_URL`.
   Defaults: iOS simulator `http://localhost:3001`; Android emulator `http://10.0.2.2:3001`
@@ -309,7 +309,7 @@ improvising installs.
 
 **Verify:** unit test for URL selection per platform; `pnpm --filter @chefer/mobile test`.
 
-#### M1-2 · tRPC client + auth storage **[CRITICAL]**
+#### M1-2 · tRPC client + auth storage **[CRITICAL]** — ✅ DONE 2026-08-30 (auth-store on SecureStore, trpc-links shared with contract tests, 401 → clearToken → gate)
 
 - `src/lib/auth-store.ts`: token save/load/clear via `expo-secure-store`, in-memory cache,
   exported `getToken()` for the tRPC link.
@@ -323,7 +323,7 @@ improvising installs.
 **Verify:** contract tests (M1-4) are the real proof; until then,
 `pnpm --filter @chefer/mobile typecheck` and a Jest test for the headers callback.
 
-#### M1-3 · Navigation shell + theme **[CRITICAL]**
+#### M1-3 · Navigation shell + theme **[CRITICAL]** — ✅ DONE 2026-08-30 (NativeWind v4.2 works on SDK 57 — needed direct dep on react-native-css-interop; 5 tabs mirror nav-items.ts; ui-mobile: Button/Card/Input/Screen/Text; Sheet deferred to first sheet-needing screen)
 
 - expo-router groups per §2 layout. Bottom tabs mirroring the web tab bar:
   Dashboard, Meal Plan, Tracker, Recipes, More (More hosts pantry/shopping-list/
@@ -337,7 +337,7 @@ improvising installs.
 **Verify:** `expo export` green; RNTL smoke tests render each primitive; screenshot of the
 tab shell via iOS Simulator MCP or `maestro test` hello-flow.
 
-#### M1-4 · Contract test harness **[CRITICAL — this is the AI-autonomy keystone]**
+#### M1-4 · Contract test harness **[CRITICAL]** — ✅ DONE 2026-08-30 (7 tests green vs live API; `pnpm mobile:contract`; NOTE: register/login rate limit 10/15min per IP — budget 3 auth calls per full run)
 
 `apps/mobile/tests/contract/` — Vitest, **Node environment**, no RN imports (the files
 under test must be import-safe in Node: keep `trpc.ts` free of RN-only imports at module
@@ -361,7 +361,7 @@ It's the loop an agent can run in seconds, headless, against the real API.
 
 **Verify:** `pnpm mobile:contract` green with local stack up.
 
-#### M1-5 · Auth screens **[CRITICAL] (after M1-2, M1-3)**
+#### M1-5 · Auth screens **[CRITICAL]** — ✅ DONE 2026-08-30 (login/register + gate via expo-router Stack.Protected; e2e/auth.flow.yaml is the Maestro template)
 
 Login + register under `(auth)/`, react-hook-form + the same Zod schemas as web (lift
 shared schemas into `@chefer/types` if they currently live web-side), error states, link
@@ -371,7 +371,7 @@ between the two. Success → store token → `(tabs)`.
 `e2e/auth.flow.yaml`: launch → register a unique user → land on dashboard → logout →
 login again. This flow is the E2E template all Wave-2 tasks copy.
 
-#### M1-6 · Error reporting + logging **[PARALLEL with M1-5]**
+#### M1-6 · Error reporting + logging **[PARALLEL]** — ⏸ DEFERRED pending [USER] Sentry DSN (env slot exists; @sentry/react-native not yet installed — installing it later requires a dev-client rebuild)
 
 `@sentry/react-native` via the Expo plugin, wired only when `EXPO_PUBLIC_SENTRY_DSN` is
 set **[USER: provide DSN or say skip]**. Dev logging: keep Metro console clean; add a tiny

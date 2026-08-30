@@ -1,0 +1,59 @@
+# Auth lifecycle E2E — the template flow for all Wave-2 features.
+# Run:  cd apps/mobile && maestro test e2e/auth.flow.yaml
+# Needs: the dev app installed on a booted simulator (pnpm mobile:ios),
+#        Metro running, and the local API up (pnpm dev).
+# Rate-limit budget: 1 register + 1 login per run (10/15min per IP).
+appId: dev.chefer.app
+---
+- launchApp:
+    clearState: true
+
+# ── Register a throwaway account ──────────────────────────────────────────────
+- evalScript: ${output.email = 'maestro-' + Date.now() + '@e2e.chefer.dev'}
+- assertVisible:
+    id: 'login-title'
+- tapOn:
+    id: 'login-to-register'
+- assertVisible:
+    id: 'register-title'
+- tapOn:
+    id: 'register-email'
+- inputText: ${output.email}
+- tapOn:
+    id: 'register-password'
+- inputText: 'Maestro@123!'
+- hideKeyboard
+- tapOn:
+    id: 'register-submit'
+
+# ── Registration lands on the Home tab ───────────────────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 10000
+- assertVisible:
+    id: 'home-account-card'
+
+# ── Sign out from the More tab ───────────────────────────────────────────────
+- tapOn: 'More'
+- tapOn:
+    id: 'logout-button'
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 10000
+
+# ── Sign back in with the same account ───────────────────────────────────────
+- tapOn:
+    id: 'login-email'
+- inputText: ${output.email}
+- tapOn:
+    id: 'login-password'
+- inputText: 'Maestro@123!'
+- hideKeyboard
+- tapOn:
+    id: 'login-submit'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 10000

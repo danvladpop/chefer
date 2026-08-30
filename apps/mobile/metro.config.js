@@ -2,6 +2,7 @@
 // (which export raw TypeScript) resolve and hot-reload, and let Metro fall
 // back to the root node_modules for hoisted dependencies.
 const { getDefaultConfig } = require('expo/metro-config');
+const { withNativeWind } = require('nativewind/metro');
 const path = require('path');
 
 const projectRoot = __dirname;
@@ -15,4 +16,4 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
-module.exports = config;
+module.exports = withNativeWind(config, { input: './global.css' });

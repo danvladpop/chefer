@@ -3,6 +3,15 @@
   "compilerOptions": {
     "strict": true
   },
-  "include": ["app/**/*", "src/**/*", "app.config.ts", "expo-env.d.ts", ".expo/types/**/*.ts"],
+  "include": [
+    "app/**/*",
+    "src/**/*",
+    "app.config.ts",
+    "tests/**/*",
+    "vitest.contract.config.ts",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts",
+    ".expo/types/**/*.ts"
+  ],
   "exclude": ["node_modules", ".expo-export-check"]
 }

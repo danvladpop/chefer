@@ -274,8 +274,11 @@ Both use `superjson` as the transformer and point to `NEXT_PUBLIC_API_URL/trpc` 
 ### 4.3 Mobile (`apps/mobile`)
 
 Expo (SDK 57) React Native app — one codebase for iOS and Android. Being built
-out per [`mobile_native_plan.md`](./mobile_native_plan.md); currently a scaffold
-(expo-router shell + workspace-package wiring).
+out per [`mobile_native_plan.md`](./mobile_native_plan.md); currently: auth
+(login/register/logout via Bearer session), NativeWind theme (web's brand
+tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors
+`apps/web/src/features/nav/nav-items.ts`), and the three-layer test harness
+(Jest+RNTL unit, Vitest contract vs the live API, Maestro E2E in `e2e/`).
 
 - **Stack:** expo-router (file-based, deep-link scheme `chefer://`),
   expo-dev-client, expo-secure-store (session token), tRPC + TanStack Query +
@@ -1072,6 +1075,16 @@ hidden, leaving no way back to the login form.
 | `NEXTAUTH_URL`            | No       | —                          | NextAuth callback base URL                                                                     |
 | `NEXTAUTH_SECRET`         | No       | —                          | Min 32 chars                                                                                   |
 | `NEXT_PUBLIC_POSTHOG_DEV` | No       | —                          | Set `1` to send PostHog events from dev (normally production-only; see `src/lib/analytics.ts`) |
+
+### `apps/mobile/.env`
+
+Validated by Zod in `apps/mobile/src/lib/env.ts`. `EXPO_PUBLIC_*` vars are
+inlined at bundle time by Expo.
+
+| Variable                 | Required | Default                                                            | Description                                                                    |
+| ------------------------ | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `EXPO_PUBLIC_API_URL`    | No       | iOS sim: http://localhost:3001 · Android emu: http://10.0.2.2:3001 | API base URL. **Physical devices must set this** to the host's LAN address     |
+| `EXPO_PUBLIC_SENTRY_DSN` | No       | —                                                                  | Sentry error reporting (disabled when unset; wiring lands with plan task M1-6) |
 
 ### `packages/database/.env`
 
