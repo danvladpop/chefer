@@ -94,7 +94,13 @@ export default function RegisterScreen() {
               <Input
                 testID="register-password"
                 secureTextEntry
-                autoComplete="new-password"
+                // NOT "new-password": iOS's Automatic Strong Password overlay
+                // covers the field and swallows programmatic input (breaks E2E,
+                // and made real typing flaky in the simulator too). autoComplete
+                // "off" alone doesn't stop the heuristic on secure fields —
+                // textContentType "oneTimeCode" is the established opt-out.
+                autoComplete="off"
+                textContentType="oneTimeCode"
                 onBlur={onBlur}
                 onChangeText={onChange}
                 value={value}

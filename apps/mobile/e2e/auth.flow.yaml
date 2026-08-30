@@ -8,10 +8,47 @@ appId: dev.chefer.app
 - launchApp:
     clearState: true
 
+# clearState also wipes the dev-client's remembered Metro server, dropping it
+# on the server-picker screen — deep-link it straight back to our bundler.
+- openLink: exp+chefer://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083
+
+# The dev client shows its first-run "developer menu" explainer after a state
+# clear — close it via the sheet's X (tapping "Continue" opens the dev menu
+# instead of dismissing).
+- extendedWaitUntil:
+    visible: 'Continue'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Continue'
+    commands:
+      - tapOn:
+          point: 90%,47%
+
+# clearState does NOT clear SecureStore (iOS Keychain survives app-data
+# wipes), so a previous session may still be live — sign out first if so.
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-title'
+    commands:
+      # Tab items expose labels like "More, tab, 5 of 5" — match loosely.
+      - tapOn: '.*More.*'
+      - tapOn:
+          id: 'logout-button'
+
 # ── Register a throwaway account ──────────────────────────────────────────────
 - evalScript: ${output.email = 'maestro-' + Date.now() + '@e2e.chefer.dev'}
-- assertVisible:
-    id: 'login-title'
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 30000
 - tapOn:
     id: 'login-to-register'
 - assertVisible:
@@ -22,7 +59,6 @@ appId: dev.chefer.app
 - tapOn:
     id: 'register-password'
 - inputText: 'Maestro@123!'
-- hideKeyboard
 - tapOn:
     id: 'register-submit'
 
@@ -35,7 +71,7 @@ appId: dev.chefer.app
     id: 'home-account-card'
 
 # ── Sign out from the More tab ───────────────────────────────────────────────
-- tapOn: 'More'
+- tapOn: '.*More.*'
 - tapOn:
     id: 'logout-button'
 - extendedWaitUntil:
@@ -50,7 +86,6 @@ appId: dev.chefer.app
 - tapOn:
     id: 'login-password'
 - inputText: 'Maestro@123!'
-- hideKeyboard
 - tapOn:
     id: 'login-submit'
 - extendedWaitUntil:
