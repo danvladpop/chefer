@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import express, { Router, type Request, type Response } from 'express';
-import { prisma } from '@chefer/database';
 import { asyncHandler } from '../lib/async-handler.js';
+import { resolveRequestAuth } from '../lib/session-auth.js';
 
 // ─── Image uploads ────────────────────────────────────────────────────────────
 // Session-authenticated raw-body upload (no multipart, no extra deps): the
@@ -22,38 +22,14 @@ const EXT_BY_MIME: Record<string, string> = {
 
 export const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads');
 
-// Inlined session lookup (same pattern as the SSE router — avoids circular imports)
-function extractSessionToken(cookieHeader: string | undefined): string | null {
-  if (!cookieHeader) return null;
-  const cookie = cookieHeader
-    .split(';')
-    .map((c) => c.trim())
-    .find((c) => c.startsWith('chefer_session='));
-  return cookie ? (cookie.split('=')[1] ?? null) : null;
-}
-
-async function resolveUserId(cookieHeader: string | undefined): Promise<string | null> {
-  const token = extractSessionToken(cookieHeader);
-  if (!token) return null;
-  try {
-    const session = await prisma.session.findUnique({
-      where: { sessionToken: token },
-      select: { userId: true, expires: true },
-    });
-    if (!session || session.expires < new Date()) return null;
-    return session.userId;
-  } catch {
-    return null;
-  }
-}
-
 export const uploadsRouter: Router = Router();
 
 uploadsRouter.post(
   '/image',
   express.raw({ type: 'image/*', limit: MAX_BYTES }),
   asyncHandler(async (req: Request, res: Response) => {
-    const userId = await resolveUserId(req.headers.cookie);
+    const { user } = await resolveRequestAuth(req);
+    const userId = user?.id ?? null;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;

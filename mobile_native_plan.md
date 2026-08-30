@@ -169,7 +169,7 @@ independent once Wave 1 lands.
 
 ### Wave 0 — Foundation **[CRITICAL]**
 
-#### M0-1 · API: real Bearer-token authentication **[CRITICAL] [PARALLEL with M0-3..M0-7]**
+#### M0-1 · API: real Bearer-token authentication **[CRITICAL]** — ✅ DONE 2026-08-30 (`mobile/wave-0`; also refactored the 4 Express routers' inlined cookie auth onto shared `lib/session-auth.ts`, so chat/scan/uploads/SSE accept Bearer too)
 
 The stub is in `apps/api/src/interfaces/http/middleware/auth.middleware.ts` (~line 100):
 the extracted bearer token is currently discarded (`void bearerToken; // placeholder`).
@@ -192,7 +192,7 @@ curl -s http://localhost:3001/trpc/auth.me -H "Authorization: Bearer $TOKEN" | j
 
 (The first command depends on M0-2; until then, lift a token from the `Session` table.)
 
-#### M0-2 · API: return session token to mobile clients **[CRITICAL] [PARALLEL with M0-3..M0-7]**
+#### M0-2 · API: return session token to mobile clients **[CRITICAL]** — ✅ DONE 2026-08-30 (`mobile/wave-0`; response type is `AuthResult` in `@chefer/types`, curl-verified end-to-end incl. logout-via-Bearer)
 
 In `apps/api/src/application/auth/auth.service.ts`, `register()` and `login()` set the
 cookie and return `UserProfile` only. Change:

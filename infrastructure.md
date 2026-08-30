@@ -875,9 +875,9 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `user.downgradePlan`            | Protected | Mutation | — self-service return to FREE (PW-2)                                                                                                                                                                                                                                                                                           |
 | `user.setPlanTier`              | Admin     | Mutation | `{ userId, planTier }` — tier management behind `/admin/users` (PW-2)                                                                                                                                                                                                                                                          |
 | `user.aiCallsToday`             | Admin     | Query    | `{ userIds[] }` — today's AI call counts per user for the admin page                                                                                                                                                                                                                                                           |
-| `auth.register`                 | Public    | Mutation | `{ email, password, firstName, lastName }`                                                                                                                                                                                                                                                                                     |
-| `auth.login`                    | Public    | Mutation | `{ email, password }`                                                                                                                                                                                                                                                                                                          |
-| `auth.logout`                   | Public    | Mutation | —                                                                                                                                                                                                                                                                                                                              |
+| `auth.register`                 | Public    | Mutation | `{ email, password, firstName, lastName }` — with `x-chefer-client: mobile` the response also carries `session: { token, expires }` for Bearer auth                                                                                                                                                                            |
+| `auth.login`                    | Public    | Mutation | `{ email, password }` — with `x-chefer-client: mobile` the response also carries `session: { token, expires }` for Bearer auth                                                                                                                                                                                                 |
+| `auth.logout`                   | Public    | Mutation | — deletes the session resolved from cookie **or** Bearer token                                                                                                                                                                                                                                                                 |
 | `auth.requestPasswordReset`     | Public    | Mutation | `{ email }` — enumeration-safe (always succeeds); rate-limited per IP (5/15 min) and per address (3/h)                                                                                                                                                                                                                         |
 | `auth.resetPassword`            | Public    | Mutation | `{ token, password }` — single-use 1 h token (sha256-stored); invalidates all sessions                                                                                                                                                                                                                                         |
 | `auth.me`                       | Protected | Query    | —                                                                                                                                                                                                                                                                                                                              |
@@ -951,12 +951,24 @@ adminProcedure      → timingMiddleware → isAuthenticated → isAdmin
 
 ## 9. Authentication & Authorization
 
-**Current state:** Session-based authentication via an HTTP cookie (`chefer_session`).
+**Current state:** DB-backed session authentication, presented over two transports that
+carry the **same** `Session.sessionToken`:
+
+| Client                 | Credential transport                                                                                                                                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web (`apps/web`)       | HttpOnly cookie `chefer_session` (set by `auth.login/register`)                                                                                                                                                |
+| Mobile (`apps/mobile`) | `Authorization: Bearer <sessionToken>` — the token is returned in the `auth.login`/`auth.register` response body **only** when the request carries `x-chefer-client: mobile`; the app stores it in SecureStore |
+
+All resolution goes through `resolveRequestAuth()` in `apps/api/src/lib/session-auth.ts`
+(cookie first, Bearer fallback), shared by the tRPC `createContext`, `requireAuth`, and
+the four non-tRPC Express routers (`/api/chat`, `/api/scan-meal`, `/api/uploads`,
+`/api/recipe-images`) — so every endpoint accepts both transports. The token in bodies is
+never sent to browsers; CORS `allowedHeaders` includes `x-chefer-client`.
 
 The `createContext` function in `apps/api/src/interfaces/http/middleware/auth.middleware.ts`:
 
-1. Reads the session cookie or `Authorization: Bearer <token>` header
-2. Hydrates `ctx.user` (null if unauthenticated)
+1. Resolves the user via `resolveRequestAuth()` (session cookie, then Bearer token)
+2. Hydrates `ctx.user` (null if unauthenticated) and `ctx.isMobileClient`
 
 **Web-side session gating** — the cookie is opaque, so its presence never implies a
 live session (the row may have been deleted or expired):

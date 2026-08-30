@@ -88,9 +88,12 @@ every request (see §4), and logout / password reset delete the rows.
 ## 4. Session & Authorization Flow
 
 > **Status:** Implemented — DB-backed sessions resolved from the
-> `chefer_session` cookie. The `Authorization: Bearer` branch in
-> `createContext` is scaffolding for a possible future token flow and is
-> currently a no-op.
+> `chefer_session` cookie (web) **or** an `Authorization: Bearer <sessionToken>`
+> header (native mobile). Both carry the same DB `Session` token; resolution is
+> shared via `lib/session-auth.ts` across tRPC and the non-tRPC endpoints.
+> Mobile obtains the token from the `auth.login`/`auth.register` response body,
+> which includes `session: { token, expires }` only for requests sent with the
+> `x-chefer-client: mobile` header; browsers never receive the token in a body.
 
 **How the API resolves the current user on every request:**
 
@@ -101,10 +104,10 @@ Incoming HTTP request
   │
   └─ tRPC adapter → createContext()
         │
-        ├─ Read cookie: chefer_session
-        ├─ OR read header: Authorization: Bearer <token>
+        ├─ Read cookie: chefer_session (web)
+        ├─ OR read header: Authorization: Bearer <sessionToken> (mobile)
         │
-        ├─ Validate token / look up session
+        ├─ Look up the Session row (cookie wins when both are valid)
         │
         └─ Set ctx.user (null if unauthenticated)
               │

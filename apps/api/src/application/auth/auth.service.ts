@@ -2,7 +2,7 @@ import { TRPCError } from '@trpc/server';
 import bcrypt from 'bcryptjs';
 import type { Response } from 'express';
 import { prisma } from '@chefer/database';
-import type { UserProfile } from '@chefer/types';
+import type { AuthResult, MobileSession } from '@chefer/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -25,8 +25,13 @@ export interface LoginInput {
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
+export interface AuthOptions {
+  /** Include the session token in the response body (mobile clients only). */
+  includeSession?: boolean;
+}
+
 export class AuthService {
-  async register(input: RegisterInput, res: Response): Promise<UserProfile> {
+  async register(input: RegisterInput, res: Response, options?: AuthOptions): Promise<AuthResult> {
     const { email, password, firstName, lastName } = input;
 
     const existing = await prisma.user.findUnique({
@@ -52,7 +57,7 @@ export class AuthService {
       },
     });
 
-    await this.createSession(user.id, res);
+    const session = await this.createSession(user.id, res);
 
     return {
       id: user.id,
@@ -62,10 +67,11 @@ export class AuthService {
       role: user.role,
       planTier: user.planTier,
       image: user.image,
+      ...(options?.includeSession ? { session } : {}),
     };
   }
 
-  async login(input: LoginInput, res: Response): Promise<UserProfile> {
+  async login(input: LoginInput, res: Response, options?: AuthOptions): Promise<AuthResult> {
     const { email, password } = input;
 
     const user = await prisma.user.findUnique({
@@ -87,7 +93,7 @@ export class AuthService {
       });
     }
 
-    await this.createSession(user.id, res);
+    const session = await this.createSession(user.id, res);
 
     return {
       id: user.id,
@@ -97,6 +103,7 @@ export class AuthService {
       role: user.role,
       planTier: user.planTier,
       image: user.image,
+      ...(options?.includeSession ? { session } : {}),
     };
   }
 
@@ -111,7 +118,7 @@ export class AuthService {
 
   // ─── Private ───────────────────────────────────────────────────────────────
 
-  private async createSession(userId: string, res: Response): Promise<void> {
+  private async createSession(userId: string, res: Response): Promise<MobileSession> {
     const sessionToken = crypto.randomUUID();
     const expires = new Date(Date.now() + SESSION_EXPIRY_MS);
 
@@ -128,6 +135,8 @@ export class AuthService {
       'Set-Cookie',
       `${SESSION_COOKIE}=${sessionToken}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${Math.floor(SESSION_EXPIRY_MS / 1000)}${securePart}`,
     );
+
+    return { token: sessionToken, expires };
   }
 }
 

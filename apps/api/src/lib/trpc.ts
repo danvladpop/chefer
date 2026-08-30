@@ -13,6 +13,8 @@ export interface Context {
   requestId: string;
   ipAddress: string;
   sessionToken: string | null;
+  /** Request carried `x-chefer-client: mobile` — auth responses may include the session token. */
+  isMobileClient: boolean;
   res: Response;
 }
 

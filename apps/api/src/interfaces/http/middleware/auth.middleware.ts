@@ -1,79 +1,12 @@
 import type { NextFunction, Request, Response } from 'express';
-import { prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
-import { env } from '../../../lib/env.js';
+import { isMobileClient, resolveRequestAuth } from '../../../lib/session-auth.js';
 import type { Context } from '../../../lib/trpc.js';
 
 declare module 'express' {
   interface Request {
     user?: UserProfile;
     requestId?: string;
-  }
-}
-
-/**
- * Extracts the Bearer token from the Authorization header.
- */
-function extractBearerToken(authHeader: string | undefined): string | null {
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
-  return authHeader.slice(7);
-}
-
-/**
- * Extracts the session token from the cookie header.
- */
-function extractSessionToken(cookieHeader: string | undefined): string | null {
-  if (!cookieHeader) {
-    return null;
-  }
-  const sessionCookieName = 'chefer_session';
-  const cookie = cookieHeader
-    .split(';')
-    .map((c) => c.trim())
-    .find((c) => c.startsWith(`${sessionCookieName}=`));
-
-  return cookie ? (cookie.split('=')[1] ?? null) : null;
-}
-
-/**
- * Resolves a user from a session token stored in the database.
- */
-async function resolveUserFromSession(token: string): Promise<UserProfile | null> {
-  try {
-    const session = await prisma.session.findUnique({
-      where: { sessionToken: token },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            firstName: true,
-            role: true,
-            planTier: true,
-            image: true,
-          },
-        },
-      },
-    });
-
-    if (!session || session.expires < new Date()) {
-      return null;
-    }
-
-    return {
-      id: session.user.id,
-      email: session.user.email,
-      name: session.user.name,
-      firstName: session.user.firstName,
-      role: session.user.role,
-      planTier: session.user.planTier,
-      image: session.user.image,
-    };
-  } catch {
-    return null;
   }
 }
 
@@ -88,26 +21,16 @@ export async function createContext(req: Request, res: Response): Promise<Contex
     req.socket.remoteAddress ??
     'unknown';
 
-  // Try to resolve user from session or bearer token
-  let user: UserProfile | null = null;
-  let activeSessionToken: string | null = null;
+  const { user, sessionToken } = await resolveRequestAuth(req);
 
-  const cookieSessionToken = extractSessionToken(req.headers.cookie);
-  if (cookieSessionToken) {
-    user = await resolveUserFromSession(cookieSessionToken);
-    if (user) activeSessionToken = cookieSessionToken;
-  }
-
-  if (!user) {
-    const bearerToken = extractBearerToken(req.headers.authorization);
-    if (bearerToken) {
-      // In production, verify JWT here:
-      // user = await verifyJwt(bearerToken, env.JWT_SECRET);
-      void bearerToken; // placeholder
-    }
-  }
-
-  return { user, requestId, ipAddress, sessionToken: activeSessionToken, res };
+  return {
+    user,
+    requestId,
+    ipAddress,
+    sessionToken,
+    isMobileClient: isMobileClient(req),
+    res,
+  };
 }
 
 /**
@@ -125,19 +48,7 @@ export function requestIdMiddleware(req: Request, res: Response, next: NextFunct
  * Attaches the user to req.user.
  */
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const sessionToken = extractSessionToken(req.headers.cookie);
-  const bearerToken = extractBearerToken(req.headers.authorization);
-
-  let user: UserProfile | null = null;
-
-  if (sessionToken) {
-    user = await resolveUserFromSession(sessionToken);
-  }
-
-  if (!user && bearerToken) {
-    // Verify JWT in production
-    void bearerToken;
-  }
+  const { user } = await resolveRequestAuth(req);
 
   if (!user) {
     res.status(401).json({
@@ -150,6 +61,3 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   req.user = user;
   next();
 }
-
-// Expose env for use in middleware
-void env;
