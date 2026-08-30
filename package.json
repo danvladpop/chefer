@@ -44,6 +44,9 @@
   "pnpm": {
     "overrides": {
       "typescript": "^5.5.2"
+    },
+    "patchedDependencies": {
+      "expo-modules-jsi@57.0.6": "patches/expo-modules-jsi@57.0.6.patch"
     }
   }
 }

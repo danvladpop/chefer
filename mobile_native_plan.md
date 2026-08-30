@@ -568,6 +568,12 @@ full ladder before declaring a task done.
     processes holding 8081/8082.
 12. `ios/` and `android/` are generated (`expo prebuild`) and gitignored — never edit
     or commit them; native config lives in `app.config.ts` plugins.
+13. **`expo-modules-jsi@57.0.6` does not compile under Xcode 26.3** (its Swift rejects
+    `SWIFT_RETURNS_RETAINED` on constructors of `SWIFT_SHARED_REFERENCE` types — newer
+    compilers accept it). Fixed by a pnpm patch
+    (`patches/expo-modules-jsi@57.0.6.patch`) that drops the two constructor
+    annotations, which is semantics-neutral on this compiler. REMOVE the patch when
+    Xcode or the SDK updates past this (try a build without it after either upgrade).
 
 ---
 
