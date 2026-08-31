@@ -61,6 +61,14 @@ appId: dev.chefer.app
 - inputText: 'Maestro@123!'
 - tapOn:
     id: 'register-submit'
+# iOS may offer to save the password — decline so it never blocks.
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
 
 # ── Registration lands on the Home tab ───────────────────────────────────────
 - extendedWaitUntil:
@@ -88,6 +96,14 @@ appId: dev.chefer.app
 - inputText: 'Maestro@123!'
 - tapOn:
     id: 'login-submit'
+# iOS may offer to save the password — decline so it never blocks.
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
 - extendedWaitUntil:
     visible:
       id: 'home-title'

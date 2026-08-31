@@ -50,8 +50,7 @@ describe('customEntryRows (F4 custom-entry rendering)', () => {
       planned('r2', 500),
       custom('Espresso + croissant', 'manual', 280),
     ]);
-    expect(rows[0]!.entryIndex).toBe(1);
-    expect(rows[1]!.entryIndex).toBe(3);
+    expect(rows.map((r) => r.entryIndex)).toEqual([1, 3]);
   });
 
   it('carries the estimate provenance and macros through', () => {

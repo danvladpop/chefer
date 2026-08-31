@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { useEntitlement } from '../src/hooks/use-entitlement';
 import { trpc } from '../src/lib/trpc';

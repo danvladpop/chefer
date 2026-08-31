@@ -14,8 +14,8 @@ export function parseCustomItemInput(raw: string): {
     return { name: raw.trim() };
   }
   return {
-    name: match[3].trim(),
-    quantity: parseFloat(match[1].replace(',', '.')),
+    name: (match[3] ?? '').trim(),
+    quantity: parseFloat((match[1] ?? '1').replace(',', '.')),
     ...(match[2] ? { unit: match[2].toLowerCase() } : {}),
   };
 }

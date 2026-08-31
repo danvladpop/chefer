@@ -51,7 +51,7 @@ export default function ChatScreen() {
     try {
       const result = await streamChat({
         // expo/fetch streams response bodies; RN's classic fetch does not.
-        fetchImpl: expoFetch as unknown as typeof fetch,
+        fetchImpl: expoFetch,
         apiBaseUrl: getApiBaseUrl(),
         getToken,
         messages: history.map(({ role, content: c }) => ({ role, content: c })),
