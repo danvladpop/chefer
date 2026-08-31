@@ -295,6 +295,18 @@ tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors
 - **Bundle ids:** `dev.chefer.app` (placeholder until store release, plan M4-1)
 - Preflight for simulator/E2E work: `scripts/mobile-preflight.sh`
 
+**Mobile routes** (expo-router; deep-link scheme `chefer://`):
+
+| Route                  | Screen                                                                   | Web counterpart  |
+| ---------------------- | ------------------------------------------------------------------------ | ---------------- |
+| `(auth)/login`         | Sign in                                                                  | `/login`         |
+| `(auth)/register`      | Create account                                                           | `/register`      |
+| `(tabs)/` (index)      | Dashboard: week outlook, nutrition summary, hero meal, favourites (M2-1) | `/dashboard`     |
+| `(tabs)/meal-plan`     | Placeholder (M2-2)                                                       | `/meal-plan`     |
+| `(tabs)/recipes`       | Placeholder (M2-3)                                                       | `/recipes`       |
+| `(tabs)/shopping-list` | Placeholder (M2-5)                                                       | `/shopping-list` |
+| `(tabs)/more`          | Secondary nav hub + sign out                                             | mobile drawer    |
+
 ---
 
 ## 5. Packages

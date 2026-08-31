@@ -68,7 +68,7 @@ appId: dev.chefer.app
       id: 'home-title'
     timeout: 10000
 - assertVisible:
-    id: 'home-account-card'
+    id: 'week-outlook'
 
 # ── Sign out from the More tab ───────────────────────────────────────────────
 - tapOn: '.*More.*'
