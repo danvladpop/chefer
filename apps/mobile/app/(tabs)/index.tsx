@@ -151,9 +151,12 @@ export default function HomeScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerClassName="gap-3"
             >
-              {/* Deep detail route lands with M2-3 — link to the tab for now. */}
               {d.recentFavourites.map((fav) => (
-                <Link key={fav.id} href="/recipes" asChild>
+                <Link
+                  key={fav.id}
+                  href={{ pathname: '/recipe/[id]', params: { id: fav.id } }}
+                  asChild
+                >
                   <Pressable accessibilityRole="button" className="w-36">
                     <Image
                       source={{ uri: getRecipeImageUrl(fav.imageUrl) }}

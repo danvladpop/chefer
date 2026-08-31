@@ -37,6 +37,20 @@ describe('protected reads via Bearer', () => {
     expect(page).toBeTruthy();
   });
 
+  it('recipe detail queries respond for a listed recipe (M2-3)', async () => {
+    const page = await client.recipe.list.query({ limit: 1 });
+    const first = page[0];
+    if (!first) {
+      return; // empty catalog — nothing to probe
+    }
+    const recipe = await client.mealPlan.getRecipe.query({ recipeId: first.id });
+    expect(recipe?.name).toBeTruthy();
+    expect(Array.isArray(recipe?.ingredients)).toBe(true);
+    expect(Array.isArray(recipe?.instructions)).toBe(true);
+    const saved = await client.recipe.isSaved.query({ recipeId: first.id });
+    expect(typeof saved.isSaved).toBe('boolean');
+  });
+
   it('shoppingList.getForWeek responds with items + checkedKeys (M2-5)', async () => {
     const list = await client.shoppingList.getForWeek.query({ weekOffset: 0 });
     expect(Array.isArray(list.items)).toBe(true);

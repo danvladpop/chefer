@@ -1,0 +1,73 @@
+# Recipes list + detail E2E — M2-3. Signs in as the seeded alice account
+# (data-rich catalog); costs 1 login of the 10/15min per-IP budget.
+appId: dev.chefer.app
+---
+- launchApp
+- tapOn:
+    id: 'xmark'
+    optional: true
+
+# Whoever is signed in, sign out — the flow needs alice's catalog.
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-title'
+    commands:
+      - tapOn: '.*More.*'
+      - tapOn:
+          id: 'logout-button'
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 15000
+- tapOn:
+    id: 'login-email'
+- inputText: 'alice@chefer.dev'
+- tapOn:
+    id: 'login-password'
+- inputText: 'User@123!'
+- tapOn:
+    id: 'login-submit'
+# iOS may offer to save the password — decline so it never blocks the run.
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+
+- tapOn: '.*Recipes.*'
+- extendedWaitUntil:
+    visible:
+      id: 'recipes-title'
+    timeout: 15000
+- assertVisible:
+    id: 'recipes-search'
+# Open the first recipe card and check the detail screen
+- tapOn:
+    id: 'recipe-card-.*'
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: 'recipe-name'
+    timeout: 15000
+- assertVisible:
+    id: 'recipe-ingredients'
+- assertVisible:
+    id: 'recipe-save'
+- tapOn:
+    id: 'recipe-back'
+- extendedWaitUntil:
+    visible:
+      id: 'recipes-title'
+    timeout: 10000

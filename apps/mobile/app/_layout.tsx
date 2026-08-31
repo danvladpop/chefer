@@ -35,6 +35,7 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Protected guard={token !== null}>
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="recipe/[id]" />
           </Stack.Protected>
           <Stack.Protected guard={token === null}>
             <Stack.Screen name="(auth)" />
