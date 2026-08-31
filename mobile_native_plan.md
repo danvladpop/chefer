@@ -488,7 +488,7 @@ profiles; `eas build --profile development --platform ios` proven once. Update
 
 **Verify:** a development build completes on EAS and installs on the simulator.
 
-#### M4-2 · CI: full mobile lane **(after M4-1)**
+#### M4-2 · CI: full mobile lane — ✅ DONE (code side) 2026-08-31: ubuntu lanes = typecheck/lint/Jest (turbo), Mobile Bundle (expo export), and NEW Mobile Contract job (PR-only: service Postgres + db:push/seed + API boot + pnpm mobile:contract, AI mocked). Maestro E2E stays local-only (macOS runner spend — flip only on [USER] say-so). Verify on the next PR's checks.
 
 Ubuntu job (already from M0-6): typecheck/lint/Jest/bundle-check. Add contract tests with
 a service-container Postgres + API bootstrap (reuse the pattern web e2e CI uses in
