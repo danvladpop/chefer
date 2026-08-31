@@ -1,0 +1,28 @@
+# AI chef chat E2E — M2-9. UI-only: never sends a message (dev API runs real
+# Gemini; sends cost money and chat quota). The streaming path itself is
+# covered by the gated contract test (CHEFER_CONTRACT_AI=1).
+appId: dev.chefer.app
+---
+- launchApp
+- tapOn:
+    id: 'xmark'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+- tapOn: '.*More.*'
+- tapOn:
+    id: 'more-ai chef'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-title'
+    timeout: 15000
+- assertVisible:
+    id: 'chat-empty'
+- tapOn:
+    id: 'chat-input'
+- inputText: 'draft only — not sent'
+- assertVisible:
+    id: 'chat-send'
+- tapOn: 'Back'

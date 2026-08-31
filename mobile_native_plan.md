@@ -417,14 +417,14 @@ flow passing on the iOS simulator (run Android too when the change is layout-hea
 | M2-6  | `pantry`                                     | ✅ DONE 2026-08-31: list, premium add (chip unit picker)/remove, free read-only upsell (§6.4). Deferred: weekly confirm sheet                                                                                                                                                                                                 | S    |
 | M2-7  | `preferences` + `onboarding`                 | ✅ PARTIAL 2026-08-31: free safety prefs (chip editors → updateSafety), premium units+budget (updateTargets), current-target pill. NOT ported: onboarding wizard (goal/body/activity → computeTargets) — premium edits those on web; port when a Wave-3 task needs it                                                         | L    |
 | M2-8  | `profile` (in `user`/nav)                    | ✅ DONE 2026-08-31: account card, PW-2 upgrade/downgrade, AI-usage quota bars from shared PLAN_FEATURES                                                                                                                                                                                                                       | S    |
-| M2-9  | `chat` + `coach`                             | Streaming chat — **depends on M3-1**; take last or pair with M3-1                                                                                                                                                                                                                                                             | L    |
+| M2-9  | `chat` + `coach`                             | ✅ PARTIAL 2026-08-31: streaming chat screen (thread UI, quota → upgrade card) over M3-1. NOT ported: coach weekly-review banner + WeightCard (needs RN chart lib) — fold into M2-10                                                                                                                                          | L    |
 | M2-10 | `household`, `feedback`, `history`, `import` | Sweep of small screens; check each web feature dir for actual scope                                                                                                                                                                                                                                                           | M    |
 
 ---
 
 ### Wave 3 — Native capabilities **(after Wave 1; parallel with Wave 2 unless noted)**
 
-#### M3-1 · Streaming + SSE plumbing **[CRITICAL for M2-9] [PARALLEL]**
+#### M3-1 · Streaming + SSE plumbing — ✅ DONE (chat part) 2026-08-31: `src/lib/chat-stream.ts` (injectable fetch — expo/fetch in app, Node fetch in tests), quota header handling; live-stream contract test gated behind CHEFER_CONTRACT_AI=1 (real Gemini). SSE recipe-image consumer still TODO (meal-plan photo progress).
 
 RN has no `EventSource` and classic `fetch` doesn't stream. Use `expo/fetch` (SDK 52+)
 which supports streamed response bodies.

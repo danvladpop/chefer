@@ -9,6 +9,7 @@ import { trpc } from '../../src/lib/trpc';
 // (SECONDARY_NAV_ITEMS in apps/web/src/features/nav/nav-items.ts). Rows are
 // added as their screens land in Wave 2.
 const ITEMS: { href: Href; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { href: '/chat', label: 'AI Chef', icon: 'chatbubble-ellipses-outline' },
   { href: '/tracker', label: 'Tracker', icon: 'pulse-outline' },
   { href: '/pantry', label: 'Pantry', icon: 'file-tray-stacked-outline' },
   { href: '/profile', label: 'Profile', icon: 'person-outline' },

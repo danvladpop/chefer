@@ -40,6 +40,7 @@ export default function RootLayout() {
             <Stack.Screen name="pantry" />
             <Stack.Screen name="profile" />
             <Stack.Screen name="preferences" />
+            <Stack.Screen name="chat" />
           </Stack.Protected>
           <Stack.Protected guard={token === null}>
             <Stack.Screen name="(auth)" />
