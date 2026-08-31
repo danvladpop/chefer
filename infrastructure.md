@@ -311,6 +311,8 @@ tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors
 | `pantry`               | Kitchen inventory, premium add/remove, free upsell (M2-6)                | `/pantry`        |
 | `preferences`          | Free safety prefs + premium units/budget (M2-7)                          | `/preferences`   |
 | `profile`              | Account card, up/downgrade (PW-2), AI usage quotas (M2-8)                | `/profile`       |
+| `chat`                 | Streaming AI chef chat, quota upgrade gate (M2-9/M3-1)                   | chat widget      |
+| `history`              | Past plans list + restore (M2-10)                                        | `/history`       |
 
 ---
 

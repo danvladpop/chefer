@@ -49,3 +49,17 @@ appId: dev.chefer.app
     timeout: 15000
 - assertVisible:
     id: 'preferences-safety'
+- tapOn: 'Back'
+
+# History (M2-10)
+- tapOn:
+    id: 'more-history'
+- extendedWaitUntil:
+    visible:
+      id: 'history-title'
+    timeout: 15000
+- tapOn: 'Back'
+
+# Feedback card renders on the More hub
+- assertVisible:
+    id: 'feedback-card'

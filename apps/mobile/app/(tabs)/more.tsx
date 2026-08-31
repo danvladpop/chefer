@@ -1,7 +1,8 @@
-import { Pressable, ScrollView, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
-import { Button, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { clearToken } from '../../src/lib/auth-store';
 import { trpc } from '../../src/lib/trpc';
 
@@ -12,9 +13,51 @@ const ITEMS: { href: Href; label: string; icon: keyof typeof Ionicons.glyphMap }
   { href: '/chat', label: 'AI Chef', icon: 'chatbubble-ellipses-outline' },
   { href: '/tracker', label: 'Tracker', icon: 'pulse-outline' },
   { href: '/pantry', label: 'Pantry', icon: 'file-tray-stacked-outline' },
+  { href: '/history', label: 'History', icon: 'time-outline' },
   { href: '/profile', label: 'Profile', icon: 'person-outline' },
   { href: '/preferences', label: 'Preferences', icon: 'settings-outline' },
 ];
+
+// Beta feedback — mobile counterpart of web's FeedbackDialog (M2-10).
+function FeedbackCard() {
+  const [message, setMessage] = useState('');
+  const submitMutation = trpc.feedback.submit.useMutation({
+    onSuccess: () => setMessage(''),
+  });
+
+  return (
+    <Card testID="feedback-card" className="gap-2">
+      <Text variant="heading">Beta feedback</Text>
+      <Text variant="muted" className="text-xs">
+        Something broken, confusing, or missing? Tell us — it goes straight to the team.
+      </Text>
+      <TextInput
+        testID="feedback-input"
+        value={message}
+        onChangeText={setMessage}
+        placeholder="Your feedback…"
+        placeholderTextColor="#9ca3af"
+        multiline
+        className="min-h-20 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
+      />
+      <Button
+        testID="feedback-submit"
+        variant="outline"
+        loading={submitMutation.isPending}
+        onPress={() => {
+          if (message.trim()) {
+            submitMutation.mutate({ message: message.trim(), path: 'mobile/more' });
+          }
+        }}
+      >
+        {submitMutation.isSuccess && !message ? 'Thank you! ✓' : 'Send feedback'}
+      </Button>
+      {submitMutation.isError && (
+        <Text className="text-xs text-red-600">{submitMutation.error.message}</Text>
+      )}
+    </Card>
+  );
+}
 
 export default function MoreScreen() {
   const utils = trpc.useUtils();
@@ -54,6 +97,8 @@ export default function MoreScreen() {
             </Pressable>
           ))}
         </View>
+
+        <FeedbackCard />
 
         <Button
           testID="logout-button"
