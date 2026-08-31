@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn, customEntryChipLabel, customEntryRows, customEntryTotals } from '@chefer/utils';
 import { MealTypeBadge } from '../src/features/dashboard/components/meal-type-badge';
+import { ScanMealCard } from '../src/features/tracker/scan-meal-card';
 import { getRecipeImageUrl } from '../src/lib/recipe-image';
 import { trpc } from '../src/lib/trpc';
 
@@ -331,6 +332,9 @@ export default function TrackerScreen() {
               })}
             </View>
           )}
+
+          {/* Snap-to-Log (F4 / M3-2) — today only; past days are typed by hand */}
+          {isToday && <ScanMealCard date={dateStr} onLogged={() => void refetch()} />}
 
           {/* Custom entries (scans + quick adds) */}
           {customRows.length > 0 && (

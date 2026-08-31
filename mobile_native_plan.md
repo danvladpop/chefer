@@ -440,7 +440,7 @@ which supports streamed response bodies.
 **Verify:** contract test streams a real chat completion locally and asserts incremental
 chunks arrive.
 
-#### M3-2 · Camera + photo scan **[PARALLEL]**
+#### M3-2 · Camera + photo scan — ✅ DONE 2026-08-31: ScanMealCard on Tracker (expo-image-picker camera/library → raw-body /api/scan-meal via shared media-client → confirm → logCustomMeal); permission strings via the image-picker config plugin; scan contract test gated behind CHEFER_CONTRACT_AI=1. NOTE: adding the native module required prebuild + dev-client rebuild.
 
 `expo-image-picker` (camera + library) → multipart `POST /api/scan-meal` with Bearer.
 Match the field names the Express route expects. Permissions strings in `app.config.ts`
@@ -451,13 +451,13 @@ asserts a parsed nutrition response; Maestro can't drive the OS camera — E2E u
 library-picker path with a pre-seeded photo (`xcrun simctl addmedia`, documented in the
 flow file).
 
-#### M3-3 · Image upload (avatar/recipes) **[PARALLEL]**
+#### M3-3 · Image upload (avatar/recipes) — ✅ DONE 2026-08-31: shared media-client uploadImage → /api/uploads/image; wired into the recipe form's Add-a-photo; contract test uploads a fixture and GETs the returned URL (runs unconditionally — no AI).
 
 Same pattern against `/api/uploads`; mirrors `apps/web/src/lib/upload-image.ts`.
 
 **Verify:** contract test uploads a fixture and GETs the returned `/uploads/...` URL.
 
-#### M3-4 · Deep linking + auth guards **[PARALLEL]**
+#### M3-4 · Deep linking + auth guards — ✅ PARTIAL: chefer:// scheme + expo-router file routing give every screen a link; Stack.Protected bounces unauthenticated opens to login. TODO: redirect-back to the originally requested screen after login.
 
 `chefer://` scheme routes to every screen; unauthenticated deep link → login →
 redirect-back. This is also E2E infrastructure — Maestro flows depend on it, so do it

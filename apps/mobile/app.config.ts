@@ -24,7 +24,18 @@ const config: ExpoConfig = {
     },
     predictiveBackGestureEnabled: false,
   },
-  plugins: ['expo-router', 'expo-secure-store', 'expo-dev-client'],
+  plugins: [
+    'expo-router',
+    'expo-secure-store',
+    'expo-dev-client',
+    [
+      'expo-image-picker',
+      {
+        photosPermission: 'Chefer uses your photos to scan meals and illustrate your recipes.',
+        cameraPermission: 'Chefer uses the camera to scan meals you are about to eat.',
+      },
+    ],
+  ],
   experiments: {
     typedRoutes: true,
   },

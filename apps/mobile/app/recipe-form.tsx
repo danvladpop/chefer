@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
+import { fetch as expoFetch } from 'expo/fetch';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { getApiBaseUrl } from '../src/lib/api-url';
+import { getToken } from '../src/lib/auth-store';
+import { base64ToBytes, uploadImage } from '../src/lib/media-client';
 import { trpc } from '../src/lib/trpc';
 
 // Manual recipe create/edit — port of web /recipes/new and /recipes/[id]/edit
@@ -83,6 +88,37 @@ export default function RecipeFormScreen() {
   ]);
   const [instructions, setInstructions] = useState<string[]>(['']);
   const [prefilled, setPrefilled] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // M3-3: pick a photo → raw-body upload to /api/uploads/image → URL.
+  const pickPhoto = async () => {
+    setUploadError(null);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      base64: true,
+      quality: 0.8,
+    });
+    const asset = !result.canceled ? result.assets.at(0) : null;
+    if (!asset?.base64) {
+      return;
+    }
+    setUploading(true);
+    try {
+      const mime = asset.mimeType === 'image/png' ? 'image/png' : 'image/jpeg';
+      const url = await uploadImage(
+        { fetchImpl: expoFetch, apiBaseUrl: getApiBaseUrl(), getToken },
+        base64ToBytes(asset.base64),
+        mime,
+      );
+      setImageUrl(url);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   useEffect(() => {
     if (!existing || prefilled) {
@@ -114,6 +150,7 @@ export default function RecipeFormScreen() {
       })),
     );
     setInstructions([...existing.instructions]);
+    setImageUrl(existing.imageUrl ?? '');
     setPrefilled(true);
   }, [existing, prefilled]);
 
@@ -158,6 +195,7 @@ export default function RecipeFormScreen() {
       prepTimeMins: Math.round(num(prepTime)),
       cookTimeMins: Math.round(num(cookTime)),
       servings: Math.round(num(servings)),
+      imageUrl,
     };
     if (isEdit && id) {
       updateMutation.mutate({ recipeId: id, ...payload });
@@ -332,6 +370,36 @@ export default function RecipeFormScreen() {
           >
             Add step
           </Button>
+        </Card>
+
+        {/* Photo (M3-3) */}
+        <Card className="gap-2">
+          <Text variant="heading">Photo</Text>
+          {imageUrl ? (
+            <View className="gap-2">
+              <Image
+                source={{ uri: imageUrl }}
+                className="h-40 w-full rounded-xl"
+                resizeMode="cover"
+              />
+              <Button variant="outline" onPress={() => setImageUrl('')}>
+                Remove photo
+              </Button>
+            </View>
+          ) : (
+            <Button
+              testID="rf-photo"
+              variant="outline"
+              loading={uploading}
+              onPress={() => void pickPhoto()}
+            >
+              <View className="flex-row items-center gap-1.5">
+                <Ionicons name="image-outline" size={16} color="#944a00" />
+                <Text className="text-sm font-medium text-primary">Add a photo</Text>
+              </View>
+            </Button>
+          )}
+          {uploadError && <Text className="text-xs text-red-600">{uploadError}</Text>}
         </Card>
 
         {/* Nutrition per serving */}
