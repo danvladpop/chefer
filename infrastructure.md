@@ -273,7 +273,10 @@ Both use `superjson` as the transformer and point to `NEXT_PUBLIC_API_URL/trpc` 
 
 ### 4.3 Mobile (`apps/mobile`)
 
-Expo (SDK 57) React Native app — one codebase for iOS and Android. Being built
+Expo (SDK 57) React Native app — one codebase for iOS and Android. EAS project
+`@cheferoni/chefer` (bundle id `dev.chefer.app`; `eas.json` profiles:
+development→iOS-simulator dev client, development-device, preview, production).
+Being built
 out per [`mobile_native_plan.md`](./mobile_native_plan.md); currently: auth
 (login/register/logout via Bearer session), NativeWind theme (web's brand
 tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors

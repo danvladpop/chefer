@@ -1,10 +1,15 @@
-import type { ExpoConfig } from 'expo/config';
+// Expo config as plain JS: eas-cli's TS loader failed to parse the .ts
+// version ("Unexpected token '{'", eas-cli 23.1.0) while expo itself read it
+// fine — plain JS removes the loader variance. Typed via the JSDoc below.
 
-// Bundle identifiers are placeholders until the store release (plan task M4-1)
-// confirms the final ids with the user.
-const config: ExpoConfig = {
+/**
+ * Bundle identifier dev.chefer.app was confirmed at EAS setup (M4-1).
+ * @type {import('expo/config').ExpoConfig}
+ */
+const config = {
   name: 'Chefer',
   slug: 'chefer',
+  owner: 'cheferoni',
   scheme: 'chefer',
   version: '0.0.1',
   orientation: 'portrait',
@@ -39,6 +44,11 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
   },
+  extra: {
+    eas: {
+      projectId: 'f4d9a056-7f4d-4ee4-b185-2f0bcea37225',
+    },
+  },
 };
 
-export default config;
+module.exports = config;

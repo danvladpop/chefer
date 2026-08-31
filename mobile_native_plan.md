@@ -479,7 +479,7 @@ decisions on what to send. Defer.
 
 ### Wave 4 — Builds, CI, release
 
-#### M4-1 · EAS setup **[USER then agent] [CRITICAL]**
+#### M4-1 · EAS setup — ✅ DONE 2026-08-31: project @cheferoni/chefer (id f4d9a056-…), bundle id dev.chefer.app CONFIRMED (no longer a placeholder). eas.json: development (dev client, iOS SIMULATOR — no Apple creds), development-device (needs Apple Developer, still [USER]-gated), preview, production (remote appVersionSource, autoIncrement). GOTCHA: eas-cli 23.1 could not parse app.config.ts — config is now app.config.js (JSDoc-typed); owner: 'cheferoni' required (project lives in the org). First dev build launched from CLI.
 
 Human: create Expo account, `eas login`, decide final bundle id / app name.
 Agent: `eas.json` with `development` (dev-client), `preview` (internal), `production`
