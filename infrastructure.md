@@ -303,7 +303,8 @@ tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors
 | `(auth)/register`      | Create account                                                           | `/register`      |
 | `(tabs)/` (index)      | Dashboard: week outlook, nutrition summary, hero meal, favourites (M2-1) | `/dashboard`     |
 | `(tabs)/meal-plan`     | Placeholder (M2-2)                                                       | `/meal-plan`     |
-| `(tabs)/recipes`       | Placeholder (M2-3)                                                       | `/recipes`       |
+| `(tabs)/recipes`       | Recipe list: tabs, search, optimistic favourites (M2-3)                  | `/recipes`       |
+| `recipe/[id]`          | Recipe detail: scaled ingredients, instructions, nutrition (M2-3)        | `/recipes/[id]`  |
 | `(tabs)/shopping-list` | Placeholder (M2-5)                                                       | `/shopping-list` |
 | `(tabs)/more`          | Secondary nav hub + sign out                                             | mobile drawer    |
 
