@@ -42,6 +42,8 @@ export default function RootLayout() {
             <Stack.Screen name="preferences" />
             <Stack.Screen name="chat" />
             <Stack.Screen name="history" />
+            <Stack.Screen name="onboarding" />
+            <Stack.Screen name="cook/[id]" />
           </Stack.Protected>
           <Stack.Protected guard={token === null}>
             <Stack.Screen name="(auth)" />

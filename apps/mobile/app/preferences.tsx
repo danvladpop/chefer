@@ -159,10 +159,22 @@ export default function PreferencesScreen() {
       ) : (
         <ScrollView contentContainerClassName="gap-4 px-4 pb-8">
           <Text variant="muted" className="text-sm">
-            {isPremium
-              ? 'Your allergies and restrictions apply to every plan. Goals and body metrics are edited on the web for now.'
-              : 'Your allergies and dietary restrictions apply to every plan — free or premium.'}
+            Your allergies and dietary restrictions apply to every plan — free or premium.
           </Text>
+
+          {isPremium === true && (
+            <Pressable
+              testID="prefs-open-onboarding"
+              accessibilityRole="button"
+              onPress={() => router.push('/onboarding')}
+              className="min-h-11 flex-row items-center justify-between rounded-xl border border-border bg-card px-4"
+            >
+              <Text className="text-sm font-medium text-gray-800">
+                Goals, body metrics & activity
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+            </Pressable>
+          )}
 
           {isPremium === true && data?.chefProfile?.dailyCalorieTarget != null && (
             <View className="self-start rounded-lg border border-primary/30 bg-accent px-4 py-2">

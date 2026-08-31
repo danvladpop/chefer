@@ -94,13 +94,17 @@ export default function HomeScreen() {
 
         {/* Profile completion nudge (premium without a profile) */}
         {showProfileNudge && (
-          <Card testID="profile-nudge" className="border-primary/20 bg-accent">
-            <Text className="text-sm font-semibold text-primary">Complete your profile</Text>
-            <Text className="mt-0.5 text-xs text-primary/80">
-              Tell the AI chef your goals, body metrics and dietary needs so your meal plans are
-              built for you.
-            </Text>
-          </Card>
+          <Link href="/onboarding" asChild>
+            <Pressable accessibilityRole="button" testID="profile-nudge">
+              <Card className="border-primary/20 bg-accent">
+                <Text className="text-sm font-semibold text-primary">Complete your profile →</Text>
+                <Text className="mt-0.5 text-xs text-primary/80">
+                  Tell the AI chef your goals, body metrics and dietary needs so your meal plans are
+                  built for you.
+                </Text>
+              </Card>
+            </Pressable>
+          </Link>
         )}
 
         <WeekOutlook weekPlan={d.weekPlan} />

@@ -100,18 +100,33 @@ export default function RecipeDetailScreen() {
             </Text>
           </View>
 
-          {/* Save action */}
-          <Button
-            testID="recipe-save"
-            variant={isSaved ? 'secondary' : 'outline'}
-            loading={toggleFav.isPending}
-            onPress={() => toggleFav.mutate({ recipeId: id })}
-          >
-            <View className="flex-row items-center gap-1.5">
-              <Ionicons name={isSaved ? 'heart' : 'heart-outline'} size={16} color="#944a00" />
-              <Text className="text-sm font-medium text-primary">{isSaved ? 'Saved' : 'Save'}</Text>
-            </View>
-          </Button>
+          {/* Actions: cook is primary (web P1-3), save secondary */}
+          <View className="flex-row gap-2">
+            <Button
+              testID="recipe-cook"
+              className="flex-1"
+              onPress={() => router.push({ pathname: '/cook/[id]', params: { id } })}
+            >
+              <View className="flex-row items-center gap-1.5">
+                <Ionicons name="restaurant-outline" size={16} color="white" />
+                <Text className="text-sm font-medium text-primary-foreground">Cook</Text>
+              </View>
+            </Button>
+            <Button
+              testID="recipe-save"
+              variant={isSaved ? 'secondary' : 'outline'}
+              className="flex-1"
+              loading={toggleFav.isPending}
+              onPress={() => toggleFav.mutate({ recipeId: id })}
+            >
+              <View className="flex-row items-center gap-1.5">
+                <Ionicons name={isSaved ? 'heart' : 'heart-outline'} size={16} color="#944a00" />
+                <Text className="text-sm font-medium text-primary">
+                  {isSaved ? 'Saved' : 'Save'}
+                </Text>
+              </View>
+            </Button>
+          </View>
 
           {/* Stats */}
           <View className="flex-row justify-between rounded-2xl border border-border bg-gray-50 px-4 py-3">

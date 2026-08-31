@@ -194,3 +194,5 @@ export {
   type CustomEntryRow,
   type LoggedMealEntryLike,
 } from './tracker';
+
+export { guessMealType, parseStepDuration } from './cook-mode';

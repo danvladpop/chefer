@@ -65,6 +65,28 @@ appId: dev.chefer.app
     id: 'recipe-ingredients'
 - assertVisible:
     id: 'recipe-save'
+
+# Cook mode (P1-3): step through, never log
+- tapOn:
+    id: 'recipe-cook'
+- extendedWaitUntil:
+    visible:
+      id: 'cook-title'
+    timeout: 15000
+- assertVisible:
+    id: 'cook-step-text'
+- tapOn:
+    id: 'cook-next'
+- tapOn:
+    id: 'cook-ingredients-toggle'
+- assertVisible: 'Ingredients'
+- tapOn: 'Back to cooking'
+- tapOn:
+    id: 'cook-close'
+- extendedWaitUntil:
+    visible:
+      id: 'recipe-name'
+    timeout: 10000
 - tapOn:
     id: 'recipe-back'
 - extendedWaitUntil:
