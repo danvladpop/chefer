@@ -39,14 +39,14 @@ describe('protected reads via Bearer', () => {
 
   it('recipe detail queries respond for a listed recipe (M2-3)', async () => {
     const page = await client.recipe.list.query({ limit: 1 });
-    const first = page[0];
+    const first = page.at(0);
     if (!first) {
       return; // empty catalog — nothing to probe
     }
     const recipe = await client.mealPlan.getRecipe.query({ recipeId: first.id });
-    expect(recipe?.name).toBeTruthy();
-    expect(Array.isArray(recipe?.ingredients)).toBe(true);
-    expect(Array.isArray(recipe?.instructions)).toBe(true);
+    expect(recipe.name).toBeTruthy();
+    expect(Array.isArray(recipe.ingredients)).toBe(true);
+    expect(Array.isArray(recipe.instructions)).toBe(true);
     const saved = await client.recipe.isSaved.query({ recipeId: first.id });
     expect(typeof saved.isSaved).toBe('boolean');
   });

@@ -1,0 +1,46 @@
+# Meal plan E2E — M2-2. Read-only: never taps Generate (alice is PREMIUM and
+# dev runs REAL AI — generation costs money and minutes).
+# Precondition: signed-in session (any account).
+appId: dev.chefer.app
+---
+- launchApp
+- tapOn:
+    id: 'xmark'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+# The tab label reads "Plan, tab, 2 of 5" — anchor on that, not bare "Plan"
+# (which also appears in empty-state copy).
+- tapOn: 'Plan, tab.*'
+- extendedWaitUntil:
+    visible:
+      id: 'plan-week-label'
+    timeout: 15000
+# Whichever state the week is in, its key content must render
+- runFlow:
+    when:
+      visible:
+        id: 'plan-empty'
+    commands:
+      - assertVisible:
+          id: 'plan-generate'
+- runFlow:
+    when:
+      notVisible:
+        id: 'plan-empty'
+    commands:
+      - assertVisible:
+          id: 'plan-day-0'
+# Week navigation works both directions
+- tapOn:
+    id: 'plan-week-prev'
+- extendedWaitUntil:
+    visible: 'Past'
+    timeout: 10000
+- tapOn:
+    id: 'plan-week-next'
+- extendedWaitUntil:
+    visible: 'This Week'
+    timeout: 10000
