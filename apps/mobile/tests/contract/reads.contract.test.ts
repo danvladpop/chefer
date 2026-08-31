@@ -37,6 +37,13 @@ describe('protected reads via Bearer', () => {
     expect(page).toBeTruthy();
   });
 
+  it('shoppingList.getForWeek responds with items + checkedKeys (M2-5)', async () => {
+    const list = await client.shoppingList.getForWeek.query({ weekOffset: 0 });
+    expect(Array.isArray(list.items)).toBe(true);
+    expect(Array.isArray(list.checkedKeys)).toBe(true);
+    expect(typeof list.hasPlan).toBe('boolean');
+  });
+
   it('tracker.weeklySummary hydrates dates through superjson', async () => {
     const summary = await client.tracker.weeklySummary.query();
     expect(summary).toBeTruthy();

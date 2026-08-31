@@ -1,0 +1,24 @@
+# Shopping list E2E — M2-5. Precondition: signed-in session (run auth.flow first).
+appId: dev.chefer.app
+---
+- launchApp
+- tapOn:
+    id: 'xmark'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+- tapOn: '.*Shop.*'
+- extendedWaitUntil:
+    visible:
+      id: 'shopping-title'
+    timeout: 15000
+# Either a list with categories or the no-plan empty state must render
+- runFlow:
+    when:
+      notVisible:
+        id: 'shopping-empty'
+    commands:
+      - assertVisible:
+          id: 'add-item-input'
