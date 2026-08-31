@@ -297,22 +297,27 @@ tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors
 
 **Mobile routes** (expo-router; deep-link scheme `chefer://`):
 
-| Route                  | Screen                                                                   | Web counterpart  |
-| ---------------------- | ------------------------------------------------------------------------ | ---------------- |
-| `(auth)/login`         | Sign in                                                                  | `/login`         |
-| `(auth)/register`      | Create account                                                           | `/register`      |
-| `(tabs)/` (index)      | Dashboard: week outlook, nutrition summary, hero meal, favourites (M2-1) | `/dashboard`     |
-| `(tabs)/meal-plan`     | Placeholder (M2-2)                                                       | `/meal-plan`     |
-| `(tabs)/recipes`       | Recipe list: tabs, search, optimistic favourites (M2-3)                  | `/recipes`       |
-| `recipe/[id]`          | Recipe detail: scaled ingredients, instructions, nutrition (M2-3)        | `/recipes/[id]`  |
-| `(tabs)/shopping-list` | Placeholder (M2-5)                                                       | `/shopping-list` |
-| `(tabs)/more`          | Secondary nav hub + sign out                                             | mobile drawer    |
-| `tracker`              | Daily log: check-off, portions, custom entries, targets (M2-4)           | `/tracker`       |
-| `pantry`               | Kitchen inventory, premium add/remove, free upsell (M2-6)                | `/pantry`        |
-| `preferences`          | Free safety prefs + premium units/budget (M2-7)                          | `/preferences`   |
-| `profile`              | Account card, up/downgrade (PW-2), AI usage quotas (M2-8)                | `/profile`       |
-| `chat`                 | Streaming AI chef chat, quota upgrade gate (M2-9/M3-1)                   | chat widget      |
-| `history`              | Past plans list + restore (M2-10)                                        | `/history`       |
+| Route                  | Screen                                                                   | Web counterpart                      |
+| ---------------------- | ------------------------------------------------------------------------ | ------------------------------------ |
+| `(auth)/login`         | Sign in                                                                  | `/login`                             |
+| `(auth)/register`      | Create account                                                           | `/register`                          |
+| `(tabs)/` (index)      | Dashboard: week outlook, nutrition summary, hero meal, favourites (M2-1) | `/dashboard`                         |
+| `(tabs)/meal-plan`     | Placeholder (M2-2)                                                       | `/meal-plan`                         |
+| `(tabs)/recipes`       | Recipe list: tabs, search, optimistic favourites (M2-3)                  | `/recipes`                           |
+| `recipe/[id]`          | Recipe detail: scaled ingredients, instructions, nutrition (M2-3)        | `/recipes/[id]`                      |
+| `(tabs)/shopping-list` | Placeholder (M2-5)                                                       | `/shopping-list`                     |
+| `(tabs)/more`          | Secondary nav hub + sign out                                             | mobile drawer                        |
+| `tracker`              | Daily log: check-off, portions, custom entries, targets (M2-4)           | `/tracker`                           |
+| `pantry`               | Kitchen inventory, premium add/remove, free upsell (M2-6)                | `/pantry`                            |
+| `preferences`          | Free safety prefs + premium units/budget (M2-7)                          | `/preferences`                       |
+| `profile`              | Account card, up/downgrade (PW-2), AI usage quotas (M2-8)                | `/profile`                           |
+| `chat`                 | Streaming AI chef chat, quota upgrade gate (M2-9/M3-1)                   | chat widget                          |
+| `history`              | Past plans list + restore (M2-10)                                        | `/history`                           |
+| `onboarding`           | 4-step profile wizard → preferences.setup (premium)                      | `/onboarding`                        |
+| `cook/[id]`            | Cook mode: steps, timers, keep-awake, log to tracker (P1-3)              | `/recipes/[id]/cook`                 |
+| `import-recipe`        | F5 import: URL/text preview + premium save                               | Import sheet                         |
+| `recipe-form`          | Manual recipe create/edit                                                | `/recipes/new`, `/recipes/[id]/edit` |
+| `household`            | F2 household members (premium add, open list/remove)                     | preferences section                  |
 
 ---
 

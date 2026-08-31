@@ -63,3 +63,12 @@ appId: dev.chefer.app
 # Feedback card renders on the More hub
 - assertVisible:
     id: 'feedback-card'
+
+# Household (wave-2b)
+- tapOn:
+    id: 'more-household'
+- extendedWaitUntil:
+    visible:
+      id: 'household-title'
+    timeout: 15000
+- tapOn: 'Back'

@@ -14,6 +14,7 @@ const ITEMS: { href: Href; label: string; icon: keyof typeof Ionicons.glyphMap }
   { href: '/tracker', label: 'Tracker', icon: 'pulse-outline' },
   { href: '/pantry', label: 'Pantry', icon: 'file-tray-stacked-outline' },
   { href: '/history', label: 'History', icon: 'time-outline' },
+  { href: '/household', label: 'Household', icon: 'people-outline' },
   { href: '/profile', label: 'Profile', icon: 'person-outline' },
   { href: '/preferences', label: 'Preferences', icon: 'settings-outline' },
 ];

@@ -89,6 +89,26 @@ appId: dev.chefer.app
     timeout: 10000
 - tapOn:
     id: 'recipe-back'
+
+# Import + create entry points (wave-2b) — UI only, no AI/preview calls
+- tapOn:
+    id: 'recipes-import'
+- extendedWaitUntil:
+    visible:
+      id: 'import-title'
+    timeout: 10000
+- assertVisible:
+    id: 'import-url'
+- tapOn: 'Back'
+- tapOn:
+    id: 'recipes-new'
+- extendedWaitUntil:
+    visible:
+      id: 'recipe-form-title'
+    timeout: 10000
+- assertVisible:
+    id: 'rf-name'
+- tapOn: 'Back'
 - extendedWaitUntil:
     visible:
       id: 'recipes-title'

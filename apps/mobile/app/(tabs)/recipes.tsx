@@ -63,13 +63,36 @@ export default function RecipesScreen() {
   return (
     <Screen className="px-0">
       <View className="gap-3 px-4 pb-2 pt-4">
-        <View>
-          <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
-            Your Collection
-          </Text>
-          <Text testID="recipes-title" variant="title">
-            Recipes
-          </Text>
+        <View className="flex-row items-end justify-between">
+          <View>
+            <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+              Your Collection
+            </Text>
+            <Text testID="recipes-title" variant="title">
+              Recipes
+            </Text>
+          </View>
+          <View className="flex-row gap-2">
+            {/* Import (F5) — visible on every tier: free gets the preview */}
+            <Pressable
+              testID="recipes-import"
+              accessibilityRole="button"
+              onPress={() => router.push('/import-recipe')}
+              className="min-h-11 flex-row items-center gap-1.5 rounded-xl border border-primary/30 px-3"
+            >
+              <Ionicons name="link-outline" size={16} color="#944a00" />
+              <Text className="text-sm font-semibold text-primary">Import</Text>
+            </Pressable>
+            <Pressable
+              testID="recipes-new"
+              accessibilityRole="button"
+              onPress={() => router.push('/recipe-form')}
+              className="min-h-11 flex-row items-center gap-1.5 rounded-xl bg-primary px-3"
+            >
+              <Ionicons name="add" size={16} color="white" />
+              <Text className="text-sm font-semibold text-primary-foreground">New</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Tabs */}
@@ -139,20 +162,34 @@ export default function RecipesScreen() {
                     className="h-40 w-full"
                     resizeMode="cover"
                   />
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      recipe.isFavourite ? 'Remove from favourites' : 'Save to favourites'
-                    }
-                    onPress={() => toggleFav.mutate({ recipeId: recipe.id })}
-                    className="absolute right-2 top-2 h-11 w-11 items-center justify-center rounded-full bg-white/90"
-                  >
-                    <Ionicons
-                      name={recipe.isFavourite ? 'heart' : 'heart-outline'}
-                      size={20}
-                      color={recipe.isFavourite ? '#944a00' : '#6b7280'}
-                    />
-                  </Pressable>
+                  <View className="absolute right-2 top-2 flex-row gap-1.5">
+                    {tab === 'my' && (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Edit recipe"
+                        onPress={() =>
+                          router.push({ pathname: '/recipe-form', params: { id: recipe.id } })
+                        }
+                        className="h-11 w-11 items-center justify-center rounded-full bg-white/90"
+                      >
+                        <Ionicons name="pencil" size={18} color="#944a00" />
+                      </Pressable>
+                    )}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        recipe.isFavourite ? 'Remove from favourites' : 'Save to favourites'
+                      }
+                      onPress={() => toggleFav.mutate({ recipeId: recipe.id })}
+                      className="h-11 w-11 items-center justify-center rounded-full bg-white/90"
+                    >
+                      <Ionicons
+                        name={recipe.isFavourite ? 'heart' : 'heart-outline'}
+                        size={20}
+                        color={recipe.isFavourite ? '#944a00' : '#6b7280'}
+                      />
+                    </Pressable>
+                  </View>
                 </View>
                 <View className="gap-1.5 p-4">
                   <View className="self-start rounded-full bg-accent px-2 py-0.5">

@@ -8,6 +8,8 @@ import {
 } from 'react-native';
 import { Link } from 'expo-router';
 import { Card, Screen, Text } from '@chefer/ui-mobile';
+import { ChefReviewBanner } from '../../src/features/coach/chef-review-banner';
+import { WeightCard } from '../../src/features/coach/weight-card';
 import { HeroMealCard } from '../../src/features/dashboard/components/hero-meal-card';
 import { MealTypeBadge } from '../../src/features/dashboard/components/meal-type-badge';
 import { NutritionSummary } from '../../src/features/dashboard/components/nutrition-summary';
@@ -92,6 +94,9 @@ export default function HomeScreen() {
           </Card>
         )}
 
+        {/* F1 Adaptive Chef: weekly review (full for premium, teaser for free) */}
+        <ChefReviewBanner />
+
         {/* Profile completion nudge (premium without a profile) */}
         {showProfileNudge && (
           <Link href="/onboarding" asChild>
@@ -110,6 +115,8 @@ export default function HomeScreen() {
         <WeekOutlook weekPlan={d.weekPlan} />
 
         <NutritionSummary nutrition={d.nutrition} />
+
+        <WeightCard />
 
         {heroMeal ? (
           <HeroMealCard meal={heroMeal} isTomorrow={heroIsTomorrow} />
