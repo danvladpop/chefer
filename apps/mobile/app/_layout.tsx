@@ -36,6 +36,10 @@ export default function RootLayout() {
           <Stack.Protected guard={token !== null}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="recipe/[id]" />
+            <Stack.Screen name="tracker" />
+            <Stack.Screen name="pantry" />
+            <Stack.Screen name="profile" />
+            <Stack.Screen name="preferences" />
           </Stack.Protected>
           <Stack.Protected guard={token === null}>
             <Stack.Screen name="(auth)" />

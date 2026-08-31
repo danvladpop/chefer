@@ -4,7 +4,7 @@ import {
   customEntryRows,
   customEntryTotals,
   type LoggedMealEntryLike,
-} from './tracker-utils';
+} from './tracker';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 

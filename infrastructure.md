@@ -307,6 +307,10 @@ tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors
 | `recipe/[id]`          | Recipe detail: scaled ingredients, instructions, nutrition (M2-3)        | `/recipes/[id]`  |
 | `(tabs)/shopping-list` | Placeholder (M2-5)                                                       | `/shopping-list` |
 | `(tabs)/more`          | Secondary nav hub + sign out                                             | mobile drawer    |
+| `tracker`              | Daily log: check-off, portions, custom entries, targets (M2-4)           | `/tracker`       |
+| `pantry`               | Kitchen inventory, premium add/remove, free upsell (M2-6)                | `/pantry`        |
+| `preferences`          | Free safety prefs + premium units/budget (M2-7)                          | `/preferences`   |
+| `profile`              | Account card, up/downgrade (PW-2), AI usage quotas (M2-8)                | `/profile`       |
 
 ---
 

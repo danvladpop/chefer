@@ -58,6 +58,22 @@ describe('protected reads via Bearer', () => {
     expect(typeof list.hasPlan).toBe('boolean');
   });
 
+  it('More-hub screens read their data (M2-4/6/7/8)', async () => {
+    const today = new Date().toISOString().split('T')[0] ?? '';
+    const day = await client.tracker.getDay.query({ date: today });
+    expect(Array.isArray(day.plannedMeals)).toBe(true);
+    expect(day.targets.dailyCalorieTarget).toBeGreaterThan(0);
+
+    const pantry = await client.pantry.list.query();
+    expect(Array.isArray(pantry.items)).toBe(true);
+
+    const me = await client.user.me.query();
+    expect(me.email).toBe(SEED_EMAIL);
+
+    const usage = await client.profile.getAiUsage.query();
+    expect(usage.today).toBeTruthy();
+  });
+
   it('tracker.weeklySummary hydrates dates through superjson', async () => {
     const summary = await client.tracker.weeklySummary.query();
     expect(summary).toBeTruthy();
