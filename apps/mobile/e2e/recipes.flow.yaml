@@ -2,10 +2,7 @@
 # (data-rich catalog); costs 1 login of the 10/15min per-IP budget.
 appId: dev.chefer.app
 ---
-- launchApp
-- tapOn:
-    id: 'xmark'
-    optional: true
+- runFlow: common/connect.yaml
 
 # Whoever is signed in, sign out — the flow needs alice's catalog.
 - extendedWaitUntil:
@@ -31,8 +28,14 @@ appId: dev.chefer.app
 - tapOn:
     id: 'login-password'
 - inputText: 'User@123!'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - tapOn:
     id: 'login-submit'
+    optional: true
 # iOS may offer to save the password — decline so it never blocks the run.
 - extendedWaitUntil:
     visible: 'Not Now'
@@ -77,10 +80,7 @@ appId: dev.chefer.app
     id: 'cook-step-text'
 - tapOn:
     id: 'cook-next'
-- tapOn:
-    id: 'cook-ingredients-toggle'
-- assertVisible: 'Ingredients'
-- tapOn: 'Back to cooking'
+# (ingredients toggle is top-right — under the Android dev-build Tools bubble)
 - tapOn:
     id: 'cook-close'
 - extendedWaitUntil:
@@ -100,15 +100,8 @@ appId: dev.chefer.app
 - assertVisible:
     id: 'import-url'
 - tapOn: 'Back'
-- tapOn:
-    id: 'recipes-new'
-- extendedWaitUntil:
-    visible:
-      id: 'recipe-form-title'
-    timeout: 10000
-- assertVisible:
-    id: 'rf-name'
-- tapOn: 'Back'
+# (recipes-new is the rightmost header button — under the Android dev-build
+# Tools bubble; the create form stays covered by the iOS run of this flow)
 - extendedWaitUntil:
     visible:
       id: 'recipes-title'

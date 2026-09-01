@@ -568,7 +568,23 @@ full ladder before declaring a task done.
     processes holding 8081/8082.
 12. `ios/` and `android/` are generated (`expo prebuild`) and gitignored — never edit
     or commit them; native config lives in `app.config.ts` plugins.
-13. **`expo-modules-jsi@57.0.6` does not compile under Xcode 26.3** (its Swift rejects
+13. **Android E2E + cross-platform Maestro flows** (learned 2026-08-31/09-01): flows share
+    `e2e/common/connect.yaml` with `platform: iOS/Android` branches. Android: launchApp
+    lands on the dev launcher and races follow-up links — cold-start via `stopApp` +
+    `openLink chefer://expo-development-client/?url=localhost:8083` (adb reverse makes
+    localhost work); tapping Continue opens the dev menu on BOTH platforms (close: xmark
+    on iOS, hardware `back` on Android); `hideKeyboard` THROWS on iOS — always guard it
+    `platform: Android`; Android's keyboard covers submit buttons (the guard fixes it);
+    the dev-build floating Tools bubble overlaps top-right buttons on Android — flows
+    avoid tapping those (production has no FAB); Android tab labels are bare ("Plan")
+    vs iOS ("Plan, tab, 2 of 5") — match `'Plan(, tab.*)?'`. **Android suite: 7/7
+    verified** on Pixel_8 (first `expo run:android` gradle build worked untouched).
+    **Maestro's iOS xctest driver (Xcode 26.3) wedges on marathon multi-flow sessions**
+    (10–90 min hangs, then instant-fail cascade): recover with a simulator reboot (or
+    `simctl erase` + reinstall for a hard reset) and prefer `e2e/run-suite.sh <device>`
+    (one driver session per flow). iOS flows last fully re-verified at 4/7+ mid-rework;
+    re-run the suite on a fresh simulator to reconfirm 7/7.
+14. **`expo-modules-jsi@57.0.6` does not compile under Xcode 26.3** (its Swift rejects
     `SWIFT_RETURNS_RETAINED` on constructors of `SWIFT_SHARED_REFERENCE` types — newer
     compilers accept it). Fixed by a pnpm patch
     (`patches/expo-modules-jsi@57.0.6.patch`) that drops the two constructor

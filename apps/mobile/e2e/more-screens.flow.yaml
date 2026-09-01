@@ -2,10 +2,7 @@
 # M2-8 profile. Precondition: signed-in session (any account).
 appId: dev.chefer.app
 ---
-- launchApp
-- tapOn:
-    id: 'xmark'
-    optional: true
+- runFlow: common/connect.yaml
 - extendedWaitUntil:
     visible:
       id: 'home-title'

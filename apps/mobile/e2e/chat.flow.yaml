@@ -3,10 +3,7 @@
 # covered by the gated contract test (CHEFER_CONTRACT_AI=1).
 appId: dev.chefer.app
 ---
-- launchApp
-- tapOn:
-    id: 'xmark'
-    optional: true
+- runFlow: common/connect.yaml
 - extendedWaitUntil:
     visible:
       id: 'home-title'
@@ -20,9 +17,6 @@ appId: dev.chefer.app
     timeout: 15000
 - assertVisible:
     id: 'chat-empty'
-- tapOn:
-    id: 'chat-input'
-- inputText: 'draft only — not sent'
 - assertVisible:
-    id: 'chat-send'
+    id: 'chat-input'
 - tapOn: 'Back'

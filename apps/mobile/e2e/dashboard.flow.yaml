@@ -3,11 +3,7 @@
 # it ends signed in). Asserts the dashboard's cards render against live data.
 appId: dev.chefer.app
 ---
-- launchApp
-# Relaunching a dev build can surface the dev menu — close it if present.
-- tapOn:
-    id: 'xmark'
-    optional: true
+- runFlow: common/connect.yaml
 - extendedWaitUntil:
     visible:
       id: 'home-title'

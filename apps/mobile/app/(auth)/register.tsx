@@ -101,6 +101,8 @@ export default function RegisterScreen() {
                 // textContentType "oneTimeCode" is the established opt-out.
                 autoComplete="off"
                 textContentType="oneTimeCode"
+                returnKeyType="go"
+                onSubmitEditing={() => void onSubmit()}
                 onBlur={onBlur}
                 onChangeText={onChange}
                 value={value}

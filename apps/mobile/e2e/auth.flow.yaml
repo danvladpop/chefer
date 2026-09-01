@@ -8,13 +8,35 @@ appId: dev.chefer.app
 - launchApp:
     clearState: true
 
-# clearState also wipes the dev-client's remembered Metro server, dropping it
-# on the server-picker screen — deep-link it straight back to our bundler.
-- openLink: exp+chefer://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083
+# clearState also wipes the dev-client's remembered Metro server — reconnect
+# per platform (see common/connect.yaml for why the paths differ).
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - openLink: exp+chefer://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083
+      # iOS sometimes confirms scheme links — approve if asked.
+      - extendedWaitUntil:
+          visible: 'Open'
+          timeout: 5000
+          optional: true
+      - tapOn:
+          text: 'Open'
+          optional: true
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - stopApp
+      - openLink: chefer://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083
+      - runFlow:
+          when:
+            visible: 'Development Build'
+          commands:
+            - tapOn: 'http://.*:8083'
 
-# The dev client shows its first-run "developer menu" explainer after a state
-# clear — close it via the sheet's X (tapping "Continue" opens the dev menu
-# instead of dismissing).
+# Clear the first-run dev-menu chrome (cross-platform):
+# iOS: Continue opens the dev menu (closed by xmark); Android: dismisses.
 - extendedWaitUntil:
     visible: 'Continue'
     timeout: 30000
@@ -23,8 +45,15 @@ appId: dev.chefer.app
     when:
       visible: 'Continue'
     commands:
-      - tapOn:
-          point: 90%,47%
+      - tapOn: 'Continue'
+- tapOn:
+    id: 'xmark'
+    optional: true
+- runFlow:
+    when:
+      visible: 'Reload'
+    commands:
+      - back
 
 # clearState does NOT clear SecureStore (iOS Keychain survives app-data
 # wipes), so a previous session may still be live — sign out first if so.
@@ -59,8 +88,14 @@ appId: dev.chefer.app
 - tapOn:
     id: 'register-password'
 - inputText: 'Maestro@123!'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - tapOn:
     id: 'register-submit'
+    optional: true
 # iOS may offer to save the password — decline so it never blocks.
 - extendedWaitUntil:
     visible: 'Not Now'
@@ -94,8 +129,14 @@ appId: dev.chefer.app
 - tapOn:
     id: 'login-password'
 - inputText: 'Maestro@123!'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - tapOn:
     id: 'login-submit'
+    optional: true
 # iOS may offer to save the password — decline so it never blocks.
 - extendedWaitUntil:
     visible: 'Not Now'

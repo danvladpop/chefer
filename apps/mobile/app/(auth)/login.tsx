@@ -73,6 +73,8 @@ export default function LoginScreen() {
                 testID="login-password"
                 secureTextEntry
                 autoComplete="current-password"
+                returnKeyType="go"
+                onSubmitEditing={() => void onSubmit()}
                 onBlur={onBlur}
                 onChangeText={onChange}
                 value={value}
