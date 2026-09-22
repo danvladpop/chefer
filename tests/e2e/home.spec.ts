@@ -12,23 +12,26 @@ test.describe('Home Page', () => {
   });
 
   test('renders all feature cards', async ({ page }) => {
-    await expect(page.getByText('Weekly AI Meal Plans')).toBeVisible();
-    await expect(page.getByText('Personalized Goals')).toBeVisible();
-    await expect(page.getByText('Smart Shopping Lists')).toBeVisible();
+    await expect(page.getByText('A week of meals in seconds')).toBeVisible();
+    await expect(page.getByText('Allergies respected, always')).toBeVisible();
+    await expect(page.getByText('Shopping list with prices')).toBeVisible();
   });
 
   test('hero CTAs link to register and login', async ({ page }) => {
-    const getStarted = page.getByRole('link', { name: /get started for free/i });
+    const getStarted = page.getByRole('link', { name: /get started free/i });
     await expect(getStarted).toBeVisible();
     await expect(getStarted).toHaveAttribute('href', '/register');
 
+    // "Sign in" appears twice by design: top bar and hero. Both go to /login.
     const signIn = page.getByRole('link', { name: /^sign in$/i });
-    await expect(signIn).toBeVisible();
-    await expect(signIn).toHaveAttribute('href', '/login');
+    await expect(signIn).toHaveCount(2);
+    for (const link of await signIn.all()) {
+      await expect(link).toHaveAttribute('href', '/login');
+    }
   });
 
   test('has the correct page title', async ({ page }) => {
-    await expect(page).toHaveTitle(/PersonalChef/);
+    await expect(page).toHaveTitle(/Chefer/);
   });
 
   test('has proper meta description', async ({ page }) => {
@@ -37,7 +40,7 @@ test.describe('Home Page', () => {
   });
 
   test('footer contains the copyright line', async ({ page }) => {
-    await expect(page.getByText(/All rights reserved/)).toBeVisible();
+    await expect(page.getByText(/©\s*\d{4}\s*Chefer/)).toBeVisible();
   });
 });
 
