@@ -582,8 +582,8 @@ full ladder before declaring a task done.
     **Maestro's iOS xctest driver (Xcode 26.3) wedges on marathon multi-flow sessions**
     (10–90 min hangs, then instant-fail cascade): recover with a simulator reboot (or
     `simctl erase` + reinstall for a hard reset) and prefer `e2e/run-suite.sh <device>`
-    (one driver session per flow). iOS flows last fully re-verified at 4/7+ mid-rework;
-    re-run the suite on a fresh simulator to reconfirm 7/7.
+    (one driver session per flow). **iOS suite: 7/7 reconfirmed** (2026-09-22, freshly
+    rebooted iPhone 16e via `run-suite.sh`) — both platforms fully green.
 14. **`expo-modules-jsi@57.0.6` does not compile under Xcode 26.3** (its Swift rejects
     `SWIFT_RETURNS_RETAINED` on constructors of `SWIFT_SHARED_REFERENCE` types — newer
     compilers accept it). Fixed by a pnpm patch
