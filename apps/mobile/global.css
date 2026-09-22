@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Light palette from apps/web globals.css (brand brown #944a00). Web's .dark
+   block is legacy shadcn blue and unused — dark mode is deferred on mobile
+   until the web product actually ships one. */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+
+  --primary: 30 100% 29%;
+  --primary-foreground: 30 40% 98%;
+
+  --secondary: 30 40% 96.1%;
+  --secondary-foreground: 24 47.4% 11.2%;
+
+  --muted: 30 40% 96.1%;
+  --muted-foreground: 25 16.3% 46.9%;
+
+  --accent: 30 60% 95%;
+  --accent-foreground: 24 47.4% 11.2%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 30 100% 29%;
+}

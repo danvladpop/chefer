@@ -1,9 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import express, { Router, type Request, type Response } from 'express';
-import { prisma } from '@chefer/database';
-import type { UserProfile } from '@chefer/types';
 import { scanService } from '../application/tracker/scan.service.js';
 import { asyncHandler } from '../lib/async-handler.js';
+import { resolveRequestAuth } from '../lib/session-auth.js';
 
 // ─── Meal photo scan endpoint (F4 Snap-to-Log) ────────────────────────────────
 // Session-authenticated raw-body image POST (same transport as the uploads
@@ -16,50 +15,13 @@ const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
 const SUPPORTED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic']);
 
-// Inlined session lookup (same pattern as the chat/uploads routers).
-function extractSessionToken(cookieHeader: string | undefined): string | null {
-  if (!cookieHeader) return null;
-  const cookie = cookieHeader
-    .split(';')
-    .map((c) => c.trim())
-    .find((c) => c.startsWith('chefer_session='));
-  return cookie ? (cookie.split('=')[1] ?? null) : null;
-}
-
-async function resolveUser(cookieHeader: string | undefined): Promise<UserProfile | null> {
-  const token = extractSessionToken(cookieHeader);
-  if (!token) return null;
-  try {
-    const session = await prisma.session.findUnique({
-      where: { sessionToken: token },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            firstName: true,
-            role: true,
-            planTier: true,
-            image: true,
-          },
-        },
-      },
-    });
-    if (!session || session.expires < new Date()) return null;
-    return session.user;
-  } catch {
-    return null;
-  }
-}
-
 export const scanRouter: Router = Router();
 
 scanRouter.post(
   '/',
   express.raw({ type: 'image/*', limit: MAX_BYTES }),
   asyncHandler(async (req: Request, res: Response) => {
-    const user = await resolveUser(req.headers.cookie);
+    const { user } = await resolveRequestAuth(req);
     if (!user) {
       res.status(401).json({ error: 'Unauthorized' });
       return;

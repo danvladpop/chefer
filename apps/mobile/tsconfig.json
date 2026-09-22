@@ -1,0 +1,19 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true
+  },
+  "include": [
+    "app/**/*",
+    "src/**/*",
+    "app.config.ts",
+    "tests/**/*",
+    "vitest.contract.config.ts",
+    "env.d.ts",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts",
+    ".expo/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".expo-export-check"]
+}

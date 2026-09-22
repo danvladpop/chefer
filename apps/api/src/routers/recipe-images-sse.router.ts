@@ -1,36 +1,10 @@
 import { Router, type Request, type Response } from 'express';
 import { ImageStatus, prisma } from '@chefer/database';
 import { asyncHandler } from '../lib/async-handler.js';
+import { resolveRequestAuth } from '../lib/session-auth.js';
 import { recipeImageEventEmitter, type RecipeImageEvent } from '../lib/sse/recipe-image-emitter.js';
 
 const MAX_IDS = 50;
-
-// ─── Auth helpers (inlined from auth.middleware to avoid circular imports) ────
-
-function extractSessionToken(cookieHeader: string | undefined): string | null {
-  if (!cookieHeader) return null;
-  const sessionCookieName = 'chefer_session';
-  const cookie = cookieHeader
-    .split(';')
-    .map((c) => c.trim())
-    .find((c) => c.startsWith(`${sessionCookieName}=`));
-  return cookie ? (cookie.split('=')[1] ?? null) : null;
-}
-
-async function resolveUserId(cookieHeader: string | undefined): Promise<string | null> {
-  const token = extractSessionToken(cookieHeader);
-  if (!token) return null;
-  try {
-    const session = await prisma.session.findUnique({
-      where: { sessionToken: token },
-      select: { userId: true, expires: true },
-    });
-    if (!session || session.expires < new Date()) return null;
-    return session.userId;
-  } catch {
-    return null;
-  }
-}
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -40,7 +14,8 @@ recipeImagesSseRouter.get(
   '/stream',
   asyncHandler(async (req: Request, res: Response) => {
     // ── Auth ──────────────────────────────────────────────────────────────────
-    const userId = await resolveUserId(req.headers.cookie);
+    const { user } = await resolveRequestAuth(req);
+    const userId = user?.id ?? null;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;

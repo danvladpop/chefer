@@ -1,0 +1,22 @@
+# Dashboard (Home tab) E2E — M2-1.
+# Precondition: a signed-in session on the device (run auth.flow.yaml first;
+# it ends signed in). Asserts the dashboard's cards render against live data.
+appId: dev.chefer.app
+---
+- runFlow: common/connect.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+- assertVisible:
+    id: 'week-outlook'
+- assertVisible:
+    id: 'nutrition-summary'
+- assertVisible:
+    id: 'nutrition-status'
+
+# Day panel toggles open and closed
+- tapOn:
+    id: 'day-chip-0'
+- tapOn:
+    id: 'day-chip-0'

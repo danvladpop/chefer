@@ -33,12 +33,12 @@ const AUTH_WINDOW_MS = 15 * 60 * 1000;
 export const authRouter = router({
   register: publicProcedure.input(registerSchema).mutation(async ({ input, ctx }) => {
     assertWithinRateLimit('auth.register', ctx.ipAddress, AUTH_ATTEMPTS_MAX, AUTH_WINDOW_MS);
-    return authService.register(input, ctx.res);
+    return authService.register(input, ctx.res, { includeSession: ctx.isMobileClient });
   }),
 
   login: publicProcedure.input(loginSchema).mutation(async ({ input, ctx }) => {
     assertWithinRateLimit('auth.login', ctx.ipAddress, AUTH_ATTEMPTS_MAX, AUTH_WINDOW_MS);
-    return authService.login(input, ctx.res);
+    return authService.login(input, ctx.res, { includeSession: ctx.isMobileClient });
   }),
 
   /**

@@ -38,7 +38,8 @@
 chefer/
 ├── apps/
 │   ├── api/                    # Express + tRPC backend (port 3001)
-│   └── web/                    # Next.js 15 frontend (port 3000)
+│   ├── web/                    # Next.js 15 frontend (port 3000)
+│   └── mobile/                 # Expo (React Native) app — iOS + Android
 ├── packages/
 │   ├── database/               # Prisma client, schema, repositories
 │   ├── types/                  # Shared TypeScript types & enums
@@ -270,6 +271,57 @@ Both use `superjson` as the transformer and point to `NEXT_PUBLIC_API_URL/trpc` 
 - Security headers on every response (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy)
 - Standalone output when `BUILD_STANDALONE=true` (used in Docker)
 
+### 4.3 Mobile (`apps/mobile`)
+
+Expo (SDK 57) React Native app — one codebase for iOS and Android. EAS project
+`@cheferoni/chefer` (bundle id `dev.chefer.app`; `eas.json` profiles:
+development→iOS-simulator dev client, development-device, preview, production).
+Being built
+out per [`mobile_native_plan.md`](./mobile_native_plan.md); currently: auth
+(login/register/logout via Bearer session), NativeWind theme (web's brand
+tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors
+`apps/web/src/features/nav/nav-items.ts`), and the three-layer test harness
+(Jest+RNTL unit, Vitest contract vs the live API, Maestro E2E in `e2e/`).
+
+- **Stack:** expo-router (file-based, deep-link scheme `chefer://`),
+  expo-dev-client, expo-secure-store (session token), tRPC + TanStack Query +
+  superjson at the same versions as web
+- **Monorepo:** `metro.config.js` watches the workspace root so `@chefer/types`
+  and `@chefer/utils` (raw-TS exports) resolve; `@chefer/ui` and
+  `@chefer/database` are forbidden by lint (platform boundary)
+- **Auth:** `Authorization: Bearer <sessionToken>` + `x-chefer-client: mobile`
+  header — see §9
+- **Scripts:** `start` (Metro; root: `pnpm dev:mobile` — deliberately not part
+  of `turbo dev`), `ios` / `android` (build + run on simulator/emulator),
+  `bundle:check` (headless Metro export, the fastest full-app smoke test),
+  `typecheck`, `lint`
+- **Bundle ids:** `dev.chefer.app` (placeholder until store release, plan M4-1)
+- Preflight for simulator/E2E work: `scripts/mobile-preflight.sh`
+
+**Mobile routes** (expo-router; deep-link scheme `chefer://`):
+
+| Route                  | Screen                                                                   | Web counterpart                      |
+| ---------------------- | ------------------------------------------------------------------------ | ------------------------------------ |
+| `(auth)/login`         | Sign in                                                                  | `/login`                             |
+| `(auth)/register`      | Create account                                                           | `/register`                          |
+| `(tabs)/` (index)      | Dashboard: week outlook, nutrition summary, hero meal, favourites (M2-1) | `/dashboard`                         |
+| `(tabs)/meal-plan`     | Placeholder (M2-2)                                                       | `/meal-plan`                         |
+| `(tabs)/recipes`       | Recipe list: tabs, search, optimistic favourites (M2-3)                  | `/recipes`                           |
+| `recipe/[id]`          | Recipe detail: scaled ingredients, instructions, nutrition (M2-3)        | `/recipes/[id]`                      |
+| `(tabs)/shopping-list` | Placeholder (M2-5)                                                       | `/shopping-list`                     |
+| `(tabs)/more`          | Secondary nav hub + sign out                                             | mobile drawer                        |
+| `tracker`              | Daily log: check-off, portions, custom entries, targets (M2-4)           | `/tracker`                           |
+| `pantry`               | Kitchen inventory, premium add/remove, free upsell (M2-6)                | `/pantry`                            |
+| `preferences`          | Free safety prefs + premium units/budget (M2-7)                          | `/preferences`                       |
+| `profile`              | Account card, up/downgrade (PW-2), AI usage quotas (M2-8)                | `/profile`                           |
+| `chat`                 | Streaming AI chef chat, quota upgrade gate (M2-9/M3-1)                   | chat widget                          |
+| `history`              | Past plans list + restore (M2-10)                                        | `/history`                           |
+| `onboarding`           | 4-step profile wizard → preferences.setup (premium)                      | `/onboarding`                        |
+| `cook/[id]`            | Cook mode: steps, timers, keep-awake, log to tracker (P1-3)              | `/recipes/[id]/cook`                 |
+| `import-recipe`        | F5 import: URL/text preview + premium save                               | Import sheet                         |
+| `recipe-form`          | Manual recipe create/edit                                                | `/recipes/new`, `/recipes/[id]/edit` |
+| `household`            | F2 household members (premium add, open list/remove)                     | preferences section                  |
+
 ---
 
 ## 5. Packages
@@ -364,11 +416,12 @@ Exports are per-file (e.g., `import { Button } from '@chefer/ui/button'`).
 
 ### 5.6 `@chefer/eslint-config`
 
-| Config      | Target use                                 |
-| ----------- | ------------------------------------------ |
-| `base.js`   | TypeScript, import ordering, general rules |
-| `nextjs.js` | Extends base + Next.js + React hooks       |
-| `node.js`   | Extends base + Node.js rules               |
+| Config            | Target use                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `base.js`         | TypeScript, import ordering, general rules                                                             |
+| `nextjs.js`       | Extends base + Next.js + React hooks; forbids `react-native`/`expo*` imports (platform boundary)       |
+| `node.js`         | Extends base + Node.js rules                                                                           |
+| `react-native.js` | Extends base + React/hooks for `apps/mobile`; forbids `@chefer/ui`, `@chefer/database`, `next` imports |
 
 ---
 
@@ -875,9 +928,9 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `user.downgradePlan`            | Protected | Mutation | — self-service return to FREE (PW-2)                                                                                                                                                                                                                                                                                           |
 | `user.setPlanTier`              | Admin     | Mutation | `{ userId, planTier }` — tier management behind `/admin/users` (PW-2)                                                                                                                                                                                                                                                          |
 | `user.aiCallsToday`             | Admin     | Query    | `{ userIds[] }` — today's AI call counts per user for the admin page                                                                                                                                                                                                                                                           |
-| `auth.register`                 | Public    | Mutation | `{ email, password, firstName, lastName }`                                                                                                                                                                                                                                                                                     |
-| `auth.login`                    | Public    | Mutation | `{ email, password }`                                                                                                                                                                                                                                                                                                          |
-| `auth.logout`                   | Public    | Mutation | —                                                                                                                                                                                                                                                                                                                              |
+| `auth.register`                 | Public    | Mutation | `{ email, password, firstName, lastName }` — with `x-chefer-client: mobile` the response also carries `session: { token, expires }` for Bearer auth                                                                                                                                                                            |
+| `auth.login`                    | Public    | Mutation | `{ email, password }` — with `x-chefer-client: mobile` the response also carries `session: { token, expires }` for Bearer auth                                                                                                                                                                                                 |
+| `auth.logout`                   | Public    | Mutation | — deletes the session resolved from cookie **or** Bearer token                                                                                                                                                                                                                                                                 |
 | `auth.requestPasswordReset`     | Public    | Mutation | `{ email }` — enumeration-safe (always succeeds); rate-limited per IP (5/15 min) and per address (3/h)                                                                                                                                                                                                                         |
 | `auth.resetPassword`            | Public    | Mutation | `{ token, password }` — single-use 1 h token (sha256-stored); invalidates all sessions                                                                                                                                                                                                                                         |
 | `auth.me`                       | Protected | Query    | —                                                                                                                                                                                                                                                                                                                              |
@@ -951,12 +1004,24 @@ adminProcedure      → timingMiddleware → isAuthenticated → isAdmin
 
 ## 9. Authentication & Authorization
 
-**Current state:** Session-based authentication via an HTTP cookie (`chefer_session`).
+**Current state:** DB-backed session authentication, presented over two transports that
+carry the **same** `Session.sessionToken`:
+
+| Client                 | Credential transport                                                                                                                                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web (`apps/web`)       | HttpOnly cookie `chefer_session` (set by `auth.login/register`)                                                                                                                                                |
+| Mobile (`apps/mobile`) | `Authorization: Bearer <sessionToken>` — the token is returned in the `auth.login`/`auth.register` response body **only** when the request carries `x-chefer-client: mobile`; the app stores it in SecureStore |
+
+All resolution goes through `resolveRequestAuth()` in `apps/api/src/lib/session-auth.ts`
+(cookie first, Bearer fallback), shared by the tRPC `createContext`, `requireAuth`, and
+the four non-tRPC Express routers (`/api/chat`, `/api/scan-meal`, `/api/uploads`,
+`/api/recipe-images`) — so every endpoint accepts both transports. The token in bodies is
+never sent to browsers; CORS `allowedHeaders` includes `x-chefer-client`.
 
 The `createContext` function in `apps/api/src/interfaces/http/middleware/auth.middleware.ts`:
 
-1. Reads the session cookie or `Authorization: Bearer <token>` header
-2. Hydrates `ctx.user` (null if unauthenticated)
+1. Resolves the user via `resolveRequestAuth()` (session cookie, then Bearer token)
+2. Hydrates `ctx.user` (null if unauthenticated) and `ctx.isMobileClient`
 
 **Web-side session gating** — the cookie is opaque, so its presence never implies a
 live session (the row may have been deleted or expired):
@@ -1037,6 +1102,16 @@ hidden, leaving no way back to the login form.
 | `NEXTAUTH_URL`            | No       | —                          | NextAuth callback base URL                                                                     |
 | `NEXTAUTH_SECRET`         | No       | —                          | Min 32 chars                                                                                   |
 | `NEXT_PUBLIC_POSTHOG_DEV` | No       | —                          | Set `1` to send PostHog events from dev (normally production-only; see `src/lib/analytics.ts`) |
+
+### `apps/mobile/.env`
+
+Validated by Zod in `apps/mobile/src/lib/env.ts`. `EXPO_PUBLIC_*` vars are
+inlined at bundle time by Expo.
+
+| Variable                 | Required | Default                                                            | Description                                                                    |
+| ------------------------ | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `EXPO_PUBLIC_API_URL`    | No       | iOS sim: http://localhost:3001 · Android emu: http://10.0.2.2:3001 | API base URL. **Physical devices must set this** to the host's LAN address     |
+| `EXPO_PUBLIC_SENTRY_DSN` | No       | —                                                                  | Sentry error reporting (disabled when unset; wiring lands with plan task M1-6) |
 
 ### `packages/database/.env`
 
@@ -1160,10 +1235,13 @@ hits the API. The deploy pipeline's `verify` job polls the same two URLs.
 ### `ci.yml` — lint / typecheck / test / build on push & PR to `master`
 
 Jobs: `Lint` (ESLint + prettier check), `Type Check`, `Unit Tests` (vitest, all
-workspaces), `Build`, and `E2E Tests` (PRs only — the unauthenticated `public`
-Playwright project; the authenticated `mobile`/`desktop` projects need a seeded
-fixture dataset, planned with roadmap P0-8). The four job names are polled by
-name from `deploy.yml`'s gate — rename them in both files together.
+workspaces), `Build`, `Mobile Bundle` (headless `expo export` of `apps/mobile` —
+catches Metro/monorepo-resolution breakage without a simulator; Maestro E2E is
+local-only, see `mobile_native_plan.md` M4-2), and `E2E Tests` (PRs only — the
+unauthenticated `public` Playwright project; the authenticated `mobile`/`desktop`
+projects need a seeded fixture dataset, planned with roadmap P0-8). The
+`Lint`/`Type Check`/`Unit Tests`/`Build` job names are polled by name from
+`deploy.yml`'s gate — rename them in both files together.
 
 ### `deploy.yml` — one-button production deploy, gated on green CI
 

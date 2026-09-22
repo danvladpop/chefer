@@ -135,6 +135,22 @@ export interface CursorPaginatedResponse<T> {
 
 // ─── Auth Types ───────────────────────────────────────────────────────────────
 
+/**
+ * Session credential returned in the body of auth.login / auth.register, but
+ * only to requests carrying `x-chefer-client: mobile`. The native apps store
+ * the token in SecureStore and send it as `Authorization: Bearer <token>`;
+ * browsers never receive it in the body (they use the HttpOnly cookie).
+ */
+export interface MobileSession {
+  token: string;
+  expires: Date;
+}
+
+/** Response of auth.login / auth.register: the profile, plus the session credential for mobile clients. */
+export interface AuthResult extends UserProfile {
+  session?: MobileSession;
+}
+
 export interface AuthSession {
   user: UserProfile;
   accessToken: string;

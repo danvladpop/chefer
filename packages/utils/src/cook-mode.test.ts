@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStepDuration } from './cook-mode-utils';
+import { parseStepDuration } from './cook-mode';
 
 describe('parseStepDuration (P1-3 inline timers)', () => {
   it('parses simple minute durations', () => {

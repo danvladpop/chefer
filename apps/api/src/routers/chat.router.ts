@@ -1,10 +1,9 @@
 import { TRPCError } from '@trpc/server';
 import { Router, type Request, type Response } from 'express';
-import { prisma } from '@chefer/database';
-import type { UserProfile } from '@chefer/types';
 import { chatService } from '../application/chat/chat.service.js';
 import type { ChatMessage } from '../lib/ai/index.js';
 import { asyncHandler } from '../lib/async-handler.js';
+import { resolveRequestAuth } from '../lib/session-auth.js';
 
 // ─── AI chef chat endpoint (P1-4) ─────────────────────────────────────────────
 // Plain-text streaming over POST — the web widget's TextStreamChatTransport
@@ -12,43 +11,6 @@ import { asyncHandler } from '../lib/async-handler.js';
 // on the API (not a Next route) so the chat reaches real services without
 // apps/web touching Prisma (CLAUDE.md Architecture Rule 1); Caddy routes
 // /api/chat to this app in production, a Next rewrite proxies it in dev.
-
-// Inlined session lookup (same pattern as the uploads/SSE routers).
-function extractSessionToken(cookieHeader: string | undefined): string | null {
-  if (!cookieHeader) return null;
-  const cookie = cookieHeader
-    .split(';')
-    .map((c) => c.trim())
-    .find((c) => c.startsWith('chefer_session='));
-  return cookie ? (cookie.split('=')[1] ?? null) : null;
-}
-
-async function resolveUser(cookieHeader: string | undefined): Promise<UserProfile | null> {
-  const token = extractSessionToken(cookieHeader);
-  if (!token) return null;
-  try {
-    const session = await prisma.session.findUnique({
-      where: { sessionToken: token },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            firstName: true,
-            role: true,
-            planTier: true,
-            image: true,
-          },
-        },
-      },
-    });
-    if (!session || session.expires < new Date()) return null;
-    return session.user;
-  } catch {
-    return null;
-  }
-}
 
 /** The ai-sdk widget sends either parts-based or content-based messages. */
 interface IncomingMessage {
@@ -78,7 +40,7 @@ export const chatRouter: Router = Router();
 chatRouter.post(
   '/',
   asyncHandler(async (req: Request, res: Response) => {
-    const user = await resolveUser(req.headers.cookie);
+    const { user } = await resolveRequestAuth(req);
     if (!user) {
       res.status(401).json({ error: 'Unauthorized' });
       return;

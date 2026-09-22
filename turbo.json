@@ -13,7 +13,15 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tests/**", "*.test.ts", "*.test.tsx", "*.spec.ts", "*.spec.tsx"],
+      "inputs": [
+        "src/**",
+        "app/**",
+        "tests/**",
+        "*.test.ts",
+        "*.test.tsx",
+        "*.spec.ts",
+        "*.spec.tsx"
+      ],
       "outputs": ["coverage/**"]
     },
     "test:e2e": {
@@ -22,25 +30,33 @@
     },
     "lint": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "*.ts", "*.tsx", "*.js", "*.jsx", "eslint.config.*"],
+      "inputs": ["src/**", "app/**", "*.ts", "*.tsx", "*.js", "*.jsx", "eslint.config.*"],
       "outputs": []
     },
     "typecheck": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tsconfig.json", "tsconfig.*.json"],
+      "inputs": ["src/**", "app/**", "app.config.ts", "tsconfig.json", "tsconfig.*.json"],
+      "outputs": []
+    },
+    "bundle:check": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "app/**", "app.config.ts", "metro.config.js", "tsconfig.json"],
       "outputs": []
     },
     "clean": {
       "cache": false
     },
     "db:push": {
-      "cache": false
+      "cache": false,
+      "env": ["DATABASE_URL"]
     },
     "db:migrate": {
-      "cache": false
+      "cache": false,
+      "env": ["DATABASE_URL"]
     },
     "db:seed": {
-      "cache": false
+      "cache": false,
+      "env": ["DATABASE_URL"]
     },
     "db:studio": {
       "cache": false,

@@ -1,0 +1,151 @@
+# Auth lifecycle E2E — the template flow for all Wave-2 features.
+# Run:  cd apps/mobile && maestro test e2e/auth.flow.yaml
+# Needs: the dev app installed on a booted simulator (pnpm mobile:ios),
+#        Metro running, and the local API up (pnpm dev).
+# Rate-limit budget: 1 register + 1 login per run (10/15min per IP).
+appId: dev.chefer.app
+---
+- launchApp:
+    clearState: true
+
+# clearState also wipes the dev-client's remembered Metro server — reconnect
+# per platform (see common/connect.yaml for why the paths differ).
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - openLink: exp+chefer://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083
+      # iOS sometimes confirms scheme links — approve if asked.
+      - extendedWaitUntil:
+          visible: 'Open'
+          timeout: 5000
+          optional: true
+      - tapOn:
+          text: 'Open'
+          optional: true
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - stopApp
+      - openLink: chefer://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083
+      - runFlow:
+          when:
+            visible: 'Development Build'
+          commands:
+            - tapOn: 'http://.*:8083'
+
+# Clear the first-run dev-menu chrome (cross-platform):
+# iOS: Continue opens the dev menu (closed by xmark); Android: dismisses.
+- extendedWaitUntil:
+    visible: 'Continue'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Continue'
+    commands:
+      - tapOn: 'Continue'
+- tapOn:
+    id: 'xmark'
+    optional: true
+- runFlow:
+    when:
+      visible: 'Reload'
+    commands:
+      - back
+
+# clearState does NOT clear SecureStore (iOS Keychain survives app-data
+# wipes), so a previous session may still be live — sign out first if so.
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-title'
+    commands:
+      # Tab items expose labels like "More, tab, 5 of 5" — match loosely.
+      - tapOn: '.*More.*'
+      - tapOn:
+          id: 'logout-button'
+
+# ── Register a throwaway account ──────────────────────────────────────────────
+- evalScript: ${output.email = 'maestro-' + Date.now() + '@e2e.chefer.dev'}
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 30000
+- tapOn:
+    id: 'login-to-register'
+- assertVisible:
+    id: 'register-title'
+- tapOn:
+    id: 'register-email'
+- inputText: ${output.email}
+- tapOn:
+    id: 'register-password'
+- inputText: 'Maestro@123!'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'register-submit'
+    optional: true
+# iOS may offer to save the password — decline so it never blocks.
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+
+# ── Registration lands on the Home tab ───────────────────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 10000
+- assertVisible:
+    id: 'week-outlook'
+
+# ── Sign out from the More tab ───────────────────────────────────────────────
+- tapOn: '.*More.*'
+- tapOn:
+    id: 'logout-button'
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 10000
+
+# ── Sign back in with the same account ───────────────────────────────────────
+- tapOn:
+    id: 'login-email'
+- inputText: ${output.email}
+- tapOn:
+    id: 'login-password'
+- inputText: 'Maestro@123!'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'login-submit'
+    optional: true
+# iOS may offer to save the password — decline so it never blocks.
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 10000

@@ -186,3 +186,13 @@ export function last<T>(arr: T[]): T | undefined {
 export function first<T>(arr: T[]): T | undefined {
   return arr[0];
 }
+
+export {
+  customEntryChipLabel,
+  customEntryRows,
+  customEntryTotals,
+  type CustomEntryRow,
+  type LoggedMealEntryLike,
+} from './tracker';
+
+export { guessMealType, parseStepDuration } from './cook-mode';

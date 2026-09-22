@@ -10,19 +10,20 @@ This file is read by Claude Code at the start of every conversation. It contains
 
 Whenever you make a change that affects the architecture of this project, you **must** update the relevant documentation files in the same response:
 
-| Change type                      | Files to update                               |
-| -------------------------------- | --------------------------------------------- |
-| New package or app added         | `infrastructure.md` §1, §5                    |
-| New page or route added          | `infrastructure.md` §4, `business_flow.md`    |
-| New tRPC procedure               | `infrastructure.md` §8, `business_flow.md`    |
-| New environment variable         | `infrastructure.md` §10                       |
-| Schema change (Prisma)           | `infrastructure.md` §6                        |
-| New service or repository        | `infrastructure.md` §7                        |
-| New middleware                   | `infrastructure.md` §7, §9                    |
-| New Docker service               | `infrastructure.md` §12                       |
-| CI/CD pipeline change            | `infrastructure.md` §13                       |
-| New business flow or flow change | `business_flow.md`                            |
-| Auth/authorization change        | `infrastructure.md` §9, `business_flow.md` §4 |
+| Change type                      | Files to update                                                                          |
+| -------------------------------- | ---------------------------------------------------------------------------------------- |
+| New package or app added         | `infrastructure.md` §1, §5                                                               |
+| New page or route added          | `infrastructure.md` §4, `business_flow.md`                                               |
+| New tRPC procedure               | `infrastructure.md` §8, `business_flow.md`                                               |
+| New environment variable         | `infrastructure.md` §10                                                                  |
+| Schema change (Prisma)           | `infrastructure.md` §6                                                                   |
+| New service or repository        | `infrastructure.md` §7                                                                   |
+| New middleware                   | `infrastructure.md` §7, §9                                                               |
+| New Docker service               | `infrastructure.md` §12                                                                  |
+| CI/CD pipeline change            | `infrastructure.md` §13                                                                  |
+| New business flow or flow change | `business_flow.md`                                                                       |
+| Auth/authorization change        | `infrastructure.md` §9, `business_flow.md` §4                                            |
+| User-facing change to a feature  | The other platform's implementation, or `mobile_parity_backlog.md` (see Platform Parity) |
 
 Do not defer documentation updates. If you add a procedure today, the docs reflect it today.
 
@@ -146,6 +147,24 @@ Run `cd tests && pnpm exec playwright test --project=mobile` after layout change
 4. **Type safety end-to-end** — the tRPC `AppRouter` type is imported by the web app for full type inference. Never cast away types to work around type errors; fix the root cause.
 
 5. **Auth middleware, not router guards** — access control is enforced by tRPC middleware (`protectedProcedure`, `adminProcedure`), not by `if` checks inside procedure handlers (except for ownership checks like "can only update self").
+
+---
+
+## Platform Parity (web + mobile)
+
+Chefer ships on **web** (`apps/web`) and **native mobile** (`apps/mobile`, Expo/React Native — one codebase covers both iOS and Android). See [`mobile_native_plan.md`](./mobile_native_plan.md) for the mobile build-out status.
+
+**The rule: no platform gaps.** Any user-facing change — new feature, flow change, validation, copy, gating, API contract — must land on **every platform where the affected feature exists**, in the same task/PR. A change is not "done" web-only. The only exceptions:
+
+1. The user **explicitly** scopes the request to one platform ("web only", "just in the app").
+2. The affected feature **does not exist on mobile yet** (check `mobile_native_plan.md` Wave 2 progress). Then the web change proceeds alone, but you **must** add an entry to [`mobile_parity_backlog.md`](./mobile_parity_backlog.md) in the same PR — same discipline as the documentation rules above. The porting agent drains that ledger.
+
+Supporting rules:
+
+- **Shared-first.** Zod schemas, types, enums, and pure business logic go in `@chefer/types` / `@chefer/utils`, not duplicated per app. Parity should be structural where possible, manual only for UI.
+- **Never break shipped mobile clients.** Web redeploys instantly; app-store binaries in the field do not. API changes must be additive/backward-compatible (new optional fields, new procedures — not renamed or removed ones) once mobile is in stores. Breaking changes require an explicit versioning plan and user sign-off.
+- **Verify per platform.** Web: existing lint/typecheck/tests + Playwright mobile sweep after layout changes. Mobile: the test ladder in `mobile_native_plan.md` §4 (typecheck → Jest → contract tests → `expo export` → Maestro). One mobile implementation serves both OSes; run Android (emulator `Pixel_8`) in addition to iOS when the change is layout-heavy or touches platform APIs.
+- When a session ends with a knowingly unported change and no backlog entry, that is a bug in the session, not an acceptable outcome.
 
 ---
 
