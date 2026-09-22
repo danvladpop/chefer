@@ -1108,10 +1108,11 @@ hidden, leaving no way back to the login form.
 Validated by Zod in `apps/mobile/src/lib/env.ts`. `EXPO_PUBLIC_*` vars are
 inlined at bundle time by Expo.
 
-| Variable                 | Required | Default                                                            | Description                                                                    |
-| ------------------------ | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| `EXPO_PUBLIC_API_URL`    | No       | iOS sim: http://localhost:3001 · Android emu: http://10.0.2.2:3001 | API base URL. **Physical devices must set this** to the host's LAN address     |
-| `EXPO_PUBLIC_SENTRY_DSN` | No       | —                                                                  | Sentry error reporting (disabled when unset; wiring lands with plan task M1-6) |
+| Variable                 | Required | Default                                                            | Description                                                                                                                                         |
+| ------------------------ | -------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_API_URL`    | No       | iOS sim: http://localhost:3001 · Android emu: http://10.0.2.2:3001 | API base URL. **Physical devices must set this** to the host's LAN address                                                                          |
+| `EXPO_PUBLIC_SENTRY_DSN` | No       | —                                                                  | Sentry error reporting (disabled when unset; wiring lands with plan task M1-6)                                                                      |
+| `EXPO_APPLE_TEAM_ID`     | No       | —                                                                  | Apple team for signing local device builds (`expo run:ios --device`); read by `app.config.js`, not the app — simulator and EAS builds don't need it |
 
 ### `packages/database/.env`
 

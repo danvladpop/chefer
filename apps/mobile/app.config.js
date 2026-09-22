@@ -18,6 +18,10 @@ const config = {
   ios: {
     bundleIdentifier: 'dev.chefer.app',
     supportsTablet: false,
+    // Apple team for signing local device builds (set in .env — the repo is
+    // public). Unset is fine: simulator builds don't sign, and EAS cloud
+    // builds bring their own credentials.
+    ...(process.env.EXPO_APPLE_TEAM_ID ? { appleTeamId: process.env.EXPO_APPLE_TEAM_ID } : {}),
   },
   android: {
     package: 'dev.chefer.app',
