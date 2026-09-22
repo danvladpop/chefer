@@ -17,6 +17,10 @@ COPY packages/ui/package.json ./packages/ui/
 COPY packages/database/package.json ./packages/database/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
+# Root package.json declares pnpm.patchedDependencies (mobile toolchain);
+# pnpm hashes every patch file at install even though the patched package
+# is not installed here, so the patches must be present.
+COPY patches ./patches
 
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
