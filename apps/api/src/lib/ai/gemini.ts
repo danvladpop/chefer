@@ -5,13 +5,16 @@ import type { ChatToolParamSchema } from './chat-tools.js';
 import {
   buildCheferizeUserPrompt,
   buildExtractRecipeUserPrompt,
+  buildExtractRecipeVideoUserPrompt,
   buildIngredientPricesPrompt,
   buildMealPlanUserPrompt,
   buildShoppingListPrompt,
   buildSwapUserPrompt,
   CHAT_SYSTEM_PROMPT,
   CHEFERIZE_SYSTEM_PROMPT,
+  EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT,
   EXTRACT_RECIPE_SYSTEM_PROMPT,
+  EXTRACT_RECIPE_VIDEO_SYSTEM_PROMPT,
   INGREDIENT_PRICES_SYSTEM_PROMPT,
   MEAL_PHOTO_SYSTEM_PROMPT,
   MEAL_PHOTO_USER_PROMPT,
@@ -20,6 +23,7 @@ import {
   SWAP_SYSTEM_PROMPT,
 } from './prompts.js';
 import {
+  annotatedExtractionSchema,
   cheferizedRecipeSchema,
   extractedRecipeSchema,
   ingredientPricesResponseSchema,
@@ -29,6 +33,7 @@ import {
   weekPlanResponseSchema,
 } from './schemas.js';
 import type {
+  AnnotatedExtraction,
   ChatContext,
   ChatMessage,
   CheferizedRecipe,
@@ -179,6 +184,16 @@ const EXTRACTED_RECIPE_SCHEMA: Schema = {
     'cookTimeMins',
     'servings',
   ],
+};
+
+const ANNOTATED_EXTRACTION_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    recipe: EXTRACTED_RECIPE_SCHEMA,
+    confidence: { type: Type.STRING, enum: ['high', 'medium', 'low'] },
+    assumptions: { type: Type.ARRAY, items: { type: Type.STRING } },
+  },
+  required: ['recipe', 'confidence', 'assumptions'],
 };
 
 const CHEFERIZED_RECIPE_SCHEMA: Schema = {
@@ -605,6 +620,74 @@ export class GeminiAIService implements IAIService {
     if (!parsed.success) {
       throw new Error(
         `GeminiAIService: recipe extraction response failed validation — ${parsed.error.message}`,
+      );
+    }
+    return parsed.data;
+  }
+
+  /**
+   * Extraction with reviewer provenance, over text, photo or VIDEO sources.
+   * Stage 1 of the two-stage video extractor sends the caption as `text`;
+   * stage 2 sends `videoBase64` plus that same caption, and the video prompt
+   * makes the caption authoritative for amounts and ingredient names.
+   */
+  async extractRecipeAnnotated(source: RecipeExtractionSource): Promise<AnnotatedExtraction> {
+    const isVideo = Boolean(source.videoBase64);
+    const isPhoto = Boolean(source.imageBase64);
+    if (!isVideo && !isPhoto && !source.text) {
+      throw new Error(
+        'GeminiAIService.extractRecipeAnnotated: expected text, imageBase64 or videoBase64 (URL sources must be fetched by the import service first).',
+      );
+    }
+
+    const parts: Record<string, unknown>[] = [];
+    if (source.videoBase64) {
+      parts.push({
+        inlineData: { mimeType: source.mimeType ?? 'video/mp4', data: source.videoBase64 },
+      });
+      parts.push({ text: buildExtractRecipeVideoUserPrompt(source.text ?? '') });
+    } else {
+      if (source.imageBase64) {
+        parts.push({
+          inlineData: { mimeType: source.mimeType ?? 'image/jpeg', data: source.imageBase64 },
+        });
+      }
+      parts.push({ text: buildExtractRecipeUserPrompt({ isPhoto, text: source.text ?? '' }) });
+    }
+
+    const response = await this.generateWithRetry(
+      {
+        model: MODEL,
+        contents: [{ role: 'user', parts }],
+        config: {
+          systemInstruction: isVideo
+            ? EXTRACT_RECIPE_VIDEO_SYSTEM_PROMPT
+            : EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: ANNOTATED_EXTRACTION_SCHEMA,
+          temperature: 0.2, // extraction should be faithful, not creative
+          // Video needs a bigger budget than text: the reel's own frames are
+          // already ~20K input tokens and the reconciliation reasoning is
+          // longer than a plain text read.
+          maxOutputTokens: isVideo ? 8192 : 4096,
+          // Thinking stays ON for every annotated extraction, unlike
+          // extractRecipe's thinkingBudget 0. With it disabled the model
+          // pattern-completes a method it was never given rather than
+          // noticing the content has none — the exact failure the
+          // NO_INVENTED_METHOD_RULE addresses. A caption read is ~550 input
+          // tokens, so the thinking budget is cheap insurance here.
+        },
+      },
+      isVideo ? 'extractRecipeAnnotated(video)' : 'extractRecipeAnnotated',
+    );
+
+    const raw = response.text;
+    if (!raw) throw new Error('GeminiAIService: empty response from extractRecipeAnnotated');
+
+    const parsed = annotatedExtractionSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) {
+      throw new Error(
+        `GeminiAIService: annotated extraction response failed validation — ${parsed.error.message}`,
       );
     }
     return parsed.data;

@@ -26,6 +26,9 @@ function stubService(overrides: Partial<Record<keyof IAIService, unknown>> = {})
     chat: vi.fn().mockResolvedValue(new ReadableStream()),
     analyzeMealPhoto: vi.fn().mockResolvedValue({ dishName: 'Pasta' }),
     extractRecipe: vi.fn().mockResolvedValue({ name: 'Extracted' }),
+    extractRecipeAnnotated: vi
+      .fn()
+      .mockResolvedValue({ recipe: { name: 'Extracted' }, confidence: 'high', assumptions: [] }),
     cheferizeRecipe: vi.fn().mockResolvedValue({ adapted: { name: 'A' }, changes: [] }),
   };
   return { ...base, ...overrides } as IAIService;

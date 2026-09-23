@@ -1,6 +1,7 @@
 import { SWAP_POOL_BY_TYPE } from './fixtures/swap-recipes.fixture.js';
 import { WEEK_PLAN_FIXTURE } from './fixtures/week-plan.fixture.js';
 import type {
+  AnnotatedExtraction,
   ChatContext,
   ChatMessage,
   CheferizedRecipe,
@@ -196,13 +197,50 @@ export class MockAIService implements IAIService {
     return { ...(scenario ?? DEFAULT_MEAL_PHOTO_SCENARIO) };
   }
 
+  /**
+   * Annotated extraction — reuses the same keyword-steered fixtures as
+   * extractRecipe and layers on deterministic provenance so the review queue
+   * and the two-stage escalation are drivable in mock mode:
+   *   "caption-only" in the source → zero instructions + low confidence,
+   *                                  which is exactly the signal the video
+   *                                  extractor escalates on.
+   *   video sources                → high confidence (the method was seen).
+   */
+  async extractRecipeAnnotated(source: RecipeExtractionSource): Promise<AnnotatedExtraction> {
+    const recipe = await this.extractRecipe(source);
+    const steer = `${source.url ?? ''} ${source.text ?? ''}`.toLowerCase();
+    const isVideo = Boolean(source.videoBase64);
+
+    if (!isVideo && steer.includes('caption-only')) {
+      return {
+        recipe: { ...recipe, instructions: [] },
+        confidence: 'low',
+        assumptions: ['Caption listed ingredients but no method — needs the video.'],
+      };
+    }
+
+    return {
+      recipe,
+      confidence: isVideo ? 'high' : 'medium',
+      assumptions: isVideo
+        ? ["'a drizzle of olive oil' read as 1 tbsp."]
+        : ['Nutrition estimated from the ingredient list.'],
+    };
+  }
+
   async extractRecipe(source: RecipeExtractionSource): Promise<ExtractedRecipe> {
     await delay(400);
     // Keyword-steered fixture library (§4.5): the source url/text picks the
     // scenario; anything unmatched (including photo sources, which carry no
     // text) returns the original pasta default so F5's preview/edit sheet
     // renders exactly as before.
-    const via = source.url ? 'link' : source.imageBase64 ? 'photo' : 'text';
+    const via = source.url
+      ? 'link'
+      : source.videoBase64
+        ? 'video'
+        : source.imageBase64
+          ? 'photo'
+          : 'text';
     const steer = `${source.url ?? ''} ${source.text ?? ''}`.toLowerCase();
 
     if (steer.includes('no-recipe')) {

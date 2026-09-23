@@ -1,5 +1,6 @@
 import { isCapacityAiError } from './friendly-error.js';
 import type {
+  AnnotatedExtraction,
   ChatContext,
   ChatMessage,
   CheferizedRecipe,
@@ -32,7 +33,8 @@ import type {
 //   estimateIngredientPrices, generateShoppingList. These fail BACK to
 //   Gemini if the secondary errors.
 // - PRIMARY-ONLY (vision — the secondary has none): analyzeMealPhoto,
-//   extractRecipe (photo sources). No failover; capacity errors surface
+//   extractRecipe/extractRecipeAnnotated (photo + video sources). No
+//   failover; capacity errors surface
 //   directly and become the friendly "over capacity" message.
 //
 // Every call logs which provider served it ("[AI] <label>: served by …") so
@@ -131,6 +133,14 @@ export class FailoverAIService implements IAIService {
     // Photo sources are vision — primary-only. Text sources may fail over.
     const second = source.imageBase64 ? null : this.secondary;
     return this.run('extractRecipe', this.primary, second, (s) => s.extractRecipe(source));
+  }
+
+  extractRecipeAnnotated(source: RecipeExtractionSource): Promise<AnnotatedExtraction> {
+    // Photo and VIDEO sources are vision — primary-only.
+    const second = source.imageBase64 || source.videoBase64 ? null : this.secondary;
+    return this.run('extractRecipeAnnotated', this.primary, second, (s) =>
+      s.extractRecipeAnnotated(source),
+    );
   }
 
   cheferizeRecipe(input: CheferizeInput): Promise<CheferizedRecipe> {

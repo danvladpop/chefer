@@ -9,6 +9,7 @@ import {
   buildSwapUserPrompt,
   CHAT_SYSTEM_PROMPT,
   CHEFERIZE_SYSTEM_PROMPT,
+  EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT,
   EXTRACT_RECIPE_SYSTEM_PROMPT,
   INGREDIENT_PRICES_SYSTEM_PROMPT,
   MEAL_PLAN_SYSTEM_PROMPT,
@@ -16,6 +17,7 @@ import {
   SWAP_SYSTEM_PROMPT,
 } from './prompts.js';
 import {
+  annotatedExtractionSchema,
   cheferizedRecipeSchema,
   extractedRecipeSchema,
   ingredientPricesResponseSchema,
@@ -24,6 +26,7 @@ import {
   weekPlanResponseSchema,
 } from './schemas.js';
 import type {
+  AnnotatedExtraction,
   ChatContext,
   ChatMessage,
   CheferizedRecipe,
@@ -121,6 +124,8 @@ const EXTRACTED_RECIPE_SHAPE = `{${RECIPE_CORE_FIELDS}}`;
 const WEEK_PLAN_SHAPE =
   `{"days":[{"dayOfWeek":number (0=Monday…6=Sunday),` +
   `"meals":[{"type":"breakfast"|"lunch"|"dinner"|"snack","recipe":${RECIPE_SHAPE}}]}]}`;
+
+const ANNOTATED_EXTRACTION_SHAPE = `{"recipe":${EXTRACTED_RECIPE_SHAPE},"confidence":"high"|"medium"|"low","assumptions":[string]}`;
 
 const CHEFERIZED_SHAPE = `{"adapted":${EXTRACTED_RECIPE_SHAPE},"changes":[{"kind":"allergen"|"restriction"|"dislike"|"servings"|"other","description":string}]}`;
 
@@ -288,8 +293,28 @@ export class OpenAICompatibleAIService implements IAIService {
     throw new Error(NO_VISION_MESSAGE);
   }
 
+  /**
+   * Text-only annotated extraction. The secondary has no vision, so video
+   * sources never route here — the failover wrapper keeps them Gemini-only.
+   */
+  async extractRecipeAnnotated(source: RecipeExtractionSource): Promise<AnnotatedExtraction> {
+    if (source.imageBase64 || source.videoBase64) throw new Error(NO_VISION_MESSAGE);
+    if (!source.text) {
+      throw new Error('OpenAICompatibleAIService.extractRecipeAnnotated: expected text.');
+    }
+    return this.completeJson({
+      label: 'extractRecipeAnnotated',
+      system: EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT,
+      user: buildExtractRecipeUserPrompt({ isPhoto: false, text: source.text }),
+      shape: ANNOTATED_EXTRACTION_SHAPE,
+      schema: annotatedExtractionSchema,
+      temperature: 0.2,
+      maxTokens: MAX_TOKENS_DEFAULT,
+    });
+  }
+
   async extractRecipe(source: RecipeExtractionSource): Promise<ExtractedRecipe> {
-    if (source.imageBase64) throw new Error(NO_VISION_MESSAGE);
+    if (source.imageBase64 || source.videoBase64) throw new Error(NO_VISION_MESSAGE);
     if (!source.text) {
       throw new Error(
         'OpenAICompatibleAIService.extractRecipe: expected text (URL sources must be fetched by the recipe-import service first).',
