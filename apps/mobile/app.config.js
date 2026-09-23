@@ -41,7 +41,9 @@ const config = {
   // between build and `eas update`, silently blocking OTA delivery.
   platforms: ['ios', 'android'],
   orientation: 'portrait',
-  icon: './assets/icon.png',
+  // Plate-and-cutlery on brand brown; the dev variant carries a DEV band so the
+  // two installs are distinguishable. Sources: assets/icon-source/*.svg.
+  icon: IS_PRODUCTION ? './assets/icon.png' : './assets/icon-dev.png',
   userInterfaceStyle: 'automatic',
   ios: {
     bundleIdentifier: IS_PRODUCTION ? 'dev.chefer.app' : 'dev.chefer.app.dev',
@@ -54,8 +56,10 @@ const config = {
   android: {
     package: IS_PRODUCTION ? 'dev.chefer.app' : 'dev.chefer.app.dev',
     adaptiveIcon: {
-      backgroundColor: '#E6F4FE',
-      foregroundImage: './assets/android-icon-foreground.png',
+      backgroundColor: '#944a00',
+      foregroundImage: IS_PRODUCTION
+        ? './assets/android-icon-foreground.png'
+        : './assets/android-icon-foreground-dev.png',
       backgroundImage: './assets/android-icon-background.png',
       monochromeImage: './assets/android-icon-monochrome.png',
     },

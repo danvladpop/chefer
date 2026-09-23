@@ -305,7 +305,11 @@ tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors
   | `development` (default) | Chefer Dev | `dev.chefer.app.dev` | `chefer-dev` | Metro on the Mac (:8083) + local API — dev client               |
   | `production`            | Chefer     | `dev.chefer.app`     | `chefer`     | embedded bundle, then EAS Update channel `production`; prod API |
 
-  Distinct ids let both install side by side on one phone. `ios/` and
+  Distinct ids let both install side by side on one phone. Icons: plate-and-cutlery
+  on brand brown `#944a00`; the dev variant's icons carry a green DEV band.
+  Vector sources live in `apps/mobile/assets/icon-source/*.svg` (render each
+  to a 1024×1024 PNG of the same name in `assets/`). Icons are native — an
+  icon change needs `release:*` rebuilds, not an OTA update. `ios/` and
   `android/` are generated per variant (`scripts/ensure-variant.sh` re-runs
   `expo prebuild --clean` when the variant changes). Maestro flows target the
   dev variant.

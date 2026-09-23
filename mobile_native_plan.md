@@ -543,6 +543,9 @@ Pulled forward: the user's phones ran dev clients that needed the Mac (Metro
   `dist/` and wipes it — artifacts live in `release-builds/`; (5) an update
   older than the binary's embedded bundle is ignored — publish after building;
   (6) `apps/mobile/.gitignore` is a fingerprint input.
+- Custom icon (2026-09-23): plate + fork + knife on `#944a00`, DEV-banded
+  variant for Chefer Dev; SVG sources in `assets/icon-source/`. Both phones
+  rebuilt + installed with it (runtimes ios 5bb8ad63…, android bf81505b…).
 - Runbook: `infrastructure.md` §11 "Mobile production builds & OTA updates";
   flow: `business_flow.md` §20. Store builds (M4-3) reuse the same channel.
 
