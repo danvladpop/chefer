@@ -54,6 +54,13 @@ export const weekPlanResponseSchema = z.object({
 // not identity, and images come exclusively from our own pipeline.
 export const extractedRecipeSchema = recipeSchema.omit({ id: true, imageUrl: true });
 
+/** extractRecipeAnnotated's response — the recipe plus reviewer provenance. */
+export const annotatedExtractionSchema = z.object({
+  recipe: extractedRecipeSchema,
+  confidence: z.enum(['high', 'medium', 'low']),
+  assumptions: z.array(z.string()),
+});
+
 export const cheferizedRecipeSchema = z.object({
   adapted: extractedRecipeSchema,
   changes: z.array(

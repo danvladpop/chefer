@@ -122,12 +122,35 @@ export interface MealPhotoEstimate {
 
 // ─── Recipe extraction (F5 Cheferize) ────────────────────────────────────────
 
-/** Exactly one of url/text/imageBase64 is set; mimeType accompanies images. */
+/**
+ * Exactly one of url/text/imageBase64/videoBase64 is the PRIMARY source;
+ * mimeType accompanies images and video. `text` may additionally accompany
+ * `videoBase64` as the clip's caption — the two-stage video extractor sends
+ * both, because captions carry the quantities and the video carries the method.
+ */
 export interface RecipeExtractionSource {
   url?: string;
   text?: string;
   imageBase64?: string;
+  /** Base64 mp4 of a short cooking clip (reel/Short/TikTok). Gemini-only. */
+  videoBase64?: string;
   mimeType?: string;
+}
+
+/** How much of the extraction was read off explicit amounts vs inferred. */
+export type ExtractionConfidence = 'high' | 'medium' | 'low';
+
+/**
+ * An extraction plus the provenance a human reviewer needs. Curated recipes
+ * are reviewed before they reach the shared pool, so the reviewer must be able
+ * to sort by "what did the model guess at" rather than treat every row as
+ * equally solid — `assumptions` lists exactly that ("'a drizzle of olive oil'
+ * read as 1 tbsp").
+ */
+export interface AnnotatedExtraction {
+  recipe: ExtractedRecipe;
+  confidence: ExtractionConfidence;
+  assumptions: string[];
 }
 
 /** RecipeData minus id/imageUrl — the AI extracts content, not identity. */
@@ -279,6 +302,12 @@ export interface IAIService {
    * implementations receive `text` (or `imageBase64`), never fetch.
    */
   extractRecipe(source: RecipeExtractionSource): Promise<ExtractedRecipe>;
+  /**
+   * Extraction that also reports confidence + the assumptions it made.
+   * Additive alongside extractRecipe, which F5 (and shipped mobile clients)
+   * still call unchanged. Accepts text, photo or video sources.
+   */
+  extractRecipeAnnotated(source: RecipeExtractionSource): Promise<AnnotatedExtraction>;
   /** F5 Cheferize — adapts an extracted recipe to the user's safety prefs + servings. */
   cheferizeRecipe(input: CheferizeInput): Promise<CheferizedRecipe>;
 }

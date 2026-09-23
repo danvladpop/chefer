@@ -19,6 +19,7 @@ import type {
   RecipeData,
   RecipeExtractionSource,
 } from '../../lib/ai/index.js';
+import { NO_RECIPE_SENTINEL } from '../../lib/ai/prompts.js';
 import { isRecipeSafe, type SafetyPrefs } from '../../lib/curated-recipes/safety.js';
 import { buildPollinationsUrl } from '../../lib/image-gen/pollinations.js';
 import { buildRecipeImagePrompt } from '../../lib/image-gen/prompt.js';
@@ -41,8 +42,6 @@ import {
 // SAFETY: the AI's adapted output is never trusted. The P1-2 allergen matcher
 // re-validates it here, and importSave re-runs the check on whatever the
 // client submits as "adapted" — the "AI missed the peanut" case fails closed.
-
-const NO_RECIPE_SENTINEL = 'NO_RECIPE_FOUND';
 
 export type ImportVia = 'url' | 'photo' | 'text';
 

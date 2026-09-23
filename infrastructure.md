@@ -752,6 +752,23 @@ teaser for free (the full text never leaves the server). Depends on `IChefReview
 - Chat tool `importRecipe(url)` (ChatService.buildTools): premium → preview + auto-save (adapted when safe and changed, else original); free → preview summary + upgrade pointer.
 - **Friendly AI-failure mapping (§4.5.2):** both AI calls are wrapped with `lib/ai/friendly-error.ts#toFriendlyAiError` — upstream 429/5xx/timeouts become a `SERVICE_UNAVAILABLE` TRPCError with the "chef is over capacity" copy, other AI failures an `INTERNAL_SERVER_ERROR` with a task-specific sentence; the raw provider error goes to the server log only (the import sheet used to render the raw 429 JSON blob).
 
+### VideoRecipeService (application layer) — curated dataset pipeline
+
+`apps/api/src/application/video-import/video-recipe.service.ts`. Turns a short cooking video (Instagram reel, TikTok, YouTube Short) into an `ExtractedRecipe` for the **CURATED** pool. Extraction only — it writes nothing; drafts go to review before promotion, because an unreviewed extraction that mis-states `servings` silently rescales every per-serving macro built on it.
+
+**Two stages, because the caption and the clip carry different halves of a recipe.** Measured on real reels: captions carry the QUANTITIES in clean prose (~550 input tokens, no download); the clip carries the METHOD (~20,000 input tokens, ~15 MB). Many creators publish an ingredient list with no steps at all.
+
+- **Stage 1 — caption only.** `IMediaFetcher.fetchMetadata` (yt-dlp `--skip-download`) → `IAIService.extractRecipeAnnotated({ text })`. Returns immediately when the caption carries a complete recipe.
+- **Escalation** fires on a concrete signal: fewer than 2 instructions, `NO_RECIPE_FOUND`, `low` confidence, no ingredients, or a caption under 40 chars (a hashtag dump — stage 1 is skipped entirely, saving the call).
+- **Stage 2 — the clip, with the caption alongside it.** `downloadVideo` (yt-dlp, re-encoded by ffmpeg above 12 MB raw since base64 inflates 4/3 against Gemini's 20 MB inline cap) → `extractRecipeAnnotated({ videoBase64, text })`. Gemini-only: the secondary provider has no vision, and `FailoverAIService` keeps video sources primary-only.
+- **Name reconciliation** (`lib/video-import/reconcile.ts`) — with the clip in context the model echoes spoken phrasing into ingredient names (`garlic cloves, minced`), which degrades the `normalizeIngredientName` matching that pricing and shopping lists depend on. Stage 1's names are cleaner and already in hand, so names are rewritten deterministically rather than by trusting the prompt. Conservative by design: only an exact key match or a trailing FORM_WORD (`garlic` ≡ `garlic clove`, but `garlic powder` is its own ingredient). Quantities are never touched.
+- **Serving-count trust** (`lib/video-import/servings.ts`) — `servings` is the least reliable field and the most damaging when wrong. One clip yielded 2, 3, 5, 5 and 2 across five runs, and the model reported "high" confidence every time, so self-reporting is not usable. When the caption states no explicit yield (`serves 4`, `4 servings` — _not_ "per serving", which is a portion size), confidence is capped at `medium` in code and an explicit verify-this note is appended.
+- Output carries `stage`, `escalationReason`, `confidence`, `assumptions` (the reviewer's checklist), `renames`, `sourceUrl` and `creator`.
+
+**Batch driver:** `scripts/extract-video-recipes.ts` (`pnpm recipes:from-video <url…>` / `--file urls.txt --out drafts.json`). Reports the **escalation rate** per run — the multiplier that sets real cost per recipe at dataset scale.
+
+**Prompt contract note.** `EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT` carries an explicit _no invented method_ rule and, unlike `extractRecipe`, leaves thinking ENABLED. With `thinkingBudget: 0` the model pattern-completed all ten steps of a method it was never given — inventing an air-fryer temperature, garbling it to "3750F (1900C)", reporting high confidence and flagging none of it. Ten fabricated instructions are indistinguishable from ten real ones to the caller, so the extractor never escalated to the video that actually held the method. Stage 1 must be explicitly licensed to return an empty `instructions` array.
+
 ### MealPlanService (application layer)
 
 `apps/api/src/application/meal-plan/meal-plan.service.ts`. Methods: `generate`, `getActive`, `getForWeek`, `getRecipe`, `swapRecipe`, `replaceRecipe`, `list`, `restore`, `getById` — the plan→DTO join lives once in the private `assemblePlanDto` and week lookups use the indexed `findByWeekStart` (no more 52-plan scans). `getForWeek` carries plans forward: an empty current/next week is materialized as a copy of the user's most recent plan (`findLatestWithDaysBefore`, deliberate write-on-read) and flagged `carriedOver` on that first response — plans continue week to week until the user changes them. Ingredient categorisation is shared: `application/shared/category-map.ts` (word-boundary matching, longest keyword first — "pepperoni" no longer lands in produce via "pepper").
@@ -1164,6 +1181,17 @@ File: `infrastructure/docker/docker-compose.yml`
 | `redis-commander` | rediscommander/redis-commander | 8081 | `tools`  |
 
 Start tools: `docker compose --profile tools up -d`
+
+### External binaries (video recipe import)
+
+`VideoRecipeService` shells out to two binaries that are **not** currently installed in any image:
+
+| Binary   | Needed by                     | Used for                                 |
+| -------- | ----------------------------- | ---------------------------------------- |
+| `yt-dlp` | metadata (stage 1) + download | caption fetch, clip download             |
+| `ffmpeg` | download path only            | re-encode clips over 12 MB before upload |
+
+Today this runs only from `pnpm recipes:from-video` on a developer machine (`brew install yt-dlp ffmpeg`), so no image change is required. **Wiring the extractor to a tRPC procedure means adding both to `Dockerfile.api`** — until then the admin path must stay a local batch job. Both are behind `IMediaFetcher`, so nothing else in the API depends on them.
 
 ### Production Dockerfiles
 
