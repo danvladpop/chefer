@@ -40,3 +40,6 @@ yarn-error.*
 /ios
 /android
 .expo-export-check/
+
+# local release binaries + their runtime fingerprints (scripts/release-*.sh)
+/release-builds/

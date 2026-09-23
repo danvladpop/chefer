@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { clearToken } from '../../src/lib/auth-store';
+import { CURRENT_BUILD } from '../../src/lib/current-build';
 import { trpc } from '../../src/lib/trpc';
 
 // Secondary nav hub — the mobile counterpart of web's MobileNavDrawer
@@ -109,6 +110,10 @@ export default function MoreScreen() {
         >
           Sign out
         </Button>
+
+        <Text testID="build-info" className="text-center text-xs text-gray-400">
+          {CURRENT_BUILD}
+        </Text>
       </ScrollView>
     </Screen>
   );

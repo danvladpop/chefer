@@ -245,3 +245,57 @@ jobs:
           done
           echo "❌ Homepage did not return 200"
           exit 1
+
+  # ─── Ship the matching mobile JS over the air (M4-4) ────────────────────────
+  # After the API is verified live, publish apps/mobile to the EAS Update
+  # "production" channel; installed production apps pick it up on their next
+  # launches. Needs the EXPO_TOKEN secret (expo.dev → Access tokens) and the
+  # EXPO_APPLE_TEAM_ID repo VARIABLE — it's part of the iOS runtime
+  # fingerprint, so without it iOS updates would target a runtime no phone
+  # has. Skipped (not failed) until EXPO_TOKEN exists; skipped on rollbacks
+  # (roll mobile back with `eas update:republish`).
+  mobile-update:
+    name: Mobile OTA update
+    needs: [setup, verify]
+    if: needs.setup.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_APPLE_TEAM_ID: ${{ vars.EXPO_APPLE_TEAM_ID }}
+    steps:
+      - name: Check credentials
+        id: creds
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::warning::EXPO_TOKEN secret not set — skipping the mobile OTA update"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif [ -z "$EXPO_APPLE_TEAM_ID" ]; then
+            echo "::error::EXPO_APPLE_TEAM_ID repo variable not set — iOS updates would never match the installed app"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.creds.outputs.skip != 'true'
+
+      - uses: pnpm/action-setup@v4
+        if: steps.creds.outputs.skip != 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.creds.outputs.skip != 'true'
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: steps.creds.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Publish EAS update (channel production)
+        if: steps.creds.outputs.skip != 'true'
+        # CI has no release-builds/ record of what's installed; a native
+        # change just yields an update no phone matches (harmless) — the
+        # script prints the runtimes so a mismatch is visible in the log.
+        env:
+          ALLOW_RUNTIME_MISMATCH: '1'
+        run: |
+          pnpm mobile:update "$(git log -1 --format='%h %s')"

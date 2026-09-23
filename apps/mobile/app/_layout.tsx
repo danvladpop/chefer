@@ -6,8 +6,15 @@ import { StatusBar } from 'expo-status-bar';
 import { useSession } from '../src/features/auth/use-session';
 import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
+import { CURRENT_BUILD } from '../src/lib/current-build';
 import { makeQueryClient, trpc } from '../src/lib/trpc';
 import { buildTrpcLinks } from '../src/lib/trpc-links';
+
+// One line per launch so device logs (logcat / Console.app) show which
+// bundle is live — embedded or which OTA update — without signing in.
+// (info, not warn: warn would raise a LogBox toast in dev builds.)
+// eslint-disable-next-line no-console
+console.info(`[chefer] ${CURRENT_BUILD}`);
 
 export default function RootLayout() {
   const { ready, token } = useSession();

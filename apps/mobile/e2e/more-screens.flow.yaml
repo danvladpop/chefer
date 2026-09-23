@@ -1,6 +1,6 @@
 # More-hub screens E2E — M2-4 tracker, M2-6 pantry, M2-7 preferences,
 # M2-8 profile. Precondition: signed-in session (any account).
-appId: dev.chefer.app
+appId: dev.chefer.app.dev
 ---
 - runFlow: common/connect.yaml
 - extendedWaitUntil:

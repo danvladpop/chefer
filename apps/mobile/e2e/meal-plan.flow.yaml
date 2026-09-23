@@ -1,7 +1,7 @@
 # Meal plan E2E — M2-2. Read-only: never taps Generate (alice is PREMIUM and
 # dev runs REAL AI — generation costs money and minutes).
 # Precondition: signed-in session (any account).
-appId: dev.chefer.app
+appId: dev.chefer.app.dev
 ---
 - runFlow: common/connect.yaml
 - extendedWaitUntil:

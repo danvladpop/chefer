@@ -502,9 +502,49 @@ Maestro E2E in CI, or keep E2E local-only. Default: local-only, documented.
 `eas submit` both stores; store listings, privacy declarations (camera, health-adjacent
 data), screenshots. Agents draft metadata; human approves and clicks anything binding.
 
-#### M4-4 · OTA updates (expo-updates / EAS Update) **[OPTIONAL]**
+#### M4-4 · OTA updates (expo-updates / EAS Update) — ✅ DONE 2026-09-23 (store-less): laptop-independent production builds + EAS Update, no paid accounts
 
-Wire the channel setup once store builds exist. Defer until after first release.
+Pulled forward: the user's phones ran dev clients that needed the Mac (Metro
+:8083 + local API). Now:
+
+- **Two app variants** via `APP_VARIANT` in `app.config.js` — `production`
+  ("Chefer", `dev.chefer.app`, scheme `chefer`, channel `production`, prod API)
+  and `development` (default; "Chefer Dev", `dev.chefer.app.dev`, scheme
+  `chefer-dev`, dev client). Both install side by side. Maestro flows target
+  the dev variant (`appId: dev.chefer.app.dev`, `chefer-dev://` links).
+  `production` refuses to evaluate unless `EXPO_PUBLIC_API_URL=https://…` —
+  a bundle falling back to localhost would brick every installed app.
+- **expo-updates** with `runtimeVersion: { policy: 'fingerprint' }` and the
+  channel embedded via `updates.requestHeaders` (local builds don't read
+  eas.json). Native module → new fingerprint → rebuild over USB; OTA can't
+  reach it.
+- **Scripts** (`apps/mobile/scripts/`, all export `.env` so build-time and
+  publish-time fingerprints agree): `pnpm mobile:release:android` (release
+  APK → `adb install`), `pnpm mobile:release:ios` (Release + free-team
+  signing via `xcodebuild -allowProvisioningUpdates` → `devicectl` install;
+  **the 7-day re-sign is this one command**), `pnpm mobile:update "msg"`
+  (`eas update --channel production`), `ensure-variant.sh` (re-prebuilds when
+  the native dir belongs to the other variant; `pnpm ios/android` call it).
+- **Auto-publish on deploy:** `deploy.yml` job `mobile-update` runs
+  `pnpm mobile:update` after `verify` on every master deploy — phones pick up
+  master's JS on their next two launches. [USER] needs the `EXPO_TOKEN` secret
+  (job is skipped until then) + `EXPO_APPLE_TEAM_ID` repo variable.
+- More tab footer (and one `[chefer] …` log line per launch) shows variant +
+  `built-in bundle` / `update <id>`.
+- Verified 2026-09-23: Android emulator ran embedded → downloaded → ran update
+  `01a0cfb1` over two cold launches; iPhone 17 Release build installed; a clean
+  clone + only `EXPO_APPLE_TEAM_ID` resolves the same runtimes as the installed
+  binaries (CI parity). GOTCHAS found: (1) Release builds bundle via a bare
+  `node @expo/cli` without pnpm's NODE_PATH → `babel-preset-expo` and
+  `@babel/plugin-transform-react-jsx` must be direct devDeps; (2) the same
+  NODE_PATH difference made `platforms` auto-detect `web` only at publish time
+  → fingerprint mismatch; pinned `platforms: ['ios','android']`; (3) Gradle
+  release needs `-Xmx4g -XX:MaxMetaspaceSize=1g`; (4) `eas update` exports into
+  `dist/` and wipes it — artifacts live in `release-builds/`; (5) an update
+  older than the binary's embedded bundle is ignored — publish after building;
+  (6) `apps/mobile/.gitignore` is a fingerprint input.
+- Runbook: `infrastructure.md` §11 "Mobile production builds & OTA updates";
+  flow: `business_flow.md` §20. Store builds (M4-3) reuse the same channel.
 
 ---
 
@@ -567,11 +607,15 @@ full ladder before declaring a task done.
     `--port 8083` to both `expo run:ios` and `expo start`, and never kill the
     processes holding 8081/8082.
 12. `ios/` and `android/` are generated (`expo prebuild`) and gitignored — never edit
-    or commit them; native config lives in `app.config.ts` plugins.
+    or commit them; native config lives in `app.config.js` plugins. They are
+    generated **per app variant** (M4-4): `ios/.chefer-variant` /
+    `android/.chefer-variant` record which one; `pnpm ios`/`android` and the
+    release scripts re-prebuild on a mismatch, so a bare `expo run:*` after a
+    release build would run the production native project — use the scripts.
 13. **Android E2E + cross-platform Maestro flows** (learned 2026-08-31/09-01): flows share
     `e2e/common/connect.yaml` with `platform: iOS/Android` branches. Android: launchApp
     lands on the dev launcher and races follow-up links — cold-start via `stopApp` +
-    `openLink chefer://expo-development-client/?url=localhost:8083` (adb reverse makes
+    `openLink chefer-dev://expo-development-client/?url=localhost:8083` (dev variant scheme since M4-4) (adb reverse makes
     localhost work); tapping Continue opens the dev menu on BOTH platforms (close: xmark
     on iOS, hardware `back` on Android); `hideKeyboard` THROWS on iOS — always guard it
     `platform: Android`; Android's keyboard covers submit buttons (the guard fixes it);

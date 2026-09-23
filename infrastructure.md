@@ -274,7 +274,7 @@ Both use `superjson` as the transformer and point to `NEXT_PUBLIC_API_URL/trpc` 
 ### 4.3 Mobile (`apps/mobile`)
 
 Expo (SDK 57) React Native app — one codebase for iOS and Android. EAS project
-`@cheferoni/chefer` (bundle id `dev.chefer.app`; `eas.json` profiles:
+`@cheferoni/chefer` (bundle id `dev.chefer.app`, dev variant `dev.chefer.app.dev`; `eas.json` profiles:
 development→iOS-simulator dev client, development-device, preview, production).
 Being built
 out per [`mobile_native_plan.md`](./mobile_native_plan.md); currently: auth
@@ -283,19 +283,33 @@ tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors
 `apps/web/src/features/nav/nav-items.ts`), and the three-layer test harness
 (Jest+RNTL unit, Vitest contract vs the live API, Maestro E2E in `e2e/`).
 
-- **Stack:** expo-router (file-based, deep-link scheme `chefer://`),
-  expo-dev-client, expo-secure-store (session token), tRPC + TanStack Query +
-  superjson at the same versions as web
+- **Stack:** expo-router (file-based, deep-link scheme `chefer://`; the dev
+  variant uses `chefer-dev://`), expo-dev-client, expo-updates (EAS Update),
+  expo-secure-store (session token), tRPC + TanStack Query + superjson at the
+  same versions as web
 - **Monorepo:** `metro.config.js` watches the workspace root so `@chefer/types`
   and `@chefer/utils` (raw-TS exports) resolve; `@chefer/ui` and
   `@chefer/database` are forbidden by lint (platform boundary)
 - **Auth:** `Authorization: Bearer <sessionToken>` + `x-chefer-client: mobile`
   header — see §9
 - **Scripts:** `start` (Metro; root: `pnpm dev:mobile` — deliberately not part
-  of `turbo dev`), `ios` / `android` (build + run on simulator/emulator),
-  `bundle:check` (headless Metro export, the fastest full-app smoke test),
-  `typecheck`, `lint`
-- **Bundle ids:** `dev.chefer.app` (placeholder until store release, plan M4-1)
+  of `turbo dev`), `ios` / `android` (dev variant: build + run on
+  simulator/emulator/device), `release:ios` / `release:android` (standalone
+  production builds installed over USB — §11), `update:prod` (publish an OTA
+  update — §11), `bundle:check` (headless Metro export, the fastest full-app
+  smoke test), `typecheck`, `lint`
+- **App variants** (`APP_VARIANT`, read by `app.config.js`; M4-4):
+
+  | Variant                 | Name       | Bundle id / package  | Scheme       | Runs JS from                                                    |
+  | ----------------------- | ---------- | -------------------- | ------------ | --------------------------------------------------------------- |
+  | `development` (default) | Chefer Dev | `dev.chefer.app.dev` | `chefer-dev` | Metro on the Mac (:8083) + local API — dev client               |
+  | `production`            | Chefer     | `dev.chefer.app`     | `chefer`     | embedded bundle, then EAS Update channel `production`; prod API |
+
+  Distinct ids let both install side by side on one phone. `ios/` and
+  `android/` are generated per variant (`scripts/ensure-variant.sh` re-runs
+  `expo prebuild --clean` when the variant changes). Maestro flows target the
+  dev variant.
+
 - Preflight for simulator/E2E work: `scripts/mobile-preflight.sh`
 
 **Mobile routes** (expo-router; deep-link scheme `chefer://`):
@@ -1134,11 +1148,12 @@ hidden, leaving no way back to the login form.
 Validated by Zod in `apps/mobile/src/lib/env.ts`. `EXPO_PUBLIC_*` vars are
 inlined at bundle time by Expo.
 
-| Variable                 | Required | Default                                                            | Description                                                                                                                                         |
-| ------------------------ | -------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EXPO_PUBLIC_API_URL`    | No       | iOS sim: http://localhost:3001 · Android emu: http://10.0.2.2:3001 | API base URL. **Physical devices must set this** to the host's LAN address                                                                          |
-| `EXPO_PUBLIC_SENTRY_DSN` | No       | —                                                                  | Sentry error reporting (disabled when unset; wiring lands with plan task M1-6)                                                                      |
-| `EXPO_APPLE_TEAM_ID`     | No       | —                                                                  | Apple team for signing local device builds (`expo run:ios --device`); read by `app.config.js`, not the app — simulator and EAS builds don't need it |
+| Variable                 | Required | Default                                                            | Description                                                                                                                                                         |
+| ------------------------ | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_API_URL`    | No       | iOS sim: http://localhost:3001 · Android emu: http://10.0.2.2:3001 | API base URL. **Physical devices must set this** to the host's LAN address                                                                                          |
+| `EXPO_PUBLIC_SENTRY_DSN` | No       | —                                                                  | Sentry error reporting (disabled when unset; wiring lands with plan task M1-6)                                                                                      |
+| `EXPO_APPLE_TEAM_ID`     | No       | —                                                                  | Apple team for signing local device builds (`expo run:ios --device`); read by `app.config.js`, not the app — simulator and EAS builds don't need it                 |
+| `APP_VARIANT`            | No       | `development`                                                      | Build-time only, set by the scripts, not in `.env`: `development` \| `production` (§4.3). `production` refuses to build unless `EXPO_PUBLIC_API_URL` is `https://…` |
 
 ### `packages/database/.env`
 
@@ -1164,6 +1179,45 @@ dev         ──> no dependency, persistent
 
 - **API:** TypeScript compiled to `apps/api/dist/`
 - **Web:** Next.js compiled to `apps/web/.next/` (standalone when `BUILD_STANDALONE=true`)
+
+### Mobile production builds & OTA updates (M4-4)
+
+Laptop-independent phone builds: standalone binaries pointed at
+`https://chefer.duckdns.org`, updated over the air through **EAS Update**
+(free tier) on channel `production`. No Play Console / Apple Developer
+account needed. All scripts live in `apps/mobile/scripts/`, export
+`apps/mobile/.env`, and hard-set `APP_VARIANT=production` +
+`EXPO_PUBLIC_API_URL=https://chefer.duckdns.org`.
+
+| Command (repo root)           | What it does                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm mobile:release:android` | clean prebuild → `gradlew assembleRelease` (arm64) → `adb install -r` on `ANDROID_SERIAL` (default the Pixel 8 Pro). `NO_INSTALL=1` = build only. APK is signed with the template debug keystore (fine for sideloading; a store build needs a real upload key).                                                                                                              |
+| `pnpm mobile:release:ios`     | clean prebuild → `xcodebuild -configuration Release -allowProvisioningUpdates …` signed with the free team `EXPO_APPLE_TEAM_ID` → `devicectl` install on `IOS_DEVICE_UDID` (default the iPhone 17). **Free certs expire after 7 days — re-running this is the re-sign.** Phone must be unlocked.                                                                             |
+| `pnpm mobile:update "msg"`    | `eas update --channel production` — publishes the current JS. Installed production apps fetch it on launch and run it on the next launch. **Normally automatic:** `deploy.yml`'s `mobile-update` job runs this after every verified deploy of master (§13). Aborts locally when the runtime doesn't match the last `release:*` build (`ALLOW_RUNTIME_MISMATCH=1` overrides). |
+
+- **Runtime version = native fingerprint** (`runtimeVersion.policy:
+'fingerprint'`). An update only reaches binaries with identical native code,
+  so publishing after adding a native module is harmless (no binary matches)
+  — but the phones need `release:*` over the cable before they see new JS.
+  The fingerprint includes the app config, so builds and updates must run
+  through the scripts (same `.env`, same variant).
+- **API compatibility:** web/API deploy on push to master; an OTA update
+  goes live when published. Publish only after the API it depends on is
+  deployed, and keep API changes additive (CLAUDE.md — installed binaries and
+  their embedded bundles keep calling the old contract).
+- **Dev builds stay as they were:** `pnpm mobile:ios -- --device <udid>` /
+  `pnpm mobile:android` build the `Chefer Dev` variant, which needs Metro
+  (:8083, `EXPO_PUBLIC_API_URL=http://<Mac LAN IP>:3001`) and the local API.
+  The dev variant's bundle id is new (`dev.chefer.app.dev`), so its **first**
+  iPhone install needs the free profile minted once: `cd apps/mobile/ios &&
+xcodebuild -workspace CheferDev.xcworkspace -scheme CheferDev -destination
+id=<udid> -allowProvisioningUpdates -allowProvisioningDeviceRegistration build`
+  (phone unlocked), then `pnpm mobile:ios -- --device <udid> --port 8083` as
+  before. Free Apple IDs allow 3 sideloaded apps per device — Chefer + Chefer
+  Dev use two. Installing an already-built production APK without rebuilding:
+  `adb -s <serial> install -r apps/mobile/release-builds/chefer-production.apk`.
+- The More tab's footer shows the running build: `Chefer 0.0.1 · production ·
+built-in bundle` or `… · update <id>` once an OTA update is running.
 
 ---
 
@@ -1297,7 +1351,22 @@ setup (resolve tag)
         git pull → docker compose pull → up -d --no-build → prune
   └─ verify                                      polls <DEPLOYMENT_URL>/api/health (API + DB,
         expects {"ok":true}) and the homepage (web, expects 200); fails if either stays unhealthy
+        └─ mobile-update (M4-4)                  `pnpm mobile:update "<sha> <subject>"` →
+              EAS Update channel "production": installed production apps fetch the new
+              JS on their next launch and run it on the one after. Runs only after verify
+              (the API the JS talks to is live first); skipped with a warning while the
+              EXPO_TOKEN secret is unset; skipped on rollbacks
 ```
+
+**Mobile OTA from CI:** the job publishes with `ALLOW_RUNTIME_MISMATCH=1` (CI has no
+record of what's installed). If the native fingerprint changed (new native module,
+`app.config.js`/icon/`apps/mobile/.gitignore` edit), the update targets a runtime no
+phone has — harmless, but the phones get nothing until `pnpm mobile:release:*` over
+USB; the job log prints the runtimes. `EXPO_APPLE_TEAM_ID` must be set as a repo
+**variable**: it is part of the iOS fingerprint (verified: without it iOS resolves to a
+different runtime and updates would never arrive). Rolling mobile JS back:
+`npx eas-cli update:republish --group <previous group id>` (or publish from an older
+commit).
 
 **Branch protection (manual, repo Settings → Branches → `master`):** require the
 `Lint`, `Type Check`, `Unit Tests`, and `Build` status checks. This is the second
@@ -1312,14 +1381,16 @@ pulls. `infrastructure/scripts/deploy-local-build.sh` keeps the build-on-VM path
 
 **Required repo configuration**
 
-| Kind     | Name                                          | Value                                          |
-| -------- | --------------------------------------------- | ---------------------------------------------- |
-| Secret   | `DEPLOY_HOST`                                 | VM public IP                                   |
-| Secret   | `DEPLOY_USER`                                 | `ubuntu`                                       |
-| Secret   | `DEPLOY_SSH_KEY`                              | private half of a **dedicated** deploy keypair |
-| Variable | `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_APP_URL` | `https://chefer.duckdns.org`                   |
-| Variable | `NEXT_PUBLIC_APP_NAME`                        | `Chefer`                                       |
-| Variable | `DEPLOYMENT_URL`                              | `https://chefer.duckdns.org`                   |
+| Kind     | Name                                          | Value                                                                                                                  |
+| -------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Secret   | `DEPLOY_HOST`                                 | VM public IP                                                                                                           |
+| Secret   | `DEPLOY_USER`                                 | `ubuntu`                                                                                                               |
+| Secret   | `DEPLOY_SSH_KEY`                              | private half of a **dedicated** deploy keypair                                                                         |
+| Variable | `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_APP_URL` | `https://chefer.duckdns.org`                                                                                           |
+| Variable | `NEXT_PUBLIC_APP_NAME`                        | `Chefer`                                                                                                               |
+| Variable | `DEPLOYMENT_URL`                              | `https://chefer.duckdns.org`                                                                                           |
+| Secret   | `EXPO_TOKEN`                                  | expo.dev → Account settings → Access tokens (robot/personal token with access to `@cheferoni/chefer`) — mobile OTA job |
+| Variable | `EXPO_APPLE_TEAM_ID`                          | `45P674Q3CW` (free Apple ID team; same as `apps/mobile/.env`) — mobile OTA job                                         |
 
 `NEXT_PUBLIC_*` are baked into the web bundle at build time — changing them requires a rebuild
 (updating `.env.production` on the VM alone has no effect on the client bundle). Application
