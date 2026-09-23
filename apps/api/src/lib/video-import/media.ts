@@ -86,6 +86,8 @@ export class YtDlpMediaFetcher implements IMediaFetcher {
           '--no-playlist',
           '-o',
           join(dir, 'm.%(ext)s'),
+          // End-of-options: a URL can never be parsed as a yt-dlp flag.
+          '--',
           url,
         ],
         { timeout: YTDLP_TIMEOUT_MS },
@@ -122,6 +124,7 @@ export class YtDlpMediaFetcher implements IMediaFetcher {
           'mp4',
           '-o',
           join(dir, 'clip.%(ext)s'),
+          '--',
           url,
         ],
         { timeout: YTDLP_TIMEOUT_MS },
