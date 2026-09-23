@@ -81,6 +81,13 @@ export interface WeekPlanDto {
   weekStartDate: Date;
   days: DayPlanDto[];
   /**
+   * True on the response that materialized this week's plan as a copy of the
+   * user's previous plan (plans continue week to week until changed) — lets
+   * clients hint "continued from last week". Later reads return it as a
+   * normal plan without the flag.
+   */
+  carriedOver?: boolean;
+  /**
    * The daily calorie target the plan was (or should have been) built
    * against — same resolver as the dashboard ring, so the planner can badge
    * days that land off target (trust fix P-1/P-2 in docs/ux-fixes-plan.md).
@@ -627,6 +634,31 @@ export class MealPlanService {
     // For offset 0, fall back to the active plan
     if (!plan && weekOffset === 0) {
       plan = await this.repo.findActiveWithDays(userId);
+    }
+
+    // Carry-forward: a week without a plan continues the user's most recent
+    // one (current and future weeks only — the past stays as it was). The
+    // copy is a real plan row so shopping list / tracker / swaps all work on
+    // it, and editing it never touches the source week. Deliberate write-on-
+    // read: "the plan continues by default" must hold on every surface that
+    // reads the week, without each client opting in.
+    if (!plan && weekOffset >= 0) {
+      const source = await this.repo.findLatestWithDaysBefore(userId, monday);
+      if (source && source.days.some((d) => (d.meals as unknown[]).length > 0)) {
+        await this.repo.createPlan({
+          userId,
+          weekStartDate: monday,
+          days: source.days.map((d) => ({
+            dayOfWeek: d.dayOfWeek,
+            meals: d.meals as { type: string; recipeId: string }[],
+          })),
+          recipeIds: [],
+        });
+        const created = await this.repo.findByWeekStart(userId, monday);
+        if (created) {
+          return { ...(await this.assemblePlanDto(created, userId)), carriedOver: true };
+        }
+      }
     }
 
     if (!plan) return null;

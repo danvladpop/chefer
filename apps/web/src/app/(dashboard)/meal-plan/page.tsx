@@ -299,6 +299,16 @@ export default function MealPlanPage() {
 
       {/* Actions — only available for current/future weeks */}
       <div className="flex flex-wrap items-center gap-2">
+        {/* Plans continue week to week until changed — hint when this week
+            was just materialized from the previous plan */}
+        {plan?.carriedOver && (
+          <span
+            className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-medium text-blue-700"
+            title="This week started as a copy of your previous plan — edit any meal to tailor it"
+          >
+            Continued from your last plan
+          </span>
+        )}
         {/* Estimated week cost (P2-4) — the priced-list wedge, on the plan */}
         {weekCost !== null && (
           <span

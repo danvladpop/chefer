@@ -99,6 +99,7 @@ function makeRepo() {
     restorePlan: vi.fn().mockResolvedValue(undefined),
     findByIdForUser: vi.fn().mockResolvedValue(null),
     findByWeekStart: vi.fn().mockResolvedValue(null),
+    findLatestWithDaysBefore: vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -523,5 +524,85 @@ describe('dayImagePriority', () => {
     expect(dayImagePriority(0, 1)).toBe(7);
     expect(dayImagePriority(6, 1)).toBe(13);
     expect(dayImagePriority(0, 2)).toBe(14);
+  });
+});
+
+// ─── getForWeek carry-forward ─────────────────────────────────────────────────
+// Plans continue week to week: an empty current/next week materializes as a
+// copy of the user's most recent plan (real row — downstream features work),
+// flagged carriedOver on that first response. The past never mutates.
+
+describe('MealPlanService.getForWeek carry-forward', () => {
+  const DB_RECIPE = { ...AI_RECIPE, imageStatus: 'DONE' };
+  const SOURCE_PLAN = {
+    id: 'plan-prev',
+    weekStartDate: new Date('2026-09-14'),
+    days: [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'ai-r1' }] }],
+  };
+  const CLONED_PLAN = {
+    id: 'plan-clone',
+    weekStartDate: new Date('2026-09-21'),
+    days: SOURCE_PLAN.days,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(null as never);
+  });
+
+  it('clones the most recent plan into an empty next week and flags it', async () => {
+    const repo = makeRepo();
+    repo.findByWeekStart.mockResolvedValueOnce(null).mockResolvedValueOnce(CLONED_PLAN);
+    repo.findLatestWithDaysBefore.mockResolvedValue(SOURCE_PLAN);
+    repo.findRecipesByIds.mockResolvedValue([DB_RECIPE]);
+
+    const service = new MealPlanService(repo);
+    const result = await service.getForWeek('u1', 1);
+
+    expect(repo.createPlan).toHaveBeenCalledTimes(1);
+    const created = vi.mocked(repo.createPlan).mock.calls[0]![0] as {
+      userId: string;
+      days: unknown;
+    };
+    expect(created.userId).toBe('u1');
+    expect(created.days).toEqual(SOURCE_PLAN.days);
+    expect(result?.carriedOver).toBe(true);
+    expect(result?.planId).toBe('plan-clone');
+    expect(result?.days[0]?.meals[0]?.recipe.id).toBe('ai-r1');
+  });
+
+  it('never clones into a past week', async () => {
+    const repo = makeRepo();
+    repo.findLatestWithDaysBefore.mockResolvedValue(SOURCE_PLAN);
+
+    const service = new MealPlanService(repo);
+    const result = await service.getForWeek('u1', -1);
+
+    expect(result).toBeNull();
+    expect(repo.createPlan).not.toHaveBeenCalled();
+  });
+
+  it('returns null when there is no earlier plan to continue', async () => {
+    const repo = makeRepo();
+
+    const service = new MealPlanService(repo);
+    const result = await service.getForWeek('u1', 1);
+
+    expect(result).toBeNull();
+    expect(repo.createPlan).not.toHaveBeenCalled();
+  });
+
+  it('ignores a source plan whose days are all empty', async () => {
+    const repo = makeRepo();
+    repo.findLatestWithDaysBefore.mockResolvedValue({
+      ...SOURCE_PLAN,
+      days: [{ dayOfWeek: 0, meals: [] }],
+    });
+
+    const service = new MealPlanService(repo);
+    const result = await service.getForWeek('u1', 1);
+
+    expect(result).toBeNull();
+    expect(repo.createPlan).not.toHaveBeenCalled();
   });
 });

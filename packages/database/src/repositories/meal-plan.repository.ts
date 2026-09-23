@@ -63,6 +63,10 @@ export interface IMealPlanRepository {
     userId: string,
     weekStart: Date,
   ): Promise<(MealPlan & { days: MealPlanDay[] }) | null>;
+  findLatestWithDaysBefore(
+    userId: string,
+    before: Date,
+  ): Promise<(MealPlan & { days: MealPlanDay[] }) | null>;
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -300,6 +304,26 @@ export class MealPlanRepository implements IMealPlanRepository {
     return prisma.mealPlan.findFirst({
       where: { userId, weekStartDate: { gte: dayStart, lt: dayEnd } },
       orderBy: { createdAt: 'desc' },
+      include: { days: { orderBy: { dayOfWeek: 'asc' } } },
+    });
+  }
+
+  /**
+   * The user's most recent plan that started strictly before the given day —
+   * the carry-forward source when a new week has no plan of its own. Only
+   * ACTIVE plans count: an archived plan was replaced, so it is not what the
+   * user is currently following.
+   */
+  async findLatestWithDaysBefore(
+    userId: string,
+    before: Date,
+  ): Promise<(MealPlan & { days: MealPlanDay[] }) | null> {
+    const dayStart = new Date(before);
+    dayStart.setHours(0, 0, 0, 0);
+
+    return prisma.mealPlan.findFirst({
+      where: { userId, status: MealPlanStatus.ACTIVE, weekStartDate: { lt: dayStart } },
+      orderBy: { weekStartDate: 'desc' },
       include: { days: { orderBy: { dayOfWeek: 'asc' } } },
     });
   }

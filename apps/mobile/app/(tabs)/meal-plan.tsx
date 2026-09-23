@@ -260,6 +260,16 @@ export default function MealPlanScreen() {
           <ScrollView contentContainerClassName="gap-3 px-4 py-2 pb-8">
             {/* Badges row */}
             <View className="flex-row flex-wrap gap-2">
+              {plan.carriedOver && (
+                <View
+                  testID="plan-carried-over"
+                  className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1"
+                >
+                  <Text className="text-[11px] font-medium text-blue-700">
+                    Continued from your last plan
+                  </Text>
+                </View>
+              )}
               {weekCost !== null && (
                 <View className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
                   <Text className="text-[11px] font-medium text-emerald-700">
