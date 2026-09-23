@@ -62,3 +62,39 @@ describe('mealPlan.replaceRecipe (picker sheet contract)', () => {
     ).toBe(original);
   });
 });
+
+describe('mealPlan week templates (My Weeks contract)', () => {
+  it('save → list → rename → delete leaves no trace', async () => {
+    const plan = await client.mealPlan.getForWeek.query({ weekOffset: 0 }).catch(() => null);
+    if (!plan) {
+      console.warn('[plan.contract] no meal plan this week — template cycle not exercised');
+      return;
+    }
+
+    const saved = await client.mealPlan.saveAsTemplate.mutate({
+      planId: plan.planId,
+      name: 'Contract test week',
+    });
+    expect(saved.name).toBe('Contract test week');
+    expect(saved.mealsCount).toBeGreaterThan(0);
+
+    try {
+      const listed = await client.mealPlan.listTemplates.query();
+      const mine = listed.find((t) => t.id === saved.id);
+      expect(mine?.previewNames.length).toBeGreaterThan(0);
+      expect(mine?.isFollowed).toBe(false);
+
+      await client.mealPlan.renameTemplate.mutate({ templateId: saved.id, name: 'Renamed week' });
+      const renamed = await client.mealPlan.listTemplates.query();
+      expect(renamed.find((t) => t.id === saved.id)?.name).toBe('Renamed week');
+
+      // Templates must not leak into plan history.
+      const history = await client.mealPlan.list.query({ limit: 50 });
+      expect(history.some((p) => p.id === saved.id)).toBe(false);
+    } finally {
+      await client.mealPlan.deleteTemplate.mutate({ templateId: saved.id });
+    }
+    const after = await client.mealPlan.listTemplates.query();
+    expect(after.some((t) => t.id === saved.id)).toBe(false);
+  });
+});

@@ -76,6 +76,17 @@ export interface DayPlanDto {
   meals: MealSlotDto[];
 }
 
+export const MAX_WEEK_TEMPLATES = 4;
+
+export interface TemplateSummaryDto {
+  id: string;
+  name: string;
+  isFollowed: boolean;
+  createdAt: Date;
+  mealsCount: number;
+  previewNames: string[];
+}
+
 export interface WeekPlanDto {
   planId: string;
   weekStartDate: Date;
@@ -643,7 +654,10 @@ export class MealPlanService {
     // read: "the plan continues by default" must hold on every surface that
     // reads the week, without each client opting in.
     if (!plan && weekOffset >= 0) {
-      const source = await this.repo.findLatestWithDaysBefore(userId, monday);
+      // A followed template ("My weeks") wins over the most recent plan.
+      const source =
+        (await this.repo.findFollowedTemplate(userId)) ??
+        (await this.repo.findLatestWithDaysBefore(userId, monday));
       if (source?.days.some((d) => (d.meals as unknown[]).length > 0)) {
         await this.repo.createPlan({
           userId,
@@ -829,6 +843,125 @@ export class MealPlanService {
     await this.repo.updateDayMeal(planId, dayOfWeek, mealType, recipeId);
 
     return rowToRecipeDto(recipe);
+  }
+
+  // ─── Week templates ("My weeks") ────────────────────────────────────────────
+  // Up to MAX_WEEK_TEMPLATES named saved weeks the user rotates through. All
+  // free-tier: no AI is involved anywhere in templates.
+
+  async saveAsTemplate(userId: string, planId: string, name: string): Promise<TemplateSummaryDto> {
+    const plan = await this.repo.findByIdForUser(userId, planId);
+    if (!plan || plan.isTemplate) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+    const count = await this.repo.countTemplates(userId);
+    if (count >= MAX_WEEK_TEMPLATES) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: `You can keep up to ${MAX_WEEK_TEMPLATES} week templates — delete one to save this week.`,
+      });
+    }
+    const template = await this.repo.createTemplate(
+      userId,
+      name,
+      plan.days.map((d) => ({
+        dayOfWeek: d.dayOfWeek,
+        meals: d.meals as { type: string; recipeId: string }[],
+      })),
+    );
+    const [summary] = await this.summarizeTemplates([{ ...template, days: plan.days }]);
+    return summary!;
+  }
+
+  async listTemplates(userId: string): Promise<TemplateSummaryDto[]> {
+    const templates = await this.repo.findTemplates(userId);
+    return this.summarizeTemplates(templates);
+  }
+
+  async renameTemplate(userId: string, templateId: string, name: string): Promise<void> {
+    const template = await this.repo.findTemplateById(userId, templateId);
+    if (!template) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Week template not found.' });
+    }
+    await this.repo.renameTemplate(userId, templateId, name);
+  }
+
+  async deleteTemplate(userId: string, templateId: string): Promise<void> {
+    const template = await this.repo.findTemplateById(userId, templateId);
+    if (!template) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Week template not found.' });
+    }
+    await this.repo.deleteTemplate(userId, templateId);
+  }
+
+  /**
+   * Marks the template as followed (carry-forward clones it from now on) and
+   * applies it to the requested week immediately: the existing plan for that
+   * week, if any, is archived by createPlan — one tap to switch weeks.
+   */
+  async followTemplate(
+    userId: string,
+    templateId: string,
+    weekOffset: 0 | 1,
+  ): Promise<WeekPlanDto> {
+    const template = await this.repo.findTemplateById(userId, templateId);
+    if (!template) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Week template not found.' });
+    }
+    await this.repo.setFollowedTemplate(userId, templateId);
+
+    const monday = getMondayOfWeek(weekOffset);
+    await this.repo.createPlan({
+      userId,
+      weekStartDate: monday,
+      days: template.days.map((d) => ({
+        dayOfWeek: d.dayOfWeek,
+        meals: d.meals as { type: string; recipeId: string }[],
+      })),
+      recipeIds: [],
+    });
+    const created = await this.repo.findByWeekStart(userId, monday);
+    if (!created) {
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Applying the week failed.' });
+    }
+    return this.assemblePlanDto(created, userId);
+  }
+
+  async unfollowTemplate(userId: string): Promise<void> {
+    await this.repo.setFollowedTemplate(userId, null);
+  }
+
+  private async summarizeTemplates(
+    templates: {
+      id: string;
+      name: string | null;
+      isFollowed: boolean;
+      createdAt: Date;
+      days: { meals: unknown }[];
+    }[],
+  ): Promise<TemplateSummaryDto[]> {
+    type MealSlotJson = { type: string; recipeId: string };
+    const allIds = new Set<string>();
+    for (const t of templates) {
+      for (const day of t.days) {
+        for (const m of day.meals as MealSlotJson[]) allIds.add(m.recipeId);
+      }
+    }
+    const recipeRows = await this.repo.findRecipesByIds([...allIds]);
+    const nameById = new Map(recipeRows.map((r) => [r.id, r.name]));
+
+    return templates.map((t) => {
+      const meals = t.days.flatMap((d) => d.meals as MealSlotJson[]);
+      const uniqueIds = [...new Set(meals.map((m) => m.recipeId))];
+      return {
+        id: t.id,
+        name: t.name ?? 'Saved week',
+        isFollowed: t.isFollowed,
+        createdAt: t.createdAt,
+        mealsCount: meals.length,
+        previewNames: uniqueIds.slice(0, 3).map((id) => nameById.get(id) ?? 'Unknown'),
+      };
+    });
   }
 
   async list(userId: string, limit = 10, offset = 0): Promise<MealPlanSummaryDto[]> {

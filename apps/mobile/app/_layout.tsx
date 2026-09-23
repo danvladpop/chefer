@@ -46,6 +46,7 @@ export default function RootLayout() {
             <Stack.Screen name="cook/[id]" />
             <Stack.Screen name="import-recipe" />
             <Stack.Screen name="household" />
+            <Stack.Screen name="my-weeks" />
             <Stack.Screen name="recipe-form" />
           </Stack.Protected>
           <Stack.Protected guard={token === null}>

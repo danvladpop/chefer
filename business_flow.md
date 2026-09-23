@@ -456,9 +456,13 @@ single-day view is a different information architecture, not a scaled-down grid.
 
 `mealPlan.swapRecipe` — premium: AI-generated alternative; free: random curated recipe of the same meal type (excluding the current one).
 
+### Week templates — "My weeks" (4-week rotation)
+
+Users save refined weeks as named templates (`mealPlan.saveAsTemplate`, max 4 — CONFLICT beyond) and rotate through them. `followTemplate` marks one followed (at most one) and applies it to the chosen week immediately (the existing plan for that week is archived); from then on carry-forward clones the followed template instead of the latest plan, so the followed week repeats indefinitely. `renameTemplate` / `deleteTemplate` / `unfollowTemplate` manage the set. Templates are `MealPlan` rows with `isTemplate=true`, invisible to week/active/history queries. All tiers, zero AI. UI: "My Weeks" screen on mobile (from the Plan tab) and the `WeekTemplates` panel on web's meal-plan page.
+
 ### Week carry-forward
 
-Plans continue week to week until changed: `mealPlan.getForWeek` for the current or next week, finding no plan, copies the user's most recent plan into that week (a real plan row — shopping list, tracker and swaps work on it unchanged; the source week is never touched) and returns it flagged `carriedOver: true` once, which both clients render as a "Continued from your last plan" badge. Past weeks never materialize. "Regenerate Week" still replaces the copy, so opting out is one tap. The product intent: refine one good week and keep living it, tailoring meals via the picker below.
+Plans continue week to week until changed: `mealPlan.getForWeek` for the current or next week, finding no plan, copies the followed template (if any — see "My weeks" above) or else the user's most recent plan into that week (a real plan row — shopping list, tracker and swaps work on it unchanged; the source week is never touched) and returns it flagged `carriedOver: true` once, which both clients render as a "Continued from your last plan" badge. Past weeks never materialize. "Regenerate Week" still replaces the copy, so opting out is one tap. The product intent: refine one good week and keep living it, tailoring meals via the picker below.
 
 ### Meal replace (picker)
 

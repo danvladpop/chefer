@@ -100,6 +100,19 @@ function makeRepo() {
     findByIdForUser: vi.fn().mockResolvedValue(null),
     findByWeekStart: vi.fn().mockResolvedValue(null),
     findLatestWithDaysBefore: vi.fn().mockResolvedValue(null),
+    createTemplate: vi.fn().mockResolvedValue({
+      id: 'tpl1',
+      name: 'Saved week',
+      isFollowed: false,
+      createdAt: new Date('2026-09-01'),
+    }),
+    findTemplates: vi.fn().mockResolvedValue([]),
+    findTemplateById: vi.fn().mockResolvedValue(null),
+    countTemplates: vi.fn().mockResolvedValue(0),
+    renameTemplate: vi.fn().mockResolvedValue(undefined),
+    deleteTemplate: vi.fn().mockResolvedValue(undefined),
+    setFollowedTemplate: vi.fn().mockResolvedValue(undefined),
+    findFollowedTemplate: vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -604,5 +617,118 @@ describe('MealPlanService.getForWeek carry-forward', () => {
 
     expect(result).toBeNull();
     expect(repo.createPlan).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Week templates ("My weeks") ──────────────────────────────────────────────
+
+describe('MealPlanService week templates', () => {
+  const PLAN_ROW = {
+    id: 'plan-src',
+    isTemplate: false,
+    weekStartDate: new Date('2026-09-14'),
+    days: [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'ai-r1' }] }],
+  };
+  const TEMPLATE_ROW = {
+    id: 'tpl1',
+    name: 'Mediterranean week',
+    isFollowed: false,
+    isTemplate: true,
+    createdAt: new Date('2026-09-01'),
+    weekStartDate: new Date('2026-09-01'),
+    days: [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'ai-r1' }] }],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(null);
+  });
+
+  it('saveAsTemplate copies the plan days into a named template', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_ROW);
+    repo.findRecipesByIds.mockResolvedValue([{ ...AI_RECIPE, imageStatus: 'DONE' }]);
+
+    const service = new MealPlanService(repo);
+    const summary = await service.saveAsTemplate('u1', 'plan-src', 'Mediterranean week');
+
+    expect(repo.createTemplate).toHaveBeenCalledWith('u1', 'Mediterranean week', PLAN_ROW.days);
+    expect(summary.previewNames).toEqual(['Miso Salmon']);
+    expect(summary.mealsCount).toBe(1);
+  });
+
+  it('saveAsTemplate enforces the 4-template cap with CONFLICT', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_ROW);
+    repo.countTemplates.mockResolvedValue(4);
+
+    const service = new MealPlanService(repo);
+    await expect(service.saveAsTemplate('u1', 'plan-src', 'One too many')).rejects.toMatchObject({
+      code: 'CONFLICT',
+    });
+    expect(repo.createTemplate).not.toHaveBeenCalled();
+  });
+
+  it('saveAsTemplate refuses to template a template', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({ ...PLAN_ROW, isTemplate: true });
+
+    const service = new MealPlanService(repo);
+    await expect(service.saveAsTemplate('u1', 'tpl1', 'Copy')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('followTemplate marks it followed and applies it to the requested week', async () => {
+    const repo = makeRepo();
+    repo.findTemplateById.mockResolvedValue(TEMPLATE_ROW);
+    repo.findByWeekStart.mockResolvedValue({
+      id: 'plan-applied',
+      weekStartDate: new Date('2026-09-28'),
+      days: TEMPLATE_ROW.days,
+    });
+    repo.findRecipesByIds.mockResolvedValue([{ ...AI_RECIPE, imageStatus: 'DONE' }]);
+
+    const service = new MealPlanService(repo);
+    const week = await service.followTemplate('u1', 'tpl1', 1);
+
+    expect(repo.setFollowedTemplate).toHaveBeenCalledWith('u1', 'tpl1');
+    expect(repo.createPlan).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'u1', days: TEMPLATE_ROW.days }),
+    );
+    expect(week.planId).toBe('plan-applied');
+  });
+
+  it('carry-forward prefers the followed template over the latest plan', async () => {
+    const repo = makeRepo();
+    repo.findByWeekStart
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'plan-clone',
+        weekStartDate: new Date(),
+        days: TEMPLATE_ROW.days,
+      });
+    repo.findFollowedTemplate.mockResolvedValue(TEMPLATE_ROW);
+    repo.findLatestWithDaysBefore.mockResolvedValue(PLAN_ROW);
+    repo.findRecipesByIds.mockResolvedValue([{ ...AI_RECIPE, imageStatus: 'DONE' }]);
+
+    const service = new MealPlanService(repo);
+    const result = await service.getForWeek('u1', 1);
+
+    const created = vi.mocked(repo.createPlan).mock.calls[0]![0] as { days: unknown };
+    expect(created.days).toEqual(TEMPLATE_ROW.days);
+    expect(repo.findLatestWithDaysBefore).not.toHaveBeenCalled();
+    expect(result?.carriedOver).toBe(true);
+  });
+
+  it('deleteTemplate and renameTemplate 404 on unknown ids', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    await expect(service.deleteTemplate('u1', 'nope')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(service.renameTemplate('u1', 'nope', 'X')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
   });
 });

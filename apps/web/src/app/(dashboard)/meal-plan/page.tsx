@@ -7,6 +7,7 @@ import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
+import { WeekTemplates } from '@/features/meal-plan/components/WeekTemplates';
 import { PantryUsageBanner } from '@/features/pantry/components/PantryUsageBanner';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
@@ -590,6 +591,13 @@ export default function MealPlanPage() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* My weeks — save/rotate refined week templates (4-week rotation) */}
+      {!isPast && (
+        <div className="mx-4 mb-6 sm:mx-6">
+          <WeekTemplates currentPlanId={weekOffset === 0 ? (plan?.planId ?? null) : null} />
         </div>
       )}
 

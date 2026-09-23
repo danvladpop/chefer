@@ -364,6 +364,11 @@ export default function MealPlanScreen() {
                 Regenerate Week
               </Button>
             )}
+
+            {/* My Weeks — save/rotate refined week templates */}
+            <Button testID="plan-my-weeks" variant="ghost" onPress={() => router.push('/my-weeks')}>
+              My Weeks — save & rotate plans
+            </Button>
           </ScrollView>
 
           <RecipePickerSheet

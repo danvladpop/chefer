@@ -251,11 +251,18 @@ model MealPlan {
   weekStartDate DateTime
   status        MealPlanStatus @default(DRAFT)
   createdAt     DateTime       @default(now())
+  // Week templates ("My weeks"): named saved weeks the user rotates through
+  // (capped at 4 in the service). Templates never appear in week/history
+  // queries; at most one has isFollowed=true — carry-forward clones it.
+  isTemplate    Boolean        @default(false)
+  name          String?
+  isFollowed    Boolean        @default(false)
 
   user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   days MealPlanDay[]
 
   @@index([userId])
+  @@index([userId, isTemplate])
   @@map("meal_plans")
 }
 

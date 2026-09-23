@@ -104,6 +104,54 @@ export const mealPlanRouter = router({
       );
     }),
 
+  // ─── Week templates ("My weeks") — all tiers, no AI ─────────────────────────
+
+  /** Saves a plan as a named week template (max 4 — CONFLICT beyond that). */
+  saveAsTemplate: protectedProcedure
+    .input(z.object({ planId: z.string().min(1), name: z.string().trim().min(1).max(40) }))
+    .mutation(async ({ ctx, input }) => {
+      return mealPlanService.saveAsTemplate(ctx.user.id, input.planId, input.name);
+    }),
+
+  listTemplates: protectedProcedure.query(async ({ ctx }) => {
+    return mealPlanService.listTemplates(ctx.user.id);
+  }),
+
+  renameTemplate: protectedProcedure
+    .input(z.object({ templateId: z.string().min(1), name: z.string().trim().min(1).max(40) }))
+    .mutation(async ({ ctx, input }) => {
+      await mealPlanService.renameTemplate(ctx.user.id, input.templateId, input.name);
+      return { ok: true };
+    }),
+
+  deleteTemplate: protectedProcedure
+    .input(z.object({ templateId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      await mealPlanService.deleteTemplate(ctx.user.id, input.templateId);
+      return { ok: true };
+    }),
+
+  /**
+   * Marks the template as followed (future carry-forward clones it) and
+   * applies it to the given week immediately (replaces that week's plan).
+   */
+  followTemplate: protectedProcedure
+    .input(
+      z.object({
+        templateId: z.string().min(1),
+        weekOffset: z.union([z.literal(0), z.literal(1)]).default(0),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return mealPlanService.followTemplate(ctx.user.id, input.templateId, input.weekOffset);
+    }),
+
+  /** Stops following any template — carry-forward reverts to the latest plan. */
+  unfollowTemplate: protectedProcedure.mutation(async ({ ctx }) => {
+    await mealPlanService.unfollowTemplate(ctx.user.id);
+    return { ok: true };
+  }),
+
   list: protectedProcedure
     .input(
       z.object({

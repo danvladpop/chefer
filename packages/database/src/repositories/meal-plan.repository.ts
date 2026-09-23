@@ -67,6 +67,21 @@ export interface IMealPlanRepository {
     userId: string,
     before: Date,
   ): Promise<(MealPlan & { days: MealPlanDay[] }) | null>;
+  createTemplate(
+    userId: string,
+    name: string,
+    days: { dayOfWeek: number; meals: { type: string; recipeId: string }[] }[],
+  ): Promise<MealPlan>;
+  findTemplates(userId: string): Promise<(MealPlan & { days: MealPlanDay[] })[]>;
+  findTemplateById(
+    userId: string,
+    templateId: string,
+  ): Promise<(MealPlan & { days: MealPlanDay[] }) | null>;
+  countTemplates(userId: string): Promise<number>;
+  renameTemplate(userId: string, templateId: string, name: string): Promise<void>;
+  deleteTemplate(userId: string, templateId: string): Promise<void>;
+  setFollowedTemplate(userId: string, templateId: string | null): Promise<void>;
+  findFollowedTemplate(userId: string): Promise<(MealPlan & { days: MealPlanDay[] }) | null>;
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -190,7 +205,7 @@ export class MealPlanRepository implements IMealPlanRepository {
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Archive only plans for the same week (same weekStartDate), not all active plans.
       await tx.mealPlan.updateMany({
-        where: { userId, status: MealPlanStatus.ACTIVE, weekStartDate },
+        where: { userId, status: MealPlanStatus.ACTIVE, weekStartDate, isTemplate: false },
         data: { status: MealPlanStatus.ARCHIVED },
       });
 
@@ -213,7 +228,7 @@ export class MealPlanRepository implements IMealPlanRepository {
 
   async findActiveWithDays(userId: string): Promise<(MealPlan & { days: MealPlanDay[] }) | null> {
     return prisma.mealPlan.findFirst({
-      where: { userId, status: MealPlanStatus.ACTIVE },
+      where: { userId, status: MealPlanStatus.ACTIVE, isTemplate: false },
       include: { days: { orderBy: { dayOfWeek: 'asc' } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -221,7 +236,7 @@ export class MealPlanRepository implements IMealPlanRepository {
 
   async archiveOldPlans(userId: string): Promise<void> {
     await prisma.mealPlan.updateMany({
-      where: { userId, status: MealPlanStatus.ACTIVE },
+      where: { userId, status: MealPlanStatus.ACTIVE, isTemplate: false },
       data: { status: MealPlanStatus.ARCHIVED },
     });
   }
@@ -255,7 +270,7 @@ export class MealPlanRepository implements IMealPlanRepository {
     offset = 0,
   ): Promise<(MealPlan & { days: MealPlanDay[] })[]> {
     return prisma.mealPlan.findMany({
-      where: { userId },
+      where: { userId, isTemplate: false },
       include: { days: { orderBy: { dayOfWeek: 'asc' } } },
       orderBy: { createdAt: 'desc' },
       take: limit,
@@ -266,7 +281,7 @@ export class MealPlanRepository implements IMealPlanRepository {
   async restorePlan(userId: string, planId: string): Promise<void> {
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.mealPlan.updateMany({
-        where: { userId, status: MealPlanStatus.ACTIVE },
+        where: { userId, status: MealPlanStatus.ACTIVE, isTemplate: false },
         data: { status: MealPlanStatus.ARCHIVED },
       });
       await tx.mealPlan.update({
@@ -302,7 +317,7 @@ export class MealPlanRepository implements IMealPlanRepository {
     dayEnd.setDate(dayEnd.getDate() + 1);
 
     return prisma.mealPlan.findFirst({
-      where: { userId, weekStartDate: { gte: dayStart, lt: dayEnd } },
+      where: { userId, isTemplate: false, weekStartDate: { gte: dayStart, lt: dayEnd } },
       orderBy: { createdAt: 'desc' },
       include: { days: { orderBy: { dayOfWeek: 'asc' } } },
     });
@@ -322,8 +337,93 @@ export class MealPlanRepository implements IMealPlanRepository {
     dayStart.setHours(0, 0, 0, 0);
 
     return prisma.mealPlan.findFirst({
-      where: { userId, status: MealPlanStatus.ACTIVE, weekStartDate: { lt: dayStart } },
+      where: {
+        userId,
+        status: MealPlanStatus.ACTIVE,
+        isTemplate: false,
+        weekStartDate: { lt: dayStart },
+      },
       orderBy: { weekStartDate: 'desc' },
+      include: { days: { orderBy: { dayOfWeek: 'asc' } } },
+    });
+  }
+
+  // ─── Week templates ("My weeks") ────────────────────────────────────────────
+  // Saved, named weeks the user rotates through. isTemplate=true rows are
+  // excluded from every week/active/history query above; weekStartDate is
+  // informational (creation time). The 4-template cap lives in the service.
+
+  async createTemplate(
+    userId: string,
+    name: string,
+    days: { dayOfWeek: number; meals: { type: string; recipeId: string }[] }[],
+  ): Promise<MealPlan> {
+    return prisma.mealPlan.create({
+      data: {
+        userId,
+        name,
+        isTemplate: true,
+        status: MealPlanStatus.DRAFT,
+        weekStartDate: new Date(),
+        days: { create: days.map((d) => ({ dayOfWeek: d.dayOfWeek, meals: d.meals })) },
+      },
+    });
+  }
+
+  async findTemplates(userId: string): Promise<(MealPlan & { days: MealPlanDay[] })[]> {
+    return prisma.mealPlan.findMany({
+      where: { userId, isTemplate: true },
+      include: { days: { orderBy: { dayOfWeek: 'asc' } } },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async findTemplateById(
+    userId: string,
+    templateId: string,
+  ): Promise<(MealPlan & { days: MealPlanDay[] }) | null> {
+    return prisma.mealPlan.findFirst({
+      where: { id: templateId, userId, isTemplate: true },
+      include: { days: { orderBy: { dayOfWeek: 'asc' } } },
+    });
+  }
+
+  async countTemplates(userId: string): Promise<number> {
+    return prisma.mealPlan.count({ where: { userId, isTemplate: true } });
+  }
+
+  async renameTemplate(userId: string, templateId: string, name: string): Promise<void> {
+    await prisma.mealPlan.updateMany({
+      where: { id: templateId, userId, isTemplate: true },
+      data: { name },
+    });
+  }
+
+  async deleteTemplate(userId: string, templateId: string): Promise<void> {
+    await prisma.mealPlan.deleteMany({
+      where: { id: templateId, userId, isTemplate: true },
+    });
+  }
+
+  /** Marks one template as followed (or none) — at most one per user. */
+  async setFollowedTemplate(userId: string, templateId: string | null): Promise<void> {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.mealPlan.updateMany({
+        where: { userId, isTemplate: true, isFollowed: true },
+        data: { isFollowed: false },
+      });
+      if (templateId) {
+        await tx.mealPlan.updateMany({
+          where: { id: templateId, userId, isTemplate: true },
+          data: { isFollowed: true },
+        });
+      }
+    });
+  }
+
+  async findFollowedTemplate(userId: string): Promise<(MealPlan & { days: MealPlanDay[] }) | null> {
+    return prisma.mealPlan.findFirst({
+      where: { userId, isTemplate: true, isFollowed: true },
       include: { days: { orderBy: { dayOfWeek: 'asc' } } },
     });
   }
