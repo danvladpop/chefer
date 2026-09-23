@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { MealTypeBadge } from '../../src/features/dashboard/components/meal-type-badge';
+import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sheet';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
@@ -12,7 +13,10 @@ import { trpc } from '../../src/lib/trpc';
 // Plan tab — port of apps/web (dashboard)/meal-plan/page.tsx (M2-2), which
 // already renders day-by-day on phones (DayView). Deviations, deliberate:
 // recipe-photo SSE streaming waits for M3-1; pantry/rebalance banners for
-// M2-6/M2-10; replace-from-saved picker for a follow-up (AI swap is in).
+// M2-6/M2-10. Per-meal replace opens RecipePickerSheet (pick a recipe, any
+// tier; AI regen in its footer, premium) — mobile-first, not on web yet.
+
+type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MIN_OFFSET = -1;
@@ -50,6 +54,10 @@ export default function MealPlanScreen() {
     likedCount: number;
     dislikedCount: number;
   } | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<{
+    mealType: MealType;
+    mealName: string;
+  } | null>(null);
 
   const isPremium = useIsPremium();
   const isPast = weekOffset < 0;
@@ -78,8 +86,24 @@ export default function MealPlanScreen() {
   });
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
-    onSuccess: () => void refetch(),
+    onSuccess: () => {
+      setPickerTarget(null);
+      void refetch();
+    },
   });
+
+  const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    onSuccess: () => {
+      setPickerTarget(null);
+      void refetch();
+    },
+  });
+
+  const closePicker = () => {
+    setPickerTarget(null);
+    swapMutation.reset();
+    replaceMutation.reset();
+  };
 
   const weekLabel = formatWeekLabel(getMondayOfWeek(weekOffset));
   const day = plan?.days.find((d) => d.dayOfWeek === selectedDay);
@@ -298,36 +322,23 @@ export default function MealPlanScreen() {
                       </Text>
                     </View>
                   </View>
-                  {/* AI swap — premium (admins count); quota enforced server-side */}
-                  {!isPast && isPremium === true && (
+                  {/* Replace this meal — opens the recipe picker sheet (all
+                      tiers; the AI option inside it stays premium) */}
+                  {!isPast && (
                     <Pressable
+                      testID={`plan-meal-swap-${meal.type}`}
                       accessibilityRole="button"
-                      accessibilityLabel={`Swap ${meal.recipe.name}`}
-                      disabled={swapMutation.isPending}
+                      accessibilityLabel={`Replace ${meal.recipe.name}`}
                       onPress={() =>
-                        swapMutation.mutate({
-                          planId: plan.planId,
-                          dayOfWeek: selectedDay,
-                          mealType: meal.type,
-                        })
+                        setPickerTarget({ mealType: meal.type, mealName: meal.recipe.name })
                       }
                       className="w-11 items-center justify-center border-l border-border"
                     >
-                      {swapMutation.isPending ? (
-                        <ActivityIndicator size="small" color="#944a00" />
-                      ) : (
-                        <Ionicons name="shuffle-outline" size={18} color="#944a00" />
-                      )}
+                      <Ionicons name="swap-horizontal-outline" size={18} color="#944a00" />
                     </Pressable>
                   )}
                 </Pressable>
               ))
-            )}
-
-            {swapMutation.isError && (
-              <Card className="border-red-200 bg-red-50">
-                <Text className="text-sm text-red-600">{swapMutation.error.message}</Text>
-              </Card>
             )}
 
             {/* Regenerate the whole week */}
@@ -344,6 +355,35 @@ export default function MealPlanScreen() {
               </Button>
             )}
           </ScrollView>
+
+          <RecipePickerSheet
+            visible={pickerTarget !== null}
+            mealName={pickerTarget?.mealName ?? ''}
+            busy={replaceMutation.isPending || swapMutation.isPending}
+            error={replaceMutation.error?.message ?? swapMutation.error?.message ?? null}
+            onSelect={(recipeId) => {
+              if (!pickerTarget) return;
+              replaceMutation.mutate({
+                planId: plan.planId,
+                dayOfWeek: selectedDay,
+                mealType: pickerTarget.mealType,
+                recipeId,
+              });
+            }}
+            onAiSwap={
+              isPremium === true
+                ? () => {
+                    if (!pickerTarget) return;
+                    swapMutation.mutate({
+                      planId: plan.planId,
+                      dayOfWeek: selectedDay,
+                      mealType: pickerTarget.mealType,
+                    });
+                  }
+                : undefined
+            }
+            onClose={closePicker}
+          />
         </>
       )}
     </Screen>
