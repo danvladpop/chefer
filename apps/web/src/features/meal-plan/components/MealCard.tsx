@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
-import { Clock } from 'lucide-react';
+import { ArrowLeftRight, Clock } from 'lucide-react';
 
 interface NutritionInfo {
   calories: number;
@@ -38,6 +38,8 @@ interface MealCardProps {
   variant?: 'grid' | 'row';
   /** F3 leftovers: source-day name ("Tuesday") when this slot re-plates a dinner. */
   leftoverLabel?: string | undefined;
+  /** Opens the replace-recipe sheet for this slot (hidden when absent/readOnly). */
+  onReplace?: (() => void) | undefined;
 }
 
 const MEAL_TYPE_LABELS: Record<string, string> = {
@@ -64,7 +66,25 @@ export function MealCard({
   imageStatusOverride,
   variant = 'grid',
   leftoverLabel,
+  onReplace,
 }: MealCardProps) {
+  // Cards are Links — the replace button lives inside, so stop the navigation.
+  const replaceButton = (extraClass: string) =>
+    onReplace && !readOnly ? (
+      <button
+        type="button"
+        aria-label={`Replace ${recipe.name}`}
+        data-testid={`plan-meal-swap-${mealType}`}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onReplace();
+        }}
+        className={`flex items-center justify-center text-[#944a00] transition-colors hover:bg-orange-50 ${extraClass}`}
+      >
+        <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+      </button>
+    ) : null;
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const href = `/recipes/${recipe.id}?planId=${planId}&day=${dayOfWeek}&meal=${mealType}`;
   const n = recipe.nutritionInfo;
@@ -115,6 +135,7 @@ export function MealCard({
             </span>
           </div>
         </div>
+        {replaceButton('w-11 shrink-0 self-stretch border-l border-gray-100')}
       </>
     );
 
@@ -158,6 +179,9 @@ export function MealCard({
           <span className="absolute bottom-2 left-2 rounded-full bg-emerald-100/90 px-2 py-0.5 text-[9px] font-semibold text-emerald-800 backdrop-blur-sm">
             Leftovers · {leftoverLabel.slice(0, 3)}
           </span>
+        )}
+        {replaceButton(
+          'absolute right-1.5 top-1.5 h-8 w-8 rounded-full bg-white/90 shadow-sm backdrop-blur-sm',
         )}
       </div>
 

@@ -1,4 +1,5 @@
-import { buildPickerSections } from '../../src/features/meal-plan/recipe-picker';
+import { describe, expect, it } from 'vitest';
+import { buildPickerSections } from './recipe-picker';
 
 const r = (id: string, isFavourite = false) => ({ id, isFavourite });
 

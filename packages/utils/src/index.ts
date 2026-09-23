@@ -196,3 +196,4 @@ export {
 } from './tracker';
 
 export { guessMealType, parseStepDuration } from './cook-mode';
+export { buildPickerSections, type PickerSection } from './recipe-picker';

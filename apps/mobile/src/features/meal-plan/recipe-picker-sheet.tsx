@@ -12,9 +12,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Text } from '@chefer/ui-mobile';
+import { buildPickerSections } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc } from '../../lib/trpc';
-import { buildPickerSections } from './recipe-picker';
 
 // Bottom sheet for replacing one meal slot. Primary action: pick a specific
 // recipe (free tier included — replaceRecipe has no quota). Secondary, in the

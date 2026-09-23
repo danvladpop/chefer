@@ -7,6 +7,10 @@ import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
+import {
+  ReplaceMealSheet,
+  type ReplaceTarget,
+} from '@/features/meal-plan/components/ReplaceMealSheet';
 import { WeekTemplates } from '@/features/meal-plan/components/WeekTemplates';
 import { PantryUsageBanner } from '@/features/pantry/components/PantryUsageBanner';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
@@ -100,6 +104,7 @@ export default function MealPlanPage() {
   const hasMounted = useHasMounted();
   const isPremium = useIsPremium();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [replaceTarget, setReplaceTarget] = useState<ReplaceTarget | null>(null);
   const [imageOverrides, setImageOverrides] = useState<
     Record<string, { imageUrl: string | null; status: ImageStatusType }>
   >({});
@@ -530,6 +535,14 @@ export default function MealPlanPage() {
             readOnly={isPast}
             imageOverrides={imageOverrides}
             calorieTarget={plan.calorieTarget}
+            onReplaceMeal={(mealType, mealName) =>
+              setReplaceTarget({
+                planId: plan.planId,
+                dayOfWeek: selectedDay,
+                mealType,
+                mealName,
+              })
+            }
           />
         </div>
       )}
@@ -580,6 +593,14 @@ export default function MealPlanPage() {
                           imageUrlOverride={override?.imageUrl}
                           imageStatusOverride={override?.status}
                           leftoverLabel={slot.leftoverOf}
+                          onReplace={() =>
+                            setReplaceTarget({
+                              planId: plan.planId,
+                              dayOfWeek: day.dayOfWeek,
+                              mealType: slot.type,
+                              mealName: slot.recipe.name,
+                            })
+                          }
                         />
                       );
                     })}
@@ -600,6 +621,8 @@ export default function MealPlanPage() {
           <WeekTemplates currentPlanId={weekOffset === 0 ? (plan?.planId ?? null) : null} />
         </div>
       )}
+
+      <ReplaceMealSheet target={replaceTarget} onClose={() => setReplaceTarget(null)} />
 
       {isGenerating && <GenerateOverlay premium={isPremium !== false} />}
     </div>
