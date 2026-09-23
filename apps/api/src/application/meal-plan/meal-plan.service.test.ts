@@ -547,7 +547,7 @@ describe('MealPlanService.getForWeek carry-forward', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(null as never);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(null);
   });
 
   it('clones the most recent plan into an empty next week and flags it', async () => {

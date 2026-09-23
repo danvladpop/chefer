@@ -644,7 +644,7 @@ export class MealPlanService {
     // reads the week, without each client opting in.
     if (!plan && weekOffset >= 0) {
       const source = await this.repo.findLatestWithDaysBefore(userId, monday);
-      if (source && source.days.some((d) => (d.meals as unknown[]).length > 0)) {
+      if (source?.days.some((d) => (d.meals as unknown[]).length > 0)) {
         await this.repo.createPlan({
           userId,
           weekStartDate: monday,
