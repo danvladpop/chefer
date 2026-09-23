@@ -701,13 +701,11 @@ describe('MealPlanService week templates', () => {
 
   it('carry-forward prefers the followed template over the latest plan', async () => {
     const repo = makeRepo();
-    repo.findByWeekStart
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: 'plan-clone',
-        weekStartDate: new Date(),
-        days: TEMPLATE_ROW.days,
-      });
+    repo.findByWeekStart.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      id: 'plan-clone',
+      weekStartDate: new Date(),
+      days: TEMPLATE_ROW.days,
+    });
     repo.findFollowedTemplate.mockResolvedValue(TEMPLATE_ROW);
     repo.findLatestWithDaysBefore.mockResolvedValue(PLAN_ROW);
     repo.findRecipesByIds.mockResolvedValue([{ ...AI_RECIPE, imageStatus: 'DONE' }]);
