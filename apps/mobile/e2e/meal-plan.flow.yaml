@@ -54,12 +54,22 @@ appId: dev.chefer.app
                 notVisible:
                   id: 'picker-search'
                 timeout: 5000
-# My Weeks (4-week rotation) — read-only: never save/follow (mutates the plan)
+# Week summary sheet (tap the week label) — holds the WEEK-level actions.
+# Read-only: assert Regenerate exists but NEVER tap it (real AI cost).
 - runFlow:
     when:
-      visible:
-        id: 'plan-my-weeks'
+      notVisible:
+        id: 'plan-empty'
     commands:
+      - tapOn:
+          id: 'plan-week-summary'
+      - extendedWaitUntil:
+          visible:
+            id: 'week-summary-title'
+          timeout: 10000
+      - assertVisible:
+          id: 'plan-regenerate'
+      # My Weeks (4-week rotation) lives here too — visit and come back
       - tapOn:
           id: 'plan-my-weeks'
       - extendedWaitUntil:
@@ -75,8 +85,10 @@ appId: dev.chefer.app
 
 # Week navigation (prev only: the dev-client's floating Tools bubble overlaps
 # the top-right week-next button on Android dev builds — production has no FAB)
+# The week label row is one flattened a11y element ("14 Sep – 20 Sep Past"),
+# so match the badge as a substring of it.
 - tapOn:
     id: 'plan-week-prev'
 - extendedWaitUntil:
-    visible: 'Past'
+    visible: '.*Past.*'
     timeout: 10000

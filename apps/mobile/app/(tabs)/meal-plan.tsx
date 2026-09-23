@@ -6,6 +6,7 @@ import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { MealTypeBadge } from '../../src/features/dashboard/components/meal-type-badge';
 import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sheet';
+import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
@@ -58,6 +59,7 @@ export default function MealPlanScreen() {
     mealType: MealType;
     mealName: string;
   } | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const isPremium = useIsPremium();
   const isPast = weekOffset < 0;
@@ -85,6 +87,7 @@ export default function MealPlanScreen() {
     },
     onSuccess: (data) => {
       setPersonalisation(data.personalisation ?? null);
+      setSummaryOpen(false);
       void refetch();
       invalidateDerived();
     },
@@ -139,7 +142,23 @@ export default function MealPlanScreen() {
         >
           <Ionicons name="chevron-back" size={18} color="#6b7280" />
         </Pressable>
-        <View className="flex-row items-center gap-2">
+        {/* Tapping the week label opens the WEEK summary (week-level actions
+            live there — the screen below stays day-level) */}
+        <Pressable
+          testID="plan-week-summary"
+          accessibilityRole="button"
+          // No accessibilityLabel: the Pressable flattens its children into
+          // one a11y element, so the label derives from the week text + badge
+          // ("21 Sep – 27 Sep This Week") — screen readers and Maestro both
+          // see the real content.
+          // Guard in onPress, NOT via disabled: a disabled Pressable's subtree
+          // (incl. the Past/This Week badge) drops out of the accessibility
+          // tree on iOS, blinding Maestro's text asserts.
+          onPress={() => {
+            if (plan) setSummaryOpen(true);
+          }}
+          className="min-h-11 flex-row items-center gap-2"
+        >
           <Text testID="plan-week-label" className="text-sm font-medium text-gray-700">
             {weekLabel}
           </Text>
@@ -158,7 +177,8 @@ export default function MealPlanScreen() {
               {isPast ? 'Past' : weekOffset === 0 ? 'This Week' : 'Next Week'}
             </Text>
           </View>
-        </View>
+          {plan && <Ionicons name="chevron-down" size={14} color="#9ca3af" />}
+        </Pressable>
         <Pressable
           testID="plan-week-next"
           accessibilityRole="button"
@@ -362,25 +382,6 @@ export default function MealPlanScreen() {
                 </Pressable>
               ))
             )}
-
-            {/* Regenerate the whole week */}
-            {!isPast && (
-              <Button
-                testID="plan-regenerate"
-                variant="outline"
-                loading={generateMutation.isPending}
-                onPress={() =>
-                  generateMutation.mutate({ weekOffset, ...(leftovers && { leftovers: true }) })
-                }
-              >
-                Regenerate Week
-              </Button>
-            )}
-
-            {/* My Weeks — save/rotate refined week templates */}
-            <Button testID="plan-my-weeks" variant="ghost" onPress={() => router.push('/my-weeks')}>
-              My Weeks — save & rotate plans
-            </Button>
           </ScrollView>
 
           <RecipePickerSheet
@@ -410,6 +411,40 @@ export default function MealPlanScreen() {
                 : undefined
             }
             onClose={closePicker}
+          />
+
+          <WeekSummarySheet
+            visible={summaryOpen}
+            weekLabel={weekLabel}
+            badge={isPast ? 'Past week' : weekOffset === 0 ? 'This week' : 'Next week'}
+            days={DAY_LABELS.map((label, i): DaySummary => {
+              const dayMeals = plan.days.find((d) => d.dayOfWeek === i)?.meals ?? [];
+              return {
+                label,
+                dayIndex: i,
+                mealsCount: dayMeals.length,
+                totalKcal: dayMeals.reduce((sum, m) => sum + m.recipe.nutritionInfo.calories, 0),
+                isToday: todayIndex === i,
+              };
+            })}
+            weekCostEur={weekCost}
+            isPast={isPast}
+            isPremium={isPremium === true}
+            leftovers={leftovers}
+            onToggleLeftovers={setLeftovers}
+            regenerating={generateMutation.isPending}
+            onRegenerate={() =>
+              generateMutation.mutate({ weekOffset, ...(leftovers && { leftovers: true }) })
+            }
+            onMyWeeks={() => {
+              setSummaryOpen(false);
+              router.push('/my-weeks');
+            }}
+            onSelectDay={(dayIndex) => {
+              setSelectedDay(dayIndex);
+              setSummaryOpen(false);
+            }}
+            onClose={() => setSummaryOpen(false)}
           />
         </>
       )}
