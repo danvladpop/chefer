@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -6,7 +7,7 @@ import {
   ScrollView,
   View,
 } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useFocusEffect } from 'expo-router';
 import { Card, Screen, Text } from '@chefer/ui-mobile';
 import { ChefReviewBanner } from '../../src/features/coach/chef-review-banner';
 import { WeightCard } from '../../src/features/coach/weight-card';
@@ -24,6 +25,15 @@ import { trpc } from '../../src/lib/trpc';
 // and the calorie ring is a bar (see nutrition-summary.tsx).
 export default function HomeScreen() {
   const { data: d, isLoading, refetch, isRefetching } = trpc.dashboard.summary.useQuery();
+
+  // Tab screens stay mounted, so without this the dashboard shows stale data
+  // after the plan changes on another tab (React Query only refetches on
+  // MOUNT; there is no window-focus signal in RN). Refetch on tab focus.
+  useFocusEffect(
+    useCallback(() => {
+      void refetch();
+    }, [refetch]),
+  );
 
   const isPremium = useIsPremium();
   const { data: hasProfile } = trpc.preferences.hasProfile.useQuery(undefined, {

@@ -24,6 +24,10 @@ export default function MyWeeksScreen() {
   const invalidate = () => {
     void utils.mealPlan.listTemplates.invalidate();
     void utils.mealPlan.getForWeek.invalidate();
+    // Following a template replaces the week — derived tabs must not go stale.
+    void utils.dashboard.summary.invalidate();
+    void utils.tracker.invalidate();
+    void utils.shoppingList.invalidate();
   };
 
   const saveMutation = trpc.mealPlan.saveAsTemplate.useMutation({

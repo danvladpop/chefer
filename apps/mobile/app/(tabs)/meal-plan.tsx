@@ -69,6 +69,15 @@ export default function MealPlanScreen() {
     refetch,
   } = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { retry: false });
 
+  // Everything derived from the plan lives on other (kept-mounted) tabs —
+  // invalidate it all after any plan mutation so Home/Shop don't go stale.
+  const utils = trpc.useUtils();
+  const invalidateDerived = () => {
+    void utils.dashboard.summary.invalidate();
+    void utils.tracker.invalidate();
+    void utils.shoppingList.invalidate();
+  };
+
   const generateMutation = trpc.mealPlan.generate.useMutation({
     onMutate: () => {
       setPoolExhaustedMessage(null);
@@ -77,6 +86,7 @@ export default function MealPlanScreen() {
     onSuccess: (data) => {
       setPersonalisation(data.personalisation ?? null);
       void refetch();
+      invalidateDerived();
     },
     onError: (err) => {
       if (err.data?.code === 'PRECONDITION_FAILED') {
@@ -89,6 +99,7 @@ export default function MealPlanScreen() {
     onSuccess: () => {
       setPickerTarget(null);
       void refetch();
+      invalidateDerived();
     },
   });
 
@@ -96,6 +107,7 @@ export default function MealPlanScreen() {
     onSuccess: () => {
       setPickerTarget(null);
       void refetch();
+      invalidateDerived();
     },
   });
 
