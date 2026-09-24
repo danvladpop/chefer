@@ -56,12 +56,13 @@ appId: dev.chefer.app.dev
 # pattern rather than by a fixed id).
 - copyTextFrom:
     id: '.*-sets-value$'
-- evalScript: ${output.expectedSets = Number(maestro.copiedText) + 1}
+# iOS reports the value element's full label ("3 sets"), so parse the leading int.
+- evalScript: ${output.expectedSets = parseInt(maestro.copiedText, 10) + 1}
 - tapOn:
     id: '.*-sets-inc$'
 - assertVisible:
     id: '.*-sets-value$'
-    text: '${output.expectedSets}'
+    text: '${output.expectedSets}.*'
 
 # ── Save ─────────────────────────────────────────────────────────────────────
 - tapOn:

@@ -465,31 +465,27 @@ export default function GymRoutineEditorScreen() {
 
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
+      {/* Sticky header: Back stays reachable however far the draft scrolls. */}
+      <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
+        <Pressable
+          testID="gym-routine-editor-title-back"
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={() => router.back()}
+          className="h-11 w-11 items-center justify-center rounded-full bg-gray-100"
+        >
+          <Ionicons name="chevron-back" size={22} color="#374151" />
+        </Pressable>
+        <Text testID="gym-routine-editor-title" variant="title" className="min-w-0 flex-1">
+          Edit routine
+        </Text>
+        {dirty ? (
+          <Badge testID="gym-routine-editor-dirty" variant="warning">
+            Unsaved
+          </Badge>
+        ) : null}
+      </View>
       <ScrollView contentContainerClassName="gap-4 px-4 py-4">
-        <View className="flex-row items-center gap-3">
-          <Pressable
-            testID="gym-routine-editor-title-back"
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            onPress={() => router.back()}
-            className="h-11 w-11 items-center justify-center rounded-full bg-gray-100"
-          >
-            <Ionicons name="chevron-back" size={22} color="#374151" />
-          </Pressable>
-          <Text testID="gym-routine-editor-title" variant="title" className="min-w-0 flex-1">
-            Edit routine
-          </Text>
-          <Button
-            testID="gym-routine-editor-save"
-            size="sm"
-            loading={saveMutation.isPending}
-            disabled={!isOnline || !dirty}
-            onPress={() => submitSave(draft)}
-          >
-            Save
-          </Button>
-        </View>
-
         {!isOnline ? (
           <View
             testID="gym-routine-editor-offline-banner"
@@ -535,6 +531,18 @@ export default function GymRoutineEditorScreen() {
 
         <WeeklyBalanceCard testID="gym-routine-editor-balance" volume={volume} hints={hints} />
       </ScrollView>
+
+      {/* Primary action in thumb reach (and clear of the top-right corner). */}
+      <View className="border-t border-border bg-background px-4 pb-2 pt-3">
+        <Button
+          testID="gym-routine-editor-save"
+          loading={saveMutation.isPending}
+          disabled={!isOnline || !dirty}
+          onPress={() => submitSave(draft)}
+        >
+          {dirty ? 'Save changes' : 'No changes'}
+        </Button>
+      </View>
 
       <ExercisePicker
         testID="gym-routine-editor-picker"
