@@ -1022,3 +1022,9 @@ true`, one per row in the wave tables, all launched **in a single message** so t
 ### Deviations log
 
 _(append as `n. YYYY-MM-DD: what changed and why`)_
+
+1. 2026-09-24: `integrate/gym` branched from `feat/mobile-ota-prod-builds` (PR #3 still open), as §11 allowed.
+2. 2026-09-24: G0-2 landed the schema only; the repository interfaces moved to G1-B, which owns them end to end, so no stub layer was needed.
+3. 2026-09-24: Added `Exercise.isTimed` (plank, carries: the reps fields hold seconds), `WorkoutSession.rotationAppliedAt` (makes the rotation advance exactly once), and `GymProfile.goalHistory` / `offerState` Json (weekly-goal changes, deload and offer bookkeeping).
+4. 2026-09-24: The catalog has 55 entries (54 in the plan, plus `assisted-pull-up` for the ASSISTED load type). Structure (`exercise-catalog.ts`, orchestrator-owned) is split from coaching content (`exercise-content.ts`, content-agent-owned) so the two can be worked on in parallel.
+5. 2026-09-24: The engine API was frozen as typed stubs in `packages/utils/src/gym/*` rather than type-only signatures, so G1-B and G1-C import real function names while G1-A fills in the bodies.
