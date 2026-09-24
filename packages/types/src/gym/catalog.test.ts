@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { EXERCISE_BY_ID, EXERCISE_CATALOG } from './exercise-catalog';
+import { EXERCISE_CONTENT } from './exercise-content';
 import { workoutSessionDocSchema, type WorkoutSessionDoc } from './schemas';
 import { EQUIPMENT_SWAPS, PROGRAM_TEMPLATES } from './templates';
 import { MUSCLES } from './vocab';
@@ -34,6 +35,16 @@ describe('exercise catalog invariants', () => {
       for (const line of [...e.cues, ...e.mistakes]) {
         expect(line.split(/\s+/).length, `${e.id}: "${line}"`).toBeLessThanOrEqual(12);
       }
+    }
+  });
+
+  it('has coaching content (cues, mistakes) for every catalog slug (G0-4)', () => {
+    for (const e of EXERCISE_CATALOG) {
+      const content = EXERCISE_CONTENT[e.id];
+      expect(content, `${e.id}: missing from EXERCISE_CONTENT`).toBeDefined();
+      expect(content?.cues.length, `${e.id}: cues`).toBeGreaterThanOrEqual(3);
+      expect(content?.mistakes.length, `${e.id}: mistakes`).toBe(2);
+      expect(content?.blurb, `${e.id}: blurb`).toBeTruthy();
     }
   });
 });
