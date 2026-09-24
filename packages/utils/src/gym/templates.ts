@@ -88,9 +88,7 @@ function adaptRange(
     return swapped ? [meta.repMin, meta.repMax] : [repMin, repMax];
   }
   if (access === 'DUMBBELLS' && meta.equipment === 'DUMBBELL') {
-    return meta.category === 'COMPOUND'
-      ? [Math.min(repMin, 8), Math.max(repMax, 15)]
-      : [Math.min(repMin, 12), Math.max(repMax, 20)];
+    return meta.category === 'COMPOUND' ? [8, Math.max(repMax, 15)] : [12, Math.max(repMax, 20)];
   }
   // Swapping keeps the slot's sets and reps (research §3 conventions).
   return [repMin, repMax];

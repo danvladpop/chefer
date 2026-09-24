@@ -59,6 +59,22 @@ export const VOLUME_GROUP_LABELS: Record<VolumeGroup, string> = {
   abs: 'Abs',
 };
 
+/** Singular noun for "14 quad sets". */
+const GROUP_NOUN: Record<VolumeGroup, string> = {
+  chest: 'chest',
+  back: 'back',
+  quads: 'quad',
+  hamstrings: 'hamstring',
+  glutes: 'glute',
+  'side-delts': 'side-delt',
+  'rear-delts': 'rear-delt',
+  'front-delts': 'front-delt',
+  biceps: 'biceps',
+  triceps: 'triceps',
+  calves: 'calf',
+  abs: 'ab',
+};
+
 /** Rule V1/V2/V5 apply to these (research §2.3). */
 export const MAJOR_GROUPS: readonly VolumeGroup[] = [
   'chest',
@@ -219,7 +235,7 @@ export function validateRoutine(
           level: 'info',
           group: g,
           dayIndex,
-          message: `${day.name} has ${n(frac[g].fractional)} ${VOLUME_GROUP_LABELS[g].toLowerCase()} sets. Extra sets past about 11 add little; move some to another day.`,
+          message: `${day.name} has ${n(frac[g].fractional)} ${GROUP_NOUN[g]} sets. Extra sets past about 11 add little; move some to another day.`,
         });
       }
     }

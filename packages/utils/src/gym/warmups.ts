@@ -1,6 +1,6 @@
 // Warm-up generation — research §1.9. Warm-ups never count as volume or progression.
 import type { EquipmentProfile, ExerciseSlot, WarmupSet } from '@chefer/types';
-import { KG_EPS, roundToAchievable, stepDown } from './loads';
+import { KG_EPS, roundToAchievable, stepUp } from './loads';
 
 const RAMPED_EQUIPMENT = new Set(['BARBELL', 'SMITH', 'MACHINE', 'DUMBBELL']);
 
@@ -41,12 +41,11 @@ export function warmupSets(input: {
   const out: WarmupSet[] = [];
   for (const { kg, reps } of raw) {
     const load = roundToAchievable(kg, slot, profile, 'nearest');
-    // "One step" = the gap to the next lighter achievable load.
-    const step = Math.max(load - stepDown(load, slot, profile), 2 * KG_EPS);
     const prev = out[out.length - 1];
     const tooLight = barbell && load < profile.barWeightKg - KG_EPS;
-    const nearW = W - load <= step + KG_EPS;
-    const nearPrev = prev !== undefined && load - prev.weightKg <= step + KG_EPS;
+    // "Within one step" = no more than one achievable step apart.
+    const nearW = W <= stepUp(load, slot, profile) + KG_EPS;
+    const nearPrev = prev !== undefined && load <= stepUp(prev.weightKg, slot, profile) + KG_EPS;
     if (tooLight || load <= 0 || nearW || nearPrev) {
       continue;
     }

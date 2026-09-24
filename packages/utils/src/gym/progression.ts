@@ -14,6 +14,7 @@ import type {
   TrainingExperience,
   TrainingProfileFacts,
 } from '@chefer/types';
+import { all, at, lastOr } from './arrays';
 import {
   canGoHarder,
   capIncrease,
@@ -63,17 +64,12 @@ export function progressionKey(exerciseId: string, bucket: string): string {
 
 // ─── Small helpers ───────────────────────────────────────────────────────────
 
-function all(n: number, value: number): number[] {
-  return Array.from({ length: Math.max(0, n) }, () => value);
-}
-
 /** Resize a target list to `n` sets, padding with the last target (or `fill`). */
 export function fitTargets(reps: number[], n: number, fill: number): number[] {
   if (reps.length >= n) {
     return reps.slice(0, n);
   }
-  const pad = reps[reps.length - 1] ?? fill;
-  return [...reps, ...all(n - reps.length, pad)];
+  return [...reps, ...all(n - reps.length, lastOr(reps, fill))];
 }
 
 function mid(repMin: number, repMax: number): number {
@@ -193,7 +189,7 @@ function makeSuggestion(
   return {
     kind,
     weightKg: round2(weightKg),
-    reps: fitTargets(reps, sets, reps[0] ?? 0),
+    reps: fitTargets(reps, sets, 0),
     sets,
     reasonCode,
     inputs,
@@ -318,7 +314,7 @@ function afterIncrease(c: Ctx, toKg: number): number[] {
     : targetsAfterIncrease({
         fromKg: c.W,
         toKg,
-        lastReps: c.reps[c.reps.length - 1] ?? c.repMin,
+        lastReps: lastOr(c.reps, c.repMin),
         rir: c.rir,
         repMin: c.repMin,
         repMax: c.repMax,
@@ -398,7 +394,7 @@ function normalRules(c: Ctx): { d: Decision; missStreak: number } {
     return { d: topOfRange(c), missStreak };
   }
   if (reps.every((r) => r >= repMin)) {
-    const last = reps[reps.length - 1] ?? 0;
+    const last = lastOr(reps, 0);
     if (!c.timed && c.rir !== null && c.rir >= 3 && last >= mid(repMin, repMax)) {
       const easy = addLoad(c, true);
       if (easy) {
@@ -511,9 +507,8 @@ function minCalibrationJumpKg(c: Ctx): number {
 /** Research §1.8 fast track back to the pre-break weight. */
 function reentry(c: Ctx, preBreakKg: number): { d: Decision; missStreak: number } {
   const targets = c.state.next.reps;
-  const reached = c.reps.every(
-    (r, i) => r >= (targets[i] ?? targets[targets.length - 1] ?? c.repMin),
-  );
+  const wanted = fitTargets(targets, c.reps.length, c.repMin);
+  const reached = c.reps.every((r, i) => r >= at(wanted, i, c.repMin));
   const allTop = c.reps.every((r) => r >= c.repMax);
   const good = reached && (c.rir !== null ? c.rir >= 2 : allTop);
   if (good && canGoHarder(c.W, c.slot, c.profile)) {
@@ -582,9 +577,7 @@ export function applyExposure(input: {
   const W =
     working.length > 0
       ? roundToAchievable(
-          working
-            .map((s) => s.weightKg)
-            .reduce((a, b) => easierOf(a, b, slot), working[0]?.weightKg ?? 0),
+          working.map((s) => s.weightKg).reduce((a, b) => easierOf(a, b, slot)),
           slot,
           profile,
           'nearest',
