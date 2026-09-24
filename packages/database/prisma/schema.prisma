@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // "native" for local dev. The production image is Alpine (musl) with
   // OpenSSL 3 — "native" alone resolves to the OpenSSL 1.1 musl engine there
   // and fails at runtime with `libssl.so.1.1: No such file`. Both musl
@@ -106,23 +106,29 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // Relations
-  accounts           Account[]
-  sessions           Session[]
-  posts              Post[]
-  profile            UserProfile?
-  chefProfile        ChefProfile?
-  dietaryPreferences DietaryPreferences?
-  mealPlans          MealPlan[]
-  favouriteRecipes   FavouriteRecipe[]
-  mealRatings        MealRating[]
-  dailyLogs          DailyLog[]
-  weightEntries      WeightEntry[]
-  createdRecipes     Recipe[]            @relation("CreatedRecipes")
-  aiCallLogs         AiCallLog[]
-  chefReviews        ChefReview[]
-  householdMembers   HouseholdMember[]
-  pantryItems        PantryItem[]
-  feedback           Feedback[]
+  accounts             Account[]
+  sessions             Session[]
+  posts                Post[]
+  profile              UserProfile?
+  chefProfile          ChefProfile?
+  dietaryPreferences   DietaryPreferences?
+  mealPlans            MealPlan[]
+  favouriteRecipes     FavouriteRecipe[]
+  mealRatings          MealRating[]
+  dailyLogs            DailyLog[]
+  weightEntries        WeightEntry[]
+  createdRecipes       Recipe[]              @relation("CreatedRecipes")
+  aiCallLogs           AiCallLog[]
+  chefReviews          ChefReview[]
+  householdMembers     HouseholdMember[]
+  pantryItems          PantryItem[]
+  feedback             Feedback[]
+  customExercises      Exercise[]
+  gymProfile           GymProfile?
+  routines             Routine[]
+  workoutSessions      WorkoutSession[]
+  exerciseProgressions ExerciseProgression[]
+  trainingPauses       TrainingPause[]
 
   @@index([email])
   @@map("users")
@@ -160,25 +166,25 @@ model UserProfile {
 }
 
 model ChefProfile {
-  id                 String         @id @default(cuid())
-  userId             String         @unique
-  displayName        String?
-  biologicalSex      BiologicalSex?
-  age                Int?
-  heightCm           Float?
-  weightKg           Float?
-  activityLevel      ActivityLevel?
-  goal               Goal?
-  dailyCalorieTarget Int?
-  weeklyBudgetEur    Float?
-  deliveryAddress    String?
-  deliveryCurrency   String?        @default("EUR")
-  preferredUnits     UnitSystem     @default(METRIC)
+  id                   String         @id @default(cuid())
+  userId               String         @unique
+  displayName          String?
+  biologicalSex        BiologicalSex?
+  age                  Int?
+  heightCm             Float?
+  weightKg             Float?
+  activityLevel        ActivityLevel?
+  goal                 Goal?
+  dailyCalorieTarget   Int?
+  weeklyBudgetEur      Float?
+  deliveryAddress      String?
+  deliveryCurrency     String?        @default("EUR")
+  preferredUnits       UnitSystem     @default(METRIC)
   // Adaptive Chef (F1): cumulative calorie dial applied by weekly reviews on
   // top of the computed TDEE target. resolveDailyTargets adds it AFTER the
   // goal adjustment; the protein cap runs last.
-  targetAdjustmentKcal Int          @default(0)
-  updatedAt          DateTime       @updatedAt
+  targetAdjustmentKcal Int            @default(0)
+  updatedAt            DateTime       @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -186,15 +192,15 @@ model ChefProfile {
 }
 
 model DietaryPreferences {
-  id                   String   @id @default(cuid())
-  userId               String   @unique
-  cuisinePreferences   String[]
-  dietaryRestrictions  String[]
-  allergies            String[]
-  dislikedIngredients  String[]
-  mealsPerDay          Int      @default(3)
-  servingSize          Int      @default(1)
-  updatedAt            DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  cuisinePreferences  String[]
+  dietaryRestrictions String[]
+  allergies           String[]
+  dislikedIngredients String[]
+  mealsPerDay         Int      @default(3)
+  servingSize         Int      @default(1)
+  updatedAt           DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -205,9 +211,9 @@ model Recipe {
   id            String       @id @default(cuid())
   name          String
   description   String
-  ingredients   Json         // { name: string, quantity: number, unit: string }[]
+  ingredients   Json // { name: string, quantity: number, unit: string }[]
   instructions  String[]
-  nutritionInfo Json         // { calories: number, protein: number, carbs: number, fat: number, fiber: number }
+  nutritionInfo Json // { calories: number, protein: number, carbs: number, fat: number, fiber: number }
   cuisineType   String
   dietaryTags   String[]
   prepTimeMins  Int
@@ -218,7 +224,7 @@ model Recipe {
   imageRetries  Int          @default(0)
   imagePriority Int          @default(100) // lower = generated first (0 = today)
   source        RecipeSource @default(AI)
-  sourceUrl     String?      // Cheferize (F5): provenance of imported recipes
+  sourceUrl     String? // Cheferize (F5): provenance of imported recipes
   creatorId     String?
   createdAt     DateTime     @default(now())
 
@@ -258,7 +264,7 @@ model MealPlan {
   name          String?
   isFollowed    Boolean        @default(false)
 
-  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   days MealPlanDay[]
 
   @@index([userId])
@@ -269,8 +275,8 @@ model MealPlan {
 model MealPlanDay {
   id         String @id @default(cuid())
   mealPlanId String
-  dayOfWeek  Int    // 0 = Monday … 6 = Sunday
-  meals      Json   // { type: "breakfast"|"lunch"|"dinner"|"snack", recipeId: string }[]
+  dayOfWeek  Int // 0 = Monday … 6 = Sunday
+  meals      Json // { type: "breakfast"|"lunch"|"dinner"|"snack", recipeId: string }[]
 
   mealPlan MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
 
@@ -279,12 +285,12 @@ model MealPlanDay {
 }
 
 model MealRating {
-  id        String   @id @default(cuid())
-  userId    String
-  recipeId  String
-  rating    Int      // 1–5 stars
-  notes     String?
-  ratedAt   DateTime @default(now())
+  id       String   @id @default(cuid())
+  userId   String
+  recipeId String
+  rating   Int // 1–5 stars
+  notes    String?
+  ratedAt  DateTime @default(now())
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
@@ -321,9 +327,9 @@ model ChefReview {
   weekStart      DateTime // UTC midnight of the reviewed week's Monday
   adherencePct   Int
   avgDailyKcal   Int
-  weightTrendKg  Float?   // EWMA delta over the window; null until enough data
+  weightTrendKg  Float? // EWMA delta over the window; null until enough data
   adjustmentKcal Int
-  savedEur       Float?   // pantry savings surfaced in the review (F3 seam)
+  savedEur       Float? // pantry savings surfaced in the review (F3 seam)
   reviewText     String
   createdAt      DateTime @default(now())
 
@@ -357,7 +363,7 @@ model HouseholdMember {
 model PantryItem {
   id             String   @id @default(cuid())
   userId         String
-  ingredientName String   // normalized (normalizeIngredientName)
+  ingredientName String // normalized (normalizeIngredientName)
   quantity       Float
   unit           String
   source         String   @default("PURCHASE") // PURCHASE | MANUAL
@@ -440,7 +446,7 @@ model Post {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  author User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   tags   PostTag[]
 
   @@index([authorId])
@@ -451,11 +457,11 @@ model Post {
 }
 
 model Tag {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  slug      String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   posts PostTag[]
 
@@ -475,10 +481,10 @@ model PostTag {
 }
 
 model AiCallLog {
-  id        String      @id @default(cuid())
+  id        String     @id @default(cuid())
   userId    String
   callType  AiCallType
-  createdAt DateTime    @default(now())
+  createdAt DateTime   @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -527,7 +533,7 @@ model IngredientPrice {
 model ShoppingList {
   id          String   @id @default(cuid())
   planId      String   @unique
-  items       Json     // ShoppingListItemForWeek[] minus images/prices (re-resolved)
+  items       Json // ShoppingListItemForWeek[] minus images/prices (re-resolved)
   aiGenerated Boolean  @default(false)
   checkedKeys String[] @default([]) // synced check-off state (P1-5)
   customItems Json     @default("[]") // user-added items overlaying the derived list (chat tool + manual add)
@@ -543,4 +549,275 @@ model CarrefourPriceCache {
   resolvedAt     DateTime @default(now())
 
   @@map("carrefour_price_cache")
+}
+
+// ─── Gym (gym_plan.md §2) ─────────────────────────────────────────────────────
+// Weights are kg (Float, 0.01 precision) and rendered in GymProfile.unit.
+// Anything a phone creates offline (sessions, session exercises, sets) uses a
+// CLIENT-generated UUID id so the sync upsert is idempotent. ExerciseProgression
+// is a derived cache: always recomputable by folding the engine
+// (@chefer/utils gym/progression) over completed sessions.
+
+enum ExerciseEquipment {
+  BARBELL
+  DUMBBELL
+  CABLE
+  MACHINE
+  BODYWEIGHT
+  SMITH
+  EZ_BAR
+  KETTLEBELL
+  BAND
+  ASSISTED
+}
+
+enum ExerciseLoadType {
+  WEIGHTED
+  BODYWEIGHT
+  BODYWEIGHT_PLUS
+  ASSISTED
+}
+
+enum ExerciseCategory {
+  COMPOUND
+  ISOLATION
+}
+
+enum TrainingExperience {
+  BEGINNER
+  INTERMEDIATE
+}
+
+enum GymEquipmentAccess {
+  FULL_GYM
+  DUMBBELLS
+  BODYWEIGHT
+}
+
+enum WeightUnit {
+  KG
+  LB
+}
+
+enum WorkoutStatus {
+  IN_PROGRESS
+  COMPLETED
+  DISCARDED
+}
+
+model Exercise {
+  id               String            @id // curated: stable slug; custom: cuid
+  ownerId          String? // null = curated (shared by everyone)
+  name             String
+  aliases          String[]
+  category         ExerciseCategory
+  movementPattern  String
+  equipment        ExerciseEquipment
+  loadType         ExerciseLoadType
+  primaryMuscles   String[]
+  secondaryMuscles String[]
+  repMin           Int
+  repMax           Int
+  restSec          Int
+  incrementKg      Float
+  perHand          Boolean           @default(false)
+  isLowerBody      Boolean           @default(false)
+  isTimed          Boolean           @default(false) // reps fields hold SECONDS (plank, carries)
+  swapGroup        String?
+  cues             String[]
+  mistakes         String[]
+  blurb            String?
+  imageKeys        String[]
+  videoId          String?
+  videoStartSec    Int?
+  videoChannel     String?
+  contentVersion   Int               @default(1)
+  archivedAt       DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  owner            User?             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  routineExercises RoutineExercise[]
+  sessionExercises SessionExercise[]
+
+  @@index([ownerId])
+  @@index([updatedAt])
+  @@map("exercises")
+}
+
+model GymProfile {
+  userId           String             @id
+  experience       TrainingExperience
+  equipmentAccess  GymEquipmentAccess @default(FULL_GYM)
+  unit             WeightUnit         @default(KG)
+  weeklyGoal       Int
+  /// [{ fromWeek: "YYYY-MM-DD" (Monday), goal: number }] — weeks are judged by the goal in force.
+  goalHistory      Json               @default("[]")
+  barWeightKg      Float              @default(20)
+  platePairsKg     Float[]
+  dumbbellsKg      Float[]
+  machineStepKg    Float              @default(5)
+  cableStepKg      Float              @default(2.5)
+  hasDipBelt       Boolean            @default(false)
+  microPlates      Boolean            @default(false)
+  reminderEnabled  Boolean            @default(false)
+  reminderTime     String? // "18:30" device-local
+  /// Deload / stall / recap offer bookkeeping (dismissals, active deload window).
+  offerState       Json               @default("{}")
+  setupCompletedAt DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("gym_profiles")
+}
+
+model Routine {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  templateKey String?
+  isActive    Boolean   @default(false)
+  nextDayId   String? // rotation pointer
+  version     Int       @default(1) // optimistic concurrency for document saves
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  days RoutineDay[]
+
+  @@index([userId, isActive])
+  @@map("routines")
+}
+
+model RoutineDay {
+  id             String @id @default(cuid())
+  routineId      String
+  position       Int
+  name           String
+  plannedWeekday Int? // 0 = Monday … 6 = Sunday
+
+  routine   Routine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  exercises RoutineExercise[]
+
+  @@index([routineId])
+  @@map("routine_days")
+}
+
+model RoutineExercise {
+  id            String  @id @default(cuid())
+  dayId         String
+  exerciseId    String
+  position      Int
+  sets          Int
+  repMin        Int
+  repMax        Int
+  targetRir     Int     @default(2)
+  restSec       Int
+  supersetGroup String?
+  notes         String?
+
+  day      RoutineDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  exercise Exercise   @relation(fields: [exerciseId], references: [id])
+
+  @@index([dayId])
+  @@map("routine_exercises")
+}
+
+model WorkoutSession {
+  id                String        @id // client UUID
+  userId            String
+  routineId         String?
+  routineDayId      String?
+  name              String
+  status            WorkoutStatus
+  startedAt         DateTime
+  finishedAt        DateTime?
+  localDate         String // "YYYY-MM-DD" of startedAt on the device
+  isDeload          Boolean       @default(false)
+  notes             String?
+  clientUpdatedAt   DateTime // last-write-wins guard for the sync upsert
+  engineVersion     Int
+  rotationAppliedAt DateTime? // set once, when completion advanced Routine.nextDayId
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises SessionExercise[]
+
+  @@index([userId, localDate])
+  @@index([userId, status])
+  @@map("workout_sessions")
+}
+
+model SessionExercise {
+  id                String  @id // client UUID
+  sessionId         String
+  exerciseId        String
+  routineExerciseId String?
+  position          Int
+  repMin            Int
+  repMax            Int
+  targetRir         Int
+  restSec           Int
+  skipped           Boolean @default(false)
+  swappedFromId     String?
+  lastSetRir        Int? // 0..3 (3 = "3+")
+  prescription      Json // { weightKg, reps[], reasonCode, inputs, engineVersion }
+  notes             String?
+
+  session  WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise Exercise       @relation(fields: [exerciseId], references: [id])
+  sets     SessionSet[]
+
+  @@index([sessionId])
+  @@index([exerciseId])
+  @@map("session_exercises")
+}
+
+model SessionSet {
+  id                String    @id // client UUID
+  sessionExerciseId String
+  position          Int
+  weightKg          Float // external load; ASSISTED exercises store the assistance
+  reps              Int
+  isWarmup          Boolean   @default(false)
+  completedAt       DateTime? // null = planned, not ticked
+
+  sessionExercise SessionExercise @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
+
+  @@index([sessionExerciseId])
+  @@map("session_sets")
+}
+
+model ExerciseProgression {
+  userId        String
+  exerciseId    String
+  repBucket     String // e.g. "8-12" — gym_plan.md §2.1
+  state         Json // ProgressionState (@chefer/types gym)
+  override      Json? // user-edited next targets
+  overrideAt    DateTime?
+  engineVersion Int
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, exerciseId, repBucket])
+  @@map("exercise_progressions")
+}
+
+model TrainingPause {
+  id        String   @id @default(cuid())
+  userId    String
+  startDate String // localDate, inclusive
+  endDate   String // localDate, inclusive
+  reason    String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("training_pauses")
 }

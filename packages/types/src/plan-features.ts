@@ -171,6 +171,17 @@ export const PLAN_FEATURES = {
     description: 'How many household members can share your plan.',
     upsell: false,
   },
+  gymTraining: {
+    // Free on purpose (gym_plan.md D9): the whole gym side — library, routines,
+    // offline logging, progression and stats — is free on every tier. A future
+    // premium gym tier is an edit to THIS entry, nothing else.
+    free: true,
+    premium: true,
+    label: 'Gym training & progressive overload',
+    description:
+      'Exercise library with technique videos, editable routines, offline workout logging and week-over-week progression suggestions.',
+    upsell: false,
+  },
 } as const satisfies Record<string, PlanFeature>;
 
 export type PlanFeatureKey = keyof typeof PLAN_FEATURES;
