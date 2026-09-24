@@ -23,8 +23,11 @@ import { EXERCISE_CATALOG, type ExerciseCatalogEntry } from '@chefer/types';
  * /static/exercises/<key> and proxied by Caddy (gym_plan.md §5.5). Photos are
  * named `<slug>-0.webp` (start) and `<slug>-1.webp` (end).
  */
-export const EXERCISE_STATIC_DIR = fileURLToPath(
-  new URL('../../../static/exercises/', import.meta.url),
+// (path.resolve over a URL object: the mobile app type-checks this file through
+// the AppRouter type, and DOM's URL type doesn't satisfy node's.)
+export const EXERCISE_STATIC_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../static/exercises',
 );
 export const EXERCISE_STATIC_ROUTE = '/static/exercises';
 
