@@ -53,8 +53,8 @@ export const SetRow = memo(function SetRow({
   const timed = meta?.isTimed ?? false;
   const slot = meta ? loadSlotOf(meta) : null;
   const hasLoad = loadType !== 'BODYWEIGHT';
-  const barbell =
-    meta?.equipment === 'BARBELL' || meta?.equipment === 'SMITH' || meta?.equipment === 'EZ_BAR';
+  // Plate maths assumes the profile's bar, so only real barbells get the calculator.
+  const barbell = meta?.equipment === 'BARBELL';
   const repStep = timed ? 5 : 1;
 
   const lastText = lastTime

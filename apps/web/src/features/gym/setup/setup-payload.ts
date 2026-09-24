@@ -117,7 +117,7 @@ export function previewForTemplate(
     days: draft.days.map((d, i) => ({
       name: d.name,
       plannedWeekday: d.plannedWeekday,
-      estimatedMin: estimateDurationMin(days[i]!, catalogLookup),
+      estimatedMin: days[i] ? estimateDurationMin(days[i], catalogLookup) : 0,
       exercises: d.exercises.map((e) => ({
         exerciseId: e.exerciseId,
         sets: e.sets,

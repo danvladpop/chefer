@@ -60,6 +60,15 @@ export default defineConfig({
       dependencies: ['setup'],
     },
 
+    // Gym core loop (G5): setup → workout → summary. Viewports are set per
+    // test (phone and desktop), so one Chromium project covers both.
+    {
+      name: 'gym',
+      testMatch: /gym\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], storageState: AUTH_FILE },
+      dependencies: ['setup'],
+    },
+
     // ── Public pages ─────────────────────────────────────────────────────────
     // No auth needed. Kept separate so a stale public spec cannot mask a
     // failure in the responsive suites above.

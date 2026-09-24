@@ -14,6 +14,8 @@ import {
 import { Button, Input } from '@chefer/ui';
 import { cn, unitLabel, VOLUME_GROUP_LABELS } from '@chefer/utils';
 import { CardLabel, GymCard } from '../shared/gym-card';
+import { ToggleRow } from '../shared/toggle-row';
+import { useGymData } from '../shared/use-gym-data';
 import { localDate } from '../use-gym-bootstrap';
 import {
   buildSetupPayload,
@@ -43,6 +45,10 @@ type Step = 0 | 1 | 2 | 3 | 4 | 5;
 export function SetupWizard() {
   const router = useRouter();
   const utils = trpc.useUtils();
+  // Leaving setup: back to Today if there is a profile, else out of Gym mode
+  // (/gym would just send a profile-less account straight back here).
+  const { data: existing } = useGymData();
+  const exitHref = existing?.profile ? '/gym' : '/dashboard';
   const [step, setStep] = useState<Step>(0);
   const [days, setDays] = useState(3);
   const [experience, setExperience] = useState<TrainingExperience>('BEGINNER');
@@ -219,7 +225,7 @@ export function SetupWizard() {
           prompt="Which days, roughly?"
           hint={`Pick up to ${days}. Used for your week strip; you can skip this.`}
         >
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
             {WEEKDAYS.map((label, i) => {
               const on = weekdays.includes(i);
               const full = !on && weekdays.length >= days;
@@ -245,20 +251,12 @@ export function SetupWizard() {
             })}
           </div>
           <GymCard className="mt-6">
-            <label className="flex min-h-11 items-center justify-between gap-3">
-              <span className="min-w-0">
-                <span className="block text-sm font-medium text-gray-900">Want a reminder?</span>
-                <span className="block text-xs text-gray-500">
-                  Reminders come from the Chefer phone app. Never more than one a day.
-                </span>
-              </span>
-              <input
-                type="checkbox"
-                checked={reminderOn}
-                onChange={(e) => setReminderOn(e.target.checked)}
-                className="h-6 w-6 shrink-0 accent-[#944a00]"
-              />
-            </label>
+            <ToggleRow
+              label="Want a reminder?"
+              hint="Reminders come from the Chefer phone app. Never more than one a day."
+              checked={reminderOn}
+              onChange={setReminderOn}
+            />
             {reminderOn && (
               <label className="mt-3 flex items-center justify-between gap-3 text-sm text-gray-700">
                 Time
@@ -333,7 +331,7 @@ export function SetupWizard() {
 
       {step < 5 && (
         <div className="mt-6 flex items-center justify-between gap-3">
-          <Button variant="ghost" onClick={step === 0 ? () => router.push('/gym') : back}>
+          <Button variant="ghost" onClick={step === 0 ? () => router.push(exitHref) : back}>
             <ArrowLeft aria-hidden="true" />
             Back
           </Button>
@@ -509,7 +507,8 @@ function ProgramStep({
               .map((v) => (
                 <li key={v.group} className="flex items-center gap-2 text-xs">
                   <span className="w-20 shrink-0 truncate text-gray-600">
-                    {VOLUME_GROUP_LABELS[v.group as keyof typeof VOLUME_GROUP_LABELS] ?? v.group}
+                    {(VOLUME_GROUP_LABELS as Record<string, string | undefined>)[v.group] ??
+                      v.group}
                   </span>
                   <span className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
                     <span

@@ -11,6 +11,7 @@ import { addDaysLocal, cn, formatLoadNumber, unitLabel } from '@chefer/utils';
 import { shortDate } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
 import { Stepper } from '../shared/stepper';
+import { ToggleRow } from '../shared/toggle-row';
 import { useGymData } from '../shared/use-gym-data';
 import { outbox, useOutboxStatus, type OutboxEntry } from '../workout/outbox';
 import { getGymOwner, subscribeGymOwner } from '../workout/owner';
@@ -224,13 +225,13 @@ function ProfileSettings({
         />
 
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <Toggle
+          <ToggleRow
             label="Dip belt"
             hint="Lets the engine add load to dips and pull-ups."
             checked={draft.hasDipBelt}
             onChange={(v) => setDraft((d) => ({ ...d, hasDipBelt: v }))}
           />
-          <Toggle
+          <ToggleRow
             label="Micro plates"
             hint={`${unit === 'KG' ? '0.5 kg' : '1.25 lb'} pairs for smaller jumps.`}
             checked={draft.microPlates}
@@ -264,7 +265,7 @@ function ProfileSettings({
           Reminders are sent by the Chefer phone app on your planned days. At most one a day.
         </p>
         <div className="mt-3">
-          <Toggle label="Remind me to train" checked={reminderOn} onChange={setReminderOn} />
+          <ToggleRow label="Remind me to train" checked={reminderOn} onChange={setReminderOn} />
         </div>
         {reminderOn && (
           <label className="mt-3 flex items-center justify-between gap-3 text-sm text-gray-700">
@@ -327,33 +328,6 @@ function NumberField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="mt-1"
-      />
-    </label>
-  );
-}
-
-function Toggle({
-  label,
-  hint,
-  checked,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex min-h-11 items-center justify-between gap-3 rounded-xl border px-3 py-2">
-      <span className="min-w-0">
-        <span className="block text-sm font-medium text-gray-800">{label}</span>
-        {hint && <span className="block text-xs text-gray-500">{hint}</span>}
-      </span>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-6 w-6 shrink-0 accent-[#944a00]"
       />
     </label>
   );
@@ -513,8 +487,9 @@ function NeedsAttention({ entries }: { entries: OutboxEntry[] }) {
                 variant="outline"
                 size="sm"
                 onClick={() => {
+                  // Clipboard needs a secure context (https / localhost).
                   void navigator.clipboard
-                    ?.writeText(JSON.stringify(entry.doc, null, 2))
+                    .writeText(JSON.stringify(entry.doc, null, 2))
                     .then(() => setCopied(entry.doc.id))
                     .catch(() => undefined);
                 }}
