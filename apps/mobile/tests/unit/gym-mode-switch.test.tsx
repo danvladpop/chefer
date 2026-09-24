@@ -76,6 +76,6 @@ describe('ModeSwitch', () => {
 
     await user.press(screen.getByTestId('mode-switch-food'));
     expect(getMode()).toBe('food');
-    expect(router.replace).toHaveBeenCalledWith('/');
+    expect(router.replace).toHaveBeenCalledWith('/(food)');
   });
 });

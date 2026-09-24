@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs, usePathname } from 'expo-router';
 import { shouldOpenGymHome } from '../../src/features/gym/mode-store';
@@ -8,11 +8,16 @@ import { shouldOpenGymHome } from '../../src/features/gym/mode-store';
 // Food / Gym mode switch — gym_plan.md §5.1; URLs are unchanged.)
 export default function FoodTabsLayout() {
   // "/" is home; in Gym mode home is Today (launch / sign-in in Gym mode).
-  // Decided once at mount so switching back to Food never bounces.
+  // ONE-SHOT per mount: this layout stays mounted behind the gym tabs, so a
+  // sticky decision would bounce every later switch back to Food onto /today
+  // (caught by e2e/gym-mode.flow.yaml, 2026-09-25).
   const pathname = usePathname();
-  const [openGym] = useState(() => shouldOpenGymHome(pathname));
-  if (openGym) {
-    return <Redirect href="/today" />;
+  const launchChecked = useRef(false);
+  if (!launchChecked.current) {
+    launchChecked.current = true;
+    if (shouldOpenGymHome(pathname)) {
+      return <Redirect href="/today" />;
+    }
   }
 
   return (

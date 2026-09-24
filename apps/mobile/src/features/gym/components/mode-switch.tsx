@@ -43,7 +43,9 @@ export function ModeSwitch({ className }: { className?: string }) {
   const onChange = (next: AppMode) => {
     setMode(next);
     if (next === 'food') {
-      router.replace('/');
+      // Explicit group: bare '/' also matches the guarded (auth)/index and
+      // silently no-ops while signed in (caught by e2e/gym-mode, 2026-09-25).
+      router.replace('/(food)');
       return;
     }
     router.replace('/today');

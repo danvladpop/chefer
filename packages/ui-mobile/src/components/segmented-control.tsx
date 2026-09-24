@@ -34,6 +34,14 @@ export interface SegmentedControlProps<T extends string> {
   accessibilityLabel?: string;
 }
 
+const SELECTED_SHADOW = {
+  shadowColor: '#000',
+  shadowOpacity: 0.08,
+  shadowRadius: 2,
+  shadowOffset: { width: 0, height: 1 },
+  elevation: 1,
+} as const;
+
 /** iOS-style segmented control: one selected segment, equal widths. */
 export function SegmentedControl<T extends string>({
   options,
@@ -67,8 +75,13 @@ export function SegmentedControl<T extends string>({
             }}
             className={cn(
               'min-h-11 flex-1 items-center justify-center rounded-md px-3',
-              selected && 'bg-background shadow-sm',
+              selected && 'bg-background',
             )}
+            // Shadow via `style`, never a toggled `shadow-*` class: NativeWind
+            // "upgrades" a component whose className gains a shadow at runtime,
+            // and that remount threw "Couldn't find a navigation context" on
+            // the Food/Gym switch (2026-09-25).
+            style={selected ? SELECTED_SHADOW : undefined}
           >
             <Text className={segmentTextVariants({ size, selected })}>{option.label}</Text>
           </Pressable>
