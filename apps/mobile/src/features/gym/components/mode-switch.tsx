@@ -28,14 +28,20 @@ export function ModeSwitch({ className }: { className?: string }) {
 
   const needsSetup = async (): Promise<boolean> => {
     let bootstrap = queryClient.getQueryData<GymBootstrap>(gymBootstrapQueryKey);
-    if (!bootstrap && onlineManager.isOnline()) {
-      const fetched = queryClient.fetchQuery(
-        gymBootstrapQueryOptions(queryClient, (input) => utils.client.gym.bootstrap.query(input)),
-      );
+    // A cached "no profile" may be stale (setup finished on another device),
+    // so re-check it too whenever we're online.
+    if ((bootstrap?.profile ?? null) === null && onlineManager.isOnline()) {
+      const fetched = queryClient.fetchQuery({
+        ...gymBootstrapQueryOptions(queryClient, (input) =>
+          utils.client.gym.bootstrap.query(input),
+        ),
+        staleTime: 0,
+      });
       const timeout = new Promise<undefined>((resolve) =>
         setTimeout(() => resolve(undefined), SETUP_CHECK_TIMEOUT_MS),
       );
-      bootstrap = await Promise.race([fetched.catch(() => undefined), timeout]);
+      // Offline / slow / failed → fall back to what the cache said.
+      bootstrap = (await Promise.race([fetched.catch(() => undefined), timeout])) ?? bootstrap;
     }
     return bootstrap?.profile === null;
   };
