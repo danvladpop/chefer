@@ -10,4 +10,6 @@ export const KV_KEYS = {
   outboxQuarantine: 'gym.outbox.quarantine',
   restTimer: 'gym.rest-timer',
   queryCache: 'gym.query-cache',
+  /** Dismissed weekly-balance hints per routine (research §2.3), G2-C. */
+  routineHintsDismissed: 'gym.routine.hints-dismissed',
 } as const;
