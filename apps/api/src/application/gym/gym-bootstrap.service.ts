@@ -53,7 +53,6 @@ import { progressionService, type ProgressionService } from './progression.servi
 
 /** Recent completed sessions shipped for offline history / last-time columns / PRs. */
 export const RECENT_SESSION_DAYS = 84; // 12 weeks
-const WEEKS_SHIPPED = 12;
 /** A gap this long since the last session triggers the comeback moment (research §4.2). */
 export const COMEBACK_AFTER_DAYS = 8;
 /** The monthly recap is offered during the first days of a month. */
@@ -118,7 +117,10 @@ export class GymBootstrapService {
       libraryCursor: new Date(cursorMs).toISOString(),
       progressions,
       recentSessions,
-      weeks: allWeeks.slice(-WEEKS_SHIPPED),
+      // ALL weeks since setup (tiny rows): the phone's optimistic fold
+      // (applyFinishedSession) re-derives streak + flex tokens from them, so a
+      // truncated window would drift from the server's answer while offline.
+      weeks: allWeeks,
       streak,
       offers: this.offers(ctx, progressions, allWeeks, sessionDates, today),
       bodyweightKg: latestWeight?.weightKg ?? null,
