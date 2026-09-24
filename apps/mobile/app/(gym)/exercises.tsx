@@ -1,13 +1,6 @@
-import { GymPlaceholder } from '../../src/features/gym/components/gym-placeholder';
+import { ExercisesTab } from '../../src/features/gym/library-screens/exercises-tab';
 
-// Gym tab — placeholder (G1-C); wave G2 replaces this screen's body.
+// Gym tab: search, filter and browse the exercise library (gym_plan.md §1.3).
 export default function ExercisesScreen() {
-  return (
-    <GymPlaceholder
-      variant="tab"
-      title="Exercises"
-      testID="gym-exercises-title"
-      description="Search the exercise library and your custom exercises (G2-D)."
-    />
-  );
+  return <ExercisesTab />;
 }
