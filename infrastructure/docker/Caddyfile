@@ -3,7 +3,7 @@
 # (e.g. chefer.duckdns.org) and path-routes to the two app containers.
 #
 #   /trpc/*, /api/uploads/*, /api/recipe-images/*, /api/chat, /api/health,
-#   /uploads/*                                                             -> api:3001
+#   /uploads/*, /static/exercises/*                                       -> api:3001
 #   everything else (pages, static)                                        -> web:3000
 #
 # The api and web hostnames resolve over the compose network.
@@ -28,8 +28,8 @@
 		}
 	}
 
-	# Uploaded files served statically by the API
-	@uploads path /uploads/*
+	# Uploaded files + gym exercise photos (gym_plan.md §5.5) served statically by the API
+	@uploads path /uploads/* /static/exercises/*
 	handle @uploads {
 		reverse_proxy api:3001
 	}

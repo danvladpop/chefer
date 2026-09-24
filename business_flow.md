@@ -27,6 +27,7 @@
 19. [Beta Feedback Flow](#19-beta-feedback-flow)
 20. [Native App Update Flow (OTA, M4-4)](#20-native-app-update-flow-ota-m4-4)
 21. [Gym Training Flow](#21-gym-training-flow)
+22. [Gym Setup & Workout Sync Flow (API)](#22-gym-setup--workout-sync-flow-api)
 
 ---
 
@@ -1073,3 +1074,44 @@ Weekly goal = routine days/week; the week ring fills per session; the streak
 counts consecutive goal-met weeks. Flex weeks (earn 1 per 4 met weeks, hold 2)
 auto-cover a short week; pauses (`gym.pause.*`) freeze the streak. No daily
 streaks, no red "missed" markers.
+
+## 22. Gym Setup & Workout Sync Flow (API)
+
+Server side of gym_plan.md §4/§5.2 (services in `apps/api/src/application/gym/`). Every
+`gym.*` procedure is `protectedProcedure` and free (D9). Progression, weeks, PRs and volume are
+computed by the pure engine in `@chefer/utils`; the API loads, calls it and persists.
+
+```
+Setup: gym.profile.recommend (engine only) → user picks template/days/weekdays
+  → gym.profile.completeSetup  ── ONE transaction:
+        GymProfile (unit-default plates, goalHistory, knownWeights in offerState)
+        + active Routine from the template (pointer = day 1, others deactivated)
+        + ExerciseProgression initialState per (exercise, rep bucket)
+  → returns GymBootstrap (the phone persists it)
+
+Workout (offline on the phone) → Finish → outbox → gym.session.upsertMany({ docs })
+  per doc, oldest first:
+    unknown exercise / duplicate ids / bad range ─► rejected (reason)   phone parks it
+    id owned by another user ────────────────────► rejected: forbidden
+    stored clientUpdatedAt newer ────────────────► stale                phone drops it
+    same clientUpdatedAt (retry) ────────────────► applied (no write)
+    else: upsert row + delete/recreate children ─► applied
+          COMPLETED routine session & rotationAppliedAt empty
+             → Routine.nextDayId = engine nextDayIdAfter(day)   (exactly once)
+  then ProgressionService.recompute(touched exercises):
+    all completed exposures → group by rep bucket → engine foldHistory → state
+    (overrides consumed by a newer exposure are cleared)
+  → phone invalidates gym.bootstrap → next workout + prescriptions for `today`
+```
+
+- **Re-syncs are harmless:** the same doc twice is one write; the rotation never advances twice
+  (even after later edits of the finished session).
+- **Delete / discard** of a completed session re-folds its exercises; the rotation pointer is not
+  rewound.
+- **Routine editing** is a whole-document save with `expectedVersion`; a stale version returns
+  `CONFLICT` with `error.data.conflict.current` (the server's `RoutineDto`) so the client can offer
+  "keep mine / take theirs". Moving the pointer (`setNextDay`, finished workouts) never bumps the
+  version.
+- **Offers** in the bootstrap (deload, stall, comeback after > 8 days, monthly recap on days
+  1–7) are dismissed by key via `gym.progression.dismissOffer`; `startDeload` makes the next 7 days'
+  prescriptions deloads.

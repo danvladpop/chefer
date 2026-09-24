@@ -12,6 +12,11 @@ import {
 } from './interfaces/http/middleware/auth.middleware.js';
 import { asyncHandler } from './lib/async-handler.js';
 import { env } from './lib/env.js';
+import {
+  ensureExerciseLibrary,
+  EXERCISE_STATIC_DIR,
+  EXERCISE_STATIC_ROUTE,
+} from './lib/exercise-library/ensure.js';
 import { logger } from './lib/logger.js';
 import { chatRouter } from './routers/chat.router.js';
 import { appRouter } from './routers/index.js';
@@ -108,6 +113,11 @@ app.use('/api/recipe-images', recipeImagesSseRouter);
 
 app.use('/api/uploads', uploadsRouter);
 app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d', immutable: true }));
+
+// ─── Gym exercise photos (gym_plan.md §5.5) — public-domain, self-hosted ─────
+// ExerciseDto.images are API-relative paths under this route. Not immutable:
+// a photo can be replaced under the same slug-based name.
+app.use(EXERCISE_STATIC_ROUTE, express.static(EXERCISE_STATIC_DIR, { maxAge: '7d' }));
 
 // ─── AI chef chat (P1-4) — plain-text streaming, session-authenticated ───────
 
@@ -226,6 +236,12 @@ const server = app.listen(env.PORT, env.HOST, () => {
 
   // Sunday pre-generation of next week's plan for premium users (PW-5)
   weeklyPlanWorker.start();
+
+  // Upsert the curated gym exercise library (prod never runs the seed). The
+  // gym services also call it lazily, so a failure here only delays it.
+  ensureExerciseLibrary().catch((err: unknown) => {
+    logger.error({ err }, 'exercise library ensure failed at boot');
+  });
 });
 
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────
