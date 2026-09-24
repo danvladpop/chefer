@@ -14,6 +14,12 @@ export const APP_ROUTES = [
   '/history',
   '/profile',
   '/preferences',
+  // Gym mode (gym_plan.md G5). /gym sends a profile-less account on to /gym/setup;
+  // /gym/workout without a running session renders its empty state.
+  '/gym',
+  '/gym/setup',
+  '/gym/workout',
+  '/gym/settings',
 ] as const;
 
 /** Widths from the plan's device matrix. 320 is the narrowest realistic phone. */

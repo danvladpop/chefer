@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import { cn } from '@chefer/utils';
-import { isNavItemActive, PRIMARY_NAV_ITEMS, SECONDARY_NAV_ITEMS } from '../nav-items';
+import { useAppMode } from '../mode-context';
+import { isItemActive } from '../nav-items';
 
 // ─── Mobile bottom tab bar ────────────────────────────────────────────────────
-// Four primary destinations plus a "More" button that opens the nav drawer.
+// The active mode's four primary destinations plus a "More" button that
+// opens the nav drawer.
 // Hidden at lg+, where the SideBar takes over.
 
 interface BottomNavProps {
@@ -19,9 +21,10 @@ interface BottomNavProps {
 
 export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNavProps) {
   const pathname = usePathname();
+  const { nav } = useAppMode();
 
   // "More" also lights up when the current route lives inside the drawer.
-  const isSecondaryRoute = SECONDARY_NAV_ITEMS.some((item) => isNavItemActive(pathname, item.href));
+  const isSecondaryRoute = nav.secondary.some((item) => isItemActive(pathname, item));
   const moreActive = moreOpen || isSecondaryRoute;
 
   return (
@@ -33,8 +36,9 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
       )}
     >
       <ul className="flex h-16">
-        {PRIMARY_NAV_ITEMS.map(({ href, label, shortLabel, icon: Icon }) => {
-          const active = isNavItemActive(pathname, href);
+        {nav.primary.map((item) => {
+          const { href, label, shortLabel, icon: Icon } = item;
+          const active = isItemActive(pathname, item);
           return (
             <li key={href} className="flex-1">
               <Link

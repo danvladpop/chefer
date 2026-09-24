@@ -230,6 +230,11 @@ Handles `SIGTERM` and `SIGINT`: closes HTTP server, disconnects Prisma.
 | `/(dashboard)/history/[planId]`  | Client Component | Read-only plan — week grid at `lg`+, single-day view below                                                                                                                                        |
 | `/(dashboard)/onboarding`        | Client Component | 4-step wizard (Goals → Metrics → Diet → Cuisine & Cadence)                                                                                                                                        |
 | `/(dashboard)/premium`           | Client Component | Premium showcase (premium_plan.md §6.2) — feature cards from the registry, matrix-driven Free-vs-Premium table, anchor stack, FAQ; deep-linked with `?source=` preserved into the funnel events   |
+| `/(dashboard)/gym`               | Client Component | Gym Today (G5-A): resume banner, next up (start / another day / skip), week strip + ring + streak, one offer card, last session, freestyle, sync indicator; no profile → `/gym/setup`             |
+| `/(dashboard)/gym/setup`         | Client Component | Gym setup wizard: days, experience, equipment + units, weekdays + reminder, program preview (engine-computed alternatives, weekly balance) and "I know my weights" → `completeSetup`              |
+| `/(dashboard)/gym/workout`       | Client Component | Active workout: phone = one column of exercise cards; `lg` = navigator + active card. Shared `workoutReducer`, localStorage crash-safety, rest timer, plate calculator, live PRs                  |
+| `/(dashboard)/gym/summary/[id]`  | Client Component | Workout summary: duration, sets, PRs, week ring, "Next time" per exercise with Adjust (`gym.progression.setOverride`)                                                                             |
+| `/(dashboard)/gym/settings`      | Client Component | Gym settings: units, weekly goal, equipment inventory, reminders (stored only; the phone sends them), pause, outbox "needs attention" (Copy / Retry / Discard)                                    |
 
 #### App Shell & Navigation
 
@@ -245,13 +250,39 @@ lets iOS Safari auto-hide its URL bar, keeps momentum scrolling native, and lets
 the browser restore scroll position on back-navigation.
 
 Navigation components all read `src/features/nav/nav-items.ts`, the single source
-of truth for routes:
+of truth for routes, through the active **mode** (`navFor(mode)`):
 
-| Component         | Role                                                                |
-| ----------------- | ------------------------------------------------------------------- |
-| `SideBar`         | Desktop rail, all 11 destinations (`lg`+)                           |
-| `BottomNav`       | Mobile tab bar — 4 primary destinations plus a More button (`< lg`) |
-| `MobileNavDrawer` | Slide-over holding the remaining 7, plus the plan/upgrade footer    |
+| Component         | Role                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `SideBar`         | Desktop rail (`lg`+): the `Food \| Gym` switch on top, then all of the mode's destinations              |
+| `BottomNav`       | Mobile tab bar — the mode's 4 primary destinations plus a More button (`< lg`)                          |
+| `MobileNavDrawer` | Slide-over with the `Food \| Gym` switch, the mode's remaining destinations and the plan/upgrade footer |
+| `TopHeader`       | Sticky header; carries a compact `Food \| Gym` switch below `lg`                                        |
+
+**Food / Gym mode (gym_plan.md D3, G5-A).** `FOOD_NAV_ITEMS` (the 11 food
+destinations; `NAV_ITEMS` stays as an alias) and `GYM_NAV_ITEMS` (Today `/gym`,
+Routine, Exercises, Stats; plus `/gym/settings` in the drawer / sidebar). The mode
+is **derived**, never stored in React alone (`deriveMode` in `nav-items.ts`):
+`/gym*` is Gym, a food destination is Food, and neutral pages (profile,
+preferences, premium, admin, onboarding) keep the `chefer_mode` cookie's mode.
+The `(dashboard)` layout reads that cookie server-side and passes it to
+`DashboardShell` → `ModeProvider` (`features/nav/mode-context.tsx`), so SSR
+renders the right nav with no flash. Visiting a page that belongs to a mode
+rewrites the cookie; the `ModeSwitch` writes it and navigates to `/dashboard` or
+`/gym` (which sends a profile-less account on to `/gym/setup`). The food
+dashboard's "Today's workout" card also switches to Gym.
+
+**Gym offline layer on web** (`features/gym/workout/`): the active
+`WorkoutSessionDoc` is written to localStorage on every reducer action
+(`chefer.gym.active-session`, memory fallback when storage is blocked) and
+resumed on reload; finished/discarded docs go to a localStorage outbox
+(`chefer.gym.outbox`, a port of the mobile outbox: removed only on an
+`applied`/`stale` ack, `rejected` entries parked for the user, uploads scoped to
+the confirmed owner id). `GymSync`, mounted in the shell, flushes it on `online`,
+window focus / tab visible and every 30 s, and invalidates `gym.bootstrap` after
+an ack; pages fold still-pending workouts back into the bootstrap
+(`reconcileWithPending`) so "next up" never rolls back. `/gym*` is in the
+middleware's protected routes.
 
 #### tRPC Client Setup
 

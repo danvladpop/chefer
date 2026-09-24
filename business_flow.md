@@ -1017,6 +1017,10 @@ App launch (production binary) → expo-updates asks u.expo.dev for the newest
 Weight training alongside food (plan: [`gym_plan.md`](./gym_plan.md); evidence:
 [`docs/gym/programming-research.md`](./docs/gym/programming-research.md)). Free on
 every tier (`PLAN_FEATURES.gymTraining`). Mobile first; the web port is wave G5.
+On web (G5) the same loop lives under `/gym*`: the mode comes from the URL plus a
+`chefer_mode` cookie, the active workout is kept in localStorage (resumes after a
+reload), and finished workouts upload through a localStorage outbox on
+reconnect / focus. Web reminders are stored only; the phone sends them.
 
 ### Entering Gym mode
 
