@@ -39,6 +39,7 @@ beforeAll(async () => {
 
 describe('gym engine end-to-end', () => {
   it('prescribes the known weight, then +2.5 kg after all sets hit the top of the range', async () => {
+    expect(setup.activeRoutine?.templateKey).toBe('ul4-intermediate');
     const boot = await client.gym.bootstrap.query({ today: localDate });
     const next = boot.nextWorkout;
     if (!next) throw new Error('no next workout after setup');
