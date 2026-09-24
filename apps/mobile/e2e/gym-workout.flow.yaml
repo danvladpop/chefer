@@ -1,0 +1,127 @@
+# Active workout → summary E2E — G2-A (gym_plan.md §1.3).
+# Preconditions: signed-in session (connect.yaml signs in as alice if needed)
+# and a gym profile with an active routine (run gym-setup.flow.yaml first on a
+# fresh account). Today's "Start workout" / "Resume" testIDs come from G2-B.
+# Checks: start from Today → tick every working set of the first exercise
+# (one tap each, prefilled values) → answer the RIR chip → Finish (confirming
+# the unticked-sets sheet) → the summary shows the "Next time" decisions.
+# Ends in FOOD mode so the food flows are unaffected.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+
+# ── Food → Gym Today ──────────────────────────────────────────────────────────
+- tapOn:
+    id: 'mode-switch-gym'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 15000
+
+# A workout left running by an earlier run resumes; otherwise start the next one.
+- tapOn:
+    id: 'gym-today-resume'
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'workout-title'
+    commands:
+      - tapOn:
+          id: 'gym-today-start'
+- extendedWaitUntil:
+    visible:
+      id: 'workout-title'
+    timeout: 15000
+- assertVisible:
+    id: 'workout-finish'
+- assertVisible:
+    id: 'exercise-0-suggestion'
+
+# ── Tick every working set of the first exercise ─────────────────────────────
+# Skipping the rest after each tick keeps the sticky timer bar from covering
+# the next ✓. Routines have 2–5 working sets; the later ones are optional.
+- tapOn:
+    id: 'exercise-0-set-1-check'
+- assertVisible:
+    id: 'rest-timer-remaining'
+- tapOn:
+    id: 'rest-timer-skip'
+- tapOn:
+    id: 'exercise-0-set-2-check'
+- tapOn:
+    id: 'rest-timer-skip'
+    optional: true
+- tapOn:
+    id: 'exercise-0-set-3-check'
+    optional: true
+- tapOn:
+    id: 'rest-timer-skip'
+    optional: true
+- tapOn:
+    id: 'exercise-0-set-4-check'
+    optional: true
+- tapOn:
+    id: 'rest-timer-skip'
+    optional: true
+- tapOn:
+    id: 'exercise-0-set-5-check'
+    optional: true
+- tapOn:
+    id: 'rest-timer-skip'
+    optional: true
+
+# ── RIR chip (appears after the last working set) ────────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'exercise-0-rir-2'
+    timeout: 5000
+- tapOn:
+    id: 'exercise-0-rir-2'
+# Answering collapses the question.
+- assertNotVisible:
+    id: 'exercise-0-rir-0'
+
+# ── Finish (other exercises are unticked → confirmation sheet) ───────────────
+- tapOn:
+    id: 'workout-finish'
+- extendedWaitUntil:
+    visible:
+      id: 'workout-finish-sheet-confirm'
+    timeout: 5000
+    optional: true
+- tapOn:
+    id: 'workout-finish-sheet-confirm'
+    optional: true
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'summary-title'
+    timeout: 15000
+- assertVisible:
+    id: 'summary-sets'
+- assertVisible:
+    id: 'summary-next-time'
+- assertVisible:
+    id: 'summary-next-0-direction'
+- assertVisible:
+    id: 'summary-next-0-reason'
+- tapOn:
+    id: 'summary-done'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 15000
+
+# ── Back to Food mode ─────────────────────────────────────────────────────────
+- tapOn:
+    id: 'mode-switch-food'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
