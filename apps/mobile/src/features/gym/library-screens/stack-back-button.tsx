@@ -1,6 +1,6 @@
 import { Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 
 // Manual back button for gym stack routes: the root Stack sets
 // `headerShown: false` globally (app/_layout.tsx), so every stack screen
@@ -12,7 +12,7 @@ export function StackBackButton({
   fallback = '/today',
 }: {
   testID: string;
-  fallback?: string;
+  fallback?: Href;
 }) {
   return (
     <Pressable
