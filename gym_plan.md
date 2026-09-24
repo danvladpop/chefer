@@ -1042,3 +1042,27 @@ _(append as `n. YYYY-MM-DD: what changed and why`)_
 10. 2026-09-24 (G1-B): overrides are cleared server-side once an exposure newer than
     `override.at` exists (the engine's `foldHistory` takes no overrides; "applies once" is enforced
     by the service).
+11. 2026-09-25 (G2-B): `packages/utils/src/gym/index.ts` didn't re-export `reasons.ts` (`explain`),
+    so the Today/setup screens had no way to import it — added `export * from './reasons'`. Purely
+    additive; no other export changed.
+12. 2026-09-25 (G2-B): `apps/mobile/jest.config.js`'s `transformIgnorePatterns` never matched a
+    transitive, non-hoisted pnpm dependency (`.pnpm/@expo+vector-icons@<v>/node_modules/@expo/vector-icons/`)
+    because the old `(?:\\.pnpm/)?` prefix assumed the package name followed `.pnpm/` directly.
+    Any screen importing `@expo/vector-icons` (Ionicons, used by the setup/settings back button and
+    already used elsewhere in the app) failed to even parse under Jest. Fixed the regex to skip the
+    whole hashed pnpm directory (`(?:\\.pnpm/[^/]+/node_modules/)?`) before matching. No other
+    behavior changes.
+13. 2026-09-25 (G2-B): setup's "Choose another program" preview is computed **on-device** from the
+    curated catalog (`EXERCISE_BY_ID` from `@chefer/types`) and the shared engine
+    (`instantiateTemplate` / `estimateDurationMin` / `volumeByGroup` from `@chefer/utils`) —
+    `apps/mobile/src/features/gym/setup/template-preview.ts` — rather than adding a new
+    `profile.recommend`-like endpoint per alternative. `profile.recommend` is still called once per
+    setup for the recommendation reason, the alternatives list and the "needs a connection" gate;
+    switching between alternatives afterwards needs no further round trip and works offline. This
+    mirrors exactly what `gymProfileService.recommend()` does server-side.
+14. 2026-09-25 (G2-B): Settings' "end a pause early" (`pause.end`, needs a pause `id`) has nothing
+    to call it with — neither `GymProfileDto` nor `GymBootstrap` exposes the active pause's id
+    (`packages/types/src/gym/{dto,schemas}.ts` are frozen, and `apps/api` is out of G2-B's file
+    ownership). Settings shows "Training is paused this week" (derived from `bootstrap.weeks`) with
+    no end-early action. "Pause training" (create) is fully wired. Needs a follow-up: add
+    `activePause: { id, startDate, endDate, reason } | null` to `GymBootstrap`.
