@@ -96,6 +96,19 @@ const config: Config = {
         shimmer: {
           '100%': { transform: 'translateX(100%)' },
         },
+        // Exercise detail's start/end photo loop (gym_plan.md §1.3, §5.5). Two
+        // stacked images, each fading in and out a half-cycle apart so the
+        // photo underneath is always the one that just faded out.
+        'gym-photo-a': {
+          '0%, 45%': { opacity: '1' },
+          '50%, 95%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'gym-photo-b': {
+          '0%, 45%': { opacity: '0' },
+          '50%, 95%': { opacity: '1' },
+          '100%': { opacity: '0' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -105,6 +118,8 @@ const config: Config = {
         'slide-in-from-left': 'slide-in-from-left 0.25s ease-out',
         'slide-in-from-bottom': 'slide-in-from-bottom 0.25s ease-out',
         'fade-in-overlay': 'fade-in-overlay 0.2s ease-out',
+        'gym-photo-a': 'gym-photo-a 4s ease-in-out infinite',
+        'gym-photo-b': 'gym-photo-b 4s ease-in-out infinite',
       },
     },
   },
