@@ -1,13 +1,7 @@
-import { GymPlaceholder } from '../../src/features/gym/components/gym-placeholder';
+import { WorkoutScreen } from '../../src/features/gym/workout/workout-screen';
 
-// Gym stack route — placeholder (G1-C); wave G2 replaces this screen's body.
+// Active workout (G2-A, gym_plan.md §1.3). Full-screen, swipe-back disabled in
+// the root Stack; Android back offers "Minimise" instead of leaving.
 export default function GymWorkoutScreen() {
-  return (
-    <GymPlaceholder
-      variant="stack"
-      title="Workout"
-      testID="gym-workout-title"
-      description="The active workout: set rows, rest timer and Finish (G2-A)."
-    />
-  );
+  return <WorkoutScreen />;
 }
