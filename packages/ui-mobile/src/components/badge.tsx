@@ -1,3 +1,4 @@
+import { Children } from 'react';
 import { Text, View, type ViewProps } from 'react-native';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@chefer/utils';
@@ -41,10 +42,15 @@ export interface BadgeProps extends ViewProps, VariantProps<typeof badgeVariants
 
 /** Small status pill (PR, Deload, Synced…). Display-only — not a touch target. */
 export function Badge({ variant, className, children, ...props }: BadgeProps) {
+  // `Server version {n}` arrives as ['Server version ', 2] — any all-text
+  // children must still land inside a Text (RN throws on bare strings).
+  const parts = Children.toArray(children);
+  const textual =
+    parts.length > 0 && parts.every((c) => typeof c === 'string' || typeof c === 'number');
   return (
     <View className={cn(badgeVariants({ variant }), className)} {...props}>
-      {typeof children === 'string' || typeof children === 'number' ? (
-        <Text className={badgeTextVariants({ variant })}>{children}</Text>
+      {textual ? (
+        <Text className={badgeTextVariants({ variant })}>{parts.join('')}</Text>
       ) : (
         children
       )}

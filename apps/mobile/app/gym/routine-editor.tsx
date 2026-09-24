@@ -345,7 +345,7 @@ export default function GymRoutineEditorScreen() {
 
   const routineQuery = trpc.gym.routine.get.useQuery(
     { id: routineId },
-    { enabled: routineId !== '' },
+    { enabled: routineId !== '', staleTime: 0 },
   );
   const saveMutation = trpc.gym.routine.save.useMutation();
 
@@ -360,13 +360,17 @@ export default function GymRoutineEditorScreen() {
     setDraft((prev) => routineDraftReducer(prev, action));
 
   useEffect(() => {
+    // Only seed the draft from data fetched NOW (or the cache when offline):
+    // a cached pre-save copy carries an old version and the next save would
+    // report a phantom "changed on another device" conflict.
     if (loadedRef.current || !routineQuery.data) return;
+    if (!routineQuery.isFetchedAfterMount && isOnline) return;
     loadedRef.current = true;
     const initial = routineDtoToDraft(routineQuery.data);
     setDraft(initial);
     setBaseline(initial);
     setTemplateKey(routineQuery.data.templateKey);
-  }, [routineQuery.data]);
+  }, [routineQuery.data, routineQuery.isFetchedAfterMount, isOnline]);
 
   const dirty = baseline !== null && !draftsEqual(draft, baseline);
 
@@ -411,6 +415,8 @@ export default function GymRoutineEditorScreen() {
           const next = routineDtoToDraft(dto);
           setDraft(next);
           setBaseline(next);
+          utils.gym.routine.get.setData({ id: dto.id }, dto);
+          void utils.gym.routine.list.invalidate();
           void utils.gym.bootstrap.invalidate();
         },
         onError: (error) => {
