@@ -16,4 +16,33 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
+// Runtime singletons MUST resolve to the app's own copy. Workspace packages
+// (@chefer/ui-mobile) have their own devDependency copies, and pnpm can pick a
+// different peer variant for them (e.g. nativewind built against another
+// react-native-worklets) — a second react-native-css-interop instance then
+// breaks context lookups ("Couldn't find a navigation context", 2026-09-24).
+const SINGLETONS = [
+  'react',
+  'react-native',
+  'nativewind',
+  'react-native-css-interop',
+  'react-native-reanimated',
+  'react-native-worklets',
+  'react-native-safe-area-context',
+  'react-native-svg',
+  'react-native-screens',
+  '@react-navigation/native',
+  'expo-router',
+];
+const upstreamResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  const isSingleton = SINGLETONS.some(
+    (name) => moduleName === name || moduleName.startsWith(`${name}/`),
+  );
+  const ctx = isSingleton
+    ? { ...context, originModulePath: path.join(projectRoot, 'package.json') }
+    : context;
+  return (upstreamResolveRequest ?? context.resolveRequest)(ctx, moduleName, platform);
+};
+
 module.exports = withNativeWind(config, { input: './global.css' });
