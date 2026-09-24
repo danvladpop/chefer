@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { localDateSchema } from '@chefer/types';
 import { gymBootstrapService } from '../../application/gym/gym-bootstrap.service.js';
 import { protectedProcedure, router } from '../../lib/trpc.js';
+import { gymExportRouter } from './export.router.js';
 import { gymLibraryRouter } from './library.router.js';
 import { gymPauseRouter } from './pause.router.js';
 import { gymProfileRouter } from './profile.router.js';
@@ -38,4 +39,5 @@ export const gymRouter = router({
   progression: gymProgressionRouter,
   stats: gymStatsRouter,
   pause: gymPauseRouter,
+  export: gymExportRouter,
 });
