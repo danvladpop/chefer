@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn, formatQuantity } from '@chefer/utils';
+import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { parseCustomItemInput } from '../../src/features/shopping-list/parse-custom-item';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
@@ -138,8 +139,11 @@ export default function ShoppingListScreen() {
 
   if (isLoading) {
     return (
-      <Screen className="items-center justify-center">
-        <ActivityIndicator size="large" color="#944a00" />
+      <Screen>
+        <ModeSwitch className="mt-3" />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#944a00" />
+        </View>
       </Screen>
     );
   }
@@ -147,6 +151,7 @@ export default function ShoppingListScreen() {
   return (
     <Screen className="px-0">
       <ScrollView contentContainerClassName="gap-4 px-4 py-4">
+        <ModeSwitch />
         {/* Header + week navigator */}
         <View className="flex-row items-center justify-between gap-2">
           <View>

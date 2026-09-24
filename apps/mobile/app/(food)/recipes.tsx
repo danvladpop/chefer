@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
 import { Button, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
@@ -63,6 +64,7 @@ export default function RecipesScreen() {
   return (
     <Screen className="px-0">
       <View className="gap-3 px-4 pb-2 pt-4">
+        <ModeSwitch />
         <View className="flex-row items-end justify-between">
           <View>
             <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">

@@ -3,6 +3,7 @@ import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { clearToken } from '../../src/lib/auth-store';
 import { CURRENT_BUILD } from '../../src/lib/current-build';
 import { trpc } from '../../src/lib/trpc';
@@ -76,7 +77,8 @@ export default function MoreScreen() {
 
   return (
     <Screen className="gap-4 px-0">
-      <Text variant="title" className="px-4 pt-4">
+      <ModeSwitch className="mx-4 mt-3" />
+      <Text variant="title" className="px-4">
         More
       </Text>
       <ScrollView contentContainerClassName="gap-4 px-4 pb-8">

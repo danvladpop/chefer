@@ -1,8 +1,20 @@
+import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs, usePathname } from 'expo-router';
+import { shouldOpenGymHome } from '../../src/features/gym/mode-store';
 
-// Mirrors PRIMARY_NAV_ITEMS + "More" from apps/web/src/features/nav/nav-items.ts.
-export default function TabsLayout() {
+// Food mode tab bar. Mirrors PRIMARY_NAV_ITEMS + "More" from
+// apps/web/src/features/nav/nav-items.ts. (Renamed from `(tabs)` for the
+// Food / Gym mode switch — gym_plan.md §5.1; URLs are unchanged.)
+export default function FoodTabsLayout() {
+  // "/" is home; in Gym mode home is Today (launch / sign-in in Gym mode).
+  // Decided once at mount so switching back to Food never bounces.
+  const pathname = usePathname();
+  const [openGym] = useState(() => shouldOpenGymHome(pathname));
+  if (openGym) {
+    return <Redirect href="/today" />;
+  }
+
   return (
     <Tabs
       screenOptions={{
