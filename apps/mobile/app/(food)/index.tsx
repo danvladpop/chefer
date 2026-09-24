@@ -15,6 +15,7 @@ import { HeroMealCard } from '../../src/features/dashboard/components/hero-meal-
 import { MealTypeBadge } from '../../src/features/dashboard/components/meal-type-badge';
 import { NutritionSummary } from '../../src/features/dashboard/components/nutrition-summary';
 import { WeekOutlook } from '../../src/features/dashboard/components/week-outlook';
+import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
@@ -44,23 +45,30 @@ export default function HomeScreen() {
 
   if (isLoading) {
     return (
-      <Screen className="items-center justify-center">
-        <ActivityIndicator size="large" color="#944a00" />
+      <Screen>
+        <ModeSwitch className="mt-3" />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#944a00" />
+        </View>
       </Screen>
     );
   }
 
   if (!d) {
     return (
-      <Screen className="items-center justify-center gap-2">
-        <Text variant="muted">Couldn&apos;t load your dashboard.</Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => void refetch()}
-          className="min-h-11 justify-center px-4"
-        >
-          <Text className="font-semibold text-primary">Try again</Text>
-        </Pressable>
+      <Screen>
+        {/* Offline in the gym: the switch must work even when food data can't load. */}
+        <ModeSwitch className="mt-3" />
+        <View className="flex-1 items-center justify-center gap-2">
+          <Text variant="muted">Couldn&apos;t load your dashboard.</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void refetch()}
+            className="min-h-11 justify-center px-4"
+          >
+            <Text className="font-semibold text-primary">Try again</Text>
+          </Pressable>
+        </View>
       </Screen>
     );
   }
@@ -77,6 +85,8 @@ export default function HomeScreen() {
           <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
         }
       >
+        <ModeSwitch />
+
         {/* Header */}
         <View>
           <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">

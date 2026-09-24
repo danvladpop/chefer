@@ -1,0 +1,73 @@
+# Food / Gym mode switch E2E — G1-C (gym_plan.md D3, §5.1).
+# Precondition: signed-in session (connect.yaml signs in as alice if needed).
+# Checks: the switch swaps tab bars, the gym tabs + placeholders render, the
+# mode survives a cold relaunch, and switching back lands on the food Home.
+# Ends in FOOD mode so the food flows are unaffected.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+
+# ── Food → Gym ────────────────────────────────────────────────────────────────
+- tapOn:
+    id: 'mode-switch-gym'
+# No gym profile yet (once the API is live) → Setup opens on top of Today;
+# back out of it to Today.
+- extendedWaitUntil:
+    visible:
+      id: 'gym-setup-title'
+    timeout: 8000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'gym-setup-title'
+    commands:
+      - tapOn:
+          id: 'gym-setup-title-back'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 15000
+
+# Gym tab bar. iOS labels read "Routine, tab, 2 of 4"; Android's are bare.
+- tapOn: 'Routine(, tab.*)?'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-routine-title'
+    timeout: 10000
+- tapOn: 'Exercises(, tab.*)?'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-exercises-title'
+    timeout: 10000
+- tapOn: 'Stats(, tab.*)?'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-stats-title'
+    timeout: 10000
+- tapOn: 'Today(, tab.*)?'
+- assertVisible:
+    id: 'gym-today-title'
+
+# ── The mode survives a cold relaunch ─────────────────────────────────────────
+- runFlow: common/launch.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 90000
+- assertNotVisible:
+    id: 'home-title'
+
+# ── Gym → Food ────────────────────────────────────────────────────────────────
+- tapOn:
+    id: 'mode-switch-food'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+- assertVisible:
+    id: 'week-outlook'

@@ -104,7 +104,7 @@ chefer/
 │   └── mobile/               # NEW — Expo app
 │       ├── app/              # expo-router file-based routes
 │       │   ├── (auth)/       #   login, register
-│       │   ├── (tabs)/       #   dashboard, meal-plan, tracker, recipes, more
+│       │   ├── (food)/       #   dashboard, meal-plan, tracker, recipes, more (was (tabs); gym_plan.md §5.1)
 │       │   └── _layout.tsx   #   root: providers (tRPC, Query, theme, auth gate)
 │       ├── src/
 │       │   ├── lib/          #   trpc.ts, auth-store.ts, env.ts, api-url.ts
@@ -318,7 +318,7 @@ improvising installs.
   `x-chefer-client: mobile` (always). On tRPC `UNAUTHORIZED`: clear token, route to login
   (mirror of web's `makeQueryClient()` 401 handling in `apps/web/src/lib/trpc.ts`).
 - Root `_layout.tsx`: QueryClientProvider + trpc.Provider + auth gate (token present →
-  `(tabs)`, else `(auth)`); splash until the initial `auth.me` resolves.
+  `(food)`, formerly `(tabs)`; else `(auth)`); splash until the initial `auth.me` resolves.
 
 **Verify:** contract tests (M1-4) are the real proof; until then,
 `pnpm --filter @chefer/mobile typecheck` and a Jest test for the headers callback.
@@ -365,7 +365,7 @@ It's the loop an agent can run in seconds, headless, against the real API.
 
 Login + register under `(auth)/`, react-hook-form + the same Zod schemas as web (lift
 shared schemas into `@chefer/types` if they currently live web-side), error states, link
-between the two. Success → store token → `(tabs)`.
+between the two. Success → store token → `(food)` (formerly `(tabs)`).
 
 **Verify:** RNTL tests (validation, submit calls mutation — mock tRPC); Maestro flow
 `e2e/auth.flow.yaml`: launch → register a unique user → land on dashboard → logout →
@@ -394,7 +394,7 @@ follows the same contract:
    From the moment your feature merges, the CLAUDE.md Platform Parity rule applies to it:
    future web changes to this feature must update mobile in the same task.
 3. Extend `tests/contract/` with the procedures the screen consumes (before UI work).
-4. Build screens in `app/(tabs)/…` + `src/features/<feature>/` (mirror web's feature dir
+4. Build screens in `app/(food)/…` (formerly `(tabs)`; gym screens: `app/(gym)/…`, `app/gym/…`) + `src/features/<feature>/` (mirror web's feature dir
    naming exactly). Reusable primitives go to `packages/ui-mobile`, not copy-paste.
 5. RNTL component tests for logic-bearing components (loading/error/empty/success).
 6. One Maestro flow per feature: `e2e/<feature>.flow.yaml`, using a seeded account

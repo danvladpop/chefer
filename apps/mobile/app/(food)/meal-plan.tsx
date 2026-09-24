@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { MealTypeBadge } from '../../src/features/dashboard/components/meal-type-badge';
+import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sheet';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
@@ -127,6 +128,7 @@ export default function MealPlanScreen() {
 
   return (
     <Screen className="px-0">
+      <ModeSwitch className="mx-4 mt-3" />
       {/* Week navigator */}
       <View className="flex-row items-center justify-between gap-2 px-4 py-3">
         <Pressable
