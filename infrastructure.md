@@ -279,9 +279,11 @@ development→iOS-simulator dev client, development-device, preview, production)
 Being built
 out per [`mobile_native_plan.md`](./mobile_native_plan.md); currently: auth
 (login/register/logout via Bearer session), NativeWind theme (web's brand
-tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors
-`apps/web/src/features/nav/nav-items.ts`), and the three-layer test harness
-(Jest+RNTL unit, Vitest contract vs the live API, Maestro E2E in `e2e/`).
+tokens), a **Food / Gym mode switch** (gym_plan.md D3) between two tab
+shells — Food: Home/Plan/Recipes/Shop/More (mirrors
+`apps/web/src/features/nav/nav-items.ts`); Gym: Today/Routine/Exercises/Stats —
+and the three-layer test harness (Jest+RNTL unit, Vitest contract vs the live
+API, Maestro E2E in `e2e/`).
 
 - **Stack:** expo-router (file-based, deep-link scheme `chefer://`; the dev
   variant uses `chefer-dev://`), expo-dev-client, expo-updates (EAS Update),
@@ -322,12 +324,12 @@ tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors
 | ---------------------- | ------------------------------------------------------------------------ | ------------------------------------ |
 | `(auth)/login`         | Sign in                                                                  | `/login`                             |
 | `(auth)/register`      | Create account                                                           | `/register`                          |
-| `(tabs)/` (index)      | Dashboard: week outlook, nutrition summary, hero meal, favourites (M2-1) | `/dashboard`                         |
-| `(tabs)/meal-plan`     | Placeholder (M2-2)                                                       | `/meal-plan`                         |
-| `(tabs)/recipes`       | Recipe list: tabs, search, optimistic favourites (M2-3)                  | `/recipes`                           |
+| `(food)/` (index)      | Dashboard: week outlook, nutrition summary, hero meal, favourites (M2-1) | `/dashboard`                         |
+| `(food)/meal-plan`     | Placeholder (M2-2)                                                       | `/meal-plan`                         |
+| `(food)/recipes`       | Recipe list: tabs, search, optimistic favourites (M2-3)                  | `/recipes`                           |
 | `recipe/[id]`          | Recipe detail: scaled ingredients, instructions, nutrition (M2-3)        | `/recipes/[id]`                      |
-| `(tabs)/shopping-list` | Placeholder (M2-5)                                                       | `/shopping-list`                     |
-| `(tabs)/more`          | Secondary nav hub + sign out                                             | mobile drawer                        |
+| `(food)/shopping-list` | Placeholder (M2-5)                                                       | `/shopping-list`                     |
+| `(food)/more`          | Secondary nav hub + sign out                                             | mobile drawer                        |
 | `tracker`              | Daily log: check-off, portions, custom entries, targets (M2-4)           | `/tracker`                           |
 | `pantry`               | Kitchen inventory, premium add/remove, free upsell (M2-6)                | `/pantry`                            |
 | `preferences`          | Free safety prefs + premium units/budget (M2-7)                          | `/preferences`                       |
@@ -339,6 +341,67 @@ tokens), the five-tab shell (Home/Plan/Recipes/Shop/More — mirrors
 | `import-recipe`        | F5 import: URL/text preview + premium save                               | Import sheet                         |
 | `recipe-form`          | Manual recipe create/edit                                                | `/recipes/new`, `/recipes/[id]/edit` |
 | `household`            | F2 household members (premium add, open list/remove)                     | preferences section                  |
+| `(gym)/today`          | Gym Today: next up, week ring, resume (placeholder, G2-B)                | — (G5)                               |
+| `(gym)/routine`        | Active routine + weekly balance (placeholder, G2-C)                      | — (G5)                               |
+| `(gym)/exercises`      | Exercise library (placeholder, G2-D)                                     | — (G5)                               |
+| `(gym)/stats`          | Strength / volume / consistency stats (placeholder, G2-D)                | — (G5)                               |
+| `gym/setup`            | Gym setup wizard (placeholder, G2-B)                                     | — (G5)                               |
+| `gym/workout`          | Active workout, full-screen, no swipe-back (placeholder, G2-A)           | — (G5)                               |
+| `gym/summary/[id]`     | Post-workout summary (placeholder, G2-A)                                 | — (G5)                               |
+| `gym/session/[id]`     | Past session detail (placeholder, G2-B)                                  | — (G5)                               |
+| `gym/routine-editor`   | Routine editor (placeholder, G2-C)                                       | — (G5)                               |
+| `gym/routines`         | My routines (placeholder, G2-C)                                          | — (G5)                               |
+| `gym/exercise/[id]`    | Exercise detail (placeholder, G2-D)                                      | — (G5)                               |
+| `gym/exercise-form`    | Custom exercise form (placeholder, G2-D)                                 | — (G5)                               |
+| `gym/settings`         | Gym settings + sync status (placeholder, G2-B)                           | — (G5)                               |
+
+**Food / Gym mode (gym_plan.md D3, §5.1).** `(food)` and `(gym)` are two
+`Tabs` groups registered side by side in the root `Stack` (groups add no URL
+segment, so the gym tabs are not `index`). `src/features/gym/mode-store.ts`
+persists `'food' | 'gym'` in the gym KV store (synchronous read, so the first
+frame already knows it). A plain launch or sign-in opens `/`; the `(food)`
+layout redirects that to `/today` when the persisted mode is Gym. `<ModeSwitch/>`
+(`src/features/gym/components/mode-switch.tsx`, ui-mobile `SegmentedControl`)
+sits in the header of every tab root in both groups and calls
+`router.replace('/')` / `router.replace('/today')`; switching to Gym while the
+persisted `gym.bootstrap` says `profile === null` also pushes `/gym/setup`.
+
+**Gym offline layer (gym_plan.md D6, §5.2; `src/features/gym/offline/`).**
+Workout logging never needs a connection:
+
+- `kv.ts` — synchronous JSON KV over `expo-sqlite/kv-store` (database
+  `chefer-gym.db`; in-memory fallback under Jest). Keys live in `keys.ts`.
+- `active-session-store.ts` — the in-progress `WorkoutSessionDoc`, written with
+  `setItemSync` on every reducer action (crash-safe; unreadable payloads are
+  quarantined, never deleted). `use-active-workout.ts` wraps the shared engine
+  reducer: `start` / `dispatch` / `finish` / `discard`, resume on launch.
+- `outbox.ts` — persisted queue of finished/discarded docs sent to
+  `gym.session.upsertMany` in batches of ≤ 20. An entry leaves ONLY on an
+  `applied`/`stale` ack (or an explicit user discard of a parked entry);
+  `rejected` or locally-invalid docs are parked for the user; network errors
+  back off exponentially (5 s → 5 min). Flushes on reconnect, foreground, after
+  each enqueue and every 30 s while non-empty (`sync-triggers.ts`); a success
+  invalidates `gym.bootstrap`. `useOutboxStatus()` exposes pending / parked /
+  lastSyncAt.
+- `checkpoint.ts` — while online, the active doc is upserted as `IN_PROGRESS`
+  at most once a minute (best effort).
+- `owner.ts` — entries are stamped with the user id; only the user confirmed
+  by `auth.me` for the CURRENT token may upload them, so one account's
+  workouts are never sent with another's session.
+- Read model: the root layout uses `PersistQueryClientProvider` with an
+  async-storage persister over the KV store (`query-persistence.ts`). Only
+  successful `gym.*` tRPC queries are persisted (`maxAge` 30 days, `buster`
+  `${ENGINE_VERSION}:1`); gym queries use `networkMode: 'offlineFirst'` and
+  `gcTime: Infinity` (30 days in ms overflows the 32-bit timer). NetInfo feeds
+  `onlineManager` and AppState feeds `focusManager` (`connectivity.ts`).
+- `use-gym-bootstrap.ts` — `useGymBootstrap()` uses an input-free query key
+  (the device's `today` is sent as input, not keyed, so the cache survives
+  midnight), merges `librarySince` deltas into the cached library, and re-folds
+  finished-but-unsent outbox docs. `applyFinishedLocally(doc)` runs the engine's
+  `applyFinishedSession` on the cached bootstrap after Finish.
+- `gym-sync-provider.tsx` — mounted in the root layout; wires the outbox sender,
+  triggers, checkpointing and the rest-timer notification bridge
+  (`rest-timer.ts`: absolute `endsAt`, local notification while backgrounded).
 
 ---
 
