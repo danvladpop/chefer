@@ -1,13 +1,7 @@
-import { GymPlaceholder } from '../../src/features/gym/components/gym-placeholder';
+import { StatsTab } from '../../src/features/gym/stats/stats-tab';
 
-// Gym tab — placeholder (G1-C); wave G2 replaces this screen's body.
+// Gym tab: strength trends, weekly sets, consistency, PRs and monthly recap
+// (gym_plan.md §1.3).
 export default function StatsScreen() {
-  return (
-    <GymPlaceholder
-      variant="tab"
-      title="Stats"
-      testID="gym-stats-title"
-      description="Strength trends, weekly sets and consistency (G2-D)."
-    />
-  );
+  return <StatsTab />;
 }

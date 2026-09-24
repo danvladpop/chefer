@@ -1,13 +1,8 @@
-import { GymPlaceholder } from '../../src/features/gym/components/gym-placeholder';
+import { useLocalSearchParams } from 'expo-router';
+import { ExerciseFormScreen } from '../../src/features/gym/library-screens/exercise-form-screen';
 
-// Gym stack route — placeholder (G1-C); wave G2 replaces this screen's body.
+// Gym stack route: create or edit a custom exercise (gym_plan.md §1.3).
 export default function GymExerciseFormScreen() {
-  return (
-    <GymPlaceholder
-      variant="stack"
-      title="New exercise"
-      testID="gym-exercise-form-title"
-      description="Create a custom exercise (G2-D)."
-    />
-  );
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  return <ExerciseFormScreen exerciseId={id} />;
 }
