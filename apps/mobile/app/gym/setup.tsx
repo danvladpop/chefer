@@ -1,13 +1,6 @@
-import { GymPlaceholder } from '../../src/features/gym/components/gym-placeholder';
+import { SetupWizard } from '../../src/features/gym/setup/setup-wizard';
 
-// Gym stack route — placeholder (G1-C); wave G2 replaces this screen's body.
+// Gym stack route (G2-B): the setup stepper (gym_plan.md §1.3).
 export default function GymSetupScreen() {
-  return (
-    <GymPlaceholder
-      variant="stack"
-      title="Set up your training"
-      testID="gym-setup-title"
-      description="Days per week, experience and equipment, then a recommended routine (G2-B)."
-    />
-  );
+  return <SetupWizard />;
 }

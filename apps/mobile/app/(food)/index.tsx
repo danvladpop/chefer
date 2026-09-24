@@ -16,6 +16,7 @@ import { MealTypeBadge } from '../../src/features/dashboard/components/meal-type
 import { NutritionSummary } from '../../src/features/dashboard/components/nutrition-summary';
 import { WeekOutlook } from '../../src/features/dashboard/components/week-outlook';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { TodaysWorkoutCard } from '../../src/features/gym/today/todays-workout-card';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
@@ -137,6 +138,8 @@ export default function HomeScreen() {
         <NutritionSummary nutrition={d.nutrition} />
 
         <WeightCard />
+
+        <TodaysWorkoutCard />
 
         {heroMeal ? (
           <HeroMealCard meal={heroMeal} isTomorrow={heroIsTomorrow} />
