@@ -2,9 +2,9 @@
 // calls a service in application/gym/. All procedures are protectedProcedure:
 // PLAN_FEATURES.gymTraining is free on every tier (D9).
 import { z } from 'zod';
-import { localDateSchema, type GymBootstrap } from '@chefer/types';
+import { localDateSchema } from '@chefer/types';
+import { gymBootstrapService } from '../../application/gym/gym-bootstrap.service.js';
 import { protectedProcedure, router } from '../../lib/trpc.js';
-import { notImplemented } from './_stub.js';
 import { gymLibraryRouter } from './library.router.js';
 import { gymPauseRouter } from './pause.router.js';
 import { gymProfileRouter } from './profile.router.js';
@@ -25,7 +25,12 @@ export const gymRouter = router({
         })
         .optional(),
     )
-    .query(() => notImplemented<GymBootstrap>('bootstrap')),
+    .query(({ ctx, input }) =>
+      gymBootstrapService.get(ctx.user.id, {
+        librarySince: input?.librarySince,
+        today: input?.today,
+      }),
+    ),
   library: gymLibraryRouter,
   profile: gymProfileRouter,
   routine: gymRoutineRouter,

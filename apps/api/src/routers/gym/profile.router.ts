@@ -2,24 +2,23 @@ import {
   completeSetupInputSchema,
   recommendInputSchema,
   saveGymProfileInputSchema,
-  type GymBootstrap,
-  type GymProfileDto,
-  type RecommendResultDto,
 } from '@chefer/types';
+import { gymProfileService } from '../../application/gym/gym-profile.service.js';
+import { assertWithinRateLimit } from '../../lib/rate-limit.js';
 import { protectedProcedure, router } from '../../lib/trpc.js';
-import { notImplemented } from './_stub.js';
 
 export const gymProfileRouter = router({
-  get: protectedProcedure.query(() => notImplemented<GymProfileDto | null>('profile.get')),
+  get: protectedProcedure.query(({ ctx }) => gymProfileService.get(ctx.user.id)),
   save: protectedProcedure
     .input(saveGymProfileInputSchema)
-    .mutation(() => notImplemented<GymProfileDto>('profile.save')),
+    .mutation(({ ctx, input }) => gymProfileService.save(ctx.user.id, input)),
   /** Pure engine call — no DB; powers the setup preview. */
   recommend: protectedProcedure
     .input(recommendInputSchema)
-    .query(() => notImplemented<RecommendResultDto>('profile.recommend')),
+    .query(({ input }) => gymProfileService.recommend(input)),
   /** Creates profile + active routine + initial progressions; returns a fresh bootstrap. */
-  completeSetup: protectedProcedure
-    .input(completeSetupInputSchema)
-    .mutation(() => notImplemented<GymBootstrap>('profile.completeSetup')),
+  completeSetup: protectedProcedure.input(completeSetupInputSchema).mutation(({ ctx, input }) => {
+    assertWithinRateLimit('gym.completeSetup', ctx.user.id, 20, 60 * 60 * 1000);
+    return gymProfileService.completeSetup(ctx.user.id, input);
+  }),
 });
