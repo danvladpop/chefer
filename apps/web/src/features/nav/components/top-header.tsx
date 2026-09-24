@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { ChevronDown, LogOut, Menu, Settings, ShieldCheck, User } from 'lucide-react';
 import { cn } from '@chefer/utils';
+import { ModeSwitch } from './mode-switch';
 
 interface TopHeaderProps {
   title: string;
@@ -42,6 +43,9 @@ export function TopHeader({ title, onOpenMenu }: TopHeaderProps) {
       <h1 className="min-w-0 flex-1 truncate font-serif text-lg font-semibold text-gray-900 sm:text-xl">
         {title}
       </h1>
+
+      {/* Food | Gym below lg — the SideBar carries it at lg+. */}
+      <ModeSwitch compact className="lg:hidden" />
 
       {!isLoading && user && (
         <div className="relative shrink-0">

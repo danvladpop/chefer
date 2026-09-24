@@ -8,11 +8,13 @@ import { PlanFooterCard } from '@/features/premium/components/PlanFooterCard';
 import { X } from 'lucide-react';
 import { Drawer } from '@chefer/ui';
 import { cn } from '@chefer/utils';
-import { isNavItemActive, SECONDARY_NAV_ITEMS } from '../nav-items';
+import { useAppMode } from '../mode-context';
+import { isItemActive } from '../nav-items';
+import { ModeSwitch } from './mode-switch';
 
 // ─── Mobile navigation drawer ─────────────────────────────────────────────────
-// Holds the six destinations that don't fit in the bottom tab bar, plus the
-// plan/upgrade footer that lives in the desktop sidebar.
+// Holds the Food | Gym switch, the active mode's destinations that don't fit
+// in the bottom tab bar, plus the plan/upgrade footer from the desktop sidebar.
 
 interface MobileNavDrawerProps {
   open: boolean;
@@ -21,6 +23,7 @@ interface MobileNavDrawerProps {
 
 export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
   const pathname = usePathname();
+  const { nav } = useAppMode();
 
   // Navigating from inside the drawer should dismiss it. Keyed on pathname so
   // it fires after the route actually changes, not on click.
@@ -49,11 +52,17 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
         </button>
       </div>
 
+      {/* Food | Gym (gym_plan.md D3) */}
+      <div className="shrink-0 border-b px-3 py-3">
+        <ModeSwitch />
+      </div>
+
       {/* Secondary nav links */}
       <nav aria-label="More" className="flex-1 overflow-y-auto overscroll-contain px-3 py-4">
         <ul className="space-y-0.5">
-          {SECONDARY_NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const active = isNavItemActive(pathname, href);
+          {nav.secondary.map((item) => {
+            const { href, label, icon: Icon } = item;
+            const active = isItemActive(pathname, item);
             return (
               <li key={href}>
                 <Link

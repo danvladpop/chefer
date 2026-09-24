@@ -5,11 +5,14 @@ import { usePathname } from 'next/navigation';
 import { FeedbackNavButton } from '@/features/feedback/components/FeedbackDialog';
 import { PlanFooterCard } from '@/features/premium/components/PlanFooterCard';
 import { cn } from '@chefer/utils';
-import { isNavItemActive, NAV_ITEMS } from '../nav-items';
+import { useAppMode } from '../mode-context';
+import { isItemActive } from '../nav-items';
+import { ModeSwitch } from './mode-switch';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 // Desktop-only (lg+) full navigation rail. Below lg the BottomNav and
-// MobileNavDrawer cover the same destinations — all three read NAV_ITEMS.
+// MobileNavDrawer cover the same destinations — all three read the active
+// mode's items (navFor), and each carries the Food | Gym switch.
 
 interface SideBarProps {
   className?: string;
@@ -17,6 +20,7 @@ interface SideBarProps {
 
 export function SideBar({ className }: SideBarProps) {
   const pathname = usePathname();
+  const { nav } = useAppMode();
 
   return (
     <aside className={cn('flex h-dvh w-56 shrink-0 flex-col border-r bg-white', className)}>
@@ -28,11 +32,17 @@ export function SideBar({ className }: SideBarProps) {
         <span className="text-[15px] font-semibold tracking-tight text-[#944a00]">Chefer</span>
       </div>
 
+      {/* Food | Gym (gym_plan.md D3) */}
+      <div className="border-b px-3 py-3">
+        <ModeSwitch />
+      </div>
+
       {/* Nav links */}
       <nav aria-label="Primary" className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const isActive = isNavItemActive(pathname, href);
+          {nav.all.map((item) => {
+            const { href, label, icon: Icon } = item;
+            const isActive = isItemActive(pathname, item);
             return (
               <li key={href}>
                 <Link
