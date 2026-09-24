@@ -11,3 +11,6 @@ export * from './weeks';
 export * from './deload';
 export * from './session';
 export * from './workout-reducer';
+// Reason-code → sentence explanations (research §1.11/§1.12). Not re-exported
+// until now: G2-B (Today / active-workout "Why?" copy) is the first caller.
+export * from './reasons';
