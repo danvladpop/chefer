@@ -76,6 +76,11 @@ const config = {
         cameraPermission: 'Chefer uses the camera to scan meals you are about to eat.',
       },
     ],
+    // Gym (gym_plan.md §5.6): offline store, cached exercise photos, local
+    // reminders + rest-timer notifications. One native batch, one rebuild.
+    'expo-sqlite',
+    'expo-image',
+    ['expo-notifications', { color: '#944a00' }],
   ],
   // OTA updates via EAS Update. The fingerprint policy hashes the native
   // layer, so an update only reaches binaries with identical native code —
