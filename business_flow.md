@@ -26,6 +26,7 @@
 18. [Zero-Waste Pantry Flow (F3)](#18-zero-waste-pantry-flow-f3)
 19. [Beta Feedback Flow](#19-beta-feedback-flow)
 20. [Native App Update Flow (OTA, M4-4)](#20-native-app-update-flow-ota-m4-4)
+21. [Gym Training Flow](#21-gym-training-flow)
 
 ---
 
@@ -1007,3 +1008,68 @@ App launch (production binary) → expo-updates asks u.expo.dev for the newest
   `update <id>`).
 - Dev builds (`Chefer Dev`) keep loading JS from Metro on the Mac; they
   never receive production updates.
+
+---
+
+## 21. Gym Training Flow
+
+Weight training alongside food (plan: [`gym_plan.md`](./gym_plan.md); evidence:
+[`docs/gym/programming-research.md`](./docs/gym/programming-research.md)). Free on
+every tier (`PLAN_FEATURES.gymTraining`). Mobile first; the web port is wave G5.
+
+### Entering Gym mode
+
+```
+Food/Gym switch (header of every tab root) → persisted mode
+  ├─ no GymProfile → /gym/setup
+  │     days/week → experience → equipment + units → weekdays/reminder
+  │     → gym.profile.recommend (pure engine: template + volume hints)
+  │     → "Help me find my weights" (calibration) | "I know my weights"
+  │     → gym.profile.completeSetup  (profile + active routine + initial progressions)
+  └─ profile exists → Gym tabs: Today / Routine / Exercises / Stats
+```
+
+### The daily loop (offline-first)
+
+```
+Today: gym.bootstrap (persisted on the phone) → "Next up: <day>" with targets
+  → Start → workoutReducer.startSession (warm-ups + prefilled working sets)
+  → every tap: reducer action → SQLite KV write (crash-safe, resumable)
+  → Finish → summary ("next time" decisions) → outbox.enqueue(doc)
+      → optimistic: engine.applyFinishedSession on the cached bootstrap
+      → flush when online: gym.session.upsertMany (idempotent by client UUID)
+          → server: ownership + clientUpdatedAt checks → write doc
+          → advance rotation once (rotationAppliedAt) → recompute progressions
+      → invalidate gym.bootstrap
+```
+
+- The routine is a **rotation, not a calendar**: "next up" is the next day in
+  sequence; missed days roll forward and are never marked failed.
+- Outbox entries are removed only on an `applied`/`stale` ack; a `rejected`
+  doc is parked for the user — workouts are never dropped silently.
+
+### Progression (deterministic, explainable)
+
+Double progression inside the slot's rep range (research §1): all sets at the
+top → add the smallest achievable load; otherwise add reps. The optional
+last-set RIR chip (0/1/2/3+) only adjusts (bigger jump when easy, consolidate
+at failure). Misses hold once then drop ~10 %; three stalled exposures reset to
+90 %; breaks > 2 weeks re-enter lighter and fast-track back. Every suggestion
+carries a reason code shown as one sentence plus a "Why?" sheet.
+`ExerciseProgression` is a derived cache — the server re-folds the engine over
+completed sessions, so late offline syncs and deleted sessions stay consistent.
+
+### Editing at three levels (D5)
+
+| Level    | Where                                                                                        | Effect                                                              |
+| -------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Routine  | Routine tab → editor (`gym.routine.save`, optimistic version)                                | Days, exercises, sets, rep ranges, rest, order, planned weekdays    |
+| Week/day | Today → "Do another day" / "Skip" (`gym.routine.setNextDay`); pre-start and in-session edits | Session-only unless the user picks "Update routine"                 |
+| Targets  | Summary "Adjust" / routine "Next targets" (`gym.progression.setOverride`)                    | Overrides the next prescription once; the engine resumes afterwards |
+
+### Consistency mechanics
+
+Weekly goal = routine days/week; the week ring fills per session; the streak
+counts consecutive goal-met weeks. Flex weeks (earn 1 per 4 met weeks, hold 2)
+auto-cover a short week; pauses (`gym.pause.*`) freeze the streak. No daily
+streaks, no red "missed" markers.
