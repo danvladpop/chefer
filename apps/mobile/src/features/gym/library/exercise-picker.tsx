@@ -25,7 +25,7 @@ const GROUP_FILTERS: { value: VolumeGroup; label: string }[] = (
   Object.keys(VOLUME_GROUPS) as VolumeGroup[]
 ).map((group) => ({
   value: group,
-  label: group === 'back' ? 'Back' : (MUSCLE_LABELS[group as keyof typeof MUSCLE_LABELS] ?? group),
+  label: (MUSCLE_LABELS as Record<string, string | undefined>)[group] ?? 'Back',
 }));
 
 function matchesGroup(exercise: ExerciseDto, group: VolumeGroup): boolean {
