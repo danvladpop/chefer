@@ -1049,6 +1049,25 @@ Today: gym.bootstrap (persisted on the phone) → "Next up: <day>" with targets
 - Outbox entries are removed only on an `applied`/`stale` ack; a `rejected`
   doc is parked for the user — workouts are never dropped silently.
 
+### In the active workout (`gym/workout`, G2-A)
+
+```
+Set row: [− weight +] [− reps +] ✓  (prefilled from the suggestion)
+  ✓ → completeSet with the shown values → rest timer (working sets only) + haptic
+  − / + → next ACHIEVABLE load for the equipment (engine stepUp/stepDown);
+          a weight change carries to the later unticked sets that had the old weight
+  tap weight → plate calculator (barbell/smith) or keypad; tap reps → keypad
+Last working set ticked → optional RIR chips (0/1/2/3+), highlighted while calibrating;
+  the finished exercise stays open until answered / "Not now" / ticking elsewhere
+⋯ menu → swap (just today | today + routine), skip, add/remove set, move, note, history
+  "today + routine" → gym.routine.save (online only; one CONFLICT rebase onto the
+  server's routine, else the swap stays today-only)
+Finish → confirm if working sets are unticked → finish() → summary
+  Summary "Next time" reads the optimistically folded cached progressions;
+  Adjust → gym.progression.setOverride (online only)
+Android back / ⌄ → minimise (the session stays resumable from Today); Discard is confirmed
+```
+
 ### Progression (deterministic, explainable)
 
 Double progression inside the slot's rep range (research §1): all sets at the

@@ -346,8 +346,8 @@ API, Maestro E2E in `e2e/`).
 | `(gym)/exercises`      | Exercise library (placeholder, G2-D)                                     | — (G5)                               |
 | `(gym)/stats`          | Strength / volume / consistency stats (placeholder, G2-D)                | — (G5)                               |
 | `gym/setup`            | Gym setup wizard (placeholder, G2-B)                                     | — (G5)                               |
-| `gym/workout`          | Active workout, full-screen, no swipe-back (placeholder, G2-A)           | — (G5)                               |
-| `gym/summary/[id]`     | Post-workout summary (placeholder, G2-A)                                 | — (G5)                               |
+| `gym/workout`          | Active workout: set rows, rest bar, RIR, swap/skip, finish (G2-A)        | — (G5)                               |
+| `gym/summary/[id]`     | Post-workout summary: PRs, week ring, "Next time" + Adjust (G2-A)        | — (G5)                               |
 | `gym/session/[id]`     | Past session detail (placeholder, G2-B)                                  | — (G5)                               |
 | `gym/routine-editor`   | Routine editor (placeholder, G2-C)                                       | — (G5)                               |
 | `gym/routines`         | My routines (placeholder, G2-C)                                          | — (G5)                               |
