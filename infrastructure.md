@@ -359,7 +359,13 @@ src/
 │   ├── meal-plan.repository.ts          # MealPlanRepository + IMealPlanRepository
 │   ├── favourite-recipe.repository.ts   # FavouriteRecipeRepository + IFavouriteRecipeRepository
 │   ├── meal-rating.repository.ts        # MealRatingRepository + IMealRatingRepository
-│   └── chef-review.repository.ts        # ChefReviewRepository + IChefReviewRepository (F1)
+│   ├── chef-review.repository.ts        # ChefReviewRepository + IChefReviewRepository (F1)
+│   ├── exercise.repository.ts           # Gym: curated + custom exercises
+│   ├── gym-profile.repository.ts        # Gym: profile + transactional completeSetup
+│   ├── routine.repository.ts            # Gym: routine document replace (version check), setActive, pointer
+│   ├── workout-session.repository.ts    # Gym: idempotent session upsert + once-only rotation claim
+│   ├── exercise-progression.repository.ts # Gym: derived progression cache + overrides
+│   └── training-pause.repository.ts     # Gym: streak pauses
 ├── index.ts           # Public exports
 └── seed.ts            # Development seed script
 prisma/
@@ -694,6 +700,23 @@ Store-agnostic price + nutrition vocabulary — self-building from all recipe in
 | path      | String?  | App route the user sent it from          |
 | createdAt | DateTime | Indexed `[userId, createdAt]`            |
 
+**Gym models** (gym_plan.md §2.2; schema from G0-2, repositories + services from G1-B). Weights are
+kg (`Float`, 0.01 precision) rendered in `GymProfile.unit`. Ids a phone creates offline
+(sessions, session exercises, sets) are **client UUIDs** so the sync upsert is idempotent.
+
+| Model                 | Key / relations                                                  | Notes                                                                                                                                                                                                                                                                                 |
+| --------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Exercise`            | `id` = curated slug or custom UUID; `ownerId?` → User (cascade)  | `ownerId = null` = curated, upserted from `@chefer/types` `EXERCISE_CATALOG` at API boot (`ensureExerciseLibrary`, `contentVersion` bumps on content change, dropped slugs archived). Custom rows are owner-only and archived, never deleted. `imageKeys` → `/static/exercises/<key>` |
+| `GymProfile`          | `userId` PK → User (cascade)                                     | Setup answers + equipment inventory. JSON: `goalHistory` `[{ fromWeek (Monday), goal }]`; `offerState` (API-owned) `{ dismissed: {key→ISO}, deload: {startDate,endDate} \| null, knownWeightsKg: {exerciseId→kg} }`                                                                   |
+| `Routine`             | `userId` → User; `days` RoutineDay[] (cascade)                   | One `isActive` per user. `version` = optimistic concurrency for document saves (bumped only by `routine.save`). `nextDayId` = rotation pointer (NOT document content; moved by completed sessions and `setNextDay`)                                                                   |
+| `RoutineDay`          | `routineId` (cascade); `exercises` RoutineExercise[] (cascade)   | `position`, `plannedWeekday` 0 = Mon … 6 = Sun                                                                                                                                                                                                                                        |
+| `RoutineExercise`     | `dayId` (cascade); `exerciseId` → Exercise                       | A slot: sets, rep range, target RIR, rest, superset group. Ids survive document saves when the client sends them back                                                                                                                                                                 |
+| `WorkoutSession`      | `id` client UUID; `userId` → User                                | Full synced document. `clientUpdatedAt` = last-write-wins guard; `rotationAppliedAt` = set once when completion advanced `Routine.nextDayId` (re-syncs never advance twice). `localDate` is the device's date                                                                         |
+| `SessionExercise`     | `id` client UUID; `sessionId` (cascade); `exerciseId` → Exercise | Snapshot of the slot at start + `prescription` JSON (the engine Suggestion shown); deleted + recreated on every applied upsert                                                                                                                                                        |
+| `SessionSet`          | `id` client UUID; `sessionExerciseId` (cascade)                  | `completedAt null` = planned, not ticked                                                                                                                                                                                                                                              |
+| `ExerciseProgression` | PK `[userId, exerciseId, repBucket]`                             | **Derived cache**: `state` is recomputed by folding the engine over completed sessions (`ProgressionService.recompute`). `override` (user-edited next targets) survives recomputes and is cleared once an exposure newer than it is logged                                            |
+| `TrainingPause`       | `userId` → User                                                  | Inclusive localDate range that freezes the streak (≤ 35 days, no overlaps)                                                                                                                                                                                                            |
+
 ### Enums
 
 ```prisma
@@ -708,6 +731,14 @@ enum RecipeSource   { AI  MANUAL  CURATED }
 enum UnitSystem     { METRIC  IMPERIAL }
 enum ImageStatus    { PENDING  GENERATING  DONE  FAILED }
 enum AiCallType     { MEAL_PLAN  RECIPE_SWAP  SHOPPING_LIST  IMAGE_GENERATION  INGREDIENT_PRICES  CHAT  SCAN  RECIPE_IMPORT }
+// Gym (gym_plan.md §2.2)
+enum ExerciseEquipment  { BARBELL  DUMBBELL  CABLE  MACHINE  BODYWEIGHT  SMITH  EZ_BAR  KETTLEBELL  BAND  ASSISTED }
+enum ExerciseLoadType   { WEIGHTED  BODYWEIGHT  BODYWEIGHT_PLUS  ASSISTED }
+enum ExerciseCategory   { COMPOUND  ISOLATION }
+enum TrainingExperience { BEGINNER  INTERMEDIATE }
+enum GymEquipmentAccess { FULL_GYM  DUMBBELLS  BODYWEIGHT }
+enum WeightUnit         { KG  LB }
+enum WorkoutStatus      { IN_PROGRESS  COMPLETED  DISCARDED }
 ```
 
 ---
@@ -861,6 +892,68 @@ piece/clove/…) to the base families and computes per-line price estimates.
 `apps/api/src/application/pantry/pantry.service.ts`. The user's kitchen inventory over `IPantryItemRepository` (+ `IMealPlanRepository`, both constructor-injected). Methods: `list` (oldest `updatedAt` first — the use-first order), `seedFromPurchases` (called by ShoppingListService on check-off: upserts PURCHASE rows, normalized names, **staples denylist** in `application/pantry/staples.ts` — salt/pepper/oil/vinegar/water/sugar/dried-spice families are never tracked), `addManual` (premium; rejects staples), `removeItem`, `markOutOfStock` (the list's one-tap re-add: deletes every row for the ingredient), `confirmWeekly` (v1 depletion: tapped ids deleted, kept rows older than 7 days decay to the "some" state — quantity 0 — with `updatedAt` preserved), `whatCanIMake` (chat tool: ranks active-plan + curated recipes by pantry coverage via the pure `application/pantry/pantry-match.ts`; free tier gets a teaser), and `computeWeekPantrySavings(userId, weekStart)` (Σ estimated EUR of pantry-covered plan lines — the coach writes it into `ChefReview.savedEur` at review time).
 
 **Pantry generation seam** — `apps/api/src/application/pantry/pantry-context.ts` (the provider the household-owned meal-plan loader calls, premium_plan.md §5): `getUseFirstIngredients(userId, limit=5)` returns the top-N OLDEST pantry items in the `MealPlanInput.useFirstIngredients` shape with human `reason` strings; `computeUsedPantryItemsForUser(userId, days)` computes the response `personalisation.usedPantryItems`. `application/pantry/leftovers.ts#pairLeftovers` is the pure "cook once, eat twice" post-processor (pairs 2–3 dinner→next-day-lunch slots, doubled servings, `leftoverOf` labels on the MealSlot Json — no schema change).
+
+### Gym services (application layer) — gym_plan.md §4 (G1-B)
+
+`apps/api/src/application/gym/`. Class services with constructor-injected repositories
+(`@chefer/database`: `IExerciseRepository`, `IGymProfileRepository`, `IRoutineRepository`,
+`IWorkoutSessionRepository`, `IExerciseProgressionRepository`, `ITrainingPauseRepository`, plus
+`IWeightEntryRepository.findInRange` and `IChefProfileRepository.findByUserId` for age). All
+progression/weeks/PR/volume logic is the pure engine in `@chefer/utils` (gym) — the services only
+load, group, call the engine and persist. `gym-context.ts` loads the per-request context
+(equipment inventory, experience, `ageYears` from `ChefProfile.age`, offer state, active
+routine); `mappers.ts` owns row ↔ DTO mapping (all dates ISO strings).
+
+- **ExerciseLibraryService** — curated + own custom exercises (archived included, flagged), delta
+  by `updatedSince`; custom create/update/archive (owner-only; max 200). Calls
+  `ensureExerciseLibrary()` lazily.
+- **GymProfileService** — `get`/`save` (partial; a weekly-goal change appends to `goalHistory`
+  from the current week), `recommend` (pure engine, no DB: `recommendTemplate`,
+  `instantiateTemplate`, `estimateDurationMin`, `volumeByGroup`, `validateRoutine`),
+  `completeSetup` (ONE transaction via `gymProfileRepository.completeSetup`: profile with
+  unit-appropriate default plates/dumbbells — LB users get native lb plates stored as kg —,
+  `goalHistory`, the template routine with `plannedWeekdays` applied as the active routine with the
+  pointer on day 1, and an engine `initialState` per (exercise, rep bucket) honouring
+  `knownWeightsKg`, which is also kept in `offerState` for recomputes; returns a fresh bootstrap).
+- **RoutineService** — list/get/templates, `createFromTemplate`, `createBlank`, `duplicate`,
+  `archive`, `setActive` (deactivates the others), `save` (full-document replace in one transaction
+  with a `version` check; keeps day/slot ids the client sends back; stale version → `CONFLICT` with
+  `error.data.conflict = { kind: 'routine', current: RoutineDto }` via `lib/conflict.ts` +
+  the tRPC error formatter), `setNextDay`.
+- **WorkoutSessionService** — `upsertMany` (the offline sync endpoint, idempotent; per doc:
+  foreign id → `rejected: forbidden`; unknown exercise → `rejected: unknown_exercise:<id>`;
+  duplicate ids / bad ranges → `rejected`; older `clientUpdatedAt` → `stale`; same
+  `clientUpdatedAt` → `applied` with no write; otherwise upsert row + delete/recreate children; a
+  COMPLETED routine session moves `Routine.nextDayId` to engine `nextDayIdAfter` **once**,
+  claimed atomically through `rotationAppliedAt`; batch processed oldest-first; afterwards ONE
+  progression recompute for every exercise touched, whose failure is logged, not thrown), `get`,
+  `list` (cursor `"<startedAt ISO>|<id>"`), `discard`, `delete` (both recompute if the session was
+  COMPLETED).
+- **ProgressionService** — `recompute(userId, exerciseIds)` (engine `exposuresFromSession` over all
+  completed sessions → group by rep bucket → `foldHistory` → persist; buckets that lost their
+  exposures fold back to the start; overrides consumed by a newer exposure are cleared),
+  `forExercises` (engine `prescribe` for today; exercises without a row get an unpersisted start),
+  `setOverride`/`clearOverride`, `startDeload` (7-day window in `offerState`), `dismissOffer`.
+- **GymBootstrapService** — the one offline read model: profile, active routine, `nextWorkout`
+  (engine `buildNextWorkout` for the pointer's day), library (delta + `libraryCursor`),
+  progressions with prescriptions, last 12 weeks of completed sessions (engine
+  `toSessionSummary`, newest first), weeks + streak (engine `summarizeWeeks`), offers (deload via
+  `shouldOfferDeload`, stall on `STALL_SUGGEST_SWAP`, comeback after > 8 days, monthly recap on
+  days 1–7; dismissals by key), latest bodyweight. `today` is the device-local date from the
+  client (server UTC date fallback).
+- **GymStatsService** — e1RM series (engine `bestE1rm`; PR flags over all history; 3-session
+  rolling-max trend), rep-PR table, weekly muscle volume (`completedSetsByWeek`), consistency, PR
+  timeline (`collectPrs`, newest first), monthly recap, bodyweight from `WeightEntry`.
+- **TrainingPauseService** — create (≤ 35 days, no overlaps), end (ends today; removes a future one).
+
+### ensureExerciseLibrary (lib)
+
+`apps/api/src/lib/exercise-library/ensure.ts`. Upserts every `EXERCISE_CATALOG` entry by slug,
+once per process (shared promise; a failed pass is retried by the next caller). Called at API boot
+(`index.ts`, after `listen`) and lazily by the library/routine/profile/bootstrap services. Photo
+keys `<slug>-0.webp` / `<slug>-1.webp` are set only for entries with a `freeExerciseDbId` whose file
+exists under `apps/api/static/exercises/`, served by Express at `/static/exercises` (7-day cache)
+and proxied by Caddy. `ExerciseDto.images` are API-relative paths; clients prefix the API origin.
 
 ### FeedbackService (application layer)
 
@@ -1034,6 +1127,38 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `tracker.logWeight`             | Protected | Mutation | `{ weightKg, date? }`                                                                                                                                                                                                                                                                                                          |
 | `tracker.weightHistory`         | Protected | Query    | `{ days? }` (default 90)                                                                                                                                                                                                                                                                                                       |
 | `feedback.submit`               | Protected | Mutation | `{ message: 1-2000 chars, path? }` — beta feedback channel; stores a Feedback row (ux-fixes-plan.md 1.6)                                                                                                                                                                                                                       |
+| `gym.bootstrap`                 | Protected | Query    | `{ librarySince?, today? }` → `GymBootstrap`: the phone's persisted offline read model (profile, routine, next workout, library delta + `libraryCursor`, progressions, 12 weeks of sessions, weeks/streak, offers). `today` = device date. All `gym.*` are free (D9)                                                           |
+| `gym.library.list`              | Protected | Query    | `{ updatedSince? }` — curated + own custom exercises (archived included, flagged); `images` are API-relative `/static/exercises/…` paths                                                                                                                                                                                       |
+| `gym.library.get`               | Protected | Query    | `{ id }` — curated or own custom, else NOT_FOUND                                                                                                                                                                                                                                                                               |
+| `gym.library.createCustom`      | Protected | Mutation | `customExerciseInputSchema` — max 200 per user; rate-limited 30/h per user                                                                                                                                                                                                                                                     |
+| `gym.library.updateCustom`      | Protected | Mutation | `{ id, exercise }` — owner-only (NOT_FOUND otherwise)                                                                                                                                                                                                                                                                          |
+| `gym.library.archiveCustom`     | Protected | Mutation | `{ id }` — owner-only; archived, never deleted (history references it)                                                                                                                                                                                                                                                         |
+| `gym.profile.get`               | Protected | Query    | — → `GymProfileDto \| null`                                                                                                                                                                                                                                                                                                    |
+| `gym.profile.save`              | Protected | Mutation | `saveGymProfileInputSchema` (partial; PRECONDITION_FAILED before setup; goal change → `goalHistory`)                                                                                                                                                                                                                           |
+| `gym.profile.recommend`         | Protected | Query    | `{ days, experience, equipmentAccess }` → template key, reason, alternatives, preview, volume, hints (pure engine, no DB)                                                                                                                                                                                                      |
+| `gym.profile.completeSetup`     | Protected | Mutation | `completeSetupInputSchema` → `GymBootstrap`; ONE transaction: profile + active routine + initial progressions; 20/h per user                                                                                                                                                                                                   |
+| `gym.routine.list`              | Protected | Query    | — → `RoutineListItemDto[]` (active first)                                                                                                                                                                                                                                                                                      |
+| `gym.routine.get`               | Protected | Query    | `{ id }` → `RoutineDto` (own only)                                                                                                                                                                                                                                                                                             |
+| `gym.routine.templates`         | Protected | Query    | — → `TemplateSummaryDto[]` (static program templates)                                                                                                                                                                                                                                                                          |
+| `gym.routine.create*`           | Protected | Mutation | `createFromTemplate { templateKey, setActive }` (engine `instantiateTemplate` with the profile's equipment) / `createBlank { name, days }` — max 30 unarchived routines                                                                                                                                                        |
+| `gym.routine.duplicate`         | Protected | Mutation | `{ id }` → the copy (inactive)                                                                                                                                                                                                                                                                                                 |
+| `gym.routine.archive`           | Protected | Mutation | `{ id }` — also deactivates                                                                                                                                                                                                                                                                                                    |
+| `gym.routine.setActive`         | Protected | Mutation | `{ id }` — deactivates the others (and unarchives)                                                                                                                                                                                                                                                                             |
+| `gym.routine.save`              | Protected | Mutation | `{ routine: RoutineDoc, expectedVersion }` — full-document replace; stale version → `CONFLICT` with `error.data.conflict = { kind: 'routine', current: RoutineDto }`                                                                                                                                                           |
+| `gym.routine.setNextDay`        | Protected | Mutation | `{ routineId, dayId }` — rotation pointer ("do another day" / "skip"); never bumps `version`                                                                                                                                                                                                                                   |
+| `gym.session.upsertMany`        | Protected | Mutation | `{ docs: WorkoutSessionDoc[1..20] }` → `{ results: { id, status: applied \| stale \| rejected, reason? }[] }` — idempotent offline sync; 60/min per user                                                                                                                                                                       |
+| `gym.session.get`               | Protected | Query    | `{ id }` → `WorkoutSessionDoc` (own only)                                                                                                                                                                                                                                                                                      |
+| `gym.session.list`              | Protected | Query    | `{ cursor?, limit }` → `{ items: SessionSummaryDto[], nextCursor }` (newest first, DISCARDED excluded)                                                                                                                                                                                                                         |
+| `gym.session.discard`           | Protected | Mutation | `{ id }` — re-folds progressions if it was COMPLETED; rotation never rewound                                                                                                                                                                                                                                                   |
+| `gym.session.delete`            | Protected | Mutation | `{ id }` — re-folds the session's exercises if it was COMPLETED                                                                                                                                                                                                                                                                |
+| `gym.progression.forExercises`  | Protected | Query    | `{ exerciseIds[≤60] }` → `ProgressionDto[]` (state + override + prescription for today)                                                                                                                                                                                                                                        |
+| `gym.progression.setOverride`   | Protected | Mutation | `{ exerciseId, repBucket, weightKg, reps[] }` → `ProgressionDto` (D5c; applies once)                                                                                                                                                                                                                                           |
+| `gym.progression.clearOverride` | Protected | Mutation | `{ exerciseId, repBucket }` → `ProgressionDto`                                                                                                                                                                                                                                                                                 |
+| `gym.progression.startDeload`   | Protected | Mutation | — next 7 days of prescriptions are deloads                                                                                                                                                                                                                                                                                     |
+| `gym.progression.dismissOffer`  | Protected | Mutation | `{ kind, key }` — remembered by offer key                                                                                                                                                                                                                                                                                      |
+| `gym.stats.*`                   | Protected | Query    | `e1rm { exerciseId, range }` / `repPrs { exerciseId }` / `muscleVolume { weeks }` / `consistency { weeks }` / `prs { exerciseId?, limit }` / `monthlyRecap { month }` / `bodyweight { range, today? }` — from COMPLETED sessions via the engine                                                                                |
+| `gym.pause.create`              | Protected | Mutation | `{ startDate, endDate, reason }` — ≤ 35 days; overlap → CONFLICT                                                                                                                                                                                                                                                               |
+| `gym.pause.end`                 | Protected | Mutation | `{ id }` — ends today (a future pause is removed)                                                                                                                                                                                                                                                                              |
 
 ### Middleware Stack
 
@@ -1269,7 +1394,8 @@ Caddy. See **`docs/plan-deployment.md`** for the full plan. Key files:
 - `docker-compose.deploy.yml` (repo root) — `postgres` + `api` + `web` + `caddy` (no Redis/nginx),
   persistent `pgdata`/`uploads` volumes.
 - `infrastructure/docker/Caddyfile` — TLS + single-origin path routing (`/trpc`, `/api/uploads/*`,
-  `/api/recipe-images/*`, `/api/chat`, `/api/health`, `/uploads/*` → API; rest → web).
+  `/api/recipe-images/*`, `/api/chat`, `/api/health`, `/uploads/*`, `/static/exercises/*` (gym
+  exercise photos, gym_plan.md §5.5) → API; rest → web).
 - `.env.production.example` — deploy env template.
 - `infrastructure/scripts/{deploy,restore-dump,backup-db,duckdns-update}.sh`.
 

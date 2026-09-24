@@ -1022,3 +1022,18 @@ true`, one per row in the wave tables, all launched **in a single message** so t
 ### Deviations log
 
 _(append as `n. YYYY-MM-DD: what changed and why`)_
+
+1. 2026-09-24 (G1-B): `upsertMany` results carry no `nextSuggestions` (§4.1) — the frozen
+   `SyncResultDto` is `{ id, status, reason? }`; clients refetch `gym.bootstrap` after an ack.
+2. 2026-09-24 (G1-B): setup's "known weights" are kept in `GymProfile.offerState.knownWeightsKg`
+   so a recompute (`foldHistory({ knownWeightKg })`) reproduces the seeded start — the schema has no
+   dedicated column. Candidate for a real column if the schema is ever reopened.
+3. 2026-09-24 (G1-B): routine CONFLICT exposes the current doc as `error.data.conflict = { kind:
+'routine', current: RoutineDto }` (a TRPCError `cause` never reaches clients); added through
+   `apps/api/src/lib/conflict.ts` + one additive field in the tRPC error formatter.
+4. 2026-09-24 (G1-B): an identical re-send (same `clientUpdatedAt`) is `applied` without a write
+   (rather than `stale`), and a failed post-write progression recompute is logged, not thrown, so
+   a poison recompute can never block a phone's outbox.
+5. 2026-09-24 (G1-B): overrides are cleared server-side once an exposure newer than
+   `override.at` exists (the engine's `foldHistory` takes no overrides; "applies once" is enforced
+   by the service).
