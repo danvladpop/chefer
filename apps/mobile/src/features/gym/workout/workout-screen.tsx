@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect } from 'expo-router';
 import type { ExerciseDto, Rir } from '@chefer/types';
-import { Button, EmptyState, Screen, Text } from '@chefer/ui-mobile';
+import { Button, ConfirmSheet, EmptyState, Screen, Text } from '@chefer/ui-mobile';
 import { sameKg } from '@chefer/utils';
 import { ExercisePicker } from '../library/exercise-picker';
 import { localDate, newId } from '../offline/ids';
@@ -35,13 +35,7 @@ import {
   workingSets,
   workoutProgress,
 } from './workout-model';
-import {
-  ConfirmSheet,
-  ExerciseMenuSheet,
-  TechniqueSheet,
-  WhySheet,
-  type SwapScope,
-} from './workout-sheets';
+import { ExerciseMenuSheet, TechniqueSheet, WhySheet, type SwapScope } from './workout-sheets';
 
 // Active workout (gym_plan.md §1.3 / §5.3). Rendering rules that keep a tick
 // cheap: cards and set rows are memoised; the reducer preserves the identity

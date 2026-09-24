@@ -8,9 +8,8 @@ import type {
   SessionSetDoc,
   WeightUnit,
 } from '@chefer/types';
-import { Text } from '@chefer/ui-mobile';
+import { Text, ValueStepper } from '@chefer/ui-mobile';
 import { cn, formatLoad, formatLoadNumber, unitLabel } from '@chefer/utils';
-import { ValueStepper } from './value-stepper';
 import { nextLoad, PR_LABELS, type WeightMode } from './workout-model';
 
 // One set: `label | last time (muted) | [− weight +] | [− reps +] | ✓`

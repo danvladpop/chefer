@@ -6,6 +6,7 @@ import {
   BarChart,
   Chip,
   ChipGroup,
+  ConfirmSheet,
   EmptyState,
   LineChart,
   ProgressRing,
@@ -15,6 +16,7 @@ import {
   STEPPER_REPEAT_DELAY_MS,
   STEPPER_REPEAT_INTERVAL_MS,
   Text,
+  ValueStepper,
   WeekGrid,
 } from '@chefer/ui-mobile';
 
@@ -175,6 +177,116 @@ describe('Sheet', () => {
         <Sheet visible={false} title="Hidden" testID="hidden" onClose={jest.fn()}>
           <Text>secret</Text>
         </Sheet>
+      </SafeAreaProvider>,
+    );
+    expect(screen.queryByText('secret')).toBeNull();
+  });
+});
+
+/** ValueStepper walking a custom ladder (like achievable plate loads). */
+function LadderStepper({ initial }: { initial: number }) {
+  const ladder = [20, 22.5, 25, 30];
+  const [value, setValue] = useState(initial);
+  return (
+    <ValueStepper
+      testID="load"
+      name="Weight"
+      value={value}
+      next={(v, dir) => ladder[ladder.indexOf(v) + dir] ?? v}
+      onChange={setValue}
+      format={(v) => String(v)}
+      caption="kg"
+    />
+  );
+}
+
+describe('ValueStepper', () => {
+  it('walks the values `next` picks and stops at the ends', async () => {
+    const user = userEvent.setup();
+    await render(<LadderStepper initial={22.5} />);
+    expect(screen.getByTestId('load-value')).toHaveTextContent(/^22\.5kg$/);
+
+    await user.press(screen.getByTestId('load-inc'));
+    await user.press(screen.getByTestId('load-inc'));
+    await user.press(screen.getByTestId('load-inc')); // already at the top: no change
+    expect(screen.getByTestId('load-value')).toHaveTextContent(/^30kg$/);
+
+    await user.press(screen.getByTestId('load-dec'));
+    expect(screen.getByTestId('load-value')).toHaveTextContent(/^25kg$/);
+    expect(screen.getByTestId('load').props.accessibilityValue).toEqual({ text: '25 kg' });
+  });
+
+  it('repeats while held and taps the value when it is pressable', async () => {
+    jest.useFakeTimers();
+    try {
+      const onPressValue = jest.fn();
+      const onChange = jest.fn();
+      await render(
+        <ValueStepper
+          testID="reps"
+          name="Reps"
+          value={5}
+          next={(v, dir) => v + dir}
+          onChange={onChange}
+          format={String}
+          caption="reps"
+          onPressValue={onPressValue}
+        />,
+      );
+      await fireEvent(screen.getByTestId('reps-inc'), 'longPress');
+      await act(() => jest.advanceTimersByTime(STEPPER_REPEAT_INTERVAL_MS * 2));
+      expect(onChange.mock.calls.map((c) => c[0])).toEqual([6, 7, 8]);
+      await fireEvent(screen.getByTestId('reps-inc'), 'pressOut');
+
+      await fireEvent.press(screen.getByTestId('reps-value'));
+      expect(onPressValue).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('ConfirmSheet', () => {
+  it('confirms, cancels and shows its sentence', async () => {
+    const user = userEvent.setup();
+    const onConfirm = jest.fn();
+    const onClose = jest.fn();
+    await render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <ConfirmSheet
+          visible
+          testID="remove"
+          title="Remove set 2?"
+          body="Its values are gone for this workout."
+          confirmLabel="Remove set"
+          cancelLabel="Keep it"
+          destructive
+          onConfirm={onConfirm}
+          onClose={onClose}
+        />
+      </SafeAreaProvider>,
+    );
+    expect(screen.getByTestId('remove-title')).toHaveTextContent('Remove set 2?');
+    expect(screen.getByTestId('remove-body')).toHaveTextContent(/values are gone/);
+    await user.press(screen.getByTestId('remove-confirm'));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    await user.press(screen.getByTestId('remove-cancel'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders nothing when hidden', async () => {
+    await render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <ConfirmSheet
+          visible={false}
+          testID="hidden"
+          title="Hidden"
+          body="secret"
+          confirmLabel="Yes"
+          cancelLabel="No"
+          onConfirm={jest.fn()}
+          onClose={jest.fn()}
+        />
       </SafeAreaProvider>,
     );
     expect(screen.queryByText('secret')).toBeNull();

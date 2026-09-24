@@ -3,7 +3,16 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type { ExerciseDto, GymBootstrap, ProgressionDto } from '@chefer/types';
-import { Button, Card, EmptyState, ProgressRing, Screen, Sheet, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  EmptyState,
+  ProgressRing,
+  Screen,
+  Sheet,
+  Text,
+  ValueStepper,
+} from '@chefer/ui-mobile';
 import { cn, formatLoad } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { gymBootstrapQueryKey, useGymBootstrap } from '../use-gym-bootstrap';
@@ -16,7 +25,6 @@ import {
   type NextTimeRow,
 } from './summary-model';
 import { useIsOnline } from './use-is-online';
-import { ValueStepper } from './value-stepper';
 import {
   DIRECTION_ICON,
   DIRECTION_LABEL,
