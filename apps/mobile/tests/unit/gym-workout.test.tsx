@@ -137,6 +137,7 @@ describe('WorkoutScreen — set rows', () => {
         weightKg: 60,
         reps: 10,
       },
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers are typed any
       expect.objectContaining({ supersets: expect.any(Map) }),
     );
     expect(workingSet(0).completedAt).not.toBeNull();

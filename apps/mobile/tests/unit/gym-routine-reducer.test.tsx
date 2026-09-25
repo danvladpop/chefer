@@ -357,8 +357,9 @@ describe('routineDraftReducer — supersets (G4-B)', () => {
 
   it('loads stray server letters in canonical form', () => {
     const dtoWithLetters = makeRoutineDto();
-    const first = dtoWithLetters.days[0]!;
-    const base = first.exercises[0]!;
+    const first = dtoWithLetters.days[0];
+    const base = first?.exercises[0];
+    if (!first || !base) throw new Error('fixture has no exercise');
     first.exercises = [
       { ...base, id: 'x1', supersetGroup: 'Q' },
       { ...base, id: 'x2', position: 1, supersetGroup: 'Q' },

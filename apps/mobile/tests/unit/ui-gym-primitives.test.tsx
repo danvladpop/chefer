@@ -220,7 +220,7 @@ describe('ValueStepper', () => {
     jest.useFakeTimers();
     try {
       const onPressValue = jest.fn();
-      const onChange = jest.fn();
+      const onChange = jest.fn<undefined, [number]>();
       await render(
         <ValueStepper
           testID="reps"
