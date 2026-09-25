@@ -11,7 +11,26 @@ import { makeBootstrap } from './gym-fixtures';
 // reminder-relevant fields change. These tests mock `expo-notifications`
 // directly (there's no native module under Jest) and drive the effect
 // through the dashboard card, exactly like the app does.
-
+//
+// The mock jest.fn()s are created INSIDE the factory (not closed over from
+// outer `const`s) and read back via `jest.requireMock` — outer "mock"-
+// prefixed variables are only guaranteed not to trip the jest-hoist
+// out-of-scope check, not to be INITIALIZED yet by the time the factory
+// first runs (it runs as soon as something transitively requires
+// 'expo-notifications', which can happen while this file's own top-level
+// `const`s are still mid-evaluation). See gym-dashboard-card.test.tsx for
+// the same require()-based pattern used for the tRPC mock.
+jest.mock('expo-notifications', () => ({
+  __esModule: true,
+  getPermissionsAsync: jest.fn(),
+  requestPermissionsAsync: jest.fn(),
+  getAllScheduledNotificationsAsync: jest.fn(),
+  cancelScheduledNotificationAsync: jest.fn(),
+  scheduleNotificationAsync: jest.fn(),
+  setNotificationChannelAsync: jest.fn(),
+  SchedulableTriggerInputTypes: { DATE: 'date' },
+  AndroidImportance: { DEFAULT: 3 },
+}));
 jest.mock('../../src/lib/trpc', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- see gym-dashboard-card.test.tsx
   const mock = require('./gym-trpc-mock') as typeof import('./gym-trpc-mock');
@@ -19,23 +38,14 @@ jest.mock('../../src/lib/trpc', () => {
 });
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn() } }));
 
-const mockGetPermissionsAsync = jest.fn();
-const mockRequestPermissionsAsync = jest.fn();
-const mockGetAllScheduledNotificationsAsync = jest.fn();
-const mockCancelScheduledNotificationAsync = jest.fn();
-const mockScheduleNotificationAsync = jest.fn();
-const mockSetNotificationChannelAsync = jest.fn();
-
-jest.mock('expo-notifications', () => ({
-  getPermissionsAsync: mockGetPermissionsAsync,
-  requestPermissionsAsync: mockRequestPermissionsAsync,
-  getAllScheduledNotificationsAsync: mockGetAllScheduledNotificationsAsync,
-  cancelScheduledNotificationAsync: mockCancelScheduledNotificationAsync,
-  scheduleNotificationAsync: mockScheduleNotificationAsync,
-  setNotificationChannelAsync: mockSetNotificationChannelAsync,
-  SchedulableTriggerInputTypes: { DATE: 'date' },
-  AndroidImportance: { DEFAULT: 3 },
-}));
+const Notifications = jest.requireMock<{
+  getPermissionsAsync: jest.Mock;
+  requestPermissionsAsync: jest.Mock;
+  getAllScheduledNotificationsAsync: jest.Mock;
+  cancelScheduledNotificationAsync: jest.Mock;
+  scheduleNotificationAsync: jest.Mock;
+  setNotificationChannelAsync: jest.Mock;
+}>('expo-notifications');
 
 function makeClient() {
   return new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
@@ -82,15 +92,15 @@ beforeEach(() => {
   jest.clearAllMocks();
   setKvBackendForTests(createMemoryKvBackend());
   resetModeForTests();
-  mockGetAllScheduledNotificationsAsync.mockResolvedValue([]);
-  mockCancelScheduledNotificationAsync.mockResolvedValue(undefined);
-  mockScheduleNotificationAsync.mockResolvedValue('notif-id');
-  mockSetNotificationChannelAsync.mockResolvedValue(undefined);
+  Notifications.getAllScheduledNotificationsAsync.mockResolvedValue([]);
+  Notifications.cancelScheduledNotificationAsync.mockResolvedValue(undefined);
+  Notifications.scheduleNotificationAsync.mockResolvedValue('notif-id');
+  Notifications.setNotificationChannelAsync.mockResolvedValue(undefined);
 });
 
 describe('useGymReminders (via TodaysWorkoutCard)', () => {
   it('schedules a reminder once permission is already granted', async () => {
-    mockGetPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+    Notifications.getPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
     const queryClient = makeClient();
     queryClient.setQueryData(
       gymBootstrapQueryKey,
@@ -101,14 +111,14 @@ describe('useGymReminders (via TodaysWorkoutCard)', () => {
     );
     await renderCard(queryClient);
 
-    await waitFor(() => expect(mockScheduleNotificationAsync).toHaveBeenCalled());
-    expect(mockGetAllScheduledNotificationsAsync).toHaveBeenCalled();
-    expect(mockCancelScheduledNotificationAsync).not.toHaveBeenCalled(); // nothing was scheduled yet
-    expect(mockRequestPermissionsAsync).not.toHaveBeenCalled(); // never prompts from the effect
+    await waitFor(() => expect(Notifications.scheduleNotificationAsync).toHaveBeenCalled());
+    expect(Notifications.getAllScheduledNotificationsAsync).toHaveBeenCalled();
+    expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalled(); // nothing was scheduled yet
+    expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled(); // never prompts from the effect
   });
 
   it('never schedules, and never prompts, when permission was not granted', async () => {
-    mockGetPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: true });
+    Notifications.getPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: true });
     const queryClient = makeClient();
     queryClient.setQueryData(
       gymBootstrapQueryKey,
@@ -119,14 +129,14 @@ describe('useGymReminders (via TodaysWorkoutCard)', () => {
     );
     await renderCard(queryClient);
 
-    await waitFor(() => expect(mockGetAllScheduledNotificationsAsync).toHaveBeenCalled());
-    expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
-    expect(mockRequestPermissionsAsync).not.toHaveBeenCalled();
+    await waitFor(() => expect(Notifications.getAllScheduledNotificationsAsync).toHaveBeenCalled());
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
   });
 
   it('only cancels (cleanup), and never schedules, when reminders are turned off', async () => {
-    mockGetPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
-    mockGetAllScheduledNotificationsAsync.mockResolvedValue([
+    Notifications.getPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+    Notifications.getAllScheduledNotificationsAsync.mockResolvedValue([
       { identifier: 'stale-1', content: { data: { app: 'gym-reminder' } } },
       { identifier: 'other', content: { data: { app: 'gym-rest-timer' } } },
     ]);
@@ -141,9 +151,9 @@ describe('useGymReminders (via TodaysWorkoutCard)', () => {
     await renderCard(queryClient);
 
     await waitFor(() =>
-      expect(mockCancelScheduledNotificationAsync).toHaveBeenCalledWith('stale-1'),
+      expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('stale-1'),
     );
-    expect(mockCancelScheduledNotificationAsync).not.toHaveBeenCalledWith('other');
-    expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalledWith('other');
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
   });
 });
