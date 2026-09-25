@@ -313,6 +313,7 @@ function bootstrapFor(today: string, overrides: Partial<GymBootstrap> = {}): Gym
     weeks,
     streak,
     offers: [],
+    activePause: null,
     bodyweightKg: null,
     serverTime: `${today}T08:00:00.000Z`,
     engineVersion: 1,
