@@ -80,7 +80,9 @@ export default function RootLayout() {
               <Stack.Screen name="gym/setup" />
               <Stack.Screen
                 name="gym/workout"
-                options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
+                // A card, not a fullScreenModal: safe-area insets read 0 inside iOS native
+                // modals, which put the header + Finish under the status bar.
+                options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
               />
               <Stack.Screen name="gym/summary/[id]" options={{ gestureEnabled: false }} />
               <Stack.Screen name="gym/session/[id]" />

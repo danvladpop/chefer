@@ -528,6 +528,16 @@ export function WorkoutScreen() {
         >
           + Add exercise
         </Button>
+        {/* Finish again at the end of the list: in reach right after the last
+            exercise (the header copy sits in the hard-to-reach top corner). */}
+        <Button
+          testID="workout-finish-bottom"
+          size="lg"
+          loading={finishing}
+          onPress={onFinishPress}
+        >
+          Finish workout
+        </Button>
         <Button
           testID="workout-discard"
           variant="ghost"

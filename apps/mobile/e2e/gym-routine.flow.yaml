@@ -85,7 +85,7 @@ appId: dev.chefer.app.dev
 
 # ── The new value shows back on the Routine tab ─────────────────────────────
 - assertVisible:
-    text: '${output.expectedSets} × .*'
+    text: '.*\b${output.expectedSets} × .*'
 
 # ── Back to Food, so other flows start clean ────────────────────────────────
 - tapOn:
