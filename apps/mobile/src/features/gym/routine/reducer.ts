@@ -2,7 +2,13 @@
 // passed IN (never generated here — same convention as the workout reducer
 // in @chefer/utils), so replaying actions in a test is deterministic.
 import type { ExerciseMeta } from '@chefer/types';
-import { defaultTargetRir } from '@chefer/utils';
+import {
+  defaultTargetRir,
+  moveSupersetItem,
+  normalizeSupersets,
+  removeSupersetItem,
+  setSupersetWithNext,
+} from '@chefer/utils';
 import {
   MAX_DAYS,
   MAX_EXERCISES_PER_DAY,
@@ -31,6 +37,8 @@ export type RoutineDraftAction =
   | { type: 'swapExercise'; dayKey: string; exerciseKey: string; exercise: ExerciseMeta }
   | { type: 'removeExercise'; dayKey: string; exerciseKey: string }
   | { type: 'moveExercise'; dayKey: string; exerciseKey: string; direction: 'up' | 'down' }
+  /** "Superset with next": link / unlink this exercise and the one after it. */
+  | { type: 'setSupersetWithNext'; dayKey: string; exerciseKey: string; linked: boolean }
   | { type: 'setSets'; dayKey: string; exerciseKey: string; sets: number }
   | { type: 'setRepMin'; dayKey: string; exerciseKey: string; repMin: number }
   | { type: 'setRepMax'; dayKey: string; exerciseKey: string; repMax: number }
@@ -123,7 +131,7 @@ export function routineDraftReducer(draft: RoutineDraft, action: RoutineDraftAct
       if (draft.days.length >= MAX_DAYS) return draft;
       const source = draft.days.find((d) => d.key === action.dayKey);
       if (!source) return draft;
-      const exercises = source.exercises.map((e, i) => ({
+      const exercises = normalizeSupersets(source.exercises).map((e, i) => ({
         ...e,
         key: action.exerciseIds[i] ?? `${action.dayId}-${i}`,
         id: undefined,
@@ -178,16 +186,25 @@ export function routineDraftReducer(draft: RoutineDraft, action: RoutineDraftAct
         })),
       );
 
+    // Removing / moving keeps supersets consistent (shared helpers, @chefer/utils).
     case 'removeExercise':
-      return updateDay(draft, action.dayKey, (d) => ({
-        ...d,
-        exercises: d.exercises.filter((e) => e.key !== action.exerciseKey),
-      }));
+      return updateDay(draft, action.dayKey, (d) => {
+        const index = d.exercises.findIndex((e) => e.key === action.exerciseKey);
+        return index < 0 ? d : { ...d, exercises: removeSupersetItem(d.exercises, index) };
+      });
 
     case 'moveExercise':
       return updateDay(draft, action.dayKey, (d) => {
         const index = d.exercises.findIndex((e) => e.key === action.exerciseKey);
-        return { ...d, exercises: move(d.exercises, index, action.direction) };
+        if (index < 0) return d;
+        return { ...d, exercises: moveSupersetItem(d.exercises, index, action.direction) };
+      });
+
+    case 'setSupersetWithNext':
+      return updateDay(draft, action.dayKey, (d) => {
+        const index = d.exercises.findIndex((e) => e.key === action.exerciseKey);
+        if (index < 0) return d;
+        return { ...d, exercises: setSupersetWithNext(d.exercises, index, action.linked) };
       });
 
     case 'setSets':

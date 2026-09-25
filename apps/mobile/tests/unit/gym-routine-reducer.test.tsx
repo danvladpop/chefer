@@ -280,3 +280,92 @@ describe('draftToRoutineDoc — save payload shape', () => {
     expect(draftToRoutineDoc(d).name).toBe('Padded');
   });
 });
+
+describe('routineDraftReducer — supersets (G4-B)', () => {
+  function threeRows(): RoutineDraft {
+    let d = draft();
+    d = routineDraftReducer(d, {
+      type: 'addExercise',
+      dayKey: 'd1',
+      newExerciseKey: 'e2',
+      exercise: isolationCurl,
+    });
+    d = routineDraftReducer(d, {
+      type: 'addExercise',
+      dayKey: 'd1',
+      newExerciseKey: 'e3',
+      exercise: bench,
+    });
+    return d;
+  }
+  const groups = (d: RoutineDraft) => d.days[0]?.exercises.map((e) => e.supersetGroup);
+
+  it('links and unlinks with the next exercise, and saves the letters', () => {
+    let d = routineDraftReducer(threeRows(), {
+      type: 'setSupersetWithNext',
+      dayKey: 'd1',
+      exerciseKey: 'e1',
+      linked: true,
+    });
+    expect(groups(d)).toEqual(['A', 'A', null]);
+    expect(draftToRoutineDoc(d).days[0]?.exercises.map((e) => e.supersetGroup)).toEqual([
+      'A',
+      'A',
+      null,
+    ]);
+    d = routineDraftReducer(d, {
+      type: 'setSupersetWithNext',
+      dayKey: 'd1',
+      exerciseKey: 'e1',
+      linked: false,
+    });
+    expect(groups(d)).toEqual([null, null, null]);
+  });
+
+  it('removing a member dissolves a pair; moving out of the group leaves it', () => {
+    const linked = routineDraftReducer(threeRows(), {
+      type: 'setSupersetWithNext',
+      dayKey: 'd1',
+      exerciseKey: 'e1',
+      linked: true,
+    });
+    const removed = routineDraftReducer(linked, {
+      type: 'removeExercise',
+      dayKey: 'd1',
+      exerciseKey: 'e2',
+    });
+    expect(groups(removed)).toEqual([null, null]);
+
+    const moved = routineDraftReducer(linked, {
+      type: 'moveExercise',
+      dayKey: 'd1',
+      exerciseKey: 'e2',
+      direction: 'down',
+    });
+    expect(moved.days[0]?.exercises.map((e) => e.key)).toEqual(['e1', 'e3', 'e2']);
+    expect(groups(moved)).toEqual([null, null, null]);
+
+    const swapped = routineDraftReducer(linked, {
+      type: 'moveExercise',
+      dayKey: 'd1',
+      exerciseKey: 'e2',
+      direction: 'up',
+    });
+    expect(swapped.days[0]?.exercises.map((e) => e.key)).toEqual(['e2', 'e1', 'e3']);
+    expect(groups(swapped)).toEqual(['A', 'A', null]);
+  });
+
+  it('loads stray server letters in canonical form', () => {
+    const dtoWithLetters = makeRoutineDto();
+    const first = dtoWithLetters.days[0]!;
+    const base = first.exercises[0]!;
+    first.exercises = [
+      { ...base, id: 'x1', supersetGroup: 'Q' },
+      { ...base, id: 'x2', position: 1, supersetGroup: 'Q' },
+      { ...base, id: 'x3', position: 2, supersetGroup: 'Z' },
+    ];
+    expect(
+      routineDtoToDraft(dtoWithLetters).days[0]?.exercises.map((e) => e.supersetGroup),
+    ).toEqual(['A', 'A', null]);
+  });
+});

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
-import { TEMPLATE_BY_KEY, type ExerciseMeta, type RoutineDto } from '@chefer/types';
-import { Badge, Button, Card, Input, Screen, Sheet, Stepper, Text } from '@chefer/ui-mobile';
+import { TEMPLATE_BY_KEY, type RoutineDto } from '@chefer/types';
+import { Badge, Button, ConfirmSheet, Input, Screen, Sheet, Text } from '@chefer/ui-mobile';
 import { validateRoutine, volumeByGroup } from '@chefer/utils';
 import { ExercisePicker } from '../../src/features/gym/library/exercise-picker';
 import { newId } from '../../src/features/gym/offline/ids';
@@ -12,6 +12,7 @@ import {
   keepMineAfterConflict,
   loadTheirsAfterConflict,
 } from '../../src/features/gym/routine/conflict';
+import { DayEditor } from '../../src/features/gym/routine/day-editor';
 import {
   draftsEqual,
   draftToRoutineDoc,
@@ -21,22 +22,8 @@ import {
   routineDraftReducer,
   type RoutineDraftAction,
 } from '../../src/features/gym/routine/reducer';
-import {
-  MAX_DAYS,
-  MAX_EXERCISES_PER_DAY,
-  MAX_REST_SEC,
-  MAX_SETS,
-  MAX_TARGET_RIR,
-  MIN_REST_SEC,
-  MIN_SETS,
-  MIN_TARGET_RIR,
-  REST_STEP_SEC,
-  type RoutineDayDraft,
-  type RoutineDraft,
-  type RoutineExerciseDraft,
-} from '../../src/features/gym/routine/types';
+import { MAX_DAYS, type RoutineDraft } from '../../src/features/gym/routine/types';
 import { useIsOnline } from '../../src/features/gym/routine/use-online';
-import { WeekdayPicker } from '../../src/features/gym/routine/weekday-picker';
 import { WeeklyBalanceCard } from '../../src/features/gym/routine/weekly-balance';
 import { libraryLookup, useGymBootstrap } from '../../src/features/gym/use-gym-bootstrap';
 import { trpc } from '../../src/lib/trpc';
@@ -58,283 +45,6 @@ type PickerState =
   | { dayKey: string; mode: 'add' }
   | { dayKey: string; mode: 'swap'; exerciseKey: string };
 
-function ExerciseRow({
-  exercise,
-  meta,
-  index,
-  count,
-  onDispatch,
-  onSwap,
-  testIDBase,
-}: {
-  exercise: RoutineExerciseDraft;
-  meta: ExerciseMeta | undefined;
-  index: number;
-  count: number;
-  onDispatch: (action: RoutineDraftAction) => void;
-  onSwap: () => void;
-  testIDBase: string;
-}) {
-  return (
-    <View testID={testIDBase} className="gap-2 rounded-lg border border-border p-3">
-      <View className="flex-row items-center justify-between gap-2">
-        <Text className="min-w-0 flex-1 font-medium" numberOfLines={1}>
-          {meta?.name ?? exercise.exerciseId}
-        </Text>
-        <View className="flex-row gap-1">
-          <Pressable
-            testID={`${testIDBase}-up`}
-            accessibilityRole="button"
-            accessibilityLabel="Move exercise up"
-            disabled={index === 0}
-            onPress={() =>
-              onDispatch({
-                type: 'moveExercise',
-                dayKey: '',
-                exerciseKey: exercise.key,
-                direction: 'up',
-              })
-            }
-            className="h-11 w-11 items-center justify-center rounded-md bg-muted disabled:opacity-30"
-          >
-            <Ionicons name="chevron-up" size={18} color="#374151" />
-          </Pressable>
-          <Pressable
-            testID={`${testIDBase}-down`}
-            accessibilityRole="button"
-            accessibilityLabel="Move exercise down"
-            disabled={index === count - 1}
-            onPress={() =>
-              onDispatch({
-                type: 'moveExercise',
-                dayKey: '',
-                exerciseKey: exercise.key,
-                direction: 'down',
-              })
-            }
-            className="h-11 w-11 items-center justify-center rounded-md bg-muted disabled:opacity-30"
-          >
-            <Ionicons name="chevron-down" size={18} color="#374151" />
-          </Pressable>
-        </View>
-      </View>
-
-      <View className="flex-row flex-wrap gap-4">
-        <Stepper
-          testID={`${testIDBase}-sets`}
-          accessibilityLabel="Sets"
-          label="sets"
-          value={exercise.sets}
-          min={MIN_SETS}
-          max={MAX_SETS}
-          onChange={(sets) =>
-            onDispatch({ type: 'setSets', dayKey: '', exerciseKey: exercise.key, sets })
-          }
-        />
-        <Stepper
-          testID={`${testIDBase}-rep-min`}
-          accessibilityLabel="Minimum reps"
-          label="min reps"
-          value={exercise.repMin}
-          min={1}
-          max={200}
-          onChange={(repMin) =>
-            onDispatch({ type: 'setRepMin', dayKey: '', exerciseKey: exercise.key, repMin })
-          }
-        />
-        <Stepper
-          testID={`${testIDBase}-rep-max`}
-          accessibilityLabel="Maximum reps"
-          label="max reps"
-          value={exercise.repMax}
-          min={1}
-          max={200}
-          onChange={(repMax) =>
-            onDispatch({ type: 'setRepMax', dayKey: '', exerciseKey: exercise.key, repMax })
-          }
-        />
-        <Stepper
-          testID={`${testIDBase}-rest`}
-          accessibilityLabel="Rest seconds"
-          label="rest (s)"
-          value={exercise.restSec}
-          step={REST_STEP_SEC}
-          min={MIN_REST_SEC}
-          max={MAX_REST_SEC}
-          onChange={(restSec) =>
-            onDispatch({ type: 'setRestSec', dayKey: '', exerciseKey: exercise.key, restSec })
-          }
-        />
-        <Stepper
-          testID={`${testIDBase}-rir`}
-          accessibilityLabel="Target RIR"
-          label="target RIR"
-          value={exercise.targetRir}
-          min={MIN_TARGET_RIR}
-          max={MAX_TARGET_RIR}
-          onChange={(targetRir) =>
-            onDispatch({ type: 'setTargetRir', dayKey: '', exerciseKey: exercise.key, targetRir })
-          }
-        />
-      </View>
-
-      <View className="flex-row gap-2">
-        <Button
-          testID={`${testIDBase}-swap`}
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          onPress={onSwap}
-        >
-          Swap
-        </Button>
-        <Button
-          testID={`${testIDBase}-remove`}
-          variant="destructive"
-          size="sm"
-          className="flex-1"
-          onPress={() =>
-            onDispatch({ type: 'removeExercise', dayKey: '', exerciseKey: exercise.key })
-          }
-        >
-          Remove
-        </Button>
-      </View>
-    </View>
-  );
-}
-
-function DayEditor({
-  day,
-  index,
-  dayCount,
-  lookup,
-  dispatch,
-  onAddExercise,
-  onSwapExercise,
-}: {
-  day: RoutineDayDraft;
-  index: number;
-  dayCount: number;
-  lookup: (id: string) => ExerciseMeta | undefined;
-  dispatch: (action: RoutineDraftAction) => void;
-  onAddExercise: (dayKey: string) => void;
-  onSwapExercise: (dayKey: string, exerciseKey: string) => void;
-}) {
-  const testIDBase = `routine-editor-day-${day.key}`;
-  // ExerciseRow dispatches with dayKey: '' — patch it in here, one place, so
-  // every row action stays a plain object the reducer can match on dayKey.
-  const dispatchForDay = (action: RoutineDraftAction) =>
-    dispatch('dayKey' in action ? { ...action, dayKey: day.key } : action);
-
-  return (
-    <Card testID={testIDBase}>
-      <View className="flex-row items-center gap-2">
-        <Input
-          testID={`${testIDBase}-name`}
-          className="flex-1"
-          value={day.name}
-          maxLength={40}
-          onChangeText={(name) => dispatch({ type: 'renameDay', dayKey: day.key, name })}
-          placeholder="Day name"
-        />
-        <Pressable
-          testID={`${testIDBase}-up`}
-          accessibilityRole="button"
-          accessibilityLabel="Move day up"
-          disabled={index === 0}
-          onPress={() => dispatch({ type: 'moveDay', dayKey: day.key, direction: 'up' })}
-          className="h-11 w-11 items-center justify-center rounded-md bg-muted disabled:opacity-30"
-        >
-          <Ionicons name="chevron-up" size={18} color="#374151" />
-        </Pressable>
-        <Pressable
-          testID={`${testIDBase}-down`}
-          accessibilityRole="button"
-          accessibilityLabel="Move day down"
-          disabled={index === dayCount - 1}
-          onPress={() => dispatch({ type: 'moveDay', dayKey: day.key, direction: 'down' })}
-          className="h-11 w-11 items-center justify-center rounded-md bg-muted disabled:opacity-30"
-        >
-          <Ionicons name="chevron-down" size={18} color="#374151" />
-        </Pressable>
-      </View>
-
-      <View className="mt-3 gap-1">
-        <Text variant="label">Planned weekday</Text>
-        <WeekdayPicker
-          testID={`${testIDBase}-weekday`}
-          value={day.plannedWeekday}
-          onChange={(weekday) => dispatch({ type: 'setPlannedWeekday', dayKey: day.key, weekday })}
-        />
-      </View>
-
-      <View className="mt-3 gap-3">
-        {day.exercises.map((ex, i) => (
-          <ExerciseRow
-            key={ex.key}
-            exercise={ex}
-            meta={lookup(ex.exerciseId)}
-            index={i}
-            count={day.exercises.length}
-            onDispatch={dispatchForDay}
-            onSwap={() => onSwapExercise(day.key, ex.key)}
-            testIDBase={`${testIDBase}-exercise-${ex.key}`}
-          />
-        ))}
-      </View>
-
-      <View className="mt-3 flex-row gap-2">
-        <Button
-          testID={`${testIDBase}-add-exercise`}
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          disabled={day.exercises.length >= MAX_EXERCISES_PER_DAY}
-          onPress={() => onAddExercise(day.key)}
-        >
-          Add exercise
-        </Button>
-        <Button
-          testID={`${testIDBase}-duplicate`}
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          disabled={dayCount >= MAX_DAYS}
-          onPress={() =>
-            dispatch({
-              type: 'duplicateDay',
-              dayKey: day.key,
-              dayId: newId(),
-              exerciseIds: day.exercises.map(() => newId()),
-            })
-          }
-        >
-          Duplicate
-        </Button>
-        <Button
-          testID={`${testIDBase}-delete`}
-          variant="destructive"
-          size="sm"
-          className="flex-1"
-          onPress={() =>
-            Alert.alert('Delete this day?', `"${day.name}" and its exercises will be removed.`, [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Delete',
-                style: 'destructive',
-                onPress: () => dispatch({ type: 'deleteDay', dayKey: day.key }),
-              },
-            ])
-          }
-        >
-          Delete
-        </Button>
-      </View>
-    </Card>
-  );
-}
-
 export default function GymRoutineEditorScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const routineId = typeof id === 'string' ? id : '';
@@ -354,6 +64,7 @@ export default function GymRoutineEditorScreen() {
   const [templateKey, setTemplateKey] = useState<string | null>(null);
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [conflict, setConflict] = useState<ConflictState | null>(null);
+  const [removing, setRemoving] = useState<{ dayKey: string; exerciseKey: string } | null>(null);
   const loadedRef = useRef(false);
 
   const dispatch = (action: RoutineDraftAction) =>
@@ -437,6 +148,14 @@ export default function GymRoutineEditorScreen() {
     picker?.mode === 'swap'
       ? activePickerDay?.exercises.find((e) => e.key === picker.exerciseKey)
       : undefined;
+  const removingExercise = removing
+    ? draft.days
+        .find((d) => d.key === removing.dayKey)
+        ?.exercises.find((e) => e.key === removing.exerciseKey)
+    : undefined;
+  const removingName = removingExercise
+    ? (lookup(removingExercise.exerciseId)?.name ?? 'this exercise')
+    : 'this exercise';
   const preferSwapGroup = swapExercise
     ? (lookup(swapExercise.exerciseId)?.swapGroup ?? null)
     : null;
@@ -523,6 +242,7 @@ export default function GymRoutineEditorScreen() {
             onSwapExercise={(dayKey, exerciseKey) =>
               setPicker({ dayKey, mode: 'swap', exerciseKey })
             }
+            onRemoveExercise={(dayKey, exerciseKey) => setRemoving({ dayKey, exerciseKey })}
           />
         ))}
 
@@ -576,6 +296,21 @@ export default function GymRoutineEditorScreen() {
             });
           }
           setPicker(null);
+        }}
+      />
+
+      <ConfirmSheet
+        visible={removing !== null}
+        onClose={() => setRemoving(null)}
+        testID="gym-routine-editor-remove"
+        title={`Remove ${removingName}?`}
+        body="It leaves this day when you save. Its history stays."
+        confirmLabel="Remove"
+        cancelLabel="Keep it"
+        destructive
+        onConfirm={() => {
+          if (removing) dispatch({ type: 'removeExercise', ...removing });
+          setRemoving(null);
         }}
       />
 
