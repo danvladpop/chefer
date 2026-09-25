@@ -400,6 +400,8 @@ describe('exposuresFromSession / toSessionSummary', () => {
     expect(s).toMatchObject({ id: doc.id, name: 'Upper', routineDayId: 'dA', status: 'COMPLETED' });
     expect(s.exercises).toHaveLength(3);
     expect(s.exercises[0]?.sets.some((x) => x.isWarmup)).toBe(true);
+    expect(s.exercises[0]?.notes).toBe('Seat 4');
+    expect(s.exercises[1]?.notes).toBeNull();
     const firstEx = doc.exercises[0];
     if (!firstEx) {
       throw new Error('no exercises');

@@ -229,6 +229,7 @@ export function toSessionSummary(doc: WorkoutSessionDoc): SessionSummaryDto {
         exerciseId: se.exerciseId,
         skipped: se.skipped,
         lastSetRir: toRir(se.lastSetRir),
+        notes: se.notes,
         sets: [...se.sets]
           .sort((a, b) => a.position - b.position)
           .map((s) => ({
