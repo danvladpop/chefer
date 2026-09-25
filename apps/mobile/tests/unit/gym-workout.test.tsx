@@ -282,6 +282,62 @@ describe('WorkoutScreen — live PRs', () => {
   });
 });
 
+describe('WorkoutScreen — last time notes', () => {
+  it('shows the most recent non-empty note for the exercise under its name', async () => {
+    const bootstrap = makeBootstrap({
+      recentSessions: [
+        {
+          id: 'older',
+          name: 'Upper A',
+          routineDayId: null,
+          status: 'COMPLETED',
+          localDate: '2026-09-13',
+          startedAt: '2026-09-13T08:00:00.000Z',
+          finishedAt: '2026-09-13T09:00:00.000Z',
+          isDeload: false,
+          exercises: [
+            {
+              exerciseId: 'bench',
+              skipped: false,
+              lastSetRir: null,
+              notes: 'stale note',
+              sets: [{ weightKg: 50, reps: 10, isWarmup: false, completed: true }],
+            },
+          ],
+        },
+        {
+          id: 'newer',
+          name: 'Upper A',
+          routineDayId: null,
+          status: 'COMPLETED',
+          localDate: '2026-09-20',
+          startedAt: '2026-09-20T08:00:00.000Z',
+          finishedAt: '2026-09-20T09:00:00.000Z',
+          isDeload: false,
+          exercises: [
+            {
+              exerciseId: 'bench',
+              skipped: false,
+              lastSetRir: null,
+              notes: 'seat 4, grip wide',
+              sets: [{ weightKg: 55, reps: 10, isWarmup: false, completed: true }],
+            },
+          ],
+        },
+      ],
+    });
+    await renderWorkout(activeDoc(), bootstrap);
+    expect(screen.getByTestId('exercise-0-last-note')).toHaveTextContent(
+      'Last time: seat 4, grip wide',
+    );
+  });
+
+  it('shows nothing when no prior session left a note', async () => {
+    await renderWorkout(activeDoc());
+    expect(screen.queryByTestId('exercise-0-last-note')).toBeNull();
+  });
+});
+
 describe('WorkoutScreen — finish', () => {
   it('asks before finishing with unticked sets; "Keep going" keeps the session', async () => {
     const user = userEvent.setup();

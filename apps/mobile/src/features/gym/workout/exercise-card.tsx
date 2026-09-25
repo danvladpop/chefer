@@ -20,6 +20,7 @@ import {
   directionOf,
   isCalibrating,
   isDone,
+  lastNoteFor,
   lastTimeSets,
   lastWorkingSetDone,
   livePr,
@@ -95,6 +96,7 @@ function ExerciseCardImpl({
     () => lastTimeSets(se.exerciseId, ctx.prior),
     [se.exerciseId, ctx.prior],
   );
+  const lastNote = useMemo(() => lastNoteFor(se.exerciseId, ctx.prior), [se.exerciseId, ctx.prior]);
   const pr = useMemo(() => livePr(se, ctx.prior), [se, ctx.prior]);
   const sentence = useMemo(() => explain(se.prescription, ctx.unit), [se.prescription, ctx.unit]);
   const weightMode = weightModeOf(meta, ctx.profile);
@@ -175,6 +177,11 @@ function ExerciseCardImpl({
             {se.skipped ? 'Skipped' : subtitle}
             {pr ? ' · PR' : ''}
           </Text>
+          {lastNote ? (
+            <Text testID={`${base}-last-note`} variant="muted" numberOfLines={1}>
+              Last time: {lastNote}
+            </Text>
+          ) : null}
         </Pressable>
         <Pressable
           testID={`${base}-menu`}
