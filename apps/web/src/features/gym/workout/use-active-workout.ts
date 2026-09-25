@@ -29,10 +29,31 @@ import type { WorkoutActionInput } from './workout-model';
 // (or a crashed tab) resumes exactly where it was.
 
 export type StartWorkoutInput =
-  | { kind: 'planned'; workout: NextWorkoutDto }
-  | { kind: 'freestyle'; name?: string };
+  | { kind: 'planned'; workout: NextWorkoutDto; backfillDate?: string }
+  | { kind: 'freestyle'; name?: string; backfillDate?: string };
 
 export const FREESTYLE_NAME = 'Freestyle workout';
+
+/**
+ * "HH:MM" on a browser-local calendar date → an absolute instant (mirrors
+ * apps/mobile/src/features/gym/reminders/schedule.ts's `localInstant` — kept
+ * as its own tiny copy here rather than a cross-app import, since this file
+ * is owned by another wave; see the G4-A handoff). Only used by the
+ * `backfillDate` "log a past workout" path below (gym_plan.md §1.4 "Repair").
+ */
+function localInstant(date: string, time: string): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  return new Date(
+    year ?? 1970,
+    (month ?? 1) - 1,
+    day ?? 1,
+    hour ?? 0,
+    minute ?? 0,
+    0,
+    0,
+  ).toISOString();
+}
 
 /** An active record is resumable only by the account that started it. */
 export function belongsTo(record: ActiveSessionRecord | null, owner: string | null): boolean {
@@ -57,11 +78,14 @@ export function startWorkout(
   if (existing) return existing;
 
   const planned = input.kind === 'planned' ? input.workout : null;
+  // Streak repair (gym_plan.md §1.4 "Repair"): a backfilled session gets the
+  // picked date's localDate and an 18:00-local startedAt instead of "now".
+  const backfillDate = input.backfillDate;
   const doc = startSession({
     id: newId(),
     newId,
-    now: nowIso(),
-    localDate: today,
+    now: backfillDate ? localInstant(backfillDate, '18:00') : nowIso(),
+    localDate: backfillDate ?? today,
     routineId: planned?.routineId ?? null,
     routineDayId: planned?.dayId ?? null,
     name: planned

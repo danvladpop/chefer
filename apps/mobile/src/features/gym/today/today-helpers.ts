@@ -1,16 +1,13 @@
-import type {
-  GymBootstrap,
-  GymOffer,
-  GymOfferKind,
-  NextWorkoutExerciseDto,
-  StreakInfo,
-  WeightUnit,
-} from '@chefer/types';
-import { addDaysLocal, formatLoad, weekStartOf } from '@chefer/utils';
+import type { GymBootstrap, NextWorkoutExerciseDto, StreakInfo, WeightUnit } from '@chefer/types';
+import { addDaysLocal, formatLoad, pickOffer, weekStartOf } from '@chefer/utils';
 import { libraryLookup } from '../use-gym-bootstrap';
 
 // Pure helpers for the Today tab (gym_plan.md §1.3 "Today tab", §1.4 habit
 // mechanics) — kept dependency-free of React so they're trivial to unit test.
+// `pickOffer` itself now lives in `@chefer/utils` (shared with web — G4-A
+// found the two platforms disagreeing on offer priority) and is re-exported
+// here so every existing caller of `./today-helpers` keeps working.
+export { pickOffer };
 
 export type DayStatus = 'done' | 'planned' | 'neutral';
 
@@ -40,17 +37,6 @@ export function computeWeekStrip(bootstrap: GymBootstrap, today: string): WeekSt
         : 'neutral';
     return { weekday, localDate, status };
   });
-}
-
-const OFFER_PRIORITY: readonly GymOfferKind[] = ['comeback', 'deload', 'stall', 'recap'];
-
-/** At most one offer card at a time, in priority order (§1.3 "Contextual cards"). */
-export function pickOffer(offers: readonly GymOffer[]): GymOffer | null {
-  for (const kind of OFFER_PRIORITY) {
-    const found = offers.find((o) => o.kind === kind);
-    if (found) return found;
-  }
-  return null;
 }
 
 /** "7-week streak" (+ a flex-week note when one was just spent — never guilt copy). */

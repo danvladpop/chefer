@@ -14,6 +14,7 @@ import {
 } from '@chefer/utils';
 import {
   exerciseRow,
+  pauseRow,
   profileRow,
   progressionState,
   routineRow,
@@ -68,6 +69,7 @@ function setup(
     context?: GymUserContext;
     dates?: string[];
     exercises?: ReturnType<typeof exerciseRow>[];
+    pauses?: ReturnType<typeof pauseRow>[];
   } = {},
 ) {
   const older = sessionDoc({ localDate: '2026-09-20', startedAt: '2026-09-20T10:00:00.000Z' });
@@ -90,7 +92,7 @@ function setup(
     findCompleted: vi.fn().mockResolvedValue([sessionRow(older), sessionRow(newer)]),
   } as unknown as IWorkoutSessionRepository;
   const pauseRepo = {
-    listForUser: vi.fn().mockResolvedValue([]),
+    listForUser: vi.fn().mockResolvedValue(opts.pauses ?? []),
   } as unknown as ITrainingPauseRepository;
   const weightRepo = {
     findLatest: vi.fn().mockResolvedValue({ weightKg: 81.4 }),
@@ -158,6 +160,7 @@ describe('GymBootstrapService.get', () => {
     expect(b.libraryCursor).toBe('2026-09-20T00:00:00.000Z');
     expect(b.bodyweightKg).toBe(81.4);
     expect(b.engineVersion).toBe(1);
+    expect(b.activePause).toBeNull();
     expect(Date.parse(b.serverTime)).not.toBeNaN();
   });
 
@@ -234,6 +237,31 @@ describe('GymBootstrapService.get', () => {
     const b2 = await running.service.get(USER, { today: TODAY });
     expect(b2.offers).toEqual([]);
     expect(buildNextWorkout).toHaveBeenLastCalledWith(expect.objectContaining({ isDeload: true }));
+  });
+
+  it('reports the pause covering today as activePause, with its id for ending it', async () => {
+    const covering = setup({
+      pauses: [pauseRow({ id: 'p1', startDate: '2026-09-20', endDate: '2026-09-30' })],
+    });
+    const b = await covering.service.get(USER, { today: TODAY });
+    expect(b.activePause).toEqual({
+      id: 'p1',
+      startDate: '2026-09-20',
+      endDate: '2026-09-30',
+      reason: 'vacation',
+    });
+
+    const past = setup({
+      pauses: [pauseRow({ id: 'p0', startDate: '2026-08-01', endDate: '2026-08-14' })],
+    });
+    const b2 = await past.service.get(USER, { today: TODAY });
+    expect(b2.activePause).toBeNull();
+
+    const future = setup({
+      pauses: [pauseRow({ id: 'p2', startDate: '2026-10-01', endDate: '2026-10-14' })],
+    });
+    const b3 = await future.service.get(USER, { today: TODAY });
+    expect(b3.activePause).toBeNull();
   });
 
   it('falls back to the first day when the pointer is missing', async () => {

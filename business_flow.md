@@ -1123,6 +1123,40 @@ counts consecutive goal-met weeks. Flex weeks (earn 1 per 4 met weeks, hold 2)
 auto-cover a short week; pauses (`gym.pause.*`) freeze the streak. No daily
 streaks, no red "missed" markers.
 
+- **Pause, end early:** `GymBootstrap.activePause` (additive DTO field, G4-A)
+  carries the id/dates/reason of the pause covering the client's `today`, so
+  both mobile settings and web settings can show "Paused until <date>" with an
+  **End pause** button (`gym.pause.end`) regardless of which device started
+  it — the web's earlier "only pauses created in this browser" workaround
+  (localStorage bookkeeping) is gone.
+- **Reminders (mobile only, local `expo-notifications`, G4-A):** one
+  notification per planned weekday over the next 14 days at the profile's
+  `reminderTime`, skipping a day already trained or inside a pause, plus at
+  most one gentle "missed yesterday" nudge the day after a missed planned
+  day (never the same day as a planned reminder — max one notification a
+  day, never guilt copy). `useGymReminders()` cancels and reschedules
+  everything whenever the bootstrap's reminder-relevant fields change or the
+  app foregrounds; permission is requested only from the settings toggle and
+  the setup wizard's reminder step, never on cold start. Web shows "Reminders
+  are sent by the Chefer phone app" — it stores the preference but sends
+  nothing itself.
+- **Streak repair — "Log a past workout" (mobile + web, G4-A):** pick a date
+  in the current or previous week (never the future), then a routine day or
+  freestyle. Starts a session backdated to that date's `localDate` with
+  `startedAt` at 18:00 local (`use-active-workout.ts`'s `backfillDate`); the
+  user logs the actual sets in the normal workout screen and finishes like
+  any other session. The engine folds it into `summarizeWeeks` by the week it
+  happened in and into progression by `performedAt` — never by upload order —
+  so a backfill logged after today's session still lands in the right place
+  chronologically.
+- **Contextual offers:** at most one of comeback / deload / stall / recap is
+  shown at a time, in that priority order (`pickOffer` in `@chefer/utils`,
+  shared by mobile and web so they never disagree — the web previously just
+  took `offers[0]`, found and fixed during G4-A verification). A deload
+  accepted from Today (`gym.progression.startDeload`) flips
+  `nextWorkout.isDeload` and prescribes deload targets (half the sets,
+  ~90% load, reps at the floor) on the very next bootstrap read.
+
 ## 22. Gym Setup & Workout Sync Flow (API)
 
 Server side of gym_plan.md §4/§5.2 (services in `apps/api/src/application/gym/`). Every

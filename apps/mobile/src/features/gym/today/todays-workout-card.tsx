@@ -2,6 +2,7 @@ import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Card, ProgressRing, Text } from '@chefer/ui-mobile';
 import { setMode } from '../mode-store';
+import { useGymReminders } from '../reminders/use-gym-reminders';
 import { useGymBootstrap } from '../use-gym-bootstrap';
 
 // "Today's workout" dashboard card (gym_plan.md D11, §1.3 "Food dashboard
@@ -9,9 +10,15 @@ import { useGymBootstrap } from '../use-gym-bootstrap';
 // no gating on the current mode, so it renders in Food mode too — and never
 // blocks the food dashboard's own loading state (renders nothing until the
 // gym bootstrap has an answer).
+//
+// It also hosts `useGymReminders()` (gym_plan.md §6.5): this card is the one
+// gym-adjacent element always mounted for a signed-in user regardless of
+// which mode they're in, so it's the natural second home for the reminder
+// reschedule effect (the first is the gym Today tab itself).
 
 export function TodaysWorkoutCard() {
   const { data: bootstrap } = useGymBootstrap();
+  useGymReminders();
 
   if (!bootstrap) return null;
 

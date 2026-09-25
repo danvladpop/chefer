@@ -9,8 +9,10 @@ import {
   type ITrainingPauseRepository,
   type IWeightEntryRepository,
   type IWorkoutSessionRepository,
+  type TrainingPause,
 } from '@chefer/database';
 import type {
+  ActivePauseDto,
   GymBootstrap,
   GymOffer,
   NextWorkoutDto,
@@ -123,6 +125,7 @@ export class GymBootstrapService {
       weeks: allWeeks,
       streak,
       offers: this.offers(ctx, progressions, allWeeks, sessionDates, today),
+      activePause: this.activePause(pauses, today),
       bodyweightKg: latestWeight?.weightKg ?? null,
       serverTime: new Date().toISOString(),
       engineVersion: ENGINE_VERSION,
@@ -240,6 +243,14 @@ export class GymBootstrapService {
       });
     }
     return offers;
+  }
+
+  /** The pause covering `today` (device-local), if any — lets a client end it directly. */
+  private activePause(pauses: TrainingPause[], today: string): ActivePauseDto | null {
+    const row = pauses.find((p) => p.startDate <= today && today <= p.endDate);
+    return row
+      ? { id: row.id, startDate: row.startDate, endDate: row.endDate, reason: row.reason }
+      : null;
   }
 }
 

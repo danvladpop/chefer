@@ -2,10 +2,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { GymOffer, NextWorkoutDto, RoutineDto } from '@chefer/types';
+import { addDaysLocal } from '@chefer/utils';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
+import { localDate } from '../../src/features/gym/offline/ids';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { outbox } from '../../src/features/gym/offline/outbox';
 import { resetGymOwnerForTests } from '../../src/features/gym/offline/owner';
+import { localInstant } from '../../src/features/gym/reminders/schedule';
 import { TodayScreen } from '../../src/features/gym/today/today-screen';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { makeBootstrap, makeDoc } from './gym-fixtures';
@@ -245,5 +248,81 @@ describe('TodayScreen', () => {
 
     expect(router.push).toHaveBeenCalledWith('/gym/workout');
     jest.restoreAllMocks();
+  });
+
+  describe('Log a past workout (gym_plan.md §1.4 "Repair")', () => {
+    it('picking a date then a routine day starts a session backdated to that date', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+      );
+      const user = userEvent.setup();
+      await renderToday(queryClient);
+
+      await user.press(screen.getByTestId('gym-today-log-past'));
+      const yesterday = addDaysLocal(localDate(), -1);
+      await waitFor(() =>
+        expect(screen.getByTestId(`gym-today-backfill-date-${yesterday}`)).toBeOnTheScreen(),
+      );
+      await user.press(screen.getByTestId(`gym-today-backfill-date-${yesterday}`));
+
+      await waitFor(() =>
+        expect(screen.getByTestId('gym-today-backfill-day-d2')).toBeOnTheScreen(),
+      );
+      await user.press(screen.getByTestId('gym-today-backfill-day-d2'));
+
+      expect(router.push).toHaveBeenCalledWith('/gym/workout');
+      const started = activeSessionStore.get();
+      expect(started?.doc.localDate).toBe(yesterday);
+      expect(started?.doc.startedAt).toBe(localInstant(yesterday, '18:00'));
+      expect(started?.doc.routineDayId).toBe('d2');
+    });
+
+    it('the freestyle option starts a backdated freestyle session', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+      );
+      const user = userEvent.setup();
+      await renderToday(queryClient);
+
+      await user.press(screen.getByTestId('gym-today-log-past'));
+      const yesterday = addDaysLocal(localDate(), -1);
+      await waitFor(() =>
+        expect(screen.getByTestId(`gym-today-backfill-date-${yesterday}`)).toBeOnTheScreen(),
+      );
+      await user.press(screen.getByTestId(`gym-today-backfill-date-${yesterday}`));
+
+      await waitFor(() =>
+        expect(screen.getByTestId('gym-today-backfill-freestyle')).toBeOnTheScreen(),
+      );
+      await user.press(screen.getByTestId('gym-today-backfill-freestyle'));
+
+      expect(router.push).toHaveBeenCalledWith('/gym/workout');
+      const started = activeSessionStore.get();
+      expect(started?.doc.localDate).toBe(yesterday);
+      expect(started?.doc.routineId).toBeNull();
+    });
+
+    it('never offers a future date', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+      );
+      const user = userEvent.setup();
+      await renderToday(queryClient);
+
+      await user.press(screen.getByTestId('gym-today-log-past'));
+      const today = localDate();
+      const tomorrow = addDaysLocal(today, 1);
+      await waitFor(() =>
+        expect(screen.getByTestId('gym-today-backfill-date-picker')).toBeOnTheScreen(),
+      );
+      expect(screen.queryByTestId(`gym-today-backfill-date-${today}`)).not.toBeOnTheScreen();
+      expect(screen.queryByTestId(`gym-today-backfill-date-${tomorrow}`)).not.toBeOnTheScreen();
+    });
   });
 });

@@ -7,6 +7,7 @@ import type {
   RoutineWithDays,
   SessionDocWriteData,
   SessionWithChildren,
+  TrainingPause,
   UpsertSessionResult,
 } from '@chefer/database';
 import type { ProgressionState, Suggestion, WorkoutSessionDoc } from '@chefer/types';
@@ -165,6 +166,18 @@ export function progressionState(over: Partial<ProgressionState> = {}): Progress
     lastExposureDate: '2026-09-01',
     lastTotalReps: 24,
     next: suggestion(),
+    ...over,
+  };
+}
+
+export function pauseRow(over: Partial<TrainingPause> = {}): TrainingPause {
+  return {
+    id: 'p1',
+    userId: 'u1',
+    startDate: '2026-09-20',
+    endDate: '2026-09-30',
+    reason: 'vacation',
+    createdAt: T0,
     ...over,
   };
 }

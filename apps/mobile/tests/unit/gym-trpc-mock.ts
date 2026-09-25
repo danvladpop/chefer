@@ -24,7 +24,7 @@ export function createTrpcGymMock() {
           dismissOffer: { useMutation: jest.fn() },
           startDeload: { useMutation: jest.fn() },
         },
-        pause: { create: { useMutation: jest.fn() } },
+        pause: { create: { useMutation: jest.fn() }, end: { useMutation: jest.fn() } },
       },
       useUtils: jest.fn(() => ({ client: { gym: { bootstrap: { query: jest.fn() } } } })),
     },

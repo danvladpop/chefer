@@ -27,6 +27,7 @@ import { trpc } from '../../../lib/trpc';
 import { GymExportRow } from '../export/export-row';
 import { localDate } from '../offline/ids';
 import { outbox, useOutboxStatus } from '../offline/outbox';
+import { ensureGymReminderPermission } from '../reminders/permission';
 import { gymBootstrapQueryKey, useGymBootstrap } from '../use-gym-bootstrap';
 
 // Gym settings (gym_plan.md §1.3 "Settings"). Every control saves immediately
@@ -157,6 +158,9 @@ export function GymSettingsScreen() {
       void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey });
     },
   });
+  const pauseEndMutation = trpc.gym.pause.end.useMutation({
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey }),
+  });
 
   if (!bootstrap?.profile) {
     return (
@@ -182,8 +186,13 @@ export function GymSettingsScreen() {
   const isPausedThisWeek = bootstrap.weeks.some(
     (w) => w.weekStart === weekStartOf(today) && w.status === 'paused',
   );
+  const activePause = bootstrap.activePause;
 
   const saveReminder = (enabled: boolean, hour: number, minute: number) => {
+    // Ask for notification permission right here — a direct user action on
+    // the toggle — never on cold start (gym_plan.md §6.5). A denial still
+    // saves the preference; useGymReminders() simply won't schedule anything.
+    if (enabled) void ensureGymReminderPermission();
     saveMutation.mutate({
       reminderEnabled: enabled,
       reminderTime: enabled ? `${pad(hour)}:${pad(minute)}` : null,
@@ -376,11 +385,21 @@ export function GymSettingsScreen() {
         <View className="gap-2">
           <SectionTitle>Pause training</SectionTitle>
           <Card className="gap-2">
-            {isPausedThisWeek ? (
-              // KNOWN GAP: GymBootstrap/GymProfileDto carry no active-pause id
-              // (packages/types/src/gym/{dto,schemas}.ts are frozen — G2-B
-              // cannot add one), so "end a pause early" has nothing to call
-              // pause.end with. Flagged in the handoff for a follow-up DTO change.
+            {activePause ? (
+              <View className="gap-2">
+                <Text testID="gym-settings-paused-note" variant="muted">
+                  Paused until {activePause.endDate}.
+                </Text>
+                <Button
+                  testID="gym-settings-pause-end"
+                  variant="outline"
+                  loading={pauseEndMutation.isPending}
+                  onPress={() => pauseEndMutation.mutate({ id: activePause.id })}
+                >
+                  End pause now
+                </Button>
+              </View>
+            ) : isPausedThisWeek ? (
               <Text testID="gym-settings-paused-note" variant="muted">
                 Training is paused this week.
               </Text>

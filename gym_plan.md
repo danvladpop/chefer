@@ -1002,22 +1002,22 @@ true`, one per row in the wave tables, all launched **in a single message** so t
 
 ## 12. Progress
 
-| Step                            | Status                                                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Research (programming, library) | ✅ 2026-09-24 (`docs/gym/*`)                                                                                  |
-| Plan                            | ✅ 2026-09-24 (this file)                                                                                     |
-| G0 foundations                  | ☐                                                                                                             |
-| G1-A engine                     | ✅ 2026-09-24 — 17 worked examples + property tests, 100% branch cov. on progression.ts                       |
-| G1-B API                        | ✅ 2026-09-24 — repos, 8 services, idempotent upsertMany, bootstrap; contract tests                           |
-| G1-C mobile infra               | ✅ 2026-09-24 — (food)/(gym) groups, mode switch, KV + outbox + persisted bootstrap, ui-mobile kit            |
-| G1-D content QA                 | ✅ 2026-09-24 — 55/55 content, 53 photo pairs (2.4 MB), 55 verified videos, weekly link check                 |
-| G2-A workout                    | ✅ 2026-09-25 — iOS + Android Maestro green                                                                   |
-| G2-B today + setup              | ✅ 2026-09-25 — iOS + Android Maestro green                                                                   |
-| G2-C routine                    | ✅ 2026-09-25 — iOS + Android Maestro green                                                                   |
-| G2-D library + stats            | ✅ 2026-09-25 — iOS + Android Maestro green                                                                   |
-| G3 dogfood                      | ☐ owner — real training weeks (needs the phone release builds)                                                |
-| G4 habit + polish               | 🟡 2026-09-25 — G4-B supersets/polish ✅, G4-C export/analytics ✅, G4-A reminders/backfill/pause in progress |
-| G5 web                          | ✅ 2026-09-25 — pulled forward in parallel; Playwright gym 13/13 + mobile sweep 50/50 on /gym/\*              |
+| Step                            | Status                                                                                             |
+| ------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Research (programming, library) | ✅ 2026-09-24 (`docs/gym/*`)                                                                       |
+| Plan                            | ✅ 2026-09-24 (this file)                                                                          |
+| G0 foundations                  | ☐                                                                                                  |
+| G1-A engine                     | ✅ 2026-09-24 — 17 worked examples + property tests, 100% branch cov. on progression.ts            |
+| G1-B API                        | ✅ 2026-09-24 — repos, 8 services, idempotent upsertMany, bootstrap; contract tests                |
+| G1-C mobile infra               | ✅ 2026-09-24 — (food)/(gym) groups, mode switch, KV + outbox + persisted bootstrap, ui-mobile kit |
+| G1-D content QA                 | ✅ 2026-09-24 — 55/55 content, 53 photo pairs (2.4 MB), 55 verified videos, weekly link check      |
+| G2-A workout                    | ✅ 2026-09-25 — iOS + Android Maestro green                                                        |
+| G2-B today + setup              | ✅ 2026-09-25 — iOS + Android Maestro green                                                        |
+| G2-C routine                    | ✅ 2026-09-25 — iOS + Android Maestro green                                                        |
+| G2-D library + stats            | ✅ 2026-09-25 — iOS + Android Maestro green                                                        |
+| G3 dogfood                      | ☐ owner — real training weeks (needs the phone release builds)                                     |
+| G4 habit + polish               | ✅ 2026-09-25 — reminders, backfill, pause, supersets, set removal, CSV export, web analytics      |
+| G5 web                          | ✅ 2026-09-25 — pulled forward in parallel; Playwright gym 13/13 + mobile sweep 50/50 on /gym/\*   |
 
 ### Deviations log
 
@@ -1069,3 +1069,30 @@ _(append as `n. YYYY-MM-DD: what changed and why`)_
 15. 2026-09-25 (orchestrator): **G5 web ran in parallel with G2**, not after G3/G4. The owner asked for the whole plan overnight, and web touches disjoint files. G3 dogfooding moves to after everything is built.
 16. 2026-09-25 (orchestrator, found by on-device E2E): Metro now forces React Native runtime singletons (a duplicate nativewind/css-interop from pnpm peer variants crashed the SegmentedControl). The mode switch navigates to `/(food)`, because a bare `/` also matches the guarded `(auth)/index` and silently no-ops. The launch redirect is one-shot. `gym/workout` is a slide-up card, not a `fullScreenModal`, because iOS safe-area insets read 0 inside native modals and pushed the header under the status bar. A "Finish workout" button also sits at the end of the list. The routine editor's Save moved to a bottom bar.
 17. 2026-09-25: Mobile analytics are a typed no-op, since the app has no analytics SDK. The §6.6 events fire on web only.
+18. 2026-09-25 (G4-A): Closed #14's follow-up — added `activePause` to `GymBootstrap` (additive;
+    the only DTO change this wave made), filled in `GymBootstrapService` from the pause covering
+    the client's `today`. Mobile and web settings now show "Paused until <date>" with a real
+    **End pause** button everywhere, not just on the device that started it. Removed the web's
+    `pause-store.ts` (browser-local id bookkeeping) entirely — it's dead code now.
+19. 2026-09-25 (G4-A): Web Today (`today-view.tsx`) picked its one contextual offer as
+    `data.offers[0]`, with no priority order — found while verifying the comeback/deload flows end
+    to end (this wave's acceptance criterion). If more than one offer was pending, web and mobile
+    could show different cards. Moved mobile's `pickOffer`/priority list
+    (comeback > deload > stall > recap) into `@chefer/utils` (`gym/offers.ts`) and pointed both
+    platforms at the shared function; `today-helpers.ts` (mobile) re-exports it so existing callers
+    are unaffected.
+20. 2026-09-25 (G4-A): "Log a past workout" (streak repair) needed a `backfillDate` on the active-
+    workout `start()` API on BOTH platforms. Mobile's `use-active-workout.ts` is outside G4-A's file
+    ownership only nominally (it isn't under `workout/**`); web's `apps/web/src/features/gym/workout/
+use-active-workout.ts` genuinely IS another wave's file. Per §9.2 ("keep it minimal and list it
+    in your handoff"), added one additive field to `StartWorkoutInput` on both variants plus a
+    6-line local `localInstant` helper (a duplicate of the mobile reminders one, kept local rather
+    than cross-imported since the file is owned elsewhere) — nothing else in that file changed.
+21. 2026-09-25 (G4-A): `computeGymReminders`'s signature grew past the plan's literal
+    `(profile, activeRoutine, lastSessionDate, today, now)` in two ways: (a) an `activePause`
+    field, needed to actually satisfy "skip days inside a pause" (nothing else in that list carries
+    pause info); (b) an optional `toLocalInstant` test seam, because this repo's Jest environment
+    (jest-expo) pins `Date`/`Intl` to the host machine's own timezone and ignores `process.env.TZ`
+    reassignment mid-process — verified empirically — so DST correctness had to be tested by
+    injecting a synthetic zone rather than forcing a real one. Production always uses the real,
+    device-local `localInstant` (unchanged behavior).

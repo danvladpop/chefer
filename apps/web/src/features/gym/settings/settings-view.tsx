@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { AlertTriangle, ArrowLeft, Copy, PauseCircle, RotateCw, Trash2 } from 'lucide-react';
-import type { GymProfileDto, WeightUnit } from '@chefer/types';
+import type { ActivePauseDto, GymProfileDto, WeightUnit } from '@chefer/types';
 import { Button, Input, Sheet } from '@chefer/ui';
 import { addDaysLocal, cn, formatLoadNumber, unitLabel } from '@chefer/utils';
 import { shortDate } from '../shared/format';
@@ -14,7 +14,6 @@ import { Stepper } from '../shared/stepper';
 import { ToggleRow } from '../shared/toggle-row';
 import { useGymData } from '../shared/use-gym-data';
 import { outbox, useOutboxStatus, type OutboxEntry } from '../workout/outbox';
-import { getGymOwner, subscribeGymOwner } from '../workout/owner';
 import {
   defaultInventory,
   draftFrom,
@@ -22,14 +21,11 @@ import {
   plateChoices,
   type InventoryDraft,
 } from './inventory';
-import { activePause, forgetPause, rememberPause, type KnownPause } from './pause-store';
 
 // ─── Gym settings (gym_plan.md §5.1 settings) ─────────────────────────────────
 // Units, weekly goal, equipment inventory, reminders (stored only — the web
 // has no local notifications; the phone app sends them), pause, and the
 // outbox's "needs attention" entries (Copy / Retry / Discard).
-
-const serverOwner = () => null;
 
 export function SettingsView() {
   const { data, today, ready } = useGymData();
@@ -70,6 +66,7 @@ export function SettingsView() {
             profile={data.profile}
             today={today}
             paused={data.weeks[data.weeks.length - 1]?.status === 'paused'}
+            activePause={data.activePause}
           />
         )}
       </div>
@@ -81,10 +78,12 @@ function ProfileSettings({
   profile,
   today,
   paused,
+  activePause,
 }: {
   profile: GymProfileDto;
   today: string;
   paused: boolean;
+  activePause: ActivePauseDto | null;
 }) {
   const utils = trpc.useUtils();
   const unit = profile.unit;
@@ -294,7 +293,7 @@ function ProfileSettings({
         </div>
       </GymCard>
 
-      <PauseCard today={today} paused={paused} />
+      <PauseCard today={today} paused={paused} activePause={activePause} />
 
       {(saved !== null || save.isError) && (
         <p
@@ -340,34 +339,27 @@ const PAUSE_REASONS = [
   { value: 'other', label: 'Other' },
 ] as const;
 
-function PauseCard({ today, paused }: { today: string; paused: boolean }) {
+function PauseCard({
+  today,
+  paused,
+  activePause,
+}: {
+  today: string;
+  paused: boolean;
+  activePause: ActivePauseDto | null;
+}) {
   const utils = trpc.useUtils();
-  const owner = useSyncExternalStore(subscribeGymOwner, getGymOwner, serverOwner);
   const [weeks, setWeeks] = useState(1);
   const [reason, setReason] = useState<(typeof PAUSE_REASONS)[number]['value']>('vacation');
-  const [known, setKnown] = useState<KnownPause | null>(null);
-
-  useEffect(() => {
-    setKnown(activePause(owner, today));
-  }, [owner, today]);
 
   const create = trpc.gym.pause.create.useMutation({
-    onSuccess: ({ id }, input) => {
-      if (owner) {
-        const pause = { id, ownerId: owner, startDate: input.startDate, endDate: input.endDate };
-        rememberPause(pause);
-        setKnown(pause);
-      }
+    onSuccess: () => {
       capture('training_paused', { weeks, reason });
       void utils.gym.bootstrap.invalidate();
     },
   });
   const end = trpc.gym.pause.end.useMutation({
-    onSuccess: (_res, { id }) => {
-      forgetPause(id);
-      setKnown(null);
-      void utils.gym.bootstrap.invalidate();
-    },
+    onSuccess: () => void utils.gym.bootstrap.invalidate(),
   });
 
   return (
@@ -378,24 +370,24 @@ function PauseCard({ today, paused }: { today: string; paused: boolean }) {
         return.
       </p>
 
-      {known ? (
+      {activePause ? (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-sky-50 px-3 py-2">
           <p className="flex items-center gap-1.5 text-sm text-sky-800">
             <PauseCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Paused until {shortDate(known.endDate)}
+            Paused until {shortDate(activePause.endDate)}
           </p>
           <Button
             variant="outline"
             size="sm"
             disabled={end.isPending}
-            onClick={() => end.mutate({ id: known.id })}
+            onClick={() => end.mutate({ id: activePause.id })}
           >
             End pause now
           </Button>
         </div>
       ) : paused ? (
         <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-sm text-sky-800">
-          Training is paused this week. You can end it from the device that started it.
+          Training is paused this week.
         </p>
       ) : (
         <>
