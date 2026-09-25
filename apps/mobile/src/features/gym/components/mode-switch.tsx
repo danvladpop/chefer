@@ -1,8 +1,10 @@
+import { View } from 'react-native';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type { GymBootstrap } from '@chefer/types';
 import { SegmentedControl } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { HeaderAvatar } from '../../../components/header-avatar';
 import { trpc } from '../../../lib/trpc';
 import { getMode, setMode, useMode, type AppMode } from '../mode-store';
 import { gymBootstrapQueryKey, gymBootstrapQueryOptions } from '../use-gym-bootstrap';
@@ -61,15 +63,19 @@ export function ModeSwitch({ className }: { className?: string }) {
     });
   };
 
+  // The header row of every tab root: compact switch left, profile right.
   return (
-    <SegmentedControl
-      testID="mode-switch"
-      accessibilityLabel="App mode"
-      size="sm"
-      options={OPTIONS}
-      value={mode}
-      onChange={onChange}
-      className={cn('w-40 self-start', className)}
-    />
+    <View className={cn('flex-row items-center justify-between', className)}>
+      <SegmentedControl
+        testID="mode-switch"
+        accessibilityLabel="App mode"
+        size="xs"
+        options={OPTIONS}
+        value={mode}
+        onChange={onChange}
+        className="w-36"
+      />
+      <HeaderAvatar />
+    </View>
   );
 }

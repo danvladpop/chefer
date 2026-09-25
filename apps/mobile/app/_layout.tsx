@@ -56,7 +56,9 @@ export default function RootLayout() {
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
         <GymSyncProvider token={token}>
-          <StatusBar style="auto" />
+          {/* Dark icons: the app is light-only (dark mode deferred) — "auto" drew
+              white icons on a white screen when the phone is in dark mode. */}
+          <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Protected guard={token !== null}>
               {/* Food / Gym mode (gym_plan.md D3): two tab groups at the root;

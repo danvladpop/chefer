@@ -12,6 +12,14 @@
 export function createTrpcGymMock() {
   return {
     trpc: {
+      // Header avatar (every tab-root header) reads the signed-in user.
+      auth: {
+        me: {
+          useQuery: jest.fn(() => ({
+            data: { firstName: 'Alice', lastName: 'Jones', email: 'alice@chefer.dev' },
+          })),
+        },
+      },
       gym: {
         bootstrap: { _def: () => ({ path: ['gym', 'bootstrap'] }) },
         profile: {
