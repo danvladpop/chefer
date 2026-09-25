@@ -460,6 +460,32 @@ describe('applyFinishedSession — the offline optimistic fold', () => {
     }
   });
 
+  it('leaves progressions alone for a backfilled session older than the last exposure', () => {
+    const boot = bootstrapFor('2026-09-15');
+    const today = doWorkout(boot, '2026-09-15');
+    const afterToday = applyFinishedSession({
+      bootstrap: boot,
+      doc: today,
+      lookup,
+      facts,
+      today: '2026-09-15',
+    });
+    // Streak repair: log a workout for the 13th AFTER the 15th was folded.
+    const past = { ...doWorkout(boot, '2026-09-13'), id: 'backfill-1' };
+    const afterBackfill = applyFinishedSession({
+      bootstrap: afterToday,
+      doc: past,
+      lookup,
+      facts,
+      today: '2026-09-15',
+    });
+    // Chronological fold can't be done incrementally — the server re-folds;
+    // the cached prescriptions must not be corrupted meanwhile.
+    expect(afterBackfill.progressions).toEqual(afterToday.progressions);
+    // …while history and the week ring still count it.
+    expect(afterBackfill.recentSessions.map((s) => s.id)).toContain('backfill-1');
+  });
+
   it('is idempotent for a session that is already in the history', () => {
     const boot = bootstrapFor('2026-09-15');
     const doc = doWorkout(boot, '2026-09-15');

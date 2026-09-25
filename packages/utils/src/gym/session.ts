@@ -317,6 +317,14 @@ export function applyFinishedSession(input: {
         (p) => p.exerciseId === exerciseId && p.repBucket === bucket,
       );
       const existing = idx >= 0 ? progressions[idx] : undefined;
+      // A backfilled session older than this exercise's last exposure can't be
+      // folded incrementally on top (the fold is chronological). Leave the
+      // cached state; the server re-folds full history on sync and the next
+      // bootstrap carries the right prescription.
+      const lastSeen = existing?.state.lastExposureDate ?? null;
+      if (lastSeen !== null && exposure.localDate < lastSeen) {
+        continue;
+      }
       const re = se.routineExerciseId ? routineExercises.get(se.routineExerciseId) : undefined;
       const slot: ExerciseSlot = {
         exercise: meta,
