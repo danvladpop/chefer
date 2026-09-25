@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Keyboard, View, type TextInput } from 'react-native';
 import { router } from 'expo-router';
 import {
   customExerciseInputSchema,
@@ -10,7 +10,18 @@ import {
   type CustomExerciseInput,
   type Muscle,
 } from '@chefer/types';
-import { Button, ChipGroup, EmptyState, Input, Screen, Stepper, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  ChipGroup,
+  EmptyState,
+  Input,
+  KeyboardAwareScrollView,
+  Screen,
+  Stepper,
+  Text,
+  useFieldChain,
+  useScrollFieldIntoView,
+} from '@chefer/ui-mobile';
 import { trpc } from '../../../lib/trpc';
 import { useGymBootstrap } from '../use-gym-bootstrap';
 import { EQUIPMENT_FILTERS } from './exercise-filters';
@@ -112,6 +123,14 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
   });
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
+  // Keyboard avoidance (dogfood #2): the Name field dismisses on submit; the
+  // cues list chains Next/Done like the setup wizard's weights list (plain
+  // text keyboard, so no NumericReturnBar needed — it already has a Return
+  // key on both platforms).
+  const nameRef = useRef<TextInput>(null);
+  const cuesChain = useFieldChain(state.cues.length);
+  const scrollFieldIntoView = useScrollFieldIntoView();
+
   const secondaryOptions = useMemo(
     () => MUSCLE_OPTIONS.filter((o) => !state.primaryMuscles.includes(o.value)),
     [state.primaryMuscles],
@@ -175,7 +194,10 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
 
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
-      <ScrollView contentContainerClassName="gap-4 px-4 pb-8 pt-2" testID="gym-exercise-form">
+      <KeyboardAwareScrollView
+        contentContainerClassName="gap-4 px-4 pb-8 pt-2"
+        testID="gym-exercise-form"
+      >
         <View className="flex-row items-center gap-3">
           <StackBackButton testID="gym-exercise-form-title-back" />
           <Text testID="gym-exercise-form-title" variant="title">
@@ -188,10 +210,14 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
             Name
           </Text>
           <Input
+            ref={nameRef}
             testID="exercise-form-name"
             value={state.name}
             onChangeText={(name) => setState((s) => ({ ...s, name }))}
+            onFocus={() => scrollFieldIntoView(nameRef.current)}
             placeholder="e.g. Cable pull-through"
+            returnKeyType="done"
+            onSubmitEditing={() => Keyboard.dismiss()}
           />
         </View>
 
@@ -340,6 +366,7 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
                 onChangeText={(text) => setCue(i, text)}
                 placeholder={`Cue ${i + 1}`}
                 className="flex-1"
+                {...cuesChain.bind(i, { onFocus: scrollFieldIntoView })}
               />
               <Button
                 testID={`exercise-form-remove-cue-${i}`}
@@ -367,7 +394,7 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
         <Button testID="exercise-form-submit" loading={isSaving} onPress={onSubmit}>
           {isEdit ? 'Save changes' : 'Create exercise'}
         </Button>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

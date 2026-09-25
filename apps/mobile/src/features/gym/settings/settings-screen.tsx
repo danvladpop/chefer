@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Keyboard, Platform, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
@@ -10,10 +10,13 @@ import {
   ChipGroup,
   EmptyState,
   Input,
+  KeyboardAwareScrollView,
+  NumericReturnBar,
   Screen,
   Sheet,
   Stepper,
   Text,
+  useScrollFieldIntoView,
 } from '@chefer/ui-mobile';
 import {
   addDaysLocal,
@@ -81,6 +84,12 @@ function WeightListEditor({
 }) {
   const [draft, setDraft] = useState('');
   const sorted = [...valuesKg].sort((a, b) => a - b);
+  const inputRef = useRef<TextInput>(null);
+  const scrollFieldIntoView = useScrollFieldIntoView();
+  // iOS's decimal-pad has no Return key of its own — this bar is its
+  // "Done" substitute (dogfood #2). Only one field per editor, so unlike the
+  // setup wizard's weights list there's no "Next" to chain to.
+  const accessoryID = `${testID}-return`;
 
   const add = () => {
     const n = parseFloat(draft.replace(',', '.'));
@@ -88,6 +97,10 @@ function WeightListEditor({
       onChangeKg([...valuesKg, unitToKg(n, unit)]);
       setDraft('');
     }
+  };
+  const submit = () => {
+    add();
+    Keyboard.dismiss();
   };
 
   return (
@@ -111,17 +124,28 @@ function WeightListEditor({
       </View>
       <View className="flex-row items-center gap-2">
         <Input
+          ref={inputRef}
           testID={`${testID}-add-input`}
           keyboardType="decimal-pad"
+          inputAccessoryViewID={Platform.OS === 'ios' ? accessoryID : undefined}
           placeholder={`Add (${unitLabel(unit)})`}
           value={draft}
           onChangeText={setDraft}
+          onFocus={() => scrollFieldIntoView(inputRef.current)}
+          returnKeyType="done"
+          onSubmitEditing={submit}
           className="w-28"
         />
         <Button testID={`${testID}-add`} size="sm" variant="outline" onPress={add}>
           Add
         </Button>
       </View>
+      <NumericReturnBar
+        nativeID={accessoryID}
+        label="Done"
+        onPress={submit}
+        testID={`${accessoryID}-bar`}
+      />
     </View>
   );
 }
@@ -220,7 +244,7 @@ export function GymSettingsScreen() {
         </Text>
       </View>
 
-      <ScrollView contentContainerClassName="gap-5 px-4 py-4" keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView contentContainerClassName="gap-5 px-4 py-4">
         <View className="gap-2">
           <SectionTitle>Units</SectionTitle>
           <ChipGroup
@@ -484,7 +508,7 @@ export function GymSettingsScreen() {
             {outboxStatus.lastSyncAt ? new Date(outboxStatus.lastSyncAt).toLocaleString() : 'Never'}
           </Text>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Sheet
         visible={pauseSheetVisible}

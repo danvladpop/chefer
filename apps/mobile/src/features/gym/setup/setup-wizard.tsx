@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
@@ -9,7 +9,20 @@ import type {
   VolumeGroup,
   WeightUnit,
 } from '@chefer/types';
-import { Button, Card, ChipGroup, Input, Screen, Sheet, Stepper, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  ChipGroup,
+  Input,
+  KeyboardAwareScrollView,
+  NumericReturnBar,
+  Screen,
+  Sheet,
+  Stepper,
+  Text,
+  useFieldChain,
+  useScrollFieldIntoView,
+} from '@chefer/ui-mobile';
 import { cn, unitLabel, unitToKg, VOLUME_GROUP_LABELS } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { ensureGymReminderPermission } from '../reminders/permission';
@@ -26,6 +39,7 @@ import { buildTemplatePreview, uniqueExercisesOf, type TemplatePreview } from '.
 
 const TOTAL_STEPS = 7;
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEIGHTS_ACCESSORY_ID = 'gym-setup-weights-return';
 
 function ProgressDots({ step }: { step: number }) {
   return (
@@ -114,6 +128,14 @@ export function SetupWizard() {
 
   const exercises = useMemo(() => (preview ? uniqueExercisesOf(preview) : []), [preview]);
 
+  // Starting weights (dogfood #2): the keyboard used to cover whichever
+  // field you were typing into. `decimal-pad` has no Return key on iOS, so
+  // `WEIGHTS_ACCESSORY_ID` pairs every field here with one shared
+  // NumericReturnBar for "Next" / "Done"; on Android the IME already renders
+  // one for `returnKeyType`, and `inputAccessoryViewID` is simply ignored.
+  const weightsChain = useFieldChain(exercises.length);
+  const scrollFieldIntoView = useScrollFieldIntoView();
+
   useEffect(() => {
     if (step === 6 && weightsChoice === null) {
       setWeightsChoice(experience === 'INTERMEDIATE' ? 'know' : 'help');
@@ -187,7 +209,32 @@ export function SetupWizard() {
         <View className="w-11" />
       </View>
 
-      <ScrollView contentContainerClassName="gap-5 px-4 py-4" keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView
+        contentContainerClassName="gap-5 px-4 py-4"
+        footer={
+          <View className="gap-2 border-t border-border px-4 pb-2 pt-3">
+            {step === 4 && (
+              <Button variant="ghost" testID="gym-setup-skip" onPress={goNext}>
+                Skip
+              </Button>
+            )}
+            {step < 7 ? (
+              <Button testID="gym-setup-next" disabled={!canGoNext} onPress={goNext}>
+                Next
+              </Button>
+            ) : (
+              <Button
+                testID="gym-setup-finish"
+                loading={completeSetupMutation.isPending}
+                disabled={!templateKey}
+                onPress={handleFinish}
+              >
+                Start training
+              </Button>
+            )}
+          </View>
+        }
+      >
         {step === 1 && (
           <View className="gap-5">
             <StepHeader
@@ -512,7 +559,7 @@ export function SetupWizard() {
             />
             {weightsChoice === 'know' && (
               <View className="gap-3">
-                {exercises.map((ex) => (
+                {exercises.map((ex, i) => (
                   <View key={ex.exerciseId} className="flex-row items-center gap-3">
                     <Text numberOfLines={1} className="min-w-0 flex-1 text-sm">
                       {ex.name}
@@ -520,12 +567,16 @@ export function SetupWizard() {
                     <Input
                       testID={`gym-setup-weight-${ex.exerciseId}`}
                       keyboardType="decimal-pad"
+                      inputAccessoryViewID={
+                        Platform.OS === 'ios' ? WEIGHTS_ACCESSORY_ID : undefined
+                      }
                       placeholder={unitLabel(unit)}
                       value={knownWeights[ex.exerciseId] ?? ''}
                       onChangeText={(text) =>
                         setKnownWeights((prev) => ({ ...prev, [ex.exerciseId]: text }))
                       }
                       className="w-24 text-right"
+                      {...weightsChain.bind(i, { onFocus: scrollFieldIntoView })}
                     />
                     <Text variant="muted" className="text-xs">
                       {unitLabel(unit)}
@@ -534,6 +585,14 @@ export function SetupWizard() {
                 ))}
               </View>
             )}
+            {weightsChoice === 'know' && exercises.length > 0 ? (
+              <NumericReturnBar
+                nativeID={WEIGHTS_ACCESSORY_ID}
+                label={weightsChain.isLastFocused ? 'Done' : 'Next'}
+                onPress={() => weightsChain.focusNext()}
+                testID="gym-setup-weights-return"
+              />
+            ) : null}
           </View>
         )}
 
@@ -565,29 +624,7 @@ export function SetupWizard() {
             )}
           </View>
         )}
-      </ScrollView>
-
-      <View className="gap-2 border-t border-border px-4 pb-2 pt-3">
-        {step === 4 && (
-          <Button variant="ghost" testID="gym-setup-skip" onPress={goNext}>
-            Skip
-          </Button>
-        )}
-        {step < 7 ? (
-          <Button testID="gym-setup-next" disabled={!canGoNext} onPress={goNext}>
-            Next
-          </Button>
-        ) : (
-          <Button
-            testID="gym-setup-finish"
-            loading={completeSetupMutation.isPending}
-            disabled={!templateKey}
-            onPress={handleFinish}
-          >
-            Start training
-          </Button>
-        )}
-      </View>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }
