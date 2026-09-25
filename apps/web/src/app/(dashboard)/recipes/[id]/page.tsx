@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
+import { AllergenWarningBanner } from '@/features/recipes/components/AllergenWarning';
 import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { useHasMounted } from '@/hooks/useHasMounted';
@@ -281,6 +282,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           </div>
           <h1 className="font-serif text-2xl font-bold text-gray-900">{recipe.name}</h1>
           <p className="mt-1 text-sm text-gray-500">{recipe.description}</p>
+          <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mt-3" />
         </div>
 
         {/* Action buttons — up to three ~110px buttons wrap raggedly on a

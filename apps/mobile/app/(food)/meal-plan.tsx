@@ -8,6 +8,7 @@ import { MealTypeBadge } from '../../src/features/dashboard/components/meal-type
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sheet';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
+import { AllergenWarningChip } from '../../src/features/recipes/allergen-warning';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
@@ -356,6 +357,7 @@ export default function MealPlanScreen() {
                       <Text numberOfLines={2} className="text-sm font-semibold text-gray-900">
                         {meal.recipe.name}
                       </Text>
+                      <AllergenWarningChip warnings={meal.recipe.allergenWarnings} />
                     </View>
                     <View className="flex-row items-center gap-3">
                       <Text className="text-xs text-gray-500">

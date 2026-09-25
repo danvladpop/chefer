@@ -20,7 +20,10 @@ import type {
   RecipeExtractionSource,
 } from '../../lib/ai/index.js';
 import { NO_RECIPE_SENTINEL } from '../../lib/ai/prompts.js';
-import { isRecipeSafe, type SafetyPrefs } from '../../lib/curated-recipes/safety.js';
+import {
+  findSafetyIssues as findRecipeSafetyIssues,
+  type SafetyPrefs,
+} from '../../lib/curated-recipes/safety.js';
 import { buildPollinationsUrl } from '../../lib/image-gen/pollinations.js';
 import { buildRecipeImagePrompt } from '../../lib/image-gen/prompt.js';
 import { normalizeIngredientName } from '../../lib/ingredient-prices/index.js';
@@ -76,35 +79,11 @@ function toRecipeData(recipe: ExtractedRecipe): RecipeData {
 }
 
 /**
- * Lists which of the user's safety terms still match the recipe — the
- * matcher's boolean, decomposed per term so the UI can say WHAT survived.
+ * Lists which of the user's safety terms still match the recipe, so the UI
+ * can say WHAT survived (shared matcher: curated-recipes/safety.ts).
  */
 export function findSafetyIssues(recipe: ExtractedRecipe, prefs: SafetyPrefs): string[] {
-  const data = toRecipeData(recipe);
-  const issues: string[] = [];
-  for (const allergy of prefs.allergies) {
-    if (
-      !isRecipeSafe(data, {
-        allergies: [allergy],
-        dietaryRestrictions: [],
-        dislikedIngredients: [],
-      })
-    ) {
-      issues.push(allergy);
-    }
-  }
-  for (const restriction of prefs.dietaryRestrictions) {
-    if (
-      !isRecipeSafe(data, {
-        allergies: [],
-        dietaryRestrictions: [restriction],
-        dislikedIngredients: [],
-      })
-    ) {
-      issues.push(restriction);
-    }
-  }
-  return issues;
+  return findRecipeSafetyIssues(toRecipeData(recipe), prefs);
 }
 
 /** Clamps AI output to the lengths the recipe form/DB expect. */

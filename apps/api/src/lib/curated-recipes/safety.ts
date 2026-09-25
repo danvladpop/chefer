@@ -18,12 +18,28 @@ export interface SafetyPrefs {
 // vegan/dairy-free diets, and blocking them would gut the compliant pool.
 const PLANT =
   '(?<!coconut )(?<!almond )(?<!oat )(?<!soy )(?<!rice )(?<!cashew )(?<!peanut )(?<!seed )(?<!cocoa )(?<!nut )';
+
+/**
+ * Negative lookbehinds for "<qualifier> <word>", e.g. "dairy-free milk" or
+ * "vegan butter". The AI's own safe substitutions used to fail the matcher,
+ * which steered allergic users to save the original recipe instead (audit
+ * F-REC-4-1). Qualifiers only clear their own family: "gluten-free soy
+ * sauce" still matches a soy allergy. "Lactose-free" is deliberately absent —
+ * lactose-free milk is still dairy.
+ */
+function notAfter(qualifiers: string[]): string {
+  return qualifiers.flatMap((q) => [`(?<!${q} )`, `(?<!${q.replace('-', ' ')} )`]).join('');
+}
+const DAIRY_FREE = notAfter(['dairy-free', 'non-dairy', 'vegan', 'plant-based', 'milk-free']);
+const EGG_FREE = notAfter(['egg-free', 'vegan', 'plant-based']);
+const GLUTEN_FREE = notAfter(['gluten-free', 'wheat-free']);
+
 const DAIRY_PATTERNS = [
-  `${PLANT}\\bmilk`,
-  '\\bcheese',
-  '\\byogh?urt',
-  `${PLANT}\\bbutter`,
-  `${PLANT}\\bcream`,
+  `${PLANT}${DAIRY_FREE}\\bmilk`,
+  `${DAIRY_FREE}\\bcheese`,
+  `${DAIRY_FREE}\\byogh?urt`,
+  `${PLANT}${DAIRY_FREE}\\bbutter`,
+  `${PLANT}${DAIRY_FREE}\\bcream`,
   '\\bghee',
   '\\bwhey',
   '\\bkefir',
@@ -45,31 +61,36 @@ const TREE_NUT_PATTERNS = [
 ];
 
 // (?!plant): eggplant is a vegetable, not an egg.
-const EGG_PATTERNS = ['\\begg(?!plant)', '\\bmayonnaise', '\\bmayo\\b', '\\baioli'];
+const EGG_PATTERNS = [
+  '\\begg(?!plant)(?![- ]free)(?!less)',
+  `${EGG_FREE}\\bmayonnaise`,
+  `${EGG_FREE}\\bmayo\\b`,
+  `${EGG_FREE}\\baioli`,
+];
 
 const GLUTEN_PATTERNS = [
-  '\\bwheat',
-  '\\bbread',
-  '\\btoast',
-  '\\bpasta',
-  '\\bnoodle',
-  '\\bflour',
-  '\\bcouscous',
-  '\\bbulgur',
-  '\\bbarley',
-  '\\brye\\b',
-  '\\bgranola',
-  '\\boat', // oats are routinely cross-contaminated; fail safe
-  '\\bsoy sauce',
-  '\\btortilla',
-  '\\bbagel',
-  '\\bbun\\b',
-  '\\bwrap',
-  '\\bpita',
-  '\\bcrouton',
-  '\\bcracker',
-  '\\bsourdough',
-  '\\bbaguette',
+  `${GLUTEN_FREE}\\bwheat`,
+  `${GLUTEN_FREE}\\bbread`,
+  `${GLUTEN_FREE}\\btoast`,
+  `${GLUTEN_FREE}\\bpasta`,
+  `${GLUTEN_FREE}\\bnoodle`,
+  `${GLUTEN_FREE}\\bflour`,
+  `${GLUTEN_FREE}\\bcouscous`,
+  `${GLUTEN_FREE}\\bbulgur`,
+  `${GLUTEN_FREE}\\bbarley`,
+  `${GLUTEN_FREE}\\brye\\b`,
+  `${GLUTEN_FREE}\\bgranola`,
+  `${GLUTEN_FREE}\\boat`, // oats are routinely cross-contaminated; fail safe
+  `${GLUTEN_FREE}\\bsoy sauce`,
+  `${GLUTEN_FREE}\\btortilla`,
+  `${GLUTEN_FREE}\\bbagel`,
+  `${GLUTEN_FREE}\\bbun\\b`,
+  `${GLUTEN_FREE}\\bwrap`,
+  `${GLUTEN_FREE}\\bpita`,
+  `${GLUTEN_FREE}\\bcrouton`,
+  `${GLUTEN_FREE}\\bcracker`,
+  `${GLUTEN_FREE}\\bsourdough`,
+  `${GLUTEN_FREE}\\bbaguette`,
 ];
 
 const FISH_PATTERNS = [
@@ -187,8 +208,11 @@ function matchesAny(text: string, patterns: string[]): boolean {
   return patterns.some((source) => new RegExp(source).test(text));
 }
 
+// Steps are scanned too: an adapted recipe once kept "whisk peanut butter
+// with coconut milk" in its method while its ingredient list was clean
+// (audit F-REC-4-6).
 function recipeText(recipe: RecipeData): string {
-  const parts = [recipe.name, ...recipe.ingredients.map((i) => i.name)];
+  const parts = [recipe.name, ...recipe.ingredients.map((i) => i.name), ...recipe.instructions];
   return parts.join(' \n ').toLowerCase();
 }
 
@@ -222,6 +246,24 @@ export function isRecipeSafe(recipe: RecipeData, prefs: SafetyPrefs): boolean {
   }
 
   return true;
+}
+
+/**
+ * The user's allergies and dietary restrictions the recipe conflicts with —
+ * the matcher's boolean, decomposed per term so callers can say WHAT is
+ * wrong. Dislikes are soft preferences and are not reported.
+ */
+export function findSafetyIssues(
+  recipe: RecipeData,
+  prefs: Pick<SafetyPrefs, 'allergies' | 'dietaryRestrictions'>,
+): string[] {
+  const none = { allergies: [], dietaryRestrictions: [], dislikedIngredients: [] };
+  return [
+    ...prefs.allergies.filter((a) => !isRecipeSafe(recipe, { ...none, allergies: [a] })),
+    ...prefs.dietaryRestrictions.filter(
+      (r) => !isRecipeSafe(recipe, { ...none, dietaryRestrictions: [r] }),
+    ),
+  ];
 }
 
 export function filterSafeRecipes(pool: RecipeData[], prefs: SafetyPrefs): RecipeData[] {

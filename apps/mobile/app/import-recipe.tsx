@@ -204,6 +204,21 @@ export default function ImportRecipeScreen() {
               </Card>
             )}
 
+            {isPremium && !preview.safety.ok && (
+              // Parity with web ImportRecipeSheet: the adaptation left an
+              // allergen or restriction in, so only the original can be saved
+              // — say so instead of silently selecting it (F-M-REC-4-1).
+              <Card testID="import-unsafe" className="border-red-200 bg-red-50">
+                <View className="flex-row items-start gap-2">
+                  <Ionicons name="warning" size={16} color="#b91c1c" style={{ marginTop: 2 }} />
+                  <Text className="min-w-0 flex-1 text-xs text-red-700">
+                    The adaptation could not fully remove: {preview.safety.issues.join(', ')}. Only
+                    the original can be saved — review it carefully before cooking.
+                  </Text>
+                </View>
+              </Card>
+            )}
+
             <VariantCard
               title="Original"
               recipe={preview.original}

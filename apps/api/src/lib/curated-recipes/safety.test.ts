@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MealType, RecipeData } from '../ai/types.js';
 import { CURATED_POOL_BY_TYPE, MIN_SAFE_POOL_SIZE, safeCuratedPools } from './index.js';
-import { filterSafeRecipes, isRecipeSafe, type SafetyPrefs } from './safety.js';
+import { filterSafeRecipes, findSafetyIssues, isRecipeSafe, type SafetyPrefs } from './safety.js';
 
 const prefs = (over: Partial<SafetyPrefs>): SafetyPrefs => ({
   allergies: [],
@@ -152,5 +152,76 @@ describe('curated pool coverage', () => {
   it('safeCuratedPools returns the full pool when no prefs are set', () => {
     const pools = safeCuratedPools(prefs({}));
     expect(pools).toEqual(CURATED_POOL_BY_TYPE);
+  });
+});
+
+// ─── Audit 2026-09-25: steps and safe substitutes ─────────────────────────────
+
+const ing = (...names: string[]) => names.map((name) => ({ name, quantity: 1, unit: 'g' }));
+
+describe('isRecipeSafe — instructions are scanned (F-REC-4-6)', () => {
+  it('catches an allergen that survives only in the method', () => {
+    const satay = recipe({
+      name: 'Satay Skewers',
+      ingredients: ing('chicken', 'toasted sunflower seeds'),
+      instructions: ['Whisk peanut butter with coconut milk into a sauce.'],
+    });
+    expect(isRecipeSafe(satay, prefs({ allergies: ['Peanuts'] }))).toBe(false);
+  });
+});
+
+describe('isRecipeSafe — safe substitutes are not flagged (F-REC-4-1)', () => {
+  it('clears dairy-free and plant-based dairy words for a dairy allergy', () => {
+    const r = recipe({
+      ingredients: ing('dairy-free milk', 'vegan butter', 'plant-based cheese', 'non dairy yogurt'),
+    });
+    expect(isRecipeSafe(r, prefs({ allergies: ['Dairy'] }))).toBe(true);
+  });
+
+  it('still flags real dairy, including lactose-free milk', () => {
+    expect(
+      isRecipeSafe(recipe({ ingredients: ing('whole milk') }), prefs({ allergies: ['Dairy'] })),
+    ).toBe(false);
+    expect(
+      isRecipeSafe(
+        recipe({ ingredients: ing('lactose-free milk') }),
+        prefs({ allergies: ['Dairy'] }),
+      ),
+    ).toBe(false);
+  });
+
+  it('clears egg-free mayo and gluten-free pasta for their own allergens only', () => {
+    expect(
+      isRecipeSafe(recipe({ ingredients: ing('egg-free mayo') }), prefs({ allergies: ['Egg'] })),
+    ).toBe(true);
+    expect(
+      isRecipeSafe(
+        recipe({ ingredients: ing('gluten-free pasta') }),
+        prefs({ allergies: ['Gluten'] }),
+      ),
+    ).toBe(true);
+    // A gluten-free qualifier does not clear soy.
+    expect(
+      isRecipeSafe(
+        recipe({ ingredients: ing('gluten-free soy sauce') }),
+        prefs({ allergies: ['Soy'] }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('findSafetyIssues', () => {
+  it('names each conflicting allergy and restriction, ignoring dislikes', () => {
+    const omelette = recipe({
+      name: 'Ham and Cheese Omelette',
+      ingredients: ing('eggs', 'ham', 'cheddar cheese'),
+      dietaryTags: [],
+    });
+    expect(
+      findSafetyIssues(omelette, {
+        allergies: ['Eggs', 'Peanuts'],
+        dietaryRestrictions: ['Vegetarian'],
+      }),
+    ).toEqual(['Eggs', 'Vegetarian']);
   });
 });

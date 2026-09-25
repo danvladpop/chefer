@@ -35,7 +35,11 @@ vi.mock('../../lib/ai/index.js', () => ({
   aiService: { generateMealPlan: vi.fn(), generateRecipeSwap: vi.fn() },
 }));
 
-vi.mock('../../lib/curated-recipes/index.js', () => {
+vi.mock('../../lib/curated-recipes/index.js', async () => {
+  // The real matcher — safety decisions must be exercised, not stubbed.
+  const { findSafetyIssues } = await vi.importActual<
+    typeof import('../../lib/curated-recipes/safety.js')
+  >('../../lib/curated-recipes/safety.js');
   const mkRecipe = (id: string, type: string) => ({
     id,
     name: `Curated ${type} ${id}`,
@@ -61,6 +65,7 @@ vi.mock('../../lib/curated-recipes/index.js', () => {
     snack: [mkRecipe('s1', 'snack')],
   };
   return {
+    findSafetyIssues,
     ensureCuratedRecipes: vi.fn().mockResolvedValue(undefined),
     pickRandomCurated: vi.fn((type: string) => mkRecipe('swap', type)),
     safeCuratedPools: vi.fn(() => pools),
@@ -803,6 +808,7 @@ describe('MealPlanService — server-minted AI recipe ids (F-PLAN-1-1)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([]);
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
   });
 
   it('never persists a generated recipe under the LLM slug id', async () => {
@@ -818,5 +824,79 @@ describe('MealPlanService — server-minted AI recipe ids (F-PLAN-1-1)', () => {
     expect(stored).toHaveLength(1);
     expect(stored[0]!.name).toBe('Miso Salmon');
     expect(stored[0]!.id).not.toBe('ai-r1');
+  });
+});
+
+// ─── AI safety pass (audit F-PLAN-1-9) ────────────────────────────────────────
+
+describe('MealPlanService — AI output is safety-checked', () => {
+  const OMELETTE = {
+    ...AI_RECIPE,
+    id: 'ai-omelette',
+    name: 'Spinach and Feta Omelette',
+    ingredients: [
+      { name: 'eggs', quantity: 3, unit: 'piece' },
+      { name: 'feta', quantity: 40, unit: 'g' },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([]);
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      allergies: ['Eggs'],
+      dietaryRestrictions: [],
+      dislikedIngredients: [],
+    } as never);
+  });
+
+  it('replaces an AI dish containing an allergen with a safe curated recipe', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue({
+      days: [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipe: OMELETTE }] }],
+    } as never);
+
+    const plan = await service.generate('user1', 0, true);
+
+    const dinner = plan.days[0]!.meals[0]!.recipe;
+    expect(dinner.name).not.toContain('Omelette');
+    expect(dinner.name).toMatch(/^Curated dinner/);
+    // The curated row is shared and already stored — never re-upserted.
+    const stored = (repo.upsertRecipes.mock.calls[0]?.[0] ?? []) as { name: string }[];
+    expect(stored.map((r) => r.name)).not.toContain(dinner.name);
+  });
+
+  it('falls back to a curated recipe when an AI swap is unsafe', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({
+      id: 'plan1',
+      days: [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'old' }] }],
+    });
+    const service = new MealPlanService(repo);
+    vi.mocked(aiService.generateRecipeSwap).mockResolvedValue(OMELETTE);
+
+    const swapped = await service.swapRecipe('user1', 'plan1', 0, 'dinner', undefined, true);
+
+    expect(swapped.name).not.toContain('Omelette');
+    expect(repo.upsertRecipes).not.toHaveBeenCalled();
+    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 0, 'dinner', swapped.id);
+  });
+
+  it("getRecipe flags a recipe that conflicts with the viewer's allergies", async () => {
+    const repo = makeRepo();
+    repo.findRecipeById.mockResolvedValue({
+      ...OMELETTE,
+      imageStatus: 'DONE',
+      source: 'AI',
+      creatorId: 'user1',
+    });
+    const service = new MealPlanService(repo);
+
+    const dto = await service.getRecipe('user1', 'ai-omelette');
+
+    expect(dto.allergenWarnings).toEqual(['Eggs']);
   });
 });
