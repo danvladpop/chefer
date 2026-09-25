@@ -58,12 +58,15 @@ export function GymSyncProvider({
   const userId = owner.data?.id ?? null;
 
   useEffect(() => {
-    if (userId === null) return;
+    // Wait for the persisted cache to finish restoring: clearing earlier lets
+    // the restore put the PREVIOUS account's bootstrap back afterwards (seen
+    // in e2e: alice's Routine tab showed a throwaway user's "no routine").
+    if (userId === null || isRestoring) return;
     const { changed } = setGymOwner(userId);
     if (changed) clearGymQueries(queryClient);
     reconcileActiveSession(userId);
     void outbox.flush({ force: true });
-  }, [userId, queryClient]);
+  }, [userId, isRestoring, queryClient]);
 
   // Signed out: drop cached gym reads (the outbox and active session stay —
   // they upload when their owner signs back in).

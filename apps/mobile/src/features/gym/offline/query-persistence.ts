@@ -69,5 +69,10 @@ export function createGymPersistOptions(): Omit<PersistQueryClientOptions, 'quer
 
 /** Drop every cached gym read (sign-out / account switch). Persisted copy follows. */
 export function clearGymQueries(queryClient: QueryClient): void {
-  queryClient.removeQueries({ predicate: (query) => isGymQueryKey(query.queryKey) });
+  const predicate = (query: { queryKey: QueryKey }) => isGymQueryKey(query.queryKey);
+  // Mounted screens (the dashboard card, a gym tab) must not keep rendering
+  // the old account's data: reset clears it AND refetches active observers;
+  // remove then drops the inactive rest (and, via the persister, the disk copy).
+  void queryClient.resetQueries({ predicate, type: 'active' });
+  queryClient.removeQueries({ predicate, type: 'inactive' });
 }
