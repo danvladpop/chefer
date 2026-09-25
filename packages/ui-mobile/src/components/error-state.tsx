@@ -29,8 +29,8 @@ export function ErrorState({
       testID={testID}
       title={title}
       description={description}
-      icon={icon}
-      className={className}
+      {...(icon !== undefined && { icon })}
+      {...(className !== undefined && { className })}
       action={{ label: 'Try again', onPress: onRetry, testID: `${testID}-retry` }}
     />
   );
