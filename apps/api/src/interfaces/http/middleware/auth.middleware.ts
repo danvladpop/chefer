@@ -16,10 +16,11 @@ declare module 'express' {
 export async function createContext(req: Request, res: Response): Promise<Context> {
   const requestId = (req.headers['x-request-id'] as string | undefined) ?? crypto.randomUUID();
 
-  const ipAddress =
-    (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
-    req.socket.remoteAddress ??
-    'unknown';
+  // req.ip honours `trust proxy` (one hop: Caddy), so it is the address the
+  // proxy saw. The raw leftmost X-Forwarded-For was client-controlled: a
+  // rotating header bypassed the login and reset rate limits (audit
+  // F-AUTH-2-1).
+  const ipAddress = req.ip ?? req.socket.remoteAddress ?? 'unknown';
 
   const { user, sessionToken } = await resolveRequestAuth(req);
 

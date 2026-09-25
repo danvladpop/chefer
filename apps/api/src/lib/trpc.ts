@@ -28,8 +28,18 @@ export type ProtectedContext = Context & {
 const t = initTRPC.context<Context>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
+    // Unexpected errors (Prisma, bugs) arrive as INTERNAL_SERVER_ERROR with
+    // the original message: repo paths, source snippets and constraint names
+    // leaked to clients (audit F-X-4-5). Deliberate TRPCErrors keep their
+    // friendly message; the raw one stays in the server log and Sentry.
+    const unexpected =
+      error.code === 'INTERNAL_SERVER_ERROR' &&
+      error.cause !== undefined &&
+      !(error.cause instanceof TRPCError) &&
+      error.message === error.cause.message;
     return {
       ...shape,
+      message: unexpected ? 'Something went wrong on our side. Please try again.' : shape.message,
       data: {
         ...shape.data,
         zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,

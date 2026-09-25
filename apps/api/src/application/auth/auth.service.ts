@@ -4,6 +4,9 @@ import type { Response } from 'express';
 import { prisma } from '@chefer/database';
 import type { AuthResult, MobileSession } from '@chefer/types';
 
+/** A valid bcrypt hash (cost 12) of a random string: login's timing decoy. */
+const DUMMY_PASSWORD_HASH = '$2b$12$qZC9DEJlYpJdBOlrTJu.OOnTjzpY1TBuTh.s6KARjC.Sn6ECa.RAq';
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SESSION_COOKIE = 'chefer_session';
@@ -78,15 +81,10 @@ export class AuthService {
       where: { email: email.toLowerCase().trim() },
     });
 
-    if (!user?.passwordHash) {
-      throw new TRPCError({
-        code: 'UNAUTHORIZED',
-        message: 'Invalid email or password',
-      });
-    }
-
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) {
+    // Always run one bcrypt compare, so the response time doesn't reveal
+    // whether the email has an account (11 ms vs 295 ms — audit F-AUTH-2-2).
+    const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+    if (!user?.passwordHash || !valid) {
       throw new TRPCError({
         code: 'UNAUTHORIZED',
         message: 'Invalid email or password',

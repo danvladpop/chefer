@@ -1,4 +1,5 @@
 import { TRPCError } from '@trpc/server';
+import bcrypt from 'bcryptjs';
 import type { PlanTier, UserRole } from '@chefer/types';
 import {
   domainErrorToTRPCCode,
@@ -15,6 +16,7 @@ export interface CreateUserInput {
   email: string;
   name?: string | undefined;
   role?: UserRole | undefined;
+  password?: string | undefined;
 }
 
 export interface UpdateUserInput {
@@ -131,7 +133,7 @@ export class UserService {
    * Creates a new user.
    */
   async create(input: CreateUserInput): Promise<UserDto> {
-    const { email, name, role } = input;
+    const { email, name, role, password } = input;
 
     // Check for email conflict
     const existing = await this.userRepository.findByEmail(email);
@@ -143,11 +145,31 @@ export class UserService {
     }
 
     try {
-      const user = await this.userRepository.create({ email, name, role });
+      // Admin-created users used to get no password hash and could never
+      // sign in (audit F-ADM-1-4).
+      const passwordHash = password ? await bcrypt.hash(password, 12) : undefined;
+      const user = await this.userRepository.create({
+        email: email.toLowerCase().trim(),
+        name,
+        role,
+        passwordHash,
+      });
       return this.toDto(user);
     } catch (error) {
       this.handleError(error);
     }
+  }
+
+  /** Number of ADMIN accounts (guards against demoting the last one). */
+  async countAdmins(): Promise<number> {
+    return this.userRepository.count({ role: 'ADMIN' });
+  }
+
+  /** True when `password` matches the user's stored hash. */
+  async verifyPassword(id: string, password: string): Promise<boolean> {
+    const user = await this.userRepository.findById(id);
+    if (!user?.passwordHash) return false;
+    return bcrypt.compare(password, user.passwordHash);
   }
 
   /**
