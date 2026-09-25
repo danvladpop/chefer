@@ -41,11 +41,13 @@ appId: dev.chefer.app.dev
     id: 'exercises-search'
 - inputText: 'bench'
 - extendedWaitUntil:
-    visible: '.*[Bb]ench.*'
+    visible:
+      id: 'exercises-item-barbell-bench-press'
     timeout: 10000
 
-# ── Open the result ────────────────────────────────────────────────────────────
-- tapOn: '.*[Bb]ench.*'
+# ── Open the result (by id: the search box itself also reads "bench") ─────────
+- tapOn:
+    id: 'exercises-item-barbell-bench-press'
 - extendedWaitUntil:
     visible:
       id: 'gym-exercise-title'

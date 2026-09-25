@@ -1,5 +1,4 @@
 import { expect, test } from '@playwright/test';
-import { AUTH_FILE } from './auth.setup';
 
 // gym_plan.md §7 G5-B. Runs against the "desktop" project's authenticated
 // storage state — this file's name doesn't yet match a project's `testMatch`
@@ -8,8 +7,6 @@ import { AUTH_FILE } from './auth.setup';
 // is picked up by `pnpm test:e2e`. See the G5-B handoff for details; adding a
 // project entry is out of this agent's file ownership (tests/playwright.config.ts).
 test.describe('Gym: routine editor', () => {
-  test.use({ storageState: AUTH_FILE });
-
   test('create from a template, edit sets, save, and the value persists', async ({ page }) => {
     await page.goto('/gym/routine/all');
 

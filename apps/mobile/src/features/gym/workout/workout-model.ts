@@ -27,9 +27,14 @@ import {
   loadModel,
   prescribe,
   repBucket,
+  sessionSupersets,
   stepDown,
   stepUp,
+  supersetGroupLookup,
   warmupSets,
+  workoutFocus,
+  type SessionSupersetSlot,
+  type WorkoutFocus,
 } from '@chefer/utils';
 
 // Pure helpers behind the active-workout screen (gym_plan.md §1.3). No React,
@@ -136,13 +141,45 @@ export function workoutProgress(doc: WorkoutSessionDoc): { done: number; planned
   return { done, planned };
 }
 
-/** The exercise to expand and scroll to: first non-skipped one with an unticked working set. */
-export function currentExerciseId(doc: WorkoutSessionDoc): string | null {
-  for (const se of byPosition(doc.exercises)) {
-    if (se.skipped) continue;
-    if (workingSets(se).some((s) => !isDone(s))) return se.id;
-  }
-  return null;
+const NO_SUPERSETS: ReadonlyMap<string, SessionSupersetSlot> = new Map();
+
+/**
+ * The session's supersets, derived from the cached routine (the session doc
+ * has no superset field): routine slots sharing a letter AND still adjacent.
+ */
+export function supersetsOf(
+  doc: WorkoutSessionDoc,
+  bootstrap: Pick<GymBootstrap, 'activeRoutine' | 'nextWorkout'> | undefined,
+): Map<string, SessionSupersetSlot> {
+  if (!bootstrap) return new Map();
+  return sessionSupersets(doc.exercises, supersetGroupLookup(bootstrap));
+}
+
+/**
+ * The next working set to do: first non-skipped exercise with an unticked
+ * working set — walked round by round inside a superset (A1, A2, A1, A2 …).
+ */
+export function currentFocus(
+  doc: WorkoutSessionDoc,
+  supersets: ReadonlyMap<string, SessionSupersetSlot> = NO_SUPERSETS,
+): WorkoutFocus | null {
+  return workoutFocus(doc, supersets);
+}
+
+/** The exercise to expand and scroll to (the focus's exercise). */
+export function currentExerciseId(
+  doc: WorkoutSessionDoc,
+  supersets: ReadonlyMap<string, SessionSupersetSlot> = NO_SUPERSETS,
+): string | null {
+  return currentFocus(doc, supersets)?.seId ?? null;
+}
+
+/** "Set 2" / "Warm-up 1" — how a set is named in its card. */
+export function setLabelOf(se: SessionExerciseDoc, setId: string): string | null {
+  const warm = warmupSetsOf(se).findIndex((s) => s.id === setId);
+  if (warm >= 0) return `Warm-up ${warm + 1}`;
+  const work = workingSets(se).findIndex((s) => s.id === setId);
+  return work >= 0 ? `Set ${work + 1}` : null;
 }
 
 /** True once the last working set (by position) is ticked — the RIR chips' trigger. */

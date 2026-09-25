@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import type { ExerciseDto, PrKind, Rir, SessionSetDoc, WorkoutSessionDoc } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
-import { cn } from '@chefer/utils';
+import { cn, sessionSupersetKey, type SessionSupersetSlot } from '@chefer/utils';
 import { captureGymEvent } from '../analytics';
 import { ExercisePickerSheet } from '../shared/exercise-picker-sheet';
 import { GymSkeleton } from '../shared/gym-card';
@@ -31,12 +31,15 @@ import {
   buildAddExerciseAction,
   buildSwapAction,
   currentExerciseId,
+  currentFocus,
   formatElapsed,
   isExerciseDone,
   lastTimeSets,
   livePrs,
   sessionProgress,
+  setLabelOf,
   sortedExercises,
+  supersetsOf,
   unfinishedSets,
   workingSets,
   type WorkoutActionInput,
@@ -50,6 +53,7 @@ import {
 // beyond the ones the user opens.
 
 const NO_SETS: { weightKg: number; reps: number }[] = [];
+const NO_SUPERSETS: ReadonlyMap<string, SessionSupersetSlot> = new Map();
 
 type Picker = { kind: 'swap'; seId: string } | { kind: 'add' } | null;
 
@@ -63,13 +67,26 @@ export function WorkoutView() {
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [picker, setPicker] = useState<Picker>(null);
   const [plateKg, setPlateKg] = useState<number | null>(null);
+  const [setMenu, setSetMenu] = useState<{ seId: string; setId: string } | null>(null);
   const [confirm, setConfirm] = useState<'finish' | 'discard' | null>(null);
   const [finishing, setFinishing] = useState(false);
 
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   useWakeLock(session !== null);
 
-  const current = session ? currentExerciseId(session) : null;
+  // Supersets come from the cached routine (the session has no superset
+  // field); kept referentially stable while the grouping itself is unchanged.
+  const derivedSupersets = session ? supersetsOf(session, data) : NO_SUPERSETS;
+  const supersetKey = sessionSupersetKey(derivedSupersets);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the grouping, not the doc
+  const supersets = useMemo(() => derivedSupersets, [supersetKey]);
+  const supersetsRef = useRef(supersets);
+  useEffect(() => {
+    supersetsRef.current = supersets;
+  }, [supersets]);
+
+  const focus = session ? currentFocus(session, supersets) : null;
+  const current = session ? currentExerciseId(session, supersets) : null;
   // Auto-advance: when the current exercise changes (its last set ticked),
   // focus the next one — on phones by expanding it, on desktop by selecting it.
   const lastCurrent = useRef<string | null>(null);
@@ -108,7 +125,10 @@ export function WorkoutView() {
   const inventory = profile ?? FALLBACK_PROFILE;
   const displayUnit = profile ? unit : inventory.unit;
 
-  const act = useCallback((action: WorkoutActionInput) => dispatch(action), [dispatch]);
+  const act = useCallback(
+    (action: WorkoutActionInput) => dispatch(action, { supersets: supersetsRef.current }),
+    [dispatch],
+  );
   const onEditSet = useCallback(
     (seId: string, setId: string, patch: { weightKg?: number; reps?: number }) =>
       act({ type: 'editSet', seId, setId, ...patch }),
@@ -138,6 +158,10 @@ export function WorkoutView() {
   }, []);
   const onOpenActions = useCallback((seId: string) => setActionsFor(seId), []);
   const onOpenPlates = useCallback((kg: number) => setPlateKg(kg), []);
+  const onOpenSetMenu = useCallback(
+    (seId: string, setId: string) => setSetMenu({ seId, setId }),
+    [],
+  );
 
   if (!hasMounted) {
     return (
@@ -173,8 +197,13 @@ export function WorkoutView() {
     const idx = exercises.findIndex((e) => e.id === seId);
     const se = exercises[idx];
     if (!se) return null;
+    const slot = supersets.get(se.id);
     return (
       <ExerciseCard
+        supersetLabel={slot?.label ?? null}
+        supersetIndex={slot?.index ?? 0}
+        focusSetId={focus?.seId === se.id ? focus.setId : null}
+        onOpenSetMenu={onOpenSetMenu}
         se={se}
         meta={lookup(se.exerciseId)}
         dto={libraryById.get(se.exerciseId)}
@@ -266,7 +295,15 @@ export function WorkoutView() {
                     >
                       {se.skipped ? '–' : isExerciseDone(se) ? '✓' : i + 1}
                     </span>
-                    <span className="min-w-0 flex-1 truncate">{meta?.name ?? 'Exercise'}</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {supersets.get(se.id) && (
+                        <span className="mr-1 font-bold text-violet-700">
+                          {supersets.get(se.id)?.label}
+                          {(supersets.get(se.id)?.index ?? 0) + 1}
+                        </span>
+                      )}
+                      {meta?.name ?? 'Exercise'}
+                    </span>
                     <span className="shrink-0 text-xs tabular-nums text-gray-400">
                       {se.skipped ? 'skip' : `${doneSets}/${sets.length}`}
                     </span>
@@ -291,15 +328,32 @@ export function WorkoutView() {
         <div className="min-w-0">
           {isDesktop ? (
             selected ? (
-              renderCard(selected.id, true)
+              <>
+                {supersets.get(selected.id) && (
+                  <SupersetHeading
+                    label={supersets.get(selected.id)?.label ?? ''}
+                    restSec={
+                      exercises.find((e) => e.id === supersets.get(selected.id)?.memberIds.at(-1))
+                        ?.restSec ?? selected.restSec
+                    }
+                  />
+                )}
+                {renderCard(selected.id, true)}
+              </>
             ) : null
           ) : (
             <div className="space-y-3">
-              {exercises.map((se) => (
-                <div key={se.id} id={`se-${se.id}`} className="scroll-mt-32">
-                  {renderCard(se.id, false)}
-                </div>
-              ))}
+              {exercises.map((se) => {
+                const slot = supersets.get(se.id);
+                const lastId = slot?.memberIds[slot.memberIds.length - 1];
+                const restSec = exercises.find((e) => e.id === lastId)?.restSec ?? se.restSec;
+                return (
+                  <div key={se.id} id={`se-${se.id}`} className="scroll-mt-32">
+                    {slot?.index === 0 && <SupersetHeading label={slot.label} restSec={restSec} />}
+                    {renderCard(se.id, false)}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -484,6 +538,28 @@ export function WorkoutView() {
         />
       )}
 
+      <SetMenuSheet
+        label={
+          setMenu
+            ? (() => {
+                const se = exercises.find((e) => e.id === setMenu.seId);
+                return se ? setLabelOf(se, setMenu.setId) : null;
+              })()
+            : null
+        }
+        exerciseName={
+          setMenu
+            ? (lookup(exercises.find((e) => e.id === setMenu.seId)?.exerciseId ?? '')?.name ??
+              'Exercise')
+            : ''
+        }
+        onClose={() => setSetMenu(null)}
+        onRemove={() => {
+          if (setMenu) act({ type: 'removeSet', seId: setMenu.seId, setId: setMenu.setId });
+          setSetMenu(null);
+        }}
+      />
+
       <PlateSheet weightKg={plateKg} profile={inventory} onClose={() => setPlateKg(null)} />
 
       <Sheet
@@ -538,6 +614,55 @@ export function WorkoutView() {
         <div />
       </Sheet>
     </Frame>
+  );
+}
+
+function SupersetHeading({ label, restSec }: { label: string; restSec: number }) {
+  return (
+    <p className="mb-1.5 flex items-center gap-2 px-1 text-sm" data-testid="gym-superset-heading">
+      <span className="h-4 w-1 shrink-0 rounded-full bg-violet-500" aria-hidden="true" />
+      <span className="font-semibold text-violet-800">Superset {label}</span>
+      <span className="min-w-0 truncate text-xs text-gray-500">
+        {restSec} s rest after each round
+      </span>
+    </p>
+  );
+}
+
+/** Per-set menu: remove this set (warm-up or working) from today's workout. */
+function SetMenuSheet({
+  label,
+  exerciseName,
+  onClose,
+  onRemove,
+}: {
+  label: string | null;
+  exerciseName: string;
+  onClose: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <Sheet
+      open={label !== null}
+      onClose={onClose}
+      title={label ? `${label} · ${exerciseName}` : 'Set'}
+      description="Changes apply to this workout only."
+      size="sm"
+    >
+      <ul className="px-3 pb-4" data-testid="gym-set-menu-sheet">
+        <li>
+          <button
+            type="button"
+            onClick={onRemove}
+            data-testid="gym-remove-set"
+            className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-red-600 hover:bg-red-50"
+          >
+            <Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+            Remove {label?.toLowerCase() ?? 'set'}
+          </button>
+        </li>
+      </ul>
+    </Sheet>
   );
 }
 

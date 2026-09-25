@@ -3,7 +3,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { TRPCLink } from '@trpc/client';
 import { observable } from '@trpc/server/observable';
 import type { AppRouter } from '@chefer/api';
-import type { ExerciseDto, GymBootstrap, Suggestion, WorkoutSessionDoc } from '@chefer/types';
+import type {
+  ExerciseDto,
+  GymBootstrap,
+  RoutineDto,
+  SessionExerciseDoc,
+  Suggestion,
+  WorkoutSessionDoc,
+} from '@chefer/types';
 import { trpc } from '../../src/lib/trpc';
 import { makeDoc, makeExercise, uuid } from './gym-fixtures';
 
@@ -71,6 +78,91 @@ export function activeDoc(
       },
     ],
   });
+}
+
+function plainExercise(
+  id: string,
+  exerciseId: string,
+  routineExerciseId: string | null,
+  position: number,
+  restSec: number,
+): SessionExerciseDoc {
+  return {
+    id,
+    exerciseId,
+    routineExerciseId,
+    position,
+    repMin: 8,
+    repMax: 12,
+    targetRir: 2,
+    restSec,
+    skipped: false,
+    swappedFromId: null,
+    lastSetRir: null,
+    notes: null,
+    prescription: suggestion(),
+    sets: [1, 2, 3].map((n) => ({
+      id: `${id}-${n}`,
+      position: n - 1,
+      weightKg: 60,
+      reps: 10,
+      isWarmup: false,
+      completedAt: null,
+    })),
+  };
+}
+
+/** Bench (re-1) + squat (re-2) as superset A in the routine, then a plain row (re-3). */
+export function supersetDoc(): WorkoutSessionDoc {
+  return makeDoc(8, {
+    name: 'Upper B',
+    status: 'IN_PROGRESS',
+    finishedAt: null,
+    startedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    exercises: [
+      plainExercise('bench-se', 'bench', 're-1', 0, 120),
+      plainExercise('squat-se', 'squat', 're-2', 1, 90),
+      plainExercise('row-se', 'row', 're-3', 2, 60),
+    ],
+  });
+}
+
+export function supersetRoutine(): RoutineDto {
+  const slot = (id: string, exerciseId: string, position: number, group: string | null) => ({
+    id,
+    exerciseId,
+    position,
+    sets: 3,
+    repMin: 8,
+    repMax: 12,
+    targetRir: 2,
+    restSec: 90,
+    supersetGroup: group,
+    notes: null,
+  });
+  return {
+    id: 'routine-1',
+    name: 'Mine',
+    templateKey: null,
+    isActive: true,
+    nextDayId: null,
+    version: 1,
+    archived: false,
+    updatedAt: '2026-09-01T00:00:00.000Z',
+    days: [
+      {
+        id: 'day-1',
+        position: 0,
+        name: 'Upper B',
+        plannedWeekday: null,
+        exercises: [
+          slot('re-1', 'bench', 0, 'A'),
+          slot('re-2', 'squat', 1, 'A'),
+          slot('re-3', 'row', 2, null),
+        ],
+      },
+    ],
+  };
 }
 
 export function machine(id = 'chest-press'): ExerciseDto {

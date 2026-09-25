@@ -58,6 +58,12 @@ export interface ExerciseCardProps {
   index: number;
   expanded: boolean;
   isCurrent: boolean;
+  /** Superset letter ("A") when the card is part of one; primitives keep memo cheap. */
+  supersetLabel?: string | null;
+  /** 0-based place inside the superset ("A1" = 0). */
+  supersetIndex?: number;
+  /** The set to do next, when it is in this card. */
+  focusSetId?: string | null;
   ctx: WorkoutContext;
 }
 
@@ -70,7 +76,16 @@ function bannerChip(s: Suggestion, unit: WeightUnit): string {
   return `${DIRECTION_ICON[dir]} ${formatLoadNumber(delta, unit)} ${unitLabel(unit)}`;
 }
 
-function ExerciseCardImpl({ exercise: se, index, expanded, isCurrent, ctx }: ExerciseCardProps) {
+function ExerciseCardImpl({
+  exercise: se,
+  index,
+  expanded,
+  isCurrent,
+  supersetLabel = null,
+  supersetIndex = 0,
+  focusSetId = null,
+  ctx,
+}: ExerciseCardProps) {
   const base = `exercise-${index}`;
   const meta = ctx.lookup(se.exerciseId);
   const [showWarmups, setShowWarmups] = useState(false);
@@ -101,6 +116,7 @@ function ExerciseCardImpl({ exercise: se, index, expanded, isCurrent, ctx }: Exe
       className={cn(
         'rounded-2xl border bg-card',
         isCurrent && !se.skipped ? 'border-primary/50' : 'border-border',
+        supersetLabel && 'border-l-4 border-l-violet-500',
         se.skipped && 'opacity-60',
       )}
     >
@@ -134,9 +150,27 @@ function ExerciseCardImpl({ exercise: se, index, expanded, isCurrent, ctx }: Exe
           onPress={() => ctx.onToggle(se.id)}
           className="min-h-12 min-w-0 flex-1 justify-center"
         >
-          <Text testID={`${base}-name`} numberOfLines={2} className="text-base font-semibold">
-            {meta.name}
-          </Text>
+          <View className="flex-row items-center gap-1.5">
+            {supersetLabel ? (
+              <View className="rounded bg-violet-100 px-1.5 py-0.5">
+                <RNText
+                  testID={`${base}-superset`}
+                  accessibilityLabel={`Superset ${supersetLabel}, exercise ${supersetIndex + 1}`}
+                  className="text-xs font-bold text-violet-800"
+                >
+                  {supersetLabel}
+                  {supersetIndex + 1}
+                </RNText>
+              </View>
+            ) : null}
+            <Text
+              testID={`${base}-name`}
+              numberOfLines={2}
+              className="min-w-0 flex-1 text-base font-semibold"
+            >
+              {meta.name}
+            </Text>
+          </View>
           <Text testID={`${base}-progress`} variant="muted" numberOfLines={1}>
             {se.skipped ? 'Skipped' : subtitle}
             {pr ? ' · PR' : ''}
@@ -215,6 +249,7 @@ function ExerciseCardImpl({ exercise: se, index, expanded, isCurrent, ctx }: Exe
                       unit={ctx.unit}
                       weightMode={weightMode}
                       prKind={null}
+                      focused={focusSetId === s.id}
                       handlers={ctx.handlers}
                       testID={`${base}-warmup-${i + 1}`}
                     />
@@ -235,6 +270,7 @@ function ExerciseCardImpl({ exercise: se, index, expanded, isCurrent, ctx }: Exe
               unit={ctx.unit}
               weightMode={weightMode}
               prKind={pr?.setId === s.id ? pr.kind : null}
+              focused={focusSetId === s.id}
               handlers={ctx.handlers}
               testID={`${base}-set-${i + 1}`}
             />

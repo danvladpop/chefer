@@ -1,4 +1,5 @@
 import type { RoutineDoc, RoutineDto } from '@chefer/types';
+import { normalizeSupersets } from '@chefer/utils';
 import type { RoutineDraft } from './types';
 
 /** A fresh `RoutineDto` (bootstrap, a new create, a save response, the other
@@ -14,18 +15,22 @@ export function routineDtoToDraft(dto: RoutineDto): RoutineDraft {
       id: d.id,
       name: d.name,
       plannedWeekday: d.plannedWeekday,
-      exercises: d.exercises.map((e) => ({
-        key: e.id,
-        id: e.id,
-        exerciseId: e.exerciseId,
-        sets: e.sets,
-        repMin: e.repMin,
-        repMax: e.repMax,
-        targetRir: e.targetRir,
-        restSec: e.restSec,
-        supersetGroup: e.supersetGroup,
-        notes: e.notes,
-      })),
+      // Canonical superset letters (A, B… per day), so the editor's toggles and
+      // brackets always agree with what gets saved.
+      exercises: normalizeSupersets(
+        d.exercises.map((e) => ({
+          key: e.id,
+          id: e.id,
+          exerciseId: e.exerciseId,
+          sets: e.sets,
+          repMin: e.repMin,
+          repMax: e.repMax,
+          targetRir: e.targetRir,
+          restSec: e.restSec,
+          supersetGroup: e.supersetGroup,
+          notes: e.notes,
+        })),
+      ),
     })),
   };
 }

@@ -1,10 +1,10 @@
 import { memo, useEffect, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { STEPPER_REPEAT_DELAY_MS, STEPPER_REPEAT_INTERVAL_MS } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { STEPPER_REPEAT_DELAY_MS, STEPPER_REPEAT_INTERVAL_MS } from './stepper';
 
-// A compact − value + stepper for set rows. Differs from ui-mobile's Stepper in
-// two ways the workout needs (candidate for promotion into the kit):
+// A compact − value + stepper (promoted from the gym workout's set rows, G4-B).
+// Differs from Stepper in two ways the workout needs:
 //  • `next(value, direction)` decides the next value, so the weight stepper can
 //    walk the equipment's ACHIEVABLE loads (engine stepUp/stepDown) instead of
 //    a fixed step;

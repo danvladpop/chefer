@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type Dispatch } from 'react';
+import { useState, type Dispatch, type ReactNode } from 'react';
 import {
   closestCenter,
   DndContext,
@@ -22,10 +22,11 @@ import {
 } from '@dnd-kit/sortable';
 import { GripVertical, Plus } from 'lucide-react';
 import { Button } from '@chefer/ui';
-import type { ExerciseLookup } from '@chefer/utils';
+import { isSupersetWithNext, supersetSlot, type ExerciseLookup } from '@chefer/utils';
 import type { DraftAction, DraftExercise, DraftRoutine } from '../draft';
 import { DayHeaderFields } from './DayHeaderFields';
 import { ExerciseFieldsForm } from './ExerciseFieldsForm';
+import { SupersetHeading } from './SupersetHeading';
 
 export interface DesktopEditorBoardProps {
   draft: DraftRoutine;
@@ -250,11 +251,15 @@ function DayColumn({ day, dispatch, lookup, canDelete, onOpenPicker, onSwap }: D
         strategy={verticalListSortingStrategy}
       >
         <div className="flex flex-col gap-2">
-          {day.exercises.map((exercise) => (
+          {day.exercises.map((exercise, i) => (
             <SortableExerciseRow
               key={exercise.key}
               dayKey={day.key}
               exercise={exercise}
+              heading={<SupersetHeading exercises={day.exercises} index={i} />}
+              superset={supersetSlot(day.exercises, i)}
+              linkedToNext={isSupersetWithNext(day.exercises, i)}
+              isLast={i === day.exercises.length - 1}
               lookup={lookup}
               dispatch={dispatch}
               onSwap={() => onSwap(day.key, exercise.key)}
@@ -278,6 +283,10 @@ function DayColumn({ day, dispatch, lookup, canDelete, onOpenPicker, onSwap }: D
 interface SortableExerciseRowProps {
   dayKey: string;
   exercise: DraftExercise;
+  heading: ReactNode;
+  superset: { label: string; position: number } | null;
+  linkedToNext: boolean;
+  isLast: boolean;
   lookup: ExerciseLookup;
   dispatch: Dispatch<DraftAction>;
   onSwap: () => void;
@@ -286,6 +295,10 @@ interface SortableExerciseRowProps {
 function SortableExerciseRow({
   dayKey,
   exercise,
+  heading,
+  superset,
+  linkedToNext,
+  isLast,
   lookup,
   dispatch,
   onSwap,
@@ -300,10 +313,24 @@ function SortableExerciseRow({
   };
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} className="flex flex-col gap-1">
+      {heading}
       <ExerciseFieldsForm
         exercise={exercise}
         lookup={lookup}
+        superset={superset}
+        linkedToNext={linkedToNext}
+        {...(isLast
+          ? {}
+          : {
+              onSupersetWithNext: (linked: boolean) =>
+                dispatch({
+                  type: 'set_superset_with_next',
+                  dayKey,
+                  exerciseKey: exercise.key,
+                  linked,
+                }),
+            })}
         onChange={(patch) =>
           dispatch({ type: 'update_exercise', dayKey, exerciseKey: exercise.key, patch })
         }

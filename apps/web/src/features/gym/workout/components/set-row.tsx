@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { Check, Trophy } from 'lucide-react';
+import { Check, MoreHorizontal, Trophy } from 'lucide-react';
 import type {
   EquipmentProfile,
   ExerciseMeta,
@@ -25,9 +25,13 @@ export interface SetRowProps {
   unit: WeightUnit;
   lastTime: { weightKg: number; reps: number } | null;
   pr: PrKind | null;
+  /** The set to do next (the workout's focus): outlined. */
+  focused?: boolean;
   onEdit: (seId: string, setId: string, patch: { weightKg?: number; reps?: number }) => void;
   onToggle: (seId: string, set: SessionSetDoc) => void;
   onOpenPlates: (weightKg: number) => void;
+  /** The per-row menu (remove this set). */
+  onOpenMenu: (seId: string, setId: string) => void;
 }
 
 /**
@@ -44,9 +48,11 @@ export const SetRow = memo(function SetRow({
   unit,
   lastTime,
   pr,
+  focused = false,
   onEdit,
   onToggle,
   onOpenPlates,
+  onOpenMenu,
 }: SetRowProps) {
   const done = set.completedAt !== null;
   const loadType = meta?.loadType ?? 'WEIGHTED';
@@ -64,20 +70,33 @@ export const SetRow = memo(function SetRow({
   return (
     <div
       className={cn(
-        'grid grid-cols-[1.5rem_minmax(0,1fr)_3rem] items-center gap-x-2 gap-y-1 rounded-xl px-1.5 py-1.5',
-        done ? 'bg-emerald-50/70' : set.isWarmup ? 'bg-gray-50' : 'bg-white',
+        'grid grid-cols-[2.75rem_minmax(0,1fr)_3rem] items-center gap-x-1.5 gap-y-1 rounded-xl border px-1 py-1.5',
+        done
+          ? 'border-transparent bg-emerald-50/70'
+          : set.isWarmup
+            ? 'border-transparent bg-gray-50'
+            : 'bg-white',
+        !done && (focused ? 'border-[#944a00]/40' : 'border-transparent'),
       )}
       data-testid="gym-set-row"
       data-done={done ? 'true' : 'false'}
+      data-focused={focused ? 'true' : undefined}
     >
-      <span
+      {/* The set number doubles as the per-row menu (remove this set). */}
+      <button
+        type="button"
+        onClick={() => onOpenMenu(seId, set.id)}
+        aria-label={`Options for ${set.isWarmup ? 'warm-up set' : `set ${label}`}`}
+        aria-haspopup="dialog"
+        data-testid="gym-set-menu"
         className={cn(
-          'text-center text-xs font-semibold tabular-nums',
+          'flex min-h-11 w-11 flex-col items-center justify-center rounded-lg text-xs font-semibold tabular-nums hover:bg-gray-100',
           set.isWarmup ? 'text-gray-400' : 'text-gray-600',
         )}
       >
         {label}
-      </span>
+        <MoreHorizontal className="h-3 w-3 text-gray-300" aria-hidden="true" />
+      </button>
 
       {/* Weight over reps on phones; side by side once there is room. */}
       <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row">
