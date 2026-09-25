@@ -5,6 +5,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button, Screen, Text } from '@chefer/ui-mobile';
 import { cn, formatQuantity, guessMealType, parseStepDuration } from '@chefer/utils';
+import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { trpc } from '../../src/lib/trpc';
 
@@ -181,6 +182,9 @@ export default function CookModeScreen() {
           <Ionicons name="list" size={22} color="#944a00" />
         </Pressable>
       </View>
+
+      {/* Allergen conflicts stay visible while cooking (F-REC-2-3) */}
+      <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mx-4 mb-2" />
 
       {/* Progress bar */}
       <View className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-gray-100">

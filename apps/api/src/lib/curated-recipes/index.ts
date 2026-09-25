@@ -15,7 +15,13 @@ import {
 } from './extra-pool.js';
 import { filterSafeRecipes, hasSafetyPrefs, type SafetyPrefs } from './safety.js';
 
-export { filterSafeRecipes, hasSafetyPrefs, isRecipeSafe, type SafetyPrefs } from './safety.js';
+export {
+  filterSafeRecipes,
+  findSafetyIssues,
+  hasSafetyPrefs,
+  isRecipeSafe,
+  type SafetyPrefs,
+} from './safety.js';
 
 // ─── Curated recipe pool ──────────────────────────────────────────────────────
 // Generic, non-personalised recipes served to FREE-tier users. Built from the

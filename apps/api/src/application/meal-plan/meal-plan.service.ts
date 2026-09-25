@@ -15,9 +15,16 @@ import {
   type Recipe,
 } from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
-import type { Ingredient, MealType, NutritionInfo, RecipeData } from '../../lib/ai/index.js';
+import type {
+  Ingredient,
+  MealType,
+  NutritionInfo,
+  RecipeData,
+  WeekPlanResponse,
+} from '../../lib/ai/index.js';
 import {
   ensureCuratedRecipes,
+  findSafetyIssues,
   MIN_SAFE_POOL_SIZE,
   pickRandomCurated,
   safeCuratedPools,
@@ -65,6 +72,12 @@ export interface RecipeDto {
   servings: number;
   imageUrl: string | null;
   imageStatus: 'PENDING' | 'GENERATING' | 'DONE' | 'FAILED';
+  /**
+   * The viewer's allergies and dietary restrictions (household union) this
+   * recipe conflicts with. Present only when non-empty; additive, so older
+   * clients ignore it (audit F-REC-2-3, F-PLAN-1-7).
+   */
+  allergenWarnings?: string[];
 }
 
 export interface MealSlotDto {
@@ -297,6 +310,17 @@ export class MealPlanService {
     // which could collide with another user's row (see recipe-ids.ts).
     weekPlan = withServerRecipeIds(weekPlan);
 
+    // 3a''. AI output is never trusted for safety (audit F-PLAN-1-9): every
+    // generated dish is re-checked against the household's allergies and
+    // restrictions, and a failing slot is replaced from the safe curated
+    // pool (or dropped when nothing safe fits).
+    const planSafety: SafetyPrefs = {
+      ...ownerSafety,
+      ...householdContext?.mergedSafety,
+    };
+    const safetyPass = await this.enforcePlanSafety(weekPlan, planSafety);
+    weekPlan = safetyPass.plan;
+
     // Log AI call (fire-and-forget — never crash the server if logging fails)
     prisma.aiCallLog
       .create({ data: { userId, callType: AiCallType.MEAL_PLAN } })
@@ -349,7 +373,8 @@ export class MealPlanService {
     // this user's creatorId (and AI source) onto shared curated rows.
     await this.repo.upsertRecipes(
       recipes
-        .filter((r) => !pinnedIds.has(r.id))
+        // Curated safety replacements already exist as shared rows too.
+        .filter((r) => !pinnedIds.has(r.id) && !safetyPass.curatedIds.has(r.id))
         .map((r) => {
           const img = resolvedImage(r);
           return {
@@ -579,6 +604,45 @@ export class MealPlanService {
    * computeHouseholdContext). Filtering itself stays `filterSafeRecipes`,
    * unchanged.
    */
+  /**
+   * Replaces generated dishes that conflict with the hard safety prefs
+   * (allergies, dietary restrictions) with safe curated recipes of the same
+   * meal type. A slot with no safe replacement is dropped rather than served.
+   */
+  private async enforcePlanSafety(
+    plan: WeekPlanResponse,
+    safety: SafetyPrefs,
+  ): Promise<{ plan: WeekPlanResponse; curatedIds: Set<string> }> {
+    const curatedIds = new Set<string>();
+    if (safety.allergies.length === 0 && safety.dietaryRestrictions.length === 0) {
+      return { plan, curatedIds };
+    }
+    let replaced = 0;
+    let dropped = 0;
+    const days = plan.days.map((day) => ({
+      ...day,
+      meals: day.meals.flatMap((slot) => {
+        if (findSafetyIssues(slot.recipe, safety).length === 0) return [slot];
+        const safe = pickRandomCurated(slot.type, undefined, safety);
+        if (!safe) {
+          dropped++;
+          return [];
+        }
+        replaced++;
+        curatedIds.add(safe.id);
+        // A replacement is a different dish: drop any leftovers label.
+        return [{ type: slot.type, recipe: safe }];
+      }),
+    }));
+    if (replaced + dropped > 0) {
+      console.warn(
+        `[meal-plan] safety pass replaced ${replaced} and dropped ${dropped} unsafe AI slot(s)`,
+      );
+      if (replaced > 0) await ensureCuratedRecipes();
+    }
+    return { plan: { ...plan, days }, curatedIds };
+  }
+
   private async loadMergedSafety(userId: string): Promise<SafetyPrefs> {
     const [dietaryPrefs, members] = await Promise.all([
       dietaryPreferencesRepository.findByUserId(userId),
@@ -620,7 +684,10 @@ export class MealPlanService {
     type MealSlotJson = { type: string; recipeId: string; leftoverOf?: string };
     const allMeals = plan.days.flatMap((d) => d.meals as MealSlotJson[]);
     const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
-    const recipeRows: Recipe[] = await this.repo.findRecipesByIds(uniqueIds);
+    const [recipeRows, safety] = await Promise.all([
+      this.repo.findRecipesByIds(uniqueIds),
+      userId ? this.loadMergedSafety(userId) : Promise.resolve(null),
+    ]);
     const recipeMap = new Map<string, Recipe>(recipeRows.map((r) => [r.id, r]));
 
     const days: DayPlanDto[] = plan.days.map((d) => {
@@ -634,7 +701,7 @@ export class MealPlanService {
         }
         return {
           type: m.type as MealType,
-          recipe: rowToRecipeDto(row),
+          recipe: withAllergenWarnings(rowToRecipeDto(row), row, safety),
           ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
         };
       });
@@ -715,7 +782,7 @@ export class MealPlanService {
     if (!row) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     }
-    return rowToRecipeDto(row);
+    return withAllergenWarnings(rowToRecipeDto(row), row, await this.loadMergedSafety(userId));
   }
 
   /**
@@ -781,6 +848,13 @@ export class MealPlanService {
     prisma.aiCallLog
       .create({ data: { userId, callType: AiCallType.RECIPE_SWAP } })
       .catch((err) => console.error('[aiCallLog] Failed to log RECIPE_SWAP call:', err));
+
+    // Never trust the AI on safety (F-PLAN-1-9): an unsafe swap falls back
+    // to a safe curated recipe instead.
+    if (findSafetyIssues(newRecipe, mergedSafety).length > 0) {
+      console.warn('[meal-plan] AI swap failed the safety check; using a curated recipe');
+      return this.swapCurated(userId, planId, dayOfWeek, mealType, plan);
+    }
 
     // Reuse an existing image if we've generated this dish before
     const knownImages = await this.repo.findRecipeImagesByNames([newRecipe.name]);
@@ -1142,6 +1216,17 @@ function toRecipeDto(
 
 // Converts a Prisma Recipe row into the RecipeData shape the plan-assembly
 // pipeline works with — used to inject pinned favourites into AI plans (P1-1).
+/**
+ * Adds `allergenWarnings` when the recipe conflicts with the viewer's hard
+ * safety prefs — the detail page, cook mode and planner show them so an
+ * unsafe dish is never presented silently (F-REC-2-3, F-PLAN-1-7).
+ */
+function withAllergenWarnings(dto: RecipeDto, row: Recipe, safety: SafetyPrefs | null): RecipeDto {
+  if (!safety) return dto;
+  const issues = findSafetyIssues(rowToRecipeData(row), safety);
+  return issues.length > 0 ? { ...dto, allergenWarnings: issues } : dto;
+}
+
 function rowToRecipeData(row: Recipe): RecipeData {
   return {
     id: row.id,

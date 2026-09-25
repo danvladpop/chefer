@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Drawer } from '@chefer/ui';
 import { formatQuantity } from '@chefer/utils';
+import { AllergenWarningBanner } from './AllergenWarning';
 import { guessMealType, parseStepDuration } from './cook-mode-utils';
 
 // ─── Cook mode (P1-3) ─────────────────────────────────────────────────────────
@@ -340,6 +341,9 @@ export function CookMode({ recipeId }: { recipeId: string }) {
           <ListChecks className="h-5 w-5" />
         </button>
       </div>
+
+      {/* Allergen conflicts stay visible while cooking (F-REC-2-3) */}
+      <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mx-4 mt-3" />
 
       {/* Progress */}
       <div className="h-1.5 bg-gray-100">

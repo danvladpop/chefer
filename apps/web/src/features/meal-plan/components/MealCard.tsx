@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AllergenWarningChip } from '@/features/recipes/components/AllergenWarning';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { ArrowLeftRight, Clock } from 'lucide-react';
 
@@ -20,6 +21,7 @@ interface RecipeDto {
   nutritionInfo: NutritionInfo;
   imageUrl?: string | null;
   imageStatus?: ImageStatusType;
+  allergenWarnings?: string[];
 }
 
 interface MealCardProps {
@@ -122,6 +124,7 @@ export function MealCard({
             <p className="mt-1 line-clamp-2 text-sm font-semibold leading-snug text-gray-900">
               {recipe.name}
             </p>
+            <AllergenWarningChip warnings={recipe.allergenWarnings} className="mt-1" />
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-gray-600">
@@ -175,6 +178,10 @@ export function MealCard({
         >
           {MEAL_TYPE_LABELS[mealType] ?? mealType}
         </span>
+        <AllergenWarningChip
+          warnings={recipe.allergenWarnings}
+          className="absolute bottom-2 right-2 max-w-[calc(100%-1rem)] truncate text-[9px]"
+        />
         {leftoverLabel && (
           <span className="absolute bottom-2 left-2 rounded-full bg-emerald-100/90 px-2 py-0.5 text-[9px] font-semibold text-emerald-800 backdrop-blur-sm">
             Leftovers · {leftoverLabel.slice(0, 3)}

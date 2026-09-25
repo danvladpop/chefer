@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn, formatQuantity } from '@chefer/utils';
+import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
@@ -98,6 +99,7 @@ export default function RecipeDetailScreen() {
             <Text variant="muted" className="text-sm">
               {recipe.description}
             </Text>
+            <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mt-2" />
           </View>
 
           {/* Actions: cook is primary (web P1-3), save secondary */}

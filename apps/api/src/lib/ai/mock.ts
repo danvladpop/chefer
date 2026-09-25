@@ -393,12 +393,14 @@ export class MockAIService implements IAIService {
     };
 
     const swappedTerms = new Set<string>();
+    const swappedNames = new Map<string, string>(); // original ingredient → substitute
     const ingredients = recipe.ingredients.map((ing) => {
       const lower = ing.name.toLowerCase();
       const hit = skipSwaps ? undefined : hardTerms.find(({ term }) => termMatches(term, lower));
       const name = hit ? substituteFor(hit.term) : ing.name;
       if (hit) {
         swappedTerms.add(hit.term);
+        swappedNames.set(ing.name, name);
         changes.push({
           kind: hit.kind,
           description: `Swapped ${ing.name} for ${name}`,
@@ -417,6 +419,17 @@ export class MockAIService implements IAIService {
     }
     adaptedName = adaptedName.replace(/\s{2,}/g, ' ').trim() || recipe.name;
 
+    // The steps must follow the swap too — the matcher scans them, and a
+    // method that still says "whisk peanut butter" is not safe (F-REC-4-6).
+    const escape = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const instructions = recipe.instructions.map((step) => {
+      let next = step;
+      for (const [original, substitute] of swappedNames) {
+        next = next.replace(new RegExp(escape(original), 'gi'), substitute);
+      }
+      return next;
+    });
+
     if (factor !== 1) {
       changes.push({
         kind: 'servings',
@@ -429,6 +442,7 @@ export class MockAIService implements IAIService {
         ...recipe,
         name: adaptedName,
         ingredients,
+        instructions,
         servings: targetServings || recipe.servings,
       },
       changes,
