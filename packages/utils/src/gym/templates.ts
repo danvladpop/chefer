@@ -62,12 +62,16 @@ export function recommendTemplate(input: RecommendInput): {
     key = keyFor('ppl6', experience);
     reason = 'Push/Pull/Legs 6× gives the most frequency and volume for six training days.';
   }
+  // Capped at 3 so the setup UIs show a manageable list; closest-by-days wins ties,
+  // which is how ul3 (3 days) surfaces for 3-day requests without growing the list
+  // for every other day count now that there are 5 templates per experience.
   const alternatives = PROGRAM_TEMPLATES.filter((t) => t.experience === experience && t.key !== key)
     .sort(
       (a, b) =>
         Math.abs(a.daysPerWeek - days) - Math.abs(b.daysPerWeek - days) ||
         a.daysPerWeek - b.daysPerWeek,
     )
+    .slice(0, 3)
     .map((t) => t.key);
   return { key, reason: reason + EQUIPMENT_NOTE[input.equipmentAccess], alternatives };
 }

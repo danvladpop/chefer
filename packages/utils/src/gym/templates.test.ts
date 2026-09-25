@@ -232,6 +232,65 @@ describe('recommendTemplate (research §3.5)', () => {
       recommendTemplate({ days: 3, experience: 'BEGINNER', equipmentAccess: 'BODYWEIGHT' }).reason,
     ).toMatch(/bodyweight/);
   });
+
+  it('offers Upper/Lower 3× (2 upper + 1 lower) as an alternative for 3 days, without changing the default', () => {
+    const beginner = rec(3, 'BEGINNER');
+    expect(beginner.key).toBe('fb3-beginner');
+    expect(beginner.alternatives).toContain('ul3-beginner');
+    const intermediate = rec(3, 'INTERMEDIATE');
+    expect(intermediate.key).toBe('fb3-intermediate');
+    expect(intermediate.alternatives).toContain('ul3-intermediate');
+  });
+});
+
+describe('ul3 templates (dogfood feedback #1: 2 upper + 1 lower for 3 days)', () => {
+  it('instantiates for FULL_GYM, DUMBBELLS and BODYWEIGHT with Upper A / Lower / Upper B on distinct weekdays', () => {
+    for (const key of ['ul3-beginner', 'ul3-intermediate'] as const) {
+      for (const access of ['FULL_GYM', 'DUMBBELLS', 'BODYWEIGHT'] as const) {
+        const r = instantiateTemplate(key, access, lookup);
+        expect(
+          r.days.map((d) => d.name),
+          `${key} ${access}`,
+        ).toEqual(['Upper A', 'Lower', 'Upper B']);
+        expect(
+          r.days.every((d) => d.exercises.length > 0),
+          `${key} ${access}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('raises no warning-level validateRoutine hints (info hints about 1×/week legs are expected)', () => {
+    for (const key of ['ul3-beginner', 'ul3-intermediate'] as const) {
+      const t = PROGRAM_TEMPLATES.find((x) => x.key === key);
+      if (!t) {
+        throw new Error(key);
+      }
+      for (const access of ['FULL_GYM', 'DUMBBELLS', 'BODYWEIGHT'] as const) {
+        const routine = instantiateTemplate(key, access, lookup);
+        const hints = validateRoutine(routine, lookup, t.experience, {});
+        expect(
+          hints.filter((h) => h.level === 'warning'),
+          `${key} ${access}`,
+        ).toEqual([]);
+      }
+    }
+  });
+
+  it('sessions land near the design budget (beginner 12–13, intermediate 16–18)', () => {
+    const setsOf = (key: string) =>
+      instantiateTemplate(key, 'FULL_GYM', lookup).days.map((d) =>
+        d.exercises.reduce((s, e) => s + e.sets, 0),
+      );
+    for (const sets of setsOf('ul3-beginner')) {
+      expect(sets).toBeGreaterThanOrEqual(12);
+      expect(sets).toBeLessThanOrEqual(13);
+    }
+    for (const sets of setsOf('ul3-intermediate')) {
+      expect(sets).toBeGreaterThanOrEqual(16);
+      expect(sets).toBeLessThanOrEqual(18);
+    }
+  });
 });
 
 describe('instantiateTemplate', () => {
