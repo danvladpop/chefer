@@ -1088,12 +1088,22 @@ Active workout: grouping derived from routineExerciseId via the cached routine
   tick set k of A1 → no rest, focus + scroll to set k of A2 (a running rest is cleared)
   last exercise of round k ticked → rest timer with the superset's LAST exercise's rest
   focus walks round by round (A1·1, A2·1, A1·2 …); skipped members drop out of rounds
+Also shown outside the workout, same bracket/chip/heading, read-only (no reorder there):
+  Routine tab day cards (mobile `(gym)/routine.tsx`, web `gym/routine/components/DayCard.tsx`)
+  Today's "Next up" exercise list (mobile `today-screen.tsx`, web `today-view.tsx`'s NextUpCard,
+  via the shared `SupersetHeading` component)
 ```
 
 Shared logic: `@chefer/utils` `gym/supersets.ts` (`setSupersetWithNext`,
 `moveSupersetItem[To]`, `removeSupersetItem`, `sessionSupersets`, `setTickOutcome`,
-`workoutFocus`). Not built: "notes you typed last time" per exercise —
-`SessionSummaryDto` (bootstrap `recentSessions`) carries no exercise notes.
+`workoutFocus`, `supersetRuns`, `supersetSlot`).
+
+"Notes from last time": `SessionSummaryDto.exercises[].notes` (additive, optional —
+shipped mobile clients predate it) carries each exercise's session note through
+`toSessionSummary` (`@chefer/utils` `gym/session.ts`). The workout screens (mobile
+`exercise-card.tsx`, web `workout/components/exercise-card.tsx`) show the most
+recent non-empty note for that exercise from `bootstrap.recentSessions` as a muted
+"Last time: <note>" line under the exercise name.
 
 On web the floating chat widget is hidden on `/gym/workout*` (`ChatWidgetGate`).
 
