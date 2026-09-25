@@ -12,6 +12,7 @@ import type {
 import { Button, Card, ChipGroup, Input, Screen, Sheet, Stepper, Text } from '@chefer/ui-mobile';
 import { cn, unitLabel, unitToKg, VOLUME_GROUP_LABELS } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { ensureGymReminderPermission } from '../reminders/permission';
 import { gymBootstrapQueryKey } from '../use-gym-bootstrap';
 import { defaultUnitFromLocale } from './locale-unit';
 import { buildTemplatePreview, uniqueExercisesOf, type TemplatePreview } from './template-preview';
@@ -324,7 +325,13 @@ export function SetupWizard() {
                   { value: 'on' as const, label: 'Remind me', testID: 'gym-setup-reminder-on' },
                 ]}
                 value={[reminderEnabled ? 'on' : 'off']}
-                onChange={(v) => setReminderEnabled(v[0] === 'on')}
+                onChange={(v) => {
+                  const enabled = v[0] === 'on';
+                  setReminderEnabled(enabled);
+                  // "Want a reminder?" is a direct user action — ask here,
+                  // never on cold start (gym_plan.md §6.5).
+                  if (enabled) void ensureGymReminderPermission();
+                }}
               />
               {reminderEnabled && (
                 <View className="flex-row items-center gap-3">

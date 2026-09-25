@@ -15,8 +15,10 @@ import { trpc } from '../../../lib/trpc';
 import { ModeSwitch } from '../components/mode-switch';
 import { localDate } from '../offline/ids';
 import { useOutboxStatus } from '../offline/outbox';
+import { useGymReminders } from '../reminders/use-gym-reminders';
 import { useActiveWorkout } from '../use-active-workout';
 import { gymBootstrapQueryKey, libraryLookup, useGymBootstrap } from '../use-gym-bootstrap';
+import { LogPastWorkoutAction } from './log-past-workout';
 import {
   computeWeekStrip,
   formatStreakLine,
@@ -61,6 +63,7 @@ function WeekStrip({ days }: { days: WeekStripDay[] }) {
 
 export function TodayScreen() {
   const queryClient = useQueryClient();
+  useGymReminders();
   const bootstrapQuery = useGymBootstrap();
   const bootstrap = bootstrapQuery.data;
   const activeWorkout = useActiveWorkout();
@@ -359,6 +362,8 @@ export function TodayScreen() {
             </View>
           </Card>
         )}
+
+        <LogPastWorkoutAction bootstrap={bootstrap} />
 
         {lastSession && (
           <Pressable
