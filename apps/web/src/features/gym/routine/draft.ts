@@ -13,7 +13,14 @@ import type {
   RoutineDto,
   RoutineLike,
 } from '@chefer/types';
-import { defaultTargetRir } from '@chefer/utils';
+import {
+  defaultTargetRir,
+  moveSupersetItem,
+  moveSupersetItemTo,
+  normalizeSupersets,
+  removeSupersetItem,
+  setSupersetWithNext,
+} from '@chefer/utils';
 
 export interface DraftExercise {
   key: string;
@@ -65,21 +72,25 @@ export function fromRoutineDto(routine: RoutineDto): DraftRoutine {
         id: day.id,
         name: day.name,
         plannedWeekday: day.plannedWeekday,
-        exercises: day.exercises
-          .slice()
-          .sort((a, b) => a.position - b.position)
-          .map((exercise) => ({
-            key: makeKey('ex'),
-            id: exercise.id,
-            exerciseId: exercise.exerciseId,
-            sets: exercise.sets,
-            repMin: exercise.repMin,
-            repMax: exercise.repMax,
-            targetRir: exercise.targetRir,
-            restSec: exercise.restSec,
-            supersetGroup: exercise.supersetGroup,
-            notes: exercise.notes,
-          })),
+        // Canonical superset letters (A, B… per day), so the toggles and
+        // brackets always agree with what gets saved.
+        exercises: normalizeSupersets(
+          day.exercises
+            .slice()
+            .sort((a, b) => a.position - b.position)
+            .map((exercise) => ({
+              key: makeKey('ex'),
+              id: exercise.id,
+              exerciseId: exercise.exerciseId,
+              sets: exercise.sets,
+              repMin: exercise.repMin,
+              repMax: exercise.repMax,
+              targetRir: exercise.targetRir,
+              restSec: exercise.restSec,
+              supersetGroup: exercise.supersetGroup,
+              notes: exercise.notes,
+            })),
+        ),
       })),
   };
 }
@@ -181,6 +192,10 @@ export type DraftAction =
         Pick<DraftExercise, 'sets' | 'repMin' | 'repMax' | 'targetRir' | 'restSec' | 'notes'>
       >;
     }
+  /** Phone arrows: one step, hopping over a neighbouring superset as a whole. */
+  | { type: 'step_exercise'; dayKey: string; exerciseKey: string; direction: 'up' | 'down' }
+  /** "Superset with next": link / unlink this exercise and the one after it. */
+  | { type: 'set_superset_with_next'; dayKey: string; exerciseKey: string; linked: boolean }
   | {
       /** Reorders within a day when fromDayKey === toDayKey, else moves across days. */
       type: 'move_exercise';
@@ -189,6 +204,17 @@ export type DraftAction =
       toDayKey: string;
       toIndex: number;
     };
+
+function mapDayExercises(
+  state: DraftRoutine,
+  dayKey: string,
+  fn: (exercises: DraftExercise[]) => DraftExercise[],
+): DraftRoutine {
+  return {
+    ...state,
+    days: state.days.map((d) => (d.key === dayKey ? { ...d, exercises: fn(d.exercises) } : d)),
+  };
+}
 
 function clampIndex(index: number, length: number): number {
   return Math.max(0, Math.min(index, length));
@@ -263,15 +289,24 @@ export function draftReducer(state: DraftRoutine, action: DraftAction): DraftRou
         ),
       };
 
+    // Removing / moving keeps supersets consistent (shared helpers, @chefer/utils).
     case 'remove_exercise':
-      return {
-        ...state,
-        days: state.days.map((d) =>
-          d.key === action.dayKey
-            ? { ...d, exercises: d.exercises.filter((e) => e.key !== action.exerciseKey) }
-            : d,
-        ),
-      };
+      return mapDayExercises(state, action.dayKey, (exercises) => {
+        const index = exercises.findIndex((e) => e.key === action.exerciseKey);
+        return index < 0 ? exercises : removeSupersetItem(exercises, index);
+      });
+
+    case 'step_exercise':
+      return mapDayExercises(state, action.dayKey, (exercises) => {
+        const index = exercises.findIndex((e) => e.key === action.exerciseKey);
+        return index < 0 ? exercises : moveSupersetItem(exercises, index, action.direction);
+      });
+
+    case 'set_superset_with_next':
+      return mapDayExercises(state, action.dayKey, (exercises) => {
+        const index = exercises.findIndex((e) => e.key === action.exerciseKey);
+        return index < 0 ? exercises : setSupersetWithNext(exercises, index, action.linked);
+      });
 
     case 'swap_exercise':
       return {
@@ -310,9 +345,8 @@ export function draftReducer(state: DraftRoutine, action: DraftAction): DraftRou
       if (!fromDay || !exercise) return state;
 
       if (fromDayKey === toDayKey) {
-        const without = fromDay.exercises.filter((e) => e.key !== exerciseKey);
-        const index = clampIndex(toIndex, without.length);
-        const exercises = [...without.slice(0, index), exercise, ...without.slice(index)];
+        const from = fromDay.exercises.indexOf(exercise);
+        const exercises = moveSupersetItemTo(fromDay.exercises, from, toIndex);
         return {
           ...state,
           days: state.days.map((d) => (d.key === fromDayKey ? { ...d, exercises } : d)),
@@ -322,16 +356,25 @@ export function draftReducer(state: DraftRoutine, action: DraftAction): DraftRou
       const toDay = state.days.find((d) => d.key === toDayKey);
       if (!toDay) return state;
       const index = clampIndex(toIndex, toDay.exercises.length);
+      // Another day's letters mean nothing here: the moved exercise leaves its superset.
+      const moved = { ...exercise, supersetGroup: null };
       return {
         ...state,
         days: state.days.map((d) => {
           if (d.key === fromDayKey) {
-            return { ...d, exercises: d.exercises.filter((e) => e.key !== exerciseKey) };
+            return {
+              ...d,
+              exercises: normalizeSupersets(d.exercises.filter((e) => e.key !== exerciseKey)),
+            };
           }
           if (d.key === toDayKey) {
             return {
               ...d,
-              exercises: [...d.exercises.slice(0, index), exercise, ...d.exercises.slice(index)],
+              exercises: normalizeSupersets([
+                ...d.exercises.slice(0, index),
+                moved,
+                ...d.exercises.slice(index),
+              ]),
             };
           }
           return d;

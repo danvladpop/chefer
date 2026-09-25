@@ -3,10 +3,11 @@
 import type { Dispatch } from 'react';
 import { ChevronDown, ChevronUp, Plus } from 'lucide-react';
 import { Button } from '@chefer/ui';
-import type { ExerciseLookup } from '@chefer/utils';
+import { isSupersetWithNext, supersetSlot, type ExerciseLookup } from '@chefer/utils';
 import type { DraftAction, DraftRoutine } from '../draft';
 import { DayHeaderFields } from './DayHeaderFields';
 import { ExerciseFieldsForm } from './ExerciseFieldsForm';
+import { SupersetHeading } from './SupersetHeading';
 
 export interface PhoneEditorListProps {
   draft: DraftRoutine;
@@ -74,9 +75,23 @@ export function PhoneEditorList({
           <div className="mt-3 flex flex-col gap-2.5">
             {day.exercises.map((exercise, exIndex) => (
               <div key={exercise.key} className="flex flex-col gap-1.5">
+                <SupersetHeading exercises={day.exercises} index={exIndex} />
                 <ExerciseFieldsForm
                   exercise={exercise}
                   lookup={lookup}
+                  superset={supersetSlot(day.exercises, exIndex)}
+                  linkedToNext={isSupersetWithNext(day.exercises, exIndex)}
+                  {...(exIndex < day.exercises.length - 1
+                    ? {
+                        onSupersetWithNext: (linked: boolean) =>
+                          dispatch({
+                            type: 'set_superset_with_next',
+                            dayKey: day.key,
+                            exerciseKey: exercise.key,
+                            linked,
+                          }),
+                      }
+                    : {})}
                   onChange={(patch) =>
                     dispatch({
                       type: 'update_exercise',
@@ -102,11 +117,10 @@ export function PhoneEditorList({
                         className={exerciseMoveButtonCls}
                         onClick={() =>
                           dispatch({
-                            type: 'move_exercise',
-                            fromDayKey: day.key,
+                            type: 'step_exercise',
+                            dayKey: day.key,
                             exerciseKey: exercise.key,
-                            toDayKey: day.key,
-                            toIndex: exIndex - 1,
+                            direction: 'up',
                           })
                         }
                       >
@@ -119,11 +133,10 @@ export function PhoneEditorList({
                         className={exerciseMoveButtonCls}
                         onClick={() =>
                           dispatch({
-                            type: 'move_exercise',
-                            fromDayKey: day.key,
+                            type: 'step_exercise',
+                            dayKey: day.key,
                             exerciseKey: exercise.key,
-                            toDayKey: day.key,
-                            toIndex: exIndex + 1,
+                            direction: 'down',
                           })
                         }
                       >

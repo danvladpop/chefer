@@ -64,7 +64,7 @@ export default defineConfig({
     // test (phone and desktop), so one Chromium project covers both.
     {
       name: 'gym',
-      testMatch: /gym\.spec\.ts/,
+      testMatch: /gym(-[a-z]+)?\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], storageState: AUTH_FILE },
       dependencies: ['setup'],
     },

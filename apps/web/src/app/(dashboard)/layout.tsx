@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { ChatWidget } from '@/features/chat/components/ChatWidget';
+import { ChatWidgetGate } from '@/features/chat/components/ChatWidgetGate';
 import { DashboardShell } from '@/features/nav/components/dashboard-shell';
 import { MODE_COOKIE, parseMode } from '@/features/nav/nav-items';
 
@@ -15,7 +15,8 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   return (
     <DashboardShell initialMode={initialMode}>
       {children}
-      <ChatWidget />
+      {/* Hidden on /gym/workout*: the active workout stays distraction-free. */}
+      <ChatWidgetGate />
     </DashboardShell>
   );
 }

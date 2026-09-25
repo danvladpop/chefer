@@ -24,6 +24,7 @@ import {
   weekStartOf,
 } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { GymExportRow } from '../export/export-row';
 import { localDate } from '../offline/ids';
 import { outbox, useOutboxStatus } from '../offline/outbox';
 import { ensureGymReminderPermission } from '../reminders/permission';
@@ -474,6 +475,8 @@ export function GymSettingsScreen() {
             </View>
           </View>
         )}
+
+        <GymExportRow />
 
         <View className="gap-1">
           <SectionTitle>Last sync</SectionTitle>

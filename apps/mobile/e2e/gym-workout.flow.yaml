@@ -22,17 +22,38 @@ appId: dev.chefer.app.dev
       id: 'gym-today-title'
     timeout: 15000
 
-# A workout left running by an earlier run resumes; otherwise start the next one.
-- tapOn:
-    id: 'gym-today-resume'
-    optional: true
+# A workout left running by an earlier (failed) run is discarded first, so
+# every run starts from a fresh session with exercise 0 in view.
 - runFlow:
     when:
-      notVisible:
-        id: 'workout-title'
+      visible:
+        id: 'gym-today-resume'
     commands:
       - tapOn:
-          id: 'gym-today-start'
+          id: 'gym-today-resume-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'workout-title'
+          timeout: 15000
+      - scrollUntilVisible:
+          element:
+            id: 'workout-discard'
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          id: 'workout-discard'
+      - tapOn:
+          id: 'workout-discard-sheet-confirm'
+      - extendedWaitUntil:
+          visible:
+            id: 'gym-today-title'
+          timeout: 15000
+- tapOn:
+    id: 'gym-today-start'
+# First workout asks for notification permission (rest-timer alerts) — accept.
+- tapOn:
+    text: 'Allow'
+    optional: true
 - extendedWaitUntil:
     visible:
       id: 'workout-title'
@@ -87,8 +108,14 @@ appId: dev.chefer.app.dev
     id: 'exercise-0-rir-0'
 
 # ── Finish (other exercises are unticked → confirmation sheet) ───────────────
+# The list-end Finish (the header one sits under the dev-build Tools bubble).
+- scrollUntilVisible:
+    element:
+      id: 'workout-finish-bottom'
+    direction: DOWN
+    timeout: 20000
 - tapOn:
-    id: 'workout-finish'
+    id: 'workout-finish-bottom'
 - extendedWaitUntil:
     visible:
       id: 'workout-finish-sheet-confirm'

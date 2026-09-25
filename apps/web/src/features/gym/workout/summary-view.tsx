@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Clock, Flame, ListChecks, SlidersHorizontal, Trophy } from 'lucide-react';
@@ -16,6 +16,7 @@ import type {
 } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { cn, explain, formatLoad, isHarder, repBucket, stepDown, stepUp } from '@chefer/utils';
+import { captureGymEvent } from '../analytics';
 import { KIND_ARROW, KIND_TONE, prescriptionText, repsText } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
 import { Stepper } from '../shared/stepper';
@@ -51,6 +52,21 @@ export function SummaryView({ id }: { id: string }) {
     { enabled: hasMounted && localDoc === null, retry: false, staleTime: Infinity },
   );
   const doc = localDoc ?? remote.data ?? null;
+
+  // Fired once the week ring shown below first reaches goal for this session
+  // (the ref guards against a background refetch re-running the effect).
+  const goalMetFired = useRef<string | null>(null);
+  useEffect(() => {
+    if (!doc || !data) return;
+    if (
+      doc.status === 'COMPLETED' &&
+      data.streak.thisWeekSessions === data.streak.thisWeekGoal &&
+      goalMetFired.current !== doc.id
+    ) {
+      goalMetFired.current = doc.id;
+      captureGymEvent('week_goal_met', { streak: data.streak.current });
+    }
+  }, [doc, data]);
 
   if (!hasMounted || (!doc && remote.isLoading) || !ready || !data) {
     if (hasMounted && remote.isError && !doc) return <NotFound />;

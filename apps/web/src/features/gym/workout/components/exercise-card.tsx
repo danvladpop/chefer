@@ -33,6 +33,12 @@ export interface ExerciseCardProps {
   dto: ExerciseDto | undefined;
   index: number;
   expanded: boolean;
+  /** Superset letter ("A") when the card is part of one. */
+  supersetLabel?: string | null;
+  /** 0-based place inside the superset ("A1" = 0). */
+  supersetIndex?: number;
+  /** The set to do next, when it is in this card. */
+  focusSetId?: string | null;
   onToggleExpanded: (seId: string) => void;
   profile: EquipmentProfile;
   unit: WeightUnit;
@@ -45,6 +51,7 @@ export interface ExerciseCardProps {
   onSetRir: (seId: string, rir: Rir | null) => void;
   onOpenActions: (seId: string) => void;
   onOpenPlates: (weightKg: number) => void;
+  onOpenSetMenu: (seId: string, setId: string) => void;
 }
 
 /**
@@ -58,6 +65,9 @@ export const ExerciseCard = memo(function ExerciseCard({
   dto,
   index,
   expanded,
+  supersetLabel = null,
+  supersetIndex = 0,
+  focusSetId = null,
   onToggleExpanded,
   profile,
   unit,
@@ -69,6 +79,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   onSetRir,
   onOpenActions,
   onOpenPlates,
+  onOpenSetMenu,
 }: ExerciseCardProps) {
   const [showWarmups, setShowWarmups] = useState(false);
   const [showWhy, setShowWhy] = useState(false);
@@ -88,6 +99,7 @@ export const ExerciseCard = memo(function ExerciseCard({
       className={cn(
         'rounded-2xl border bg-white shadow-sm transition-colors',
         expanded && !se.skipped ? 'border-[#944a00]/30' : '',
+        supersetLabel && 'border-l-4 border-l-violet-500',
         se.skipped && 'opacity-70',
       )}
       data-testid="gym-exercise-card"
@@ -114,8 +126,20 @@ export const ExerciseCard = memo(function ExerciseCard({
             </span>
           )}
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-gray-900 sm:text-base">
-              {name}
+            <span className="flex min-w-0 items-center gap-1.5">
+              {supersetLabel && (
+                <span
+                  className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-bold text-violet-800"
+                  data-testid="gym-superset-chip"
+                  aria-label={`Superset ${supersetLabel}, exercise ${supersetIndex + 1}`}
+                >
+                  {supersetLabel}
+                  {supersetIndex + 1}
+                </span>
+              )}
+              <span className="min-w-0 truncate text-sm font-semibold text-gray-900 sm:text-base">
+                {name}
+              </span>
             </span>
             <span className="block truncate text-xs text-gray-500">
               {se.skipped ? (
@@ -218,9 +242,11 @@ export const ExerciseCard = memo(function ExerciseCard({
                       unit={unit}
                       lastTime={null}
                       pr={null}
+                      focused={focusSetId === s.id}
                       onEdit={onEditSet}
                       onToggle={onToggleSet}
                       onOpenPlates={onOpenPlates}
+                      onOpenMenu={onOpenSetMenu}
                     />
                   ))}
                 </div>
@@ -240,9 +266,11 @@ export const ExerciseCard = memo(function ExerciseCard({
                 unit={unit}
                 lastTime={lastTime[i] ?? lastTime[lastTime.length - 1] ?? null}
                 pr={prSetId === s.id ? prKind : null}
+                focused={focusSetId === s.id}
                 onEdit={onEditSet}
                 onToggle={onToggleSet}
                 onOpenPlates={onOpenPlates}
+                onOpenMenu={onOpenSetMenu}
               />
             ))}
             {working.length === 0 && (

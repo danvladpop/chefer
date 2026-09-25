@@ -17,3 +17,5 @@ export * from './reasons';
 // Contextual-card priority (G4-A): shared so mobile and web agree on which
 // single offer (comeback/deload/stall/recap) to show.
 export * from './offers';
+// Superset grouping (routine editors) and round logic (active workout), G4-B.
+export * from './supersets';

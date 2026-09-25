@@ -42,7 +42,7 @@ export function MuscleVolumeChart({ experience }: { experience: TrainingExperien
           value={group}
           onChange={(e) => setGroup(e.target.value as VolumeGroup)}
           aria-label="Muscle group"
-          className="min-h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-700"
+          className="min-h-11 max-w-full rounded-lg border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-700"
         >
           {MUSCLE_GROUP_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>

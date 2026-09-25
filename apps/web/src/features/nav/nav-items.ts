@@ -68,7 +68,7 @@ export const GYM_NAV_ITEMS: readonly NavItem[] = [
     alsoActiveFor: ['/gym/workout', '/gym/summary', '/gym/setup', '/gym/session'],
   },
   { href: '/gym/routine', label: 'Routine', icon: ListChecks },
-  { href: '/gym/exercises', label: 'Exercises', shortLabel: 'Library', icon: Dumbbell },
+  { href: '/gym/exercises', label: 'Exercises', icon: Dumbbell },
   { href: '/gym/stats', label: 'Stats', icon: BarChart3 },
 ] as const;
 

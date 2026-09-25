@@ -1,4 +1,4 @@
-import { render, screen, userEvent, within } from '@testing-library/react-native';
+import { fireEvent, render, screen, userEvent, within } from '@testing-library/react-native';
 import type { GymBootstrap, WorkoutSessionDoc } from '@chefer/types';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
@@ -17,7 +17,10 @@ import {
   SE_ID,
   SET_IDS,
   suggestion,
+  supersetDoc,
+  supersetRoutine,
   testQueryClient,
+  WARMUP_ID,
 } from './gym-workout-helpers';
 
 jest.mock('expo-router', () => ({
@@ -126,13 +129,17 @@ describe('WorkoutScreen — set rows', () => {
 
     await user.press(screen.getByTestId('exercise-0-set-1-check'));
 
-    expect(dispatch).toHaveBeenCalledWith({
-      type: 'completeSet',
-      seId: SE_ID,
-      setId: SET_IDS[0],
-      weightKg: 60,
-      reps: 10,
-    });
+    expect(dispatch).toHaveBeenCalledWith(
+      {
+        type: 'completeSet',
+        seId: SE_ID,
+        setId: SET_IDS[0],
+        weightKg: 60,
+        reps: 10,
+      },
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers are typed any
+      expect.objectContaining({ supersets: expect.any(Map) }),
+    );
     expect(workingSet(0).completedAt).not.toBeNull();
     expect(workingSet(0)).toMatchObject({ weightKg: 60, reps: 10 });
     expect(getRestTimer()).toMatchObject({ durationSec: 120, seId: SE_ID });
@@ -353,5 +360,83 @@ describe('WorkoutScreen — exercise menu', () => {
     await user.press(screen.getByTestId('menu-swap'));
     expect(screen.getByTestId('menu-swap-routine')).toBeDisabled();
     expect(screen.getByTestId('menu-swap-routine-blocked')).toHaveTextContent(/today only/);
+  });
+});
+
+describe('WorkoutScreen — supersets', () => {
+  const bootstrap = () => makeBootstrap({ activeRoutine: supersetRoutine() });
+
+  it('brackets the superset and labels its rest', async () => {
+    await renderWorkout(supersetDoc(), bootstrap());
+    expect(screen.getByTestId('superset-A')).toHaveTextContent(
+      /Superset A.*90 s rest after each round/,
+    );
+    expect(screen.getByTestId('exercise-0-superset')).toHaveTextContent('A1');
+    expect(screen.getByTestId('exercise-1-superset')).toHaveTextContent('A2');
+    expect(screen.queryByTestId('exercise-2-superset')).toBeNull();
+    // Both members of the current superset are open.
+    expect(screen.getByTestId('exercise-0-set-1-check')).toBeOnTheScreen();
+    expect(screen.getByTestId('exercise-1-set-1-check')).toBeOnTheScreen();
+    expect(screen.queryByTestId('exercise-2-set-1-check')).toBeNull();
+  });
+
+  it('A1 → A2 with no rest; the rest starts after the last exercise of the round', async () => {
+    const user = userEvent.setup();
+    await renderWorkout(supersetDoc(), bootstrap());
+
+    await user.press(screen.getByTestId('exercise-0-set-1-check'));
+    expect(getRestTimer()).toBeNull();
+
+    await user.press(screen.getByTestId('exercise-1-set-1-check'));
+    expect(getRestTimer()).toMatchObject({ durationSec: 90, seId: 'squat-se' });
+
+    // Round 2 starts while resting: the rest is cleared, no new one until A2.
+    await user.press(screen.getByTestId('exercise-0-set-2-check'));
+    expect(getRestTimer()).toBeNull();
+    await user.press(screen.getByTestId('exercise-1-set-2-check'));
+    expect(getRestTimer()).toMatchObject({ durationSec: 90 });
+  });
+
+  it('without the routine grouping the same session rests after every set', async () => {
+    const user = userEvent.setup();
+    await renderWorkout(supersetDoc(), makeBootstrap());
+    expect(screen.queryByTestId('superset-A')).toBeNull();
+    await user.press(screen.getByTestId('exercise-0-set-1-check'));
+    expect(getRestTimer()).toMatchObject({ durationSec: 120, seId: 'bench-se' });
+  });
+});
+
+describe('WorkoutScreen — remove a set', () => {
+  it('long-press a working set → confirm → removed, positions stay contiguous', async () => {
+    const user = userEvent.setup();
+    await renderWorkout(activeDoc());
+
+    await fireEvent(screen.getByTestId('exercise-0-set-2'), 'longPress');
+    expect(screen.getByTestId('workout-remove-set-sheet-title')).toHaveTextContent('Remove set 2?');
+    await user.press(screen.getByTestId('workout-remove-set-sheet-confirm'));
+
+    const sets = currentDoc().exercises[0]?.sets ?? [];
+    expect(sets.map((s) => s.id)).toEqual([WARMUP_ID, SET_IDS[0], SET_IDS[2]]);
+    expect(sets.map((s) => s.position)).toEqual([0, 1, 2]);
+    expect(screen.getByTestId('workout-progress')).toHaveTextContent(/0\/2 sets/);
+  });
+
+  it('warm-ups can be removed too; "Keep it" changes nothing', async () => {
+    const user = userEvent.setup();
+    await renderWorkout(activeDoc());
+    await user.press(screen.getByTestId('exercise-0-warmups-toggle'));
+
+    await fireEvent(screen.getByTestId('exercise-0-warmup-1'), 'longPress');
+    await user.press(screen.getByTestId('workout-remove-set-sheet-cancel'));
+    expect(currentDoc().exercises[0]?.sets).toHaveLength(4);
+
+    await fireEvent(screen.getByTestId('exercise-0-warmup-1'), 'longPress');
+    expect(screen.getByTestId('workout-remove-set-sheet-title')).toHaveTextContent(
+      'Remove warm-up 1?',
+    );
+    await user.press(screen.getByTestId('workout-remove-set-sheet-confirm'));
+    const sets = currentDoc().exercises[0]?.sets ?? [];
+    expect(sets.map((s) => s.id)).toEqual([...SET_IDS]);
+    expect(sets.map((s) => s.position)).toEqual([0, 1, 2]);
   });
 });

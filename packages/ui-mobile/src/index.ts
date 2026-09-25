@@ -1,6 +1,7 @@
 export { Badge, type BadgeProps } from './components/badge';
 export { Button, type ButtonProps } from './components/button';
 export { Card, CardTitle, type CardProps } from './components/card';
+export { ConfirmSheet, type ConfirmSheetProps } from './components/confirm-sheet';
 export {
   Chip,
   ChipGroup,
@@ -25,6 +26,7 @@ export {
   type StepperProps,
 } from './components/stepper';
 export { Text, type TextProps } from './components/text';
+export { ValueStepper, type ValueStepperProps } from './components/value-stepper';
 export { chartPalette, colors } from './components/theme';
 // Charts (react-native-svg)
 export {

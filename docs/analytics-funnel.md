@@ -65,6 +65,38 @@ Weekly auto-generation (PW-5) is server-side and shows up as plans whose
 `createdAt` precedes their `weekStartDate` — count it in SQL/Postgres, not
 PostHog, until server-side capture is worth adding.
 
+### Gym (gym_plan.md §6.6)
+
+Fired through the typed wrapper `apps/web/src/features/gym/analytics.ts`
+(`captureGymEvent`), which wraps the shared `capture` helper above so every
+event name and its properties are checked by the compiler. The mobile app has
+no analytics SDK yet — `apps/mobile/src/features/gym/analytics.ts` exposes
+the same typed API as a `__DEV__`-only console no-op, so call sites exist for
+when a mobile SDK lands.
+
+| Event                   | Properties                                  | Fired when                                                                                                                                            |
+| ----------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gym_mode_switched`     | `to: 'food' \| 'gym'`                       | The Food/Gym segmented control changes mode (`nav/mode-context.tsx`)                                                                                  |
+| `gym_setup_completed`   | `template, days, experience, knownWeights`  | `gym.profile.completeSetup` succeeds (`gym/setup/setup-wizard.tsx`)                                                                                   |
+| `workout_started`       | `source: 'next' \| 'picked' \| 'freestyle'` | A workout session is started (`gym/today/today-view.tsx`)                                                                                             |
+| `workout_finished`      | `durationMin, sets, prs, offline`           | The Finish button completes a session (`gym/workout/workout-view.tsx`)                                                                                |
+| `suggestion_overridden` | `reasonCode, direction`                     | The user adjusts the engine's "next time" suggestion (`gym/workout/summary-view.tsx`)                                                                 |
+| `routine_edited`        | `kind`                                      | A routine document save succeeds (`gym/routine/edit/page.tsx`)                                                                                        |
+| `pr_achieved`           | `kind: 'weight' \| 'reps' \| 'e1rm'`        | Each PR detected on Finish, once per exercise (`gym/workout/workout-view.tsx`)                                                                        |
+| `week_goal_met`         | `streak`                                    | The weekly session goal is first reached, shown on the summary's week ring (`gym/workout/summary-view.tsx`)                                           |
+| `training_paused`       | `weeks, reason`                             | "Pause training" confirmed in gym settings (`gym/settings/settings-view.tsx`)                                                                         |
+| `sync_failed`           | `reason`                                    | The offline outbox parks a rejected sync doc (`gym/workout/outbox.ts`) — also logged as a Sentry warning from the API side (`gym.session.upsertMany`) |
+| `video_opened`          | `fallback: boolean`                         | The technique video is played inline (`false`) or opened on YouTube (`true`) (`gym/library/VideoEmbed.tsx`)                                           |
+
+`gym_mode_switched`, `gym_setup_completed`, `workout_started`,
+`workout_finished`, `suggestion_overridden` and `training_paused` shipped
+with the G5-A web wave via the raw `capture()` helper directly; `routine_edited`,
+`pr_achieved`, `week_goal_met`, `sync_failed` and `video_opened` were added by
+G4-C through the typed wrapper. Migrating the first six onto
+`captureGymEvent` is a low-risk follow-up (naming/shape already match
+`GymEventMap`) — left alone here to avoid touching the workout/routine files
+mid-flight for other in-progress work.
+
 ## ✅ PostHog dashboard — "Upgrade funnel" (built 2026-08-22)
 
 All four insights live on the "Upgrade funnel" dashboard. Event definitions
