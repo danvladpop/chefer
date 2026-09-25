@@ -76,6 +76,7 @@ beforeEach(() => {
   outbox.reload();
   trpc.gym.profile.save.useMutation.mockReturnValue(mutationResult());
   trpc.gym.pause.create.useMutation.mockReturnValue(mutationResult());
+  trpc.gym.pause.end.useMutation.mockReturnValue(mutationResult());
 });
 
 describe('GymSettingsScreen — needs attention', () => {
@@ -173,5 +174,29 @@ describe('GymSettingsScreen — units and pause', () => {
     await renderSettings(queryClient);
     expect(screen.getByTestId('gym-settings-paused-note')).toBeOnTheScreen();
     expect(screen.queryByTestId('gym-settings-pause-start')).not.toBeOnTheScreen();
+  });
+
+  it('shows an End pause action for the active pause, and calls pause.end with its id', async () => {
+    const mutate = jest.fn();
+    trpc.gym.pause.end.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({
+        activePause: {
+          id: 'pause-1',
+          startDate: '2026-09-20',
+          endDate: '2026-09-30',
+          reason: 'vacation',
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    await renderSettings(queryClient);
+
+    expect(screen.getByTestId('gym-settings-paused-note')).toBeOnTheScreen();
+    expect(screen.queryByTestId('gym-settings-pause-start')).not.toBeOnTheScreen();
+    await user.press(screen.getByTestId('gym-settings-pause-end'));
+    expect(mutate).toHaveBeenCalledWith({ id: 'pause-1' });
   });
 });

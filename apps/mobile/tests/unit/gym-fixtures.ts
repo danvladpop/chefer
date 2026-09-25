@@ -86,6 +86,7 @@ export function makeBootstrap(overrides: Partial<GymBootstrap> = {}): GymBootstr
     weeks: [],
     streak: { current: 0, best: 0, flexTokens: 0, thisWeekSessions: 0, thisWeekGoal: 3 },
     offers: [],
+    activePause: null,
     bodyweightKg: null,
     serverTime: '2026-09-24T09:00:00.000Z',
     engineVersion: 1,
