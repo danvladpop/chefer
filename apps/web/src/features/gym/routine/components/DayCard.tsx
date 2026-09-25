@@ -3,13 +3,16 @@
 import type { ProgressionDto, RoutineDayDto, WeightUnit } from '@chefer/types';
 import { Badge } from '@chefer/ui';
 import {
+  cn,
   estimateDurationMin,
   formatLoad,
   progressionKey,
   repBucket,
+  supersetSlot,
   type ExerciseLookup,
 } from '@chefer/utils';
 import type { OverrideTargetSheetTarget } from './OverrideTargetSheet';
+import { SupersetHeading } from './SupersetHeading';
 
 export const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -53,50 +56,70 @@ export function DayCard({
         {day.exercises.length === 0 && (
           <p className="py-3 text-sm text-gray-400">No exercises yet.</p>
         )}
-        {day.exercises.map((exercise) => {
+        {day.exercises.map((exercise, index) => {
           const meta = lookup(exercise.exerciseId);
           const bucket = repBucket(exercise.repMin, exercise.repMax);
           const progression = progressionByKey.get(progressionKey(exercise.exerciseId, bucket));
           const suggestion = progression?.suggestion;
           const edited = progression?.override != null;
+          const slot = supersetSlot(day.exercises, index);
 
           return (
-            <div key={exercise.id} className="flex items-center justify-between gap-3 py-2.5">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-900">
-                  {meta?.name ?? exercise.exerciseId}
-                </p>
-                <p className="text-xs text-gray-400">
-                  {exercise.sets} × {exercise.repMin}–{exercise.repMax}
-                </p>
+            <div key={exercise.id}>
+              <SupersetHeading exercises={day.exercises} index={index} />
+              <div
+                className={cn(
+                  'flex items-center justify-between gap-3 py-2.5',
+                  slot && 'border-l-4 border-l-violet-500 pl-2',
+                )}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    {slot && (
+                      <span
+                        className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-bold text-violet-800"
+                        data-testid="routine-superset-chip"
+                      >
+                        {slot.label}
+                        {slot.position + 1}
+                      </span>
+                    )}
+                    <p className="truncate text-sm font-medium text-gray-900">
+                      {meta?.name ?? exercise.exerciseId}
+                    </p>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    {exercise.sets} × {exercise.repMin}–{exercise.repMax}
+                  </p>
+                </div>
+                {suggestion && meta ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenOverride({
+                        exerciseId: exercise.exerciseId,
+                        repBucket: bucket,
+                        exerciseName: meta.name,
+                        loadType: meta.loadType,
+                        isTimed: meta.isTimed,
+                        suggestion,
+                        override: progression.override ?? null,
+                      })
+                    }
+                    className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:min-h-9"
+                  >
+                    {formatLoad(suggestion.weightKg, unit, meta.loadType)} ×{' '}
+                    {suggestion.reps[0] ?? exercise.repMin}
+                    {edited && (
+                      <Badge variant="secondary" className="ml-0.5">
+                        Edited
+                      </Badge>
+                    )}
+                  </button>
+                ) : (
+                  <span className="shrink-0 text-xs text-gray-300">—</span>
+                )}
               </div>
-              {suggestion && meta ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onOpenOverride({
-                      exerciseId: exercise.exerciseId,
-                      repBucket: bucket,
-                      exerciseName: meta.name,
-                      loadType: meta.loadType,
-                      isTimed: meta.isTimed,
-                      suggestion,
-                      override: progression.override ?? null,
-                    })
-                  }
-                  className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:min-h-9"
-                >
-                  {formatLoad(suggestion.weightKg, unit, meta.loadType)} ×{' '}
-                  {suggestion.reps[0] ?? exercise.repMin}
-                  {edited && (
-                    <Badge variant="secondary" className="ml-0.5">
-                      Edited
-                    </Badge>
-                  )}
-                </button>
-              ) : (
-                <span className="shrink-0 text-xs text-gray-300">—</span>
-              )}
             </div>
           );
         })}
