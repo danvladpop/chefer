@@ -19,3 +19,13 @@ export function getApiBaseUrl(): string {
 export function getTrpcUrl(): string {
   return `${getApiBaseUrl()}/trpc`;
 }
+
+/**
+ * A page on the Chefer website (terms, privacy). Prod serves web and API on
+ * one origin; in development the web app runs on :3000 next to the API.
+ */
+export function getWebUrl(path: string): string {
+  const url = new URL(getApiBaseUrl());
+  if (url.port === '3001') url.port = '3000';
+  return `${url.origin}${path}`;
+}

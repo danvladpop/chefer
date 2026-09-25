@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { getWebUrl } from '../../src/lib/api-url';
 import { clearToken } from '../../src/lib/auth-store';
 import { CURRENT_BUILD } from '../../src/lib/current-build';
 import { trpc } from '../../src/lib/trpc';
@@ -103,6 +104,24 @@ export default function MoreScreen() {
         </View>
 
         <FeedbackCard />
+
+        {/* Legal pages — both app stores require them in the app (F-M-PROF-1-1). */}
+        <View className="flex-row justify-center gap-6">
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => void Linking.openURL(getWebUrl('/terms'))}
+            className="min-h-11 justify-center"
+          >
+            <Text className="text-sm text-gray-500 underline">Terms</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => void Linking.openURL(getWebUrl('/privacy'))}
+            className="min-h-11 justify-center"
+          >
+            <Text className="text-sm text-gray-500 underline">Privacy</Text>
+          </Pressable>
+        </View>
 
         <Button
           testID="logout-button"

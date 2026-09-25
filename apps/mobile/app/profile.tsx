@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { PLAN_FEATURES } from '@chefer/types';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { AccountDataCard } from '../src/features/profile/account-data-card';
 import { trpc } from '../src/lib/trpc';
 
 // Profile — port of apps/web (dashboard)/profile/page.tsx (M2-8). Same
@@ -179,6 +180,7 @@ export default function ProfileScreen() {
             })()}
           </Card>
         ) : null}
+        <AccountDataCard />
       </ScrollView>
     </Screen>
   );

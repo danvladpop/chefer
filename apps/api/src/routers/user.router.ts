@@ -1,6 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { UserRole } from '@chefer/types';
+import { authService } from '../application/auth/auth.service.js';
+import { deleteAccount, exportAccountData } from '../application/user/account-data.service.js';
 import { UserService } from '../application/user/user.service.js';
 import { PrismaUserRepository } from '../infrastructure/prisma/prisma-user.repository.js';
 import { adminProcedure, protectedProcedure, router } from '../lib/trpc.js';
@@ -158,6 +160,36 @@ export const userRouter = router({
       }
       await userService.delete(input.id);
       return { success: true };
+    }),
+
+  /**
+   * Everything Chefer stores about the caller, as JSON ("Download my data").
+   * Additive; audit P0-6 (F-PROF-1-1).
+   */
+  exportData: protectedProcedure.query(async ({ ctx }) => {
+    return exportAccountData(ctx.user.id);
+  }),
+
+  /**
+   * Deletes the caller's account and all their data, after re-entering the
+   * password and typing DELETE. Required in-app by both app stores (audit
+   * F-M-PROF-1-1). The last admin can't delete themselves.
+   */
+  deleteSelf: protectedProcedure
+    .input(z.object({ password: z.string().min(1).max(100), confirm: z.literal('DELETE') }))
+    .mutation(async ({ ctx, input }) => {
+      if (!(await userService.verifyPassword(ctx.user.id, input.password))) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'That password is not correct' });
+      }
+      if (ctx.user.role === 'ADMIN' && (await userService.countAdmins()) <= 1) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'You are the last admin — promote someone else before deleting your account',
+        });
+      }
+      await deleteAccount(ctx.user.id);
+      await authService.logout(ctx.sessionToken, ctx.res);
+      return { success: true as const };
     }),
 
   /**

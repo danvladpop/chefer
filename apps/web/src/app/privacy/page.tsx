@@ -41,9 +41,10 @@ export default function PrivacyPage() {
         <section>
           <h2 className="mb-1 font-semibold text-gray-900">Backups &amp; deletion</h2>
           <p>
-            The database is backed up daily. If you want your account and data deleted, use{' '}
-            <em>Send feedback</em> in the app and we will remove it. (A self-serve delete button is
-            on the roadmap.)
+            The database is backed up daily. You can download all your data or delete your account
+            and everything in it at any time from <em>Profile → Your data</em>, on the web or in the
+            app. Deleted data is gone from the live database immediately and ages out of backups
+            within 14 days.
           </p>
         </section>
       </div>

@@ -159,6 +159,8 @@ during render. A successful login overwrites it via `Set-Cookie`.
 > account's name and email to anonymous visitors and was deleted. `user.getById` became a
 > `protectedProcedure`, then admin-only on 2026-09-25 (audit F-ADM-1-1: any signed-in user could
 > read any account's email). Authenticated users see their own data via `user.me` on `/profile`.
+>
+> **Your data (audit P0-6, 2026-09-25):** `/profile` (web) and Profile (mobile) offer **Download / Export my data** (`user.exportData`, JSON) and **Delete account** (`user.deleteSelf`: re-enter password + type DELETE; deletes the user's own recipes and everything that cascades, then signs them out). The mobile app links Terms and Privacy from More and the register screen.
 
 ---
 
