@@ -48,8 +48,16 @@ appId: dev.chefer.app.dev
           visible:
             id: 'gym-today-title'
           timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-start'
+    timeout: 15000
 - tapOn:
     id: 'gym-today-start'
+- extendedWaitUntil:
+    visible:
+      id: 'workout-title'
+    timeout: 15000
 # First workout asks for notification permission (rest-timer alerts) — accept.
 - tapOn:
     text: 'Allow'

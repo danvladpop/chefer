@@ -91,6 +91,27 @@ appId: dev.chefer.app.dev
 - assertVisible:
     text: '.*\b${output.expectedSets} × .*'
 
+# ── Restore: undo the +1 so repeated runs don't grow the routine ───────────
+- tapOn:
+    id: 'gym-routine-edit'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-routine-editor-title'
+    timeout: 10000
+- tapOn:
+    id: 'routine-editor-day-.*-exercise-.*-toggle'
+    index: 0
+- tapOn:
+    id: '.*-sets-dec$'
+- tapOn:
+    id: 'gym-routine-editor-save'
+- tapOn:
+    id: 'gym-routine-editor-title-back'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-routine-title'
+    timeout: 10000
+
 # ── Back to Food, so other flows start clean ────────────────────────────────
 - tapOn:
     id: 'mode-switch-food'
