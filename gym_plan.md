@@ -1002,22 +1002,22 @@ true`, one per row in the wave tables, all launched **in a single message** so t
 
 ## 12. Progress
 
-| Step                            | Status                       |
-| ------------------------------- | ---------------------------- |
-| Research (programming, library) | ✅ 2026-09-24 (`docs/gym/*`) |
-| Plan                            | ✅ 2026-09-24 (this file)    |
-| G0 foundations                  | ☐                            |
-| G1-A engine                     | ☐                            |
-| G1-B API                        | ☐                            |
-| G1-C mobile infra               | ☐                            |
-| G1-D content QA                 | ☐                            |
-| G2-A workout                    | ☐                            |
-| G2-B today + setup              | ☐                            |
-| G2-C routine                    | ☐                            |
-| G2-D library + stats            | ☐                            |
-| G3 dogfood                      | ☐                            |
-| G4 habit + polish               | ☐                            |
-| G5 web                          | ☐                            |
+| Step                            | Status                                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Research (programming, library) | ✅ 2026-09-24 (`docs/gym/*`)                                                                                  |
+| Plan                            | ✅ 2026-09-24 (this file)                                                                                     |
+| G0 foundations                  | ☐                                                                                                             |
+| G1-A engine                     | ✅ 2026-09-24 — 17 worked examples + property tests, 100% branch cov. on progression.ts                       |
+| G1-B API                        | ✅ 2026-09-24 — repos, 8 services, idempotent upsertMany, bootstrap; contract tests                           |
+| G1-C mobile infra               | ✅ 2026-09-24 — (food)/(gym) groups, mode switch, KV + outbox + persisted bootstrap, ui-mobile kit            |
+| G1-D content QA                 | ✅ 2026-09-24 — 55/55 content, 53 photo pairs (2.4 MB), 55 verified videos, weekly link check                 |
+| G2-A workout                    | ✅ 2026-09-25 — iOS + Android Maestro green                                                                   |
+| G2-B today + setup              | ✅ 2026-09-25 — iOS + Android Maestro green                                                                   |
+| G2-C routine                    | ✅ 2026-09-25 — iOS + Android Maestro green                                                                   |
+| G2-D library + stats            | ✅ 2026-09-25 — iOS + Android Maestro green                                                                   |
+| G3 dogfood                      | ☐ owner — real training weeks (needs the phone release builds)                                                |
+| G4 habit + polish               | 🟡 2026-09-25 — G4-B supersets/polish ✅, G4-C export/analytics ✅, G4-A reminders/backfill/pause in progress |
+| G5 web                          | ✅ 2026-09-25 — pulled forward in parallel; Playwright gym 13/13 + mobile sweep 50/50 on /gym/\*              |
 
 ### Deviations log
 
@@ -1066,3 +1066,6 @@ _(append as `n. YYYY-MM-DD: what changed and why`)_
     ownership). Settings shows "Training is paused this week" (derived from `bootstrap.weeks`) with
     no end-early action. "Pause training" (create) is fully wired. Needs a follow-up: add
     `activePause: { id, startDate, endDate, reason } | null` to `GymBootstrap`.
+15. 2026-09-25 (orchestrator): **G5 web ran in parallel with G2**, not after G3/G4. The owner asked for the whole plan overnight, and web touches disjoint files. G3 dogfooding moves to after everything is built.
+16. 2026-09-25 (orchestrator, found by on-device E2E): Metro now forces React Native runtime singletons (a duplicate nativewind/css-interop from pnpm peer variants crashed the SegmentedControl). The mode switch navigates to `/(food)`, because a bare `/` also matches the guarded `(auth)/index` and silently no-ops. The launch redirect is one-shot. `gym/workout` is a slide-up card, not a `fullScreenModal`, because iOS safe-area insets read 0 inside native modals and pushed the header under the status bar. A "Finish workout" button also sits at the end of the list. The routine editor's Save moved to a bottom bar.
+17. 2026-09-25: Mobile analytics are a typed no-op, since the app has no analytics SDK. The §6.6 events fire on web only.
