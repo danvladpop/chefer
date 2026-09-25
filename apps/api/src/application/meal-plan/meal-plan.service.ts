@@ -190,7 +190,11 @@ export class MealPlanService {
     userId: string,
     weekOffset = 0,
     premium = false,
-    options: { leftovers?: boolean } = {},
+    options: {
+      leftovers?: boolean;
+      /** The caller already reserved (and logged) this generation's quota. */
+      usageReserved?: boolean;
+    } = {},
   ): Promise<WeekPlanDto> {
     if (!premium) {
       return this.generateCurated(userId, weekOffset);
@@ -319,9 +323,13 @@ export class MealPlanService {
     weekPlan = safetyPass.plan;
 
     // Log AI call (fire-and-forget — never crash the server if logging fails)
-    prisma.aiCallLog
-      .create({ data: { userId, callType: AiCallType.MEAL_PLAN } })
-      .catch((err) => console.error('[aiCallLog] Failed to log MEAL_PLAN call:', err));
+    // The router's quota reservation already logged it; the weekly worker
+    // path hasn't.
+    if (!options.usageReserved) {
+      prisma.aiCallLog
+        .create({ data: { userId, callType: AiCallType.MEAL_PLAN } })
+        .catch((err) => console.error('[aiCallLog] Failed to log MEAL_PLAN call:', err));
+    }
 
     // 3b. Place pinned favourites into the plan verbatim (P1-1). Done as a
     // post-processing step, not via the prompt: the user pinned a SPECIFIC
@@ -842,9 +850,7 @@ export class MealPlanService {
     // Server-minted id, as for generated weeks (recipe-ids.ts).
     newRecipe = { ...newRecipe, id: randomUUID() };
 
-    prisma.aiCallLog
-      .create({ data: { userId, callType: AiCallType.RECIPE_SWAP } })
-      .catch((err) => console.error('[aiCallLog] Failed to log RECIPE_SWAP call:', err));
+    // Usage is logged by the caller's quota reservation (reserveAiSwap).
 
     // Never trust the AI on safety (F-PLAN-1-9): an unsafe swap falls back
     // to a safe curated recipe instead.

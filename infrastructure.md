@@ -182,14 +182,17 @@ src/
 
 #### Rate Limits & Daily Quotas
 
-| Limit                          | Scope                        | Value                                                                          | Where                                                             |
-| ------------------------------ | ---------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| Global tRPC flood              | per IP                       | `RATE_LIMIT_MAX`/`RATE_LIMIT_WINDOW_MS` (default 100/min)                      | `index.ts` (express-rate-limit)                                   |
-| `auth.login` / `auth.register` | per IP                       | 10 per 15 min                                                                  | `auth.router.ts` → `lib/rate-limit.ts` (in-memory sliding window) |
-| Plan generations               | per user per UTC day         | from `PLAN_FEATURES` (counted from `meal_plans` rows)                          | `meal-plan.router.ts` → `lib/quotas.ts`                           |
-| AI swaps                       | per premium user per UTC day | from `PLAN_FEATURES` (counted from `ai_call_logs`)                             | `meal-plan.router.ts` → `lib/quotas.ts`                           |
-| Chat messages                  | per FREE user per UTC day    | from `PLAN_FEATURES` (counted from `ai_call_logs` CHAT)                        | `chat.router.ts` → `ChatService.assertChatQuota`                  |
-| Meal photo scans (F4)          | per premium user per UTC day | from `PLAN_FEATURES` (counted from `ai_call_logs` SCAN); free tier → FORBIDDEN | `scan.router.ts` → `lib/quotas.ts` (`assertMealScanQuota`)        |
+| Limit                          | Scope                        | Value                                                                                                                                                                | Where                                                             |
+| ------------------------------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Global tRPC flood              | per IP                       | `RATE_LIMIT_MAX`/`RATE_LIMIT_WINDOW_MS` (default 100/min)                                                                                                            | `index.ts` (express-rate-limit)                                   |
+| `auth.login` / `auth.register` | per IP                       | 10 per 15 min                                                                                                                                                        | `auth.router.ts` → `lib/rate-limit.ts` (in-memory sliding window) |
+| Plan generations               | per user per UTC day         | from `PLAN_FEATURES` (counted from `ai_call_logs` MEAL_PLAN reservations — both tiers; templates and carry-forward copies don't count); refunded if generation fails | `meal-plan.router.ts` → `reservePlanGeneration`                   |
+| AI swaps                       | per premium user per UTC day | from `PLAN_FEATURES` (`ai_call_logs` RECIPE_SWAP); refunded if the swap fails                                                                                        | `meal-plan.router.ts`, chat swap tool → `reserveAiSwap`           |
+| Chat messages                  | per FREE user per UTC day    | from `PLAN_FEATURES` (`ai_call_logs` CHAT; attempts count)                                                                                                           | `ChatService.chat` → `reserveChatMessage`                         |
+| Meal photo scans (F4)          | per premium user per UTC day | from `PLAN_FEATURES` (`ai_call_logs` SCAN; attempts count); free tier → FORBIDDEN                                                                                    | `ScanService` → `reserveMealScan`                                 |
+| Recipe imports                 | per user per UTC day         | from `PLAN_FEATURES` (`ai_call_logs` RECIPE_IMPORT); refunded when the preview fails                                                                                 | `RecipeImportService.preview` → `reserveRecipeImport`             |
+
+Daily quotas are **reservations** (`lib/quotas.ts`): count and insert the usage row in one SERIALIZABLE transaction, retried on conflict, so parallel requests can't exceed a limit (audit F-PLAN-2-3, F-TRK-2-2); callers that shouldn't charge a failed attempt call `release()`.
 
 The in-memory stores assume a single API instance; move to Redis (`REDIS_URL`
 is already in the env schema) before scaling horizontally. Per-tier quota

@@ -13,10 +13,20 @@ vi.mock('@chefer/database', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@chefer/database')>();
   return {
     ...mod,
-    prisma: {
-      aiCallLog: { count: vi.fn().mockResolvedValue(0), create: vi.fn().mockResolvedValue({}) },
-      ingredientPrice: { findMany: vi.fn().mockResolvedValue([]) },
-    },
+    // Quota reservations run count + create inside an interactive transaction;
+    // the tx client is the same mock.
+    prisma: (() => {
+      const p: Record<string, unknown> = {
+        aiCallLog: {
+          count: vi.fn().mockResolvedValue(0),
+          create: vi.fn().mockResolvedValue({ id: 'log1' }),
+          delete: vi.fn().mockResolvedValue({}),
+        },
+        ingredientPrice: { findMany: vi.fn().mockResolvedValue([]) },
+      };
+      p['$transaction'] = vi.fn(async (fn: (tx: unknown) => unknown) => fn(p));
+      return p;
+    })(),
   };
 });
 
@@ -156,6 +166,16 @@ describe('RecipeImportService.preview — quota', () => {
     expect(aiCallLog().create).toHaveBeenCalledWith({
       data: { userId: freeUser.id, callType: 'RECIPE_IMPORT' },
     });
+  });
+
+  it('refunds the reservation when the preview fails (F-REC-4-2)', async () => {
+    const ai = makeAi();
+    vi.mocked(ai.extractRecipe).mockRejectedValue(new Error('provider down'));
+    const service = new RecipeImportService(ai, recipeRepo(), prefsRepo(peanutVegetarian));
+    await expect(service.preview(freeUser, { text: 'A'.repeat(100) })).rejects.toBeDefined();
+    const log = (prisma as unknown as { aiCallLog: { delete: ReturnType<typeof vi.fn> } })
+      .aiCallLog;
+    expect(log.delete).toHaveBeenCalledWith({ where: { id: 'log1' } });
   });
 
   it('blocks the second free preview of the day with an upgrade message', async () => {
