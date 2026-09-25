@@ -167,9 +167,12 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
       const query = {
         where: {
           userId,
-          ...(search
-            ? { recipe: { name: { contains: search, mode: 'insensitive' as const } } }
-            : {}),
+          // Never list another user's private (MANUAL) recipe, even if it was
+          // favourited by id before saves checked visibility (audit F-REC-2-2).
+          recipe: {
+            OR: [{ source: { not: RecipeSource.MANUAL } }, { creatorId: userId }],
+            ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
+          },
         },
         include: { recipe: true as const },
         orderBy: { savedAt: 'desc' as const },

@@ -38,6 +38,8 @@ export interface IMealPlanRepository {
   upsertRecipes(recipes: CreateRecipeData[]): Promise<void>;
   findRecipesByIds(ids: string[]): Promise<Recipe[]>;
   findRecipeById(id: string): Promise<Recipe | null>;
+  /** True when any of the user's plans or templates has a slot pointing at the recipe. */
+  isRecipeInUserPlans(userId: string, recipeId: string): Promise<boolean>;
   findRecipeImagesByNames(names: string[]): Promise<Map<string, string>>;
   findRecipesBySource(source: 'AI' | 'MANUAL' | 'CURATED'): Promise<Recipe[]>;
   createPlan(data: CreateMealPlanData): Promise<MealPlan>;
@@ -163,6 +165,16 @@ export class MealPlanRepository implements IMealPlanRepository {
 
   async findRecipeById(id: string): Promise<Recipe | null> {
     return prisma.recipe.findUnique({ where: { id } });
+  }
+
+  async isRecipeInUserPlans(userId: string, recipeId: string): Promise<boolean> {
+    // `meals` is a JSON array of { type, recipeId } — array_contains maps to
+    // jsonb @>, which matches an element carrying this recipeId.
+    const hit = await prisma.mealPlanDay.findFirst({
+      where: { mealPlan: { userId }, meals: { array_contains: [{ recipeId }] } },
+      select: { id: true },
+    });
+    return hit !== null;
   }
 
   /**

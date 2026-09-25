@@ -53,8 +53,8 @@ export const mealPlanRouter = router({
    */
   getRecipe: protectedProcedure
     .input(z.object({ recipeId: z.string().min(1) }))
-    .query(async ({ input }) => {
-      return mealPlanService.getRecipe(input.recipeId);
+    .query(async ({ ctx, input }) => {
+      return mealPlanService.getRecipe(ctx.user.id, input.recipeId);
     }),
 
   /**

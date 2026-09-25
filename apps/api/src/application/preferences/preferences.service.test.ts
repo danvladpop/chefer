@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IChefProfileRepository, IDietaryPreferencesRepository } from '@chefer/database';
 import {
   computeCalorieTarget,
+  mergeSafetyList,
   PreferencesService,
   resolveDailyTargets,
 } from './preferences.service.js';
@@ -307,5 +308,72 @@ describe('resolveDailyTargets — targetAdjustmentKcal ordering', () => {
       targetAdjustmentKcal: -300,
     });
     expect(t.dailyCalorieTarget).toBe(1200);
+  });
+});
+
+// ─── setup never shrinks safety (audit F-ONB-1-1) ─────────────────────────────
+
+describe('PreferencesService.setup — safety lists', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const SETUP_INPUT = {
+    goal: 'MAINTAIN' as const,
+    biologicalSex: 'FEMALE' as const,
+    age: 34,
+    heightCm: 168,
+    weightKg: 62,
+    activityLevel: 'LIGHTLY_ACTIVE' as const,
+    dietaryRestrictions: [],
+    allergies: [],
+    dislikedIngredients: [],
+    cuisinePreferences: ['Thai'],
+    mealsPerDay: 3,
+    servingSize: 1,
+  };
+
+  it('keeps saved allergies when the wizard submits an empty list', async () => {
+    const service = new PreferencesService(
+      makeChefProfileRepo(),
+      makeDietaryPreferencesRepo({
+        findByUserId: vi.fn().mockResolvedValue({
+          ...DIETARY_PREFS_FIXTURE,
+          allergies: ['Peanuts', 'Shellfish'],
+        }),
+      }),
+    );
+
+    await service.setup('user1', SETUP_INPUT);
+
+    const call = vi.mocked(prisma.dietaryPreferences.upsert).mock.calls[0]![0];
+    expect(call.update.allergies).toEqual(['Peanuts', 'Shellfish']);
+    expect(call.update.dietaryRestrictions).toEqual(['Vegan']);
+    expect(call.update.dislikedIngredients).toEqual(['Onions']);
+    expect(call.update.cuisinePreferences).toEqual(['Thai']);
+  });
+
+  it('adds newly submitted allergies to the saved ones', async () => {
+    const service = new PreferencesService(
+      makeChefProfileRepo(),
+      makeDietaryPreferencesRepo({
+        findByUserId: vi.fn().mockResolvedValue(DIETARY_PREFS_FIXTURE),
+      }),
+    );
+
+    await service.setup('user1', { ...SETUP_INPUT, allergies: ['Peanuts', 'Sesame'] });
+
+    const call = vi.mocked(prisma.dietaryPreferences.upsert).mock.calls[0]![0];
+    expect(call.update.allergies).toEqual(['peanuts', 'Sesame']);
+  });
+});
+
+describe('mergeSafetyList', () => {
+  it('unions case-insensitively, saved entries first, trimming blanks', () => {
+    expect(mergeSafetyList(['Peanuts'], [' peanuts ', 'Egg', '', 'egg'])).toEqual([
+      'Peanuts',
+      'Egg',
+    ]);
+    expect(mergeSafetyList(undefined, ['Soy'])).toEqual(['Soy']);
   });
 });

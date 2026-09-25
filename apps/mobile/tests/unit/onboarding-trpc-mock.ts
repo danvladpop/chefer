@@ -11,6 +11,7 @@ export function createTrpcOnboardingMock() {
         login: { useMutation: jest.fn() },
       },
       preferences: {
+        get: { useQuery: jest.fn(() => queryResult()) },
         setup: { useMutation: jest.fn() },
         updateSafety: { useMutation: jest.fn() },
         saveProfileBasics: { useMutation: jest.fn() },

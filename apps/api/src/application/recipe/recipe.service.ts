@@ -6,8 +6,16 @@ import {
   type IMealRatingRepository,
   type Recipe,
 } from '@chefer/database';
+import { findRecipeVisibleTo } from './recipe-access.js';
 
 type UpdateManualRecipeData = Partial<CreateManualRecipeData>;
+
+/** NOT_FOUND unless the user may see the recipe — same answer for missing and private. */
+async function assertRecipeVisible(userId: string, recipeId: string): Promise<void> {
+  if (!(await findRecipeVisibleTo(userId, recipeId))) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+  }
+}
 
 export class RecipeService {
   constructor(private readonly ratingRepo: IMealRatingRepository = mealRatingRepository) {}
@@ -59,6 +67,7 @@ export class RecipeService {
       await favouriteRecipeRepository.remove(userId, recipeId);
       return { isSaved: false };
     } else {
+      await assertRecipeVisible(userId, recipeId);
       await favouriteRecipeRepository.save(userId, recipeId);
       return { isSaved: true };
     }
@@ -89,6 +98,7 @@ export class RecipeService {
         message: 'Recipe must be saved before toggling use in next plan.',
       });
     }
+    if (useInNextPlan) await assertRecipeVisible(userId, recipeId);
     await favouriteRecipeRepository.toggleUseInNextPlan(userId, recipeId, useInNextPlan);
     return { useInNextPlan };
   }
@@ -99,6 +109,7 @@ export class RecipeService {
     rating: number,
     notes?: string,
   ): Promise<{ rating: number; notes: string | null }> {
+    await assertRecipeVisible(userId, recipeId);
     const upsertData: { userId: string; recipeId: string; rating: number; notes?: string } = {
       userId,
       recipeId,

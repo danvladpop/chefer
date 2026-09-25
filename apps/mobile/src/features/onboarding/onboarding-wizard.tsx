@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -92,6 +92,44 @@ export function OnboardingWizard() {
     servingSize: 1,
   });
 
+  // Start from what's already saved: a wizard re-opened after upgrading used
+  // to start blank, and Finish saved empty allergy lists over the real ones
+  // (audit F-ONB-1-1). Mirrors web's wizardDataFromPreferences.
+  const savedPrefs = trpc.preferences.get.useQuery();
+  const hydrated = useRef(false);
+  useEffect(() => {
+    const saved = savedPrefs.data;
+    if (!saved || hydrated.current) return;
+    hydrated.current = true;
+    const profile = saved.chefProfile;
+    const diet = saved.dietaryPreferences;
+    if (profile) {
+      setGoal(profile.goal ?? null);
+      setMetrics({
+        biologicalSex: profile.biologicalSex ?? null,
+        age: profile.age ?? null,
+        heightCm: profile.heightCm ?? null,
+        weightKg: profile.weightKg ?? null,
+        activityLevel: profile.activityLevel ?? null,
+      });
+      setAgeText(profile.age != null ? String(profile.age) : '');
+      setHeightText(profile.heightCm != null ? String(profile.heightCm) : '');
+      setWeightText(profile.weightKg != null ? String(profile.weightKg) : '');
+    }
+    if (diet) {
+      setSafety({
+        dietaryRestrictions: diet.dietaryRestrictions,
+        allergies: diet.allergies,
+        dislikedIngredients: diet.dislikedIngredients,
+      });
+      setCuisine({
+        cuisinePreferences: diet.cuisinePreferences,
+        mealsPerDay: diet.mealsPerDay,
+        servingSize: diet.servingSize,
+      });
+    }
+  }, [savedPrefs.data]);
+
   const setupMutation = trpc.preferences.setup.useMutation({
     onError: (err) => setError(err.message),
   });
@@ -102,7 +140,8 @@ export function OnboardingWizard() {
     onError: (err) => setError(err.message),
   });
 
-  if (isPremium === undefined) {
+  // Wait for saved prefs too, so Finish can't submit a blank wizard.
+  if (isPremium === undefined || savedPrefs.isLoading) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
         <ActivityIndicator size="large" color="#944a00" />

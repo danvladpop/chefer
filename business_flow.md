@@ -144,20 +144,21 @@ during render. A successful login overwrites it via `Set-Cookie`.
 
 **Role capabilities:**
 
-| Role              | What they can do                                                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| (unauthenticated) | `auth.register`, `auth.login`, `auth.requestPasswordReset`, `auth.resetPassword`, `auth.me`                                     |
-| USER              | All protected procedures: `user.me`, `user.update` (own), plans, recipes, tracker, …                                            |
-| MODERATOR         | Same as USER (moderation capabilities reserved for future)                                                                      |
-| ADMIN             | Everything, incl. `user.list`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure` |
+| Role              | What they can do                                                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| (unauthenticated) | `auth.register`, `auth.login`, `auth.requestPasswordReset`, `auth.resetPassword`, `auth.me`                                                     |
+| USER              | All protected procedures: `user.me`, `user.update` (own), plans, recipes, tracker, …                                                            |
+| MODERATOR         | Same as USER (moderation capabilities reserved for future)                                                                                      |
+| ADMIN             | Everything, incl. `user.list`, `user.getById`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure` |
 
 ---
 
 ## 5. View User Profile Flow
 
 > **Status:** Removed 2026-08-21 (roadmap P0-2). The `/user` dev scaffold rendered the first
-> account's name and email to anonymous visitors and was deleted; `user.getById` is now a
-> `protectedProcedure`. Authenticated users see their own data via `user.me` on `/profile`.
+> account's name and email to anonymous visitors and was deleted. `user.getById` became a
+> `protectedProcedure`, then admin-only on 2026-09-25 (audit F-ADM-1-1: any signed-in user could
+> read any account's email). Authenticated users see their own data via `user.me` on `/profile`.
 
 ---
 
@@ -525,7 +526,7 @@ IngredientPriceWorker (background)
 
 - **Safety is free on every tier**: `preferences.updateSafety` (`protectedProcedure`) writes allergies, dietary restrictions and disliked ingredients. Free curated plans and free swaps are filtered by them (`lib/curated-recipes/safety.ts`); premium AI generation feeds them into the prompt.
 - **Personalisation depth is premium**: `preferences.setup` / `preferences.updateTargets` (`premiumProcedure`) own goal, body metrics, calorie targets, cuisine and meal cadence → free users receive `FORBIDDEN`.
-- The Preferences page shows free users the editable safety section plus a locked-targets upgrade panel; the Onboarding wizard branches — free: 3 steps (safety → optional goal → optional body metrics, stored via `preferences.saveProfileBasics` with the premium pitch as a card under step 3), premium: 4 steps (goal → metrics → diet → cuisine).
+- The Preferences page shows free users the editable safety section plus a locked-targets upgrade panel; the Onboarding wizard branches — free: 3 steps (safety → optional goal → optional body metrics, stored via `preferences.saveProfileBasics` with the premium pitch as a card under step 3), premium: 4 steps (goal → metrics → diet → cuisine). Both platforms start the wizard from the user's saved preferences (`preferences.get`), and `preferences.setup` never shrinks the safety lists, so re-opening onboarding after an upgrade can't erase allergies (audit F-ONB-1-1, 2026-09-25).
 - **Pool exhaustion is the upsell**: when the curated pool keeps fewer than `MIN_SAFE_POOL_SIZE` safe recipes for any plan meal type, `mealPlan.generate` / free swap throw `PRECONDITION_FAILED` and the meal-plan page renders a contextual upgrade prompt ("not enough free recipes matching your restrictions") instead of an error.
 
 ---

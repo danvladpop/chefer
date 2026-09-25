@@ -136,6 +136,44 @@ describe('OnboardingWizard — Skip lands on the Food dashboard', () => {
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/(food)'));
   });
 
+  it('free tier: Skip keeps allergies that were already saved (F-ONB-1-1)', async () => {
+    trpc.auth.me.useQuery.mockReturnValue(
+      queryResult({ data: { planTier: 'FREE', role: 'USER' } }),
+    );
+    trpc.preferences.get.useQuery.mockReturnValue(
+      queryResult({
+        data: {
+          chefProfile: null,
+          dietaryPreferences: {
+            dietaryRestrictions: ['Vegetarian'],
+            allergies: ['Peanuts', 'Shellfish'],
+            dislikedIngredients: [],
+            cuisinePreferences: [],
+            mealsPerDay: 3,
+            servingSize: 1,
+          },
+        },
+      }),
+    );
+    const safetyMutateAsync = jest.fn(() => Promise.resolve(undefined));
+    trpc.preferences.updateSafety.useMutation.mockReturnValue(
+      mutationResult({ mutateAsync: safetyMutateAsync }),
+    );
+    const user = userEvent.setup();
+    await renderWithSafeArea(<OnboardingWizard />);
+
+    await user.press(screen.getByTestId('onboarding-skip'));
+
+    await waitFor(() =>
+      expect(safetyMutateAsync).toHaveBeenCalledWith({
+        dietaryRestrictions: ['Vegetarian'],
+        allergies: ['Peanuts', 'Shellfish'],
+        dislikedIngredients: [],
+      }),
+    );
+    trpc.preferences.get.useQuery.mockReturnValue(queryResult());
+  });
+
   it('premium tier: Skip abandons the wizard without saving (setup is all-or-nothing)', async () => {
     trpc.auth.me.useQuery.mockReturnValue(
       queryResult({ data: { planTier: 'PREMIUM', role: 'USER' } }),
