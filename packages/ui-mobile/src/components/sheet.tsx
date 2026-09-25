@@ -75,7 +75,7 @@ export function Sheet({
           <View className="flex-row items-center justify-between gap-3 px-4 pb-2 pt-3">
             <View className="min-w-0 flex-1">
               {eyebrow ? (
-                <Text className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                <Text className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   {eyebrow}
                 </Text>
               ) : null}

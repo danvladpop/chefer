@@ -36,7 +36,7 @@ export function WeekOutlook({ weekPlan }: { weekPlan: WeekPlan }) {
 
   return (
     <Card testID="week-outlook">
-      <Text className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+      <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
         Weekly Outlook
       </Text>
       <ScrollView
@@ -60,7 +60,7 @@ export function WeekOutlook({ weekPlan }: { weekPlan: WeekPlan }) {
             >
               <Text
                 className={cn(
-                  'text-[10px] font-semibold uppercase',
+                  'text-[12px] font-semibold uppercase',
                   isToday ? 'text-primary-foreground' : 'text-gray-600',
                 )}
               >
@@ -87,7 +87,7 @@ export function WeekOutlook({ weekPlan }: { weekPlan: WeekPlan }) {
 
       {selected && (
         <View className="mt-4 border-t border-border pt-4">
-          <Text className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
             {selectedDayIdx === todayIdx
               ? "Today's Meals"
               : `${selected.label} ${selected.num}${(selectedDayIdx ?? 0) < todayIdx ? ' — Past' : ' — Upcoming'}`}

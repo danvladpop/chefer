@@ -172,7 +172,7 @@ export default function MealPlanScreen() {
           >
             <Text
               className={cn(
-                'text-[10px] font-semibold uppercase',
+                'text-[12px] font-semibold uppercase',
                 isPast ? 'text-gray-500' : weekOffset === 0 ? 'text-primary' : 'text-blue-600',
               )}
             >
@@ -274,7 +274,7 @@ export default function MealPlanScreen() {
                 >
                   <Text
                     className={cn(
-                      'text-[10px] font-semibold uppercase',
+                      'text-[12px] font-semibold uppercase',
                       isSelected ? 'text-primary-foreground' : 'text-gray-600',
                     )}
                   >
@@ -299,21 +299,21 @@ export default function MealPlanScreen() {
                   testID="plan-carried-over"
                   className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1"
                 >
-                  <Text className="text-[11px] font-medium text-blue-700">
+                  <Text className="text-xs font-medium text-blue-700">
                     Continued from your last plan
                   </Text>
                 </View>
               )}
               {weekCost !== null && (
                 <View className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
-                  <Text className="text-[11px] font-medium text-emerald-700">
+                  <Text className="text-xs font-medium text-emerald-700">
                     ≈ €{weekCost.toFixed(2)} this week
                   </Text>
                 </View>
               )}
               {personalisation && (
                 <View className="rounded-full border border-primary/20 bg-accent px-3 py-1">
-                  <Text className="text-[11px] font-medium text-primary">
+                  <Text className="text-xs font-medium text-primary">
                     Learned from {personalisation.likedCount} likes ·{' '}
                     {personalisation.dislikedCount} dislikes
                   </Text>
@@ -347,7 +347,7 @@ export default function MealPlanScreen() {
                         <MealTypeBadge mealType={meal.type} />
                         {meal.leftoverOf && (
                           <View className="rounded-full bg-gray-100 px-2 py-0.5">
-                            <Text className="text-[9px] uppercase text-gray-500">
+                            <Text className="text-xs uppercase text-gray-500">
                               Leftovers · {meal.leftoverOf}
                             </Text>
                           </View>

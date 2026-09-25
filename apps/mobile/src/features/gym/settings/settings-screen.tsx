@@ -65,7 +65,7 @@ function BackButton() {
 
 function SectionTitle({ children }: { children: string }) {
   return (
-    <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+    <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
       {children}
     </Text>
   );

@@ -138,7 +138,7 @@ function SetRowImpl({
         </Text>
         {prKind ? (
           <View className="rounded-full bg-amber-100 px-2 py-0.5">
-            <RNText testID={`${testID}-pr`} className="text-[11px] font-bold text-amber-800">
+            <RNText testID={`${testID}-pr`} className="text-xs font-bold text-amber-800">
               {PR_LABELS[prKind]}
             </RNText>
           </View>

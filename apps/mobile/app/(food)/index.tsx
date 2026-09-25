@@ -90,7 +90,7 @@ export default function HomeScreen() {
 
         {/* Header */}
         <View>
-          <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
             {hasPlan ? 'Welcome Back, Chef' : 'Welcome, Chef'}
           </Text>
           <Text testID="home-title" variant="title" className="mt-0.5">
@@ -154,7 +154,7 @@ export default function HomeScreen() {
         {/* Rest of today */}
         {d.restOfToday.length > 0 && (
           <Card testID="rest-of-today">
-            <Text className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+            <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
               Later Today
             </Text>
             <View className="gap-2.5">
@@ -186,7 +186,7 @@ export default function HomeScreen() {
         {/* Recent favourites */}
         {d.recentFavourites.length > 0 && (
           <View>
-            <Text className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+            <Text className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-500">
               Recent Favourites
             </Text>
             <ScrollView

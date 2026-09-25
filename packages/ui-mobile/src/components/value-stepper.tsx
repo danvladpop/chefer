@@ -114,7 +114,7 @@ function ValueStepperImpl({
         >
           {display}
         </Text>
-        <Text className="text-[10px] text-muted-foreground">{caption}</Text>
+        <Text className="text-[12px] text-muted-foreground">{caption}</Text>
       </Pressable>
       {button(1)}
     </View>

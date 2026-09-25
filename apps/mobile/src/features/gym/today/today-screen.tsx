@@ -53,7 +53,7 @@ function WeekStrip({ days }: { days: WeekStripDay[] }) {
           testID={`gym-today-week-strip-${day.weekday}`}
           className="items-center gap-1"
         >
-          <Text variant="muted" className="text-[10px]">
+          <Text variant="muted" className="text-[12px]">
             {WEEKDAY_LABELS[i]}
           </Text>
           <View
@@ -214,6 +214,7 @@ export function TodayScreen() {
 
   const weekStrip = computeWeekStrip(bootstrap, localDate());
   const { streak, nextWorkout, activeRoutine, profile } = bootstrap;
+  const goalMet = streak.thisWeekGoal > 0 && streak.thisWeekSessions >= streak.thisWeekGoal;
   const ringProgress = streak.thisWeekGoal > 0 ? streak.thisWeekSessions / streak.thisWeekGoal : 0;
   const offer = pickOffer(bootstrap.offers);
   const lastSession = bootstrap.recentSessions[0];
@@ -259,12 +260,14 @@ export function TodayScreen() {
               accessibilityLabel={`${streak.thisWeekSessions} of ${streak.thisWeekGoal} this week`}
             >
               <Text className="text-xs font-semibold">
-                {streak.thisWeekSessions}/{streak.thisWeekGoal}
+                {goalMet ? '✓' : `${streak.thisWeekSessions}/${streak.thisWeekGoal}`}
               </Text>
             </ProgressRing>
             <View className="min-w-0 flex-1">
               <Text className="text-sm font-medium">
-                {streak.thisWeekSessions} of {streak.thisWeekGoal} this week
+                {goalMet
+                  ? `Weekly goal met · ${streak.thisWeekSessions} ${streak.thisWeekSessions === 1 ? 'session' : 'sessions'}`
+                  : `${streak.thisWeekSessions} of ${streak.thisWeekGoal} this week`}
               </Text>
               <Text testID="gym-today-streak" variant="muted" className="text-xs">
                 {formatStreakLine(streak)}
@@ -318,7 +321,7 @@ export function TodayScreen() {
                             <View className="rounded bg-violet-100 px-1 py-0.5">
                               <RNText
                                 testID={`gym-today-next-up-${ex.routineExerciseId}-superset`}
-                                className="text-[10px] font-bold text-violet-800"
+                                className="text-[12px] font-bold text-violet-800"
                               >
                                 {slot.label}
                                 {slot.position + 1}

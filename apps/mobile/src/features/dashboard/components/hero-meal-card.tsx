@@ -28,7 +28,7 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
         <View className="gap-2 p-4">
           <View className="flex-row flex-wrap gap-2">
             <View className="self-start rounded-full bg-primary px-2.5 py-0.5">
-              <Text className="text-[10px] font-semibold uppercase text-primary-foreground">
+              <Text className="text-[12px] font-semibold uppercase text-primary-foreground">
                 {isTomorrow ? 'Tomorrow' : 'Next Meal'}
               </Text>
             </View>

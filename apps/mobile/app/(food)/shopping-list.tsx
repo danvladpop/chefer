@@ -155,7 +155,7 @@ export default function ShoppingListScreen() {
         {/* Header + week navigator */}
         <View className="flex-row items-center justify-between gap-2">
           <View>
-            <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+            <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
               {weekOffset === 0 ? 'This Week' : weekOffset === 1 ? 'Next Week' : 'Past Week'}
             </Text>
             <Text testID="shopping-title" variant="title">
@@ -284,7 +284,7 @@ export default function ShoppingListScreen() {
                     <View className="flex-row items-center gap-2">
                       {catDone === catItems.length && catItems.length > 0 && (
                         <View className="rounded-full bg-emerald-100 px-2 py-0.5">
-                          <Text className="text-[10px] font-bold text-emerald-700">✓ all</Text>
+                          <Text className="text-[12px] font-bold text-emerald-700">✓ all</Text>
                         </View>
                       )}
                       <Ionicons
@@ -340,7 +340,7 @@ export default function ShoppingListScreen() {
                                   </Text>
                                   {item.pantryCovered && (
                                     <View className="rounded-full bg-emerald-100 px-2 py-0.5">
-                                      <Text className="text-[10px] font-semibold uppercase text-emerald-700">
+                                      <Text className="text-[12px] font-semibold uppercase text-emerald-700">
                                         Have it
                                       </Text>
                                     </View>
