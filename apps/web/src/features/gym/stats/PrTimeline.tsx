@@ -31,7 +31,7 @@ export function PrTimeline({ library, unit }: { library: ExerciseDto[]; unit: We
           value={exerciseId}
           onChange={(e) => setExerciseId(e.target.value)}
           aria-label="Filter by exercise"
-          className="min-h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-700"
+          className="min-h-11 max-w-full rounded-lg border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-700"
         >
           <option value="">All exercises</option>
           {library

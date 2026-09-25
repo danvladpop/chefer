@@ -38,11 +38,14 @@ function PrDot(props: {
   cy?: number;
   payload?: Record<string, unknown>;
   dataKey?: string;
+  stroke?: string;
 }) {
-  const { cx, cy, payload, dataKey } = props;
+  const { cx, cy, payload, dataKey, stroke } = props;
   if (cx == null || cy == null || !dataKey) return null;
   const isPr = payload?.[`${dataKey}__pr`] === true;
-  if (!isPr) return null;
+  // Every session gets a dot: a lift trained once (or only on one day) is a
+  // single x value, and a line through one point draws nothing.
+  if (!isPr) return <circle cx={cx} cy={cy} r={3} fill={stroke ?? '#944a00'} />;
   return (
     <circle cx={cx} cy={cy} r={4.5} fill="#f59e0b" stroke="#fff" strokeWidth={1.5}>
       <title>Personal record</title>
@@ -158,7 +161,7 @@ export function StrengthTrendChart({
               if (e.target.value) setSelectedIds((ids) => [...ids, e.target.value]);
             }}
             aria-label="Add a lift to the chart"
-            className="min-h-8 rounded-full border border-dashed border-neutral-300 bg-white px-2.5 text-xs text-neutral-500"
+            className="min-h-11 w-44 max-w-full rounded-full border border-dashed border-neutral-300 bg-white px-3 text-xs text-neutral-500"
           >
             <option value="">+ Add a lift</option>
             {addableOptions.map((e) => (

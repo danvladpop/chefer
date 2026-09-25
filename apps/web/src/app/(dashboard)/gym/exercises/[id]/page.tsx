@@ -259,7 +259,7 @@ export default function GymExerciseDetailPage() {
                     <li key={session.id}>
                       <Link
                         href={`/gym/history/${session.id}`}
-                        className="flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 transition hover:bg-neutral-50"
+                        className="flex min-h-11 items-center justify-between gap-3 rounded-xl px-2 py-1.5 transition hover:bg-neutral-50"
                       >
                         <span className="text-neutral-500">
                           {format(parseISO(session.localDate), 'd MMM')}
