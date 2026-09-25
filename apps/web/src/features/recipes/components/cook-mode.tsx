@@ -274,7 +274,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   // ── Stepper ──
   return (
     <div
-      className="flex min-h-dvh flex-col bg-white pb-safe"
+      className="flex min-h-[calc(100dvh-4rem)] flex-col bg-white lg:min-h-dvh"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
@@ -343,8 +343,10 @@ export function CookMode({ recipeId }: { recipeId: string }) {
         )}
       </div>
 
-      {/* Navigation — swipe also works */}
-      <div className="flex items-center gap-3 border-t px-4 py-4">
+      {/* Navigation — swipe also works. Pinned to the bottom of the screen:
+          the stepper sits under the app header, so a full-height column put
+          Back/Next below the fold (audit F-REC-6-1). */}
+      <div className="sticky bottom-0 flex items-center gap-3 border-t bg-white px-4 py-4 pb-safe">
         <button
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           disabled={step === 0}

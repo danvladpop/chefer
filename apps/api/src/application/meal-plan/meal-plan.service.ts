@@ -206,12 +206,9 @@ export class MealPlanService {
         this.householdRepo.findByUserId(userId),
       ]);
 
-    if (!chefProfile) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'Complete your profile setup before generating a meal plan.',
-      });
-    }
+    // No profile yet (the goal and metrics steps are optional) is not a dead
+    // end: generate against default targets, and the dashboard keeps nudging
+    // the user to complete their profile (audit F-PM-2).
 
     // A pin must be a recipe the user may see — never another user's private
     // recipe favourited by id (recipe-access.ts).
@@ -225,7 +222,7 @@ export class MealPlanService {
     // 2. Build the AI input from stored preferences. Targets come from the
     // shared resolver so the generated plan always matches what the dashboard
     // ring and tracker display.
-    const liveCalorieTarget = resolveDailyTargets(chefProfile).dailyCalorieTarget;
+    const liveCalorieTarget = resolveDailyTargets(chefProfile ?? null).dailyCalorieTarget;
 
     // Household context (F2): the seam field carries servings (portionSum)
     // and soft dislike notes; the HARD safety union is ALSO merged into the
@@ -245,12 +242,12 @@ export class MealPlanService {
 
     const aiInput = {
       userId,
-      goal: chefProfile.goal ?? 'MAINTAIN',
-      biologicalSex: chefProfile.biologicalSex ?? 'MALE',
-      age: chefProfile.age ?? 30,
-      heightCm: chefProfile.heightCm ?? 175,
-      weightKg: chefProfile.weightKg ?? 75,
-      activityLevel: chefProfile.activityLevel ?? 'MODERATELY_ACTIVE',
+      goal: chefProfile?.goal ?? 'MAINTAIN',
+      biologicalSex: chefProfile?.biologicalSex ?? 'MALE',
+      age: chefProfile?.age ?? 30,
+      heightCm: chefProfile?.heightCm ?? 175,
+      weightKg: chefProfile?.weightKg ?? 75,
+      activityLevel: chefProfile?.activityLevel ?? 'MODERATELY_ACTIVE',
       dailyCalorieTarget: liveCalorieTarget,
       dietaryRestrictions: householdContext
         ? householdContext.mergedSafety.dietaryRestrictions
@@ -263,7 +260,7 @@ export class MealPlanService {
       pinnedDishNames: pinnedFavourites.map((f) => f.recipe.name),
       likedDishes,
       dislikedDishes,
-      ...(chefProfile.weeklyBudgetEur != null && {
+      ...(chefProfile?.weeklyBudgetEur != null && {
         weeklyBudgetEur: chefProfile.weeklyBudgetEur,
       }),
       ...(householdContext && { householdContext }),

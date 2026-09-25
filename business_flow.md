@@ -392,7 +392,8 @@ mealPlan.generate { weekOffset }
   │    └─ recipes ship with preset images (imageStatus DONE) → instant board
   │
   └─ PREMIUM user (or ADMIN)
-       ├─ load ChefProfile + DietaryPreferences (profile required)
+       ├─ load ChefProfile + DietaryPreferences (no profile → default targets,
+       │    audit F-PM-2; generation errors render inline with Try again)
        ├─ load learning signals (P1-1): pinned favourites
        │   (useInNextPlan=true) + 20 most recent MealRatings joined to
        │   recipe name/cuisine
@@ -599,6 +600,8 @@ The web hero card (`/dashboard`) renders `nextMeal`, else `tomorrowFirstMeal`
 /recipes/[id]/cook?meal=<type>       (entry: recipe page "Cook" button,
   │                                   dashboard next-meal "Start Cooking";
   │                                   meal defaults by time of day)
+  ├─ focus route: no tab bar or chat button on phones; Back/Next pinned
+  │    to the bottom of the screen (audit F-REC-6-1)
   ├─ full-screen stepper — one instruction at a time, large type,
   │    tap or swipe to advance (step index clamped against rapid taps)
   ├─ screen wake lock (feature-detected, reacquired on tab return,

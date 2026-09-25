@@ -190,6 +190,9 @@ export default function MealPlanPage() {
   // PRECONDITION_FAILED = the free curated pool can't satisfy the user's
   // restrictions (P1-2). That's an upgrade moment, not an error dialog.
   const [poolExhaustedMessage, setPoolExhaustedMessage] = useState<string | null>(null);
+  // Generation failures render inline with a retry, not as a native alert()
+  // with raw transport text (audit F-PLAN-1-5, F-PM-2).
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   // What the last generation learned from (P1-1) — the learning has to be
   // VISIBLE or users won't believe the plan adapts to their ratings.
@@ -208,6 +211,7 @@ export default function MealPlanPage() {
     onMutate: () => {
       setIsGenerating(true);
       setPoolExhaustedMessage(null);
+      setGenerateError(null);
       setPersonalisation(null);
     },
     onSettled: () => setIsGenerating(false),
@@ -221,7 +225,11 @@ export default function MealPlanPage() {
         capture('pool_exhausted');
         setPoolExhaustedMessage(err.message);
       } else {
-        alert(`Failed to generate meal plan: ${err.message}`);
+        setGenerateError(
+          err.data?.code === 'TOO_MANY_REQUESTS'
+            ? err.message
+            : "We couldn't generate your plan just now. Please try again in a moment.",
+        );
       }
     },
   });
@@ -453,6 +461,22 @@ export default function MealPlanPage() {
             €{weeklyBudget} budget. Regenerate for a cheaper week, or raise the budget in
             Preferences.
           </p>
+        </div>
+      )}
+
+      {generateError && (
+        <div
+          role="alert"
+          className="mx-4 mb-2 flex flex-col items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 sm:mx-6 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+        >
+          <p className="text-sm text-red-800">{generateError}</p>
+          <button
+            type="button"
+            onClick={handleGenerate}
+            className="min-h-11 shrink-0 rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold text-red-800 hover:bg-red-100"
+          >
+            Try again
+          </button>
         </div>
       )}
 

@@ -69,6 +69,7 @@ export function OnboardingWizard({
   // ── Navigation ──────────────────────────────────────────────────────────────
 
   function handleContinue() {
+    setError(null);
     if (step < totalSteps) {
       setStep((s) => s + 1);
     } else {
@@ -110,14 +111,23 @@ export function OnboardingWizard({
       return;
     }
 
+    // Premium setup needs goal and metrics. A user who upgraded mid-wizard
+    // skipped those steps, and Finish used to do nothing at all (audit
+    // F-ONB-1-3): send them to the first missing step and say why.
+    if (data.goal === null) {
+      setError('Pick a goal to finish setting up.');
+      setStep(1);
+      return;
+    }
     if (
-      data.goal === null ||
       data.biologicalSex === null ||
       data.age === null ||
       data.heightCm === null ||
       data.weightKg === null ||
       data.activityLevel === null
     ) {
+      setError('Add your body metrics to finish setting up.');
+      setStep(2);
       return;
     }
 

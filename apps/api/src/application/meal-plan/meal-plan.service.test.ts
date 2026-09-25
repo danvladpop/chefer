@@ -330,16 +330,19 @@ describe('MealPlanService.generate', () => {
     expect(plan.estimatedCost?.totalEur).toBe(42.5);
   });
 
-  it('premium without a chef profile is rejected with BAD_REQUEST', async () => {
+  it('premium without a chef profile generates against default targets (F-PM-2)', async () => {
     const repo = makeRepo();
     const service = new MealPlanService(repo);
     vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(null);
     vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
 
-    await expect(service.generate('user1', 0, true)).rejects.toMatchObject({
-      code: 'BAD_REQUEST',
-    });
-    expect(aiService.generateMealPlan).not.toHaveBeenCalled();
+    const plan = await service.generate('user1', 0, true);
+
+    expect(plan.days).toHaveLength(1);
+    const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
+    expect(input).toMatchObject({ goal: 'MAINTAIN', activityLevel: 'MODERATELY_ACTIVE' });
+    expect(input.dailyCalorieTarget).toBeGreaterThan(0);
   });
 });
 

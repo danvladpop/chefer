@@ -7,6 +7,12 @@ describe('showChatWidget', () => {
     expect(showChatWidget('/gym/workout/anything')).toBe(false);
   });
 
+  it('hides the widget on focus routes: onboarding and cook mode', () => {
+    expect(showChatWidget('/onboarding')).toBe(false);
+    expect(showChatWidget('/recipes/abc123/cook')).toBe(false);
+    expect(showChatWidget('/recipes/abc123')).toBe(true);
+  });
+
   it('shows it everywhere else, including look-alike paths', () => {
     expect(showChatWidget('/dashboard')).toBe(true);
     expect(showChatWidget('/gym')).toBe(true);

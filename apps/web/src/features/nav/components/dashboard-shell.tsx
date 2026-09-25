@@ -4,8 +4,9 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { GymSync } from '@/features/gym/workout/gym-sync';
 import { PostUpgradeActivation } from '@/features/premium/components/PostUpgradeActivation';
+import { cn } from '@chefer/utils';
 import { ModeProvider } from '../mode-context';
-import type { AppMode } from '../nav-items';
+import { isFocusRoute, type AppMode } from '../nav-items';
 import { BottomNav } from './bottom-nav';
 import { MobileNavDrawer } from './mobile-nav-drawer';
 import { SideBar } from './side-bar';
@@ -61,6 +62,7 @@ export function DashboardShell({ children, initialMode = 'food' }: DashboardShel
 function ShellFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const title = getTitle(pathname);
+  const focus = isFocusRoute(pathname);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Dashboard pages are client components and can't export per-route
@@ -86,14 +88,19 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
 
         {/* Bottom padding clears the fixed tab bar + home indicator so the last
             element on every page stays reachable. */}
-        <main className="flex-1 pb-nav-safe lg:overflow-y-auto lg:pb-0">{children}</main>
+        <main className={cn('flex-1 lg:overflow-y-auto lg:pb-0', !focus && 'pb-nav-safe')}>
+          {children}
+        </main>
       </div>
 
-      <BottomNav
-        className="lg:hidden"
-        moreOpen={drawerOpen}
-        onOpenMore={() => setDrawerOpen(true)}
-      />
+      {/* Focus routes (onboarding, cook mode) keep the screen for the task. */}
+      {!focus && (
+        <BottomNav
+          className="lg:hidden"
+          moreOpen={drawerOpen}
+          onOpenMore={() => setDrawerOpen(true)}
+        />
+      )}
       <MobileNavDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
       {/* "3 things to do first" after an upgrade (P-8) — shell-mounted so it
           survives the free-only upgrade button unmounting on tier flip. */}
