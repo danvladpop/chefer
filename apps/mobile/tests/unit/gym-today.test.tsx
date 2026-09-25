@@ -154,6 +154,36 @@ describe('TodayScreen', () => {
     expect(router.push).toHaveBeenCalledWith('/gym/workout');
   });
 
+  it('brackets adjacent superset exercises in "Next up" with a chip and heading', async () => {
+    const queryClient = makeClient();
+    const [bench] = NEXT_WORKOUT.exercises;
+    if (!bench) throw new Error('expected a fixture exercise');
+    const supersetWorkout: NextWorkoutDto = {
+      ...NEXT_WORKOUT,
+      exercises: [
+        { ...bench, supersetGroup: 'A' },
+        {
+          ...bench,
+          routineExerciseId: 're2',
+          exerciseId: 'squat',
+          position: 1,
+          supersetGroup: 'A',
+        },
+      ],
+    };
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: supersetWorkout }),
+    );
+    await renderToday(queryClient);
+
+    expect(screen.getByTestId('gym-today-next-up-superset-A')).toHaveTextContent(
+      'Superset A120 s rest after each round',
+    );
+    expect(screen.getByTestId('gym-today-next-up-re1-superset')).toHaveTextContent('A1');
+    expect(screen.getByTestId('gym-today-next-up-re2-superset')).toHaveTextContent('A2');
+  });
+
   it('shows a resume banner when a session is already in progress', async () => {
     activeSessionStore.set(makeDoc(1, { status: 'IN_PROGRESS', name: 'Upper A' }), null);
     const queryClient = makeClient();
