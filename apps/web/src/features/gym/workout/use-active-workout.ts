@@ -1,0 +1,274 @@
+'use client';
+
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { trpc } from '@/lib/trpc';
+import type { GymBootstrap, NextWorkoutDto, WorkoutSessionDoc } from '@chefer/types';
+import {
+  applyFinishedSession,
+  setTickOutcome,
+  startSession,
+  workoutReducer,
+  type SessionSupersetSlot,
+} from '@chefer/utils';
+import { libraryLookup, localDate } from '../use-gym-bootstrap';
+import {
+  activeSessionStore,
+  useActiveSessionRecord,
+  type ActiveSessionRecord,
+} from './active-session-store';
+import { newId, nowIso } from './ids';
+import { outbox } from './outbox';
+import { getGymOwner, subscribeGymOwner } from './owner';
+import { skipRest, startRest } from './rest-timer';
+import { getStorage, GYM_KEYS, readJson } from './storage';
+import type { WorkoutActionInput } from './workout-model';
+
+// Active workout on web (gym_plan.md §5.3): the shared pure reducer plus
+// crash-safe persistence. Every change goes reducer → localStorage, so the
+// stored doc is never more than one click behind the screen, and a reload
+// (or a crashed tab) resumes exactly where it was.
+
+export type StartWorkoutInput =
+  | { kind: 'planned'; workout: NextWorkoutDto; backfillDate?: string }
+  | { kind: 'freestyle'; name?: string; backfillDate?: string };
+
+export const FREESTYLE_NAME = 'Freestyle workout';
+
+/**
+ * "HH:MM" on a browser-local calendar date → an absolute instant (mirrors
+ * apps/mobile/src/features/gym/reminders/schedule.ts's `localInstant` — kept
+ * as its own tiny copy here rather than a cross-app import, since this file
+ * is owned by another wave; see the G4-A handoff). Only used by the
+ * `backfillDate` "log a past workout" path below (gym_plan.md §1.4 "Repair").
+ */
+function localInstant(date: string, time: string): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  return new Date(
+    year ?? 1970,
+    (month ?? 1) - 1,
+    day ?? 1,
+    hour ?? 0,
+    minute ?? 0,
+    0,
+    0,
+  ).toISOString();
+}
+
+/** An active record is resumable only by the account that started it. */
+export function belongsTo(record: ActiveSessionRecord | null, owner: string | null): boolean {
+  return record !== null && (record.ownerId === null || owner === null || record.ownerId === owner);
+}
+
+export function getResumableSession(): WorkoutSessionDoc | null {
+  const record = activeSessionStore.get();
+  return belongsTo(record, getGymOwner()) ? (record?.doc ?? null) : null;
+}
+
+/**
+ * Starts a session (planned day or freestyle) and persists it. An existing
+ * in-progress session is returned untouched — starting never overwrites a
+ * workout; the caller offers Resume / Discard first.
+ */
+export function startWorkout(
+  input: StartWorkoutInput,
+  today: string = localDate(),
+): WorkoutSessionDoc {
+  const existing = getResumableSession();
+  if (existing) return existing;
+
+  const planned = input.kind === 'planned' ? input.workout : null;
+  // Streak repair (gym_plan.md §1.4 "Repair"): a backfilled session gets the
+  // picked date's localDate and an 18:00-local startedAt instead of "now".
+  const backfillDate = input.backfillDate;
+  const doc = startSession({
+    id: newId(),
+    newId,
+    now: backfillDate ? localInstant(backfillDate, '18:00') : nowIso(),
+    localDate: backfillDate ?? today,
+    routineId: planned?.routineId ?? null,
+    routineDayId: planned?.dayId ?? null,
+    name: planned
+      ? planned.dayName
+      : input.kind === 'freestyle'
+        ? (input.name ?? FREESTYLE_NAME)
+        : FREESTYLE_NAME,
+    isDeload: planned?.isDeload ?? false,
+    exercises: planned?.exercises ?? [],
+  });
+  activeSessionStore.set(doc, getGymOwner());
+  return doc;
+}
+
+export interface DispatchOptions {
+  /** The session's supersets (sessionSupersets): decides rest vs. advance on a tick. */
+  supersets?: ReadonlyMap<string, SessionSupersetSlot>;
+}
+
+const NO_SUPERSETS: ReadonlyMap<string, SessionSupersetSlot> = new Map();
+
+/**
+ * Applies one action (stamping `at`) and persists synchronously. Ticking a
+ * WORKING set starts the rest timer with that exercise's rest — except inside
+ * a superset, where the rest waits for the last exercise of the round (a
+ * running rest is cleared as the round goes on).
+ */
+export function dispatchWorkout(
+  action: WorkoutActionInput,
+  options: DispatchOptions = {},
+): WorkoutSessionDoc | null {
+  const record = activeSessionStore.get();
+  if (!record) return null;
+  const next = workoutReducer(record.doc, { ...action, at: nowIso() });
+  if (next === record.doc) return next; // unknown ids: nothing changed
+  activeSessionStore.set(next, record.ownerId);
+
+  if (action.type === 'completeSet') {
+    const outcome = setTickOutcome(
+      next,
+      options.supersets ?? NO_SUPERSETS,
+      action.seId,
+      action.setId,
+    );
+    if (outcome.kind === 'rest') startRest(outcome.restSec, outcome.seId);
+    else if (outcome.kind === 'advance') skipRest();
+  }
+  return next;
+}
+
+/**
+ * Finish: reducer 'finish' → outbox.enqueue (durable FIRST) → clear the
+ * active session and the rest timer. Returns the finished doc.
+ */
+export function finishWorkout(): WorkoutSessionDoc | null {
+  const record = activeSessionStore.get();
+  if (!record) return null;
+  const finished = workoutReducer(record.doc, { type: 'finish', at: nowIso() });
+  outbox.enqueue(finished, { ownerId: record.ownerId ?? getGymOwner() });
+  getStorage().setItem(
+    GYM_KEYS.lastFinished,
+    JSON.stringify({ ownerId: record.ownerId, doc: finished }),
+  );
+  activeSessionStore.clear();
+  skipRest();
+  return finished;
+}
+
+/** The last finished doc on this browser, if it is `id` and belongs to `owner`. */
+export function readLastFinished(id: string, owner: string | null): WorkoutSessionDoc | null {
+  const stored = readJson(getStorage(), GYM_KEYS.lastFinished);
+  if (typeof stored !== 'object' || stored === null) return null;
+  const { ownerId, doc } = stored as { ownerId?: string | null; doc?: WorkoutSessionDoc };
+  if (doc?.id !== id) return null;
+  if (ownerId && owner && ownerId !== owner) return null;
+  return doc;
+}
+
+/** Discard: the DISCARDED doc still goes through the outbox, then the session is cleared. */
+export function discardWorkout(): WorkoutSessionDoc | null {
+  const record = activeSessionStore.get();
+  if (!record) return null;
+  const discarded = workoutReducer(record.doc, { type: 'discard', at: nowIso() });
+  outbox.enqueue(discarded, { ownerId: record.ownerId ?? getGymOwner() });
+  activeSessionStore.clear();
+  skipRest();
+  return discarded;
+}
+
+/**
+ * Startup repair once the signed-in user is known (mirrors mobile):
+ *  • the tab died between Finish's enqueue and clear → drop the stale copy;
+ *  • the active session belongs to ANOTHER account (shared computer) → hand
+ *    it to the outbox under its owner, so it uploads when they sign back in.
+ */
+export function reconcileActiveSession(owner: string | null): void {
+  const record = activeSessionStore.get();
+  if (!record) return;
+  const queued = outbox.getState().entries.find((e) => e.doc.id === record.doc.id);
+  if (queued && queued.doc.status !== 'IN_PROGRESS') {
+    activeSessionStore.clear();
+    return;
+  }
+  if (owner !== null && record.ownerId !== null && record.ownerId !== owner) {
+    outbox.enqueue(record.doc, { ownerId: record.ownerId });
+    activeSessionStore.clear();
+    skipRest();
+  }
+}
+
+/**
+ * Optimistic "next workout" after Finish (gym_plan.md §5.2): fold the doc into
+ * a bootstrap with the shared engine. Returns the input on any engine error.
+ */
+export function foldFinished(
+  bootstrap: GymBootstrap,
+  doc: WorkoutSessionDoc,
+  today: string,
+): GymBootstrap {
+  if (!bootstrap.profile) return bootstrap;
+  try {
+    return applyFinishedSession({
+      bootstrap,
+      doc,
+      lookup: libraryLookup(bootstrap),
+      facts: { experience: bootstrap.profile.experience, ageYears: null },
+      today,
+    });
+  } catch {
+    return bootstrap;
+  }
+}
+
+/**
+ * Re-applies finished workouts still waiting in the outbox on top of a server
+ * bootstrap, so a refetch before the upload lands never rolls "next up" back.
+ */
+export function reconcileWithPending(
+  bootstrap: GymBootstrap,
+  pending: readonly WorkoutSessionDoc[],
+  today: string,
+): GymBootstrap {
+  if (!bootstrap.profile) return bootstrap;
+  const known = new Set(bootstrap.recentSessions.map((s) => s.id));
+  return pending
+    .filter((doc) => doc.status === 'COMPLETED' && !known.has(doc.id))
+    .sort((a, b) => (a.finishedAt ?? a.startedAt).localeCompare(b.finishedAt ?? b.startedAt))
+    .reduce((current, doc) => foldFinished(current, doc, today), bootstrap);
+}
+
+export interface ActiveWorkout {
+  /** The in-progress session (null when none, and during SSR/hydration). */
+  session: WorkoutSessionDoc | null;
+  start: (input: StartWorkoutInput) => WorkoutSessionDoc;
+  dispatch: (action: WorkoutActionInput, options?: DispatchOptions) => WorkoutSessionDoc | null;
+  finish: () => Promise<WorkoutSessionDoc | null>;
+  discard: () => WorkoutSessionDoc | null;
+}
+
+const serverOwner = () => null;
+
+export function useActiveWorkout(): ActiveWorkout {
+  const record = useActiveSessionRecord();
+  const owner = useSyncExternalStore(subscribeGymOwner, getGymOwner, serverOwner);
+  const utils = trpc.useUtils();
+  const session = belongsTo(record, owner) ? (record?.doc ?? null) : null;
+
+  const finish = useCallback(async () => {
+    const finished = finishWorkout();
+    if (!finished) return null;
+    const today = localDate();
+    // A bootstrap fetched before the upload must not overwrite the fold.
+    await utils.gym.bootstrap.cancel();
+    utils.gym.bootstrap.setData({ today }, (prev) =>
+      prev ? foldFinished(prev, finished, today) : prev,
+    );
+    return finished;
+  }, [utils]);
+
+  const start = useCallback((input: StartWorkoutInput) => startWorkout(input), []);
+
+  return useMemo(
+    () => ({ session, start, dispatch: dispatchWorkout, finish, discard: discardWorkout }),
+    [session, start, finish],
+  );
+}

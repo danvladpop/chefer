@@ -1,0 +1,46 @@
+# Cross-platform launch preamble: (re)start the app, get the dev client
+# connected to Metro and clear the first-run developer-menu chrome. Does NOT
+# sign in or pick a mode — see connect.yaml for that.
+appId: dev.chefer.app.dev
+---
+# iOS: relaunching resumes the already-connected dev client.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - launchApp
+# Android: launchApp lands on the dev launcher and a follow-up link races the
+# running launcher — cold-start via the deep link instead (localhost works
+# through adb reverse tcp:8083).
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - stopApp
+      - openLink: chefer-dev://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083
+      - runFlow:
+          when:
+            visible: 'Development Build'
+          commands:
+            - tapOn: 'http://.*:8083'
+
+# First-run explainer: Continue opens the dev menu — close it (xmark on iOS,
+# hardware back on Android).
+- extendedWaitUntil:
+    visible: 'Continue'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Continue'
+    commands:
+      - tapOn: 'Continue'
+- tapOn:
+    id: 'xmark'
+    optional: true
+- runFlow:
+    when:
+      platform: Android
+      visible: 'Reload'
+    commands:
+      - back

@@ -197,3 +197,4 @@ export {
 
 export { guessMealType, parseStepDuration } from './cook-mode';
 export { buildPickerSections, type PickerSection } from './recipe-picker';
+export * from './gym';

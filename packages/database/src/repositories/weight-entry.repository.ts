@@ -11,6 +11,8 @@ export interface IWeightEntryRepository {
   create(data: CreateWeightEntryData): Promise<WeightEntry>;
   findLastN(userId: string, days: number): Promise<WeightEntry[]>;
   findLatest(userId: string): Promise<WeightEntry | null>;
+  /** Entries with from ≤ recordedAt < to, oldest first (gym bodyweight stats). */
+  findInRange(userId: string, from: Date | null, to: Date): Promise<WeightEntry[]>;
 }
 
 export class WeightEntryRepository implements IWeightEntryRepository {
@@ -37,6 +39,13 @@ export class WeightEntryRepository implements IWeightEntryRepository {
     return prisma.weightEntry.findFirst({
       where: { userId },
       orderBy: { recordedAt: 'desc' },
+    });
+  }
+
+  async findInRange(userId: string, from: Date | null, to: Date): Promise<WeightEntry[]> {
+    return prisma.weightEntry.findMany({
+      where: { userId, recordedAt: { ...(from && { gte: from }), lt: to } },
+      orderBy: { recordedAt: 'asc' },
     });
   }
 }

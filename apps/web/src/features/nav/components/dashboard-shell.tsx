@@ -2,14 +2,25 @@
 
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { GymSync } from '@/features/gym/workout/gym-sync';
 import { PostUpgradeActivation } from '@/features/premium/components/PostUpgradeActivation';
+import { ModeProvider } from '../mode-context';
+import type { AppMode } from '../nav-items';
 import { BottomNav } from './bottom-nav';
 import { MobileNavDrawer } from './mobile-nav-drawer';
 import { SideBar } from './side-bar';
 import { TopHeader } from './top-header';
 
-// Map route prefixes to page titles
+// Map route prefixes to page titles (first match wins — specific before general)
 const TITLE_MAP: [string, string][] = [
+  ['/gym/workout', 'Workout'],
+  ['/gym/summary', 'Workout summary'],
+  ['/gym/setup', 'Gym setup'],
+  ['/gym/settings', 'Gym settings'],
+  ['/gym/routine', 'Routine'],
+  ['/gym/exercises', 'Exercises'],
+  ['/gym/stats', 'Stats'],
+  ['/gym', 'Gym'],
   ['/meal-plan', 'Meal Planner'],
   ['/recipes', 'Recipes'],
   ['/ingredients', 'Ingredients'],
@@ -35,9 +46,19 @@ function getTitle(pathname: string): string {
 
 interface DashboardShellProps {
   children: React.ReactNode;
+  /** Mode from the `chefer_mode` cookie (read by the server layout), so SSR renders the right nav. */
+  initialMode?: AppMode;
 }
 
-export function DashboardShell({ children }: DashboardShellProps) {
+export function DashboardShell({ children, initialMode = 'food' }: DashboardShellProps) {
+  return (
+    <ModeProvider initialMode={initialMode}>
+      <ShellFrame>{children}</ShellFrame>
+    </ModeProvider>
+  );
+}
+
+function ShellFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const title = getTitle(pathname);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -77,6 +98,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
       {/* "3 things to do first" after an upgrade (P-8) — shell-mounted so it
           survives the free-only upgrade button unmounting on tier flip. */}
       <PostUpgradeActivation />
+      {/* Gym outbox: uploads finished workouts from any page (online / focus). */}
+      <GymSync />
     </div>
   );
 }

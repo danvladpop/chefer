@@ -108,6 +108,7 @@ function makeWeightRepo(overrides: Partial<IWeightEntryRepository> = {}): IWeigh
     create: vi.fn(),
     findLastN: vi.fn().mockResolvedValue(plateauWeights()),
     findLatest: vi.fn().mockResolvedValue(null),
+    findInRange: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }

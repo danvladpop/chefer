@@ -149,3 +149,12 @@ appId: dev.chefer.app.dev
     visible:
       id: 'home-title'
     timeout: 10000
+
+# ── Teardown: sign out so the next flows sign in as alice (connect.yaml) ────
+- tapOn: '.*More.*'
+- tapOn:
+    id: 'logout-button'
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 15000

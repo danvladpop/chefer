@@ -1,0 +1,67 @@
+# Exercises tab E2E — G2-D (gym_plan.md §1.3).
+# Precondition: signed-in session with a gym profile (connect.yaml signs in;
+# Setup is backed out of if it appears, same as gym-mode.flow.yaml).
+# Checks: search narrows the library, opening a result shows its detail with
+# "Focus on" (cues) visible.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+
+# ── Food → Gym ────────────────────────────────────────────────────────────────
+- tapOn:
+    id: 'mode-switch-gym'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-setup-title'
+    timeout: 8000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'gym-setup-title'
+    commands:
+      - tapOn:
+          id: 'gym-setup-title-back'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 15000
+
+# ── Exercises tab → search "bench" ─────────────────────────────────────────────
+- tapOn: 'Exercises(, tab.*)?'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-exercises-title'
+    timeout: 10000
+- tapOn:
+    id: 'exercises-search'
+- inputText: 'bench'
+- extendedWaitUntil:
+    visible:
+      id: 'exercises-item-barbell-bench-press'
+    timeout: 10000
+
+# ── Open the result (by id: the search box itself also reads "bench") ─────────
+- tapOn:
+    id: 'exercises-item-barbell-bench-press'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-exercise-title'
+    timeout: 10000
+
+# ── "Focus on" (cues) is visible ────────────────────────────────────────────────
+- assertVisible: 'Focus on'
+
+# ── Back to Food, so other flows start clean ────────────────────────────────
+- tapOn:
+    id: 'gym-exercise-title-back'
+- tapOn:
+    id: 'mode-switch-food'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
