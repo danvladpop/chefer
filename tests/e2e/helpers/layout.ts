@@ -20,6 +20,12 @@ export const APP_ROUTES = [
   '/gym/setup',
   '/gym/workout',
   '/gym/settings',
+  '/gym/routine',
+  '/gym/routine/all',
+  '/gym/exercises',
+  '/gym/exercises/barbell-bench-press',
+  '/gym/exercises/new',
+  '/gym/stats',
 ] as const;
 
 /** Widths from the plan's device matrix. 320 is the narrowest realistic phone. */

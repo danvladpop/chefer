@@ -9,7 +9,9 @@ import { gotoAndSettle } from './helpers/layout';
 test.describe('Gym exercise library', () => {
   test('search finds a curated exercise, detail shows cues, stats renders', async ({ page }) => {
     await gotoAndSettle(page, '/gym/exercises');
-    await expect(page.getByRole('heading', { name: 'Exercises', level: 1 })).toBeVisible();
+    await expect(
+      page.getByRole('main').getByRole('heading', { name: 'Exercises', level: 1 }),
+    ).toBeVisible();
 
     await page.getByPlaceholder('Search exercises').fill('bench');
     const result = page.getByRole('link', { name: /Barbell Bench Press/i }).first();
@@ -18,12 +20,14 @@ test.describe('Gym exercise library', () => {
     await result.click();
     await expect(page).toHaveURL(/\/gym\/exercises\/barbell-bench-press$/);
     await expect(
-      page.getByRole('heading', { name: 'Barbell Bench Press', level: 1 }),
+      page.getByRole('main').getByRole('heading', { name: 'Barbell Bench Press', level: 1 }),
     ).toBeVisible();
     await expect(page.getByText('Focus on')).toBeVisible();
 
     await gotoAndSettle(page, '/gym/stats');
-    await expect(page.getByRole('heading', { name: 'Stats', level: 1 })).toBeVisible();
+    await expect(
+      page.getByRole('main').getByRole('heading', { name: 'Stats', level: 1 }),
+    ).toBeVisible();
   });
 
   test('"Mine" filter and equipment chips narrow the list', async ({ page }) => {
@@ -46,6 +50,8 @@ test.describe('Gym exercise library', () => {
       .first()
       .click();
     await expect(page).toHaveURL(/\/gym\/exercises\/new$/);
-    await expect(page.getByRole('heading', { name: 'Create custom exercise' })).toBeVisible();
+    await expect(
+      page.getByRole('main').getByRole('heading', { name: 'Create custom exercise' }),
+    ).toBeVisible();
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { MUSCLE_LABELS, type VolumeGroup } from '@chefer/types';
@@ -75,28 +75,46 @@ export function ExercisesTab() {
           autoCorrect={false}
           accessibilityLabel="Search exercises"
         />
-        <ChipGroup
-          testID="exercises-group-filters"
-          options={MUSCLE_GROUP_FILTERS}
-          value={group ? [group] : []}
-          onChange={(v) => setGroup(v[0] ?? null)}
-          allowEmpty
-        />
-        <View className="flex-row flex-wrap items-center gap-2">
+        {/* One swipeable row each — 24 wrapping chips pushed the results
+            below the keyboard (found by e2e/gym-library, 2026-09-25). */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          className="-mx-4"
+          contentContainerClassName="px-4"
+        >
           <ChipGroup
-            testID="exercises-equipment-filters"
-            options={EQUIPMENT_FILTERS}
-            value={equipment ? [equipment] : []}
-            onChange={(v) => setEquipment(v[0] ?? null)}
+            testID="exercises-group-filters"
+            options={MUSCLE_GROUP_FILTERS}
+            value={group ? [group] : []}
+            onChange={(v) => setGroup(v[0] ?? null)}
             allowEmpty
+            className="flex-nowrap"
           />
+        </ScrollView>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          className="-mx-4"
+          contentContainerClassName="gap-2 px-4"
+        >
           <Chip
             testID="exercises-mine-filter"
             label="Mine"
             selected={mineOnly}
             onPress={() => setMineOnly((v) => !v)}
           />
-        </View>
+          <ChipGroup
+            testID="exercises-equipment-filters"
+            options={EQUIPMENT_FILTERS}
+            value={equipment ? [equipment] : []}
+            onChange={(v) => setEquipment(v[0] ?? null)}
+            allowEmpty
+            className="flex-nowrap"
+          />
+        </ScrollView>
       </View>
 
       <FlatList
@@ -104,6 +122,7 @@ export function ExercisesTab() {
         data={rows}
         keyExtractor={(e) => e.id}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         initialNumToRender={14}
         contentContainerStyle={{ paddingBottom: 24 }}
         renderItem={({ item }) => {

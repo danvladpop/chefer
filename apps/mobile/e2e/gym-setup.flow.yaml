@@ -119,3 +119,18 @@ appId: dev.chefer.app.dev
     timeout: 20000
 - assertVisible:
     id: 'gym-today-next-up'
+
+# ── Teardown: back to Food and sign out, so later flows sign in as alice ─────
+- tapOn:
+    id: 'mode-switch-food'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+- tapOn: '.*More.*'
+- tapOn:
+    id: 'logout-button'
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 15000
