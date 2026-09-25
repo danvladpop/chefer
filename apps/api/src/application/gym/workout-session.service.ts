@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import { TRPCError } from '@trpc/server';
 import {
   exerciseRepository,
@@ -18,6 +19,7 @@ import type {
   WorkoutSessionDoc,
 } from '@chefer/types';
 import { nextDayIdAfter, toSessionSummary } from '@chefer/utils';
+import { logger } from '../../lib/logger.js';
 import { toJson, toRoutineDto, toSessionDoc } from './mappers.js';
 import { progressionService, type ProgressionService } from './progression.service.js';
 
@@ -87,9 +89,11 @@ export class WorkoutSessionService {
         console.error('[gym] progression recompute failed after upsertMany', { userId, err });
       });
     }
-    return {
-      results: docs.map((doc, i) => results.get(i) ?? { id: doc.id, status: 'rejected' }),
-    };
+    const finalResults: SyncResultDto[] = docs.map(
+      (doc, i) => results.get(i) ?? { id: doc.id, status: 'rejected' },
+    );
+    reportRejections(userId, finalResults);
+    return { results: finalResults };
   }
 
   async get(userId: string, id: string): Promise<WorkoutSessionDoc> {
@@ -221,6 +225,25 @@ export class WorkoutSessionService {
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * A 'rejected' doc means the phone's offline outbox will park it as "needs
+ * attention" (gym_plan.md §5.2) — worth a warning so a client bug (or an
+ * abuse attempt) shows up before a user files a "my workout vanished"
+ * report. The reason CODE only: never the doc body (weights, reps, notes).
+ */
+function reportRejections(userId: string, results: readonly SyncResultDto[]): void {
+  for (const result of results) {
+    if (result.status !== 'rejected') continue;
+    const reasonCode = result.reason ?? 'unknown';
+    logger.warn({ userId, reasonCode }, 'gym.session.upsertMany rejected a doc');
+    Sentry.captureMessage('gym.session.upsertMany rejected a doc', {
+      level: 'warning',
+      tags: { reasonCode },
+      user: { id: userId },
+    });
+  }
+}
 
 /** Reason string when a doc can never be applied (beyond the Zod input schema). */
 export function validateDoc(

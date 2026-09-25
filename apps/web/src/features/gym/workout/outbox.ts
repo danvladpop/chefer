@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { workoutSessionDocSchema, type SyncResultDto, type WorkoutSessionDoc } from '@chefer/types';
+import { captureGymEvent } from '../analytics';
 import { createExternalStore } from './external-store';
 import { getConfirmedGymOwner, getGymOwner, subscribeGymOwner } from './owner';
 import { getStorage, GYM_KEYS, type KvStorage } from './storage';
@@ -264,6 +265,7 @@ export function createOutbox(deps: OutboxDeps = {}) {
         return null;
       }
       result.parked++;
+      captureGymEvent('sync_failed', { reason: ack.reason ?? 'rejected' });
       return {
         ...entry,
         attempts: entry.attempts + 1,

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ExternalLink, Play } from 'lucide-react';
+import { captureGymEvent } from '../analytics';
 
 // "Watch technique" — click-to-load YouTube (gym_plan.md §1.3, §5.5). Poster
 // first, no iframe (and no third-party request) until the user opts in. The
@@ -42,7 +43,10 @@ export function VideoEmbed({ videoId, startSec, channel }: VideoEmbedProps) {
             />
             <button
               type="button"
-              onClick={() => setLoaded(true)}
+              onClick={() => {
+                captureGymEvent('video_opened', { fallback: false });
+                setLoaded(true);
+              }}
               aria-label="Play technique video"
               className="absolute inset-0 flex items-center justify-center"
             >
@@ -61,6 +65,7 @@ export function VideoEmbed({ videoId, startSec, channel }: VideoEmbedProps) {
           href={watchUrl}
           target="_blank"
           rel="noreferrer noopener"
+          onClick={() => captureGymEvent('video_opened', { fallback: true })}
           className="flex min-h-8 shrink-0 items-center gap-1 text-xs font-medium text-[#944a00] hover:underline"
         >
           Open on YouTube

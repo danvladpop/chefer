@@ -17,6 +17,7 @@ import {
 import type { ExerciseDto, PrKind, Rir, SessionSetDoc, WorkoutSessionDoc } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
 import { cn, sessionSupersetKey, type SessionSupersetSlot } from '@chefer/utils';
+import { captureGymEvent } from '../analytics';
 import { ExercisePickerSheet } from '../shared/exercise-picker-sheet';
 import { GymSkeleton } from '../shared/gym-card';
 import { SyncIndicator } from '../shared/sync-indicator';
@@ -241,6 +242,7 @@ export function WorkoutView() {
       prs: prCount,
       offline: typeof navigator !== 'undefined' && !navigator.onLine,
     });
+    prs.forEach((pr) => captureGymEvent('pr_achieved', { kind: pr.kind }));
     router.replace(`/gym/summary/${finished.id}`);
   };
 
