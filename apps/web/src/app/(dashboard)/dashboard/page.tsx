@@ -347,7 +347,11 @@ export default function DashboardPage() {
             </p>
             <div className="flex flex-col divide-y">
               {d.restOfToday.map((meal, i) => (
-                <div key={i} className="flex items-start justify-between gap-3 py-2.5">
+                <Link
+                  key={i}
+                  href={meal.recipeId ? `/recipes/${meal.recipeId}` : '/meal-plan'}
+                  className="-mx-2 flex min-h-11 items-start justify-between gap-3 rounded-lg px-2 py-2.5 transition hover:bg-neutral-50"
+                >
                   {/* Time + badge on one line, name below — the original single
                       row had no min-w-0 and long recipe names pushed the kcal
                       column off the card. */}
@@ -367,7 +371,7 @@ export default function DashboardPage() {
                   <span className="shrink-0 whitespace-nowrap text-xs text-gray-500">
                     {meal.kcal} kcal
                   </span>
-                </div>
+                </Link>
               ))}
             </div>
           </div>

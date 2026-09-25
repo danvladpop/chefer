@@ -40,6 +40,8 @@ export interface DashboardSummary {
     mealType: string;
     scheduledLabel: string;
     recipeName: string;
+    /** Additive (older clients ignore it): lets "Later today" rows open the recipe. */
+    recipeId?: string;
     kcal: number;
   }[];
   recentFavourites: {
@@ -217,6 +219,7 @@ export class DashboardService {
           mealType: slot.type,
           scheduledLabel: MEAL_SCHEDULE[slot.type] ?? '',
           recipeName: recipe.name,
+          recipeId: recipe.id,
           kcal: n.calories,
         });
       }

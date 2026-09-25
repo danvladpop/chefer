@@ -7,7 +7,7 @@ import {
   ScrollView,
   View,
 } from 'react-native';
-import { Link, useFocusEffect } from 'expo-router';
+import { Link, router, useFocusEffect } from 'expo-router';
 import { Card, Screen, Text } from '@chefer/ui-mobile';
 import { ChefReviewBanner } from '../../src/features/coach/chef-review-banner';
 import { WeightCard } from '../../src/features/coach/weight-card';
@@ -159,7 +159,16 @@ export default function HomeScreen() {
             </Text>
             <View className="gap-2.5">
               {d.restOfToday.map((meal) => (
-                <View key={meal.mealType} className="flex-row items-center gap-3">
+                <Pressable
+                  key={meal.mealType}
+                  testID={`later-today-${meal.mealType}`}
+                  accessibilityRole="button"
+                  disabled={!meal.recipeId}
+                  onPress={() => {
+                    if (meal.recipeId) router.push(`/recipe/${meal.recipeId}`);
+                  }}
+                  className="min-h-11 flex-row items-center gap-3 active:opacity-70"
+                >
                   <MealTypeBadge mealType={meal.mealType} />
                   <View className="min-w-0 flex-1">
                     <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
@@ -168,7 +177,7 @@ export default function HomeScreen() {
                     <Text className="text-xs text-gray-500">{meal.scheduledLabel}</Text>
                   </View>
                   {meal.kcal > 0 && <Text className="text-xs text-gray-500">{meal.kcal} kcal</Text>}
-                </View>
+                </Pressable>
               ))}
             </View>
           </Card>
