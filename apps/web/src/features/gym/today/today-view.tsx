@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import type { GymOffer, NextWorkoutDto, WeightUnit } from '@chefer/types';
 import { Button } from '@chefer/ui';
-import { cn, nextDayIdAfter, type ExerciseLookup } from '@chefer/utils';
+import { cn, nextDayIdAfter, pickOffer, type ExerciseLookup } from '@chefer/utils';
 import { prescriptionText, shortDate } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
 import { SyncIndicator } from '../shared/sync-indicator';
@@ -28,6 +28,7 @@ import { WeekRing } from '../shared/week-ring';
 import { weekDays, WeekStrip } from '../shared/week-strip';
 import { useActiveWorkout } from '../workout/use-active-workout';
 import { sessionProgress } from '../workout/workout-model';
+import { buildBackfillWorkout, LogPastWorkoutSheet } from './log-past-workout-sheet';
 import { PickDaySheet } from './pick-day-sheet';
 
 // ─── Gym Today (gym_plan.md §1.3) ─────────────────────────────────────────────
@@ -42,6 +43,7 @@ export function TodayView() {
   const { session, start } = useActiveWorkout();
   const utils = trpc.useUtils();
   const [pickOpen, setPickOpen] = useState(false);
+  const [backfillOpen, setBackfillOpen] = useState(false);
 
   // First visit without a gym profile → the setup flow (gym_plan.md §1.3).
   const needsSetup = ready && data?.profile === null;
@@ -87,7 +89,11 @@ export function TodayView() {
   );
   const currentWeek = data.weeks[data.weeks.length - 1];
   const paused = currentWeek?.status === 'paused';
-  const offer = data.offers[0] ?? null;
+  // Priority order shared with mobile (gym_plan.md §1.3 "Contextual cards"):
+  // `data.offers[0]` used to be taken as-is here, which disagreed with the
+  // mobile app whenever more than one offer was pending at once (found while
+  // verifying the comeback/deload flows end to end — G4-A).
+  const offer = pickOffer(data.offers);
   const lastSession = data.recentSessions.find((s) => s.status === 'COMPLETED') ?? null;
 
   const startPlanned = (workout: NextWorkoutDto) => {
@@ -102,6 +108,24 @@ export function TodayView() {
       start({ kind: 'freestyle' });
       capture('workout_started', { source: 'freestyle' });
     }
+    router.push('/gym/workout');
+  };
+
+  const startBackfillFreestyle = (backfillDate: string) => {
+    if (!session) {
+      start({ kind: 'freestyle', name: 'Backfilled workout', backfillDate });
+      capture('workout_started', { source: 'freestyle' });
+    }
+    setBackfillOpen(false);
+    router.push('/gym/workout');
+  };
+  const startBackfillDay = (dayId: string, backfillDate: string) => {
+    const workout = buildBackfillWorkout(data, dayId, backfillDate);
+    if (!session && workout) {
+      start({ kind: 'planned', workout, backfillDate });
+      capture('workout_started', { source: 'picked' });
+    }
+    setBackfillOpen(false);
     router.push('/gym/workout');
   };
 
@@ -160,6 +184,15 @@ export function TodayView() {
               {session ? 'Resume workout' : 'Start freestyle'}
             </Button>
           </GymCard>
+
+          <button
+            type="button"
+            data-testid="gym-log-past-workout"
+            onClick={() => setBackfillOpen(true)}
+            className="min-h-11 self-start text-sm font-medium text-[#944a00] hover:underline"
+          >
+            Log a past workout
+          </button>
         </div>
 
         {/* Right: the week, the last session */}
@@ -241,6 +274,15 @@ export function TodayView() {
           onPick={(dayId) => setNextDay.mutate({ routineId: routine.id, dayId })}
         />
       )}
+
+      <LogPastWorkoutSheet
+        open={backfillOpen}
+        onClose={() => setBackfillOpen(false)}
+        data={data}
+        today={today}
+        onStartFreestyle={startBackfillFreestyle}
+        onStartDay={startBackfillDay}
+      />
     </Shell>
   );
 }
