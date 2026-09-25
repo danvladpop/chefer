@@ -24,6 +24,8 @@
 16. [Recipe Import & Cheferize Flow](#16-recipe-import--cheferize-flow)
 17. _(reserved for the F2 Household flow — lands with feat/household)_
 18. [Zero-Waste Pantry Flow (F3)](#18-zero-waste-pantry-flow-f3)
+19. [Beta Feedback Flow](#19-beta-feedback-flow)
+20. [Native App Update Flow (OTA, M4-4)](#20-native-app-update-flow-ota-m4-4)
 
 ---
 
@@ -970,3 +972,38 @@ User → Send feedback → feedback.submit { message, path } → FeedbackService
 The current route is attached automatically as `path`. On success the client
 fires the `feedback_submitted { path }` PostHog event and thanks the chef.
 Feedback is write-only in-app; the team reads it via Prisma Studio/psql.
+
+---
+
+## 20. Native App Update Flow (OTA, M4-4)
+
+The production native apps (`Chefer`, variant `production`) talk to
+`https://chefer.duckdns.org` and receive JavaScript changes over the air via
+EAS Update. Nothing here touches the API — it's how app code reaches phones.
+
+```
+push to master → Deploy workflow → API/web deployed → verify healthy
+          → mobile-update job: pnpm mobile:update "<sha> <subject>"
+            (or a developer runs it by hand)
+          → eas update --channel production (bundle built with the prod API URL,
+            tagged with the native fingerprint = runtimeVersion)
+
+App launch (production binary) → expo-updates asks u.expo.dev for the newest
+  update on channel "production" whose runtimeVersion == its own fingerprint
+    ├─ none newer → run the embedded (or last downloaded) bundle
+    └─ newer      → download in the background, keep running the current one;
+                    the NEXT cold launch runs the new update
+```
+
+- **Native changes can't ship OTA.** A new native module changes the
+  fingerprint; that update matches no installed binary and is simply ignored
+  until the phones get a `pnpm mobile:release:*` build over USB.
+- **Publish after deploy.** Automatic: the deploy workflow publishes only
+  after the API it needs is verified live. API changes stay additive so older
+  bundles (phones that haven't relaunched yet) keep working.
+- **iOS free signing:** the binary itself expires 7 days after it was signed
+  (free Apple ID); OTA doesn't extend that — re-run `pnpm mobile:release:ios`.
+- The More tab footer shows which bundle is running (`built-in bundle` vs
+  `update <id>`).
+- Dev builds (`Chefer Dev`) keep loading JS from Metro on the Mac; they
+  never receive production updates.

@@ -1,6 +1,6 @@
 # Recipes list + detail E2E — M2-3. Signs in as the seeded alice account
 # (data-rich catalog); costs 1 login of the 10/15min per-IP budget.
-appId: dev.chefer.app
+appId: dev.chefer.app.dev
 ---
 - runFlow: common/connect.yaml
 

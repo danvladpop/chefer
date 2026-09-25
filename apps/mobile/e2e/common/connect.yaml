@@ -1,6 +1,6 @@
 # Cross-platform preamble: get the dev client connected to Metro and clear
 # the first-run developer-menu chrome, then ensure a signed-in session.
-appId: dev.chefer.app
+appId: dev.chefer.app.dev
 ---
 # iOS: relaunching resumes the already-connected dev client.
 - runFlow:
@@ -16,7 +16,7 @@ appId: dev.chefer.app
       platform: Android
     commands:
       - stopApp
-      - openLink: chefer://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083
+      - openLink: chefer-dev://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083
       - runFlow:
           when:
             visible: 'Development Build'

@@ -1,7 +1,7 @@
 # AI chef chat E2E — M2-9. UI-only: never sends a message (dev API runs real
 # Gemini; sends cost money and chat quota). The streaming path itself is
 # covered by the gated contract test (CHEFER_CONTRACT_AI=1).
-appId: dev.chefer.app
+appId: dev.chefer.app.dev
 ---
 - runFlow: common/connect.yaml
 - extendedWaitUntil:

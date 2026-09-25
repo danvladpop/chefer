@@ -3,7 +3,7 @@
 # Needs: the dev app installed on a booted simulator (pnpm mobile:ios),
 #        Metro running, and the local API up (pnpm dev).
 # Rate-limit budget: 1 register + 1 login per run (10/15min per IP).
-appId: dev.chefer.app
+appId: dev.chefer.app.dev
 ---
 - launchApp:
     clearState: true
@@ -28,7 +28,7 @@ appId: dev.chefer.app
       platform: Android
     commands:
       - stopApp
-      - openLink: chefer://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083
+      - openLink: chefer-dev://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083
       - runFlow:
           when:
             visible: 'Development Build'

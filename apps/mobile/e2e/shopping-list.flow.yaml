@@ -1,5 +1,5 @@
 # Shopping list E2E — M2-5. Precondition: signed-in session (run auth.flow first).
-appId: dev.chefer.app
+appId: dev.chefer.app.dev
 ---
 - runFlow: common/connect.yaml
 - extendedWaitUntil:
