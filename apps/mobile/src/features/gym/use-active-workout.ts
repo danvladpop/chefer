@@ -10,6 +10,7 @@ import {
 import { localDate, newId, nowIso } from './offline/ids';
 import { outbox } from './offline/outbox';
 import { getGymOwner, subscribeGymOwner } from './offline/owner';
+import { localInstant } from './reminders/schedule';
 import { ensureRestNotificationPermission, skipRest, startRest } from './rest-timer';
 import { applyFinishedLocally } from './use-gym-bootstrap';
 
@@ -26,8 +27,8 @@ export type WorkoutActionInput = DistributiveOmit<
 >;
 
 export type StartWorkoutInput =
-  | { kind: 'planned'; workout: NextWorkoutDto }
-  | { kind: 'freestyle'; name?: string };
+  | { kind: 'planned'; workout: NextWorkoutDto; backfillDate?: string }
+  | { kind: 'freestyle'; name?: string; backfillDate?: string };
 
 export const FREESTYLE_NAME = 'Freestyle workout';
 
@@ -52,11 +53,17 @@ export function startWorkout(input: StartWorkoutInput): WorkoutSessionDoc {
   if (existing) return existing;
 
   const planned = input.kind === 'planned' ? input.workout : null;
+  // Streak repair (gym_plan.md §1.4 "Repair"): a backfilled session gets the
+  // PICKED date's localDate and an 18:00-local startedAt, not "now" — the
+  // user logs the actual sets live, but the session belongs to that day for
+  // week-goal, streak and progression-fold purposes (packages/utils/src/gym
+  // sorts exposures by performedAt, not by when they were logged).
+  const backfillDate = input.backfillDate;
   const doc = startSession({
     id: newId(),
     newId,
-    now: nowIso(),
-    localDate: localDate(),
+    now: backfillDate ? localInstant(backfillDate, '18:00') : nowIso(),
+    localDate: backfillDate ?? localDate(),
     routineId: planned?.routineId ?? null,
     routineDayId: planned?.dayId ?? null,
     name: planned
