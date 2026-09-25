@@ -15,6 +15,13 @@ import {
 } from './__test__/fixtures.js';
 import { WorkoutSessionService } from './workout-session.service.js';
 
+// The service reports sync rejections via logger + Sentry. The real logger
+// validates env at import (JWT_SECRET etc.), which a clean CI env lacks.
+vi.mock('../../lib/logger.js', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+vi.mock('@sentry/node', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }));
+
 // The engine is implemented in parallel (G1-A); stub the functions this
 // service calls so the tests pin the SERVICE behaviour only.
 vi.mock('@chefer/utils', async (importOriginal) => ({
