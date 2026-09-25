@@ -121,14 +121,8 @@ export function WorkoutScreen() {
   // grouping itself is unchanged, so memoised cards don't re-render per tick.
   const derivedSupersets = session ? supersetsOf(session, bootstrap) : NO_SUPERSETS;
   const supersetKey = sessionSupersetKey(derivedSupersets);
-  const supersetsRef = useRef<{ key: string; map: ReadonlyMap<string, SessionSupersetSlot> }>({
-    key: '',
-    map: NO_SUPERSETS,
-  });
-  if (supersetsRef.current.key !== supersetKey) {
-    supersetsRef.current = { key: supersetKey, map: derivedSupersets };
-  }
-  const supersets = supersetsRef.current.map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the grouping, not the doc
+  const supersets = useMemo(() => derivedSupersets, [supersetKey]);
 
   const live = useRef({ prior, lookup, profile, bootstrap, supersets });
   useEffect(() => {

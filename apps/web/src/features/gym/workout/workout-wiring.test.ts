@@ -28,11 +28,14 @@ import {
   buildAddExerciseAction,
   buildSwapAction,
   currentExerciseId,
+  currentFocus,
   lastTimeSets,
   livePrs,
   loadSlotOf,
   prescriptionFor,
   sessionProgress,
+  setLabelOf,
+  supersetsOf,
   unfinishedSets,
   workingSets,
 } from './workout-model';
@@ -68,7 +71,7 @@ const meta = (id: string): ExerciseMeta => {
   return m;
 };
 
-function plannedWorkout(): NextWorkoutDto {
+function plannedWorkout(groups: (string | null)[] = []): NextWorkoutDto {
   const exercises = ['barbell-bench-press', 'back-squat'].map((id, position) => {
     const p = prescriptionFor({
       meta: meta(id),
@@ -88,7 +91,7 @@ function plannedWorkout(): NextWorkoutDto {
       repMax: p.repMax,
       targetRir: p.targetRir,
       restSec: p.restSec,
-      supersetGroup: null,
+      supersetGroup: groups[position] ?? null,
       notes: null,
       repBucket: '8-12',
       suggestion: p.prescription,
@@ -350,5 +353,73 @@ describe('workout view model', () => {
       profile: { ...PROFILE },
     });
     expect(w.length).toBeGreaterThan(1);
+  });
+});
+
+describe('supersets (rest after the round, auto-advance)', () => {
+  it('A1 → A2 with no rest; the rest starts after the last exercise of the round', () => {
+    const planned = plannedWorkout(['A', 'A']);
+    let doc = startWorkout({ kind: 'planned', workout: planned }, TODAY);
+    const supersets = supersetsOf(doc, { activeRoutine: null, nextWorkout: planned });
+    const [a1, a2] = doc.exercises;
+    expect(supersets.get(a1!.id)).toMatchObject({ label: 'A', index: 0, size: 2 });
+
+    const a1Set1 = workingSets(a1!)[0]!;
+    doc = dispatchWorkout({ type: 'completeSet', seId: a1!.id, setId: a1Set1.id }, { supersets })!;
+    expect(getRestTimer()).toBeNull();
+    expect(currentFocus(doc, supersets)).toEqual({
+      seId: a2!.id,
+      setId: workingSets(a2!)[0]!.id,
+    });
+    expect(currentExerciseId(doc, supersets)).toBe(a2!.id);
+
+    doc = dispatchWorkout(
+      { type: 'completeSet', seId: a2!.id, setId: workingSets(a2!)[0]!.id },
+      { supersets },
+    )!;
+    expect(getRestTimer()).toMatchObject({ seId: a2!.id, durationSec: a2!.restSec });
+    expect(currentFocus(doc, supersets)?.setId).toBe(workingSets(a1!)[1]!.id);
+
+    // Round 2 while resting: the rest clears, focus goes to A2 set 2.
+    doc = dispatchWorkout(
+      { type: 'completeSet', seId: a1!.id, setId: workingSets(a1!)[1]!.id },
+      { supersets },
+    )!;
+    expect(getRestTimer()).toBeNull();
+    expect(currentFocus(doc, supersets)?.seId).toBe(a2!.id);
+  });
+
+  it('no grouping without a routine letter: every working set rests', () => {
+    const doc = startWorkout({ kind: 'planned', workout: plannedWorkout() }, TODAY);
+    const supersets = supersetsOf(doc, { activeRoutine: null, nextWorkout: plannedWorkout() });
+    expect(supersets.size).toBe(0);
+    const bench = doc.exercises[0]!;
+    dispatchWorkout(
+      { type: 'completeSet', seId: bench.id, setId: workingSets(bench)[0]!.id },
+      { supersets },
+    );
+    expect(getRestTimer()).toMatchObject({ seId: bench.id });
+  });
+});
+
+describe('removing a specific set', () => {
+  it('removes a working or warm-up set and keeps positions contiguous', () => {
+    let doc = startWorkout({ kind: 'planned', workout: plannedWorkout() }, TODAY);
+    const bench = doc.exercises[0]!;
+    const second = workingSets(bench)[1]!;
+    expect(setLabelOf(bench, second.id)).toBe('Set 2');
+    doc = dispatchWorkout({ type: 'removeSet', seId: bench.id, setId: second.id })!;
+    const after = doc.exercises[0]!;
+    expect(after.sets.some((s) => s.id === second.id)).toBe(false);
+    expect(after.sets.map((s) => s.position)).toEqual(after.sets.map((_, i) => i));
+
+    const warm = after.sets.find((s) => s.isWarmup);
+    if (!warm) return; // engine produced no warm-ups for this load
+    expect(setLabelOf(after, warm.id)).toBe('Warm-up 1');
+    doc = dispatchWorkout({ type: 'removeSet', seId: bench.id, setId: warm.id })!;
+    const final = doc.exercises[0]!;
+    expect(final.sets).toHaveLength(after.sets.length - 1);
+    expect(final.sets.map((s) => s.position)).toEqual(final.sets.map((_, i) => i));
+    expect(workoutSessionDocSchema.safeParse(doc).success).toBe(true);
   });
 });

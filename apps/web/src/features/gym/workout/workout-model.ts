@@ -16,10 +16,15 @@ import {
   initialState,
   prescribe,
   repBucket,
+  sessionSupersets,
+  supersetGroupLookup,
   warmupSets,
+  workoutFocus,
   type ExerciseLookup,
   type LoadSlot,
+  type SessionSupersetSlot,
   type WorkoutAction,
+  type WorkoutFocus,
 } from '@chefer/utils';
 
 // Pure view-model helpers for the active workout page. All state changes go
@@ -80,11 +85,43 @@ export function isExerciseDone(se: SessionExerciseDoc): boolean {
   return se.skipped || allWorkingSetsDone(se);
 }
 
-/** The exercise to focus: the first one not skipped with a working set left (else the last). */
-export function currentExerciseId(doc: WorkoutSessionDoc): string | null {
+const NO_SUPERSETS: ReadonlyMap<string, SessionSupersetSlot> = new Map();
+
+/**
+ * The session's supersets, derived from the cached routine (the session doc
+ * has no superset field): routine slots sharing a letter AND still adjacent.
+ */
+export function supersetsOf(
+  doc: WorkoutSessionDoc,
+  bootstrap: Pick<GymBootstrap, 'activeRoutine' | 'nextWorkout'> | undefined | null,
+): Map<string, SessionSupersetSlot> {
+  if (!bootstrap) return new Map();
+  return sessionSupersets(doc.exercises, supersetGroupLookup(bootstrap));
+}
+
+/** The next working set to do — walked round by round inside a superset. */
+export function currentFocus(
+  doc: WorkoutSessionDoc,
+  supersets: ReadonlyMap<string, SessionSupersetSlot> = NO_SUPERSETS,
+): WorkoutFocus | null {
+  return workoutFocus(doc, supersets);
+}
+
+/** The exercise to focus: the focus's exercise (else the last one). */
+export function currentExerciseId(
+  doc: WorkoutSessionDoc,
+  supersets: ReadonlyMap<string, SessionSupersetSlot> = NO_SUPERSETS,
+): string | null {
   const list = sortedExercises(doc);
-  const next = list.find((se) => !isExerciseDone(se));
-  return next?.id ?? list[list.length - 1]?.id ?? null;
+  return currentFocus(doc, supersets)?.seId ?? list[list.length - 1]?.id ?? null;
+}
+
+/** "Set 2" / "Warm-up 1" — how a set is named in its card. */
+export function setLabelOf(se: SessionExerciseDoc, setId: string): string | null {
+  const warm = warmupSetsOf(se).findIndex((s) => s.id === setId);
+  if (warm >= 0) return `Warm-up ${warm + 1}`;
+  const work = workingSets(se).findIndex((s) => s.id === setId);
+  return work >= 0 ? `Set ${work + 1}` : null;
 }
 
 /** The first set to tick in an exercise (warm-ups first, then working sets). */
