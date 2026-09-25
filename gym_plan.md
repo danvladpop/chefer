@@ -1066,3 +1066,30 @@ _(append as `n. YYYY-MM-DD: what changed and why`)_
     ownership). Settings shows "Training is paused this week" (derived from `bootstrap.weeks`) with
     no end-early action. "Pause training" (create) is fully wired. Needs a follow-up: add
     `activePause: { id, startDate, endDate, reason } | null` to `GymBootstrap`.
+15. 2026-09-25 (G4-A): Closed #14's follow-up — added `activePause` to `GymBootstrap` (additive;
+    the only DTO change this wave made), filled in `GymBootstrapService` from the pause covering
+    the client's `today`. Mobile and web settings now show "Paused until <date>" with a real
+    **End pause** button everywhere, not just on the device that started it. Removed the web's
+    `pause-store.ts` (browser-local id bookkeeping) entirely — it's dead code now.
+16. 2026-09-25 (G4-A): Web Today (`today-view.tsx`) picked its one contextual offer as
+    `data.offers[0]`, with no priority order — found while verifying the comeback/deload flows end
+    to end (this wave's acceptance criterion). If more than one offer was pending, web and mobile
+    could show different cards. Moved mobile's `pickOffer`/priority list
+    (comeback > deload > stall > recap) into `@chefer/utils` (`gym/offers.ts`) and pointed both
+    platforms at the shared function; `today-helpers.ts` (mobile) re-exports it so existing callers
+    are unaffected.
+17. 2026-09-25 (G4-A): "Log a past workout" (streak repair) needed a `backfillDate` on the active-
+    workout `start()` API on BOTH platforms. Mobile's `use-active-workout.ts` is outside G4-A's file
+    ownership only nominally (it isn't under `workout/**`); web's `apps/web/src/features/gym/workout/
+use-active-workout.ts` genuinely IS another wave's file. Per §9.2 ("keep it minimal and list it
+    in your handoff"), added one additive field to `StartWorkoutInput` on both variants plus a
+    6-line local `localInstant` helper (a duplicate of the mobile reminders one, kept local rather
+    than cross-imported since the file is owned elsewhere) — nothing else in that file changed.
+18. 2026-09-25 (G4-A): `computeGymReminders`'s signature grew past the plan's literal
+    `(profile, activeRoutine, lastSessionDate, today, now)` in two ways: (a) an `activePause`
+    field, needed to actually satisfy "skip days inside a pause" (nothing else in that list carries
+    pause info); (b) an optional `toLocalInstant` test seam, because this repo's Jest environment
+    (jest-expo) pins `Date`/`Intl` to the host machine's own timezone and ignores `process.env.TZ`
+    reassignment mid-process — verified empirically — so DST correctness had to be tested by
+    injecting a synthetic zone rather than forcing a real one. Production always uses the real,
+    device-local `localInstant` (unchanged behavior).
