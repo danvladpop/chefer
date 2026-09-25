@@ -1,6 +1,11 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wizard';
+import {
+  EMPTY_WIZARD_DATA,
+  wizardDataFromPreferences,
+  type WizardData,
+} from '@/features/onboarding/types';
 import { createServerClient } from '@/lib/trpc-server';
 
 // ─── Onboarding Page ──────────────────────────────────────────────────────────
@@ -18,6 +23,7 @@ export default async function OnboardingPage() {
   // onboarding again (idempotent upsert).
   let isPremium = true;
   let hasProfile = false;
+  let initialData: WizardData = EMPTY_WIZARD_DATA;
 
   try {
     const client = createServerClient(cookieHeader);
@@ -28,6 +34,10 @@ export default async function OnboardingPage() {
     if (isPremium) {
       hasProfile = await client.preferences.hasProfile.query();
     }
+
+    // Pre-fill from what's already saved — a blank wizard used to overwrite
+    // saved allergies on Finish (F-ONB-1-1).
+    initialData = wizardDataFromPreferences(await client.preferences.get.query());
   } catch {
     // Swallow API failures and render the wizard (see above). Note that
     // redirect() must stay outside this block — it signals by throwing a
@@ -36,5 +46,5 @@ export default async function OnboardingPage() {
 
   if (hasProfile) redirect('/dashboard');
 
-  return <OnboardingWizard isPremium={isPremium} />;
+  return <OnboardingWizard isPremium={isPremium} initialData={initialData} />;
 }

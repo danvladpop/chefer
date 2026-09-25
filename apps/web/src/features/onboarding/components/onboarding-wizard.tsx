@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { trpc } from '@/lib/trpc';
-import { TOTAL_STEPS, type Goal, type WizardData } from '../types';
+import { EMPTY_WIZARD_DATA, TOTAL_STEPS, type Goal, type WizardData } from '../types';
 import { StepCuisine } from './step-cuisine';
 import { StepDiet } from './step-diet';
 import { StepGoal } from './step-goal';
@@ -18,25 +18,19 @@ import { StepMetrics } from './step-metrics';
 // target is real). The old step 2 was a premium pitch masquerading as
 // onboarding progress (review O-1); the pitch is now a card under step 3.
 
-export function OnboardingWizard({ isPremium }: { isPremium: boolean }) {
+export function OnboardingWizard({
+  isPremium,
+  initialData = EMPTY_WIZARD_DATA,
+}: {
+  isPremium: boolean;
+  /** Saved preferences, so a re-run never starts blank (F-ONB-1-1). */
+  initialData?: WizardData;
+}) {
   const router = useRouter();
   const totalSteps = isPremium ? TOTAL_STEPS : 3;
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<WizardData>({
-    goal: null,
-    biologicalSex: null,
-    age: null,
-    heightCm: null,
-    weightKg: null,
-    activityLevel: null,
-    dietaryRestrictions: [],
-    allergies: [],
-    dislikedIngredients: [],
-    cuisinePreferences: [],
-    mealsPerDay: 3,
-    servingSize: 1,
-  });
+  const [data, setData] = useState<WizardData>(initialData);
 
   const setupMutation = trpc.preferences.setup.useMutation({
     onSuccess: () => router.push('/dashboard'),

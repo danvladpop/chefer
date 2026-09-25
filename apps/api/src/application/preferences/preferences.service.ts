@@ -249,6 +249,22 @@ export interface UpdatePreferencesInput {
   weeklyBudgetEur?: number | null;
 }
 
+/**
+ * Union of the saved and submitted safety entries, saved ones first, with
+ * case-insensitive duplicates dropped ("Peanuts" and "peanuts" are one allergy).
+ */
+export function mergeSafetyList(saved: string[] | undefined, submitted: string[]): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const entry of [...(saved ?? []), ...submitted]) {
+    const key = entry.trim().toLowerCase();
+    if (key === '' || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(entry.trim());
+  }
+  return merged;
+}
+
 export interface PreferencesDto {
   chefProfile: ChefProfile | null;
   dietaryPreferences: DietaryPreferences | null;
@@ -310,6 +326,17 @@ export class PreferencesService {
       goal,
     );
 
+    // Setup never shrinks safety lists. It runs from the onboarding wizard,
+    // which may be re-opened after an upgrade; a wizard that started blank
+    // used to save [] over the user's real allergies (audit F-ONB-1-1).
+    // Removing an allergy is a deliberate edit through updateSafety.
+    const existing = await this.dietaryPreferencesRepo.findByUserId(userId);
+    const safety = {
+      dietaryRestrictions: mergeSafetyList(existing?.dietaryRestrictions, dietaryRestrictions),
+      allergies: mergeSafetyList(existing?.allergies, allergies),
+      dislikedIngredients: mergeSafetyList(existing?.dislikedIngredients, dislikedIngredients),
+    };
+
     try {
       await prisma.$transaction([
         prisma.chefProfile.upsert({
@@ -338,17 +365,13 @@ export class PreferencesService {
           where: { userId },
           create: {
             userId,
-            dietaryRestrictions,
-            allergies,
-            dislikedIngredients,
+            ...safety,
             cuisinePreferences,
             mealsPerDay,
             servingSize,
           },
           update: {
-            dietaryRestrictions,
-            allergies,
-            dislikedIngredients,
+            ...safety,
             cuisinePreferences,
             mealsPerDay,
             servingSize,
