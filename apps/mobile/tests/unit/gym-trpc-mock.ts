@@ -23,6 +23,8 @@ export function createTrpcGymMock() {
         progression: {
           dismissOffer: { useMutation: jest.fn() },
           startDeload: { useMutation: jest.fn() },
+          setOverride: { useMutation: jest.fn() },
+          clearOverride: { useMutation: jest.fn() },
         },
         pause: { create: { useMutation: jest.fn() }, end: { useMutation: jest.fn() } },
       },

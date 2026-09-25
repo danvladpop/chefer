@@ -1096,3 +1096,17 @@ use-active-workout.ts` genuinely IS another wave's file. Per §9.2 ("keep it min
     reassignment mid-process — verified empirically — so DST correctness had to be tested by
     injecting a synthetic zone rather than forcing a real one. Production always uses the real,
     device-local `localInstant` (unchanged behavior).
+22. 2026-09-25 (polish, "notes from last time" + supersets outside the workout): touched the
+    frozen `packages/types/src/gym/dto.ts` — added `SessionSummaryDto.exercises[].notes?: string |
+null`. This is explicitly additive (optional, new field only) per this task's own instructions
+    and CLAUDE.md's platform-parity rule, so a shipped mobile client that doesn't send/read it keeps
+    working unchanged. Filled by `toSessionSummary` (`@chefer/utils/gym/session.ts`); no router or
+    schema change. Supersets outside the workout (Routine tab day cards, Today's "Next up") reuse
+    the existing `supersets.ts` helper and, on web, the existing `SupersetHeading` component — no
+    new superset logic was added, only new call sites.
+23. 2026-09-25 (polish): `apps/web/vitest.config.mts` had no React plugin, so this was the first
+    component-render test (`@testing-library/react` + `@vitest-environment jsdom`) written for
+    `apps/web` — `@vitejs/plugin-react` was already a devDependency but unwired. Added
+    `plugins: [react()]` so JSX resolves under Vitest's esbuild transform; this only affects test
+    runs, not the Next.js build (which already uses its own JSX transform). `NextUpCard` in
+    `today-view.tsx` was exported (was module-private) so it could be rendered in isolation.

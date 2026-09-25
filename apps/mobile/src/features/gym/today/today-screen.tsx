@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  Text as RNText,
+  ScrollView,
+  View,
+} from 'react-native';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type { GymBootstrap, GymOffer, NextWorkoutDto } from '@chefer/types';
@@ -9,6 +16,8 @@ import {
   cn,
   equipmentProfileOf,
   progressionKey,
+  supersetRuns,
+  supersetSlot,
   type ProgressionEntry,
 } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
@@ -273,16 +282,61 @@ export function TodayScreen() {
               </Text>
             </View>
             <View className="gap-1.5">
-              {nextWorkout.exercises.map((ex) => (
-                <View key={ex.routineExerciseId} className="flex-row items-center justify-between">
-                  <Text numberOfLines={1} className="min-w-0 flex-1 pr-2 text-sm">
-                    {libraryLookup(bootstrap)(ex.exerciseId)?.name ?? ex.exerciseId}
-                  </Text>
-                  <Text variant="muted" className="text-xs">
-                    {formatTarget(ex, bootstrap, profile.unit)}
-                  </Text>
-                </View>
-              ))}
+              {(() => {
+                const runs = supersetRuns(nextWorkout.exercises);
+                return nextWorkout.exercises.map((ex, i) => {
+                  const slot = supersetSlot(nextWorkout.exercises, i);
+                  const run = slot?.position === 0 ? runs.find((r) => r.start === i) : undefined;
+                  const lastRest = run ? nextWorkout.exercises[run.end]?.restSec : undefined;
+                  return (
+                    <View key={ex.routineExerciseId} className="gap-1">
+                      {run && slot ? (
+                        <View
+                          testID={`gym-today-next-up-superset-${slot.label}`}
+                          className="flex-row items-center gap-2 pt-1"
+                        >
+                          <Text className="text-xs font-semibold text-violet-800">
+                            Superset {slot.label}
+                          </Text>
+                          <Text
+                            variant="muted"
+                            className="min-w-0 flex-1 text-xs"
+                            numberOfLines={1}
+                          >
+                            {lastRest ?? ex.restSec} s rest after each round
+                          </Text>
+                        </View>
+                      ) : null}
+                      <View
+                        className={cn(
+                          'flex-row items-center justify-between',
+                          slot && 'border-l-4 border-l-violet-500 pl-2',
+                        )}
+                      >
+                        <View className="min-w-0 flex-1 flex-row items-center gap-1.5 pr-2">
+                          {slot ? (
+                            <View className="rounded bg-violet-100 px-1 py-0.5">
+                              <RNText
+                                testID={`gym-today-next-up-${ex.routineExerciseId}-superset`}
+                                className="text-[10px] font-bold text-violet-800"
+                              >
+                                {slot.label}
+                                {slot.position + 1}
+                              </RNText>
+                            </View>
+                          ) : null}
+                          <Text numberOfLines={1} className="min-w-0 flex-1 text-sm">
+                            {libraryLookup(bootstrap)(ex.exerciseId)?.name ?? ex.exerciseId}
+                          </Text>
+                        </View>
+                        <Text variant="muted" className="text-xs">
+                          {formatTarget(ex, bootstrap, profile.unit)}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                });
+              })()}
             </View>
             <Button testID="gym-today-start" onPress={() => startPlanned(nextWorkout)}>
               Start workout

@@ -146,6 +146,8 @@ export interface SessionSummaryDto {
     exerciseId: string;
     skipped: boolean;
     lastSetRir: Rir | null;
+    /** Additive (mobile in stores may not send it): the note typed for this exercise that session. */
+    notes?: string | null;
     sets: { weightKg: number; reps: number; isWarmup: boolean; completed: boolean }[];
   }[];
 }

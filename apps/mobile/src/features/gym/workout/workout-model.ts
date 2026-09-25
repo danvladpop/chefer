@@ -238,6 +238,19 @@ export function lastTimeSets(
   return exerciseHistory(exerciseId, prior, 1)[0]?.sets ?? [];
 }
 
+/** The most recent non-empty note typed for this exercise ("Last time: seat 4, grip wide"). */
+export function lastNoteFor(
+  exerciseId: string,
+  prior: readonly SessionSummaryDto[],
+): string | null {
+  for (const s of prior) {
+    const ex = s.exercises.find((e) => e.exerciseId === exerciseId && !e.skipped);
+    const note = ex?.notes?.trim();
+    if (note) return note;
+  }
+  return null;
+}
+
 // ─── PRs ──────────────────────────────────────────────────────────────────────
 
 const PR_RANK: Record<PrKind, number> = { e1rm: 3, weight: 2, reps: 1 };

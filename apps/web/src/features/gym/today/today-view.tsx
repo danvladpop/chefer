@@ -19,7 +19,8 @@ import {
 } from 'lucide-react';
 import type { GymOffer, NextWorkoutDto, WeightUnit } from '@chefer/types';
 import { Button } from '@chefer/ui';
-import { cn, nextDayIdAfter, pickOffer, type ExerciseLookup } from '@chefer/utils';
+import { cn, nextDayIdAfter, pickOffer, supersetSlot, type ExerciseLookup } from '@chefer/utils';
+import { SupersetHeading } from '../routine/components/SupersetHeading';
 import { prescriptionText, shortDate } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
 import { SyncIndicator } from '../shared/sync-indicator';
@@ -327,7 +328,7 @@ function ResumeBanner({
   );
 }
 
-function NextUpCard({
+export function NextUpCard({
   next,
   unit,
   lookup,
@@ -372,16 +373,36 @@ function NextUpCard({
       </div>
 
       <ul className="mt-4 divide-y">
-        {exercises.map((ex) => {
+        {exercises.map((ex, index) => {
           const meta = lookup(ex.exerciseId);
+          const slot = supersetSlot(exercises, index);
           return (
-            <li key={ex.routineExerciseId} className="flex items-center justify-between gap-3 py-2">
-              <span className="min-w-0 truncate text-sm text-gray-800">
-                {meta?.name ?? 'Exercise'}
-              </span>
-              <span className="shrink-0 text-xs tabular-nums text-gray-500">
-                {prescriptionText(ex.suggestion, unit, meta?.loadType, meta?.isTimed)}
-              </span>
+            <li key={ex.routineExerciseId}>
+              <SupersetHeading exercises={exercises} index={index} />
+              <div
+                className={cn(
+                  'flex items-center justify-between gap-3 py-2',
+                  slot && 'border-l-4 border-l-violet-500 pl-2',
+                )}
+              >
+                <span className="flex min-w-0 items-center gap-1.5">
+                  {slot && (
+                    <span
+                      className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-bold text-violet-800"
+                      data-testid="gym-next-up-superset-chip"
+                    >
+                      {slot.label}
+                      {slot.position + 1}
+                    </span>
+                  )}
+                  <span className="min-w-0 truncate text-sm text-gray-800">
+                    {meta?.name ?? 'Exercise'}
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-gray-500">
+                  {prescriptionText(ex.suggestion, unit, meta?.loadType, meta?.isTimed)}
+                </span>
+              </div>
             </li>
           );
         })}

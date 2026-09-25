@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text as RNText, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   TEMPLATE_BY_KEY,
@@ -8,7 +8,15 @@ import {
   type RoutineDayDto,
 } from '@chefer/types';
 import { Badge, Button, Card, EmptyState, Screen, Text } from '@chefer/ui-mobile';
-import { formatLoad, repBucket, validateRoutine, volumeByGroup } from '@chefer/utils';
+import {
+  cn,
+  formatLoad,
+  repBucket,
+  supersetRuns,
+  supersetSlot,
+  validateRoutine,
+  volumeByGroup,
+} from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { dismissHint, getDismissedHints } from '../../src/features/gym/routine/hints-storage';
 import type { SetOverrideInput } from '../../src/features/gym/routine/override-payload';
@@ -61,49 +69,85 @@ function DayCard({
           </Badge>
         ) : null}
       </View>
-      <View className="mt-3 gap-3">
-        {day.exercises.map((ex) => {
-          const meta = lookup(ex.exerciseId);
-          const bucket = repBucket(ex.repMin, ex.repMax);
-          const progression = progressions.find(
-            (p) => p.exerciseId === ex.exerciseId && p.repBucket === bucket,
-          );
-          const canEditTarget = meta !== undefined && progression !== undefined;
-          return (
-            <Pressable
-              key={ex.id}
-              testID={`routine-exercise-${ex.id}`}
-              accessibilityRole={canEditTarget ? 'button' : undefined}
-              disabled={!canEditTarget}
-              onPress={() => {
-                if (meta && progression) onOverridePress({ exercise: meta, progression });
-              }}
-              className="min-h-11 justify-center gap-0.5"
-            >
-              <View className="flex-row items-center justify-between gap-2">
-                <Text className="min-w-0 flex-1 font-medium" numberOfLines={1}>
-                  {meta?.name ?? ex.exerciseId}
-                </Text>
-                <Text variant="muted" className="text-xs">
-                  {ex.sets} × {ex.repMin}–{ex.repMax}
-                </Text>
-              </View>
-              {progression && meta ? (
-                <View className="flex-row items-center gap-2">
-                  <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={1}>
-                    Next: {formatLoad(progression.suggestion.weightKg, unit, meta.loadType)} ×{' '}
-                    {progression.suggestion.reps.join('/')}
-                  </Text>
-                  {progression.override ? (
-                    <Badge testID={`routine-exercise-${ex.id}-edited`} variant="secondary">
-                      Edited
-                    </Badge>
+      <View className="mt-3 gap-1">
+        {(() => {
+          const runs = supersetRuns(day.exercises);
+          return day.exercises.map((ex, i) => {
+            const meta = lookup(ex.exerciseId);
+            const bucket = repBucket(ex.repMin, ex.repMax);
+            const progression = progressions.find(
+              (p) => p.exerciseId === ex.exerciseId && p.repBucket === bucket,
+            );
+            const canEditTarget = meta !== undefined && progression !== undefined;
+            const slot = supersetSlot(day.exercises, i);
+            const run = slot?.position === 0 ? runs.find((r) => r.start === i) : undefined;
+            const lastRest = run ? day.exercises[run.end]?.restSec : undefined;
+            return (
+              <View key={ex.id} className="gap-1">
+                {run && slot ? (
+                  <View
+                    testID={`routine-day-${day.id}-superset-${slot.label}`}
+                    className="flex-row items-center gap-2 pt-2"
+                  >
+                    <Text className="text-sm font-semibold text-violet-800">
+                      Superset {slot.label}
+                    </Text>
+                    <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={1}>
+                      {lastRest ?? ex.restSec} s rest after each round
+                    </Text>
+                  </View>
+                ) : null}
+                <Pressable
+                  testID={`routine-exercise-${ex.id}`}
+                  accessibilityRole={canEditTarget ? 'button' : undefined}
+                  disabled={!canEditTarget}
+                  onPress={() => {
+                    if (meta && progression) onOverridePress({ exercise: meta, progression });
+                  }}
+                  className={cn(
+                    'min-h-11 justify-center gap-0.5 py-1',
+                    slot && 'border-l-4 border-l-violet-500 pl-2',
+                  )}
+                >
+                  <View className="flex-row items-center justify-between gap-2">
+                    <View className="min-w-0 flex-1 flex-row items-center gap-1.5">
+                      {slot ? (
+                        <View className="rounded bg-violet-100 px-1.5 py-0.5">
+                          <RNText
+                            testID={`routine-exercise-${ex.id}-superset`}
+                            className="text-xs font-bold text-violet-800"
+                          >
+                            {slot.label}
+                            {slot.position + 1}
+                          </RNText>
+                        </View>
+                      ) : null}
+                      <Text className="min-w-0 flex-1 font-medium" numberOfLines={1}>
+                        {meta?.name ?? ex.exerciseId}
+                      </Text>
+                    </View>
+                    <Text variant="muted" className="text-xs">
+                      {ex.sets} × {ex.repMin}–{ex.repMax}
+                    </Text>
+                  </View>
+                  {progression && meta ? (
+                    <View className="flex-row items-center gap-2">
+                      <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={1}>
+                        Next: {formatLoad(progression.suggestion.weightKg, unit, meta.loadType)} ×{' '}
+                        {progression.suggestion.reps.join('/')}
+                      </Text>
+                      {progression.override ? (
+                        <Badge testID={`routine-exercise-${ex.id}-edited`} variant="secondary">
+                          Edited
+                        </Badge>
+                      ) : null}
+                    </View>
                   ) : null}
-                </View>
-              ) : null}
-            </Pressable>
-          );
-        })}
+                </Pressable>
+              </View>
+            );
+          });
+        })()}
         {day.exercises.length === 0 ? (
           <Text variant="muted" className="text-sm">
             No exercises yet.
