@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Link, router, useFocusEffect } from 'expo-router';
 import { Card, Screen, Text } from '@chefer/ui-mobile';
+import { localDateStr } from '@chefer/utils';
 import { ChefReviewBanner } from '../../src/features/coach/chef-review-banner';
 import { WeightCard } from '../../src/features/coach/weight-card';
 import { HeroMealCard } from '../../src/features/dashboard/components/hero-meal-card';
@@ -26,7 +27,16 @@ import { trpc } from '../../src/lib/trpc';
 // arrives with M2-9/M2-10; the recharts weight chart needs an RN chart lib),
 // and the calorie ring is a bar (see nutrition-summary.tsx).
 export default function HomeScreen() {
-  const { data: d, isLoading, refetch, isRefetching } = trpc.dashboard.summary.useQuery();
+  // The device's own day and hour decide "today" and the next meal (F-DASH-1-1).
+  const {
+    data: d,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = trpc.dashboard.summary.useQuery({
+    localDate: localDateStr(),
+    localHour: new Date().getHours(),
+  });
 
   // Tab screens stay mounted, so without this the dashboard shows stale data
   // after the plan changes on another tab (React Query only refetches on

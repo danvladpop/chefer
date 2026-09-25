@@ -170,3 +170,13 @@ export function isPast(date: DateInput): boolean {
 export function isFuture(date: DateInput): boolean {
   return isAfter(toDate(date), new Date());
 }
+
+/**
+ * The calendar date in the device's own time zone, as YYYY-MM-DD. Day-based
+ * APIs (tracker, dashboard) must get this, never `toISOString()`, which is the
+ * UTC date: US evenings logged to tomorrow and NZ mornings to yesterday
+ * (audit F-TRK-1-1).
+ */
+export function localDateStr(date: Date = new Date()): string {
+  return format(date, 'yyyy-MM-dd');
+}

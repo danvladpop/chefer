@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button, Screen, Text } from '@chefer/ui-mobile';
-import { cn, formatQuantity, guessMealType, parseStepDuration } from '@chefer/utils';
+import { cn, formatQuantity, guessMealType, localDateStr, parseStepDuration } from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { trpc } from '../../src/lib/trpc';
@@ -14,9 +14,8 @@ import { trpc } from '../../src/lib/trpc';
 // awake, ingredient checklist, and finish → tracker log (same append
 // semantics as web; rebalance banner hand-off is web-only for now).
 
-function todayIso(): string {
-  return new Date().toISOString().split('T')[0] ?? '';
-}
+// Local calendar day, not the UTC one (F-TRK-1-1).
+const todayIso = (): string => localDateStr();
 
 function StepTimer({ seconds }: { seconds: number }) {
   const [remaining, setRemaining] = useState(seconds);

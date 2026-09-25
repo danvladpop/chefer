@@ -14,6 +14,7 @@ import { format, parseISO } from 'date-fns';
 import { ArrowRight, Clock, Flame, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { ErrorState } from '@chefer/ui';
+import { localDateStr } from '@chefer/utils';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -27,7 +28,11 @@ const MEAL_COLOURS: Record<string, string> = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { data, isLoading, isError, isRefetching, refetch } = trpc.dashboard.summary.useQuery();
+  // The device's own day and hour decide "today" and the next meal (F-DASH-1-1).
+  const { data, isLoading, isError, isRefetching, refetch } = trpc.dashboard.summary.useQuery({
+    localDate: localDateStr(),
+    localHour: new Date().getHours(),
+  });
   const { data: weekSummary } = trpc.tracker.weeklySummary.useQuery(undefined, {
     staleTime: 60_000,
   });
