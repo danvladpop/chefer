@@ -86,6 +86,7 @@ function makeRepo() {
     upsertRecipes: vi.fn().mockResolvedValue(undefined),
     findRecipesByIds: vi.fn().mockResolvedValue([]),
     findRecipeById: vi.fn().mockResolvedValue(null),
+    isRecipeInUserPlans: vi.fn().mockResolvedValue(false),
     findRecipeImagesByNames: vi.fn().mockResolvedValue(new Map<string, string>()),
     findRecipesBySource: vi.fn().mockResolvedValue([]),
     createPlan: vi.fn().mockResolvedValue({
@@ -728,5 +729,94 @@ describe('MealPlanService week templates', () => {
     await expect(service.renameTemplate('u1', 'nope', 'X')).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
+  });
+});
+
+// ─── Audit S1 fixes (2026-09-25) ──────────────────────────────────────────────
+
+const PRIVATE_RECIPE = {
+  id: 'private-1',
+  name: 'Grandma soup',
+  description: 'd',
+  ingredients: [],
+  instructions: ['cook'],
+  nutritionInfo: { calories: 300, protein: 10, carbs: 30, fat: 10, fiber: 2 },
+  cuisineType: 'romanian',
+  dietaryTags: [],
+  prepTimeMins: 10,
+  cookTimeMins: 20,
+  servings: 2,
+  imageUrl: null,
+  imageStatus: 'DONE',
+  source: 'MANUAL',
+  creatorId: 'victim',
+};
+
+describe('MealPlanService — recipe visibility (F-REC-2-1, F-PLAN-3-1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("getRecipe: another user's private recipe is NOT_FOUND", async () => {
+    const repo = makeRepo();
+    repo.findRecipeById.mockResolvedValue(PRIVATE_RECIPE);
+    const service = new MealPlanService(repo);
+
+    await expect(service.getRecipe('attacker', 'private-1')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(service.getRecipe('victim', 'private-1')).resolves.toMatchObject({
+      id: 'private-1',
+    });
+  });
+
+  it("replaceRecipe: refuses to copy another user's private recipe into a plan", async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({ id: 'plan1', days: [] });
+    repo.findRecipeById.mockResolvedValue(PRIVATE_RECIPE);
+    const service = new MealPlanService(repo);
+
+    await expect(
+      service.replaceRecipe('attacker', 'plan1', 0, 'dinner', 'private-1'),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(repo.updateDayMeal).not.toHaveBeenCalled();
+  });
+
+  it("generate: drops a pinned favourite that is another user's private recipe", async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([
+      { recipe: PRIVATE_RECIPE } as never,
+    ]);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+
+    await service.generate('attacker', 0, true);
+
+    const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
+    expect(input.pinnedDishNames).toEqual([]);
+  });
+});
+
+describe('MealPlanService — server-minted AI recipe ids (F-PLAN-1-1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([]);
+  });
+
+  it('never persists a generated recipe under the LLM slug id', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+
+    await service.generate('user1', 0, true);
+
+    const stored = repo.upsertRecipes.mock.calls[0]![0] as { id: string; name: string }[];
+    expect(stored).toHaveLength(1);
+    expect(stored[0]!.name).toBe('Miso Salmon');
+    expect(stored[0]!.id).not.toBe('ai-r1');
   });
 });

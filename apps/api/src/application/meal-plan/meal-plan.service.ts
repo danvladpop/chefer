@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { TRPCError } from '@trpc/server';
 import {
   AiCallType,
@@ -27,7 +28,9 @@ import { computeHouseholdContext, mergeHouseholdSafety } from '../household/hous
 import { pairLeftovers } from '../pantry/leftovers.js';
 import { computeUsedPantryItemsForUser, getUseFirstIngredients } from '../pantry/pantry-context.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
+import { findRecipeVisibleTo, isRecipeOpenTo } from '../recipe/recipe-access.js';
 import { estimatePlanCostEur, type PlanCostEstimate } from '../shared/plan-cost.js';
+import { withServerRecipeIds } from './recipe-ids.js';
 
 // ─── Summary DTO ──────────────────────────────────────────────────────────────
 
@@ -181,7 +184,7 @@ export class MealPlanService {
     }
     // 1. Load user preferences + learning signals (P1-1: pinned favourites
     // and recent ratings feed the generation) + household members (F2).
-    const [chefProfile, dietaryPrefs, pinnedFavourites, ratingSignals, householdMembers] =
+    const [chefProfile, dietaryPrefs, pinnedCandidates, ratingSignals, householdMembers] =
       await Promise.all([
         chefProfileRepository.findByUserId(userId),
         dietaryPreferencesRepository.findByUserId(userId),
@@ -196,6 +199,10 @@ export class MealPlanService {
         message: 'Complete your profile setup before generating a meal plan.',
       });
     }
+
+    // A pin must be a recipe the user may see — never another user's private
+    // recipe favourited by id (recipe-access.ts).
+    const pinnedFavourites = await this.visiblePins(userId, pinnedCandidates);
 
     const likedDishes = ratingSignals
       .filter((s) => s.rating >= 4)
@@ -285,6 +292,10 @@ export class MealPlanService {
         console.error('Calorie-correction retry failed; keeping first plan:', err);
       }
     }
+
+    // 3a'. Server-minted recipe ids — never store under the LLM's name slug,
+    // which could collide with another user's row (see recipe-ids.ts).
+    weekPlan = withServerRecipeIds(weekPlan);
 
     // Log AI call (fire-and-forget — never crash the server if logging fails)
     prisma.aiCallLog
@@ -415,6 +426,21 @@ export class MealPlanService {
         usedPantryItems: await computeUsedPantryItemsForUser(userId, weekPlan.days),
       },
     };
+  }
+
+  /** Drops pinned favourites the user may no longer see (recipe-access.ts). */
+  private async visiblePins(
+    userId: string,
+    pins: FavouriteRecipeWithRecipe[],
+  ): Promise<FavouriteRecipeWithRecipe[]> {
+    const visible = await Promise.all(
+      pins.map(
+        async (f) =>
+          isRecipeOpenTo(f.recipe, userId) ||
+          (await this.repo.isRecipeInUserPlans(userId, f.recipe.id)),
+      ),
+    );
+    return pins.filter((_, i) => visible[i]);
   }
 
   /**
@@ -680,11 +706,12 @@ export class MealPlanService {
   }
 
   /**
-   * Returns a single recipe by ID. Accessible to any authenticated user so
-   * recipe detail pages work without a meal plan.
+   * Returns a single recipe by ID, if the user may see it (recipe-access.ts):
+   * open recipes work without a meal plan; another user's private recipe is
+   * NOT_FOUND.
    */
-  async getRecipe(recipeId: string): Promise<RecipeDto> {
-    const row = await this.repo.findRecipeById(recipeId);
+  async getRecipe(userId: string, recipeId: string): Promise<RecipeDto> {
+    const row = await findRecipeVisibleTo(userId, recipeId, this.repo);
     if (!row) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     }
@@ -747,6 +774,9 @@ export class MealPlanService {
         message: aiFailureMessage(err, 'Failed to swap recipe. Please try again.'),
       });
     }
+
+    // Server-minted id, as for generated weeks (recipe-ids.ts).
+    newRecipe = { ...newRecipe, id: randomUUID() };
 
     prisma.aiCallLog
       .create({ data: { userId, callType: AiCallType.RECIPE_SWAP } })
@@ -835,7 +865,7 @@ export class MealPlanService {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
     }
 
-    const recipe = await this.repo.findRecipeById(recipeId);
+    const recipe = await findRecipeVisibleTo(userId, recipeId, this.repo);
     if (!recipe) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     }

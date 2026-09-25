@@ -48,18 +48,17 @@ export const userRouter = router({
   }),
 
   /**
-   * Get a user by ID. Requires authentication — the returned DTO includes
-   * email and name, which must not be readable anonymously.
+   * Get a user by ID. Admin only — the DTO carries email, name, role and
+   * tier, so letting any signed-in user call it leaked every account's
+   * details (audit F-ADM-1-1 / F-X-4-2). Users read themselves via `me`.
    */
-  getById: protectedProcedure
-    .input(z.object({ id: z.string().cuid() }))
-    .query(async ({ input }) => {
-      const user = await userService.findById(input.id);
-      if (!user) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
-      }
-      return user;
-    }),
+  getById: adminProcedure.input(z.object({ id: z.string().cuid() })).query(async ({ input }) => {
+    const user = await userService.findById(input.id);
+    if (!user) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+    }
+    return user;
+  }),
 
   /**
    * List users with pagination and filtering. Admin only.

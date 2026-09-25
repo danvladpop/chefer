@@ -855,7 +855,7 @@ Maps domain errors (e.g., `UserNotFoundError`) to tRPC error codes.
 
 ### PreferencesService (application layer)
 
-`apps/api/src/application/preferences/preferences.service.ts`. Methods: `hasProfile`, `get`, `setup`, `update` (backing `preferences.updateSafety`, `preferences.updateTargets` and the every-tier `preferences.saveProfileBasics` — the split is enforced at the router's auth level, P1-2 / ux-fixes-plan.md 3.1).
+`apps/api/src/application/preferences/preferences.service.ts`. Methods: `hasProfile`, `get`, `setup` (never shrinks the safety lists — it unions saved and submitted allergies/restrictions/dislikes, since the onboarding wizard can be re-opened after an upgrade; F-ONB-1-1), `update` (backing `preferences.updateSafety`, `preferences.updateTargets` and the every-tier `preferences.saveProfileBasics` — the split is enforced at the router's auth level, P1-2 / ux-fixes-plan.md 3.1).
 Orchestrates `IChefProfileRepository` + `IDietaryPreferencesRepository` inside a Prisma `$transaction`. Recomputes `dailyCalorieTarget` via Mifflin-St Jeor on every update. Accepts `deliveryAddress` and `deliveryCurrency` fields.
 
 ### CoachService (application layer)
@@ -1143,7 +1143,7 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | Procedure                       | Access    | Type     | Input                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------- | --------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `user.me`                       | Protected | Query    | —                                                                                                                                                                                                                                                                                                                                                          |
-| `user.getById`                  | Protected | Query    | `{ id: cuid }`                                                                                                                                                                                                                                                                                                                                             |
+| `user.getById`                  | Admin     | Query    | `{ id: cuid }`                                                                                                                                                                                                                                                                                                                                             |
 | `user.list`                     | Admin     | Query    | `{ page, limit, search?, role?, sortBy, sortOrder }`                                                                                                                                                                                                                                                                                                       |
 | `user.create`                   | Admin     | Mutation | `{ email, name?, password, role? }`                                                                                                                                                                                                                                                                                                                        |
 | `user.update`                   | Protected | Mutation | `{ id, name?, email?, role?, image? }`                                                                                                                                                                                                                                                                                                                     |
@@ -1315,6 +1315,12 @@ hidden, leaving no way back to the login form.
 | --------- | -------------------------------------------------------------------------------------------------------- |
 | `FREE`    | Curated generic meal plans + swaps (random from pool); profile personalisation locked behind upgrade CTA |
 | `PREMIUM` | AI-personalised plans and swaps, full preferences/onboarding. ADMIN role counts as premium               |
+
+**Resource visibility** (ownership checks inside services, per Architecture Rule 5):
+
+- **Recipes** — `apps/api/src/application/recipe/recipe-access.ts`. `MANUAL` recipes (written or imported by a user) are private to their creator; `AI` and `CURATED` recipes are open. A recipe already in one of the caller's own plans stays visible whoever made it (`mealPlanRepository.isRecipeInUserPlans`). `mealPlan.getRecipe`, `mealPlan.replaceRecipe`, `recipe.toggleFavourite` (on save), `recipe.toggleUseInNextPlan` (on pin), `recipe.rate` and pinned-favourite placement in `generate` all apply it and answer `NOT_FOUND` for someone else's private recipe; the Saved list never returns one (audit 2026-09-25, F-REC-2-1/F-REC-2-2).
+- **AI recipe ids are server-minted** — `application/meal-plan/recipe-ids.ts` replaces LLM slug ids with UUIDs before persisting, so a generated recipe can never land on (and inherit the ingredients of) an existing row (F-PLAN-1-1).
+- **Users** — `user.getById` is `adminProcedure`; users read themselves via `user.me` (F-ADM-1-1).
 
 **Notes:**
 
