@@ -28,6 +28,8 @@ export interface GymExportResult {
 
 const MAX_ROWS = 50_000;
 
+// The second weight column only when it differs from kg (a kg user got
+// "Weight (kg),Weight (kg)" — audit F-GYM-11-4).
 const HEADER = (unit: WeightUnit): string[] => [
   'Date',
   'Session',
@@ -35,7 +37,7 @@ const HEADER = (unit: WeightUnit): string[] => [
   'Set #',
   'Warm-up',
   'Weight (kg)',
-  `Weight (${unitLabel(unit)})`,
+  ...(unit === 'KG' ? [] : [`Weight (${unitLabel(unit)})`]),
   'Reps',
   'RIR',
   'Notes',
@@ -61,7 +63,10 @@ export class GymExportService {
 
     const rows: string[][] = [];
     outer: for (const session of sessions) {
-      const exercises = [...session.exercises].sort((a, b) => a.position - b.position);
+      // Skipped exercises aren't history (audit F-GYM-11-1).
+      const exercises = [...session.exercises]
+        .filter((e) => !e.skipped)
+        .sort((a, b) => a.position - b.position);
       for (const exercise of exercises) {
         for (const row of exerciseRows(
           exercise,
@@ -92,14 +97,18 @@ function exerciseRows(
   exerciseName: string,
   unit: WeightUnit,
 ): string[][] {
-  const sets = [...exercise.sets].sort((a, b) => a.position - b.position);
+  // Only sets the user ticked: unticked planned sets used to be exported as
+  // performed (85 rows for 14 real sets — audit F-GYM-11-1).
+  const sets = [...exercise.sets]
+    .filter((s) => s.completedAt !== null)
+    .sort((a, b) => a.position - b.position);
   const lastWorkingId = [...sets].reverse().find((s) => !s.isWarmup)?.id ?? null;
   return sets.map((set, index) => [
     exerciseName,
     String(set.position + 1),
     set.isWarmup ? 'y' : 'n',
     formatLoadNumber(set.weightKg, 'KG'),
-    formatLoadNumber(set.weightKg, unit),
+    ...(unit === 'KG' ? [] : [formatLoadNumber(set.weightKg, unit)]),
     String(set.reps),
     set.id === lastWorkingId ? formatRir(exercise.lastSetRir) : '',
     index === 0 ? (exercise.notes ?? '') : '',
@@ -115,8 +124,14 @@ function exportFilename(): string {
   return `chefer-gym-history-${new Date().toISOString().slice(0, 10)}.csv`;
 }
 
-/** RFC 4180 escaping: quote a field that contains a comma, quote or newline. */
-function escapeCsvField(value: string): string {
+/**
+ * RFC 4180 escaping (quote a field containing a comma, quote or newline),
+ * plus formula neutralising: a text field starting with = + - @ is prefixed
+ * with ' so spreadsheets don't execute it (audit F-GYM-11-4). Plain numbers
+ * are left alone.
+ */
+function escapeCsvField(raw: string): string {
+  const value = /^[=+\-@]/.test(raw) && !/^-?\d+(\.\d+)?$/.test(raw) ? `'${raw}` : raw;
   if (/[",\r\n]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
   }

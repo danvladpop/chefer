@@ -79,9 +79,7 @@ describe('GymExportService.exportCsv', () => {
     const { csv, filename } = await service.exportCsv(USER);
 
     const lines = csv.split('\r\n');
-    expect(lines[0]).toBe(
-      'Date,Session,Exercise,Set #,Warm-up,Weight (kg),Weight (kg),Reps,RIR,Notes',
-    );
+    expect(lines[0]).toBe('Date,Session,Exercise,Set #,Warm-up,Weight (kg),Reps,RIR,Notes');
     expect(lines).toHaveLength(2); // header + the fixture's one set
     expect(filename).toMatch(/^chefer-gym-history-\d{4}-\d{2}-\d{2}\.csv$/);
   });
@@ -210,14 +208,15 @@ describe('GymExportService.exportCsv', () => {
     expect(rows).toHaveLength(3);
     // Warm-up row: no RIR, carries the notes (it's the first row for the exercise).
     expect(rows[0]?.[4]).toBe('y');
-    expect(rows[0]?.[8]).toBe('');
-    expect(rows[0]?.[9]).toBe('Felt strong, comma, and "quoted" text');
+    // KG profile: one weight column, so RIR is column 7 and Notes column 8.
+    expect(rows[0]?.[7]).toBe('');
+    expect(rows[0]?.[8]).toBe('Felt strong, comma, and "quoted" text');
     // Middle working set: no RIR, no notes.
+    expect(rows[1]?.[7]).toBe('');
     expect(rows[1]?.[8]).toBe('');
-    expect(rows[1]?.[9]).toBe('');
     // Last working set: RIR present.
     expect(rows[2]?.[4]).toBe('n');
-    expect(rows[2]?.[8]).toBe('2');
+    expect(rows[2]?.[7]).toBe('2');
   });
 
   it('renders 3+ for an RIR of 3 (the "3+" chip)', async () => {
@@ -229,7 +228,7 @@ describe('GymExportService.exportCsv', () => {
 
     const { csv } = await service.exportCsv(USER);
     const row = parseCsvLine(csv.split('\r\n')[1] ?? '');
-    expect(row[8]).toBe('3+');
+    expect(row[7]).toBe('3+');
   });
 
   it('escapes commas, quotes and newlines in session and exercise names', async () => {
@@ -264,7 +263,9 @@ describe('GymExportService.exportCsv', () => {
     const { service } = setup({ sessions: [sessionRow(doc)], unit: null });
 
     const { csv } = await service.exportCsv(USER);
-    expect(csv.split('\r\n')[0]).toContain('Weight (kg),Weight (kg)');
+    // One kg column — no duplicate "Weight (kg),Weight (kg)" (F-GYM-11-4).
+    expect(csv.split('\r\n')[0]).toContain('Weight (kg),Reps');
+    expect(csv.split('\r\n')[0]).not.toContain('Weight (kg),Weight (kg)');
   });
 
   it('caps the export at 50k rows', async () => {
@@ -310,5 +311,42 @@ describe('GymExportService.exportCsv', () => {
     const { csv } = await service.exportCsv(USER);
     const lines = csv.split('\r\n');
     expect(lines).toHaveLength(50_001); // header + 50,000 rows
+  });
+});
+
+describe('GymExportService.exportCsv — only what was done (audit F-GYM-11-1)', () => {
+  it('drops unticked sets and skipped exercises', async () => {
+    const doc = sessionDoc();
+    const base = doc.exercises[0];
+    if (!base) throw new Error('fixture missing an exercise');
+    const done = base.sets[0];
+    if (!done) throw new Error('fixture missing a set');
+    doc.exercises = [
+      {
+        ...base,
+        sets: [
+          done,
+          { ...done, id: 'planned-1', position: 1, completedAt: null },
+          { ...done, id: 'planned-2', position: 2, completedAt: null },
+        ],
+      },
+      { ...base, id: 'se-skipped', position: 1, skipped: true },
+    ];
+    const { service } = setup({ sessions: [sessionRow(doc)] });
+
+    const { csv } = await service.exportCsv(USER);
+
+    expect(csv.split('\r\n')).toHaveLength(2); // header + the one ticked set
+  });
+
+  it('neutralises spreadsheet formulas in text fields but keeps numbers', async () => {
+    const doc = sessionDoc({ name: '=HYPERLINK("evil")' });
+    const { service } = setup({ sessions: [sessionRow(doc)] });
+
+    const { csv } = await service.exportCsv(USER);
+    const row = parseCsvLine(csv.split('\r\n')[1] ?? '');
+
+    expect(row[1]).toBe(`'=HYPERLINK("evil")`);
+    expect(row[5]).toMatch(/^\d/);
   });
 });
