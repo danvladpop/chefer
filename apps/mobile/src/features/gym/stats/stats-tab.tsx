@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
-import { Card, Chip, Screen, Text } from '@chefer/ui-mobile';
+import { View } from 'react-native';
+import { Card, Chip, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
 import { ModeSwitch } from '../components/mode-switch';
 import { useGymBootstrap } from '../use-gym-bootstrap';
 import { ConsistencyView } from './consistency-view';
@@ -32,7 +32,12 @@ export function StatsTab() {
           Loading…
         </Text>
       ) : (
-        <ScrollView contentContainerClassName="gap-4 px-4 pb-8" testID="gym-stats-scroll">
+        // Keyboard-aware (dogfood #2): the monthly recap's "log your weight"
+        // field sits at the very bottom of this scroll.
+        <KeyboardAwareScrollView
+          contentContainerClassName="gap-4 px-4 pb-8"
+          testID="gym-stats-scroll"
+        >
           <StrengthTrendView bootstrap={bootstrap} />
           <MuscleVolumeView bootstrap={bootstrap} />
           <ConsistencyView bootstrap={bootstrap} />
@@ -53,7 +58,7 @@ export function StatsTab() {
               </Text>
             </Card>
           ) : null}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
     </Screen>
   );

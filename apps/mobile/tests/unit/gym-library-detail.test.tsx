@@ -1,6 +1,6 @@
-import { Alert, Linking } from 'react-native';
+import { Alert, Linking, Platform, TextInput } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { ExerciseDto, SessionSummaryDto } from '@chefer/types';
 import { ExerciseDetailScreen } from '../../src/features/gym/library-screens/exercise-detail-screen';
 import { getExerciseNote } from '../../src/features/gym/library-screens/exercise-notes';
@@ -195,5 +195,25 @@ describe('ExerciseDetailScreen', () => {
     await user.type(note, 'Keep elbows tucked');
 
     await waitFor(() => expect(getExerciseNote('bench')).toBe('Keep elbows tucked'));
+  });
+
+  // Gym dogfood #2: the note is the last thing in a long scroll, so it's the
+  // field most likely to open under the keyboard.
+  it('keeps the personal note clear of the keyboard when it is focused', async () => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    const measureLayout = jest.spyOn(TextInput.prototype, 'measureLayout');
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ library: [withVideo()] }));
+    await renderWithGym(<ExerciseDetailScreen exerciseId="bench" />, queryClient);
+
+    // KeyboardAwareScrollView's iOS signature — a plain ScrollView leaves it off.
+    expect(
+      (await screen.findByTestId('gym-exercise-detail')).props.automaticallyAdjustKeyboardInsets,
+    ).toBe(true);
+
+    // RN's TextInput mock shares one jest.fn across every instance and test.
+    measureLayout.mockClear();
+    await fireEvent(screen.getByTestId('exercise-detail-note'), 'focus');
+    expect(measureLayout).toHaveBeenCalledTimes(1);
   });
 });

@@ -20,8 +20,13 @@ const SAFE_AREA_METRICS = {
 // pre-seeded in the cache or gated on `online` never make a real request.
 
 export function makeGymQueryClient(): QueryClient {
+  // `gcTime: Infinity` on mutations too: the 5-minute default schedules a GC
+  // timer for every mutation a test fires, which keeps Jest from exiting.
   return new QueryClient({
-    defaultOptions: { queries: { gcTime: Infinity, retry: false }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { gcTime: Infinity, retry: false },
+      mutations: { gcTime: Infinity, retry: false },
+    },
   });
 }
 

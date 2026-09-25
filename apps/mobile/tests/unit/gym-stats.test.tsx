@@ -1,6 +1,9 @@
+import { Keyboard, Platform, TextInput } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
-import { screen, userEvent } from '@testing-library/react-native';
+import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { ExerciseDto, SessionSummaryDto } from '@chefer/types';
+import { KeyboardAwareScrollView } from '@chefer/ui-mobile';
+import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { ConsistencyView } from '../../src/features/gym/stats/consistency-view';
 import {
   localBestSets,
@@ -8,14 +11,18 @@ import {
   localRepPrTable,
   topCompoundsByFrequency,
 } from '../../src/features/gym/stats/local-engine';
+import { LogWeightPrompt } from '../../src/features/gym/stats/log-weight-prompt';
 import { PrTimelineView } from '../../src/features/gym/stats/pr-timeline-view';
+import { StatsTab } from '../../src/features/gym/stats/stats-tab';
 import { StrengthTrendView } from '../../src/features/gym/stats/strength-trend-view';
+import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { makeBootstrap, makeExercise } from './gym-fixtures';
 import { makeGymQueryClient, renderWithGym } from './gym-screen-test-utils';
 
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 jest.mock('expo-router', () => ({
   router: { replace: jest.fn(), push: jest.fn(), back: jest.fn(), canGoBack: () => false },
+  useIsFocused: () => true,
 }));
 
 function session(overrides: Partial<SessionSummaryDto> & { id: string }): SessionSummaryDto {
@@ -79,7 +86,10 @@ const SESSIONS: SessionSummaryDto[] = [
 ];
 
 beforeEach(() => onlineManager.setOnline(false));
-afterEach(() => onlineManager.setOnline(true));
+afterEach(() => {
+  onlineManager.setOnline(true);
+  jest.restoreAllMocks();
+});
 
 describe('local-engine (offline e1RM / rep-PR / frequency)', () => {
   it('computes e1RM per session with a rolling-max trend and marks the e1RM PR', () => {
@@ -184,5 +194,83 @@ describe('Stats empty states', () => {
     expect(await screen.findByTestId('stats-consistency-grid')).toBeTruthy();
     expect(screen.getByText('1')).toBeTruthy(); // current streak
     expect(screen.getByText('4')).toBeTruthy(); // best streak
+  });
+});
+
+// Gym dogfood #2: the decimal-pad bodyweight field has no Return key on iOS
+// and could open under the keyboard at the bottom of the Stats scroll.
+describe('LogWeightPrompt keyboard handling', () => {
+  it('iOS: a "Done" bar above the decimal pad logs the weight and dismisses the keyboard', async () => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    onlineManager.setOnline(true); // otherwise the mutation just pauses
+    const dismiss = jest.spyOn(Keyboard, 'dismiss');
+    const user = userEvent.setup();
+    await renderWithGym(<LogWeightPrompt />);
+
+    const input = screen.getByTestId('log-weight-prompt-input');
+    expect(input.props.inputAccessoryViewID).toBe('log-weight-prompt-return');
+    await user.type(input, '82.5');
+    await user.press(screen.getByTestId('log-weight-prompt-return-bar'));
+
+    expect(dismiss).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(jest.mocked(global.fetch)).toHaveBeenCalledWith(
+        expect.stringContaining('tracker.logWeight'),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("Android: no accessory bar; the keyboard's own Done submits and dismisses", async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const dismiss = jest.spyOn(Keyboard, 'dismiss');
+    await renderWithGym(<LogWeightPrompt />);
+
+    const input = screen.getByTestId('log-weight-prompt-input');
+    expect(input.props.inputAccessoryViewID).toBeUndefined();
+    expect(input.props.returnKeyType).toBe('done');
+    expect(screen.queryByTestId('log-weight-prompt-return-bar')).toBeNull();
+
+    await fireEvent(input, 'submitEditing');
+    expect(dismiss).toHaveBeenCalled();
+  });
+
+  it('scrolls itself clear of the keyboard on focus inside a KeyboardAwareScrollView', async () => {
+    const measureLayout = jest.spyOn(TextInput.prototype, 'measureLayout');
+    await renderWithGym(
+      <KeyboardAwareScrollView>
+        <LogWeightPrompt />
+      </KeyboardAwareScrollView>,
+    );
+
+    // RN's TextInput mock shares one jest.fn across every instance and test.
+    measureLayout.mockClear();
+    await fireEvent(screen.getByTestId('log-weight-prompt-input'), 'focus');
+    expect(measureLayout).toHaveBeenCalledTimes(1);
+  });
+
+  it("the Stats tab scroll is keyboard-aware, so the prompt's focus scroll reaches it", async () => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    setKvBackendForTests(createMemoryKvBackend());
+    const measureLayout = jest.spyOn(TextInput.prototype, 'measureLayout');
+    const user = userEvent.setup();
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ library: [bench], recentSessions: SESSIONS, bodyweightKg: null }),
+    );
+    await renderWithGym(<StatsTab />, queryClient);
+
+    // `automaticallyAdjustKeyboardInsets` is KeyboardAwareScrollView's iOS
+    // signature — a plain ScrollView leaves it off.
+    expect(
+      (await screen.findByTestId('gym-stats-scroll')).props.automaticallyAdjustKeyboardInsets,
+    ).toBe(true);
+
+    await user.press(await screen.findByTestId('stats-strength-bodyweight-toggle'));
+    // RN's TextInput mock shares one jest.fn across every instance and test.
+    measureLayout.mockClear();
+    await fireEvent(await screen.findByTestId('stats-strength-log-weight-input'), 'focus');
+    expect(measureLayout).toHaveBeenCalledTimes(1);
   });
 });

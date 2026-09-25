@@ -70,6 +70,12 @@ export function ExercisePicker({
     return [...similar, ...rest];
   }, [library, query, group, excludeIds, preferSwapGroup]);
 
+  // Keyboard (dogfood #2): no KeyboardAwareScrollView needed here. The
+  // search box is at the TOP of the sheet and Sheet's own padding
+  // KeyboardAvoidingView lifts the whole sheet above the keyboard, which
+  // shrinks this FlatList with it (Sheet's `maxHeight` is a percentage of
+  // the padded area). Dragging the results dismisses the keyboard to show
+  // the full list, and Search on the keyboard does the same.
   return (
     <Sheet visible={visible} onClose={onClose} title={title} scrollable={false} testID={testID}>
       <View className="gap-3 px-4 pb-2">
@@ -79,6 +85,7 @@ export function ExercisePicker({
           onChangeText={setQuery}
           placeholder="Search exercises"
           autoCorrect={false}
+          returnKeyType="search"
           className="min-h-11 rounded-xl border border-border bg-background px-3 text-base"
         />
         <ChipGroup
@@ -90,9 +97,11 @@ export function ExercisePicker({
         />
       </View>
       <FlatList
+        testID={`${testID}-list`}
         data={rows}
         keyExtractor={(e) => e.id}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         initialNumToRender={12}
         renderItem={({ item }) => {
           const uri = exerciseImageUrl(item);

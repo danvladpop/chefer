@@ -1,7 +1,9 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { ExerciseDto } from '@chefer/types';
 import { filterExercisesForTab } from '../../src/features/gym/library-screens/exercise-filters';
 import { ExercisesTab } from '../../src/features/gym/library-screens/exercises-tab';
+import { ExercisePicker } from '../../src/features/gym/library/exercise-picker';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { makeBootstrap, makeExercise } from './gym-fixtures';
@@ -154,5 +156,40 @@ describe('ExercisesTab', () => {
 
     await user.press(await screen.findByTestId('exercises-item-bench'));
     expect(router.push).toHaveBeenCalledWith('/gym/exercise/bench');
+  });
+
+  // Gym dogfood #2: the search box is pinned above the list, so it never
+  // hides behind the keyboard; results that do are reachable because
+  // dragging the list dismisses the keyboard (without eating row taps).
+  it('dismisses the keyboard when the results are dragged', async () => {
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ library: LIBRARY }));
+    await renderWithGym(<ExercisesTab />, queryClient);
+
+    const list = await screen.findByTestId('exercises-list');
+    expect(list.props.keyboardDismissMode).toBe('on-drag');
+    expect(list.props.keyboardShouldPersistTaps).toBe('handled');
+  });
+});
+
+describe('ExercisePicker keyboard handling', () => {
+  // Same reasoning as the Exercises tab: search sits at the top of the
+  // sheet, which Sheet's KeyboardAvoidingView lifts above the keyboard.
+  it('dismisses the keyboard on Search or when the results are dragged', async () => {
+    await render(
+      <SafeAreaProvider
+        initialMetrics={{
+          frame: { x: 0, y: 0, width: 390, height: 844 },
+          insets: { top: 47, left: 0, right: 0, bottom: 34 },
+        }}
+      >
+        <ExercisePicker visible onClose={jest.fn()} onPick={jest.fn()} library={LIBRARY} />
+      </SafeAreaProvider>,
+    );
+
+    expect(screen.getByTestId('exercise-picker-search').props.returnKeyType).toBe('search');
+    const list = screen.getByTestId('exercise-picker-list');
+    expect(list.props.keyboardDismissMode).toBe('on-drag');
+    expect(list.props.keyboardShouldPersistTaps).toBe('handled');
   });
 });

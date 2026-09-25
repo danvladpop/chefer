@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { View } from 'react-native';
-import { Button, Input, Text } from '@chefer/ui-mobile';
+import { useRef, useState } from 'react';
+import { Keyboard, Platform, View, type TextInput } from 'react-native';
+import { Button, Input, NumericReturnBar, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { trpc } from '../../../lib/trpc';
 
 // "Missing bodyweight" empty state (gym_plan.md §6.2): a one-tap path to log
@@ -8,6 +8,11 @@ import { trpc } from '../../../lib/trpc';
 // strength-trend overlay and the monthly recap's bodyweight row.
 export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: string }) {
   const [value, setValue] = useState('');
+  const inputRef = useRef<TextInput>(null);
+  const scrollFieldIntoView = useScrollFieldIntoView();
+  // iOS's decimal-pad has no Return key of its own — this bar is its "Done"
+  // substitute (dogfood #2), same as gym settings' plate/dumbbell inputs.
+  const accessoryID = `${testID}-return`;
   const utils = trpc.useUtils();
   const logWeight = trpc.tracker.logWeight.useMutation({
     onSuccess: () => {
@@ -24,6 +29,10 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
       logWeight.mutate({ weightKg: Math.round(kg * 10) / 10 });
     }
   };
+  const submitAndDismiss = () => {
+    submit();
+    Keyboard.dismiss();
+  };
 
   return (
     <View testID={testID} className="items-center gap-2 py-4">
@@ -32,11 +41,15 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
       </Text>
       <View className="flex-row gap-2">
         <Input
+          ref={inputRef}
           testID={`${testID}-input`}
           value={value}
           onChangeText={setValue}
-          onSubmitEditing={submit}
+          onFocus={() => scrollFieldIntoView(inputRef.current)}
+          returnKeyType="done"
+          onSubmitEditing={submitAndDismiss}
           keyboardType="decimal-pad"
+          inputAccessoryViewID={Platform.OS === 'ios' ? accessoryID : undefined}
           placeholder="Weight (kg)"
           className="w-32"
         />
@@ -48,6 +61,12 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
           Log your weight
         </Button>
       </View>
+      <NumericReturnBar
+        nativeID={accessoryID}
+        label="Done"
+        onPress={submitAndDismiss}
+        testID={`${accessoryID}-bar`}
+      />
     </View>
   );
 }

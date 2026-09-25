@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Alert, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { MUSCLE_LABELS } from '@chefer/types';
@@ -10,9 +10,11 @@ import {
   CardTitle,
   EmptyState,
   Input,
+  KeyboardAwareScrollView,
   LineChart,
   Screen,
   Text,
+  useScrollFieldIntoView,
 } from '@chefer/ui-mobile';
 import { formatLoad } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
@@ -31,6 +33,35 @@ import { StackBackButton } from './stack-back-button';
 // edit/archive.
 
 const HISTORY_LIMIT = 5;
+
+/**
+ * The personal note sits at the very bottom of the detail scroll, so it's
+ * the field most likely to open under the keyboard (dogfood #2). Its own
+ * component so `useScrollFieldIntoView` reads the `KeyboardAwareScrollView`
+ * context it's rendered inside.
+ */
+function ExerciseNoteField({
+  value,
+  onChangeText,
+}: {
+  value: string;
+  onChangeText: (value: string) => void;
+}) {
+  const inputRef = useRef<TextInput>(null);
+  const scrollFieldIntoView = useScrollFieldIntoView();
+  return (
+    <Input
+      ref={inputRef}
+      testID="exercise-detail-note"
+      value={value}
+      onChangeText={onChangeText}
+      onFocus={() => scrollFieldIntoView(inputRef.current)}
+      placeholder="A personal cue or reminder…"
+      multiline
+      className="min-h-11 py-2"
+    />
+  );
+}
 
 export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
   const { data: bootstrap, isLoading } = useGymBootstrap();
@@ -118,7 +149,10 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
 
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
-      <ScrollView contentContainerClassName="gap-4 px-4 pb-8 pt-2" testID="gym-exercise-detail">
+      <KeyboardAwareScrollView
+        contentContainerClassName="gap-4 px-4 pb-8 pt-2"
+        testID="gym-exercise-detail"
+      >
         <View className="flex-row items-center gap-3">
           <StackBackButton testID="gym-exercise-title-back" />
         </View>
@@ -278,14 +312,7 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
             <Text variant="label" className="mb-1">
               Your notes
             </Text>
-            <Input
-              testID="exercise-detail-note"
-              value={note}
-              onChangeText={onSaveNote}
-              placeholder="A personal cue or reminder…"
-              multiline
-              className="min-h-11 py-2"
-            />
+            <ExerciseNoteField value={note} onChangeText={onSaveNote} />
           </View>
         </View>
 
@@ -298,7 +325,7 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
             channel={exercise.videoChannel}
           />
         ) : null}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }
