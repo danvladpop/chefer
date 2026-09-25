@@ -13,12 +13,14 @@ const loggedMealSchema = z
         estimatedBy: z.enum(['vision', 'manual']),
       })
       .optional(),
-    mealType: z.string(),
+    mealType: z.string().min(1).max(20),
     portionMultiplier: z.number().min(0.5).max(2),
-    kcal: z.number(),
-    protein: z.number(),
-    carbs: z.number(),
-    fat: z.number(),
+    // Bounded (audit F-TRK-1-4): negative, huge or Infinity values used to be
+    // stored and poisoned charts and coaching.
+    kcal: z.number().finite().min(0).max(10000),
+    protein: z.number().finite().min(0).max(1000),
+    carbs: z.number().finite().min(0).max(2000),
+    fat: z.number().finite().min(0).max(1000),
   })
   .refine((m) => (m.recipeId != null) !== (m.custom != null), {
     message: 'A logged meal needs exactly one of recipeId or custom',
@@ -35,13 +37,31 @@ export const trackerRouter = router({
     .input(
       z.object({
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-        loggedMeals: z.array(loggedMealSchema).min(1),
+        // May be empty: unticking every planned meal un-logs them (F-TRK-1-3).
+        // Custom and off-plan entries survive — the server merges.
+        loggedMeals: z.array(loggedMealSchema).max(50),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       // Returns { log, rebalance } — rebalance (F4) is non-null only when the
       // premium week-projection guard actually swapped future meals.
       return trackerService.upsertDay(ctx.user, input.date, input.loggedMeals);
+    }),
+
+  // Cook mode "Made it!": log one recipe, atomically and idempotently.
+  // Additive — older clients keep using upsertDay, which now merges.
+  logRecipe: protectedProcedure
+    .input(
+      z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        recipeId: z.string().min(1),
+        mealType: z.string().min(1).max(20),
+        portionMultiplier: z.number().min(0.5).max(2).default(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { date, ...entry } = input;
+      return trackerService.logRecipe(ctx.user, date, entry);
     }),
 
   // F4 Snap-to-Log: append one custom entry (photo scan or quick-add) to the

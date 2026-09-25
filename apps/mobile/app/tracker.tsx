@@ -121,7 +121,24 @@ export default function TrackerScreen() {
     setInitialised(null);
   };
 
-  const customEntries = (data?.log?.loggedMeals ?? []).filter((m) => !m.recipeId);
+  // Custom and off-plan entries are server-owned: upsertDay merges, so a save
+  // sends only the planned meals this screen manages (F-PM-1, F-TRK-1-2).
+  const offPlanLogged = data?.offPlanLogged ?? [];
+  const offPlanTotals = offPlanLogged.reduce(
+    (t, m) => ({
+      kcal: t.kcal + m.kcal,
+      protein: t.protein + m.protein,
+      carbs: t.carbs + m.carbs,
+      fat: t.fat + m.fat,
+    }),
+    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+  // A day with planned meals already logged can be saved with nothing ticked
+  // — that un-logs them (F-TRK-1-3).
+  const plannedIds = new Set((data?.plannedMeals ?? []).map((m) => m.recipeId));
+  const hadPlannedLogged = (data?.log?.loggedMeals ?? []).some(
+    (m) => m.recipeId !== undefined && plannedIds.has(m.recipeId),
+  );
   const customRows = customEntryRows(data?.log?.loggedMeals ?? []);
   const customTotals = customEntryTotals(data?.log?.loggedMeals ?? []);
 
@@ -133,16 +150,20 @@ export default function TrackerScreen() {
   const loggedPlanned = (data?.plannedMeals ?? []).filter((m) => checked(m.recipeId, m.mealType));
   const loggedKcal =
     loggedPlanned.reduce((s, m) => s + Math.round(m.kcal * portionOf(m.recipeId, m.mealType)), 0) +
-    customTotals.kcal;
+    customTotals.kcal +
+    offPlanTotals.kcal;
   const loggedProtein =
     loggedPlanned.reduce((s, m) => s + m.protein * portionOf(m.recipeId, m.mealType), 0) +
-    customTotals.protein;
+    customTotals.protein +
+    offPlanTotals.protein;
   const loggedCarbs =
     loggedPlanned.reduce((s, m) => s + m.carbs * portionOf(m.recipeId, m.mealType), 0) +
-    customTotals.carbs;
+    customTotals.carbs +
+    offPlanTotals.carbs;
   const loggedFat =
     loggedPlanned.reduce((s, m) => s + m.fat * portionOf(m.recipeId, m.mealType), 0) +
-    customTotals.fat;
+    customTotals.fat +
+    offPlanTotals.fat;
 
   const handleSave = () => {
     if (!data) {
@@ -160,11 +181,10 @@ export default function TrackerScreen() {
         fat: Math.round(m.fat * portion * 10) / 10,
       };
     });
-    const loggedMeals = [...plannedLogged, ...customEntries];
-    if (loggedMeals.length === 0) {
+    if (plannedLogged.length === 0 && !hadPlannedLogged) {
       return;
     }
-    upsertMutation.mutate({ date: dateStr, loggedMeals });
+    upsertMutation.mutate({ date: dateStr, loggedMeals: plannedLogged });
   };
 
   return (
@@ -335,6 +355,29 @@ export default function TrackerScreen() {
 
           {/* Snap-to-Log (F4 / M3-2) — today only; past days are typed by hand */}
           {isToday && <ScanMealCard date={dateStr} onLogged={() => void refetch()} />}
+
+          {/* Off-plan meals (F-PM-1): logged recipes that have since left
+              today's plan (regenerate or swap). Kept and counted. */}
+          {offPlanLogged.length > 0 && (
+            <View testID="tracker-off-plan" className="gap-2">
+              <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                Also logged today
+              </Text>
+              {offPlanLogged.map((m) => (
+                <View
+                  key={`${m.recipeId}:${m.mealType}`}
+                  className="rounded-xl border border-border bg-card p-3"
+                >
+                  <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                    {m.recipeName}
+                  </Text>
+                  <Text className="text-xs text-gray-500">
+                    {m.mealType} · {Math.round(m.kcal)} kcal
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           {/* Custom entries (scans + quick adds) */}
           {customRows.length > 0 && (

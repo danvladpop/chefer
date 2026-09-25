@@ -36,7 +36,35 @@ export interface IDailyLogRepository {
   findByDate(userId: string, date: Date): Promise<DailyLog | null>;
   findLastN(userId: string, days: number): Promise<DailyLog[]>;
   upsert(data: UpsertDailyLogData): Promise<DailyLog>;
+  /**
+   * Read-modify-write of one day's entries in a SERIALIZABLE transaction,
+   * retried on conflict. Totals are recomputed from the result.
+   */
+  mutateDay(
+    userId: string,
+    date: Date,
+    mutate: (current: LoggedMealEntry[]) => LoggedMealEntry[],
+  ): Promise<DailyLog>;
 }
+
+/** Day totals from its entries (kcal rounded to int, macros to 0.1 g). */
+export function dayTotals(entries: LoggedMealEntry[]): {
+  totalKcal: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFat: number;
+} {
+  const sum = (pick: (m: LoggedMealEntry) => number) => entries.reduce((s, m) => s + pick(m), 0);
+  const tenth = (v: number) => Math.round(v * 10) / 10;
+  return {
+    totalKcal: Math.round(sum((m) => m.kcal)),
+    totalProtein: tenth(sum((m) => m.protein)),
+    totalCarbs: tenth(sum((m) => m.carbs)),
+    totalFat: tenth(sum((m) => m.fat)),
+  };
+}
+
+const MUTATE_ATTEMPTS = 5;
 
 export class DailyLogRepository implements IDailyLogRepository {
   async findByDate(userId: string, date: Date): Promise<DailyLog | null> {
@@ -80,6 +108,46 @@ export class DailyLogRepository implements IDailyLogRepository {
         totalFat: data.totalFat,
       },
     });
+  }
+
+  async mutateDay(
+    userId: string,
+    date: Date,
+    mutate: (current: LoggedMealEntry[]) => LoggedMealEntry[],
+  ): Promise<DailyLog> {
+    const d = new Date(date);
+    d.setUTCHours(0, 0, 0, 0);
+    // Parallel quick-adds used to read the same array and overwrite each
+    // other (6 parallel writes kept 2 — audit F-TRK-1-2). Serializable makes
+    // the loser fail with P2034; it retries against the winner's result.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await prisma.$transaction(
+          async (tx: Prisma.TransactionClient) => {
+            const existing = await tx.dailyLog.findUnique({
+              where: { userId_date: { userId, date: d } },
+            });
+            const current = (existing?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
+            const next = mutate(current);
+            const totals = dayTotals(next);
+            const loggedMeals = next as unknown as Prisma.JsonArray;
+            return tx.dailyLog.upsert({
+              where: { userId_date: { userId, date: d } },
+              create: { userId, date: d, loggedMeals, ...totals },
+              update: { loggedMeals, ...totals },
+            });
+          },
+          { isolationLevel: 'Serializable' },
+        );
+      } catch (err) {
+        const conflict =
+          typeof err === 'object' &&
+          err !== null &&
+          ['P2034', 'P2002'].includes((err as { code?: string }).code ?? '');
+        if (!conflict || attempt >= MUTATE_ATTEMPTS) throw err;
+        await new Promise((r) => setTimeout(r, 15 * attempt + Math.random() * 25));
+      }
+    }
   }
 }
 

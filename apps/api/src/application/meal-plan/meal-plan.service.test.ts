@@ -102,7 +102,6 @@ function makeRepo() {
     archiveOldPlans: vi.fn().mockResolvedValue(undefined),
     updateDayMeal: vi.fn().mockResolvedValue(undefined),
     findAllByUserId: vi.fn().mockResolvedValue([]),
-    restorePlan: vi.fn().mockResolvedValue(undefined),
     findByIdForUser: vi.fn().mockResolvedValue(null),
     findByWeekStart: vi.fn().mockResolvedValue(null),
     findLatestWithDaysBefore: vi.fn().mockResolvedValue(null),
@@ -898,5 +897,47 @@ describe('MealPlanService — AI output is safety-checked', () => {
     const dto = await service.getRecipe('user1', 'ai-omelette');
 
     expect(dto.allergenWarnings).toEqual(['Eggs']);
+  });
+});
+
+// ─── Restore (audit F-PLAN-6-1) ───────────────────────────────────────────────
+
+describe('MealPlanService.restore', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+  });
+
+  it('brings the plan back as the newest row for its week, carrying its shopping state', async () => {
+    const repo = makeRepo();
+    const weekStartDate = new Date('2026-09-21');
+    const days = [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'r1' }] }];
+    repo.findByIdForUser.mockResolvedValue({ id: 'old', weekStartDate, isTemplate: false, days });
+    repo.createPlan.mockResolvedValue({ id: 'restored', weekStartDate });
+    repo.findRecipesByIds.mockResolvedValue([
+      { ...AI_RECIPE, id: 'r1', imageStatus: 'DONE', source: 'AI', creatorId: 'user1' },
+    ]);
+    const service = new MealPlanService(repo);
+
+    const plan = await service.restore('user1', 'old');
+
+    expect(repo.createPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user1',
+        weekStartDate,
+        days,
+        carryShoppingFromPlanId: 'old',
+      }),
+    );
+    expect(plan.planId).toBe('restored');
+  });
+
+  it('refuses to restore a template', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({ id: 'tpl', isTemplate: true, days: [] });
+    const service = new MealPlanService(repo);
+    await expect(service.restore('user1', 'tpl')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(repo.createPlan).not.toHaveBeenCalled();
   });
 });
