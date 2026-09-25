@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { Alert, Pressable, Text as RNText, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Alert, Pressable, Text as RNText, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { ExerciseMeta } from '@chefer/types';
-import { Button, Card, Input, Stepper, Text } from '@chefer/ui-mobile';
+import { Button, Card, Input, Stepper, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { cn, isSupersetWithNext, supersetRuns, supersetSlot } from '@chefer/utils';
 import { newId } from '../offline/ids';
 import type { RoutineDraftAction } from './reducer';
@@ -299,16 +299,21 @@ export function DayEditor({
   const dispatchForDay = (action: RoutineDraftAction) =>
     dispatch('dayKey' in action ? { ...action, dayKey: day.key } : action);
   const runs = supersetRuns(day.exercises);
+  const nameRef = useRef<TextInput>(null);
+  const scrollFieldIntoView = useScrollFieldIntoView();
 
   return (
     <Card testID={testIDBase}>
       <View className="flex-row items-center gap-2">
         <Input
+          ref={nameRef}
           testID={`${testIDBase}-name`}
           className="flex-1"
           value={day.name}
           maxLength={40}
           onChangeText={(name) => dispatch({ type: 'renameDay', dayKey: day.key, name })}
+          onFocus={() => scrollFieldIntoView(nameRef.current)}
+          returnKeyType="done"
           placeholder="Day name"
         />
         <MoveButton

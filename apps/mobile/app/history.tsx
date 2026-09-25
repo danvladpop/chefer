@@ -38,7 +38,7 @@ export default function HistoryScreen() {
           <Ionicons name="arrow-back" size={20} color="#1f2937" />
         </Pressable>
         <View>
-          <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
             Past Plans
           </Text>
           <Text testID="history-title" variant="title">

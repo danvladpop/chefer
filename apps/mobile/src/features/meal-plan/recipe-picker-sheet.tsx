@@ -99,7 +99,7 @@ export function RecipePickerSheet({
             {/* Header */}
             <View className="flex-row items-center justify-between gap-3 px-4 pb-2 pt-3">
               <View className="min-w-0 flex-1">
-                <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+                <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
                   Replace meal
                 </Text>
                 <Text testID="picker-title" numberOfLines={1} className="text-base font-semibold">
@@ -153,7 +153,7 @@ export function RecipePickerSheet({
                 className="grow-0"
                 contentContainerClassName="px-4 pb-2"
                 renderSectionHeader={({ section }) => (
-                  <Text className="pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+                  <Text className="pb-1.5 pt-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
                     {section.title}
                   </Text>
                 )}

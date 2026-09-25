@@ -1,7 +1,7 @@
 import { Controller, useForm } from 'react-hook-form';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Button, Input, Screen, Text } from '@chefer/ui-mobile';
 import { registerSchema, type RegisterFormValues } from '../../src/features/auth/schemas';
 import { setToken } from '../../src/lib/auth-store';
@@ -21,6 +21,10 @@ export default function RegisterScreen() {
     onSuccess: async (data) => {
       if (data.session) {
         await setToken(data.session.token);
+        // Dogfood feedback #9: guide new accounts through onboarding instead
+        // of landing straight on the dashboard. Sign-in (login.tsx) does NOT
+        // do this — only a fresh registration goes through the wizard.
+        router.replace('/onboarding');
       }
     },
   });

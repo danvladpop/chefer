@@ -25,6 +25,15 @@ export interface SheetProps {
  * Modal bottom sheet with the house header (grabber, title, 44pt close) —
  * the RN counterpart of @chefer/ui's Sheet. Android back and the backdrop
  * both close it; the body scrolls and the keyboard never covers inputs.
+ *
+ * `behavior="padding"` on both platforms (gym dogfood #2): Expo SDK 57 makes
+ * edge-to-edge mandatory on Android, and under edge-to-edge the
+ * `windowSoftInputMode="adjustResize"` this app otherwise relies on (Expo's
+ * `android.softwareKeyboardLayoutMode` default) no longer resizes the window
+ * for the keyboard — `undefined` here would leave Android with nothing
+ * pushing the sheet's fields above it. See `KeyboardAwareScrollView` for the
+ * full explanation; it applies here too since a `Modal`'s content sits
+ * outside the normal Android resize path either way.
  */
 export function Sheet({
   visible,
@@ -49,10 +58,7 @@ export function Sheet({
       statusBarTranslucent
       testID={testID}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        className="flex-1 justify-end"
-      >
+      <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end">
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Close ${title}`}
@@ -69,7 +75,7 @@ export function Sheet({
           <View className="flex-row items-center justify-between gap-3 px-4 pb-2 pt-3">
             <View className="min-w-0 flex-1">
               {eyebrow ? (
-                <Text className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                <Text className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   {eyebrow}
                 </Text>
               ) : null}
@@ -94,6 +100,7 @@ export function Sheet({
           {scrollable ? (
             <ScrollView
               keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
               contentContainerClassName="gap-3 px-4 pb-4"
               className="shrink"
             >

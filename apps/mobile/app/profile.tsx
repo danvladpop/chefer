@@ -81,7 +81,7 @@ export default function ProfileScreen() {
             </Text>
             <View className="mt-1 flex-row gap-1.5">
               <View className="rounded-full bg-gray-100 px-2 py-0.5">
-                <Text className="text-[10px] font-medium uppercase text-gray-500">
+                <Text className="text-[12px] font-medium uppercase text-gray-500">
                   {user?.role ?? '…'}
                 </Text>
               </View>
@@ -93,7 +93,7 @@ export default function ProfileScreen() {
               >
                 <Text
                   className={cn(
-                    'text-[10px] font-medium uppercase',
+                    'text-[12px] font-medium uppercase',
                     isPremiumTier ? 'text-white' : 'text-gray-500',
                   )}
                 >

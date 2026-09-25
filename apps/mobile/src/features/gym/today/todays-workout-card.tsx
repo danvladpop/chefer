@@ -32,7 +32,7 @@ export function TodaysWorkoutCard() {
       <Pressable testID="todays-workout-card" accessibilityRole="button" onPress={goToGym}>
         <Card className="flex-row items-center justify-between gap-3">
           <View className="min-w-0 flex-1">
-            <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+            <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
               Training
             </Text>
             <Text testID="todays-workout-card-label" className="mt-0.5 font-medium">
@@ -56,7 +56,7 @@ export function TodaysWorkoutCard() {
     <Pressable testID="todays-workout-card" accessibilityRole="button" onPress={goToGym}>
       <Card className="flex-row items-center justify-between gap-3">
         <View className="min-w-0 flex-1">
-          <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
             Today&apos;s workout
           </Text>
           <Text testID="todays-workout-card-label" className="mt-0.5 font-medium">
@@ -70,7 +70,7 @@ export function TodaysWorkoutCard() {
           testID="todays-workout-card-ring"
           accessibilityLabel={`${streak.thisWeekSessions} of ${streak.thisWeekGoal} this week`}
         >
-          <Text className="text-[10px] font-semibold">
+          <Text className="text-[12px] font-semibold">
             {streak.thisWeekSessions}/{streak.thisWeekGoal}
           </Text>
         </ProgressRing>

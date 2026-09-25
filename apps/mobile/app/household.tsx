@@ -119,7 +119,7 @@ export default function HouseholdScreen() {
                     <Text className="text-sm font-medium text-gray-800">{m.name}</Text>
                     {m.isKid && (
                       <View className="rounded-full bg-accent px-2 py-0.5">
-                        <Text className="text-[10px] font-semibold text-primary">Kid</Text>
+                        <Text className="text-[12px] font-semibold text-primary">Kid</Text>
                       </View>
                     )}
                   </View>

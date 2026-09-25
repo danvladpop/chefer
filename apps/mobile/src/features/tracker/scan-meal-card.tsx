@@ -138,7 +138,7 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
           {/* Confirm — honest confidence, adjustable meal slot */}
           <View className="flex-row items-center gap-2">
             <View className="rounded-full bg-accent px-2 py-0.5">
-              <Text className="text-[10px] font-semibold uppercase text-primary">
+              <Text className="text-[12px] font-semibold uppercase text-primary">
                 {CONFIDENCE_LABEL[estimate.confidence]}
               </Text>
             </View>

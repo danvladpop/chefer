@@ -554,12 +554,55 @@ If setup answers are "6 days + beginner", **recommend Upper/Lower 4× (or Full B
 | Days/week | Beginner                                        | Intermediate                                  |
 | --------- | ----------------------------------------------- | --------------------------------------------- |
 | 2         | Full Body 2× (beginner)                         | Full Body 2× (intermediate)                   |
-| 3         | **Full Body 3×**                                | Full Body 3×                                  |
+| 3         | **Full Body 3×** (alt: Upper/Lower 3×, §3.6)    | Full Body 3× (alt: Upper/Lower 3×, §3.6)      |
 | 4         | Upper/Lower 4× (beginner)                       | **Upper/Lower 4×**                            |
 | 5         | Upper/Lower 4× + optional 5th "weak points" day | Upper/Lower 4× + PPL-style arms/shoulders day |
 | 6         | Recommend UL 4× (allow PPL beginner)            | **PPL 6×**                                    |
 
 Equipment answer: **full gym** → as written. **Dumbbells + bench** → swap barbell and machine lifts for DB equivalents (DB bench, DB RDL, goblet/split squat, one-arm DB row, DB pullover in place of pulldown if there's no bar). Widen rep ranges to 8–15 and 12–20, because DB jumps are big. **Bodyweight/home** → push-up variants, inverted rows, pull-ups (or band), split squats, single-leg RDL, with progression by reps → sets → harder variation.
+
+### 3.6 Upper/Lower 3×/week (2 upper + 1 lower): alternative for 3 days
+
+Dogfood feedback (`docs/gym/dogfood-feedback.md` #1): for 3 days/week, offer a 2×-upper + 1×-lower split next to Full Body 3× (which stays the default). **Honest tradeoff:** legs get their whole weekly dose in a single session — 1×/week frequency instead of Full Body 3×'s three touches — in exchange for more chest/back/shoulder/arm volume spread over two focused upper days. Schedule: Upper A (Mon), Lower (Wed), Upper B (Fri), the same weekday pattern as Full Body 3×.
+
+**Beginner** (12 sets/session)
+
+| Upper A              |           | Lower               |           | Upper B                |           |
+| -------------------- | --------- | ------------------- | --------- | ---------------------- | --------- |
+| Dumbbell Bench Press | 3 × 8–12  | Goblet Squat        | 4 × 8–12  | Machine Chest Press    | 3 × 8–12  |
+| Seated Cable Row     | 3 × 8–12  | Romanian Deadlift   | 3 × 8–12  | Lat Pulldown           | 3 × 8–12  |
+| Lat Pulldown         | 2 × 8–12  | Seated Leg Curl     | 3 × 10–15 | Incline Dumbbell Press | 2 × 8–12  |
+| Lateral Raise        | 2 × 12–20 | Standing Calf Raise | 2 × 10–15 | Lateral Raise          | 2 × 12–20 |
+| Triceps Pushdown     | 2 × 10–15 |                     |           | Dumbbell Curl          | 2 × 10–15 |
+
+**Intermediate** (18 sets/session)
+
+| Upper A                |           | Lower               |           | Upper B                    |           |
+| ---------------------- | --------- | ------------------- | --------- | -------------------------- | --------- |
+| Bench Press            | 3 × 6–8   | Back Squat          | 4 × 5–8   | Machine Chest Press        | 3 × 8–12  |
+| Chest-Supported Row    | 3 × 8–12  | Romanian Deadlift   | 3 × 6–10  | Pull-Up                    | 3 × 6–10  |
+| Lat Pulldown           | 3 × 8–12  | Leg Extension       | 3 × 10–15 | Seated Cable Row           | 3 × 8–12  |
+| Incline Dumbbell Press | 2 × 8–12  | Lying Leg Curl      | 3 × 10–15 | Cable Fly                  | 2 × 12–15 |
+| Lateral Raise          | 3 × 12–20 | Standing Calf Raise | 3 × 10–15 | Lateral Raise              | 3 × 12–20 |
+| Triceps Pushdown       | 2 × 10–15 | Cable Crunch        | 2 × 10–15 | Overhead Triceps Extension | 2 × 10–15 |
+| Dumbbell Curl          | 2 × 10–15 |                     |           | Incline Dumbbell Curl      | 2 × 10–15 |
+
+Weekly fractional sets per muscle (direct / fractional (days trained)), full gym, computed the same way as §3.1–3.4:
+
+| Muscle     | Beginner  | Intermediate |
+| ---------- | --------- | ------------ |
+| Chest      | 8 / 8 (2) | 10 / 10 (2)  |
+| Back       | 8 / 8 (2) | 12 / 12 (2)  |
+| Quads      | 4 / 4 (1) | 7 / 7 (1)    |
+| Hamstrings | 6 / 6 (1) | 6 / 6 (1)    |
+| Glutes     | 0 / 3.5   | 0 / 3.5      |
+| Side delts | 4 / 4 (2) | 6 / 6 (2)    |
+| Biceps     | 2 / 6 (1) | 4 / 10 (2)   |
+| Triceps    | 2 / 6 (1) | 4 / 8 (2)    |
+| Calves     | 2 / 2 (1) | 3 / 4.5 (1)  |
+| Abs        | 0 / 0     | 2 / 2 (1)    |
+
+Chest, back, side delts, biceps and triceps land in the same productive range as Upper/Lower 4× (§3.3) — the upper days are unchanged in structure, just run twice instead of across four days' worth of splitting. Quads and hamstrings sit below the two-days-a-week floor because they're trained once: the routine editor shows this honestly as an info-level "grows for most" or "below maintenance" hint (never a warning) rather than hiding it. A lifter who wants more leg frequency should pick Full Body 3× or Upper/Lower 4× instead; this template is for someone who values upper-body volume and accepts the leg-frequency tradeoff.
 
 ---
 

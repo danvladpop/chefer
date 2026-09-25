@@ -51,13 +51,13 @@ export function NutritionSummary({ nutrition: n }: { nutrition: Nutrition }) {
   return (
     <Card testID="nutrition-summary">
       <View className="mb-4 flex-row items-center justify-between gap-2">
-        <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
           Planned Today
         </Text>
         <View className={cn('rounded-full px-2.5 py-0.5', statusStyle.bg)}>
           <Text
             testID="nutrition-status"
-            className={cn('text-[10px] font-bold uppercase', statusStyle.text)}
+            className={cn('text-[12px] font-bold uppercase', statusStyle.text)}
           >
             {statusStyle.label}
           </Text>

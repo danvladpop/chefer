@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { TEMPLATE_BY_KEY, type RoutineDto } from '@chefer/types';
-import { Badge, Button, ConfirmSheet, Input, Screen, Sheet, Text } from '@chefer/ui-mobile';
+import {
+  Badge,
+  Button,
+  ConfirmSheet,
+  Input,
+  KeyboardAwareScrollView,
+  Screen,
+  Sheet,
+  Text,
+  useScrollFieldIntoView,
+} from '@chefer/ui-mobile';
 import { validateRoutine, volumeByGroup } from '@chefer/utils';
 import { ExercisePicker } from '../../src/features/gym/library/exercise-picker';
 import { newId } from '../../src/features/gym/offline/ids';
@@ -66,6 +76,8 @@ export default function GymRoutineEditorScreen() {
   const [conflict, setConflict] = useState<ConflictState | null>(null);
   const [removing, setRemoving] = useState<{ dayKey: string; exerciseKey: string } | null>(null);
   const loadedRef = useRef(false);
+  const nameRef = useRef<TextInput>(null);
+  const scrollFieldIntoView = useScrollFieldIntoView();
 
   const dispatch = (action: RoutineDraftAction) =>
     setDraft((prev) => routineDraftReducer(prev, action));
@@ -210,7 +222,24 @@ export default function GymRoutineEditorScreen() {
           </Badge>
         ) : null}
       </View>
-      <ScrollView contentContainerClassName="gap-4 px-4 py-4">
+      <KeyboardAwareScrollView
+        contentContainerClassName="gap-4 px-4 py-4"
+        footer={
+          // Primary action in thumb reach (and clear of the top-right corner) —
+          // inside the same KeyboardAvoidingView so it rises with the keyboard
+          // instead of staying pinned behind it (dogfood #2).
+          <View className="border-t border-border bg-background px-4 pb-2 pt-3">
+            <Button
+              testID="gym-routine-editor-save"
+              loading={saveMutation.isPending}
+              disabled={!isOnline || !dirty}
+              onPress={() => submitSave(draft)}
+            >
+              {dirty ? 'Save changes' : 'No changes'}
+            </Button>
+          </View>
+        }
+      >
         {!isOnline ? (
           <View
             testID="gym-routine-editor-offline-banner"
@@ -223,10 +252,13 @@ export default function GymRoutineEditorScreen() {
         ) : null}
 
         <Input
+          ref={nameRef}
           testID="gym-routine-editor-name"
           value={draft.name}
           maxLength={60}
           onChangeText={(name) => dispatch({ type: 'renameRoutine', name })}
+          onFocus={() => scrollFieldIntoView(nameRef.current)}
+          returnKeyType="done"
           placeholder="Routine name"
         />
 
@@ -256,19 +288,7 @@ export default function GymRoutineEditorScreen() {
         </Button>
 
         <WeeklyBalanceCard testID="gym-routine-editor-balance" volume={volume} hints={hints} />
-      </ScrollView>
-
-      {/* Primary action in thumb reach (and clear of the top-right corner). */}
-      <View className="border-t border-border bg-background px-4 pb-2 pt-3">
-        <Button
-          testID="gym-routine-editor-save"
-          loading={saveMutation.isPending}
-          disabled={!isOnline || !dirty}
-          onPress={() => submitSave(draft)}
-        >
-          {dirty ? 'Save changes' : 'No changes'}
-        </Button>
-      </View>
+      </KeyboardAwareScrollView>
 
       <ExercisePicker
         testID="gym-routine-editor-picker"

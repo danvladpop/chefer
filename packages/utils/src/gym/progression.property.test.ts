@@ -20,7 +20,7 @@ import {
 } from './loads';
 import { applyExposure, foldHistory, initialState, prescribe } from './progression';
 import { KG_PROFILE, slotFor } from './test-fixtures';
-import { addDaysLocal } from './weeks';
+import { addDaysLocal, daysBetweenLocal } from './weeks';
 
 const SLOTS: ExerciseSlot[] = [
   slotFor('barbell-bench-press', 3, 8, 12),
@@ -253,6 +253,16 @@ describe('progression properties (research appendix A)', () => {
         const before = states[states.length - 2];
         const exposure = exposures[exposures.length - 1];
         if (!before || !exposure || before.preBreakWeightKg !== null) {
+          return;
+        }
+        // Out of scope: a ≥15-day gap enters §1.8 re-entry, whose fast track
+        // deliberately trusts a chip-less all-top set more than an RIR-1 one
+        // (found at ~1/6,500 runs: the chip-less run finished re-entry in one
+        // jump and cleared preBreakWeightKg, dodging the checks below).
+        if (
+          before.lastExposureDate !== null &&
+          daysBetweenLocal(before.lastExposureDate, exposure.localDate) >= 15
+        ) {
           return;
         }
         const common = { slot, state: before, profile: c.profile, experience: c.experience };

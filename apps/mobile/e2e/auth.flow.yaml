@@ -105,7 +105,16 @@ appId: dev.chefer.app.dev
     text: 'Not Now'
     optional: true
 
-# ── Registration lands on the Home tab ───────────────────────────────────────
+# ── A fresh account lands in onboarding first (dogfood feedback #9) ─────────
+# — skip it, since this flow only cares about the auth lifecycle.
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-skip'
+    timeout: 15000
+- tapOn:
+    id: 'onboarding-skip'
+
+# ── Registration (via onboarding) lands on the Home tab ─────────────────────
 - extendedWaitUntil:
     visible:
       id: 'home-title'

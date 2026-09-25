@@ -4,85 +4,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { SafetyStep } from '../src/features/preferences/components/safety-step';
+import { GoalBodyCard, type GoalBodySavePayload } from '../src/features/preferences/goal-body-card';
+import type {
+  ActivityLevel,
+  BiologicalSex,
+  Goal,
+  SafetyValue,
+} from '../src/features/preferences/types';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc } from '../src/lib/trpc';
 
-// Preferences — port of apps/web /preferences (M2-7). Safety preferences
-// (allergies, restrictions, dislikes) are FREE (P1-2) and save through
-// updateSafety; units + weekly budget save through premium updateTargets.
-// Deviations, deliberate: the full onboarding wizard (goal/body metrics/
-// activity → computeTargets) is not ported yet — premium users edit those on
-// web; tracked in the plan.
-
-function ChipEditor({
-  label,
-  values,
-  onChange,
-  placeholder,
-  max,
-  testID,
-}: {
-  label: string;
-  values: string[];
-  onChange: (next: string[]) => void;
-  placeholder: string;
-  max: number;
-  testID: string;
-}) {
-  const [draft, setDraft] = useState('');
-
-  const add = () => {
-    const v = draft.trim();
-    if (!v || values.includes(v) || values.length >= max) {
-      return;
-    }
-    onChange([...values, v]);
-    setDraft('');
-  };
-
-  return (
-    <View className="gap-2">
-      <Text variant="label">{label}</Text>
-      <View className="flex-row gap-2">
-        <TextInput
-          testID={`${testID}-input`}
-          value={draft}
-          onChangeText={setDraft}
-          onSubmitEditing={add}
-          placeholder={placeholder}
-          placeholderTextColor="#9ca3af"
-          returnKeyType="done"
-          className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
-        />
-        <Pressable
-          testID={`${testID}-add`}
-          accessibilityRole="button"
-          accessibilityLabel={`Add to ${label}`}
-          onPress={add}
-          className="h-11 w-11 items-center justify-center rounded-md border border-border"
-        >
-          <Ionicons name="add" size={20} color="#944a00" />
-        </Pressable>
-      </View>
-      {values.length > 0 && (
-        <View className="flex-row flex-wrap gap-1.5">
-          {values.map((v) => (
-            <Pressable
-              key={v}
-              accessibilityRole="button"
-              accessibilityLabel={`Remove ${v}`}
-              onPress={() => onChange(values.filter((x) => x !== v))}
-              className="min-h-9 flex-row items-center gap-1 rounded-full bg-accent px-3"
-            >
-              <Text className="text-xs font-medium text-primary">{v}</Text>
-              <Ionicons name="close" size={12} color="#944a00" />
-            </Pressable>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
+// Preferences — port of apps/web /preferences (M2-7), plus dogfood feedback
+// #6: goal + body metrics are back, saved through the every-tier
+// preferences.saveProfileBasics procedure (not premium-gated) so a free
+// account can set a goal and see a real calorie target on the dashboard.
+// Safety preferences (allergies, restrictions, dislikes) are FREE (P1-2) and
+// save through updateSafety; units + weekly budget save through premium
+// updateTargets.
 
 export default function PreferencesScreen() {
   const isPremium = useIsPremium();
@@ -90,9 +29,11 @@ export default function PreferencesScreen() {
   const utils = trpc.useUtils();
 
   // ── Safety (free) ──────────────────────────────────────────────────────────
-  const [restrictions, setRestrictions] = useState<string[]>([]);
-  const [allergies, setAllergies] = useState<string[]>([]);
-  const [disliked, setDisliked] = useState<string[]>([]);
+  const [safety, setSafety] = useState<SafetyValue>({
+    dietaryRestrictions: [],
+    allergies: [],
+    dislikedIngredients: [],
+  });
   const [safetyLoaded, setSafetyLoaded] = useState(false);
 
   // ── Premium extras ─────────────────────────────────────────────────────────
@@ -103,9 +44,11 @@ export default function PreferencesScreen() {
     if (!data || safetyLoaded) {
       return;
     }
-    setRestrictions(data.dietaryPreferences?.dietaryRestrictions ?? []);
-    setAllergies(data.dietaryPreferences?.allergies ?? []);
-    setDisliked(data.dietaryPreferences?.dislikedIngredients ?? []);
+    setSafety({
+      dietaryRestrictions: data.dietaryPreferences?.dietaryRestrictions ?? [],
+      allergies: data.dietaryPreferences?.allergies ?? [],
+      dislikedIngredients: data.dietaryPreferences?.dislikedIngredients ?? [],
+    });
     setUnits(data.chefProfile?.preferredUnits ?? 'METRIC');
     setBudget(data.chefProfile?.weeklyBudgetEur?.toString() ?? '');
     setSafetyLoaded(true);
@@ -120,13 +63,14 @@ export default function PreferencesScreen() {
   const targetsMutation = trpc.preferences.updateTargets.useMutation({
     onSuccess: () => void utils.preferences.get.invalidate(),
   });
+  const goalBodyMutation = trpc.preferences.saveProfileBasics.useMutation({
+    onSuccess: () => {
+      void utils.preferences.get.invalidate();
+      void utils.dashboard.invalidate();
+    },
+  });
 
-  const saveSafety = () =>
-    safetyMutation.mutate({
-      dietaryRestrictions: restrictions,
-      allergies,
-      dislikedIngredients: disliked,
-    });
+  const saveSafety = () => safetyMutation.mutate(safety);
 
   const saveExtras = () => {
     const parsed = parseFloat(budget.replace(',', '.'));
@@ -135,6 +79,8 @@ export default function PreferencesScreen() {
       weeklyBudgetEur: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
     });
   };
+
+  const saveGoalBody = (payload: GoalBodySavePayload) => goalBodyMutation.mutate(payload);
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
@@ -157,24 +103,10 @@ export default function PreferencesScreen() {
           <ActivityIndicator size="large" color="#944a00" />
         </View>
       ) : (
-        <ScrollView contentContainerClassName="gap-4 px-4 pb-8">
+        <ScrollView contentContainerClassName="gap-4 px-4 pb-8" keyboardShouldPersistTaps="handled">
           <Text variant="muted" className="text-sm">
             Your allergies and dietary restrictions apply to every plan — free or premium.
           </Text>
-
-          {isPremium === true && (
-            <Pressable
-              testID="prefs-open-onboarding"
-              accessibilityRole="button"
-              onPress={() => router.push('/onboarding')}
-              className="min-h-11 flex-row items-center justify-between rounded-xl border border-border bg-card px-4"
-            >
-              <Text className="text-sm font-medium text-gray-800">
-                Goals, body metrics & activity
-              </Text>
-              <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
-            </Pressable>
-          )}
 
           {isPremium === true && data?.chefProfile?.dailyCalorieTarget != null && (
             <View className="self-start rounded-lg border border-primary/30 bg-accent px-4 py-2">
@@ -187,30 +119,7 @@ export default function PreferencesScreen() {
           {/* Safety — free for every account (P1-2) */}
           <Card testID="preferences-safety" className="gap-4">
             <Text variant="heading">Food safety</Text>
-            <ChipEditor
-              testID="prefs-restrictions"
-              label="Dietary restrictions"
-              values={restrictions}
-              onChange={setRestrictions}
-              placeholder="e.g. vegetarian"
-              max={20}
-            />
-            <ChipEditor
-              testID="prefs-allergies"
-              label="Allergies"
-              values={allergies}
-              onChange={setAllergies}
-              placeholder="e.g. peanuts"
-              max={20}
-            />
-            <ChipEditor
-              testID="prefs-disliked"
-              label="Disliked ingredients"
-              values={disliked}
-              onChange={setDisliked}
-              placeholder="e.g. cilantro"
-              max={30}
-            />
+            <SafetyStep value={safety} onChange={setSafety} testIDPrefix="prefs" />
             <Button
               testID="prefs-save-safety"
               loading={safetyMutation.isPending}
@@ -222,6 +131,36 @@ export default function PreferencesScreen() {
               <Text className="text-xs text-red-600">{safetyMutation.error.message}</Text>
             )}
           </Card>
+
+          {/* Goal & body — every tier (dogfood feedback #6) */}
+          <GoalBodyCard
+            initial={{
+              goal: (data?.chefProfile?.goal as Goal | null) ?? null,
+              biologicalSex: (data?.chefProfile?.biologicalSex as BiologicalSex | null) ?? null,
+              age: data?.chefProfile?.age ?? null,
+              heightCm: data?.chefProfile?.heightCm ?? null,
+              weightKg: data?.chefProfile?.weightKg ?? null,
+              activityLevel: (data?.chefProfile?.activityLevel as ActivityLevel | null) ?? null,
+            }}
+            onSave={saveGoalBody}
+            isSaving={goalBodyMutation.isPending}
+            isSaved={goalBodyMutation.isSuccess}
+            errorMessage={goalBodyMutation.error?.message}
+          />
+
+          {isPremium === true && (
+            <Pressable
+              testID="prefs-open-onboarding"
+              accessibilityRole="button"
+              onPress={() => router.push('/onboarding')}
+              className="min-h-11 flex-row items-center justify-between rounded-xl border border-border bg-card px-4"
+            >
+              <Text className="text-sm font-medium text-gray-800">
+                Full setup: cuisine, cadence & targets
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+            </Pressable>
+          )}
 
           {/* Units + budget — saved via premium updateTargets */}
           <Card className="gap-4">

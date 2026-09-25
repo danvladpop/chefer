@@ -67,7 +67,7 @@ export function WeekSummarySheet({
           {/* Header */}
           <View className="flex-row items-center justify-between gap-3 px-4 pb-1 pt-3">
             <View className="min-w-0 flex-1">
-              <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+              <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
                 {badge}
               </Text>
               <Text testID="week-summary-title" className="text-base font-semibold">
@@ -88,20 +88,20 @@ export function WeekSummarySheet({
           {/* Week stats */}
           <View className="flex-row flex-wrap gap-2 px-4 pb-2">
             <View className="rounded-full bg-gray-100 px-3 py-1">
-              <Text className="text-[11px] font-medium text-gray-600">
+              <Text className="text-xs font-medium text-gray-600">
                 {plannedDays}/7 days planned
               </Text>
             </View>
             {weekKcal > 0 && (
               <View className="rounded-full bg-gray-100 px-3 py-1">
-                <Text className="text-[11px] font-medium text-gray-600">
+                <Text className="text-xs font-medium text-gray-600">
                   ~{Math.round(weekKcal / Math.max(plannedDays, 1))} kcal/day
                 </Text>
               </View>
             )}
             {weekCostEur !== null && (
               <View className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
-                <Text className="text-[11px] font-medium text-emerald-700">
+                <Text className="text-xs font-medium text-emerald-700">
                   ≈ €{weekCostEur.toFixed(2)} this week
                 </Text>
               </View>

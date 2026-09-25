@@ -49,7 +49,7 @@ export function WeightCard() {
       <View className="mb-3 flex-row items-center justify-between gap-3">
         <View className="flex-row items-center gap-1.5">
           <Ionicons name="scale-outline" size={14} color="#10b981" />
-          <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
             Weight
           </Text>
         </View>

@@ -226,7 +226,7 @@ export default function TrackerScreen() {
         <ScrollView contentContainerClassName="gap-4 px-4 py-2 pb-8">
           {/* Totals vs targets */}
           <Card testID="tracker-totals">
-            <Text className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+            <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
               Logged {isToday ? 'Today' : 'This Day'}
             </Text>
             <View className="gap-3">
@@ -339,7 +339,7 @@ export default function TrackerScreen() {
           {/* Custom entries (scans + quick adds) */}
           {customRows.length > 0 && (
             <View className="gap-2">
-              <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+              <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
                 Extras
               </Text>
               {customRows.map((row) => (
@@ -353,7 +353,7 @@ export default function TrackerScreen() {
                         {row.name}
                       </Text>
                       <View className="rounded-full bg-gray-100 px-2 py-0.5">
-                        <Text className="text-[10px] text-gray-500">
+                        <Text className="text-[12px] text-gray-500">
                           {customEntryChipLabel(row.estimatedBy)}
                         </Text>
                       </View>

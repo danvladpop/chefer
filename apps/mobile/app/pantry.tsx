@@ -80,7 +80,7 @@ export default function PantryScreen() {
           <Ionicons name="arrow-back" size={20} color="#1f2937" />
         </Pressable>
         <View>
-          <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
             Your Kitchen
           </Text>
           <Text testID="pantry-title" variant="title">

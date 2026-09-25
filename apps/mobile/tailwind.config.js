@@ -11,6 +11,19 @@ module.exports = {
   presets: [require('nativewind/preset')],
   theme: {
     extend: {
+      // Mobile type ramp, one step up from Tailwind's web defaults (dogfood
+      // #10: "controls and text too small on the phone"). Anchored to Apple's
+      // HIG sizes — body 17, callout 15, footnote 13 — so every text-* class
+      // across the app scales together; web keeps its own defaults.
+      fontSize: {
+        xs: ['13px', { lineHeight: '18px' }],
+        sm: ['15px', { lineHeight: '21px' }],
+        base: ['17px', { lineHeight: '24px' }],
+        lg: ['19px', { lineHeight: '26px' }],
+        xl: ['21px', { lineHeight: '28px' }],
+        '2xl': ['25px', { lineHeight: '31px' }],
+        '3xl': ['31px', { lineHeight: '37px' }],
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',

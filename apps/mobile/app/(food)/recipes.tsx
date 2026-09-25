@@ -67,7 +67,7 @@ export default function RecipesScreen() {
         <ModeSwitch />
         <View className="flex-row items-end justify-between">
           <View>
-            <Text className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+            <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
               Your Collection
             </Text>
             <Text testID="recipes-title" variant="title">
@@ -195,7 +195,7 @@ export default function RecipesScreen() {
                 </View>
                 <View className="gap-1.5 p-4">
                   <View className="self-start rounded-full bg-accent px-2 py-0.5">
-                    <Text className="text-[10px] font-medium uppercase tracking-wide text-primary">
+                    <Text className="text-[12px] font-medium uppercase tracking-wide text-primary">
                       {recipe.cuisineType}
                     </Text>
                   </View>
@@ -223,7 +223,7 @@ export default function RecipesScreen() {
                       ] as const
                     ).map(([label, value]) => (
                       <View key={label} className="rounded-full bg-gray-100 px-2 py-0.5">
-                        <Text className="text-[10px] text-gray-500">
+                        <Text className="text-[12px] text-gray-500">
                           {label} {value}g
                         </Text>
                       </View>

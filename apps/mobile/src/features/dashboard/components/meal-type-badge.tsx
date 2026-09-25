@@ -14,7 +14,7 @@ export function MealTypeBadge({ mealType }: { mealType: string }) {
   const colours = MEAL_COLOURS[mealType] ?? { bg: 'bg-gray-100', text: 'text-gray-600' };
   return (
     <View className={cn('self-start rounded-full px-2.5 py-0.5', colours.bg)}>
-      <Text className={cn('text-[10px] font-semibold uppercase', colours.text)}>{mealType}</Text>
+      <Text className={cn('text-[12px] font-semibold uppercase', colours.text)}>{mealType}</Text>
     </View>
   );
 }
