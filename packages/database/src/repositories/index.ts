@@ -90,3 +90,65 @@ export {
   type IFeedbackRepository,
   type CreateFeedbackData,
 } from './feedback.repository';
+
+// ─── Gym (gym_plan.md §4.1) ───────────────────────────────────────────────────
+
+export {
+  ExerciseRepository,
+  exerciseRepository,
+  type IExerciseRepository,
+  type ExerciseWriteData,
+  type CuratedExerciseUpdate,
+} from './exercise.repository';
+
+export {
+  GymProfileRepository,
+  gymProfileRepository,
+  type IGymProfileRepository,
+  type GymProfileWriteData,
+  type GymProfileUpdateData,
+  type InitialProgressionData,
+  type CompleteSetupData,
+} from './gym-profile.repository';
+
+export {
+  RoutineRepository,
+  routineRepository,
+  type IRoutineRepository,
+  type RoutineWithDays,
+  type RoutineDayWithExercises,
+  type RoutineCreateData,
+  type RoutineDayWriteData,
+  type RoutineExerciseWriteData,
+  type RoutineListRow,
+  type ReplaceRoutineResult,
+} from './routine.repository';
+
+export {
+  WorkoutSessionRepository,
+  workoutSessionRepository,
+  type IWorkoutSessionRepository,
+  type SessionWithChildren,
+  type SessionExerciseWithSets,
+  type SessionDocWriteData,
+  type SessionExerciseWriteData,
+  type SessionSetWriteData,
+  type StoredSessionSnapshot,
+  type UpsertSessionResult,
+  type UpsertSessionOptions,
+  type SessionCursor,
+} from './workout-session.repository';
+
+export {
+  ExerciseProgressionRepository,
+  exerciseProgressionRepository,
+  type IExerciseProgressionRepository,
+  type ProgressionStateWrite,
+} from './exercise-progression.repository';
+
+export {
+  TrainingPauseRepository,
+  trainingPauseRepository,
+  type ITrainingPauseRepository,
+  type CreateTrainingPauseData,
+} from './training-pause.repository';

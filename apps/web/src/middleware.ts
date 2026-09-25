@@ -14,6 +14,7 @@ const PROTECTED_ROUTES = [
   '/profile',
   '/admin',
   '/premium',
+  '/gym',
 ];
 
 export function middleware(request: NextRequest) {
@@ -53,5 +54,6 @@ export const config = {
     '/admin/:path*',
     '/profile/:path*',
     '/premium/:path*',
+    '/gym/:path*',
   ],
 };

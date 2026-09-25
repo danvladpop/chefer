@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import superjson from 'superjson';
 import { ZodError } from 'zod';
 import type { UserProfile } from '@chefer/types';
+import { ConflictCause } from './conflict.js';
 import { isPremiumUser } from './entitlements.js';
 import { logger } from './logger.js';
 
@@ -32,6 +33,8 @@ const t = initTRPC.context<Context>().create({
       data: {
         ...shape.data,
         zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
+        // CONFLICT errors that carry the server's current version (lib/conflict.ts).
+        conflict: error.cause instanceof ConflictCause ? error.cause.payload : null,
       },
     };
   },

@@ -26,6 +26,8 @@
 18. [Zero-Waste Pantry Flow (F3)](#18-zero-waste-pantry-flow-f3)
 19. [Beta Feedback Flow](#19-beta-feedback-flow)
 20. [Native App Update Flow (OTA, M4-4)](#20-native-app-update-flow-ota-m4-4)
+21. [Gym Training Flow](#21-gym-training-flow)
+22. [Gym Setup & Workout Sync Flow (API)](#22-gym-setup--workout-sync-flow-api)
 
 ---
 
@@ -1007,3 +1009,191 @@ App launch (production binary) → expo-updates asks u.expo.dev for the newest
   `update <id>`).
 - Dev builds (`Chefer Dev`) keep loading JS from Metro on the Mac; they
   never receive production updates.
+
+---
+
+## 21. Gym Training Flow
+
+Weight training alongside food (plan: [`gym_plan.md`](./gym_plan.md); evidence:
+[`docs/gym/programming-research.md`](./docs/gym/programming-research.md)). Free on
+every tier (`PLAN_FEATURES.gymTraining`). Mobile first; the web port is wave G5.
+On web (G5) the same loop lives under `/gym*`: the mode comes from the URL plus a
+`chefer_mode` cookie, the active workout is kept in localStorage (resumes after a
+reload), and finished workouts upload through a localStorage outbox on
+reconnect / focus. Web reminders are stored only; the phone sends them.
+
+### Entering Gym mode
+
+```
+Food/Gym switch (header of every tab root) → persisted mode
+  ├─ no GymProfile → /gym/setup
+  │     days/week → experience → equipment + units → weekdays/reminder
+  │     → gym.profile.recommend (pure engine: template + volume hints)
+  │     → "Help me find my weights" (calibration) | "I know my weights"
+  │     → gym.profile.completeSetup  (profile + active routine + initial progressions)
+  └─ profile exists → Gym tabs: Today / Routine / Exercises / Stats
+```
+
+### The daily loop (offline-first)
+
+```
+Today: gym.bootstrap (persisted on the phone) → "Next up: <day>" with targets
+  → Start → workoutReducer.startSession (warm-ups + prefilled working sets)
+  → every tap: reducer action → SQLite KV write (crash-safe, resumable)
+  → Finish → summary ("next time" decisions) → outbox.enqueue(doc)
+      → optimistic: engine.applyFinishedSession on the cached bootstrap
+      → flush when online: gym.session.upsertMany (idempotent by client UUID)
+          → server: ownership + clientUpdatedAt checks → write doc
+          → advance rotation once (rotationAppliedAt) → recompute progressions
+      → invalidate gym.bootstrap
+```
+
+- The routine is a **rotation, not a calendar**: "next up" is the next day in
+  sequence; missed days roll forward and are never marked failed.
+- Outbox entries are removed only on an `applied`/`stale` ack; a `rejected`
+  doc is parked for the user — workouts are never dropped silently.
+
+### In the active workout (`gym/workout`, G2-A)
+
+```
+Set row: [− weight +] [− reps +] ✓  (prefilled from the suggestion)
+  ✓ → completeSet with the shown values → rest timer (working sets only) + haptic
+  − / + → next ACHIEVABLE load for the equipment (engine stepUp/stepDown);
+          a weight change carries to the later unticked sets that had the old weight
+  tap weight → plate calculator (barbell/smith) or keypad; tap reps → keypad
+Last working set ticked → optional RIR chips (0/1/2/3+), highlighted while calibrating;
+  the finished exercise stays open until answered / "Not now" / ticking elsewhere
+⋯ menu → swap (just today | today + routine), skip, add/remove set, move, note, history
+  "today + routine" → gym.routine.save (online only; one CONFLICT rebase onto the
+  server's routine, else the swap stays today-only)
+Finish → confirm if working sets are unticked → finish() → summary
+  Summary "Next time" reads the optimistically folded cached progressions;
+  Adjust → gym.progression.setOverride (online only)
+Android back / ⌄ → minimise (the session stays resumable from Today); Discard is confirmed
+Remove one set → long-press its row (mobile, ConfirmSheet) / tap its number (web menu);
+  warm-ups and working sets alike, positions stay contiguous
+```
+
+### Supersets (G4-B)
+
+```
+Routine editor (mobile + web): "Superset with next" on any exercise but the day's last
+  → adjacent exercises share a letter (routineExercise.supersetGroup: A, B … per day)
+  → violet bracket + A1/A2 chips + "Superset A · <rest> s rest after each round"
+  reorder / remove / cross-day move → groups re-normalised (a pair left with one dissolves;
+  a step move hops over a whole superset; a drag dropped between members joins it)
+Active workout: grouping derived from routineExerciseId via the cached routine
+  (the session doc has no superset field; exercises added mid-session never join one,
+  and moving members apart in the session breaks it for that session)
+  tick set k of A1 → no rest, focus + scroll to set k of A2 (a running rest is cleared)
+  last exercise of round k ticked → rest timer with the superset's LAST exercise's rest
+  focus walks round by round (A1·1, A2·1, A1·2 …); skipped members drop out of rounds
+```
+
+Shared logic: `@chefer/utils` `gym/supersets.ts` (`setSupersetWithNext`,
+`moveSupersetItem[To]`, `removeSupersetItem`, `sessionSupersets`, `setTickOutcome`,
+`workoutFocus`). Not built: "notes you typed last time" per exercise —
+`SessionSummaryDto` (bootstrap `recentSessions`) carries no exercise notes.
+
+On web the floating chat widget is hidden on `/gym/workout*` (`ChatWidgetGate`).
+
+### Progression (deterministic, explainable)
+
+Double progression inside the slot's rep range (research §1): all sets at the
+top → add the smallest achievable load; otherwise add reps. The optional
+last-set RIR chip (0/1/2/3+) only adjusts (bigger jump when easy, consolidate
+at failure). Misses hold once then drop ~10 %; three stalled exposures reset to
+90 %; breaks > 2 weeks re-enter lighter and fast-track back. Every suggestion
+carries a reason code shown as one sentence plus a "Why?" sheet.
+`ExerciseProgression` is a derived cache — the server re-folds the engine over
+completed sessions, so late offline syncs and deleted sessions stay consistent.
+
+### Editing at three levels (D5)
+
+| Level    | Where                                                                                        | Effect                                                              |
+| -------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Routine  | Routine tab → editor (`gym.routine.save`, optimistic version)                                | Days, exercises, sets, rep ranges, rest, order, planned weekdays    |
+| Week/day | Today → "Do another day" / "Skip" (`gym.routine.setNextDay`); pre-start and in-session edits | Session-only unless the user picks "Update routine"                 |
+| Targets  | Summary "Adjust" / routine "Next targets" (`gym.progression.setOverride`)                    | Overrides the next prescription once; the engine resumes afterwards |
+
+### Consistency mechanics
+
+Weekly goal = routine days/week; the week ring fills per session; the streak
+counts consecutive goal-met weeks. Flex weeks (earn 1 per 4 met weeks, hold 2)
+auto-cover a short week; pauses (`gym.pause.*`) freeze the streak. No daily
+streaks, no red "missed" markers.
+
+- **Pause, end early:** `GymBootstrap.activePause` (additive DTO field, G4-A)
+  carries the id/dates/reason of the pause covering the client's `today`, so
+  both mobile settings and web settings can show "Paused until <date>" with an
+  **End pause** button (`gym.pause.end`) regardless of which device started
+  it — the web's earlier "only pauses created in this browser" workaround
+  (localStorage bookkeeping) is gone.
+- **Reminders (mobile only, local `expo-notifications`, G4-A):** one
+  notification per planned weekday over the next 14 days at the profile's
+  `reminderTime`, skipping a day already trained or inside a pause, plus at
+  most one gentle "missed yesterday" nudge the day after a missed planned
+  day (never the same day as a planned reminder — max one notification a
+  day, never guilt copy). `useGymReminders()` cancels and reschedules
+  everything whenever the bootstrap's reminder-relevant fields change or the
+  app foregrounds; permission is requested only from the settings toggle and
+  the setup wizard's reminder step, never on cold start. Web shows "Reminders
+  are sent by the Chefer phone app" — it stores the preference but sends
+  nothing itself.
+- **Streak repair — "Log a past workout" (mobile + web, G4-A):** pick a date
+  in the current or previous week (never the future), then a routine day or
+  freestyle. Starts a session backdated to that date's `localDate` with
+  `startedAt` at 18:00 local (`use-active-workout.ts`'s `backfillDate`); the
+  user logs the actual sets in the normal workout screen and finishes like
+  any other session. The engine folds it into `summarizeWeeks` by the week it
+  happened in and into progression by `performedAt` — never by upload order —
+  so a backfill logged after today's session still lands in the right place
+  chronologically.
+- **Contextual offers:** at most one of comeback / deload / stall / recap is
+  shown at a time, in that priority order (`pickOffer` in `@chefer/utils`,
+  shared by mobile and web so they never disagree — the web previously just
+  took `offers[0]`, found and fixed during G4-A verification). A deload
+  accepted from Today (`gym.progression.startDeload`) flips
+  `nextWorkout.isDeload` and prescribes deload targets (half the sets,
+  ~90% load, reps at the floor) on the very next bootstrap read.
+
+## 22. Gym Setup & Workout Sync Flow (API)
+
+Server side of gym_plan.md §4/§5.2 (services in `apps/api/src/application/gym/`). Every
+`gym.*` procedure is `protectedProcedure` and free (D9). Progression, weeks, PRs and volume are
+computed by the pure engine in `@chefer/utils`; the API loads, calls it and persists.
+
+```
+Setup: gym.profile.recommend (engine only) → user picks template/days/weekdays
+  → gym.profile.completeSetup  ── ONE transaction:
+        GymProfile (unit-default plates, goalHistory, knownWeights in offerState)
+        + active Routine from the template (pointer = day 1, others deactivated)
+        + ExerciseProgression initialState per (exercise, rep bucket)
+  → returns GymBootstrap (the phone persists it)
+
+Workout (offline on the phone) → Finish → outbox → gym.session.upsertMany({ docs })
+  per doc, oldest first:
+    unknown exercise / duplicate ids / bad range ─► rejected (reason)   phone parks it
+    id owned by another user ────────────────────► rejected: forbidden
+    stored clientUpdatedAt newer ────────────────► stale                phone drops it
+    same clientUpdatedAt (retry) ────────────────► applied (no write)
+    else: upsert row + delete/recreate children ─► applied
+          COMPLETED routine session & rotationAppliedAt empty
+             → Routine.nextDayId = engine nextDayIdAfter(day)   (exactly once)
+  then ProgressionService.recompute(touched exercises):
+    all completed exposures → group by rep bucket → engine foldHistory → state
+    (overrides consumed by a newer exposure are cleared)
+  → phone invalidates gym.bootstrap → next workout + prescriptions for `today`
+```
+
+- **Re-syncs are harmless:** the same doc twice is one write; the rotation never advances twice
+  (even after later edits of the finished session).
+- **Delete / discard** of a completed session re-folds its exercises; the rotation pointer is not
+  rewound.
+- **Routine editing** is a whole-document save with `expectedVersion`; a stale version returns
+  `CONFLICT` with `error.data.conflict.current` (the server's `RoutineDto`) so the client can offer
+  "keep mine / take theirs". Moving the pointer (`setNextDay`, finished workouts) never bumps the
+  version.
+- **Offers** in the bootstrap (deload, stall, comeback after > 8 days, monthly recap on days
+  1–7) are dismissed by key via `gym.progression.dismissOffer`; `startDeload` makes the next 7 days'
+  prescriptions deloads.

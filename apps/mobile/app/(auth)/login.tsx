@@ -20,7 +20,7 @@ export default function LoginScreen() {
   const login = trpc.auth.login.useMutation({
     onSuccess: async (data) => {
       if (data.session) {
-        // Flips the root layout's auth gate straight into (tabs).
+        // Flips the root layout's auth gate straight into (food) (or Gym Today).
         await setToken(data.session.token);
       }
     },

@@ -1,0 +1,53 @@
+name: Gym Video Link Check
+
+# Weekly link-rot guard for gym_plan.md §5.5: catches YouTube videos that get
+# taken down, made private, or region-blocked after we ship. On failure,
+# opens a GitHub issue so it doesn't silently rot.
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch: {}
+
+# pnpm's version comes from package.json's packageManager field — passing it
+# to pnpm/action-setup as well makes the action fail on "multiple versions".
+env:
+  NODE_VERSION: '20'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-videos:
+    name: Check exercise video links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check exercise video links
+        id: check
+        run: |
+          cd apps/api
+          pnpm exec tsx ../../scripts/gym/check-exercise-videos.ts
+
+      - name: Open an issue on failure
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Gym exercise video link check failed ($(date -u +%Y-%m-%d))" \
+            --body "The weekly gym exercise video link check found one or more dead YouTube video ids in \`packages/types/src/gym/exercise-content.ts\`. See the [failed run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for which exercises are affected, then update the relevant \`videoId\`/\`videoStartSec\`/\`videoChannel\` fields (see \`docs/gym/exercise-library-research.md\` for replacement candidates, or search for a new one from the preferred channel list)."

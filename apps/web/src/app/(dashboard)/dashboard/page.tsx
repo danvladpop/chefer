@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { ChefReviewBanner } from '@/features/coach/components/ChefReviewBanner';
 import { WeightCard } from '@/features/coach/components/WeightCard';
 import { NutritionSummary } from '@/features/dashboard/components/nutrition-summary';
+import { TodaysWorkoutCard } from '@/features/gym/shared/todays-workout-card';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
@@ -413,6 +414,9 @@ export default function DashboardPage() {
 
         {/* F1: weight quick-entry + 30-day sparkline (free — feeds coaching) */}
         <WeightCard />
+
+        {/* Gym (D11): next workout / done + week ring; opens Gym mode */}
+        <TodaysWorkoutCard />
 
         {/* Recent Favourites */}
         <div className="overflow-hidden rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
