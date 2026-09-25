@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs, usePathname } from 'expo-router';
 import { shouldOpenGymHome } from '../../src/features/gym/mode-store';
+import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
 
 // Food mode tab bar. Mirrors PRIMARY_NAV_ITEMS + "More" from
 // apps/web/src/features/nav/nav-items.ts. (Renamed from `(tabs)` for the
@@ -21,18 +22,13 @@ export default function FoodTabsLayout() {
   }
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: '#944a00',
-      }}
-    >
+    <Tabs screenOptions={TAB_BAR_SCREEN_OPTIONS}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" color={color} size={size} />
+            <Ionicons name="home-outline" color={color} size={size + 2} />
           ),
         }}
       />
@@ -41,7 +37,7 @@ export default function FoodTabsLayout() {
         options={{
           title: 'Plan',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" color={color} size={size} />
+            <Ionicons name="calendar-outline" color={color} size={size + 2} />
           ),
         }}
       />
@@ -50,7 +46,7 @@ export default function FoodTabsLayout() {
         options={{
           title: 'Recipes',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="book-outline" color={color} size={size} />
+            <Ionicons name="book-outline" color={color} size={size + 2} />
           ),
         }}
       />
@@ -59,7 +55,7 @@ export default function FoodTabsLayout() {
         options={{
           title: 'Shop',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cart-outline" color={color} size={size} />
+            <Ionicons name="cart-outline" color={color} size={size + 2} />
           ),
         }}
       />
@@ -68,7 +64,7 @@ export default function FoodTabsLayout() {
         options={{
           title: 'More',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="menu-outline" color={color} size={size} />
+            <Ionicons name="menu-outline" color={color} size={size + 2} />
           ),
         }}
       />
