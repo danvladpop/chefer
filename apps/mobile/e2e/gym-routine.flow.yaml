@@ -51,9 +51,13 @@ appId: dev.chefer.app.dev
       id: 'gym-routine-editor-title'
     timeout: 10000
 
-# Capture the first exercise's current set count, bump it, and remember the
+# Exercise rows start collapsed to a one-line summary (G4-B): expand the
+# first one. Then capture its current set count, bump it, and remember the
 # expected value (ids are server-assigned, so the row testIDs are matched by
 # pattern rather than by a fixed id).
+- tapOn:
+    id: 'routine-editor-day-.*-exercise-.*-toggle'
+    index: 0
 - copyTextFrom:
     id: '.*-sets-value$'
 # iOS reports the value element's full label ("3 sets"), so parse the leading int.

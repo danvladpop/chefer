@@ -3,7 +3,13 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { trpc } from '@/lib/trpc';
 import type { GymBootstrap, NextWorkoutDto, WorkoutSessionDoc } from '@chefer/types';
-import { applyFinishedSession, startSession, workoutReducer } from '@chefer/utils';
+import {
+  applyFinishedSession,
+  setTickOutcome,
+  startSession,
+  workoutReducer,
+  type SessionSupersetSlot,
+} from '@chefer/utils';
 import { libraryLookup, localDate } from '../use-gym-bootstrap';
 import {
   activeSessionStore,
@@ -70,11 +76,23 @@ export function startWorkout(
   return doc;
 }
 
+export interface DispatchOptions {
+  /** The session's supersets (sessionSupersets): decides rest vs. advance on a tick. */
+  supersets?: ReadonlyMap<string, SessionSupersetSlot>;
+}
+
+const NO_SUPERSETS: ReadonlyMap<string, SessionSupersetSlot> = new Map();
+
 /**
  * Applies one action (stamping `at`) and persists synchronously. Ticking a
- * WORKING set starts the rest timer with that exercise's rest.
+ * WORKING set starts the rest timer with that exercise's rest — except inside
+ * a superset, where the rest waits for the last exercise of the round (a
+ * running rest is cleared as the round goes on).
  */
-export function dispatchWorkout(action: WorkoutActionInput): WorkoutSessionDoc | null {
+export function dispatchWorkout(
+  action: WorkoutActionInput,
+  options: DispatchOptions = {},
+): WorkoutSessionDoc | null {
   const record = activeSessionStore.get();
   if (!record) return null;
   const next = workoutReducer(record.doc, { ...action, at: nowIso() });
@@ -82,11 +100,14 @@ export function dispatchWorkout(action: WorkoutActionInput): WorkoutSessionDoc |
   activeSessionStore.set(next, record.ownerId);
 
   if (action.type === 'completeSet') {
-    const exercise = next.exercises.find((e) => e.id === action.seId);
-    const set = exercise?.sets.find((s) => s.id === action.setId);
-    if (exercise && set && !set.isWarmup) {
-      startRest(exercise.restSec, exercise.id);
-    }
+    const outcome = setTickOutcome(
+      next,
+      options.supersets ?? NO_SUPERSETS,
+      action.seId,
+      action.setId,
+    );
+    if (outcome.kind === 'rest') startRest(outcome.restSec, outcome.seId);
+    else if (outcome.kind === 'advance') skipRest();
   }
   return next;
 }
@@ -195,7 +216,7 @@ export interface ActiveWorkout {
   /** The in-progress session (null when none, and during SSR/hydration). */
   session: WorkoutSessionDoc | null;
   start: (input: StartWorkoutInput) => WorkoutSessionDoc;
-  dispatch: (action: WorkoutActionInput) => WorkoutSessionDoc | null;
+  dispatch: (action: WorkoutActionInput, options?: DispatchOptions) => WorkoutSessionDoc | null;
   finish: () => Promise<WorkoutSessionDoc | null>;
   discard: () => WorkoutSessionDoc | null;
 }

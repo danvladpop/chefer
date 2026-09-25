@@ -1070,7 +1070,32 @@ Finish → confirm if working sets are unticked → finish() → summary
   Summary "Next time" reads the optimistically folded cached progressions;
   Adjust → gym.progression.setOverride (online only)
 Android back / ⌄ → minimise (the session stays resumable from Today); Discard is confirmed
+Remove one set → long-press its row (mobile, ConfirmSheet) / tap its number (web menu);
+  warm-ups and working sets alike, positions stay contiguous
 ```
+
+### Supersets (G4-B)
+
+```
+Routine editor (mobile + web): "Superset with next" on any exercise but the day's last
+  → adjacent exercises share a letter (routineExercise.supersetGroup: A, B … per day)
+  → violet bracket + A1/A2 chips + "Superset A · <rest> s rest after each round"
+  reorder / remove / cross-day move → groups re-normalised (a pair left with one dissolves;
+  a step move hops over a whole superset; a drag dropped between members joins it)
+Active workout: grouping derived from routineExerciseId via the cached routine
+  (the session doc has no superset field; exercises added mid-session never join one,
+  and moving members apart in the session breaks it for that session)
+  tick set k of A1 → no rest, focus + scroll to set k of A2 (a running rest is cleared)
+  last exercise of round k ticked → rest timer with the superset's LAST exercise's rest
+  focus walks round by round (A1·1, A2·1, A1·2 …); skipped members drop out of rounds
+```
+
+Shared logic: `@chefer/utils` `gym/supersets.ts` (`setSupersetWithNext`,
+`moveSupersetItem[To]`, `removeSupersetItem`, `sessionSupersets`, `setTickOutcome`,
+`workoutFocus`). Not built: "notes you typed last time" per exercise —
+`SessionSummaryDto` (bootstrap `recentSessions`) carries no exercise notes.
+
+On web the floating chat widget is hidden on `/gym/workout*` (`ChatWidgetGate`).
 
 ### Progression (deterministic, explainable)
 

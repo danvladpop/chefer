@@ -325,3 +325,85 @@ describe('isDraftEqual', () => {
     expect(isDraftEqual(d, next)).toBe(false);
   });
 });
+
+describe('draftReducer — supersets (G4-B)', () => {
+  const groups = (d: DraftRoutine, day = 0) => d.days[day]!.exercises.map((e) => e.supersetGroup);
+
+  function linked(): DraftRoutine {
+    const d = draft();
+    return draftReducer(d, {
+      type: 'set_superset_with_next',
+      dayKey: d.days[0]!.key,
+      exerciseKey: d.days[0]!.exercises[0]!.key,
+      linked: true,
+    });
+  }
+
+  it('links and unlinks with the next exercise, and saves the letters', () => {
+    const d = linked();
+    expect(groups(d)).toEqual(['A', 'A']);
+    expect(toRoutineDoc(d).days[0]!.exercises.map((e) => e.supersetGroup)).toEqual(['A', 'A']);
+    const off = draftReducer(d, {
+      type: 'set_superset_with_next',
+      dayKey: d.days[0]!.key,
+      exerciseKey: d.days[0]!.exercises[0]!.key,
+      linked: false,
+    });
+    expect(groups(off)).toEqual([null, null]);
+  });
+
+  it('removing a member of a pair dissolves the superset', () => {
+    const d = linked();
+    const next = draftReducer(d, {
+      type: 'remove_exercise',
+      dayKey: d.days[0]!.key,
+      exerciseKey: d.days[0]!.exercises[1]!.key,
+    });
+    expect(groups(next)).toEqual([null]);
+  });
+
+  it('step and drag moves inside the superset keep it', () => {
+    const d = linked();
+    const [bench, row] = d.days[0]!.exercises;
+    const stepped = draftReducer(d, {
+      type: 'step_exercise',
+      dayKey: d.days[0]!.key,
+      exerciseKey: row!.key,
+      direction: 'up',
+    });
+    expect(stepped.days[0]!.exercises.map((e) => e.key)).toEqual([row!.key, bench!.key]);
+    expect(groups(stepped)).toEqual(['A', 'A']);
+
+    const dragged = draftReducer(d, {
+      type: 'move_exercise',
+      fromDayKey: d.days[0]!.key,
+      exerciseKey: bench!.key,
+      toDayKey: d.days[0]!.key,
+      toIndex: 1,
+    });
+    expect(groups(dragged)).toEqual(['A', 'A']);
+  });
+
+  it('a cross-day move leaves the superset on both sides', () => {
+    const d = linked();
+    const next = draftReducer(d, {
+      type: 'move_exercise',
+      fromDayKey: d.days[0]!.key,
+      exerciseKey: d.days[0]!.exercises[0]!.key,
+      toDayKey: d.days[1]!.key,
+      toIndex: 0,
+    });
+    expect(groups(next, 0)).toEqual([null]);
+    expect(groups(next, 1)).toEqual([null, null]);
+  });
+
+  it('loads stray server letters in canonical form', () => {
+    const dto = routineDto();
+    dto.days[0]!.exercises[0]!.supersetGroup = 'Q';
+    dto.days[0]!.exercises[1]!.supersetGroup = 'Q';
+    dto.days[1]!.exercises[0]!.supersetGroup = 'Z';
+    const d = fromRoutineDto(dto);
+    expect(groups(d, 0)).toEqual(['A', 'A']);
+    expect(groups(d, 1)).toEqual([null]);
+  });
+});

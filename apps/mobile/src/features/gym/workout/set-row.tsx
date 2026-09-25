@@ -8,15 +8,15 @@ import type {
   SessionSetDoc,
   WeightUnit,
 } from '@chefer/types';
-import { Text } from '@chefer/ui-mobile';
+import { Text, ValueStepper } from '@chefer/ui-mobile';
 import { cn, formatLoad, formatLoadNumber, unitLabel } from '@chefer/utils';
-import { ValueStepper } from './value-stepper';
 import { nextLoad, PR_LABELS, type WeightMode } from './workout-model';
 
 // One set: `label | last time (muted) | [− weight +] | [− reps +] | ✓`
 // (gym_plan.md §1.3). Memoised: ticking one set re-renders that row only —
 // the reducer keeps every other set object identical, and all handlers are
-// stable (they take ids and read the live doc from the store).
+// stable (they take ids and read the live doc from the store). Long-pressing
+// the row (outside its buttons) offers to remove the set (G4-B).
 
 export interface SetRowHandlers {
   onTick: (seId: string, setId: string) => void;
@@ -24,6 +24,8 @@ export interface SetRowHandlers {
   onReps: (seId: string, setId: string, reps: number) => void;
   onOpenWeight: (seId: string, setId: string) => void;
   onOpenReps: (seId: string, setId: string) => void;
+  /** Long-press on the row: set options (remove). */
+  onLongPress: (seId: string, setId: string) => void;
 }
 
 export interface SetRowProps {
@@ -37,6 +39,8 @@ export interface SetRowProps {
   unit: WeightUnit;
   weightMode: WeightMode;
   prKind: PrKind | null;
+  /** The set to do next (the workout's focus): outlined. */
+  focused?: boolean;
   handlers: SetRowHandlers;
   testID: string;
 }
@@ -64,6 +68,7 @@ function SetRowImpl({
   unit,
   weightMode,
   prKind,
+  focused = false,
   handlers,
   testID,
 }: SetRowProps) {
@@ -86,7 +91,7 @@ function SetRowImpl({
   const formatWeight = useCallback((kg: number) => formatLoadNumber(kg, unit), [unit]);
   const formatReps = useCallback((reps: number) => String(reps), []);
 
-  const { onTick, onWeight, onReps, onOpenWeight, onOpenReps } = handlers;
+  const { onTick, onWeight, onReps, onOpenWeight, onOpenReps, onLongPress } = handlers;
   const setWeight = useCallback(
     (kg: number) => onWeight(seId, set.id, kg),
     [onWeight, seId, set.id],
@@ -94,6 +99,7 @@ function SetRowImpl({
   const setReps = useCallback((r: number) => onReps(seId, set.id, r), [onReps, seId, set.id]);
   const openWeight = useCallback(() => onOpenWeight(seId, set.id), [onOpenWeight, seId, set.id]);
   const openReps = useCallback(() => onOpenReps(seId, set.id), [onOpenReps, seId, set.id]);
+  const longPress = useCallback(() => onLongPress(seId, set.id), [onLongPress, seId, set.id]);
 
   const loadText = formatLoad(set.weightKg, unit, meta.loadType);
   const summary = `${label}: ${loadText}, ${set.reps} ${repsCaption}`;
@@ -104,7 +110,21 @@ function SetRowImpl({
       : '';
 
   return (
-    <View testID={testID} className={cn('gap-0.5 rounded-lg px-1 py-1', done && 'bg-emerald-50')}>
+    // accessible={false}: the steppers and ✓ stay individually reachable by
+    // screen readers (the exercise ⋯ menu also offers "Remove set").
+    <Pressable
+      testID={testID}
+      accessible={false}
+      onLongPress={longPress}
+      className={cn(
+        'gap-0.5 rounded-lg border px-1 py-1',
+        done
+          ? 'border-transparent bg-emerald-50'
+          : focused
+            ? 'border-primary/40'
+            : 'border-transparent',
+      )}
+    >
       <View className="min-h-5 flex-row items-center gap-2 px-1">
         <Text testID={`${testID}-label`} className="text-xs font-semibold text-foreground">
           {label}
@@ -175,7 +195,7 @@ function SetRowImpl({
           </RNText>
         </Pressable>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

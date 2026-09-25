@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Repeat, Trash2 } from 'lucide-react';
-import type { ExerciseLookup } from '@chefer/utils';
+import { cn, type ExerciseLookup } from '@chefer/utils';
 import type { DraftExercise } from '../draft';
 
 const RIR_OPTIONS = [0, 1, 2, 3, 4];
@@ -20,6 +20,12 @@ export interface ExerciseFieldsFormProps {
   onRemove: () => void;
   /** Drag handle / reorder controls injected by the desktop or phone shell. */
   leading?: ReactNode;
+  /** Place in a superset ("A", 0-based position), when in one. */
+  superset?: { label: string; position: number } | null;
+  /** Linked to the next exercise (the "Superset with next" toggle's state). */
+  linkedToNext?: boolean;
+  /** Omit for the last exercise of the day (nothing to link to). */
+  onSupersetWithNext?: (linked: boolean) => void;
 }
 
 /** The editable fields for one routine-exercise slot (sets, rep range, rest, target RIR). */
@@ -30,13 +36,31 @@ export function ExerciseFieldsForm({
   onSwap,
   onRemove,
   leading,
+  superset = null,
+  linkedToNext = false,
+  onSupersetWithNext,
 }: ExerciseFieldsFormProps) {
   const meta = lookup(exercise.exerciseId);
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-2 rounded-xl border border-gray-200 bg-white p-3">
+    <div
+      className={cn(
+        'flex min-w-0 flex-1 flex-col gap-2 rounded-xl border border-gray-200 bg-white p-3',
+        superset && 'border-l-4 border-l-violet-500',
+      )}
+      data-testid="routine-exercise-row"
+    >
       <div className="flex min-w-0 items-center gap-2">
         {leading}
+        {superset && (
+          <span
+            className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-bold text-violet-800"
+            data-testid="routine-superset-chip"
+          >
+            {superset.label}
+            {superset.position + 1}
+          </span>
+        )}
         <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
           {meta?.name ?? exercise.exerciseId}
         </p>
@@ -134,6 +158,33 @@ export function ExerciseFieldsForm({
           ))}
         </select>
       </label>
+
+      {onSupersetWithNext && (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={linkedToNext}
+          onClick={() => onSupersetWithNext(!linkedToNext)}
+          data-testid="superset-with-next"
+          className="flex min-h-11 w-full items-center justify-between gap-2 rounded-md bg-gray-50 px-2 text-left hover:bg-gray-100"
+        >
+          <span className="min-w-0">
+            <span className="block text-xs font-medium text-gray-700">Superset with next</span>
+            <span className="block text-[11px] text-gray-400">
+              No rest in between; rest after the round
+            </span>
+          </span>
+          <span
+            aria-hidden="true"
+            className={cn(
+              'flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors',
+              linkedToNext ? 'justify-end bg-violet-600' : 'justify-start bg-gray-300',
+            )}
+          >
+            <span className="h-4 w-4 rounded-full bg-white shadow-sm" />
+          </span>
+        </button>
+      )}
     </div>
   );
 }
