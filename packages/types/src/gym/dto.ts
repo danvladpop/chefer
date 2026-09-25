@@ -160,6 +160,14 @@ export interface GymOffer {
   data?: Record<string, number | string | null>;
 }
 
+/** The pause covering `today` (device-local), if any — lets a client end it directly. */
+export interface ActivePauseDto {
+  id: string;
+  startDate: string;
+  endDate: string;
+  reason: string | null;
+}
+
 export interface GymBootstrap {
   profile: GymProfileDto | null;
   activeRoutine: RoutineDto | null;
@@ -174,6 +182,8 @@ export interface GymBootstrap {
   weeks: WeekSummary[];
   streak: StreakInfo;
   offers: GymOffer[];
+  /** The pause covering `today`, or null — additive field, see gym_plan.md §1.4 / §9.2. */
+  activePause: ActivePauseDto | null;
   /** Latest known bodyweight (kg) from the nutrition weight log. */
   bodyweightKg: number | null;
   serverTime: string;
