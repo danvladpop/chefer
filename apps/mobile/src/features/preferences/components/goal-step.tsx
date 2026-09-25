@@ -72,10 +72,7 @@ export function GoalStep({ value, onChange, compact = false }: GoalStepProps) {
               className={cn('rounded-full px-2 py-0.5', selected ? 'bg-primary/10' : 'bg-gray-100')}
             >
               <Text
-                className={cn(
-                  'text-[11px] font-medium',
-                  selected ? 'text-primary' : 'text-gray-600',
-                )}
+                className={cn('text-xs font-medium', selected ? 'text-primary' : 'text-gray-600')}
               >
                 {g.calorieEffect}
               </Text>
