@@ -302,15 +302,6 @@ export function OnboardingWizard() {
             {titles[step]}
           </Text>
         </View>
-        <Pressable
-          testID="onboarding-skip"
-          accessibilityRole="button"
-          onPress={handleSkip}
-          disabled={isSubmitting}
-          className="h-11 items-center justify-center px-2"
-        >
-          <Text className="text-sm font-semibold text-primary">Skip</Text>
-        </Pressable>
       </View>
 
       {/* Progress bar */}
@@ -344,6 +335,17 @@ export function OnboardingWizard() {
         >
           {step === totalSteps - 1 ? 'Finish' : 'Continue'}
         </Button>
+        {/* Skip sits under Continue: thumb reach, and clear of the top-right
+            corner (the dev-client Tools bubble swallowed taps there). */}
+        <Pressable
+          testID="onboarding-skip"
+          accessibilityRole="button"
+          onPress={handleSkip}
+          disabled={isSubmitting}
+          className="h-11 items-center justify-center"
+        >
+          <Text className="text-sm font-semibold text-primary">Skip for now</Text>
+        </Pressable>
       </View>
     </Screen>
   );
