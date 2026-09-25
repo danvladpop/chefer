@@ -5,7 +5,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect } from 'expo-router';
 import type { ExerciseDto, Rir } from '@chefer/types';
 import { Button, ConfirmSheet, EmptyState, Screen, Text } from '@chefer/ui-mobile';
-import { sameKg } from '@chefer/utils';
+import { sameKg, sessionSupersetKey, type SessionSupersetSlot } from '@chefer/utils';
 import { ExercisePicker } from '../library/exercise-picker';
 import { localDate, newId } from '../offline/ids';
 import { dispatchWorkout, getResumableSession, useActiveWorkout } from '../use-active-workout';
@@ -20,7 +20,7 @@ import { useIsOnline } from './use-is-online';
 import { ROUTINE_SWAP_NOTICE, useRoutineSwap } from './use-routine-swap';
 import {
   byPosition,
-  currentExerciseId,
+  currentFocus,
   defaultSlotParams,
   equipmentOf,
   exerciseHistory,
@@ -29,6 +29,8 @@ import {
   livePr,
   prescribeFor,
   priorSessions,
+  setLabelOf,
+  supersetsOf,
   swapSlotParams,
   unitOf,
   weightModeOf,
@@ -48,13 +50,26 @@ type SheetState =
   | { kind: 'picker'; mode: 'swap' | 'add'; seId: string | null; scope: SwapScope }
   | { kind: 'finish' }
   | { kind: 'discard' }
-  | { kind: 'minimise' };
+  | { kind: 'minimise' }
+  | { kind: 'removeSet'; seId: string; setId: string };
 
 /** iOS can't present a Modal while another is still dismissing. */
 const SHEET_SWAP_DELAY_MS = 380;
 const SCROLL_SETTLE_MS = 120;
 const NOTICE_MS = 5000;
 const KEEP_AWAKE_TAG = 'gym-workout';
+const NO_SUPERSETS: ReadonlyMap<string, SessionSupersetSlot> = new Map();
+
+/** Two exercises in the same superset (or the same exercise). */
+function sameGroup(
+  supersets: ReadonlyMap<string, SessionSupersetSlot>,
+  a: string | null,
+  b: string | null,
+): boolean {
+  if (a === null || b === null) return false;
+  if (a === b) return true;
+  return supersets.get(a)?.memberIds.includes(b) ?? false;
+}
 
 function leaveWorkout(): void {
   if (router.canGoBack()) router.back();
@@ -101,10 +116,24 @@ export function WorkoutScreen() {
     () => priorSessions(bootstrap?.recentSessions ?? [], sessionId),
     [bootstrap?.recentSessions, sessionId],
   );
-  const live = useRef({ prior, lookup, profile, bootstrap });
+  // Supersets come from the cached routine (the session has no superset
+  // field). Re-derived per render but kept referentially stable while the
+  // grouping itself is unchanged, so memoised cards don't re-render per tick.
+  const derivedSupersets = session ? supersetsOf(session, bootstrap) : NO_SUPERSETS;
+  const supersetKey = sessionSupersetKey(derivedSupersets);
+  const supersetsRef = useRef<{ key: string; map: ReadonlyMap<string, SessionSupersetSlot> }>({
+    key: '',
+    map: NO_SUPERSETS,
+  });
+  if (supersetsRef.current.key !== supersetKey) {
+    supersetsRef.current = { key: supersetKey, map: derivedSupersets };
+  }
+  const supersets = supersetsRef.current.map;
+
+  const live = useRef({ prior, lookup, profile, bootstrap, supersets });
   useEffect(() => {
-    live.current = { prior, lookup, profile, bootstrap };
-  }, [prior, lookup, profile, bootstrap]);
+    live.current = { prior, lookup, profile, bootstrap, supersets };
+  }, [prior, lookup, profile, bootstrap, supersets]);
 
   // ── Sheets (one at a time; swaps wait for the previous Modal to leave) ────
   const [sheet, setSheet] = useState<SheetState | null>(null);
@@ -170,13 +199,16 @@ export function WorkoutScreen() {
           return;
         }
         const before = set.isWarmup ? null : livePr(se, live.current.prior);
-        const next = dispatchWorkout({
-          type: 'completeSet',
-          seId,
-          setId,
-          weightKg: set.weightKg,
-          reps: set.reps,
-        });
+        const next = dispatchWorkout(
+          {
+            type: 'completeSet',
+            seId,
+            setId,
+            weightKg: set.weightKg,
+            reps: set.reps,
+          },
+          { supersets: live.current.supersets },
+        );
         const after = next?.exercises.find((e) => e.id === seId);
         const finishedExercise =
           after !== undefined &&
@@ -213,12 +245,14 @@ export function WorkoutScreen() {
       },
       onOpenWeight: (seId, setId) => openSheet({ kind: 'weight', seId, setId }),
       onOpenReps: (seId, setId) => openSheet({ kind: 'reps', seId, setId }),
+      onLongPress: (seId, setId) => openSheet({ kind: 'removeSet', seId, setId }),
     }),
     [openSheet],
   );
 
   // ── Expansion + auto-scroll to the current exercise ────────────────────────
-  const currentId = session ? currentExerciseId(session) : null;
+  const focus = session ? currentFocus(session, supersets) : null;
+  const currentId = focus?.seId ?? null;
   const [expandOverride, setExpandOverride] = useState<Record<string, boolean>>({});
   const scrollRef = useRef<ScrollView>(null);
   const layoutY = useRef(new Map<string, number>());
@@ -231,7 +265,12 @@ export function WorkoutScreen() {
 
   const scheduleScroll = useCallback(() => {
     if (scrollTimer.current) clearTimeout(scrollTimer.current);
-    if (rirPendingRef.current !== null) return;
+    // A pending RIR question holds the scroll — unless focus only moved to the
+    // next exercise of the same superset (both cards stay open).
+    const pending = rirPendingRef.current;
+    if (pending !== null && !sameGroup(live.current.supersets, pending, pendingScrollId.current)) {
+      return;
+    }
     scrollTimer.current = setTimeout(() => {
       const id = pendingScrollId.current;
       const y = id ? layoutY.current.get(id) : undefined;
@@ -277,7 +316,8 @@ export function WorkoutScreen() {
           ...prev,
           [seId]: !(
             prev[seId] ??
-            (seId === currentIdRef.current || seId === rirPendingRef.current)
+            (sameGroup(live.current.supersets, seId, currentIdRef.current) ||
+              seId === rirPendingRef.current)
           ),
         })),
       onRir: (seId, rir: Rir | null) => {
@@ -448,6 +488,8 @@ export function WorkoutScreen() {
         ? 'Changing your routine needs a connection. This swap applies to today only.'
         : null;
   const unticked = planned - done;
+  const removeSetLabel =
+    content?.kind === 'removeSet' && contentSe ? setLabelOf(contentSe, content.setId) : null;
 
   return (
     <Screen className="px-0" edges={['top', 'left', 'right']}>
@@ -501,19 +543,44 @@ export function WorkoutScreen() {
             Add your first exercise to get going.
           </Text>
         ) : null}
-        {exercises.map((se, index) => (
-          <ExerciseCard
-            key={se.id}
-            exercise={se}
-            index={index}
-            isCurrent={se.id === currentId}
-            expanded={
-              !se.skipped &&
-              (expandOverride[se.id] ?? (se.id === currentId || se.id === rirPendingId))
-            }
-            ctx={ctx}
-          />
-        ))}
+        {exercises.map((se, index) => {
+          const slot = supersets.get(se.id);
+          const card = (
+            <ExerciseCard
+              key={se.id}
+              exercise={se}
+              index={index}
+              isCurrent={se.id === currentId}
+              expanded={
+                !se.skipped &&
+                (expandOverride[se.id] ??
+                  (sameGroup(supersets, se.id, currentId) || se.id === rirPendingId))
+              }
+              supersetLabel={slot?.label ?? null}
+              supersetIndex={slot?.index ?? 0}
+              focusSetId={focus?.seId === se.id ? focus.setId : null}
+              ctx={ctx}
+            />
+          );
+          if (slot?.index !== 0) return card;
+          // The superset's heading sits above its first card; the cards carry the bracket.
+          const lastId = slot.memberIds[slot.memberIds.length - 1];
+          const restSec = session.exercises.find((e) => e.id === lastId)?.restSec ?? se.restSec;
+          return [
+            <View
+              key={`superset-${slot.label}`}
+              testID={`superset-${slot.label}`}
+              className="-mb-1 flex-row items-center gap-2 px-2"
+            >
+              <View className="h-4 w-1 rounded-full bg-violet-500" />
+              <Text className="text-sm font-semibold text-violet-800">Superset {slot.label}</Text>
+              <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={1}>
+                {restSec} s rest after each round
+              </Text>
+            </View>,
+            card,
+          ];
+        })}
         <Button
           testID="workout-add-exercise"
           variant="outline"
@@ -664,6 +731,22 @@ export function WorkoutScreen() {
         onConfirm={() => {
           closeSheet();
           leaveWorkout();
+        }}
+      />
+      <ConfirmSheet
+        visible={active?.kind === 'removeSet'}
+        onClose={closeSheet}
+        testID="workout-remove-set-sheet"
+        title={`Remove ${removeSetLabel?.toLowerCase() ?? 'this set'}?`}
+        body={`${contentMeta?.name ?? 'This exercise'} loses this set for today. Your routine doesn’t change.`}
+        confirmLabel="Remove set"
+        cancelLabel="Keep it"
+        destructive
+        onConfirm={() => {
+          if (content?.kind === 'removeSet') {
+            dispatchWorkout({ type: 'removeSet', seId: content.seId, setId: content.setId });
+          }
+          closeSheet();
         }}
       />
     </Screen>
