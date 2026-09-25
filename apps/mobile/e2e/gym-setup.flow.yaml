@@ -10,6 +10,21 @@ appId: dev.chefer.app.dev
 ---
 - runFlow: common/launch.yaml
 
+# A previous (failed) flow may have left the app in Gym mode — go to Food so
+# the sign-out below can find the More tab.
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 8000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'gym-today-title'
+    commands:
+      - tapOn:
+          id: 'mode-switch-food'
+
 # clearState does NOT clear SecureStore, so a previous session may still be
 # live — sign out first if so, same as auth.flow.yaml.
 - extendedWaitUntil:

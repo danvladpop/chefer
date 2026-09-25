@@ -55,3 +55,13 @@ appId: dev.chefer.app.dev
 
 # ── "Focus on" (cues) is visible ────────────────────────────────────────────────
 - assertVisible: 'Focus on'
+
+# ── Back to Food, so other flows start clean ────────────────────────────────
+- tapOn:
+    id: 'gym-exercise-title-back'
+- tapOn:
+    id: 'mode-switch-food'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
