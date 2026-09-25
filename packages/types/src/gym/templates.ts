@@ -195,6 +195,96 @@ export const PROGRAM_TEMPLATES: readonly ProgramTemplate[] = [
     ],
   },
   {
+    key: 'ul3-beginner',
+    name: 'Upper / Lower 3× (2 upper + 1 lower)',
+    daysPerWeek: 3,
+    experience: 'BEGINNER',
+    description:
+      'Two upper days and one bigger lower day — more chest and back work than Full Body 3×, but legs train only once a week instead of three.',
+    days: [
+      {
+        name: 'Upper A',
+        plannedWeekday: 0,
+        exercises: [
+          x('dumbbell-bench-press', 3, 8, 12),
+          x('seated-cable-row', 3, 8, 12),
+          x('lat-pulldown', 2, 8, 12),
+          x('dumbbell-lateral-raise', 2, 12, 20),
+          x('triceps-pushdown', 2, 10, 15),
+        ],
+      },
+      {
+        name: 'Lower',
+        plannedWeekday: 2,
+        exercises: [
+          x('goblet-squat', 4, 8, 12),
+          x('romanian-deadlift', 3, 8, 12),
+          x('seated-leg-curl', 3, 10, 15),
+          x('standing-calf-raise', 2, 10, 15),
+        ],
+      },
+      {
+        name: 'Upper B',
+        plannedWeekday: 4,
+        exercises: [
+          x('machine-chest-press', 3, 8, 12),
+          x('lat-pulldown', 3, 8, 12),
+          x('incline-dumbbell-press', 2, 8, 12),
+          x('dumbbell-lateral-raise', 2, 12, 20),
+          x('dumbbell-curl', 2, 10, 15),
+        ],
+      },
+    ],
+  },
+  {
+    key: 'ul3-intermediate',
+    name: 'Upper / Lower 3× (2 upper + 1 lower)',
+    daysPerWeek: 3,
+    experience: 'INTERMEDIATE',
+    description:
+      'Heavier upper-body work split over two days plus one fuller lower day — more volume up top than Full Body 3×, traded for legs at only 1×/week frequency.',
+    days: [
+      {
+        name: 'Upper A',
+        plannedWeekday: 0,
+        exercises: [
+          x('barbell-bench-press', 3, 6, 8),
+          x('chest-supported-row', 3, 8, 12),
+          x('lat-pulldown', 3, 8, 12),
+          x('incline-dumbbell-press', 2, 8, 12),
+          x('dumbbell-lateral-raise', 3, 12, 20),
+          x('triceps-pushdown', 2, 10, 15),
+          x('dumbbell-curl', 2, 10, 15),
+        ],
+      },
+      {
+        name: 'Lower',
+        plannedWeekday: 2,
+        exercises: [
+          x('back-squat', 4, 5, 8),
+          x('romanian-deadlift', 3, 6, 10),
+          x('leg-extension', 3, 10, 15),
+          x('lying-leg-curl', 3, 10, 15),
+          x('standing-calf-raise', 3, 10, 15),
+          x('cable-crunch', 2, 10, 15),
+        ],
+      },
+      {
+        name: 'Upper B',
+        plannedWeekday: 4,
+        exercises: [
+          x('machine-chest-press', 3, 8, 12),
+          x('pull-up', 3, 6, 10),
+          x('seated-cable-row', 3, 8, 12),
+          x('cable-fly', 2, 12, 15),
+          x('dumbbell-lateral-raise', 3, 12, 20),
+          x('overhead-cable-triceps-extension', 2, 10, 15),
+          x('incline-dumbbell-curl', 2, 10, 15),
+        ],
+      },
+    ],
+  },
+  {
     key: 'ul4-beginner',
     name: 'Upper / Lower 4×',
     daysPerWeek: 4,
