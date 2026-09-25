@@ -29,6 +29,7 @@ import {
   buildSwapAction,
   currentExerciseId,
   currentFocus,
+  lastNoteFor,
   lastTimeSets,
   livePrs,
   loadSlotOf,
@@ -308,6 +309,25 @@ describe('workout view model', () => {
       { weightKg: 40, reps: 9 },
     ]);
     expect(lastTimeSets('back-squat', history)).toEqual([]);
+  });
+
+  it('surfaces the most recent non-empty note for an exercise', () => {
+    const withNotes: SessionSummaryDto[] = [
+      {
+        ...history[0]!,
+        id: 'old-2',
+        localDate: '2026-09-13',
+        exercises: [{ ...history[0]!.exercises[0]!, notes: 'stale note' }],
+      },
+      {
+        ...history[0]!,
+        id: 'new-1',
+        localDate: '2026-09-22',
+        exercises: [{ ...history[0]!.exercises[0]!, notes: 'seat 4, grip wide' }],
+      },
+    ];
+    expect(lastNoteFor('barbell-bench-press', withNotes)).toBe('seat 4, grip wide');
+    expect(lastNoteFor('back-squat', withNotes)).toBeNull();
   });
 
   it('shows at most one live PR per exercise, on the best set', () => {

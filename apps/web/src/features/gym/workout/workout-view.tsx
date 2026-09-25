@@ -34,6 +34,7 @@ import {
   currentFocus,
   formatElapsed,
   isExerciseDone,
+  lastNoteFor,
   lastTimeSets,
   livePrs,
   sessionProgress,
@@ -115,6 +116,13 @@ export function WorkoutView() {
     const map = new Map<string, { weightKg: number; reps: number }[]>();
     for (const id of exerciseIdsKey.split('|')) {
       if (id && !map.has(id)) map.set(id, lastTimeSets(id, history, session?.id ?? null));
+    }
+    return map;
+  }, [exerciseIdsKey, history, session?.id]);
+  const lastNoteByExercise = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const id of exerciseIdsKey.split('|')) {
+      if (id && !map.has(id)) map.set(id, lastNoteFor(id, history, session?.id ?? null));
     }
     return map;
   }, [exerciseIdsKey, history, session?.id]);
@@ -213,6 +221,7 @@ export function WorkoutView() {
         profile={inventory}
         unit={displayUnit}
         lastTime={lastTimeByExercise.get(se.exerciseId) ?? NO_SETS}
+        lastNote={lastNoteByExercise.get(se.exerciseId) ?? null}
         prSetId={prs.get(se.id)?.setId ?? null}
         prKind={prs.get(se.id)?.kind ?? null}
         onEditSet={onEditSet}

@@ -337,6 +337,25 @@ export function lastTimeSets(
   return [];
 }
 
+/** The most recent non-empty note typed for this exercise ("Last time: seat 4, grip wide"). */
+export function lastNoteFor(
+  exerciseId: string,
+  history: SessionSummaryDto[],
+  excludeId: string | null = null,
+): string | null {
+  const sessions = history
+    .filter((s) => s.status === 'COMPLETED' && s.id !== excludeId)
+    .sort(
+      (a, b) => b.localDate.localeCompare(a.localDate) || b.startedAt.localeCompare(a.startedAt),
+    );
+  for (const s of sessions) {
+    const ex = s.exercises.find((e) => e.exerciseId === exerciseId && !e.skipped);
+    const note = ex?.notes?.trim();
+    if (note) return note;
+  }
+  return null;
+}
+
 /** Elapsed "m:ss" / "h:mm:ss" since `startedAt`. */
 export function formatElapsed(startedAt: string, now: number): string {
   const total = Math.max(0, Math.floor((now - Date.parse(startedAt)) / 1000));

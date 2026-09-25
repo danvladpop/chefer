@@ -43,6 +43,8 @@ export interface ExerciseCardProps {
   profile: EquipmentProfile;
   unit: WeightUnit;
   lastTime: { weightKg: number; reps: number }[];
+  /** Most recent non-empty note typed for this exercise, from a prior session. */
+  lastNote?: string | null;
   /** The live PR badge (at most one per exercise). */
   prSetId: string | null;
   prKind: PrKind | null;
@@ -72,6 +74,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   profile,
   unit,
   lastTime,
+  lastNote = null,
   prSetId,
   prKind,
   onEditSet,
@@ -154,6 +157,14 @@ export const ExerciseCard = memo(function ExerciseCard({
                 </>
               )}
             </span>
+            {lastNote && (
+              <span
+                className="block truncate text-xs text-gray-500"
+                data-testid="gym-exercise-last-note"
+              >
+                Last time: {lastNote}
+              </span>
+            )}
           </span>
           <ChevronDown
             className={cn(
