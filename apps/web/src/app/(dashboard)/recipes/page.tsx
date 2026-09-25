@@ -7,6 +7,7 @@ import { ImportRecipeSheet } from '@/features/recipes/components/ImportRecipeShe
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { trpc } from '@/lib/trpc';
 import { Clock, Flame, Heart, Link2, Pencil, Plus, Search } from 'lucide-react';
+import { ErrorState } from '@chefer/ui';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -39,7 +40,13 @@ export default function RecipesPage() {
     myRecipesOnly: tab === 'my',
     limit: 30,
   };
-  const { data: recipes, isLoading } = trpc.recipe.list.useQuery(listInput);
+  const {
+    data: recipes,
+    isLoading,
+    isError,
+    isRefetching,
+    refetch,
+  } = trpc.recipe.list.useQuery(listInput);
 
   const utils = trpc.useUtils();
   const toggleFav = trpc.recipe.toggleFavourite.useMutation({
@@ -138,6 +145,12 @@ export default function RecipesPage() {
       {/* Content */}
       {isLoading ? (
         <RecipeGridSkeleton />
+      ) : isError && !recipes ? (
+        <ErrorState
+          title="Couldn't load your recipes"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
       ) : !recipes || recipes.length === 0 ? (
         <EmptyState tab={tab} />
       ) : (

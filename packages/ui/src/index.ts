@@ -12,4 +12,5 @@ export { Badge, badgeVariants, type BadgeProps } from './components/badge';
 export { Toast, type ToastProps, type ToastType } from './components/toast';
 export { Sheet, type SheetProps } from './components/sheet';
 export { Drawer, type DrawerProps } from './components/drawer';
+export { ErrorState, type ErrorStateProps } from './components/error-state';
 export { cn } from './lib/utils';

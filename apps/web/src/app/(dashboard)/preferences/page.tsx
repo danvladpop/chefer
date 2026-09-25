@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { PreferencesForm } from '@/features/preferences/components/preferences-form';
 import type { ChefProfileData, DietaryPreferencesData } from '@/features/preferences/types';
 import { createServerClient } from '@/lib/trpc-server';
+import { ErrorState } from '@chefer/ui';
 
 export const metadata: Metadata = {
   title: 'Preferences',
@@ -17,6 +18,7 @@ export default async function PreferencesPage() {
   let chefProfile: ChefProfileData | null = null;
   let dietaryPreferences: DietaryPreferencesData | null = null;
   let isPremium = true; // fail open to the form; mutations are server-gated anyway
+  let loadFailed = false;
 
   try {
     const headerStore = await headers();
@@ -55,8 +57,21 @@ export default async function PreferencesPage() {
       };
     }
   } catch {
-    // If the API is unreachable, render the empty form — the user can still
-    // fill and save. On next reload the data will be re-fetched.
+    // Never render an empty form over data we couldn't load: saving it wrote
+    // empty allergy lists over the real ones (audit F-ONB-2-1).
+    loadFailed = true;
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
+        <ErrorState
+          title="Couldn't load your preferences"
+          message="Nothing has been changed. Check your connection and try again."
+          retryHref="/preferences"
+        />
+      </div>
+    );
   }
 
   // Safety preferences (allergies, restrictions, dislikes) are free (P1-2);

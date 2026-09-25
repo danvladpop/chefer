@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Screen, Text } from '@chefer/ui-mobile';
+import { Button, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
 import { CuisineStep, type CuisineStepValue } from '../preferences/components/cuisine-step';
@@ -139,6 +139,21 @@ export function OnboardingWizard() {
   const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
     onError: (err) => setError(err.message),
   });
+
+  // Saved prefs failed to load: a blank wizard could save empty safety
+  // lists, so show an error instead (F-ONB-1-1, F-X-3-1).
+  if (savedPrefs.isError && !savedPrefs.data) {
+    return (
+      <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
+        <ErrorState
+          title="Couldn't load your setup"
+          description="Nothing has been changed. Check your connection and try again."
+          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          onRetry={() => void savedPrefs.refetch()}
+        />
+      </Screen>
+    );
+  }
 
   // Wait for saved prefs too, so Finish can't submit a blank wizard.
   if (isPremium === undefined || savedPrefs.isLoading) {

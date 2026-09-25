@@ -15,6 +15,7 @@ import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { addDays, format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Flame, Save, Trash2 } from 'lucide-react';
+import { ErrorState } from '@chefer/ui';
 
 type PortionKey = 0.5 | 1 | 1.5 | 2;
 const PORTION_LABELS: Record<PortionKey, string> = { 0.5: '½×', 1: '1×', 1.5: '1½×', 2: '2×' };
@@ -38,7 +39,7 @@ export default function TrackerPage() {
   const isToday = todayStr === dateStr;
   const isFuture = selectedDate > new Date() && !isToday;
 
-  const { data, isLoading, refetch } = trpc.tracker.getDay.useQuery(
+  const { data, isLoading, isError, isRefetching, refetch } = trpc.tracker.getDay.useQuery(
     { date: dateStr },
     { enabled: !isFuture, staleTime: 30_000 },
   );
@@ -254,6 +255,15 @@ export default function TrackerPage() {
             <div key={i} className="h-20 animate-pulse rounded-2xl bg-neutral-100" />
           ))}
         </div>
+      )}
+
+      {/* A failed load is not an empty day (audit F-X-3-1). */}
+      {!isFuture && isError && !data && (
+        <ErrorState
+          title="Couldn't load this day"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
       )}
 
       {!isFuture && !isLoading && data && (

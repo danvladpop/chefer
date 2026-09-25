@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { MealTypeBadge } from '../../src/features/dashboard/components/meal-type-badge';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
@@ -70,6 +70,7 @@ export default function MealPlanScreen() {
   const {
     data: plan,
     isLoading,
+    isError,
     refetch,
   } = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { retry: false });
 
@@ -201,6 +202,14 @@ export default function MealPlanScreen() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#944a00" />
         </View>
+      ) : isError && !plan ? (
+        // A failed load is not an empty week — never offer Generate over a
+        // plan we couldn't fetch (F-X-3-1).
+        <ErrorState
+          title="Couldn't load your meal plan"
+          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          onRetry={() => void refetch()}
+        />
       ) : !plan ? (
         /* ── Empty week ─────────────────────────────────────────────────── */
         <ScrollView contentContainerClassName="gap-4 px-4 py-6">

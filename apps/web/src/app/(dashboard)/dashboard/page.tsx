@@ -13,6 +13,7 @@ import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
 import { ArrowRight, Clock, Flame, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
+import { ErrorState } from '@chefer/ui';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -26,7 +27,7 @@ const MEAL_COLOURS: Record<string, string> = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { data, isLoading } = trpc.dashboard.summary.useQuery();
+  const { data, isLoading, isError, isRefetching, refetch } = trpc.dashboard.summary.useQuery();
   const { data: weekSummary } = trpc.tracker.weeklySummary.useQuery(undefined, {
     staleTime: 60_000,
   });
@@ -45,7 +46,18 @@ export default function DashboardPage() {
   if (isLoading) return <DashboardSkeleton />;
 
   const d = data;
-  if (!d) return null;
+  // A failed load rendered a blank page (audit F-DASH-1-3, F-X-3-1).
+  if (!d) {
+    return isError ? (
+      <div className="mx-auto max-w-3xl p-4 lg:p-6">
+        <ErrorState
+          title="Couldn't load your dashboard"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
+      </div>
+    ) : null;
+  }
 
   const hasPlan = d.weekPlan.length > 0;
 

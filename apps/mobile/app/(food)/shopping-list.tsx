@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn, formatQuantity } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { parseCustomItemInput } from '../../src/features/shopping-list/parse-custom-item';
@@ -47,10 +47,12 @@ export default function ShoppingListScreen() {
 
   const weekStart = getMondayOfWeek(weekOffset);
 
-  const { data: weekList, isLoading } = trpc.shoppingList.getForWeek.useQuery(
-    { weekOffset },
-    { staleTime: 60_000 },
-  );
+  const {
+    data: weekList,
+    isLoading,
+    isError,
+    refetch: refetchList,
+  } = trpc.shoppingList.getForWeek.useQuery({ weekOffset }, { staleTime: 60_000 });
 
   // Optimistic per-key toggle (P1-5) — same cache surgery as web: flip
   // immediately, per-key server semantics merge concurrent devices.
@@ -144,6 +146,20 @@ export default function ShoppingListScreen() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#944a00" />
         </View>
+      </Screen>
+    );
+  }
+
+  // A failed load is not an empty list (F-X-3-1).
+  if (isError && !weekList) {
+    return (
+      <Screen>
+        <ModeSwitch className="mt-3" />
+        <ErrorState
+          title="Couldn't load your shopping list"
+          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          onRetry={() => void refetchList()}
+        />
       </Screen>
     );
   }
