@@ -72,6 +72,16 @@ appId: dev.chefer.app.dev
 - tapOn:
     text: 'Not Now'
     optional: true
+
+# ── A fresh account lands in onboarding first (dogfood feedback #9) ─────────
+# — skip it before switching to Gym.
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-skip'
+    timeout: 15000
+- tapOn:
+    id: 'onboarding-skip'
+
 - extendedWaitUntil:
     visible:
       id: 'home-title'
