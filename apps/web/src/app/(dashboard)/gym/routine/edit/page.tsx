@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { captureGymEvent } from '@/features/gym/analytics';
 import { ConflictDialog } from '@/features/gym/routine/components/ConflictDialog';
 import { DesktopEditorBoard } from '@/features/gym/routine/components/DesktopEditorBoard';
 import { ExercisePickerSheet } from '@/features/gym/routine/components/ExercisePickerSheet';
@@ -74,6 +75,7 @@ export default function RoutineEditPage() {
 
   const saveMutation = trpc.gym.routine.save.useMutation({
     onSuccess: (saved) => {
+      captureGymEvent('routine_edited', { kind: 'save' });
       void utils.gym.bootstrap.invalidate();
       void utils.gym.routine.list.invalidate();
       void utils.gym.routine.get.invalidate({ id: saved.id });
