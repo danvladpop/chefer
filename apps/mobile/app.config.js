@@ -2,7 +2,19 @@
 // version ("Unexpected token '{'", eas-cli 23.1.0) while expo itself read it
 // fine — plain JS removes the loader variance. Typed via the JSDoc below.
 
+const { withEntitlementsPlist } = require('expo/config-plugins');
+
 const EAS_PROJECT_ID = 'f4d9a056-7f4d-4ee4-b185-2f0bcea37225';
+
+// expo-notifications adds the Push Notifications capability (aps-environment).
+// Chefer only schedules LOCAL notifications (gym reminders, rest timer), and a
+// free personal Apple team cannot sign apps with push — strip it. Re-add when
+// a paid team + real push arrive.
+const withoutPushEntitlement = (cfg) =>
+  withEntitlementsPlist(cfg, (c) => {
+    delete c.modResults['aps-environment'];
+    return c;
+  });
 
 // Two app variants (M4-4) so a laptop-independent production build and a
 // Metro-backed dev client can live side by side on the same phone:
@@ -81,6 +93,7 @@ const config = {
     'expo-sqlite',
     'expo-image',
     ['expo-notifications', { color: '#944a00' }],
+    withoutPushEntitlement,
   ],
   // OTA updates via EAS Update. The fingerprint policy hashes the native
   // layer, so an update only reaches binaries with identical native code —
