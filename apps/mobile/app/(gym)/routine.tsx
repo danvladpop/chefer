@@ -249,13 +249,15 @@ export default function RoutineScreen() {
           </>
         )}
 
-        <Button
-          testID="gym-routine-my-routines"
-          variant="outline"
-          onPress={() => router.push('/gym/routines')}
-        >
-          My routines
-        </Button>
+        {routine ? (
+          <Button
+            testID="gym-routine-my-routines"
+            variant="outline"
+            onPress={() => router.push('/gym/routines')}
+          >
+            My routines
+          </Button>
+        ) : null}
       </ScrollView>
 
       {overrideTarget ? (
