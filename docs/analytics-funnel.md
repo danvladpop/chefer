@@ -9,7 +9,12 @@
 ## Event dictionary (fired from `apps/web`, PostHog EU)
 
 Identity: `posthog.identify(userId, { planTier })` on every session
-(`use-auth.ts`) — segment any insight by the `planTier` person property.
+(`use-auth.ts`) **only for users who opted in** under Profile → "Usage
+analytics" (default off, backlog P0-6) — segment any insight by the `planTier`
+person property. Everyone else sends anonymous events with an in-memory ID
+(`persistence: 'memory'`, no cookies), so per-person funnels and retention
+cover opted-in users only; event counts and the per-event `tier`/`source`
+properties still cover everyone. See `infrastructure.md` §15.
 Capture is production-only (`NEXT_PUBLIC_POSTHOG_DEV=1` to test locally).
 
 ### Upgrade funnel (PW-2)
