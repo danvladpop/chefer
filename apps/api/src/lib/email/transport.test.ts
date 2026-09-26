@@ -24,10 +24,10 @@ const SMTP = {
   host: 'smtp.gmail.com',
   port: 465,
   secure: true,
-  user: 'cheferapp.help@gmail.com',
-  pass: 'abcdefghijklmnop',
+  user: 'sender.test@gmail.com',
+  pass: 'notarealpw00',
 };
-const FROM = 'Chefer <cheferapp.help@gmail.com>';
+const FROM = 'Chefer <sender.test@gmail.com>';
 
 const MESSAGE: EmailMessage = {
   to: 'user@example.com',

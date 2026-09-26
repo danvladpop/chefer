@@ -85,7 +85,7 @@ export function resolveEmailConfig(input: EmailEnvInput): EmailConfigResult {
         port: input.SMTP_PORT,
         secure: input.SMTP_SECURE,
         user: input.SMTP_USER,
-        // Google shows App Passwords as "abcd efgh ijkl mnop"; the spaces are
+        // Google shows App Passwords as four space-separated groups; the spaces are
         // display-only, so a pasted value works either way.
         pass: isGmailHost(input.SMTP_HOST) ? input.SMTP_PASS.replace(/\s+/g, '') : input.SMTP_PASS,
       };

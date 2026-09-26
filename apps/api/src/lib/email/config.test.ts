@@ -17,9 +17,9 @@ const BASE: EmailEnvInput = {
 const GMAIL: EmailEnvInput = {
   ...BASE,
   EMAIL_PROVIDER: 'smtp',
-  SMTP_USER: 'cheferapp.help@gmail.com',
-  SMTP_PASS: 'abcd efgh ijkl mnop',
-  EMAIL_FROM: 'Chefer <cheferapp.help@gmail.com>',
+  SMTP_USER: 'sender.test@gmail.com',
+  SMTP_PASS: 'not a real pw 00',
+  EMAIL_FROM: 'Chefer <sender.test@gmail.com>',
 };
 
 describe('resolveEmailProvider — backward compatible', () => {
@@ -63,14 +63,14 @@ describe('resolveEmailConfig', () => {
     expect(warnings).toEqual([]);
     expect(config).toEqual({
       provider: 'smtp',
-      from: 'Chefer <cheferapp.help@gmail.com>',
+      from: 'Chefer <sender.test@gmail.com>',
       dailyCap: 400,
       smtp: {
         host: 'smtp.gmail.com',
         port: 465,
         secure: true,
-        user: 'cheferapp.help@gmail.com',
-        pass: 'abcdefghijklmnop',
+        user: 'sender.test@gmail.com',
+        pass: 'notarealpw00',
       },
     });
   });
@@ -82,7 +82,7 @@ describe('resolveEmailConfig', () => {
 
   it('smtp without EMAIL_FROM sends as the SMTP account', () => {
     const { config, warnings } = resolveEmailConfig({ ...GMAIL, EMAIL_FROM: undefined });
-    expect(config.from).toBe('Chefer <cheferapp.help@gmail.com>');
+    expect(config.from).toBe('Chefer <sender.test@gmail.com>');
     expect(warnings).toEqual([]);
   });
 
@@ -94,7 +94,7 @@ describe('resolveEmailConfig', () => {
 
   it('matches the From address case-insensitively, and only checks Gmail', () => {
     expect(
-      resolveEmailConfig({ ...GMAIL, EMAIL_FROM: 'Chefer <CheferApp.Help@Gmail.com>' }).warnings,
+      resolveEmailConfig({ ...GMAIL, EMAIL_FROM: 'Chefer <Sender.Test@Gmail.com>' }).warnings,
     ).toEqual([]);
     expect(
       resolveEmailConfig({ ...GMAIL, SMTP_HOST: 'smtp.example.com', EMAIL_FROM: 'a@b.c' }).warnings,
@@ -103,7 +103,7 @@ describe('resolveEmailConfig', () => {
 
   it('keeps a non-Gmail password as typed', () => {
     const { config } = resolveEmailConfig({ ...GMAIL, SMTP_HOST: 'mail.example.com' });
-    expect(config.smtp?.pass).toBe('abcd efgh ijkl mnop');
+    expect(config.smtp?.pass).toBe('not a real pw 00');
   });
 
   it('warns about a port/TLS mismatch', () => {

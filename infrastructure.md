@@ -1687,7 +1687,7 @@ hence the `smtp` provider (`apps/api/src/lib/email/smtp.ts`, nodemailer).
    ```
    EMAIL_PROVIDER=smtp
    SMTP_USER=cheferapp.help@gmail.com
-   SMTP_PASS=abcdefghijklmnop
+   SMTP_PASS=<the 16-letter App Password>
    EMAIL_FROM="Chefer <cheferapp.help@gmail.com>"
    ```
 
