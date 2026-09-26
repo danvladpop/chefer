@@ -104,7 +104,11 @@ export interface MealPlanInput {
   calorieCorrection?: {
     target: number;
     previousDayTotals: number[];
+    /** Per-day macro totals of the failed attempt (audit F-PLAN-1-2). */
+    previousDayMacros?: { proteinG: number; carbsG: number; fatG: number }[];
   };
+  /** Daily macro targets (grams) from resolveDailyTargets (audit F-PLAN-1-2). */
+  macroTargets?: { proteinG: number; carbsG: number; fatG: number };
 }
 
 // ─── Meal photo analysis (F4 Snap-to-Log) ────────────────────────────────────

@@ -7,6 +7,7 @@ import {
   mealRatingRepository,
 } from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
+import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { dayImagePriority, MealPlanService } from './meal-plan.service.js';
 
 // ─── Module mocks (hoisted) ───────────────────────────────────────────────────
@@ -15,7 +16,11 @@ vi.mock('@chefer/database', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@chefer/database')>();
   return {
     ...mod,
-    prisma: { aiCallLog: { create: vi.fn().mockResolvedValue({}) } },
+    prisma: {
+      aiCallLog: { create: vi.fn().mockResolvedValue({}) },
+      // Macro vocabulary (macro-reconcile) — empty: AI numbers stay as stated.
+      ingredientPrice: { findMany: vi.fn().mockResolvedValue([]) },
+    },
     chefProfileRepository: { findByUserId: vi.fn() },
     dietaryPreferencesRepository: { findByUserId: vi.fn() },
     favouriteRecipeRepository: {
@@ -172,7 +177,9 @@ describe('MealPlanService.generate', () => {
 
     expect(plan.days).toHaveLength(7);
     for (const day of plan.days) {
-      expect(day.meals.map((m) => m.type)).toEqual(['breakfast', 'lunch', 'dinner']);
+      // Three mains, plus snacks when they fall short of the target (F-PLAN-1-3).
+      expect(day.meals.map((m) => m.type).slice(0, 3)).toEqual(['breakfast', 'lunch', 'dinner']);
+      expect(day.meals.slice(3).every((m) => m.type === 'snack')).toBe(true);
       // Curated recipes ship with preset images — instantly DONE, no worker.
       for (const meal of day.meals) {
         expect(meal.recipe.imageStatus).toBe('DONE');
@@ -234,7 +241,9 @@ describe('MealPlanService.generate', () => {
 
     await service.generate('user1', 0, true);
 
-    expect(aiService.generateMealPlan).toHaveBeenCalledOnce();
+    // (The one-dish fixture is off target, so a corrective retry may follow —
+    // this test pins the first call's input.)
+    expect(aiService.generateMealPlan).toHaveBeenCalled();
     const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
     expect(input.allergies).toEqual(['peanuts']);
     expect(input.dietaryRestrictions).toEqual(['vegetarian']);
@@ -348,7 +357,18 @@ describe('MealPlanService.generate', () => {
 });
 
 describe('MealPlanService — day-total calorie validation (P-1)', () => {
-  const planWithKcal = (kcal: number, name = `Dish ${kcal}`) => ({
+  // Macros follow the profile's targets scaled to `kcal`, so these tests pin
+  // the calorie behaviour; macro drift has its own test below.
+  const TARGETS = resolveDailyTargets(CHEF_PROFILE);
+  const macrosFor = (kcal: number) => {
+    const f = kcal / TARGETS.dailyCalorieTarget;
+    return {
+      protein: Math.round(TARGETS.proteinG * f),
+      carbs: Math.round(TARGETS.carbsG * f),
+      fat: Math.round(TARGETS.fatG * f),
+    };
+  };
+  const planWithKcal = (kcal: number, name = `Dish ${kcal}`, macros = macrosFor(kcal)) => ({
     days: [
       {
         dayOfWeek: 0,
@@ -359,7 +379,7 @@ describe('MealPlanService — day-total calorie validation (P-1)', () => {
               ...AI_RECIPE,
               id: `r-${kcal}`,
               name,
-              nutritionInfo: { ...AI_RECIPE.nutritionInfo, calories: kcal },
+              nutritionInfo: { ...AI_RECIPE.nutritionInfo, calories: kcal, ...macros },
             },
           },
         ],
@@ -388,10 +408,11 @@ describe('MealPlanService — day-total calorie validation (P-1)', () => {
     const firstInput = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
     const retryInput = vi.mocked(aiService.generateMealPlan).mock.calls[1]![0];
     expect(firstInput.calorieCorrection).toBeUndefined();
-    expect(retryInput.calorieCorrection).toEqual({
+    expect(retryInput.calorieCorrection).toMatchObject({
       target: firstInput.dailyCalorieTarget,
       previousDayTotals: [600],
     });
+    expect(retryInput.calorieCorrection?.previousDayMacros).toHaveLength(1);
     // The in-band retry wins.
     expect(plan.days[0]!.meals[0]!.recipe.name).toBe('Proper Dinner');
     expect(plan.calorieTarget).toBe(firstInput.dailyCalorieTarget);
@@ -420,9 +441,32 @@ describe('MealPlanService — day-total calorie validation (P-1)', () => {
     expect(plan.days[0]!.meals[0]!.recipe.name).toBe('Tiny Salad');
   });
 
+  it('kcal on target but fat far over still triggers the retry (F-PLAN-1-2)', async () => {
+    const service = new MealPlanService(makeRepo());
+    const t = TARGETS.dailyCalorieTarget;
+    vi.mocked(aiService.generateMealPlan)
+      .mockResolvedValueOnce(
+        planWithKcal(t, 'Fat Bomb', { ...macrosFor(t), fat: TARGETS.fatG * 2 }) as never,
+      )
+      .mockResolvedValueOnce(planWithKcal(t, 'Balanced') as never);
+
+    const plan = await service.generate('user1', 0, true);
+
+    expect(aiService.generateMealPlan).toHaveBeenCalledTimes(2);
+    const first = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
+    expect(first.macroTargets).toEqual({
+      proteinG: TARGETS.proteinG,
+      carbsG: TARGETS.carbsG,
+      fatG: TARGETS.fatG,
+    });
+    expect(plan.days[0]!.meals[0]!.recipe.name).toBe('Balanced');
+  });
+
   it('an in-band plan generates exactly once (no wasted AI call)', async () => {
     const service = new MealPlanService(makeRepo());
-    vi.mocked(aiService.generateMealPlan).mockResolvedValue(planWithKcal(2200) as never);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(
+      planWithKcal(TARGETS.dailyCalorieTarget) as never,
+    );
 
     await service.generate('user1', 0, true);
 
