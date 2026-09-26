@@ -1,73 +1,37 @@
 // Relative import (not `@/lib/analytics`): this module is unit-tested, and
 // the web vitest setup resolves relative paths only.
+import {
+  isPendingFresh,
+  mergePendingRebalance,
+  type PendingRebalance,
+  type RebalanceResultLike,
+} from '@chefer/utils';
 import { capture } from '../../../lib/analytics';
 
 // ─── Pending-rebalance hand-off (F4 Snap-to-Log) ──────────────────────────────
 // A rebalance happens as a side effect of logging (tracker save, quick-add,
-// photo scan, cook-mode "Made it!"), but its banner + undo live on the
-// meal-plan page. Nothing in the schema stores the swap pairs (wave-0 freeze),
+// photo scan, cook-mode "Made it!"). Its banner + undo show where the log
+// happened (tracker, cook mode) and on the meal-plan page. Nothing in the schema stores the swap pairs (wave-0 freeze),
 // so the hand-off is client-side: the logging surface stores the result here,
 // the meal-plan page reads it, and undo replays the previous recipes through
 // the existing mealPlan.replaceRecipe path. Tradeoff: undo is per-device and
 // expires — an accepted v1 limitation noted in the handoff.
 
-export interface RebalanceSwapLike {
-  dayOfWeek: number; // 0 = Monday … 6 = Sunday
-  mealType: string;
-  previousRecipeId: string;
-  newRecipeId: string;
-  previousRecipeName?: string | undefined;
-  newRecipeName?: string | undefined;
-}
-
-export interface RebalanceResultLike {
-  rebalanced: boolean;
-  swaps: RebalanceSwapLike[];
-  projectedDeviation: number;
-  planId?: string | undefined;
-}
-
-export interface PendingRebalance {
-  planId: string;
-  swaps: RebalanceSwapLike[];
-  createdAt: number; // epoch ms
-}
+// The pure rules live in @chefer/utils so web and mobile merge and word
+// swaps identically (mobile landed the merge first — audit F-TRK-3-2).
+export {
+  isPendingFresh,
+  rebalanceBannerCopy,
+  undoOperations,
+  type PendingRebalance,
+  type RebalanceResultLike,
+  type RebalanceSwapLike,
+} from '@chefer/utils';
 
 const STORAGE_KEY = 'chefer.rebalance.pending';
-const EXPIRY_MS = 24 * 60 * 60 * 1000; // stale after a day — the week moved on
 
-const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-// ─── Pure helpers (unit-tested) ───────────────────────────────────────────────
-
-/** "I adjusted Thursday dinner to keep your week on track" (+ "and Friday lunch"). */
-export function rebalanceBannerCopy(swaps: RebalanceSwapLike[]): string {
-  const parts = swaps.map((s) => `${DAY_NAMES[s.dayOfWeek] ?? 'a coming day'} ${s.mealType}`);
-  if (parts.length === 0) return '';
-  const joined =
-    parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)!}`;
-  return `I adjusted ${joined} to keep your week on track.`;
-}
-
-/**
- * The mealPlan.replaceRecipe calls that restore the pre-rebalance plan —
- * one per swap, each putting previousRecipeId back into its slot.
- */
-export function undoOperations(
-  pending: PendingRebalance,
-): { planId: string; dayOfWeek: number; mealType: string; recipeId: string }[] {
-  return pending.swaps.map((swap) => ({
-    planId: pending.planId,
-    dayOfWeek: swap.dayOfWeek,
-    mealType: swap.mealType,
-    recipeId: swap.previousRecipeId,
-  }));
-}
-
-/** Whether a stored hand-off is still worth showing. */
-export function isPendingFresh(pending: PendingRebalance, now: number = Date.now()): boolean {
-  return pending.swaps.length > 0 && now - pending.createdAt < EXPIRY_MS;
-}
+/** Fired on window after a log stored new swaps — banners re-read storage. */
+export const REBALANCE_EVENT = 'chefer:rebalanced';
 
 // ─── Storage (localStorage, guarded) ──────────────────────────────────────────
 
@@ -105,19 +69,18 @@ export function readPendingRebalance(): PendingRebalance | null {
 
 /**
  * One call for every logging surface: fires the `week_rebalanced` analytics
- * event and stores the swap pairs for the meal-plan banner + undo. Safe to
- * call with null/undefined/no-op results.
+ * event and MERGES the swap pairs into what is already pending (a second
+ * rebalance used to overwrite the first, so its undo was lost — F-TRK-3-2),
+ * then tells any mounted banner to refresh. Safe with null/no-op results.
  */
 export function handleRebalanceResult(result: RebalanceResultLike | null | undefined): void {
   if (!result?.rebalanced || !result.planId || result.swaps.length === 0) return;
   capture('week_rebalanced');
   try {
-    const pending: PendingRebalance = {
-      planId: result.planId,
-      swaps: result.swaps,
-      createdAt: Date.now(),
-    };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pending));
+    const merged: PendingRebalance | null = mergePendingRebalance(readPendingRebalance(), result);
+    if (merged) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    else clearPendingRebalance();
+    window.dispatchEvent(new Event(REBALANCE_EVENT));
   } catch {
     /* banner just won't show — the swaps themselves are already applied */
   }

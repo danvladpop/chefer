@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
+import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
 import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
@@ -39,6 +40,7 @@ export default function TrackerPage() {
   const isToday = todayStr === dateStr;
   const isFuture = selectedDate > new Date() && !isToday;
 
+  const utils = trpc.useUtils();
   const { data, isLoading, isError, isRefetching, refetch } = trpc.tracker.getDay.useQuery(
     { date: dateStr },
     { enabled: !isFuture, staleTime: 30_000 },
@@ -242,6 +244,10 @@ export default function TrackerPage() {
           <ChevronRight className="h-5 w-5 text-neutral-500" />
         </button>
       </div>
+
+      {/* Feedback where the log happened (audit F-TRK-3-2): a premium log can
+          adjust future meals — say so here, with Undo. */}
+      <RebalanceBanner onUndone={() => void utils.mealPlan.invalidate()} />
 
       {isFuture && (
         <div className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-500">

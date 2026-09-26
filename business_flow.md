@@ -884,8 +884,11 @@ rebalanceWeek(userId, activePlanId)   [application/meal-plan/rebalance.ts]
 ```
 
 The client hands the swap pairs to localStorage
-(`features/tracker/lib/rebalance-storage.ts`); the meal-plan page shows the
-banner ("I adjusted Thursday dinner to keep your week on track") with one-tap
+(`features/tracker/lib/rebalance-storage.ts`), MERGED with any still-pending
+swaps (`@chefer/utils` `mergePendingRebalance` — a second rebalance used to
+erase the first one's undo, F-TRK-3-2). The banner ("I adjusted Thursday
+dinner to keep your week on track") shows where the log happened (tracker,
+cook-mode finish) and on the meal-plan page, with one-tap
 **undo**, which replays `mealPlan.replaceRecipe(previousRecipeId)` per swap.
 Undo is per-device and expires after 24 h — nothing about the swap pairs is
 stored server-side (wave-0 schema freeze). Analytics: `week_rebalanced` fires

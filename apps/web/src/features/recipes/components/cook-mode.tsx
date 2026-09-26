@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
 import { useHousehold } from '@/hooks/useHousehold';
@@ -253,6 +254,13 @@ export function CookMode({ recipeId }: { recipeId: string }) {
               Your rating shapes what the chef cooks up next week.
             </p>
             <StarRatingWidget recipeId={recipe.id} />
+          </div>
+        )}
+        {/* If logging this meal adjusted the rest of the week, say so here
+            (audit F-TRK-3-2). */}
+        {logged && (
+          <div className="w-full max-w-sm text-left">
+            <RebalanceBanner onUndone={() => void utils.mealPlan.invalidate()} />
           </div>
         )}
         {upsertDay.isError && (

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   clearPendingRebalance,
   readPendingRebalance,
+  REBALANCE_EVENT,
   rebalanceBannerCopy,
   undoOperations,
   type PendingRebalance,
@@ -12,8 +13,9 @@ import { trpc } from '@/lib/trpc';
 import { Undo2, Wand2, X } from 'lucide-react';
 
 // ─── Week-rebalance banner (F4 Snap-to-Log) ───────────────────────────────────
-// Shown on the meal-plan page after a log triggered a rebalance: names what
-// the chef changed and offers one-tap undo. The swap pairs arrive via the
+// Shown after a log triggered a rebalance — on the tracker and cook mode where
+// the log happened (audit F-TRK-3-2: the tracker gave no feedback) and on the
+// meal-plan page: names what the chef changed and offers one-tap undo. The swap pairs arrive via the
 // client-side hand-off in rebalance-storage (no schema for them — wave-0
 // freeze); undo replays the previous recipes through mealPlan.replaceRecipe.
 
@@ -22,10 +24,13 @@ type MealTypeName = (typeof MEAL_TYPES)[number];
 const isMealType = (v: string): v is MealTypeName => (MEAL_TYPES as readonly string[]).includes(v);
 
 interface RebalanceBannerProps {
-  /** The plan currently displayed — the banner only shows for its swaps. */
-  planId: string | undefined;
-  /** Refetch the plan after an undo restored the previous recipes. */
-  onUndone: () => void;
+  /**
+   * The plan currently displayed — the banner only shows for its swaps.
+   * Omit on logging surfaces (tracker, cook mode): any fresh swap shows there.
+   */
+  planId?: string | undefined;
+  /** Refetch whatever the undo affects. */
+  onUndone?: () => void;
 }
 
 export function RebalanceBanner({ planId, onUndone }: RebalanceBannerProps) {
@@ -36,11 +41,15 @@ export function RebalanceBanner({ planId, onUndone }: RebalanceBannerProps) {
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation();
 
   // localStorage only exists post-mount; the hydration render must match SSR.
+  // Logging surfaces re-read when a log on this page stores new swaps.
   useEffect(() => {
-    setPending(readPendingRebalance());
+    const refresh = () => setPending(readPendingRebalance());
+    refresh();
+    window.addEventListener(REBALANCE_EVENT, refresh);
+    return () => window.removeEventListener(REBALANCE_EVENT, refresh);
   }, []);
 
-  if (!pending || !planId || pending.planId !== planId) return null;
+  if (!pending || (planId !== undefined && pending.planId !== planId)) return null;
 
   const undo = async () => {
     if (undoing) return;
@@ -53,7 +62,7 @@ export function RebalanceBanner({ planId, onUndone }: RebalanceBannerProps) {
       }
       clearPendingRebalance();
       setPending(null);
-      onUndone();
+      onUndone?.();
     } catch {
       setUndoError(true);
     } finally {
