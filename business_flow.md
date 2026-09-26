@@ -465,6 +465,10 @@ mealPlan.generate { weekOffset }
 WeeklyPlanWorker (hourly tick; acts Sundays ≥ 08:00 UTC)
   ├─ eligible: planTier = PREMIUM AND complete chef profile
   │            AND ChefProfile.autoPlanWeekly ("Plan my week every Sunday")
+  │            AND users.aiDataConsentAt IS NOT NULL (App Store 5.1.2(i), §25)
+  │            — premium users without consent are skipped (counted +
+  │            logged: "skipped N premium user(s) without AI data consent");
+  │            no curated stand-in, they are asked on their next Generate
   ├─ next week already planned?
   │    ├─ untouched CARRY_FORWARD copy (no edits, no shopping ticks or
   │    │   custom items) → replaced below
@@ -489,7 +493,7 @@ free accounts with the toggle on and a live session (signed in within the
 session lifetime — abandoned signups don't collect weeks forever), through
 `generate(userId, 1, false, { origin: WEEKLY_AUTO })`. Same skip rules
 (existing week, followed template). The premium difference is that its week
-learns. Monday's email and phone notification announce both (§23).
+learns. Curated weeks involve no AI, so free accounts are not consent-gated. Monday's email and phone notification announce both (§23).
 
 ### Viewing the plan
 
@@ -929,7 +933,8 @@ WeeklyPlanWorker Sunday tick (BEFORE plan generation — ordering matters:
 the adjusted target must shape next week's budget)
   ├─ CoachService.runReviewSweep(now)
   │    ├─ candidates: users with ≥3 DailyLog rows since UTC Monday (groupBy)
-  │    └─ per user: runWeeklyReview(userId, now, applyAdjustment=premium?)
+  │    └─ per user: runWeeklyReview(userId, now, applyAdjustment=premium?,
+  │               aiText=premium AND aiDataConsentAt IS NOT NULL)
   │         ├─ idempotency: existing ChefReview row for (userId, weekStart
   │         │    = UTC Monday midnight, @@unique) → no-op; second tick on the
   │         │    same Sunday changes nothing
@@ -955,7 +960,11 @@ the adjusted target must shape next week's budget)
   │         └─ prose: Gemini (application/coach/review-text.ts — warm,
   │              non-medical, never mentions BMR/algorithms; first line
   │              stands alone) with the deterministic template as mock/
-  │              failure fallback → ChefReview row written last
+  │              failure fallback → ChefReview row written last.
+  │              Free tier and premium users WITHOUT AI data consent (§25)
+  │              always get the template — none of their data reaches the
+  │              AI; their review and (premium) calorie adjustment still
+  │              happen. The sweep returns + logs `aiSkipped`.
   └─ plan generation sweep (PW-5) — reads the moved targets
 ```
 
@@ -1714,9 +1723,13 @@ window (`/privacy`). Admins deleting a user (`user.delete`) run the same purge.
 
 ## 25. AI Data Consent Flow (App Store 5.1.2(i))
 
-> **Status:** Implemented on web and mobile 2026-09-26. Client-side gate only —
-> the API does not check consent, so the weekly auto-plan and coach-review
-> workers keep running.
+> **Status:** Implemented on web and mobile 2026-09-26. User-initiated AI
+> procedures are gated in the clients only (the API does not re-check them).
+> Server-initiated jobs check consent themselves: the Sunday auto-plan skips
+> premium users without consent (§9) and the weekly review writes their text
+> from the template instead of the AI (§14). Other background AI calls carry
+> no personal data (recipe images from AI recipe names; the global ingredient
+> price vocabulary).
 
 ```
 user taps an AI action ──► requestAiConsent(feature, run, { usesAi })

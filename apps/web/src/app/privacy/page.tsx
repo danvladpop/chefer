@@ -36,7 +36,9 @@ export default function PrivacyPage() {
             We ask for your permission before the first AI feature sends anything, and tell you what
             that feature sends. If you choose <em>Not now</em>, nothing is sent. You can withdraw
             permission at any time in <em>Profile → AI &amp; your data</em>, on the web or in the
-            app; we then ask again before the next AI feature runs.
+            app; we then ask again before the next AI feature runs. The weekly plan and weekly
+            review we prepare for you automatically follow the same choice: without your permission,
+            nothing is sent to the AI provider for them.
           </p>
         </section>
         <section>

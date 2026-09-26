@@ -1,4 +1,4 @@
-import { MealPlanOrigin, mealPlanRepository, prisma } from '@chefer/database';
+import { MealPlanOrigin, mealPlanRepository, prisma, type Prisma } from '@chefer/database';
 import { coachService } from '../application/coach/coach.service.js';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 
@@ -22,6 +22,8 @@ import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 //   edits, no shopping ticks) is replaced with a fresh week; anything the
 //   user touched is theirs.
 // - Users can switch it off (ChefProfile.autoPlanWeekly).
+// - Premium AI generation only for users with AI data consent (App Store
+//   5.1.2(i)); free curated weeks involve no AI and are unaffected.
 
 const TICK_INTERVAL_MS = 60 * 60 * 1000; // hourly discovery tick
 const SUNDAY_UTC = 0; // Date.getUTCDay(): 0 = Sunday
@@ -95,19 +97,33 @@ export class WeeklyPlanWorker {
     // Premium subscribers with a complete profile. Admins are implicitly
     // premium for ACCESS, but auto-generation is a subscriber perk — an admin
     // who wants it can flip their own tier.
-    const premium = await prisma.user.findMany({
-      where: {
-        planTier: 'PREMIUM',
-        chefProfile: {
-          age: { not: null },
-          weightKg: { not: null },
-          heightCm: { not: null },
-          activityLevel: { not: null },
-          autoPlanWeekly: true,
-        },
+    const premiumEligible = {
+      planTier: 'PREMIUM',
+      chefProfile: {
+        age: { not: null },
+        weightKg: { not: null },
+        heightCm: { not: null },
+        activityLevel: { not: null },
+        autoPlanWeekly: true,
       },
-      select: { id: true },
-    });
+    } satisfies Prisma.UserWhereInput;
+    // AI data consent (App Store 5.1.2(i)): premium generation sends the
+    // profile to the AI provider, so only users who allowed it are included.
+    // The rest are skipped (counted, logged) — no curated stand-in, so a
+    // premium user never silently gets a non-personalised week; they are
+    // asked the next time they tap Generate.
+    const [premium, premiumNoConsent] = await Promise.all([
+      prisma.user.findMany({
+        where: { ...premiumEligible, aiDataConsentAt: { not: null } },
+        select: { id: true },
+      }),
+      prisma.user.count({ where: { ...premiumEligible, aiDataConsentAt: null } }),
+    ]);
+    if (premiumNoConsent > 0) {
+      console.log(
+        `[WeeklyPlanWorker] skipped ${premiumNoConsent} premium user(s) without AI data consent`,
+      );
+    }
     // Free accounts get the curated week (audit P2-5, PM review §3 #4):
     // deterministic, zero AI cost, so Monday's "your week is ready" works on
     // every tier. Only accounts signed in within the session lifetime (a live
