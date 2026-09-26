@@ -263,3 +263,20 @@ export {
   planStatus,
   type PlanStatus,
 } from './day-nutrition';
+export {
+  LIFTER_PROTEIN_G_PER_KG,
+  POST_WORKOUT_PROTEIN_G_PER_KG,
+  TRAINING_DAY_KCAL,
+  TRAINING_DAY_PROTEIN_G_PER_KG,
+  applyTrainingDayBonus,
+  buildTrainingDayNutrition,
+  isLifter,
+  postWorkoutProteinG,
+  resolveTrainingDay,
+  trainingDayBonus,
+  trainingDayLine,
+  trainingWeekdays,
+  withLifterProtein,
+  type ResolvedTrainingDay,
+  type TrainingDayBonus,
+} from './training-nutrition';
