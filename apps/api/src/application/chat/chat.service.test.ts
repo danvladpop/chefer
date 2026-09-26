@@ -106,6 +106,14 @@ vi.mock('../pantry/pantry.service.js', () => ({
   },
 }));
 
+// Lifter lookup reads the gym profile + weight log — the fixture user has
+// neither (P2-4 follow-up: MAINTAIN lifters get a g/kg rule too).
+vi.mock('../training-nutrition/training-nutrition.service.js', () => ({
+  trainingNutritionService: {
+    loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: null }),
+  },
+}));
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const user = (over: Partial<UserProfile> = {}): UserProfile => ({
