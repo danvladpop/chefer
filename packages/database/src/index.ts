@@ -21,6 +21,7 @@ export {
   type IMealPlanRepository,
   type CreateRecipeData,
   type CreateMealPlanData,
+  type PlanMealSlotJson,
   FavouriteRecipeRepository,
   favouriteRecipeRepository,
   type IFavouriteRecipeRepository,

@@ -30,6 +30,7 @@ export {
   type IMealPlanRepository,
   type CreateRecipeData,
   type CreateMealPlanData,
+  type PlanMealSlotJson,
 } from './meal-plan.repository';
 
 export {

@@ -24,12 +24,28 @@ export interface CreateRecipeData {
   creatorId?: string | null;
 }
 
+/**
+ * One stored plan slot (MealPlanDay.meals Json). `leftoverOf` and `portion`
+ * are optional and additive — older rows and clients simply lack them.
+ */
+export type PlanMealSlotJson = {
+  type: string;
+  recipeId: string;
+  /** F3 leftovers: source-day name ("Tuesday"). */
+  leftoverOf?: string;
+  /**
+   * P1-1: portion multiplier of one recipe serving (0.75–2, quarter steps);
+   * absent = 1×. Set by the free curated planner so days meet the targets.
+   */
+  portion?: number;
+};
+
 export interface CreateMealPlanData {
   userId: string;
   weekStartDate: Date;
   days: {
     dayOfWeek: number;
-    meals: { type: string; recipeId: string }[];
+    meals: PlanMealSlotJson[];
   }[];
   recipeIds: string[]; // ids already persisted
   /**
@@ -58,6 +74,8 @@ export interface IMealPlanRepository {
     dayOfWeek: number,
     mealType: string,
     newRecipeId: string,
+    /** The new slot's portion; omitted = the recipe as written (1×). */
+    portion?: number,
   ): Promise<void>;
   /** True when the plan's shopping list has ticks or custom items. */
   hasShoppingProgress(planId: string): Promise<boolean>;
@@ -81,7 +99,7 @@ export interface IMealPlanRepository {
   createTemplate(
     userId: string,
     name: string,
-    days: { dayOfWeek: number; meals: { type: string; recipeId: string }[] }[],
+    days: { dayOfWeek: number; meals: PlanMealSlotJson[] }[],
   ): Promise<MealPlan>;
   findTemplates(userId: string): Promise<(MealPlan & { days: MealPlanDay[] })[]>;
   findTemplateById(
@@ -307,14 +325,25 @@ export class MealPlanRepository implements IMealPlanRepository {
     dayOfWeek: number,
     mealType: string,
     newRecipeId: string,
+    portion?: number,
   ): Promise<void> {
     const day = await prisma.mealPlanDay.findFirst({
       where: { mealPlanId: planId, dayOfWeek },
     });
     if (!day) throw new Error(`Day ${dayOfWeek} not found in plan ${planId}`);
 
-    const meals = day.meals as { type: string; recipeId: string }[];
-    const updated = meals.map((m) => (m.type === mealType ? { ...m, recipeId: newRecipeId } : m));
+    // A different dish drops the old slot's portion unless the caller sized
+    // the new one (P1-1): 1.5× of the old recipe means nothing for the new.
+    const meals = day.meals as unknown as PlanMealSlotJson[];
+    const updated = meals.map((m) => {
+      if (m.type !== mealType) return m;
+      const { portion: _old, ...rest } = m;
+      return {
+        ...rest,
+        recipeId: newRecipeId,
+        ...(portion !== undefined && portion !== 1 && { portion }),
+      };
+    });
 
     await prisma.mealPlanDay.update({
       where: { id: day.id },
@@ -417,7 +446,7 @@ export class MealPlanRepository implements IMealPlanRepository {
   async createTemplate(
     userId: string,
     name: string,
-    days: { dayOfWeek: number; meals: { type: string; recipeId: string }[] }[],
+    days: { dayOfWeek: number; meals: PlanMealSlotJson[] }[],
   ): Promise<MealPlan> {
     return prisma.mealPlan.create({
       data: {
