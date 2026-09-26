@@ -3,13 +3,47 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { duration } from '@chefer/tokens';
 import { useDismissable, useMounted } from '../lib/use-dismissable';
 import { cn } from '../lib/utils';
+import { pressControl } from '../motion/press';
+import { usePresence } from '../motion/use-presence';
+import { useReducedMotion } from '../motion/use-reduced-motion';
 
 // ─── Sheet ────────────────────────────────────────────────────────────────────
 // One responsive dialog for the whole app: a bottom sheet on phones, a centred
 // dialog at sm+. Handles scroll lock, focus trap, Escape, backdrop dismiss and
 // the iOS home-indicator inset so callers don't have to.
+//
+// Motion (MO-02): the scrim fades while the panel slides up (phone) or fades
+// and scales from 0.96 (sm+); on close both run their exit and the portal
+// unmounts only afterwards (usePresence). The closing sheet is inert and
+// click-through at once, so nothing waits on the animation. Reduced motion:
+// a 150 ms crossfade for both, no movement.
+
+const MOTION = {
+  full: {
+    scrim: {
+      open: 'animate-in fade-in-0 duration-base ease-standard',
+      closed: 'animate-out fade-out-0 fill-mode-forwards duration-fast ease-exit',
+    },
+    panel: {
+      open: 'animate-in slide-in-from-bottom-full duration-slow ease-enter sm:slide-in-from-bottom-0 sm:fade-in-0 sm:zoom-in-[0.96] sm:duration-base',
+      closed:
+        'animate-out fill-mode-forwards slide-out-to-bottom-full duration-base ease-exit sm:slide-out-to-bottom-0 sm:fade-out-0 sm:zoom-out-[0.96] sm:duration-fast',
+    },
+  },
+  reduced: {
+    scrim: {
+      open: 'animate-in fade-in-0 duration-fast',
+      closed: 'animate-out fade-out-0 fill-mode-forwards duration-fast',
+    },
+    panel: {
+      open: 'animate-in fade-in-0 duration-fast',
+      closed: 'animate-out fade-out-0 fill-mode-forwards duration-fast',
+    },
+  },
+} as const;
 
 const SIZES = {
   sm: 'sm:max-w-sm',
@@ -49,18 +83,37 @@ export function Sheet({
   const panelRef = useDismissable<HTMLDivElement>({ open, onClose });
   const mounted = useMounted();
   const titleId = React.useId();
+  const reduced = useReducedMotion();
+  const { present, state, onAnimationEnd } = usePresence(
+    open,
+    reduced ? duration.fast : duration.base,
+  );
+  const motion = reduced ? MOTION.reduced : MOTION.full;
+  const closing = state === 'closed';
 
-  if (!mounted || !open) return null;
+  if (!mounted || !present) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+    <div
+      data-state={state}
+      aria-hidden={closing || undefined}
+      inert={closing}
+      className={cn(
+        'fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4',
+        closing && 'pointer-events-none',
+      )}
+    >
       {/* Backdrop */}
       <button
         type="button"
         tabIndex={-1}
         aria-hidden="true"
         onClick={onClose}
-        className="absolute inset-0 animate-fade-in-overlay cursor-default bg-black/40 sm:backdrop-blur-sm"
+        data-motion-safe
+        className={cn(
+          'absolute inset-0 cursor-default bg-black/40 sm:backdrop-blur-sm',
+          motion.scrim[state],
+        )}
       />
 
       {/* Panel */}
@@ -70,12 +123,16 @@ export function Sheet({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
+        data-state={state}
+        data-motion-safe
+        onAnimationEnd={onAnimationEnd}
         className={cn(
-          'relative flex max-h-[85dvh] w-full flex-col overflow-hidden bg-white shadow-2xl outline-none',
+          'relative flex max-h-[85dvh] w-full flex-col overflow-hidden bg-white outline-none',
           // Phone: bottom sheet flush to the screen edges, above the home indicator.
-          'animate-slide-in-from-bottom rounded-t-3xl pb-safe',
+          'rounded-t-sheet pb-safe shadow-e4-up',
           // sm+: centred dialog, no inset needed.
-          'sm:animate-fade-in sm:rounded-2xl sm:pb-0',
+          'sm:rounded-card sm:pb-0 sm:shadow-e4',
+          motion.panel[state],
           SIZES[size],
           className,
         )}
@@ -102,7 +159,10 @@ export function Sheet({
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="-mr-2 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className={cn(
+                '-mr-2 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600',
+                pressControl,
+              )}
             >
               <X className="h-5 w-5" />
             </button>
