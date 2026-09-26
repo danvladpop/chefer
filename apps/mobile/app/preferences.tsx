@@ -14,6 +14,7 @@ import type {
   Goal,
   SafetyValue,
 } from '../src/features/preferences/types';
+import { WeeklyUpdatesCard } from '../src/features/preferences/weekly-updates-card';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc } from '../src/lib/trpc';
 
@@ -202,9 +203,12 @@ export default function PreferencesScreen() {
             </Pressable>
           )}
 
-          {isPremium === true && (
-            <AutoPlanToggle initialEnabled={data?.chefProfile?.autoPlanWeekly ?? true} />
-          )}
+          {/* Every tier since P2-5: free users get a curated Sunday week. */}
+          <AutoPlanToggle
+            initialEnabled={data?.chefProfile?.autoPlanWeekly ?? true}
+            isPremium={isPremium === true}
+          />
+          <WeeklyUpdatesCard />
 
           {/* Units & currency — free for every account (P2-6, F-DASH-3-2) */}
           <Card testID="preferences-display" className="gap-4">

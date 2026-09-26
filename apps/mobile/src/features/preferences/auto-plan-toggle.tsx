@@ -4,9 +4,16 @@ import { Card, Text } from '@chefer/ui-mobile';
 import { trpc } from '../../lib/trpc';
 
 // "Plan my week every Sunday" (audit F-PLAN-4-3) — mobile counterpart of web
-// features/preferences/auto-plan-toggle. Premium only (the caller gates it).
+// features/preferences/auto-plan-toggle. Every tier since P2-5: premium gets
+// a week the chef learned from their ratings, free a fresh curated week.
 
-export function AutoPlanToggle({ initialEnabled }: { initialEnabled: boolean }) {
+export function AutoPlanToggle({
+  initialEnabled,
+  isPremium = true,
+}: {
+  initialEnabled: boolean;
+  isPremium?: boolean;
+}) {
   const [enabled, setEnabled] = useState(initialEnabled);
   useEffect(() => setEnabled(initialEnabled), [initialEnabled]);
   const utils = trpc.useUtils();
@@ -24,8 +31,10 @@ export function AutoPlanToggle({ initialEnabled }: { initialEnabled: boolean }) 
         <View className="min-w-0 flex-1">
           <Text variant="heading">Plan my week every Sunday</Text>
           <Text variant="muted" className="mt-1 text-sm">
-            Your chef prepares next week on Sunday morning. If you follow a saved week in My weeks,
-            that week repeats instead.
+            {isPremium
+              ? 'Your chef prepares next week on Sunday morning, learning from what you rate.'
+              : 'We pick a fresh week of recipes for you on Sunday morning, matched to your allergies and targets.'}{' '}
+            If you follow a saved week in My weeks, that week repeats instead.
           </Text>
         </View>
         <Switch

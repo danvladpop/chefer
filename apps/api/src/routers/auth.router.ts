@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { regionCodeSchema } from '@chefer/types';
 import { authService } from '../application/auth/auth.service.js';
 import { passwordResetService } from '../application/auth/password-reset.service.js';
+import { emailPreferencesService } from '../application/notifications/email-preferences.service.js';
 import { assertWithinRateLimit } from '../lib/rate-limit.js';
 import { publicProcedure, router } from '../lib/trpc.js';
 
@@ -39,7 +40,13 @@ const AUTH_WINDOW_MS = 15 * 60 * 1000;
 export const authRouter = router({
   register: publicProcedure.input(registerSchema).mutation(async ({ input, ctx }) => {
     assertWithinRateLimit('auth.register', ctx.ipAddress, AUTH_ATTEMPTS_MAX, AUTH_WINDOW_MS);
-    return authService.register(input, ctx.res, { includeSession: ctx.isMobileClient });
+    const user = await authService.register(input, ctx.res, {
+      includeSession: ctx.isMobileClient,
+    });
+    // Weekly emails need a confirmed address (audit P2-5) — best effort, the
+    // signup never waits on or fails because of it.
+    emailPreferencesService.sendConfirmationInBackground(user.id, user.firstName);
+    return user;
   }),
 
   login: publicProcedure.input(loginSchema).mutation(async ({ input, ctx }) => {

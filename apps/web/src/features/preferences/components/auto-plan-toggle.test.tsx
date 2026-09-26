@@ -23,4 +23,10 @@ describe('AutoPlanToggle (audit F-PLAN-4-3)', () => {
     expect(mutate).toHaveBeenCalledWith({ enabled: false });
     expect(toggle.getAttribute('aria-checked')).toBe('false');
   });
+
+  it('free accounts get the curated-week copy (P2-5)', () => {
+    render(<AutoPlanToggle initialEnabled isPremium={false} />);
+    expect(screen.getByText(/We pick a fresh week of recipes for you on Sunday/)).toBeTruthy();
+    expect(screen.queryByText(/learning from what you rate/)).toBeNull();
+  });
 });

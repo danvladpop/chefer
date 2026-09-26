@@ -3,6 +3,10 @@ import { headers } from 'next/headers';
 import Link from 'next/link';
 import { AutoPlanToggle } from '@/features/preferences/components/auto-plan-toggle';
 import { PreferencesForm } from '@/features/preferences/components/preferences-form';
+import {
+  WeeklyEmailToggles,
+  type WeeklyEmailPreferences,
+} from '@/features/preferences/components/weekly-email-toggles';
 import type { ChefProfileData, DietaryPreferencesData } from '@/features/preferences/types';
 import { createServerClient } from '@/lib/trpc-server';
 import { Users } from 'lucide-react';
@@ -22,6 +26,7 @@ export default async function PreferencesPage() {
   let dietaryPreferences: DietaryPreferencesData | null = null;
   let isPremium = true; // fail open to the form; mutations are server-gated anyway
   let autoPlanWeekly = true;
+  let emailPrefs: WeeklyEmailPreferences | null = null;
   let loadFailed = false;
 
   try {
@@ -33,6 +38,10 @@ export default async function PreferencesPage() {
     isPremium = me.planTier === 'PREMIUM' || me.role === 'ADMIN';
 
     const result = await client.preferences.get.query();
+
+    // Weekly emails (P2-5) — optional: a failure here hides the section
+    // instead of failing the whole page.
+    emailPrefs = await client.notifications.getEmailPreferences.query().catch(() => null);
 
     if (result.chefProfile) {
       autoPlanWeekly = result.chefProfile.autoPlanWeekly;
@@ -113,7 +122,9 @@ export default async function PreferencesPage() {
         dietaryPreferences={dietaryPreferences}
         isPremium={isPremium}
       />
-      {isPremium && <AutoPlanToggle initialEnabled={autoPlanWeekly} />}
+      {/* Every tier since P2-5: free users get a curated Sunday week */}
+      <AutoPlanToggle initialEnabled={autoPlanWeekly} isPremium={isPremium} />
+      {emailPrefs && <WeeklyEmailToggles initial={emailPrefs} />}
     </div>
   );
 }

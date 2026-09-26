@@ -16,7 +16,7 @@ import {
   slotPortion,
 } from '@chefer/utils';
 import type { NutritionInfo } from '../../lib/ai/index.js';
-import { hasFeature } from '../../lib/entitlements.js';
+import { hasFeature, isPremiumUser } from '../../lib/entitlements.js';
 import { resolveDailyTargets, type DailyTargets } from '../preferences/preferences.service.js';
 import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
 
@@ -354,8 +354,12 @@ export class DashboardService {
     // a carry-forward copy or a manual plan made early used to claim "the
     // chef prepared this week's plan for you on Sunday" (audit F-PLAN-4-2).
     let weekReady: DashboardSummary['weekReady'] = null;
+    // Free users' Sunday week is curated (P2-5): it doesn't learn from
+    // ratings, so it never claims to.
     if (plan.origin === MealPlanOrigin.WEEKLY_AUTO) {
-      const signals = await mealRatingRepository.findSignalsForUser(userId, 20);
+      // No viewer (tests, older call sites) keeps the premium behaviour.
+      const premium = viewer ? isPremiumUser(viewer) : true;
+      const signals = premium ? await mealRatingRepository.findSignalsForUser(userId, 20) : [];
       weekReady = { preparedAt: plan.createdAt, ratedCount: signals.length };
     }
 

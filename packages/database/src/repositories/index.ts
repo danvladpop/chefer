@@ -153,3 +153,15 @@ export {
   type ITrainingPauseRepository,
   type CreateTrainingPauseData,
 } from './training-pause.repository';
+
+// ─── Weekly emails (audit P2-5) ───────────────────────────────────────────────
+
+export {
+  WeeklyEmailRepository,
+  weeklyEmailRepository,
+  type IWeeklyEmailRepository,
+  type WeeklyEmailKind,
+  type WeeklyEmailRecipient,
+  type WeeklyEmailPreferences,
+  type WeekLogRow,
+} from './weekly-email.repository';

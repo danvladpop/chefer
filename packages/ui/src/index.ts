@@ -29,5 +29,6 @@ export {
   progressColor,
   progressOf,
 } from './motion/progress';
+export { Switch, type SwitchProps } from './components/switch';
 export { useMenu, type UseMenuResult } from './lib/use-menu';
 export { cn } from './lib/utils';

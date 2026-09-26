@@ -8,8 +8,12 @@ import { env } from '../env.js';
 export interface EmailMessage {
   to: string;
   subject: string;
-  /** Plain text body. Kept text-only until there's a designed template. */
+  /** Plain-text body — always sent, the fallback for text-only clients. */
   text: string;
+  /** Optional branded HTML body (weekly emails, templates.ts). */
+  html?: string;
+  /** Extra headers, e.g. List-Unsubscribe on the weekly emails. */
+  headers?: Record<string, string>;
 }
 
 export interface IEmailService {
@@ -19,7 +23,7 @@ export interface IEmailService {
 class MockEmailService implements IEmailService {
   send(message: EmailMessage): Promise<void> {
     console.log(
-      `📧 [EmailMock] To: ${message.to}\n   Subject: ${message.subject}\n   ${message.text.replaceAll('\n', '\n   ')}`,
+      `📧 [EmailMock] To: ${message.to}\n   Subject: ${message.subject}${message.html ? ` (+ HTML, ${message.html.length} chars)` : ''}\n   ${message.text.replaceAll('\n', '\n   ')}`,
     );
     return Promise.resolve();
   }
@@ -38,6 +42,8 @@ class ResendEmailService implements IEmailService {
         to: [message.to],
         subject: message.subject,
         text: message.text,
+        ...(message.html && { html: message.html }),
+        ...(message.headers && { headers: message.headers }),
       }),
     });
     if (!res.ok) {

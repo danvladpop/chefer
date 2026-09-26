@@ -56,7 +56,7 @@ describe('WeeklyPlanWorker', () => {
   });
 
   it('runs the chef-review sweep BEFORE plan generation (F1 ordering)', async () => {
-    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([{ id: 'u1' }] as never);
 
     await worker.tick(SUNDAY);
 
@@ -68,7 +68,7 @@ describe('WeeklyPlanWorker', () => {
 
   it('a review-sweep failure never blocks plan generation', async () => {
     vi.mocked(coachService.runReviewSweep).mockRejectedValueOnce(new Error('review down'));
-    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([{ id: 'u1' }] as never);
 
     await worker.tick(SUNDAY);
 
@@ -87,7 +87,7 @@ describe('WeeklyPlanWorker', () => {
   });
 
   it("generates NEXT week's plan (premium path) for users without one", async () => {
-    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([{ id: 'u1' }] as never);
 
     await worker.tick(SUNDAY);
 
@@ -95,7 +95,7 @@ describe('WeeklyPlanWorker', () => {
   });
 
   it('is idempotent — a user who already has next week planned is skipped', async () => {
-    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([{ id: 'u1' }] as never);
     vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue({
       id: 'existing',
       origin: 'USER',
@@ -107,7 +107,7 @@ describe('WeeklyPlanWorker', () => {
   });
 
   it('repeats a followed template instead of generating over it (F-PLAN-4-1)', async () => {
-    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([{ id: 'u1' }] as never);
     const template = { id: 't1', days: [] };
     vi.mocked(mealPlanRepository.findFollowedTemplate).mockResolvedValue(template as never);
 
@@ -122,7 +122,7 @@ describe('WeeklyPlanWorker', () => {
   });
 
   it('replaces an untouched carry-forward copy with a fresh week (F-PLAN-4-2)', async () => {
-    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([{ id: 'u1' }] as never);
     vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue({
       id: 'copy',
       origin: 'CARRY_FORWARD',
@@ -134,7 +134,7 @@ describe('WeeklyPlanWorker', () => {
   });
 
   it('keeps a carry-forward copy the user already shopped against', async () => {
-    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([{ id: 'u1' }] as never);
     vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue({
       id: 'copy',
       origin: 'CARRY_FORWARD',
@@ -148,7 +148,7 @@ describe('WeeklyPlanWorker', () => {
   });
 
   it("one user's failure does not starve the rest of the sweep", async () => {
-    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }, { id: 'u2' }] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([{ id: 'u1' }, { id: 'u2' }] as never);
     vi.mocked(mealPlanService.generate)
       .mockRejectedValueOnce(new Error('AI down'))
       .mockResolvedValueOnce({ planId: 'p2' } as never);
@@ -157,5 +157,39 @@ describe('WeeklyPlanWorker', () => {
 
     expect(mealPlanService.generate).toHaveBeenCalledTimes(2);
     expect(vi.mocked(mealPlanService.generate).mock.calls[1]![0]).toBe('u2');
+  });
+
+  it('also targets FREE accounts with a live session and the toggle on (P2-5)', async () => {
+    await worker.tick(SUNDAY);
+    const where = vi.mocked(prisma.user.findMany).mock.calls[1]![0]!.where!;
+    expect(where.planTier).toBe('FREE');
+    expect(where.OR).toEqual([{ chefProfile: null }, { chefProfile: { autoPlanWeekly: true } }]);
+    expect(where.sessions).toEqual({ some: { expires: { gt: SUNDAY } } });
+  });
+
+  it('gives free users a curated week (premium=false), tagged WEEKLY_AUTO', async () => {
+    vi.mocked(prisma.user.findMany)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([{ id: 'free1' }] as never);
+
+    await worker.tick(SUNDAY);
+
+    expect(mealPlanService.generate).toHaveBeenCalledWith('free1', 1, false, {
+      origin: 'WEEKLY_AUTO',
+    });
+  });
+
+  it('never overwrites a week a free user already planned', async () => {
+    vi.mocked(prisma.user.findMany)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([{ id: 'free1' }] as never);
+    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue({
+      id: 'mine',
+      origin: 'USER',
+    } as never);
+
+    await worker.tick(SUNDAY);
+
+    expect(mealPlanService.generate).not.toHaveBeenCalled();
   });
 });

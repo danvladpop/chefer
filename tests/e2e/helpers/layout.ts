@@ -33,6 +33,9 @@ export const APP_ROUTES = [
   '/gym/exercises/barbell-bench-press',
   '/gym/exercises/new',
   '/gym/stats',
+  // Email-link pages (P2-5): without a token they render the invalid-link state.
+  '/unsubscribe',
+  '/verify-email',
 ] as const;
 
 /** Widths from the plan's device matrix. 320 is the narrowest realistic phone. */

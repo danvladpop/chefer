@@ -63,6 +63,15 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().default('Chefer <onboarding@resend.dev>'),
   // Base URL used in emailed links (reset password, etc.)
   APP_URL: z.string().url().default('http://localhost:3000'),
+  // Signs the weekly-email unsubscribe and email-confirmation links (audit
+  // P2-5). Optional: unset derives a key from JWT_SECRET, which is safe but
+  // means rotating JWT_SECRET also breaks unsubscribe links already sitting
+  // in inboxes — set this in production so the two rotate independently.
+  // An empty value (copied .env.example) counts as unset.
+  EMAIL_TOKEN_SECRET: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(32, 'EMAIL_TOKEN_SECRET must be at least 32 characters').optional(),
+  ),
 
   // Cloudinary (optional — image generation will fail gracefully without these)
   CLOUDINARY_CLOUD_NAME: z.string().optional(),

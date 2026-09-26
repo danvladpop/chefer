@@ -112,6 +112,11 @@ model User {
   passwordHash  String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  // Weekly emails (audit P2-5, F-PM-14): Monday "your week is ready" and the
+  // Sunday recap. Opt-out, per email — the signed unsubscribe link or the
+  // Preferences toggles flip them. Only sent to a confirmed address.
+  weeklyEmailReady Boolean  @default(true)
+  weeklyEmailRecap Boolean  @default(true)
 
   // Relations
   accounts             Account[]
@@ -137,9 +142,27 @@ model User {
   workoutSessions      WorkoutSession[]
   exerciseProgressions ExerciseProgression[]
   trainingPauses       TrainingPause[]
+  emailSends           EmailSend[]
 
   @@index([email])
   @@map("users")
+}
+
+// Weekly-email send log (audit P2-5): one row per user, email kind and week,
+// claimed BEFORE sending — @@unique makes a restart or a second worker tick a
+// no-op, so nobody is emailed twice for the same week. kind: "WEEK_READY" |
+// "WEEKLY_RECAP" (a string, so new kinds need no enum migration).
+model EmailSend {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String
+  weekStart DateTime // UTC midnight of the Monday of the week the email is about
+  sentAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, weekStart])
+  @@map("email_sends")
 }
 
 // Beta feedback channel (ux-fixes-plan.md 1.6): free-text notes from any

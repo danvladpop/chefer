@@ -28,6 +28,7 @@
 20. [Native App Update Flow (OTA, M4-4)](#20-native-app-update-flow-ota-m4-4)
 21. [Gym Training Flow](#21-gym-training-flow)
 22. [Gym Setup & Workout Sync Flow (API)](#22-gym-setup--workout-sync-flow-api)
+23. [Weekly Emails & Notifications Flow (P2-5)](#23-weekly-emails--notifications-flow-p2-5)
 
 ---
 
@@ -66,6 +67,8 @@ Browser
         │        no goal, so preferences.hasProfile stays false and onboarding runs.
         └── createSession → chefer_session cookie
             (HttpOnly, SameSite=Strict, Secure in prod, 30 days)
+   └── the router then emails the address-confirmation link in the
+       background (P2-5, §23) — never blocks or fails the signup
 3. Client redirects to /onboarding
 4. Onboarding step 0 — "What brings you here?" (backlog P2-3, F-PM-6; web and
    mobile share `onboardingSteps` from @chefer/utils). Asked while
@@ -451,7 +454,7 @@ mealPlan.generate { weekOffset }
            streaming DONE events to the client over SSE
 ```
 
-### Weekly auto-generation (PW-5, premium)
+### Weekly auto-generation (PW-5; free curated weeks since P2-5)
 
 ```
 WeeklyPlanWorker (hourly tick; acts Sundays ≥ 08:00 UTC)
@@ -474,8 +477,14 @@ week is first viewed), `TEMPLATE` (a followed week) or `WEEKLY_AUTO`.
 Swapping a meal in a carry-forward copy (`updateDayMeal`) turns it into
 `USER`, so the worker never overwrites a week the user has touched. Premium
 users switch auto-planning off with `preferences.setAutoPlanWeekly` (toggle
-on Preferences, web and mobile). The Sunday notification is still to come
-(backlog P2-5).
+on Preferences, web and mobile — shown on every tier since P2-5).
+
+**Free tier (P2-5):** the same Sunday pass builds a _curated_ week (no AI) for
+free accounts with the toggle on and a live session (signed in within the
+session lifetime — abandoned signups don't collect weeks forever), through
+`generate(userId, 1, false, { origin: WEEKLY_AUTO })`. Same skip rules
+(existing week, followed template). The premium difference is that its week
+learns. Monday's email and phone notification announce both (§23).
 
 ### Viewing the plan
 
@@ -781,6 +790,8 @@ quick add.
   └─ transaction:
        ├─ user.passwordHash = bcrypt(newPassword, 12)
        ├─ delete all reset tokens for the address (single-use)
+       ├─ confirm the address (emailVerified) if it wasn't yet — the user
+       │   just proved they read that inbox (P2-5, §23)
        └─ delete ALL of the user's sessions — every device signs out
 ```
 
@@ -1521,3 +1532,98 @@ Workout (offline on the phone) → Finish → outbox → gym.session.upsertMany(
 - **Offers** in the bootstrap (deload, stall, comeback after > 8 days, monthly recap on days
   1–7) are dismissed by key via `gym.progression.dismissOffer`; `startDeload` makes the next 7 days'
   prescriptions deloads.
+
+---
+
+## 23. Weekly Emails & Notifications Flow (P2-5)
+
+> Added 2026-09-26 (audit backlog P2-5; F-PM-14, F-PLAN-4-3, PM review §7 #9).
+> The outbound retention channel, for **both tiers**: Monday "your week is
+> ready" and a Sunday recap, by email and (opt-in) as phone notifications.
+
+### Email
+
+```
+Sunday ≥ 08:00 UTC  WeeklyPlanWorker builds next week (premium: AI, learned;
+                    free: curated) — §9
+Monday ≥ 07:00 UTC  WeeklyEmailWorker → WeeklyEmailService.sendWeekReady
+Sunday ≥ 17:00 UTC  WeeklyEmailWorker → WeeklyEmailService.sendWeeklyRecap
+  (hourly tick; fixed UTC hours because no per-user time zone is stored —
+   08:00/09:00 and 18:00/19:00 in Central Europe)
+
+recipients = users with a CONFIRMED address (emailVerified)
+             AND the email's switch on (weeklyEmailReady / weeklyEmailRecap)
+             AND no EmailSend row for (kind, this week)
+for each:
+  build → nothing to say?  skip (no plan this week / an empty recap week)
+        → claimSend (insert EmailSend; @@unique → a second tick or a restart
+          loses the claim and sends nothing)
+        → send (Resend; console mock in dev)
+            └─ failure → release the claim, the next tick retries
+```
+
+- **Monday** lists one dinner per day, the shopping-list estimate in the
+  user's currency (`formatMoney`) and where the week came from: premium
+  Sunday week "planned around your targets and the N dishes you rated", free
+  Sunday week "a fresh week of recipes … fit your allergies and daily
+  targets" (plus one quiet premium line), a followed template, or the user's
+  own week. Links: the plan and the shopping list.
+- **Sunday** recaps meals logged, days within ±10% of the calorie target,
+  weight vs the previous weigh-in (in the user's units), completed workouts
+  (Gym users only) and next week's planned dinners. Premium: a pointer to the
+  chef review on Progress; free with ≥ 3 logged days: one line on what the
+  review adds. Never guilt copy — a quiet week gets an encouraging line.
+- Every weekly email has an unsubscribe link and a `List-Unsubscribe` header.
+
+### Confirmation, opt-out, account deletion
+
+```
+signup (auth.register) ─► confirmation email: APP_URL/verify-email?token=…
+                          (signed, 7 days, bound to the address)
+Preferences "Send confirmation link" ─► notifications.resendConfirmation (3/h)
+/verify-email ─► notifications.confirmEmail { token } ─► emailVerified = now
+password reset completed ─► emailVerified = now (if unset)
+
+email "Unsubscribe" ─► /unsubscribe?token=… (public, no login)
+   └─ the page calls notifications.unsubscribe { token } from the browser
+      (so link-prefetching mail scanners can't unsubscribe anyone)
+      → flips the Monday, Sunday or both switches; "Undo" re-subscribes
+Preferences (web + mobile) ─► notifications.setEmailPreferences
+```
+
+Deleting the account hard-deletes the user (cascade), so there is nobody left
+to email. Accounts created before P2-5 are unconfirmed: they see the
+"Confirm your email" prompt in Preferences and get nothing until they confirm.
+
+### Phone notifications (mobile)
+
+Local repeating notifications — no push tokens, no server state:
+
+```
+Preferences → Weekly updates → "On this phone" switch
+  on:  ensureGymReminderPermission() (asked HERE, never on launch)
+       ├─ denied → "Turn them on in your phone's Settings", stays off
+       └─ granted → schedule two WEEKLY notifications (data.app = weekly-digest)
+            Monday 08:00 local  "Your week is ready"   → /meal-plan
+            Sunday 18:00 local  "Your week in review"  → /progress
+  off: cancel the weekly-digest notifications (gym reminders untouched)
+  state = whether they are scheduled (nothing else is stored)
+
+tap → useNotificationLinks (root layout, signed in only) → router.push(url)
+      (cold start: the launch response, deferred until the Stack mounts)
+```
+
+Off by default; unlike email they use the phone's own time zone.
+
+### Manual trigger (ops / live verification)
+
+No API procedure. From `apps/api`:
+
+```
+pnpm exec tsx --env-file=.env src/scripts/send-weekly-emails.ts ready  [--user=a@b.c] [--dry-run]
+pnpm exec tsx --env-file=.env src/scripts/send-weekly-emails.ts recap  [--user=a@b.c] [--dry-run]
+```
+
+Runs one sweep now regardless of day and hour; opt-outs, confirmation and the
+per-week claims still apply (delete the `email_sends` row to resend).
+`--dry-run` prints the rendered text without claiming or sending.
