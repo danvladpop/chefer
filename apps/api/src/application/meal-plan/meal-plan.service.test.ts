@@ -1088,3 +1088,141 @@ describe('MealPlanService — training days (audit P2-4)', () => {
     expect(planOffTargetScore(plan, base, new Map([[0, bumped]]))).toBe(0);
   });
 });
+
+// ─── Curated portions (audit P1-1) ────────────────────────────────────────────
+
+describe('MealPlanService — curated slot portions (P1-1)', () => {
+  // The mocked pool is 500 kcal / 30 g per dish (1,500 kcal at 1×).
+  const LIFTER = {
+    weightKg: null,
+    heightCm: null,
+    age: null,
+    activityLevel: null,
+    biologicalSex: null,
+    goal: 'GAIN_MUSCLE',
+    dailyCalorieTarget: 2800,
+  };
+  // Not a set-up lifter: base (non-bodyweight) protein. P2-4 lifters below.
+  const noLifter = {
+    loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: null }),
+    trainingSchedule: vi.fn().mockResolvedValue([]),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(LIFTER as never);
+  });
+
+  it('stores and returns per-slot portions so a 2,800 kcal day is reachable', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo, undefined, noLifter);
+
+    const plan = await service.generate('user1', 0, false);
+
+    const stored = vi.mocked(repo.createPlan).mock.calls[0]![0] as {
+      days: { meals: { recipeId: string; portion?: number }[] }[];
+    };
+    for (const [i, day] of plan.days.entries()) {
+      const kcal = day.meals.reduce(
+        (sum, m) => sum + m.recipe.nutritionInfo.calories * (m.portion ?? 1),
+        0,
+      );
+      expect(Math.abs(kcal - 2800) / 2800).toBeLessThanOrEqual(0.1);
+      // DTO and stored JSON agree; 1× is left out of both.
+      expect(stored.days[i]!.meals.map((m) => m.portion)).toEqual(day.meals.map((m) => m.portion));
+      // nutritionInfo stays per ONE serving.
+      expect(day.meals.every((m) => m.recipe.nutritionInfo.calories === 500)).toBe(true);
+    }
+    expect(plan.days.some((d) => d.meals.some((m) => (m.portion ?? 1) > 1))).toBe(true);
+    expect(plan.proteinTarget).toBe(resolveDailyTargets(LIFTER as never).proteinG);
+  });
+
+  it('flags an honestly protein-short day on read and scales nothing else', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({
+      id: 'plan1',
+      weekStartDate: new Date('2026-09-21'),
+      days: [
+        {
+          dayOfWeek: 0,
+          meals: [
+            { type: 'breakfast', recipeId: 'ai-r1', portion: 1.5 },
+            { type: 'dinner', recipeId: 'ai-r1' },
+          ],
+        },
+      ],
+    });
+    // 2,200 kcal / 40 g per serving → 100 g at 2.5 servings vs 245 g target.
+    repo.findRecipesByIds.mockResolvedValue([{ ...AI_RECIPE, imageStatus: 'DONE' }]);
+    const service = new MealPlanService(repo, undefined, noLifter);
+
+    const dto = await service.getById('user1', 'plan1');
+
+    const day = dto.days[0]!;
+    expect(day.meals[0]!.portion).toBe(1.5);
+    expect(day.meals[1]!.portion).toBeUndefined();
+    expect(day.proteinGapG).toBe(dto.proteinTarget! - 100);
+  });
+
+  it('a free swap of a portioned slot keeps its calories', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({
+      id: 'plan1',
+      days: [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'old', portion: 2 }] }],
+    });
+    // Old dish 400 kcal × 2 = 800 kcal; the swap-in is 500 kcal → 1.5×.
+    repo.findRecipeById.mockResolvedValue({
+      ...AI_RECIPE,
+      id: 'old',
+      nutritionInfo: { ...AI_RECIPE.nutritionInfo, calories: 400 },
+    });
+    const service = new MealPlanService(repo, undefined, noLifter);
+
+    await service.swapRecipe('user1', 'plan1', 0, 'dinner', undefined, false);
+
+    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 0, 'dinner', 'swap', 1.5);
+  });
+
+  it('a free swap of a 1× slot stays 1×', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({
+      id: 'plan1',
+      days: [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'old' }] }],
+    });
+    const service = new MealPlanService(repo, undefined, noLifter);
+
+    await service.swapRecipe('user1', 'plan1', 0, 'dinner', undefined, false);
+
+    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 0, 'dinner', 'swap');
+  });
+
+  it('a free lifter is portioned toward, and judged against, bodyweight protein (P2-4)', async () => {
+    const lifter = {
+      loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: 80 }),
+      trainingSchedule: vi.fn().mockResolvedValue([{ plannedWeekday: 0, name: 'Full Body A' }]),
+    };
+    const expected = resolveDailyTargets(LIFTER, 80);
+    expect(expected.proteinG).toBe(144); // 1.8 g/kg
+
+    const generated = await new MealPlanService(makeRepo(), undefined, lifter).generate(
+      'user1',
+      0,
+      false,
+    );
+    expect(generated.proteinTarget).toBe(144);
+    expect(generated.calorieTarget).toBe(expected.dailyCalorieTarget);
+
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({
+      id: 'plan1',
+      weekStartDate: new Date('2026-09-21'),
+      days: [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'ai-r1', portion: 2 }] }],
+    });
+    repo.findRecipesByIds.mockResolvedValue([{ ...AI_RECIPE, imageStatus: 'DONE' }]);
+    const dto = await new MealPlanService(repo, undefined, lifter).getById('user1', 'plan1');
+    expect(dto.proteinTarget).toBe(144);
+    expect(dto.days[0]!.proteinGapG).toBe(144 - 80); // 40 g × 2 servings
+  });
+});

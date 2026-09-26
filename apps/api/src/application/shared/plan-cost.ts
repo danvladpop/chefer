@@ -1,4 +1,5 @@
 import { prisma } from '@chefer/database';
+import { slotPortion } from '@chefer/utils';
 import type { Ingredient } from '../../lib/ai/types.js';
 import {
   estimateItemPriceEur,
@@ -25,14 +26,17 @@ export interface PlanCostEstimate {
 }
 
 export async function estimatePlanCostEur(
-  days: { meals: { recipe: { id?: string; ingredients: Ingredient[] } }[] }[],
+  days: {
+    meals: { recipe: { id?: string; ingredients: Ingredient[] }; portion?: number | undefined }[];
+  }[],
 ): Promise<PlanCostEstimate> {
   const lines = aggregateIngredientLines(
     days.flatMap((d) =>
       d.meals.flatMap((m) =>
         m.recipe.ingredients.map((ing) => ({
           name: ing.name,
-          quantity: ing.quantity,
+          // P1-1: a 1.5× slot buys 1.5× the recipe (same rule as the list).
+          quantity: ing.quantity * slotPortion(m.portion),
           unit: ing.unit,
           recipeId: m.recipe.id ?? '',
         })),

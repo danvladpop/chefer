@@ -45,6 +45,20 @@ describe('estimatePlanCostEur', () => {
     expect(result.totalLines).toBe(2);
   });
 
+  it('prices a portioned slot at its portion, like the list (P1-1)', async () => {
+    const result = await estimatePlanCostEur([
+      {
+        meals: [
+          {
+            recipe: { ingredients: [{ name: 'chicken breast', quantity: 200, unit: 'g' }] },
+            portion: 1.5,
+          },
+        ],
+      },
+    ]);
+    expect(result.totalEur).toBe(3); // 300 g × €1.00 / 100 g
+  });
+
   it('skips water and to-taste lines like the list does (F-SHOP-1-3)', async () => {
     const result = await estimatePlanCostEur([
       day([

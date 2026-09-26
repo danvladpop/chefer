@@ -7,6 +7,7 @@ import {
 } from '@chefer/database';
 import type { DailyLog, LoggedMealEntry } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { slotPortion } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
 import { rebalanceWeek, type RebalanceResult } from '../meal-plan/rebalance.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
@@ -27,6 +28,12 @@ export interface DayPlanMeal {
   protein: number;
   carbs: number;
   fat: number;
+  /**
+   * P1-1: the plan slot's portion (servings of the recipe) when not 1×. The
+   * macros above stay per ONE serving; clients default the logged portion
+   * to this. Additive — older clients ignore it and log 1×.
+   */
+  portion?: number;
 }
 
 /** A logged planned-recipe entry whose recipe is no longer in today's plan. */
@@ -124,7 +131,7 @@ export const trackerService = {
     if (plan) {
       const dayPlan = plan.days.find((d) => d.dayOfWeek === dayOfWeek);
       if (dayPlan) {
-        const mealSlots = dayPlan.meals as { type: string; recipeId: string }[];
+        const mealSlots = dayPlan.meals as { type: string; recipeId: string; portion?: number }[];
         const recipeIds = mealSlots.map((m) => m.recipeId);
         const recipes = await mealPlanRepository.findRecipesByIds(recipeIds);
         const recipeMap = new Map(recipes.map((r) => [r.id, r]));
@@ -147,6 +154,7 @@ export const trackerService = {
             protein: nutrition.protein ?? 0,
             carbs: nutrition.carbs ?? 0,
             fat: nutrition.fat ?? 0,
+            ...(slotPortion(slot.portion) !== 1 && { portion: slotPortion(slot.portion) }),
           });
         }
       }

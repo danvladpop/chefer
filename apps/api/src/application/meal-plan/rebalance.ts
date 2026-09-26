@@ -4,6 +4,7 @@ import {
   dietaryPreferencesRepository,
   mealPlanRepository,
 } from '@chefer/database';
+import { slotPortion } from '@chefer/utils';
 import type { MealType, RecipeData } from '../../lib/ai/types.js';
 import {
   ensureCuratedRecipes,
@@ -220,7 +221,7 @@ export async function rebalanceWeek(userId: string, planId: string): Promise<Reb
   const consumedKcal = weekLogs.reduce((sum, log) => sum + log.totalKcal, 0);
 
   // Future slots joined against their recipe rows for calories.
-  type MealSlotJson = { type: string; recipeId: string };
+  type MealSlotJson = { type: string; recipeId: string; portion?: number };
   const futureDays = plan.days.filter((d) => d.dayOfWeek > todayIndex);
   const futureSlotJson = futureDays.flatMap((d) =>
     (d.meals as MealSlotJson[]).map((m) => ({ dayOfWeek: d.dayOfWeek, ...m })),
@@ -241,7 +242,8 @@ export async function rebalanceWeek(userId: string, planId: string): Promise<Reb
         mealType: m.type,
         recipeId: m.recipeId,
         recipeName: row.name,
-        kcal: nutrition.calories ?? 0,
+        // P1-1: a portioned slot counts at its portion.
+        kcal: Math.round((nutrition.calories ?? 0) * slotPortion(m.portion)),
       },
     ];
   });

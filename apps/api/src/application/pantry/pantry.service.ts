@@ -8,6 +8,7 @@ import {
   type PantryItem,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { slotPortion } from '@chefer/utils';
 import { CURATED_POOL_BY_TYPE } from '../../lib/curated-recipes/index.js';
 import { hasFeature } from '../../lib/entitlements.js';
 import {
@@ -245,7 +246,7 @@ export class PantryService {
     if (pantry.length === 0) return 0;
     const matcher = buildPantryMatcher(pantry.map((p) => p.ingredientName));
 
-    type MealSlotJson = { type: string; recipeId: string };
+    type MealSlotJson = { type: string; recipeId: string; portion?: number };
     const ids = [
       ...new Set(plan.days.flatMap((d) => (d.meals as MealSlotJson[]).map((m) => m.recipeId))),
     ];
@@ -259,11 +260,13 @@ export class PantryService {
       for (const slot of day.meals as MealSlotJson[]) {
         const recipe = recipeMap.get(slot.recipeId);
         if (!recipe) continue;
+        const portion = slotPortion(slot.portion); // P1-1 portioned slots
         for (const ing of recipe.ingredients as unknown as Ingredient[]) {
           const key = `${normalizeIngredientName(ing.name)}|${ing.unit.toLowerCase().trim()}`;
+          const quantity = ing.quantity * portion;
           const existing = merged.get(key);
-          if (existing) existing.quantity += ing.quantity;
-          else merged.set(key, { name: ing.name, quantity: ing.quantity, unit: ing.unit });
+          if (existing) existing.quantity += quantity;
+          else merged.set(key, { name: ing.name, quantity, unit: ing.unit });
         }
       }
     }

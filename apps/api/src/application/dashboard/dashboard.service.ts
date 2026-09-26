@@ -7,7 +7,7 @@ import {
   mealRatingRepository,
 } from '@chefer/database';
 import type { NutritionTargets, TrainingDayNutrition, UserProfile } from '@chefer/types';
-import { buildTrainingDayNutrition } from '@chefer/utils';
+import { buildTrainingDayNutrition, slotPortion } from '@chefer/utils';
 import type { NutritionInfo } from '../../lib/ai/index.js';
 import { hasFeature } from '../../lib/entitlements.js';
 import { resolveDailyTargets, type DailyTargets } from '../preferences/preferences.service.js';
@@ -30,6 +30,11 @@ export interface DashboardSummary {
   }[];
   nextMeal: {
     mealType: string;
+    /**
+     * P1-1: the plan slot's portion (servings of the recipe) when not 1×;
+     * `recipe.kcal` already includes it. Additive — older clients ignore it.
+     */
+    portion?: number;
     recipe: {
       id: string;
       name: string;
@@ -229,7 +234,9 @@ export class DashboardService {
     }
 
     // Join all recipe IDs
-    type MealSlot = { type: string; recipeId: string };
+    // P1-1: slots may carry a portion multiplier — every kcal/macro figure
+    // below is for the portion actually planned.
+    type MealSlot = { type: string; recipeId: string; portion?: number };
     const allMealSlots = plan.days.flatMap((d: { dayOfWeek: number; meals: unknown }) => ({
       dayOfWeek: d.dayOfWeek,
       meals: d.meals as MealSlot[],
@@ -250,7 +257,7 @@ export class DashboardService {
           recipeId: m.recipeId,
           recipeName: recipe?.name ?? 'Unknown',
           imageUrl: recipe?.imageUrl ?? null,
-          kcal: nutrition?.calories ?? 0,
+          kcal: Math.round((nutrition?.calories ?? 0) * slotPortion(m.portion)),
         };
       }),
     }));
@@ -268,10 +275,11 @@ export class DashboardService {
       const recipe = recipeMap.get(slot.recipeId);
       if (recipe) {
         const n = recipe.nutritionInfo as unknown as NutritionInfo;
-        plannedKcal += n.calories;
-        plannedProtein += n.protein;
-        plannedCarbs += n.carbs;
-        plannedFat += n.fat;
+        const p = slotPortion(slot.portion);
+        plannedKcal += n.calories * p;
+        plannedProtein += n.protein * p;
+        plannedCarbs += n.carbs * p;
+        plannedFat += n.fat * p;
       }
     }
 
@@ -290,14 +298,16 @@ export class DashboardService {
       const recipe = recipeMap.get(slot.recipeId);
       if (!recipe) return null;
       const n = recipe.nutritionInfo as unknown as NutritionInfo;
+      const portion = slotPortion(slot.portion);
       return {
         mealType: slot.type,
+        ...(portion !== 1 && { portion }),
         recipe: {
           id: recipe.id,
           name: recipe.name,
           description: recipe.description,
           imageUrl: recipe.imageUrl,
-          kcal: n.calories,
+          kcal: Math.round(n.calories * portion),
           servings: recipe.servings,
           prepTimeMins: recipe.prepTimeMins,
         },
@@ -322,7 +332,7 @@ export class DashboardService {
           scheduledLabel: MEAL_SCHEDULE[slot.type] ?? '',
           recipeName: recipe.name,
           recipeId: recipe.id,
-          kcal: n.calories,
+          kcal: Math.round(n.calories * slotPortion(slot.portion)),
         });
       }
     }
@@ -371,7 +381,7 @@ export class DashboardService {
       })),
       nutrition: {
         dailyCalorieTarget: targets.dailyCalorieTarget,
-        plannedKcal,
+        plannedKcal: Math.round(plannedKcal),
         eatenKcal: eaten.kcal,
         protein: {
           planned: Math.round(plannedProtein),
