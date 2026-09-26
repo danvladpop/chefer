@@ -34,12 +34,13 @@ export function CreateRoutineSheet({
             <button
               key={m}
               type="button"
+              aria-pressed={mode === m}
               onClick={() => setMode(m)}
               className={cn(
-                'min-h-9 flex-1 rounded-md text-sm font-medium transition-colors',
+                'min-h-11 flex-1 rounded-md text-sm font-medium transition-colors',
                 mode === m
                   ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700',
+                  : 'text-gray-600 hover:text-gray-700',
               )}
             >
               {m === 'template' ? 'From a template' : 'Start blank'}

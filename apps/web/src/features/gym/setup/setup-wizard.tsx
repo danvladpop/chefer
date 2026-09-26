@@ -531,7 +531,7 @@ function ProgramStep({
                 </li>
               ))}
           </ul>
-          <p className="mt-1 text-[11px] text-gray-400">Green band: the productive range.</p>
+          <p className="mt-1 text-xs text-gray-500">Green band: the productive range.</p>
         </div>
 
         {alternatives.length > 0 && (
@@ -539,6 +539,7 @@ function ProgramStep({
             <Button
               variant="ghost"
               size="sm"
+              className="min-h-11"
               onClick={() => setShowOthers((v) => !v)}
               aria-expanded={showOthers}
             >

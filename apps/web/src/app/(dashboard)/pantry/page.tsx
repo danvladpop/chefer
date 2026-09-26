@@ -129,8 +129,9 @@ export default function PantryPage() {
               }
             }}
             placeholder="Add something you have… e.g. rice"
+            aria-label="Add an item to your kitchen"
             disabled={addMutation.isPending}
-            className="min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
+            className="min-h-11 min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
           />
           <input
             value={quantity}
@@ -139,14 +140,14 @@ export default function PantryPage() {
             placeholder="Qty"
             aria-label="Quantity (optional)"
             disabled={addMutation.isPending}
-            className="w-16 rounded-xl border border-neutral-200 px-2 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
+            className="min-h-11 w-16 rounded-xl border border-neutral-200 px-2 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
           />
           <select
             value={unit}
             onChange={(e) => setUnit(e.target.value)}
             aria-label="Unit"
             disabled={addMutation.isPending}
-            className="w-20 shrink-0 rounded-xl border border-neutral-200 px-2 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
+            className="min-h-11 w-20 shrink-0 rounded-xl border border-neutral-200 px-2 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
           >
             {UNIT_OPTIONS.map((u) => (
               <option key={u} value={u}>
@@ -185,7 +186,7 @@ export default function PantryPage() {
           </p>
           <Link
             href="/shopping-list"
-            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90"
+            className="inline-flex min-h-11 items-center rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90"
           >
             Open Shopping List
           </Link>
@@ -223,7 +224,7 @@ export default function PantryPage() {
               )}
             </div>
           ))}
-          <p className="pt-2 text-xs text-neutral-400">
+          <p className="pt-2 text-xs text-neutral-500">
             Staples like salt, pepper, oil and water are always assumed on hand — they&apos;re never
             tracked here.
           </p>

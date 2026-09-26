@@ -185,6 +185,7 @@ export function WorkoutView() {
   if (!hasMounted) {
     return (
       <Frame>
+        <h1 className="sr-only">Workout</h1>
         <GymSkeleton rows={3} />
       </Frame>
     );
@@ -193,6 +194,7 @@ export function WorkoutView() {
   if (!session) {
     return (
       <Frame>
+        <h1 className="sr-only">Workout</h1>
         <div className="rounded-2xl border border-dashed bg-white p-8 text-center">
           <p className="text-sm text-gray-600">No workout in progress.</p>
           <Button asChild className="mt-4">
@@ -309,12 +311,12 @@ export function WorkoutView() {
                   >
                     <span
                       className={cn(
-                        'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
+                        'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
                         isExerciseDone(se)
                           ? 'bg-emerald-600 text-white'
                           : active
                             ? 'bg-[#944a00] text-white'
-                            : 'bg-gray-100 text-gray-500',
+                            : 'bg-gray-100 text-gray-600',
                       )}
                     >
                       {se.skipped ? '–' : isExerciseDone(se) ? '✓' : i + 1}
@@ -338,7 +340,7 @@ export function WorkoutView() {
           </ol>
           <Button
             variant="outline"
-            className="mt-3 w-full"
+            className="mt-3 min-h-11 w-full"
             onClick={() => setPicker({ kind: 'add' })}
             disabled={!canPrescribe}
           >
@@ -390,7 +392,7 @@ export function WorkoutView() {
           <div className="mt-4 flex flex-col gap-2 sm:flex-row lg:hidden">
             <Button
               variant="outline"
-              className="flex-1"
+              className="min-h-11 flex-1"
               onClick={() => setPicker({ kind: 'add' })}
               disabled={!canPrescribe}
             >
@@ -711,7 +713,7 @@ function WorkoutHeader({
     <div className="sticky top-16 z-20 -mx-4 border-b bg-gray-50/95 px-4 py-2 backdrop-blur lg:top-0">
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <h2 className="truncate font-serif text-lg font-bold text-gray-900">{session.name}</h2>
+          <h1 className="truncate font-serif text-lg font-bold text-gray-900">{session.name}</h1>
           <p className="flex flex-wrap gap-x-2 text-xs text-gray-500">
             <ElapsedClock startedAt={session.startedAt} />
             <span aria-label={`${done} of ${planned} sets done`}>
@@ -814,7 +816,7 @@ function NoteSheet({
           className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#944a00]/30"
           aria-label={title}
         />
-        <p className="mt-1 text-right text-[11px] text-gray-400">
+        <p className="mt-1 text-right text-xs text-gray-500">
           {text.length}/{max}
         </p>
       </div>

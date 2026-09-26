@@ -13,7 +13,10 @@ export default function SentryExamplePage() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 p-4 text-center">
+    <main
+      id="main"
+      className="flex min-h-dvh flex-col items-center justify-center gap-4 p-4 text-center"
+    >
       <h1 className="text-2xl font-bold">Sentry validation</h1>
       <p className="max-w-md text-sm text-gray-600">
         Click the button to throw a test error. It should appear in the Sentry project within a

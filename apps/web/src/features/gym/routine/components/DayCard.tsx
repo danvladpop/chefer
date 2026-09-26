@@ -77,7 +77,7 @@ export function DayCard({
                   <div className="flex min-w-0 items-center gap-1.5">
                     {slot && (
                       <span
-                        className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-bold text-violet-800"
+                        className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-xs font-bold text-violet-800"
                         data-testid="routine-superset-chip"
                       >
                         {slot.label}

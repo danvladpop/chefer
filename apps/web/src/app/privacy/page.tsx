@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Privacy Policy' };
 
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto max-w-2xl px-4 py-12">
+    <main id="main" className="mx-auto max-w-2xl px-4 py-12">
       <h1 className="font-serif text-3xl font-semibold text-gray-900">Privacy Policy</h1>
       <p className="mt-2 text-sm text-gray-500">Chefer beta · last updated 23 August 2026</p>
 
@@ -50,11 +50,17 @@ export default function PrivacyPage() {
       </div>
 
       <p className="mt-10 text-sm">
-        <Link href="/" className="text-[#944a00] underline underline-offset-4">
+        <Link
+          href="/"
+          className="touch-target relative text-[#944a00] underline underline-offset-4"
+        >
           ← Back to Chefer
         </Link>{' '}
         ·{' '}
-        <Link href="/terms" className="text-[#944a00] underline underline-offset-4">
+        <Link
+          href="/terms"
+          className="touch-target relative text-[#944a00] underline underline-offset-4"
+        >
           Terms of Service
         </Link>
       </p>

@@ -112,12 +112,12 @@ export function MealCard({
         <div className="flex min-w-0 flex-1 flex-col justify-between gap-1 py-2.5 pl-3 pr-3">
           <div className="min-w-0">
             <span
-              className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${MEAL_TYPE_COLORS[mealType] ?? 'bg-gray-100 text-gray-700'}`}
+              className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${MEAL_TYPE_COLORS[mealType] ?? 'bg-gray-100 text-gray-700'}`}
             >
               {MEAL_TYPE_LABELS[mealType] ?? mealType}
             </span>
             {leftoverLabel && (
-              <span className="ml-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+              <span className="ml-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
                 Leftovers from {leftoverLabel}
               </span>
             )}
@@ -127,7 +127,7 @@ export function MealCard({
             <AllergenWarningChip warnings={recipe.allergenWarnings} className="mt-1" />
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-gray-600">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-600">
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" aria-hidden="true" />
               {totalTime} min
@@ -174,44 +174,44 @@ export function MealCard({
         />
         {/* Meal type badge */}
         <span
-          className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide backdrop-blur-sm ${MEAL_TYPE_COLORS[mealType] ?? 'bg-gray-100 text-gray-700'}`}
+          className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide backdrop-blur-sm ${MEAL_TYPE_COLORS[mealType] ?? 'bg-gray-100 text-gray-700'}`}
         >
           {MEAL_TYPE_LABELS[mealType] ?? mealType}
         </span>
         <AllergenWarningChip
           warnings={recipe.allergenWarnings}
-          className="absolute bottom-2 right-2 max-w-[calc(100%-1rem)] truncate text-[9px]"
+          className="absolute bottom-2 right-2 max-w-[calc(100%-1rem)] truncate text-xs"
         />
         {leftoverLabel && (
-          <span className="absolute bottom-2 left-2 rounded-full bg-emerald-100/90 px-2 py-0.5 text-[9px] font-semibold text-emerald-800 backdrop-blur-sm">
+          <span className="absolute bottom-2 left-2 rounded-full bg-emerald-100/90 px-2 py-0.5 text-xs font-semibold text-emerald-800 backdrop-blur-sm">
             Leftovers · {leftoverLabel.slice(0, 3)}
           </span>
         )}
         {replaceButton(
-          'absolute right-1.5 top-1.5 h-8 w-8 rounded-full bg-white/90 shadow-sm backdrop-blur-sm',
+          'touch-target absolute right-1.5 top-1.5 h-8 w-8 rounded-full bg-white/90 shadow-sm backdrop-blur-sm',
         )}
       </div>
 
       {/* Card body — fixed height so all cards are the same size */}
-      <div className="flex h-[88px] flex-col justify-between overflow-hidden p-2.5">
+      <div className="flex h-[104px] flex-col justify-between overflow-hidden p-2.5">
         {/* Recipe name */}
-        <p className="line-clamp-2 text-[12px] font-semibold leading-snug text-gray-900 group-hover:text-[#944a00]">
+        <p className="line-clamp-2 text-xs font-semibold leading-snug text-gray-900 group-hover:text-[#944a00]">
           {recipe.name}
         </p>
 
         {/* Bottom row: left = time · kcal, right = stacked macros */}
         <div className="flex items-end justify-between gap-1">
           {/* Time + calories */}
-          <div className="flex flex-col gap-0.5 text-[10px] text-gray-500">
+          <div className="flex flex-col gap-0.5 text-xs text-gray-500">
             <span className="flex items-center gap-0.5">
-              <Clock className="h-2.5 w-2.5" aria-hidden="true" />
+              <Clock className="h-3 w-3" aria-hidden="true" />
               {totalTime} min
             </span>
             <span className="font-medium text-gray-700">{n.calories} kcal</span>
           </div>
 
           {/* Macros stacked — compact, right-aligned */}
-          <div className="space-y-px text-right text-[10px] leading-tight">
+          <div className="space-y-px text-right text-xs leading-tight">
             <div>
               <span className="text-blue-500">P </span>
               <span className="font-medium text-gray-700">{n.protein}g</span>

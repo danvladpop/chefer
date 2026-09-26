@@ -48,7 +48,7 @@ export function AllergenWarningChip({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800',
+        'inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800',
         className,
       )}
       title={`Contains ${allergenLabel(warnings)}`}

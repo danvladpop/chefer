@@ -126,177 +126,185 @@ export default async function HomePage() {
         </div>
         <Link
           href="/login"
-          className="rounded-lg px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100"
+          className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100"
         >
           Sign in
         </Link>
       </header>
 
-      {/* ── Hero ── */}
-      <section className="bg-gradient-to-b from-[#fff3e8] to-white px-4 py-16 text-center sm:py-24">
-        <div className="mx-auto max-w-3xl">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 text-sm font-medium text-amber-900">
-            <span aria-hidden="true">✨</span>
-            Open beta — everything free, premium features included
-          </div>
+      <main id="main" tabIndex={-1} className="flex-1 outline-none">
+        {/* ── Hero ── */}
+        <section className="bg-gradient-to-b from-[#fff3e8] to-white px-4 py-16 text-center sm:py-24">
+          <div className="mx-auto max-w-3xl">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 text-sm font-medium text-amber-900">
+              <span aria-hidden="true">✨</span>
+              Open beta — everything free, premium features included
+            </div>
 
-          <h1 className="mb-5 font-serif text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-            Your personal chef,
-            <br />
-            <span style={{ color: BRAND }}>powered by AI</span>
-          </h1>
+            <h1 className="mb-5 font-serif text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
+              Your personal chef,
+              <br />
+              <span style={{ color: BRAND }}>powered by AI</span>
+            </h1>
 
-          <p className="mx-auto mb-10 max-w-xl text-base text-gray-600 sm:text-lg">
-            A week of meals built around your goals, allergies and budget — with the shopping list
-            priced and ready. No spreadsheet, no nutritionist, no guesswork.
-          </p>
-
-          <div className="flex w-full flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
-            <Link
-              href="/register"
-              className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-[#944a00] px-8 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00] focus-visible:ring-offset-2 sm:w-auto"
-            >
-              Get started free
-            </Link>
-            <Link
-              href="/login"
-              className="inline-flex h-12 w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-8 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00] focus-visible:ring-offset-2 sm:w-auto"
-            >
-              Sign in
-            </Link>
-          </div>
-          <p className="mt-4 text-xs text-gray-500">
-            First plan on screen in under a minute — no payment details, ever.
-          </p>
-        </div>
-
-        {/* ── Plan-day preview card ── */}
-        <div className="mx-auto mt-14 w-full max-w-md rounded-2xl border bg-white p-4 text-left shadow-lg sm:p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
-              Tuesday · your plan
+            <p className="mx-auto mb-10 max-w-xl text-base text-gray-600 sm:text-lg">
+              A week of meals built around your goals, allergies and budget — with the shopping list
+              priced and ready. No spreadsheet, no nutritionist, no guesswork.
             </p>
-            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">
-              ≈ €42.90 this week
-            </span>
-          </div>
-          <ul className="divide-y">
-            {PREVIEW_MEALS.map((meal) => (
-              <li key={meal.type} className="flex items-center gap-3 py-2.5">
-                <span className="text-2xl" aria-hidden="true">
-                  {meal.emoji}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                    {meal.type}
-                  </p>
-                  <p className="truncate text-sm font-medium text-gray-900">{meal.name}</p>
-                </div>
-                <span className="text-xs tabular-nums text-gray-500">{meal.kcal} kcal</span>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-3 flex items-center justify-between rounded-xl bg-[#fff3e8] px-3 py-2">
-            <span className="text-xs font-medium text-[#944a00]">Day total</span>
-            <span className="text-xs font-bold tabular-nums text-[#944a00]">
-              1,850 of 1,900 kcal
-            </span>
-          </div>
-        </div>
-      </section>
 
-      {/* ── Free features ── */}
-      <section className="px-4 py-14 sm:py-20">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-12 text-center">
-            <h2 className="mb-3 font-serif text-3xl font-semibold tracking-tight">
-              Everything you need to eat well
-            </h2>
-            <p className="text-gray-600">Free. Not a trial — the free tier stays free.</p>
-          </div>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {FREE_FEATURES.map(({ icon, title, description }) => (
-              <div key={title} className="rounded-2xl border bg-white p-5 shadow-sm">
-                <div className="mb-3 text-3xl" aria-hidden="true">
-                  {icon}
-                </div>
-                <h3 className="mb-1.5 text-sm font-semibold">{title}</h3>
-                <p className="text-xs leading-relaxed text-gray-500">{description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Premium features ── */}
-      <section className="bg-gradient-to-b from-white to-[#fff3e8]/60 px-4 py-14 sm:py-20">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-12 text-center">
-            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#944a00]">
-              Premium · free while in beta
-            </p>
-            <h2 className="mb-3 font-serif text-3xl font-semibold tracking-tight">
-              A chef that knows you — and your week
-            </h2>
-            <p className="mx-auto max-w-xl text-gray-600">
-              Premium turns Chefer from a recipe book into a personal chef. During the beta it costs
-              nothing — one click activates it, no card asked.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {PREMIUM_FEATURES.map(({ icon, title, description }) => (
-              <div
-                key={title}
-                className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm"
+            <div className="flex w-full flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
+              <Link
+                href="/register"
+                className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-[#944a00] px-8 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00] focus-visible:ring-offset-2 sm:w-auto"
               >
-                <div className="mb-3 text-3xl" aria-hidden="true">
-                  {icon}
-                </div>
-                <h3 className="mb-1.5 text-sm font-semibold">{title}</h3>
-                <p className="text-xs leading-relaxed text-gray-500">{description}</p>
-              </div>
-            ))}
+                Get started free
+              </Link>
+              <Link
+                href="/login"
+                className="inline-flex h-12 w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-8 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00] focus-visible:ring-offset-2 sm:w-auto"
+              >
+                Sign in
+              </Link>
+            </div>
+            <p className="mt-4 text-xs text-gray-500">
+              First plan on screen in under a minute — no payment details, ever.
+            </p>
           </div>
-        </div>
-      </section>
 
-      {/* ── FAQ ── */}
-      <section className="px-4 py-14 sm:py-20">
-        <div className="mx-auto max-w-2xl">
-          <h2 className="mb-8 text-center font-serif text-3xl font-semibold tracking-tight">
-            Fair questions
-          </h2>
-          <div className="space-y-4">
-            {FAQ.map(({ q, a }) => (
-              <div key={q} className="rounded-2xl border bg-white p-5">
-                <h3 className="mb-1 text-sm font-semibold">{q}</h3>
-                <p className="text-sm leading-relaxed text-gray-600">{a}</p>
-              </div>
-            ))}
+          {/* ── Plan-day preview card ── */}
+          <div className="mx-auto mt-14 w-full max-w-md rounded-2xl border bg-white p-4 text-left shadow-lg sm:p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                Tuesday · your plan
+              </p>
+              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
+                ≈ €42.90 this week
+              </span>
+            </div>
+            <ul className="divide-y">
+              {PREVIEW_MEALS.map((meal) => (
+                <li key={meal.type} className="flex items-center gap-3 py-2.5">
+                  <span className="text-2xl" aria-hidden="true">
+                    {meal.emoji}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      {meal.type}
+                    </p>
+                    <p className="truncate text-sm font-medium text-gray-900">{meal.name}</p>
+                  </div>
+                  <span className="text-xs tabular-nums text-gray-500">{meal.kcal} kcal</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex items-center justify-between rounded-xl bg-[#fff3e8] px-3 py-2">
+              <span className="text-xs font-medium text-[#944a00]">Day total</span>
+              <span className="text-xs font-bold tabular-nums text-[#944a00]">
+                1,850 of 1,900 kcal
+              </span>
+            </div>
           </div>
-          <div className="mt-10 text-center">
-            <Link
-              href="/register"
-              className="inline-flex h-12 items-center justify-center rounded-xl bg-[#944a00] px-8 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00]"
-            >
-              Cook something better this week
-            </Link>
+        </section>
+
+        {/* ── Free features ── */}
+        <section className="px-4 py-14 sm:py-20">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-12 text-center">
+              <h2 className="mb-3 font-serif text-3xl font-semibold tracking-tight">
+                Everything you need to eat well
+              </h2>
+              <p className="text-gray-600">Free. Not a trial — the free tier stays free.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {FREE_FEATURES.map(({ icon, title, description }) => (
+                <div key={title} className="rounded-2xl border bg-white p-5 shadow-sm">
+                  <div className="mb-3 text-3xl" aria-hidden="true">
+                    {icon}
+                  </div>
+                  <h3 className="mb-1.5 text-sm font-semibold">{title}</h3>
+                  <p className="text-sm leading-relaxed text-gray-600">{description}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        {/* ── Premium features ── */}
+        <section className="bg-gradient-to-b from-white to-[#fff3e8]/60 px-4 py-14 sm:py-20">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-12 text-center">
+              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#944a00]">
+                Premium · free while in beta
+              </p>
+              <h2 className="mb-3 font-serif text-3xl font-semibold tracking-tight">
+                A chef that knows you — and your week
+              </h2>
+              <p className="mx-auto max-w-xl text-gray-600">
+                Premium turns Chefer from a recipe book into a personal chef. During the beta it
+                costs nothing — one click activates it, no card asked.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {PREMIUM_FEATURES.map(({ icon, title, description }) => (
+                <div
+                  key={title}
+                  className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm"
+                >
+                  <div className="mb-3 text-3xl" aria-hidden="true">
+                    {icon}
+                  </div>
+                  <h3 className="mb-1.5 text-sm font-semibold">{title}</h3>
+                  <p className="text-sm leading-relaxed text-gray-600">{description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── FAQ ── */}
+        <section className="px-4 py-14 sm:py-20">
+          <div className="mx-auto max-w-2xl">
+            <h2 className="mb-8 text-center font-serif text-3xl font-semibold tracking-tight">
+              Fair questions
+            </h2>
+            <div className="space-y-4">
+              {FAQ.map(({ q, a }) => (
+                <div key={q} className="rounded-2xl border bg-white p-5">
+                  <h3 className="mb-1 text-sm font-semibold">{q}</h3>
+                  <p className="text-sm leading-relaxed text-gray-600">{a}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-10 text-center">
+              <Link
+                href="/register"
+                className="inline-flex h-12 items-center justify-center rounded-xl bg-[#944a00] px-8 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00]"
+              >
+                Cook something better this week
+              </Link>
+            </div>
+          </div>
+        </section>
+      </main>
 
       {/* ── Footer ── */}
-      <footer className="border-t px-4 py-8 text-center text-sm text-gray-500">
+      <footer className="border-t px-4 py-8 text-center text-sm text-gray-600">
         <p>
           Chefer is a small independent project in open beta — feedback shapes it weekly, from the{' '}
           <em>Send feedback</em> button inside the app.
         </p>
         <p className="mt-3">
-          <Link href="/terms" className="underline underline-offset-4 hover:text-gray-700">
+          <Link
+            href="/terms"
+            className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-gray-700"
+          >
             Terms of Service
           </Link>{' '}
           ·{' '}
-          <Link href="/privacy" className="underline underline-offset-4 hover:text-gray-700">
+          <Link
+            href="/privacy"
+            className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-gray-700"
+          >
             Privacy Policy
           </Link>
         </p>

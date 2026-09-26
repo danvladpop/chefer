@@ -44,7 +44,10 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <p className="text-neutral-500">Plan not found.</p>
-        <Link href="/history" className="mt-4 text-sm text-primary hover:underline">
+        <Link
+          href="/history"
+          className="mt-4 inline-flex min-h-11 items-center text-sm text-primary hover:underline"
+        >
           ← Back to History
         </Link>
       </div>
@@ -58,7 +61,7 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
       {/* Back link */}
       <Link
         href="/history"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-neutral-500 transition hover:text-primary"
+        className="mb-2 inline-flex min-h-11 items-center gap-1.5 text-sm text-neutral-600 transition hover:text-primary"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to History

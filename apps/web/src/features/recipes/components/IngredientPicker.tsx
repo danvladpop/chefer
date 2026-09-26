@@ -14,6 +14,13 @@ interface IngredientPickerProps {
   onSelect: (name: string) => void;
   onCreateCustom: (query: string) => void;
   placeholder?: string;
+  /** Id of the search input (lets a form focus it on a validation error). */
+  id?: string | undefined;
+  /** Accessible name — the placeholder alone is not a label (F-X-5-1). */
+  ariaLabel?: string;
+  invalid?: boolean;
+  /** Id of the error text describing this input. */
+  describedBy?: string | undefined;
 }
 
 export function IngredientPicker({
@@ -21,6 +28,10 @@ export function IngredientPicker({
   onSelect,
   onCreateCustom,
   placeholder = 'Search ingredient…',
+  id,
+  ariaLabel = 'Ingredient',
+  invalid = false,
+  describedBy,
 }: IngredientPickerProps) {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
@@ -65,6 +76,7 @@ export function IngredientPicker({
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
         <input
+          id={id}
           type="text"
           value={query}
           onChange={(e) => {
@@ -72,8 +84,19 @@ export function IngredientPicker({
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && open) {
+              setOpen(false);
+              setQuery(value);
+            }
+          }}
           placeholder={placeholder}
-          className="w-full rounded-xl border bg-white py-2 pl-9 pr-3 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
+          aria-label={ariaLabel}
+          aria-invalid={invalid || undefined}
+          aria-describedby={describedBy}
+          className={`w-full rounded-xl border bg-white py-2 pl-9 pr-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none ${
+            invalid ? 'border-red-400 focus:border-red-500' : 'focus:border-[#944a00]'
+          }`}
         />
       </div>
 
@@ -95,13 +118,13 @@ export function IngredientPicker({
                   />
                   <span className="min-w-0 flex-1 truncate text-gray-800">{r.displayName}</span>
                   {r.isCustom && (
-                    <span className="shrink-0 rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-purple-700">
+                    <span className="shrink-0 rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-semibold uppercase text-purple-700">
                       Mine
                     </span>
                   )}
                   {!r.hasMacros && (
                     <span
-                      className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] text-gray-500"
+                      className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600"
                       title="Nutrition data is still being estimated for this ingredient"
                     >
                       no macros yet

@@ -90,7 +90,7 @@ function Placeholder({
             {emoji}
           </span>
           {label === 'unavailable' && (
-            <span className="rounded-full bg-white/60 px-2 py-0.5 text-[9px] font-medium text-gray-500">
+            <span className="rounded-full bg-white/60 px-2 py-0.5 text-xs font-medium text-gray-500">
               Photo unavailable
             </span>
           )}

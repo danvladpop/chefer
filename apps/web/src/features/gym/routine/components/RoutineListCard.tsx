@@ -47,20 +47,38 @@ export function RoutineListCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button asChild variant="outline" size="sm">
+        <Button asChild variant="outline" size="sm" className="min-h-11">
           <Link href={`/gym/routine/edit?id=${routine.id}`}>
             <Pencil className="h-3.5 w-3.5" /> Edit
           </Link>
         </Button>
         {!routine.isActive && (
-          <Button variant="outline" size="sm" onClick={onSetActive} disabled={busy}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-h-11"
+            onClick={onSetActive}
+            disabled={busy}
+          >
             <Star className="h-3.5 w-3.5" /> Set active
           </Button>
         )}
-        <Button variant="outline" size="sm" onClick={onDuplicate} disabled={busy}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-h-11"
+          onClick={onDuplicate}
+          disabled={busy}
+        >
           <Copy className="h-3.5 w-3.5" /> Duplicate
         </Button>
-        <Button variant="outline" size="sm" onClick={handleArchive} disabled={busy}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-h-11"
+          onClick={handleArchive}
+          disabled={busy}
+        >
           <Archive className="h-3.5 w-3.5" /> Archive
         </Button>
       </div>

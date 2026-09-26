@@ -57,7 +57,7 @@ export function TodaysWorkoutCard() {
         </span>
       )}
       <span className="min-w-0 flex-1">
-        <span className="block text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+        <span className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
           Today&apos;s workout
         </span>
         <span className="mt-0.5 block truncate text-base font-semibold text-gray-900">{title}</span>

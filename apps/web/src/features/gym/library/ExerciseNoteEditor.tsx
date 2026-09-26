@@ -31,7 +31,7 @@ export function ExerciseNoteEditor({ exerciseId }: { exerciseId: string }) {
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
           Your note
         </p>
-        <span className="text-[11px] text-neutral-400">
+        <span className="text-xs text-neutral-500">
           {saved ? 'Saved on this device' : 'Saving…'}
         </span>
       </div>
@@ -42,6 +42,7 @@ export function ExerciseNoteEditor({ exerciseId }: { exerciseId: string }) {
           setSaved(false);
         }}
         placeholder="Pause reps, cue reminders, machine number…"
+        aria-label="Your note"
         rows={3}
         maxLength={500}
         className="w-full resize-none rounded-xl border border-neutral-200 bg-white p-3 text-sm focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00]"

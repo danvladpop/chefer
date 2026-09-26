@@ -24,7 +24,7 @@ const resetSchema = z
 type ResetFormValues = z.infer<typeof resetSchema>;
 
 const INPUT_CLASSES =
-  'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
+  'flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 
 export function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -53,7 +53,7 @@ export function ResetPasswordForm() {
         <p>This page needs the link from your reset email.</p>
         <Link
           href="/forgot-password"
-          className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+          className="touch-target relative font-medium text-primary underline underline-offset-4 hover:text-primary/80"
         >
           Request a new reset link
         </Link>
@@ -72,7 +72,7 @@ export function ResetPasswordForm() {
         </p>
         <Link
           href="/login"
-          className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
           Go to sign in
         </Link>
@@ -150,7 +150,7 @@ export function ResetPasswordForm() {
       <button
         type="submit"
         disabled={resetMutation.isPending}
-        className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+        className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
       >
         {resetMutation.isPending ? 'Resetting…' : 'Reset password'}
       </button>

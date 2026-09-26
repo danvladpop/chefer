@@ -138,7 +138,7 @@ export default function DashboardPage() {
 
         {/* Header */}
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
             {/* A brand-new account hasn't been anywhere to come "back" from (O-3). */}
             {hasPlan ? 'Welcome Back, Chef' : 'Welcome, Chef'}
           </p>
@@ -157,12 +157,12 @@ export default function DashboardPage() {
         {/* Weekly Outlook card */}
         <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
               Weekly Outlook
             </p>
             <Link
               href="/meal-plan"
-              className="shrink-0 whitespace-nowrap text-xs font-medium text-[#944a00] hover:underline"
+              className="touch-target relative shrink-0 whitespace-nowrap text-xs font-medium text-[#944a00] hover:underline"
             >
               Full Schedule →
             </Link>
@@ -188,7 +188,7 @@ export default function DashboardPage() {
                         : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                   }`}
                 >
-                  <span className="text-[10px] font-semibold uppercase">{day.label}</span>
+                  <span className="text-xs font-semibold uppercase">{day.label}</span>
                   <span className="text-sm font-bold">{day.num}</span>
                   <span
                     aria-hidden="true"
@@ -211,7 +211,7 @@ export default function DashboardPage() {
               const isPast = selectedDayIdx < todayIdx;
               return (
                 <div className="mt-4 border-t pt-4">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
                     {isToday
                       ? "Today's Meals"
                       : isPast
@@ -242,7 +242,7 @@ export default function DashboardPage() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <span
-                              className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                              className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                             >
                               {meal.mealType}
                             </span>
@@ -288,11 +288,11 @@ export default function DashboardPage() {
               <div className="flex min-w-0 flex-1 flex-col justify-between gap-3">
                 <div>
                   <div className="mb-1 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-[#944a00] px-2.5 py-0.5 text-[10px] font-semibold uppercase text-white">
+                    <span className="rounded-full bg-[#944a00] px-2.5 py-0.5 text-xs font-semibold uppercase text-white">
                       {heroIsTomorrow ? 'Tomorrow' : 'Next Meal'}
                     </span>
                     <span
-                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase ${MEAL_COLOURS[heroMeal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[heroMeal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                     >
                       {heroMeal.mealType}
                     </span>
@@ -332,7 +332,10 @@ export default function DashboardPage() {
           <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed bg-white py-8 text-center shadow-sm">
             <span className="text-3xl">🎉</span>
             <p className="font-medium text-gray-700">You&apos;re all caught up for today!</p>
-            <Link href="/meal-plan" className="text-sm text-[#944a00] hover:underline">
+            <Link
+              href="/meal-plan"
+              className="touch-target relative text-sm text-[#944a00] hover:underline"
+            >
               View full plan →
             </Link>
           </div>
@@ -352,7 +355,7 @@ export default function DashboardPage() {
                 say "Generate" but only navigated (prod-followups #9) */}
             <Link
               href="/meal-plan?generate=1"
-              className="rounded-full bg-[#944a00] px-5 py-2 text-sm font-semibold text-white hover:bg-[#7a3d00]"
+              className="inline-flex min-h-11 items-center rounded-full bg-[#944a00] px-5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
             >
               Generate My Week
             </Link>
@@ -362,7 +365,7 @@ export default function DashboardPage() {
         {/* Rest of Today — only when today is selected (or nothing selected) */}
         {d.restOfToday.length > 0 && (selectedDayIdx === null || selectedDayIdx === todayIdx) && (
           <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
               Rest of Today
             </p>
             <div className="flex flex-col divide-y">
@@ -379,7 +382,7 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-500 sm:w-16">{meal.scheduledLabel}</span>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                       >
                         {meal.mealType}
                       </span>
@@ -401,10 +404,13 @@ export default function DashboardPage() {
         {weekSummary && weekSummary.days.some((d) => d.hasLog) && (
           <div className="rounded-2xl border bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+              <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
                 This Week — Calories
               </p>
-              <Link href="/progress" className="text-xs font-medium text-[#944a00] hover:underline">
+              <Link
+                href="/progress"
+                className="touch-target relative text-xs font-medium text-[#944a00] hover:underline"
+              >
                 Full Progress →
               </Link>
             </div>
@@ -445,12 +451,12 @@ export default function DashboardPage() {
         {/* Recent Favourites */}
         <div className="overflow-hidden rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
               Recent Favourites
             </p>
             <Link
               href="/recipes?filter=saved"
-              className="shrink-0 whitespace-nowrap text-xs font-medium text-[#944a00] hover:underline"
+              className="touch-target relative shrink-0 whitespace-nowrap text-xs font-medium text-[#944a00] hover:underline"
             >
               View All →
             </Link>
@@ -476,7 +482,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="px-1">
                     <p className="truncate text-xs font-semibold text-gray-800">{fav.name}</p>
-                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">
                       {fav.cuisineType} · {fav.prepTimeMins}m
                     </p>
                   </div>
@@ -486,7 +492,10 @@ export default function DashboardPage() {
           ) : (
             <p className="text-sm text-gray-500">
               Save a recipe to see it here.{' '}
-              <Link href="/meal-plan" className="text-[#944a00] hover:underline">
+              <Link
+                href="/meal-plan"
+                className="touch-target relative text-[#944a00] hover:underline"
+              >
                 Go to Meal Planner →
               </Link>
             </p>

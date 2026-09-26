@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { MessageSquare } from 'lucide-react';
@@ -12,10 +12,17 @@ import { cn } from '@chefer/utils';
 // The review's biggest beta gap: no way for a tester to tell us anything.
 // One textarea, one button; the current path is attached automatically.
 
+/** Mirrors the API's `feedback.submit` message limit. */
+export const FEEDBACK_MAX_LENGTH = 2000;
+
 export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
+  const textareaId = useId();
+  const counterId = useId();
+  const remaining = FEEDBACK_MAX_LENGTH - message.length;
+  const nearLimit = remaining <= 100;
 
   const submitMutation = trpc.feedback.submit.useMutation({
     onSuccess: () => {
@@ -59,16 +66,35 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
         </p>
       ) : (
         <>
+          <label htmlFor={textareaId} className="sr-only">
+            Your feedback
+          </label>
           <textarea
+            id={textareaId}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            maxLength={2000}
+            maxLength={FEEDBACK_MAX_LENGTH}
+            aria-describedby={counterId}
             rows={5}
             placeholder="What happened? What did you expect?"
             className="w-full resize-y rounded-xl border border-input bg-background p-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
+          {/* Counter (F-PROF-2-2): the textarea stops at the limit, which used
+              to look like the keyboard had broken. Only announced near it. */}
+          <p
+            id={counterId}
+            aria-live={nearLimit ? 'polite' : 'off'}
+            className={cn(
+              'mt-1 text-right text-xs tabular-nums',
+              remaining === 0 ? 'text-red-600' : nearLimit ? 'text-amber-700' : 'text-gray-600',
+            )}
+          >
+            {remaining === 0
+              ? `Limit reached: ${FEEDBACK_MAX_LENGTH.toLocaleString('en-US')} characters`
+              : `${message.length.toLocaleString('en-US')} / ${FEEDBACK_MAX_LENGTH.toLocaleString('en-US')}`}
+          </p>
           {submitMutation.isError && (
-            <p className="mt-2 text-xs text-red-600">
+            <p role="alert" className="mt-2 text-xs text-red-600">
               Couldn&apos;t send that — please try again in a moment.
             </p>
           )}

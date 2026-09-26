@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { BookmarkPlus, Check, Pencil, Repeat, Trash2 } from 'lucide-react';
 
-// My Weeks — the 4-week rotation (mirror of apps/mobile/app/my-weeks.tsx).
+// My Weeks — up to 4 saved weeks (mirror of apps/mobile/app/my-weeks.tsx).
 // Save refined weeks as named templates, follow one (applies now + future
 // weeks carry it forward), rename, delete. Every tier: no AI involved.
 
@@ -63,13 +63,12 @@ export function WeekTemplates({ currentPlanId }: { currentPlanId: string | null 
       <div className="mb-1 flex items-center gap-2">
         <Repeat className="h-4 w-4 text-[#944a00]" aria-hidden="true" />
         <h2 className="text-sm font-semibold text-gray-900">My weeks</h2>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-gray-500">
           {templates?.length ?? 0}/{MAX_TEMPLATES}
         </span>
       </div>
       <p className="mb-3 text-xs text-gray-500">
-        Refine a great week, save it, and rotate. The week you follow repeats automatically until
-        you switch.
+        Save a week you like and reuse it. The week you follow repeats each week until you switch.
       </p>
 
       {error && (
@@ -93,13 +92,14 @@ export function WeekTemplates({ currentPlanId }: { currentPlanId: string | null 
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
             placeholder="Name this week, e.g. Mediterranean week"
+            aria-label="Name for this saved week"
             maxLength={40}
-            className="h-9 min-w-0 flex-1 rounded-lg border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00]"
+            className="h-11 min-w-0 flex-1 rounded-lg border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00]"
           />
           <button
             type="submit"
             disabled={!saveName.trim() || busy}
-            className="flex h-9 items-center gap-1.5 rounded-lg bg-[#944a00] px-3 text-xs font-semibold text-white transition-colors hover:bg-[#7a3d00] disabled:opacity-50"
+            className="flex min-h-11 items-center gap-1.5 rounded-lg bg-[#944a00] px-3 text-xs font-semibold text-white transition-colors hover:bg-[#7a3d00] disabled:opacity-50"
           >
             <BookmarkPlus className="h-3.5 w-3.5" aria-hidden="true" />
             Save this week
@@ -131,14 +131,15 @@ export function WeekTemplates({ currentPlanId }: { currentPlanId: string | null 
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
                     autoFocus
+                    aria-label={`New name for ${t.name}`}
                     maxLength={40}
-                    className="h-9 min-w-0 flex-1 rounded-lg border px-3 text-sm"
+                    className="h-11 min-w-0 flex-1 rounded-lg border px-3 text-sm"
                   />
                   <button
                     type="submit"
                     disabled={!renameValue.trim() || busy}
                     aria-label="Confirm rename"
-                    className="flex h-9 w-9 items-center justify-center rounded-lg border hover:bg-gray-50"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border hover:bg-gray-50"
                   >
                     <Check className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -159,7 +160,7 @@ export function WeekTemplates({ currentPlanId }: { currentPlanId: string | null 
                         setRenamingId(t.id);
                         setRenameValue(t.name);
                       }}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
                     >
                       <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
@@ -171,7 +172,7 @@ export function WeekTemplates({ currentPlanId }: { currentPlanId: string | null 
                           deleteMutation.mutate({ templateId: t.id });
                         }
                       }}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
@@ -184,7 +185,7 @@ export function WeekTemplates({ currentPlanId }: { currentPlanId: string | null 
                   type="button"
                   disabled={busy}
                   onClick={() => unfollowMutation.mutate()}
-                  className="mt-1 w-full rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                  className="mt-1 min-h-11 w-full rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
                 >
                   Following ✓ — click to stop
                 </button>
@@ -201,7 +202,7 @@ export function WeekTemplates({ currentPlanId }: { currentPlanId: string | null 
                       followMutation.mutate({ templateId: t.id, weekOffset: 0 });
                     }
                   }}
-                  className="mt-1 w-full rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  className="mt-1 min-h-11 w-full rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                 >
                   Follow this week
                 </button>

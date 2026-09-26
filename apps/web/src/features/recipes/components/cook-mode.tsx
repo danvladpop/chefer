@@ -27,7 +27,12 @@ import {
 import { Drawer } from '@chefer/ui';
 import { formatQuantity } from '@chefer/utils';
 import { AllergenWarningBanner } from './AllergenWarning';
-import { guessMealType, parseStepDuration } from './cook-mode-utils';
+import {
+  guessMealType,
+  isSpaceOwnedByTarget,
+  parseStepDuration,
+  shouldIgnoreCookModeKey,
+} from './cook-mode-utils';
 
 // ─── Cook mode (P1-3) ─────────────────────────────────────────────────────────
 // Full-screen, one-instruction-at-a-time stepper: the product finally follows
@@ -43,11 +48,36 @@ function todayIso(): string {
   return `${y}-${m}-${d}`;
 }
 
+const KBD_CLS =
+  'rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-sans text-xs font-medium text-gray-700';
+
 // ── Inline step timer ─────────────────────────────────────────────────────────
 
-function StepTimer({ seconds }: { seconds: number }) {
+function StepTimer({
+  seconds,
+  shortcutsEnabled,
+}: {
+  seconds: number;
+  /** Space starts/pauses the timer (off while the ingredients drawer is open). */
+  shortcutsEnabled: boolean;
+}) {
   const [remaining, setRemaining] = useState(seconds);
   const [running, setRunning] = useState(false);
+  const done = remaining === 0;
+
+  // Space = start/pause (F-REC-6-5). Leaves Space alone on buttons/links,
+  // where it natively activates the focused control.
+  useEffect(() => {
+    if (!shortcutsEnabled || done) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== ' ' && e.key !== 'Spacebar') return;
+      if (shouldIgnoreCookModeKey(e) || isSpaceOwnedByTarget(e)) return;
+      e.preventDefault(); // don't scroll the page
+      if (!e.repeat) setRunning((r) => !r);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [shortcutsEnabled, done]);
 
   // A new step remounts the timer via key; keep the interval simple.
   useEffect(() => {
@@ -66,7 +96,6 @@ function StepTimer({ seconds }: { seconds: number }) {
 
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
-  const done = remaining === 0;
 
   return (
     <div
@@ -193,6 +222,29 @@ export function CookMode({ recipeId }: { recipeId: string }) {
     },
   });
 
+  // ── Keyboard: ← / → move between steps on desktop (F-REC-6-5). Space for
+  // the timer lives in StepTimer. Off on the finish screen and while the
+  // ingredients drawer has focus.
+  const instructionCount = recipe?.instructions.length ?? 0;
+  useEffect(() => {
+    if (instructionCount === 0 || finished || drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      if (shouldIgnoreCookModeKey(e)) return;
+      e.preventDefault();
+      const current = Math.min(step, instructionCount - 1);
+      if (e.key === 'ArrowRight') {
+        // Mirrors the Next button: past the last step is the finish screen.
+        if (current >= instructionCount - 1) setFinished(true);
+        else setStep(current + 1);
+      } else if (current > 0) {
+        setStep(current - 1);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [instructionCount, finished, drawerOpen, step]);
+
   const logMeal = useCallback(() => {
     if (!recipe || logged || upsertDay.isPending) return;
     // Server-side atomic append: never clobbers other entries, and a double
@@ -268,10 +320,16 @@ export function CookMode({ recipeId }: { recipeId: string }) {
         )}
 
         <div className="flex items-center gap-4 text-sm">
-          <button onClick={() => setFinished(false)} className="text-gray-500 hover:underline">
+          <button
+            onClick={() => setFinished(false)}
+            className="flex min-h-11 items-center px-1 text-gray-600 hover:underline"
+          >
             Back to steps
           </button>
-          <Link href={`/recipes/${recipe.id}`} className="text-[#944a00] hover:underline">
+          <Link
+            href={`/recipes/${recipe.id}`}
+            className="flex min-h-11 items-center px-1 text-[#944a00] hover:underline"
+          >
             Done
           </Link>
         </div>
@@ -302,7 +360,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
           <button
             onClick={() => setServings(Math.max(1, selectedServings - 1))}
             aria-label="Fewer servings"
-            className="flex h-11 w-9 items-center justify-center text-gray-500 hover:text-gray-900"
+            className="touch-target relative flex h-11 w-9 items-center justify-center text-gray-500 hover:text-gray-900"
           >
             <Minus className="h-4 w-4" />
           </button>
@@ -312,7 +370,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
           <button
             onClick={() => setServings(Math.min(20, selectedServings + 1))}
             aria-label="More servings"
-            className="flex h-11 w-9 items-center justify-center text-gray-500 hover:text-gray-900"
+            className="touch-target relative flex h-11 w-9 items-center justify-center text-gray-500 hover:text-gray-900"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -340,16 +398,38 @@ export function CookMode({ recipeId }: { recipeId: string }) {
 
       {/* The step — large type, one instruction at a time */}
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-8 text-center">
-        <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
-          Step {safeStep + 1} of {totalSteps}
-        </p>
-        <p className="max-w-xl text-2xl font-medium leading-relaxed text-gray-900 sm:text-3xl">
-          {instruction}
-        </p>
+        {/* Announce each step change (button, swipe or keyboard). The timer
+            stays outside the live region so its ticking isn't read out. */}
+        <div aria-live="polite" aria-atomic="true">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">
+            Step {safeStep + 1} of {totalSteps}
+          </p>
+          <p className="max-w-xl text-2xl font-medium leading-relaxed text-gray-900 sm:text-3xl">
+            {instruction}
+          </p>
+        </div>
         {timerSeconds !== null && (
-          <StepTimer key={`${safeStep}-${timerSeconds}`} seconds={timerSeconds} />
+          <StepTimer
+            key={`${safeStep}-${timerSeconds}`}
+            seconds={timerSeconds}
+            shortcutsEnabled={!drawerOpen}
+          />
         )}
       </div>
+
+      {/* Keyboard hint — desktop only, where the shortcuts matter. */}
+      <p className="hidden items-center justify-center gap-1.5 pb-3 text-xs text-gray-600 lg:flex">
+        <kbd className={KBD_CLS}>←</kbd>
+        <kbd className={KBD_CLS}>→</kbd>
+        <span>steps</span>
+        {timerSeconds !== null && (
+          <>
+            <span aria-hidden="true">·</span>
+            <kbd className={KBD_CLS}>Space</kbd>
+            <span>start/pause timer</span>
+          </>
+        )}
+      </p>
 
       {/* Navigation — swipe also works. Pinned to the bottom of the screen:
           the stepper sits under the app header, so a full-height column put

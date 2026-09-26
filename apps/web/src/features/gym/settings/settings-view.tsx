@@ -379,6 +379,7 @@ function PauseCard({
           <Button
             variant="outline"
             size="sm"
+            className="min-h-11"
             disabled={end.isPending}
             onClick={() => end.mutate({ id: activePause.id })}
           >
@@ -478,6 +479,7 @@ function NeedsAttention({ entries }: { entries: OutboxEntry[] }) {
               <Button
                 variant="outline"
                 size="sm"
+                className="min-h-11"
                 onClick={() => {
                   // Clipboard needs a secure context (https / localhost).
                   void navigator.clipboard
@@ -492,6 +494,7 @@ function NeedsAttention({ entries }: { entries: OutboxEntry[] }) {
               <Button
                 variant="outline"
                 size="sm"
+                className="min-h-11"
                 onClick={() => void outbox.retryParked(entry.doc.id)}
               >
                 <RotateCw aria-hidden="true" />
@@ -500,7 +503,7 @@ function NeedsAttention({ entries }: { entries: OutboxEntry[] }) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                className="min-h-11 text-red-600 hover:bg-red-50 hover:text-red-700"
                 onClick={() => setConfirmId(entry.doc.id)}
               >
                 <Trash2 aria-hidden="true" />

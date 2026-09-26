@@ -333,7 +333,7 @@ export default function TrackerPage() {
           {data.plannedMeals.length === 0 ? (
             <div className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-500">
               No meals planned for this day.{' '}
-              <a href="/meal-plan" className="text-[#944a00] hover:underline">
+              <a href="/meal-plan" className="touch-target relative text-[#944a00] hover:underline">
                 Go to Meal Planner →
               </a>
             </div>
@@ -366,7 +366,7 @@ export default function TrackerPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <span
-                            className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                            className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                           >
                             {meal.mealType}
                           </span>
@@ -387,7 +387,7 @@ export default function TrackerPage() {
                             aria-hidden="true"
                             className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all ${isChecked ? 'border-[#944a00] bg-[#944a00] text-white' : 'border-neutral-300 text-transparent'}`}
                           >
-                            {isChecked && <span className="text-[10px] font-bold">✓</span>}
+                            {isChecked && <span className="text-xs font-bold">✓</span>}
                           </span>
                         </button>
                       </div>
@@ -406,7 +406,7 @@ export default function TrackerPage() {
                               type="button"
                               onClick={() => setPortion(meal.recipeId, meal.mealType, p)}
                               aria-pressed={portion === p && isChecked}
-                              className={`min-h-9 flex-1 rounded-lg px-2 text-xs font-medium transition-all sm:min-h-0 sm:flex-none sm:py-0.5 ${portion === p && isChecked ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
+                              className={`min-h-11 flex-1 rounded-lg px-2 text-xs font-medium transition-all sm:flex-none sm:px-3 ${portion === p && isChecked ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
                             >
                               {PORTION_LABELS[p]}
                             </button>
@@ -435,7 +435,7 @@ export default function TrackerPage() {
                     className="flex flex-col gap-1 rounded-2xl border border-neutral-200 bg-white p-3"
                   >
                     <span
-                      className={`self-start rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${MEAL_COLOURS[m.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                      className={`self-start rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[m.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                     >
                       {m.mealType}
                     </span>
@@ -468,11 +468,11 @@ export default function TrackerPage() {
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span
-                          className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${MEAL_COLOURS[row.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[row.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                         >
                           {row.mealType}
                         </span>
-                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-semibold uppercase text-neutral-500">
+                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-semibold uppercase text-neutral-600">
                           {customEntryChipLabel(row.estimatedBy)}
                         </span>
                       </div>

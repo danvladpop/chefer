@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { GymSync } from '@/features/gym/workout/gym-sync';
 import { PostUpgradeActivation } from '@/features/premium/components/PostUpgradeActivation';
 import { cn } from '@chefer/utils';
@@ -65,13 +65,6 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   const focus = isFocusRoute(pathname);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Dashboard pages are client components and can't export per-route
-  // metadata, so browser-tab titles were a bare "Chefer" on most pages
-  // (review F-5). The shell already knows every page's name.
-  useEffect(() => {
-    document.title = title === 'Chefer' ? 'Chefer' : `${title} | Chefer`;
-  }, [title]);
-
   return (
     // Two layout modes. Below lg the *document* scrolls: that is what lets iOS
     // Safari auto-hide its URL bar, keeps momentum scrolling native, and lets
@@ -88,7 +81,15 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
 
         {/* Bottom padding clears the fixed tab bar + home indicator so the last
             element on every page stays reachable. */}
-        <main className={cn('flex-1 lg:overflow-y-auto lg:pb-0', !focus && 'pb-nav-safe')}>
+        {/* id="main" is the skip link's target (root layout). Browser-tab
+            titles come from each route segment's `metadata` (F-X-1-1) — a
+            client document.title effect here lost to Next's <title> on hard
+            loads. */}
+        <main
+          id="main"
+          tabIndex={-1}
+          className={cn('flex-1 outline-none lg:overflow-y-auto lg:pb-0', !focus && 'pb-nav-safe')}
+        >
           {children}
         </main>
       </div>

@@ -209,7 +209,10 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center">
         <p className="text-gray-500">Recipe not found.</p>
-        <Link href={backHref} className="mt-4 inline-block text-sm text-[#944a00] hover:underline">
+        <Link
+          href={backHref}
+          className="mt-4 inline-flex min-h-11 items-center text-sm text-[#944a00] hover:underline"
+        >
           {backLabel}
         </Link>
       </div>
@@ -292,7 +295,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           <button
             onClick={() => toggleFav.mutate({ recipeId: id })}
             disabled={toggleFav.isPending}
-            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium min-h-11 sm:min-h-0 shadow-sm transition-colors ${
+            className={`flex min-h-11 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium min-h-11 sm:min-h-0 shadow-sm transition-colors ${
               isSaved
                 ? 'border-[#944a00]/30 bg-[#fff3e8] text-[#944a00]'
                 : 'border-gray-200 bg-white text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]'
@@ -305,7 +308,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           {/* Cook mode (P1-3) — the primary action on a recipe you're about to make */}
           <Link
             href={`/recipes/${id}/cook${meal ? `?meal=${meal}` : ''}`}
-            className="flex items-center gap-1.5 rounded-xl bg-[#944a00] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#7a3d00]"
+            className="flex min-h-11 items-center gap-1.5 rounded-xl bg-[#944a00] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#7a3d00]"
           >
             <ChefHat className="h-3.5 w-3.5" />
             Cook
@@ -335,7 +338,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               <button
                 onClick={() => setShowPicker(true)}
                 disabled={replaceMutation.isPending}
-                className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00] disabled:opacity-60"
+                className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00] disabled:opacity-60"
               >
                 <Library className="h-3.5 w-3.5" />
                 Choose Recipe
@@ -353,7 +356,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
                   }
                 }}
                 disabled={swapMutation.isPending}
-                className="flex items-center gap-1.5 rounded-xl border border-[#944a00]/30 bg-white px-3 py-2 text-xs font-medium text-[#944a00] shadow-sm hover:bg-[#fff3e8] disabled:opacity-60"
+                className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#944a00]/30 bg-white px-3 py-2 text-xs font-medium text-[#944a00] shadow-sm hover:bg-[#fff3e8] disabled:opacity-60"
               >
                 <RefreshCw
                   className={`h-3.5 w-3.5 ${swapMutation.isPending ? 'animate-spin' : ''}`}
@@ -369,9 +372,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               {/* Swap touchpoint (PW-2): free swaps draw from the curated
                   pool — the moment of need for the AI alternative. */}
               {isPremium === false && (
-                <span className="flex w-full items-center justify-center gap-2 pt-1 text-[11px] text-gray-500">
+                <span className="flex w-full items-center justify-center gap-2 pt-1 text-xs text-gray-500">
                   Free swaps pick from the chef-curated pool.
-                  <UpgradeButton className="px-2 py-1 text-[11px]" source="swap" />
+                  <UpgradeButton className="px-2 py-1 text-xs" source="swap" />
                 </span>
               )}
             </>
@@ -429,7 +432,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               <button
                 onClick={() => setServings(Math.max(1, selectedServings - 1))}
                 aria-label="Decrease servings"
-                className="flex h-9 w-9 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
+                className="touch-target relative flex h-9 w-9 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
               >
                 −
               </button>
@@ -439,7 +442,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               <button
                 onClick={() => setServings(Math.min(8, selectedServings + 1))}
                 aria-label="Increase servings"
-                className="flex h-9 w-9 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
+                className="touch-target relative flex h-9 w-9 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
               >
                 +
               </button>
@@ -510,7 +513,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           </p>
           <button
             onClick={() => swapMutation.reset()}
-            className="text-xs text-red-500 hover:underline"
+            className="touch-target relative text-xs text-red-600 hover:underline"
           >
             Dismiss
           </button>
@@ -525,7 +528,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           </p>
           <button
             onClick={() => replaceMutation.reset()}
-            className="text-xs text-red-500 hover:underline"
+            className="touch-target relative text-xs text-red-600 hover:underline"
           >
             Dismiss
           </button>
@@ -704,7 +707,7 @@ function SavedRecipePicker({
                       <div className="flex items-center gap-1.5">
                         <p className="truncate text-sm font-medium text-gray-900">{r.name}</p>
                         {r._source === 'mine' && (
-                          <span className="shrink-0 rounded-full bg-[#fff3e8] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#944a00]">
+                          <span className="shrink-0 rounded-full bg-[#fff3e8] px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-[#944a00]">
                             Mine
                           </span>
                         )}
@@ -732,7 +735,7 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
     <div className="flex flex-col items-center gap-1 py-4">
       {icon}
       <span className="text-base font-semibold text-gray-900">{value}</span>
-      <span className="text-[11px] text-gray-500">{label}</span>
+      <span className="text-xs text-gray-500">{label}</span>
     </div>
   );
 }
@@ -741,7 +744,7 @@ function MacroChip({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-xl border bg-gray-50 px-3 py-3 text-center">
       <p className="text-base font-bold text-gray-900">{value}g</p>
-      <p className="text-[11px] text-gray-500">{label}</p>
+      <p className="text-xs text-gray-500">{label}</p>
     </div>
   );
 }

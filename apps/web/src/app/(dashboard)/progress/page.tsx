@@ -145,7 +145,10 @@ export default function ProgressPage() {
             {daysLogged === 0 ? (
               <div className="flex h-40 items-center justify-center text-sm text-neutral-500">
                 No log data yet — start tracking in the{' '}
-                <a href="/tracker" className="ml-1 text-[#944a00] hover:underline">
+                <a
+                  href="/tracker"
+                  className="touch-target relative ml-1 text-[#944a00] hover:underline"
+                >
                   Tracker
                 </a>
                 .

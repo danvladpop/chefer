@@ -84,11 +84,11 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
           setOpen(true);
         }}
         className={cn(
-          'flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90',
+          'flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90',
           className,
         )}
       >
-        <Sparkles className="h-3.5 w-3.5" />
+        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
         Upgrade plan
       </button>
 
@@ -108,7 +108,7 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
               upgradeMutation.mutate();
             }}
             disabled={upgradeMutation.isPending}
-            className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="min-h-11 w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {upgradeMutation.isPending ? 'Upgrading…' : 'Upgrade now — free during beta'}
           </button>
@@ -144,7 +144,7 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
               <Link
                 href={`/premium?source=${encodeURIComponent(source)}`}
                 onClick={() => setOpen(false)}
-                className="mt-4 block text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
+                className="mt-2 flex min-h-11 items-center text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
               >
                 …and {hiddenCount} more — see everything premium does →
               </Link>
@@ -214,7 +214,7 @@ export function UpgradeCard({
           </div>
           <Link
             href={`/premium?source=${encodeURIComponent(source)}`}
-            className="mt-3 inline-block text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
+            className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
           >
             See the full free-vs-premium comparison →
           </Link>
@@ -249,7 +249,10 @@ export function DowngradeButton({ className }: { className?: string }) {
     return (
       <button
         onClick={() => setConfirming(true)}
-        className={cn('text-xs text-gray-500 underline-offset-2 hover:underline', className)}
+        className={cn(
+          'inline-flex min-h-11 items-center text-xs text-gray-600 underline-offset-2 hover:underline',
+          className,
+        )}
       >
         Switch back to the free plan
       </button>
@@ -262,11 +265,14 @@ export function DowngradeButton({ className }: { className?: string }) {
       <button
         onClick={() => downgradeMutation.mutate()}
         disabled={downgradeMutation.isPending}
-        className="font-semibold text-red-600 hover:underline disabled:opacity-50"
+        className="min-h-11 px-1 font-semibold text-red-600 hover:underline disabled:opacity-50"
       >
         {downgradeMutation.isPending ? 'Switching…' : 'Yes, downgrade'}
       </button>
-      <button onClick={() => setConfirming(false)} className="text-gray-500 hover:underline">
+      <button
+        onClick={() => setConfirming(false)}
+        className="min-h-11 px-1 text-gray-600 hover:underline"
+      >
         Keep premium
       </button>
     </span>

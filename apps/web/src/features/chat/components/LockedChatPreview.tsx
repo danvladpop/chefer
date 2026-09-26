@@ -27,7 +27,7 @@ const FREE_TOOLS = [
 export function LockedChatPreview() {
   return (
     <div className="flex flex-col gap-3" data-testid="chat-locked">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
         Example conversation
       </p>
       <div className="flex flex-col gap-2 opacity-80" aria-label="Example conversation">

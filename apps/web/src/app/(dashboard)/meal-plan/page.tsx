@@ -270,7 +270,7 @@ export default function MealPlanPage() {
   const weekLabel = formatWeekLabel(getMondayOfWeekClient(weekOffset));
 
   const weekArrowCls =
-    'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 sm:h-8 sm:w-8';
+    'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40';
 
   const navBar = (
     <div className="flex shrink-0 flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
@@ -291,17 +291,17 @@ export default function MealPlanPage() {
           <CalendarDays className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
           <span className="truncate text-sm font-medium text-gray-700">{weekLabel}</span>
           {isPast && (
-            <span className="hidden shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 sm:inline">
+            <span className="hidden shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-gray-600 sm:inline">
               Past
             </span>
           )}
           {isCurrent && (
-            <span className="hidden shrink-0 rounded-full bg-[#fff3e8] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#944a00] sm:inline">
+            <span className="hidden shrink-0 rounded-full bg-[#fff3e8] px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-[#944a00] sm:inline">
               This Week
             </span>
           )}
           {weekOffset > 0 && (
-            <span className="hidden shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-600 sm:inline">
+            <span className="hidden shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-blue-600 sm:inline">
               Next Week
             </span>
           )}
@@ -323,7 +323,7 @@ export default function MealPlanPage() {
             was just materialized from the previous plan */}
         {plan?.carriedOver && (
           <span
-            className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-medium text-blue-700"
+            className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
             title="This week started as a copy of your previous plan — edit any meal to tailor it"
           >
             Continued from your last plan
@@ -332,7 +332,7 @@ export default function MealPlanPage() {
         {/* Estimated week cost (P2-4) — the priced-list wedge, on the plan */}
         {weekCost !== null && (
           <span
-            className={`flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-medium ${
+            className={`flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium ${
               overBudget !== null
                 ? 'border-amber-300 bg-amber-50 text-amber-800'
                 : 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -350,7 +350,7 @@ export default function MealPlanPage() {
 
         {/* Photo generation progress */}
         {photosInProgress && (
-          <span className="flex items-center gap-1.5 rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-[11px] font-medium text-[#944a00]">
+          <span className="flex items-center gap-1.5 rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-xs font-medium text-[#944a00]">
             <ImageIcon className="h-3 w-3 animate-pulse" />
             {photosReady} of {photosTotal} photos ready
           </span>
@@ -393,6 +393,9 @@ export default function MealPlanPage() {
   // ── Always render navBar; swap only the body area ─────────────────────────
   return (
     <div className="flex h-full flex-col">
+      {/* The shell header shows the page name visually; this is the page's
+          one <h1> for screen-reader heading navigation (F-X-5-3). */}
+      <h1 className="sr-only">Meal planner</h1>
       {navBar}
 
       {/* §6.5 Monday nudge: free user opening a week that has no plan yet —
@@ -500,10 +503,7 @@ export default function MealPlanPage() {
             <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
             {poolExhaustedMessage}
           </p>
-          <UpgradeButton
-            className="min-h-11 w-full sm:min-h-0 sm:w-auto sm:shrink-0"
-            source="pool-exhaustion"
-          />
+          <UpgradeButton className="w-full sm:w-auto sm:shrink-0" source="pool-exhaustion" />
         </div>
       )}
 
@@ -515,10 +515,7 @@ export default function MealPlanPage() {
             You&apos;re on the free plan: chef-picked recipes that respect your allergies and
             restrictions. Upgrade for AI plans tailored to your goals and taste.
           </p>
-          <UpgradeButton
-            className="min-h-11 w-full sm:min-h-0 sm:w-auto sm:shrink-0"
-            source="meal-plan-banner"
-          />
+          <UpgradeButton className="w-full sm:w-auto sm:shrink-0" source="meal-plan-banner" />
         </div>
       )}
 
@@ -614,7 +611,7 @@ export default function MealPlanPage() {
                       {DAY_NAMES[day.dayOfWeek]}
                     </p>
                     {isToday && (
-                      <span className="rounded-full bg-white/25 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-white">
+                      <span className="rounded-full bg-white/25 px-1.5 py-px text-xs font-semibold uppercase tracking-wide text-white">
                         Today
                       </span>
                     )}

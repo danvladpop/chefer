@@ -53,7 +53,7 @@ function StatRow({
         </span>
       </div>
       <UsageBar used={used} limit={limit} />
-      {sublabel && <p className="mt-0.5 text-[11px] text-gray-500">{sublabel}</p>}
+      {sublabel && <p className="mt-0.5 text-xs text-gray-500">{sublabel}</p>}
     </div>
   );
 }
@@ -74,7 +74,7 @@ function Card({
       <div className="mb-4 flex items-center gap-2">
         <h2 className="font-semibold text-gray-800">{title}</h2>
         {badge && (
-          <span className="rounded-full bg-[#fff3e8] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#944a00]">
+          <span className="rounded-full bg-[#fff3e8] px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-[#944a00]">
             {badge}
           </span>
         )}
@@ -98,7 +98,7 @@ export default function ProfilePage() {
     <div className="mx-auto max-w-lg px-4 py-6 sm:px-6 sm:py-8">
       {/* Header */}
       <div className="mb-6">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Account</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Account</p>
         <h1 className="font-serif text-2xl font-bold text-gray-900">Profile</h1>
       </div>
 
@@ -111,15 +111,15 @@ export default function ProfilePage() {
           <p className="font-semibold text-gray-900">{displayName}</p>
           <p className="text-sm text-gray-500">{user?.email}</p>
           <div className="mt-0.5 flex items-center gap-1.5">
-            <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">
+            <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-gray-600">
               {user?.role ?? '…'}
             </span>
             {user && (
               <span
-                className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${
                   user.planTier === 'PREMIUM'
                     ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
-                    : 'bg-gray-100 text-gray-500'
+                    : 'bg-gray-100 text-gray-600'
                 }`}
               >
                 {user.planTier === 'PREMIUM' ? 'Premium' : 'Free plan'}
@@ -221,15 +221,15 @@ export default function ProfilePage() {
             <div className="grid grid-cols-3 gap-3 border-t pt-3">
               <div className="text-center">
                 <p className="text-lg font-bold text-gray-900">{usage.today.MEAL_PLAN}</p>
-                <p className="text-[11px] text-gray-500">Meal plans</p>
+                <p className="text-xs text-gray-500">Meal plans</p>
               </div>
               <div className="text-center">
                 <p className="text-lg font-bold text-gray-900">{usage.today.RECIPE_SWAP}</p>
-                <p className="text-[11px] text-gray-500">Swaps</p>
+                <p className="text-xs text-gray-500">Swaps</p>
               </div>
               <div className="text-center">
                 <p className="text-lg font-bold text-gray-900">{usage.today.SHOPPING_LIST}</p>
-                <p className="text-[11px] text-gray-500">Shopping lists</p>
+                <p className="text-xs text-gray-500">Shopping lists</p>
               </div>
             </div>
           </Card>
@@ -247,7 +247,7 @@ export default function ProfilePage() {
             />
           </Card>
 
-          <p className="text-center text-[11px] text-gray-500">
+          <p className="text-center text-xs text-gray-500">
             Usage resets at midnight · Limits are approximate and may change
           </p>
         </div>

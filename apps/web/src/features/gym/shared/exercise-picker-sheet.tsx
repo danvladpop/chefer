@@ -75,6 +75,7 @@ export function ExercisePickerSheet({
             aria-hidden="true"
           />
           <Input
+            type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search exercises"
@@ -82,7 +83,7 @@ export function ExercisePickerSheet({
             data-testid="exercise-picker-search"
           />
         </label>
-        <div className="scroll-rail -mx-5 gap-1.5 px-5">
+        <div role="group" aria-label="Muscle group" className="scroll-rail -mx-5 gap-1.5 px-5">
           {GROUPS.map((g) => {
             const on = group === g;
             return (

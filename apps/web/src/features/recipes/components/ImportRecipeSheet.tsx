@@ -481,7 +481,7 @@ function RecipeCard({
     >
       <p
         className={cn(
-          'mb-1 text-[11px] font-semibold uppercase tracking-widest',
+          'mb-1 text-xs font-semibold uppercase tracking-widest',
           accent ? 'text-[#944a00]' : 'text-gray-500',
         )}
       >

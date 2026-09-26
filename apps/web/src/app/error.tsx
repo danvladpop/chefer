@@ -16,7 +16,11 @@ export default function ErrorPage({ error, reset }: ErrorProps) {
   }, [error]);
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center px-4 text-center">
+    <main
+      id="main"
+      tabIndex={-1}
+      className="flex min-h-dvh flex-col items-center justify-center px-4 text-center outline-none"
+    >
       <div className="mb-6 text-6xl">⚠️</div>
       <h1 className="mb-2 text-3xl font-bold tracking-tight">Something went wrong</h1>
       <p className="mb-6 max-w-md text-muted-foreground">
@@ -31,17 +35,17 @@ export default function ErrorPage({ error, reset }: ErrorProps) {
       <div className="flex gap-3">
         <button
           onClick={reset}
-          className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Try again
         </button>
         <Link
           href="/"
-          className="inline-flex h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="inline-flex min-h-11 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Go home
         </Link>
       </div>
-    </div>
+    </main>
   );
 }

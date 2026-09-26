@@ -106,7 +106,7 @@ export function ReplaceMealSheet({
                 mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
               });
             }}
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
           >
             <Wand2 className="h-4 w-4" aria-hidden="true" />
             {busy ? 'Working…' : 'Regenerate with AI'}
@@ -117,10 +117,12 @@ export function ReplaceMealSheet({
       <div className="flex flex-col gap-3">
         <input
           data-testid="picker-search"
+          type="search"
+          aria-label="Search recipes"
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
           placeholder="Search recipes…"
-          className="h-10 rounded-lg border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00]"
+          className="h-11 rounded-lg border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00]"
         />
 
         {error && (
@@ -136,7 +138,7 @@ export function ReplaceMealSheet({
         ) : (
           sections.map((section) => (
             <div key={section.title}>
-              <h3 className="pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+              <h3 className="pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wider text-gray-500">
                 {section.title}
               </h3>
               <ul className="flex flex-col gap-2">

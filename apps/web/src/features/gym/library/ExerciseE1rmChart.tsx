@@ -37,14 +37,19 @@ export function ExerciseE1rmChart({ exerciseId }: { exerciseId: string }) {
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
           e1RM trend
         </p>
-        <div className="flex gap-1 rounded-lg bg-neutral-100 p-0.5">
+        <div
+          role="group"
+          aria-label="Time range"
+          className="flex gap-1 rounded-lg bg-neutral-100 p-0.5"
+        >
           {RANGES.map((r) => (
             <button
               key={r.value}
               type="button"
+              aria-pressed={range === r.value}
               onClick={() => setRange(r.value)}
-              className={`min-h-7 rounded-md px-2 text-[11px] font-medium transition ${
-                range === r.value ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500'
+              className={`touch-target relative min-h-8 min-w-11 rounded-md px-2 text-xs font-medium transition ${
+                range === r.value ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
               }`}
             >
               {r.label}

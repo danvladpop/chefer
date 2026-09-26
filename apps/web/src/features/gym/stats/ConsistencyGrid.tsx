@@ -60,7 +60,7 @@ export function ConsistencyGrid() {
               );
             })}
           </div>
-          <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-neutral-500">
+          <div className="mt-3 flex flex-wrap gap-3 text-xs text-neutral-500">
             {(['met', 'flex', 'under', 'paused', 'empty'] as WeekStatus[]).map((status) => (
               <span key={status} className="flex items-center gap-1">
                 <span className={`h-2.5 w-2.5 rounded-sm ${STATUS_STYLE[status].className}`} />

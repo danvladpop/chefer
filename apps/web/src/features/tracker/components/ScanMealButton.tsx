@@ -182,7 +182,7 @@ export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProp
           <div className="space-y-4 px-5 pb-4">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${CONFIDENCE_STYLE[estimate.confidence].cls}`}
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${CONFIDENCE_STYLE[estimate.confidence].cls}`}
               >
                 {CONFIDENCE_STYLE[estimate.confidence].label}
               </span>
@@ -277,7 +277,7 @@ function DemoScan() {
           <div className="absolute inset-x-0 top-0 h-1 animate-pulse bg-[#944a00]/60 [animation-duration:600ms]" />
         )}
         {!revealed && (
-          <span className="absolute bottom-2 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#944a00]">
+          <span className="absolute bottom-2 rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-[#944a00]">
             scanning…
           </span>
         )}
@@ -288,7 +288,7 @@ function DemoScan() {
         {macros.map((m) => (
           <div key={m.label} className="px-2 py-3 text-center">
             <p className="text-sm font-bold text-neutral-900">{m.value}</p>
-            <p className="text-[10px] uppercase tracking-wide text-neutral-500">{m.label}</p>
+            <p className="text-xs uppercase tracking-wide text-neutral-500">{m.label}</p>
           </div>
         ))}
       </div>

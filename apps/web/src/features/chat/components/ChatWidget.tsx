@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
@@ -23,10 +23,21 @@ function getMessageText(m: UIMessage): string {
     .join('');
 }
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
+  const panelId = useId();
+  // Screen readers hear the assistant's reply once, when streaming finishes —
+  // a live region on the thread itself would re-read every streamed chunk.
+  const [announcement, setAnnouncement] = useState('');
 
   const [chatError, setChatError] = useState<string | null>(null);
 
@@ -38,6 +49,8 @@ export function ChatWidget() {
   const isPremium = useIsPremium();
   // Free tier: chat is premium-only — show the locked preview, no input.
   const locked = isPremium === false;
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
   useEffect(() => {
     if (isPremium) setQuotaExhausted(false);
   }, [isPremium]);
@@ -54,6 +67,62 @@ export function ChatWidget() {
     onError: () => setChatError('The chef is unavailable right now — please try again.'),
   });
   const isLoading = status === 'submitted' || status === 'streaming';
+
+  const wasLoadingRef = useRef(false);
+  useEffect(() => {
+    if (isLoading) {
+      wasLoadingRef.current = true;
+      return;
+    }
+    if (!wasLoadingRef.current) return;
+    wasLoadingRef.current = false;
+    const last = messages[messages.length - 1];
+    if (last?.role === 'assistant') setAnnouncement(getMessageText(last));
+  }, [isLoading, messages]);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    fabRef.current?.focus();
+  }, []);
+
+  // Dialog behaviour (F-AI-1-4): focus the input on open, Escape closes and
+  // returns focus to the FAB, Tab stays inside the panel.
+  useEffect(() => {
+    if (!open) return;
+    const panel = panelRef.current;
+    const input = inputRef.current;
+    // The input is display:none on the locked (free) preview.
+    if (input && !input.disabled && !lockedRef.current) input.focus();
+    else (panel?.querySelector<HTMLElement>(FOCUSABLE) ?? panel)?.focus();
+
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        close();
+        return;
+      }
+      if (e.key !== 'Tab' || !panelRef.current) return;
+      const nodes = Array.from(panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (n) => n.getClientRects().length > 0,
+      );
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (!first || !last) {
+        e.preventDefault();
+        return;
+      }
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === panelRef.current)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [open, close]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -85,34 +154,57 @@ export function ChatWidget() {
   return (
     <>
       {/* FAB — sits above the mobile tab bar, back in the corner at lg+ */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement ? `Chef: ${announcement}` : ''}
+      </div>
+
       <button
+        ref={fabRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? close() : setOpen(true))}
         className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#944a00] text-white shadow-lg transition hover:scale-105 hover:bg-[#7a3d00] lg:bottom-6 lg:right-6"
         aria-label={open ? 'Close AI Chef chat' : 'Open AI Chef chat'}
         aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        aria-haspopup="dialog"
       >
-        {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
+        {open ? (
+          <X className="h-6 w-6" aria-hidden="true" />
+        ) : (
+          <MessageCircle className="h-6 w-6" aria-hidden="true" />
+        )}
       </button>
 
       {/* Panel — full-width bottom sheet on phones (a 320px floating card
           overflows a 320px screen), floating card from sm up. */}
       {open && (
-        <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-2xl border border-neutral-200 bg-white pb-safe shadow-2xl sm:inset-x-auto sm:bottom-24 sm:right-6 sm:w-96 sm:rounded-2xl sm:pb-0">
+        <div
+          ref={panelRef}
+          id={panelId}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          tabIndex={-1}
+          className="fixed inset-x-0 bottom-0 z-50 flex flex-col outline-none rounded-t-2xl border border-neutral-200 bg-white pb-safe shadow-2xl sm:inset-x-auto sm:bottom-24 sm:right-6 sm:w-96 sm:rounded-2xl sm:pb-0"
+        >
           {/* Header */}
           <div className="flex shrink-0 items-center gap-3 rounded-t-2xl border-b bg-[#944a00] px-4 py-3">
-            <span className="text-xl">🍳</span>
+            <span className="text-xl" aria-hidden="true">
+              🍳
+            </span>
             <div>
-              <p className="text-sm font-semibold text-white">Ask Your Chef</p>
-              <p className="text-[10px] text-white/70">AI-powered cooking assistant</p>
+              <h2 id={titleId} className="text-sm font-semibold text-white">
+                Ask Your Chef
+              </h2>
+              <p className="text-xs text-white/80">AI-powered cooking assistant</p>
             </div>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={close}
               aria-label="Close chat"
               className="-mr-2 ml-auto flex h-11 w-11 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
 
@@ -128,7 +220,7 @@ export function ChatWidget() {
                       key={prompt}
                       type="button"
                       onClick={() => sendSuggested(prompt)}
-                      className="rounded-xl border border-neutral-200 px-3 py-2.5 text-left text-sm text-neutral-600 transition-colors hover:border-[#944a00]/30 hover:bg-[#fff8f0] sm:text-xs"
+                      className="min-h-11 rounded-xl border border-neutral-200 px-3 py-2.5 text-left text-sm text-neutral-600 transition-colors hover:border-[#944a00]/30 hover:bg-[#fff8f0]"
                     >
                       {prompt}
                     </button>
@@ -145,7 +237,10 @@ export function ChatWidget() {
                   className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   {m.role === 'assistant' && (
-                    <span className="mr-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#944a00] text-[10px] font-bold text-white">
+                    <span
+                      className="mr-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#944a00] text-xs font-bold text-white"
+                      aria-hidden="true"
+                    >
                       C
                     </span>
                   )}
@@ -162,7 +257,10 @@ export function ChatWidget() {
               );
             })}
             {chatError && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <div
+                role="alert"
+                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+              >
                 {chatError}
               </div>
             )}
@@ -176,15 +274,18 @@ export function ChatWidget() {
                   The AI chef is part of Premium — it can swap meals, log what you ate and build
                   your list for you.
                 </p>
-                <UpgradeButton className="min-h-11 w-full sm:min-h-9" source="chat-quota" />
+                <UpgradeButton className="min-h-11 w-full" source="chat-quota" />
               </div>
             )}
             {isLoading && (
               <div className="flex justify-start">
-                <span className="mr-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#944a00] text-[10px] font-bold text-white">
+                <span
+                  className="mr-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#944a00] text-xs font-bold text-white"
+                  aria-hidden="true"
+                >
                   C
                 </span>
-                <div className="rounded-2xl bg-neutral-100 px-3 py-2 text-sm text-neutral-500">
+                <div className="rounded-2xl bg-neutral-100 px-3 py-2 text-sm text-neutral-600">
                   <span className="animate-pulse">Thinking…</span>
                 </div>
               </div>
@@ -195,6 +296,8 @@ export function ChatWidget() {
           {/* Input */}
           <div className={`${locked ? 'hidden' : 'flex'} shrink-0 gap-2 border-t p-3`}>
             <input
+              ref={inputRef}
+              aria-label="Message the chef"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -209,9 +312,9 @@ export function ChatWidget() {
               onClick={handleSend}
               disabled={!inputValue.trim() || isLoading}
               aria-label="Send message"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#944a00] text-white transition hover:bg-[#7a3d00] disabled:opacity-40 sm:h-9 sm:w-9"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#944a00] text-white transition hover:bg-[#7a3d00] disabled:opacity-40"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         </div>

@@ -53,12 +53,12 @@ export function PlanFooterCard({ source }: { source: string }) {
           localStorage.setItem(DISMISS_KEY, '1');
           setDismissed(true);
         }}
-        className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-amber-100 hover:text-gray-600"
+        className="touch-target absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-amber-100 hover:text-gray-700"
       >
         <X className="h-3.5 w-3.5" />
       </button>
       <p className="text-xs font-semibold text-gray-800">Free plan</p>
-      <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
+      <p className="mt-0.5 text-xs leading-snug text-gray-600">
         Chef-picked recipes. Go premium for your personal AI chef — free during the beta.
       </p>
       <UpgradeButton className="mt-2 w-full" source={source} />

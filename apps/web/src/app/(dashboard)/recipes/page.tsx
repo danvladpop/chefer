@@ -78,7 +78,7 @@ export default function RecipesPage() {
           would land on top of the chat widget, so the label shortens instead. */}
       <div className="mb-6 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
             Your Collection
           </p>
           <h1 className="font-serif text-xl font-bold text-gray-900 sm:text-2xl">Recipes</h1>
@@ -132,12 +132,16 @@ export default function RecipesPage() {
 
       {/* Search */}
       <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+        />
         <input
           type="search"
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
           placeholder="Search recipes…"
+          aria-label="Search recipes"
           className="w-full rounded-xl border bg-white py-2.5 pl-9 pr-4 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
         />
       </div>
@@ -207,7 +211,7 @@ export default function RecipesPage() {
                 {/* Content */}
                 <Link href={`/recipes/${recipe.id}`} className="block p-4">
                   <div className="mb-1 flex gap-2">
-                    <span className="rounded-full bg-[#fff3e8] px-2 py-0.5 text-[10px] font-medium text-[#944a00] uppercase tracking-wide">
+                    <span className="rounded-full bg-[#fff3e8] px-2 py-0.5 text-xs font-medium text-[#944a00] uppercase tracking-wide">
                       {recipe.cuisineType}
                     </span>
                   </div>
@@ -242,7 +246,7 @@ export default function RecipesPage() {
 
 function Chip({ label, value }: { label: string; value: number }) {
   return (
-    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
       {label} {value}g
     </span>
   );
@@ -259,7 +263,7 @@ function EmptyState({ tab }: { tab: Tab }) {
         </p>
         <button
           onClick={() => window.history.back()}
-          className="text-sm text-[#944a00] hover:underline"
+          className="min-h-11 px-2 text-sm text-[#944a00] hover:underline"
         >
           ← All Recipes
         </button>
@@ -281,7 +285,7 @@ function EmptyState({ tab }: { tab: Tab }) {
         </div>
         <Link
           href="/recipes/new"
-          className="flex items-center gap-1.5 rounded-xl bg-[#944a00] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
+          className="flex min-h-11 items-center gap-1.5 rounded-xl bg-[#944a00] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
         >
           <Plus className="h-4 w-4" />
           Create Recipe
@@ -303,7 +307,7 @@ function EmptyState({ tab }: { tab: Tab }) {
       </div>
       <Link
         href="/meal-plan"
-        className="rounded-xl bg-[#944a00] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
+        className="inline-flex min-h-11 items-center rounded-xl bg-[#944a00] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
       >
         Go to Meal Planner →
       </Link>

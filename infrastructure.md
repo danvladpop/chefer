@@ -268,6 +268,17 @@ of truth for routes, through the active **mode** (`navFor(mode)`):
 | `MobileNavDrawer` | Slide-over with the `Food \| Gym` switch, the mode's remaining destinations and the plan/upgrade footer |
 | `TopHeader`       | Sticky header; carries a compact `Food \| Gym` switch below `lg`                                        |
 
+**Accessibility conventions (audit P2-7).** Every page renders its content inside
+`<main id="main" tabIndex={-1}>` (the dashboard shell, the auth layout, the
+landing, legal, 404 and error pages), and the root layout's first element is a
+"Skip to content" link targeting it. The `TopHeader` title is a `<p>`, not a
+heading: each page owns exactly one `<h1>` (use `sr-only` when the design shows
+no visible title). Browser-tab titles come from a small server `layout.tsx` per
+dashboard route segment that exports `metadata.title` (rendered through the root
+`'%s | Chefer'` template) — dashboard pages are client components and can't
+export metadata themselves, and a client `document.title` effect lost to Next's
+`<title>` on hard loads (F-X-1-1).
+
 **Food / Gym mode (gym_plan.md D3, G5-A).** `FOOD_NAV_ITEMS` (the 11 food
 destinations; `NAV_ITEMS` stays as an alias) and `GYM_NAV_ITEMS` (Today `/gym`,
 Routine, Exercises, Stats; plus `/gym/settings` in the drawer / sidebar). The mode
@@ -536,6 +547,13 @@ ref-counted body scroll lock, a Tab focus trap, Escape-to-close and focus
 restore. **New overlays should use `Sheet` rather than a hand-rolled
 `fixed inset-0` div** — six of those existed before and none had scroll
 locking or focus management.
+
+Small dropdown menus (the header user menu, the shopping list's "…" menu) use
+the `useMenu()` hook from `lib/use-menu.ts` instead: it wires the WAI-ARIA
+menu-button pattern (`aria-haspopup`/`aria-expanded`, focus to the first
+`role="menuitem"` on open, Escape closes and refocuses the trigger, arrow
+keys/Home/End move, Tab and outside pointerdown close). Spread `triggerProps`
+on the button, `menuProps` on the menu, and put `rootRef` on the wrapper.
 
 Every control steps up to a 44px touch target below `sm` and returns to the
 denser desktop scale above it. `Input` also renders at 16px on mobile, because

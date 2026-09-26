@@ -33,6 +33,9 @@ test.describe('progress charts are usable without a mouse', () => {
       test.skip(true, 'No plotted data points on this account.');
       return;
     }
+    // The plotted chart may sit below the fold (an account with weigh-ins but
+    // no tracker logs only charts weight) — bring it clear of the tab bar.
+    await dot.evaluate((el) => el.scrollIntoView({ block: 'center' }));
     const box = (await dot.boundingBox())!;
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
 

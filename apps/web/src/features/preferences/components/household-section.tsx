@@ -255,7 +255,7 @@ function HouseholdGhost({ ownerSafety }: { ownerSafety: OwnerSafety }) {
                   {day}
                 </span>
                 <span className="min-w-0 flex-1 truncate font-medium text-gray-800">{dish}</span>
-                <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-500">
+                <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-500">
                   2 servings
                 </span>
               </li>
@@ -313,7 +313,7 @@ export function HouseholdSection({
         <Users className="h-4 w-4 text-[#944a00]" aria-hidden="true" />
         <h2 className="text-base font-semibold">My household</h2>
         {portionSum !== null && (
-          <span className="rounded-full bg-[#fff3e8] px-2 py-0.5 text-[11px] font-medium text-[#944a00]">
+          <span className="rounded-full bg-[#fff3e8] px-2 py-0.5 text-xs font-medium text-[#944a00]">
             cooking for {portionSum}
           </span>
         )}

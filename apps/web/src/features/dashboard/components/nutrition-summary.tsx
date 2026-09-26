@@ -43,16 +43,16 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
     <div className={cn('rounded-2xl border bg-white p-4 shadow-sm sm:p-5', className)}>
       {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
           Planned Today
         </p>
         <span
           className={cn(
-            'shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase',
+            'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase',
             targetStatus === 'over' && 'bg-red-100 text-red-700',
             targetStatus === 'under' && 'bg-amber-100 text-amber-700',
             targetStatus === 'on' && 'bg-emerald-100 text-emerald-700',
-            targetStatus === 'none' && 'bg-gray-100 text-gray-500',
+            targetStatus === 'none' && 'bg-gray-100 text-gray-600',
           )}
         >
           {targetStatus === 'over'
@@ -101,7 +101,7 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <p className="text-xl font-bold text-gray-900">{n.plannedKcal.toLocaleString()}</p>
-              <p className="text-[10px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 of {n.dailyCalorieTarget.toLocaleString()} kcal
               </p>
             </div>
@@ -151,13 +151,13 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
       <div className="mt-4 hidden flex-col gap-1.5 xl:flex">
         <Link
           href="/meal-plan"
-          className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]"
+          className="flex min-h-11 items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]"
         >
           Meal Planner <ChevronRight className="h-3.5 w-3.5" />
         </Link>
         <Link
           href="/shopping-list"
-          className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]"
+          className="flex min-h-11 items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]"
         >
           Shopping List <ChevronRight className="h-3.5 w-3.5" />
         </Link>

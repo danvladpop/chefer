@@ -34,7 +34,7 @@ export function ExerciseCard({ exercise }: { exercise: ExerciseDto }) {
           {muscles} · {EQUIPMENT_LABELS[exercise.equipment]}
         </p>
         {exercise.ownerId !== null && (
-          <span className="mt-1 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+          <span className="mt-1 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
             Custom
           </span>
         )}
