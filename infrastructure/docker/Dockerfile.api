@@ -31,6 +31,34 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 FROM node:20-alpine3.20 AS runner
 
 RUN apk add --no-cache dumb-init curl openssl
+
+# ─── Video-link recipe import (apps/api/src/lib/video-import) ────────────────
+# yt-dlp reads a video's metadata/captions and downloads its AUDIO only;
+# ffmpeg turns that into 16 kHz mono mp3 for Whisper. Both pinned.
+#
+# ffmpeg: the Alpine 3.20 package (6.1.x), security-patched with the base image.
+#
+# yt-dlp: the official standalone musl binary (no Python needed; bundles the
+# YouTube JS-challenge solver and uses the node already in this image). It
+# BREAKS whenever YouTube/TikTok/Instagram change their sites, so bump it
+# often — see infrastructure.md §12 "Bumping yt-dlp": set YTDLP_VERSION and
+# both SHA-256s from the release's SHA2-256SUMS, rebuild, run the smoke check.
+ARG YTDLP_VERSION=2026.08.19
+ARG YTDLP_SHA256_AMD64=f3dec9cfeaf304cec98290fe41c6ad465d4b747d302473559643e7af24929722
+ARG YTDLP_SHA256_ARM64=17b164c4d258be92bb1ad146cb7c336b783aedb380814aabbcb7d52937f77e57
+ARG TARGETARCH
+RUN apk add --no-cache 'ffmpeg~6.1' && \
+    arch="${TARGETARCH:-$(uname -m)}" && \
+    case "$arch" in \
+      amd64|x86_64) asset=yt-dlp_musllinux; sum="$YTDLP_SHA256_AMD64" ;; \
+      arm64|aarch64) asset=yt-dlp_musllinux_aarch64; sum="$YTDLP_SHA256_ARM64" ;; \
+      *) echo "yt-dlp: unsupported architecture $arch" >&2; exit 1 ;; \
+    esac && \
+    curl -fsSL -o /usr/local/bin/yt-dlp \
+      "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/${asset}" && \
+    echo "${sum}  /usr/local/bin/yt-dlp" | sha256sum -c - && \
+    chmod 755 /usr/local/bin/yt-dlp
+
 WORKDIR /app
 
 ENV NODE_ENV=production
