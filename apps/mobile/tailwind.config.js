@@ -11,6 +11,10 @@ module.exports = {
   presets: [require('nativewind/preset')],
   theme: {
     extend: {
+      // NativeWind's rem is 14, so the stock `11` (2.75rem) was 38.5pt — the
+      // app-wide `h-11`/`min-h-11`/`w-11` touch-target convention measured
+      // 39×38 on iOS (audit F-M-X-5-2). Pin it to the 44pt it is meant to be.
+      spacing: { 11: '44px' },
       // Mobile type ramp, one step up from Tailwind's web defaults (dogfood
       // #10: "controls and text too small on the phone"). Anchored to Apple's
       // HIG sizes — body 17, callout 15, footnote 13 — so every text-* class

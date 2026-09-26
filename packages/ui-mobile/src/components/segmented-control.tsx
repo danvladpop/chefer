@@ -7,6 +7,7 @@ import { haptics } from '../motion/haptics';
 import { springs } from '../motion/motion';
 import { PressableScale } from '../motion/pressable-scale';
 import { useReducedMotion } from '../motion/use-reduced-motion';
+import { DENSE_MAX_FONT_SCALE } from './text';
 import { colors } from './theme';
 
 // Every segment keeps a 44pt hit area; `sm`/`xs` only shrink the visual.
@@ -142,7 +143,12 @@ export function SegmentedControl<T extends string>({
               compact ? 'h-8' : 'min-h-11',
             )}
           >
-            <Text className={segmentTextVariants({ size, selected })}>{option.label}</Text>
+            <Text
+              className={segmentTextVariants({ size, selected })}
+              maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+            >
+              {option.label}
+            </Text>
           </PressableScale>
         );
       })}

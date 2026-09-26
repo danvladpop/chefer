@@ -170,7 +170,7 @@ export default function ShoppingListScreen() {
         <ModeSwitch />
         {/* Header + week navigator */}
         <View className="flex-row items-center justify-between gap-2">
-          <View>
+          <View className="min-w-0 flex-1">
             <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
               {weekOffset === 0 ? 'This Week' : weekOffset === 1 ? 'Next Week' : 'Past Week'}
             </Text>
@@ -190,6 +190,7 @@ export default function ShoppingListScreen() {
             <Pressable
               testID="week-prev"
               accessibilityRole="button"
+              accessibilityLabel="Previous week"
               disabled={weekOffset <= -52}
               onPress={() => setWeekOffset((o) => o - 1)}
               className="h-11 w-11 items-center justify-center rounded-full border border-border"
@@ -199,6 +200,7 @@ export default function ShoppingListScreen() {
             <Pressable
               testID="week-next"
               accessibilityRole="button"
+              accessibilityLabel="Next week"
               disabled={weekOffset >= 1}
               onPress={() => setWeekOffset((o) => o + 1)}
               className={cn(
@@ -279,6 +281,7 @@ export default function ShoppingListScreen() {
               <Pressable
                 testID="add-item-submit"
                 accessibilityRole="button"
+                accessibilityLabel="Add item"
                 onPress={handleAddItem}
                 disabled={addItemMutation.isPending}
                 className="h-11 w-11 items-center justify-center rounded-md bg-primary"

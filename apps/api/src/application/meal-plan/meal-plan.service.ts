@@ -1393,14 +1393,14 @@ function withAllergenWarnings(dto: RecipeDto, row: Recipe, safety: SafetyPrefs |
 /**
  * Clients render warnings as "Contains …", which read "Contains Paleo" for a
  * diet conflict. Phrase restrictions as what the dish contains instead:
- * "Gluten-free" → "gluten", "Paleo" → "non-paleo ingredients". Stays a plain
+ * "Gluten-free" → "gluten", "Paleo" → "non-paleo". Stays a plain
  * string so shipped app binaries render it unchanged.
  */
 export function restrictionWarningLabel(restriction: string): string {
   const lower = restriction.trim().toLowerCase();
   const free = /^(.+?)[\s-]*free$/.exec(lower);
   if (free?.[1]) return free[1];
-  return `non-${lower} ingredients`;
+  return `non-${lower}`;
 }
 
 function rowToRecipeData(row: Recipe): RecipeData {

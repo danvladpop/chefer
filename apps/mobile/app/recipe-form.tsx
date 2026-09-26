@@ -317,7 +317,7 @@ export default function RecipeFormScreen() {
                 accessibilityLabel="Remove ingredient"
                 disabled={ingredients.length === 1}
                 onPress={() => setIngredients((prev) => prev.filter((_, j) => j !== i))}
-                className="h-11 w-9 items-center justify-center"
+                className="h-11 w-11 items-center justify-center"
               >
                 <Ionicons name="close" size={16} color="#9ca3af" />
               </Pressable>
