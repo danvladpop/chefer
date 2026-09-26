@@ -29,5 +29,6 @@ export function loadEvalProviderConfig(): ProviderConfig {
     secondaryBaseUrl: env.AI_SECONDARY_BASE_URL,
     secondaryModel: env.AI_SECONDARY_MODEL,
     visionModel: env.AI_VISION_MODEL,
+    reasoningEffort: env.AI_SECONDARY_REASONING_EFFORT,
   };
 }

@@ -1,3 +1,4 @@
+import type { ReasoningEffortSetting } from './env-schema.js';
 import type { ProviderRef } from './failover.js';
 import { GeminiAIService } from './gemini.js';
 import { MockAIService } from './mock.js';
@@ -17,6 +18,28 @@ export interface ProviderConfig {
   secondaryBaseUrl: string;
   secondaryModel: string;
   visionModel: string;
+  /** AI_SECONDARY_REASONING_EFFORT; unset = auto. */
+  reasoningEffort?: ReasoningEffortSetting | undefined;
+}
+
+/**
+ * The reasoning_effort to send with the secondary's text-model calls:
+ * auto → "low" for gpt-oss (a reasoning model whose default effort burns the
+ * output budget), nothing for other models (non-reasoning models reject the
+ * parameter); none → nothing; otherwise the explicit value.
+ */
+export function resolveReasoningEffort(
+  setting: ReasoningEffortSetting | undefined,
+  model: string,
+): 'low' | 'medium' | 'high' | undefined {
+  switch (setting ?? 'auto') {
+    case 'auto':
+      return /gpt-oss/i.test(model) ? 'low' : undefined;
+    case 'none':
+      return undefined;
+    default:
+      return setting as 'low' | 'medium' | 'high';
+  }
 }
 
 /** "api.groq.com/openai/gpt-oss-120b" — the secondary's name in logs. */
@@ -67,6 +90,7 @@ export function createProvider(
           baseUrl: config.secondaryBaseUrl,
           model: config.secondaryModel,
           visionModel: config.visionModel,
+          reasoningEffort: resolveReasoningEffort(config.reasoningEffort, config.secondaryModel),
           mealPlanMode: options.leadsMealPlan ? 'chunked' : 'single',
         }),
       };

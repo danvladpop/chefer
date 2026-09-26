@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DAY_PLAN_JSON_SCHEMA, OpenAICompatibleAIService } from './openai.js';
-import type { MealPlanInput, RecipeData } from './types.js';
+import { runWithAiCallContext } from './call-context.js';
+import { DAY_PLAN_JSON_SCHEMA, isBackgroundCall, OpenAICompatibleAIService } from './openai.js';
+import type { MealPlanInput, RecipeData, ShoppingListInput, SwapInput } from './types.js';
 
 // Fixture responses only — no live calls (§8 AI-cost rule).
 
@@ -59,6 +60,15 @@ const PLAN_INPUT: MealPlanInput = {
   mealsPerDay: 3,
   servingSize: 1,
 };
+
+const SWAP_INPUT: SwapInput = {
+  userId: 'u1',
+  originalRecipeName: 'Old dish',
+  mealType: 'dinner',
+  preferences: { dietaryRestrictions: [], allergies: [], cuisinePreferences: [] },
+};
+
+const SHOP_INPUT: ShoppingListInput = { ingredients: [], weekLabel: 'this week' };
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -231,28 +241,110 @@ describe('OpenAICompatibleAIService — chunked meal plan (research §5.4 step 3
     expect(body(fetchMock)['response_format']).toEqual({ type: 'json_object' });
   });
 
-  it('fails the whole week when one day fails validation', async () => {
+  it('fails the whole week when one day still fails validation after the repair retry', async () => {
     fetchMock.mockResolvedValueOnce(dayResponse(0));
+    fetchMock.mockResolvedValueOnce(completion({ dayOfWeek: 1, meals: [{ type: 'brunch' }] }));
     fetchMock.mockResolvedValueOnce(completion({ dayOfWeek: 1, meals: [{ type: 'brunch' }] }));
     const svc = new OpenAICompatibleAIService({ ...BASE, mealPlanMode: 'chunked' });
     await expect(svc.generateMealPlan(PLAN_INPUT)).rejects.toThrow(/failed validation/);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it('falls back to json_object once when the endpoint rejects strict json_schema', async () => {
+  it('retries a strict-mode json_validate_failed day in json_object mode, keeping strict for later days', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response('{"error":"response_format json_schema is not supported"}', { status: 400 }),
+      new Response(
+        '{"error":{"message":"Failed to validate JSON. Please adjust your prompt.","type":"invalid_request_error","code":"json_validate_failed","failed_generation":""}}',
+        { status: 400 },
+      ),
     );
     for (let d = 0; d < 7; d++) fetchMock.mockResolvedValueOnce(dayResponse(d));
     const svc = new OpenAICompatibleAIService({ ...BASE, mealPlanMode: 'chunked' });
 
-    await expect(svc.generateMealPlan(PLAN_INPUT)).resolves.toMatchObject({
-      days: expect.any(Array),
-    });
+    const plan = await svc.generateMealPlan(PLAN_INPUT);
+    expect(plan.days).toHaveLength(7);
     expect(fetchMock).toHaveBeenCalledTimes(8);
-    expect(body(fetchMock, 1)['response_format']).toEqual({ type: 'json_object' });
-    // Remembered: later days don't retry strict mode.
-    expect(body(fetchMock, 7)['response_format']).toEqual({ type: 'json_object' });
+    const retry = body(fetchMock, 1);
+    expect(retry['response_format']).toEqual({ type: 'json_object' });
+    // json_object mode carries the prose shape; strict mode does not need it.
+    const system = (retry['messages'] as { content: string }[])[0]?.content ?? '';
+    expect(system).toContain('"dayOfWeek":number');
+    // A failed generation is not "json_schema unsupported" — day 2 is strict again.
+    expect(body(fetchMock, 2)['response_format']).toMatchObject({ type: 'json_schema' });
+  });
+
+  it('gives a truncated strict day 1.5x the output budget on its json_object retry', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        '{"error":{"message":"max completion tokens reached before generating a valid document: the output was truncated","code":"json_validate_failed"}}',
+        { status: 400 },
+      ),
+    );
+    for (let d = 0; d < 7; d++) fetchMock.mockResolvedValueOnce(dayResponse(d));
+    const svc = new OpenAICompatibleAIService({ ...BASE, mealPlanMode: 'chunked' });
+    await svc.generateMealPlan(PLAN_INPUT);
+    expect(body(fetchMock, 0)['max_tokens']).toBe(4000);
+    expect(body(fetchMock, 1)['max_tokens']).toBe(6000);
+  });
+
+  it('repairs an invalid day once, showing the model its output and the error', async () => {
+    fetchMock.mockResolvedValueOnce(completion({ dayOfWeek: 0, meals: [{ type: 'brunch' }] }));
+    for (let d = 0; d < 7; d++) fetchMock.mockResolvedValueOnce(dayResponse(d));
+    const svc = new OpenAICompatibleAIService({ ...BASE, mealPlanMode: 'chunked' });
+
+    const plan = await svc.generateMealPlan(PLAN_INPUT);
+    expect(plan.days).toHaveLength(7);
+    const repair = body(fetchMock, 1);
+    expect(repair['response_format']).toEqual({ type: 'json_object' });
+    const messages = repair['messages'] as { role: string; content: string }[];
+    expect(messages).toHaveLength(4);
+    expect(messages[2]).toMatchObject({ role: 'assistant' });
+    expect(messages[2]?.content).toContain('brunch');
+    expect(messages[3]?.content).toMatch(/rejected: response failed validation/);
+  });
+
+  function limitedDay(d: number) {
+    const res = completion(
+      { dayOfWeek: d, meals: [{ type: 'breakfast', recipe: recipe(`Meal ${d}`) }] },
+      { prompt_tokens: 900, completion_tokens: 1100 },
+    );
+    res.headers.set('x-ratelimit-limit-tokens', '8000');
+    res.headers.set('x-ratelimit-remaining-tokens', '500');
+    return res;
+  }
+
+  it('paces days until the per-minute budget admits prompt + max_tokens', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    for (let d = 0; d < 7; d++) fetchMock.mockResolvedValueOnce(limitedDay(d));
+    const svc = new OpenAICompatibleAIService({
+      ...BASE,
+      mealPlanMode: 'chunked',
+      sleep,
+      now: () => 0,
+    });
+
+    await svc.generateMealPlan(PLAN_INPUT);
+    // Day 0 (budget unknown) runs at once. Every later day needs 900 prompt
+    // + 50 growth + 4,000 max_tokens = 4,950 admitted; 500 are left, so it
+    // waits for 4,450 tokens at 8,000/60 s = 33.375 s. A background plan
+    // (no user context) may wait for all six.
+    expect(sleep).toHaveBeenCalledTimes(6);
+    expect(sleep).toHaveBeenCalledWith(33_375);
+  });
+
+  it('caps pacing for a plan a user is waiting on', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    for (let d = 0; d < 7; d++) fetchMock.mockResolvedValueOnce(limitedDay(d));
+    const svc = new OpenAICompatibleAIService({
+      ...BASE,
+      mealPlanMode: 'chunked',
+      sleep,
+      now: () => 0,
+    });
+    await runWithAiCallContext({ userId: 'u', premium: true }, () =>
+      svc.generateMealPlan(PLAN_INPUT),
+    );
+    // 90 s interactive budget: two 33 s waits fit, a third does not.
+    expect(sleep).toHaveBeenCalledTimes(2);
   });
 
   it('waits out a short per-minute 429 once, then continues', async () => {
@@ -266,7 +358,7 @@ describe('OpenAICompatibleAIService — chunked meal plan (research §5.4 step 3
 
     const plan = await svc.generateMealPlan(PLAN_INPUT);
     expect(plan.days).toHaveLength(7);
-    expect(sleep).toHaveBeenCalledWith(7000);
+    expect(sleep).toHaveBeenCalledWith(7250); // Retry-After + jitter
   });
 
   it('propagates a long 429 (daily quota) so the chain can fail over', async () => {
@@ -277,5 +369,110 @@ describe('OpenAICompatibleAIService — chunked meal plan (research §5.4 step 3
     const svc = new OpenAICompatibleAIService({ ...BASE, mealPlanMode: 'chunked', sleep });
     await expect(svc.generateMealPlan(PLAN_INPUT)).rejects.toMatchObject({ status: 429 });
     expect(sleep).not.toHaveBeenCalled();
+  });
+});
+
+describe('OpenAICompatibleAIService — reasoning effort', () => {
+  it('sends reasoning_effort with text-model calls only, never to the vision model', async () => {
+    fetchMock.mockResolvedValueOnce(completion(recipe('Swap')));
+    fetchMock.mockResolvedValueOnce(
+      completion({
+        dishName: 'Pasta',
+        confidence: 'med',
+        kcal: 600,
+        protein: 20,
+        carbs: 80,
+        fat: 20,
+        portionNote: 'one plate',
+      }),
+    );
+    const svc = new OpenAICompatibleAIService({
+      ...BASE,
+      visionModel: 'qwen/qwen3.8-27b',
+      reasoningEffort: 'low',
+    });
+    await svc.generateRecipeSwap(SWAP_INPUT);
+    await svc.analyzeMealPhoto('aGk=', 'image/jpeg');
+    expect(body(fetchMock, 0)['reasoning_effort']).toBe('low');
+    expect(body(fetchMock, 1)['model']).toBe('qwen/qwen3.8-27b');
+    expect(body(fetchMock, 1)).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('omits it when not configured (non-reasoning models reject it)', async () => {
+    fetchMock.mockResolvedValueOnce(completion({ items: [] }));
+    const svc = new OpenAICompatibleAIService(BASE);
+    await svc.generateShoppingList(SHOP_INPUT);
+    expect(body(fetchMock)).not.toHaveProperty('reasoning_effort');
+  });
+});
+
+describe('OpenAICompatibleAIService — 429 handling (background vs interactive)', () => {
+  const rateLimited = (headers: Record<string, string> = { 'retry-after': '3' }, text = 'rl') =>
+    new Response(text, { status: 429, headers });
+
+  it('classifies background calls: background ops, no user context, shadow replays', () => {
+    expect(isBackgroundCall('generateShoppingList')).toBe(true);
+    expect(isBackgroundCall('generateRecipeSwap')).toBe(true); // no context = worker/script
+    runWithAiCallContext({ userId: 'u', premium: true }, () => {
+      expect(isBackgroundCall('generateRecipeSwap')).toBe(false);
+      expect(isBackgroundCall('estimateIngredientPrices')).toBe(true);
+    });
+    runWithAiCallContext({ userId: 'u', premium: true, shadow: true }, () => {
+      expect(isBackgroundCall('generateRecipeSwap')).toBe(true);
+    });
+    // Chunks pace themselves.
+    expect(isBackgroundCall('generateMealPlan.day')).toBe(false);
+  });
+
+  it('a background call waits out one short 429 and retries', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    fetchMock.mockResolvedValueOnce(rateLimited());
+    fetchMock.mockResolvedValueOnce(completion({ items: [] }));
+    const svc = new OpenAICompatibleAIService({ ...BASE, sleep });
+    await expect(svc.generateShoppingList(SHOP_INPUT)).resolves.toEqual({
+      items: [],
+    });
+    expect(sleep).toHaveBeenCalledWith(3250);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads the wait from the body when there is no Retry-After header', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    fetchMock.mockResolvedValueOnce(rateLimited({}, 'Please try again in 4.5s.'));
+    fetchMock.mockResolvedValueOnce(completion({ items: [] }));
+    const svc = new OpenAICompatibleAIService({ ...BASE, sleep });
+    await svc.generateShoppingList(SHOP_INPUT);
+    expect(sleep).toHaveBeenCalledWith(4750);
+  });
+
+  it('retries only once, and never for a long wait', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    fetchMock.mockResolvedValueOnce(rateLimited());
+    fetchMock.mockResolvedValueOnce(rateLimited());
+    const svc = new OpenAICompatibleAIService({ ...BASE, sleep });
+    await expect(svc.generateShoppingList(SHOP_INPUT)).rejects.toMatchObject({
+      status: 429,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    fetchMock.mockResolvedValueOnce(rateLimited({ 'retry-after': '45' }));
+    await expect(svc.generateShoppingList(SHOP_INPUT)).rejects.toMatchObject({
+      status: 429,
+      retryAfterMs: 45_000,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('an interactive call fails straight away so the chain can fail over', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    fetchMock.mockResolvedValueOnce(rateLimited());
+    const svc = new OpenAICompatibleAIService({ ...BASE, sleep });
+    await expect(
+      runWithAiCallContext({ userId: 'u', premium: true }, () =>
+        svc.generateRecipeSwap(SWAP_INPUT),
+      ),
+    ).rejects.toMatchObject({ status: 429 });
+    expect(sleep).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

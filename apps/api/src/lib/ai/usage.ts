@@ -16,6 +16,8 @@ export interface AiUsage {
   op: string;
   inputTokens?: number | undefined;
   outputTokens?: number | undefined;
+  /** Hidden reasoning tokens included in outputTokens (gpt-oss / qwen), when reported. */
+  reasoningTokens?: number | undefined;
   ms: number;
   /** True when the call was made by shadow mode (never served to a user). */
   shadow?: boolean | undefined;
