@@ -2,21 +2,27 @@
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
-import { cn } from '@chefer/utils';
+import { Switch } from '@chefer/ui';
 
-// "Plan my week every Sunday" (audit F-PLAN-4-3): the premium Sunday worker
-// used to run with no way to opt out. A followed "My weeks" template always
-// wins over a fresh plan, so the copy says so.
+// "Plan my week every Sunday" (audit F-PLAN-4-3): the Sunday worker used to
+// run with no way to opt out. Every tier since P2-5 — premium gets a week
+// the chef learned from their ratings, free a fresh curated week. A followed
+// "My weeks" template always wins over a fresh plan, so the copy says so.
 
-export function AutoPlanToggle({ initialEnabled }: { initialEnabled: boolean }) {
+export function AutoPlanToggle({
+  initialEnabled,
+  isPremium = true,
+}: {
+  initialEnabled: boolean;
+  isPremium?: boolean;
+}) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const mutation = trpc.preferences.setAutoPlanWeekly.useMutation({
     onSuccess: (res) => setEnabled(res.autoPlanWeekly),
     onError: () => setEnabled((v) => !v), // roll back the optimistic flip
   });
 
-  const toggle = () => {
-    const next = !enabled;
+  const toggle = (next: boolean) => {
     setEnabled(next);
     mutation.mutate({ enabled: next });
   };
@@ -29,33 +35,18 @@ export function AutoPlanToggle({ initialEnabled }: { initialEnabled: boolean }) 
             Plan my week every Sunday
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Your chef prepares next week on Sunday morning. If you follow a saved week in My weeks,
-            that week repeats instead.
+            {isPremium
+              ? 'Your chef prepares next week on Sunday morning, learning from what you rate.'
+              : 'We pick a fresh week of recipes for you on Sunday morning, matched to your allergies and targets.'}{' '}
+            If you follow a saved week in My weeks, that week repeats instead.
           </p>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
+        <Switch
+          checked={enabled}
+          onCheckedChange={toggle}
           aria-labelledby="auto-plan-label"
           disabled={mutation.isPending}
-          onClick={toggle}
-          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center disabled:opacity-60"
-        >
-          <span
-            className={cn(
-              'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-              enabled ? 'bg-[#944a00]' : 'bg-gray-300',
-            )}
-          >
-            <span
-              className={cn(
-                'inline-block h-5 w-5 rounded-full bg-white shadow transition-transform',
-                enabled ? 'translate-x-5' : 'translate-x-0.5',
-              )}
-            />
-          </span>
-        </button>
+        />
       </div>
       {mutation.isError && (
         <p role="alert" className="mt-2 text-xs text-red-600">
