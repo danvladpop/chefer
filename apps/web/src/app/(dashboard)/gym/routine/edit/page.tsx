@@ -135,8 +135,12 @@ export default function RoutineEditPage() {
   if (!id) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <h1 className="sr-only">Edit routine</h1>
         <p className="text-sm text-gray-500">No routine selected.</p>
-        <Link href="/gym/routine/all" className="text-sm font-medium text-gray-900 underline">
+        <Link
+          href="/gym/routine/all"
+          className="inline-flex min-h-11 items-center text-sm font-medium text-gray-900 underline"
+        >
           Go to My routines
         </Link>
       </div>
@@ -146,8 +150,12 @@ export default function RoutineEditPage() {
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <h1 className="sr-only">Edit routine</h1>
         <p className="text-sm text-gray-500">{error.message}</p>
-        <Link href="/gym/routine/all" className="text-sm font-medium text-gray-900 underline">
+        <Link
+          href="/gym/routine/all"
+          className="inline-flex min-h-11 items-center text-sm font-medium text-gray-900 underline"
+        >
           Go to My routines
         </Link>
       </div>
@@ -158,6 +166,7 @@ export default function RoutineEditPage() {
 
   return (
     <div className="flex h-full flex-col gap-4 px-4 py-4 sm:px-6 sm:py-6">
+      <h1 className="sr-only">Edit routine</h1>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <button

@@ -25,9 +25,7 @@ export function CardLabel({
   children: React.ReactNode;
 }) {
   return (
-    <p
-      className={cn('text-[11px] font-semibold uppercase tracking-widest text-gray-500', className)}
-    >
+    <p className={cn('text-xs font-semibold uppercase tracking-wider text-gray-500', className)}>
       {children}
     </p>
   );

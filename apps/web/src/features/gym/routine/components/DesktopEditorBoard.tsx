@@ -273,7 +273,13 @@ function DayColumn({ day, dispatch, lookup, canDelete, onOpenPicker, onSwap }: D
         </div>
       </SortableContext>
 
-      <Button type="button" variant="outline" size="sm" onClick={() => onOpenPicker(day.key)}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="min-h-11"
+        onClick={() => onOpenPicker(day.key)}
+      >
         <Plus className="h-4 w-4" /> Add exercise
       </Button>
     </div>

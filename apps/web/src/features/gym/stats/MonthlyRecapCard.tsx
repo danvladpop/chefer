@@ -36,7 +36,7 @@ export function MonthlyRecapCard({ library, unit }: { library: ExerciseDto[]; un
             type="button"
             onClick={() => setMonth((m) => shiftMonth(m, -1))}
             aria-label="Previous month"
-            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-neutral-100"
+            className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-neutral-100"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -48,7 +48,7 @@ export function MonthlyRecapCard({ library, unit }: { library: ExerciseDto[]; un
             onClick={() => !isCurrentMonth && setMonth((m) => shiftMonth(m, 1))}
             disabled={isCurrentMonth}
             aria-label="Next month"
-            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-neutral-100 disabled:opacity-30"
+            className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-neutral-100 disabled:opacity-30"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -72,7 +72,7 @@ export function MonthlyRecapCard({ library, unit }: { library: ExerciseDto[]; un
             ].map((stat) => (
               <div key={stat.label} className="rounded-xl bg-neutral-50 p-3 text-center">
                 <p className="text-lg font-bold text-neutral-900">{stat.value}</p>
-                <p className="text-[11px] text-neutral-500">{stat.label}</p>
+                <p className="text-xs text-neutral-500">{stat.label}</p>
               </div>
             ))}
           </div>

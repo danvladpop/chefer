@@ -150,9 +150,7 @@ export function ChefReviewBanner() {
             ].map((s) => (
               <div key={s.label} className="rounded-xl bg-gray-50 p-3 text-center">
                 <p className="text-sm font-bold text-gray-800">{s.value}</p>
-                <p className="mt-0.5 text-[10px] uppercase tracking-wide text-gray-500">
-                  {s.label}
-                </p>
+                <p className="mt-0.5 text-xs uppercase tracking-wide text-gray-500">{s.label}</p>
               </div>
             ))}
           </div>

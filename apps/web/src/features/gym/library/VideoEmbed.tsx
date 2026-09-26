@@ -66,7 +66,7 @@ export function VideoEmbed({ videoId, startSec, channel }: VideoEmbedProps) {
           target="_blank"
           rel="noreferrer noopener"
           onClick={() => captureGymEvent('video_opened', { fallback: true })}
-          className="flex min-h-8 shrink-0 items-center gap-1 text-xs font-medium text-[#944a00] hover:underline"
+          className="flex min-h-11 shrink-0 items-center gap-1 text-xs font-medium text-[#944a00] hover:underline"
         >
           Open on YouTube
           <ExternalLink className="h-3 w-3" />

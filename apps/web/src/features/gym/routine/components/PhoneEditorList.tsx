@@ -19,7 +19,7 @@ export interface PhoneEditorListProps {
 }
 
 const exerciseMoveButtonCls =
-  'flex h-[18px] w-9 items-center justify-center text-gray-400 transition-colors hover:text-gray-600 disabled:pointer-events-none disabled:opacity-20';
+  'flex h-6 w-11 items-center justify-center text-gray-400 transition-colors hover:text-gray-600 disabled:pointer-events-none disabled:opacity-20';
 
 /** Phone-width editor: move-up/down buttons and a "move to day" select instead of drag. */
 export function PhoneEditorList({
@@ -53,7 +53,7 @@ export function PhoneEditorList({
                   onClick={() =>
                     dispatch({ type: 'move_day', fromIndex: dayIndex, toIndex: dayIndex - 1 })
                   }
-                  className="flex h-4 w-9 items-center justify-center text-gray-400 disabled:opacity-20"
+                  className="flex h-6 w-11 items-center justify-center text-gray-400 disabled:opacity-20"
                 >
                   <ChevronUp className="h-3.5 w-3.5" />
                 </button>
@@ -64,7 +64,7 @@ export function PhoneEditorList({
                   onClick={() =>
                     dispatch({ type: 'move_day', fromIndex: dayIndex, toIndex: dayIndex + 1 })
                   }
-                  className="flex h-4 w-9 items-center justify-center text-gray-400 disabled:opacity-20"
+                  className="flex h-6 w-11 items-center justify-center text-gray-400 disabled:opacity-20"
                 >
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
@@ -146,7 +146,7 @@ export function PhoneEditorList({
                   }
                 />
                 {draft.days.length > 1 && (
-                  <label className="flex items-center gap-2 pl-1 text-xs text-gray-400">
+                  <label className="flex items-center gap-2 pl-1 text-xs text-gray-500">
                     Move to
                     <select
                       value=""
@@ -162,7 +162,7 @@ export function PhoneEditorList({
                           toIndex: toDay?.exercises.length ?? 0,
                         });
                       }}
-                      className="h-7 rounded-md border border-gray-200 bg-white px-1.5 text-xs text-gray-600 focus:border-gray-400 focus:outline-none"
+                      className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-600 focus:border-gray-400 focus:outline-none"
                     >
                       <option value="">another day…</option>
                       {draft.days
@@ -183,7 +183,7 @@ export function PhoneEditorList({
             type="button"
             variant="outline"
             size="sm"
-            className="mt-3 w-full"
+            className="mt-3 min-h-11 w-full"
             onClick={() => onOpenPicker(day.key)}
           >
             <Plus className="h-4 w-4" /> Add exercise

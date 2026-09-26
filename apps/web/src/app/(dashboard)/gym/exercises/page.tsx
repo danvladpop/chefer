@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { ExerciseCard } from '@/features/gym/library/ExerciseCard';
+import { FilterChip } from '@/features/gym/library/FilterChip';
 import {
   DEFAULT_LIBRARY_FILTERS,
   EQUIPMENT_OPTIONS,
@@ -13,30 +14,6 @@ import {
 import { useGymBootstrap } from '@/features/gym/use-gym-bootstrap';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { Plus, Search } from 'lucide-react';
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`min-h-8 shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
-        active
-          ? 'border-[#944a00] bg-[#944a00] text-white'
-          : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
 
 function ExercisesSkeleton() {
   return (
@@ -92,7 +69,10 @@ export default function GymExercisesPage() {
 
       {/* Search */}
       <div className="relative mb-3">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
+        />
         <input
           type="search"
           value={filters.query}
@@ -104,29 +84,37 @@ export default function GymExercisesPage() {
       </div>
 
       {/* Filter chips */}
-      <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-        <Chip active={filters.mineOnly} onClick={toggleMine}>
+      <div
+        role="group"
+        aria-label="Muscle filters"
+        className="mb-2 flex gap-2 overflow-x-auto pb-1"
+      >
+        <FilterChip active={filters.mineOnly} onClick={toggleMine}>
           Mine
-        </Chip>
+        </FilterChip>
         {MUSCLE_GROUP_OPTIONS.map((opt) => (
-          <Chip
+          <FilterChip
             key={opt.value}
             active={filters.muscleGroup === opt.value}
             onClick={() => toggleGroup(opt.value)}
           >
             {opt.label}
-          </Chip>
+          </FilterChip>
         ))}
       </div>
-      <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
+      <div
+        role="group"
+        aria-label="Equipment filters"
+        className="mb-5 flex gap-2 overflow-x-auto pb-1"
+      >
         {EQUIPMENT_OPTIONS.map((opt) => (
-          <Chip
+          <FilterChip
             key={opt.value}
             active={filters.equipment === opt.value}
             onClick={() => toggleEquipment(opt.value)}
           >
             {opt.label}
-          </Chip>
+          </FilterChip>
         ))}
       </div>
 

@@ -59,7 +59,7 @@ export function WeekStrip({ days, className }: { days: WeekDay[]; className?: st
           >
             <span
               className={cn(
-                'text-[11px] font-medium',
+                'text-xs font-medium',
                 day.isToday ? 'text-[#944a00]' : 'text-gray-500',
               )}
               aria-hidden="true"

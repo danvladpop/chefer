@@ -56,6 +56,8 @@ export function ExercisePickerSheet({
           />
           <input
             autoFocus
+            type="search"
+            aria-label="Search exercises"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search exercises"
@@ -63,12 +65,17 @@ export function ExercisePickerSheet({
           />
         </div>
 
-        <div className="-mx-1 flex flex-wrap gap-1.5 overflow-x-auto px-1 pb-1">
+        <div
+          role="group"
+          aria-label="Muscle group"
+          className="-mx-1 flex flex-wrap gap-1.5 overflow-x-auto px-1 pb-1"
+        >
           <button
             type="button"
+            aria-pressed={group === null}
             onClick={() => setGroup(null)}
             className={cn(
-              'min-h-8 shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+              'min-h-11 shrink-0 rounded-full border px-3 text-xs font-medium transition-colors',
               group === null
                 ? 'border-gray-900 bg-gray-900 text-white'
                 : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
@@ -80,9 +87,10 @@ export function ExercisePickerSheet({
             <button
               key={g}
               type="button"
+              aria-pressed={group === g}
               onClick={() => setGroup((current) => (current === g ? null : g))}
               className={cn(
-                'min-h-8 shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                'min-h-11 shrink-0 rounded-full border px-3 text-xs font-medium transition-colors',
                 group === g
                   ? 'border-gray-900 bg-gray-900 text-white'
                   : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',

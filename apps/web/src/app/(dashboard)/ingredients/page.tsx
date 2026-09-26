@@ -69,9 +69,7 @@ export default function IngredientsPage() {
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
-            Catalog
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Catalog</p>
           <h1 className="font-serif text-xl font-bold text-gray-900 sm:text-2xl">Ingredients</h1>
         </div>
         <button
@@ -95,6 +93,7 @@ export default function IngredientsPage() {
           <button
             key={key}
             onClick={() => handleTabChange(key)}
+            aria-current={tab === key ? 'page' : undefined}
             className={`min-h-11 shrink-0 whitespace-nowrap px-4 text-sm font-medium transition-colors ${
               tab === key
                 ? 'border-b-2 border-[#944a00] text-[#944a00]'
@@ -108,12 +107,16 @@ export default function IngredientsPage() {
 
       {/* Search */}
       <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+        />
         <input
           type="search"
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
           placeholder="Search ingredients…"
+          aria-label="Search ingredients"
           className="w-full rounded-xl border bg-white py-2.5 pl-9 pr-4 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
         />
       </div>
@@ -160,7 +163,7 @@ export default function IngredientsPage() {
                       {ing.displayName}
                     </p>
                     {ing.isCustom && (
-                      <span className="shrink-0 rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-purple-700">
+                      <span className="shrink-0 rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-semibold uppercase text-purple-700">
                         Mine
                       </span>
                     )}
@@ -168,19 +171,19 @@ export default function IngredientsPage() {
 
                   {/* Macros per 100 g */}
                   {ing.caloriesPer100g != null ? (
-                    <p className="mt-0.5 text-[11px] text-gray-500">
+                    <p className="mt-0.5 text-xs text-gray-500">
                       {Math.round(ing.caloriesPer100g)} kcal · P {ing.proteinPer100g ?? 0} · C{' '}
                       {ing.carbsPer100g ?? 0} · F {ing.fatPer100g ?? 0}{' '}
                       <span className="text-gray-500">/ 100 g</span>
                     </p>
                   ) : (
-                    <p className="mt-0.5 text-[11px] italic text-gray-500">
+                    <p className="mt-0.5 text-xs italic text-gray-500">
                       Nutrition being estimated…
                     </p>
                   )}
 
                   {/* Price */}
-                  <p className="mt-0.5 text-[11px] text-gray-500">
+                  <p className="mt-0.5 text-xs text-gray-500">
                     {ing.pricePer100gEur != null && <>~€{ing.pricePer100gEur.toFixed(2)}/100g </>}
                     {ing.pricePerPieceEur != null && <>~€{ing.pricePerPieceEur.toFixed(2)}/pc</>}
                   </p>
@@ -190,13 +193,13 @@ export default function IngredientsPage() {
                     <div className="mt-1.5 flex gap-4">
                       <button
                         onClick={() => setEditTarget(ing)}
-                        className="flex min-h-11 items-center gap-1 text-xs font-medium text-[#944a00] hover:underline sm:min-h-0 sm:text-[11px]"
+                        className="flex min-h-11 items-center gap-1 text-xs font-medium text-[#944a00] hover:underline sm:min-h-0"
                       >
                         <Pencil className="h-3 w-3" /> Edit
                       </button>
                       <button
                         onClick={() => setDeleteTarget(ing)}
-                        className="flex min-h-11 items-center gap-1 text-xs font-medium text-red-500 hover:underline sm:min-h-0 sm:text-[11px]"
+                        className="flex min-h-11 items-center gap-1 text-xs font-medium text-red-500 hover:underline sm:min-h-0"
                       >
                         <Trash2 className="h-3 w-3" /> Delete
                       </button>
@@ -212,7 +215,7 @@ export default function IngredientsPage() {
               <button
                 onClick={() => setLimit((l) => l + PAGE_SIZE)}
                 disabled={isFetching}
-                className="flex items-center gap-2 rounded-xl border bg-white px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                className="flex min-h-11 items-center gap-2 rounded-xl border bg-white px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
               >
                 {isFetching && (
                   <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-[#944a00]" />

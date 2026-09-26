@@ -116,14 +116,14 @@ export default function GymHistoryDetailPage() {
               type="button"
               onClick={() => deleteMutation.mutate({ id })}
               disabled={deleteMutation.isPending}
-              className="min-h-9 rounded-lg bg-red-600 px-3 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              className="min-h-11 rounded-lg bg-red-600 px-3 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
               {deleteMutation.isPending ? 'Deleting…' : 'Delete session'}
             </button>
             <button
               type="button"
               onClick={() => setConfirmingDelete(false)}
-              className="min-h-9 rounded-lg border border-neutral-200 px-3 text-sm text-neutral-600 hover:bg-neutral-100"
+              className="min-h-11 rounded-lg border border-neutral-200 px-3 text-sm text-neutral-600 hover:bg-neutral-100"
             >
               Cancel
             </button>
@@ -146,7 +146,7 @@ export default function GymHistoryDetailPage() {
                   {meta?.name ?? ex.exerciseId}
                 </Link>
                 {ex.skipped && (
-                  <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500">
+                  <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
                     Skipped
                   </span>
                 )}

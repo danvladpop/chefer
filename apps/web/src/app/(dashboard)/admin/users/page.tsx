@@ -55,7 +55,7 @@ export default function AdminUsersPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Admin</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Admin</p>
         <h1 className="font-serif text-2xl font-bold text-gray-900">Users</h1>
         <p className="mt-1 text-sm text-gray-500">
           Flip plan tiers during the soft-paywall phase and keep an eye on AI usage.
@@ -63,12 +63,16 @@ export default function AdminUsersPage() {
       </div>
 
       <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+        />
         <input
           type="search"
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
           placeholder="Search by email or name…"
+          aria-label="Search users by email or name"
           className="w-full rounded-xl border bg-white py-2.5 pl-9 pr-4 text-sm focus:border-[#944a00] focus:outline-none"
         />
       </div>
@@ -95,10 +99,10 @@ export default function AdminUsersPage() {
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
                     u.planTier === 'PREMIUM'
                       ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
-                      : 'bg-gray-100 text-gray-500'
+                      : 'bg-gray-100 text-gray-600'
                   }`}
                 >
                   {u.planTier}

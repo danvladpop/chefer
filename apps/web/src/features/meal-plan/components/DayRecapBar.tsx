@@ -42,21 +42,19 @@ export function DayRecapBar({ meals, calorieTarget }: DayRecapBarProps) {
 
   return (
     <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2">
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-        Day total
-      </p>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">Day total</p>
       <p className="text-sm font-bold text-[#944a00]">{totals.calories} kcal</p>
       {offTarget && (
         <p
           className={cn(
-            'mt-0.5 inline-block rounded-full px-1.5 py-px text-[10px] font-semibold',
+            'mt-0.5 inline-block rounded-full px-1.5 py-px text-xs font-semibold',
             delta < 0 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-700',
           )}
         >
           {delta < 0 ? `${Math.abs(delta)} kcal under target` : `${delta} kcal over target`}
         </p>
       )}
-      <div className="mt-1 flex gap-3 text-[10px] text-gray-500">
+      <div className="mt-1 flex gap-3 text-xs text-gray-500">
         <span>P {totals.protein}g</span>
         <span>C {totals.carbs}g</span>
         <span>F {totals.fat}g</span>

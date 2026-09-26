@@ -119,14 +119,19 @@ export function StrengthTrendChart({
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
           Strength trend
         </p>
-        <div className="flex gap-1 rounded-lg bg-neutral-100 p-0.5">
+        <div
+          role="group"
+          aria-label="Time range"
+          className="flex gap-1 rounded-lg bg-neutral-100 p-0.5"
+        >
           {RANGES.map((r) => (
             <button
               key={r.value}
               type="button"
+              aria-pressed={range === r.value}
               onClick={() => setRange(r.value)}
-              className={`min-h-8 rounded-md px-2.5 text-xs font-medium transition ${
-                range === r.value ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500'
+              className={`touch-target relative min-h-8 min-w-11 rounded-md px-2.5 text-xs font-medium transition ${
+                range === r.value ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600'
               }`}
             >
               {r.label}
@@ -148,7 +153,7 @@ export function StrengthTrendChart({
               type="button"
               onClick={() => setSelectedIds((ids) => ids.filter((x) => x !== id))}
               aria-label={`Remove ${byId.get(id)?.name ?? id}`}
-              className="rounded-full hover:opacity-70"
+              className="touch-target relative rounded-full hover:opacity-70"
             >
               <X className="h-3 w-3" />
             </button>
@@ -173,7 +178,7 @@ export function StrengthTrendChart({
         )}
       </div>
 
-      <label className="mb-3 flex min-h-8 w-fit items-center gap-2 text-xs text-neutral-600">
+      <label className="mb-3 flex min-h-11 w-fit items-center gap-2 text-xs text-neutral-600">
         <input
           type="checkbox"
           checked={relative}

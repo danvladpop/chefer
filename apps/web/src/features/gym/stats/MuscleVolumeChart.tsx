@@ -90,7 +90,7 @@ export function MuscleVolumeChart({ experience }: { experience: TrainingExperien
               />
             </BarChart>
           </ResponsiveContainer>
-          <p className="mt-2 text-[11px] text-neutral-400">
+          <p className="mt-2 text-xs text-neutral-500">
             Shaded band: the {landmark.productiveMin}–{landmark.productiveMax} sets/week most people
             need to keep growing (warn above {landmark.warnAbove}).
           </p>

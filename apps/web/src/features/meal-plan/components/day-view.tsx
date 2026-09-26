@@ -115,7 +115,7 @@ export function DayView({
                     : 'bg-gray-100 text-gray-600',
               )}
             >
-              <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
+              <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
               {num !== null && <span className="text-sm font-bold leading-none">{num}</span>}
               <span
                 aria-hidden="true"
@@ -134,7 +134,7 @@ export function DayView({
         <h2 className="font-serif text-lg font-bold text-gray-900">
           {DAY_LONG[selectedDay]}
           {selectedDay === todayIndex && (
-            <span className="ml-2 rounded-full bg-[#944a00] px-2 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-white">
+            <span className="ml-2 rounded-full bg-[#944a00] px-2 py-0.5 align-middle text-xs font-semibold uppercase tracking-wide text-white">
               Today
             </span>
           )}

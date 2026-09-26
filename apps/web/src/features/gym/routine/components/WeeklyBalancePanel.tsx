@@ -119,7 +119,7 @@ export function WeeklyBalancePanel({
                 type="button"
                 onClick={() => dismiss(hint)}
                 aria-label="Dismiss hint"
-                className="-m-1 flex h-6 w-6 shrink-0 items-center justify-center rounded text-current opacity-60 transition-opacity hover:opacity-100"
+                className="touch-target relative -m-1 flex h-6 w-6 shrink-0 items-center justify-center rounded text-current opacity-60 transition-opacity hover:opacity-100"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

@@ -66,7 +66,7 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
               setSelected(star);
               setSaved(false);
             }}
-            className="transition-transform hover:scale-110"
+            className="flex h-11 w-11 items-center justify-center transition-transform hover:scale-110"
           >
             <Star
               className={`h-7 w-7 transition-colors ${
@@ -131,7 +131,7 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
             })
           }
           disabled={selected === 0 || rateMutation.isPending || saved}
-          className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90 disabled:opacity-50"
+          className="min-h-11 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90 disabled:opacity-50"
         >
           {rateMutation.isPending ? 'Saving…' : saved ? '✓ Saved' : 'Save Rating'}
         </button>

@@ -33,7 +33,7 @@ export function WeightCard() {
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-gray-500">
           <Scale className="h-3.5 w-3.5 text-emerald-500" aria-hidden="true" />
           Weight
         </p>

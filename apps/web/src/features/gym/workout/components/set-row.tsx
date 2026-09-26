@@ -148,11 +148,11 @@ export const SetRow = memo(function SetRow({
         <Check className="h-6 w-6" strokeWidth={3} aria-hidden="true" />
       </button>
 
-      <p className="col-start-2 col-end-4 flex min-w-0 items-center gap-2 text-[11px] text-gray-400">
+      <p className="col-start-2 col-end-4 flex min-w-0 items-center gap-2 text-xs text-gray-500">
         <span className="truncate">Last time: {lastText}</span>
         {pr && (
           <span
-            className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+            className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800"
             data-testid="gym-pr-badge"
           >
             <Trophy className="h-3 w-3" aria-hidden="true" />

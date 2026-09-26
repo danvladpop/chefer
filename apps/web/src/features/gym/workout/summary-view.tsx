@@ -199,6 +199,7 @@ function Frame({ children }: { children: React.ReactNode }) {
 function NotFound() {
   return (
     <Frame>
+      <h1 className="sr-only">Workout summary</h1>
       <div className="rounded-2xl border border-dashed bg-white p-8 text-center">
         <p className="text-sm text-gray-600">We couldn&apos;t find that workout.</p>
         <Button asChild className="mt-4">
@@ -212,7 +213,7 @@ function NotFound() {
 function Stat({ icon: Icon, label, value }: { icon: typeof Clock; label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="flex items-center justify-center gap-1 text-[11px] uppercase tracking-wider text-gray-500">
+      <dt className="flex items-center justify-center gap-1 text-xs uppercase tracking-wider text-gray-500">
         <Icon className="h-3.5 w-3.5" aria-hidden="true" />
         {label}
       </dt>

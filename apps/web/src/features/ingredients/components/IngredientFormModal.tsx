@@ -205,7 +205,7 @@ export function IngredientFormModal({
                   setGenerateAiImage((v) => !v);
                   setImageUrl(null);
                 }}
-                className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition ${
+                className={`flex min-h-11 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition ${
                   generateAiImage && !imageUrl
                     ? 'border-amber-400 bg-amber-50 text-amber-700'
                     : 'border-gray-200 text-gray-600 hover:bg-gray-50'
@@ -226,17 +226,17 @@ export function IngredientFormModal({
                 type="button"
                 onClick={() => estimateMutation.mutate({ name: name.trim() })}
                 disabled={name.trim().length < 2 || estimateMutation.isPending}
-                className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-50"
+                className="flex min-h-11 items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-50"
               >
                 <Sparkles className="h-3 w-3" />
                 {estimateMutation.isPending ? 'Estimating…' : 'Auto-fill'}
               </button>
             </div>
             {estimateMutation.isError && (
-              <p className="mb-1 text-[11px] text-red-500">{estimateMutation.error.message}</p>
+              <p className="mb-1 text-xs text-red-500">{estimateMutation.error.message}</p>
             )}
             {estimateMutation.data && !estimateMutation.isPending && (
-              <p className="mb-1 text-[11px] text-gray-500">
+              <p className="mb-1 text-xs text-gray-500">
                 {estimateMutation.data.source === 'catalog'
                   ? 'Filled from the ingredient catalog — adjust if needed.'
                   : 'AI estimate — double-check before saving.'}
@@ -253,9 +253,7 @@ export function IngredientFormModal({
                 ] as const
               ).map(([key, label]) => (
                 <div key={key}>
-                  <span className="mb-0.5 block text-center text-[10px] text-gray-500">
-                    {label}
-                  </span>
+                  <span className="mb-0.5 block text-center text-xs text-gray-500">{label}</span>
                   <input
                     type="number"
                     min={0}
@@ -302,9 +300,7 @@ export function IngredientFormModal({
                   ] as const
                 ).map(([key, label]) => (
                   <div key={key}>
-                    <span className="mb-0.5 block text-center text-[10px] text-gray-500">
-                      {label}
-                    </span>
+                    <span className="mb-0.5 block text-center text-xs text-gray-500">{label}</span>
                     <input
                       type="number"
                       min={0}

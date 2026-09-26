@@ -124,7 +124,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               className="h-11 w-11 shrink-0 rounded-lg bg-gray-100 object-cover"
             />
           ) : (
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-600">
               {index + 1}
             </span>
           )}
@@ -132,7 +132,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             <span className="flex min-w-0 items-center gap-1.5">
               {supersetLabel && (
                 <span
-                  className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-bold text-violet-800"
+                  className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-xs font-bold text-violet-800"
                   data-testid="gym-superset-chip"
                   aria-label={`Superset ${supersetLabel}, exercise ${supersetIndex + 1}`}
                 >

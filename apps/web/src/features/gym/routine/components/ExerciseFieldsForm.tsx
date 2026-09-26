@@ -8,7 +8,7 @@ import type { DraftExercise } from '../draft';
 const RIR_OPTIONS = [0, 1, 2, 3, 4];
 
 const numberInputCls =
-  'h-9 w-full min-w-0 rounded-md border border-gray-200 px-2 text-center text-sm focus:border-gray-400 focus:outline-none';
+  'h-11 w-full min-w-0 rounded-md border border-gray-200 px-2 text-center text-sm focus:border-gray-400 focus:outline-none lg:h-9';
 
 export interface ExerciseFieldsFormProps {
   exercise: DraftExercise;
@@ -54,7 +54,7 @@ export function ExerciseFieldsForm({
         {leading}
         {superset && (
           <span
-            className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-bold text-violet-800"
+            className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-xs font-bold text-violet-800"
             data-testid="routine-superset-chip"
           >
             {superset.label}
@@ -69,7 +69,7 @@ export function ExerciseFieldsForm({
           onClick={onSwap}
           aria-label="Swap exercise"
           title="Swap exercise"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          className="touch-target relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
         >
           <Repeat className="h-4 w-4" />
         </button>
@@ -78,7 +78,7 @@ export function ExerciseFieldsForm({
           onClick={onRemove}
           aria-label="Remove exercise"
           title="Remove exercise"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+          className="touch-target relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -86,9 +86,7 @@ export function ExerciseFieldsForm({
 
       <div className="grid grid-cols-4 gap-2">
         <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
-            Sets
-          </span>
+          <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Sets</span>
           <input
             type="number"
             min={1}
@@ -100,7 +98,7 @@ export function ExerciseFieldsForm({
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
+          <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
             Reps min
           </span>
           <input
@@ -113,7 +111,7 @@ export function ExerciseFieldsForm({
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
+          <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
             Reps max
           </span>
           <input
@@ -126,7 +124,7 @@ export function ExerciseFieldsForm({
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
+          <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
             Rest (s)
           </span>
           <input
@@ -142,13 +140,13 @@ export function ExerciseFieldsForm({
       </div>
 
       <label className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
+        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
           Target RIR
         </span>
         <select
           value={exercise.targetRir}
           onChange={(e) => onChange({ targetRir: Number(e.target.value) })}
-          className="h-9 rounded-md border border-gray-200 px-2 text-sm focus:border-gray-400 focus:outline-none"
+          className="h-11 rounded-md border border-gray-200 px-2 text-sm focus:border-gray-400 focus:outline-none lg:h-9"
         >
           {RIR_OPTIONS.map((rir) => (
             <option key={rir} value={rir}>
@@ -170,7 +168,7 @@ export function ExerciseFieldsForm({
         >
           <span className="min-w-0">
             <span className="block text-xs font-medium text-gray-700">Superset with next</span>
-            <span className="block text-[11px] text-gray-400">
+            <span className="block text-xs text-gray-500">
               No rest in between; rest after the round
             </span>
           </span>

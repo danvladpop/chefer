@@ -388,7 +388,7 @@ export function NextUpCard({
                 <span className="flex min-w-0 items-center gap-1.5">
                   {slot && (
                     <span
-                      className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-bold text-violet-800"
+                      className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-xs font-bold text-violet-800"
                       data-testid="gym-next-up-superset-chip"
                     >
                       {slot.label}
@@ -453,20 +453,21 @@ function OfferCard({ offer }: { offer: GymOffer }) {
       </div>
       <div className="mt-3 flex flex-wrap justify-end gap-2">
         {offer.kind === 'recap' && (
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm" className="min-h-11">
             <Link href="/gym/stats">See your month</Link>
           </Button>
         )}
         <Button
           variant="ghost"
           size="sm"
+          className="min-h-11"
           disabled={busy}
           onClick={() => dismiss.mutate({ kind: offer.kind, key: offer.key })}
         >
           {offer.kind === 'deload' ? 'Not now' : 'Dismiss'}
         </Button>
         {offer.kind === 'deload' && (
-          <Button size="sm" disabled={busy} onClick={() => deload.mutate()}>
+          <Button size="sm" className="min-h-11" disabled={busy} onClick={() => deload.mutate()}>
             Start deload week
           </Button>
         )}

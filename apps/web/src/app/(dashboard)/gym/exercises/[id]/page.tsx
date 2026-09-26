@@ -130,14 +130,14 @@ export default function GymExerciseDetailPage() {
               type="button"
               onClick={() => archiveMutation.mutate({ id })}
               disabled={archiveMutation.isPending}
-              className="min-h-9 rounded-lg bg-red-600 px-3 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              className="min-h-11 rounded-lg bg-red-600 px-3 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
               {archiveMutation.isPending ? 'Archiving…' : 'Archive it'}
             </button>
             <button
               type="button"
               onClick={() => setConfirmingArchive(false)}
-              className="min-h-9 rounded-lg border border-neutral-200 px-3 text-sm text-neutral-600 hover:bg-neutral-100"
+              className="min-h-11 rounded-lg border border-neutral-200 px-3 text-sm text-neutral-600 hover:bg-neutral-100"
             >
               Cancel
             </button>

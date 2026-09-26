@@ -43,14 +43,15 @@ export function DayHeaderFields({
           value={name}
           onChange={(e) => onRename(e.target.value)}
           placeholder="Day name"
-          className="h-9 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2.5 text-sm font-semibold text-gray-900 focus:border-gray-400 focus:outline-none"
+          aria-label="Day name"
+          className="h-11 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2.5 text-sm font-semibold text-gray-900 focus:border-gray-400 focus:outline-none lg:h-9"
         />
         <button
           type="button"
           onClick={onDuplicate}
           aria-label="Duplicate day"
           title="Duplicate day"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          className="touch-target relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
         >
           <Copy className="h-4 w-4" />
         </button>
@@ -60,7 +61,7 @@ export function DayHeaderFields({
           disabled={!canDelete}
           aria-label="Delete day"
           title={canDelete ? 'Delete day' : 'A routine needs at least one day'}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-30"
+          className="touch-target relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-30"
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -68,7 +69,8 @@ export function DayHeaderFields({
       <select
         value={plannedWeekday ?? ''}
         onChange={(e) => onWeekdayChange(e.target.value === '' ? null : Number(e.target.value))}
-        className="h-9 w-full rounded-md border border-gray-200 bg-white px-2.5 text-sm text-gray-600 focus:border-gray-400 focus:outline-none"
+        aria-label="Planned weekday"
+        className="h-11 w-full rounded-md border border-gray-200 bg-white px-2.5 text-sm text-gray-600 focus:border-gray-400 focus:outline-none lg:h-9"
       >
         <option value="">No planned day</option>
         {WEEKDAY_OPTIONS.map((w) => (

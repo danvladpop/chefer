@@ -60,9 +60,10 @@ function MuscleChip({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       disabled={disabled && !active}
-      className={`min-h-8 rounded-full border px-2.5 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`min-h-11 rounded-full border px-2.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
         active
           ? 'border-[#944a00] bg-[#944a00] text-white'
           : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'
@@ -318,6 +319,7 @@ export function ExerciseForm({ mode, exerciseId, initial }: ExerciseFormProps) {
                   setValue('cues', next);
                 }}
                 maxLength={120}
+                aria-label={`Cue ${i + 1}`}
                 className={inputClass}
                 placeholder="e.g. Drive your elbows down to your hips"
               />
@@ -340,7 +342,7 @@ export function ExerciseForm({ mode, exerciseId, initial }: ExerciseFormProps) {
             <button
               type="button"
               onClick={() => setValue('cues', [...cues, ''])}
-              className="flex min-h-9 items-center gap-1.5 text-sm font-medium text-[#944a00] hover:underline"
+              className="flex min-h-11 items-center gap-1.5 text-sm font-medium text-[#944a00] hover:underline"
             >
               <Plus className="h-3.5 w-3.5" />
               Add a cue
