@@ -524,7 +524,7 @@ export function HouseholdSection({
           </div>
 
           {/* Free tables: safety applies, scaling is the premium part (P2-3) */}
-          {!isPremium && memberCount > 0 && (
+          {!isPremium && !onboarding && memberCount > 0 && (
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
               <p className="text-sm text-gray-700">
                 Everyone&apos;s allergies already apply to every plan. Your shopping list and
