@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IWeeklyEmailRepository, WeeklyEmailRecipient } from '@chefer/database';
+import { EmailQuotaError } from '../../lib/email/types';
 import {
+  defaultSendBudget,
   mondayLocal,
   planDinners,
   recapCounts,
@@ -15,6 +17,9 @@ vi.mock('../../lib/env.js', () => ({
     JWT_SECRET: 'j'.repeat(40),
     APP_URL: 'https://app.test',
     EMAIL_MOCK_ENABLED: true,
+    EMAIL_PROVIDER: 'mock',
+    EMAIL_FROM: 'Chefer <test@chefer.dev>',
+    EMAIL_DAILY_CAP: null,
     AI_MOCK_ENABLED: true,
   },
 }));
@@ -66,6 +71,7 @@ function makeDeps() {
     findRecipients: vi.fn().mockResolvedValue([]),
     claimSend: vi.fn().mockResolvedValue(true),
     releaseSend: vi.fn().mockResolvedValue(undefined),
+    countSendsSince: vi.fn().mockResolvedValue(0),
     getPreferences: vi.fn(),
     setPreferences: vi.fn(),
     markEmailVerified: vi.fn(),
@@ -92,6 +98,7 @@ function makeDeps() {
     unsubscribeUrl: (userId: string, scope: string) =>
       `https://app.test/unsubscribe?token=${userId}-${scope}`,
     sendDelayMs: 0,
+    sendBudget: vi.fn<[], Promise<number | null>>().mockResolvedValue(null),
   };
   return deps;
 }
@@ -326,5 +333,80 @@ describe('WeeklyEmailService — Sunday recap', () => {
     const { text } = deps.email.send.mock.calls[0]![0];
     expect(text).toContain('- 2 workouts finished');
     expect(text).toContain('No meals logged this week, and that is fine.');
+  });
+});
+
+describe('WeeklyEmailService — daily send cap (EMAIL_DAILY_CAP)', () => {
+  const WEEK = new Date('2026-09-21T00:00:00Z');
+  const THIRD_USER: WeeklyEmailRecipient = { ...FREE_USER, id: 'free2', email: 'f2@chefer.dev' };
+  let deps: Deps;
+  beforeEach(() => {
+    deps = makeDeps();
+    deps.repo.findRecipients.mockResolvedValue([FREE_USER, PREMIUM_USER, THIRD_USER]);
+    deps.mealPlans.findByWeekStart.mockResolvedValue(plan('USER'));
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  it('stops at the budget BEFORE claiming, so the rest keep no claim', async () => {
+    deps.sendBudget.mockResolvedValue(2);
+
+    const result = await service(deps).sendWeekReady(MONDAY);
+
+    expect(result).toMatchObject({ sent: 2, failed: 0, deferred: 1, capped: true });
+    expect(deps.repo.claimSend).toHaveBeenCalledTimes(2);
+    expect(deps.repo.claimSend).not.toHaveBeenCalledWith('free2', 'WEEK_READY', WEEK);
+    expect(deps.email.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('a zero budget sends nothing and defers everyone', async () => {
+    deps.sendBudget.mockResolvedValue(0);
+
+    const result = await service(deps).sendWeekReady(MONDAY);
+
+    expect(result).toMatchObject({ sent: 0, deferred: 3, capped: true });
+    expect(deps.repo.claimSend).not.toHaveBeenCalled();
+    expect(deps.mealPlans.findByWeekStart).not.toHaveBeenCalled();
+  });
+
+  it('skipped users (nothing to say, already sent) do not spend budget', async () => {
+    deps.sendBudget.mockResolvedValue(1);
+    deps.repo.claimSend.mockResolvedValueOnce(false);
+
+    const result = await service(deps).sendWeekReady(MONDAY);
+
+    expect(result).toMatchObject({ sent: 1, skipped: 1, deferred: 1, capped: true });
+  });
+
+  it("a provider sending-limit error releases that user's claim and stops the sweep", async () => {
+    deps.email.send
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new EmailQuotaError('limit'));
+
+    const result = await service(deps).sendWeekReady(MONDAY);
+
+    expect(result).toMatchObject({ sent: 1, failed: 0, deferred: 2, capped: true });
+    expect(deps.repo.releaseSend).toHaveBeenCalledWith('prem1', 'WEEK_READY', WEEK);
+    expect(deps.repo.claimSend).not.toHaveBeenCalledWith('free2', 'WEEK_READY', WEEK);
+    expect(deps.email.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('no cap (null budget) sends to everyone', async () => {
+    const result = await service(deps).sendWeekReady(MONDAY);
+    expect(result).toMatchObject({ sent: 3, deferred: 0, capped: false });
+  });
+
+  it('a dry run never reads the budget', async () => {
+    await service(deps).sendWeekReady(MONDAY, { dryRun: true });
+    expect(deps.sendBudget).not.toHaveBeenCalled();
+  });
+
+  it('defaultSendBudget: cap − 50 reserve − weekly claims − transactional sends (24h)', async () => {
+    const repo = { countSendsSince: vi.fn().mockResolvedValue(120) };
+    const now = new Date('2026-09-21T08:00:00Z');
+
+    expect(await defaultSendBudget(repo, 400, () => 30, now)).toBe(400 - 50 - 120 - 30);
+    expect(repo.countSendsSince).toHaveBeenCalledWith(new Date('2026-09-20T08:00:00Z'));
+    expect(await defaultSendBudget(repo, 100, () => 30, now)).toBe(0);
+    expect(await defaultSendBudget(repo, null, () => 30, now)).toBeNull();
   });
 });

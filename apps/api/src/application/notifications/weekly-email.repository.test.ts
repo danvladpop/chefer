@@ -8,7 +8,7 @@ import { Prisma, WeeklyEmailRepository } from '@chefer/database';
 const mocks = vi.hoisted(() => ({
   prisma: {
     user: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
-    emailSend: { create: vi.fn(), deleteMany: vi.fn() },
+    emailSend: { create: vi.fn(), deleteMany: vi.fn(), count: vi.fn() },
   },
 }));
 
@@ -61,6 +61,15 @@ describe('WeeklyEmailRepository', () => {
   it('claimSend rethrows anything that is not a duplicate', async () => {
     mocks.prisma.emailSend.create.mockRejectedValueOnce(new Error('db down'));
     await expect(repo.claimSend('u1', 'WEEK_READY', WEEK)).rejects.toThrow('db down');
+  });
+
+  it('countSendsSince counts every claim (all users and kinds) since the cutoff', async () => {
+    mocks.prisma.emailSend.count.mockResolvedValueOnce(12);
+    const since = new Date('2026-09-20T08:00:00Z');
+    expect(await repo.countSendsSince(since)).toBe(12);
+    expect(mocks.prisma.emailSend.count).toHaveBeenCalledWith({
+      where: { sentAt: { gte: since } },
+    });
   });
 
   it('markEmailVerified refuses an address that no longer matches', async () => {
