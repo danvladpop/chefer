@@ -21,7 +21,7 @@ brackets were checked with `scripts/check-lengths.mjs` in this folder.
 | Age rating         | see [privacy-and-rating.md](./privacy-and-rating.md#age-rating)                                                                                                                                                               |
 | Privacy policy URL | `https://chefer.duckdns.org/privacy`                                                                                                                                                                                          |
 
-**If the name is taken:** App Store names are unique. Try these in order:
+**Name approved by the owner (26 Sep 2026).** If App Store Connect says it's taken (names are unique), try these in order:
 `Chefer – AI Meal Planner` [24], `Chefer: Meals, Lists & Gym` [26], `Chefer Kitchen & Gym` [20].
 The name on the home screen stays "Chefer" regardless (it comes from `app.config.js`).
 

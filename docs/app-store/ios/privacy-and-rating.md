@@ -92,11 +92,12 @@ encryption for each build. If it still asks, answer: **"None of the algorithms m
 
 - **Price:** Free (Tier 0). No in-app purchases.
 - **Availability:** all countries, or start with just the ones you can support.
-  - **EU:** Apple requires **trader status** under the Digital Services Act for distribution in
-    EU countries. The seller (your friend) declares it once in App Store Connect →
-    Business. A trader must publish an address, phone and email on the App Store page. If your
-    friend is an individual and doesn't want that, choose non-trader (allowed for
-    non-commercial apps), or leave EU countries out of availability for now.
+  - **EU (decided 26 Sep 2026): available, and the seller declares trader status.** Your
+    friend declares it once in App Store Connect → Business (only the Account Holder can).
+    Under the Digital Services Act, a trader's address, phone and email are shown on the EU App
+    Store page. For the email, use the Chefer support address rather than a personal one; it
+    must be verified in App Store Connect. Until Apple verifies the trader details, the app can't
+    be published in EU storefronts.
 - **App Store Connect → Pricing and Availability → "Make this app available on Apple
   Silicon Macs / Vision Pro":** turn these **off** unless you have tested there.
 

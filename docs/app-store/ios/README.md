@@ -35,7 +35,7 @@ to "live on the App Store", in order. Companion files:
 - [ ] Invitation accepted; your friend's team shows up at developer.apple.com/account (§1)
 - [ ] Your role is **Admin**, or **App Manager** with _Access to Certificates, Identifiers & Profiles_ (§2)
 - [ ] Friend has accepted the latest Apple Developer Program License Agreement
-- [ ] EU trader status declared, or EU left out of availability (see privacy-and-rating.md)
+- [ ] Friend declares EU **trader** status in App Store Connect → Business (decided: EU included; see privacy-and-rating.md)
 
 **App Store Connect:**
 
@@ -89,7 +89,7 @@ Send them this list:
 3. Accept any pending **agreements** in App Store Connect → Business (only the Account Holder
    can). A free app needs only the standard Program License Agreement, not the Paid Apps
    agreement.
-4. Decide the **EU trader** question (privacy-and-rating.md → Pricing & availability).
+4. Declare **EU trader** status in App Store Connect → Business (address, phone, email are shown on EU store pages; use the Chefer support email).
 5. _(Optional, instead of 1's certificate access)_ an **App Store Connect API key** (Users and
    Access → Integrations → Team keys, role App Manager). They send you the `.p8` file, Key ID and
    Issuer ID; EAS can use it for builds and submits with no Apple ID login.
@@ -205,7 +205,7 @@ Work through the App Store Connect sidebar using the companion files:
 
 1. **App Information:** name, subtitle, categories, content rights, age rating
    (metadata.md, privacy-and-rating.md).
-2. **Pricing and Availability:** Free; countries; EU trader decision.
+2. **Pricing and Availability:** Free; all countries (EU needs the trader declaration first).
 3. **App Privacy:** privacy policy URL + the data table (privacy-and-rating.md).
 4. **1.0 Prepare for Submission:** screenshots (6.9" set), promotional text,
    description, keywords, support URL, marketing URL, version, copyright
