@@ -10,7 +10,7 @@ export interface CloudflareImageConfig {
   accountId: string;
   apiToken: string;
   model: string;
-  /** Stores the bytes and returns the public URL (Cloudinary in the factory). */
+  /** Stores the bytes and returns the public URL (local uploads volume by default, see index.ts). */
   upload: (base64: string, mimeType: string, recipeId: string) => Promise<string>;
 }
 

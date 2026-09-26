@@ -1,5 +1,6 @@
 import { env } from '../env.js';
 import { uploadRecipeImage } from '../image-cdn/cloudinary.js';
+import { createLocalImageStore, resolveMediaBaseUrl, UPLOADS_DIR } from '../image-cdn/local.js';
 import { CloudflareImageService } from './cloudflare.js';
 import { ImagenRateLimitError } from './imagen.js';
 import { buildPollinationsUrl } from './pollinations.js';
@@ -71,7 +72,9 @@ async function generatePollinationsImage(input: RecipeImageInput): Promise<strin
 //   pollinations (default) — the anonymous URL above; nothing to upload.
 //   cloudflare             — Workers AI text-to-image (CF_IMAGE_MODEL,
 //                            flux-1-schnell by default); the returned bytes
-//                            go to Cloudinary under the recipe id.
+//                            are stored on our own server (uploads volume,
+//                            served at /uploads/recipes/*), or on Cloudinary
+//                            when IMAGE_STORAGE=cloudinary.
 // The worker only calls generateAndUploadRecipeImage, so switching provider
 // is an env change and a restart.
 
@@ -88,17 +91,25 @@ let service: IRecipeImageService | null = null;
 export function getRecipeImageService(): IRecipeImageService {
   if (service) return service;
   if (env.IMAGE_PROVIDER === 'cloudflare') {
-    if (!env.CLOUDINARY_CLOUD_NAME) {
-      console.warn(
-        '[image-gen] IMAGE_PROVIDER=cloudflare without Cloudinary — images are stored as data URLs',
-      );
-    }
+    const upload =
+      env.IMAGE_STORAGE === 'cloudinary'
+        ? uploadRecipeImage
+        : createLocalImageStore({
+            dir: UPLOADS_DIR,
+            publicBaseUrl: resolveMediaBaseUrl({
+              apiPublicUrl: env.API_PUBLIC_URL,
+              nodeEnv: env.NODE_ENV,
+              appUrl: env.APP_URL,
+              port: env.PORT,
+            }),
+          });
     service = new CloudflareImageService({
       accountId: env.CF_ACCOUNT_ID!,
       apiToken: env.CF_API_TOKEN!,
       model: env.CF_IMAGE_MODEL,
-      upload: uploadRecipeImage,
+      upload,
     });
+    console.info(`[image-gen] generated images stored via ${env.IMAGE_STORAGE}`);
   } else {
     service = new PollinationsImageService();
   }

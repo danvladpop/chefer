@@ -1348,7 +1348,7 @@ Read-only bridge from the gym to the food side; the rules are pure functions in
 | `index.ts`          | Factory — selects provider via `AI_MOCK_ENABLED` + `AI_PROVIDER`; wraps Gemini in `FailoverAIService` when `AI_SECONDARY_API_KEY` is set (unset = failover stays dark)                                                                                                                                                                                                        |
 | `fixtures/`         | Hardcoded week plan + swap recipes used by `MockAIService`                                                                                                                                                                                                                                                                                                                    |
 
-**Recipe images** sit behind `IRecipeImageService` (`lib/image-gen/`): `IMAGE_PROVIDER=pollinations` (default, anonymous URL) or `cloudflare` (`CloudflareImageService`: Workers AI `CF_IMAGE_MODEL`, default flux-1-schnell; bytes uploaded to Cloudinary). The recipe-image worker only calls `generateAndUploadRecipeImage`.
+**Recipe images** sit behind `IRecipeImageService` (`lib/image-gen/`): `IMAGE_PROVIDER=pollinations` (default, anonymous URL) or `cloudflare` (`CloudflareImageService`: Workers AI `CF_IMAGE_MODEL`, default flux-1-schnell). Cloudflare bytes go through `lib/image-cdn/local.ts` (`createLocalImageStore`) into `uploads/recipes/<recipeId>-<sha256:12>.<ext>` — the same `uploads` volume and `/uploads/*` static route as user photos — and the stored URL is `API_PUBLIC_URL`/`APP_URL` + `/uploads/recipes/…`. The file type is sniffed from the bytes; the content hash in the name keeps the `immutable` cache honest when an image is regenerated. `IMAGE_STORAGE=cloudinary` switches to the optional Cloudinary upload instead. The recipe-image worker only calls `generateAndUploadRecipeImage`.
 
 **Switching providers:** `AI_PROVIDER=gemini` (primary; + `GEMINI_API_KEY`) optionally gains the secondary failover via `AI_SECONDARY_API_KEY`; `AI_PROVIDER=openai` runs the OpenAI-compatible client standalone (smoke-testing the secondary — vision calls fail). No other code changes required.
 
@@ -1618,7 +1618,9 @@ hidden, leaving no way back to the login form.
 | `AI_SECONDARY_MODEL`       | No       | openai/gpt-oss-120b                                             | Model id at the secondary endpoint. The default has **no vision** — photo calls stay Gemini-only                                                                                      |
 | `GROCERY_AI_MOCK_ENABLED`  | No       | true                                                            | Use fixture grocery store data (no Claude call)                                                                                                                                       |
 | `UNSPLASH_ACCESS_KEY`      | No       | —                                                               | Unsplash API key for ingredient images; falls back to category images without it. Get a free key at https://unsplash.com/developers                                                   |
-| `IMAGE_PROVIDER`           | No       | pollinations                                                    | Recipe image provider: `pollinations` or `cloudflare` (needs `CF_ACCOUNT_ID` + `CF_API_TOKEN`; uploads to Cloudinary)                                                                 |
+| `IMAGE_PROVIDER`           | No       | pollinations                                                    | Recipe image provider: `pollinations` or `cloudflare`. `cloudflare` needs **only** `CF_ACCOUNT_ID` + `CF_API_TOKEN`: the bytes are stored on our own server (`uploads` volume)        |
+| `IMAGE_STORAGE`            | No       | local                                                           | Where generated image bytes go: `local` (`uploads/recipes/`, served at `/uploads/recipes/*`) or `cloudinary` (optional CDN; needs the three `CLOUDINARY_*` keys)                      |
+| `API_PUBLIC_URL`           | No       | `APP_URL` in prod, `http://localhost:PORT` in dev               | Public origin stored-image URLs are built from (the image worker has no request host). Prod is single-origin, so the default is right there                                           |
 | `CF_ACCOUNT_ID`            | No       | —                                                               | Cloudflare account id (Workers AI), required when `IMAGE_PROVIDER=cloudflare`                                                                                                         |
 | `CF_API_TOKEN`             | No       | —                                                               | Cloudflare API token with the Workers AI permission                                                                                                                                   |
 | `CF_IMAGE_MODEL`           | No       | @cf/black-forest-labs/flux-1-schnell                            | Workers AI text-to-image model id                                                                                                                                                     |
@@ -1816,7 +1818,14 @@ Deployed as containers on a single always-on VM (Oracle Always Free ARM), single
 Caddy. See **`docs/plan-deployment.md`** for the full plan. Key files:
 
 - `docker-compose.deploy.yml` (repo root) — `postgres` + `api` + `web` + `caddy` (no Redis/nginx),
-  persistent `pgdata`/`uploads` volumes.
+  persistent `pgdata`/`uploads` volumes. The named volume `chefer_uploads` is mounted at
+  `/app/uploads` (the API's `UPLOADS_DIR`, since the container runs from `/app`) and holds user
+  photos (`/uploads/<uuid>.<ext>`) **and** Cloudflare-generated recipe images
+  (`/uploads/recipes/…`, `IMAGE_PROVIDER=cloudflare` + `IMAGE_STORAGE=local`). Deploys only
+  recreate containers and prune images, so the volume survives every redeploy; only
+  `docker compose down -v` or `docker volume rm chefer_uploads` would delete it. It is **not** in
+  the nightly `pg_dump` (A11) — a lost volume means lost photos; generated images can be
+  re-created by resetting those recipes' `imageStatus` to `PENDING`.
 - `infrastructure/docker/Caddyfile` — TLS + single-origin path routing (`/trpc`, `/api/uploads/*`,
   `/api/recipe-images/*`, `/api/chat`, `/api/health`, `/uploads/*`, `/static/exercises/*` (gym
   exercise photos, gym_plan.md §5.5) → API; rest → web).

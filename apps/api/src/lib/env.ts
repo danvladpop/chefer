@@ -101,12 +101,23 @@ const envSchema = z.object({
   CLOUDINARY_API_SECRET: z.string().optional(),
 
   // Recipe image provider (audit P0-5 groundwork). pollinations = today's
-  // anonymous URL-based images; cloudflare = Workers AI text-to-image, bytes
-  // uploaded to Cloudinary (needs CF_ACCOUNT_ID + CF_API_TOKEN).
+  // anonymous URL-based images; cloudflare = Workers AI text-to-image (needs
+  // only CF_ACCOUNT_ID + CF_API_TOKEN), bytes stored on our own server.
   IMAGE_PROVIDER: z.enum(['pollinations', 'cloudflare']).default('pollinations'),
   CF_ACCOUNT_ID: z.string().optional(),
   CF_API_TOKEN: z.string().optional(),
   CF_IMAGE_MODEL: z.string().default('@cf/black-forest-labs/flux-1-schnell'),
+  // Where generated image bytes go. local = the uploads volume, served at
+  // /uploads/recipes/* like user photos; cloudinary = the optional CDN (needs
+  // the three CLOUDINARY_* keys).
+  IMAGE_STORAGE: z.enum(['local', 'cloudinary']).default('local'),
+  // Public origin of the API, used to build stored-image URLs outside a
+  // request (the image worker). Unset = APP_URL in production (single-origin
+  // deploy: Caddy routes /uploads/* to the API), http://localhost:PORT in dev.
+  API_PUBLIC_URL: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().url().optional(),
+  ),
 
   // Unsplash (optional — ingredient images fall back to category images without this)
   UNSPLASH_ACCESS_KEY: z.string().optional(),
@@ -150,6 +161,13 @@ function validateEnv(): Env {
     throw new Error(
       '❌ CF_ACCOUNT_ID and CF_API_TOKEN are required when IMAGE_PROVIDER=cloudflare',
     );
+  }
+
+  if (
+    data.IMAGE_STORAGE === 'cloudinary' &&
+    (!data.CLOUDINARY_CLOUD_NAME || !data.CLOUDINARY_API_KEY || !data.CLOUDINARY_API_SECRET)
+  ) {
+    throw new Error('❌ CLOUDINARY_* keys are required when IMAGE_STORAGE=cloudinary');
   }
 
   const email = resolveEmailConfig(data);
