@@ -13,6 +13,8 @@ export interface ReviewDayLog {
   /** UTC midnight of the logged day. */
   date: Date;
   totalKcal: number;
+  /** Protein logged that day (g). Optional: older callers leave it out. */
+  totalProtein?: number;
   /** Number of logged meal entries that day (planned or custom). */
   mealCount: number;
 }
@@ -22,6 +24,8 @@ export interface ReviewMetrics {
   adherencePct: number;
   /** Mean kcal over the days that were actually logged (0 when none). */
   avgDailyKcal: number;
+  /** Mean protein (g) over the days that were actually logged (0 when none). */
+  avgDailyProteinG: number;
   /** EWMA weight trend in kg/week, or null without enough data. */
   weightTrendKg: number | null;
 }
@@ -123,13 +127,14 @@ export function computeReviewMetrics(
 ): ReviewMetrics {
   const loggedDays = weekLogs.filter((l) => l.mealCount > 0);
   const adherencePct = Math.round((loggedDays.length / 7) * 100);
-  const avgDailyKcal =
+  const avgOf = (pick: (l: ReviewDayLog) => number) =>
     loggedDays.length > 0
-      ? Math.round(loggedDays.reduce((s, l) => s + l.totalKcal, 0) / loggedDays.length)
+      ? Math.round(loggedDays.reduce((s, l) => s + pick(l), 0) / loggedDays.length)
       : 0;
   return {
     adherencePct,
-    avgDailyKcal,
+    avgDailyKcal: avgOf((l) => l.totalKcal),
+    avgDailyProteinG: avgOf((l) => l.totalProtein ?? 0),
     weightTrendKg: computeEwmaTrendKgPerWeek(weightPoints),
   };
 }
@@ -189,10 +194,42 @@ export interface ReviewTextInput {
   goal: string | null;
   /** Dish names from the reviewed week's plan (for flavour, may be empty). */
   dishNames: string[];
+  /**
+   * Lifters only (audit P2-4 follow-up): the week's protein judged against
+   * their g/kg target (resolveDailyTargets with lifter bodyweight). Absent
+   * for everyone else — the review stays about calories.
+   */
+  protein?: ReviewProtein | null;
+}
+
+/** A lifter's week of protein, for the review line. */
+export interface ReviewProtein {
+  /** Mean protein (g) over the logged days. */
+  avgDailyG: number;
+  /** The lifter's daily protein target (g). */
+  targetG: number;
+  /** The g/kg rule behind the target (1.8 GAIN, 2.0 LOSE, 1.6 MAINTAIN). */
+  gPerKg: number;
+}
+
+/** At or above this share of the target, protein reads as "on target". */
+const PROTEIN_ON_TARGET_SHARE = 0.9;
+
+/**
+ * One protein line for a lifter's review, or null when there is nothing to
+ * say (not a lifter, or no protein logged).
+ */
+export function reviewProteinLine(protein: ReviewProtein | null | undefined): string | null {
+  if (!protein || protein.avgDailyG <= 0 || protein.targetG <= 0) return null;
+  const { avgDailyG, targetG, gPerKg } = protein;
+  if (avgDailyG >= targetG * PROTEIN_ON_TARGET_SHARE) {
+    return `Protein averaged ${avgDailyG} g a day against your ${targetG} g lifting target (${gPerKg} g per kg) — right where your training needs it.`;
+  }
+  return `Protein averaged ${avgDailyG} g a day, ${targetG - avgDailyG} g short of your ${targetG} g lifting target (${gPerKg} g per kg) — a protein-forward breakfast closes most of that.`;
 }
 
 /**
- * Deterministic 4–5 line review used by the mock AI path and as the fallback
+ * Deterministic 4–6 line review used by the mock AI path and as the fallback
  * when the live call fails. Same tone rules as the live prompt: warm,
  * specific, non-medical, never mentions BMR/TDEE/algorithms. The FIRST line
  * doubles as the free-tier teaser, so it must stand alone.
@@ -222,6 +259,9 @@ export function buildTemplateReviewText(input: ReviewTextInput): string {
       );
     }
   }
+
+  const proteinLine = reviewProteinLine(input.protein);
+  if (proteinLine) lines.push(proteinLine);
 
   if (weightTrendKg !== null) {
     const abs = Math.abs(weightTrendKg).toFixed(1);

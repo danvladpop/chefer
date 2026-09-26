@@ -6,7 +6,9 @@ import type {
   IWeightEntryRepository,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
 import { CoachService, MIN_LOGGED_DAYS, weekStartUtc } from './coach.service.js';
+import { generateReviewText } from './review-text.js';
 
 // ─── Module mocks (hoisted) ───────────────────────────────────────────────────
 
@@ -43,6 +45,13 @@ vi.mock('../pantry/pantry.service.js', () => ({
   pantryService: { computeWeekPantrySavings: vi.fn().mockResolvedValue(null) },
 }));
 
+// Lifter lookup (gym profile + bodyweight): not a lifter unless a test says so.
+vi.mock('../training-nutrition/training-nutrition.service.js', () => ({
+  trainingNutritionService: {
+    loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: null }),
+  },
+}));
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 // Sunday afternoon UTC — when the worker tick runs. Week start: Mon 17 Aug.
@@ -64,10 +73,11 @@ const PROFILE = {
   targetAdjustmentKcal: 0,
 };
 
-function dayLogRow(dayOffset: number, totalKcal = 2000) {
+function dayLogRow(dayOffset: number, totalKcal = 2000, totalProtein = 120) {
   return {
     date: new Date(WEEK_START.getTime() + dayOffset * DAY_MS),
     totalKcal,
+    totalProtein,
     loggedMeals: [{ mealType: 'lunch' }],
   };
 }
@@ -194,6 +204,26 @@ describe('CoachService.runWeeklyReview', () => {
         savedEur: null, // F3 seam stays empty in wave 1
       }),
     );
+  });
+
+  it('judges a lifter on their g/kg protein target, not the split (P2-4 follow-up)', async () => {
+    vi.mocked(trainingNutritionService.loadLifter).mockResolvedValueOnce({
+      lifterBodyweightKg: 80,
+    });
+    const service = new CoachService(makeReviewRepo(), makeProfileRepo(), makeWeightRepo());
+
+    await service.runWeeklyReview('u1', SUNDAY, true);
+
+    // PROFILE is LOSE_WEIGHT → 2.0 g/kg × 80 kg = 160 g; the week averaged 120 g.
+    expect(generateReviewText).toHaveBeenCalledWith(
+      expect.objectContaining({ protein: { avgDailyG: 120, targetG: 160, gPerKg: 2 } }),
+    );
+  });
+
+  it('non-lifters get no protein judgement', async () => {
+    const service = new CoachService(makeReviewRepo(), makeProfileRepo(), makeWeightRepo());
+    await service.runWeeklyReview('u1', SUNDAY, true);
+    expect(generateReviewText).toHaveBeenCalledWith(expect.objectContaining({ protein: null }));
   });
 
   it('moves the cumulative dial on a second consecutive plateau (LOSE −100)', async () => {
