@@ -1871,6 +1871,23 @@ internal Docker network via `API_INTERNAL_URL`. The app forces dynamic rendering
 (`app/layout.tsx`) and the prod build sets `typescript.ignoreBuildErrors` (pre-existing
 cross-package type debt; `pnpm typecheck` still enforces it).
 
+### Changing production settings (`infrastructure/scripts/env.sh`)
+
+Run on the VM from `~/chefer`, or from the Mac with `ssh -t chefer 'cd ~/chefer && …'`
+(the `-t` is needed for hidden prompts). Every change backs up `.env.production` first
+(`.env.production.bak.*`, newest 10 kept, gitignored, mode 600); values are never printed.
+
+| Command                 | Does                                                                      |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `env.sh keys`           | List variable names (no values)                                           |
+| `env.sh set NAME`       | Prompt for a secret value (hidden input, not saved in shell history)      |
+| `env.sh set NAME VALUE` | Set a non-secret value (values with spaces or `<>` are double-quoted)     |
+| `env.sh gen NAME`       | Generate a random 64-hex secret, e.g. `EMAIL_TOKEN_SECRET` (skips if set) |
+| `env.sh unset NAME`     | Remove a variable                                                         |
+| `env.sh apply`          | Run `deploy.sh`, which recreates containers whose env changed             |
+
+A plain `docker restart` keeps the old env — always `apply`.
+
 ### Backups & disaster recovery (A11)
 
 Nightly `pg_dump` of the production database, installed in the `ubuntu` user's crontab on the VM
