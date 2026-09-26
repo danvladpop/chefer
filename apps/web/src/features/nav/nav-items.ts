@@ -171,3 +171,14 @@ export function navFor(mode: AppMode): ModeNav {
 export function modeCookieString(mode: AppMode): string {
   return `${MODE_COOKIE}=${mode}; Path=/; Max-Age=31536000; SameSite=Lax`;
 }
+
+/**
+ * Task-focused routes that hide the bottom tab bar (and the chat button) on
+ * phones: onboarding, whose sticky Continue/Finish sat under the tab bar and
+ * the chat button (audit F-ONB-1-2), and cook mode, whose Back/Next landed
+ * below the fold (F-REC-6-1).
+ */
+export function isFocusRoute(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return pathname === '/onboarding' || /^\/recipes\/[^/]+\/cook\/?$/.test(pathname);
+}

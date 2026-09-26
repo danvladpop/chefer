@@ -3,6 +3,7 @@ import {
   deriveMode,
   FOOD_NAV_ITEMS,
   GYM_NAV_ITEMS,
+  isFocusRoute,
   isGymPath,
   isItemActive,
   isNavItemActive,
@@ -118,5 +119,15 @@ describe('deriveMode', () => {
 
   it('builds a site-wide, long-lived cookie', () => {
     expect(modeCookieString('gym')).toMatch(/^chefer_mode=gym; Path=\/;/);
+  });
+});
+
+describe('isFocusRoute', () => {
+  it('covers onboarding and cook mode only', () => {
+    expect(isFocusRoute('/onboarding')).toBe(true);
+    expect(isFocusRoute('/recipes/r1/cook')).toBe(true);
+    expect(isFocusRoute('/recipes/r1')).toBe(false);
+    expect(isFocusRoute('/recipes')).toBe(false);
+    expect(isFocusRoute(null)).toBe(false);
   });
 });
