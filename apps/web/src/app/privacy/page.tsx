@@ -29,8 +29,8 @@ export default function PrivacyPage() {
             Plan generation, meal swaps, meal-photo scanning, recipe import, chat and AI
             shopping-list tidy-up send the relevant data (your preferences and allergies, goals and
             body metrics, the photo, recipe or message you submitted) to an AI provider — currently
-            Google Gemini; if Gemini is overloaded, a text-only request may be handled by a backup
-            AI provider — to produce the result. We do not use your data to train models.
+            Google Gemini; if Gemini is overloaded, a text-only request may be handled by our backup
+            AI provider, Groq — to produce the result. We do not use your data to train models.
           </p>
           <p className="mt-2">
             We ask for your permission before the first AI feature sends anything, and tell you what

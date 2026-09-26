@@ -45,10 +45,10 @@ Device ID, Usage Data, Diagnostics, Sensitive Info, Audio.
   Gemini is covered by the rows above ("collected … by you or your third-party partners").
   The in-app consent sheet and the privacy policy name Gemini, as Guideline 5.1.2(i) requires.
   Background jobs send nothing for users who haven't consented: the weekly auto-plan skips them, and the weekly coach review uses fixed template wording instead of AI text.
-- **Backup AI provider:** when `AI_SECONDARY_API_KEY` is set, text-only requests can fall back
-  to a second provider (Groq by default) if Gemini is overloaded. The consent sheet and privacy
-  page mention "a backup AI provider" in general terms. **Confirm whether production sets that
-  key.** If it does, name the provider on the privacy page; if not, the sentence can go.
+- **Backup AI provider (checked 26 Sep 2026):** production sets `AI_SECONDARY_API_KEY` with
+  `api.groq.com` (model `openai/gpt-oss-120b`). When Gemini is overloaded, text-only requests
+  fall back to **Groq**. The consent sheet and privacy page name Groq. If the prod key is
+  removed, drop those sentences.
 - **YouTube embeds** on exercise detail screens load YouTube's own web player; this is covered
   by YouTube's own privacy terms, and Chefer does not receive that data.
 

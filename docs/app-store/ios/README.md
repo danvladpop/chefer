@@ -22,7 +22,7 @@ to "live on the App Store", in order. Companion files:
 - [x] "Beta" wording removed from the app (Guideline 2.2 rejects apps that look like betas)
 - [x] Public **/support** page; **/privacy** updated (deletion, consent, contact)
 - [ ] Owner picks the published **support email**: `SUPPORT_EMAIL` in `packages/types/src/support.ts` is a placeholder (`support@chefer.app`), and the address must receive mail
-- [ ] Owner confirms whether production sets `AI_SECONDARY_API_KEY` (backup AI provider, see privacy-and-rating.md)
+- [x] Backup AI provider checked: production uses Groq, and the consent sheet and privacy page name it
 - [ ] Fill `eas.json` → `submit.production.ios` (`appleId`, `ascAppId`, `appleTeamId`) once the app record exists; eas-cli rejects empty placeholders, so they aren't there yet
 - [ ] After merging, re-run `pnpm mobile:release:ios` / `:android` for your own phones: the 1.0.0 bump changes the native fingerprint, and `publish-update.sh` refuses to publish OTA updates until the installed builds match
 - [x] Root **error boundary** in the mobile app (a render error used to crash the whole release build)

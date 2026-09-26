@@ -65,7 +65,7 @@ export const AI_CONSENT_COPY = {
   sentHeading: 'What gets sent',
   noTraining: 'Your data is not used to train AI models.',
   backupProvider:
-    'If Gemini is overloaded, a text-only request may be handled by a backup AI provider instead.',
+    'If Gemini is overloaded, a text-only request may be handled by Groq, a backup AI service, instead.',
   control: 'We only ask once. You can turn this off at any time in Profile → AI & your data.',
   privacyLabel: 'Privacy policy',
   privacyPath: '/privacy',
