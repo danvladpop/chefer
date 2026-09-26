@@ -733,7 +733,7 @@ logging off-plan food is FREE (manual quick-add, chat "I ate this"); the
 Tracker page → "Scan a meal" → native camera / file picker (≤5 MB image)
 POST /api/scan-meal (session cookie, raw image body — same transport as uploads)
   ├─ resolve user from session (401 without)
-  ├─ assertMealScanQuota (lib/quotas.ts)
+  ├─ reserveMealScan (lib/quotas.ts — atomic reservation)
   │    ├─ FREE → 403 { upgradeRequired: true } — client opens the snap-scan
   │    │    demo sheet instead (upgrade source: snap-scan)
   │    └─ ≥10 scans today (ai_call_logs SCAN rows since midnight UTC) → 429

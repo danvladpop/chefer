@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 import { isPremiumUser } from '../lib/entitlements.js';
-import { assertAiSwapQuota, assertPlanGenerationQuota } from '../lib/quotas.js';
+import { reserveAiSwap, reservePlanGeneration } from '../lib/quotas.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -21,11 +21,19 @@ export const mealPlanRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await assertPlanGenerationQuota(ctx.user);
+      // Atomic reservation; refunded when generation fails, so an outage or
+      // an exhausted curated pool doesn't use up the day's allowance.
+      const reservation = await reservePlanGeneration(ctx.user);
       const premium = isPremiumUser(ctx.user);
-      return mealPlanService.generate(ctx.user.id, input.weekOffset, premium, {
-        leftovers: premium && input.leftovers === true,
-      });
+      try {
+        return await mealPlanService.generate(ctx.user.id, input.weekOffset, premium, {
+          leftovers: premium && input.leftovers === true,
+          usageReserved: true,
+        });
+      } catch (err) {
+        await reservation.release();
+        throw err;
+      }
     }),
 
   /**
@@ -71,15 +79,20 @@ export const mealPlanRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await assertAiSwapQuota(ctx.user);
-      return mealPlanService.swapRecipe(
-        ctx.user.id,
-        input.planId,
-        input.dayOfWeek,
-        input.mealType,
-        input.reason,
-        isPremiumUser(ctx.user),
-      );
+      const reservation = await reserveAiSwap(ctx.user);
+      try {
+        return await mealPlanService.swapRecipe(
+          ctx.user.id,
+          input.planId,
+          input.dayOfWeek,
+          input.mealType,
+          input.reason,
+          isPremiumUser(ctx.user),
+        );
+      } catch (err) {
+        await reservation.release();
+        throw err;
+      }
     }),
 
   /**

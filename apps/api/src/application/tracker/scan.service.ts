@@ -1,9 +1,8 @@
-import { AiCallType, prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type { MealPhotoEstimate } from '../../lib/ai/index.js';
-import { assertMealScanQuota } from '../../lib/quotas.js';
+import { reserveMealScan } from '../../lib/quotas.js';
 
 // ─── Meal photo scan (F4 Snap-to-Log) ─────────────────────────────────────────
 // One job: entitlement + quota gate, meter the call, run the vision estimate.
@@ -21,11 +20,9 @@ export class ScanService {
     imageBase64: string,
     mimeType: string,
   ): Promise<MealPhotoEstimate> {
-    await assertMealScanQuota(user);
-
-    prisma.aiCallLog
-      .create({ data: { userId: user.id, callType: AiCallType.SCAN } })
-      .catch((err) => console.error('[aiCallLog] Failed to log SCAN call:', err));
+    // Atomic reservation: parallel scans can't exceed the daily limit
+    // (12 of 10 — audit F-TRK-2-2). Attempts count, so no refund.
+    await reserveMealScan(user);
 
     // Upstream AI failures (free-tier 429s, timeouts) become one friendly
     // sentence (§4.5.2); the raw error stays in the server log.

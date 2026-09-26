@@ -1,6 +1,5 @@
 import { TRPCError } from '@trpc/server';
 import {
-  AiCallType,
   dietaryPreferencesRepository,
   favouriteRecipeRepository,
   prisma,
@@ -27,7 +26,7 @@ import {
 import { buildPollinationsUrl } from '../../lib/image-gen/pollinations.js';
 import { buildRecipeImagePrompt } from '../../lib/image-gen/prompt.js';
 import { normalizeIngredientName } from '../../lib/ingredient-prices/index.js';
-import { assertRecipeImportQuota } from '../../lib/quotas.js';
+import { reserveRecipeImport } from '../../lib/quotas.js';
 import {
   crossCheckMacros,
   extractPageContent,
@@ -122,18 +121,27 @@ export class RecipeImportService {
   ) {}
 
   /**
-   * Extraction + Cheferize preview. Metered per `recipeImportsPerDay`
-   * (attempts, not successes — the AiCallLog row is written before the AI
-   * calls, mirroring ChatService). Free tier gets this once a day (§6.4
+   * Extraction + Cheferize preview. Metered per `recipeImportsPerDay` with
+   * an atomic reservation that is refunded when the preview fails (bad URL,
+   * unreadable page, provider error), so a typo no longer burns the free
+   * daily preview (audit F-REC-4-2). Free tier gets this once a day (§6.4
    * ghost state); the web UI blurs the diff for free users, and importSave
    * is premium-only.
    */
   async preview(user: UserProfile, source: RecipeExtractionSource): Promise<ImportPreview> {
-    await assertRecipeImportQuota(user);
-    await prisma.aiCallLog.create({
-      data: { userId: user.id, callType: AiCallType.RECIPE_IMPORT },
-    });
+    const reservation = await reserveRecipeImport(user);
+    try {
+      return await this.runPreview(user, source);
+    } catch (err) {
+      await reservation.release();
+      throw err;
+    }
+  }
 
+  private async runPreview(
+    user: UserProfile,
+    source: RecipeExtractionSource,
+  ): Promise<ImportPreview> {
     let via: ImportVia;
     let extractionSource: RecipeExtractionSource;
     let sourceUrl: string | null = null;

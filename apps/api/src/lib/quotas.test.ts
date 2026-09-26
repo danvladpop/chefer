@@ -2,17 +2,29 @@ import { TRPCError } from '@trpc/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
-import { assertMealScanQuota } from './quotas.js';
+import {
+  reserveAiSwap,
+  reserveMealScan,
+  reservePlanGeneration,
+  reserveRecipeImport,
+} from './quotas.js';
 
 // ─── Module mocks (hoisted) ───────────────────────────────────────────────────
+// $transaction runs the callback against the same mock, like a real
+// interactive transaction would against its tx client.
 
 vi.mock('@chefer/database', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@chefer/database')>();
+  const aiCallLog = {
+    count: vi.fn().mockResolvedValue(0),
+    create: vi.fn().mockResolvedValue({ id: 'log1' }),
+    delete: vi.fn().mockResolvedValue({}),
+  };
   return {
     ...mod,
     prisma: {
-      aiCallLog: { count: vi.fn().mockResolvedValue(0) },
-      mealPlan: { count: vi.fn().mockResolvedValue(0) },
+      aiCallLog,
+      $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({ aiCallLog })),
     },
   };
 });
@@ -32,44 +44,71 @@ const free = user();
 const premium = user({ planTier: 'PREMIUM' });
 
 const countMock = vi.mocked(prisma.aiCallLog.count);
+const createMock = vi.mocked(prisma.aiCallLog.create);
+const txMock = vi.mocked(prisma.$transaction);
 
 beforeEach(() => {
-  countMock.mockReset().mockResolvedValue(0);
+  vi.clearAllMocks();
+  countMock.mockResolvedValue(0);
+  createMock.mockResolvedValue({ id: 'log1' } as never);
 });
 
-describe('assertMealScanQuota (F4)', () => {
+describe('reserveMealScan (F4)', () => {
   it('rejects free users with FORBIDDEN — photo scans are premium', async () => {
-    await expect(assertMealScanQuota(free)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(reserveMealScan(free)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(countMock).not.toHaveBeenCalled();
   });
 
-  it('allows a premium user under the daily limit', async () => {
+  it('reserves inside a serializable transaction under the daily limit', async () => {
     countMock.mockResolvedValue(9); // matrix limit is 10/day
-    await expect(assertMealScanQuota(premium)).resolves.toBeUndefined();
+    await reserveMealScan(premium);
+    expect(txMock).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
+    expect(createMock).toHaveBeenCalledWith({ data: { userId: 'u1', callType: 'SCAN' } });
   });
 
-  it('rejects a premium user at the daily limit with TOO_MANY_REQUESTS', async () => {
+  it('rejects a premium user at the daily limit with TOO_MANY_REQUESTS and writes nothing', async () => {
     countMock.mockResolvedValue(10);
-    const err = await assertMealScanQuota(premium).catch((e: unknown) => e);
+    const err = await reserveMealScan(premium).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TRPCError);
     expect((err as TRPCError).code).toBe('TOO_MANY_REQUESTS');
-    expect((err as TRPCError).message).toContain('10');
+    expect(createMock).not.toHaveBeenCalled();
   });
 
   it('counts only SCAN calls since midnight UTC', async () => {
-    await assertMealScanQuota(premium);
-    expect(countMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          userId: premium.id,
-          callType: 'SCAN',
-          createdAt: expect.objectContaining({ gte: expect.any(Date) }),
-        }),
-      }),
-    );
-    const gte = (countMock.mock.calls[0]?.[0] as { where: { createdAt: { gte: Date } } }).where
-      .createdAt.gte;
+    await reserveMealScan(premium);
+    const where = (countMock.mock.calls[0]?.[0] as { where: Record<string, unknown> }).where;
+    expect(where).toMatchObject({ userId: 'u1', callType: 'SCAN' });
+    const gte = (where['createdAt'] as { gte: Date }).gte;
     expect(gte.getUTCHours()).toBe(0);
     expect(gte.getUTCMinutes()).toBe(0);
+  });
+});
+
+describe('reservation mechanics (audit F-PLAN-2-3, F-TRK-2-2)', () => {
+  it('retries on a serialization conflict, so a concurrent winner is counted', async () => {
+    txMock.mockRejectedValueOnce(Object.assign(new Error('conflict'), { code: 'P2034' }));
+    await reserveMealScan(premium);
+    expect(txMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('release() refunds by deleting the reserved row', async () => {
+    const reservation = await reserveRecipeImport(free);
+    await reservation.release();
+    expect(prisma.aiCallLog.delete).toHaveBeenCalledWith({ where: { id: 'log1' } });
+  });
+
+  it('plan generations count MEAL_PLAN reservations, not plan rows (F-PLAN-5-1)', async () => {
+    countMock.mockResolvedValue(3); // free limit is 3/day
+    await expect(reservePlanGeneration(free)).rejects.toMatchObject({
+      code: 'TOO_MANY_REQUESTS',
+    });
+    expect(countMock.mock.calls[0]?.[0]).toMatchObject({ where: { callType: 'MEAL_PLAN' } });
+  });
+
+  it('free AI swaps need no reservation (curated pool, no AI)', async () => {
+    const reservation = await reserveAiSwap(free);
+    await reservation.release();
+    expect(txMock).not.toHaveBeenCalled();
+    expect(createMock).not.toHaveBeenCalled();
   });
 });

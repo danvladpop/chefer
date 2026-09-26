@@ -1,17 +1,14 @@
-import { TRPCError } from '@trpc/server';
 import {
-  AiCallType,
   chefProfileRepository,
   dailyLogRepository,
   dietaryPreferencesRepository,
   mealRatingRepository,
-  prisma,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { aiService } from '../../lib/ai/index.js';
 import type { ChatContext, ChatMessage, ChatTools } from '../../lib/ai/index.js';
-import { getLimit, isPremiumUser } from '../../lib/entitlements.js';
-import { assertAiSwapQuota } from '../../lib/quotas.js';
+import { isPremiumUser } from '../../lib/entitlements.js';
+import { reserveAiSwap, reserveChatMessage } from '../../lib/quotas.js';
 import { coachService } from '../coach/coach.service.js';
 import { mealPlanService, type WeekPlanDto } from '../meal-plan/meal-plan.service.js';
 import { pantryService } from '../pantry/pantry.service.js';
@@ -40,24 +37,6 @@ function startOfTodayUtc(): Date {
 }
 
 export class ChatService {
-  /**
-   * Throws TOO_MANY_REQUESTS when a limited tier has used today's messages.
-   * Premium (and admins) are unlimited per the PLAN_FEATURES matrix.
-   */
-  async assertChatQuota(user: UserProfile): Promise<void> {
-    const limit = getLimit(user, 'chatMessagesPerDay');
-    if (limit === null) return;
-    const used = await prisma.aiCallLog.count({
-      where: { userId: user.id, callType: AiCallType.CHAT, createdAt: { gte: startOfTodayUtc() } },
-    });
-    if (used >= limit) {
-      throw new TRPCError({
-        code: 'TOO_MANY_REQUESTS',
-        message: `You've used today's ${limit} free chat messages. Upgrade for unlimited AI chef chat.`,
-      });
-    }
-  }
-
   /**
    * Builds the prompt context from the user's live data. Kept as one plain
    * string so every AI implementation (Gemini, mock) sees exactly the same
@@ -144,17 +123,15 @@ export class ChatService {
         if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
           return 'Invalid day — use 0 (Monday) through 6 (Sunday).';
         }
-        await assertAiSwapQuota(user);
+        const reservation = await reserveAiSwap(user);
         const day = plan.days.find((d) => d.dayOfWeek === dayOfWeek);
         const before = day?.meals.find((m) => m.type === mealType)?.recipe.name;
-        const swapped = await mealPlanService.swapRecipe(
-          user.id,
-          plan.planId,
-          dayOfWeek,
-          mealType,
-          undefined,
-          isPremiumUser(user),
-        );
+        const swapped = await mealPlanService
+          .swapRecipe(user.id, plan.planId, dayOfWeek, mealType, undefined, isPremiumUser(user))
+          .catch(async (err: unknown) => {
+            await reservation.release();
+            throw err;
+          });
         return `Swapped ${DAY_NAMES[dayOfWeek]}'s ${mealType}${before ? ` (${before})` : ''} for "${swapped.name}" (${swapped.nutritionInfo.calories} kcal, ${swapped.nutritionInfo.protein}g protein). The meal plan is updated.`;
       },
 
@@ -284,14 +261,12 @@ export class ChatService {
    * front so the quota counts attempts, not just successes.
    */
   async chat(user: UserProfile, messages: ChatMessage[]): Promise<ReadableStream> {
-    await this.assertChatQuota(user);
+    // Atomic reservation up front — the quota counts attempts (parallel
+    // sends used to get 7 of 5 through — audit F-REC-4-2 family).
+    await reserveChatMessage(user);
 
     const plan = await mealPlanService.getActive(user.id);
     const contextSummary = await this.buildContextSummary(user, plan);
-
-    prisma.aiCallLog
-      .create({ data: { userId: user.id, callType: AiCallType.CHAT } })
-      .catch((err) => console.error('[aiCallLog] Failed to log CHAT call:', err));
 
     const context: ChatContext = {
       userId: user.id,

@@ -10,9 +10,19 @@ vi.mock('@chefer/database', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@chefer/database')>();
   return {
     ...mod,
-    prisma: {
-      aiCallLog: { count: vi.fn().mockResolvedValue(0), create: vi.fn().mockResolvedValue({}) },
-    },
+    // Quota reservations run count + create inside an interactive transaction;
+    // the tx client is the same mock.
+    prisma: (() => {
+      const p: Record<string, unknown> = {
+        aiCallLog: {
+          count: vi.fn().mockResolvedValue(0),
+          create: vi.fn().mockResolvedValue({}),
+          delete: vi.fn().mockResolvedValue({}),
+        },
+      };
+      p['$transaction'] = vi.fn(async (fn: (tx: unknown) => unknown) => fn(p));
+      return p;
+    })(),
     chefProfileRepository: {
       findByUserId: vi.fn().mockResolvedValue({
         weightKg: 80,
@@ -60,9 +70,10 @@ vi.mock('../shopping-list/shopping-list.service.js', () => ({
   },
 }));
 
-vi.mock('../../lib/quotas.js', () => ({
-  assertAiSwapQuota: vi.fn().mockResolvedValue(undefined),
-}));
+vi.mock('../../lib/quotas.js', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../../lib/quotas.js')>();
+  return { ...mod, reserveAiSwap: vi.fn().mockResolvedValue({ release: vi.fn() }) };
+});
 
 // Coach pulls env validation via its Gemini review-text module — mock it like
 // the other service dependencies (F1).
@@ -154,14 +165,14 @@ describe('ChatService', () => {
 
   it('free tier is cut off after the daily message limit (matrix-driven)', async () => {
     vi.mocked(prisma.aiCallLog.count).mockResolvedValue(5);
-    await expect(service.assertChatQuota(user())).rejects.toMatchObject({
+    await expect(service.chat(user(), [{ role: 'user', content: 'hi' }])).rejects.toMatchObject({
       code: 'TOO_MANY_REQUESTS',
     });
   });
 
   it('premium (and admins) are unlimited — no count query at all', async () => {
-    await service.assertChatQuota(user({ planTier: 'PREMIUM' }));
-    await service.assertChatQuota(user({ role: 'ADMIN' }));
+    await service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]);
+    await service.chat(user({ role: 'ADMIN' }), [{ role: 'user', content: 'hi' }]);
     expect(prisma.aiCallLog.count).not.toHaveBeenCalled();
   });
 

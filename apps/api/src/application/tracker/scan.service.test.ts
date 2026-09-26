@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserProfile } from '@chefer/types';
 import { aiService } from '../../lib/ai/index.js';
-import { assertMealScanQuota } from '../../lib/quotas.js';
+import { reserveMealScan } from '../../lib/quotas.js';
 import { ScanService } from './scan.service.js';
 
 // ─── Friendly AI-failure mapping in the scan path (§4.5.2) ───────────────────
@@ -21,7 +21,7 @@ vi.mock('../../lib/ai/index.js', () => ({
 }));
 
 vi.mock('../../lib/quotas.js', () => ({
-  assertMealScanQuota: vi.fn().mockResolvedValue(undefined),
+  reserveMealScan: vi.fn().mockResolvedValue({ release: vi.fn() }),
 }));
 
 const premiumUser: UserProfile = {
@@ -53,7 +53,7 @@ let consoleSpy: ReturnType<typeof spyOnConsoleError>;
 beforeEach(() => {
   consoleSpy = spyOnConsoleError();
   analyzeMock.mockReset();
-  vi.mocked(assertMealScanQuota).mockResolvedValue(undefined);
+  vi.mocked(reserveMealScan).mockResolvedValue({ release: vi.fn() });
 });
 afterEach(() => {
   consoleSpy.mockRestore();
@@ -93,7 +93,7 @@ describe('ScanService.analyzeMealPhoto', () => {
 
   it('lets the quota gate errors through untouched', async () => {
     const { TRPCError } = await import('@trpc/server');
-    vi.mocked(assertMealScanQuota).mockRejectedValue(
+    vi.mocked(reserveMealScan).mockRejectedValue(
       new TRPCError({ code: 'FORBIDDEN', message: 'Premium feature.' }),
     );
     await expect(
