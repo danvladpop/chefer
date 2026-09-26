@@ -664,13 +664,15 @@ mobile `(food)/index`) shows:
 
 ```
 Today
-  ├─ ring: nutrition.eatenKcal / dailyCalorieTarget + macros (dashboard.summary —
-  │    a server-side target change flows straight through)
+  ├─ ring: nutrition.eatenKcal against the target + macros (dashboard.summary —
+  │    uses nutrition.adjustedTargets on a training day, P2-4, so server-side
+  │    target changes flow straight through)
   ├─ quick log: Quick add (free, tracker.logCustomMeal) + Scan a meal
   │    (premium; free sees the demo ghost) — both refresh dashboard.summary
   ├─ next meal (nextMeal, else tomorrowFirstMeal badged "Tomorrow"):
   │    ├─ "I ate this" → tracker.logRecipe { date: local day, recipeId,
-  │    │    mealType, portionMultiplier: 1 } (atomic, idempotent; a premium
+  │    │    mealType, portionMultiplier: the plan slot's portion (P1-1
+  │    │    nextMeal.portion, clamped 0.5–2×; 1 when unset) } (atomic, idempotent; a premium
   │    │    log may rebalance the week) → summary refetch → the spotlight
   │    │    advances past the logged meal (resolveTodayMeals)
   │    └─ "Cook it" → cook mode (?meal=type); "Made it!" there logs too
