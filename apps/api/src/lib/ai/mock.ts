@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   CheferizedRecipe,
   CheferizeInput,
+  CoachReviewInput,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -531,6 +532,17 @@ export class MockAIService implements IAIService {
     }
 
     return stringToReadableStream(response);
+  }
+
+  async generateReviewText(input: CoachReviewInput): Promise<string> {
+    await delay(200);
+    return [
+      `You logged ${input.loggedDays} of 7 days this week — nice work keeping at it.`,
+      `You averaged ${input.avgDailyKcal} kcal against a ${input.targetKcal} kcal target.`,
+      input.adjustmentKcal !== 0
+        ? `I've adjusted next week's budget by ${input.adjustmentKcal} kcal.`
+        : "I'm keeping next week's budget as it is.",
+    ].join('\n');
   }
 }
 

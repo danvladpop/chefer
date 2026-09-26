@@ -1,25 +1,12 @@
 import { env } from '../env.js';
+import { ImagenContentFilterError, ImagenRateLimitError } from './errors.js';
 
 const IMAGEN_ENDPOINT =
   'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict';
 
 const TIMEOUT_MS = 30_000;
 
-export class ImagenRateLimitError extends Error {
-  readonly retryAfterMs: number;
-  constructor(retryAfterMs = 60_000) {
-    super('Imagen rate limit exceeded');
-    this.name = 'ImagenRateLimitError';
-    this.retryAfterMs = retryAfterMs;
-  }
-}
-
-export class ImagenContentFilterError extends Error {
-  constructor() {
-    super('Imagen blocked the prompt due to content policy');
-    this.name = 'ImagenContentFilterError';
-  }
-}
+export { ImagenContentFilterError, ImagenRateLimitError } from './errors.js';
 
 export interface ImagenResult {
   base64: string;

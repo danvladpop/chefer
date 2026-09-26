@@ -310,4 +310,24 @@ export interface IAIService {
   extractRecipeAnnotated(source: RecipeExtractionSource): Promise<AnnotatedExtraction>;
   /** F5 Cheferize — adapts an extracted recipe to the user's safety prefs + servings. */
   cheferizeRecipe(input: CheferizeInput): Promise<CheferizedRecipe>;
+  /**
+   * The Sunday coach review prose (F1). Plain text, 4-5 short lines. Callers
+   * fall back to the deterministic template on any error, so implementations
+   * simply throw on failure (audit P0-5: the coach used to call Gemini
+   * directly, outside the interface and the provider chain).
+   */
+  generateReviewText(input: CoachReviewInput): Promise<string>;
+}
+
+/** Inputs for the weekly coach review prose. */
+export interface CoachReviewInput {
+  adherencePct: number;
+  loggedDays: number;
+  avgDailyKcal: number;
+  targetKcal: number;
+  weightTrendKg: number | null;
+  adjustmentKcal: number;
+  goal: string | null;
+  /** Dish names from the reviewed week's plan (for flavour, may be empty). */
+  dishNames: string[];
 }

@@ -5,6 +5,7 @@ import {
   buildExtractRecipeUserPrompt,
   buildIngredientPricesPrompt,
   buildMealPlanUserPrompt,
+  buildReviewUserPrompt,
   buildShoppingListPrompt,
   buildSwapUserPrompt,
   CHAT_SYSTEM_PROMPT,
@@ -13,6 +14,7 @@ import {
   EXTRACT_RECIPE_SYSTEM_PROMPT,
   INGREDIENT_PRICES_SYSTEM_PROMPT,
   MEAL_PLAN_SYSTEM_PROMPT,
+  REVIEW_SYSTEM_PROMPT,
   SHOPPING_LIST_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
 } from './prompts.js';
@@ -31,6 +33,7 @@ import type {
   ChatMessage,
   CheferizedRecipe,
   CheferizeInput,
+  CoachReviewInput,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -43,6 +46,7 @@ import type {
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
+import { logAiUsage } from './usage.js';
 
 // ─── OpenAI-compatible AI service (secondary provider, premium_plan.md §5.5) ──
 // A generic client for any OpenAI-compatible /chat/completions endpoint,
@@ -94,6 +98,7 @@ interface CompletionMessage {
 
 interface ChatCompletionResponse {
   choices?: { message?: CompletionMessage; finish_reason?: string }[];
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
 type OutboundMessage =
@@ -157,6 +162,7 @@ export class OpenAICompatibleAIService implements IAIService {
     body: Record<string, unknown>,
     label: string,
   ): Promise<ChatCompletionResponse> {
+    const started = Date.now();
     const res = await fetch(`${this.config.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -178,7 +184,25 @@ export class OpenAICompatibleAIService implements IAIService {
       throw err;
     }
 
-    return (await res.json()) as ChatCompletionResponse;
+    const json = (await res.json()) as ChatCompletionResponse;
+    logAiUsage({
+      provider: this.providerName(),
+      model: this.config.model,
+      op: label,
+      inputTokens: json.usage?.prompt_tokens,
+      outputTokens: json.usage?.completion_tokens,
+      ms: Date.now() - started,
+    });
+    return json;
+  }
+
+  /** Host of the endpoint (api.groq.com, api.cloudflare.com, …) for usage logs. */
+  private providerName(): string {
+    try {
+      return new URL(this.config.baseUrl).hostname;
+    } catch {
+      return 'openai-compatible';
+    }
   }
 
   /**
@@ -400,5 +424,22 @@ export class OpenAICompatibleAIService implements IAIService {
     }
 
     return streamText(finalText);
+  }
+
+  async generateReviewText(input: CoachReviewInput): Promise<string> {
+    const response = await this.chatCompletion(
+      {
+        messages: [
+          { role: 'system', content: REVIEW_SYSTEM_PROMPT },
+          { role: 'user', content: buildReviewUserPrompt(input) },
+        ] satisfies OutboundMessage[],
+        temperature: 0.7,
+        max_tokens: 512,
+      },
+      'generateReviewText',
+    );
+    const text = response.choices?.[0]?.message?.content?.trim();
+    if (!text) throw new Error('OpenAICompatibleAIService: empty review text');
+    return text;
   }
 }

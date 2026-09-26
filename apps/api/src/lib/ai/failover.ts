@@ -5,6 +5,7 @@ import type {
   ChatMessage,
   CheferizedRecipe,
   CheferizeInput,
+  CoachReviewInput,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -28,7 +29,7 @@ import type {
 //
 // Per-call routing:
 // - PRIMARY-FIRST (quality-sensitive): generateMealPlan, generateRecipeSwap,
-//   cheferizeRecipe, extractRecipe (text sources).
+//   cheferizeRecipe, extractRecipe (text sources), generateReviewText.
 // - SECONDARY-FIRST (cheap, high-volume — conserves Gemini's 20/day): chat,
 //   estimateIngredientPrices, generateShoppingList. These fail BACK to
 //   Gemini if the secondary errors.
@@ -146,6 +147,12 @@ export class FailoverAIService implements IAIService {
   cheferizeRecipe(input: CheferizeInput): Promise<CheferizedRecipe> {
     return this.run('cheferizeRecipe', this.primary, this.secondary, (s) =>
       s.cheferizeRecipe(input),
+    );
+  }
+
+  async generateReviewText(input: CoachReviewInput): Promise<string> {
+    return this.run('generateReviewText', this.primary, this.secondary, (s) =>
+      s.generateReviewText(input),
     );
   }
 }

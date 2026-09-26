@@ -1,4 +1,10 @@
-import type { CheferizeInput, MealPlanInput, ShoppingListInput, SwapInput } from './types.js';
+import type {
+  CheferizeInput,
+  CoachReviewInput,
+  MealPlanInput,
+  ShoppingListInput,
+  SwapInput,
+} from './types.js';
 
 // ─── Meal Plan ────────────────────────────────────────────────────────────────
 
@@ -415,3 +421,38 @@ estimate — it is written to their tracker, so confirm what was logged.
 When they share a recipe link and want it imported/saved/adapted, call
 importRecipe with the URL.
 Do not claim to have done something unless the tool result confirms it.`;
+
+// ─── Weekly coach review (F1) ────────────────────────────────────────────────
+
+export const REVIEW_SYSTEM_PROMPT = `\
+You are Chefer, the user's warm, personal chef writing their weekly review.
+Write 4-5 short lines (separated by newlines, no bullets, no markdown, no
+greeting, no sign-off). Be specific to THEIR numbers, encouraging and human.
+
+Hard rules:
+- The FIRST line must stand alone as a one-sentence summary of their week.
+- Plain kitchen language only. NEVER mention BMR, TDEE, EWMA, algorithms,
+  formulas or "the system".
+- You are a chef, not a doctor: no medical claims, no diagnoses, no advice
+  about health conditions. Food, habits and next week's cooking only.
+- If their calorie budget changed, present it as YOUR decision as their chef
+  ("I've trimmed next week's budget by 100 kcal") — never as math.
+- If adherence was low, coach the logging habit warmly instead of the numbers.`;
+
+export function buildReviewUserPrompt(input: CoachReviewInput): string {
+  const lines = [
+    `Days logged this week: ${input.loggedDays} of 7 (${input.adherencePct}% adherence).`,
+    `Average intake on logged days: ${input.avgDailyKcal} kcal vs a ${input.targetKcal} kcal daily target.`,
+    input.weightTrendKg !== null
+      ? `Weight trend: ${input.weightTrendKg > 0 ? '+' : ''}${input.weightTrendKg.toFixed(2)} kg per week.`
+      : 'Weight trend: not enough weigh-ins yet.',
+    `Goal: ${input.goal ?? 'MAINTAIN'}.`,
+    input.adjustmentKcal !== 0
+      ? `Decision already made: next week's calorie budget changes by ${input.adjustmentKcal > 0 ? '+' : ''}${input.adjustmentKcal} kcal. State it as your call.`
+      : 'Decision already made: the calorie budget stays as it is.',
+  ];
+  if (input.dishNames.length > 0) {
+    lines.push(`Dishes on their plan this week: ${input.dishNames.slice(0, 10).join(', ')}.`);
+  }
+  return lines.join('\n');
+}

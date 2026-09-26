@@ -30,6 +30,7 @@ function stubService(overrides: Partial<Record<keyof IAIService, unknown>> = {})
       .fn()
       .mockResolvedValue({ recipe: { name: 'Extracted' }, confidence: 'high', assumptions: [] }),
     cheferizeRecipe: vi.fn().mockResolvedValue({ adapted: { name: 'A' }, changes: [] }),
+    generateReviewText: vi.fn().mockResolvedValue('Great week.'),
   };
   return { ...base, ...overrides } as IAIService;
 }
@@ -180,5 +181,27 @@ describe('FailoverAIService — vision stays primary-only', () => {
       wrap(primary, secondary).extractRecipe({ text: 'Recipe: pasta…' }),
     ).resolves.toEqual({ name: 'Extracted' });
     expect(secondary.extractRecipe).toHaveBeenCalledWith({ text: 'Recipe: pasta…' });
+  });
+});
+
+describe('FailoverAIService — coach review (P0-5 groundwork)', () => {
+  it('serves the review from the primary and fails over on capacity errors', async () => {
+    const primary = stubService({
+      generateReviewText: vi.fn().mockRejectedValue(capacity429),
+    });
+    const secondary = stubService({ generateReviewText: vi.fn().mockResolvedValue('From Groq.') });
+    const svc = new FailoverAIService(primary, secondary, { primary: 'gemini', secondary: 'groq' });
+    const input = {
+      adherencePct: 71,
+      loggedDays: 5,
+      avgDailyKcal: 1900,
+      targetKcal: 2000,
+      weightTrendKg: null,
+      adjustmentKcal: 0,
+      goal: null,
+      dishNames: [],
+    };
+    await expect(svc.generateReviewText(input)).resolves.toBe('From Groq.');
+    expect(primary.generateReviewText).toHaveBeenCalledWith(input);
   });
 });
