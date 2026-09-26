@@ -878,9 +878,12 @@ sweep at 320/375/390/430 px** has no overflow and correct touch targets on every
 
 ### Wave 6: Later (not scheduled; each needs owner sign-off)
 
-- **Training-day nutrition targets:** +150–250 kcal and a protein floor on training
+- ~~**Training-day nutrition targets:** +150–250 kcal and a protein floor on training
   days, fed into meal-plan generation (touches `MealPlanInput`, which is why it's
-  deferred per D11).
+  deferred per D11).~~ **Shipped as audit P2-4** (2026-09-26, `business_flow.md`
+  §10.1): lifters (GAIN_MUSCLE) get 1.8 g/kg protein on every tier; premium gets
+  +10% kcal (150–300) and 2.2 g/kg on training days, and AI weeks built around
+  the routine's weekdays; every tier gets a post-workout protein nudge.
 - Apple Health / Health Connect export of workouts and bodyweight.
 - An iOS Live Activity and an Android ongoing notification for the rest timer.
 - Apple Watch / Wear OS logging.
