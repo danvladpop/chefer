@@ -13,6 +13,7 @@ import {
 } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { PantryCheckBanner } from '../../src/features/pantry/pantry-check-banner';
+import { PantryGhostBanner } from '../../src/features/pantry/pantry-ghost-banner';
 import { PantryPanel } from '../../src/features/pantry/pantry-panel';
 import { parseCustomItemInput } from '../../src/features/shopping-list/parse-custom-item';
 import { useCurrency } from '../../src/hooks/use-currency';
@@ -24,8 +25,9 @@ import { trpc } from '../../src/lib/trpc';
 // Shop tab — port of apps/web (dashboard)/shopping-list/page.tsx (M2-5).
 // P2-8: "To buy" / "In my kitchen" segments (the pantry moved here from More)
 // and the inline weekly "Still have these?" banner (F-PM-13). Deviations,
-// deliberate: no print / send-to-mobile (this IS the phone), and no free
-// pantry ghost banner yet.
+// deliberate: no print / send-to-mobile (this IS the phone). Free tier: the
+// pantry ghost banner (real kitchen count + this week's savings) on both
+// segments.
 
 type ShopView = 'list' | 'kitchen';
 const SHOP_SEGMENTS = [
@@ -188,7 +190,7 @@ export default function ShoppingListScreen() {
             </Text>
           </View>
           {segments}
-          <PantryPanel />
+          <PantryPanel savedEur={weekList?.pantry.savedEur ?? 0} currency={currency} />
         </ScrollView>
       </Screen>
     );
@@ -319,6 +321,12 @@ export default function ShoppingListScreen() {
 
         {/* Weekly kitchen check — inline, never over the list (F-PM-13) */}
         <PantryCheckBanner />
+
+        {/* F3 §6.4 ghost state (free tier): real seeded item count + the real
+            savings this list would have seen */}
+        {pantry && !pantry.entitled && (
+          <PantryGhostBanner savedEur={pantry.savedEur} currency={currency} />
+        )}
 
         {!weekList?.hasPlan ? (
           /* Empty state */

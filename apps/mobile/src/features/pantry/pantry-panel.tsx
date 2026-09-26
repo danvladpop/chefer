@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, Text } from '@chefer/ui-mobile';
+import { router } from 'expo-router';
+import type { DisplayCurrency } from '@chefer/types';
+import { Button, Card, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { trpc } from '../../lib/trpc';
 import { PantryCheckBanner } from './pantry-check-banner';
+import { PantryGhostBanner } from './pantry-ghost-banner';
 
 // Shop → "In my kitchen" (M2-6, P2-8) — port of apps/web
 // features/pantry/components/PantryPanel.tsx. Rendered by the Shop tab's
 // kitchen segment and by the standalone /pantry screen (kept for deep links).
 // Deviation, deliberate: the unit picker is a chip row instead of a <select>.
+// Free tier: once check-offs have seeded the kitchen, the upsell becomes the
+// ghost banner with the real count and this week's real savings (F3 §6.4).
 
 const UNIT_OPTIONS = ['pcs', 'g', 'kg', 'ml', 'l', 'pack', 'can', 'bunch'];
 
@@ -31,7 +36,14 @@ function ageLabel(updatedAt: Date | string): string {
   return `${Math.floor(days / 7)} weeks ago`;
 }
 
-export function PantryPanel() {
+export function PantryPanel({
+  savedEur = 0,
+  currency = 'EUR',
+}: {
+  /** This week's list savings the pantry would give (shopping list `pantry.savedEur`). */
+  savedEur?: number;
+  currency?: DisplayCurrency;
+} = {}) {
   const { enabled, isPremium } = useEntitlement('pantryPlanning');
   const locked = isPremium === false;
   const { data, isLoading } = trpc.pantry.list.useQuery(undefined, { staleTime: 30_000 });
@@ -89,16 +101,27 @@ export function PantryPanel() {
       )}
       <PantryCheckBanner manualOpen={checkOpen} onManualClose={() => setCheckOpen(false)} />
 
-      {/* Free-tier upsell — page stays visible read-only (§6.4) */}
-      {locked && (
+      {/* Free-tier upsell — page stays visible read-only (§6.4). With items,
+          the ghost shows the real count + savings instead. */}
+      {locked && items.length > 0 && <PantryGhostBanner savedEur={savedEur} currency={currency} />}
+      {locked && items.length === 0 && (
         <Card testID="pantry-upsell" className="border-amber-200 bg-amber-50">
           <Text className="text-sm font-semibold text-gray-900">
             Chefer sees your kitchen — premium cooks from it.
           </Text>
           <Text className="mt-1 text-sm text-gray-700">
             Premium plans use these items up before they go to waste, subtract them from your
-            shopping list, and show what you saved each week. Upgrade from your Profile.
+            shopping list, and show what you saved each week.
           </Text>
+          <Button
+            testID="pantry-upsell-upgrade"
+            variant="outline"
+            size="sm"
+            className="mt-3 self-start"
+            onPress={() => router.push({ pathname: '/profile', params: { source: 'pantry' } })}
+          >
+            See Premium
+          </Button>
         </Card>
       )}
 

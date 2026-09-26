@@ -10,7 +10,10 @@ describe('LockedChatPreview (per-user AI is premium-only)', () => {
     await render(<LockedChatPreview />);
     expect(screen.getByText('Example conversation')).toBeTruthy();
     await user.press(screen.getByTestId('chat-locked-upgrade'));
-    expect(router.push).toHaveBeenCalledWith('/profile');
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/profile',
+      params: { source: 'chat-locked' },
+    });
     await user.press(screen.getByText('Quick-add what you ate →'));
     expect(router.push).toHaveBeenCalledWith('/tracker');
   });

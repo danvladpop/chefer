@@ -126,7 +126,10 @@ describe('NutritionSummary — training day (audit P2-4)', () => {
     );
     expect(screen.getByText('of 2,000 kcal eaten')).toBeOnTheScreen();
     await user.press(screen.getByTestId('training-day-upgrade'));
-    expect(router.push).toHaveBeenCalledWith('/profile');
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/profile',
+      params: { source: 'training-day' },
+    });
   });
 });
 
