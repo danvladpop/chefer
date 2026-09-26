@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { FeedbackNavButton } from '@/features/feedback/components/FeedbackDialog';
 import { PlanFooterCard } from '@/features/premium/components/PlanFooterCard';
 import { X } from 'lucide-react';
-import { Drawer } from '@chefer/ui';
+import { Drawer, pressControl } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 import { useAppMode } from '../mode-context';
 import { isItemActive } from '../nav-items';
@@ -46,7 +46,10 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
           type="button"
           onClick={onClose}
           aria-label="Close menu"
-          className="-mr-2 flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          className={cn(
+            '-mr-2 flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-600',
+            pressControl,
+          )}
         >
           <X className="h-5 w-5" />
         </button>
@@ -74,7 +77,8 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
                   onClick={onClose}
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                    'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
+                    pressControl,
                     active
                       ? 'bg-[#fff3e8] text-[#944a00]'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',

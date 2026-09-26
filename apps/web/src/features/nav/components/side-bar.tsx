@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { FeedbackNavButton } from '@/features/feedback/components/FeedbackDialog';
 import { PlanFooterCard } from '@/features/premium/components/PlanFooterCard';
+import { pressControl } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 import { useAppMode } from '../mode-context';
 import { isItemActive } from '../nav-items';
@@ -49,7 +50,8 @@ export function SideBar({ className }: SideBarProps) {
                   href={href}
                   aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
+                    pressControl,
                     isActive
                       ? 'bg-[#fff3e8] text-[#944a00]'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',

@@ -1,6 +1,7 @@
 'use client';
 
 import { Dumbbell, UtensilsCrossed } from 'lucide-react';
+import { pressControl } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 import { useAppMode } from '../mode-context';
 import type { AppMode } from '../nav-items';
@@ -42,7 +43,8 @@ export function ModeSwitch({
             data-testid={`mode-switch-${value}`}
             onClick={() => switchMode(value)}
             className={cn(
-              'flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-[10px] text-sm font-medium transition-colors',
+              'flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-[10px] text-sm font-medium',
+              pressControl,
               compact ? 'min-w-11 px-2.5' : 'px-3',
               active ? 'bg-white text-[#944a00] shadow-sm' : 'text-gray-500 hover:text-gray-800',
             )}
