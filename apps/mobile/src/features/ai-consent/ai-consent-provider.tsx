@@ -188,7 +188,7 @@ export function AiConsentHost() {
   const hostId = useId();
   const register = state?.register;
   useEffect(() => register?.(hostId), [register, hostId]);
-  if (!state || state.topHost !== hostId) return null;
+  if (state?.topHost !== hostId) return null;
   return <AiConsentSheet state={state} />;
 }
 

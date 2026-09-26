@@ -13,6 +13,11 @@ vi.mock('@ai-sdk/react', () => ({
 vi.mock('ai', () => ({ TextStreamChatTransport: vi.fn() }));
 vi.mock('@/hooks/useIsPremium', () => ({ useIsPremium: () => true }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
+// Consent already on record: the guard runs the send straight away.
+vi.mock('@/features/ai-consent/AiConsentProvider', () => ({
+  useAiConsent: () => (_feature: string, run: () => void) => run(),
+  useAiConsentOpen: () => false,
+}));
 vi.mock('@/features/premium/components/UpgradeButton', () => ({
   UpgradeButton: () => <button type="button">Upgrade</button>,
 }));

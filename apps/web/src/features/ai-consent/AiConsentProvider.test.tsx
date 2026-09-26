@@ -7,8 +7,13 @@ import { AiConsentProvider, useAiConsent } from './AiConsentProvider';
 // "Not now" sends nothing, "Allow" records consent and then runs the action.
 // Mirrors apps/mobile/tests/unit/ai-consent.test.tsx.
 
-const m = vi.hoisted(() => ({
-  user: { aiDataConsentAt: null as Date | null } as { aiDataConsentAt: Date | null } | undefined,
+interface MockState {
+  user: { aiDataConsentAt: Date | null };
+  grant: ReturnType<typeof vi.fn>;
+  action: ReturnType<typeof vi.fn>;
+}
+const m: MockState = vi.hoisted(() => ({
+  user: { aiDataConsentAt: null },
   grant: vi.fn(),
   action: vi.fn(),
 }));
