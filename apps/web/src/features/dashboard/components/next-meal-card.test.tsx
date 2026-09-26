@@ -55,21 +55,18 @@ const MEAL = {
   },
 };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 afterEach(cleanup);
 
 describe('NextMealCard', () => {
   it('"I ate this" logs the planned recipe for today, one portion', () => {
     render(<NextMealCard meal={MEAL} isTomorrow={false} />);
     fireEvent.click(screen.getByTestId('today-ate-this'));
-    expect(mocks.mutate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        recipeId: 'curry',
-        mealType: 'dinner',
-        portionMultiplier: 1,
-        date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) as unknown as string,
-      }),
-    );
+    const [args] = mocks.mutate.mock.calls[0] as [Record<string, unknown>];
+    expect(args).toMatchObject({ recipeId: 'curry', mealType: 'dinner', portionMultiplier: 1 });
+    expect(String(args['date'])).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it('refreshes Today and confirms what was logged', () => {

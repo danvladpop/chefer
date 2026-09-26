@@ -11,7 +11,11 @@ const mockRecordRebalance = jest.fn();
 const mockMutation: { onSuccess?: (data: { rebalance: null }) => void } = {};
 
 jest.mock('expo-router', () => ({
-  router: { push: (...args: unknown[]) => mockPush(...args) },
+  router: {
+    push: (...args: unknown[]) => {
+      mockPush(...args);
+    },
+  },
 }));
 jest.mock('../../src/features/tracker/rebalance-store', () => ({
   recordRebalance: (result: unknown) => {
@@ -59,18 +63,16 @@ describe('HeroMealCard (Today)', () => {
     const user = userEvent.setup();
     await render(<HeroMealCard meal={MEAL} isTomorrow={false} />);
     await user.press(screen.getByTestId('today-ate-this'));
-    expect(mockMutate).toHaveBeenCalledWith({
-      date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) as unknown as string,
-      recipeId: 'curry',
-      mealType: 'dinner',
-      portionMultiplier: 1,
-    });
+    const [args] = mockMutate.mock.calls[0] as [Record<string, unknown>];
+    expect(args).toMatchObject({ recipeId: 'curry', mealType: 'dinner', portionMultiplier: 1 });
+    expect(String(args.date)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it('refreshes Today, hands off any rebalance and confirms the log', async () => {
     await render(<HeroMealCard meal={MEAL} isTomorrow={false} />);
-    await act(async () => {
+    await act(() => {
       mockMutation.onSuccess?.({ rebalance: null });
+      return Promise.resolve();
     });
     expect(mockInvalidate).toHaveBeenCalled();
     expect(mockRecordRebalance).toHaveBeenCalledWith(null);
