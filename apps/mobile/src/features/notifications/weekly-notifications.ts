@@ -52,10 +52,14 @@ function isWeeklyTag(data: unknown): boolean {
 }
 
 /** The route a tapped weekly notification should open, or null for any other notification. */
-export function weeklyNotificationUrl(data: unknown): string | null {
+/** The only screens a weekly notification may open (never a payload-supplied path). */
+const WEEKLY_ROUTES = ['/meal-plan', '/progress'] as const;
+export type WeeklyRoute = (typeof WEEKLY_ROUTES)[number];
+
+export function weeklyNotificationUrl(data: unknown): WeeklyRoute | null {
   if (!isWeeklyTag(data)) return null;
   const url = (data as { url?: unknown }).url;
-  return typeof url === 'string' && url.startsWith('/') ? url : null;
+  return WEEKLY_ROUTES.find((route) => route === url) ?? null;
 }
 
 async function scheduledWeekly(): Promise<Notifications.NotificationRequest[]> {
