@@ -20,3 +20,17 @@ export function guessMealType(now = new Date()): string {
   if (hour < 16) return 'lunch';
   return 'dinner';
 }
+
+/**
+ * The servings cook mode and the recipe page start at (P1-1, backlog P2-3):
+ * a premium household's table portions (`portionSum`, null otherwise) or the
+ * recipe's own servings, multiplied by the plan slot's portion when opened
+ * from the plan. The two compose — neither replaces the other.
+ */
+export function defaultCookServings(
+  baseServings: number,
+  portionSum: number | null,
+  planPortion = 1,
+): number {
+  return Math.round((portionSum ?? baseServings) * planPortion * 100) / 100;
+}

@@ -7,7 +7,7 @@ import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import type { OnboardingIntent } from '@chefer/types';
-import { onboardingSteps } from '@chefer/utils';
+import { onboardingProgress, onboardingSteps } from '@chefer/utils';
 import { EMPTY_WIZARD_DATA, type Goal, type WizardData } from '../types';
 import { StepCuisine } from './step-cuisine';
 import { StepDiet } from './step-diet';
@@ -203,7 +203,10 @@ export function OnboardingWizard({
     });
   }
 
-  const progressPct = Math.round((step / totalSteps) * 100);
+  // "Step 1" with no total while the intent question is open: the answer
+  // changes the total, and the counter must never grow (4 → 5).
+  const progress = onboardingProgress(steps, step - 1);
+  const progressPct = progress.percent ?? 0;
   const isSubmitting =
     setupMutation.isPending || safetyMutation.isPending || intentMutation.isPending;
 
@@ -213,19 +216,18 @@ export function OnboardingWizard({
       <div className="border-b bg-background px-4 py-4">
         <div className="mx-auto max-w-2xl">
           <div className="mb-2 flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              Step {step} of {totalSteps}
-            </span>
-            <span>{progressPct}% complete</span>
+            <span>{progress.label}</span>
+            {progress.percent !== null && <span>{progress.percent}% complete</span>}
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-primary transition-all duration-300"
               style={{ width: `${progressPct}%` }}
               role="progressbar"
-              aria-valuenow={step}
+              aria-valuenow={progress.total === null ? undefined : step}
               aria-valuemin={1}
-              aria-valuemax={totalSteps}
+              aria-valuemax={progress.total ?? undefined}
+              aria-valuetext={progress.label}
             />
           </div>
         </div>

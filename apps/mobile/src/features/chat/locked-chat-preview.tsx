@@ -58,7 +58,7 @@ export function LockedChatPreview() {
         <Pressable
           testID="chat-locked-upgrade"
           accessibilityRole="button"
-          onPress={() => router.push('/profile')}
+          onPress={() => router.push({ pathname: '/profile', params: { source: 'chat-locked' } })}
           className="mt-2 min-h-11 justify-center"
         >
           <Text className="text-sm font-semibold text-primary">Upgrade from your Profile →</Text>

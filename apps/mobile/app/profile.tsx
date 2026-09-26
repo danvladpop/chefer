@@ -1,15 +1,19 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { PLAN_FEATURES } from '@chefer/types';
 import { Button, Card, PressableScale, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { PostUpgradeSheet } from '../src/features/premium/post-upgrade-sheet';
 import { AccountDataCard } from '../src/features/profile/account-data-card';
 import { trpc } from '../src/lib/trpc';
 
 // Profile — port of apps/web (dashboard)/profile/page.tsx (M2-8). Same
 // PW-2 semantics: upgrade/downgrade flip planTier directly (free beta);
-// Stripe replaces only how the flag is set (P2-1).
+// Stripe replaces only how the flag is set (P2-1). Upsells open this screen
+// with `?source=` (e.g. household); a successful upgrade shows the
+// source-aware "You're premium" sheet (F-PREM-1-5, F-PM-9).
 
 function StatRow({ label, used, limit }: { label: string; used: number; limit: number | null }) {
   const pct = limit ? Math.min(Math.round((used / limit) * 100), 100) : 0;
@@ -76,7 +80,14 @@ export default function ProfileScreen() {
     void utils.user.me.invalidate();
     void utils.auth.me.invalidate();
   };
-  const upgradeMutation = trpc.user.upgradePlan.useMutation({ onSuccess: invalidateUser });
+  const { source } = useLocalSearchParams<{ source?: string }>();
+  const [activationOpen, setActivationOpen] = useState(false);
+  const upgradeMutation = trpc.user.upgradePlan.useMutation({
+    onSuccess: () => {
+      invalidateUser();
+      setActivationOpen(true);
+    },
+  });
   const downgradeMutation = trpc.user.downgradePlan.useMutation({ onSuccess: invalidateUser });
 
   const displayName = user?.firstName
@@ -220,6 +231,11 @@ export default function ProfileScreen() {
         ) : null}
         <AccountDataCard />
       </ScrollView>
+      <PostUpgradeSheet
+        visible={activationOpen}
+        onClose={() => setActivationOpen(false)}
+        source={typeof source === 'string' && source !== '' ? source : null}
+      />
     </Screen>
   );
 }

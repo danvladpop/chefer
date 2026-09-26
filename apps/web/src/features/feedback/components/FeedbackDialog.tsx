@@ -6,14 +6,14 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { MessageSquare } from 'lucide-react';
 import { Button, Sheet } from '@chefer/ui';
-import { cn } from '@chefer/utils';
+import { cn, FEEDBACK_MAX_LENGTH, feedbackCounter } from '@chefer/utils';
 
 // ─── Beta feedback dialog (ux-fixes-plan.md 1.6) ─────────────────────────────
 // The review's biggest beta gap: no way for a tester to tell us anything.
 // One textarea, one button; the current path is attached automatically.
 
-/** Mirrors the API's `feedback.submit` message limit. */
-export const FEEDBACK_MAX_LENGTH = 2000;
+/** Mirrors the API's `feedback.submit` message limit (shared with mobile). */
+export { FEEDBACK_MAX_LENGTH };
 
 export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
@@ -21,8 +21,8 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
   const [sent, setSent] = useState(false);
   const textareaId = useId();
   const counterId = useId();
-  const remaining = FEEDBACK_MAX_LENGTH - message.length;
-  const nearLimit = remaining <= 100;
+  const counter = feedbackCounter(message.length);
+  const nearLimit = counter.tone !== 'normal';
 
   const submitMutation = trpc.feedback.submit.useMutation({
     onSuccess: () => {
@@ -86,12 +86,14 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
             aria-live={nearLimit ? 'polite' : 'off'}
             className={cn(
               'mt-1 text-right text-xs tabular-nums',
-              remaining === 0 ? 'text-red-600' : nearLimit ? 'text-amber-700' : 'text-gray-600',
+              counter.tone === 'limit'
+                ? 'text-red-600'
+                : counter.tone === 'near'
+                  ? 'text-amber-700'
+                  : 'text-gray-600',
             )}
           >
-            {remaining === 0
-              ? `Limit reached: ${FEEDBACK_MAX_LENGTH.toLocaleString('en-US')} characters`
-              : `${message.length.toLocaleString('en-US')} / ${FEEDBACK_MAX_LENGTH.toLocaleString('en-US')}`}
+            {counter.label}
           </p>
           {submitMutation.isError && (
             <p role="alert" className="mt-2 text-xs text-red-600">

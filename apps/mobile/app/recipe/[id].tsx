@@ -3,7 +3,14 @@ import { ActivityIndicator, Image, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button, Card, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
-import { cn, formatPortion, formatQuantity, scaleNutrition, slotPortion } from '@chefer/utils';
+import {
+  cn,
+  defaultCookServings,
+  formatPortion,
+  formatQuantity,
+  scaleNutrition,
+  slotPortion,
+} from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { StarRating } from '../../src/features/recipes/star-rating';
 import { useHousehold } from '../../src/hooks/use-household';
@@ -69,7 +76,7 @@ export default function RecipeDetailScreen() {
   // Opened from a portioned plan slot, quantities start at that portion (P1-1);
   // premium households start from the whole table (P2-3) — the two multiply.
   const selectedServings =
-    servings ?? Math.round((portionSum ?? recipe.servings) * planPortion * 100) / 100;
+    servings ?? defaultCookServings(recipe.servings, portionSum, planPortion);
   const planN = scaleNutrition(n, planPortion);
   const scale = selectedServings / (recipe.servings || 1);
 

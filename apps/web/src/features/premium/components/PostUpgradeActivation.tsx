@@ -7,6 +7,7 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Sparkles } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
+import { activationIntro } from '@chefer/utils';
 
 // ─── Post-upgrade activation (review P-8) ────────────────────────────────────
 // After the tier flips, show "3 things to do first" — without it, a fresh
@@ -63,11 +64,7 @@ export function PostUpgradeActivation() {
       open={open}
       onClose={() => setOpen(false)}
       title="You're premium, chef"
-      description={
-        steps.length === 1
-          ? 'One thing makes it worth it immediately:'
-          : `${steps.length === 2 ? 'Two' : 'Three'} things make it worth it immediately:`
-      }
+      description={activationIntro(steps.length)}
       size="sm"
       footer={
         first && (

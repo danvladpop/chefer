@@ -2,6 +2,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent } from '@testing-library/react-native';
 import HistoryPlanScreen from '../../app/history/[planId]';
 import HistoryScreen from '../../app/history/index';
+import { PastWeeksSection } from '../../src/features/history/past-weeks-section';
 
 // History on mobile (audit F-M-PAR-1, F-M-PREM-1-1): each past week opens a
 // read-only detail, and Restore asks first and spins only its own row.
@@ -32,6 +33,10 @@ jest.mock('../../src/lib/trpc', () => ({
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn() },
   useLocalSearchParams: () => mockParams(),
+  Redirect: ({ href }: { href: string }) => {
+    const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+    return <Text testID="redirect">{href}</Text>;
+  },
 }));
 
 const { router } = jest.requireMock<{ router: { push: jest.Mock; back: jest.Mock } }>(
@@ -82,12 +87,12 @@ const plan = {
   ],
 };
 
-const listPlan = (id: string, status: string) => ({
+const listPlan = (id: string, status: string, weekStart = '2026-09-07') => ({
   id,
-  weekStartDate: new Date('2026-09-07T00:00:00'),
-  weekEndDate: new Date('2026-09-13T00:00:00'),
+  weekStartDate: new Date(`${weekStart}T00:00:00`),
+  weekEndDate: new Date(new Date(`${weekStart}T00:00:00`).getTime() + 6 * 86_400_000),
   status,
-  createdAt: new Date('2026-09-06T00:00:00'),
+  createdAt: new Date(new Date(`${weekStart}T00:00:00`).getTime() - 86_400_000),
   recipePreview: ['Overnight Oats'],
   macroSummary: { avgKcal: 1900, avgProtein: 120, avgCarbs: 200, avgFat: 60 },
 });
@@ -105,7 +110,9 @@ beforeEach(() => {
   mockParams.mockReturnValue({ planId: 'p1', status: 'ARCHIVED' });
   mockGetById.mockReturnValue(query({ data: plan }));
   mockList.mockReturnValue(
-    query({ data: [listPlan('p1', 'ARCHIVED'), listPlan('p2', 'ARCHIVED')] }),
+    query({
+      data: [listPlan('p1', 'ARCHIVED', '2026-08-31'), listPlan('p2', 'ARCHIVED', '2026-08-24')],
+    }),
   );
   mockRestore.mockReturnValue(mutation());
 });
@@ -181,11 +188,34 @@ describe('HistoryPlanScreen (detail)', () => {
   });
 });
 
-describe('HistoryScreen (list)', () => {
+describe('History list → My weeks (P2-8)', () => {
+  it('/history redirects to My weeks, as on web', async () => {
+    await render(<HistoryScreen />);
+    expect(screen.getByTestId('redirect')).toHaveTextContent('/my-weeks');
+  });
+
+  it('past weeks show one card per week, past weeks only', async () => {
+    mockList.mockReturnValue(
+      query({
+        data: [
+          listPlan('p1', 'ARCHIVED', '2026-08-31'),
+          listPlan('p1b', 'ACTIVE', '2026-08-31'),
+          listPlan('p2', 'ARCHIVED', '2026-08-24'),
+          listPlan('future', 'ACTIVE', '2099-01-05'),
+        ],
+      }),
+    );
+    await renderWithSafeArea(<PastWeeksSection />);
+    expect(screen.getByTestId('past-week-p1b')).toBeOnTheScreen();
+    expect(screen.queryByTestId('past-week-p1')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('past-week-p2')).toBeOnTheScreen();
+    expect(screen.queryByTestId('past-week-future')).not.toBeOnTheScreen();
+  });
+
   it('opens a week’s detail', async () => {
     const user = userEvent.setup();
-    await renderWithSafeArea(<HistoryScreen />);
-    await user.press(screen.getByTestId('history-view-p2'));
+    await renderWithSafeArea(<PastWeeksSection />);
+    await user.press(screen.getByTestId('past-week-view-p2'));
     expect(router.push).toHaveBeenCalledWith({
       pathname: '/history/[planId]',
       params: { planId: 'p2', status: 'ARCHIVED' },
@@ -194,8 +224,8 @@ describe('HistoryScreen (list)', () => {
 
   it('asks before restoring', async () => {
     const user = userEvent.setup();
-    await renderWithSafeArea(<HistoryScreen />);
-    await user.press(screen.getByTestId('history-restore-p2'));
+    await renderWithSafeArea(<PastWeeksSection />);
+    await user.press(screen.getByTestId('past-week-restore-p2'));
     expect(mockRestoreMutate).not.toHaveBeenCalled();
     await user.press(screen.getByTestId('restore-confirm-confirm'));
     expect(mockRestoreMutate).toHaveBeenCalledWith({ planId: 'p2' });
@@ -203,11 +233,11 @@ describe('HistoryScreen (list)', () => {
 
   it('spins only the row being restored', async () => {
     mockRestore.mockReturnValue(mutation({ isPending: true, variables: { planId: 'p1' } }));
-    await renderWithSafeArea(<HistoryScreen />);
-    expect(screen.getByTestId('history-restore-p1')).toBeBusy();
-    expect(screen.getByTestId('history-restore-p2')).not.toBeBusy();
+    await renderWithSafeArea(<PastWeeksSection />);
+    expect(screen.getByTestId('past-week-restore-p1')).toBeBusy();
+    expect(screen.getByTestId('past-week-restore-p2')).not.toBeBusy();
     // One restore at a time: the other row waits rather than racing it.
-    expect(screen.getByTestId('history-restore-p2')).toBeDisabled();
+    expect(screen.getByTestId('past-week-restore-p2')).toBeDisabled();
   });
 
   it('shows a failed restore on its own row', async () => {
@@ -218,7 +248,7 @@ describe('HistoryScreen (list)', () => {
         variables: { planId: 'p2' },
       }),
     );
-    await renderWithSafeArea(<HistoryScreen />);
+    await renderWithSafeArea(<PastWeeksSection />);
     expect(screen.getAllByText('Plan not found.')).toHaveLength(1);
   });
 });

@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Linking, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Screen, Text } from '@chefer/ui-mobile';
+import { FeedbackCard } from '../../src/features/feedback/feedback-card';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { getWebUrl } from '../../src/lib/api-url';
 import { clearToken } from '../../src/lib/auth-store';
@@ -31,47 +31,6 @@ const ITEMS: {
     testID: 'more-preferences',
   },
 ];
-
-// Beta feedback — mobile counterpart of web's FeedbackDialog (M2-10).
-function FeedbackCard() {
-  const [message, setMessage] = useState('');
-  const submitMutation = trpc.feedback.submit.useMutation({
-    onSuccess: () => setMessage(''),
-  });
-
-  return (
-    <Card testID="feedback-card" className="gap-2">
-      <Text variant="heading">Beta feedback</Text>
-      <Text variant="muted" className="text-xs">
-        Something broken, confusing, or missing? Tell us — it goes straight to the team.
-      </Text>
-      <TextInput
-        testID="feedback-input"
-        value={message}
-        onChangeText={setMessage}
-        placeholder="Your feedback…"
-        placeholderTextColor="#9ca3af"
-        multiline
-        className="min-h-20 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
-      />
-      <Button
-        testID="feedback-submit"
-        variant="outline"
-        loading={submitMutation.isPending}
-        onPress={() => {
-          if (message.trim()) {
-            submitMutation.mutate({ message: message.trim(), path: 'mobile/more' });
-          }
-        }}
-      >
-        {submitMutation.isSuccess && !message ? 'Thank you! ✓' : 'Send feedback'}
-      </Button>
-      {submitMutation.isError && (
-        <Text className="text-xs text-red-600">{submitMutation.error.message}</Text>
-      )}
-    </Card>
-  );
-}
 
 export default function MoreScreen() {
   const utils = trpc.useUtils();

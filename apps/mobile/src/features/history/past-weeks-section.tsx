@@ -65,9 +65,13 @@ export function PastWeeksSection() {
                 <Text className="min-w-0 flex-1 text-sm font-semibold text-gray-900">
                   {weekLabel} – {weekEnd.toLocaleDateString('en-GB', opts)}
                 </Text>
-                <View className={cn('rounded-full px-2 py-0.5', status?.bg)}>
-                  <Text className={cn('text-xs font-medium', status?.text)}>{plan.status}</Text>
-                </View>
+                {/* Only a replaced week needs a badge; "ACTIVE" on every past
+                    week read as if the week were still running. */}
+                {plan.status !== 'ACTIVE' && (
+                  <View className={cn('rounded-full px-2 py-0.5', status?.bg)}>
+                    <Text className={cn('text-xs font-medium', status?.text)}>Replaced</Text>
+                  </View>
+                )}
               </View>
 
               {plan.recipePreview.length > 0 && (

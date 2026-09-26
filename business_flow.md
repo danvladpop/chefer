@@ -85,6 +85,10 @@ Browser
    and leaves; web "Skip this question" continues with the solo flow).
    The premium wizard no longer asks "How many people are you cooking for?"
    — the household is the one people model (F-PM-8).
+   Step counter (both platforms, shared `onboardingProgress`): while the
+   intent question is on screen it reads "Step 1" with no total and an empty
+   bar — the answer changes the total, so it never reads "1 of 4" and then
+   "2 of 5"; from step 2 on it is "Step N of M" with a percentage.
 ```
 
 Admins can additionally create users via `user.create` (admin-only).
@@ -517,7 +521,7 @@ recipe) and adds Restore there; on both mobile screens Restore asks first
 
 ### Week templates — "My weeks" (4-week rotation)
 
-Users save refined weeks as named templates (`mealPlan.saveAsTemplate`, max 4 — CONFLICT beyond) and rotate through them. `followTemplate` marks one followed (at most one) and applies it to the chosen week immediately (the existing plan for that week is archived); from then on carry-forward clones the followed template instead of the latest plan, so the followed week repeats indefinitely. `renameTemplate` / `deleteTemplate` / `unfollowTemplate` manage the set. Templates are `MealPlan` rows with `isTemplate=true`, invisible to week/active/history queries. All tiers, zero AI. UI: the **My weeks** page (web `/my-weeks`, mobile `my-weeks` screen; both reached from More and from the Plan tab) — saved weeks on top, past weeks below (`pastWeeks` in `@chefer/utils`: past weeks only, one card per week preferring the ACTIVE copy then the newest, newest week first — audit F-PLAN-6-3). It replaces History (web `/history` redirects; the read-only `/history/[planId]` view stays).
+Users save refined weeks as named templates (`mealPlan.saveAsTemplate`, max 4 — CONFLICT beyond) and switch between them by hand. `followTemplate` marks one followed (at most one) and applies it to the chosen week immediately (the existing plan for that week is archived); from then on carry-forward clones the followed template instead of the latest plan, so the followed week repeats indefinitely. `renameTemplate` / `deleteTemplate` / `unfollowTemplate` manage the set. Templates are `MealPlan` rows with `isTemplate=true`, invisible to week/active/history queries. All tiers, zero AI. UI: the **My weeks** page (web `/my-weeks`, mobile `my-weeks` screen; both reached from More and from the Plan tab) — saved weeks on top, past weeks below (`pastWeeks` in `@chefer/utils`: past weeks only, one card per week preferring the ACTIVE copy then the newest, newest week first — audit F-PLAN-6-3). It replaces History (web `/history` and mobile `history` redirect to My weeks; the read-only `/history/[planId]` view stays). Copy (F-PLAN-5-3): "Save a week you like and reuse it. The week you follow repeats each week until you switch." — nothing rotates automatically.
 
 ### Week carry-forward
 
@@ -1170,7 +1174,10 @@ Members (household.* — protected, EVERY tier, cap householdMembers = 5)
        └─ free: the §6.4 ghost reflects the chip tapped (F-PM-12) — the kid
             chip shows a sample kid at ½ portion with a peanut allergy, the
             partner chip a vegetarian adult — then offers "Add a kid" (free,
-            pre-filled editor) and the premium scaling upsell
+            pre-filled editor) and the premium scaling upsell. Mobile
+            (Household screen): the same ghost sits above the inline add form,
+            which the chip pre-fills; members edit in place under their row
+            (pencil → "Save changes" = household.update), every tier
             (`upgrade_prompt_shown {source: 'household'}`,
             `teaser_engaged {feature: 'household'}`)
 
@@ -1203,7 +1210,10 @@ SCALING — premium only (`householdPlans`)
   │    list reports `portions`
   ├─ plan week cost: estimatedCost scaled the same way (chip = list total),
   │    with `portions`
-  └─ recipe page + cook mode default to the table's servings
+  └─ recipe page + cook mode default to the table's servings, × the plan
+       slot's portion when opened from the plan (shared
+       `defaultCookServings`; mobile cook mode's ingredient list has the
+       servings stepper)
 FREE households: lists, costs and recipe pages stay as written (single
 portion for curated plans) and say so ("sized for 1 portion — Premium scales
 it for your table"). Per-person cost is ALWAYS total ÷ the portions the list
@@ -1218,11 +1228,14 @@ a "Liked by: Maria, Tom" line inside MealRating.notes.
 — they stay fully editable on free, and their safety keeps applying. Only the
 scaling stops (lists go back to recipes as written).
 
-**Post-upgrade activation (web):** the "You're premium" sheet orders its steps
+**Post-upgrade activation (web + mobile):** the "You're premium" sheet orders its steps
 by the upgrade `source` and hides what is already done (F-PREM-1-5, F-PM-9):
-source `household` → "Add your table" first (→ /preferences#household); users
-who already have a profile never see "Set your goal" or a link to /onboarding
-(which redirects them) — targets link to /preferences#targets.
+source `household` → "Add your table" first (web → /preferences#household,
+mobile → the Household screen); users who already have a profile never see
+"Set your goal" or a link to onboarding. Ordering and copy are shared
+(`activationStepKeys`, `ACTIVATION_STEP_COPY`, `SOURCE_FEATURE_PRIORITY` in
+@chefer/utils). Mobile: upsells open Profile with `?source=` (household,
+pantry, chat-locked, training-day); a successful Upgrade there opens the sheet.
 
 **Events:** `household_member_added`, `upgrade_prompt_shown {source:
 'household'}`, `teaser_engaged {feature: 'household'}`, `onboarding_intent
@@ -1295,7 +1308,8 @@ honest teaser.
 **Free-tier ghost state (§6.4):** check-offs really seed the pantry, so after any
 check-off session the shopping list header shows "You now have N items in your
 kitchen — premium plans cook from them" plus the REAL computed savings figure for
-this list. Shop → "In my kitchen" (web `/shopping-list?view=kitchen`, which
+this list (web + mobile; on mobile also on Shop → "In my kitchen", where it
+replaces the static upsell once the kitchen has items). Shop → "In my kitchen" (web `/shopping-list?view=kitchen`, which
 `/pantry` redirects to; mobile Shop tab segment) is visible read-only with the upsell. Events:
 `upgrade_prompt_shown {source: pantry}` (impression), `teaser_engaged {feature:
 pantry}`, `pantry_confirmed`, `plan_used_pantry {itemCount}`.
@@ -1305,7 +1319,11 @@ pantry}`, `pantry_confirmed`, `plan_used_pantry {itemCount}`.
 ## 19. Beta Feedback Flow
 
 Any signed-in user can send free-text feedback from the sidebar (desktop) or the
-More drawer (mobile): "Send feedback" opens a Sheet with one textarea.
+More drawer (mobile web): "Send feedback" opens a Sheet with one labelled textarea;
+the native app has the same field as a card on the More tab. Both cap it at the
+API's 2,000 characters with a live counter ("123 / 2,000", amber in the last 100,
+"Limit reached: 2,000 characters") — shared `feedbackCounter` in @chefer/utils
+(F-PROF-2-2).
 
 ```
 User → Send feedback → feedback.submit { message, path } → FeedbackService.submit

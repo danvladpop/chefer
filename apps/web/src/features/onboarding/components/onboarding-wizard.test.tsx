@@ -54,17 +54,20 @@ describe('OnboardingWizard — intent step (P2-3)', () => {
   it('asks "What brings you here?" first while unanswered', () => {
     render(<OnboardingWizard isPremium={false} />);
     expect(screen.getByRole('heading', { name: 'What brings you here?' })).toBeTruthy();
-    expect(screen.getByText('Step 1 of 4')).toBeTruthy();
+    // No total until the answer fixes it — the counter never grows (4 → 5).
+    expect(screen.getByText('Step 1')).toBeTruthy();
+    expect(screen.queryByText(/% complete/)).toBeNull();
   });
 
   it('households go to "Who\'s at your table?" before the food steps', async () => {
     render(<OnboardingWizard isPremium={false} />);
     pick(/Feed my household/);
-    expect(screen.getByText('Step 1 of 5')).toBeTruthy();
+    expect(screen.getByText('Step 1')).toBeTruthy();
     next();
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: "Who's at your table?" })).toBeTruthy(),
     );
+    expect(screen.getByText('Step 2 of 5')).toBeTruthy();
     expect(m.setIntent).toHaveBeenCalledWith({ intent: 'HOUSEHOLD' });
     expect(screen.getByText('household editor')).toBeTruthy();
   });

@@ -25,7 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { Drawer } from '@chefer/ui';
-import { formatQuantity, slotPortion } from '@chefer/utils';
+import { defaultCookServings, formatQuantity, slotPortion } from '@chefer/utils';
 import { AllergenWarningBanner } from './AllergenWarning';
 import {
   guessMealType,
@@ -157,8 +157,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   const [logged, setLogged] = useState(false);
 
   const baseServings = recipe?.servings ?? 1;
-  const selectedServings =
-    servings ?? Math.round((portionSum ?? baseServings) * planPortion * 100) / 100;
+  const selectedServings = servings ?? defaultCookServings(baseServings, portionSum, planPortion);
   const scale = selectedServings / baseServings;
 
   // ── Wake lock: the screen must survive a 10-step recipe (feature-detect,

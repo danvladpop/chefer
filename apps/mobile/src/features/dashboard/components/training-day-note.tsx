@@ -67,7 +67,9 @@ export function TrainingDayNote({
           <Pressable
             testID="training-day-upgrade"
             accessibilityRole="button"
-            onPress={() => router.push('/profile')}
+            onPress={() =>
+              router.push({ pathname: '/profile', params: { source: 'training-day' } })
+            }
             className="min-h-11 justify-center"
           >
             <Text className="text-xs font-semibold text-primary">Upgrade from your Profile →</Text>

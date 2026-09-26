@@ -5,7 +5,8 @@ import { Screen, Text } from '@chefer/ui-mobile';
 import { HouseholdEditor } from '../src/features/household/household-editor';
 
 // Household (F2, backlog P2-3) — port of web's preferences household-section.
-// Every tier adds and removes members (their allergies apply to every plan);
+// Every tier adds, edits and removes members (their allergies apply to every
+// plan; a free, empty table sees the ghost for the chip tapped, F-PM-12);
 // scaling servings and the list to the table is premium. Reached from
 // Profile → Household and More → Household.
 

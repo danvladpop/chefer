@@ -207,7 +207,8 @@ describe('OnboardingWizard — "What brings you here?" (P2-3, F-PM-6)', () => {
   it('asks the intent first', async () => {
     await renderWithSafeArea(<OnboardingWizard />);
     expect(screen.getByTestId('onboarding-title').props.children).toBe('What brings you here?');
-    expect(screen.getByText('Step 1 of 4 · 25%')).toBeTruthy();
+    // No total until the answer fixes it — the counter never grows (4 → 5).
+    expect(screen.getByText('Step 1')).toBeTruthy();
   });
 
   it('households go to "Who\'s at your table?" and the member editor', async () => {
@@ -219,6 +220,7 @@ describe('OnboardingWizard — "What brings you here?" (P2-3, F-PM-6)', () => {
     await renderWithSafeArea(<OnboardingWizard />);
 
     await user.press(screen.getByTestId('onboarding-intent-HOUSEHOLD'));
+    expect(screen.getByText('Step 1')).toBeTruthy();
     await user.press(screen.getByTestId('onboarding-continue'));
 
     await waitFor(() =>
