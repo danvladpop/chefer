@@ -3,6 +3,7 @@ import {
   CalendarCheck,
   CalendarDays,
   Camera,
+  Dumbbell,
   Link2,
   RefreshCw,
   Refrigerator,
@@ -37,6 +38,7 @@ export const PREMIUM_FEATURE_CARDS: PremiumFeatureCard[] = [
   { key: 'recipeImport', icon: Link2 },
   { key: 'householdPlans', icon: Users },
   { key: 'pantryPlanning', icon: Refrigerator },
+  { key: 'trainingNutrition', icon: Dumbbell },
 ];
 
 /** Matrix keys announced on /premium as "cooking now" until their wave lands. */
@@ -58,6 +60,7 @@ export const FREE_EQUIVALENT_LABELS: Partial<Record<PlanFeatureKey, string>> = {
   aiMealSwaps: 'Curated swaps',
   aiShoppingList: 'Standard list',
   photoLogging: 'Manual quick-add',
+  trainingNutrition: 'Protein from your bodyweight',
 };
 
 export const SOURCE_FEATURE_PRIORITY: Partial<Record<string, PlanFeatureKey[]>> = {
@@ -75,4 +78,5 @@ export const SOURCE_FEATURE_PRIORITY: Partial<Record<string, PlanFeatureKey[]>> 
   pantry: ['pantryPlanning', 'budgetAwarePlanning'],
   'post-rating': ['aiMealPlans', 'weeklyAutoGeneration'],
   'monday-nudge': ['weeklyAutoGeneration'],
+  'training-day': ['trainingNutrition', 'aiMealPlans'],
 };

@@ -1,11 +1,19 @@
 'use client';
 
 import Link from 'next/link';
+import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import type { RouterOutputs } from '@/lib/trpc';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Dumbbell, Lock } from 'lucide-react';
 import { overTargetColor } from '@chefer/tokens';
+import type { TrainingDayNutrition } from '@chefer/types';
 import { CountUp, ProgressBar, progressOf, ProgressRing } from '@chefer/ui';
-import { cn, dayNutritionCaption, PLAN_STATUS_LABEL, planStatus } from '@chefer/utils';
+import {
+  cn,
+  dayNutritionCaption,
+  PLAN_STATUS_LABEL,
+  planStatus,
+  trainingDayLine,
+} from '@chefer/utils';
 
 // ─── Nutrition summary ────────────────────────────────────────────────────────
 // Calorie ring + macro bars for today. Lives in the dashboard's right rail at
@@ -21,11 +29,62 @@ interface NutritionSummaryProps {
   className?: string;
 }
 
+/**
+ * Training-aware nutrition (audit P2-4): the line under the header on a
+ * lifter's training day. Premium sees the bump applied to the ring and bars;
+ * free sees the same numbers locked, with the upgrade one tap away.
+ */
+function TrainingDayNote({ t }: { t: TrainingDayNutrition }) {
+  if (!t.isTrainingDay) return null;
+  const workout = t.workoutName ?? 'Your workout';
+  const when = t.reason === 'COMPLETED' ? 'done' : 'today';
+  return (
+    <div
+      data-testid="training-day"
+      className={cn(
+        'mb-4 rounded-xl px-3 py-2.5',
+        t.applied ? 'bg-[#fff3e8]' : 'border border-dashed border-gray-300 bg-gray-50',
+      )}
+    >
+      <p
+        className={cn(
+          'flex items-center gap-1.5 text-xs font-semibold',
+          t.applied ? 'text-[#944a00]' : 'text-gray-700',
+        )}
+      >
+        <Dumbbell className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="min-w-0">{trainingDayLine(t)}</span>
+      </p>
+      {t.applied ? (
+        <p className="mt-0.5 text-xs text-[#944a00]/80">
+          {workout} {when} · protein at {t.basis.trainingDayProteinGPerKg} g/kg, added to today
+        </p>
+      ) : (
+        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
+            <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            Premium adds this to today&apos;s targets
+          </span>
+          <UpgradeButton source="training-day" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function NutritionSummary({ nutrition: n, nextMealName, className }: NutritionSummaryProps) {
+  // Premium lifters on a training day get the bumped targets (audit P2-4);
+  // everyone else keeps the base targets the older fields carry.
+  const target = n.adjustedTargets ?? {
+    dailyCalorieTarget: n.dailyCalorieTarget,
+    proteinG: n.protein.targetG,
+    carbsG: n.carbs.targetG,
+    fatG: n.fat.targetG,
+  };
   // The ring shows what was EATEN today (audit F-DASH-1-2: it showed planned
   // food — "540 remaining" with 6,070 kcal logged). The chip judges the plan
   // (three-state honesty, review P-2) via the shared rules in @chefer/utils.
-  const targetStatus = planStatus(n.plannedKcal, n.dailyCalorieTarget);
+  const targetStatus = planStatus(n.plannedKcal, target.dailyCalorieTarget);
 
   return (
     <div
@@ -48,6 +107,8 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
         </span>
       </div>
 
+      {n.trainingDay && <TrainingDayNote t={n.trainingDay} />}
+
       {/* Ring + macros sit side by side on wide phones/tablets, stacked in the
           narrow desktop rail. */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 xl:flex-col xl:gap-4">
@@ -57,28 +118,28 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
               100% it turns amber with an overflow lap (mobile parity). */}
           <ProgressRing
             data-testid="calorie-ring"
-            label={`${n.eatenKcal} of ${n.dailyCalorieTarget} kcal eaten today`}
-            progress={progressOf(n.eatenKcal, n.dailyCalorieTarget)}
+            label={`${n.eatenKcal} of ${target.dailyCalorieTarget} kcal eaten today`}
+            progress={progressOf(n.eatenKcal, target.dailyCalorieTarget)}
             size={128}
             strokeWidth={12}
             overColor={overTargetColor}
           >
             <CountUp value={n.eatenKcal} className="text-xl font-bold text-gray-900" />
             <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
-              of {n.dailyCalorieTarget.toLocaleString()} kcal eaten
+              of {target.dailyCalorieTarget.toLocaleString()} kcal eaten
             </span>
           </ProgressRing>
           <p className="text-center text-xs text-gray-500">
-            {dayNutritionCaption(n.eatenKcal, n.plannedKcal, n.dailyCalorieTarget)}
+            {dayNutritionCaption(n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
           </p>
         </div>
 
         {/* Macro bars */}
         <div className="flex flex-1 flex-col gap-3 sm:min-w-0">
           {[
-            { label: 'Protein', v: n.protein.eaten, t: n.protein.targetG },
-            { label: 'Carbs', v: n.carbs.eaten, t: n.carbs.targetG },
-            { label: 'Fat', v: n.fat.eaten, t: n.fat.targetG },
+            { label: 'Protein', v: n.protein.eaten, t: target.proteinG },
+            { label: 'Carbs', v: n.carbs.eaten, t: target.carbsG },
+            { label: 'Fat', v: n.fat.eaten, t: target.fatG },
           ].map(({ label, v, t }) => (
             <div key={label}>
               {/* gap-2 + whitespace-nowrap: in the 288px rail a three-digit
