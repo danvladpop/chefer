@@ -31,6 +31,12 @@ jest.mock('expo-router', () => {
       createElement(Pressable, { testID }, children),
   };
 });
+// Location defaults (P2-6): the device region is read through Intl; pin it.
+let mockRegion: string | null = null;
+jest.mock('@chefer/utils', () => ({
+  ...jest.requireActual<typeof import('@chefer/utils')>('@chefer/utils'),
+  detectRegion: () => mockRegion,
+}));
 jest.mock('../../src/lib/auth-store', () => ({
   setToken: jest.fn(() => Promise.resolve(undefined)),
 }));
@@ -136,6 +142,26 @@ describe('Register', () => {
         password: 'Password123!',
       }),
     );
+  });
+
+  it('sends the device region so units + currency start local (P2-6)', async () => {
+    mockRegion = 'US';
+    const mutate = mockMutation(trpc.auth.register, { session: null });
+    const user = userEvent.setup();
+    await renderWithSafeArea(<RegisterScreen />);
+
+    await user.type(screen.getByTestId('register-email'), 'new@e2e.chefer.dev');
+    await user.type(screen.getByTestId('register-password'), 'Password123!');
+    await user.type(screen.getByTestId('register-confirm-password'), 'Password123!');
+    await user.press(screen.getByTestId('register-submit'));
+    await waitFor(() =>
+      expect(mutate).toHaveBeenCalledWith({
+        email: 'new@e2e.chefer.dev',
+        password: 'Password123!',
+        region: 'US',
+      }),
+    );
+    mockRegion = null;
   });
 
   it('one toggle reveals both password fields; the confirm field has none of its own', async () => {

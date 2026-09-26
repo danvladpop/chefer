@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { Button, Input, Text } from '@chefer/ui-mobile';
-import { parseBodyWeightKg } from '@chefer/utils';
+import { parseBodyWeight } from '@chefer/utils';
+import { useUnitSystem } from '../../../hooks/use-unit-system';
 import { trpc } from '../../../lib/trpc';
 
 // "Missing bodyweight" empty state (gym_plan.md §6.2): a one-tap path to log
 // today's weight with the EXISTING tracker.logWeight procedure, reused by the
 // strength-trend overlay and the monthly recap's bodyweight row.
 export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: string }) {
+  // Typed in the user's unit (backlog P2-6) — sent as kg.
+  const system = useUnitSystem();
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
@@ -24,7 +27,7 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
 
   const submit = () => {
     if (logWeight.isPending) return;
-    const parsed = parseBodyWeightKg(value);
+    const parsed = parseBodyWeight(value, system);
     if (!parsed.ok) {
       setError(parsed.error);
       return;
@@ -48,7 +51,7 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
           }}
           onSubmitEditing={submit}
           keyboardType="decimal-pad"
-          placeholder="Weight (kg)"
+          placeholder={`Weight (${system === 'IMPERIAL' ? 'lb' : 'kg'})`}
           className="w-32"
         />
         <Button

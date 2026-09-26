@@ -20,6 +20,11 @@ export function createTrpcGymMock() {
           })),
         },
       },
+      // Unit preference (P2-6): gym screens read it for body-weight input and
+      // the setup unit default. No profile → locale default / METRIC.
+      preferences: {
+        get: { useQuery: jest.fn(() => ({ data: undefined, isLoading: false })) },
+      },
       gym: {
         bootstrap: { _def: () => ({ path: ['gym', 'bootstrap'] }) },
         profile: {
@@ -36,7 +41,10 @@ export function createTrpcGymMock() {
         },
         pause: { create: { useMutation: jest.fn() }, end: { useMutation: jest.fn() } },
       },
-      useUtils: jest.fn(() => ({ client: { gym: { bootstrap: { query: jest.fn() } } } })),
+      useUtils: jest.fn(() => ({
+        client: { gym: { bootstrap: { query: jest.fn() } } },
+        preferences: { get: { invalidate: jest.fn() } },
+      })),
     },
   };
 }

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Text } from '@chefer/ui-mobile';
+import { formatWeightTrend } from '@chefer/utils';
+import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
 
 // Port of web features/coach/ChefReviewBanner (wave-2b). Renders nothing
@@ -12,19 +14,9 @@ import { trpc } from '../../lib/trpc';
 const TEASER_PLACEHOLDER =
   'The rest of the review covers your protein pattern, the two dinners worth repeating, and one change for next week.';
 
-function formatTrend(trendKg: number | null): string | null {
-  if (trendKg === null) {
-    return null;
-  }
-  const abs = Math.abs(trendKg).toFixed(1);
-  if (Math.abs(trendKg) < 0.05) {
-    return 'steady';
-  }
-  return `${trendKg < 0 ? '−' : '+'}${abs} kg/wk`;
-}
-
 export function ChefReviewBanner() {
   const { data } = trpc.coach.currentReview.useQuery(undefined, { staleTime: 60_000 });
+  const system = useUnitSystem();
   const [expanded, setExpanded] = useState(false);
 
   if (!data || data.status === 'none') {
@@ -53,7 +45,7 @@ export function ChefReviewBanner() {
   }
 
   const r = data.review;
-  const trend = formatTrend(r.weightTrendKg);
+  const trend = formatWeightTrend(r.weightTrendKg, system);
 
   return (
     <Card testID="coach-review" className="border-emerald-200 bg-emerald-50">

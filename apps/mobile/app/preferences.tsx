@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { DISPLAY_CURRENCIES, type DisplayCurrency } from '@chefer/types';
 import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, currencySymbol, fromEur, toDisplayCurrency, toEur } from '@chefer/utils';
 import { AutoPlanToggle } from '../src/features/preferences/auto-plan-toggle';
 import { SafetyStep } from '../src/features/preferences/components/safety-step';
 import { GoalBodyCard, type GoalBodySavePayload } from '../src/features/preferences/goal-body-card';
@@ -21,8 +22,16 @@ import { trpc } from '../src/lib/trpc';
 // preferences.saveProfileBasics procedure (not premium-gated) so a free
 // account can set a goal and see a real calorie target on the dashboard.
 // Safety preferences (allergies, restrictions, dislikes) are FREE (P1-2) and
-// save through updateSafety; units + weekly budget save through premium
-// updateTargets.
+// save through updateSafety; units + currency are FREE too (backlog P2-6,
+// audit F-DASH-3-2) and save through setDisplayPreferences; the weekly
+// budget stays premium (updateTargets), typed in the user's currency and
+// stored in EUR.
+
+/** EUR budget → input text in `currency` (55.56 EUR → "60" USD). */
+function budgetText(budgetEur: number | null | undefined, currency: DisplayCurrency): string {
+  if (budgetEur == null) return '';
+  return String(Math.round(fromEur(budgetEur, currency) * 100) / 100);
+}
 
 export default function PreferencesScreen() {
   const isPremium = useIsPremium();
@@ -37,8 +46,10 @@ export default function PreferencesScreen() {
   });
   const [safetyLoaded, setSafetyLoaded] = useState(false);
 
-  // ── Premium extras ─────────────────────────────────────────────────────────
+  // ── Units & currency (free) + budget (premium) ─────────────────────────────
+  const savedCurrency = toDisplayCurrency(data?.chefProfile?.deliveryCurrency);
   const [units, setUnits] = useState<'METRIC' | 'IMPERIAL'>('METRIC');
+  const [currency, setCurrency] = useState<DisplayCurrency>('EUR');
   const [budget, setBudget] = useState('');
 
   useEffect(() => {
@@ -50,8 +61,10 @@ export default function PreferencesScreen() {
       allergies: data.dietaryPreferences?.allergies ?? [],
       dislikedIngredients: data.dietaryPreferences?.dislikedIngredients ?? [],
     });
+    const loadedCurrency = toDisplayCurrency(data.chefProfile?.deliveryCurrency);
     setUnits(data.chefProfile?.preferredUnits ?? 'METRIC');
-    setBudget(data.chefProfile?.weeklyBudgetEur?.toString() ?? '');
+    setCurrency(loadedCurrency);
+    setBudget(budgetText(data.chefProfile?.weeklyBudgetEur, loadedCurrency));
     setSafetyLoaded(true);
   }, [data, safetyLoaded]);
 
@@ -59,6 +72,20 @@ export default function PreferencesScreen() {
     onSuccess: () => {
       void utils.preferences.get.invalidate();
       void utils.mealPlan.invalidate();
+    },
+  });
+  const displayMutation = trpc.preferences.setDisplayPreferences.useMutation({
+    onSuccess: (_result, input) => {
+      // The typed budget keeps its value in the new currency.
+      if (input.currency && input.currency !== savedCurrency) {
+        const amount = parseFloat(budget.replace(',', '.'));
+        if (Number.isFinite(amount)) {
+          setBudget(budgetText(toEur(amount, savedCurrency), input.currency));
+        }
+      }
+      void utils.preferences.get.invalidate();
+      // A unit change also moves the gym's kg/lb (one preference, P2-6).
+      void utils.gym.invalidate();
     },
   });
   const targetsMutation = trpc.preferences.updateTargets.useMutation({
@@ -73,11 +100,13 @@ export default function PreferencesScreen() {
 
   const saveSafety = () => safetyMutation.mutate(safety);
 
-  const saveExtras = () => {
+  const saveDisplay = () => displayMutation.mutate({ preferredUnits: units, currency });
+
+  const saveBudget = () => {
     const parsed = parseFloat(budget.replace(',', '.'));
     targetsMutation.mutate({
-      preferredUnits: units,
-      weeklyBudgetEur: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
+      weeklyBudgetEur:
+        Number.isFinite(parsed) && parsed > 0 ? Math.min(2000, toEur(parsed, savedCurrency)) : null,
     });
   };
 
@@ -176,19 +205,21 @@ export default function PreferencesScreen() {
             <AutoPlanToggle initialEnabled={data?.chefProfile?.autoPlanWeekly ?? true} />
           )}
 
-          {/* Units + budget — saved via premium updateTargets */}
-          <Card className="gap-4">
-            <Text variant="heading">Units & budget</Text>
+          {/* Units & currency — free for every account (P2-6, F-DASH-3-2) */}
+          <Card testID="preferences-display" className="gap-4">
+            <Text variant="heading">Units & currency</Text>
             <View className="gap-2">
               <Text variant="label">Measurement units</Text>
               <View className="flex-row gap-2">
                 {(['METRIC', 'IMPERIAL'] as const).map((u) => (
                   <Pressable
                     key={u}
-                    accessibilityRole="button"
+                    testID={`prefs-units-${u}`}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: units === u }}
                     onPress={() => setUnits(u)}
                     className={cn(
-                      'h-11 flex-1 items-center justify-center rounded-md border',
+                      'min-h-11 flex-1 items-center justify-center rounded-md border px-2',
                       units === u ? 'border-primary bg-primary' : 'border-border bg-white',
                     )}
                   >
@@ -198,14 +229,66 @@ export default function PreferencesScreen() {
                         units === u ? 'text-primary-foreground' : 'text-gray-600',
                       )}
                     >
-                      {u === 'METRIC' ? 'Metric (g, ml)' : 'Imperial (oz, cups)'}
+                      {u === 'METRIC' ? 'Metric (g, kg)' : 'Imperial (oz, lb)'}
                     </Text>
                   </Pressable>
                 ))}
               </View>
+              <Text variant="muted" className="text-xs">
+                Recipes, shopping lists, your body weight and gym loads all use this system.
+              </Text>
             </View>
             <View className="gap-2">
-              <Text variant="label">Weekly ingredient budget (€, optional)</Text>
+              <Text variant="label">Currency</Text>
+              <View className="flex-row flex-wrap gap-2">
+                {DISPLAY_CURRENCIES.map((c) => (
+                  <Pressable
+                    key={c}
+                    testID={`prefs-currency-${c}`}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: currency === c }}
+                    onPress={() => setCurrency(c)}
+                    className={cn(
+                      'h-11 min-w-16 items-center justify-center rounded-md border px-3',
+                      currency === c ? 'border-primary bg-primary' : 'border-border bg-white',
+                    )}
+                  >
+                    <Text
+                      className={cn(
+                        'text-sm font-medium',
+                        currency === c ? 'text-primary-foreground' : 'text-gray-600',
+                      )}
+                    >
+                      {c}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text variant="muted" className="text-xs">
+                Prices are estimates from typical supermarket prices
+                {currency !== 'EUR' ? ', converted from euros at an approximate rate' : ''}.
+              </Text>
+            </View>
+            <Button
+              testID="prefs-save-display"
+              variant="outline"
+              loading={displayMutation.isPending}
+              onPress={saveDisplay}
+            >
+              {displayMutation.isSuccess ? 'Saved ✓' : 'Save units & currency'}
+            </Button>
+            {displayMutation.isError && (
+              <Text className="text-xs text-red-600">{displayMutation.error.message}</Text>
+            )}
+          </Card>
+
+          {/* Weekly budget — premium, saved via updateTargets (stored in EUR) */}
+          <Card className="gap-4">
+            <Text variant="heading">Weekly budget</Text>
+            <View className="gap-2">
+              <Text variant="label">
+                Weekly ingredient budget ({currencySymbol(savedCurrency)}, optional)
+              </Text>
               <TextInput
                 testID="prefs-budget"
                 value={budget}
@@ -218,16 +301,16 @@ export default function PreferencesScreen() {
             </View>
             {isPremium === false ? (
               <Text variant="muted" className="text-xs">
-                Units and budget personalisation are premium — upgrade from your Profile.
+                Budget planning is premium — upgrade from your Profile.
               </Text>
             ) : (
               <Button
                 testID="prefs-save-extras"
                 variant="outline"
                 loading={targetsMutation.isPending}
-                onPress={saveExtras}
+                onPress={saveBudget}
               >
-                {targetsMutation.isSuccess ? 'Saved ✓' : 'Save units & budget'}
+                {targetsMutation.isSuccess ? 'Saved ✓' : 'Save budget'}
               </Button>
             )}
             {targetsMutation.isError && (

@@ -9,9 +9,15 @@ const mockLogMutate = jest.fn();
 const mockUpdateMutate = jest.fn();
 const mockDeleteMutate = jest.fn();
 const mockInvalidate = jest.fn();
+let mockUnits: 'METRIC' | 'IMPERIAL' = 'METRIC';
 
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
+    preferences: {
+      get: {
+        useQuery: () => ({ data: { chefProfile: { preferredUnits: mockUnits } } }),
+      },
+    },
     useUtils: () => ({
       tracker: { weightHistory: { invalidate: mockInvalidate } },
       gym: {
@@ -40,7 +46,10 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 
 const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockUnits = 'METRIC';
+});
 
 describe('WeightCard', () => {
   it('shows why 1000 kg is refused instead of dropping it silently', async () => {
@@ -87,5 +96,40 @@ describe('WeightCard', () => {
     await render(<WeightCard />);
     await user.press(screen.getByTestId('weight-see-progress'));
     expect(router.push).toHaveBeenCalledWith('/progress');
+  });
+});
+
+// Backlog P2-6: stored in kg, shown and typed in the user's unit.
+describe('WeightCard in pounds', () => {
+  beforeEach(() => {
+    mockUnits = 'IMPERIAL';
+  });
+
+  it('shows the latest weigh-in in lb', async () => {
+    await render(<WeightCard />);
+    expect(screen.getByText('2204.6 lb')).toBeOnTheScreen();
+  });
+
+  it('logs pounds as kg and explains the range in lb', async () => {
+    const user = userEvent.setup();
+    await render(<WeightCard />);
+    await user.type(screen.getByTestId('weight-input'), '900');
+    await user.press(screen.getByTestId('weight-save'));
+    expect(screen.getByTestId('weight-error')).toHaveTextContent(/between 44 and 881 lb/);
+
+    await user.clear(screen.getByTestId('weight-input'));
+    await user.type(screen.getByTestId('weight-input'), '176.4');
+    await user.press(screen.getByTestId('weight-save'));
+    expect(mockLogMutate).toHaveBeenCalledWith({ weightKg: 80 });
+  });
+
+  it('edits an entry in lb and saves the same kg when untouched', async () => {
+    const user = userEvent.setup();
+    await render(<WeightCard />);
+    await user.press(screen.getByTestId('weight-entries-toggle'));
+    await user.press(screen.getByTestId('weight-entry-w1-edit'));
+    expect(screen.getByTestId('weight-entry-w1-input')).toHaveDisplayValue('176.4');
+    await user.press(screen.getByTestId('weight-entry-w1-save'));
+    expect(mockUpdateMutate).toHaveBeenCalledWith({ id: 'w1', weightKg: 80 });
   });
 });

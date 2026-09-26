@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,7 +23,7 @@ import {
   useFieldChain,
   useScrollFieldIntoView,
 } from '@chefer/ui-mobile';
-import { cn, unitLabel, unitToKg, VOLUME_GROUP_LABELS } from '@chefer/utils';
+import { cn, unitLabel, unitToKg, VOLUME_GROUP_LABELS, weightUnitForSystem } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { ensureGymReminderPermission } from '../reminders/permission';
 import { gymBootstrapQueryKey } from '../use-gym-bootstrap';
@@ -83,6 +83,18 @@ export function SetupWizard() {
   const [experience, setExperience] = useState<TrainingExperience>('BEGINNER');
   const [equipmentAccess, setEquipmentAccess] = useState<GymEquipmentAccess>('FULL_GYM');
   const [unit, setUnit] = useState<WeightUnit>(() => defaultUnitFromLocale());
+  // One unit preference across Food and Gym (P2-6): once preferences load,
+  // the saved unit system wins over the locale guess. Applied once, so it
+  // never overrides a pick.
+  const utils = trpc.useUtils();
+  const prefs = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
+  const unitDefaulted = useRef(false);
+  useEffect(() => {
+    if (unitDefaulted.current || prefs.isLoading) return;
+    unitDefaulted.current = true;
+    const preferred = prefs.data?.chefProfile?.preferredUnits;
+    if (preferred) setUnit(weightUnitForSystem(preferred));
+  }, [prefs.isLoading, prefs.data]);
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderHour, setReminderHour] = useState(7);
@@ -145,6 +157,8 @@ export function SetupWizard() {
   const completeSetupMutation = trpc.gym.profile.completeSetup.useMutation({
     onSuccess: (bootstrap) => {
       queryClient.setQueryData(gymBootstrapQueryKey, bootstrap);
+      // The setup unit became the global unit preference (P2-6).
+      void utils.preferences.get.invalidate();
       router.replace('/today');
     },
   });
@@ -343,6 +357,9 @@ export function SetupWizard() {
                   if (next) setUnit(next);
                 }}
               />
+              <Text variant="muted" className="text-xs">
+                Also used for recipes, shopping lists and your body weight.
+              </Text>
             </View>
           </View>
         )}

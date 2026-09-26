@@ -44,6 +44,7 @@ beforeEach(() => {
   trpc.preferences.updateSafety.useMutation.mockReturnValue(mutationResult());
   trpc.preferences.updateTargets.useMutation.mockReturnValue(mutationResult());
   trpc.preferences.saveProfileBasics.useMutation.mockReturnValue(mutationResult());
+  trpc.preferences.setDisplayPreferences.useMutation.mockReturnValue(mutationResult());
 });
 
 describe('Preferences — Goal & body (dogfood feedback #6)', () => {
@@ -51,7 +52,7 @@ describe('Preferences — Goal & body (dogfood feedback #6)', () => {
     await renderScreen();
     expect(screen.getByTestId('preferences-goal-body')).toBeOnTheScreen();
     expect(screen.getByTestId('prefs-save-goal-body')).toBeOnTheScreen();
-    // Units & budget stays premium-gated — the goal/body save button doesn't.
+    // The budget stays premium-gated — the goal/body save button doesn't.
     expect(screen.queryByTestId('prefs-save-extras')).not.toBeOnTheScreen();
   });
 

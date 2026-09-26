@@ -2,20 +2,18 @@ import { useRef, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
-import { cn, parseBodyWeightKg } from '@chefer/utils';
+import { cn, parseBodyWeight } from '@chefer/utils';
+import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
 
 // One weigh-in form for the dashboard weight card and the Progress screen —
 // mobile counterpart of web features/coach/WeightLogForm. Validation mirrors
-// the API via the shared parser (audit F-DASH-3-1).
+// the API via the shared parser (audit F-DASH-3-1). The field takes the
+// user's unit (lb for IMPERIAL, backlog P2-6) and sends kg.
 
-export function WeightLogForm({
-  placeholder = 'Log today’s weight (kg)',
-  label = "Today's weight in kilograms",
-}: {
-  placeholder?: string;
-  label?: string;
-}) {
+export function WeightLogForm({ placeholder, label }: { placeholder?: string; label?: string }) {
+  const system = useUnitSystem();
+  const imperial = system === 'IMPERIAL';
   const [value, setValue] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -39,7 +37,7 @@ export function WeightLogForm({
 
   const submit = () => {
     if (logWeight.isPending) return;
-    const parsed = parseBodyWeightKg(value);
+    const parsed = parseBodyWeight(value, system);
     if (!parsed.ok) {
       setInputError(parsed.error);
       return;
@@ -65,9 +63,9 @@ export function WeightLogForm({
           }}
           onSubmitEditing={submit}
           keyboardType="decimal-pad"
-          placeholder={placeholder}
+          placeholder={placeholder ?? `Log today’s weight (${imperial ? 'lb' : 'kg'})`}
           placeholderTextColor="#9ca3af"
-          accessibilityLabel={label}
+          accessibilityLabel={label ?? `Today's weight in ${imperial ? 'pounds' : 'kilograms'}`}
           className="h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
         />
         <Pressable
