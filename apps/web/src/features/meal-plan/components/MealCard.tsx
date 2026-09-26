@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { AllergenWarningChip } from '@/features/recipes/components/AllergenWarning';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { ArrowLeftRight, Clock } from 'lucide-react';
+import { formatPortion, scaleNutrition, slotPortion } from '@chefer/utils';
 
 interface NutritionInfo {
   calories: number;
@@ -40,6 +41,11 @@ interface MealCardProps {
   variant?: 'grid' | 'row';
   /** F3 leftovers: source-day name ("Tuesday") when this slot re-plates a dinner. */
   leftoverLabel?: string | undefined;
+  /**
+   * P1-1: servings of the recipe this slot is (absent = 1). The card shows
+   * the portion's kcal/macros and the recipe page opens pre-set to it.
+   */
+  portion?: number | undefined;
   /** Opens the replace-recipe sheet for this slot (hidden when absent/readOnly). */
   onReplace?: (() => void) | undefined;
 }
@@ -68,6 +74,7 @@ export function MealCard({
   imageStatusOverride,
   variant = 'grid',
   leftoverLabel,
+  portion: rawPortion,
   onReplace,
 }: MealCardProps) {
   // Cards are Links — the replace button lives inside, so stop the navigation.
@@ -88,8 +95,27 @@ export function MealCard({
       </button>
     ) : null;
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
-  const href = `/recipes/${recipe.id}?planId=${planId}&day=${dayOfWeek}&meal=${mealType}`;
-  const n = recipe.nutritionInfo;
+  const portion = slotPortion(rawPortion);
+  const href = `/recipes/${recipe.id}?planId=${planId}&day=${dayOfWeek}&meal=${mealType}${
+    portion !== 1 ? `&portion=${portion}` : ''
+  }`;
+  const scaled = scaleNutrition(recipe.nutritionInfo, portion);
+  const n = {
+    calories: scaled.calories,
+    protein: Math.round(scaled.protein),
+    carbs: Math.round(scaled.carbs),
+    fat: Math.round(scaled.fat),
+  };
+  // "1½ portions" — the slot is sized to the day's targets (P1-1).
+  const portionBadge =
+    portion !== 1 ? (
+      <span
+        className="inline-block rounded-full bg-[#fff3e8] px-2 py-0.5 text-xs font-semibold text-[#944a00]"
+        title={`${formatPortion(portion)} the recipe's serving, sized to your daily targets`}
+      >
+        {formatPortion(portion)} portion
+      </span>
+    ) : null;
 
   const effectiveImageUrl =
     imageUrlOverride !== undefined ? imageUrlOverride : (recipe.imageUrl ?? null);
@@ -121,6 +147,7 @@ export function MealCard({
                 Leftovers from {leftoverLabel}
               </span>
             )}
+            {portionBadge && <span className="ml-1">{portionBadge}</span>}
             <p className="mt-1 line-clamp-2 text-sm font-semibold leading-snug text-gray-900">
               {recipe.name}
             </p>
@@ -172,11 +199,14 @@ export function MealCard({
           cuisineType={recipe.cuisineType}
           className="h-full w-full transition-transform duration-300 group-hover:scale-105"
         />
-        {/* Meal type badge */}
+        {/* Meal type badge (+ the slot's portion when not 1×, P1-1) */}
         <span
           className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide backdrop-blur-sm ${MEAL_TYPE_COLORS[mealType] ?? 'bg-gray-100 text-gray-700'}`}
         >
           {MEAL_TYPE_LABELS[mealType] ?? mealType}
+          {portion !== 1 && (
+            <span className="normal-case tracking-normal"> · {formatPortion(portion)}</span>
+          )}
         </span>
         <AllergenWarningChip
           warnings={recipe.allergenWarnings}

@@ -642,6 +642,7 @@ export default function MealPlanPage() {
                           imageUrlOverride={override?.imageUrl}
                           imageStatusOverride={override?.status}
                           leftoverLabel={slot.leftoverOf}
+                          portion={slot.portion}
                           onReplace={() =>
                             setReplaceTarget({
                               planId: plan.planId,
@@ -655,7 +656,11 @@ export default function MealPlanPage() {
                     })}
 
                     {/* Day totals */}
-                    <DayRecapBar meals={day.meals} calorieTarget={plan.calorieTarget} />
+                    <DayRecapBar
+                      meals={day.meals}
+                      calorieTarget={plan.calorieTarget}
+                      proteinGapG={day.proteinGapG}
+                    />
                   </div>
                 </div>
               );

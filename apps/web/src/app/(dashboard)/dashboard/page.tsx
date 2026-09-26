@@ -14,7 +14,7 @@ import { format, parseISO } from 'date-fns';
 import { ArrowRight, Clock, Flame, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { ErrorState } from '@chefer/ui';
-import { localDateStr } from '@chefer/utils';
+import { formatPortion, localDateStr } from '@chefer/utils';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -312,12 +312,14 @@ export default function DashboardPage() {
                   <span className="flex items-center gap-1 text-xs text-gray-500">
                     <Flame className="h-3.5 w-3.5 text-[#944a00]" />
                     {heroMeal.recipe.kcal} kcal
+                    {/* P1-1: kcal is already the plan's portion */}
+                    {heroMeal.portion !== undefined && ` · ${formatPortion(heroMeal.portion)}`}
                   </span>
                   <Link
                     href={
                       heroIsTomorrow
-                        ? `/recipes/${heroMeal.recipe.id}`
-                        : `/recipes/${heroMeal.recipe.id}/cook?meal=${heroMeal.mealType}`
+                        ? `/recipes/${heroMeal.recipe.id}${heroMeal.portion !== undefined ? `?portion=${heroMeal.portion}` : ''}`
+                        : `/recipes/${heroMeal.recipe.id}/cook?meal=${heroMeal.mealType}${heroMeal.portion !== undefined ? `&portion=${heroMeal.portion}` : ''}`
                     }
                     className="flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-[#944a00] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#7a3d00] sm:ml-auto sm:min-h-0 sm:w-auto"
                   >

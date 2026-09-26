@@ -25,7 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { Drawer } from '@chefer/ui';
-import { formatQuantity } from '@chefer/utils';
+import { formatQuantity, slotPortion } from '@chefer/utils';
 import { AllergenWarningBanner } from './AllergenWarning';
 import {
   guessMealType,
@@ -141,6 +141,8 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   const searchParams = useSearchParams();
   const unitSystem = useUnitSystem();
   const mealType = searchParams.get('meal') ?? guessMealType();
+  // P1-1: cooking a portioned plan slot starts at that portion and logs it.
+  const planPortion = slotPortion(parseFloat(searchParams.get('portion') ?? ''));
 
   const { data: recipe, isLoading } = trpc.mealPlan.getRecipe.useQuery({ recipeId });
   // F2: with household members, cooking defaults to the whole table's
@@ -155,7 +157,8 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   const [logged, setLogged] = useState(false);
 
   const baseServings = recipe?.servings ?? 1;
-  const selectedServings = servings ?? portionSum ?? baseServings;
+  const selectedServings =
+    servings ?? Math.round((portionSum ?? baseServings) * planPortion * 100) / 100;
   const scale = selectedServings / baseServings;
 
   // ── Wake lock: the screen must survive a 10-step recipe (feature-detect,
@@ -253,10 +256,11 @@ export function CookMode({ recipeId }: { recipeId: string }) {
       date: todayIso(),
       recipeId: recipe.id,
       mealType,
-      // One serving eaten — cooking for 4 doesn't mean you ate 4×.
-      portionMultiplier: 1,
+      // One serving eaten — cooking for 4 doesn't mean you ate 4×. A plan
+      // slot sized to 1.5× means you ate 1.5 servings (P1-1).
+      portionMultiplier: Math.min(2, Math.max(0.5, planPortion)),
     });
-  }, [recipe, logged, upsertDay, mealType]);
+  }, [recipe, logged, upsertDay, mealType, planPortion]);
 
   if (isLoading || !recipe) {
     return (
