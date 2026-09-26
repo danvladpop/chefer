@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { env } from '@/lib/env';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from '@/lib/seo/brand';
 import { TRPCProvider } from '@/lib/trpc-provider';
 import './globals.css';
 
@@ -22,28 +24,33 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Chefer',
-    template: '%s | Chefer',
+    default: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    template: `%s | ${SITE_NAME}`,
   },
-  description:
-    'A production-ready TypeScript monorepo starter with Next.js, tRPC, Prisma, and more.',
-  keywords: ['chefer', 'nextjs', 'typescript', 'monorepo', 'trpc', 'prisma'],
-  authors: [{ name: 'Chefer Team', url: 'https://chefer.dev' }],
-  creator: 'Chefer Team',
-  metadataBase: new URL(process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'),
+  description: SITE_DESCRIPTION,
+  keywords: [
+    'meal planner',
+    'weekly meal plan',
+    'shopping list',
+    'calorie tracker',
+    'allergy-safe recipes',
+    'macro tracking',
+    'gym workout planner',
+  ],
+  applicationName: SITE_NAME,
+  metadataBase: new URL(env.NEXT_PUBLIC_APP_URL),
   openGraph: {
     type: 'website',
     locale: 'en_US',
     url: '/',
-    title: 'Chefer',
-    description: 'A production-ready TypeScript monorepo starter.',
-    siteName: 'Chefer',
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    siteName: SITE_NAME,
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Chefer',
-    description: 'A production-ready TypeScript monorepo starter.',
-    creator: '@chefer',
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
   },
   robots: {
     index: true,
