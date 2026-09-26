@@ -92,7 +92,11 @@ const nextConfig: NextConfig = {
     ];
   },
   async redirects() {
-    return [];
+    return [
+      // Browsers and crawlers ask for /favicon.ico regardless of <link rel=icon>
+      // (it 404'd — audit F-PUB-1-1); the brand icon is app/icon.svg.
+      { source: '/favicon.ico', destination: '/icon.svg', permanent: true },
+    ];
   },
   logging: {
     fetches: {
