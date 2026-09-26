@@ -28,6 +28,7 @@ const SINGLETONS = [
   'react-native-css-interop',
   'react-native-reanimated',
   'react-native-worklets',
+  'expo-haptics',
   'react-native-safe-area-context',
   'react-native-svg',
   'react-native-screens',

@@ -21,6 +21,7 @@ export {
 } from './components/keyboard-aware-scroll-view';
 export { PasswordInput, type PasswordInputProps } from './components/password-input';
 export { NumericReturnBar, type NumericReturnBarProps } from './components/numeric-return-bar';
+export { ProgressBar, type ProgressBarProps } from './components/progress-bar';
 export { ProgressRing, type ProgressRingProps } from './components/progress-ring';
 export { Screen, type ScreenProps } from './components/screen';
 export {
@@ -64,3 +65,24 @@ export {
   type WeekGridProps,
   type WeekGridStatus,
 } from './components/charts/week-grid';
+// Motion (docs/audit-2026-09/motion-system.md; tokens in @chefer/tokens)
+export { CountUp, useCountUp, type CountUpProps } from './motion/count-up';
+export { haptics } from './motion/haptics';
+export { duration, springs, timing } from './motion/motion';
+export {
+  PressableScale,
+  resolvePressScale,
+  type PressableScaleProps,
+  type PressScale,
+} from './motion/pressable-scale';
+export {
+  dashOffset,
+  isOverTarget,
+  mainFill,
+  normaliseProgress,
+  overflowFill,
+  progressColor,
+  progressOf,
+} from './motion/progress';
+export { useProgressValue } from './motion/use-progress-value';
+export { useReducedMotion } from './motion/use-reduced-motion';

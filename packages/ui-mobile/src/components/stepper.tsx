@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { cn } from '@chefer/utils';
+import { haptics } from '../motion/haptics';
+import { PressableScale } from '../motion/pressable-scale';
 
 export interface StepperProps {
   value: number;
@@ -31,7 +33,8 @@ const tidy = (n: number) => Math.round(n * 1000) / 1000;
 
 /**
  * − value + stepper. Both buttons are 44pt; holding one repeats until release
- * (the active-workout screen's "no keyboard for common edits" rule).
+ * (the active-workout screen's "no keyboard for common edits" rule). The
+ * buttons scale on press (MO-01) and every change ticks a selection haptic.
  */
 export function Stepper({
   value,
@@ -67,6 +70,7 @@ export function Stepper({
       return false;
     }
     latest.current.value = next;
+    haptics.selection();
     emit(next);
     return true;
   };
@@ -88,7 +92,7 @@ export function Stepper({
   const display = format ? format(value) : String(value);
 
   const button = (direction: 1 | -1, blocked: boolean) => (
-    <Pressable
+    <PressableScale
       testID={testID ? `${testID}-${direction === 1 ? 'inc' : 'dec'}` : undefined}
       accessibilityRole="button"
       accessibilityLabel={`${direction === 1 ? 'Increase' : 'Decrease'}${
@@ -103,7 +107,7 @@ export function Stepper({
       className="h-11 w-11 items-center justify-center rounded-md bg-muted active:opacity-70 disabled:opacity-40"
     >
       <Text className="text-xl font-semibold text-foreground">{direction === 1 ? '+' : '−'}</Text>
-    </Pressable>
+    </PressableScale>
   );
 
   return (
@@ -114,7 +118,7 @@ export function Stepper({
       className={cn('flex-row items-center gap-1', className)}
     >
       {button(-1, atMin)}
-      <Pressable
+      <PressableScale
         testID={testID ? `${testID}-value` : undefined}
         accessibilityRole={onPressValue ? 'button' : 'text'}
         disabled={!onPressValue || disabled}
@@ -123,7 +127,7 @@ export function Stepper({
       >
         <Text className="text-base font-semibold tabular-nums text-foreground">{display}</Text>
         {label ? <Text className="text-[12px] text-muted-foreground">{label}</Text> : null}
-      </Pressable>
+      </PressableScale>
       {button(1, atMax)}
     </View>
   );

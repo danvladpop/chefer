@@ -305,9 +305,13 @@ describe('ProgressRing / Badge / EmptyState', () => {
     expect(hostNodes('Circle')).toHaveLength(2);
   });
 
-  it('ProgressRing at 0 draws only the track', async () => {
+  it('ProgressRing at 0 keeps the (animated, hidden) fill arc mounted and no overflow lap', async () => {
+    // Since MO-06 the fill arc stays mounted so it can animate from 0; at 0
+    // its round cap is hidden through the animated strokeOpacity instead.
     await render(<ProgressRing testID="ring" progress={0} />);
-    expect(hostNodes('Circle')).toHaveLength(1);
+    expect(hostNodes('Circle')).toHaveLength(2);
+    expect(screen.queryByTestId('ring-overflow')).toBeNull();
+    expect(screen.getByTestId('ring')).toHaveAccessibilityValue({ min: 0, max: 100, now: 0 });
   });
 
   it('Badge wraps text', async () => {

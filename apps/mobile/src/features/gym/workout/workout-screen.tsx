@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect } from 'expo-router';
 import type { ExerciseDto, Rir } from '@chefer/types';
-import { Button, ConfirmSheet, EmptyState, Screen, Text } from '@chefer/ui-mobile';
+import { Button, ConfirmSheet, EmptyState, haptics, Screen, Text } from '@chefer/ui-mobile';
 import { sameKg, sessionSupersetKey, type SessionSupersetSlot } from '@chefer/utils';
 import { ExercisePicker } from '../library/exercise-picker';
 import { localDate, newId } from '../offline/ids';
@@ -12,7 +12,6 @@ import { dispatchWorkout, getResumableSession, useActiveWorkout } from '../use-a
 import { useGymBootstrap } from '../use-gym-bootstrap';
 import { ExerciseCard, type WorkoutContext, type WorkoutSheetRequest } from './exercise-card';
 import { rememberFinished } from './finished-store';
-import { hapticPr, hapticTick } from './haptics';
 import { NumberSheet } from './number-sheet';
 import { ElapsedTime, RestTimerBar } from './rest-timer-bar';
 import type { SetRowHandlers } from './set-row';
@@ -213,8 +212,8 @@ export function WorkoutScreen() {
           workingSets(after).every((s) => s.completedAt !== null);
         setRirPendingId((prev) => (finishedExercise ? seId : prev === seId ? prev : null));
         const pr = after && !set.isWarmup ? livePr(after, live.current.prior, olderBest) : null;
-        if (pr?.setId === setId && before?.kind !== pr.kind) hapticPr();
-        else hapticTick();
+        if (pr?.setId === setId && before?.kind !== pr.kind) haptics.success();
+        else haptics.tick();
       },
       onWeight: (seId, setId, kg) => {
         const se = getResumableSession()?.exercises.find((e) => e.id === seId);

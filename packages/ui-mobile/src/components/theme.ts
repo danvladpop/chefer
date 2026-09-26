@@ -12,7 +12,8 @@ export const colors = {
   card: '#ffffff',
   destructive: '#ef4444',
   success: '#059669', // emerald-600
-  warning: '#d97706', // amber-600
+  warning: '#d97706', // amber-600 — also the over-target colour (MO-06)
+  warningStrong: '#92400e', // amber-800 — over-target overflow lap / end cap
   info: '#2563eb', // blue-600
   neutral: '#d1d5db', // gray-300
   neutralSoft: '#f3f4f6', // gray-100
