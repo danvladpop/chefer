@@ -31,6 +31,7 @@
 23. [Weekly Emails & Notifications Flow (P2-5)](#23-weekly-emails--notifications-flow-p2-5)
 24. [Account Deletion Flow (App Store 5.1.1(v))](#24-account-deletion-flow-app-store-511v)
 25. [AI Data Consent Flow (App Store 5.1.2(i))](#25-ai-data-consent-flow-app-store-512i)
+26. [Usage Analytics Consent Flow (P0-6)](#26-usage-analytics-consent-flow-p0-6)
 
 ---
 
@@ -71,6 +72,10 @@ Browser
             (HttpOnly, SameSite=Strict, Secure in prod, 30 days)
    └── the router then emails the address-confirmation link in the
        background (P2-5, §23) — never blocks or fails the signup
+   Consent line under the button (web + mobile): "By creating an account you
+   confirm you are 16 or older and agree to the Terms. The Privacy Policy
+   explains how we use your data." (P0-6 — minimum age 16, Romania's age of
+   digital consent; the privacy policy is information, not something agreed to)
 3. Client redirects to /onboarding
 4. Onboarding step 0 — "What brings you here?" (backlog P2-3, F-PM-6; web and
    mobile share `onboardingSteps` from @chefer/utils). Asked while
@@ -1723,7 +1728,7 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
      body metrics; plans, shopping lists, logs, weights, pantry; own + imported
      recipes, favourites, ratings; workouts, routines, custom exercises;
      household, feedback, sign-in on every device) + "Backup copies age out
-     within 14 days."
+     within about 30 days."
      Inputs: password + type DELETE (case-insensitive) → destructive button
         │
         └─ user.deleteSelf { password, confirm: 'DELETE' }
@@ -1737,7 +1742,9 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
                     workout_sessions, routines (before the user: RESTRICT FKs)
                     sessions (every device)
                     users row → cascades everything else
-                 then authService.logout clears the web cookie
+                 then deleteUploadedFiles(): the /uploads files behind the
+                 avatar, own recipes and custom ingredients (best effort,
+                 P0-6) — then authService.logout clears the web cookie
         │
         ├─ web:    window.location.assign('/') — full navigation drops every cache
         └─ mobile: clear SecureStore token + queryClient.clear() (incl. persisted
@@ -1749,8 +1756,8 @@ portion, allergies) — no other account is linked to them, so they are simply
 deleted with the owner. There is no ownership to transfer.
 
 **Kept:** AI-generated recipe rows (shared recipe content, no personal data)
-remain with `creatorId` nulled. Backups roll off within the 14-day retention
-window (`/privacy`). Admins deleting a user (`user.delete`) run the same purge.
+remain with `creatorId` nulled. Backups roll off within about 30 days: the VM
+keeps 14 nightly dumps and the off-site mirror keeps 30 (`/privacy`, P0-6). Admins deleting a user (`user.delete`) run the same purge.
 
 ---
 
@@ -1800,3 +1807,31 @@ recipe image generation.
 
 **Revoking:** Profile → "AI & your data" → "Allow AI features to process my
 data" switch (web + mobile) → `user.revokeAiDataConsent` / `grantAiDataConsent`.
+
+---
+
+## 26. Usage Analytics Consent Flow (P0-6)
+
+> **Status:** Implemented on web 2026-09-26. Mobile sends no analytics, so
+> there is nothing to port (recorded in `mobile_parity_backlog.md`). Details and
+> the legal reasoning: `infrastructure.md` §15 "Privacy & analytics consent".
+
+```
+page load ──► initAnalytics(): PostHog EU, persistence 'memory'
+  │           (no cookies / localStorage / sessionStorage; DNT → nothing sent)
+  │
+  ├─ signed out ──────────────────────────► anonymous events, in-memory ID
+  │
+  └─ auth.me resolves ──► identifyUser(id, planTier)
+        ├─ chefer.analytics-consent:<id> ≠ 'granted' (default)
+        │     └─► no identify(): events stay anonymous
+        └─ 'granted' ──► posthog.identify(id, { planTier })  (ID + tier only)
+
+Profile → "Usage analytics" → "Link usage analytics to my account" switch
+  ├─ on  → setAnalyticsConsent(id, 'granted') → identify now
+  └─ off → setAnalyticsConsent(id, 'denied')  → posthog.reset() now (new anonymous ID)
+logout → resetAnalytics() → posthog.reset()
+```
+
+The choice is stored per account in this browser only (another browser or a
+new device starts OFF). The card links to `/privacy#analytics`.

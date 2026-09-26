@@ -57,21 +57,21 @@ export default async function RegisterPage() {
           </Link>
         </p>
         <p className="text-center text-xs text-muted-foreground">
-          By creating an account, you agree to our{' '}
+          By creating an account, you confirm you are 16 or older and agree to our{' '}
           <Link
             href="/terms"
             className="touch-target relative underline underline-offset-4 hover:text-foreground"
           >
             Terms of Service
-          </Link>{' '}
-          and{' '}
+          </Link>
+          . Our{' '}
           <Link
             href="/privacy"
             className="touch-target relative underline underline-offset-4 hover:text-foreground"
           >
             Privacy Policy
-          </Link>
-          .
+          </Link>{' '}
+          explains how we use your data.
         </p>
       </div>
     </div>

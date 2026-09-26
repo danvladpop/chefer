@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { DowngradeButton, UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { AccountDataCard } from '@/features/profile/components/AccountDataCard';
 import { AiConsentCard } from '@/features/profile/components/AiConsentCard';
+import { AnalyticsConsentCard } from '@/features/profile/components/AnalyticsConsentCard';
 import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
 import { ChevronRight, Users } from 'lucide-react';
@@ -288,8 +289,31 @@ export default function ProfilePage() {
 
       <div className="mt-4 space-y-4">
         <AiConsentCard />
+        <AnalyticsConsentCard />
         <AccountDataCard />
       </div>
+
+      {/* Legal pages — same row as mobile More (F-M-PROF-1-1). */}
+      <p className="mt-6 flex flex-wrap justify-center gap-x-6 text-sm text-gray-500">
+        <Link
+          href="/terms"
+          className="inline-flex min-h-11 items-center underline underline-offset-4"
+        >
+          Terms
+        </Link>
+        <Link
+          href="/privacy"
+          className="inline-flex min-h-11 items-center underline underline-offset-4"
+        >
+          Privacy
+        </Link>
+        <Link
+          href="/support"
+          className="inline-flex min-h-11 items-center underline underline-offset-4"
+        >
+          Support
+        </Link>
+      </p>
     </div>
   );
 }

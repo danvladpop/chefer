@@ -186,23 +186,23 @@ function RegisterForm() {
 
       {/* Consent + legal links, required by both app stores (F-M-PROF-1-1). */}
       <Text variant="muted" className="text-center text-xs">
-        By creating an account you agree to the{' '}
+        By creating an account you confirm you are 16 or older and agree to the{' '}
         <Text
           accessibilityRole="link"
           className="text-xs text-primary underline"
           onPress={() => void Linking.openURL(getWebUrl('/terms'))}
         >
           Terms
-        </Text>{' '}
-        and{' '}
+        </Text>
+        . The{' '}
         <Text
           accessibilityRole="link"
           className="text-xs text-primary underline"
           onPress={() => void Linking.openURL(getWebUrl('/privacy'))}
         >
           Privacy Policy
-        </Text>
-        .
+        </Text>{' '}
+        explains how we use your data.
       </Text>
 
       <View className="flex-row justify-center gap-1">
