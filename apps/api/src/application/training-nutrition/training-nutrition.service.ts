@@ -17,9 +17,15 @@ import {
   isLifter,
   lifterProteinGPerKg,
   resolveTrainingDay,
+  withLifterProtein,
   type ResolvedTrainingDay,
 } from '@chefer/utils';
-import { resolveDailyTargets, type DailyTargets } from '../preferences/preferences.service.js';
+import {
+  computeMacroTargets,
+  resolveDailyTargets,
+  type DailyTargets,
+  type MacroTargets,
+} from '../preferences/preferences.service.js';
 
 // ─── Training-aware nutrition (audit P2-4) ────────────────────────────────────
 // Loads the gym facts the food side needs. The rules themselves are pure and
@@ -40,6 +46,25 @@ export interface LifterContext {
    * Pass it to resolveDailyTargets as `lifterBodyweightKg`.
    */
   lifterBodyweightKg: number | null;
+}
+
+/** Body metrics the preferences form previews targets for. */
+export interface PreviewMetrics {
+  goal: string;
+  biologicalSex: string | null;
+  age: number;
+  heightCm: number;
+  weightKg: number;
+  activityLevel: string;
+}
+
+/**
+ * The preferences-form preview: the goal's macro targets for the typed
+ * metrics, with lifter protein applied when the user is a lifter (`lifter`
+ * then says why, so the form can explain the number).
+ */
+export interface PreviewTargets extends MacroTargets {
+  lifter: { bodyweightKg: number; proteinGPerKg: number } | null;
 }
 
 type ScheduledDay = { plannedWeekday: number | null; name: string };
@@ -112,6 +137,39 @@ export class TrainingNutritionService {
       bodyweightKg,
     });
     return { lifterBodyweightKg: lifter ? bodyweightKg : null };
+  }
+
+  /**
+   * Targets for the preferences-form preview (audit follow-up): the same
+   * rules as resolveDailyTargets, so a lifter sees the protein the dashboard
+   * will show, not the goal's percentage split. Bodyweight follows loadLifter
+   * (latest weight log, else the weight being typed). The Adaptive Chef dial
+   * is left out: the preview explains the formula, the dial is the coach's.
+   */
+  async previewTargets(userId: string, metrics: PreviewMetrics): Promise<PreviewTargets> {
+    const base = computeMacroTargets(
+      metrics.weightKg,
+      metrics.heightCm,
+      metrics.age,
+      metrics.activityLevel,
+      metrics.biologicalSex,
+      metrics.goal,
+    );
+    const { lifterBodyweightKg } = await this.loadLifter(userId, {
+      goal: metrics.goal,
+      weightKg: metrics.weightKg,
+    });
+    const proteinGPerKg = lifterProteinGPerKg(metrics.goal);
+    if (!lifterBodyweightKg || proteinGPerKg === null) return { ...base, lifter: null };
+    const t = withLifterProtein(base, lifterBodyweightKg, metrics.goal);
+    const kcal = t.dailyCalorieTarget;
+    return {
+      ...t,
+      proteinPct: Math.round(((t.proteinG * 4) / kcal) * 100),
+      carbsPct: Math.round(((t.carbsG * 4) / kcal) * 100),
+      fatPct: Math.round(((t.fatG * 9) / kcal) * 100),
+      lifter: { bodyweightKg: Math.round(lifterBodyweightKg * 10) / 10, proteinGPerKg },
+    };
   }
 
   /** The active routine's days with their planned weekday (Monday = 0). */

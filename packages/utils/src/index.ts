@@ -274,6 +274,7 @@ export {
   hasTrainingDayBump,
   isLifter,
   lifterProteinGPerKg,
+  lifterProteinNote,
   postWorkoutProteinG,
   resolveTrainingDay,
   trainingDayBonus,

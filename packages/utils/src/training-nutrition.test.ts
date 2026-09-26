@@ -5,6 +5,7 @@ import {
   hasTrainingDayBump,
   isLifter,
   lifterProteinGPerKg,
+  lifterProteinNote,
   postWorkoutProteinG,
   resolveTrainingDay,
   trainingDayBonus,
@@ -221,6 +222,15 @@ describe('copy + nudges', () => {
   it('formats the training-day line', () => {
     expect(trainingDayLine({ kcalBonus: 250, proteinBonus: 30 })).toBe(
       'Training day · +250 kcal, +30 g protein',
+    );
+  });
+
+  it('explains lifter protein under the preferences preview', () => {
+    expect(lifterProteinNote(1.8)).toBe(
+      'Protein set from your bodyweight (1.8 g/kg) because you train.',
+    );
+    expect(lifterProteinNote(2)).toBe(
+      'Protein set from your bodyweight (2.0 g/kg) because you train.',
     );
   });
 

@@ -773,6 +773,13 @@ the tracker bars match Today's ring. On another day the copy says "this day"
 ("Full Body A planned · …, added to this day"; "Premium adds this to this
 day's targets"); a past day with a finished workout counts too.
 
+**Preferences macro preview (web + mobile):** `preferences.computeTargets`
+applies the same rule, so a lifter's preview shows the protein the dashboard
+will show, with "Protein set from your bodyweight (1.8 g/kg) because you
+train." under it (`lifterProteinNote`). Web replaces its instant local
+estimate with the server numbers once they arrive; mobile adds a protein line
+under the calorie estimate in Goal & body for lifters only.
+
 **Coach weekly review (§14):** lifters are judged against their g/kg protein
 target — one line with the week's average ("Protein averaged 120 g a day, 24
 g short of your 144 g lifting target (1.8 g per kg) — …"). Non-lifters get no

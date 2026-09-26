@@ -187,6 +187,14 @@ export function trainingDayLine(t: { kcalBonus: number; proteinBonus: number }):
   return `Training day · +${t.kcalBonus.toLocaleString('en-US')} kcal, +${t.proteinBonus} g protein`;
 }
 
+/**
+ * The line under the preferences macro preview for a lifter (both
+ * platforms): why protein is not the goal's percentage split.
+ */
+export function lifterProteinNote(proteinGPerKg: number): string {
+  return `Protein set from your bodyweight (${proteinGPerKg.toFixed(1)} g/kg) because you train.`;
+}
+
 /** Protein to aim for in the meal after a workout (grams, rounded to 5). */
 export function postWorkoutProteinG(bodyweightKg: number | null | undefined): number {
   if (typeof bodyweightKg !== 'number' || !(bodyweightKg > 0)) return POST_WORKOUT_DEFAULT_G;
