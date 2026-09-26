@@ -4,7 +4,9 @@ import type { RecipeData } from '../../lib/ai/types.js';
 import { filterSafeRecipes } from '../../lib/curated-recipes/safety.js';
 import {
   computeHouseholdContext,
+  derivedServingSize,
   HouseholdService,
+  legacyServingSizePlaceholders,
   mergeHouseholdSafety,
   type HouseholdMemberSafety,
 } from './household.service.js';
@@ -48,17 +50,25 @@ const recipe = (name: string, ingredients: string[], tags: string[] = []): Recip
   imageUrl: null,
 });
 
-function makeRepo(count = 0) {
+function makeRepo(count = 0, members: unknown[] = []) {
   return {
-    findByUserId: vi.fn().mockResolvedValue([]),
+    findByUserId: vi.fn().mockResolvedValue(members),
     countByUserId: vi.fn().mockResolvedValue(count),
     create: vi
       .fn()
       .mockImplementation((userId: string, data: Record<string, unknown>) =>
         Promise.resolve({ id: 'member-1', userId, ...data }),
       ),
+    // Mirrors the repository contract: null when at the cap.
+    createWithinCap: vi
+      .fn()
+      .mockImplementation((userId: string, data: Record<string, unknown>, cap: number | null) =>
+        Promise.resolve(cap !== null && count >= cap ? null : { id: 'member-1', userId, ...data }),
+      ),
     update: vi.fn().mockResolvedValue(null),
     delete: vi.fn().mockResolvedValue(false),
+    migrateLegacyServingSize: vi.fn().mockResolvedValue(0),
+    findUserIdsWithLegacyServingSize: vi.fn().mockResolvedValue([]),
   };
 }
 
@@ -159,27 +169,41 @@ describe('mergeHouseholdSafety — the hard union', () => {
 // ─── CRUD + limit enforcement ─────────────────────────────────────────────────
 
 describe('HouseholdService — member limit (matrix householdMembers)', () => {
-  it('free tier cannot add members (limit 0 → FORBIDDEN)', async () => {
+  it('free tier CAN add members — their safety is never premium (P2-3)', async () => {
     const repo = makeRepo();
     const service = new HouseholdService(repo);
 
-    await expect(service.add(freeUser, { name: 'Maria' })).rejects.toMatchObject({
-      code: 'FORBIDDEN',
+    const created = await service.add(freeUser, {
+      name: 'Sam',
+      portionFactor: 0.5,
+      isKid: true,
+      allergies: ['peanuts'],
     });
-    expect(repo.create).not.toHaveBeenCalled();
+
+    expect(repo.createWithinCap).toHaveBeenCalledWith(
+      'user-free',
+      { name: 'Sam', portionFactor: 0.5, isKid: true, allergies: ['peanuts'] },
+      5,
+    );
+    expect(created).toMatchObject({ name: 'Sam', allergies: ['peanuts'] });
   });
 
-  it('premium under the cap creates the member', async () => {
+  it('under the cap creates the member through the race-free insert', async () => {
     const repo = makeRepo(4); // 4 existing < 5 cap
     const service = new HouseholdService(repo);
 
     const created = await service.add(premiumUser, { name: 'Maria', portionFactor: 0.5 });
 
-    expect(repo.create).toHaveBeenCalledWith('user-prem', { name: 'Maria', portionFactor: 0.5 });
+    expect(repo.createWithinCap).toHaveBeenCalledWith(
+      'user-prem',
+      { name: 'Maria', portionFactor: 0.5 },
+      5,
+    );
+    expect(repo.create).not.toHaveBeenCalled();
     expect(created).toMatchObject({ id: 'member-1', name: 'Maria' });
   });
 
-  it('premium AT the cap (5) is rejected and nothing is created', async () => {
+  it('AT the cap (5) is rejected with the cap in the message', async () => {
     const repo = makeRepo(5);
     const service = new HouseholdService(repo);
 
@@ -187,7 +211,9 @@ describe('HouseholdService — member limit (matrix householdMembers)', () => {
       code: 'FORBIDDEN',
       message: expect.stringContaining('5'),
     });
-    expect(repo.create).not.toHaveBeenCalled();
+    await expect(service.add(freeUser, { name: 'One More' })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
   });
 
   it("update/remove of another user's member surface NOT_FOUND (ownership-scoped repo)", async () => {
@@ -200,5 +226,94 @@ describe('HouseholdService — member limit (matrix householdMembers)', () => {
     await expect(service.remove('user-prem', 'not-mine')).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
+  });
+});
+
+// ─── Scaling is premium ───────────────────────────────────────────────────────
+
+describe('HouseholdService.scalingPortions', () => {
+  const table = [
+    { name: 'Maria', portionFactor: 1 },
+    { name: 'Sam', portionFactor: 0.5 },
+  ];
+
+  it('premium with members scales to the table portion sum', async () => {
+    const service = new HouseholdService(makeRepo(2, table));
+    expect(await service.scalingPortions(premiumUser)).toBe(3);
+  });
+
+  it('free households are never scaled (their safety still applies)', async () => {
+    const repo = makeRepo(2, table);
+    const service = new HouseholdService(repo);
+    expect(await service.scalingPortions(freeUser)).toBeNull();
+    expect(repo.findByUserId).not.toHaveBeenCalled();
+  });
+
+  it('premium without members has nothing to scale', async () => {
+    const service = new HouseholdService(makeRepo(0, []));
+    expect(await service.scalingPortions(premiumUser)).toBeNull();
+  });
+});
+
+// ─── One people model: legacy servingSize (F-PM-8) ────────────────────────────
+
+describe('legacy servingSize → placeholder members', () => {
+  it('servingSize N becomes N − 1 standard-portion placeholders (owner is person 1)', () => {
+    expect(legacyServingSizePlaceholders(3)).toEqual([
+      { name: 'Person 2', portionFactor: 1, isKid: false },
+      { name: 'Person 3', portionFactor: 1, isKid: false },
+    ]);
+  });
+
+  it('is deterministic, empty for 1 and capped at the member limit', () => {
+    expect(legacyServingSizePlaceholders(1)).toEqual([]);
+    expect(legacyServingSizePlaceholders(0)).toEqual([]);
+    expect(legacyServingSizePlaceholders(6)).toHaveLength(5);
+    expect(legacyServingSizePlaceholders(6, 2)).toHaveLength(2);
+    expect(legacyServingSizePlaceholders(4)).toEqual(legacyServingSizePlaceholders(4));
+  });
+
+  it('the derived servingSize old app builds read is the table, capped at 6', () => {
+    expect(derivedServingSize([])).toBe(1);
+    expect(derivedServingSize([{ portionFactor: 1 }, { portionFactor: 0.5 }])).toBe(3);
+    expect(derivedServingSize(Array.from({ length: 5 }, () => ({ portionFactor: 1.5 })))).toBe(6);
+  });
+
+  it('list() converts a legacy servingSize before reading members', async () => {
+    const repo = makeRepo();
+    const order: string[] = [];
+    repo.migrateLegacyServingSize.mockImplementation(async () => {
+      order.push('migrate');
+      return 2;
+    });
+    repo.findByUserId.mockImplementation(async () => {
+      order.push('find');
+      return [];
+    });
+    await new HouseholdService(repo).list('user-free');
+    expect(order).toEqual(['migrate', 'find']);
+    // The placeholder factory handed to the repository is the pure helper.
+    const factory = repo.migrateLegacyServingSize.mock.calls[0]?.[1] as (n: number) => unknown;
+    expect(factory(3)).toEqual(legacyServingSizePlaceholders(3));
+  });
+
+  it('a failed migration never breaks the read', async () => {
+    const repo = makeRepo();
+    repo.migrateLegacyServingSize.mockRejectedValue(new Error('db down'));
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(new HouseholdService(repo).list('user-free')).resolves.toEqual([]);
+    errorSpy.mockRestore();
+  });
+
+  it('the startup backfill converts every legacy user once and terminates', async () => {
+    const repo = makeRepo();
+    repo.findUserIdsWithLegacyServingSize
+      .mockResolvedValueOnce(['u1', 'u2'])
+      .mockResolvedValueOnce(['u2']) // a failed conversion comes back — not retried forever
+      .mockResolvedValue([]);
+    repo.migrateLegacyServingSize.mockImplementation(async (id: string) => (id === 'u1' ? 2 : 0));
+    const result = await new HouseholdService(repo).backfillLegacyServingSizes(2);
+    expect(result).toEqual({ users: 2, members: 2 });
+    expect(repo.migrateLegacyServingSize).toHaveBeenCalledTimes(2);
   });
 });

@@ -2,12 +2,14 @@ import { TRPCError } from '@trpc/server';
 import {
   dietaryPreferencesRepository,
   favouriteRecipeRepository,
+  householdMemberRepository,
   prisma,
   type IDietaryPreferencesRepository,
   type IFavouriteRecipeRepository,
   type Recipe,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { householdPortionSum } from '@chefer/utils';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type {
@@ -34,6 +36,7 @@ import {
   headCheckImage,
   type MacroCheckResult,
 } from '../../lib/recipe-import/index.js';
+import { mergeHouseholdSafety } from '../household/household.service.js';
 
 // ─── Cheferize Anything (F5) — recipe import service ─────────────────────────
 // Extract (URL/text/photo) → Cheferize (adapt to the user) → save into the
@@ -118,6 +121,16 @@ export class RecipeImportService {
     private readonly ai: IAIService = aiService,
     private readonly recipeRepo: IFavouriteRecipeRepository = favouriteRecipeRepository,
     private readonly prefsRepo: IDietaryPreferencesRepository = dietaryPreferencesRepository,
+    /** Household members (P2-3): their safety + the table's servings. */
+    private readonly householdRepo: {
+      findByUserId(userId: string): Promise<
+        {
+          portionFactor: number;
+          allergies: string[];
+          dietaryRestrictions: string[];
+        }[]
+      >;
+    } = householdMemberRepository,
   ) {}
 
   /**
@@ -199,13 +212,23 @@ export class RecipeImportService {
     }
     const original = sanitizeExtracted(rawExtracted);
 
-    const prefs = await this.prefsRepo.findByUserId(user.id);
-    const safetyPrefs: SafetyPrefs = {
-      allergies: prefs?.allergies ?? [],
-      dietaryRestrictions: prefs?.dietaryRestrictions ?? [],
-      dislikedIngredients: prefs?.dislikedIngredients ?? [],
-    };
-    const targetServings = prefs?.servingSize ?? original.servings;
+    const [prefs, members] = await Promise.all([
+      this.prefsRepo.findByUserId(user.id),
+      this.householdRepo.findByUserId(user.id),
+    ]);
+    // The whole table's allergies and restrictions — an imported recipe must
+    // be safe for everyone the user cooks for (P2-3: member safety is free).
+    const safetyPrefs: SafetyPrefs = mergeHouseholdSafety(
+      {
+        allergies: prefs?.allergies ?? [],
+        dietaryRestrictions: prefs?.dietaryRestrictions ?? [],
+        dislikedIngredients: prefs?.dislikedIngredients ?? [],
+      },
+      members,
+    );
+    // One people model (audit F-PM-8): servings come from the household,
+    // never the legacy serving-size setting. Solo users get one serving.
+    const targetServings = householdPortionSum(members);
 
     let cheferized: CheferizedRecipe;
     try {
@@ -256,12 +279,21 @@ export class RecipeImportService {
     const recipe = sanitizeExtracted(input.recipe);
 
     if (input.variant === 'adapted') {
-      const prefs = await this.prefsRepo.findByUserId(user.id);
-      const issues = findSafetyIssues(recipe, {
-        allergies: prefs?.allergies ?? [],
-        dietaryRestrictions: prefs?.dietaryRestrictions ?? [],
-        dislikedIngredients: [], // dislikes are soft — they never block a save
-      });
+      const [prefs, members] = await Promise.all([
+        this.prefsRepo.findByUserId(user.id),
+        this.householdRepo.findByUserId(user.id),
+      ]);
+      const issues = findSafetyIssues(
+        recipe,
+        mergeHouseholdSafety(
+          {
+            allergies: prefs?.allergies ?? [],
+            dietaryRestrictions: prefs?.dietaryRestrictions ?? [],
+            dislikedIngredients: [], // dislikes are soft — they never block a save
+          },
+          members,
+        ),
+      );
       if (issues.length > 0) {
         throw new TRPCError({
           code: 'BAD_REQUEST',

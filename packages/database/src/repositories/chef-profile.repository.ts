@@ -22,6 +22,8 @@ export interface UpsertChefProfileData {
   preferredUnits?: 'METRIC' | 'IMPERIAL';
   /** Premium Sunday auto-planning opt-out (audit F-PLAN-4-3). */
   autoPlanWeekly?: boolean;
+  /** Onboarding audience (backlog P2-3). */
+  onboardingIntent?: 'EAT_BETTER' | 'HOUSEHOLD' | 'TRAIN' | null;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────

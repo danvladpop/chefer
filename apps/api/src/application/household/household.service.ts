@@ -6,18 +6,24 @@ import {
   type IHouseholdMemberRepository,
   type UpdateHouseholdMemberData,
 } from '@chefer/database';
-import type { UserProfile } from '@chefer/types';
+import { PLAN_FEATURES, type UserProfile } from '@chefer/types';
+import { householdPortionSum } from '@chefer/utils';
 import type { MealPlanInput } from '../../lib/ai/types.js';
 import type { SafetyPrefs } from '../../lib/curated-recipes/index.js';
-import { getLimit } from '../../lib/entitlements.js';
+import { getLimit, hasFeature } from '../../lib/entitlements.js';
 
-// ─── Household service (F2 "Feed the Whole Table") ────────────────────────────
+// ─── Household service (F2 "Feed the Whole Table", backlog P2-3) ──────────────
 // CRUD for the user's extra eaters plus the PURE merge helpers the meal-plan
-// generation path uses. The member-management UI is premium (matrix key
-// `householdPlans`, cap `householdMembers`), but SAFETY IS NEVER PREMIUM:
-// once members exist, their allergies/restrictions are unioned into every
-// plan's safety filter on every tier — a downgrade must never un-protect a
-// family member (premium_plan.md §5 W2-D).
+// generation path uses. Since P2-3 members are FREE on every tier (cap
+// `householdMembers`): their allergies/restrictions are unioned into every
+// plan's safety filter, allergen warning and cook-mode banner — safety is
+// never premium. Portion SCALING (servings, list quantities, week cost) is
+// the premium part (matrix key `householdPlans`).
+//
+// One people model (audit F-PM-8): the household is the only answer to "who
+// am I cooking for". A legacy DietaryPreferences.servingSize > 1 becomes
+// placeholder members once (migrateLegacyServingSize) — at startup, on
+// writes from older app builds, and as a read-time safety net.
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -80,7 +86,7 @@ export function computeHouseholdContext(
 ): HouseholdContext | undefined {
   if (members.length === 0) return undefined;
   const merged = mergeHouseholdSafety(owner, members);
-  const portionSum = Math.ceil(members.reduce((sum, m) => sum + Math.max(0, m.portionFactor), 1));
+  const portionSum = householdPortionSum(members);
   const dislikeNotes = members
     .filter((m) => m.dislikedIngredients.length > 0)
     .map((m) => `avoid ${m.dislikedIngredients.join(', ')} for ${m.name}`);
@@ -100,36 +106,82 @@ export function householdSize(memberCount: number): number {
   return memberCount + 1;
 }
 
+/** Name prefix of the members a legacy "cooking for N" turns into. */
+export const PLACEHOLDER_MEMBER_PREFIX = 'Person';
+
+/**
+ * The members a legacy servingSize of N stands for: N − 1 standard-portion
+ * "Person 2…N" rows (the owner is person 1), capped at the member limit.
+ * Deterministic — the same N always yields the same rows.
+ */
+export function legacyServingSizePlaceholders(
+  servingSize: number,
+  cap: number = maxMemberCap(),
+): CreateHouseholdMemberData[] {
+  const count = Math.max(0, Math.min(Math.floor(servingSize) - 1, cap));
+  return Array.from({ length: count }, (_, i) => ({
+    name: `${PLACEHOLDER_MEMBER_PREFIX} ${i + 2}`,
+    portionFactor: 1,
+    isKid: false,
+  }));
+}
+
+/** The larger of the tiers' member caps — placeholders never exceed it. */
+function maxMemberCap(): number {
+  const { free, premium } = PLAN_FEATURES.householdMembers;
+  const caps: unknown[] = [free, premium];
+  const numeric = caps.filter((c): c is number => typeof c === 'number');
+  return numeric.length > 0 ? Math.max(...numeric) : 5;
+}
+
+/**
+ * Legacy servingSize for app builds already in the stores (they read
+ * `dietaryPreferences.servingSize` and offer 1–6): the table's portion sum.
+ */
+export function derivedServingSize(members: readonly { portionFactor: number }[]): number {
+  return Math.min(6, householdPortionSum(members));
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class HouseholdService {
   constructor(private readonly repo: IHouseholdMemberRepository = householdMemberRepository) {}
 
+  /** The user's members, after converting any legacy servingSize. */
   async list(userId: string): Promise<HouseholdMember[]> {
+    await this.migrateLegacyServingSize(userId);
     return this.repo.findByUserId(userId);
   }
 
-  /** Creates a member, enforcing the matrix cap (`householdMembers`). */
+  /**
+   * Portions the plan's list and cost are scaled to, or null when there is
+   * nothing to scale: scaling is premium (`householdPlans`) and needs at
+   * least one member. Free households keep single-portion lists — their
+   * members' SAFETY still applies everywhere.
+   */
+  async scalingPortions(user: UserProfile): Promise<number | null> {
+    if (!hasFeature(user, 'householdPlans')) return null;
+    const members = await this.list(user.id);
+    return members.length > 0 ? householdPortionSum(members) : null;
+  }
+
+  /** Creates a member, enforcing the matrix cap (`householdMembers`) race-free. */
   async add(user: UserProfile, data: CreateHouseholdMemberData): Promise<HouseholdMember> {
     const limit = getLimit(user, 'householdMembers');
     if (limit === 0) {
-      // Router-level premiumProcedure already blocks this; kept as the
-      // matrix-derived source of truth (defense in depth, PW-1).
       throw new TRPCError({
         code: 'FORBIDDEN',
-        message: 'Household members are a premium feature.',
+        message: 'Household members are not available on your plan.',
       });
     }
-    if (limit !== null) {
-      const count = await this.repo.countByUserId(user.id);
-      if (count >= limit) {
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: `Your plan supports up to ${limit} household members.`,
-        });
-      }
+    const created = await this.repo.createWithinCap(user.id, data, limit);
+    if (!created) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: `Your plan supports up to ${limit} household members.`,
+      });
     }
-    return this.repo.create(user.id, data);
+    return created;
   }
 
   async update(
@@ -150,6 +202,44 @@ export class HouseholdService {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Household member not found.' });
     }
     return { success: true };
+  }
+
+  /**
+   * Converts a legacy servingSize > 1 into placeholder members (idempotent,
+   * see the repository). Best effort: a failure is logged and never breaks
+   * the read or write that triggered it.
+   */
+  async migrateLegacyServingSize(userId: string): Promise<number> {
+    try {
+      return await this.repo.migrateLegacyServingSize(userId, (servingSize) =>
+        legacyServingSizePlaceholders(servingSize),
+      );
+    } catch (err) {
+      console.error('[household] legacy servingSize migration failed', { userId, err });
+      return 0;
+    }
+  }
+
+  /**
+   * Startup backfill: every user still carrying a legacy servingSize > 1.
+   * Each user's conversion resets their value, so the loop always ends.
+   */
+  async backfillLegacyServingSizes(batchSize = 200): Promise<{ users: number; members: number }> {
+    let users = 0;
+    let members = 0;
+    const seen = new Set<string>();
+    for (;;) {
+      const ids = (await this.repo.findUserIdsWithLegacyServingSize(batchSize)).filter(
+        (id) => !seen.has(id),
+      );
+      if (ids.length === 0) break;
+      for (const id of ids) {
+        seen.add(id);
+        users += 1;
+        members += await this.migrateLegacyServingSize(id);
+      }
+    }
+    return { users, members };
   }
 }
 

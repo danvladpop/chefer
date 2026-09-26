@@ -33,7 +33,10 @@ vi.mock('@chefer/database', async (importOriginal) => {
       clearNextPlanFlags: vi.fn().mockResolvedValue(undefined),
     },
     mealRatingRepository: { findSignalsForUser: vi.fn().mockResolvedValue([]) },
-    householdMemberRepository: { findByUserId: vi.fn().mockResolvedValue([]) },
+    householdMemberRepository: {
+      findByUserId: vi.fn().mockResolvedValue([]),
+      migrateLegacyServingSize: vi.fn().mockResolvedValue(0),
+    },
     // F3 wiring: generate loads use-first items + computes usedPantryItems —
     // empty pantry keeps every existing expectation identical.
     pantryItemRepository: { findByUser: vi.fn().mockResolvedValue([]) },
@@ -566,6 +569,52 @@ describe('MealPlanService — household context (F2)', () => {
     expect(input.allergies).toEqual(['shellfish']);
   });
 
+  it('premium: servings come from the household, never the legacy serving size (F-PM-8)', async () => {
+    const service = new MealPlanService(makeRepo());
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      dietaryRestrictions: [],
+      allergies: [],
+      dislikedIngredients: [],
+      cuisinePreferences: [],
+      mealsPerDay: 3,
+      servingSize: 4, // stale legacy value
+    } as never);
+    const order: string[] = [];
+    vi.mocked(householdMemberRepository.migrateLegacyServingSize).mockImplementation(async () => {
+      order.push('migrate');
+      return 0;
+    });
+    vi.mocked(householdMemberRepository.findByUserId).mockImplementation(async () => {
+      order.push('find');
+      return [member({ portionFactor: 0.5, isKid: true })] as never;
+    });
+
+    const result = await service.generate('user1', 0, true);
+
+    const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
+    expect(input.servingSize).toBe(2); // ceil(1 + 0.5)
+    // A legacy "cooking for N" is converted into members BEFORE they're read.
+    expect(order).toEqual(['migrate', 'find']);
+    // The week cost is sized for the same table.
+    const { estimatePlanCostEur } = await import('../shared/plan-cost.js');
+    expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({ portions: 2 });
+    expect(result.planId).toBeDefined();
+  });
+
+  it('premium solo: servings are 1 even with a stale legacy serving size', async () => {
+    const service = new MealPlanService(makeRepo());
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      dietaryRestrictions: [],
+      allergies: [],
+      dislikedIngredients: [],
+      cuisinePreferences: [],
+      mealsPerDay: 3,
+      servingSize: 3,
+    } as never);
+    await service.generate('user1', 0, true);
+    expect(vi.mocked(aiService.generateMealPlan).mock.calls[0]![0].servingSize).toBe(1);
+  });
+
   it("free tier: a member's allergies join the curated safety filter (safety is never premium)", async () => {
     const service = new MealPlanService(makeRepo());
     const curated = await import('../../lib/curated-recipes/index.js');
@@ -644,6 +693,25 @@ describe('MealPlanService.getForWeek carry-forward', () => {
     expect(result?.carriedOver).toBe(true);
     expect(result?.planId).toBe('plan-clone');
     expect(result?.days[0]?.meals[0]?.recipe.id).toBe('ai-r1');
+  });
+
+  it('sizes the week cost for a premium household only (householdScaling, P2-3)', async () => {
+    const { estimatePlanCostEur } = await import('../shared/plan-cost.js');
+    const repo = makeRepo();
+    repo.findByWeekStart.mockResolvedValue(CLONED_PLAN);
+    repo.findRecipesByIds.mockResolvedValue([DB_RECIPE]);
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([
+      { portionFactor: 1, allergies: [], dietaryRestrictions: [], dislikedIngredients: [] },
+      { portionFactor: 0.5, allergies: [], dietaryRestrictions: [], dislikedIngredients: [] },
+    ] as never);
+    const service = new MealPlanService(repo);
+
+    await service.getForWeek('u1', 0, { householdScaling: true });
+    expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({ portions: 3 });
+
+    // Free household: same members, single-portion cost.
+    await service.getForWeek('u1', 0);
+    expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({ portions: null });
   });
 
   it('never clones into a past week', async () => {

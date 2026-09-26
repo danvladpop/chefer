@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { setDisplayPreferencesInputSchema } from '@chefer/types';
+import { setDisplayPreferencesInputSchema, setOnboardingIntentInputSchema } from '@chefer/types';
 import {
   computeMacroTargets,
   preferencesService,
@@ -27,7 +27,10 @@ const setupSchema = z.object({
   dislikedIngredients: z.array(z.string()),
   cuisinePreferences: z.array(z.string()),
   mealsPerDay: z.number().int().min(2).max(5),
-  servingSize: z.number().int().min(1).max(6),
+  // Legacy "cooking for N" (backlog P2-3, audit F-PM-8): optional now —
+  // current clients size the table through household members; builds in
+  // the stores still send it and the service turns it into members.
+  servingSize: z.number().int().min(1).max(6).optional(),
 });
 
 // Safety fields are free for every account (P1-2): a plan that ignores an
@@ -68,6 +71,16 @@ export const preferencesRouter = router({
     await preferencesService.setup(ctx.user.id, input);
     return { success: true as const };
   }),
+
+  /**
+   * "What brings you here?" — onboarding step 0 (backlog P2-3, audit
+   * F-PM-6). Free for every tier; stored on the chef profile.
+   */
+  setIntent: protectedProcedure
+    .input(setOnboardingIntentInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      return preferencesService.setIntent(ctx.user.id, input.intent);
+    }),
 
   /** Allergies, restrictions, dislikes — free for every account (P1-2). */
   updateSafety: protectedProcedure.input(safetySchema).mutation(async ({ input, ctx }) => {

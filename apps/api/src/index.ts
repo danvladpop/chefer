@@ -6,6 +6,7 @@ import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import { householdService } from './application/household/household.service.js';
 import {
   createContext,
   requestIdMiddleware,
@@ -242,6 +243,19 @@ const server = app.listen(env.PORT, env.HOST, () => {
   ensureExerciseLibrary().catch((err: unknown) => {
     logger.error({ err }, 'exercise library ensure failed at boot');
   });
+
+  // One people model (backlog P2-3, audit F-PM-8): a legacy "cooking for N"
+  // becomes household members. Idempotent — reads and writes also convert
+  // lazily, so a failure here only delays it.
+  householdService
+    .backfillLegacyServingSizes()
+    .then((result) => {
+      if (result.users > 0)
+        logger.info(result, 'legacy servingSize converted to household members');
+    })
+    .catch((err: unknown) => {
+      logger.error({ err }, 'legacy servingSize backfill failed at boot');
+    });
 });
 
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────

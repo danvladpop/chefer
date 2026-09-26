@@ -313,3 +313,12 @@ export {
   pantryItemsToConfirm,
   type PantryItemAgeLike,
 } from './pantry-confirm';
+export {
+  householdGhostSample,
+  householdPortionSum,
+  onboardingSteps,
+  perPortionCost,
+  type HouseholdGhostKind,
+  type HouseholdGhostSample,
+  type OnboardingStepKey,
+} from './household';

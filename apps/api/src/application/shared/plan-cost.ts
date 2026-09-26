@@ -6,6 +6,7 @@ import {
   normalizeIngredientName,
 } from '../../lib/ingredient-prices/index.js';
 import { aggregateIngredientLines, formatLineQuantity } from '../shopping-list/aggregate.js';
+import { householdScaleFactor } from './household-scale.js';
 
 // ─── Weekly plan cost estimation (P2-4) ───────────────────────────────────────
 // Sums per-line EUR estimates from the ingredient price vocabulary across
@@ -23,27 +24,42 @@ export interface PlanCostEstimate {
   totalEur: number | null;
   pricedLines: number;
   totalLines: number;
+  /**
+   * Portions the total is sized for — present only when a premium
+   * household's cost was scaled to the whole table (backlog P2-3). Clients
+   * divide by THIS for the per-person figure, never by the head count of a
+   * single-portion list (audit F-PM-5). Additive.
+   */
+  portions?: number;
 }
 
 export async function estimatePlanCostEur(
   days: {
-    meals: { recipe: { id?: string; ingredients: Ingredient[] }; portion?: number | undefined }[];
+    meals: {
+      recipe: { id?: string; ingredients: Ingredient[]; servings?: number };
+      portion?: number | undefined;
+    }[];
   }[],
+  options: { portions?: number | null } = {},
 ): Promise<PlanCostEstimate> {
+  const portions = options.portions ?? null;
   const lines = aggregateIngredientLines(
     days.flatMap((d) =>
-      d.meals.flatMap((m) =>
-        m.recipe.ingredients.map((ing) => ({
+      d.meals.flatMap((m) => {
+        const factor = householdScaleFactor(m.recipe.servings, portions);
+        return m.recipe.ingredients.map((ing) => ({
           name: ing.name,
-          // P1-1: a 1.5× slot buys 1.5× the recipe (same rule as the list).
-          quantity: ing.quantity * slotPortion(m.portion),
+          // P1-1: a 1.5× slot buys 1.5× the recipe; P2-3: a premium table
+          // multiplies that by portions ÷ servings (same rule as the list).
+          quantity: ing.quantity * slotPortion(m.portion) * factor,
           unit: ing.unit,
           recipeId: m.recipe.id ?? '',
-        })),
-      ),
+        }));
+      }),
     ),
   );
-  if (lines.length === 0) return { totalEur: null, pricedLines: 0, totalLines: 0 };
+  const sized = portions != null ? { portions } : {};
+  if (lines.length === 0) return { totalEur: null, pricedLines: 0, totalLines: 0, ...sized };
 
   const names = [...new Set(lines.map((l) => normalizeIngredientName(l.name)))];
   const rows = await prisma.ingredientPrice.findMany({
@@ -75,5 +91,6 @@ export async function estimatePlanCostEur(
     totalEur: priced > 0 ? Math.round(total * 100) / 100 : null,
     pricedLines: priced,
     totalLines: lines.length,
+    ...sized,
   };
 }
