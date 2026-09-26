@@ -1,7 +1,11 @@
 import { prisma } from '@chefer/database';
 import { aiService } from '../lib/ai/index.js';
 import type { Ingredient } from '../lib/ai/index.js';
-import { normalizeIngredientName } from '../lib/ingredient-prices/index.js';
+import {
+  kcalFromMacros,
+  macrosAreConsistent,
+  normalizeIngredientName,
+} from '../lib/ingredient-prices/index.js';
 
 // How often the worker looks for work. The vocabulary changes rarely, so this
 // is a discovery interval, not a refresh cadence.
@@ -125,11 +129,19 @@ export class IngredientPriceWorker {
       ) {
         continue;
       }
+      // Calories that contradict the row's own macros are recomputed from
+      // them (4/4/9) before saving — the stored vocabulary feeds the plan's
+      // macro reconciliation and manual-recipe nutrition (audit F-PAN-2-1).
+      const derivedKcal = kcalFromMacros(est);
+      const caloriesPer100g =
+        derivedKcal != null && !macrosAreConsistent(est)
+          ? Math.round(derivedKcal)
+          : est.caloriesPer100g;
       const fields = {
         pricePer100gEur: est.pricePer100gEur,
         pricePer100mlEur: est.pricePer100mlEur,
         pricePerPieceEur: est.pricePerPieceEur,
-        caloriesPer100g: est.caloriesPer100g,
+        caloriesPer100g,
         proteinPer100g: est.proteinPer100g,
         carbsPer100g: est.carbsPer100g,
         fatPer100g: est.fatPer100g,

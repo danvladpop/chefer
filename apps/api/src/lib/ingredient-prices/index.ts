@@ -143,6 +143,36 @@ export function estimateItemPriceEur(
   return null;
 }
 
+// ─── Macro plausibility (audit F-PAN-2-1) ─────────────────────────────────────
+
+interface MacroFields {
+  caloriesPer100g: number | null;
+  proteinPer100g: number | null;
+  carbsPer100g: number | null;
+  fatPer100g: number | null;
+}
+
+/** 4/4/9 kcal per gram of protein/carbs/fat — null when a macro is missing. */
+export function kcalFromMacros(row: MacroFields): number | null {
+  if (row.proteinPer100g == null || row.carbsPer100g == null || row.fatPer100g == null) {
+    return null;
+  }
+  return 4 * row.proteinPer100g + 4 * row.carbsPer100g + 9 * row.fatPer100g;
+}
+
+/**
+ * Whether a row's calories agree with its own macros (±20%, or ±10 kcal for
+ * near-zero foods like water and spices). On prod 23% of estimated rows
+ * disagreed by more than 15% — such a row can't be trusted to dispute an AI
+ * recipe's numbers.
+ */
+export function macrosAreConsistent(row: MacroFields): boolean {
+  const fromMacros = kcalFromMacros(row);
+  if (row.caloriesPer100g == null || fromMacros == null) return false;
+  const diff = Math.abs(row.caloriesPer100g - fromMacros);
+  return diff <= 10 || diff / Math.max(row.caloriesPer100g, 1) <= 0.2;
+}
+
 // ─── Nutrition computation ────────────────────────────────────────────────────
 
 /** Assumed grams per piece when the catalog row has no gramsPerPiece. */
