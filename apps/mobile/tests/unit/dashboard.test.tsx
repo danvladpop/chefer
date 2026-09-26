@@ -1,6 +1,10 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import type { TrainingDayNutrition } from '@chefer/types';
 import { NutritionSummary } from '../../src/features/dashboard/components/nutrition-summary';
 import { WeekOutlook } from '../../src/features/dashboard/components/week-outlook';
+
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
 
 const nutrition = (plannedKcal: number, eatenKcal = 0) => ({
   dailyCalorieTarget: 2000,
@@ -74,6 +78,55 @@ describe('NutritionSummary', () => {
       max: 100,
       now: 100,
     });
+  });
+});
+
+describe('NutritionSummary — training day (audit P2-4)', () => {
+  const trainingDay = (applied: boolean): TrainingDayNutrition => ({
+    isTrainingDay: true,
+    reason: 'COMPLETED',
+    workoutName: 'Full Body A',
+    kcalBonus: 250,
+    proteinBonus: 32,
+    applied,
+    basis: { bodyweightKg: 80, proteinGPerKg: 1.8, trainingDayProteinGPerKg: 2.2 },
+  });
+
+  it('non-lifters see no training line', async () => {
+    await render(<NutritionSummary nutrition={nutrition(1900, 800)} />);
+    expect(screen.queryByTestId('training-day')).toBeNull();
+  });
+
+  it('premium: the bump is applied to the ring and the protein bar', async () => {
+    await render(
+      <NutritionSummary
+        nutrition={{
+          ...nutrition(1900, 800),
+          trainingDay: trainingDay(true),
+          adjustedTargets: { dailyCalorieTarget: 2250, proteinG: 172, carbsG: 250, fatG: 70 },
+        }}
+      />,
+    );
+    expect(screen.getByTestId('training-day-line')).toHaveTextContent(
+      'Training day · +250 kcal, +32 g protein',
+    );
+    expect(screen.getByText(/Full Body A done · protein at 2.2 g\/kg/)).toBeOnTheScreen();
+    expect(screen.getByText('of 2,250 kcal eaten')).toBeOnTheScreen();
+    expect(screen.getByText('60g / 172g')).toBeOnTheScreen();
+    expect(screen.queryByTestId('training-day-upgrade')).toBeNull();
+  });
+
+  it('free: the same line locked, base targets kept, upgrade via Profile', async () => {
+    const user = userEvent.setup();
+    await render(
+      <NutritionSummary nutrition={{ ...nutrition(1900, 800), trainingDay: trainingDay(false) }} />,
+    );
+    expect(screen.getByTestId('training-day-line')).toHaveTextContent(
+      'Training day · +250 kcal, +32 g protein',
+    );
+    expect(screen.getByText('of 2,000 kcal eaten')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('training-day-upgrade'));
+    expect(router.push).toHaveBeenCalledWith('/profile');
   });
 });
 

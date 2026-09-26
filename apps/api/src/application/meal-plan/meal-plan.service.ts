@@ -15,6 +15,7 @@ import {
   type IMealPlanRepository,
   type Recipe,
 } from '@chefer/database';
+import { applyTrainingDayBonus, trainingDayBonus, trainingWeekdays } from '@chefer/utils';
 import { aiService } from '../../lib/ai/index.js';
 import type {
   Ingredient,
@@ -41,6 +42,10 @@ import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { findRecipeVisibleTo, isRecipeOpenTo } from '../recipe/recipe-access.js';
 import { estimatePlanCostEur, type PlanCostEstimate } from '../shared/plan-cost.js';
 import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
+import {
+  trainingNutritionService,
+  type TrainingNutritionService,
+} from '../training-nutrition/training-nutrition.service.js';
 import { planCuratedWeek } from './curated-planner.js';
 import { reconcileRecipeMacros } from './macro-reconcile.js';
 import { withServerRecipeIds } from './recipe-ids.js';
@@ -185,6 +190,10 @@ export class MealPlanService {
   constructor(
     private readonly repo: IMealPlanRepository,
     private readonly householdRepo: IHouseholdMemberRepository = householdMemberRepository,
+    private readonly training: Pick<
+      TrainingNutritionService,
+      'loadLifter' | 'trainingSchedule'
+    > = trainingNutritionService,
   ) {}
 
   /**
@@ -240,8 +249,25 @@ export class MealPlanService {
     // 2. Build the AI input from stored preferences. Targets come from the
     // shared resolver so the generated plan always matches what the dashboard
     // ring and tracker display.
-    const liveTargets = resolveDailyTargets(chefProfile ?? null);
+    // Lifters (audit P2-4): protein from bodyweight, and the routine's
+    // training days go into the prompt with their bump — same rules the
+    // dashboard applies, no extra AI call.
+    const { lifterBodyweightKg } = await this.training.loadLifter(userId, chefProfile ?? null);
+    const liveTargets = resolveDailyTargets(chefProfile ?? null, lifterBodyweightKg);
     const liveCalorieTarget = liveTargets.dailyCalorieTarget;
+    const trainingDays = lifterBodyweightKg
+      ? trainingWeekdays(await this.training.trainingSchedule(userId))
+      : [];
+    const trainingBonus =
+      lifterBodyweightKg && trainingDays.length > 0
+        ? trainingDayBonus(liveCalorieTarget, lifterBodyweightKg)
+        : null;
+    // Per-day targets for validation: training days are held to the bumped day.
+    const trainingDayTargets = new Map(
+      trainingBonus
+        ? trainingDays.map((d) => [d.dayOfWeek, applyTrainingDayBonus(liveTargets, trainingBonus)])
+        : [],
+    );
 
     // Household context (F2): the seam field carries servings (portionSum)
     // and soft dislike notes; the HARD safety union is ALSO merged into the
@@ -292,6 +318,13 @@ export class MealPlanService {
       ...(householdContext && { householdContext }),
       ...(useFirstIngredients.length > 0 && { useFirstIngredients }),
       ...(options.leftovers && { leftoversMode: true }),
+      ...(trainingBonus && {
+        trainingDays: {
+          days: trainingDays,
+          kcalBonus: trainingBonus.kcalBonus,
+          proteinBonus: trainingBonus.proteinBonus,
+        },
+      }),
     };
 
     // 3. Call AI service
@@ -317,7 +350,7 @@ export class MealPlanService {
     // One corrective retry with the failed numbers in the prompt; keep
     // whichever attempt is closer. The retry is intentionally NOT logged to
     // aiCallLog — quota counts user actions, and the user asked once.
-    const firstScore = planOffTargetScore(weekPlan, liveTargets);
+    const firstScore = planOffTargetScore(weekPlan, liveTargets, trainingDayTargets);
     if (firstScore > 0) {
       try {
         const retryPlan = await this.reconcilePlanMacros(
@@ -330,7 +363,7 @@ export class MealPlanService {
             },
           }),
         );
-        if (planOffTargetScore(retryPlan, liveTargets) < firstScore) {
+        if (planOffTargetScore(retryPlan, liveTargets, trainingDayTargets) < firstScore) {
           weekPlan = retryPlan;
         }
       } catch (err) {
@@ -584,12 +617,20 @@ export class MealPlanService {
     // snacks when three meals fall short (curated-planner.ts, audit
     // F-PLAN-1-3 / F-PM-4). Variety rule unchanged: no repeat until a pool
     // is used up.
+    // Lifters (audit P2-4): protein from bodyweight, and the routine's
+    // training days lean toward the higher-protein combinations. The
+    // training-day calorie bump itself is premium.
     const profile = await chefProfileRepository.findByUserId(userId);
-    const targets = resolveDailyTargets(profile ?? null);
+    const { lifterBodyweightKg } = await this.training.loadLifter(userId, profile ?? null);
+    const targets = resolveDailyTargets(profile ?? null, lifterBodyweightKg);
+    const trainingDays = lifterBodyweightKg
+      ? trainingWeekdays(await this.training.trainingSchedule(userId)).map((d) => d.dayOfWeek)
+      : [];
     const days = planCuratedWeek(pools, {
       calories: targets.dailyCalorieTarget,
       proteinG: targets.proteinG,
       goal: profile?.goal ?? null,
+      ...(trainingDays.length > 0 && { trainingDays }),
     });
 
     const uniqueRecipeIds = [...new Set(days.flatMap((d) => d.meals.map((m) => m.recipe.id)))];
@@ -1330,20 +1371,25 @@ const MACRO_WEIGHT = 0.5;
  * targets (audit F-PLAN-1-2). 0 = every day in every band.
  */
 export function planOffTargetScore(
-  weekPlan: { days: { meals: { recipe: RecipeData }[] }[] },
+  weekPlan: { days: { dayOfWeek?: number; meals: { recipe: RecipeData }[] }[] },
   targets: { dailyCalorieTarget: number; proteinG: number; carbsG: number; fatG: number },
+  /**
+   * Per-day overrides by dayOfWeek — a lifter's training days are judged
+   * against the bumped targets (audit P2-4). Omitted = one target all week.
+   */
+  dayTargets = new Map<number, typeof targets>(),
 ): number {
-  const kcal = offTargetScore(planDayKcalTotals(weekPlan), targets.dailyCalorieTarget);
-  const band = (actual: number, target: number) =>
-    target > 0 ? Math.max(0, Math.abs(actual - target) / target - PLAN_MACRO_TOLERANCE) : 0;
-  const macros = planDayMacroTotals(weekPlan).reduce(
-    (sum, d) =>
-      sum +
-      band(d.proteinG, targets.proteinG) +
-      band(d.carbsG, targets.carbsG) +
-      band(d.fatG, targets.fatG),
+  const targetFor = (i: number) => dayTargets.get(weekPlan.days[i]?.dayOfWeek ?? i) ?? targets;
+  const kcal = planDayKcalTotals(weekPlan).reduce(
+    (sum, total, i) => sum + offTargetScore([total], targetFor(i).dailyCalorieTarget),
     0,
   );
+  const band = (actual: number, target: number) =>
+    target > 0 ? Math.max(0, Math.abs(actual - target) / target - PLAN_MACRO_TOLERANCE) : 0;
+  const macros = planDayMacroTotals(weekPlan).reduce((sum, d, i) => {
+    const t = targetFor(i);
+    return sum + band(d.proteinG, t.proteinG) + band(d.carbsG, t.carbsG) + band(d.fatG, t.fatG);
+  }, 0);
   return kcal + MACRO_WEIGHT * macros;
 }
 

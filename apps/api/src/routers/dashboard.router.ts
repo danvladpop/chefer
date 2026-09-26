@@ -23,6 +23,6 @@ export const dashboardRouter = router({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
-      return dashboardService.getSummary(ctx.user.id, ctx.user.firstName ?? null, input);
+      return dashboardService.getSummary(ctx.user.id, ctx.user.firstName ?? null, input, ctx.user);
     }),
 });

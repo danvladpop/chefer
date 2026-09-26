@@ -183,6 +183,18 @@ export const PLAN_FEATURES = {
       'Exercise library with technique videos, editable routines, offline workout logging and week-over-week progression suggestions.',
     upsell: false,
   },
+  trainingNutrition: {
+    // The gym premium hero (audit P2-4). Free lifters get the base protein
+    // target from their bodyweight and the post-workout nudge; premium applies
+    // the training-day bump to Today's targets and builds AI weeks around the
+    // routine's training days. Deterministic — no extra AI call.
+    free: false,
+    premium: true,
+    label: 'Nutrition that follows your training',
+    description:
+      'On workout days your calorie and protein targets rise to fuel the session, and your AI week puts protein-rich meals on your training days.',
+    upsell: true,
+  },
   aiNutritionEstimatesPerDay: {
     // "Auto-fill with AI" on the custom-ingredient form — per-user AI, so
     // premium-only; it used to be an ungated AI call (audit F-PAN-2-4).

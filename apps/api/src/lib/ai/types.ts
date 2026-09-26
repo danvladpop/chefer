@@ -109,6 +109,15 @@ export interface MealPlanInput {
   };
   /** Daily macro targets (grams) from resolveDailyTargets (audit F-PLAN-1-2). */
   macroTargets?: { proteinG: number; carbsG: number; fatG: number };
+  /**
+   * Lifters only (audit P2-4): the active routine's training weekdays and
+   * the training-day bump on top of the daily targets. Premium path only.
+   */
+  trainingDays?: {
+    days: { dayOfWeek: number; label: string; workoutName: string }[];
+    kcalBonus: number;
+    proteinBonus: number;
+  };
 }
 
 // ─── Meal photo analysis (F4 Snap-to-Log) ────────────────────────────────────

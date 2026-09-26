@@ -6,8 +6,12 @@ import {
   mealPlanRepository,
   mealRatingRepository,
 } from '@chefer/database';
+import type { NutritionTargets, TrainingDayNutrition, UserProfile } from '@chefer/types';
+import { buildTrainingDayNutrition } from '@chefer/utils';
 import type { NutritionInfo } from '../../lib/ai/index.js';
+import { hasFeature } from '../../lib/entitlements.js';
 import { resolveDailyTargets, type DailyTargets } from '../preferences/preferences.service.js';
+import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +69,18 @@ export interface DashboardSummary {
     protein: { planned: number; targetG: number; eaten: number };
     carbs: { planned: number; targetG: number; eaten: number };
     fat: { planned: number; targetG: number; eaten: number };
+    /**
+     * Lifters only (set-up gym profile, GAIN_MUSCLE, bodyweight known —
+     * audit P2-4): today's training-day adjustment. Additive; the fields
+     * above keep meaning the BASE targets, so older clients are unchanged.
+     */
+    trainingDay?: TrainingDayNutrition;
+    /**
+     * Today's targets with the training-day bump applied — present only when
+     * it applies (premium, training day). New clients show these instead of
+     * the base targets above.
+     */
+    adjustedTargets?: NutritionTargets;
   };
   /**
    * Set when the active plan was created BEFORE its week began (PW-5 Sunday
@@ -128,6 +144,27 @@ function formatDayLabel(now: Date): string {
   });
 }
 
+/** YYYY-MM-DD of `now` — UTC fields for a client-supplied date, else server-local. */
+function toLocalDateString(now: Date, useUtc: boolean): string {
+  const y = useUtc ? now.getUTCFullYear() : now.getFullYear();
+  const m = (useUtc ? now.getUTCMonth() : now.getMonth()) + 1;
+  const d = useUtc ? now.getUTCDate() : now.getDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+type TrainingResult = ReturnType<typeof buildTrainingDayNutrition>;
+
+/** The additive nutrition fields for a lifter (none for everyone else). */
+function trainingFields(
+  training: TrainingResult | null,
+): Pick<DashboardSummary['nutrition'], 'trainingDay' | 'adjustedTargets'> {
+  if (!training) return {};
+  return {
+    trainingDay: training.trainingDay,
+    ...(training.adjustedTargets && { adjustedTargets: training.adjustedTargets }),
+  };
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class DashboardService {
@@ -135,6 +172,8 @@ export class DashboardService {
     userId: string,
     firstName: string | null,
     local?: { localDate?: string | undefined; localHour?: number | undefined },
+    /** The viewer, for tier-gated extras (training-day bump). Optional for tests. */
+    viewer?: UserProfile,
   ): Promise<DashboardSummary> {
     // "Today" is the client's calendar day when it tells us; server time is
     // the fallback for older clients. A local date is kept as UTC midnight so
@@ -153,7 +192,22 @@ export class DashboardService {
       dailyLogRepository.findByDate(userId, local?.localDate ? now : new Date()),
     ]);
 
-    const targets = resolveDailyTargets(chefProfile);
+    // Lifters get protein from bodyweight; on a training day the bump is
+    // applied for premium and previewed for free (audit P2-4).
+    const { lifterBodyweightKg } = await trainingNutritionService.loadLifter(userId, chefProfile);
+    const targets = resolveDailyTargets(chefProfile, lifterBodyweightKg);
+    const training = lifterBodyweightKg
+      ? buildTrainingDayNutrition({
+          base: targets,
+          bodyweightKg: lifterBodyweightKg,
+          day: await trainingNutritionService.trainingDayFor(
+            userId,
+            toLocalDateString(now, useUtc),
+            todayIndex,
+          ),
+          premium: viewer ? hasFeature(viewer, 'trainingNutrition') : false,
+        })
+      : null;
     const eaten = {
       kcal: todayLog?.totalKcal ?? 0,
       protein: Math.round(todayLog?.totalProtein ?? 0),
@@ -162,7 +216,16 @@ export class DashboardService {
     };
 
     if (!plan) {
-      return this.emptyDashboard(userId, firstName, now, todayIndex, targets, favourites, eaten);
+      return this.emptyDashboard(
+        userId,
+        firstName,
+        now,
+        todayIndex,
+        targets,
+        favourites,
+        eaten,
+        training,
+      );
     }
 
     // Join all recipe IDs
@@ -317,6 +380,7 @@ export class DashboardService {
         },
         carbs: { planned: Math.round(plannedCarbs), targetG: targets.carbsG, eaten: eaten.carbs },
         fat: { planned: Math.round(plannedFat), targetG: targets.fatG, eaten: eaten.fat },
+        ...trainingFields(training),
       },
     };
   }
@@ -329,6 +393,7 @@ export class DashboardService {
     targets: DailyTargets,
     favourites: Awaited<ReturnType<typeof favouriteRecipeRepository.findByUserId>>,
     eaten: { kcal: number; protein: number; carbs: number; fat: number },
+    training: TrainingResult | null,
   ): DashboardSummary {
     return {
       user: { firstName, displayName: null },
@@ -355,6 +420,7 @@ export class DashboardService {
         protein: { planned: 0, targetG: targets.proteinG, eaten: eaten.protein },
         carbs: { planned: 0, targetG: targets.carbsG, eaten: eaten.carbs },
         fat: { planned: 0, targetG: targets.fatG, eaten: eaten.fat },
+        ...trainingFields(training),
       },
     };
   }

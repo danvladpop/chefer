@@ -103,6 +103,21 @@ export function buildLeftoversSection(input: MealPlanInput): string {
 }
 
 /**
+ * Training days (audit P2-4): a lifter's routine weekdays get the
+ * training-day bump, with the extra protein in the post-workout meal.
+ */
+export function buildTrainingDaysSection(input: MealPlanInput): string {
+  const t = input.trainingDays;
+  if (!t?.days.length) return '';
+  const days = t.days.map((d) => `${d.dayOfWeek}=${d.label} (${d.workoutName})`).join(', ');
+  const kcal = input.dailyCalorieTarget + t.kcalBonus;
+  const protein = input.macroTargets
+    ? ` and ~${input.macroTargets.proteinG + t.proteinBonus} g protein`
+    : '';
+  return `Training days (from the user's gym routine): ${days}. On these days only, the day totals ~${kcal} kcal${protein} (+${t.kcalBonus} kcal, +${t.proteinBonus} g protein over the targets above) — put the extra protein in the meal after training, usually dinner (a protein-rich main: lean meat, fish, eggs, dairy or legumes). Rest days stay at the targets above.`;
+}
+
+/**
  * Corrective retry (trust P-1): present only on the second attempt, after the
  * first plan's day totals failed the ±15% server-side validation.
  */
@@ -170,6 +185,7 @@ export function buildMealPlanUserPrompt(input: MealPlanInput): string {
     buildHouseholdSection(input),
     buildUseFirstSection(input),
     buildLeftoversSection(input),
+    buildTrainingDaysSection(input),
     buildCalorieCorrectionSection(input),
   ]) {
     if (section) signalLines.push(section);

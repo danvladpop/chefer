@@ -2,6 +2,7 @@ export * from './auth';
 export * from './plan-features';
 export * from './gym';
 export * from './preferences';
+export * from './training-nutrition';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

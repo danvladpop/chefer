@@ -14,6 +14,13 @@ export interface CuratedTargets {
   calories: number;
   proteinG: number;
   goal: string | null;
+  /**
+   * A lifter's training weekdays (Monday = 0, audit P2-4): those days weigh
+   * the protein shortfall double, so they land on the higher-protein
+   * combinations (usually the dinner). Calories are not bumped — that is
+   * premium.
+   */
+  trainingDays?: number[];
 }
 
 export interface PlannedDay {
@@ -30,10 +37,10 @@ const MAX_SNACKS = 2;
 
 const MAIN_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner'];
 
-function score(kcal: number, protein: number, t: CuratedTargets): number {
+function score(kcal: number, protein: number, t: CuratedTargets, trainingDay = false): number {
   const kcalMiss = Math.abs(kcal - t.calories) / t.calories;
   const proteinShort = t.proteinG > 0 ? Math.max(0, t.proteinG - protein) / t.proteinG : 0;
-  const proteinWeight = t.goal === 'GAIN_MUSCLE' ? 1 : 0.5;
+  const proteinWeight = (t.goal === 'GAIN_MUSCLE' ? 1 : 0.5) * (trainingDay ? 2 : 1);
   return kcalMiss + proteinWeight * proteinShort;
 }
 
@@ -86,6 +93,7 @@ export function planCuratedWeek(
 
   const days: PlannedDay[] = [];
   for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+    const trainingDay = targets.trainingDays?.includes(dayOfWeek) ?? false;
     const [breakfasts, lunches, dinners] = MAIN_TYPES.map(head) as [
       RecipeData[],
       RecipeData[],
@@ -99,7 +107,7 @@ export function planCuratedWeek(
             b.nutritionInfo.calories + l.nutritionInfo.calories + d.nutritionInfo.calories;
           const protein =
             b.nutritionInfo.protein + l.nutritionInfo.protein + d.nutritionInfo.protein;
-          const s = score(kcal, protein, targets);
+          const s = score(kcal, protein, targets, trainingDay);
           if (!best || s < best.score) best = { meals: [b, l, d], score: s, kcal, protein };
         }
       }
@@ -122,6 +130,7 @@ export function planCuratedWeek(
             kcal + recipe.nutritionInfo.calories,
             protein + recipe.nutritionInfo.protein,
             targets,
+            trainingDay,
           );
           return !acc || s < acc.score ? { recipe, score: s } : acc;
         },

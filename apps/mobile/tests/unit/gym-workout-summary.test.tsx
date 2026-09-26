@@ -20,6 +20,7 @@ import {
 
 jest.mock('expo-router', () => ({
   router: {
+    push: jest.fn(),
     replace: jest.fn(),
     back: jest.fn(),
     canGoBack: jest.fn(() => true),
@@ -31,7 +32,9 @@ jest.mock('expo-crypto', () => ({ randomUUID: () => '00000000-0000-4000-8000-000
 jest.mock('expo-notifications', () => ({}));
 jest.mock('expo-image', () => ({ Image: () => null }));
 
-const { router } = jest.requireMock<{ router: { dismissTo: jest.Mock } }>('expo-router');
+const { router } = jest.requireMock<{ router: { dismissTo: jest.Mock; push: jest.Mock } }>(
+  'expo-router',
+);
 
 /** The finished doc: bench 3 × 60 × 12 (top of 8–12), all ticked. */
 function finishedDoc(): WorkoutSessionDoc {
@@ -232,5 +235,39 @@ describe('SummaryScreen', () => {
     await renderSummary(doc.id, bootstrapAfterFinish(doc));
     await user.press(screen.getByTestId('summary-done'));
     expect(router.dismissTo).toHaveBeenCalledWith('/today');
+  });
+});
+
+describe('SummaryScreen — refuel nudge (audit P2-4)', () => {
+  it('aims the next meal at ~0.4 g/kg protein and links the next planned meal', async () => {
+    const user = userEvent.setup();
+    const doc = finishedDoc();
+    rememberFinished(doc);
+    const calls: LinkCall[] = [];
+    await renderSummary(
+      doc.id,
+      { ...bootstrapAfterFinish(doc), bodyweightKg: 90 },
+      calls,
+      (path) =>
+        path === 'dashboard.summary'
+          ? { nextMeal: { mealType: 'dinner', recipe: { id: 'r-salmon', name: 'Miso Salmon' } } }
+          : null,
+    );
+    expect(screen.getByTestId('summary-refuel-grams')).toHaveTextContent(
+      'Aim for ~35 g protein in your next meal',
+    );
+    const link = await screen.findByText('Next up: Miso Salmon →');
+    await user.press(link);
+    expect(router.push).toHaveBeenCalledWith('/recipe/r-salmon');
+  });
+
+  it('falls back to quick add without a plan (or offline), 30 g without a bodyweight', async () => {
+    const user = userEvent.setup();
+    const doc = finishedDoc();
+    rememberFinished(doc);
+    await renderSummary(doc.id, bootstrapAfterFinish(doc));
+    expect(screen.getByTestId('summary-refuel-grams')).toHaveTextContent(/~30 g protein/);
+    await user.press(screen.getByTestId('summary-refuel-link'));
+    expect(router.push).toHaveBeenCalledWith('/tracker');
   });
 });

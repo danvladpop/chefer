@@ -4,7 +4,15 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import { Clock, Flame, ListChecks, SlidersHorizontal, Trophy } from 'lucide-react';
+import {
+  ChevronRight,
+  Clock,
+  Flame,
+  ListChecks,
+  SlidersHorizontal,
+  Trophy,
+  Utensils,
+} from 'lucide-react';
 import type {
   EquipmentProfile,
   ExerciseMeta,
@@ -15,7 +23,17 @@ import type {
   WorkoutSessionDoc,
 } from '@chefer/types';
 import { Button } from '@chefer/ui';
-import { cn, explain, formatLoad, isHarder, repBucket, stepDown, stepUp } from '@chefer/utils';
+import {
+  cn,
+  explain,
+  formatLoad,
+  isHarder,
+  localDateStr,
+  postWorkoutProteinG,
+  repBucket,
+  stepDown,
+  stepUp,
+} from '@chefer/utils';
 import { captureGymEvent } from '../analytics';
 import { KIND_ARROW, KIND_TONE, prescriptionText, repsText } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
@@ -122,6 +140,8 @@ export function SummaryView({ id }: { id: string }) {
             </div>
           </GymCard>
 
+          {doc.status === 'COMPLETED' && <RefuelCard bodyweightKg={data.bodyweightKg} />}
+
           {prs.size > 0 && (
             <GymCard>
               <CardLabel>Personal records</CardLabel>
@@ -189,6 +209,40 @@ export function SummaryView({ id }: { id: string }) {
         </Button>
       </div>
     </Frame>
+  );
+}
+
+/**
+ * Post-workout nudge (audit P2-4, every tier): the protein to aim for in the
+ * next meal (~0.4 g/kg), with the next planned meal when the food plan loads
+ * — offline or without a plan it falls back to quick add in the tracker.
+ */
+function RefuelCard({ bodyweightKg }: { bodyweightKg: number | null }) {
+  const grams = postWorkoutProteinG(bodyweightKg);
+  const { data } = trpc.dashboard.summary.useQuery(
+    { localDate: localDateStr(), localHour: new Date().getHours() },
+    { retry: false, staleTime: 60_000 },
+  );
+  const next = data?.nextMeal ?? data?.tomorrowFirstMeal ?? null;
+  return (
+    <GymCard data-testid="gym-refuel">
+      <p className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+        <Utensils className="h-4 w-4 shrink-0 text-[#944a00]" aria-hidden="true" />
+        Aim for ~{grams} g protein in your next meal
+      </p>
+      <p className="mt-0.5 text-xs text-gray-500">
+        It helps your muscles recover from this session.
+      </p>
+      <Link
+        href={next ? `/recipes/${next.recipe.id}` : '/tracker'}
+        className="-mx-2 mt-1 flex min-h-11 items-center justify-between gap-2 rounded-lg px-2 text-sm font-medium text-[#944a00] hover:bg-[#fff3e8]"
+      >
+        <span className="min-w-0 truncate">
+          {next ? `Next up: ${next.recipe.name}` : 'Log a meal in the tracker'}
+        </span>
+        <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+      </Link>
+    </GymCard>
   );
 }
 

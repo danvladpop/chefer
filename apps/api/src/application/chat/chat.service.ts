@@ -16,6 +16,7 @@ import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { recipeImportService } from '../recipe-import/recipe-import.service.js';
 import { shoppingListService } from '../shopping-list/shopping-list.service.js';
 import { trackerService } from '../tracker/tracker.service.js';
+import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
 
 // ─── AI chef chat (P1-4) ──────────────────────────────────────────────────────
 // Replaces the web app's mock regex route. Every message gets a fresh context
@@ -50,7 +51,8 @@ export class ChatService {
       dailyLogRepository.findByDate(user.id, startOfTodayUtc()),
     ]);
 
-    const targets = resolveDailyTargets(profile);
+    const { lifterBodyweightKg } = await trainingNutritionService.loadLifter(user.id, profile);
+    const targets = resolveDailyTargets(profile, lifterBodyweightKg);
     const lines: string[] = ['USER CONTEXT (real data — answer from this):'];
 
     lines.push(

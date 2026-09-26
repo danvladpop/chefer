@@ -12,7 +12,7 @@ import {
   type UpsertDietaryPreferencesData,
 } from '@chefer/database';
 import type { DisplayCurrency, SetDisplayPreferencesInput } from '@chefer/types';
-import { toDisplayCurrency } from '@chefer/utils';
+import { toDisplayCurrency, withLifterProtein } from '@chefer/utils';
 
 // ─── Activity multipliers (Mifflin-St Jeor) ──────────────────────────────────
 
@@ -188,6 +188,12 @@ export function resolveDailyTargets(
      */
     targetAdjustmentKcal?: number | null;
   } | null,
+  /**
+   * Lifter bodyweight from trainingNutritionService.loadLifter (audit P2-4):
+   * when set, protein is 1.8 g/kg instead of the goal's split, and carbs take
+   * up the difference so calories are unchanged. Omitted = the old rules.
+   */
+  lifterBodyweightKg?: number | null,
 ): DailyTargets {
   const goal = profile?.goal ?? 'MAINTAIN';
   const split = GOAL_MACRO_SPLITS[goal] ?? GOAL_MACRO_SPLITS['MAINTAIN']!;
@@ -209,10 +215,11 @@ export function resolveDailyTargets(
   // BEFORE the protein cap (splitToGrams below sees the adjusted calories).
   const calories = Math.max(1200, baseCalories + (profile?.targetAdjustmentKcal ?? 0));
 
-  return {
+  const targets = {
     dailyCalorieTarget: calories,
     ...splitToGrams(calories, split, profile?.weightKg ?? null),
   };
+  return lifterBodyweightKg ? withLifterProtein(targets, lifterBodyweightKg) : targets;
 }
 
 // ─── Input / Output Types ─────────────────────────────────────────────────────

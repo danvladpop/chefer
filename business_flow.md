@@ -646,10 +646,55 @@ dashboard.summary
   │    evening) — the first meal of day (today+1) % 7, so the dashboard
   │    hero renders a "Tomorrow" card instead of going blank
   └─ nutrition: planned kcal/macros for today vs targets
+       └─ lifters only (P2-4): trainingDay + adjustedTargets (see below)
 ```
 
 The web hero card (`/dashboard`) renders `nextMeal`, else `tomorrowFirstMeal`
 (badged "Tomorrow", CTA "View Recipe"), else the "all caught up" empty state.
+
+### 10.1 Training-aware nutrition (audit P2-4)
+
+Connects the gym to the food side with deterministic rules (no AI call).
+The pure maths lives in `@chefer/utils` (`training-nutrition.ts`); the gym
+reads live in `trainingNutritionService` (API).
+
+**Who is a lifter:** a set-up gym profile (`GymProfile.setupCompletedAt`),
+goal `GAIN_MUSCLE`, and a known bodyweight (latest `WeightEntry`, else
+`ChefProfile.weightKg`). Other goals keep the old rules (follow-up).
+
+| Rule              | Value                                                                                                                                                                            | Tier                                                                                                                          |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Base protein      | **1.8 g/kg** bodyweight (replaces the goal's 35% split, which sat at the 2.2 g/kg cap for every lifter); carbs absorb the difference so kcal is unchanged                        | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context and both generation paths |
+| Training day      | a workout **completed** that day (any day), else a routine day **planned** for that weekday outside a training pause                                                             | —                                                                                                                             |
+| Training-day bump | protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                              | **premium** applies it; **free** sees the same numbers locked (upgrade source `training-day`)                                 |
+| Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                       | every tier                                                                                                                    |
+| Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets | premium                                                                                                                       |
+| Free curated week | training weekdays weigh the protein shortfall double in `planCuratedWeek`, so those days pick the higher-protein combinations (usually dinner); no kcal bump                     | free                                                                                                                          |
+
+```
+dashboard.summary (lifter)
+  ├─ trainingNutritionService.loadLifter → lifterBodyweightKg
+  ├─ resolveDailyTargets(profile, bw) → base targets (protein 1.8 g/kg)
+  │    — the existing nutrition fields keep carrying the BASE targets,
+  │      so shipped clients see no change in meaning
+  ├─ trainingDayFor(localDate, weekday) → COMPLETED | SCHEDULED | rest
+  └─ nutrition.trainingDay { isTrainingDay, reason, workoutName,
+       kcalBonus, proteinBonus, applied, basis }            (optional)
+     nutrition.adjustedTargets { dailyCalorieTarget, proteinG,
+       carbsG, fatG }         (optional — premium AND training day)
+```
+
+**Clients (web + mobile, same copy):** the Today nutrition card shows
+"Training day · +250 kcal, +32 g protein". Premium: the ring and macro bars
+use `adjustedTargets`, with "Full Body A today · protein at 2.2 g/kg, added
+to today". Free: the line is locked ("Premium adds this to today's targets")
+with the upgrade button (web) or "Upgrade from your Profile →" (mobile).
+Rest days and non-lifters show nothing new.
+
+**Workout summary (web + mobile, every tier):** a refuel card — "Aim for ~30 g
+protein in your next meal" — linking the next planned meal (from
+`dashboard.summary`, recipe page) or, offline / without a plan, the tracker's
+quick add.
 
 ---
 

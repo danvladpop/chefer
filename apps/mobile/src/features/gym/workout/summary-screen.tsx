@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type { ExerciseDto, GymBootstrap, ProgressionDto } from '@chefer/types';
 import {
   Button,
   Card,
+  colors,
   EmptyState,
   ProgressRing,
   Screen,
@@ -13,7 +15,7 @@ import {
   Text,
   ValueStepper,
 } from '@chefer/ui-mobile';
-import { cn, formatLoad } from '@chefer/utils';
+import { cn, formatLoad, localDateStr, postWorkoutProteinG } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { gymBootstrapQueryKey, useGymBootstrap } from '../use-gym-bootstrap';
 import { getFinished } from './finished-store';
@@ -144,6 +146,8 @@ export function SummaryScreen({ id }: { id: string }) {
           </Card>
         ) : null}
 
+        <RefuelCard bodyweightKg={bootstrap?.bodyweightKg ?? null} />
+
         {prs.length > 0 ? (
           <View className="gap-2">
             <Text variant="heading">Personal records</Text>
@@ -265,6 +269,43 @@ export function SummaryScreen({ id }: { id: string }) {
         />
       ) : null}
     </Screen>
+  );
+}
+
+/**
+ * Post-workout nudge (audit P2-4, every tier; mirrors web's RefuelCard): the
+ * protein to aim for in the next meal (~0.4 g/kg), with the next planned meal
+ * when the food plan loads — offline or without a plan, quick add instead.
+ */
+function RefuelCard({ bodyweightKg }: { bodyweightKg: number | null }) {
+  const grams = postWorkoutProteinG(bodyweightKg);
+  const { data } = trpc.dashboard.summary.useQuery(
+    { localDate: localDateStr(), localHour: new Date().getHours() },
+    { retry: false, staleTime: 60_000 },
+  );
+  const next = data?.nextMeal ?? data?.tomorrowFirstMeal ?? null;
+  return (
+    <Card testID="summary-refuel" className="gap-1">
+      <View className="flex-row items-center gap-2">
+        <Ionicons name="restaurant-outline" size={18} color={colors.primary} />
+        <Text testID="summary-refuel-grams" className="min-w-0 flex-1 text-base font-semibold">
+          Aim for ~{grams} g protein in your next meal
+        </Text>
+      </View>
+      <Text variant="muted" className="text-sm">
+        It helps your muscles recover from this session.
+      </Text>
+      <Pressable
+        testID="summary-refuel-link"
+        accessibilityRole="link"
+        onPress={() => router.push(next ? `/recipe/${next.recipe.id}` : '/tracker')}
+        className="min-h-11 justify-center"
+      >
+        <Text numberOfLines={1} className="text-sm font-semibold text-primary">
+          {next ? `Next up: ${next.recipe.name} →` : 'Log a meal in the tracker →'}
+        </Text>
+      </Pressable>
+    </Card>
   );
 }
 
