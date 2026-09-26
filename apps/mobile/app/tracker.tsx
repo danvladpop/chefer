@@ -13,6 +13,7 @@ import {
   slotPortion,
 } from '@chefer/utils';
 import { MealTypeBadge } from '../src/features/dashboard/components/meal-type-badge';
+import { TrainingDayNote } from '../src/features/dashboard/components/training-day-note';
 import { QuickAddSheet } from '../src/features/tracker/quick-add-sheet';
 import { RebalanceBanner } from '../src/features/tracker/rebalance-banner';
 import { recordRebalance } from '../src/features/tracker/rebalance-store';
@@ -76,6 +77,9 @@ export default function TrackerScreen() {
     { date: dateStr },
     { enabled: !isFuture, staleTime: 30_000 },
   );
+  // Same targets as Today: a premium lifter's training day swaps in the
+  // bumped targets (audit P2-4); everyone else keeps the base.
+  const dayTargets = data?.adjustedTargets ?? data?.targets;
 
   const [checkedMeals, setCheckedMeals] = useState<
     Record<string, { checked: boolean; portion: PortionKey }>
@@ -283,23 +287,20 @@ export default function TrackerScreen() {
             <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
               Logged {isToday ? 'Today' : 'This Day'}
             </Text>
+            {data?.trainingDay && <TrainingDayNote t={data.trainingDay} isToday={isToday} />}
             <View className="gap-3">
               <TargetBar
                 label="Calories"
                 value={loggedKcal}
-                target={data?.targets.dailyCalorieTarget ?? 2000}
+                target={dayTargets?.dailyCalorieTarget ?? 2000}
               />
               <TargetBar
                 label="Protein (g)"
                 value={loggedProtein}
-                target={data?.targets.proteinG ?? 125}
+                target={dayTargets?.proteinG ?? 125}
               />
-              <TargetBar
-                label="Carbs (g)"
-                value={loggedCarbs}
-                target={data?.targets.carbsG ?? 225}
-              />
-              <TargetBar label="Fat (g)" value={loggedFat} target={data?.targets.fatG ?? 65} />
+              <TargetBar label="Carbs (g)" value={loggedCarbs} target={dayTargets?.carbsG ?? 225} />
+              <TargetBar label="Fat (g)" value={loggedFat} target={dayTargets?.fatG ?? 65} />
             </View>
           </Card>
 
