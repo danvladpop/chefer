@@ -18,7 +18,7 @@ import { trpc } from '@/lib/trpc';
 import { addDays, format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Flame, Save, Trash2 } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
-import { formatPortion, localDateStr, slotPortion } from '@chefer/utils';
+import { formatPortion, localDateStr, matchLoggedToSlots, slotPortion } from '@chefer/utils';
 
 type PortionKey = number;
 const PORTION_OPTIONS: PortionKey[] = [0.5, 1, 1.5, 2];
@@ -32,6 +32,12 @@ const planPortionOf = (meal: { portion?: number }): PortionKey =>
   Math.min(2, Math.max(0.5, slotPortion(meal.portion)));
 const portionOptionsFor = (meal: { portion?: number }): PortionKey[] =>
   [...new Set([...PORTION_OPTIONS, planPortionOf(meal)])].sort((a, b) => a - b);
+
+/**
+ * A planned row's key: its plan slot, so two identical snacks are two rows
+ * that tick separately (they used to share `recipeId:mealType`).
+ */
+const keyOf = (meal: { slotIndex?: number }, i: number): string => String(meal.slotIndex ?? i);
 
 // Local calendar day, not the UTC one (F-TRK-1-1).
 const toDateStr = (d: Date): string => localDateStr(d);
@@ -56,30 +62,35 @@ export default function TrackerPage() {
     { enabled: !isFuture, staleTime: 30_000 },
   );
 
-  // checkedMeals: map recipeId+mealType → { checked, portion }
+  // checkedMeals: map plan slot (keyOf) → { checked, portion }
   const [checkedMeals, setCheckedMeals] = useState<
     Record<string, { checked: boolean; portion: PortionKey }>
   >({});
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [initialised, setInitialised] = useState<string | null>(null); // tracks which dateStr we initialised for
 
-  const getKey = (recipeId: string, mealType: string) => `${recipeId}:${mealType}`;
-
   // When data loads, pre-populate from existing log (only once per dateStr).
   // Entries without a recipeId are custom (Snap-to-Log quick-adds, F4) — they
   // don't map to a planned-meal row, so they're skipped here and preserved
   // verbatim on save instead.
+  // Each logged entry ticks ONE slot (matchLoggedToSlots): its own slot when
+  // it carries a slotIndex, else the first free slot of its recipe and type.
   useEffect(() => {
     if (!data || initialised === dateStr) return;
     if (data.log) {
       const init: Record<string, { checked: boolean; portion: PortionKey }> = {};
-      for (const m of data.log.loggedMeals) {
-        if (!m.recipeId) continue;
-        init[getKey(m.recipeId, m.mealType)] = {
-          checked: true,
-          portion: m.portionMultiplier,
-        };
-      }
+      const matched = matchLoggedToSlots(
+        data.plannedMeals.map((m, i) => ({
+          type: m.mealType,
+          recipeId: m.recipeId,
+          slotIndex: m.slotIndex ?? i,
+        })),
+        data.log.loggedMeals,
+      );
+      data.plannedMeals.forEach((m, i) => {
+        const entry = matched[i];
+        if (entry) init[keyOf(m, i)] = { checked: true, portion: entry.portionMultiplier };
+      });
       setCheckedMeals(init);
     } else {
       setCheckedMeals({});
@@ -104,8 +115,7 @@ export default function TrackerPage() {
     onSuccess: () => void refetch(),
   });
 
-  const toggleMeal = (recipeId: string, mealType: string, planPortion: PortionKey) => {
-    const k = getKey(recipeId, mealType);
+  const toggleMeal = (k: string, planPortion: PortionKey) => {
     setCheckedMeals((prev) => ({
       ...prev,
       [k]: { checked: !(prev[k]?.checked ?? false), portion: prev[k]?.portion ?? planPortion },
@@ -113,8 +123,7 @@ export default function TrackerPage() {
     setSavedSuccess(false);
   };
 
-  const setPortion = (recipeId: string, mealType: string, portion: PortionKey) => {
-    const k = getKey(recipeId, mealType);
+  const setPortion = (k: string, portion: PortionKey) => {
     setCheckedMeals((prev) => ({ ...prev, [k]: { ...prev[k], checked: true, portion } }));
     setSavedSuccess(false);
   };
@@ -135,12 +144,14 @@ export default function TrackerPage() {
   const handleSave = () => {
     if (!data) return;
     const plannedLogged = data.plannedMeals
-      .filter((m) => checkedMeals[getKey(m.recipeId, m.mealType)]?.checked)
-      .map((m) => {
-        const portion = checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? planPortionOf(m);
+      .map((m, i) => ({ m, k: keyOf(m, i) }))
+      .filter(({ k }) => checkedMeals[k]?.checked)
+      .map(({ m, k }) => {
+        const portion = checkedMeals[k]?.portion ?? planPortionOf(m);
         return {
           recipeId: m.recipeId,
           mealType: m.mealType,
+          ...(m.slotIndex !== undefined && { slotIndex: m.slotIndex }),
           portionMultiplier: portion,
           kcal: Math.round(m.kcal * portion),
           protein: Math.round(m.protein * portion * 10) / 10,
@@ -161,8 +172,10 @@ export default function TrackerPage() {
 
   // Compute logged totals from current UI state, plus already-saved custom
   // entries (their macros are stored pre-scaled, so no portion multiply).
-  const loggedMeals =
-    data?.plannedMeals.filter((m) => checkedMeals[getKey(m.recipeId, m.mealType)]?.checked) ?? [];
+  const loggedMeals = (data?.plannedMeals ?? []).flatMap((m, i) => {
+    const state = checkedMeals[keyOf(m, i)];
+    return state?.checked ? [{ ...m, logPortion: state.portion }] : [];
+  });
   const {
     kcal: customKcal,
     protein: customProtein,
@@ -179,40 +192,15 @@ export default function TrackerPage() {
     { kcal: 0, protein: 0, carbs: 0, fat: 0 },
   );
   const loggedKcal =
-    loggedMeals.reduce(
-      (s, m) =>
-        s +
-        Math.round(
-          m.kcal * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? planPortionOf(m)),
-        ),
-      0,
-    ) +
+    loggedMeals.reduce((s, m) => s + Math.round(m.kcal * m.logPortion), 0) +
     customKcal +
     offPlan.kcal;
   const loggedProtein =
-    loggedMeals.reduce(
-      (s, m) =>
-        s + m.protein * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? planPortionOf(m)),
-      0,
-    ) +
-    customProtein +
-    offPlan.protein;
+    loggedMeals.reduce((s, m) => s + m.protein * m.logPortion, 0) + customProtein + offPlan.protein;
   const loggedCarbs =
-    loggedMeals.reduce(
-      (s, m) =>
-        s + m.carbs * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? planPortionOf(m)),
-      0,
-    ) +
-    customCarbs +
-    offPlan.carbs;
+    loggedMeals.reduce((s, m) => s + m.carbs * m.logPortion, 0) + customCarbs + offPlan.carbs;
   const loggedFat =
-    loggedMeals.reduce(
-      (s, m) =>
-        s + m.fat * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? planPortionOf(m)),
-      0,
-    ) +
-    customFat +
-    offPlan.fat;
+    loggedMeals.reduce((s, m) => s + m.fat * m.logPortion, 0) + customFat + offPlan.fat;
   // All four targets come from the API's resolveDailyTargets — the same
   // source the dashboard uses, so the two surfaces can never disagree
   // (prod-followups #4). A premium lifter's training day swaps in the bumped
@@ -359,8 +347,8 @@ export default function TrackerPage() {
             </div>
           ) : (
             <div className="mb-6 space-y-3">
-              {data.plannedMeals.map((meal) => {
-                const k = getKey(meal.recipeId, meal.mealType);
+              {data.plannedMeals.map((meal, i) => {
+                const k = keyOf(meal, i);
                 const isChecked = checkedMeals[k]?.checked ?? false;
                 const portion = checkedMeals[k]?.portion ?? planPortionOf(meal);
                 const scaledKcal = Math.round(meal.kcal * portion);
@@ -398,9 +386,7 @@ export default function TrackerPage() {
                             action. Visual size holds; the hit area is 44px. */}
                         <button
                           type="button"
-                          onClick={() =>
-                            toggleMeal(meal.recipeId, meal.mealType, planPortionOf(meal))
-                          }
+                          onClick={() => toggleMeal(k, planPortionOf(meal))}
                           aria-pressed={isChecked}
                           className="-m-2.5 flex h-11 w-11 shrink-0 items-center justify-center p-2.5"
                           aria-label={`${isChecked ? 'Uncheck' : 'Check'} ${meal.recipeName}`}
@@ -426,7 +412,7 @@ export default function TrackerPage() {
                             <button
                               key={p}
                               type="button"
-                              onClick={() => setPortion(meal.recipeId, meal.mealType, p)}
+                              onClick={() => setPortion(k, p)}
                               aria-pressed={portion === p && isChecked}
                               className={`min-h-11 flex-1 rounded-lg px-2 text-xs font-medium transition-all sm:flex-none sm:px-3 ${portion === p && isChecked ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
                             >

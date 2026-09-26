@@ -773,6 +773,13 @@ the tracker bars match Today's ring. On another day the copy says "this day"
 ("Full Body A planned · …, added to this day"; "Premium adds this to this
 day's targets"); a past day with a finished workout counts too.
 
+**Preferences macro preview (web + mobile):** `preferences.computeTargets`
+applies the same rule, so a lifter's preview shows the protein the dashboard
+will show, with "Protein set from your bodyweight (1.8 g/kg) because you
+train." under it (`lifterProteinNote`). Web replaces its instant local
+estimate with the server numbers once they arrive; mobile adds a protein line
+under the calorie estimate in Goal & body for lifters only.
+
 **Coach weekly review (§14):** lifters are judged against their g/kg protein
 target — one line with the week's average ("Protein averaged 120 g a day, 24
 g short of your 144 g lifting target (1.8 g per kg) — …"). Non-lifters get no
@@ -900,7 +907,8 @@ POST /api/chat (session cookie)
   ├─ log AiCallLog CHAT
   └─ aiService.chat(messages, { contextSummary, tools })
        ├─ Gemini: bounded function-calling loop, then streams the answer
-       │    ├─ swapMeal(dayOfWeek, mealType) → MealPlanService.swapRecipe
+       │    ├─ swapMeal(dayOfWeek, mealType, occurrence?) → MealPlanService.swapRecipe
+       │    │    (occurrence 2 = the day's second snack → slotIndex; omitted = first)
        │    │    (a chat swap IS a plan swap — the meal-plan page reflects it)
        │    ├─ scaleRecipe(recipeName, servings) → quantities rescaled from
        │    │    the active plan
@@ -1032,6 +1040,20 @@ plan (e.g. cooked before a regenerate or swap). Those appear under "Also logged
 today" (`getDay.offPlanLogged`) and count in the totals. Every day write runs
 in a serializable transaction with retry, so parallel quick-adds from two
 devices all persist. Saving with nothing ticked un-logs the planned meals.
+
+**One entry per plan slot** (follow-up, 2026-09-26). A curated day can hold two
+identical snacks; entries used to be matched by recipe + meal type, so ticking
+one ticked both. `tracker.getDay` now gives each planned meal its `slotIndex`
+(its index in the plan day's `meals`), the tracker (web + mobile) keys rows by
+it and sends it back on each ticked entry, and Today's "I ate this" passes
+`dashboard.summary.nextMeal.slotIndex` to `tracker.logRecipe`. Matching is
+`matchLoggedToSlots` in `@chefer/utils` (tracker, and `resolveTodayMeals` for
+Today): an entry with a `slotIndex` claims that slot while it still holds the
+entry's recipe; any other entry claims the first unclaimed slot with its
+recipe (and type) — so an older entry without one ticks one snack, not both.
+`logRecipe` with a `slotIndex` replaces only that slot's entry; without one
+(cook mode, shipped apps) it keeps the recipe + meal type rule. No schema
+change: `slotIndex` is an optional field of the `loggedMeals` JSON.
 
 ### Free-tier honesty tools
 

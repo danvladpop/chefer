@@ -126,6 +126,9 @@ export function NextMealCard({ meal, isTomorrow }: NextMealCardProps) {
                     date: localDateStr(),
                     recipeId: meal.recipe.id,
                     mealType: meal.mealType,
+                    // The plan slot, so the second of two identical snacks
+                    // logs as its own entry.
+                    ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
                     // Same clamp as the tracker: logRecipe takes 0.5–2×.
                     portionMultiplier: Math.min(2, Math.max(0.5, slotPortion(portion))),
                   })

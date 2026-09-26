@@ -10,6 +10,7 @@ import {
   customEntryTotals,
   formatPortion,
   localDateStr,
+  matchLoggedToSlots,
   slotPortion,
 } from '@chefer/utils';
 import { MealTypeBadge } from '../src/features/dashboard/components/meal-type-badge';
@@ -27,6 +28,13 @@ import { trpc } from '../src/lib/trpc';
 // that caused it — web only shows it on the meal plan (F-TRK-3-2).
 
 type PortionKey = number;
+
+/**
+ * A planned row's key: its plan slot, so two identical snacks are two rows
+ * that tick separately (they used to share `recipeId:mealType`).
+ */
+const keyOf = (meal: { slotIndex?: number }, i: number): string => String(meal.slotIndex ?? i);
+
 const PORTION_OPTIONS: PortionKey[] = [0.5, 1, 1.5, 2];
 
 /**
@@ -88,25 +96,30 @@ export default function TrackerScreen() {
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [initialised, setInitialised] = useState<string | null>(null);
 
-  const getKey = (recipeId: string, mealType: string) => `${recipeId}:${mealType}`;
-
   // Pre-populate from the existing log, once per date (same rules as web:
   // custom entries have no recipeId and are preserved verbatim on save).
+  // Each logged entry ticks ONE slot (matchLoggedToSlots): its own slot when
+  // it carries a slotIndex, else the first free slot of its recipe and type.
   useEffect(() => {
     if (!data || initialised === dateStr) {
       return;
     }
     if (data.log) {
       const init: Record<string, { checked: boolean; portion: PortionKey }> = {};
-      for (const m of data.log.loggedMeals) {
-        if (!m.recipeId) {
-          continue;
+      const matched = matchLoggedToSlots(
+        data.plannedMeals.map((m, i) => ({
+          type: m.mealType,
+          recipeId: m.recipeId,
+          slotIndex: m.slotIndex ?? i,
+        })),
+        data.log.loggedMeals,
+      );
+      data.plannedMeals.forEach((m, i) => {
+        const entry = matched[i];
+        if (entry) {
+          init[keyOf(m, i)] = { checked: true, portion: entry.portionMultiplier };
         }
-        init[getKey(m.recipeId, m.mealType)] = {
-          checked: true,
-          portion: m.portionMultiplier,
-        };
-      }
+      });
       setCheckedMeals(init);
     } else {
       setCheckedMeals({});
@@ -126,8 +139,7 @@ export default function TrackerScreen() {
     onSuccess: () => void refetch(),
   });
 
-  const toggleMeal = (recipeId: string, mealType: string, planPortion: PortionKey) => {
-    const k = getKey(recipeId, mealType);
+  const toggleMeal = (k: string, planPortion: PortionKey) => {
     setCheckedMeals((prev) => ({
       ...prev,
       [k]: { checked: !(prev[k]?.checked ?? false), portion: prev[k]?.portion ?? planPortion },
@@ -135,8 +147,7 @@ export default function TrackerScreen() {
     setSavedSuccess(false);
   };
 
-  const setPortion = (recipeId: string, mealType: string, portion: PortionKey) => {
-    const k = getKey(recipeId, mealType);
+  const setPortion = (k: string, portion: PortionKey) => {
     setCheckedMeals((prev) => ({ ...prev, [k]: { checked: true, portion } }));
     setSavedSuccess(false);
   };
@@ -169,12 +180,12 @@ export default function TrackerScreen() {
   const customRows = customEntryRows(data?.log?.loggedMeals ?? []);
   const customTotals = customEntryTotals(data?.log?.loggedMeals ?? []);
 
-  const checked = (recipeId: string, mealType: string) =>
-    checkedMeals[getKey(recipeId, mealType)]?.checked ?? false;
-  const portionOf = (m: { recipeId: string; mealType: string; portion?: number }): PortionKey =>
-    checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? planPortionOf(m);
+  const planned = (data?.plannedMeals ?? []).map((m, i) => ({ ...m, key: keyOf(m, i) }));
+  const checked = (key: string) => checkedMeals[key]?.checked ?? false;
+  const portionOf = (m: { key: string; portion?: number }): PortionKey =>
+    checkedMeals[m.key]?.portion ?? planPortionOf(m);
 
-  const loggedPlanned = (data?.plannedMeals ?? []).filter((m) => checked(m.recipeId, m.mealType));
+  const loggedPlanned = planned.filter((m) => checked(m.key));
   const loggedKcal =
     loggedPlanned.reduce((s, m) => s + Math.round(m.kcal * portionOf(m)), 0) +
     customTotals.kcal +
@@ -201,6 +212,7 @@ export default function TrackerScreen() {
       return {
         recipeId: m.recipeId,
         mealType: m.mealType,
+        ...(m.slotIndex !== undefined && { slotIndex: m.slotIndex }),
         portionMultiplier: portion,
         kcal: Math.round(m.kcal * portion),
         protein: Math.round(m.protein * portion * 10) / 10,
@@ -311,12 +323,12 @@ export default function TrackerScreen() {
             </Card>
           ) : (
             <View className="gap-2">
-              {(data?.plannedMeals ?? []).map((meal) => {
-                const isChecked = checked(meal.recipeId, meal.mealType);
+              {planned.map((meal) => {
+                const isChecked = checked(meal.key);
                 const portion = portionOf(meal);
                 return (
                   <View
-                    key={getKey(meal.recipeId, meal.mealType)}
+                    key={meal.key}
                     className={cn(
                       'rounded-xl border p-2',
                       isChecked ? 'border-primary/30 bg-accent' : 'border-border bg-card',
@@ -326,7 +338,7 @@ export default function TrackerScreen() {
                       testID={`tracker-meal-${meal.mealType}`}
                       accessibilityRole="button"
                       accessibilityState={{ checked: isChecked }}
-                      onPress={() => toggleMeal(meal.recipeId, meal.mealType, planPortionOf(meal))}
+                      onPress={() => toggleMeal(meal.key, planPortionOf(meal))}
                       className="flex-row items-center gap-3"
                     >
                       <Image
@@ -364,7 +376,7 @@ export default function TrackerScreen() {
                           <Pressable
                             key={p}
                             accessibilityRole="button"
-                            onPress={() => setPortion(meal.recipeId, meal.mealType, p)}
+                            onPress={() => setPortion(meal.key, p)}
                             className={cn(
                               'h-9 flex-1 items-center justify-center rounded-lg border',
                               portion === p

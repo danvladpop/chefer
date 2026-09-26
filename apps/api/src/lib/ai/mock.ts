@@ -485,7 +485,13 @@ export class MockAIService implements IAIService {
       const dayOfWeek = DAY_INDEX[dayMatch?.[1]?.toLowerCase() ?? 'today'] ?? today;
       const mealType =
         /\b(breakfast|lunch|dinner|snack)\b/i.exec(question)?.[1]?.toLowerCase() ?? 'lunch';
-      const result = await context.tools.swapMeal({ dayOfWeek, mealType });
+      // "swap my second snack" → the day's second slot of that type.
+      const occurrence = /\b(second|2nd|afternoon)\b/i.test(question) ? 2 : undefined;
+      const result = await context.tools.swapMeal({
+        dayOfWeek,
+        mealType,
+        ...(occurrence !== undefined && { occurrence }),
+      });
       response = `(Mock) ${result}`;
     } else if (/\bi (just )?(ate|had)\b/i.test(question) && context.tools) {
       // "I ate a burger" → exercises the real logMeal tool handler (F4) with

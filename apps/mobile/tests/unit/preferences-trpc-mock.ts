@@ -16,6 +16,10 @@ export function createTrpcPreferencesMock() {
         updateTargets: { useMutation: jest.fn() },
         saveProfileBasics: { useMutation: jest.fn() },
         setDisplayPreferences: { useMutation: jest.fn() },
+        // Macro preview (lifter protein) — default: nothing back yet.
+        computeTargets: {
+          useQuery: jest.fn<unknown, unknown[]>(() => ({ data: undefined })),
+        },
         setAutoPlanWeekly: {
           useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false, isError: false })),
         },

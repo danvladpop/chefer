@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
+import { skipToken } from '@tanstack/react-query';
 import { Button, Card, Text } from '@chefer/ui-mobile';
+import { lifterProteinNote } from '@chefer/utils';
+import { trpc } from '../../lib/trpc';
 import { GoalStep } from './components/goal-step';
 import { MetricsStep } from './components/metrics-step';
 import type { ActivityLevel, BiologicalSex, Goal, MetricsValue } from './types';
@@ -90,6 +93,39 @@ export function GoalBodyCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per server payload, see comment above
   }, [initial]);
 
+  // Lifter protein (audit follow-up): the server applies the dashboard's
+  // rules, so a lifter's preview shows their bodyweight protein and why.
+  const previewInput =
+    goal !== null &&
+    metrics.biologicalSex !== null &&
+    metrics.activityLevel !== null &&
+    metrics.age !== null &&
+    metrics.age >= 10 &&
+    metrics.age <= 110 &&
+    metrics.heightCm !== null &&
+    metrics.heightCm > 0 &&
+    metrics.heightCm <= 300 &&
+    metrics.weightKg !== null &&
+    metrics.weightKg > 0 &&
+    metrics.weightKg <= 500
+      ? {
+          goal,
+          biologicalSex: metrics.biologicalSex,
+          age: Math.round(metrics.age),
+          heightCm: metrics.heightCm,
+          weightKg: metrics.weightKg,
+          activityLevel: metrics.activityLevel,
+        }
+      : null;
+  const preview = trpc.preferences.computeTargets.useQuery(previewInput ?? skipToken, {
+    placeholderData: (prev) => prev,
+    staleTime: 60_000,
+  }).data;
+  const lifterProtein =
+    previewInput !== null && preview?.lifter
+      ? { proteinG: preview.proteinG, note: lifterProteinNote(preview.lifter.proteinGPerKg) }
+      : null;
+
   function handleAgeText(raw: string) {
     setAgeText(raw);
     const n = parseInt(raw, 10);
@@ -137,6 +173,7 @@ export function GoalBodyCard({
         value={metrics}
         onChange={setMetrics}
         goal={goal}
+        lifterProtein={lifterProtein}
         ageText={ageText}
         heightText={heightText}
         weightText={weightText}
