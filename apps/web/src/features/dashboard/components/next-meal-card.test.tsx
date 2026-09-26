@@ -76,7 +76,7 @@ describe('NextMealCard', () => {
     expect(screen.getByTestId('today-logged-status').textContent).toContain('Lentil Curry');
   });
 
-  it('logs the plan slot\'s portion (P1-1) and shows it', () => {
+  it("logs the plan slot's portion (P1-1) and shows it", () => {
     render(<NextMealCard meal={{ ...MEAL, portion: 1.5 }} isTomorrow={false} />);
     fireEvent.click(screen.getByTestId('today-ate-this'));
     expect(mocks.mutate).toHaveBeenCalledWith(expect.objectContaining({ portionMultiplier: 1.5 }));
