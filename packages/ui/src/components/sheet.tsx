@@ -96,7 +96,7 @@ export function Sheet({
               <h2 id={titleId} className="font-serif text-base font-semibold text-gray-900">
                 {title}
               </h2>
-              {description && <div className="mt-0.5 text-xs text-gray-400">{description}</div>}
+              {description && <div className="mt-0.5 text-xs text-gray-600">{description}</div>}
             </div>
             <button
               type="button"
