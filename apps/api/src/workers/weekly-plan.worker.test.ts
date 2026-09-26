@@ -9,12 +9,19 @@ vi.mock('@chefer/database', async (importOriginal) => {
   return {
     ...mod,
     prisma: { user: { findMany: vi.fn().mockResolvedValue([]) } },
-    mealPlanRepository: { findByWeekStart: vi.fn().mockResolvedValue(null) },
+    mealPlanRepository: {
+      findByWeekStart: vi.fn().mockResolvedValue(null),
+      findFollowedTemplate: vi.fn().mockResolvedValue(null),
+      hasShoppingProgress: vi.fn().mockResolvedValue(false),
+    },
   };
 });
 
 vi.mock('../application/meal-plan/meal-plan.service.js', () => ({
-  mealPlanService: { generate: vi.fn().mockResolvedValue({ planId: 'p1' }) },
+  mealPlanService: {
+    generate: vi.fn().mockResolvedValue({ planId: 'p1' }),
+    applyTemplateToWeek: vi.fn().mockResolvedValue({ id: 'p1' }),
+  },
 }));
 
 vi.mock('../application/coach/coach.service.js', () => ({
@@ -33,6 +40,8 @@ describe('WeeklyPlanWorker', () => {
     vi.clearAllMocks();
     vi.mocked(prisma.user.findMany).mockResolvedValue([]);
     vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(null);
+    vi.mocked(mealPlanRepository.findFollowedTemplate).mockResolvedValue(null);
+    vi.mocked(mealPlanRepository.hasShoppingProgress).mockResolvedValue(false);
     // Keep the per-user politeness delay out of test time.
     vi.spyOn(global, 'setTimeout').mockImplementation((fn: () => void) => {
       fn();
@@ -63,7 +72,7 @@ describe('WeeklyPlanWorker', () => {
 
     await worker.tick(SUNDAY);
 
-    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true);
+    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true, { origin: 'WEEKLY_AUTO' });
   });
 
   it('only targets PREMIUM subscribers with a complete profile', async () => {
@@ -73,6 +82,7 @@ describe('WeeklyPlanWorker', () => {
     expect(where.chefProfile).toMatchObject({
       age: { not: null },
       weightKg: { not: null },
+      autoPlanWeekly: true, // the opt-out toggle (F-PLAN-4-3)
     });
   });
 
@@ -81,16 +91,60 @@ describe('WeeklyPlanWorker', () => {
 
     await worker.tick(SUNDAY);
 
-    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true);
+    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true, { origin: 'WEEKLY_AUTO' });
   });
 
   it('is idempotent — a user who already has next week planned is skipped', async () => {
     vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
-    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue({ id: 'existing' } as never);
+    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue({
+      id: 'existing',
+      origin: 'USER',
+    } as never);
 
     await worker.tick(SUNDAY);
 
     expect(mealPlanService.generate).not.toHaveBeenCalled();
+  });
+
+  it('repeats a followed template instead of generating over it (F-PLAN-4-1)', async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
+    const template = { id: 't1', days: [] };
+    vi.mocked(mealPlanRepository.findFollowedTemplate).mockResolvedValue(template as never);
+
+    await worker.tick(SUNDAY);
+
+    expect(mealPlanService.generate).not.toHaveBeenCalled();
+    expect(mealPlanService.applyTemplateToWeek).toHaveBeenCalledWith(
+      'u1',
+      template,
+      expect.any(Date),
+    );
+  });
+
+  it('replaces an untouched carry-forward copy with a fresh week (F-PLAN-4-2)', async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
+    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue({
+      id: 'copy',
+      origin: 'CARRY_FORWARD',
+    } as never);
+
+    await worker.tick(SUNDAY);
+
+    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true, { origin: 'WEEKLY_AUTO' });
+  });
+
+  it('keeps a carry-forward copy the user already shopped against', async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: 'u1' }] as never);
+    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue({
+      id: 'copy',
+      origin: 'CARRY_FORWARD',
+    } as never);
+    vi.mocked(mealPlanRepository.hasShoppingProgress).mockResolvedValue(true);
+
+    await worker.tick(SUNDAY);
+
+    expect(mealPlanService.generate).not.toHaveBeenCalled();
+    expect(mealPlanService.applyTemplateToWeek).not.toHaveBeenCalled();
   });
 
   it("one user's failure does not starve the rest of the sweep", async () => {

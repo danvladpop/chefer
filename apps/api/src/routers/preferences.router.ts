@@ -79,6 +79,17 @@ export const preferencesRouter = router({
   }),
 
   /**
+   * "Plan my week every Sunday" (audit F-PLAN-4-3). Only premium accounts get
+   * Sunday plans, but the switch is harmless on free, so it isn't gated —
+   * a user who downgrades and comes back keeps their choice.
+   */
+  setAutoPlanWeekly: protectedProcedure
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      return preferencesService.setAutoPlanWeekly(ctx.user.id, input.enabled);
+    }),
+
+  /**
    * Goal + body metrics are storable on EVERY tier (ux-fixes-plan.md 3.1):
    * the dashboard ring and tracker then show a real target instead of the
    * 2,000 kcal default. Consuming them for AI generation stays premium.

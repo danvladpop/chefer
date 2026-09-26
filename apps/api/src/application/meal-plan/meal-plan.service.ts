@@ -6,6 +6,7 @@ import {
   dietaryPreferencesRepository,
   favouriteRecipeRepository,
   householdMemberRepository,
+  MealPlanOrigin,
   mealPlanRepository,
   mealRatingRepository,
   prisma,
@@ -194,6 +195,8 @@ export class MealPlanService {
       leftovers?: boolean;
       /** The caller already reserved (and logged) this generation's quota. */
       usageReserved?: boolean;
+      /** WEEKLY_AUTO when the Sunday worker generates (drives the Monday banner). */
+      origin?: MealPlanOrigin;
     } = {},
   ): Promise<WeekPlanDto> {
     if (!premium) {
@@ -416,6 +419,7 @@ export class MealPlanService {
         })),
       })),
       recipeIds: recipes.map((r) => r.id),
+      origin: options.origin,
     });
 
     // 8. Start image generation immediately — don't wait for the worker's poll
@@ -753,9 +757,8 @@ export class MealPlanService {
     // reads the week, without each client opting in.
     if (!plan && weekOffset >= 0) {
       // A followed template ("My weeks") wins over the most recent plan.
-      const source =
-        (await this.repo.findFollowedTemplate(userId)) ??
-        (await this.repo.findLatestWithDaysBefore(userId, monday));
+      const followed = await this.repo.findFollowedTemplate(userId);
+      const source = followed ?? (await this.repo.findLatestWithDaysBefore(userId, monday));
       if (source?.days.some((d) => (d.meals as unknown[]).length > 0)) {
         await this.repo.createPlan({
           userId,
@@ -765,6 +768,10 @@ export class MealPlanService {
             meals: d.meals as { type: string; recipeId: string }[],
           })),
           recipeIds: [],
+          // Marked so the Sunday worker can still replace an untouched copy
+          // with a fresh week (audit F-PLAN-4-2); a followed template is a
+          // choice and stays.
+          origin: followed ? MealPlanOrigin.TEMPLATE : MealPlanOrigin.CARRY_FORWARD,
         });
         const created = await this.repo.findByWeekStart(userId, monday);
         if (created) {
@@ -1017,7 +1024,20 @@ export class MealPlanService {
     }
     await this.repo.setFollowedTemplate(userId, templateId);
 
-    const monday = getMondayOfWeek(weekOffset);
+    const created = await this.applyTemplateToWeek(userId, template, getMondayOfWeek(weekOffset));
+    return this.assemblePlanDto(created, userId);
+  }
+
+  /**
+   * Materializes a template as the plan for the week starting `monday`
+   * (origin TEMPLATE). Used by followTemplate and by the Sunday worker, which
+   * must repeat a followed week instead of generating over it (F-PLAN-4-1).
+   */
+  async applyTemplateToWeek(
+    userId: string,
+    template: { days: { dayOfWeek: number; meals: unknown }[] },
+    monday: Date,
+  ): Promise<NonNullable<Awaited<ReturnType<IMealPlanRepository['findByWeekStart']>>>> {
     await this.repo.createPlan({
       userId,
       weekStartDate: monday,
@@ -1026,12 +1046,13 @@ export class MealPlanService {
         meals: d.meals as { type: string; recipeId: string }[],
       })),
       recipeIds: [],
+      origin: MealPlanOrigin.TEMPLATE,
     });
     const created = await this.repo.findByWeekStart(userId, monday);
     if (!created) {
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Applying the week failed.' });
     }
-    return this.assemblePlanDto(created, userId);
+    return created;
   }
 
   async unfollowTemplate(userId: string): Promise<void> {

@@ -1,5 +1,5 @@
 import type { MealPlan, MealPlanDay, Prisma, Recipe } from '@prisma/client';
-import { MealPlanStatus } from '@prisma/client';
+import { MealPlanOrigin, MealPlanStatus } from '@prisma/client';
 import { prisma } from '../client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -38,6 +38,8 @@ export interface CreateMealPlanData {
    * a template); restore passes the plan it brings back.
    */
   carryShoppingFromPlanId?: string | undefined;
+  /** How the plan came to exist (default USER) — see MealPlanOrigin. */
+  origin?: MealPlanOrigin | undefined;
 }
 
 export interface IMealPlanRepository {
@@ -57,6 +59,8 @@ export interface IMealPlanRepository {
     mealType: string,
     newRecipeId: string,
   ): Promise<void>;
+  /** True when the plan's shopping list has ticks or custom items. */
+  hasShoppingProgress(planId: string): Promise<boolean>;
   findAllByUserId(
     userId: string,
     limit?: number,
@@ -248,6 +252,7 @@ export class MealPlanRepository implements IMealPlanRepository {
           userId,
           weekStartDate,
           status: MealPlanStatus.ACTIVE,
+          origin: data.origin ?? MealPlanOrigin.USER,
           days: {
             create: days.map((d) => ({
               dayOfWeek: d.dayOfWeek,
@@ -315,6 +320,22 @@ export class MealPlanRepository implements IMealPlanRepository {
       where: { id: day.id },
       data: { meals: updated },
     });
+    // An edited copy is the user's week now: the Sunday worker must not
+    // replace it (audit F-PLAN-4-2).
+    await prisma.mealPlan.updateMany({
+      where: { id: planId, origin: MealPlanOrigin.CARRY_FORWARD },
+      data: { origin: MealPlanOrigin.USER },
+    });
+  }
+
+  async hasShoppingProgress(planId: string): Promise<boolean> {
+    const list = await prisma.shoppingList.findUnique({
+      where: { planId },
+      select: { checkedKeys: true, customItems: true },
+    });
+    if (!list) return false;
+    const custom = list.customItems as unknown[] | null;
+    return list.checkedKeys.length > 0 || (custom?.length ?? 0) > 0;
   }
 
   async findAllByUserId(

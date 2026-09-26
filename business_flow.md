@@ -431,12 +431,26 @@ mealPlan.generate { weekOffset }
 ```
 WeeklyPlanWorker (hourly tick; acts Sundays ≥ 08:00 UTC)
   ├─ eligible: planTier = PREMIUM AND complete chef profile
-  ├─ skip users who already have next week's plan (findByWeekStart)
-  ├─ MealPlanService.generate(userId, weekOffset=1, premium=true)
+  │            AND ChefProfile.autoPlanWeekly ("Plan my week every Sunday")
+  ├─ next week already planned?
+  │    ├─ untouched CARRY_FORWARD copy (no edits, no shopping ticks or
+  │    │   custom items) → replaced below
+  │    └─ anything else (USER, TEMPLATE, WEEKLY_AUTO, edited/shopped copy) → skip
+  ├─ follows a "My weeks" template → applyTemplateToWeek (origin TEMPLATE, no AI)
+  ├─ otherwise MealPlanService.generate(userId, 1, true, { origin: WEEKLY_AUTO })
   │    └─ full premium path: ratings + pins + budget + safety (P1-1/P2-4)
-  └─ Monday: dashboard.summary.weekReady { preparedAt, ratedCount }
-       → "Your week is ready — built from N dishes you rated" banner
+  └─ Monday: dashboard.summary.weekReady { preparedAt, ratedCount } — only
+       for WEEKLY_AUTO plans → "Your week is ready — built from N dishes you rated"
 ```
+
+Every plan records its `origin` (audit F-PLAN-4-1/2/3): `USER` (generated,
+restored or built by hand), `CARRY_FORWARD` (the lazy copy made when a new
+week is first viewed), `TEMPLATE` (a followed week) or `WEEKLY_AUTO`.
+Swapping a meal in a carry-forward copy (`updateDayMeal`) turns it into
+`USER`, so the worker never overwrites a week the user has touched. Premium
+users switch auto-planning off with `preferences.setAutoPlanWeekly` (toggle
+on Preferences, web and mobile). The Sunday notification is still to come
+(backlog P2-5).
 
 ### Viewing the plan
 

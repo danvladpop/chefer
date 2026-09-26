@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
+import { AutoPlanToggle } from '@/features/preferences/components/auto-plan-toggle';
 import { PreferencesForm } from '@/features/preferences/components/preferences-form';
 import type { ChefProfileData, DietaryPreferencesData } from '@/features/preferences/types';
 import { createServerClient } from '@/lib/trpc-server';
@@ -18,6 +19,7 @@ export default async function PreferencesPage() {
   let chefProfile: ChefProfileData | null = null;
   let dietaryPreferences: DietaryPreferencesData | null = null;
   let isPremium = true; // fail open to the form; mutations are server-gated anyway
+  let autoPlanWeekly = true;
   let loadFailed = false;
 
   try {
@@ -31,6 +33,7 @@ export default async function PreferencesPage() {
     const result = await client.preferences.get.query();
 
     if (result.chefProfile) {
+      autoPlanWeekly = result.chefProfile.autoPlanWeekly;
       chefProfile = {
         goal: result.chefProfile.goal,
         biologicalSex: result.chefProfile.biologicalSex,
@@ -100,6 +103,7 @@ export default async function PreferencesPage() {
         dietaryPreferences={dietaryPreferences}
         isPremium={isPremium}
       />
+      {isPremium && <AutoPlanToggle initialEnabled={autoPlanWeekly} />}
     </div>
   );
 }
