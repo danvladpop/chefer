@@ -1,11 +1,9 @@
 'use client';
 
-import Link from 'next/link';
-import { useState } from 'react';
 import { useAuth } from '@/features/auth/hooks/use-auth';
-import { ChevronDown, LogOut, Menu, Settings, ShieldCheck, User } from 'lucide-react';
-import { cn } from '@chefer/utils';
+import { Menu } from 'lucide-react';
 import { ModeSwitch } from './mode-switch';
+import { UserMenu } from './user-menu';
 
 interface TopHeaderProps {
   title: string;
@@ -15,15 +13,8 @@ interface TopHeaderProps {
 
 export function TopHeader({ title, onOpenMenu }: TopHeaderProps) {
   const { user, logout, isLoading } = useAuth();
-  const [open, setOpen] = useState(false);
 
   const displayName = user?.name ?? user?.email ?? 'User';
-  const initials = displayName
-    .split(' ')
-    .map((n: string) => n[0] ?? '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
 
   return (
     // Sticky rather than static: below lg the whole document scrolls, so a
@@ -40,83 +31,22 @@ export function TopHeader({ title, onOpenMenu }: TopHeaderProps) {
         </button>
       )}
 
-      <h1 className="min-w-0 flex-1 truncate font-serif text-lg font-semibold text-gray-900 sm:text-xl">
+      {/* Not a heading: every page renders its own <h1> inside <main>, and a
+          second one here gave each route two (F-X-5-3). */}
+      <p className="min-w-0 flex-1 truncate font-serif text-lg font-semibold text-gray-900 sm:text-xl">
         {title}
-      </h1>
+      </p>
 
       {/* Food | Gym below lg — the SideBar carries it at lg+. */}
       <ModeSwitch compact className="lg:hidden" />
 
       {!isLoading && user && (
-        <div className="relative shrink-0">
-          <button
-            onClick={() => setOpen((p) => !p)}
-            className={cn(
-              'flex min-h-11 items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-gray-100 sm:px-3',
-              open && 'bg-gray-100',
-            )}
-            aria-label="Open user menu"
-            aria-expanded={open}
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#944a00] text-xs font-semibold text-white">
-              {initials}
-            </div>
-            <span className="hidden font-medium text-gray-700 md:block">{displayName}</span>
-            <ChevronDown className="h-4 w-4 text-gray-500" aria-hidden="true" />
-          </button>
-
-          {open && (
-            <>
-              <div
-                className="fixed inset-0 z-10"
-                aria-hidden="true"
-                onClick={() => setOpen(false)}
-              />
-              <div className="absolute right-0 z-20 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border bg-white py-1.5 shadow-lg">
-                <div className="border-b px-4 py-2.5">
-                  <p className="truncate text-sm font-medium text-gray-900">{displayName}</p>
-                  <p className="truncate text-xs text-gray-500">{user.email}</p>
-                </div>
-                <Link
-                  href="/profile"
-                  onClick={() => setOpen(false)}
-                  className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  <User className="h-4 w-4 text-gray-500" aria-hidden="true" />
-                  Profile
-                </Link>
-                <Link
-                  href="/preferences"
-                  onClick={() => setOpen(false)}
-                  className="flex min-h-11 w-full items-center gap-2 border-b px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  <Settings className="h-4 w-4 text-gray-500" aria-hidden="true" />
-                  Preferences
-                </Link>
-                {user.role === 'ADMIN' && (
-                  <Link
-                    href="/admin/users"
-                    onClick={() => setOpen(false)}
-                    className="flex min-h-11 w-full items-center gap-2 border-b px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    <ShieldCheck className="h-4 w-4 text-gray-500" aria-hidden="true" />
-                    Admin · Users
-                  </Link>
-                )}
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    logout();
-                  }}
-                  className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                >
-                  <LogOut className="h-4 w-4" aria-hidden="true" />
-                  Sign out
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        <UserMenu
+          displayName={displayName}
+          email={user.email}
+          isAdmin={user.role === 'ADMIN'}
+          onLogout={logout}
+        />
       )}
     </header>
   );

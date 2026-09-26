@@ -87,6 +87,14 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-dvh bg-background font-sans antialiased`}
       >
+        {/* Skip link (F-X-5-3): every page renders its content inside
+            <main id="main">, so keyboard users can jump past the header/nav. */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-lg focus:bg-white focus:px-4 focus:text-sm focus:font-semibold focus:text-gray-900 focus:shadow-lg focus:outline focus:outline-2 focus:outline-[#944a00]"
+        >
+          Skip to content
+        </a>
         <TRPCProvider>
           <div className="relative flex min-h-dvh flex-col">{children}</div>
         </TRPCProvider>

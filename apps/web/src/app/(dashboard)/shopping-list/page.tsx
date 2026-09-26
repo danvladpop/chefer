@@ -31,7 +31,7 @@ import {
   Smartphone,
   X,
 } from 'lucide-react';
-import { ErrorState, Sheet } from '@chefer/ui';
+import { ErrorState, Sheet, useMenu } from '@chefer/ui';
 import { formatQuantity, shoppingWindowLabel } from '@chefer/utils';
 
 const PRINT_STYLES = `
@@ -89,7 +89,9 @@ export default function ShoppingListPage() {
   // cleared — the server's checkedKeys is the source of truth from then on.
   const [legacyChecked, , clearLegacyChecked] = useLocalStorage<string[]>('shopping-checked', []);
   const [popupItem, setPopupItem] = useState<{ name: string; imageUrl: string } | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  // Overflow menu: keyboard + outside-click handling from the shared hook
+  // (was a hand-rolled `fixed inset-0` click-catcher).
+  const listMenu = useMenu();
   const isPremium = useIsPremium();
   const unitSystem = useUnitSystem();
 
@@ -315,48 +317,43 @@ export default function ShoppingListPage() {
               />
             )}
 
-            <div className="relative shrink-0">
+            <div ref={listMenu.rootRef} className="relative shrink-0">
               <button
-                onClick={() => setMenuOpen((o) => !o)}
+                {...listMenu.triggerProps}
                 aria-label="More list actions"
-                aria-expanded={menuOpen}
-                aria-haspopup="menu"
                 className="flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-200 text-neutral-600 transition hover:bg-neutral-50 sm:h-9 sm:w-9"
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
               </button>
-              {menuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    aria-hidden="true"
-                    onClick={() => setMenuOpen(false)}
-                  />
-                  <div
-                    role="menu"
-                    className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-xl border bg-white py-1 shadow-lg"
+              {listMenu.open && (
+                <div
+                  {...listMenu.menuProps}
+                  className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-xl border bg-white py-1 shadow-lg"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    tabIndex={-1}
+                    onClick={() => {
+                      listMenu.setOpen(false);
+                      window.print();
+                    }}
+                    className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm text-neutral-700 hover:bg-neutral-50"
                   >
-                    <button
-                      role="menuitem"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        window.print();
-                      }}
-                      className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm text-neutral-700 hover:bg-neutral-50"
-                    >
-                      <Printer className="h-4 w-4 text-neutral-500" /> Print
-                    </button>
-                    <button
-                      role="menuitem"
-                      disabled
-                      title="Coming soon"
-                      className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm text-neutral-500"
-                    >
-                      <Smartphone className="h-4 w-4" /> Send to Mobile
-                      <span className="ml-auto text-[10px] uppercase">Soon</span>
-                    </button>
-                  </div>
-                </>
+                    <Printer className="h-4 w-4 text-neutral-500" /> Print
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    tabIndex={-1}
+                    disabled
+                    title="Coming soon"
+                    className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm text-neutral-500"
+                  >
+                    <Smartphone className="h-4 w-4" /> Send to Mobile
+                    <span className="ml-auto text-xs uppercase">Soon</span>
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -466,7 +463,7 @@ export default function ShoppingListPage() {
           </p>
           <Link
             href="/meal-plan"
-            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90"
+            className="inline-flex min-h-11 items-center rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90"
           >
             Go to Meal Planner
           </Link>
@@ -509,8 +506,9 @@ export default function ShoppingListPage() {
                 }
               }}
               placeholder="Add an item… e.g. 2 kg flour"
+              aria-label="Add an item to the shopping list"
               disabled={addItemMutation.isPending}
-              className="min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
+              className="min-h-11 min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
             />
             <button
               type="button"
@@ -543,7 +541,7 @@ export default function ShoppingListPage() {
                   </span>
                   <span className="flex items-center gap-2">
                     {catDone === catItems.length && catItems.length > 0 && (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
                         ✓ all
                       </span>
                     )}
@@ -597,7 +595,7 @@ export default function ShoppingListPage() {
                                 <span className="min-w-0 truncate">{item.ingredientName}</span>
                                 {/* F3 "have it" chip — the pantry covers this item */}
                                 {item.pantryCovered && (
-                                  <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                                  <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">
                                     Have it
                                   </span>
                                 )}

@@ -111,6 +111,9 @@ For business flows see [`business_flow.md`](./business_flow.md).
 - Component variants use `class-variance-authority`
 - Overlays use `Sheet` (dialogs) or `Drawer` (slide-overs) from `@chefer/ui` — never a hand-rolled `fixed inset-0` div, which skips scroll locking, focus trapping and Escape handling
 - **Motion:** build interactions on the shared primitives and tokens — `PressableScale`, `haptics`, `CountUp`, `ProgressRing`/`ProgressBar` and the `timing()`/`springs` configs in `@chefer/ui-mobile`, durations/easings/springs from `@chefer/tokens` (no magic ms numbers). Animate transform/opacity only, respect reduced motion (`useReducedMotion`), and name the pattern ID (MO-01…MO-15) from `docs/audit-2026-09/motion-system.md` in the code comment.
+- Dropdown menus use `useMenu()` from `@chefer/ui` (Escape, arrow keys, focus return, outside click) — same rule, no click-catcher div
+- Every page renders inside `<main id="main">` (the skip link's target) and owns exactly one `<h1>` (`sr-only` if the design has no visible title) — the shell header title is deliberately not a heading. New dashboard routes get a `layout.tsx` exporting `metadata.title` for the tab title
+- Every input needs an accessible name (`<label htmlFor>` or `aria-label`; a placeholder is not a label), errors are linked with `aria-describedby` + `aria-invalid`, and text is never smaller than `text-xs` (12px)
 
 ### Responsive design
 

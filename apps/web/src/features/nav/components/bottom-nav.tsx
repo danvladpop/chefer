@@ -53,7 +53,7 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
                   className={cn('h-[22px] w-[22px]', active && 'stroke-[2.5]')}
                   aria-hidden="true"
                 />
-                <span className="text-[11px] font-medium leading-none">{shortLabel ?? label}</span>
+                <span className="text-xs font-medium leading-none">{shortLabel ?? label}</span>
               </Link>
             </li>
           );
@@ -74,7 +74,7 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
               className={cn('h-[22px] w-[22px]', moreActive && 'stroke-[2.5]')}
               aria-hidden="true"
             />
-            <span className="text-[11px] font-medium leading-none">More</span>
+            <span className="text-xs font-medium leading-none">More</span>
           </button>
         </li>
       </ul>
