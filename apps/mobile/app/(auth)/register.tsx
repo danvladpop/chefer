@@ -1,9 +1,10 @@
 import { Controller, useForm } from 'react-hook-form';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, View } from 'react-native';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from 'expo-router';
 import { Button, Input, Screen, Text } from '@chefer/ui-mobile';
 import { registerSchema, type RegisterFormValues } from '../../src/features/auth/schemas';
+import { getWebUrl } from '../../src/lib/api-url';
 import { setToken } from '../../src/lib/auth-store';
 import { trpc } from '../../src/lib/trpc';
 
@@ -133,6 +134,27 @@ export default function RegisterScreen() {
         >
           Create account
         </Button>
+
+        {/* Consent + legal links, required by both app stores (F-M-PROF-1-1). */}
+        <Text variant="muted" className="text-center text-xs">
+          By creating an account you agree to the{' '}
+          <Text
+            accessibilityRole="link"
+            className="text-xs text-primary underline"
+            onPress={() => void Linking.openURL(getWebUrl('/terms'))}
+          >
+            Terms
+          </Text>{' '}
+          and{' '}
+          <Text
+            accessibilityRole="link"
+            className="text-xs text-primary underline"
+            onPress={() => void Linking.openURL(getWebUrl('/privacy'))}
+          >
+            Privacy Policy
+          </Text>
+          .
+        </Text>
 
         <View className="flex-row justify-center gap-1">
           <Text variant="muted">Already have an account?</Text>

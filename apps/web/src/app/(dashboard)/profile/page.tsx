@@ -1,6 +1,7 @@
 'use client';
 
 import { DowngradeButton, UpgradeCard } from '@/features/premium/components/UpgradeButton';
+import { AccountDataCard } from '@/features/profile/components/AccountDataCard';
 import { trpc } from '@/lib/trpc';
 import { PLAN_FEATURES } from '@chefer/types';
 
@@ -248,6 +249,10 @@ export default function ProfilePage() {
           </p>
         </div>
       ) : null}
+
+      <div className="mt-4">
+        <AccountDataCard />
+      </div>
     </div>
   );
 }
