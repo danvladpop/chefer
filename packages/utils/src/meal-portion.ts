@@ -93,6 +93,13 @@ export interface PortionTargets {
 export interface PortionOptions {
   /** Relative weight of protein shortfall (GAIN_MUSCLE uses more). Default 1. */
   proteinWeight?: number;
+  /**
+   * Cost of a 1% calorie miss inside the band, relative to 1% protein short
+   * (default 1: a day won't run 10% over its calories for 5% more protein).
+   */
+  kcalWeight?: number;
+  /** Same, for calories ABOVE target (default kcalWeight; a cut uses more). */
+  kcalOverWeight?: number;
   /** Allowed multipliers (default PLAN_PORTION_STEPS). */
   steps?: readonly number[];
 }
@@ -113,22 +120,29 @@ export interface PortionPlan {
 /** Above this many meals the search stops being exhaustive (6^6 ≈ 47k). */
 const MAX_EXHAUSTIVE = 6;
 
+interface Weights {
+  protein: number;
+  kcalUnder: number;
+  kcalOver: number;
+}
+
 function scorePortions(
   kcal: number,
   protein: number,
   change: number,
   t: PortionTargets,
-  proteinWeight: number,
+  w: Weights,
 ): number {
   const kcalMiss = t.calories > 0 ? Math.abs(kcal - t.calories) / t.calories : 0;
   const proteinShort = t.proteinG > 0 ? Math.max(0, t.proteinG - protein) / t.proteinG : 0;
-  // Within the calorie band, protein comes first, then calorie accuracy,
-  // then fewer changes to the recipes as written. Outside the band every
-  // candidate ranks behind every in-band one, closest calories first.
+  // Within the calorie band, protein shortfall trades against calorie
+  // accuracy, then fewer changes to the recipes as written. Outside the band
+  // every candidate ranks behind every in-band one, closest calories first.
   if (kcalMiss <= PLAN_KCAL_BAND) {
-    return proteinWeight * proteinShort + 0.2 * kcalMiss + 0.01 * change;
+    const kcalWeight = kcal > t.calories ? w.kcalOver : w.kcalUnder;
+    return w.protein * proteinShort + kcalWeight * kcalMiss + 0.01 * change;
   }
-  return 10 + kcalMiss + 0.1 * proteinWeight * proteinShort + 0.01 * change;
+  return 10 + kcalMiss + 0.1 * w.protein * proteinShort + 0.01 * change;
 }
 
 /**
@@ -144,7 +158,12 @@ export function choosePortions(
   options: PortionOptions = {},
 ): PortionPlan {
   const steps = options.steps ?? PLAN_PORTION_STEPS;
-  const proteinWeight = options.proteinWeight ?? 1;
+  const kcalUnder = options.kcalWeight ?? 1;
+  const weights: Weights = {
+    protein: options.proteinWeight ?? 1,
+    kcalUnder,
+    kcalOver: options.kcalOverWeight ?? kcalUnder,
+  };
   const n = meals.length;
   const sumAt = (portions: number[]) => {
     let kcal = 0;
@@ -174,7 +193,7 @@ export function choosePortions(
   if (n > MAX_EXHAUSTIVE) {
     const ones = meals.map(() => 1);
     const { kcal, protein } = sumAt(ones);
-    return finish(ones, scorePortions(kcal, protein, 0, targets, proteinWeight));
+    return finish(ones, scorePortions(kcal, protein, 0, targets, weights));
   }
 
   // Order steps so 1× is tried first — ties then keep the recipe as written.
@@ -185,7 +204,7 @@ export function choosePortions(
 
   const walk = (i: number, kcal: number, protein: number, change: number) => {
     if (i === n) {
-      const s = scorePortions(kcal, protein, change, targets, proteinWeight);
+      const s = scorePortions(kcal, protein, change, targets, weights);
       if (s < bestScore - 1e-9) {
         bestScore = s;
         best = current.slice();
