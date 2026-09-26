@@ -510,7 +510,7 @@ data), screenshots. Agents draft metadata; human approves and clicks anything bi
 - 5.1.1(v) self-serve deletion: Profile → Delete account on web + mobile (shared copy, lists what is deleted; `deleteAccount()` purges every non-cascading row and all sessions) — `business_flow.md` §24.
 - 5.1.2(i) AI consent: consent sheet before the first AI action on both platforms + Profile "AI & your data" switch (`User.aiDataConsentAt`, `user.grant/revokeAiDataConsent`) — `business_flow.md` §25.
 - 2.2: user-facing "beta" wording removed ("free for now").
-- URLs for App Store Connect: Privacy `https://<prod>/privacy`, Support `https://<prod>/support` (public). `SUPPORT_EMAIL` is a placeholder (`support@chefer.app`, TODO(owner)).
+- URLs for App Store Connect: Privacy `https://<prod>/privacy`, Support `https://<prod>/support` (public). `SUPPORT_EMAIL` is `cheferapp.help@gmail.com` (owner, 2026-09-26).
 - `app.config.js`: `version: '1.0.0'` (new runtime fingerprint → run `pnpm mobile:release:*` before the next OTA), `ios.config.usesNonExemptEncryption: false`.
 - `eas.json` `build.production.env` = APP_VARIANT/EXPO_PUBLIC_API_URL/NODE_ENV production (EAS cloud builds used to throw in app.config.js).
 - **[USER] `submit.production.ios` is still empty** — eas-cli rejects empty strings, so fill in real values before `eas submit`: `appleId` (Apple ID email), `ascAppId` (numeric App Store Connect app id, App Information → Apple ID), `appleTeamId` (10-char team id). Paid Apple Developer Program membership is required.

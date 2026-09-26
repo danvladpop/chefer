@@ -21,7 +21,7 @@ to "live on the App Store", in order. Companion files:
 - [x] **AI data consent** before the first call to Google Gemini (Guideline 5.1.2(i))
 - [x] "Beta" wording removed from the app (Guideline 2.2 rejects apps that look like betas)
 - [x] Public **/support** page; **/privacy** updated (deletion, consent, contact)
-- [ ] Owner picks the published **support email**: `SUPPORT_EMAIL` in `packages/types/src/support.ts` is a placeholder (`support@chefer.app`), and the address must receive mail
+- [x] Support email: `cheferapp.help@gmail.com` (`SUPPORT_EMAIL` in `packages/types/src/support.ts`)
 - [x] Backup AI provider checked: production uses Groq, and the consent sheet and privacy page name it
 - [ ] Fill `eas.json` → `submit.production.ios` (`appleId`, `ascAppId`, `appleTeamId`) once the app record exists; eas-cli rejects empty placeholders, so they aren't there yet
 - [ ] After merging, re-run `pnpm mobile:release:ios` / `:android` for your own phones: the 1.0.0 bump changes the native fingerprint, and `publish-update.sh` refuses to publish OTA updates until the installed builds match

@@ -95,7 +95,7 @@ encryption for each build. If it still asks, answer: **"None of the algorithms m
   - **EU (decided 26 Sep 2026): available, and the seller declares trader status.** Your
     friend declares it once in App Store Connect → Business (only the Account Holder can).
     Under the Digital Services Act, a trader's address, phone and email are shown on the EU App
-    Store page. For the email, use the Chefer support address rather than a personal one; it
+    Store page. For the email, use the Chefer support address (`cheferapp.help@gmail.com`) rather than a personal one; it
     must be verified in App Store Connect. Until Apple verifies the trader details, the app can't
     be published in EU storefronts.
 - **App Store Connect → Pricing and Availability → "Make this app available on Apple
