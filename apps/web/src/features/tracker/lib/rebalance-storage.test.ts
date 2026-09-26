@@ -1,6 +1,10 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import {
+  handleRebalanceResult,
   isPendingFresh,
+  readPendingRebalance,
+  REBALANCE_EVENT,
   rebalanceBannerCopy,
   undoOperations,
   type PendingRebalance,
@@ -70,5 +74,40 @@ describe('isPendingFresh', () => {
 
   it('rejects a hand-off without swaps', () => {
     expect(isPendingFresh(pending([]))).toBe(false);
+  });
+});
+
+describe('handleRebalanceResult merges instead of overwriting (audit F-TRK-3-2)', () => {
+  it('keeps the first rebalance undoable after a second one, and pings banners', () => {
+    window.localStorage.clear();
+    const events: string[] = [];
+    const listener = () => events.push('rebalanced');
+    window.addEventListener(REBALANCE_EVENT, listener);
+    const swap = (dayOfWeek: number, mealType: string, prev: string, next: string) => ({
+      dayOfWeek,
+      mealType,
+      previousRecipeId: prev,
+      newRecipeId: next,
+    });
+    handleRebalanceResult({
+      rebalanced: true,
+      planId: 'p1',
+      projectedDeviation: 0.2,
+      swaps: [swap(5, 'lunch', 'a', 'b'), swap(5, 'dinner', 'c', 'd')],
+    });
+    handleRebalanceResult({
+      rebalanced: true,
+      planId: 'p1',
+      projectedDeviation: 0.18,
+      swaps: [swap(6, 'dinner', 'e', 'f')],
+    });
+    window.removeEventListener(REBALANCE_EVENT, listener);
+    const pending = readPendingRebalance();
+    expect(pending?.swaps.map((s) => `${s.dayOfWeek}-${s.mealType}`)).toEqual([
+      '5-lunch',
+      '5-dinner',
+      '6-dinner',
+    ]);
+    expect(events).toHaveLength(2);
   });
 });
