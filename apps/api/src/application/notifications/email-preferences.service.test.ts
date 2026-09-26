@@ -9,6 +9,9 @@ vi.mock('../../lib/env.js', () => ({
     JWT_SECRET: 'j'.repeat(40),
     APP_URL: 'https://app.test',
     EMAIL_MOCK_ENABLED: true,
+    EMAIL_PROVIDER: 'mock',
+    EMAIL_FROM: 'Chefer <test@chefer.dev>',
+    EMAIL_DAILY_CAP: null,
   },
 }));
 
@@ -24,6 +27,7 @@ function makeRepo() {
     findRecipients: vi.fn(),
     claimSend: vi.fn(),
     releaseSend: vi.fn(),
+    countSendsSince: vi.fn(),
     getPreferences: vi.fn().mockResolvedValue({ ...PREFS }),
     setPreferences: vi.fn(async (_userId: string, data: object) => ({ ...PREFS, ...data })),
     markEmailVerified: vi.fn().mockResolvedValue(true),
