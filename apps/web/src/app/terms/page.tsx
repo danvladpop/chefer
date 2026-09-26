@@ -3,22 +3,22 @@ import Link from 'next/link';
 
 export const metadata: Metadata = { title: 'Terms of Service' };
 
-// Plain-language beta terms. The register/login pages have linked here since
+// Plain-language terms. The register/login pages have linked here since
 // launch — until this page existed, that link 404'd (review L-3).
 
 export default function TermsPage() {
   return (
     <main id="main" className="mx-auto max-w-2xl px-4 py-12">
       <h1 className="font-serif text-3xl font-semibold text-gray-900">Terms of Service</h1>
-      <p className="mt-2 text-sm text-gray-500">Chefer beta · last updated 23 August 2026</p>
+      <p className="mt-2 text-sm text-gray-500">Chefer · last updated 26 September 2026</p>
 
       <div className="mt-8 space-y-6 text-sm leading-relaxed text-gray-700">
         <section>
           <h2 className="mb-1 font-semibold text-gray-900">The short version</h2>
           <p>
-            Chefer is a meal-planning app in open beta. It is free to use while in beta — including
-            every premium feature — and we will announce any future pricing well in advance, inside
-            the app.
+            Chefer is a meal-planning app that is still growing. It is free to use for now —
+            including every premium feature — and we will announce any future pricing well in
+            advance, inside the app.
           </p>
         </section>
         <section>
@@ -46,7 +46,7 @@ export default function TermsPage() {
           </p>
         </section>
         <section>
-          <h2 className="mb-1 font-semibold text-gray-900">Beta means beta</h2>
+          <h2 className="mb-1 font-semibold text-gray-900">A product that keeps changing</h2>
           <p>
             Things may break, change or be reset while we build. We do keep backups and we will not
             delete your data on purpose without telling you first. The service is provided as-is,

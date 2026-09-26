@@ -29,8 +29,8 @@ const ANCHOR_STACK = [
 
 const FAQ: { q: string; a: string }[] = [
   {
-    q: 'What does premium cost during the beta?',
-    a: 'Nothing. Premium is free while Chefer is in beta — one click activates it, no payment details asked, ever.',
+    q: 'What does premium cost?',
+    a: 'Nothing right now — one click activates it, no payment details asked, ever.',
   },
   {
     q: 'What happens if I downgrade?',
@@ -38,7 +38,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Will Chefer stay free?',
-    a: 'The free tier stays free. Premium will eventually have a price — beta members will hear about it well in advance, directly in the app.',
+    a: 'The free tier stays free. Premium will eventually have a price — you will hear about it well in advance, directly in the app.',
   },
 ];
 
@@ -133,7 +133,7 @@ export default function PremiumPage() {
             <span className="min-w-0 font-semibold text-neutral-900">
               Chefer Premium, all in one place
             </span>
-            <span className="shrink-0 font-bold text-emerald-600">Free during the beta</span>
+            <span className="shrink-0 font-bold text-emerald-600">Free for now</span>
           </li>
         </ul>
       </div>

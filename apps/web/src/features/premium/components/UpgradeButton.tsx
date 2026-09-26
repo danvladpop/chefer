@@ -100,7 +100,7 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
         open={open}
         onClose={() => setOpen(false)}
         title="Go Premium"
-        description="Unlock the personal AI chef. Premium is free during the beta — it activates instantly, no payment needed."
+        description="Unlock the personal AI chef. Premium is free for now — it activates instantly, no payment needed."
         size="sm"
         footer={
           <button
@@ -111,7 +111,7 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
             disabled={upgradeMutation.isPending}
             className="min-h-11 w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            {upgradeMutation.isPending ? 'Upgrading…' : 'Upgrade now — free during beta'}
+            {upgradeMutation.isPending ? 'Upgrading…' : 'Upgrade — free for now'}
           </button>
         }
       >

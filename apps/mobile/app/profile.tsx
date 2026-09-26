@@ -165,7 +165,7 @@ export default function ProfileScreen() {
               loading={upgradeMutation.isPending}
               onPress={() => upgradeMutation.mutate()}
             >
-              Upgrade — free during beta
+              Upgrade — free for now
             </Button>
           </Card>
         )}

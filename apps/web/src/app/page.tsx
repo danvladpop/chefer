@@ -6,7 +6,7 @@ import { getSessionUser } from '@/features/auth/lib/session';
 export const metadata: Metadata = {
   title: 'Chefer — Your AI-Powered Meal Planner',
   description:
-    'A personal AI chef: weekly meal plans built around your goals, allergies and budget — with priced shopping lists, photo meal logging, recipe import and adaptive coaching. Free during the beta.',
+    'A personal AI chef: weekly meal plans built around your goals, allergies and budget — with priced shopping lists, photo meal logging, recipe import and adaptive coaching. Free for now.',
 };
 
 // ─── Landing page ─────────────────────────────────────────────────────────────
@@ -84,8 +84,8 @@ const PREMIUM_FEATURES = [
 
 const FAQ = [
   {
-    q: 'What does it cost during the beta?',
-    a: 'Nothing. Every feature — premium included — is free while Chefer is in beta, and we never ask for payment details. The free tier stays free after the beta too.',
+    q: 'What does it cost?',
+    a: 'Nothing right now. Every feature — premium included — is free, and we never ask for payment details. The free tier stays free.',
   },
   {
     q: 'Do I need to fill in a big profile first?',
@@ -138,7 +138,7 @@ export default async function HomePage() {
           <div className="mx-auto max-w-3xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 text-sm font-medium text-amber-900">
               <span aria-hidden="true">✨</span>
-              Open beta — everything free, premium features included
+              Everything free for now, premium features included
             </div>
 
             <h1 className="mb-5 font-serif text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
@@ -234,14 +234,14 @@ export default async function HomePage() {
           <div className="mx-auto max-w-5xl">
             <div className="mb-12 text-center">
               <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#944a00]">
-                Premium · free while in beta
+                Premium · free for now
               </p>
               <h2 className="mb-3 font-serif text-3xl font-semibold tracking-tight">
                 A chef that knows you — and your week
               </h2>
               <p className="mx-auto max-w-xl text-gray-600">
-                Premium turns Chefer from a recipe book into a personal chef. During the beta it
-                costs nothing — one click activates it, no card asked.
+                Premium turns Chefer from a recipe book into a personal chef. For now it costs
+                nothing — one click activates it, no card asked.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -290,7 +290,7 @@ export default async function HomePage() {
       {/* ── Footer ── */}
       <footer className="border-t px-4 py-8 text-center text-sm text-gray-600">
         <p>
-          Chefer is a small independent project in open beta — feedback shapes it weekly, from the{' '}
+          Chefer is a small independent project — feedback shapes it weekly, from the{' '}
           <em>Send feedback</em> button inside the app.
         </p>
         <p className="mt-3">
