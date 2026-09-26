@@ -7,7 +7,7 @@ import { PlanFooterCard } from '@/features/premium/components/PlanFooterCard';
 import { pressControl } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 import { useAppMode } from '../mode-context';
-import { isItemActive } from '../nav-items';
+import { isItemActive, type NavItem } from '../nav-items';
 import { ModeSwitch } from './mode-switch';
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -38,38 +38,16 @@ export function SideBar({ className }: SideBarProps) {
         <ModeSwitch />
       </div>
 
-      {/* Nav links */}
+      {/* Nav links — the tab bar's destinations first, then what the phone
+          keeps under More, so both shells share one grouping (P2-8). */}
       <nav aria-label="Primary" className="flex-1 overflow-y-auto px-3 py-4">
-        <ul className="space-y-0.5">
-          {nav.all.map((item) => {
-            const { href, label, icon: Icon } = item;
-            const isActive = isItemActive(pathname, item);
-            return (
-              <li key={href}>
-                <Link
-                  href={href}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
-                    pressControl,
-                    isActive
-                      ? 'bg-[#fff3e8] text-[#944a00]'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
-                  )}
-                >
-                  <Icon
-                    className={cn(
-                      'h-[18px] w-[18px] shrink-0',
-                      isActive ? 'text-[#944a00]' : 'text-gray-500',
-                    )}
-                    aria-hidden="true"
-                  />
-                  {label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <NavList items={nav.primary} pathname={pathname} />
+        {nav.secondary.length > 0 && (
+          <>
+            <div className="mx-3 my-3 border-t" role="presentation" />
+            <NavList items={nav.secondary} pathname={pathname} />
+          </>
+        )}
       </nav>
 
       {/* Beta feedback — every tester needs a way to tell us things */}
@@ -82,5 +60,40 @@ export function SideBar({ className }: SideBarProps) {
         <PlanFooterCard source="sidebar" />
       </div>
     </aside>
+  );
+}
+
+function NavList({ items, pathname }: { items: readonly NavItem[]; pathname: string }) {
+  return (
+    <ul className="space-y-0.5">
+      {items.map((item) => {
+        const { href, label, icon: Icon } = item;
+        const isActive = isItemActive(pathname, item);
+        return (
+          <li key={href}>
+            <Link
+              href={href}
+              aria-current={isActive ? 'page' : undefined}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
+                pressControl,
+                isActive
+                  ? 'bg-[#fff3e8] text-[#944a00]'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+              )}
+            >
+              <Icon
+                className={cn(
+                  'h-[18px] w-[18px] shrink-0',
+                  isActive ? 'text-[#944a00]' : 'text-gray-500',
+                )}
+                aria-hidden="true"
+              />
+              {label}
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

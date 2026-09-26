@@ -5,12 +5,20 @@ import { trpc } from '@/lib/trpc';
 import { BookmarkPlus, Check, Pencil, Repeat, Trash2 } from 'lucide-react';
 
 // My Weeks — up to 4 saved weeks (mirror of apps/mobile/app/my-weeks.tsx).
+// Lives on the My weeks page (/my-weeks) above the past weeks (P2-8).
 // Save refined weeks as named templates, follow one (applies now + future
 // weeks carry it forward), rename, delete. Every tier: no AI involved.
 
 const MAX_TEMPLATES = 4;
 
-export function WeekTemplates({ currentPlanId }: { currentPlanId: string | null }) {
+export function WeekTemplates({
+  currentPlanId,
+  showWhenEmpty = false,
+}: {
+  currentPlanId: string | null;
+  /** Render the panel (with its explainer) even with no plan and no saved weeks. */
+  showWhenEmpty?: boolean;
+}) {
   const [saveName, setSaveName] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -54,7 +62,7 @@ export function WeekTemplates({ currentPlanId }: { currentPlanId: string | null 
     null;
 
   // Nothing to show a brand-new user who has neither a plan nor templates.
-  if (!currentPlanId && (templates?.length ?? 0) === 0) {
+  if (!showWhenEmpty && !currentPlanId && (templates?.length ?? 0) === 0) {
     return null;
   }
 
@@ -105,6 +113,11 @@ export function WeekTemplates({ currentPlanId }: { currentPlanId: string | null 
             Save this week
           </button>
         </form>
+      )}
+      {!currentPlanId && (templates?.length ?? 0) === 0 && (
+        <p className="text-xs text-gray-500">
+          No plan this week yet — generate one on the planner, then save it here.
+        </p>
       )}
       {currentPlanId && atCap && (
         <p className="mb-3 text-xs text-gray-500">

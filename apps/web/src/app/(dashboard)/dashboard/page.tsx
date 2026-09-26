@@ -5,16 +5,19 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { ChefReviewBanner } from '@/features/coach/components/ChefReviewBanner';
 import { WeightCard } from '@/features/coach/components/WeightCard';
+import { NextMealCard } from '@/features/dashboard/components/next-meal-card';
 import { NutritionSummary } from '@/features/dashboard/components/nutrition-summary';
 import { TodaysWorkoutCard } from '@/features/gym/shared/todays-workout-card';
+import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
+import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
-import { ArrowRight, Clock, Flame, Sparkles, UtensilsCrossed } from 'lucide-react';
+import { ArrowRight, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { ErrorState } from '@chefer/ui';
-import { formatPortion, localDateStr } from '@chefer/utils';
+import { localDateStr } from '@chefer/utils';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -27,6 +30,9 @@ const MEAL_COLOURS: Record<string, string> = {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// Today (P2-2, PM review §5): Home and the Tracker merged into one daily
+// surface — what you ate against the target, the next meal with a one-tap
+// "I ate this", quick add / scan, and "Full day" into the full tracker.
 export default function DashboardPage() {
   // The device's own day and hour decide "today" and the next meal (F-DASH-1-1).
   const { data, isLoading, isError, isRefetching, refetch } = trpc.dashboard.summary.useQuery({
@@ -47,6 +53,14 @@ export default function DashboardPage() {
   const showProfileNudge = isPremium === true && hasProfile === false;
 
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
+
+  // Quick add / scan land in today's log: refresh the ring and the spotlight.
+  const utils = trpc.useUtils();
+  const onLogged = () => {
+    void utils.dashboard.summary.invalidate();
+    void utils.tracker.getDay.invalidate();
+    void utils.tracker.weeklySummary.invalidate();
+  };
 
   if (isLoading) return <DashboardSkeleton />;
 
@@ -137,22 +151,109 @@ export default function DashboardPage() {
         )}
 
         {/* Header */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-            {/* A brand-new account hasn't been anywhere to come "back" from (O-3). */}
-            {hasPlan ? 'Welcome Back, Chef' : 'Welcome, Chef'}
-          </p>
-          <div className="mt-0.5 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <h1 className="font-serif text-xl font-bold text-gray-900 sm:text-2xl">
-              Your Daily Overview
-            </h1>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-gray-500">{d.today.date}</span>
-              {/* "Sustainable Choice" badge removed (review M-1): it explained
-                  nothing and claimed something the product doesn't measure. */}
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+              {d.today.date}
+            </p>
+            <h1 className="mt-0.5 font-serif text-xl font-bold text-gray-900 sm:text-2xl">Today</h1>
+          </div>
+          {/* The full tracker (portions, past days, un-logging) stays one tap
+              away — Tracker left More when it became Today (F-PM-7). */}
+          <Link
+            href="/tracker"
+            data-testid="today-full-day"
+            className="flex min-h-11 shrink-0 items-center gap-1 text-sm font-semibold text-[#944a00] hover:underline"
+          >
+            See full day <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+
+        {/* What you ate vs target — inline here below xl, in the right rail
+            above it. The ring reads the dashboard summary's nutrition fields,
+            so target changes made server-side flow straight through. */}
+        <NutritionSummary nutrition={d.nutrition} className="xl:hidden" />
+
+        {/* Off-plan logging: free quick add + premium scan (demo for free). */}
+        <div className="flex flex-wrap gap-2" data-testid="today-quick-log">
+          <QuickAddSheet date={localDateStr()} onLogged={onLogged} />
+          <ScanMealButton date={localDateStr()} isPremium={isPremium} onLogged={onLogged} />
+        </div>
+
+        {/* Next meal spotlight — advances past meals already logged today */}
+        {heroMeal ? (
+          <NextMealCard meal={heroMeal} isTomorrow={heroIsTomorrow} />
+        ) : hasPlan ? (
+          <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed bg-white py-8 text-center shadow-sm">
+            <span className="text-3xl">🎉</span>
+            <p className="font-medium text-gray-700">You&apos;re all caught up for today!</p>
+            <Link
+              href="/meal-plan"
+              className="touch-target relative text-sm text-[#944a00] hover:underline"
+            >
+              View full plan →
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-white py-10 text-center shadow-sm">
+            <span className="text-4xl">🥣</span>
+            <div>
+              <p className="font-semibold text-gray-800">Your weekly menu awaits</p>
+              <p className="mt-0.5 text-sm text-gray-500">
+                {/* Tier-honest copy: free plans are chef-curated, not AI (F-DASH-1-5). */}
+                {isPremium
+                  ? 'Let the chef craft a personalised 7-day plan for you.'
+                  : 'Get a 7-day plan of chef-curated recipes that respect your allergies.'}
+              </p>
+            </div>
+            {/* ?generate=1 starts generation on arrival — the button used to
+                say "Generate" but only navigated (prod-followups #9) */}
+            <Link
+              href="/meal-plan?generate=1"
+              className="inline-flex min-h-11 items-center rounded-full bg-[#944a00] px-5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
+            >
+              Generate My Week
+            </Link>
+          </div>
+        )}
+
+        {/* Later today — uneaten meals after the spotlight */}
+        {d.restOfToday.length > 0 && (
+          <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
+              Later today
+            </p>
+            <div className="flex flex-col divide-y">
+              {d.restOfToday.map((meal, i) => (
+                <Link
+                  key={i}
+                  href={meal.recipeId ? `/recipes/${meal.recipeId}` : '/meal-plan'}
+                  className="-mx-2 flex min-h-11 items-start justify-between gap-3 rounded-lg px-2 py-2.5 transition hover:bg-neutral-50"
+                >
+                  {/* Time + badge on one line, name below — the original single
+                      row had no min-w-0 and long recipe names pushed the kcal
+                      column off the card. */}
+                  <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 sm:w-16">{meal.scheduledLabel}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                      >
+                        {meal.mealType}
+                      </span>
+                    </div>
+                    <span className="truncate text-sm font-medium text-gray-700">
+                      {meal.recipeName}
+                    </span>
+                  </div>
+                  <span className="shrink-0 whitespace-nowrap text-xs text-gray-500">
+                    {meal.kcal} kcal
+                  </span>
+                </Link>
+              ))}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Weekly Outlook card */}
         <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
@@ -261,146 +362,6 @@ export default function DashboardPage() {
               );
             })()}
         </div>
-
-        {/* Nutrition — inline here below xl, in the right rail above it. */}
-        <NutritionSummary
-          nutrition={d.nutrition}
-          nextMealName={d.nextMeal?.recipe.name}
-          className="xl:hidden"
-        />
-
-        {/* Next Meal spotlight */}
-        {heroMeal ? (
-          <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-            {/* Stacked on phones — a 128px fixed photo beside text leaves the
-                title ~150px and it wraps to four lines. */}
-            <div className="flex flex-col gap-4 p-4 sm:flex-row sm:p-5">
-              {/* Recipe photo */}
-              <div className="relative h-40 w-full shrink-0 overflow-hidden rounded-xl sm:h-28 sm:w-32">
-                <Image
-                  {...getRecipeImageProps(heroMeal.recipe.imageUrl)}
-                  alt={heroMeal.recipe.name}
-                  fill
-                  sizes="(max-width: 639px) 100vw, 128px"
-                  className="object-cover"
-                />
-              </div>
-              <div className="flex min-w-0 flex-1 flex-col justify-between gap-3">
-                <div>
-                  <div className="mb-1 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-[#944a00] px-2.5 py-0.5 text-xs font-semibold uppercase text-white">
-                      {heroIsTomorrow ? 'Tomorrow' : 'Next Meal'}
-                    </span>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[heroMeal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
-                    >
-                      {heroMeal.mealType}
-                    </span>
-                  </div>
-                  <h2 className="font-serif text-lg font-bold leading-snug text-gray-900">
-                    {heroMeal.recipe.name}
-                  </h2>
-                  <p className="mt-0.5 line-clamp-2 text-xs text-gray-500">
-                    {heroMeal.recipe.description}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <span className="flex items-center gap-1 text-xs text-gray-500">
-                    <Clock className="h-3.5 w-3.5" />
-                    {heroMeal.recipe.prepTimeMins} min
-                  </span>
-                  <span className="flex items-center gap-1 text-xs text-gray-500">
-                    <Flame className="h-3.5 w-3.5 text-[#944a00]" />
-                    {heroMeal.recipe.kcal} kcal
-                    {/* P1-1: kcal is already the plan's portion */}
-                    {heroMeal.portion !== undefined && ` · ${formatPortion(heroMeal.portion)}`}
-                  </span>
-                  <Link
-                    href={
-                      heroIsTomorrow
-                        ? `/recipes/${heroMeal.recipe.id}${heroMeal.portion !== undefined ? `?portion=${heroMeal.portion}` : ''}`
-                        : `/recipes/${heroMeal.recipe.id}/cook?meal=${heroMeal.mealType}${heroMeal.portion !== undefined ? `&portion=${heroMeal.portion}` : ''}`
-                    }
-                    className="flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-[#944a00] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#7a3d00] sm:ml-auto sm:min-h-0 sm:w-auto"
-                  >
-                    {heroIsTomorrow ? 'View Recipe' : 'Start Cooking'}{' '}
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : hasPlan ? (
-          <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed bg-white py-8 text-center shadow-sm">
-            <span className="text-3xl">🎉</span>
-            <p className="font-medium text-gray-700">You&apos;re all caught up for today!</p>
-            <Link
-              href="/meal-plan"
-              className="touch-target relative text-sm text-[#944a00] hover:underline"
-            >
-              View full plan →
-            </Link>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-white py-10 text-center shadow-sm">
-            <span className="text-4xl">🥣</span>
-            <div>
-              <p className="font-semibold text-gray-800">Your weekly menu awaits</p>
-              <p className="mt-0.5 text-sm text-gray-500">
-                {/* Tier-honest copy: free plans are chef-curated, not AI (F-DASH-1-5). */}
-                {isPremium
-                  ? 'Let the chef craft a personalised 7-day plan for you.'
-                  : 'Get a 7-day plan of chef-curated recipes that respect your allergies.'}
-              </p>
-            </div>
-            {/* ?generate=1 starts generation on arrival — the button used to
-                say "Generate" but only navigated (prod-followups #9) */}
-            <Link
-              href="/meal-plan?generate=1"
-              className="inline-flex min-h-11 items-center rounded-full bg-[#944a00] px-5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
-            >
-              Generate My Week
-            </Link>
-          </div>
-        )}
-
-        {/* Rest of Today — only when today is selected (or nothing selected) */}
-        {d.restOfToday.length > 0 && (selectedDayIdx === null || selectedDayIdx === todayIdx) && (
-          <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
-              Rest of Today
-            </p>
-            <div className="flex flex-col divide-y">
-              {d.restOfToday.map((meal, i) => (
-                <Link
-                  key={i}
-                  href={meal.recipeId ? `/recipes/${meal.recipeId}` : '/meal-plan'}
-                  className="-mx-2 flex min-h-11 items-start justify-between gap-3 rounded-lg px-2 py-2.5 transition hover:bg-neutral-50"
-                >
-                  {/* Time + badge on one line, name below — the original single
-                      row had no min-w-0 and long recipe names pushed the kcal
-                      column off the card. */}
-                  <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500 sm:w-16">{meal.scheduledLabel}</span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
-                      >
-                        {meal.mealType}
-                      </span>
-                    </div>
-                    <span className="truncate text-sm font-medium text-gray-700">
-                      {meal.recipeName}
-                    </span>
-                  </div>
-                  <span className="shrink-0 whitespace-nowrap text-xs text-gray-500">
-                    {meal.kcal} kcal
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Weekly Progress Chart */}
         {weekSummary && weekSummary.days.some((d) => d.hasLog) && (
@@ -511,11 +472,7 @@ export default function DashboardPage() {
       {/* ── Right rail — xl+ only. Below that the same panel renders inline
              in the main column above. ─────────────────────────────────────── */}
       <div className="hidden w-72 shrink-0 flex-col gap-4 xl:flex">
-        <NutritionSummary
-          nutrition={d.nutrition}
-          nextMealName={d.nextMeal?.recipe.name}
-          className="sticky top-6"
-        />
+        <NutritionSummary nutrition={d.nutrition} className="sticky top-6" />
       </div>
     </div>
   );
