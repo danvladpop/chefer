@@ -150,7 +150,8 @@ export default function PreferencesScreen() {
           {isPremium === true && data?.chefProfile?.dailyCalorieTarget != null && (
             <View className="self-start rounded-lg border border-primary/30 bg-accent px-4 py-2">
               <Text className="text-sm font-medium text-primary">
-                {data.chefProfile.dailyCalorieTarget.toLocaleString()} kcal / day — current target
+                {data.chefProfile.dailyCalorieTarget.toLocaleString('en-US')} kcal / day — current
+                target
               </Text>
             </View>
           )}

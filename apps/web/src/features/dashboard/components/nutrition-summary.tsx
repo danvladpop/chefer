@@ -126,7 +126,7 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
           >
             <CountUp value={n.eatenKcal} className="text-xl font-bold text-gray-900" />
             <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
-              of {target.dailyCalorieTarget.toLocaleString()} kcal eaten
+              of {target.dailyCalorieTarget.toLocaleString('en-US')} kcal eaten
             </span>
           </ProgressRing>
           <p className="text-center text-xs text-gray-500">

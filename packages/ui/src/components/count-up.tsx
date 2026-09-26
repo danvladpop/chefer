@@ -4,7 +4,7 @@ import * as React from 'react';
 import { cn } from '../lib/utils';
 import { useCountUp } from '../motion/use-count-up';
 
-const defaultFormat = (n: number) => Math.round(n).toLocaleString();
+const defaultFormat = (n: number) => Math.round(n).toLocaleString('en-US');
 
 export interface CountUpProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'children'> {
   value: number;

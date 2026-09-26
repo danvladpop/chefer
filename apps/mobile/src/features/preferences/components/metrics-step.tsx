@@ -183,11 +183,11 @@ export function MetricsStep({
               Estimated daily calorie target
             </Text>
             <Text className="text-3xl font-bold text-primary">
-              {preview.target.toLocaleString()}
+              {preview.target.toLocaleString('en-US')}
             </Text>
             <Text variant="muted" className="text-center text-xs">
               {goal
-                ? `kcal / day · ${preview.maintenance.toLocaleString()} maintenance`
+                ? `kcal / day · ${preview.maintenance.toLocaleString('en-US')} maintenance`
                 : 'kcal / day · Mifflin-St Jeor estimate'}
             </Text>
           </>
