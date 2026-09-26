@@ -144,10 +144,14 @@ describe('scoreSwap / scoreCheferize', () => {
   it('checks a swap recipe against the user’s allergies', () => {
     expect(
       scoreSwap(prefs, recipe('Cheese toastie', 400, ['bread', 'cheddar cheese'])),
-    ).toMatchObject({ schemaValid: true, allergenViolations: 1 });
-    expect(scoreSwap(prefs, recipe('Porridge', 400, ['oats', 'oat milk']))).toMatchObject({
-      allergenViolations: 0,
+    ).toMatchObject({
+      schemaValid: true,
+      allergenViolations: 1,
+      allergenDetails: ['Cheese toastie: dairy'],
     });
+    const safe = scoreSwap(prefs, recipe('Porridge', 400, ['oats', 'oat milk']));
+    expect(safe).toMatchObject({ allergenViolations: 0 });
+    expect(safe.allergenDetails).toBeUndefined();
   });
 
   it('checks the ADAPTED recipe and the serving rescale', () => {
@@ -292,21 +296,74 @@ describe('summarise', () => {
       inputTokens: 10,
       outputTokens: 5,
       checks: { c: 0.5 },
-      gatePassed: true,
     });
   });
 
-  it('fails the gate on any allergen violation, and on an empty run', () => {
-    const unsafe = [{ ...results[0]!, scores: { ...results[0]!.scores, allergenViolations: 1 } }];
-    expect(summarise('swap', 'groq', unsafe).gatePassed).toBe(false);
-    expect(summarise('swap', 'groq', []).gatePassed).toBe(false);
+  describe('gate', () => {
+    const passing = results.slice(0, 2);
+
+    it('passes a clean run: no errors, no allergen violations, schema-valid ≥ 95%', () => {
+      const s = summarise('mealPlan', 'groq', passing);
+      expect(s.gatePassed).toBe(true);
+      expect(s.gateFailures).toEqual([]);
+    });
+
+    it('fails when ANY case errored — an all-error run can never pass', () => {
+      expect(summarise('mealPlan', 'groq', results)).toMatchObject({
+        gatePassed: false,
+        gateFailures: ['1/3 cases errored', 'schema-valid 66.7% < 95%'],
+      });
+      const allErrors = Array.from({ length: 20 }, (_, i) => ({ ...results[2]!, id: `e${i}` }));
+      const s = summarise('mealPlan', 'groq', allErrors);
+      expect(s.gatePassed).toBe(false);
+      expect(s.gateFailures[0]).toBe('20/20 cases errored');
+    });
+
+    it('fails on any allergen violation', () => {
+      const unsafe = [{ ...results[0]!, scores: { ...results[0]!.scores, allergenViolations: 1 } }];
+      expect(summarise('swap', 'groq', unsafe)).toMatchObject({
+        gatePassed: false,
+        gateFailures: ['1 allergen violation(s)'],
+      });
+    });
+
+    it('fails when schema-valid falls below the configurable threshold', () => {
+      const invalid = {
+        ...results[0]!,
+        id: 'x',
+        scores: { ...results[0]!.scores, schemaValid: false },
+      };
+      const nineteenOfTwenty = [
+        ...Array.from({ length: 19 }, (_, i) => ({ ...results[0]!, id: `ok${i}` })),
+        invalid,
+      ];
+      // 95% meets the default 95% threshold…
+      expect(summarise('swap', 'groq', nineteenOfTwenty).gatePassed).toBe(true);
+      // …but not a stricter one.
+      expect(summarise('swap', 'groq', nineteenOfTwenty, { minSchemaValidPct: 98 })).toMatchObject({
+        gatePassed: false,
+        gateFailures: ['schema-valid 95% < 98%'],
+      });
+      expect(summarise('swap', 'groq', [invalid], { minSchemaValidPct: 0 }).gatePassed).toBe(true);
+    });
+
+    it('fails an empty run', () => {
+      expect(summarise('swap', 'groq', [])).toMatchObject({
+        gatePassed: false,
+        gateFailures: ['no cases ran'],
+      });
+    });
   });
 
-  it('renders a table with one row per summary', () => {
-    const table = formatSummaryTable([summarise('mealPlan', 'groq', results)]);
-    const lines = table.split('\n');
+  it('renders a table with one row per summary, then the gate failures', () => {
+    const ok = formatSummaryTable([summarise('mealPlan', 'groq', results.slice(0, 2))]);
+    const lines = ok.split('\n');
     expect(lines).toHaveLength(3);
     expect(lines[0]).toContain('allergen');
     expect(lines[2]).toContain('PASS');
+
+    const failed = formatSummaryTable([summarise('mealPlan', 'groq', results)]).split('\n');
+    expect(failed[2]).toContain('FAIL');
+    expect(failed.at(-1)).toBe('gate FAIL mealPlan: 1/3 cases errored; schema-valid 66.7% < 95%');
   });
 });

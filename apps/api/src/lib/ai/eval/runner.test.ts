@@ -88,6 +88,106 @@ describe('runEvalCases', () => {
     expect(results[1]?.scores.schemaValid).toBe(false);
   });
 
+  const valid = () => ({
+    schemaValid: true,
+    allergenViolations: 0,
+    restrictionViolations: 0,
+    checks: {},
+  });
+
+  it('waits out a 429 (Retry-After or "try again in") and retries the case', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const rateLimited = Object.assign(new Error('HTTP 429 — rate limited'), {
+      status: 429,
+      retryAfterMs: 4000,
+    });
+    const bodyHint = new Error('failed with HTTP 429 — Please try again in 2.5s.');
+    const call = vi
+      .fn()
+      .mockRejectedValueOnce(rateLimited)
+      .mockRejectedValueOnce(bodyHint)
+      .mockResolvedValueOnce('ok');
+    const [result] = await runEvalCases([{ id: 'a', call, score: valid }], {} as IAIService, {
+      sleep,
+    });
+    expect(result).toMatchObject({ id: 'a', ok: true });
+    expect(sleep.mock.calls).toEqual([[4250], [2750]]);
+  });
+
+  it('scores a 429 as an error after the retries, or at once for a daily-quota wait', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const daily = Object.assign(new Error('HTTP 429'), { status: 429, retryAfterMs: 3_600_000 });
+    const [result] = await runEvalCases(
+      [{ id: 'a', call: () => Promise.reject(daily), score: valid }],
+      {} as IAIService,
+      { sleep },
+    );
+    expect(result).toMatchObject({ ok: false });
+    expect(sleep).not.toHaveBeenCalled();
+
+    const always = Object.assign(new Error('HTTP 429'), { status: 429, retryAfterMs: 100 });
+    const call = vi.fn().mockRejectedValue(always);
+    const [again] = await runEvalCases([{ id: 'b', call, score: valid }], {} as IAIService, {
+      sleep,
+      rateLimitRetries: 2,
+    });
+    expect(again).toMatchObject({ ok: false });
+    expect(call).toHaveBeenCalledTimes(3);
+  });
+
+  it('never retries a non-rate-limit error', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const call = vi.fn().mockRejectedValue(new Error('HTTP 400 json_validate_failed'));
+    await runEvalCases([{ id: 'a', call, score: valid }], {} as IAIService, { sleep });
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('runs cases concurrently, keeps order and attributes tokens per case', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    let inFlight = 0;
+    let peak = 0;
+    const cases = [1, 2, 3, 4].map((i) => ({
+      id: String(i),
+      call: async () => {
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 5 * (5 - i)));
+        logAiUsage({
+          provider: 'p',
+          model: 'm',
+          op: 'x',
+          inputTokens: i,
+          outputTokens: i * 10,
+          ms: 1,
+        });
+        inFlight--;
+        return i;
+      },
+      score: valid,
+    }));
+    const results = await runEvalCases(cases, {} as IAIService, { concurrency: 2 });
+    vi.mocked(console.info).mockRestore();
+    expect(peak).toBe(2);
+    expect(results.map((r) => [r.id, r.inputTokens, r.outputTokens])).toEqual([
+      ['1', 1, 10],
+      ['2', 2, 20],
+      ['3', 3, 30],
+      ['4', 4, 40],
+    ]);
+  });
+
+  it('pauses --delay-ms between cases', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const cases = [1, 2, 3].map((i) => ({
+      id: String(i),
+      call: () => Promise.resolve(i),
+      score: valid,
+    }));
+    await runEvalCases(cases, {} as IAIService, { sleep, delayMs: 5000 });
+    expect(sleep.mock.calls).toEqual([[5000], [5000]]);
+  });
+
   it('respects --limit', async () => {
     const calls = vi.fn().mockResolvedValue('x');
     const cases = [1, 2, 3].map((i) => ({
@@ -137,6 +237,9 @@ describe('parseEvalArgs', () => {
       workloads: ['mealPlan'],
       chain: ['groq', 'gemini'],
       limit: 3,
+      concurrency: 1,
+      delayMs: 0,
+      gate: { minSchemaValidPct: 95 },
       out: undefined,
       golden: undefined,
       verbose: false,
@@ -155,6 +258,24 @@ describe('parseEvalArgs', () => {
     expect(() => parseEvalArgs(['--route=swap', '--provider=claude'])).toThrow(/unknown/);
     expect(() => parseEvalArgs(['--route=swap', '--provider=mock', '--limit=0'])).toThrow(/limit/);
     expect(() => parseEvalArgs(['--provider=mock'])).toThrow(/usage/);
+    expect(() => parseEvalArgs(['--route=swap', '--provider=mock', '--concurrency=0'])).toThrow(
+      /concurrency/,
+    );
+    expect(() => parseEvalArgs(['--route=swap', '--provider=mock', '--min-schema=101'])).toThrow(
+      /min-schema/,
+    );
+  });
+
+  it('parses pacing and the gate threshold', () => {
+    expect(
+      parseEvalArgs([
+        '--route=swap',
+        '--provider=groq',
+        '--concurrency=2',
+        '--delay-ms=5000',
+        '--min-schema=98',
+      ]),
+    ).toMatchObject({ concurrency: 2, delayMs: 5000, gate: { minSchemaValidPct: 98 } });
   });
 
   it('refuses a live provider without its key', () => {

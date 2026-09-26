@@ -13,21 +13,33 @@ import type { IAIService } from '../types.js';
 import { loadEvalProviderConfig } from './env.js';
 import { GOLDEN_DIR, loadGoldenSet } from './golden.js';
 import { EVAL_WORKLOADS, runEval } from './runner.js';
-import { formatSummaryTable, type CaseResult, type EvalSummary } from './scorer.js';
+import {
+  DEFAULT_GATE,
+  formatSummaryTable,
+  type CaseResult,
+  type EvalSummary,
+  type GateOptions,
+} from './scorer.js';
 
 // ─── pnpm ai:eval ─────────────────────────────────────────────────────────────
 //   pnpm ai:eval --route=<workload|a,b|all> --provider=<chain> [--limit=N]
+//                [--concurrency=N] [--delay-ms=N] [--min-schema=PCT]
 //                [--out=results.json] [--golden=<dir>] [--verbose]
 //
-//   --route     mealPlan, swap, cheferize, importText, vision, review, prices,
-//               shopping (chat is not evaluated offline: its tools write data)
-//   --provider  a chain like the AI_ROUTE_* values: gemini, groq, groq>gemini,
-//               or mock (fixtures, no keys, no cost)
-//   --limit     at most N cases per workload (cost control on live providers)
-//   --out       write the JSON report to a file instead of stdout
+//   --route        mealPlan, swap, cheferize, importText, vision, review, prices,
+//                  shopping (chat is not evaluated offline: its tools write data)
+//   --provider     a chain like the AI_ROUTE_* values: gemini, groq, groq>gemini,
+//                  or mock (fixtures, no keys, no cost)
+//   --limit        at most N cases per workload (cost control on live providers)
+//   --concurrency  cases in flight at once (default 1)
+//   --delay-ms     pause between cases (default 0; ~5000 on Groq's free tier)
+//   --min-schema   gate: minimum schema-valid % per workload (default 95)
+//   --out          write the JSON report to a file instead of stdout
 //
-// Prints a table, then the JSON report. Exit code 1 when a gate fails (any
-// allergen violation), 2 on bad arguments.
+// 429s are waited out (Retry-After / "try again in Xs", up to 60 s) and the
+// case retried, twice at most. Prints a table, then the JSON report. Exit code
+// 1 when a gate fails (any errored case, any allergen violation, or
+// schema-valid below --min-schema), 2 on bad arguments.
 
 const EVAL_PROVIDERS: readonly EvalProviderName[] = [...AI_PROVIDER_NAMES, 'mock'];
 
@@ -35,9 +47,29 @@ export interface EvalArgs {
   workloads: AiWorkload[];
   chain: EvalProviderName[];
   limit?: number | undefined;
+  concurrency: number;
+  delayMs: number;
+  gate: GateOptions;
   out?: string | undefined;
   golden?: string | undefined;
   verbose: boolean;
+}
+
+/** An optional integer flag ≥ `min`, or `fallback` when absent. */
+function intFlag(
+  values: Map<string, string>,
+  name: string,
+  min: number,
+  fallback: number,
+  max = Number.MAX_SAFE_INTEGER,
+): number {
+  const raw = values.get(name);
+  if (raw === undefined) return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < min || n > max) {
+    throw new Error(`--${name} must be an integer between ${min} and ${max}`);
+  }
+  return n;
 }
 
 export function parseEvalArgs(argv: string[]): EvalArgs {
@@ -82,6 +114,11 @@ export function parseEvalArgs(argv: string[]): EvalArgs {
     workloads,
     chain: parseChain(provider, EVAL_PROVIDERS),
     limit,
+    concurrency: intFlag(values, 'concurrency', 1, 1, 16),
+    delayMs: intFlag(values, 'delay-ms', 0, 0),
+    gate: {
+      minSchemaValidPct: intFlag(values, 'min-schema', 0, DEFAULT_GATE.minSchemaValidPct, 100),
+    },
     out: values.get('out'),
     golden: values.get('golden'),
     verbose: flags.has('verbose'),
@@ -116,16 +153,21 @@ export async function main(): Promise<void> {
   const provider = args.chain.join('>');
   const report: { summary: EvalSummary; results: CaseResult[] }[] = [];
 
-  for (const workload of args.workloads) {
+  for (const [i, workload] of args.workloads.entries()) {
+    // The pause between cases also separates workloads.
+    if (i > 0 && args.delayMs > 0) await new Promise((r) => setTimeout(r, args.delayMs));
     process.stderr.write(`[ai:eval] ${workload} on ${provider}…\n`);
     report.push(
       await runEval(workload, provider, service, golden, {
         limit: args.limit,
+        concurrency: args.concurrency,
+        delayMs: args.delayMs,
+        gate: args.gate,
         onCase: (r) =>
           process.stderr.write(
             `  ${r.ok ? (r.scores.schemaValid ? '✓' : '✗') : '!'} ${r.id} (${r.ms} ms)${
               r.error ? ` — ${r.error}` : ''
-            }\n`,
+            }${r.scores.allergenDetails ? ` — ALLERGEN: ${r.scores.allergenDetails.join('; ')}` : ''}\n`,
           ),
       }),
     );

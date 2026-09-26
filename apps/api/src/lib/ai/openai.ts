@@ -1,4 +1,5 @@
 import type { ZodType } from 'zod';
+import { getAiCallContext } from './call-context.js';
 import { CHAT_TOOL_DEFINITIONS, dispatchChatTool, streamText } from './chat-tools.js';
 import {
   buildCheferizeUserPrompt,
@@ -22,6 +23,7 @@ import {
   SHOPPING_LIST_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
 } from './prompts.js';
+import { retryAfterFrom, TokenRateState } from './rate-limit.js';
 import {
   annotatedExtractionSchema,
   cheferizedRecipeSchema,
@@ -79,25 +81,53 @@ import { logAiUsage } from './usage.js';
 // - MEAL PLAN: `mealPlanMode: 'chunked'` (set by the factory when this
 //   provider is FIRST in the meal-plan route) generates the week as 7 per-day
 //   calls with a strict JSON schema, then assembles and validates the week.
-//   As a failover behind Gemini it keeps the original single call.
+//   As a failover behind Gemini it keeps the original single call. The days
+//   run sequentially and pace themselves against the endpoint's per-minute
+//   token budget (rate-limit.ts). See docs/ai-providers.md "Groq limits".
+// - RATE LIMITS: background calls (isBackgroundCall) wait out one short 429
+//   and retry; interactive calls throw so the chain can fail over.
 
 const REQUEST_TIMEOUT_MS = 90_000;
 
-// Groq's free tier enforces 8,000 tokens/minute and counts BOTH the input and
-// `max_tokens` of a request against it (a too-large request 413s upfront), so
-// per-call output budgets stay well under 8K minus typical input size. The
-// week plan is the one call that may genuinely need more than fits — a
-// truncated response fails JSON parsing and surfaces as the friendly error.
+// Output budgets. Groq's free tier allows 8,000 tokens/minute; a request whose
+// input + max_tokens exceeds that 413s upfront, so budgets stay well under 8K
+// minus typical input size. Reasoning models (gpt-oss) spend part of the
+// budget on hidden reasoning tokens BEFORE the answer — at the default
+// ("medium") effort a single plan day burned ~5.6k reasoning tokens (measured
+// 2026-09-26), so the 3K day budget was gone before any JSON was written and
+// Groq answered 400 json_validate_failed with an empty failed_generation.
+// `reasoningEffort` (low by default for gpt-oss) keeps it to ~50–150 tokens.
 const MAX_TOKENS_WEEK_PLAN = 6_000;
 const MAX_TOKENS_DEFAULT = 4_096;
-// One day of a plan is ~1–1.3k output tokens; the rest is headroom for the
-// reasoning tokens gpt-oss / qwen spend before answering.
-const MAX_TOKENS_PLAN_DAY = 3_000;
+// One day of a plan is ~1–1.3k output tokens at low reasoning effort (measured:
+// 1,063 incl. 71 reasoning); the rest is headroom for 4–6-meal days.
+const MAX_TOKENS_PLAN_DAY = 4_000;
+/** Ceiling for the one truncation retry (stays under the 8K TPM request cap). */
+const MAX_TOKENS_CEILING = 6_000;
 const MAX_TOKENS_PHOTO = 2_048;
-// Chunked plans wait out short rate-limit windows (Groq's per-minute token
-// budget) instead of failing the whole week; longer waits fail over.
-const CHUNK_MAX_RETRY_WAIT_MS = 30_000;
-const CHUNK_TOTAL_WAIT_BUDGET_MS = 60_000;
+// Chunked plans pace themselves against the per-minute token budget and wait
+// out short rate-limit windows instead of failing the whole week; longer
+// waits (daily quota) fail over. Groq ADMITS a request against TPM by its
+// input + max_tokens (a day was rejected with "Requested 4967" = ~950 input +
+// 4,000 max_tokens, measured 2026-09-26), so pacing waits until that fits,
+// not just the tokens a day really spends. Nobody waits on a background plan
+// (the Sunday auto-plan, the eval), so it may wait much longer.
+const CHUNK_MAX_SINGLE_WAIT_MS = 60_000;
+const CHUNK_WAIT_BUDGET_INTERACTIVE_MS = 120_000;
+const CHUNK_WAIT_BUDGET_BACKGROUND_MS = 300_000;
+/** Prompt-size estimate for a day before one has been measured (~900–1,000). */
+const CHUNK_PROMPT_ESTIMATE = 1_000;
+// Background workloads wait out ONE short 429 (≤ 10 s) before giving up;
+// interactive calls fail over straight away, as before.
+const BACKGROUND_RETRY_MAX_WAIT_MS = 10_000;
+const BACKGROUND_RETRY_JITTER_MS = 250;
+/** Operations nobody is waiting on (workers, sweeps) — see isBackgroundCall. */
+const BACKGROUND_OPS = new Set([
+  'estimateIngredientPrices',
+  'generateShoppingList',
+  'generateReviewText',
+]);
+const CHUNK_LABEL = 'generateMealPlan.day';
 
 /** Image types OpenAI-compatible vision endpoints accept as data URLs. */
 const VISION_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -112,8 +142,16 @@ export interface OpenAICompatConfig {
   visionModel?: string | undefined;
   /** 'chunked' = the week plan as 7 per-day calls. Default 'single' (one call). */
   mealPlanMode?: 'single' | 'chunked' | undefined;
-  /** Test seam: waits between chunk retries. */
+  /**
+   * `reasoning_effort` sent with text-model calls (gpt-oss: low|medium|high).
+   * Unset = not sent (non-reasoning models reject it). Never sent to the
+   * vision model.
+   */
+  reasoningEffort?: 'low' | 'medium' | 'high' | undefined;
+  /** Test seam: waits between chunk retries and rate-limit pauses. */
   sleep?: ((ms: number) => Promise<void>) | undefined;
+  /** Test seam: clock for the rate-limit state. */
+  now?: (() => number) | undefined;
 }
 
 /** An OpenAI-style multimodal message part. */
@@ -135,7 +173,12 @@ interface CompletionMessage {
 
 interface ChatCompletionResponse {
   choices?: { message?: CompletionMessage; finish_reason?: string }[];
-  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+    completion_tokens_details?: { reasoning_tokens?: number };
+  };
 }
 
 type OutboundMessage =
@@ -182,6 +225,10 @@ const INGREDIENT_PRICES_SHAPE =
 function jsonInstruction(shape: string): string {
   return `\n\nRespond with ONLY a single JSON object (no markdown, no commentary) exactly matching this shape:\n${shape}`;
 }
+
+/** Strict mode sends the JSON schema itself, so the prose shape is left out (~150 tokens). */
+const STRICT_JSON_INSTRUCTION =
+  '\n\nRespond with ONLY the JSON object described by the response schema (no markdown, no commentary).';
 
 const MEAL_PHOTO_SHAPE =
   '{"dishName":string,"confidence":"low"|"med"|"high","kcal":number,"protein":number,"carbs":number,"fat":number,"portionNote":string}';
@@ -279,13 +326,67 @@ const NO_VIDEO_MESSAGE =
 
 type HttpError = Error & { status?: number; retryAfterMs?: number; failover?: boolean };
 
-/** Reads Retry-After (seconds or an HTTP date) into ms. */
-function retryAfterMs(header: string | null): number | undefined {
-  if (!header) return undefined;
-  const seconds = Number(header);
-  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
-  const at = Date.parse(header);
-  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : undefined;
+/**
+ * Groq's strict structured-output mode could not produce a schema-valid
+ * document: 400 json_validate_failed ("Failed to validate JSON", or "max
+ * completion tokens reached before generating a valid document"). Not a
+ * rejection of json_schema itself — the call is retried in json_object mode.
+ */
+function isStrictGenerationFailure(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return (
+    (err as HttpError).status === 400 &&
+    /json_validate_failed|failed to validate json|max completion tokens reached/i.test(err.message)
+  );
+}
+
+function isTruncation(err: unknown): boolean {
+  return err instanceof Error && /max completion tokens reached|truncated/i.test(err.message);
+}
+
+/**
+ * A call nobody is waiting on: a background operation (prices, shopping,
+ * review), a shadow replay, or anything outside a user request (the Sunday
+ * auto-plan and other workers set no AI call context). These wait out one
+ * short 429; interactive calls fail over instead.
+ */
+export function isBackgroundCall(label: string): boolean {
+  if (label === CHUNK_LABEL) return false; // chunks pace themselves
+  if (BACKGROUND_OPS.has(label)) return true;
+  const context = getAiCallContext();
+  return context === undefined || context.shadow === true;
+}
+
+type Validated<T> = { ok: true; data: T } | { ok: false; problem: string };
+
+function parseAgainst<T>(raw: string, schema: ZodType<T>): Validated<T> {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch (err) {
+    return {
+      ok: false,
+      problem: `response JSON is malformed (output may have been truncated) — ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) {
+    return { ok: false, problem: `response failed validation — ${parsed.error.message}` };
+  }
+  return { ok: true, data: parsed.data };
+}
+
+/** The follow-up turn of a repair retry: the rejected output and why. */
+function repairMessages(previous: string, problem: string): OutboundMessage[] {
+  return [
+    { role: 'assistant', content: previous.slice(0, 8_000) },
+    {
+      role: 'user',
+      content: `That reply was rejected: ${problem.slice(0, 1_000)}\nReply again with ONLY the corrected JSON object, complete and matching the required shape exactly.`,
+    },
+  ];
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -294,27 +395,71 @@ export class OpenAICompatibleAIService implements IAIService {
   private readonly config: OpenAICompatConfig;
   /** Set once the endpoint rejects strict json_schema — later calls skip it. */
   private strictSchemaUnsupported = false;
+  /** The per-minute token budget the endpoint last reported (x-ratelimit-*). */
+  private readonly rate: TokenRateState;
+  private readonly sleep: (ms: number) => Promise<void>;
+  /** Total tokens this instance has spent (prompt + completion), for the plan log. */
+  private tokensSpent = 0;
+  /** Prompt tokens of the last successful call, for chunk admission estimates. */
+  private lastPromptTokens: number | undefined;
 
   constructor(config: OpenAICompatConfig) {
     if (!config.apiKey) throw new Error('OpenAICompatibleAIService: API key is required');
     this.config = { ...config, baseUrl: config.baseUrl.replace(/\/$/, '') };
+    this.rate = new TokenRateState(config.now ?? Date.now);
+    this.sleep = config.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   }
 
+  /**
+   * One completion. Background calls (isBackgroundCall) wait out a single
+   * short 429 and retry once; everything else throws for the chain to fail
+   * over, as before.
+   */
   private async chatCompletion(
     body: Record<string, unknown>,
     label: string,
     model: string = this.config.model,
   ): Promise<ChatCompletionResponse> {
+    try {
+      return await this.chatCompletionOnce(body, label, model);
+    } catch (err) {
+      const e = err as HttpError;
+      if (
+        e.status !== 429 ||
+        e.retryAfterMs === undefined ||
+        e.retryAfterMs > BACKGROUND_RETRY_MAX_WAIT_MS ||
+        !isBackgroundCall(label)
+      ) {
+        throw err;
+      }
+      console.warn(`[AI] ${label}: rate limited — retrying once in ${e.retryAfterMs} ms`);
+      await this.sleep(e.retryAfterMs + BACKGROUND_RETRY_JITTER_MS);
+      return this.chatCompletionOnce(body, label, model);
+    }
+  }
+
+  private async chatCompletionOnce(
+    body: Record<string, unknown>,
+    label: string,
+    model: string,
+  ): Promise<ChatCompletionResponse> {
     const started = Date.now();
+    // Reasoning effort applies to the text model only (the vision model is a
+    // different family with different accepted values).
+    const reasoning =
+      this.config.reasoningEffort && model === this.config.model
+        ? { reasoning_effort: this.config.reasoningEffort }
+        : {};
     const res = await fetch(`${this.config.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${this.config.apiKey}`,
       },
-      body: JSON.stringify({ model, ...body }),
+      body: JSON.stringify({ model, ...reasoning, ...body }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
+    this.rate.record(res.headers);
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
@@ -324,18 +469,25 @@ export class OpenAICompatibleAIService implements IAIService {
         }`,
       );
       err.status = res.status;
-      const wait = retryAfterMs(res.headers.get('retry-after'));
-      if (wait !== undefined) err.retryAfterMs = wait;
+      if (res.status === 429 || res.status === 503) {
+        const wait = retryAfterFrom(res.headers, text);
+        if (wait !== undefined) err.retryAfterMs = wait;
+      }
       throw err;
     }
 
     const json = (await res.json()) as ChatCompletionResponse;
+    const inputTokens = json.usage?.prompt_tokens;
+    const outputTokens = json.usage?.completion_tokens;
+    this.lastPromptTokens = inputTokens;
+    this.tokensSpent += json.usage?.total_tokens ?? (inputTokens ?? 0) + (outputTokens ?? 0);
     logAiUsage({
       provider: this.providerName(),
       model,
       op: label,
-      inputTokens: json.usage?.prompt_tokens,
-      outputTokens: json.usage?.completion_tokens,
+      inputTokens,
+      outputTokens,
+      reasoningTokens: json.usage?.completion_tokens_details?.reasoning_tokens,
       ms: Date.now() - started,
     });
     return json;
@@ -353,7 +505,8 @@ export class OpenAICompatibleAIService implements IAIService {
   /**
    * One JSON-mode completion returning the raw text: shared prompt + shape
    * instruction in. With `jsonSchema`, asks for strict structured output
-   * first and falls back to json_object if the endpoint rejects it.
+   * first; if the endpoint rejects json_schema it switches to json_object for
+   * good. `repair` appends the rejected previous output and the reason.
    */
   private async completeRaw(opts: {
     label: string;
@@ -364,15 +517,24 @@ export class OpenAICompatibleAIService implements IAIService {
     maxTokens: number;
     model?: string | undefined;
     jsonSchema?: { name: string; schema: Record<string, unknown> } | undefined;
+    repair?: { previous: string; problem: string } | undefined;
   }): Promise<string> {
     const request = (responseFormat: Record<string, unknown>) =>
       this.chatCompletion(
         {
           messages: [
-            { role: 'system', content: opts.system + jsonInstruction(opts.shape) },
+            {
+              role: 'system',
+              content:
+                opts.system +
+                (responseFormat['type'] === 'json_schema'
+                  ? STRICT_JSON_INSTRUCTION
+                  : jsonInstruction(opts.shape)),
+            },
             typeof opts.user === 'string'
               ? { role: 'user', content: opts.user }
               : { role: 'user', content: opts.user },
+            ...(opts.repair ? repairMessages(opts.repair.previous, opts.repair.problem) : []),
           ] satisfies OutboundMessage[],
           response_format: responseFormat,
           temperature: opts.temperature,
@@ -391,6 +553,9 @@ export class OpenAICompatibleAIService implements IAIService {
         });
       } catch (err) {
         const e = err as HttpError;
+        // A failed generation is not a rejection of the feature — the caller
+        // decides what to do with it (completeJson retries in json_object).
+        if (isStrictGenerationFailure(err)) throw err;
         if (e.status !== 400 || !/json_schema|response_format|strict/i.test(e.message)) throw err;
         console.warn(
           `[AI] ${opts.label}: endpoint rejected strict json_schema — using json_object from now on`,
@@ -408,8 +573,17 @@ export class OpenAICompatibleAIService implements IAIService {
   }
 
   /**
-   * One JSON-mode completion: shared prompt + shape instruction in, Zod
+   * One structured completion: shared prompt + shape instruction in, Zod
    * validation out. Every structured method funnels through here.
+   *
+   * Reliability ladder (each step at most once):
+   * 1. strict json_schema when `jsonSchema` is given, else json_object;
+   * 2. if strict mode fails to generate (400 json_validate_failed, incl.
+   *    truncation), the same request in json_object mode — with 1.5× the
+   *    output budget when it was truncated;
+   * 3. if the JSON is malformed or fails the Zod schema, ONE repair retry that
+   *    shows the model its rejected output and the validation error.
+   * Zod stays the gate throughout: a provider never weakens validation.
    */
   private async completeJson<T>(opts: {
     label: string;
@@ -422,26 +596,32 @@ export class OpenAICompatibleAIService implements IAIService {
     model?: string | undefined;
     jsonSchema?: { name: string; schema: Record<string, unknown> } | undefined;
   }): Promise<T> {
-    const raw = await this.completeRaw(opts);
-
-    let json: unknown;
+    let raw: string;
+    let maxTokens = opts.maxTokens;
     try {
-      json = JSON.parse(raw);
+      raw = await this.completeRaw(opts);
     } catch (err) {
-      throw new Error(
-        `OpenAICompatibleAIService: ${opts.label} response JSON is malformed (output may have been truncated) — ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+      if (!opts.jsonSchema || !isStrictGenerationFailure(err)) throw err;
+      if (isTruncation(err)) maxTokens = Math.min(Math.round(maxTokens * 1.5), MAX_TOKENS_CEILING);
+      console.warn(
+        `[AI] ${opts.label}: strict json_schema generation failed — retrying in json_object mode`,
       );
+      raw = await this.completeRaw({ ...opts, jsonSchema: undefined, maxTokens });
     }
 
-    const parsed = opts.schema.safeParse(json);
-    if (!parsed.success) {
-      throw new Error(
-        `OpenAICompatibleAIService: ${opts.label} response failed validation — ${parsed.error.message}`,
-      );
-    }
-    return parsed.data;
+    const first = parseAgainst(raw, opts.schema);
+    if (first.ok) return first.data;
+
+    console.warn(`[AI] ${opts.label}: ${first.problem.slice(0, 200)} — one repair retry`);
+    const repaired = await this.completeRaw({
+      ...opts,
+      jsonSchema: undefined,
+      maxTokens,
+      repair: { previous: raw, problem: first.problem },
+    });
+    const second = parseAgainst(repaired, opts.schema);
+    if (second.ok) return second.data;
+    throw new Error(`OpenAICompatibleAIService: ${opts.label} ${second.problem}`);
   }
 
   /**
@@ -496,15 +676,37 @@ export class OpenAICompatibleAIService implements IAIService {
    * allergen enforcement to it, exactly as for Gemini.
    */
   private async generateMealPlanChunked(input: MealPlanInput): Promise<WeekPlanResponse> {
-    const sleep = this.config.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
-    let waitBudget = CHUNK_TOTAL_WAIT_BUDGET_MS;
+    // A user request carries an AI call context; the Sunday worker and the
+    // eval do not (see isBackgroundCall).
+    let waitBudget = isBackgroundCall('generateMealPlan')
+      ? CHUNK_WAIT_BUDGET_BACKGROUND_MS
+      : CHUNK_WAIT_BUDGET_INTERACTIVE_MS;
     const days: DayPlan[] = [];
     const planned: string[] = [];
+    const spentBefore = this.tokensSpent;
+    let waited = 0;
+
+    /** Sleeps `ms` if the plan's wait budget allows; returns whether it did. */
+    const wait = async (ms: number): Promise<boolean> => {
+      if (ms > CHUNK_MAX_SINGLE_WAIT_MS || ms > waitBudget) return false;
+      waitBudget -= ms;
+      waited += ms;
+      await this.sleep(ms);
+      return true;
+    };
 
     for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+      // Pacing: sequential days, and before each one wait until the endpoint's
+      // per-minute token budget (last x-ratelimit-* headers) admits another
+      // day: its prompt (≈ the last one, plus the growing "already planned"
+      // list) + max_tokens. On a paid tier it always fits and never waits.
+      const admission = (this.lastPromptTokens ?? CHUNK_PROMPT_ESTIMATE) + 50 + MAX_TOKENS_PLAN_DAY;
+      const pace = this.rate.waitMsFor(admission);
+      if (pace > 0) await wait(pace);
+
       const request = () =>
         this.completeJson({
-          label: 'generateMealPlan.day',
+          label: CHUNK_LABEL,
           system: MEAL_PLAN_SYSTEM_PROMPT + MEAL_PLAN_DAY_CHUNK_RULES,
           user: buildMealPlanDayChunkPrompt(input, dayOfWeek, planned),
           shape: DAY_PLAN_SHAPE,
@@ -520,18 +722,19 @@ export class OpenAICompatibleAIService implements IAIService {
       } catch (err) {
         // A short per-minute window (429 + Retry-After) is waited out once;
         // anything longer (daily quota) propagates and the chain fails over.
-        const wait = (err as HttpError).retryAfterMs;
-        if ((err as HttpError).status !== 429 || wait === undefined) throw err;
-        if (wait > CHUNK_MAX_RETRY_WAIT_MS || wait > waitBudget) throw err;
-        waitBudget -= wait;
-        await sleep(wait);
+        const e = err as HttpError;
+        if (e.status !== 429 || e.retryAfterMs === undefined) throw err;
+        if (!(await wait(e.retryAfterMs + BACKGROUND_RETRY_JITTER_MS))) throw err;
         day = await request();
       }
-
       // The model is told the day; the position is authoritative.
       days.push({ ...day, dayOfWeek });
       planned.push(...day.meals.map((m) => m.recipe.name));
     }
+
+    console.info(
+      `[AI] generateMealPlan (chunked): 7 days, ${this.tokensSpent - spentBefore} tokens, paced ${waited} ms`,
+    );
 
     const week = weekPlanResponseSchema.safeParse({ days });
     if (!week.success) {

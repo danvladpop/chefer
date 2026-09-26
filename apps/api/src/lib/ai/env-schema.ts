@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+/** AI_SECONDARY_REASONING_EFFORT values (see resolveReasoningEffort in providers.ts). */
+export const REASONING_EFFORT_SETTINGS = ['auto', 'none', 'low', 'medium', 'high'] as const;
+export type ReasoningEffortSetting = (typeof REASONING_EFFORT_SETTINGS)[number];
+
 // ─── AI provider env shape ────────────────────────────────────────────────────
 // Keys and model names for the live providers. Spread into the API's env
 // schema (lib/env.ts) and parsed on its own by the eval harness (lib/ai/eval),
@@ -23,4 +27,12 @@ export const aiProviderEnvShape = {
   // photo call is routed there (AI_ROUTE_VISION). Groq's vision model:
   // https://console.groq.com/docs/vision (checked 2026-09-26).
   AI_VISION_MODEL: z.string().default('qwen/qwen3.8-27b'),
+  // reasoning_effort for the secondary's TEXT model. auto = "low" for gpt-oss
+  // models, not sent otherwise; none = never sent. At the default ("medium")
+  // effort gpt-oss-120b spent ~5.6k hidden reasoning tokens on ONE meal-plan
+  // day and ran out of output budget (docs/ai-providers.md "Groq limits").
+  AI_SECONDARY_REASONING_EFFORT: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.enum(REASONING_EFFORT_SETTINGS).default('auto'),
+  ),
 };

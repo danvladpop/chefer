@@ -40,6 +40,8 @@ export interface CaseScores {
   macroErrorPct?: number | undefined;
   /** Workload-specific checks in 0..1 (ingredient recall, coverage, day structure…). */
   checks: Record<string, number>;
+  /** "<dish>: <allergen>" per allergen violation, so a failed gate can be diagnosed. */
+  allergenDetails?: string[] | undefined;
 }
 
 const EMPTY: CaseScores = {
@@ -67,12 +69,22 @@ function round1(value: number | undefined): number | undefined {
 function safetyCounts(
   recipes: RecipeData[],
   prefs: { allergies: string[]; dietaryRestrictions: string[] },
-): { allergenViolations: number; restrictionViolations: number } {
+): {
+  allergenViolations: number;
+  restrictionViolations: number;
+  allergenDetails?: string[] | undefined;
+} {
   let allergenViolations = 0;
   let restrictionViolations = 0;
+  const allergenDetails: string[] = [];
   for (const recipe of recipes) {
-    if (findSafetyIssues(recipe, { allergies: prefs.allergies, dietaryRestrictions: [] }).length) {
+    const allergens = findSafetyIssues(recipe, {
+      allergies: prefs.allergies,
+      dietaryRestrictions: [],
+    });
+    if (allergens.length) {
       allergenViolations++;
+      allergenDetails.push(`${recipe.name}: ${allergens.join(', ')}`);
     }
     if (
       findSafetyIssues(recipe, { allergies: [], dietaryRestrictions: prefs.dietaryRestrictions })
@@ -81,7 +93,11 @@ function safetyCounts(
       restrictionViolations++;
     }
   }
-  return { allergenViolations, restrictionViolations };
+  return {
+    allergenViolations,
+    restrictionViolations,
+    ...(allergenDetails.length ? { allergenDetails } : {}),
+  };
 }
 
 function asRecipe(extracted: ExtractedRecipe): RecipeData {
@@ -329,9 +345,23 @@ export interface EvalSummary {
   p95Ms: number;
   inputTokens: number;
   outputTokens: number;
-  /** The hard gate: zero allergen violations and at least one case run. */
+  /** The hard gate (see GateOptions): true when gateFailures is empty. */
   gatePassed: boolean;
+  /** Why the gate failed, one short reason each (empty when it passed). */
+  gateFailures: string[];
 }
+
+/**
+ * The eval gate. A workload passes only when at least one case ran, NO case
+ * errored (an error is not a pass — a provider that cannot answer is not
+ * ready), there are zero allergen violations, and at least
+ * `minSchemaValidPct` of the cases returned schema-valid output.
+ */
+export interface GateOptions {
+  minSchemaValidPct: number;
+}
+
+export const DEFAULT_GATE: GateOptions = { minSchemaValidPct: 95 };
 
 function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
@@ -343,6 +373,7 @@ export function summarise(
   workload: AiWorkload,
   provider: string,
   results: CaseResult[],
+  gate: GateOptions = DEFAULT_GATE,
 ): EvalSummary {
   const n = results.length;
   const valid = results.filter((r) => r.scores.schemaValid).length;
@@ -353,12 +384,21 @@ export function summarise(
     checkNames.map((c) => [c, round1(mean(results.map((r) => r.scores.checks[c]))) ?? 0]),
   );
   const ms = results.map((r) => r.ms).sort((a, b) => a - b);
+  const errors = results.filter((r) => !r.ok).length;
+  const schemaValidPct = n ? Math.round((valid / n) * 1000) / 10 : 0;
+  const gateFailures: string[] = [];
+  if (n === 0) gateFailures.push('no cases ran');
+  if (errors > 0) gateFailures.push(`${errors}/${n} cases errored`);
+  if (allergenViolations > 0) gateFailures.push(`${allergenViolations} allergen violation(s)`);
+  if (n > 0 && schemaValidPct < gate.minSchemaValidPct) {
+    gateFailures.push(`schema-valid ${schemaValidPct}% < ${gate.minSchemaValidPct}%`);
+  }
   return {
     workload,
     provider,
     cases: n,
-    errors: results.filter((r) => !r.ok).length,
-    schemaValidPct: n ? Math.round((valid / n) * 1000) / 10 : 0,
+    errors,
+    schemaValidPct,
     allergenViolations,
     restrictionViolations,
     meanKcalErrorPct: round1(mean(results.map((r) => r.scores.kcalErrorPct))),
@@ -368,7 +408,8 @@ export function summarise(
     p95Ms: percentile(ms, 95),
     inputTokens: results.reduce((s, r) => s + (r.inputTokens ?? 0), 0),
     outputTokens: results.reduce((s, r) => s + (r.outputTokens ?? 0), 0),
-    gatePassed: n > 0 && allergenViolations === 0,
+    gatePassed: gateFailures.length === 0,
+    gateFailures,
   };
 }
 
@@ -411,5 +452,13 @@ export function formatSummaryTable(summaries: EvalSummary[]): string {
   ]);
   const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i]!.length)));
   const line = (cells: string[]) => cells.map((c, i) => c.padEnd(widths[i]!)).join(' | ');
-  return [line(header), widths.map((w) => '-'.repeat(w)).join('-|-'), ...rows.map(line)].join('\n');
+  const failures = summaries
+    .filter((s) => s.gateFailures.length > 0)
+    .map((s) => `gate FAIL ${s.workload}: ${s.gateFailures.join('; ')}`);
+  return [
+    line(header),
+    widths.map((w) => '-'.repeat(w)).join('-|-'),
+    ...rows.map(line),
+    ...(failures.length ? ['', ...failures] : []),
+  ].join('\n');
 }

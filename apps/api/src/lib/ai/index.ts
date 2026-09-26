@@ -53,6 +53,7 @@ const providerConfig: ProviderConfig = {
   secondaryBaseUrl: env.AI_SECONDARY_BASE_URL,
   secondaryModel: env.AI_SECONDARY_MODEL,
   visionModel: env.AI_VISION_MODEL,
+  reasoningEffort: env.AI_SECONDARY_REASONING_EFFORT,
 };
 
 /** AI_ROUTE_* values that are set, parsed (env.ts already validated them). */
