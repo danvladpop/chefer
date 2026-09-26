@@ -18,6 +18,8 @@ export class MockVideoTranscriber implements IVideoTranscriber {
     const parsed = parseVideoUrl(rawUrl);
     if (!parsed) throw new VideoImportError('UNSUPPORTED_SITE', rawUrl);
     const steer = parsed.url.toLowerCase();
+    // Scheme-less, so the caption's link-line filter keeps it (it's the steer).
+    const tag = parsed.url.replace(/^https?:\/\//, '');
     if (steer.includes('private')) throw new VideoImportError('PRIVATE', 'mock');
     if (steer.includes('too-long')) throw new VideoImportError('TOO_LONG', 'mock');
     if (steer.includes('no-speech')) throw new VideoImportError('NO_SPEECH', 'mock');
@@ -33,7 +35,7 @@ export class MockVideoTranscriber implements IVideoTranscriber {
     if (steer.includes('caption-only')) {
       return {
         ...base,
-        caption: `Ingredients (${parsed.url}):\n400 g spaghetti\n600 g tomatoes\n3 garlic cloves\n3 tbsp olive oil`,
+        caption: `Ingredients (${tag}):\n400 g spaghetti\n600 g tomatoes\n3 garlic cloves\n3 tbsp olive oil`,
         transcript: null,
         source: 'caption',
       };
@@ -41,7 +43,7 @@ export class MockVideoTranscriber implements IVideoTranscriber {
     return {
       ...base,
       caption: '#pasta #dinner',
-      transcript: `${SPOKEN} (${parsed.url})`,
+      transcript: `${SPOKEN} (${tag})`,
       source: steer.includes('subtitles') ? 'subtitles' : 'speech',
     };
   }

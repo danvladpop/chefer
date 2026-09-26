@@ -160,6 +160,17 @@ describe('buildTranscriptText', () => {
     expect(text).toMatch(/SPEECH TRANSCRIPT \(automatic.*\):\nboil the noodles/);
   });
 
+  it('drops link lines from the caption', () => {
+    const text = buildTranscriptText({
+      title: '',
+      caption: '200 g pasta\nShop: https://merch.example\nBoil it',
+      transcript: null,
+      source: 'caption',
+    });
+    expect(text).toContain('200 g pasta\nBoil it');
+    expect(text).not.toContain('merch');
+  });
+
   it('omits what is empty', () => {
     const text = buildTranscriptText({
       title: '',

@@ -140,8 +140,14 @@ export interface TranscriptTextInput {
 export function buildTranscriptText(input: TranscriptTextInput): string {
   const parts = ['This is the text of a cooking video (no visuals). Extract only what it states.'];
   if (input.title) parts.push(`VIDEO TITLE: ${input.title}`);
-  if (input.caption) {
-    parts.push(`CREATOR'S CAPTION:\n${input.caption.slice(0, MAX_CAPTION_CHARS)}`);
+  // Link lines (merch, socials, sponsors) carry no recipe — only tokens.
+  const caption = input.caption
+    .split('\n')
+    .filter((line) => !/https?:\/\//.test(line))
+    .join('\n')
+    .trim();
+  if (caption) {
+    parts.push(`CREATOR'S CAPTION:\n${caption.slice(0, MAX_CAPTION_CHARS)}`);
   }
   if (input.transcript) {
     const label =
