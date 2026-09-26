@@ -57,6 +57,9 @@ appId: dev.chefer.app.dev
 - tapOn:
     id: 'register-password'
 - inputText: 'Maestro@123!'
+- tapOn:
+    id: 'register-confirm-password'
+- inputText: 'Maestro@123!'
 - runFlow:
     when:
       platform: Android

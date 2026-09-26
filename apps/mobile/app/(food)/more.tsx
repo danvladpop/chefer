@@ -15,6 +15,7 @@ import { trpc } from '../../src/lib/trpc';
 const ITEMS: { href: Href; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { href: '/chat', label: 'AI Chef', icon: 'chatbubble-ellipses-outline' },
   { href: '/tracker', label: 'Tracker', icon: 'pulse-outline' },
+  { href: '/progress', label: 'Progress', icon: 'stats-chart-outline' },
   { href: '/pantry', label: 'Pantry', icon: 'file-tray-stacked-outline' },
   { href: '/history', label: 'History', icon: 'time-outline' },
   { href: '/household', label: 'Household', icon: 'people-outline' },

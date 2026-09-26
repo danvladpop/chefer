@@ -203,5 +203,29 @@ export {
   BODY_WEIGHT_KG_MIN,
   BODY_WEIGHT_KG_MAX,
   parseBodyWeightKg,
+  weightChangeTone,
+  type WeightChangeTone,
   type WeightParseResult,
 } from './weight';
+export {
+  QUICK_ADD_LIMITS,
+  QUICK_ADD_MEAL_TYPES,
+  parseQuickAdd,
+  type QuickAddEntry,
+  type QuickAddErrors,
+  type QuickAddInput,
+  type QuickAddMealType,
+  type QuickAddParseResult,
+} from './quick-add';
+export {
+  REBALANCE_UNDO_EXPIRY_MS,
+  isPendingFresh,
+  mergePendingRebalance,
+  parsePendingRebalance,
+  rebalanceBannerCopy,
+  undoOperations,
+  type PendingRebalance,
+  type RebalanceResultLike,
+  type RebalanceSwapLike,
+} from './rebalance';
+export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from './rating';

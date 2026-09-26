@@ -19,6 +19,7 @@ export {
   type KeyboardAwareScrollViewProps,
   type ScrollFieldIntoView,
 } from './components/keyboard-aware-scroll-view';
+export { PasswordInput, type PasswordInputProps } from './components/password-input';
 export { NumericReturnBar, type NumericReturnBarProps } from './components/numeric-return-bar';
 export { ProgressRing, type ProgressRingProps } from './components/progress-ring';
 export { Screen, type ScreenProps } from './components/screen';

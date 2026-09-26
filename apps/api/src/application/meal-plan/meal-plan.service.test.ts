@@ -8,7 +8,7 @@ import {
 } from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
-import { dayImagePriority, MealPlanService } from './meal-plan.service.js';
+import { dayImagePriority, MealPlanService, restrictionWarningLabel } from './meal-plan.service.js';
 
 // ─── Module mocks (hoisted) ───────────────────────────────────────────────────
 
@@ -987,5 +987,14 @@ describe('MealPlanService.restore', () => {
     const service = new MealPlanService(repo);
     await expect(service.restore('user1', 'tpl')).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(repo.createPlan).not.toHaveBeenCalled();
+  });
+});
+
+describe('restrictionWarningLabel (allergen chip copy)', () => {
+  it('turns diet restrictions into what the dish contains', () => {
+    expect(restrictionWarningLabel('Paleo')).toBe('non-paleo ingredients');
+    expect(restrictionWarningLabel('Vegetarian')).toBe('non-vegetarian ingredients');
+    expect(restrictionWarningLabel('Gluten-free')).toBe('gluten');
+    expect(restrictionWarningLabel('Dairy free')).toBe('dairy');
   });
 });

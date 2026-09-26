@@ -36,6 +36,10 @@ jest.mock('../../src/lib/trpc', () => ({
   },
 }));
 
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+
+const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
+
 beforeEach(() => jest.clearAllMocks());
 
 describe('WeightCard', () => {
@@ -76,5 +80,12 @@ describe('WeightCard', () => {
     const buttons = alert.mock.calls[0]?.[2] ?? [];
     buttons.find((b) => b.text === 'Delete')?.onPress?.();
     expect(mockDeleteMutate).toHaveBeenCalledWith({ id: 'w2' });
+  });
+
+  it('links to the Progress screen', async () => {
+    const user = userEvent.setup();
+    await render(<WeightCard />);
+    await user.press(screen.getByTestId('weight-see-progress'));
+    expect(router.push).toHaveBeenCalledWith('/progress');
   });
 });

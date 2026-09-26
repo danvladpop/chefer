@@ -1,22 +1,21 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Switch, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
-import { MealTypeBadge } from '../../src/features/dashboard/components/meal-type-badge';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
 import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sheet';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
-import { AllergenWarningChip } from '../../src/features/recipes/allergen-warning';
+import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
-import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
 // Plan tab — port of apps/web (dashboard)/meal-plan/page.tsx (M2-2), which
-// already renders day-by-day on phones (DayView). Deviations, deliberate:
-// recipe-photo SSE streaming waits for M3-1; pantry/rebalance banners for
-// M2-6/M2-10. Per-meal replace opens RecipePickerSheet (pick a recipe, any
+// already renders day-by-day on phones (DayView), incl. the week-rebalance
+// banner with undo (P1-7). Deviations, deliberate: recipe-photo SSE
+// streaming waits for M3-1; the pantry banner for M2-6/M2-10. Per-meal replace opens RecipePickerSheet (pick a recipe, any
 // tier; AI regen in its footer, premium) — mobile-first, not on web yet.
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -302,6 +301,9 @@ export default function MealPlanScreen() {
           </View>
 
           <ScrollView contentContainerClassName="gap-3 px-4 py-2 pb-8">
+            {/* A log elsewhere swapped future meals — say which, offer undo */}
+            <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
+
             {/* Badges row */}
             <View className="flex-row flex-wrap gap-2">
               {plan.carriedOver && (
@@ -337,62 +339,29 @@ export default function MealPlanScreen() {
               </Card>
             ) : (
               meals.map((meal) => (
-                <Pressable
+                <PlanMealCard
                   key={`${meal.type}-${meal.recipe.id}`}
                   testID={`plan-meal-${meal.type}`}
-                  accessibilityRole="button"
-                  onPress={() =>
-                    router.push({ pathname: '/recipe/[id]', params: { id: meal.recipe.id } })
+                  day={selectedDay}
+                  meal={meal}
+                  trailing={
+                    // Replace this meal — opens the recipe picker sheet (all
+                    // tiers; the AI option inside it stays premium)
+                    !isPast && (
+                      <Pressable
+                        testID={`plan-meal-swap-${meal.type}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Replace ${meal.recipe.name}`}
+                        onPress={() =>
+                          setPickerTarget({ mealType: meal.type, mealName: meal.recipe.name })
+                        }
+                        className="w-11 items-center justify-center border-l border-border"
+                      >
+                        <Ionicons name="swap-horizontal-outline" size={18} color="#944a00" />
+                      </Pressable>
+                    )
                   }
-                  className="flex-row overflow-hidden rounded-2xl border border-border bg-card"
-                >
-                  <Image
-                    source={{ uri: getRecipeImageUrl(meal.recipe.imageUrl) }}
-                    className="h-28 w-24"
-                    resizeMode="cover"
-                  />
-                  <View className="min-w-0 flex-1 justify-between p-3">
-                    <View className="gap-1">
-                      <View className="flex-row items-center gap-2">
-                        <MealTypeBadge mealType={meal.type} />
-                        {meal.leftoverOf && (
-                          <View className="rounded-full bg-gray-100 px-2 py-0.5">
-                            <Text className="text-xs uppercase text-gray-500">
-                              Leftovers · {meal.leftoverOf}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text numberOfLines={2} className="text-sm font-semibold text-gray-900">
-                        {meal.recipe.name}
-                      </Text>
-                      <AllergenWarningChip warnings={meal.recipe.allergenWarnings} />
-                    </View>
-                    <View className="flex-row items-center gap-3">
-                      <Text className="text-xs text-gray-500">
-                        {meal.recipe.prepTimeMins + meal.recipe.cookTimeMins}m
-                      </Text>
-                      <Text className="text-xs text-gray-500">
-                        {meal.recipe.nutritionInfo.calories} kcal
-                      </Text>
-                    </View>
-                  </View>
-                  {/* Replace this meal — opens the recipe picker sheet (all
-                      tiers; the AI option inside it stays premium) */}
-                  {!isPast && (
-                    <Pressable
-                      testID={`plan-meal-swap-${meal.type}`}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Replace ${meal.recipe.name}`}
-                      onPress={() =>
-                        setPickerTarget({ mealType: meal.type, mealName: meal.recipe.name })
-                      }
-                      className="w-11 items-center justify-center border-l border-border"
-                    >
-                      <Ionicons name="swap-horizontal-outline" size={18} color="#944a00" />
-                    </Pressable>
-                  )}
-                </Pressable>
+                />
               ))
             )}
           </ScrollView>

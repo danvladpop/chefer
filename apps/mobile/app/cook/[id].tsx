@@ -3,16 +3,20 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button, Screen, Text } from '@chefer/ui-mobile';
+import { Button, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
 import { cn, formatQuantity, guessMealType, localDateStr, parseStepDuration } from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
+import { StarRating } from '../../src/features/recipes/star-rating';
+import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
+import { recordRebalance } from '../../src/features/tracker/rebalance-store';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { trpc } from '../../src/lib/trpc';
 
 // Cook mode (P1-3) — port of web features/recipes/components/cook-mode.tsx.
 // Step-by-step with inline timers (shared parseStepDuration), screen kept
 // awake, ingredient checklist, and finish → tracker log (same append
-// semantics as web; rebalance banner hand-off is web-only for now).
+// semantics as web) → star rating. A premium week rebalance triggered by the
+// log shows its banner + undo right here on the finish screen.
 
 // Local calendar day, not the UTC one (F-TRK-1-1).
 const todayIso = (): string => localDateStr();
@@ -100,8 +104,9 @@ export default function CookModeScreen() {
   const [showIngredients, setShowIngredients] = useState(false);
 
   const upsertDay = trpc.tracker.logRecipe.useMutation({
-    onSuccess: () => {
+    onSuccess: (result) => {
       setLogged(true);
+      recordRebalance(result.rebalance);
       void utils.tracker.getDay.invalidate();
       void utils.tracker.weeklySummary.invalidate();
       void utils.dashboard.summary.invalidate();
@@ -230,7 +235,10 @@ export default function CookModeScreen() {
         </ScrollView>
       ) : finished ? (
         /* Done screen */
-        <ScrollView contentContainerClassName="items-center gap-4 px-6 py-10">
+        <KeyboardAwareScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerClassName="items-center gap-4 px-6 py-10"
+        >
           <Text className="text-5xl">🎉</Text>
           <Text testID="cook-finished" variant="title" className="text-center">
             Enjoy your {mealType}!
@@ -246,13 +254,25 @@ export default function CookModeScreen() {
           >
             {logged ? 'Logged to tracker ✓' : 'Log this meal'}
           </Button>
-          <Button variant="outline" onPress={() => router.back()}>
-            Done
-          </Button>
           {upsertDay.isError && (
             <Text className="text-xs text-red-600">{upsertDay.error.message}</Text>
           )}
-        </ScrollView>
+          {logged && (
+            <>
+              <RebalanceBanner className="self-stretch" />
+              {/* Ratings feed next week's generation (P1-1) — say so. */}
+              <StarRating
+                recipeId={recipe.id}
+                title="How was it?"
+                hint="Your rating shapes what the chef cooks up next week."
+                className="self-stretch"
+              />
+            </>
+          )}
+          <Button variant="outline" onPress={() => router.back()}>
+            Done
+          </Button>
+        </KeyboardAwareScrollView>
       ) : (
         /* Step view — big text, kitchen-distance readable */
         <View className="flex-1 px-4 pb-6">

@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, Text, type PressableProps } from 'react-native';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@chefer/utils';
+import { colors } from './theme';
 
 // Same variant vocabulary as @chefer/ui's web Button. All sizes clear the
 // 44pt minimum touch target (CLAUDE.md).
@@ -59,16 +60,32 @@ export function Button({
   loading = false,
   disabled,
   children,
+  accessibilityState,
   ...props
 }: ButtonProps) {
+  const isDisabled = (disabled ?? false) || loading;
   return (
     <Pressable
       accessibilityRole="button"
       className={cn(buttonVariants({ variant, size }), className)}
-      disabled={(disabled ?? false) || loading}
+      disabled={isDisabled}
+      // `busy` lets a screen reader (and tests) tell which of several buttons
+      // is the one working.
+      accessibilityState={{ disabled: isDisabled, busy: loading, ...accessibilityState }}
       {...props}
     >
-      {loading ? <ActivityIndicator size="small" color="white" /> : null}
+      {loading ? (
+        // White only reads on the filled variants; outline/ghost/secondary sit
+        // on a light background, where a white spinner was invisible.
+        <ActivityIndicator
+          size="small"
+          color={
+            variant === 'outline' || variant === 'ghost' || variant === 'secondary'
+              ? colors.primary
+              : 'white'
+          }
+        />
+      ) : null}
       {typeof children === 'string' ? (
         <Text className={buttonTextVariants({ variant })}>{children}</Text>
       ) : (

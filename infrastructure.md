@@ -313,7 +313,7 @@ Expo (SDK 57) React Native app — one codebase for iOS and Android. EAS project
 development→iOS-simulator dev client, development-device, preview, production).
 Being built
 out per [`mobile_native_plan.md`](./mobile_native_plan.md); currently: auth
-(login/register/logout via Bearer session), NativeWind theme (web's brand
+(login/register/logout via Bearer session, forgot/reset password), NativeWind theme (web's brand
 tokens), a **Food / Gym mode switch** (gym_plan.md D3) between two tab
 shells — Food: Home/Plan/Recipes/Shop/More (mirrors
 `apps/web/src/features/nav/nav-items.ts`); Gym: Today/Routine/Exercises/Stats —
@@ -328,7 +328,11 @@ API, Maestro E2E in `e2e/`).
   and `@chefer/utils` (raw-TS exports) resolve; `@chefer/ui` and
   `@chefer/database` are forbidden by lint (platform boundary)
 - **Auth:** `Authorization: Bearer <sessionToken>` + `x-chefer-client: mobile`
-  header — see §9
+  header — see §9. Form rules (email, password length, confirm-password match)
+  come from `@chefer/types` `auth.ts`. In `__DEV__` the tRPC `loggerLink`
+  logs every request, so `src/lib/trpc-links.ts` `redactSecrets` masks
+  `password` / `newPassword` / `currentPassword` / `confirmPassword` / `token`
+  (any depth) before anything reaches the console (audit F-M-AUTH-2-2)
 - **Scripts:** `start` (Metro; root: `pnpm dev:mobile` — deliberately not part
   of `turbo dev`), `ios` / `android` (dev variant: build + run on
   simulator/emulator/device), `release:ios` / `release:android` (standalone
@@ -355,40 +359,44 @@ API, Maestro E2E in `e2e/`).
 
 **Mobile routes** (expo-router; deep-link scheme `chefer://`):
 
-| Route                  | Screen                                                                                                                 | Web counterpart                      |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `(auth)/login`         | Sign in                                                                                                                | `/login`                             |
-| `(auth)/register`      | Create account                                                                                                         | `/register`                          |
-| `(food)/` (index)      | Dashboard: week outlook, nutrition summary, hero meal, favourites (M2-1)                                               | `/dashboard`                         |
-| `(food)/meal-plan`     | Placeholder (M2-2)                                                                                                     | `/meal-plan`                         |
-| `(food)/recipes`       | Recipe list: tabs, search, optimistic favourites (M2-3)                                                                | `/recipes`                           |
-| `recipe/[id]`          | Recipe detail: scaled ingredients, instructions, nutrition (M2-3)                                                      | `/recipes/[id]`                      |
-| `(food)/shopping-list` | Placeholder (M2-5)                                                                                                     | `/shopping-list`                     |
-| `(food)/more`          | Secondary nav hub + sign out                                                                                           | mobile drawer                        |
-| `tracker`              | Daily log: check-off, portions, custom entries, targets (M2-4)                                                         | `/tracker`                           |
-| `pantry`               | Kitchen inventory, premium add/remove, free upsell (M2-6)                                                              | `/pantry`                            |
-| `preferences`          | Free safety + goal/body (every tier, `saveProfileBasics`) + premium units/budget (M2-7, dogfood #6)                    | `/preferences`                       |
-| `profile`              | Account card, up/downgrade (PW-2), AI usage quotas (M2-8)                                                              | `/profile`                           |
-| `chat`                 | Streaming AI chef chat, quota upgrade gate (M2-9/M3-1)                                                                 | chat widget                          |
-| `history`              | Past plans list + restore (M2-10)                                                                                      | `/history`                           |
-| `onboarding`           | Post-register wizard: free 3-step (safety, optional goal/metrics) or premium 4-step → `preferences.setup` (dogfood #9) | `/onboarding`                        |
-| `cook/[id]`            | Cook mode: steps, timers, keep-awake, log to tracker (P1-3)                                                            | `/recipes/[id]/cook`                 |
-| `import-recipe`        | F5 import: URL/text preview + premium save                                                                             | Import sheet                         |
-| `recipe-form`          | Manual recipe create/edit                                                                                              | `/recipes/new`, `/recipes/[id]/edit` |
-| `household`            | F2 household members (premium add, open list/remove)                                                                   | preferences section                  |
-| `(gym)/today`          | Gym Today: next up, week strip/ring, streak, offers, resume (G2-B)                                                     | — (G5)                               |
-| `(gym)/routine`        | Active routine + weekly balance (placeholder, G2-C)                                                                    | — (G5)                               |
-| `(gym)/exercises`      | Exercise library (placeholder, G2-D)                                                                                   | — (G5)                               |
-| `(gym)/stats`          | Strength / volume / consistency stats (placeholder, G2-D)                                                              | — (G5)                               |
-| `gym/setup`            | 7-step setup wizard: days, experience, equipment/unit, weekdays, preview, starting weights, finish (G2-B)              | — (G5)                               |
-| `gym/workout`          | Active workout: set rows, rest bar, RIR, swap/skip, finish (G2-A)                                                      | — (G5)                               |
-| `gym/summary/[id]`     | Post-workout summary: PRs, week ring, "Next time" + Adjust (G2-A)                                                      | — (G5)                               |
-| `gym/session/[id]`     | Past session detail (placeholder, G2-B)                                                                                | — (G5)                               |
-| `gym/routine-editor`   | Routine editor (placeholder, G2-C)                                                                                     | — (G5)                               |
-| `gym/routines`         | My routines (placeholder, G2-C)                                                                                        | — (G5)                               |
-| `gym/exercise/[id]`    | Exercise detail (placeholder, G2-D)                                                                                    | — (G5)                               |
-| `gym/exercise-form`    | Custom exercise form (placeholder, G2-D)                                                                               | — (G5)                               |
-| `gym/settings`         | Units, weekly goal, equipment, reminder, pause, needs-attention (G2-B)                                                 | — (G5)                               |
+| Route                    | Screen                                                                                                                  | Web counterpart                      |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `(auth)/login`           | Sign in                                                                                                                 | `/login`                             |
+| `(auth)/register`        | Create account                                                                                                          | `/register`                          |
+| `(auth)/forgot-password` | Request a reset link (`auth.requestPasswordReset`) — linked from Sign in                                                | `/forgot-password`                   |
+| `(auth)/reset-password`  | New password from a reset token; deep link `chefer://reset-password?token=…`                                            | `/reset-password`                    |
+| `(food)/` (index)        | Dashboard: week outlook, nutrition summary, hero meal, favourites (M2-1)                                                | `/dashboard`                         |
+| `(food)/meal-plan`       | Placeholder (M2-2)                                                                                                      | `/meal-plan`                         |
+| `(food)/recipes`         | Recipe list: tabs, search, optimistic favourites (M2-3)                                                                 | `/recipes`                           |
+| `recipe/[id]`            | Recipe detail: scaled ingredients, instructions, nutrition (M2-3); star rating when opened with `day` from the Plan tab | `/recipes/[id]`                      |
+| `(food)/shopping-list`   | Placeholder (M2-5)                                                                                                      | `/shopping-list`                     |
+| `(food)/more`            | Secondary nav hub + sign out                                                                                            | mobile drawer                        |
+| `tracker`                | Daily log: check-off, portions, custom entries, targets (M2-4); quick add sheet + rebalance banner/undo (P1-7)          | `/tracker`                           |
+| `pantry`                 | Kitchen inventory, premium add/remove, free upsell (M2-6)                                                               | `/pantry`                            |
+| `preferences`            | Free safety + goal/body (every tier, `saveProfileBasics`) + premium units/budget (M2-7, dogfood #6)                     | `/preferences`                       |
+| `profile`                | Account card, up/downgrade (PW-2), AI usage quotas (M2-8)                                                               | `/profile`                           |
+| `chat`                   | Streaming AI chef chat, quota upgrade gate (M2-9/M3-1)                                                                  | chat widget                          |
+| `onboarding`             | Post-register wizard: free 3-step (safety, optional goal/metrics) or premium 4-step → `preferences.setup` (dogfood #9)  | `/onboarding`                        |
+| `cook/[id]`              | Cook mode: steps, timers, keep-awake, log to tracker (P1-3)                                                             | `/recipes/[id]/cook`                 |
+| `import-recipe`          | F5 import: URL/text preview + premium save                                                                              | Import sheet                         |
+| `recipe-form`            | Manual recipe create/edit                                                                                               | `/recipes/new`, `/recipes/[id]/edit` |
+| `household`              | F2 household members (premium add, open list/remove)                                                                    | preferences section                  |
+| `(gym)/today`            | Gym Today: next up, week strip/ring, streak, offers, resume (G2-B)                                                      | — (G5)                               |
+| `(gym)/routine`          | Active routine + weekly balance (placeholder, G2-C)                                                                     | — (G5)                               |
+| `(gym)/exercises`        | Exercise library (placeholder, G2-D)                                                                                    | — (G5)                               |
+| `(gym)/stats`            | Strength / volume / consistency stats (placeholder, G2-D)                                                               | — (G5)                               |
+| `gym/setup`              | 7-step setup wizard: days, experience, equipment/unit, weekdays, preview, starting weights, finish (G2-B)               | — (G5)                               |
+| `gym/workout`            | Active workout: set rows, rest bar, RIR, swap/skip, finish (G2-A)                                                       | — (G5)                               |
+| `gym/summary/[id]`       | Post-workout summary: PRs, week ring, "Next time" + Adjust (G2-A)                                                       | — (G5)                               |
+| `gym/session/[id]`       | Past session detail (placeholder, G2-B)                                                                                 | — (G5)                               |
+| `gym/routine-editor`     | Routine editor (placeholder, G2-C)                                                                                      | — (G5)                               |
+| `gym/routines`           | My routines (placeholder, G2-C)                                                                                         | — (G5)                               |
+| `gym/exercise/[id]`      | Exercise detail (placeholder, G2-D)                                                                                     | — (G5)                               |
+| `gym/exercise-form`      | Custom exercise form (placeholder, G2-D)                                                                                | — (G5)                               |
+| `gym/settings`           | Units, weekly goal, equipment, reminder, pause, needs-attention (G2-B)                                                  | — (G5)                               |
+| `history/index`          | Past plans list; View week + Restore behind a ConfirmSheet, per-row pending (M2-10, P1-7)                               | `/history`                           |
+| `history/[planId]`       | Read-only week: day chips, meals → recipe, Restore with confirm (P1-7; `status` route param hides it for ACTIVE)        | `/history/[planId]`                  |
+| `progress`               | 28-day calories vs target + macros, 90-day weight chart, goal-aware change, log form, entries edit/delete (P1-7)        | `/progress`                          |
 
 **Food / Gym mode (gym_plan.md D3, §5.1).** `(food)` and `(gym)` are two
 `Tabs` groups registered side by side in the root `Stack` (groups add no URL

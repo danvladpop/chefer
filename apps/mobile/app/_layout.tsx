@@ -71,7 +71,9 @@ export default function RootLayout() {
               <Stack.Screen name="profile" />
               <Stack.Screen name="preferences" />
               <Stack.Screen name="chat" />
-              <Stack.Screen name="history" />
+              <Stack.Screen name="history/index" />
+              <Stack.Screen name="history/[planId]" />
+              <Stack.Screen name="progress" />
               <Stack.Screen name="onboarding" />
               <Stack.Screen name="cook/[id]" />
               <Stack.Screen name="import-recipe" />

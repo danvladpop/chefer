@@ -85,7 +85,10 @@ Admins can additionally create users via `user.create` (admin-only).
 
 Sessions are DB rows (`sessions` table), not JWTs — resolution is a lookup on
 every request (see §4), and logout / password reset delete the rows.
-"Forgot password?" on the form starts the reset flow (§11).
+"Forgot password?" on the form (web and the mobile Sign in screen) starts the
+reset flow (§11). Both platforms' forms have a Show/Hide password toggle; the
+register forms also require a matching confirm-password field (client-side
+only — the API takes one `password`).
 
 ---
 
@@ -472,7 +475,10 @@ user setting:
 A 7-column grid needs ~900px, so on a phone it showed roughly a third of one
 column and reaching Sunday meant scrolling sideways through the whole week. The
 single-day view is a different information architecture, not a scaled-down grid.
-`/history/[planId]` renders the same component in read-only mode.
+`/history/[planId]` renders the same component in read-only mode. Mobile has
+the same read-only detail (`app/history/[planId].tsx`: day chips, meals open the
+recipe) and adds Restore there; on both mobile screens Restore asks first
+(`ConfirmSheet`) and only the row being restored shows a spinner.
 
 ### Meal swap
 
@@ -627,6 +633,18 @@ The web hero card (`/dashboard`) renders `nextMeal`, else `tomorrowFirstMeal`
        └─ delete ALL of the user's sessions — every device signs out
 ```
 
+**Mobile (audit P1-7, 2026-09-26):** the app has the same two screens —
+`(auth)/forgot-password` (from "Forgot password?" on Sign in) and
+`(auth)/reset-password`. The emailed link still points at the **web** page
+(it works in any phone browser, app installed or not); the in-app reset
+screen opens from the deep link `chefer://reset-password?token=…`
+(`chefer-dev://` in dev builds). Like web, it has no manual token entry —
+without a token it offers "Request a new reset link". Both screens are
+signed-out routes (the root layout's `Stack.Protected` guard), so a signed-in
+user following the deep link does not get the reset screen; the web page is
+the path for them. After a reset the app returns to Sign in (every session, including
+other phones, was deleted).
+
 ---
 
 ## 12. Cook Mode Flow
@@ -657,6 +675,14 @@ The web hero card (`/dashboard`) renders `nextMeal`, else `tomorrowFirstMeal`
        └─ StarRatingWidget — "your rating shapes what the chef cooks up
             next week" (P1-1 signal)
 ```
+
+Mobile (`apps/mobile/app/cook/[id].tsx`) has the same finish: "Log this meal"
+→ `tracker.logRecipe`, then the rebalance banner (if the log triggered one)
+and the `StarRating` card (`src/features/recipes/star-rating.tsx` — 44pt stars
+labelled "Rate N stars", "who liked it" household chips, notes; helpers
+shared via `@chefer/utils` `rating.ts`). Mobile recipe detail shows the same
+card when opened from a Plan-tab day (`day` param), mirroring web's
+`?day=` gate.
 
 Real-device acceptance (wake lock, swipe, keyboard) is tracked in
 [`docs/device-checklist.md`](./docs/device-checklist.md) (P1-6).
@@ -766,8 +792,15 @@ the adjusted target must shape next week's budget)
   (`@chefer/utils`, 20–400 kg, "72,5" accepted, exponents rejected) with an
   inline error, and the API enforces the same bounds plus "not in the
   future". Entries can be corrected or deleted (`tracker.updateWeight` /
-  `tracker.deleteWeight`): web lists them on /progress (linked from the
-  card), mobile expands them inside the dashboard card. Reads ignore
+  `tracker.deleteWeight`): both platforms list them on Progress (web
+  /progress, mobile `progress` — linked from the card's "See progress" and
+  from More); mobile can also expand them inside the dashboard card.
+- Progress (web + mobile): 28-day calories vs target and macro breakdown
+  (`tracker.monthlySummary`), 90-day weight chart (`tracker.weightHistory`)
+  with current weight and change. The change is coloured by goal via the
+  shared `weightChangeTone` (`@chefer/utils`): gaining is green for
+  GAIN_MUSCLE, losing is green for LOSE_WEIGHT, other goals stay neutral
+  (audit F-TRK-4-1). Reads ignore
   future-dated rows, and the coach's EWMA trend drops jumps over 3 kg/day,
   so a single typo can't swing the weekly adjustment (audit F-DASH-3-1).
 - Chat tool `getMyReview`: the model can quote the latest review; free users
@@ -820,6 +853,11 @@ devices all persist. Saving with nothing ticked un-logs the planned meals.
 
 - **Quick add** (tracker): name + kcal only → `tracker.logCustomMeal`
   (`estimatedBy: 'manual'`, mealType snack). Free for every account.
+  Mobile (`src/features/tracker/quick-add-sheet.tsx`, "Quick add" button on
+  the tracker, any non-future day) also lets the user pick the meal slot and
+  optional protein/carbs/fat; inline validation mirrors the API bounds via the
+  shared `parseQuickAdd` (`@chefer/utils`), API errors show in the sheet, and
+  the day's `tracker.getDay` is invalidated on success.
 - **Chat "I ate this"**: the `logMeal` chat tool logs the model's own macro
   estimate as a manual custom entry into today's log.
 - The camera button stays visible for free users; tapping it opens the
@@ -853,6 +891,19 @@ Undo is per-device and expires after 24 h — nothing about the swap pairs is
 stored server-side (wave-0 schema freeze). Analytics: `week_rebalanced` fires
 on the client when a log's response carries an applied rebalance. Failures in
 the rebalance path never fail the log save itself.
+
+**Mobile** (P1-7, 2026-09-26): every logging surface (tracker Save Day, quick
+add, photo scan, cook-mode log) feeds the response's `rebalance` into
+`src/features/tracker/rebalance-store.ts`, persisted in the app's SQLite KV.
+The store **merges** a new rebalance into the pending one
+(`mergePendingRebalance` in `@chefer/utils`: one entry per slot, a slot
+swapped twice keeps its original recipe for undo, a slot swapped back drops
+out; another plan or a stale hand-off is replaced) — so a second rebalance no
+longer destroys the first one's undo (audit F-TRK-3-2). The banner with Undo
+/ Dismiss renders **where the log happened** (tracker, cook-mode finish) and
+on the Plan tab (filtered to the displayed plan). Web still overwrites and
+shows the banner only on the meal-plan page — reverse row in
+`mobile_parity_backlog.md`.
 
 Routing: Caddy sends `/api/scan-meal` to the API in production; a Next.js
 rewrite proxies it in dev.
