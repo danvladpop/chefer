@@ -1,0 +1,552 @@
+[
+  {
+    "id": "solo-maintain",
+    "note": "Solo cook, no constraints",
+    "input": {
+      "userId": "eval-solo-maintain",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": [],
+      "allergies": [],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 2000,
+      "macroTargets": {
+        "proteinG": 125,
+        "carbsG": 225,
+        "fatG": 67
+      }
+    }
+  },
+  {
+    "id": "peanut-allergy",
+    "note": "Peanut allergy (the classic hard case)",
+    "input": {
+      "userId": "eval-peanut-allergy",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": [],
+      "allergies": ["peanuts"],
+      "dislikedIngredients": [],
+      "cuisinePreferences": ["Asian", "Thai"],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 1900,
+      "macroTargets": {
+        "proteinG": 119,
+        "carbsG": 214,
+        "fatG": 63
+      }
+    }
+  },
+  {
+    "id": "tree-nut-allergy",
+    "note": "Tree nuts, likes Mediterranean",
+    "input": {
+      "userId": "eval-tree-nut-allergy",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": [],
+      "allergies": ["tree nuts"],
+      "dislikedIngredients": [],
+      "cuisinePreferences": ["Mediterranean"],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 1800,
+      "macroTargets": {
+        "proteinG": 112,
+        "carbsG": 202,
+        "fatG": 60
+      }
+    }
+  },
+  {
+    "id": "dairy-allergy",
+    "note": "Dairy allergy",
+    "input": {
+      "userId": "eval-dairy-allergy",
+      "goal": "MAINTAIN",
+      "biologicalSex": "MALE",
+      "age": 41,
+      "heightCm": 180,
+      "weightKg": 84,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": [],
+      "allergies": ["dairy"],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 2100,
+      "macroTargets": {
+        "proteinG": 131,
+        "carbsG": 236,
+        "fatG": 70
+      }
+    }
+  },
+  {
+    "id": "egg-allergy-breakfasts",
+    "note": "Egg allergy — breakfasts are the trap",
+    "input": {
+      "userId": "eval-egg-allergy-breakfasts",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": [],
+      "allergies": ["eggs"],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 4,
+      "servingSize": 1,
+      "dailyCalorieTarget": 1700,
+      "macroTargets": {
+        "proteinG": 106,
+        "carbsG": 191,
+        "fatG": 57
+      }
+    }
+  },
+  {
+    "id": "gluten-celiac",
+    "note": "Coeliac: gluten allergy + gluten-free diet",
+    "input": {
+      "userId": "eval-gluten-celiac",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": ["gluten-free"],
+      "allergies": ["gluten"],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 1850,
+      "macroTargets": {
+        "proteinG": 116,
+        "carbsG": 208,
+        "fatG": 62
+      }
+    }
+  },
+  {
+    "id": "shellfish-fish",
+    "note": "Fish + shellfish allergy, loves Japanese",
+    "input": {
+      "userId": "eval-shellfish-fish",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": [],
+      "allergies": ["fish", "shellfish"],
+      "dislikedIngredients": [],
+      "cuisinePreferences": ["Japanese"],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 2000,
+      "macroTargets": {
+        "proteinG": 125,
+        "carbsG": 225,
+        "fatG": 67
+      }
+    }
+  },
+  {
+    "id": "soy-sesame",
+    "note": "Soy and sesame, likes Chinese/Korean",
+    "input": {
+      "userId": "eval-soy-sesame",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": [],
+      "allergies": ["soy", "sesame"],
+      "dislikedIngredients": [],
+      "cuisinePreferences": ["Chinese", "Korean"],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 1900,
+      "macroTargets": {
+        "proteinG": 119,
+        "carbsG": 214,
+        "fatG": 63
+      }
+    }
+  },
+  {
+    "id": "multi-allergy",
+    "note": "Peanut + dairy + egg",
+    "input": {
+      "userId": "eval-multi-allergy",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": [],
+      "allergies": ["peanuts", "dairy", "eggs"],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 1600,
+      "macroTargets": {
+        "proteinG": 100,
+        "carbsG": 180,
+        "fatG": 53
+      }
+    }
+  },
+  {
+    "id": "vegetarian",
+    "note": "Vegetarian",
+    "input": {
+      "userId": "eval-vegetarian",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": ["vegetarian"],
+      "allergies": [],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 1800,
+      "macroTargets": {
+        "proteinG": 112,
+        "carbsG": 202,
+        "fatG": 60
+      }
+    }
+  },
+  {
+    "id": "vegan-nut-allergy",
+    "note": "Vegan with a tree-nut allergy (protein from legumes/soy only)",
+    "input": {
+      "userId": "eval-vegan-nut-allergy",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": ["vegan"],
+      "allergies": ["tree nuts"],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 2000,
+      "macroTargets": {
+        "proteinG": 125,
+        "carbsG": 225,
+        "fatG": 67
+      }
+    }
+  },
+  {
+    "id": "pescatarian",
+    "note": "Pescatarian",
+    "input": {
+      "userId": "eval-pescatarian",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": ["pescatarian"],
+      "allergies": [],
+      "dislikedIngredients": [],
+      "cuisinePreferences": ["Mediterranean", "Spanish"],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 1900,
+      "macroTargets": {
+        "proteinG": 119,
+        "carbsG": 214,
+        "fatG": 63
+      }
+    }
+  },
+  {
+    "id": "keto-lose",
+    "note": "Keto, losing weight",
+    "input": {
+      "userId": "eval-keto-lose",
+      "goal": "LOSE_WEIGHT",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": ["keto"],
+      "allergies": [],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 1500,
+      "macroTargets": {
+        "proteinG": 112,
+        "carbsG": 30,
+        "fatG": 103
+      }
+    }
+  },
+  {
+    "id": "budget-25",
+    "note": "Tight budget: €25/week, solo",
+    "input": {
+      "userId": "eval-budget-25",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": [],
+      "allergies": [],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 2000,
+      "weeklyBudgetEur": 25,
+      "macroTargets": {
+        "proteinG": 125,
+        "carbsG": 225,
+        "fatG": 67
+      }
+    }
+  },
+  {
+    "id": "budget-40-family",
+    "note": "€40/week for a household of 3",
+    "input": {
+      "userId": "eval-budget-40-family",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": [],
+      "allergies": [],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 3,
+      "dailyCalorieTarget": 1900,
+      "weeklyBudgetEur": 40,
+      "householdContext": {
+        "memberCount": 2,
+        "portionSum": 3,
+        "mergedSafety": {
+          "allergies": [],
+          "dietaryRestrictions": []
+        },
+        "dislikeNotes": ["avoid mushrooms for Ana"]
+      },
+      "macroTargets": {
+        "proteinG": 119,
+        "carbsG": 214,
+        "fatG": 63
+      }
+    }
+  },
+  {
+    "id": "family-4-allergy",
+    "note": "Household of 4; one child has a peanut allergy (merged)",
+    "input": {
+      "userId": "eval-family-4-allergy",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": [],
+      "allergies": ["peanuts"],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 4,
+      "dailyCalorieTarget": 2000,
+      "householdContext": {
+        "memberCount": 3,
+        "portionSum": 4,
+        "mergedSafety": {
+          "allergies": ["peanuts"],
+          "dietaryRestrictions": []
+        },
+        "dislikeNotes": []
+      },
+      "macroTargets": {
+        "proteinG": 125,
+        "carbsG": 225,
+        "fatG": 67
+      }
+    }
+  },
+  {
+    "id": "couple-vegetarian-dairy",
+    "note": "Couple, merged vegetarian + dairy-free",
+    "input": {
+      "userId": "eval-couple-vegetarian-dairy",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": ["vegetarian"],
+      "allergies": ["dairy"],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 2,
+      "dailyCalorieTarget": 1800,
+      "householdContext": {
+        "memberCount": 1,
+        "portionSum": 2,
+        "mergedSafety": {
+          "allergies": ["dairy"],
+          "dietaryRestrictions": ["vegetarian"]
+        },
+        "dislikeNotes": []
+      },
+      "macroTargets": {
+        "proteinG": 112,
+        "carbsG": 202,
+        "fatG": 60
+      }
+    }
+  },
+  {
+    "id": "lifter-gain",
+    "note": "Gym-goer gaining muscle, training Mon/Wed/Fri",
+    "input": {
+      "userId": "eval-lifter-gain",
+      "goal": "GAIN_MUSCLE",
+      "biologicalSex": "MALE",
+      "age": 27,
+      "heightCm": 183,
+      "weightKg": 80,
+      "activityLevel": "VERY_ACTIVE",
+      "dietaryRestrictions": [],
+      "allergies": [],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 4,
+      "servingSize": 1,
+      "dailyCalorieTarget": 2800,
+      "macroTargets": {
+        "proteinG": 210,
+        "carbsG": 315,
+        "fatG": 78
+      },
+      "trainingDays": {
+        "days": [
+          {
+            "dayOfWeek": 0,
+            "label": "Monday",
+            "workoutName": "Push"
+          },
+          {
+            "dayOfWeek": 2,
+            "label": "Wednesday",
+            "workoutName": "Pull"
+          },
+          {
+            "dayOfWeek": 4,
+            "label": "Friday",
+            "workoutName": "Legs"
+          }
+        ],
+        "kcalBonus": 250,
+        "proteinBonus": 25
+      }
+    }
+  },
+  {
+    "id": "older-low-kcal",
+    "note": "Older, sedentary, 1400 kcal, dislikes spicy/coriander",
+    "input": {
+      "userId": "eval-older-low-kcal",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 68,
+      "heightCm": 166,
+      "weightKg": 70,
+      "activityLevel": "SEDENTARY",
+      "dietaryRestrictions": [],
+      "allergies": [],
+      "dislikedIngredients": ["chili", "coriander"],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 1400,
+      "macroTargets": {
+        "proteinG": 88,
+        "carbsG": 158,
+        "fatG": 47
+      }
+    }
+  },
+  {
+    "id": "dairy-free-gluten-free",
+    "note": "Dairy-free + gluten-free diets, no allergies declared",
+    "input": {
+      "userId": "eval-dairy-free-gluten-free",
+      "goal": "MAINTAIN",
+      "biologicalSex": "FEMALE",
+      "age": 32,
+      "heightCm": 166,
+      "weightKg": 62,
+      "activityLevel": "MODERATELY_ACTIVE",
+      "dietaryRestrictions": ["dairy-free", "gluten-free"],
+      "allergies": [],
+      "dislikedIngredients": [],
+      "cuisinePreferences": [],
+      "mealsPerDay": 3,
+      "servingSize": 1,
+      "dailyCalorieTarget": 1900,
+      "macroTargets": {
+        "proteinG": 119,
+        "carbsG": 214,
+        "fatG": 63
+      }
+    }
+  }
+]

@@ -1,0 +1,302 @@
+[
+  {
+    "id": "pad-thai-peanut-shellfish",
+    "input": {
+      "recipe": {
+        "name": "Quick Prawn Pad Thai",
+        "description": "Golden-set recipe.",
+        "ingredients": [
+          {
+            "name": "flat rice noodles",
+            "quantity": 150,
+            "unit": "g"
+          },
+          {
+            "name": "king prawns",
+            "quantity": 200,
+            "unit": "g"
+          },
+          {
+            "name": "eggs",
+            "quantity": 2,
+            "unit": "piece"
+          },
+          {
+            "name": "fish sauce",
+            "quantity": 2,
+            "unit": "tbsp"
+          },
+          {
+            "name": "roasted peanuts",
+            "quantity": 2,
+            "unit": "tbsp"
+          },
+          {
+            "name": "bean sprouts",
+            "quantity": 100,
+            "unit": "g"
+          }
+        ],
+        "instructions": [
+          "Soak the noodles.",
+          "Stir-fry prawns and scramble the eggs.",
+          "Toss with sauce, sprouts and top with peanuts."
+        ],
+        "nutritionInfo": {
+          "calories": 610,
+          "protein": 32,
+          "carbs": 70,
+          "fat": 20,
+          "fiber": 4
+        },
+        "cuisineType": "Thai",
+        "dietaryTags": [],
+        "prepTimeMins": 10,
+        "cookTimeMins": 20,
+        "servings": 2
+      },
+      "targetServings": 2,
+      "preferences": {
+        "allergies": ["peanuts", "shellfish"],
+        "dietaryRestrictions": [],
+        "dislikedIngredients": []
+      }
+    }
+  },
+  {
+    "id": "shakshuka-egg-dairy",
+    "input": {
+      "recipe": {
+        "name": "Smoky Shakshuka",
+        "description": "Golden-set recipe.",
+        "ingredients": [
+          {
+            "name": "olive oil",
+            "quantity": 2,
+            "unit": "tbsp"
+          },
+          {
+            "name": "red peppers",
+            "quantity": 2,
+            "unit": "piece"
+          },
+          {
+            "name": "chopped tomatoes",
+            "quantity": 800,
+            "unit": "g"
+          },
+          {
+            "name": "eggs",
+            "quantity": 6,
+            "unit": "piece"
+          },
+          {
+            "name": "feta",
+            "quantity": 50,
+            "unit": "g"
+          }
+        ],
+        "instructions": [
+          "Soften peppers.",
+          "Simmer with tomatoes.",
+          "Poach the eggs in the sauce and top with feta."
+        ],
+        "nutritionInfo": {
+          "calories": 350,
+          "protein": 18,
+          "carbs": 20,
+          "fat": 22,
+          "fiber": 4
+        },
+        "cuisineType": "Middle Eastern",
+        "dietaryTags": ["vegetarian"],
+        "prepTimeMins": 10,
+        "cookTimeMins": 20,
+        "servings": 3
+      },
+      "targetServings": 2,
+      "preferences": {
+        "allergies": ["eggs", "dairy"],
+        "dietaryRestrictions": [],
+        "dislikedIngredients": []
+      }
+    }
+  },
+  {
+    "id": "carbonara-vegetarian-gluten",
+    "input": {
+      "recipe": {
+        "name": "Spaghetti Carbonara",
+        "description": "Golden-set recipe.",
+        "ingredients": [
+          {
+            "name": "spaghetti",
+            "quantity": 200,
+            "unit": "g"
+          },
+          {
+            "name": "pancetta",
+            "quantity": 100,
+            "unit": "g"
+          },
+          {
+            "name": "eggs",
+            "quantity": 2,
+            "unit": "piece"
+          },
+          {
+            "name": "parmesan",
+            "quantity": 40,
+            "unit": "g"
+          },
+          {
+            "name": "black pepper",
+            "quantity": 1,
+            "unit": "tsp"
+          }
+        ],
+        "instructions": [
+          "Boil the pasta.",
+          "Crisp the pancetta.",
+          "Toss pasta off the heat with egg and parmesan."
+        ],
+        "nutritionInfo": {
+          "calories": 720,
+          "protein": 30,
+          "carbs": 80,
+          "fat": 30,
+          "fiber": 4
+        },
+        "cuisineType": "Italian",
+        "dietaryTags": [],
+        "prepTimeMins": 10,
+        "cookTimeMins": 20,
+        "servings": 2
+      },
+      "targetServings": 4,
+      "preferences": {
+        "allergies": ["gluten"],
+        "dietaryRestrictions": ["vegetarian"],
+        "dislikedIngredients": []
+      }
+    }
+  },
+  {
+    "id": "satay-peanut-soy",
+    "input": {
+      "recipe": {
+        "name": "Chicken Satay Skewers",
+        "description": "Golden-set recipe.",
+        "ingredients": [
+          {
+            "name": "chicken thighs",
+            "quantity": 400,
+            "unit": "g"
+          },
+          {
+            "name": "peanut butter",
+            "quantity": 3,
+            "unit": "tbsp"
+          },
+          {
+            "name": "soy sauce",
+            "quantity": 2,
+            "unit": "tbsp"
+          },
+          {
+            "name": "coconut milk",
+            "quantity": 100,
+            "unit": "ml"
+          },
+          {
+            "name": "lime",
+            "quantity": 1,
+            "unit": "piece"
+          }
+        ],
+        "instructions": [
+          "Marinate the chicken in soy and lime.",
+          "Grill on skewers.",
+          "Serve with a peanut butter and coconut milk sauce."
+        ],
+        "nutritionInfo": {
+          "calories": 480,
+          "protein": 38,
+          "carbs": 10,
+          "fat": 30,
+          "fiber": 4
+        },
+        "cuisineType": "Indonesian",
+        "dietaryTags": [],
+        "prepTimeMins": 10,
+        "cookTimeMins": 20,
+        "servings": 2
+      },
+      "targetServings": 3,
+      "preferences": {
+        "allergies": ["peanuts", "soy"],
+        "dietaryRestrictions": [],
+        "dislikedIngredients": ["coriander"]
+      }
+    }
+  },
+  {
+    "id": "carbonara-vegan",
+    "input": {
+      "recipe": {
+        "name": "Spaghetti Carbonara",
+        "description": "Golden-set recipe.",
+        "ingredients": [
+          {
+            "name": "spaghetti",
+            "quantity": 200,
+            "unit": "g"
+          },
+          {
+            "name": "pancetta",
+            "quantity": 100,
+            "unit": "g"
+          },
+          {
+            "name": "eggs",
+            "quantity": 2,
+            "unit": "piece"
+          },
+          {
+            "name": "parmesan",
+            "quantity": 40,
+            "unit": "g"
+          },
+          {
+            "name": "black pepper",
+            "quantity": 1,
+            "unit": "tsp"
+          }
+        ],
+        "instructions": [
+          "Boil the pasta.",
+          "Crisp the pancetta.",
+          "Toss pasta off the heat with egg and parmesan."
+        ],
+        "nutritionInfo": {
+          "calories": 720,
+          "protein": 30,
+          "carbs": 80,
+          "fat": 30,
+          "fiber": 4
+        },
+        "cuisineType": "Italian",
+        "dietaryTags": [],
+        "prepTimeMins": 10,
+        "cookTimeMins": 20,
+        "servings": 2
+      },
+      "targetServings": 2,
+      "preferences": {
+        "allergies": [],
+        "dietaryRestrictions": ["vegan"],
+        "dislikedIngredients": []
+      }
+    }
+  }
+]

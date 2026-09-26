@@ -17,7 +17,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "ai:eval": "tsx src/lib/ai/eval/run-eval.ts"
   },
   "dependencies": {
     "@chefer/database": "workspace:*",

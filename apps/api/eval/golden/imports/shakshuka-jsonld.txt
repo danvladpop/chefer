@@ -1,0 +1,12 @@
+Home › Recipes › Breakfast
+
+The best shakshuka I've made this year — the trick is patience with the peppers.
+
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Recipe","name":"Smoky Shakshuka","recipeYield":"3 servings",
+"recipeIngredient":["2 tbsp olive oil","1 onion, sliced","2 red peppers, sliced","3 garlic cloves","1 tsp smoked paprika","1 tsp cumin","2 x 400g cans chopped tomatoes","6 eggs","50g feta","handful of parsley"],
+"recipeInstructions":[{"@type":"HowToStep","text":"Fry the onion and peppers in the oil for 10 minutes until soft."},{"@type":"HowToStep","text":"Add garlic and spices, cook 1 minute, then the tomatoes; simmer 10 minutes."},{"@type":"HowToStep","text":"Make six wells, crack in the eggs, cover and cook 6-8 minutes."},{"@type":"HowToStep","text":"Crumble over feta and parsley and serve with bread."}],
+"nutrition":{"@type":"NutritionInformation","calories":"350 kcal"},"prepTime":"PT10M","cookTime":"PT25M"}
+</script>
+
+Comments (14) · Share · Print

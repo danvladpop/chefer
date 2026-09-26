@@ -1,0 +1,32 @@
+[
+  {
+    "id": "synthetic-gradient",
+    "file": "photos/synthetic-gradient.png",
+    "mimeType": "image/png",
+    "source": "Generated in-repo (no food; plumbing + honesty check)",
+    "licence": "CC0 (generated)",
+    "expected": {
+      "dishIncludes": ["not a meal"]
+    }
+  },
+  {
+    "id": "synthetic-checker",
+    "file": "photos/synthetic-checker.png",
+    "mimeType": "image/png",
+    "source": "Generated in-repo (no food; plumbing + honesty check)",
+    "licence": "CC0 (generated)",
+    "expected": {
+      "dishIncludes": ["not a meal"]
+    }
+  },
+  {
+    "id": "synthetic-plate",
+    "file": "photos/synthetic-plate.png",
+    "mimeType": "image/png",
+    "source": "Generated in-repo (an empty plate; honesty check)",
+    "licence": "CC0 (generated)",
+    "expected": {
+      "dishIncludes": ["not a meal"]
+    }
+  }
+]

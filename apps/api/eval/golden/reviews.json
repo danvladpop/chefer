@@ -1,0 +1,46 @@
+[
+  {
+    "id": "on-track",
+    "input": {
+      "adherencePct": 86,
+      "loggedDays": 6,
+      "avgDailyKcal": 1950,
+      "targetKcal": 2000,
+      "weightTrendKg": -0.3,
+      "adjustmentKcal": 0,
+      "goal": "LOSE_WEIGHT",
+      "dishNames": ["Lentil soup", "Chicken traybake"]
+    }
+  },
+  {
+    "id": "low-logging",
+    "input": {
+      "adherencePct": 40,
+      "loggedDays": 2,
+      "avgDailyKcal": 2300,
+      "targetKcal": 1800,
+      "weightTrendKg": null,
+      "adjustmentKcal": 0,
+      "goal": "MAINTAIN",
+      "dishNames": []
+    }
+  },
+  {
+    "id": "lifter-protein",
+    "input": {
+      "adherencePct": 75,
+      "loggedDays": 5,
+      "avgDailyKcal": 2700,
+      "targetKcal": 2800,
+      "weightTrendKg": 0.2,
+      "adjustmentKcal": 100,
+      "goal": "GAIN_MUSCLE",
+      "dishNames": ["Beef stir-fry"],
+      "protein": {
+        "avgDailyG": 130,
+        "targetG": 160,
+        "gPerKg": 2
+      }
+    }
+  }
+]
