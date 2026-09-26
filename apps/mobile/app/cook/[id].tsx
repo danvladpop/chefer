@@ -6,6 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Button, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
 import {
   cn,
+  defaultCookServings,
   formatPortion,
   formatQuantity,
   guessMealType,
@@ -17,6 +18,7 @@ import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warni
 import { StarRating } from '../../src/features/recipes/star-rating';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { recordRebalance } from '../../src/features/tracker/rebalance-store';
+import { useHousehold } from '../../src/hooks/use-household';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { trpc } from '../../src/lib/trpc';
 
@@ -24,7 +26,9 @@ import { trpc } from '../../src/lib/trpc';
 // Step-by-step with inline timers (shared parseStepDuration), screen kept
 // awake, ingredient checklist, and finish → tracker log (same append
 // semantics as web) → star rating. A premium week rebalance triggered by the
-// log shows its banner + undo right here on the finish screen.
+// log shows its banner + undo right here on the finish screen. Servings
+// start at a premium household's table portions (P2-3), multiplied by the
+// plan slot's portion when opened from the plan (P1-1) — same as web.
 
 // Local calendar day, not the UTC one (F-TRK-1-1).
 const todayIso = (): string => localDateStr();
@@ -110,6 +114,9 @@ export default function CookModeScreen() {
 
   const { data: recipe, isLoading } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
   const utils = trpc.useUtils();
+  // Premium households cook for the whole table (null otherwise).
+  const { portionSum } = useHousehold();
+  const [servings, setServings] = useState<number | null>(null);
 
   const [step, setStep] = useState(0);
   const [finished, setFinished] = useState(false);
@@ -150,6 +157,10 @@ export default function CookModeScreen() {
       </Screen>
     );
   }
+
+  const baseServings = recipe.servings || 1;
+  const selectedServings = servings ?? defaultCookServings(baseServings, portionSum, planPortion);
+  const scale = selectedServings / baseServings;
 
   const totalSteps = recipe.instructions.length;
   const safeStep = Math.min(step, totalSteps - 1);
@@ -204,8 +215,44 @@ export default function CookModeScreen() {
       {showIngredients ? (
         /* Ingredient checklist */
         <ScrollView contentContainerClassName="gap-2 px-4 py-3 pb-8">
-          <Text variant="heading">Ingredients</Text>
-          {planPortion !== 1 && (
+          <View className="flex-row items-center justify-between gap-2">
+            <Text variant="heading">Ingredients</Text>
+            {/* Servings scaler (web cook mode's top-bar stepper) */}
+            <View className="flex-row items-center rounded-full border border-border">
+              <Pressable
+                testID="cook-servings-dec"
+                accessibilityRole="button"
+                accessibilityLabel="Fewer servings"
+                onPress={() => setServings(Math.max(1, selectedServings - 1))}
+                className="h-11 w-11 items-center justify-center"
+              >
+                <Ionicons name="remove" size={18} color="#4b5563" />
+              </Pressable>
+              <Text
+                testID="cook-servings"
+                accessibilityLabel={`${selectedServings} servings`}
+                className="min-w-[28px] px-1 text-center text-sm font-semibold text-gray-800"
+              >
+                {selectedServings}
+              </Text>
+              <Pressable
+                testID="cook-servings-inc"
+                accessibilityRole="button"
+                accessibilityLabel="More servings"
+                onPress={() => setServings(Math.min(20, selectedServings + 1))}
+                className="h-11 w-11 items-center justify-center"
+              >
+                <Ionicons name="add" size={18} color="#4b5563" />
+              </Pressable>
+            </View>
+          </View>
+          {portionSum !== null && (
+            <Text testID="cook-table-portions" variant="muted" className="text-xs">
+              Sized for your table of {portionSum} portions
+              {planPortion !== 1 ? ` × your plan's ${formatPortion(planPortion)} portion` : ''}.
+            </Text>
+          )}
+          {portionSum === null && planPortion !== 1 && (
             <Text testID="cook-plan-portion" variant="muted" className="text-xs">
               Set for your plan&apos;s {formatPortion(planPortion)} portion.
             </Text>
@@ -244,7 +291,7 @@ export default function CookModeScreen() {
                     isChecked ? 'text-gray-400 line-through' : 'text-gray-800',
                   )}
                 >
-                  {formatQuantity(ing.quantity * planPortion, ing.unit, unitSystem)} {ing.name}
+                  {formatQuantity(ing.quantity * scale, ing.unit, unitSystem)} {ing.name}
                 </Text>
               </Pressable>
             );
