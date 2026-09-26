@@ -40,6 +40,53 @@ export function isExpectedFailure(args: unknown[]): boolean {
   });
 }
 
+// F-M-AUTH-2-2: dev builds log every request's input and result — which
+// included plaintext passwords (login/register/reset inputs) and session
+// tokens (login/register results). Values under these keys are masked, at
+// any depth, before anything reaches the console. Lowercase: matched
+// case-insensitively.
+const SECRET_KEYS = new Set([
+  'password',
+  'newpassword',
+  'currentpassword',
+  'confirmpassword',
+  'token',
+]);
+
+export const REDACTED = '[redacted]';
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object') return false;
+  const proto: unknown = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+/**
+ * Deep copy of `value` with every secret-keyed value replaced by
+ * `[redacted]`. Only plain objects and arrays are walked — Errors, Dates and
+ * other instances pass through untouched (`isExpectedFailure` relies on
+ * `result instanceof Error`). The input is never mutated.
+ */
+export function redactSecrets(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
+  if (Array.isArray(value)) {
+    const cached = seen.get(value);
+    if (cached) return cached;
+    const copy: unknown[] = [];
+    seen.set(value, copy);
+    for (const item of value) copy.push(redactSecrets(item, seen));
+    return copy;
+  }
+  if (!isPlainObject(value)) return value;
+  const cached = seen.get(value);
+  if (cached) return cached;
+  const copy: Record<string, unknown> = {};
+  seen.set(value, copy);
+  for (const [key, entry] of Object.entries(value)) {
+    copy[key] = SECRET_KEYS.has(key.toLowerCase()) ? REDACTED : redactSecrets(entry, seen);
+  }
+  return copy;
+}
+
 export function buildTrpcLinks({ url, getToken, enableLogger = false }: TrpcLinkOptions) {
   return [
     loggerLink({
@@ -48,9 +95,12 @@ export function buildTrpcLinks({ url, getToken, enableLogger = false }: TrpcLink
       /* eslint-disable no-console -- deliberate: expected failures go to the
          plain log (Metro) instead of error, which raises the LogBox toast. */
       console: {
-        log: (...args: unknown[]) => console.log(...args),
-        error: (...args: unknown[]) =>
-          isExpectedFailure(args) ? console.log(...args) : console.error(...args),
+        log: (...args: unknown[]) => console.log(...args.map((arg) => redactSecrets(arg))),
+        error: (...args: unknown[]) => {
+          const safe = args.map((arg) => redactSecrets(arg));
+          if (isExpectedFailure(args)) console.log(...safe);
+          else console.error(...safe);
+        },
       },
       /* eslint-enable no-console */
     }),

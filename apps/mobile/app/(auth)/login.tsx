@@ -1,13 +1,27 @@
+import { useRef } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
+import { Pressable, View, type TextInput } from 'react-native';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from 'expo-router';
-import { Button, Input, Screen, Text } from '@chefer/ui-mobile';
+import { Link, router } from 'expo-router';
+import { Button, Input, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
 import { loginSchema, type LoginFormValues } from '../../src/features/auth/schemas';
 import { setToken } from '../../src/lib/auth-store';
 import { trpc } from '../../src/lib/trpc';
 
 export default function LoginScreen() {
+  return (
+    <AuthScreen testID="login-scroll">
+      <LoginForm />
+    </AuthScreen>
+  );
+}
+
+function LoginForm() {
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const scrollFieldIntoView = useScrollFieldIntoView();
+
   const {
     control,
     handleSubmit,
@@ -29,84 +43,85 @@ export default function LoginScreen() {
   const onSubmit = handleSubmit((values) => login.mutate(values));
 
   return (
-    <Screen edges={['top', 'bottom', 'left', 'right']}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1 justify-center gap-4"
+    <>
+      <Text variant="title" testID="login-title">
+        Welcome back
+      </Text>
+      <Text variant="muted">Sign in to your Chefer account</Text>
+
+      <AuthField label="Email" error={errors.email?.message}>
+        <Controller
+          control={control}
+          name="email"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <Input
+              ref={emailRef}
+              testID="login-email"
+              autoCapitalize="none"
+              autoComplete="email"
+              keyboardType="email-address"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              onFocus={() => scrollFieldIntoView(emailRef.current)}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              value={value}
+            />
+          )}
+        />
+      </AuthField>
+
+      <AuthField label="Password" error={errors.password?.message}>
+        <Controller
+          control={control}
+          name="password"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <PasswordInput
+              ref={passwordRef}
+              testID="login-password"
+              autoComplete="current-password"
+              returnKeyType="go"
+              onSubmitEditing={() => void onSubmit()}
+              onFocus={() => scrollFieldIntoView(passwordRef.current)}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              value={value}
+            />
+          )}
+        />
+      </AuthField>
+
+      {/* F-M-AUTH-3-1: the reset flow, same entry point as the web form. */}
+      <Pressable
+        testID="login-forgot-password"
+        accessibilityRole="link"
+        onPress={() => router.push('/forgot-password')}
+        className="min-h-11 justify-center self-end"
       >
-        <Text variant="title" testID="login-title">
-          Welcome back
+        <Text variant="muted" className="font-semibold text-primary">
+          Forgot password?
         </Text>
-        <Text variant="muted">Sign in to your Chefer account</Text>
+      </Pressable>
 
-        <View className="gap-1">
-          <Text variant="label">Email</Text>
-          <Controller
-            control={control}
-            name="email"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <Input
-                testID="login-email"
-                autoCapitalize="none"
-                autoComplete="email"
-                keyboardType="email-address"
-                onBlur={onBlur}
-                onChangeText={onChange}
-                value={value}
-              />
-            )}
-          />
-          {errors.email && (
-            <Text variant="muted" className="text-destructive">
-              {errors.email.message}
-            </Text>
-          )}
-        </View>
+      {login.error && (
+        <Text variant="muted" className="text-destructive" testID="login-error">
+          {login.error.message}
+        </Text>
+      )}
 
-        <View className="gap-1">
-          <Text variant="label">Password</Text>
-          <Controller
-            control={control}
-            name="password"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <Input
-                testID="login-password"
-                secureTextEntry
-                autoComplete="current-password"
-                returnKeyType="go"
-                onSubmitEditing={() => void onSubmit()}
-                onBlur={onBlur}
-                onChangeText={onChange}
-                value={value}
-              />
-            )}
-          />
-          {errors.password && (
-            <Text variant="muted" className="text-destructive">
-              {errors.password.message}
-            </Text>
-          )}
-        </View>
+      <Button testID="login-submit" loading={login.isPending} onPress={() => void onSubmit()}>
+        Sign in
+      </Button>
 
-        {login.error && (
-          <Text variant="muted" className="text-destructive" testID="login-error">
-            {login.error.message}
+      <View className="flex-row justify-center gap-1">
+        <Text variant="muted">No account yet?</Text>
+        <Link href="/register" testID="login-to-register">
+          <Text variant="muted" className="font-semibold text-primary">
+            Create one
           </Text>
-        )}
-
-        <Button testID="login-submit" loading={login.isPending} onPress={() => void onSubmit()}>
-          Sign in
-        </Button>
-
-        <View className="flex-row justify-center gap-1">
-          <Text variant="muted">No account yet?</Text>
-          <Link href="/register" testID="login-to-register">
-            <Text variant="muted" className="font-semibold text-primary">
-              Create one
-            </Text>
-          </Link>
-        </View>
-      </KeyboardAvoidingView>
-    </Screen>
+        </Link>
+      </View>
+    </>
   );
 }

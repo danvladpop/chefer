@@ -69,6 +69,7 @@ describe('Register → onboarding', () => {
 
     await user.type(screen.getByTestId('register-email'), 'new@e2e.chefer.dev');
     await user.type(screen.getByTestId('register-password'), 'Password123!');
+    await user.type(screen.getByTestId('register-confirm-password'), 'Password123!');
     await user.press(screen.getByTestId('register-submit'));
 
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/onboarding'));

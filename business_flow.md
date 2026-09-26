@@ -85,7 +85,10 @@ Admins can additionally create users via `user.create` (admin-only).
 
 Sessions are DB rows (`sessions` table), not JWTs — resolution is a lookup on
 every request (see §4), and logout / password reset delete the rows.
-"Forgot password?" on the form starts the reset flow (§11).
+"Forgot password?" on the form (web and the mobile Sign in screen) starts the
+reset flow (§11). Both platforms' forms have a Show/Hide password toggle; the
+register forms also require a matching confirm-password field (client-side
+only — the API takes one `password`).
 
 ---
 
@@ -626,6 +629,18 @@ The web hero card (`/dashboard`) renders `nextMeal`, else `tomorrowFirstMeal`
        ├─ delete all reset tokens for the address (single-use)
        └─ delete ALL of the user's sessions — every device signs out
 ```
+
+**Mobile (audit P1-7, 2026-09-26):** the app has the same two screens —
+`(auth)/forgot-password` (from "Forgot password?" on Sign in) and
+`(auth)/reset-password`. The emailed link still points at the **web** page
+(it works in any phone browser, app installed or not); the in-app reset
+screen opens from the deep link `chefer://reset-password?token=…`
+(`chefer-dev://` in dev builds). Like web, it has no manual token entry —
+without a token it offers "Request a new reset link". Both screens are
+signed-out routes (the root layout's `Stack.Protected` guard), so a signed-in
+user following the deep link does not get the reset screen; the web page is
+the path for them. After a reset the app returns to Sign in (every session, including
+other phones, was deleted).
 
 ---
 

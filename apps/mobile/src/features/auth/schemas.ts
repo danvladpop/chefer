@@ -1,21 +1,32 @@
 import { z } from 'zod';
+import {
+  authEmailSchema,
+  confirmPasswordSchema,
+  forgotPasswordFormSchema,
+  loginFormSchema,
+  newPasswordSchema,
+  resetPasswordFormSchema,
+  withPasswordConfirmation,
+} from '@chefer/types';
 
-// Mirrors the server-side schemas in apps/api/src/routers/auth.router.ts —
-// keep the rules in sync so client validation never disagrees with the API.
+// The rules themselves live in @chefer/types (shared with the API's limits in
+// apps/api/src/routers/auth.router.ts) — this file only shapes them into the
+// mobile forms.
 
-export const loginSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
-});
+export const loginSchema = loginFormSchema;
 
-export const registerSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Invalid email address'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(100, 'Password too long'),
+export const registerSchema = withPasswordConfirmation({
+  email: authEmailSchema,
+  password: newPasswordSchema,
+  confirmPassword: confirmPasswordSchema,
   firstName: z.string().max(50).optional(),
 });
 
+export const forgotPasswordSchema = forgotPasswordFormSchema;
+
+export const resetPasswordSchema = resetPasswordFormSchema;
+
 export type LoginFormValues = z.infer<typeof loginSchema>;
 export type RegisterFormValues = z.infer<typeof registerSchema>;
+export type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
