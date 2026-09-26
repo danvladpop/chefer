@@ -39,6 +39,8 @@ export interface IUserRepository {
   create(data: CreateUserInput): Promise<User>;
   update(id: string, data: UpdateUserInput): Promise<User>;
   delete(id: string): Promise<User>;
+  /** Records (a Date) or clears (null) the AI data consent — null must reach Prisma. */
+  setAiDataConsent(id: string, at: Date | null): Promise<User>;
   findManyWithCount(options?: FindManyWithCountOptions): Promise<{ users: User[]; total: number }>;
   count(where?: Prisma.UserWhereInput): Promise<number>;
 }
@@ -84,6 +86,10 @@ export class PrismaUserRepository implements IUserRepository {
 
   async delete(id: string): Promise<User> {
     return prisma.user.delete({ where: { id } });
+  }
+
+  async setAiDataConsent(id: string, at: Date | null): Promise<User> {
+    return prisma.user.update({ where: { id }, data: { aiDataConsentAt: at } });
   }
 
   async findManyWithCount(

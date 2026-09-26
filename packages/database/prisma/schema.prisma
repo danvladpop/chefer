@@ -100,23 +100,28 @@ enum AiCallType {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  emailVerified DateTime?
-  name          String?
-  firstName     String?
-  lastName      String?
-  image         String?
-  role          UserRole  @default(USER)
-  planTier      PlanTier  @default(FREE)
-  passwordHash  String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  email            String    @unique
+  emailVerified    DateTime?
+  name             String?
+  firstName        String?
+  lastName         String?
+  image            String?
+  role             UserRole  @default(USER)
+  planTier         PlanTier  @default(FREE)
+  passwordHash     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
   // Weekly emails (audit P2-5, F-PM-14): Monday "your week is ready" and the
   // Sunday recap. Opt-out, per email — the signed unsubscribe link or the
   // Preferences toggles flip them. Only sent to a confirmed address.
-  weeklyEmailReady Boolean  @default(true)
-  weeklyEmailRecap Boolean  @default(true)
+  weeklyEmailReady Boolean   @default(true)
+  weeklyEmailRecap Boolean   @default(true)
+  // AI data consent (App Store 5.1.2(i)): when the user allowed Chefer to send
+  // their data to the third-party AI provider. Null = not asked yet / revoked;
+  // clients show the consent sheet before the first AI action. Not enforced
+  // server-side (background jobs keep working).
+  aiDataConsentAt  DateTime?
 
   // Relations
   accounts             Account[]

@@ -194,6 +194,23 @@ export const userRouter = router({
     }),
 
   /**
+   * Records the caller's consent to send their data to the third-party AI
+   * provider (App Store 5.1.2(i)). Clients ask before the first AI action;
+   * idempotent. Additive — `user.me` carries `aiDataConsentAt`.
+   */
+  grantAiDataConsent: protectedProcedure.mutation(async ({ ctx }) => {
+    return userService.setAiDataConsent(ctx.user.id, true);
+  }),
+
+  /**
+   * Withdraws AI data consent (Profile toggle). The next AI action asks again.
+   * Not enforced server-side: background jobs keep working.
+   */
+  revokeAiDataConsent: protectedProcedure.mutation(async ({ ctx }) => {
+    return userService.setAiDataConsent(ctx.user.id, false);
+  }),
+
+  /**
    * Upgrades the current user to the PREMIUM plan.
    * Demo flow — no payment integration; the click itself flips the tier.
    */
