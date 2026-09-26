@@ -37,7 +37,7 @@ export default function MyWeeksPage() {
     <div className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-          Your rotation
+          Saved & past weeks
         </p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight">My weeks</h1>
       </div>

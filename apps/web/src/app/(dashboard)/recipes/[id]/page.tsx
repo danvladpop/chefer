@@ -27,7 +27,13 @@ import {
   Users,
 } from 'lucide-react';
 import { Sheet, Toast } from '@chefer/ui';
-import { formatPortion, formatQuantity, scaleNutrition, slotPortion } from '@chefer/utils';
+import {
+  defaultCookServings,
+  formatPortion,
+  formatQuantity,
+  scaleNutrition,
+  slotPortion,
+} from '@chefer/utils';
 
 // Swap-undo handoff (review F-2): the swap navigates to the NEW recipe's page,
 // so the undo offer travels through sessionStorage and is only honoured
@@ -213,7 +219,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const baseServings = recipe?.servings ?? 1;
   // P1-1: opened from a portioned plan slot, quantities start at that
   // portion (it composes with the household portion sum, never replaces it).
-  const defaultServings = Math.round((portionSum ?? baseServings) * planPortion * 100) / 100;
+  const defaultServings = defaultCookServings(baseServings, portionSum, planPortion);
   const selectedServings = servings ?? defaultServings;
   const scale = selectedServings / baseServings;
 

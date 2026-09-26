@@ -44,10 +44,6 @@ export const PREMIUM_FEATURE_CARDS: PremiumFeatureCard[] = [
 /** Matrix keys announced on /premium as "cooking now" until their wave lands. */
 export const COMING_SOON_KEYS: PlanFeatureKey[] = [];
 
-// ── Source-aware perk ordering (upgrade dialog v2, premium_plan.md §6.3) ──
-// Maps each upgrade `source` to the feature keys the user was looking at when
-// the dialog opened; those perks render first, expanded. Pure presentation —
-// unknown sources fall back to the default matrix order.
 /**
  * Free-column labels for the comparison table (review P-4): where the free
  * tier has a real (lesser) equivalent, name it instead of showing a dash —
@@ -65,20 +61,9 @@ export const FREE_EQUIVALENT_LABELS: Partial<Record<PlanFeatureKey, string>> = {
   householdPlans: 'Members + their allergies',
 };
 
-export const SOURCE_FEATURE_PRIORITY: Partial<Record<string, PlanFeatureKey[]>> = {
-  'meal-plan-banner': ['aiMealPlans', 'weeklyAutoGeneration'],
-  'pool-exhaustion': ['aiMealPlans', 'aiMealSwaps'],
-  'shopping-list': ['budgetAwarePlanning', 'pantryPlanning'],
-  'preferences-locked': ['profilePersonalisation'],
-  swap: ['aiMealSwaps'],
-  'chat-quota': ['chatMessagesPerDay', 'aiMealPlans'],
-  'chat-locked': ['chatMessagesPerDay', 'aiMealPlans'],
-  'coach-review': ['adaptiveCoaching'],
-  'snap-scan': ['photoLogging', 'adaptiveCoaching'],
-  'recipe-import': ['recipeImport'],
-  household: ['householdPlans'],
-  pantry: ['pantryPlanning', 'budgetAwarePlanning'],
-  'post-rating': ['aiMealPlans', 'weeklyAutoGeneration'],
-  'monday-nudge': ['weeklyAutoGeneration'],
-  'training-day': ['trainingNutrition', 'aiMealPlans'],
-};
+// ── Source-aware perk ordering (upgrade dialog v2, premium_plan.md §6.3) ──
+// Maps each upgrade `source` to the feature keys the user was looking at when
+// the dialog opened; those perks render first, expanded. Pure presentation —
+// unknown sources fall back to the default matrix order.
+// Lives in @chefer/utils so mobile's post-upgrade sheet orders steps the same.
+export { SOURCE_FEATURE_PRIORITY } from '@chefer/utils';
