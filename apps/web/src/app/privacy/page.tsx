@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { SUPPORT_EMAIL } from '@chefer/types';
+import { fetchAiProviderDisclosure } from '@/lib/ai-providers';
+import { AI_PROVIDERS, SUPPORT_EMAIL } from '@chefer/types';
+import { formatAiProviderNames } from '@chefer/utils';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
@@ -48,7 +50,13 @@ function Mail() {
   );
 }
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  // The AI recipients come from the live API config (profile.aiProviders), so
+  // this page names exactly who receives data — Gemini, or in free-only mode
+  // Groq and Cloudflare Workers AI.
+  const ai = await fetchAiProviderDisclosure();
+  const primary = AI_PROVIDERS[ai.primary];
+  const backups = ai.backups.filter((id) => id !== ai.primary);
   return (
     <main id="main" className="mx-auto max-w-2xl px-4 py-12">
       <h1 className="font-serif text-3xl font-semibold text-gray-900">Privacy Policy</h1>
@@ -149,10 +157,18 @@ export default function PrivacyPage() {
           <p>
             Plan generation, meal swaps, meal-photo scanning, recipe import, chat and AI
             shopping-list tidy-up send the relevant data (your preferences and allergies, goals and
-            body metrics, the photo, recipe or message you submitted) to an AI provider — currently
-            Google Gemini; if Gemini is overloaded, a text-only request may be handled by our backup
-            AI provider, Groq — to produce the result. We do not use your data to train models.
-            Photos you scan or import are sent to the AI provider to be read; we do not store them.
+            body metrics, the photo, recipe or message you submitted) to an AI provider — currently{' '}
+            {primary.name}
+            {backups.length > 0 && (
+              <>
+                ; if {primary.shortName} is busy, a request may be handled by our backup AI provider
+                {backups.length > 1 ? 's' : ''}, {formatAiProviderNames(backups)}
+              </>
+            )}{' '}
+            — to produce the result. We do not use your data to train models. Photos you scan or
+            import are sent to the AI provider to be read; we do not store them. When you import a
+            video link that has no caption or subtitles, its audio is transcribed by Groq and
+            deleted right after.
           </p>
           <p>
             We ask for your permission before the first AI feature sends anything, and tell you what
@@ -190,13 +206,21 @@ export default function PrivacyPage() {
               Frankfurt, Germany (EU).
             </li>
             <li>
-              <strong>Google (Gemini API)</strong> runs the AI features, only with your permission
-              (see above). It may process data in the United States and other countries.
+              <strong>{primary.privacyName}</strong> runs the AI features, only with your permission
+              (see above). {primary.privacyDetail}
             </li>
-            <li>
-              <strong>Groq</strong> is the backup AI provider for text-only AI requests, with the
-              same permission. United States.
-            </li>
+            {backups.map((id) => (
+              <li key={id}>
+                <strong>{AI_PROVIDERS[id].privacyName}</strong> is a backup AI provider, with the
+                same permission. {AI_PROVIDERS[id].privacyDetail}
+              </li>
+            ))}
+            {ai.primary !== 'groq' && !backups.includes('groq') && (
+              <li>
+                <strong>Groq</strong> transcribes the audio of a video link you import, with the
+                same permission. {AI_PROVIDERS.groq.privacyDetail}
+              </li>
+            )}
             <li>
               <strong>Sentry</strong> receives error reports and performance data from the website
               and our server. These can include your IP address, browser type and the page involved.

@@ -182,7 +182,7 @@ export default function ProfilePage() {
       )}
 
       {/* AI usage. Users see THEIR daily product quotas; the provider/vendor
-          telemetry (Gemini free-tier caps, Pollinations) is admin-only —
+          telemetry (AI provider free-tier caps, Pollinations) is admin-only —
           exposing the vendor stack confused users and read as debug UI
           (review 5.3): "500 requests/day" next to "20 plans/day". */}
       {isLoading ? (
@@ -240,17 +240,23 @@ export default function ProfilePage() {
         </div>
       ) : usage ? (
         <div className="space-y-4">
-          {/* Gemini */}
-          <Card title="Gemini AI" badge="Recipe generation">
+          {/* The AI provider serving most workloads (Gemini, or Groq in free-only mode) */}
+          <Card title={usage.primaryProvider.name} badge="Recipe generation">
             <p className="text-xs text-gray-500">
-              Used for meal plan generation, recipe swaps, and shopping lists. Free tier:{' '}
-              <strong>{usage.limits.gemini.requestsPerDay} requests/day</strong>,{' '}
-              {usage.limits.gemini.requestsPerMinute} req/min.
+              Used for meal plan generation, recipe swaps, and shopping lists.
+              {usage.primaryProvider.requestsPerDay !== null && (
+                <>
+                  {' '}
+                  Free tier: <strong>
+                    {usage.primaryProvider.requestsPerDay} requests/day
+                  </strong>, {usage.primaryProvider.requestsPerMinute} req/min.
+                </>
+              )}
             </p>
             <StatRow
               label="Total requests today"
               used={usage.geminiTotal}
-              limit={usage.limits.gemini.requestsPerDay}
+              limit={usage.primaryProvider.requestsPerDay}
             />
             <div className="grid grid-cols-3 gap-3 border-t pt-3">
               <div className="text-center">

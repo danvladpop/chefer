@@ -12,6 +12,7 @@ import {
 // (after the sheet is fully dismissed, so a camera can present next).
 
 let mockUser: { aiDataConsentAt: Date | null } | undefined;
+let mockProviders: { primary: string; backups: string[] } | undefined;
 const mockGrant = jest.fn();
 
 jest.mock('../../src/lib/trpc', () => ({
@@ -24,6 +25,9 @@ jest.mock('../../src/lib/trpc', () => ({
         },
       },
     }),
+    profile: {
+      aiProviders: { useQuery: () => ({ data: mockProviders }) },
+    },
     user: {
       me: { useQuery: () => ({ data: mockUser }) },
       grantAiDataConsent: {
@@ -75,6 +79,7 @@ async function renderGate(usesAi?: boolean) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockUser = { aiDataConsentAt: null };
+  mockProviders = undefined;
 });
 
 // The sheet reports "fully gone" through Modal.onDismiss on iOS, which the
@@ -115,6 +120,15 @@ describe('AI data consent gate', () => {
     expect(screen.getByText(/Google Gemini/)).toBeTruthy();
     expect(screen.getByText('The photo you take or choose')).toBeTruthy();
     expect(screen.getByText(/not used to train/)).toBeTruthy();
+  });
+
+  it('names Groq and Cloudflare, never Gemini, when the server runs free-only', async () => {
+    mockProviders = { primary: 'groq', backups: ['cloudflare'] };
+    await renderGate();
+    await userEvent.setup().press(screen.getByTestId('ai-action'));
+    expect(screen.getByText(/sends some of your data to Groq/)).toBeTruthy();
+    expect(screen.getByText(/handled by Cloudflare Workers AI/)).toBeTruthy();
+    expect(screen.queryByText(/Gemini/)).toBeNull();
   });
 
   it('"Not now" sends nothing and records nothing', async () => {

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { SUPPORT_EMAIL } from '@chefer/types';
+import { fetchAiProviderDisclosure } from '@/lib/ai-providers';
+import { SUPPORT_EMAIL, type AiProviderDisclosure } from '@chefer/types';
+import { aiDisclosureProviders, formatAiProviderNames } from '@chefer/utils';
 
 export const metadata: Metadata = {
   title: 'Help & Support',
@@ -12,7 +14,7 @@ export const metadata: Metadata = {
 
 const linkClass = 'touch-target relative text-[#944a00] underline underline-offset-4';
 
-const FAQ: { q: string; a: React.ReactNode }[] = [
+const faq = (ai: AiProviderDisclosure): { q: string; a: React.ReactNode }[] => [
   {
     q: 'How do I reset my password?',
     a: (
@@ -45,10 +47,11 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
       <>
         Premium meal plans and swaps, meal-photo scanning, recipe import, the AI chef chat and the
         AI shopping-list tidy-up send the data each one needs (for example your preferences and
-        allergies, goals and body metrics, or the photo or message you submitted) to Google Gemini
-        to produce the result. We ask for your permission before the first one runs, and you can
-        turn it off at any time in <em>Profile → AI &amp; your data</em>. Your data is not used to
-        train AI models. AI output can be wrong — always check ingredients against your allergies.
+        allergies, goals and body metrics, or the photo or message you submitted) to{' '}
+        {formatAiProviderNames(aiDisclosureProviders(ai))} to produce the result. We ask for your
+        permission before the first one runs, and you can turn it off at any time in{' '}
+        <em>Profile → AI &amp; your data</em>. Your data is not used to train AI models. AI output
+        can be wrong — always check ingredients against your allergies.
       </>
     ),
   },
@@ -63,7 +66,8 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
 ];
 
-export default function SupportPage() {
+export default async function SupportPage() {
+  const FAQ = faq(await fetchAiProviderDisclosure());
   return (
     <main id="main" className="mx-auto max-w-2xl px-4 py-12">
       <h1 className="font-serif text-3xl font-semibold text-gray-900">Help &amp; Support</h1>
