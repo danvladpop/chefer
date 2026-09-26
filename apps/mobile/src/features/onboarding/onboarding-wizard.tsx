@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { ONBOARDING_INTENTS, type OnboardingIntent } from '@chefer/types';
 import { Button, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { onboardingSteps, type OnboardingStepKey } from '@chefer/utils';
+import { onboardingProgress, onboardingSteps, type OnboardingStepKey } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
 import { setMode } from '../gym/mode-store';
@@ -208,7 +208,10 @@ export function OnboardingWizard() {
   });
   const totalSteps = steps.length;
   const stepKey: OnboardingStepKey = steps[Math.min(step, totalSteps - 1)] ?? 'diet';
-  const progressPct = Math.round(((step + 1) / totalSteps) * 100);
+  // "Step 1" with no total while the intent question is open: the answer
+  // changes the total, and the counter must never grow (4 → 5).
+  const progress = onboardingProgress(steps, step);
+  const progressPct = progress.percent ?? 0;
   const isSubmitting =
     setupMutation.isPending ||
     safetyMutation.isPending ||
@@ -417,7 +420,9 @@ export function OnboardingWizard() {
         </Pressable>
         <View className="flex-1">
           <Text variant="muted" className="text-xs">
-            Step {step + 1} of {totalSteps} · {progressPct}%
+            {progress.percent === null
+              ? progress.label
+              : `${progress.label} · ${progress.percent}%`}
           </Text>
           <Text testID="onboarding-title" variant="heading">
             {stepTitle(stepKey, isPremium)}
@@ -429,6 +434,11 @@ export function OnboardingWizard() {
       <View
         testID="onboarding-progress"
         accessibilityRole="progressbar"
+        accessibilityValue={
+          progress.total === null
+            ? { text: progress.label }
+            : { min: 1, max: progress.total, now: step + 1 }
+        }
         className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-gray-100"
       >
         <View className="h-full rounded-full bg-primary" style={{ width: `${progressPct}%` }} />
