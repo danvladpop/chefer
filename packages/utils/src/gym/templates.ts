@@ -1,9 +1,12 @@
 // Template selection & instantiation — research §3.5.
 import {
+  EQUIPMENT_ACCESS_SETS,
   EQUIPMENT_SWAPS,
+  EXERCISE_CATALOG,
   PROGRAM_TEMPLATES,
   TEMPLATE_BY_KEY,
   type ExerciseMeta,
+  type GymEquipmentAccess,
   type RecommendInput,
   type RoutineDayDoc,
   type RoutineExerciseDoc,
@@ -98,22 +101,100 @@ function adaptRange(
   return [repMin, repMax];
 }
 
-/** Template → routine draft (no ids), with equipment swaps applied. */
+/** Can a user with this equipment answer do this exercise? (audit F-GYM-2-1) */
+export function isWithinEquipmentAccess(
+  meta: Pick<ExerciseMeta, 'equipment'>,
+  access: GymEquipmentAccess,
+): boolean {
+  return EQUIPMENT_ACCESS_SETS[access].includes(meta.equipment);
+}
+
+/**
+ * Closest in-set stand-in for an exercise the user can't do: same swap group
+ * first, then same movement pattern; ties go to the same category and the
+ * same primary muscle, then catalog order (deterministic). null = nothing
+ * trains that pattern with this equipment, so the slot is dropped.
+ */
+export function closestAccessibleAlternative(
+  meta: ExerciseMeta,
+  access: GymEquipmentAccess,
+  pool: readonly ExerciseMeta[] = EXERCISE_CATALOG,
+): ExerciseMeta | null {
+  let best: ExerciseMeta | null = null;
+  let bestScore = 0;
+  for (const candidate of pool) {
+    if (candidate.id === meta.id || !isWithinEquipmentAccess(candidate, access)) {
+      continue;
+    }
+    let score = 0;
+    if (meta.swapGroup !== null && candidate.swapGroup === meta.swapGroup) {
+      score += 8;
+    }
+    if (candidate.movementPattern === meta.movementPattern) {
+      score += 4;
+    }
+    if (score === 0) {
+      continue;
+    }
+    if (candidate.category === meta.category) {
+      score += 2;
+    }
+    if (candidate.primaryMuscles[0] === meta.primaryMuscles[0]) {
+      score += 1;
+    }
+    if (score > bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+/**
+ * Resolve one template slot for an equipment answer: the curated swap table
+ * first (research §3.5), then — if that still leaves equipment the user
+ * doesn't have — the closest in-set alternative. null = drop the slot.
+ * Unknown exercises (lookup miss) are kept as-is.
+ */
+export function resolveSlotExercise(
+  exerciseId: string,
+  equipmentAccess: GymEquipmentAccess,
+  lookup: ExerciseLookup,
+  pool: readonly ExerciseMeta[] = EXERCISE_CATALOG,
+): string | null {
+  if (equipmentAccess === 'FULL_GYM') {
+    return exerciseId;
+  }
+  const swapped = EQUIPMENT_SWAPS[equipmentAccess][exerciseId] ?? exerciseId;
+  const meta = lookup(swapped);
+  if (!meta || isWithinEquipmentAccess(meta, equipmentAccess)) {
+    return swapped;
+  }
+  return closestAccessibleAlternative(meta, equipmentAccess, pool)?.id ?? null;
+}
+
+/**
+ * Template → routine draft (no ids), with equipment swaps applied. Every slot
+ * of the result is within the equipment access set (audit F-GYM-2-1): an
+ * out-of-set exercise is replaced by the closest alternative, or dropped.
+ */
 export function instantiateTemplate(
   key: string,
   equipmentAccess: RecommendInput['equipmentAccess'],
   lookup: ExerciseLookup,
+  pool: readonly ExerciseMeta[] = EXERCISE_CATALOG,
 ): { name: string; templateKey: string; weeklyGoal: number; days: RoutineDayDoc[] } {
   const template = TEMPLATE_BY_KEY.get(key);
   if (!template) {
     throw new Error(`Unknown program template "${key}"`);
   }
-  const swaps: Readonly<Record<string, string>> =
-    equipmentAccess === 'FULL_GYM' ? {} : EQUIPMENT_SWAPS[equipmentAccess];
   const days: RoutineDayDoc[] = template.days.map((day) => {
     const exercises: RoutineExerciseDoc[] = [];
     for (const x of day.exercises) {
-      const exerciseId = swaps[x.exerciseId] ?? x.exerciseId;
+      const exerciseId = resolveSlotExercise(x.exerciseId, equipmentAccess, lookup, pool);
+      if (exerciseId === null) {
+        continue;
+      }
       const meta = lookup(exerciseId);
       const [repMin, repMax] = adaptRange(
         meta,

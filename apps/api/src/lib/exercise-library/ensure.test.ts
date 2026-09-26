@@ -77,3 +77,29 @@ describe('imageKeysFor', () => {
     expect(imageKeysFor(entry({ freeExerciseDbId: null }), () => true)).toEqual([]);
   });
 });
+
+describe('vendored photos (apps/api/static/exercises)', () => {
+  it('ships both photos for every catalog exercise with a free-exercise-db id', () => {
+    // Deploys serve these files as-is; a new catalog entry without its vendored
+    // photos would silently show none (run scripts/gym/vendor-exercise-photos.ts).
+    const missing = EXERCISE_CATALOG.filter(
+      (e) => e.freeExerciseDbId !== null && imageKeysFor(e).length !== 2,
+    ).map((e) => e.id);
+    expect(missing).toEqual([]);
+  });
+
+  it('creates new catalog entries on an existing database, idempotently (F-GYM-2-1)', async () => {
+    const [old, added] = [entry({ id: 'barbell-bench-press' }), entry({ id: 'glute-bridge' })];
+    const r = repo([storedRow(old)]);
+    const first = await syncExerciseLibrary(r, [old, added], noFiles);
+    expect(first).toEqual({ created: 1, updated: 0, archived: 0 });
+    expect(r.createCurated).toHaveBeenCalledWith('glute-bridge', expect.any(Object));
+
+    const again = repo([storedRow(old), storedRow(added)]);
+    expect(await syncExerciseLibrary(again, [old, added], noFiles)).toEqual({
+      created: 0,
+      updated: 0,
+      archived: 0,
+    });
+  });
+});

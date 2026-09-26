@@ -93,3 +93,17 @@ export function uniqueExercisesOf(
   }
   return [...seen.entries()].map(([exerciseId, name]) => ({ exerciseId, name }));
 }
+
+/**
+ * Exercises the "I know my weights" list asks about: loadable ones only, in
+ * program order (mirrors web's knownWeightCandidates). Bodyweight moves start
+ * from reps, so an all-bodyweight program has nothing to enter (F-GYM-2-1).
+ */
+export function knownWeightExercisesOf(
+  preview: TemplatePreview,
+): { exerciseId: string; name: string }[] {
+  return uniqueExercisesOf(preview).filter(({ exerciseId }) => {
+    const meta = catalogLookup(exerciseId);
+    return meta?.loadType === 'WEIGHTED' && !meta.isTimed;
+  });
+}

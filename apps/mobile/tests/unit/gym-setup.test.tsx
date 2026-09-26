@@ -4,6 +4,10 @@ import { render, screen, userEvent, waitFor } from '@testing-library/react-nativ
 import type { CompleteSetupInput } from '@chefer/types';
 import { defaultUnitFromLocale } from '../../src/features/gym/setup/locale-unit';
 import { SetupWizard } from '../../src/features/gym/setup/setup-wizard';
+import {
+  buildTemplatePreview,
+  knownWeightExercisesOf,
+} from '../../src/features/gym/setup/template-preview';
 import type { createTrpcGymMock } from './gym-trpc-mock';
 import { mutationResult, queryResult } from './gym-trpc-mock';
 
@@ -196,5 +200,26 @@ describe('defaultUnitFromLocale', () => {
     // @ts-expect-error partial mock is enough for resolvedOptions().locale
     Intl.NumberFormat = () => ({ resolvedOptions: () => ({ locale: 'en-GB' }) });
     expect(defaultUnitFromLocale()).toBe('KG');
+  });
+});
+
+describe('equipment answer in the on-device preview (F-GYM-2-1)', () => {
+  it('a bodyweight program has only bodyweight moves and no weights to enter', () => {
+    const preview = buildTemplatePreview('ul4-beginner', 'BODYWEIGHT', 'BEGINNER');
+    const ids = preview.days.flatMap((d) => d.exercises.map((e) => e.exerciseId));
+    expect(ids).toContain('glute-bridge');
+    expect(ids).not.toContain('hip-thrust');
+    expect(ids).not.toContain('bulgarian-split-squat');
+    expect(knownWeightExercisesOf(preview)).toEqual([]);
+  });
+
+  it('a dumbbell program swaps the barbell RDL and asks weights only for loadable lifts', () => {
+    const preview = buildTemplatePreview('fb3-beginner', 'DUMBBELLS', 'BEGINNER');
+    const ids = preview.days.flatMap((d) => d.exercises.map((e) => e.exerciseId));
+    expect(ids).toContain('dumbbell-romanian-deadlift');
+    expect(ids).not.toContain('romanian-deadlift');
+    const asked = knownWeightExercisesOf(preview).map((e) => e.exerciseId);
+    expect(asked).toContain('dumbbell-romanian-deadlift');
+    expect(asked).not.toContain('pull-up');
   });
 });

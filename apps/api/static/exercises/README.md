@@ -10,8 +10,12 @@ instead of hot-linked from `raw.githubusercontent.com` at runtime.
   commercially; this note is credit given anyway, as good practice.
 - **Naming:** `<catalog-slug>-0.webp` (start position) and `<catalog-slug>-1.webp`
   (end position), one pair per exercise that has a `freeExerciseDbId` in the
-  catalog. Two exercises have no free-exercise-db match (`bulgarian-split-squat`,
-  `hip-abduction-machine`) and so have no photos here.
+  catalog. Eight exercises have no faithful free-exercise-db match and so have
+  no photos here: `bulgarian-split-squat`, `hip-abduction-machine`, and the
+  home variants `dumbbell-hip-thrust`, `reverse-lunge`,
+  `bodyweight-bulgarian-split-squat`, `single-leg-romanian-deadlift`,
+  `single-leg-calf-raise` and `pike-push-up` (audit F-GYM-2-1). Their detail
+  screens rely on the cues and the video.
 - **Format:** WebP, resized to max 600px wide, quality 78 (`cwebp -q 78 -resize 600 0`).
 - **Regenerating:** `scripts/gym/vendor-exercise-photos.ts` downloads and
   converts these from the upstream JPGs. It's idempotent — safe to re-run;
