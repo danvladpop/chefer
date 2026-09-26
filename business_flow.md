@@ -29,6 +29,8 @@
 21. [Gym Training Flow](#21-gym-training-flow)
 22. [Gym Setup & Workout Sync Flow (API)](#22-gym-setup--workout-sync-flow-api)
 23. [Weekly Emails & Notifications Flow (P2-5)](#23-weekly-emails--notifications-flow-p2-5)
+24. [Account Deletion Flow (App Store 5.1.1(v))](#24-account-deletion-flow-app-store-511v)
+25. [AI Data Consent Flow (App Store 5.1.2(i))](#25-ai-data-consent-flow-app-store-512i)
 
 ---
 
@@ -176,12 +178,12 @@ during render. A successful login overwrites it via `Set-Cookie`.
 
 **Role capabilities:**
 
-| Role              | What they can do                                                                                                                                |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| (unauthenticated) | `auth.register`, `auth.login`, `auth.requestPasswordReset`, `auth.resetPassword`, `auth.me`                                                     |
-| USER              | All protected procedures: `user.me`, `user.update` (own), plans, recipes, tracker, …                                                            |
-| MODERATOR         | Same as USER (moderation capabilities reserved for future)                                                                                      |
-| ADMIN             | Everything, incl. `user.list`, `user.getById`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure` |
+| Role              | What they can do                                                                                                                                          |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (unauthenticated) | `auth.register`, `auth.login`, `auth.requestPasswordReset`, `auth.resetPassword`, `auth.me`                                                               |
+| USER              | All protected procedures: `user.me`, `user.update` (own), `user.deleteSelf` (own, password), `user.grant/revokeAiDataConsent`, plans, recipes, tracker, … |
+| MODERATOR         | Same as USER (moderation capabilities reserved for future)                                                                                                |
+| ADMIN             | Everything, incl. `user.list`, `user.getById`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure`           |
 
 ---
 
@@ -192,7 +194,7 @@ during render. A successful login overwrites it via `Set-Cookie`.
 > `protectedProcedure`, then admin-only on 2026-09-25 (audit F-ADM-1-1: any signed-in user could
 > read any account's email). Authenticated users see their own data via `user.me` on `/profile`.
 >
-> **Your data (audit P0-6, 2026-09-25):** `/profile` (web) and Profile (mobile) offer **Download / Export my data** (`user.exportData`, JSON) and **Delete account** (`user.deleteSelf`: re-enter password + type DELETE; deletes the user's own recipes and everything that cascades, then signs them out). The mobile app links Terms and Privacy from More and the register screen.
+> **Your data (audit P0-6, 2026-09-25):** `/profile` (web) and Profile (mobile) offer **Download / Export my data** (`user.exportData`, JSON) and **Delete account** (`user.deleteSelf`: re-enter password + type DELETE; deletes the user's own recipes and everything that cascades, then signs them out). The mobile app links Terms, Privacy and Support from More and Terms/Privacy from the register screen. Full flow: §24 (deletion) and §25 (AI consent).
 
 ---
 
@@ -246,8 +248,7 @@ adminProcedure user.delete
   Input: { id }
   │
   └── Reject if id == ctx.user.id (cannot delete self)
-  └── UserService.delete(id)
-        └── PrismaUserRepository.delete()
+  └── deleteAccount(id)   (same full purge as §24)
   Output: { success: true }
 ```
 
@@ -1629,7 +1630,7 @@ email "Unsubscribe" ─► /unsubscribe?token=… (public, no login)
 Preferences (web + mobile) ─► notifications.setEmailPreferences
 ```
 
-Deleting the account hard-deletes the user (cascade), so there is nobody left
+Deleting the account (§24) hard-deletes the user (cascade), so there is nobody left
 to email. Accounts created before P2-5 are unconfirmed: they see the
 "Confirm your email" prompt in Preferences and get nothing until they confirm.
 
@@ -1665,3 +1666,91 @@ pnpm exec tsx --env-file=.env src/scripts/send-weekly-emails.ts recap  [--user=a
 Runs one sweep now regardless of day and hour; opt-outs, confirmation and the
 per-week claims still apply (delete the `email_sends` row to resend).
 `--dry-run` prints the rendered text without claiming or sending.
+
+---
+
+## 24. Account Deletion Flow (App Store 5.1.1(v))
+
+> **Status:** Implemented on web and mobile (audit P0-6, hardened 2026-09-26).
+
+```
+Profile → Your data → "Delete account"  (web /profile, mobile Profile — last card)
+  │
+  └─ Sheet (ACCOUNT_DELETION_COPY, shared): "This permanently deletes your Chefer
+     account. It can't be undone." + the list of what goes (profile/preferences/
+     body metrics; plans, shopping lists, logs, weights, pantry; own + imported
+     recipes, favourites, ratings; workouts, routines, custom exercises;
+     household, feedback, sign-in on every device) + "Backup copies age out
+     within 14 days."
+     Inputs: password + type DELETE (case-insensitive) → destructive button
+        │
+        └─ user.deleteSelf { password, confirm: 'DELETE' }
+              ├─ wrong password            → FORBIDDEN "That password is not correct"
+              ├─ caller is the last ADMIN  → BAD_REQUEST (promote someone first)
+              └─ deleteAccount(userId) — ONE transaction:
+                    shopping_lists (by the user's planIds; no FK)
+                    recipes where creatorId = user AND source = MANUAL
+                    ingredient_prices where creatorId = user (private custom)
+                    verification_tokens 'reset:<email>'
+                    workout_sessions, routines (before the user: RESTRICT FKs)
+                    sessions (every device)
+                    users row → cascades everything else
+                 then authService.logout clears the web cookie
+        │
+        ├─ web:    window.location.assign('/') — full navigation drops every cache
+        └─ mobile: clear SecureStore token + queryClient.clear() (incl. persisted
+                   gym reads) → router.replace('/(auth)')
+```
+
+**Households:** `HouseholdMember` rows are the account's own extra eaters (name,
+portion, allergies) — no other account is linked to them, so they are simply
+deleted with the owner. There is no ownership to transfer.
+
+**Kept:** AI-generated recipe rows (shared recipe content, no personal data)
+remain with `creatorId` nulled. Backups roll off within the 14-day retention
+window (`/privacy`). Admins deleting a user (`user.delete`) run the same purge.
+
+---
+
+## 25. AI Data Consent Flow (App Store 5.1.2(i))
+
+> **Status:** Implemented on web and mobile 2026-09-26. Client-side gate only —
+> the API does not check consent, so the weekly auto-plan and coach-review
+> workers keep running.
+
+```
+user taps an AI action ──► requestAiConsent(feature, run, { usesAi })
+  │
+  ├─ usesAi false (free curated plan / free swap) ─────────────► run()
+  ├─ user.me.aiDataConsentAt set ──────────────────────────────► run()
+  └─ null (never asked, or revoked)
+        └─ consent Sheet (AI_CONSENT_COPY):
+             "Allow AI to use your data?"
+             "To <action>, Chefer sends some of your data to Google Gemini, a
+              third-party AI service, which uses it only to produce the result."
+             What gets sent: <per-feature list, AI_CONSENT_FEATURE_DATA>
+             "Your data is not used to train AI models."
+             backup-provider line · "You can turn this off at any time in
+             Profile → AI & your data." · Privacy policy link (/privacy)
+             ├─ Not now → close; nothing sent, nothing recorded
+             └─ Allow  → user.grantAiDataConsent → run()
+                         (mobile: after the sheet is fully dismissed, so the
+                          camera can present next)
+```
+
+| Feature (`AiConsentFeature`) | Web entry point                                              | Mobile entry point                                    |
+| ---------------------------- | ------------------------------------------------------------ | ----------------------------------------------------- |
+| `meal-plan` (premium only)   | Meal plan Generate/Regenerate, `/meal-plan?generate=1`       | Plan tab empty-week Generate, Week summary Regenerate |
+| `meal-swap` (premium only)   | Recipe page "Swap Recipe", Replace meal "Regenerate with AI" | Replace meal sheet "Regenerate with AI"               |
+| `meal-scan`                  | Tracker scan (after the file is picked, before upload)       | Snap-to-Log card (before camera/library opens)        |
+| `recipe-import`              | Import recipe sheet preview (URL / text / photo)             | Import recipe screen preview (URL / text)             |
+| `chat`                       | Chat widget send + suggested prompts                         | AI Chef screen send                                   |
+| `shopping-list`              | Shop "Regenerate list"                                       | Shop "Regenerate with AI"                             |
+
+The first plan after onboarding is generated from the Plan tab / dashboard
+"Generate my week", so it is covered by `meal-plan`. Not gated (no personal
+data): AI nutrition estimate for a custom ingredient (ingredient name only) and
+recipe image generation.
+
+**Revoking:** Profile → "AI & your data" → "Allow AI features to process my
+data" switch (web + mobile) → `user.revokeAiDataConsent` / `grantAiDataConsent`.
