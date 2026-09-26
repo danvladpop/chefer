@@ -95,3 +95,37 @@ export function householdGhostSample(kind: HouseholdGhostKind): HouseholdGhostSa
     dietaryRestrictions: ['Vegetarian'],
   };
 }
+
+// ─── Onboarding progress label (audit: counter grew 4 → 5) ────────────────────
+
+export interface OnboardingProgress {
+  /** "Step 1" on the intent question, else "Step 2 of 5". */
+  label: string;
+  /** Known once the intent question is behind the user; null before. */
+  total: number | null;
+  /** 0–100, or null while the total is unknown (render a neutral bar). */
+  percent: number | null;
+}
+
+/**
+ * The step counter for the onboarding wizard. The total depends on the
+ * intent answer (households get an extra step, gym-goers stop after it), so
+ * while the question is on screen the counter shows "Step 1" with no total
+ * and no percentage — it never reads "1 of 4" and then "2 of 5".
+ * `index` is 0-based into `steps`.
+ */
+export function onboardingProgress(
+  steps: readonly OnboardingStepKey[],
+  index: number,
+): OnboardingProgress {
+  const total = Math.max(1, steps.length);
+  const i = Math.min(Math.max(0, index), total - 1);
+  if (steps[i] === 'intent') {
+    return { label: `Step ${i + 1}`, total: null, percent: null };
+  }
+  return {
+    label: `Step ${i + 1} of ${total}`,
+    total,
+    percent: Math.round(((i + 1) / total) * 100),
+  };
+}

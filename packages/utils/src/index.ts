@@ -216,7 +216,7 @@ export {
   type LoggedMealEntryLike,
 } from './tracker';
 
-export { guessMealType, parseStepDuration } from './cook-mode';
+export { defaultCookServings, guessMealType, parseStepDuration } from './cook-mode';
 export { buildPickerSections, type PickerSection } from './recipe-picker';
 export * from './gym';
 export {
@@ -319,9 +319,26 @@ export {
 export {
   householdGhostSample,
   householdPortionSum,
+  onboardingProgress,
   onboardingSteps,
   perPortionCost,
   type HouseholdGhostKind,
   type HouseholdGhostSample,
+  type OnboardingProgress,
   type OnboardingStepKey,
 } from './household';
+export {
+  FEEDBACK_MAX_LENGTH,
+  FEEDBACK_NEAR_LIMIT,
+  feedbackCounter,
+  type FeedbackCounter,
+  type FeedbackCounterTone,
+} from './feedback';
+export {
+  ACTIVATION_STEP_COPY,
+  SOURCE_FEATURE_PRIORITY,
+  activationIntro,
+  activationStepKeys,
+  type ActivationStepCopy,
+  type ActivationStepKey,
+} from './premium-activation';

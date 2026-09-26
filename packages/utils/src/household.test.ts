@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   householdGhostSample,
   householdPortionSum,
+  onboardingProgress,
   onboardingSteps,
   perPortionCost,
 } from './household';
@@ -104,5 +105,25 @@ describe('householdGhostSample', () => {
     const partner = householdGhostSample('partner');
     expect(partner.isKid).toBe(false);
     expect(partner.portionFactor).toBe(1);
+  });
+});
+
+describe('onboardingProgress (counter never grows)', () => {
+  it('shows "Step 1" with no total while the intent question is open', () => {
+    for (const intent of [null, 'HOUSEHOLD', 'TRAIN', 'EAT_BETTER'] as const) {
+      const steps = onboardingSteps({ intent, askIntent: true, isPremium: false });
+      expect(onboardingProgress(steps, 0)).toEqual({ label: 'Step 1', total: null, percent: null });
+    }
+  });
+
+  it('shows the fixed total once the intent is answered', () => {
+    const steps = onboardingSteps({ intent: 'HOUSEHOLD', askIntent: true, isPremium: false });
+    expect(onboardingProgress(steps, 1)).toEqual({ label: 'Step 2 of 5', total: 5, percent: 40 });
+    expect(onboardingProgress(steps, 4).percent).toBe(100);
+  });
+
+  it('counts normally when the question is not asked', () => {
+    const steps = onboardingSteps({ intent: 'TRAIN', askIntent: false, isPremium: true });
+    expect(onboardingProgress(steps, 0)).toEqual({ label: 'Step 1 of 4', total: 4, percent: 25 });
   });
 });

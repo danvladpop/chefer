@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStepDuration } from './cook-mode';
+import { defaultCookServings, parseStepDuration } from './cook-mode';
 
 describe('parseStepDuration (P1-3 inline timers)', () => {
   it('parses simple minute durations', () => {
@@ -24,5 +24,20 @@ describe('parseStepDuration (P1-3 inline timers)', () => {
 
   it('ignores absurd durations', () => {
     expect(parseStepDuration('Ferment for 48 hours.')).toBeNull();
+  });
+});
+
+describe('defaultCookServings (P1-1, P2-3)', () => {
+  it('starts at the recipe servings without a premium household', () => {
+    expect(defaultCookServings(2, null)).toBe(2);
+    expect(defaultCookServings(2, null, 1.5)).toBe(3);
+  });
+
+  it('starts at the table portions for a premium household', () => {
+    expect(defaultCookServings(2, 4)).toBe(4);
+  });
+
+  it('multiplies the table by the plan slot portion', () => {
+    expect(defaultCookServings(2, 3, 1.25)).toBe(3.75);
   });
 });
