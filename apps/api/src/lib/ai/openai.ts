@@ -360,15 +360,19 @@ type HttpError = Error & { status?: number; retryAfterMs?: number; failover?: bo
 
 /**
  * Groq's strict structured-output mode could not produce a schema-valid
- * document: 400 json_validate_failed ("Failed to validate JSON", or "max
- * completion tokens reached before generating a valid document"). Not a
+ * document: 400 json_validate_failed ("Failed to validate JSON", "max
+ * completion tokens reached before generating a valid document", or
+ * "Generated JSON does not match the expected schema" — the error text is cut
+ * at 300 chars, so the code itself may be missing from the message). Not a
  * rejection of json_schema itself — the call is retried in json_object mode.
  */
 function isStrictGenerationFailure(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   return (
     (err as HttpError).status === 400 &&
-    /json_validate_failed|failed to validate json|max completion tokens reached/i.test(err.message)
+    /json_validate_failed|failed to validate json|max completion tokens reached|does not match the expected schema/i.test(
+      err.message,
+    )
   );
 }
 

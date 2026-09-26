@@ -268,6 +268,20 @@ describe('OpenAICompatibleAIService — chunked meal plan (research §5.4 step 3
     expect(body(fetchMock, 2)['response_format']).toMatchObject({ type: 'json_schema' });
   });
 
+  it('also retries a strict day Groq rejects as "does not match the expected schema" (eval 2026-09-26)', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        `{"error":{"message":"Generated JSON does not match the expected schema. Please adjust your prompt. See 'failed_generation' for more details. Error: jsonschema: '/meals/2/recipe/nutritionInfo/carbs' does not validate with /properties/meals/items/properties/recipe/properties/nutritionInfo/properties/carbs/type: expected number, but got string${' '.repeat(200)}","code":"json_validate_failed"}}`,
+        { status: 400 },
+      ),
+    );
+    for (let d = 0; d < 7; d++) fetchMock.mockResolvedValueOnce(dayResponse(d));
+    const svc = new OpenAICompatibleAIService({ ...BASE, mealPlanMode: 'chunked' });
+    const plan = await svc.generateMealPlan(PLAN_INPUT);
+    expect(plan.days).toHaveLength(7);
+    expect(body(fetchMock, 1)['response_format']).toEqual({ type: 'json_object' });
+  });
+
   it('gives a truncated strict day 1.5x the output budget on its json_object retry', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
