@@ -155,3 +155,24 @@ describe('selectRebalanceSwaps', () => {
     expect(result.swaps.length).toBeLessThanOrEqual(1); // one candidate → one swap
   });
 });
+
+describe('selectRebalanceSwaps — two-snack days', () => {
+  it('reports which snack it swapped by slot index', () => {
+    const snackSlot = (slotIndex: number, recipeId: string): RebalanceSlot => ({
+      ...slot(4, 'snack', recipeId, 900),
+      slotIndex,
+    });
+    const result = selectRebalanceSwaps(
+      baseInput({
+        // 16 000 + 1 800 = +27%: both snacks must go lighter.
+        consumedKcal: 16_000,
+        futureSlots: [snackSlot(3, 'fri-snack-1'), snackSlot(4, 'fri-snack-2')],
+        candidatesByType: { snack: [cand('snack-light', 100), cand('snack-lighter', 80)] },
+      }),
+    );
+    expect(result.swaps.map((s) => [s.previousRecipeId, s.slotIndex])).toEqual([
+      ['fri-snack-1', 3],
+      ['fri-snack-2', 4],
+    ]);
+  });
+});

@@ -290,10 +290,10 @@ export class DashboardService {
     // this plan actually contains, skipping any meal already logged today:
     // after "Made it!" on dinner the spotlight moves on instead of offering
     // the same dinner again (audit F-PM-10). Shared with the clients via
-    // @chefer/utils resolveTodayMeals.
-    const orderedMeals = MEAL_ORDER.map((type) => todayMeals.find((m) => m.type === type)).filter(
-      (slot): slot is MealSlot => slot !== undefined && recipeMap.has(slot.recipeId),
-    );
+    // @chefer/utils resolveTodayMeals, which also puts them in day order.
+    // Every slot counts: a curated day can hold two snacks, and picking the
+    // first slot per type used to hide the second one from Today.
+    const orderedMeals = todayMeals.filter((slot) => recipeMap.has(slot.recipeId));
     const loggedToday = (todayLog?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
     const resolved = resolveTodayMeals(orderedMeals, currentHourLocal, loggedToday);
 

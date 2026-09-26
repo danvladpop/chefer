@@ -61,6 +61,8 @@ export default function MealPlanScreen() {
   } | null>(null);
   const [pickerTarget, setPickerTarget] = useState<{
     mealType: MealType;
+    /** Index in `day.meals` — a curated day can hold two snacks. */
+    slotIndex: number;
     mealName: string;
   } | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -364,9 +366,9 @@ export default function MealPlanScreen() {
                 <Text variant="muted">No meals planned for this day.</Text>
               </Card>
             ) : (
-              meals.map((meal) => (
+              meals.map((meal, slotIndex) => (
                 <PlanMealCard
-                  key={`${meal.type}-${meal.recipe.id}`}
+                  key={`${meal.type}-${slotIndex}`}
                   testID={`plan-meal-${meal.type}`}
                   day={selectedDay}
                   meal={meal}
@@ -379,7 +381,11 @@ export default function MealPlanScreen() {
                         accessibilityRole="button"
                         accessibilityLabel={`Replace ${meal.recipe.name}`}
                         onPress={() =>
-                          setPickerTarget({ mealType: meal.type, mealName: meal.recipe.name })
+                          setPickerTarget({
+                            mealType: meal.type,
+                            slotIndex,
+                            mealName: meal.recipe.name,
+                          })
                         }
                         className="w-11 items-center justify-center border-l border-border"
                       >
@@ -410,6 +416,7 @@ export default function MealPlanScreen() {
                 planId: plan.planId,
                 dayOfWeek: selectedDay,
                 mealType: pickerTarget.mealType,
+                slotIndex: pickerTarget.slotIndex,
                 recipeId,
               });
             }}
@@ -421,6 +428,7 @@ export default function MealPlanScreen() {
                       planId: plan.planId,
                       dayOfWeek: selectedDay,
                       mealType: pickerTarget.mealType,
+                      slotIndex: pickerTarget.slotIndex,
                     });
                   }
                 : undefined

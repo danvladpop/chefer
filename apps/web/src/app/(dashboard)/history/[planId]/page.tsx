@@ -9,7 +9,6 @@ import { format } from 'date-fns';
 import { ArrowLeft } from 'lucide-react';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 
 export default function HistoryPlanPage({ params }: { params: Promise<{ planId: string }> }) {
   const { planId } = use(params);
@@ -103,31 +102,32 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
                   <p className="text-sm font-bold text-neutral-700">{format(dayDate, 'd')}</p>
                 </div>
 
-                {/* Meal rows */}
-                {MEAL_TYPES.map((mealType) => {
-                  const slot = dayPlan?.meals.find((m) => m.type === mealType);
-                  if (!slot) {
-                    return (
-                      <div
-                        key={mealType}
-                        className="flex h-28 items-center justify-center rounded-xl border border-dashed border-neutral-200"
-                      >
-                        <span className="text-xs text-neutral-300">—</span>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div key={mealType} className="pointer-events-none opacity-90">
+                {/* Every slot in plan order, like the planner grid: a curated
+                    day can hold two snacks, and picking one slot per meal
+                    type hid the second. */}
+                {dayPlan && dayPlan.meals.length > 0 ? (
+                  dayPlan.meals.map((slot, slotIndex) => (
+                    <div
+                      key={`${slot.type}-${slotIndex}`}
+                      className="pointer-events-none opacity-90"
+                    >
                       <MealCard
-                        mealType={mealType}
+                        mealType={slot.type}
                         recipe={slot.recipe}
                         planId={plan.planId}
                         dayOfWeek={colIdx}
+                        slotIndex={slotIndex}
+                        leftoverLabel={slot.leftoverOf}
+                        portion={slot.portion}
                         readOnly
                       />
                     </div>
-                  );
-                })}
+                  ))
+                ) : (
+                  <div className="flex h-28 items-center justify-center rounded-xl border border-dashed border-neutral-200">
+                    <span className="text-xs text-neutral-300">—</span>
+                  </div>
+                )}
               </div>
             );
           })}

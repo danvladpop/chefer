@@ -76,6 +76,11 @@ export interface IMealPlanRepository {
     newRecipeId: string,
     /** The new slot's portion; omitted = the recipe as written (1×). */
     portion?: number,
+    /**
+     * The slot's index in `day.meals` — a curated day can hold two snacks.
+     * Omitted = the first slot of `mealType`. Only that one slot changes.
+     */
+    slotIndex?: number,
   ): Promise<void>;
   /** True when the plan's shopping list has ticks or custom items. */
   hasShoppingProgress(planId: string): Promise<boolean>;
@@ -318,7 +323,10 @@ export class MealPlanRepository implements IMealPlanRepository {
   }
 
   /**
-   * Replaces a single meal slot in a day's JSON with a new recipe ID.
+   * Replaces a single meal slot in a day's JSON with a new recipe ID: the
+   * slot at `slotIndex` when given (its type must be `mealType`), else the
+   * first slot of `mealType`. It used to rewrite EVERY slot of the type, so
+   * swapping one snack on a two-snack day turned both into the same dish.
    */
   async updateDayMeal(
     planId: string,
@@ -326,6 +334,7 @@ export class MealPlanRepository implements IMealPlanRepository {
     mealType: string,
     newRecipeId: string,
     portion?: number,
+    slotIndex?: number,
   ): Promise<void> {
     const day = await prisma.mealPlanDay.findFirst({
       where: { mealPlanId: planId, dayOfWeek },
@@ -335,8 +344,15 @@ export class MealPlanRepository implements IMealPlanRepository {
     // A different dish drops the old slot's portion unless the caller sized
     // the new one (P1-1): 1.5× of the old recipe means nothing for the new.
     const meals = day.meals as unknown as PlanMealSlotJson[];
-    const updated = meals.map((m) => {
-      if (m.type !== mealType) return m;
+    const target =
+      slotIndex !== undefined
+        ? meals[slotIndex]?.type === mealType
+          ? slotIndex
+          : -1
+        : meals.findIndex((m) => m.type === mealType);
+    if (target === -1) return;
+    const updated = meals.map((m, i) => {
+      if (i !== target) return m;
       const { portion: _old, ...rest } = m;
       return {
         ...rest,

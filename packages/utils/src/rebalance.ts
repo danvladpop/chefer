@@ -8,6 +8,8 @@
 export interface RebalanceSwapLike {
   dayOfWeek: number; // 0 = Monday … 6 = Sunday
   mealType: string;
+  /** The slot's index in `day.meals` (two-snack days); absent from older APIs. */
+  slotIndex?: number | undefined;
   previousRecipeId: string;
   newRecipeId: string;
   previousRecipeName?: string | undefined;
@@ -46,13 +48,18 @@ export function rebalanceBannerCopy(swaps: RebalanceSwapLike[]): string {
  * The mealPlan.replaceRecipe calls that restore the pre-rebalance plan —
  * one per swap, each putting previousRecipeId back into its slot.
  */
-export function undoOperations(
-  pending: PendingRebalance,
-): { planId: string; dayOfWeek: number; mealType: string; recipeId: string }[] {
+export function undoOperations(pending: PendingRebalance): {
+  planId: string;
+  dayOfWeek: number;
+  mealType: string;
+  slotIndex?: number;
+  recipeId: string;
+}[] {
   return pending.swaps.map((swap) => ({
     planId: pending.planId,
     dayOfWeek: swap.dayOfWeek,
     mealType: swap.mealType,
+    ...(swap.slotIndex !== undefined && { slotIndex: swap.slotIndex }),
     recipeId: swap.previousRecipeId,
   }));
 }
@@ -68,7 +75,8 @@ export function isPendingFresh(pending: PendingRebalance, now: number = Date.now
  *
  * - No-op result (not rebalanced, no plan, no swaps) → the existing pending.
  * - Different plan, or the existing one is stale → the new swaps replace it.
- * - Same plan → one entry per slot (day + meal type). A slot swapped twice
+ * - Same plan → one entry per slot (day + meal type + slot index, so the
+ *   two snacks of a curated day stay apart). A slot swapped twice
  *   keeps its ORIGINAL previous recipe (undo restores what the user planned)
  *   and the latest new one; a slot swapped back to its original drops out.
  */
@@ -84,7 +92,7 @@ export function mergePendingRebalance(
     existing !== null && existing.planId === result.planId && isPendingFresh(existing, now);
   const base = sameLivePlan ? existing.swaps : [];
 
-  const slotKey = (s: RebalanceSwapLike) => `${s.dayOfWeek}:${s.mealType}`;
+  const slotKey = (s: RebalanceSwapLike) => `${s.dayOfWeek}:${s.mealType}:${s.slotIndex ?? ''}`;
   const bySlot = new Map<string, RebalanceSwapLike>();
   for (const swap of base) bySlot.set(slotKey(swap), swap);
   for (const swap of result.swaps) {

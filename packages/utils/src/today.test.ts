@@ -105,3 +105,21 @@ describe('meal windows', () => {
     for (const type of MEAL_ORDER) expect(MEAL_WINDOW_END[type]).toBeGreaterThan(0);
   });
 });
+
+describe('resolveTodayMeals — two-snack days (curated planner)', () => {
+  const snack1 = { type: 'snack', recipeId: 'apple' };
+  const snack2 = { type: 'snack', recipeId: 'hummus' };
+  const day = [breakfast, lunch, dinner, snack1, snack2];
+
+  it('keeps both snacks, in plan order, ahead of dinner', () => {
+    const r = resolveTodayMeals(day, 15);
+    expect(r.next).toBe(snack1);
+    expect(r.later).toEqual([snack2, dinner]);
+  });
+
+  it('eating the first snack puts the second one next', () => {
+    const r = resolveTodayMeals(day, 15, [{ recipeId: 'apple', mealType: 'snack' }]);
+    expect(r.next).toBe(snack2);
+    expect(r.eaten).toEqual([snack1]);
+  });
+});

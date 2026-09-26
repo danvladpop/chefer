@@ -513,7 +513,7 @@ recipe) and adds Restore there; on both mobile screens Restore asks first
 
 ### Meal swap
 
-`mealPlan.swapRecipe` — premium: AI-generated alternative; free: random curated recipe of the same meal type (excluding the current one). A free swap of a portioned slot (P1-1) sizes the new dish to the old slot's calories; any other swap or replacement resets the slot to 1×.
+`mealPlan.swapRecipe` — premium: AI-generated alternative; free: random curated recipe of the same meal type (excluding the current one). A free swap of a portioned slot (P1-1) sizes the new dish to the old slot's calories; any other swap or replacement resets the slot to 1×. A curated free day can hold two snacks: every per-slot action (swap, replace, rebalance and its undo) names the slot by its index in the day, so the second snack is swapped on its own. Today's next-meal card, Later today and the read-only history grid show both snacks.
 
 ### Week templates — "My weeks" (4-week rotation)
 

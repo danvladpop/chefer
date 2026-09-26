@@ -71,6 +71,14 @@ describe('undoOperations', () => {
       { planId: 'plan-1', dayOfWeek: 5, mealType: 'lunch', recipeId: 'prev-2' },
     ]);
   });
+
+  it('carries the slot index so the right snack of a two-snack day is restored', () => {
+    expect(
+      undoOperations(pending([swap({ mealType: 'snack', slotIndex: 4, previousRecipeId: 's2' })])),
+    ).toEqual([
+      { planId: 'plan-1', dayOfWeek: 3, mealType: 'snack', slotIndex: 4, recipeId: 's2' },
+    ]);
+  });
 });
 
 describe('isPendingFresh', () => {
@@ -114,6 +122,13 @@ describe('mergePendingRebalance (audit F-TRK-3-2)', () => {
     const merged = mergePendingRebalance(first, result([again]), NOW);
     expect(merged?.swaps).toEqual([swap({ newRecipeId: 'new-2', newRecipeName: 'Tofu Bowl' })]);
     expect(merged && undoOperations(merged)[0]?.recipeId).toBe('prev-1');
+  });
+
+  it('keeps the two snacks of one day as separate slots', () => {
+    const first = pending([swap({ mealType: 'snack', slotIndex: 3, previousRecipeId: 's1' })]);
+    const second = swap({ mealType: 'snack', slotIndex: 4, previousRecipeId: 's2' });
+    const merged = mergePendingRebalance(first, result([second]), NOW);
+    expect(merged?.swaps.map((s) => s.previousRecipeId)).toEqual(['s1', 's2']);
   });
 
   it('drops a slot the second rebalance put back to its original', () => {

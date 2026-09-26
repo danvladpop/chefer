@@ -161,9 +161,9 @@ export default function HistoryPlanScreen() {
                     Protein short by {day.proteinGapG} g
                   </Text>
                 )}
-                {meals.map((meal) => (
+                {meals.map((meal, i) => (
                   <PlanMealCard
-                    key={`${meal.type}-${meal.recipe.id}`}
+                    key={`${meal.type}-${i}`}
                     testID={`history-meal-${meal.type}`}
                     meal={meal}
                   />

@@ -30,6 +30,11 @@ interface MealCardProps {
   recipe: RecipeDto;
   planId: string;
   dayOfWeek: number;
+  /**
+   * The slot's index in `day.meals` (a curated day can hold two snacks).
+   * Carried to the recipe page as `slot` so its swap/replace hit this slot.
+   */
+  slotIndex?: number | undefined;
   readOnly?: boolean;
   imageUrlOverride?: string | null | undefined;
   imageStatusOverride?: ImageStatusType | undefined;
@@ -69,6 +74,7 @@ export function MealCard({
   recipe,
   planId,
   dayOfWeek,
+  slotIndex,
   readOnly = false,
   imageUrlOverride,
   imageStatusOverride,
@@ -97,8 +103,8 @@ export function MealCard({
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const portion = slotPortion(rawPortion);
   const href = `/recipes/${recipe.id}?planId=${planId}&day=${dayOfWeek}&meal=${mealType}${
-    portion !== 1 ? `&portion=${portion}` : ''
-  }`;
+    slotIndex !== undefined ? `&slot=${slotIndex}` : ''
+  }${portion !== 1 ? `&portion=${portion}` : ''}`;
   const scaled = scaleNutrition(recipe.nutritionInfo, portion);
   const n = {
     calories: scaled.calories,

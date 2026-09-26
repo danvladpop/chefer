@@ -66,8 +66,8 @@ interface DayViewProps {
   className?: string;
   /** Daily calorie target for the DayRecapBar's off-target badge (P-1). */
   calorieTarget?: number | undefined;
-  /** Opens the replace-recipe sheet for a slot (mealType, mealName). */
-  onReplaceMeal?: ((mealType: string, mealName: string) => void) | undefined;
+  /** Opens the replace-recipe sheet for a slot (mealType, mealName, index in `day.meals`). */
+  onReplaceMeal?: ((mealType: string, mealName: string, slotIndex: number) => void) | undefined;
 }
 
 export function DayView({
@@ -169,13 +169,16 @@ export function DayView({
                   recipe={slot.recipe}
                   planId={planId}
                   dayOfWeek={selectedDay}
+                  slotIndex={slotIndex}
                   readOnly={readOnly}
                   imageUrlOverride={override?.imageUrl}
                   imageStatusOverride={override?.status}
                   leftoverLabel={slot.leftoverOf}
                   portion={slot.portion}
                   onReplace={
-                    onReplaceMeal ? () => onReplaceMeal(slot.type, slot.recipe.name) : undefined
+                    onReplaceMeal
+                      ? () => onReplaceMeal(slot.type, slot.recipe.name, slotIndex)
+                      : undefined
                   }
                 />
               );

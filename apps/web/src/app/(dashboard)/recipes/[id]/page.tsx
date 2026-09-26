@@ -39,11 +39,18 @@ interface SwapUndoEntry {
   planId: string;
   day: string;
   meal: string;
+  /** The slot's index in `day.meals` (two-snack days); absent = first of `meal`. */
+  slot?: number | undefined;
   prevId: string;
   ts: number;
 }
 
-function readSwapUndo(planId: string | null, day: string | null, meal: string | null) {
+function readSwapUndo(
+  planId: string | null,
+  day: string | null,
+  meal: string | null,
+  slot: number | undefined,
+) {
   if (typeof window === 'undefined' || !planId) return null;
   try {
     const raw = sessionStorage.getItem(SWAP_UNDO_KEY);
@@ -53,6 +60,7 @@ function readSwapUndo(planId: string | null, day: string | null, meal: string | 
       entry.planId !== planId ||
       entry.day !== day ||
       entry.meal !== meal ||
+      entry.slot !== slot ||
       Date.now() - entry.ts > SWAP_UNDO_WINDOW_MS
     ) {
       return null;
@@ -71,6 +79,12 @@ const MEAL_COLOURS: Record<string, string> = {
   dinner: 'bg-indigo-100 text-indigo-700',
   snack: 'bg-purple-100 text-purple-700',
 };
+
+/** `?slot=` — the plan slot's index in `day.meals`; undefined when absent or invalid. */
+function parseSlotIndex(raw: string | null): number | undefined {
+  if (raw === null || !/^\d{1,2}$/.test(raw)) return undefined;
+  return parseInt(raw, 10);
+}
 
 /** Cook-mode query: the meal type and, for a portioned plan slot, its portion. */
 function cookQuery(meal: string | null, portion: number): string {
@@ -100,6 +114,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const planId = searchParams.get('planId');
   const day = searchParams.get('day');
   const meal = searchParams.get('meal');
+  // Which slot of `meal` this is — a curated day can hold two snacks.
+  const slotIndex = parseSlotIndex(searchParams.get('slot'));
+  const slotQuery = slotIndex !== undefined ? `&slot=${slotIndex}` : '';
   // P1-1: the plan slot's portion (servings of this recipe), when not 1×.
   const planPortion = slotPortion(parseFloat(searchParams.get('portion') ?? ''));
   const dayParam = day !== null ? parseInt(day, 10) : null;
@@ -143,10 +160,17 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       // Offer undo on the destination page (F-2): the swap itself is instant
       // and unconfirmed, so a mis-tap needs a way back to the old recipe.
       if (planId && day !== null && meal) {
-        const entry: SwapUndoEntry = { planId, day, meal, prevId: id, ts: Date.now() };
+        const entry: SwapUndoEntry = {
+          planId,
+          day,
+          meal,
+          slot: slotIndex,
+          prevId: id,
+          ts: Date.now(),
+        };
         sessionStorage.setItem(SWAP_UNDO_KEY, JSON.stringify(entry));
       }
-      router.push(`/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}`);
+      router.push(`/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}${slotQuery}`);
     },
     onError: (err) => {
       console.error('Swap recipe failed:', err.message);
@@ -159,17 +183,17 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   // (the React #418 pattern from prod-followups #1).
   const [swapUndo, setSwapUndo] = useState<SwapUndoEntry | null>(null);
   useEffect(() => {
-    const entry = readSwapUndo(planId, day, meal);
+    const entry = readSwapUndo(planId, day, meal, slotIndex);
     if (entry) {
       sessionStorage.removeItem(SWAP_UNDO_KEY);
       setSwapUndo(entry);
     }
-  }, [planId, day, meal]);
+  }, [planId, day, meal, slotIndex]);
   const undoMutation = trpc.mealPlan.replaceRecipe.useMutation({
     onSuccess: (restored) => {
       void utils.mealPlan.getForWeek.invalidate();
       void utils.mealPlan.getActive.invalidate();
-      router.push(`/recipes/${restored.id}?planId=${planId}&day=${day}&meal=${meal}`);
+      router.push(`/recipes/${restored.id}?planId=${planId}&day=${day}&meal=${meal}${slotQuery}`);
     },
   });
 
@@ -178,7 +202,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       void utils.mealPlan.getForWeek.invalidate();
       void utils.mealPlan.getActive.invalidate();
       setShowPicker(false);
-      router.push(`/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}`);
+      router.push(`/recipes/${newRecipe.id}?planId=${planId}&day=${day}&meal=${meal}${slotQuery}`);
     },
   });
 
@@ -366,6 +390,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
                       planId,
                       dayOfWeek: parseInt(day, 10),
                       mealType: meal as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+                      slotIndex,
                     });
                   }
                 }}
@@ -585,6 +610,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
                 planId,
                 dayOfWeek: dayParam,
                 mealType: meal as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+                slotIndex,
                 recipeId: swapUndo.prevId,
               });
               setSwapUndo(null);
@@ -603,6 +629,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               planId,
               dayOfWeek: parseInt(day, 10),
               mealType: meal as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+              slotIndex,
               recipeId,
             });
           }}
