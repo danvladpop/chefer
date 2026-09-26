@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatQuantity } from './units';
+import { formatQuantity, systemForWeightUnit, weightUnitForSystem } from './units';
 
 describe('formatQuantity', () => {
   describe('METRIC display', () => {
@@ -72,5 +72,14 @@ describe('formatQuantity', () => {
       expect(formatQuantity(2.25, 'g', 'METRIC')).toBe('2.3 g');
       expect(formatQuantity(2, 'g', 'METRIC')).toBe('2 g');
     });
+  });
+});
+
+describe('unit system ↔ gym unit', () => {
+  it('maps METRIC↔KG and IMPERIAL↔LB both ways', () => {
+    expect(weightUnitForSystem('METRIC')).toBe('KG');
+    expect(weightUnitForSystem('IMPERIAL')).toBe('LB');
+    expect(systemForWeightUnit('KG')).toBe('METRIC');
+    expect(systemForWeightUnit('LB')).toBe('IMPERIAL');
   });
 });

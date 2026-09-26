@@ -1,5 +1,25 @@
 export { cn } from './cn';
-export { formatQuantity, type UnitSystem } from './units';
+export { formatQuantity, systemForWeightUnit, weightUnitForSystem, type UnitSystem } from './units';
+export {
+  EUR_EXCHANGE_RATES,
+  EUR_EXCHANGE_RATES_AS_OF,
+  currencySymbol,
+  formatCurrencyAmount,
+  formatMoney,
+  fromEur,
+  isConvertedCurrency,
+  toDisplayCurrency,
+  toEur,
+  type FormatMoneyOptions,
+} from './currency';
+export {
+  EUROZONE_REGIONS,
+  IMPERIAL_REGIONS,
+  defaultsForRegion,
+  detectRegion,
+  regionFromLocale,
+  type DisplayDefaults,
+} from './locale';
 
 export {
   formatDate,
@@ -202,6 +222,13 @@ export * from './gym';
 export {
   BODY_WEIGHT_KG_MIN,
   BODY_WEIGHT_KG_MAX,
+  BODY_WEIGHT_LB_MIN,
+  BODY_WEIGHT_LB_MAX,
+  bodyWeightInUnit,
+  bodyWeightUnit,
+  formatBodyWeight,
+  formatWeightTrend,
+  parseBodyWeight,
   parseBodyWeightKg,
   weightChangeTone,
   type WeightChangeTone,

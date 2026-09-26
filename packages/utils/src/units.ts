@@ -82,3 +82,17 @@ export function formatQuantity(quantity: number, unit: string, system: UnitSyste
   if (key === 'fl oz') return `${fmt(quantity)} fl oz`;
   return base >= 480 ? `${fmt(base / 240)} cups` : `${fmt(base / 29.57)} fl oz`;
 }
+
+// ─── One preference across Food and Gym (backlog P2-6) ────────────────────────
+// ChefProfile.preferredUnits and GymProfile.unit are kept in sync both ways:
+// METRIC ↔ KG, IMPERIAL ↔ LB.
+
+/** The gym load unit that matches a unit system. */
+export function weightUnitForSystem(system: UnitSystem): 'KG' | 'LB' {
+  return system === 'IMPERIAL' ? 'LB' : 'KG';
+}
+
+/** The unit system that matches a gym load unit. */
+export function systemForWeightUnit(unit: 'KG' | 'LB'): UnitSystem {
+  return unit === 'LB' ? 'IMPERIAL' : 'METRIC';
+}
