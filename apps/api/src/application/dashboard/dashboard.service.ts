@@ -5,9 +5,16 @@ import {
   MealPlanOrigin,
   mealPlanRepository,
   mealRatingRepository,
+  type LoggedMealEntry,
 } from '@chefer/database';
 import type { NutritionTargets, TrainingDayNutrition, UserProfile } from '@chefer/types';
-import { buildTrainingDayNutrition, slotPortion } from '@chefer/utils';
+import {
+  buildTrainingDayNutrition,
+  MEAL_ORDER,
+  MEAL_WINDOW_END,
+  resolveTodayMeals,
+  slotPortion,
+} from '@chefer/utils';
 import type { NutritionInfo } from '../../lib/ai/index.js';
 import { hasFeature } from '../../lib/entitlements.js';
 import { resolveDailyTargets, type DailyTargets } from '../preferences/preferences.service.js';
@@ -43,6 +50,8 @@ export interface DashboardSummary {
       kcal: number;
       servings: number;
       prepTimeMins: number;
+      /** Additive (older clients ignore it): prep + cook is the real time (F-PM-10). */
+      cookTimeMins?: number;
     };
   } | null;
   /** Set when every meal window today has passed — tomorrow's first meal. */
@@ -104,15 +113,9 @@ const MEAL_SCHEDULE: Record<string, string> = {
   dinner: '7:00 PM',
 };
 
-export const MEAL_ORDER = ['breakfast', 'lunch', 'snack', 'dinner'];
-
-/** The hour (exclusive) at which each meal's window closes. */
-export const MEAL_WINDOW_END: Record<string, number> = {
-  breakfast: 10,
-  lunch: 14,
-  snack: 17,
-  dinner: 21,
-};
+// Meal order and windows live in @chefer/utils (shared with the Today
+// surfaces' next-meal logic); re-exported for existing importers.
+export { MEAL_ORDER, MEAL_WINDOW_END };
 
 /**
  * The next meal to surface, resolved by TYPE against the meals the plan
@@ -283,16 +286,16 @@ export class DashboardService {
       }
     }
 
-    // Determine next meal and rest of today — resolved by meal TYPE against
-    // the meals this plan actually contains (see getNextMealType).
-    const currentHour = currentHourLocal;
+    // Next meal and rest of today — resolved by meal TYPE against the meals
+    // this plan actually contains, skipping any meal already logged today:
+    // after "Made it!" on dinner the spotlight moves on instead of offering
+    // the same dinner again (audit F-PM-10). Shared with the clients via
+    // @chefer/utils resolveTodayMeals.
     const orderedMeals = MEAL_ORDER.map((type) => todayMeals.find((m) => m.type === type)).filter(
-      (slot): slot is MealSlot => slot !== undefined,
+      (slot): slot is MealSlot => slot !== undefined && recipeMap.has(slot.recipeId),
     );
-    const nextMealType = getNextMealType(
-      currentHour,
-      orderedMeals.map((m) => m.type),
-    );
+    const loggedToday = (todayLog?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
+    const resolved = resolveTodayMeals(orderedMeals, currentHourLocal, loggedToday);
 
     const toHeroMeal = (slot: MealSlot): DashboardSummary['nextMeal'] => {
       const recipe = recipeMap.get(slot.recipeId);
@@ -310,35 +313,30 @@ export class DashboardService {
           kcal: Math.round(n.calories * portion),
           servings: recipe.servings,
           prepTimeMins: recipe.prepTimeMins,
+          cookTimeMins: recipe.cookTimeMins,
         },
       };
     };
 
-    let nextMeal: DashboardSummary['nextMeal'] = null;
-    const restOfToday: DashboardSummary['restOfToday'] = [];
-    let pastNext = false;
-
-    for (const slot of orderedMeals) {
+    const nextMeal: DashboardSummary['nextMeal'] = resolved.next ? toHeroMeal(resolved.next) : null;
+    const restOfToday: DashboardSummary['restOfToday'] = resolved.later.flatMap((slot) => {
       const recipe = recipeMap.get(slot.recipeId);
-      if (!recipe) continue;
+      if (!recipe) return [];
       const n = recipe.nutritionInfo as unknown as NutritionInfo;
-
-      if (slot.type === nextMealType) {
-        nextMeal = toHeroMeal(slot);
-        pastNext = true;
-      } else if (pastNext) {
-        restOfToday.push({
+      return [
+        {
           mealType: slot.type,
           scheduledLabel: MEAL_SCHEDULE[slot.type] ?? '',
           recipeName: recipe.name,
           recipeId: recipe.id,
           kcal: Math.round(n.calories * slotPortion(slot.portion)),
-        });
-      }
-    }
+        },
+      ];
+    });
 
-    // Late evening: every window has passed — surface tomorrow's first meal
-    // so the hero card is never blank while an active plan exists.
+    // Late evening (every window has passed) or everything left today is
+    // already eaten — surface tomorrow's first meal so the hero card is never
+    // blank while an active plan exists.
     let tomorrowFirstMeal: DashboardSummary['tomorrowFirstMeal'] = null;
     if (!nextMeal) {
       const tomorrowIndex = (todayIndex + 1) % 7;

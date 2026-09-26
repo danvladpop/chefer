@@ -297,3 +297,19 @@ export {
   type PortionPlan,
   type PortionTargets,
 } from './meal-portion';
+export {
+  MEAL_ORDER,
+  MEAL_WINDOW_END,
+  isSlotEaten,
+  resolveTodayMeals,
+  type LoggedMealRef,
+  type PlannedMealSlot,
+  type TodayMeals,
+} from './today';
+export { pastWeeks, type PlanWeekLike } from './my-weeks';
+export {
+  PANTRY_CONFIRM_MIN_AGE_DAYS,
+  pantryConfirmWeekKey,
+  pantryItemsToConfirm,
+  type PantryItemAgeLike,
+} from './pantry-confirm';

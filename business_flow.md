@@ -635,16 +635,22 @@ The "Today" card's ring shows what was **eaten** (the day's DailyLog totals: `nu
 dashboard.summary
   ├─ load ChefProfile + active MealPlan + recent favourites (parallel)
   ├─ join all recipe IDs across the plan's days
-  ├─ nextMeal: resolved by MEAL TYPE, not position (getNextMealType)
-  │    └─ first meal type present in today's plan whose window is still
-  │       open — MEAL_WINDOW_END: breakfast <10, lunch <14, snack <17,
+  ├─ load today's DailyLog (eaten totals + loggedMeals)
+  ├─ nextMeal: resolveTodayMeals (@chefer/utils), by MEAL TYPE
+  │    ├─ skips slots already EATEN today (audit F-PM-10): the same recipe
+  │    │  was logged (Made it!, tracker, Today's "I ate this" — any meal
+  │    │  type), or a custom scan/quick-add was logged for that meal type
+  │    │  (not snacks: web quick-adds always land as "snack")
+  │    └─ then the first meal type present in today's plan whose window is
+  │       still open — MEAL_WINDOW_END: breakfast <10, lunch <14, snack <17,
   │       dinner <21. A 3-meal plan therefore surfaces dinner from 14:00
   │       (its snack window doesn't exist), a 4-meal plan surfaces the
   │       snack first.
-  ├─ restOfToday: today's meals whose type sorts after nextMeal
-  ├─ tomorrowFirstMeal: set only when every window has passed (late
-  │    evening) — the first meal of day (today+1) % 7, so the dashboard
-  │    hero renders a "Tomorrow" card instead of going blank
+  ├─ restOfToday: today's uneaten meals whose type sorts after nextMeal
+  ├─ tomorrowFirstMeal: set when nothing is left today — every window has
+  │    passed (late evening) or the rest is eaten — the first meal of day
+  │    (today+1) % 7, so the hero renders a "Tomorrow" card instead of
+  │    going blank or re-offering a meal already eaten
   └─ nutrition: planned kcal/macros for today vs targets
        └─ lifters only (P2-4): trainingDay + adjustedTargets (see below)
 ```

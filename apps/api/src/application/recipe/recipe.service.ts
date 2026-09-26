@@ -1,11 +1,16 @@
 import { TRPCError } from '@trpc/server';
 import {
+  dietaryPreferencesRepository,
   favouriteRecipeRepository,
+  householdMemberRepository,
   mealRatingRepository,
   type CreateManualRecipeData,
   type IMealRatingRepository,
   type Recipe,
 } from '@chefer/database';
+import { ensureCuratedRecipes, safeCuratedPools } from '../../lib/curated-recipes/index.js';
+import { mergeHouseholdSafety } from '../household/household.service.js';
+import { selectDiscoverRecipes, type DiscoverFilters, type DiscoverRecipeDto } from './discover.js';
 import { findRecipeVisibleTo } from './recipe-access.js';
 
 type UpdateManualRecipeData = Partial<CreateManualRecipeData>;
@@ -127,6 +132,30 @@ export class RecipeService {
     const result = await this.ratingRepo.findByUserAndRecipe(userId, recipeId);
     if (!result) return null;
     return { rating: result.rating, notes: result.notes };
+  }
+
+  /**
+   * Cookbook → Discover (F-REC-1-4): the curated pool, filtered by the
+   * user's and household's allergies and restrictions (safety is free), with
+   * meal-type, search and time filters. Every tier; no AI. Rows are upserted
+   * first so each result opens, saves and cooks like any other recipe.
+   */
+  async discover(userId: string, filters: DiscoverFilters): Promise<DiscoverRecipeDto[]> {
+    const [dietaryPrefs, members, savedIds] = await Promise.all([
+      dietaryPreferencesRepository.findByUserId(userId),
+      householdMemberRepository.findByUserId(userId),
+      favouriteRecipeRepository.findSavedRecipeIds(userId),
+      ensureCuratedRecipes(),
+    ]);
+    const safety = mergeHouseholdSafety(
+      {
+        allergies: dietaryPrefs?.allergies ?? [],
+        dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
+        dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
+      },
+      members,
+    );
+    return selectDiscoverRecipes(safeCuratedPools(safety), filters, new Set(savedIds));
   }
 }
 

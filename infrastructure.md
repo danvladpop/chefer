@@ -526,6 +526,8 @@ Pure, side-effect-free utilities. Dependencies: `clsx`, `tailwind-merge`, `date-
 | Assertion                 | `invariant()`, `assertDefined()`, `assertNever()`, `safeInvariant()`                                                                                                                                                                                                  |
 | Training nutrition (P2-4) | `isLifter()`, `withLifterProtein()` (1.8 g/kg), `trainingDayBonus()` / `applyTrainingDayBonus()` (2.2 g/kg, +10% kcal 150–300), `resolveTrainingDay()`, `buildTrainingDayNutrition()`, `trainingDayLine()`, `postWorkoutProteinG()` (~0.4 g/kg), `trainingWeekdays()` |
 
+Domain helpers shared by web, mobile and the API (not exhaustive): `today.ts` — `resolveTodayMeals()` / `isSlotEaten()` (the Today next meal skips meals already logged, F-PM-10; `MEAL_ORDER`, `MEAL_WINDOW_END`); `my-weeks.ts` — `pastWeeks()` (My weeks: past weeks only, one card per week, F-PLAN-6-3); `pantry-confirm.ts` — `pantryItemsToConfirm()` / `pantryConfirmWeekKey()` (the inline "Still have these?" banner asks weekly, about items ≥ 3 days old, F-PM-13).
+
 ### 5.4 `@chefer/ui`
 
 React component library. Peer deps: `react`, `react-dom`. Built with `class-variance-authority`.
@@ -1172,7 +1174,9 @@ The Unsplash API is called at most once per unique ingredient name ever seen. Al
 
 ### RecipeService (application layer)
 
-`apps/api/src/application/recipe/recipe.service.ts`. Methods: `list`, `isSaved`, `toggleFavourite`, `toggleUseInNextPlan`, `rate`, `getMyRating`.
+`apps/api/src/application/recipe/recipe.service.ts`. Methods: `list`, `discover`, `isSaved`, `toggleFavourite`, `toggleUseInNextPlan`, `rate`, `getMyRating`.
+
+- `discover` — Cookbook → Discover (P2-8, F-REC-1-4). Upserts the curated pool (`ensureCuratedRecipes`), filters it with `safeCuratedPools` over the owner's safety prefs merged with household members' (`mergeHouseholdSafety`), then applies the pure `selectDiscoverRecipes` (`discover.ts`: meal type, every-word search over name/cuisine/tags/ingredients, prep + cook ceiling, one row per recipe).
 
 - `rate` — upserts a `MealRating` row (1–5 stars + optional notes).
 - `getMyRating` — fetches the user's rating for a given recipe.
@@ -1180,7 +1184,7 @@ The Unsplash API is called at most once per unique ingredient name ever seen. Al
 ### DashboardService (application layer)
 
 `apps/api/src/application/dashboard/dashboard.service.ts`. Method: `summary`.
-Aggregates active meal plan, today's meals, recent favourites for the dashboard page.
+Aggregates active meal plan, today's meals, recent favourites for the Today page (web `/dashboard`, mobile Today tab). The next meal comes from `resolveTodayMeals` in `@chefer/utils`, which skips meals already logged today (F-PM-10); `nextMeal.recipe.cookTimeMins` is additive.
 Takes the viewer (`UserProfile`) for the tier-gated training-day bump
 (`PLAN_FEATURES.trainingNutrition`, audit P2-4).
 
@@ -1306,6 +1310,7 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `ingredients.computeNutrition`      | Protected | Query    | `{ ingredients[], servings }` — per-serving NutritionInfo + unmatched ingredient names                                                                                                                                                                                                                                                                                                                            |
 | `ingredients.estimateNutrition`     | Protected | Mutation | `{ name }` — per-100g macros + gramsPerPiece + baseline prices for one ingredient; catalog rows answer free, unknown names cost one AI call (logged `INGREDIENT_PRICES`)                                                                                                                                                                                                                                          |
 | `recipe.list`                       | Protected | Query    | `{ search?, savedOnly?, myRecipesOnly?, cursor?, limit? }` — rows carry `isFavourite` for the heart toggle                                                                                                                                                                                                                                                                                                        |
+| `recipe.discover`                   | Protected | Query    | `{ mealType?, search?, maxTotalMins?, limit? }` — Cookbook → Discover (F-REC-1-4): the curated pool filtered by the user's and household's allergies/restrictions, rows carry `mealType` + `isFavourite`; every tier, no AI                                                                                                                                                                                       |
 | `recipe.isSaved`                    | Protected | Query    | `{ recipeId }` — returns `{ isSaved, useInNextPlan }` (pin state powers the recipe-page toggle, P1-1)                                                                                                                                                                                                                                                                                                             |
 | `recipe.toggleFavourite`            | Protected | Mutation | `{ recipeId: string }`                                                                                                                                                                                                                                                                                                                                                                                            |
 | `recipe.toggleUseInNextPlan`        | Protected | Mutation | `{ recipeId: string }`                                                                                                                                                                                                                                                                                                                                                                                            |
