@@ -40,6 +40,8 @@ export interface CaseScores {
   macroErrorPct?: number | undefined;
   /** Workload-specific checks in 0..1 (ingredient recall, coverage, day structure…). */
   checks: Record<string, number>;
+  /** "<dish>: <allergen>" per allergen violation, so a failed gate can be diagnosed. */
+  allergenDetails?: string[] | undefined;
 }
 
 const EMPTY: CaseScores = {
@@ -67,12 +69,22 @@ function round1(value: number | undefined): number | undefined {
 function safetyCounts(
   recipes: RecipeData[],
   prefs: { allergies: string[]; dietaryRestrictions: string[] },
-): { allergenViolations: number; restrictionViolations: number } {
+): {
+  allergenViolations: number;
+  restrictionViolations: number;
+  allergenDetails?: string[] | undefined;
+} {
   let allergenViolations = 0;
   let restrictionViolations = 0;
+  const allergenDetails: string[] = [];
   for (const recipe of recipes) {
-    if (findSafetyIssues(recipe, { allergies: prefs.allergies, dietaryRestrictions: [] }).length) {
+    const allergens = findSafetyIssues(recipe, {
+      allergies: prefs.allergies,
+      dietaryRestrictions: [],
+    });
+    if (allergens.length) {
       allergenViolations++;
+      allergenDetails.push(`${recipe.name}: ${allergens.join(', ')}`);
     }
     if (
       findSafetyIssues(recipe, { allergies: [], dietaryRestrictions: prefs.dietaryRestrictions })
@@ -81,7 +93,11 @@ function safetyCounts(
       restrictionViolations++;
     }
   }
-  return { allergenViolations, restrictionViolations };
+  return {
+    allergenViolations,
+    restrictionViolations,
+    ...(allergenDetails.length ? { allergenDetails } : {}),
+  };
 }
 
 function asRecipe(extracted: ExtractedRecipe): RecipeData {

@@ -144,10 +144,14 @@ describe('scoreSwap / scoreCheferize', () => {
   it('checks a swap recipe against the user’s allergies', () => {
     expect(
       scoreSwap(prefs, recipe('Cheese toastie', 400, ['bread', 'cheddar cheese'])),
-    ).toMatchObject({ schemaValid: true, allergenViolations: 1 });
-    expect(scoreSwap(prefs, recipe('Porridge', 400, ['oats', 'oat milk']))).toMatchObject({
-      allergenViolations: 0,
+    ).toMatchObject({
+      schemaValid: true,
+      allergenViolations: 1,
+      allergenDetails: ['Cheese toastie: dairy'],
     });
+    const safe = scoreSwap(prefs, recipe('Porridge', 400, ['oats', 'oat milk']));
+    expect(safe).toMatchObject({ allergenViolations: 0 });
+    expect(safe.allergenDetails).toBeUndefined();
   });
 
   it('checks the ADAPTED recipe and the serving rescale', () => {

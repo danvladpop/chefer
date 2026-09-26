@@ -167,7 +167,7 @@ export async function main(): Promise<void> {
           process.stderr.write(
             `  ${r.ok ? (r.scores.schemaValid ? '✓' : '✗') : '!'} ${r.id} (${r.ms} ms)${
               r.error ? ` — ${r.error}` : ''
-            }\n`,
+            }${r.scores.allergenDetails ? ` — ALLERGEN: ${r.scores.allergenDetails.join('; ')}` : ''}\n`,
           ),
       }),
     );

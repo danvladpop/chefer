@@ -343,8 +343,8 @@ describe('OpenAICompatibleAIService — chunked meal plan (research §5.4 step 3
     await runWithAiCallContext({ userId: 'u', premium: true }, () =>
       svc.generateMealPlan(PLAN_INPUT),
     );
-    // 90 s interactive budget: two 33 s waits fit, a third does not.
-    expect(sleep).toHaveBeenCalledTimes(2);
+    // 120 s interactive budget: three 33 s waits fit, a fourth does not.
+    expect(sleep).toHaveBeenCalledTimes(3);
   });
 
   it('waits out a short per-minute 429 once, then continues', async () => {

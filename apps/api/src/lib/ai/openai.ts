@@ -113,7 +113,7 @@ const MAX_TOKENS_PHOTO = 2_048;
 // not just the tokens a day really spends. Nobody waits on a background plan
 // (the Sunday auto-plan, the eval), so it may wait much longer.
 const CHUNK_MAX_SINGLE_WAIT_MS = 60_000;
-const CHUNK_WAIT_BUDGET_INTERACTIVE_MS = 90_000;
+const CHUNK_WAIT_BUDGET_INTERACTIVE_MS = 120_000;
 const CHUNK_WAIT_BUDGET_BACKGROUND_MS = 300_000;
 /** Prompt-size estimate for a day before one has been measured (~900–1,000). */
 const CHUNK_PROMPT_ESTIMATE = 1_000;
