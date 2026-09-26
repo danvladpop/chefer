@@ -31,6 +31,8 @@ import {
   safeCuratedPools,
   type SafetyPrefs,
 } from '../../lib/curated-recipes/index.js';
+import { normalizeIngredientName } from '../../lib/ingredient-prices/index.js';
+import type { MacroVocabularyRow } from '../../lib/recipe-import/macro-check.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
 import { computeHouseholdContext, mergeHouseholdSafety } from '../household/household.service.js';
 import { pairLeftovers } from '../pantry/leftovers.js';
@@ -38,6 +40,8 @@ import { computeUsedPantryItemsForUser, getUseFirstIngredients } from '../pantry
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { findRecipeVisibleTo, isRecipeOpenTo } from '../recipe/recipe-access.js';
 import { estimatePlanCostEur, type PlanCostEstimate } from '../shared/plan-cost.js';
+import { planCuratedWeek } from './curated-planner.js';
+import { reconcileRecipeMacros } from './macro-reconcile.js';
 import { withServerRecipeIds } from './recipe-ids.js';
 
 // ─── Summary DTO ──────────────────────────────────────────────────────────────
@@ -229,7 +233,8 @@ export class MealPlanService {
     // 2. Build the AI input from stored preferences. Targets come from the
     // shared resolver so the generated plan always matches what the dashboard
     // ring and tracker display.
-    const liveCalorieTarget = resolveDailyTargets(chefProfile ?? null).dailyCalorieTarget;
+    const liveTargets = resolveDailyTargets(chefProfile ?? null);
+    const liveCalorieTarget = liveTargets.dailyCalorieTarget;
 
     // Household context (F2): the seam field carries servings (portionSum)
     // and soft dislike notes; the HARD safety union is ALSO merged into the
@@ -256,6 +261,13 @@ export class MealPlanService {
       weightKg: chefProfile?.weightKg ?? 75,
       activityLevel: chefProfile?.activityLevel ?? 'MODERATELY_ACTIVE',
       dailyCalorieTarget: liveCalorieTarget,
+      // Macro targets were never sent (audit F-PLAN-1-2): plans hit kcal while
+      // fat ran +50–100% over and protein −25%.
+      macroTargets: {
+        proteinG: liveTargets.proteinG,
+        carbsG: liveTargets.carbsG,
+        fatG: liveTargets.fatG,
+      },
       dietaryRestrictions: householdContext
         ? householdContext.mergedSafety.dietaryRestrictions
         : ownerSafety.dietaryRestrictions,
@@ -287,22 +299,31 @@ export class MealPlanService {
       });
     }
 
+    // 3a. Honest numbers first (audit F-REC-2-4): AI recipes whose stated
+    // calories drift from their ingredients get resized and restated
+    // (macro-reconcile.ts), so the day totals below are real.
+    weekPlan = await this.reconcilePlanMacros(weekPlan);
+
     // 3a. Server-side day-total validation (trust P-1): the prompt demands
-    // ±5% but models routinely return days 25-45% under target. One corrective
-    // retry with the failed numbers in the prompt; keep whichever attempt is
-    // closer. The retry is intentionally NOT logged to aiCallLog — quota
-    // counts user actions, and the user asked once.
-    const firstTotals = planDayKcalTotals(weekPlan);
-    if (offTargetScore(firstTotals, liveCalorieTarget) > 0) {
+    // ±5% but models routinely return days 25-45% under target — and, with
+    // kcal on target, fat +50–100% over (F-PLAN-1-2), so macros count too.
+    // One corrective retry with the failed numbers in the prompt; keep
+    // whichever attempt is closer. The retry is intentionally NOT logged to
+    // aiCallLog — quota counts user actions, and the user asked once.
+    const firstScore = planOffTargetScore(weekPlan, liveTargets);
+    if (firstScore > 0) {
       try {
-        const retryPlan = await aiService.generateMealPlan({
-          ...aiInput,
-          calorieCorrection: { target: liveCalorieTarget, previousDayTotals: firstTotals },
-        });
-        if (
-          offTargetScore(planDayKcalTotals(retryPlan), liveCalorieTarget) <
-          offTargetScore(firstTotals, liveCalorieTarget)
-        ) {
+        const retryPlan = await this.reconcilePlanMacros(
+          await aiService.generateMealPlan({
+            ...aiInput,
+            calorieCorrection: {
+              target: liveCalorieTarget,
+              previousDayTotals: planDayKcalTotals(weekPlan),
+              previousDayMacros: planDayMacroTotals(weekPlan),
+            },
+          }),
+        );
+        if (planOffTargetScore(retryPlan, liveTargets) < firstScore) {
           weekPlan = retryPlan;
         }
       } catch (err) {
@@ -550,34 +571,17 @@ export class MealPlanService {
       });
     }
 
-    // Shuffled cycling per meal type: variety across the week, no repeats
-    // until a pool is exhausted.
-    const cyclers = new Map<MealType, { pool: RecipeData[]; idx: number }>();
-    for (const type of MEAL_TYPES) {
-      const pool = [...pools[type]];
-      for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j]!, pool[i]!];
-      }
-      cyclers.set(type, { pool, idx: 0 });
-    }
-    const nextRecipe = (type: MealType): RecipeData => {
-      const cycler = cyclers.get(type);
-      if (!cycler || cycler.pool.length === 0) {
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: `No curated recipes available for ${type}.`,
-        });
-      }
-      const recipe = cycler.pool[cycler.idx % cycler.pool.length]!;
-      cycler.idx += 1;
-      return recipe;
-    };
-
-    const days = Array.from({ length: 7 }, (_, dayOfWeek) => ({
-      dayOfWeek,
-      meals: MEAL_TYPES.map((type) => ({ type, recipe: nextRecipe(type) })),
-    }));
+    // Each day picks toward the user's calorie and protein targets, adding
+    // snacks when three meals fall short (curated-planner.ts, audit
+    // F-PLAN-1-3 / F-PM-4). Variety rule unchanged: no repeat until a pool
+    // is used up.
+    const profile = await chefProfileRepository.findByUserId(userId);
+    const targets = resolveDailyTargets(profile ?? null);
+    const days = planCuratedWeek(pools, {
+      calories: targets.dailyCalorieTarget,
+      proteinG: targets.proteinG,
+      goal: profile?.goal ?? null,
+    });
 
     const uniqueRecipeIds = [...new Set(days.flatMap((d) => d.meals.map((m) => m.recipe.id)))];
     const weekStartDate = getMondayOfWeek(weekOffset);
@@ -613,6 +617,36 @@ export class MealPlanService {
    * computeHouseholdContext). Filtering itself stays `filterSafeRecipes`,
    * unchanged.
    */
+  /**
+   * Resizes and restates AI recipes whose stated calories drift from their
+   * ingredients (audit F-REC-2-4, macro-reconcile.ts). Curated recipes are
+   * hand-checked and left alone. One vocabulary query per plan.
+   */
+  private async reconcilePlanMacros<T extends { days: { meals: { recipe: RecipeData }[] }[] }>(
+    weekPlan: T,
+  ): Promise<T> {
+    const aiRecipes = weekPlan.days
+      .flatMap((d) => d.meals.map((m) => m.recipe))
+      .filter((r) => !r.id.startsWith('curated-'));
+    if (aiRecipes.length === 0) return weekPlan;
+    const rows = await loadMacroVocabulary(aiRecipes);
+    const reconciled = new Map<RecipeData, RecipeData>();
+    let scaled = 0;
+    for (const recipe of aiRecipes) {
+      const result = reconcileRecipeMacros(recipe, rows);
+      if (result.action === 'scaled') scaled += 1;
+      reconciled.set(recipe, result.recipe);
+    }
+    if (scaled > 0) console.info(`[meal-plan] reconciled macros of ${scaled} AI recipe(s)`);
+    return {
+      ...weekPlan,
+      days: weekPlan.days.map((d) => ({
+        ...d,
+        meals: d.meals.map((m) => ({ ...m, recipe: reconciled.get(m.recipe) ?? m.recipe })),
+      })),
+    };
+  }
+
   /**
    * Replaces generated dishes that conflict with the hard safety prefs
    * (allergies, dietary restrictions) with safe curated recipes of the same
@@ -856,6 +890,7 @@ export class MealPlanService {
 
     // Server-minted id, as for generated weeks (recipe-ids.ts).
     newRecipe = { ...newRecipe, id: randomUUID() };
+    newRecipe = reconcileRecipeMacros(newRecipe, await loadMacroVocabulary([newRecipe])).recipe;
 
     // Usage is logged by the caller's quota reservation (reserveAiSwap).
 
@@ -1213,6 +1248,29 @@ function aiFailureMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+/** The macro vocabulary rows for every ingredient in `recipes` (one query). */
+async function loadMacroVocabulary(
+  recipes: RecipeData[],
+): Promise<Map<string, MacroVocabularyRow>> {
+  const names = [
+    ...new Set(recipes.flatMap((r) => r.ingredients.map((i) => normalizeIngredientName(i.name)))),
+  ];
+  if (names.length === 0) return new Map();
+  const rows = await prisma.ingredientPrice.findMany({
+    where: { ingredientName: { in: names } },
+    select: {
+      ingredientName: true,
+      caloriesPer100g: true,
+      proteinPer100g: true,
+      carbsPer100g: true,
+      fatPer100g: true,
+      fiberPer100g: true,
+      gramsPerPiece: true,
+    },
+  });
+  return new Map(rows.map((r) => [r.ingredientName, r]));
+}
+
 /**
  * Per-day kcal totals of a generated week (per-serving nutrition — matches
  * what the planner's "Day total" row displays).
@@ -1231,6 +1289,48 @@ function offTargetScore(dayTotals: number[], target: number): number {
     (sum, t) => sum + Math.max(0, Math.abs(t - target) / target - PLAN_KCAL_TOLERANCE),
     0,
   );
+}
+
+/** Per-day protein / carbs / fat totals (grams, per serving). */
+function planDayMacroTotals(weekPlan: {
+  days: { meals: { recipe: RecipeData }[] }[];
+}): { proteinG: number; carbsG: number; fatG: number }[] {
+  return weekPlan.days.map((d) =>
+    d.meals.reduce(
+      (acc, m) => ({
+        proteinG: acc.proteinG + (m.recipe.nutritionInfo?.protein ?? 0),
+        carbsG: acc.carbsG + (m.recipe.nutritionInfo?.carbs ?? 0),
+        fatG: acc.fatG + (m.recipe.nutritionInfo?.fat ?? 0),
+      }),
+      { proteinG: 0, carbsG: 0, fatG: 0 },
+    ),
+  );
+}
+
+/** Macros get a wider band than kcal (±20%) and half the weight. */
+const PLAN_MACRO_TOLERANCE = 0.2;
+const MACRO_WEIGHT = 0.5;
+
+/**
+ * Kcal score plus how far protein, carbs and fat stray beyond ±20% of their
+ * targets (audit F-PLAN-1-2). 0 = every day in every band.
+ */
+export function planOffTargetScore(
+  weekPlan: { days: { meals: { recipe: RecipeData }[] }[] },
+  targets: { dailyCalorieTarget: number; proteinG: number; carbsG: number; fatG: number },
+): number {
+  const kcal = offTargetScore(planDayKcalTotals(weekPlan), targets.dailyCalorieTarget);
+  const band = (actual: number, target: number) =>
+    target > 0 ? Math.max(0, Math.abs(actual - target) / target - PLAN_MACRO_TOLERANCE) : 0;
+  const macros = planDayMacroTotals(weekPlan).reduce(
+    (sum, d) =>
+      sum +
+      band(d.proteinG, targets.proteinG) +
+      band(d.carbsG, targets.carbsG) +
+      band(d.fatG, targets.fatG),
+    0,
+  );
+  return kcal + MACRO_WEIGHT * macros;
 }
 
 function toRecipeDto(

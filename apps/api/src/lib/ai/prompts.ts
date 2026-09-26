@@ -115,7 +115,15 @@ export function buildCalorieCorrectionSection(input: MealPlanInput): string {
     c.target * 0.9,
   )} and ${Math.round(
     c.target * 1.1,
-  )} kcal. Fix it by scaling portion sizes (ingredient quantities AND nutritionInfo together), not by adding token side dishes.`;
+  )} kcal. Fix it by scaling portion sizes (ingredient quantities AND nutritionInfo together), not by adding token side dishes.${
+    c.previousDayMacros && input.macroTargets
+      ? ` Its macros per day were ${c.previousDayMacros
+          .map((m) => `P${Math.round(m.proteinG)}/C${Math.round(m.carbsG)}/F${Math.round(m.fatG)}`)
+          .join(', ')} g against P${input.macroTargets.proteinG}/C${input.macroTargets.carbsG}/F${
+          input.macroTargets.fatG
+        } g — bring each within ±20% by changing what is cooked (leaner proteins, more grains or fruit), not by restating numbers.`
+      : ''
+  }`;
 }
 
 export function buildMealPlanUserPrompt(input: MealPlanInput): string {
@@ -170,7 +178,11 @@ export function buildMealPlanUserPrompt(input: MealPlanInput): string {
   return `\
 7-day plan for: ${input.biologicalSex} ${input.age}yo ${input.heightCm}cm ${input.weightKg}kg, ${activity}
 Goal: ${goal}
-Target: ${input.dailyCalorieTarget} kcal/day, ${input.mealsPerDay} meals/day (${mealTypes.join('+')}), serving ${input.servingSize}
+Target: ${input.dailyCalorieTarget} kcal/day, ${input.mealsPerDay} meals/day (${mealTypes.join('+')}), serving ${input.servingSize}${
+    input.macroTargets
+      ? `\nMacros per day: protein ${input.macroTargets.proteinG} g, carbs ${input.macroTargets.carbsG} g, fat ${input.macroTargets.fatG} g (each within ±20%). nutritionInfo must be what the listed ingredient quantities actually provide.`
+      : ''
+  }
 Allergies: ${allergies}
 Restrictions: ${restrictions}
 Dislikes: ${dislikes}
