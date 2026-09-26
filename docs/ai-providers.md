@@ -37,9 +37,32 @@ error (a validation failure, a bad input) is returned straight away.
   workload and cannot be routed: no OpenAI-compatible provider takes video input. The research
   doc (§5.3) describes the keyframes + Whisper pipeline that would replace it.
 - **Meal plans on Groq are chunked.** When `groq` leads `AI_ROUTE_MEAL_PLAN`, the week is
-  generated as 7 per-day calls with strict JSON schema, then assembled and validated. The
-  meal-plan service applies macro reconciliation, the day-total retry and allergen enforcement to
-  it exactly as it does for Gemini. Behind Gemini (the default), Groq keeps the single call.
+  generated as 7 sequential per-day calls with strict JSON schema, then assembled and validated.
+  The meal-plan service applies macro reconciliation, the day-total retry and allergen enforcement
+  to it exactly as it does for Gemini. Behind Gemini (the default), Groq keeps the single call.
+  How a day is kept reliable:
+  - **Reasoning effort `low`.** `openai/gpt-oss-120b` is a reasoning model. At its default effort
+    ("medium") one day spent **~5,600 hidden reasoning tokens** before writing any JSON (measured
+    2026-09-26). That used up the old 3,000-token budget, and Groq answered
+    `400 json_validate_failed` with an empty `failed_generation`: the cause of every failed day
+    in the first Groq eval. `AI_SECONDARY_REASONING_EFFORT` (default `auto`, which means `low`
+    for gpt-oss) brings this down to ~300–2,600 reasoning tokens. The day budget is 4,000.
+  - **Fallback ladder.** If strict mode still fails to generate a day (a `json_validate_failed`
+    400, including truncation), that day is retried once in `json_object` mode, with 1.5× the
+    budget when it was truncated. If the JSON is malformed or fails the Zod schema, the model gets
+    one repair retry that shows it its rejected output and the error. Zod stays the gate
+    throughout. The repair retry applies to every structured call, not only plans.
+  - **Pacing.** Groq admits a request against its tokens-per-minute budget by **input +
+    `max_tokens`**. A day was refused with "Requested 4967", which is ~950 input plus 4,000
+    `max_tokens`. Before each day the client reads the last `x-ratelimit-*` headers and waits
+    until that much fits. Each wait is at most 60 s. The total is 120 s per plan when a user is
+    waiting, and 300 s for the Sunday auto-plan and the eval. On a paid tier the budget always
+    fits, so it never waits.
+- **429s.** Background calls wait out one 429 of up to 10 s (from `Retry-After`, or the body's
+  "try again in Xs") and retry once. Background calls are prices, shopping list, coach review,
+  anything outside a user request (workers) and shadow replays. Interactive calls fail over to
+  the next provider straight away, as before. With Groq as the only provider there is no next
+  provider, so the user gets the friendly "over capacity" message.
 - **Photos on Groq:** JPEG, PNG, WebP and GIF are sent as base64 data URLs. HEIC moves to the next
   provider in the chain. Groq counts each image as 2,048 input tokens against its 8K
   tokens/minute free limit.
@@ -69,6 +92,101 @@ Dropping Gemini entirely for a workload means a single-provider chain, for examp
 `AI_ROUTE_CHAT=groq`. Leave `AI_PROVIDER=gemini` set for as long as any chain still names
 `gemini`, and for video.
 
+## Running without Gemini
+
+The exact `.env.production` AI block for running every in-app AI call on Groq. **Delete the
+`GEMINI_API_KEY` line.** `AI_PROVIDER=openai` means "no Gemini", so the key is not required
+(`apps/api/src/lib/env.test.ts` validates exactly these lines).
+
+```env
+AI_MOCK_ENABLED=false
+AI_PROVIDER=openai
+AI_SECONDARY_API_KEY=<groq key>
+AI_SECONDARY_BASE_URL=https://api.groq.com/openai/v1
+AI_SECONDARY_MODEL=openai/gpt-oss-120b
+AI_SECONDARY_REASONING_EFFORT=low
+AI_VISION_MODEL=qwen/qwen3.8-27b
+AI_ROUTE_MEAL_PLAN=groq
+AI_ROUTE_SWAP=groq
+AI_ROUTE_CHEFERIZE=groq
+AI_ROUTE_IMPORT_TEXT=groq
+AI_ROUTE_VISION=groq
+AI_ROUTE_CHAT=groq
+AI_ROUTE_REVIEW=groq
+AI_ROUTE_PRICES=groq
+AI_ROUTE_SHOPPING=groq
+AI_SHADOW_ROUTE=
+AI_SHADOW_SAMPLE=0
+```
+
+- With only one provider configured, every `AI_ROUTE_*` resolves to `groq` even when unset. The
+  explicit lines document the intent. The meal plan is chunked because `groq` leads its route.
+- At startup the API logs `[AI] Using OpenAICompatibleAIService (api.groq.com/openai/gpt-oss-120b) standalone`.
+- **What stops working:**
+  - Video recipe extraction (`pnpm recipes:from-video`, dataset tooling only, not an in-app
+    feature). It is Gemini-only; run it with `GEMINI_API_KEY` set in the shell.
+  - There is no failover. A Groq outage or rate limit reaches users as the friendly
+    "over capacity" message.
+- The profile screen's AI-usage card still labels its totals "Gemini" (`profile.router.ts`
+  `GEMINI_FREE_LIMITS`). This is cosmetic.
+- **Rollback:** restore `AI_PROVIDER=gemini` and `GEMINI_API_KEY`, delete the `AI_ROUTE_*`
+  lines, and recreate the container.
+
+## Groq limits and production capacity
+
+Limits for the models Chefer uses, from Groq's rate-limit page
+(<https://console.groq.com/docs/rate-limits>, fetched 2026-09-26). The limits are per
+organisation, so every user, worker and eval run shares them.
+
+| Model (free plan)     | Requests/min | Requests/day | Tokens/min | Tokens/day |
+| --------------------- | ------------ | ------------ | ---------- | ---------- |
+| `openai/gpt-oss-120b` | 30           | 1K           | 8K         | 200K       |
+| `qwen/qwen3.8-27b`    | 30           | 1K           | 8K         | 200K       |
+
+The page also says some organisations get separate input and output token limits per minute. Our
+vision calls hit such a limit: "input tokens per minute (ITPM): Limit 7000" on
+`qwen/qwen3.8-27b`, in the 2026-09-26 eval.
+
+**Measured cost of one meal plan on Groq** (eval of 2026-09-26, `reasoning_effort=low`, see
+`apps/api/eval/results/groq-2026-09-26.txt`):
+
+- **~25K tokens per plan.** The two plans used 24,320 and 25,396 tokens: ~6.9K prompt and ~18K output each. The output includes ~9–10K hidden reasoning tokens.
+- Per day: ~900–1,050 prompt tokens and 900–4,000 output tokens. 270–3,600 of the output tokens
+  are hidden reasoning, and this varies a lot from day to day.
+- Groq admits each day by prompt + `max_tokens`, so a day needs ~5,000 tokens of free budget to
+  start.
+- The meal-plan service may ask for a whole second plan when day totals miss the target (the
+  calorie-correction retry). That doubles the cost of that plan.
+
+**What the free tier means in production:**
+
+- **Per minute (8K tokens):**
+  - Sustained, at most **one plan every ~3 minutes** for the whole organisation, with nothing
+    else running.
+  - One plan alone took **142 s and 223 s** of wall time (100 s and 169 s of that was pacing).
+    The second plan started on a budget the first had drained.
+  - A second user asking for a plan in the same minute waits behind the first. Past the 120 s
+    interactive wait budget, they get the "over capacity" message.
+  - Each photo scan is about 2,400 input tokens, so the ~7K input-token limit allows about 2–3
+    scans per minute.
+- **Per day (200K tokens):** roughly **8 plans a day** in total, or 4 when the correction retry
+  runs, before every other feature is refused until the window resets. Requests (1K/day) are not
+  the binding limit.
+- **Conclusion:** the free tier is fine for development, the eval (with `--limit`) and a handful
+  of testers. **It cannot carry launch traffic for meal plans.**
+
+**Recommendation: move to Groq's paid Developer plan before launch.**
+
+- The rate-limit page says its tables are "the base limits for the Developer plan" and that
+  higher limits are available.
+- **Unverified:** the page as fetched showed only the free-plan table, so the Developer plan's
+  per-model numbers could not be confirmed. Read them in the Groq console (Settings → Limits)
+  after upgrading, and redo the capacity maths above with them.
+- The pacing code reads the real budget from the `x-ratelimit-*` headers. On a higher tier it
+  stops waiting without any config change.
+- Price (verified on <https://console.groq.com/docs/model/openai/gpt-oss-120b>, 2026-09-26):
+  `gpt-oss-120b` costs $0.15 per 1M input tokens and $0.60 per 1M output tokens. That is **≈ $0.012 per plan**, or about $12 per 1,000 plans. It is roughly double for a plan that triggers the calorie-correction retry.
+
 Recipe images move separately, and need only the two Cloudflare values:
 
 ```env
@@ -81,6 +199,40 @@ The image bytes are stored on the `uploads` volume and served at `/uploads/recip
 
 **Rollback:** delete the line (or set the old chain) and recreate the container. Nothing is
 stored per provider.
+
+## Latest Groq eval (2026-09-26)
+
+This run used `pnpm ai:eval --route=all --provider=groq --limit=2 --delay-ms=3000` on the free
+tier. The raw output and JSON are in `apps/api/eval/results/groq-2026-09-26.txt`.
+
+| workload   | cases | errors | schema | allergen | kcal err | macro err | p50 ms  | p95 ms  | gate |
+| ---------- | ----- | ------ | ------ | -------- | -------- | --------- | ------- | ------- | ---- |
+| mealPlan   | 2     | 0      | 100%   | 1        | 7.8%     | 20.2%     | 141,664 | 223,255 | FAIL |
+| swap       | 2     | 0      | 100%   | 0        | —        | —         | 1,064   | 1,406   | PASS |
+| cheferize  | 2     | 0      | 100%   | 1        | —        | —         | 1,038   | 1,373   | FAIL |
+| importText | 2     | 0      | 100%   | 0        | 0%       | —         | 1,023   | 1,579   | PASS |
+| vision     | 2     | 0      | 100%   | 0        | —        | —         | 491     | 540     | PASS |
+| review     | 2     | 0      | 100%   | 0        | —        | —         | 359     | 775     | PASS |
+| prices     | 2     | 0      | 100%   | 0        | 13.7%    | —         | 2,517   | 7,382   | PASS |
+| shopping   | 2     | 0      | 100%   | 0        | —        | —         | 821     | 5,895   | PASS |
+
+The first Groq run, before this fix, had 20/20 plan errors and 429s everywhere, yet the gate
+said PASS. In this run:
+
+- Every case produced schema-valid output.
+- One plan day fell back from strict mode to `json_object` and succeeded.
+- One 429 on prices and one on shopping were waited out and retried.
+
+**Two allergen violations failed the gate:**
+
+- one dish in the peanut-allergy plan;
+- the pad-thai cheferize case (peanut + shellfish). The same case was clean when re-run once.
+
+This run did not record which dish failed. The scorer now does (`allergenDetails`, shown on the
+case line). These are raw model outputs: production still re-checks every plan dish
+(`enforcePlanSafety` swaps unsafe slots) and every cheferized recipe with the same matcher. But
+the rollout gate asks for 0, and 2 cases per workload is far too small a sample to call Groq
+safe.
 
 ## Runbook: switching a workload off Gemini
 
@@ -101,21 +253,45 @@ AI_SECONDARY_API_KEY=… pnpm ai:eval --route=swap --provider=groq --out=eval-sw
 pnpm ai:eval --route=all --provider=mock
 ```
 
+On Groq's free tier, pace the run and cap it. A full `--route=all` run needs ~170 calls. The 20
+plans alone need more tokens than the free tier's 200K per day.
+
+```bash
+AI_SECONDARY_API_KEY=… pnpm ai:eval --route=all --provider=groq --limit=2 --delay-ms=3000
+```
+
+Rate-limit flags:
+
+- `--delay-ms` pauses between cases.
+- `--concurrency` sets how many cases run at once (default 1).
+- A 429 is waited out (`Retry-After`, or "try again in Xs", up to 60 s) and the case is retried,
+  twice at most. A longer wait, such as a daily quota, counts as an error.
+- Plans also pace themselves inside the client (see above).
+
 The table reports, per workload:
 
 - schema-valid %;
 - **allergen violations**: dishes containing one of the profile's allergies, checked by the
-  production P1-2 matcher. **This must be 0**, and the command exits 1 when it is not;
+  production P1-2 matcher. **This must be 0**;
 - restriction violations (reported, not gated: a missing diet tag also counts);
 - kcal and macro error against the target;
 - p50 and p95 latency;
 - tokens;
 - per-workload checks (seven days, meal count, unique dishes, ingredient recall, coverage…).
 
+**The command's own gate** (exit code 1, with the reasons printed under the table) fails a
+workload when any of these is true:
+
+- **any case errored**, because a provider that cannot answer is not ready. Before 2026-09-26 a
+  run with 20/20 errors reported PASS;
+- there is any allergen violation;
+- schema-valid is below `--min-schema`, which defaults to 95;
+- no case ran.
+
 **Gate to move on:**
 
 - 0 allergen violations;
-- schema-valid ≥ 98%;
+- schema-valid ≥ 98% (run with `--min-schema=98`);
 - kcal and macro error no more than 5 points worse than Gemini's run;
 - p95 latency acceptable for the screen: the meal plan already takes 30–60 s on Gemini.
 
