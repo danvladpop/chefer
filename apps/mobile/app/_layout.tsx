@@ -27,6 +27,9 @@ console.info(`[chefer] ${CURRENT_BUILD}`);
 // NetInfo → onlineManager, AppState → focusManager (gym offline layer, §5.2).
 installQueryConnectivity();
 
+// Catches render errors in every route; see root-error-boundary.tsx.
+export { RootErrorBoundary as ErrorBoundary } from '../src/components/root-error-boundary';
+
 function createAppQueryClient() {
   const client = makeQueryClient();
   applyGymQueryDefaults(client);
