@@ -105,14 +105,38 @@ export function getNextMealType(currentHour: number, availableTypes: string[]): 
   return null;
 }
 
+/**
+ * "Friday, September 25". A client-supplied local date arrives as UTC
+ * midnight (see getSummary), so it is formatted in UTC to keep its weekday.
+ */
+function formatDayLabel(now: Date): string {
+  const isUtcMidnight =
+    now.getUTCHours() === 0 && now.getUTCMinutes() === 0 && now.getUTCSeconds() === 0;
+  return now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    ...(isUtcMidnight && { timeZone: 'UTC' }),
+  });
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class DashboardService {
-  async getSummary(userId: string, firstName: string | null): Promise<DashboardSummary> {
-    const now = new Date();
+  async getSummary(
+    userId: string,
+    firstName: string | null,
+    local?: { localDate?: string | undefined; localHour?: number | undefined },
+  ): Promise<DashboardSummary> {
+    // "Today" is the client's calendar day when it tells us; server time is
+    // the fallback for older clients. A local date is kept as UTC midnight so
+    // the weekday and label below read it without any time-zone shift.
+    const now = local?.localDate ? new Date(`${local.localDate}T00:00:00Z`) : new Date();
+    const useUtc = Boolean(local?.localDate);
     // Monday=0 … Sunday=6 (same as MealPlanDay.dayOfWeek)
-    const jsDay = now.getDay(); // 0=Sun, 1=Mon ... 6=Sat
+    const jsDay = useUtc ? now.getUTCDay() : now.getDay(); // 0=Sun, 1=Mon ... 6=Sat
     const todayIndex = jsDay === 0 ? 6 : jsDay - 1; // convert to Mon=0
+    const currentHourLocal = local?.localHour ?? new Date().getHours();
 
     const [chefProfile, plan, favourites] = await Promise.all([
       chefProfileRepository.findByUserId(userId),
@@ -175,7 +199,7 @@ export class DashboardService {
 
     // Determine next meal and rest of today — resolved by meal TYPE against
     // the meals this plan actually contains (see getNextMealType).
-    const currentHour = now.getHours();
+    const currentHour = currentHourLocal;
     const orderedMeals = MEAL_ORDER.map((type) => todayMeals.find((m) => m.type === type)).filter(
       (slot): slot is MealSlot => slot !== undefined,
     );
@@ -250,7 +274,7 @@ export class DashboardService {
     return {
       user: { firstName, displayName: chefProfile?.displayName ?? null },
       today: {
-        date: now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+        date: formatDayLabel(now),
         dayOfWeek: todayIndex,
       },
       weekPlan,
@@ -286,7 +310,7 @@ export class DashboardService {
     return {
       user: { firstName, displayName: null },
       today: {
-        date: now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+        date: formatDayLabel(now),
         dayOfWeek: todayIndex,
       },
       weekPlan: [],

@@ -538,7 +538,7 @@ IngredientPriceWorker (background)
 
 ## 10. Dashboard Summary Flow
 
-`dashboard.summary` (protected) assembles the daily overview in `DashboardService.getSummary`:
+`dashboard.summary` (protected) assembles the daily overview in `DashboardService.getSummary`. Web and mobile send `{ localDate, localHour }` (the device's own day and hour, via `localDateStr` in `@chefer/utils`), so "today", the day label and the next meal follow the user's time zone; older clients without it fall back to server time (audit F-DASH-1-1). The tracker likewise sends the local calendar day, never the UTC one (F-TRK-1-1).
 
 ```
 dashboard.summary

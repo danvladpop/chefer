@@ -16,14 +16,14 @@ import { trpc } from '@/lib/trpc';
 import { addDays, format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Flame, Save, Trash2 } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
+import { localDateStr } from '@chefer/utils';
 
 type PortionKey = 0.5 | 1 | 1.5 | 2;
 const PORTION_LABELS: Record<PortionKey, string> = { 0.5: '½×', 1: '1×', 1.5: '1½×', 2: '2×' };
 const PORTION_OPTIONS: PortionKey[] = [0.5, 1, 1.5, 2];
 
-function toDateStr(d: Date): string {
-  return d.toISOString().split('T')[0]!;
-}
+// Local calendar day, not the UTC one (F-TRK-1-1).
+const toDateStr = (d: Date): string => localDateStr(d);
 
 const MEAL_COLOURS: Record<string, string> = {
   breakfast: 'bg-emerald-100 text-emerald-700',

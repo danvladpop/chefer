@@ -20,6 +20,7 @@ export {
   isDateEqual,
   isPast,
   isFuture,
+  localDateStr,
   type DateInput,
 } from './date';
 
