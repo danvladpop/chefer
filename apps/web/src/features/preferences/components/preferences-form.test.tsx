@@ -9,6 +9,7 @@ const m = vi.hoisted(() => ({
   safety: vi.fn(),
   display: vi.fn(),
   targets: vi.fn<[Record<string, unknown>], Promise<unknown>>(),
+  computeTargets: vi.fn<[unknown], { data: unknown }>(() => ({ data: undefined })),
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
@@ -30,6 +31,7 @@ vi.mock('@/lib/trpc', () => {
           useMutation: () => ({ mutateAsync: m.display, isPending: false }),
         },
         updateTargets: { useMutation: () => ({ mutateAsync: m.targets, isPending: false }) },
+        computeTargets: { useQuery: (input: unknown) => m.computeTargets(input) },
       },
     },
   };
@@ -89,5 +91,59 @@ describe('PreferencesForm — units & currency', () => {
     // Units/currency no longer ride on the premium save.
     expect(payload).not.toHaveProperty('preferredUnits');
     expect(payload).not.toHaveProperty('deliveryCurrency');
+  });
+});
+
+describe('PreferencesForm — macro preview', () => {
+  const body = {
+    ...profile,
+    goal: 'GAIN_MUSCLE',
+    biologicalSex: 'MALE',
+    age: 30,
+    heightCm: 180,
+    weightKg: 80,
+    activityLevel: 'MODERATELY_ACTIVE',
+  };
+
+  it('shows the server targets and the lifter note for a lifter', () => {
+    m.computeTargets.mockReturnValue({
+      data: {
+        dailyCalorieTarget: 3060,
+        proteinG: 144,
+        carbsG: 387,
+        fatG: 85,
+        proteinPct: 19,
+        carbsPct: 51,
+        fatPct: 25,
+        lifter: { bodyweightKg: 80, proteinGPerKg: 1.8 },
+      },
+    });
+    render(<PreferencesForm chefProfile={body} dietaryPreferences={null} isPremium />);
+    expect(m.computeTargets).toHaveBeenCalledWith(
+      expect.objectContaining({ goal: 'GAIN_MUSCLE', weightKg: 80 }),
+    );
+    expect(screen.getByText('144g')).toBeTruthy();
+    expect(screen.getByText('Protein (19%)')).toBeTruthy();
+    expect(screen.getByTestId('preferences-lifter-note').textContent).toBe(
+      'Protein set from your bodyweight (1.8 g/kg) because you train.',
+    );
+  });
+
+  it('has no lifter note for a non-lifter', () => {
+    m.computeTargets.mockReturnValue({
+      data: {
+        dailyCalorieTarget: 3060,
+        proteinG: 176,
+        carbsG: 355,
+        fatG: 85,
+        proteinPct: 23,
+        carbsPct: 46,
+        fatPct: 25,
+        lifter: null,
+      },
+    });
+    render(<PreferencesForm chefProfile={body} dietaryPreferences={null} isPremium />);
+    expect(screen.getByText('176g')).toBeTruthy();
+    expect(screen.queryByTestId('preferences-lifter-note')).toBeNull();
   });
 });

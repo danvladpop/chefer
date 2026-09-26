@@ -10,9 +10,16 @@ import type { ActivityLevel, BiologicalSex, Goal } from '@/features/onboarding/t
 import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
+import { skipToken } from '@tanstack/react-query';
 import { DISPLAY_CURRENCIES, type DisplayCurrency } from '@chefer/types';
 import { Toast } from '@chefer/ui';
-import { currencySymbol, fromEur, toDisplayCurrency, toEur } from '@chefer/utils';
+import {
+  currencySymbol,
+  fromEur,
+  lifterProteinNote,
+  toDisplayCurrency,
+  toEur,
+} from '@chefer/utils';
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
 import { HouseholdSection } from './household-section';
 
@@ -209,6 +216,39 @@ export function PreferencesForm({
     data.weightKg !== null &&
     data.weightKg > 0 &&
     data.activityLevel !== null;
+
+  // ── Macro preview ──────────────────────────────────────────────────────────
+  // Instant local estimate, replaced by the server's numbers as soon as they
+  // arrive: preferences.computeTargets applies the same rules as the
+  // dashboard (the 2.2 g/kg protein cap, and a lifter's bodyweight protein),
+  // so the preview shows what the dashboard will show.
+  const previewInput =
+    isPremium &&
+    data.goal !== null &&
+    data.biologicalSex !== null &&
+    data.age !== null &&
+    data.age >= 10 &&
+    data.age <= 110 &&
+    data.heightCm !== null &&
+    data.heightCm > 0 &&
+    data.heightCm <= 300 &&
+    data.weightKg !== null &&
+    data.weightKg > 0 &&
+    data.weightKg <= 500 &&
+    data.activityLevel !== null
+      ? {
+          goal: data.goal,
+          biologicalSex: data.biologicalSex,
+          age: Math.round(data.age),
+          heightCm: data.heightCm,
+          weightKg: data.weightKg,
+          activityLevel: data.activityLevel,
+        }
+      : null;
+  const serverPreview = trpc.preferences.computeTargets.useQuery(previewInput ?? skipToken, {
+    placeholderData: (prev) => prev,
+    staleTime: 60_000,
+  }).data;
 
   // ── Save handler ────────────────────────────────────────────────────────────
   // Saves whatever is filled (review PR-1): updateTargets accepts partials, so
@@ -441,8 +481,21 @@ export function PreferencesForm({
         {/* Nutrition Preview */}
         {(() => {
           if (!isPremium) return null;
-          const preview = computePreviewTargets(data);
-          if (!preview) return null;
+          const local = computePreviewTargets(data);
+          if (!local) return null;
+          const preview = serverPreview
+            ? {
+                ...local,
+                calories: serverPreview.dailyCalorieTarget,
+                proteinG: serverPreview.proteinG,
+                carbsG: serverPreview.carbsG,
+                fatG: serverPreview.fatG,
+                proteinPct: serverPreview.proteinPct,
+                carbsPct: serverPreview.carbsPct,
+                fatPct: serverPreview.fatPct,
+              }
+            : local;
+          const lifter = serverPreview?.lifter ?? null;
           return (
             <Section>
               <h2 className="mb-3 text-base font-semibold">Estimated Daily Nutrition Targets</h2>
@@ -465,6 +518,14 @@ export function PreferencesForm({
                   <p className="mt-0.5 text-xs text-green-500">Fat ({preview.fatPct}%)</p>
                 </div>
               </div>
+              {lifter && (
+                <p
+                  data-testid="preferences-lifter-note"
+                  className="mt-3 text-center text-xs text-muted-foreground"
+                >
+                  {lifterProteinNote(lifter.proteinGPerKg)}
+                </p>
+              )}
               {preview.adjustment !== 0 && (
                 <p className="mt-3 text-center text-xs text-muted-foreground">
                   TDEE: {preview.tdee} kcal
