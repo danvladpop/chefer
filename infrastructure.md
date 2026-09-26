@@ -531,16 +531,19 @@ React component library. Peer deps: `react`, `react-dom`. Built with `class-vari
 
 **Components:**
 
-| Component    | Variants / Notes                                                                                                                                                                                                                                              |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Button`     | default, destructive, outline, secondary, ghost, link · sizes: sm, default, lg, icon · supports `asChild`, `isLoading`                                                                                                                                        |
-| `Input`      | label, error message, hint text, icon slots                                                                                                                                                                                                                   |
-| `Card`       | CardHeader, CardTitle, CardDescription, CardContent, CardFooter                                                                                                                                                                                               |
-| `Badge`      | default, secondary, destructive, outline, success, warning, info                                                                                                                                                                                              |
-| `Toast`      | success / error, auto-dismiss                                                                                                                                                                                                                                 |
-| `Sheet`      | Responsive dialog — bottom sheet below `sm`, centred dialog above. Sizes sm/md/lg/xl, optional footer slot                                                                                                                                                    |
-| `Drawer`     | Edge slide-over (left/right). Used for the mobile navigation menu                                                                                                                                                                                             |
-| `ErrorState` | Load-failure panel with Try again (`onRetry`, or `retryHref` for server components). Render it before any empty state — pages used to show "No meal plan yet — Generate" when the API failed (audit F-X-3-1). `@chefer/ui-mobile` has a matching `ErrorState` |
+| Component      | Variants / Notes                                                                                                                                                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Button`       | default, destructive, outline, secondary, ghost, link · sizes: sm, default, lg, icon · supports `asChild`, `isLoading`                                                                                                                                        |
+| `Input`        | label, error message, hint text, icon slots                                                                                                                                                                                                                   |
+| `Card`         | CardHeader, CardTitle, CardDescription, CardContent, CardFooter                                                                                                                                                                                               |
+| `Badge`        | default, secondary, destructive, outline, success, warning, info                                                                                                                                                                                              |
+| `Toast`        | success / error, auto-dismiss                                                                                                                                                                                                                                 |
+| `Sheet`        | Responsive dialog — bottom sheet below `sm`, centred dialog above. Sizes sm/md/lg/xl, optional footer slot                                                                                                                                                    |
+| `Drawer`       | Edge slide-over (left/right). Used for the mobile navigation menu                                                                                                                                                                                             |
+| `ProgressRing` | Circular progress (MO-06): animates from its previous value, `overColor` past 100% + a second overflow lap. `role="progressbar"`, centre children                                                                                                             |
+| `ProgressBar`  | Horizontal progress (MO-06): `scaleX` from the left (never `width`), over colour + end cap past 100%                                                                                                                                                          |
+| `CountUp`      | `tabular-nums` number that counts up to `value` (`useCountUp`)                                                                                                                                                                                                |
+| `ErrorState`   | Load-failure panel with Try again (`onRetry`, or `retryHref` for server components). Render it before any empty state — pages used to show "No meal plan yet — Generate" when the API failed (audit F-X-3-1). `@chefer/ui-mobile` has a matching `ErrorState` |
 
 `Sheet` and `Drawer` share `lib/use-dismissable.ts`, which provides a
 ref-counted body scroll lock, a Tab focus trap, Escape-to-close and focus
@@ -554,6 +557,19 @@ menu-button pattern (`aria-haspopup`/`aria-expanded`, focus to the first
 `role="menuitem"` on open, Escape closes and refocuses the trigger, arrow
 keys/Home/End move, Tab and outside pointerdown close). Spread `triggerProps`
 on the button, `menuProps` on the menu, and put `rootRef` on the wrapper.
+
+**Motion kit** (`src/motion/`, motion-system.md MO-01/02/06, tokens from `@chefer/tokens`):
+`pressControl` / `pressCard` / `pressTransition` class strings (scale 0.97 / 0.98 on
+`:active`, `duration-instant ease-standard`, no scale under reduced motion — `buttonVariants`
+already carries it); `usePresence(open, exitMs)` keeps `Sheet`/`Drawer` mounted in
+`data-state="closed"` (inert, click-through) until the exit's `animationend`, with a
+`setTimeout(exitMs + 50)` fallback; `useReducedMotion()`; `useTween`/`useCountUp` (rAF,
+`enter` curve, final value under reduced motion); pure progress maths (`progressOf`,
+`isOverTarget`, …) mirroring ui-mobile's. `Sheet`/`Drawer` fade the scrim and slide the panel
+(320 ms enter / 220 ms exit; sm+ dialog fades + scales from 0.96) and under reduced motion
+crossfade in 150 ms — they carry `data-motion-safe`, which exempts them from the global
+reduced-motion kill-switch in `apps/web/src/app/globals.css`. Tests live in
+`apps/web/src/lib/motion/ui-motion.test.tsx` (this package has no test runner).
 
 Every control steps up to a 44px touch target below `sm` and returns to the
 denser desktop scale above it. `Input` also renders at 16px on mobile, because
@@ -595,8 +611,12 @@ Tests: Vitest (`pnpm --filter @chefer/tokens test`) — includes the spring inte
 
 Consumers today: `@chefer/ui-mobile`'s motion layer (`src/motion/`: `timing()`/`springs` Reanimated
 configs, `PressableScale`, `useReducedMotion`, `haptics`, `CountUp`, progress helpers) and the
-`Sheet`/`ProgressRing`/`ProgressBar` built on it. Web consumption (Tailwind `transitionDuration`/
-`transitionTimingFunction`/`boxShadow`/`borderRadius`) is still open — see `mobile_parity_backlog.md`.
+`Sheet`/`ProgressRing`/`ProgressBar` built on it; `apps/web/tailwind.config.ts` (`transitionDuration`,
+`transitionTimingFunction` incl. `spring-*` `linear()` curves, `boxShadow: var(--elevation-*)`,
+role `borderRadius`, plus `future.hoverOnlyWhenSupported`) with the `--elevation-*` variables in
+`globals.css` (a unit test keeps them equal to `elevation.ts`); and `@chefer/ui`'s web motion kit
+(§5.4). The package's `exports` carry a `default` condition so Tailwind's `jiti` loader can
+`require` it.
 
 ---
 

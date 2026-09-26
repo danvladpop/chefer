@@ -2,6 +2,8 @@
 
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { Menu } from 'lucide-react';
+import { pressControl } from '@chefer/ui';
+import { cn } from '@chefer/utils';
 import { ModeSwitch } from './mode-switch';
 import { UserMenu } from './user-menu';
 
@@ -25,7 +27,10 @@ export function TopHeader({ title, onOpenMenu }: TopHeaderProps) {
           type="button"
           onClick={onOpenMenu}
           aria-label="Open navigation menu"
-          className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 lg:hidden"
+          className={cn(
+            '-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 lg:hidden',
+            pressControl,
+          )}
         >
           <Menu className="h-5 w-5" />
         </button>

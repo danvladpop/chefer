@@ -2,6 +2,7 @@
 
 import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { UtensilsCrossed } from 'lucide-react';
+import { pressControl } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 import { DayRecapBar } from './DayRecapBar';
 import { MealCard } from './MealCard';
@@ -107,7 +108,8 @@ export function DayView({
               aria-label={`${DAY_LONG[index]}${isToday ? ', today' : ''}`}
               onClick={() => onSelectDay(index)}
               className={cn(
-                'flex w-[60px] shrink-0 snap-start flex-col items-center gap-0.5 rounded-xl py-2.5 transition-colors',
+                'flex w-[60px] shrink-0 snap-start flex-col items-center gap-0.5 rounded-xl py-2.5',
+                pressControl,
                 isSelected
                   ? 'bg-[#944a00] text-white shadow-sm'
                   : isToday

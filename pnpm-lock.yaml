@@ -300,6 +300,9 @@ importers:
       '@chefer/api':
         specifier: workspace:*
         version: link:../api
+      '@chefer/tokens':
+        specifier: workspace:*
+        version: link:../../packages/tokens
       '@chefer/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -533,6 +536,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@chefer/tokens':
+        specifier: workspace:*
+        version: link:../tokens
       '@radix-ui/react-slot':
         specifier: ^1.2.4
         version: 1.2.4(@types/react@19.2.14)(react@19.2.4)

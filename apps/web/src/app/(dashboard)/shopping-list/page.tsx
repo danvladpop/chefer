@@ -32,7 +32,7 @@ import {
   Smartphone,
   X,
 } from 'lucide-react';
-import { ErrorState, Sheet, useMenu } from '@chefer/ui';
+import { ErrorState, pressCard, pressControl, pressTransition, Sheet, useMenu } from '@chefer/ui';
 import {
   formatMoney,
   formatQuantity,
@@ -527,7 +527,7 @@ export default function ShoppingListPage() {
               onClick={handleAddItem}
               disabled={!newItemText.trim() || addItemMutation.isPending}
               aria-label="Add item to shopping list"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-40"
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-600 hover:bg-neutral-50 disabled:opacity-40 ${pressControl}`}
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -542,7 +542,7 @@ export default function ShoppingListPage() {
                   type="button"
                   onClick={() => toggleCategory(category)}
                   aria-expanded={isExpanded}
-                  className="mb-3 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-1 text-left hover:bg-neutral-50"
+                  className={`mb-3 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-1 text-left hover:bg-neutral-50 ${pressCard}`}
                 >
                   <span className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
                     {label}
@@ -578,7 +578,9 @@ export default function ShoppingListPage() {
                         // things depending on which pixel you hit.
                         <div
                           key={item.key}
-                          className={`flex items-center gap-1 rounded-xl border transition ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : item.pantryCovered ? 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
+                          // MO-01: the whole row scales while its primary
+                          // (toggle) button is pressed, not the icon button.
+                          className={`flex items-center gap-1 rounded-xl border ${pressTransition} motion-safe:[&:has(>button:first-child:active)]:scale-[0.98] ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : item.pantryCovered ? 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
                         >
                           {/* Primary target — the whole row toggles bought/not */}
                           <button
@@ -651,7 +653,7 @@ export default function ShoppingListPage() {
                               disabled={markOutMutation.isPending}
                               aria-label={`Out of ${item.ingredientName} — add it back to the list`}
                               title="I'm out of it — add back to the list"
-                              className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-emerald-500 transition hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+                              className={`mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50 ${pressControl}`}
                               data-print-hide
                             >
                               <RotateCcw className="h-4 w-4" />
@@ -669,7 +671,7 @@ export default function ShoppingListPage() {
                               disabled={removeItemMutation.isPending}
                               aria-label={`Remove ${item.ingredientName} from the list`}
                               title="Added by you — remove"
-                              className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                              className={`mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 hover:bg-red-50 hover:text-red-500 disabled:opacity-50 ${pressControl}`}
                               data-print-hide
                             >
                               <X className="h-4 w-4" />
@@ -681,7 +683,7 @@ export default function ShoppingListPage() {
                                 setPopupItem({ name: item.ingredientName, imageUrl: itemImageUrl })
                               }
                               aria-label={`Details for ${item.ingredientName}`}
-                              className="mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-neutral-100 hover:text-neutral-500"
+                              className={`mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500 ${pressControl}`}
                               data-print-hide
                             >
                               <Info className="h-4 w-4" />

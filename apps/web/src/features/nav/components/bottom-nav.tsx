@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
+import { pressControl } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 import { useAppMode } from '../mode-context';
 import { isItemActive } from '../nav-items';
@@ -45,7 +46,8 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
                 href={href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'flex h-full flex-col items-center justify-center gap-1 transition-colors',
+                  'flex h-full flex-col items-center justify-center gap-1',
+                  pressControl,
                   active ? 'text-[#944a00]' : 'text-gray-500',
                 )}
               >
@@ -66,7 +68,8 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
             aria-expanded={moreOpen}
             aria-haspopup="dialog"
             className={cn(
-              'flex h-full w-full flex-col items-center justify-center gap-1 transition-colors',
+              'flex h-full w-full flex-col items-center justify-center gap-1',
+              pressControl,
               moreActive ? 'text-[#944a00]' : 'text-gray-500',
             )}
           >

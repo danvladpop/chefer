@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import type { RouterOutputs } from '@/lib/trpc';
 import { ChevronRight } from 'lucide-react';
+import { overTargetColor } from '@chefer/tokens';
+import { CountUp, ProgressBar, progressOf, ProgressRing } from '@chefer/ui';
 import { cn, dayNutritionCaption, PLAN_STATUS_LABEL, planStatus } from '@chefer/utils';
 
 // ─── Nutrition summary ────────────────────────────────────────────────────────
@@ -11,14 +13,6 @@ import { cn, dayNutritionCaption, PLAN_STATUS_LABEL, planStatus } from '@chefer/
 // only, which meant phones lost the most useful panel on the page entirely.
 
 type Nutrition = RouterOutputs['dashboard']['summary']['nutrition'];
-
-const RING_RADIUS = 52;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-/** Percentage of target, capped at 100 so the bar/ring never overshoots. */
-function pct(value: number, target: number): number {
-  return Math.min(Math.round((value / (target || 1)) * 100), 100);
-}
 
 interface NutritionSummaryProps {
   nutrition: Nutrition;
@@ -31,10 +25,7 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
   // The ring shows what was EATEN today (audit F-DASH-1-2: it showed planned
   // food — "540 remaining" with 6,070 kcal logged). The chip judges the plan
   // (three-state honesty, review P-2) via the shared rules in @chefer/utils.
-  const calPct = pct(n.eatenKcal, n.dailyCalorieTarget);
-  const overEaten = n.eatenKcal > n.dailyCalorieTarget;
   const targetStatus = planStatus(n.plannedKcal, n.dailyCalorieTarget);
-  const ringFill = RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * calPct) / 100;
 
   return (
     <div
@@ -62,42 +53,21 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 xl:flex-col xl:gap-4">
         {/* Calorie ring */}
         <div className="flex shrink-0 flex-col items-center gap-2 self-center py-2">
-          <div className="relative">
-            <svg
-              width="128"
-              height="128"
-              viewBox="0 0 128 128"
-              role="img"
-              aria-label={`${n.eatenKcal} of ${n.dailyCalorieTarget} kcal eaten today`}
-            >
-              <circle
-                cx="64"
-                cy="64"
-                r={RING_RADIUS}
-                fill="none"
-                stroke="#f3f4f6"
-                strokeWidth="12"
-              />
-              <circle
-                cx="64"
-                cy="64"
-                r={RING_RADIUS}
-                fill="none"
-                stroke={overEaten ? '#d97706' : '#944a00'}
-                strokeWidth="12"
-                strokeLinecap="round"
-                strokeDasharray={RING_CIRCUMFERENCE}
-                strokeDashoffset={ringFill}
-                transform="rotate(-90 64 64)"
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <p className="text-xl font-bold text-gray-900">{n.eatenKcal.toLocaleString()}</p>
-              <p className="text-xs text-gray-500">
-                of {n.dailyCalorieTarget.toLocaleString()} kcal eaten
-              </p>
-            </div>
-          </div>
+          {/* MO-06: sweeps from its previous value with a count-up; past
+              100% it turns amber with an overflow lap (mobile parity). */}
+          <ProgressRing
+            data-testid="calorie-ring"
+            label={`${n.eatenKcal} of ${n.dailyCalorieTarget} kcal eaten today`}
+            progress={progressOf(n.eatenKcal, n.dailyCalorieTarget)}
+            size={128}
+            strokeWidth={12}
+            overColor={overTargetColor}
+          >
+            <CountUp value={n.eatenKcal} className="text-xl font-bold text-gray-900" />
+            <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
+              of {n.dailyCalorieTarget.toLocaleString()} kcal eaten
+            </span>
+          </ProgressRing>
           <p className="text-center text-xs text-gray-500">
             {dayNutritionCaption(n.eatenKcal, n.plannedKcal, n.dailyCalorieTarget)}
           </p>
@@ -119,15 +89,11 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
                   {v}g / {t}g
                 </span>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
-                <div
-                  className={cn(
-                    'h-full rounded-full transition-all',
-                    v > t ? 'bg-amber-600' : 'bg-[#944a00]',
-                  )}
-                  style={{ width: `${pct(v, t)}%` }}
-                />
-              </div>
+              <ProgressBar
+                label={`${label}: ${v} of ${t} grams eaten`}
+                progress={progressOf(v, t)}
+                overColor={overTargetColor}
+              />
             </div>
           ))}
         </div>
