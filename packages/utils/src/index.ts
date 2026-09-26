@@ -229,3 +229,4 @@ export {
   type RebalanceSwapLike,
 } from './rebalance';
 export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from './rating';
+export { shoppingWindowLabel } from './shopping-window';

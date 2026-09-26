@@ -253,3 +253,41 @@ describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
     expect(pantryService.seedFromPurchases).toHaveBeenCalledWith('u1', []);
   });
 });
+
+describe('ShoppingListService — plans made mid-week (audit F-PM-3)', () => {
+  const service = new ShoppingListService();
+
+  it('lists only the days from the plan creation day on', async () => {
+    const monday = new Date('2026-09-21T00:00:00');
+    const midWeekPlan = {
+      ...PLAN,
+      weekStartDate: monday,
+      createdAt: new Date('2026-09-25T18:00:00'), // Friday
+      days: [
+        {
+          id: 'd0',
+          mealPlanId: 'plan1',
+          dayOfWeek: 0,
+          meals: [{ type: 'dinner', recipeId: 'r1' }],
+        },
+        {
+          id: 'd4',
+          mealPlanId: 'plan1',
+          dayOfWeek: 4,
+          meals: [{ type: 'dinner', recipeId: 'r1' }],
+        },
+      ],
+    };
+    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(midWeekPlan as never);
+    vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([RECIPE] as never);
+    vi.mocked(prisma.ingredientPrice.findMany).mockResolvedValue(PRICES as never);
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
+    vi.mocked(pantryItemRepository.findByUser).mockResolvedValue([]);
+
+    const list = await service.getForWeek(freeUser, 0);
+
+    expect(list.fromDayOfWeek).toBe(4);
+    // Only Friday's stew: 600 g tomato, not Monday's + Friday's 1,200 g.
+    expect(list.items.find((i) => i.ingredientName === 'Tomato')?.quantity).toBe('600');
+  });
+});
