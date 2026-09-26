@@ -596,11 +596,12 @@ export default function MealPlanPage() {
             readOnly={isPast}
             imageOverrides={imageOverrides}
             calorieTarget={plan.calorieTarget}
-            onReplaceMeal={(mealType, mealName) =>
+            onReplaceMeal={(mealType, mealName, slotIndex) =>
               setReplaceTarget({
                 planId: plan.planId,
                 dayOfWeek: selectedDay,
                 mealType,
+                slotIndex,
                 mealName,
               })
             }
@@ -650,6 +651,7 @@ export default function MealPlanPage() {
                           recipe={slot.recipe}
                           planId={plan.planId}
                           dayOfWeek={day.dayOfWeek}
+                          slotIndex={slotIndex}
                           readOnly={isPast}
                           imageUrlOverride={override?.imageUrl}
                           imageStatusOverride={override?.status}
@@ -660,6 +662,7 @@ export default function MealPlanPage() {
                               planId: plan.planId,
                               dayOfWeek: day.dayOfWeek,
                               mealType: slot.type,
+                              slotIndex,
                               mealName: slot.recipe.name,
                             })
                           }

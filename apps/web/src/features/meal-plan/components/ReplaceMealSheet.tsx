@@ -17,6 +17,8 @@ export interface ReplaceTarget {
   planId: string;
   dayOfWeek: number;
   mealType: string;
+  /** The slot's index in `day.meals` — a curated day can hold two snacks. */
+  slotIndex?: number | undefined;
   mealName: string;
 }
 
@@ -104,6 +106,7 @@ export function ReplaceMealSheet({
                 planId: target.planId,
                 dayOfWeek: target.dayOfWeek,
                 mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+                slotIndex: target.slotIndex,
               });
             }}
             className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
@@ -157,6 +160,7 @@ export function ReplaceMealSheet({
                             planId: target.planId,
                             dayOfWeek: target.dayOfWeek,
                             mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+                            slotIndex: target.slotIndex,
                             recipeId: recipe.id,
                           });
                         }}
