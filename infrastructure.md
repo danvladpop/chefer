@@ -504,7 +504,8 @@ src/
 │   ├── routine.repository.ts            # Gym: routine document replace (version check), setActive, pointer
 │   ├── workout-session.repository.ts    # Gym: idempotent session upsert + once-only rotation claim
 │   ├── exercise-progression.repository.ts # Gym: derived progression cache + overrides
-│   └── training-pause.repository.ts     # Gym: streak pauses
+│   ├── training-pause.repository.ts     # Gym: streak pauses
+│   └── weekly-email.repository.ts       # Weekly emails: recipients, send claims, opt-outs (P2-5)
 ├── index.ts           # Public exports
 └── seed.ts            # Development seed script
 prisma/
@@ -661,6 +662,7 @@ User ─────────── MealRating[]       (1:N, cascade delete)
 User ─────────── ChefReview[]       (1:N, cascade delete, F1 weekly reviews)
 User ─────────── HouseholdMember[]  (1:N, cascade delete, F2)
 User ─────────── PantryItem[]       (1:N, cascade delete, F3)
+User ─────────── EmailSend[]        (1:N, cascade delete, weekly-email send log, P2-5)
 MealPlan ──────── MealPlanDay[]     (1:N, cascade delete)
                   MealPlan.isTemplate/name/isFollowed: week templates ("My weeks",
                   max 4/user, at most one followed) — excluded from every
@@ -671,7 +673,7 @@ MealPlan ──────── MealPlanDay[]     (1:N, cascade delete)
 Post ─────────── PostTag[]          (1:N, cascade delete)
 Tag  ─────────── PostTag[]          (1:N, cascade delete)
 PostTag          (composite PK: postId + tagId)
-VerificationToken (standalone, for email verification flows)
+VerificationToken (standalone, password-reset tokens)
 ```
 
 ### Model Field Reference
@@ -688,8 +690,23 @@ VerificationToken (standalone, for email verification flows)
 | role                  | UserRole      | Default: USER                                     |
 | planTier              | PlanTier      | Default: FREE — PREMIUM unlocks AI features       |
 | passwordHash          | String?       | SHA-256 in seed (use bcrypt/argon2 in production) |
-| emailVerified         | DateTime?     | —                                                 |
+| emailVerified         | DateTime?     | Confirmed address; weekly emails need it (P2-5)   |
+| weeklyEmailReady      | Boolean       | Default true — Monday "week ready" email (P2-5)   |
+| weeklyEmailRecap      | Boolean       | Default true — Sunday recap email (P2-5)          |
 | createdAt / updatedAt | DateTime      | Auto-managed                                      |
+
+**EmailSend** (P2-5) — weekly-email send log
+
+| Field     | Type          | Notes                                                                    |
+| --------- | ------------- | ------------------------------------------------------------------------ |
+| id        | String (cuid) | PK                                                                       |
+| userId    | String        | FK → User (cascade)                                                      |
+| kind      | String        | `WEEK_READY` or `WEEKLY_RECAP` (a string: new kinds need no enum change) |
+| weekStart | DateTime      | UTC midnight of the Monday of the week the email is about                |
+| sentAt    | DateTime      | Default now()                                                            |
+
+`@@unique([userId, kind, weekStart])` — the row is claimed before sending, so
+nobody is emailed twice for the same week.
 
 **Post**
 
@@ -717,7 +734,7 @@ VerificationToken (standalone, for email verification flows)
 | dailyCalorieTarget   | Int?              | Computed by Mifflin-St Jeor at save                                                                       |
 | weeklyBudgetEur      | Float?            | Weekly ingredient budget ceiling (P2-4) — generation treats it as a hard constraint                       |
 | targetAdjustmentKcal | Int               | Default 0 — cumulative Adaptive Chef dial (F1), applied by resolveDailyTargets after the goal adjustment  |
-| autoPlanWeekly       | Boolean           | Default true — premium Sunday auto-planning opt-out (F-PLAN-4-3)                                          |
+| autoPlanWeekly       | Boolean           | Default true — Sunday auto-plan opt-out (F-PLAN-4-3); free = curated week (P2-5)                          |
 | onboardingIntent     | OnboardingIntent? | Onboarding step 0 answer (P2-3, F-PM-6): EAT_BETTER / HOUSEHOLD / TRAIN; null = never asked (older users) |
 | deliveryAddress      | String?           | Full address string for grocery delivery                                                                  |
 | deliveryCurrency     | String?           | ISO 4217 currency code (EUR/USD/GBP/RON)                                                                  |
@@ -1079,7 +1096,48 @@ piece/clove/…) to the base families and computes per-line price estimates.
 
 ### WeeklyPlanWorker (worker)
 
-`apps/api/src/workers/weekly-plan.worker.ts` (PW-5). Hourly tick; on Sundays from 08:00 UTC it pre-generates NEXT week's plan for every `planTier = PREMIUM` user with a complete chef profile (admins get access-premium, not subscriber perks). Uses `MealPlanService.generate(userId, 1, true, { origin: WEEKLY_AUTO })`, so pinned favourites, rating signals, budget and safety prefs all apply (P1-1/P2-4), and the image worker picks the recipes up as usual. Users with `ChefProfile.autoPlanWeekly = false` are skipped. A user who follows a "My weeks" template gets that template applied (`applyTemplateToWeek`, origin TEMPLATE, no AI call) instead of a generated week (F-PLAN-4-1). Idempotency comes from the data — a user who already has a plan for next week (`findByWeekStart`) is skipped unless it is an untouched carry-forward copy (origin CARRY_FORWARD with no shopping ticks or custom items, F-PLAN-4-2), so restarts and repeated ticks are safe; per-user failures are logged and don't starve the sweep. Router-level daily generation quotas don't apply to worker calls. The dashboard celebrates the result: `dashboard.summary` returns `weekReady { preparedAt, ratedCount }` only when the active plan's origin is WEEKLY_AUTO (it used to fire for any plan created before its week, including carry-forward copies), and the dashboard shows "Your week is ready — built from N dishes you rated" on Mondays.
+`apps/api/src/workers/weekly-plan.worker.ts` (PW-5). Hourly tick; on Sundays from 08:00 UTC it pre-generates NEXT week's plan for every `planTier = PREMIUM` user with a complete chef profile (admins get access-premium, not subscriber perks). **Free accounts get a curated week the same way (P2-5)**: `planTier = FREE`, `autoPlanWeekly` on (or no ChefProfile row yet) and a live (unexpired) session, via `generate(userId, 1, false, { origin: WEEKLY_AUTO })` — deterministic, no AI call, no per-user delay; a restriction set that exhausts the curated pool only fails that user. Premium uses `MealPlanService.generate(userId, 1, true, { origin: WEEKLY_AUTO })`, so pinned favourites, rating signals, budget and safety prefs all apply (P1-1/P2-4), and the image worker picks the recipes up as usual. Users with `ChefProfile.autoPlanWeekly = false` are skipped. A user who follows a "My weeks" template gets that template applied (`applyTemplateToWeek`, origin TEMPLATE, no AI call) instead of a generated week (F-PLAN-4-1). Idempotency comes from the data — a user who already has a plan for next week (`findByWeekStart`) is skipped unless it is an untouched carry-forward copy (origin CARRY_FORWARD with no shopping ticks or custom items, F-PLAN-4-2), so restarts and repeated ticks are safe; per-user failures are logged and don't starve the sweep. Router-level daily generation quotas don't apply to worker calls. The dashboard celebrates the result: `dashboard.summary` returns `weekReady { preparedAt, ratedCount }` only when the active plan's origin is WEEKLY_AUTO (it used to fire for any plan created before its week, including carry-forward copies), and the dashboard shows "Your week is ready — built from N dishes you rated" on Mondays (`ratedCount` is 0 for free accounts: a curated week doesn't learn from ratings).
+
+### WeeklyEmailWorker + WeeklyEmailService (worker / application layer) — P2-5
+
+The outbound retention channel (audit F-PM-14, F-PLAN-4-3), both tiers.
+`apps/api/src/workers/weekly-email.worker.ts` ticks hourly and, because no
+per-user time zone is stored, uses **fixed UTC hours**: Mondays from 07:00 UTC
+→ `weeklyEmailService.sendWeekReady`, Sundays from 17:00 UTC →
+`sendWeeklyRecap`. `apps/api/src/application/notifications/weekly-email.service.ts`:
+
+- **Recipients** (`WeeklyEmailRepository.findRecipients`): a confirmed address
+  (`emailVerified` set), the matching `User.weeklyEmail*` flag on, and no
+  `EmailSend` row for that kind and week. Deleted accounts are hard-deleted,
+  so they never match.
+- **Monday "week ready"**: this week's plan (skipped when nothing is planned) →
+  one dinner per day, the list total from `shoppingListService.getForWeek`
+  formatted with `formatMoney` in the user's currency, and a source line —
+  premium `WEEKLY_AUTO` = "your chef planned it … N dishes you rated", free
+  `WEEKLY_AUTO` = the curated week plus a quiet premium line, `TEMPLATE`, or
+  the user's own week.
+- **Sunday recap**: meals logged, days within ±10% of the calorie target,
+  weight change vs the previous weigh-in, completed workouts (Gym users only),
+  next week's planned dinners and the chef-review pointer (premium). Skipped
+  when the week has nothing to recap.
+- **Idempotency**: `claimSend` inserts the `EmailSend` row _before_ sending
+  (`@@unique(userId, kind, weekStart)`); a failed send releases it so a later
+  tick retries. 600 ms between sends (Resend's 2 req/s).
+- Templates: `lib/email/templates.ts` (branded HTML + text part, escaped).
+  Every weekly email carries an unsubscribe link and a `List-Unsubscribe`
+  header.
+- Signed links: `lib/email/tokens.ts` — HMAC-SHA256 over a small JSON payload
+  (`EMAIL_TOKEN_SECRET`, else a key derived from `JWT_SECRET`). Unsubscribe
+  tokens never expire (scope `WEEK_READY` | `WEEKLY_RECAP` | `ALL`);
+  confirmation tokens are bound to the address and last 7 days.
+- **Manual trigger** (no procedure):
+  `cd apps/api && pnpm exec tsx --env-file=.env src/scripts/send-weekly-emails.ts <ready|recap> [--user=email] [--dry-run]`
+  runs one sweep now, ignoring the day and hour but keeping opt-outs,
+  confirmation and the send claims.
+
+`EmailPreferencesService` (same folder) backs the `notifications.*`
+procedures: the two switches, the confirmation email (sent at signup from
+`auth.register`, re-sendable from Preferences) and the public unsubscribe.
 
 ### RecipeImageWorker (worker)
 
@@ -1297,17 +1355,22 @@ All procedures live under the `/trpc` HTTP endpoint and are batched automaticall
 | `user.downgradePlan`                | Protected | Mutation | — self-service return to FREE (PW-2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `user.setPlanTier`                  | Admin     | Mutation | `{ userId, planTier }` — tier management behind `/admin/users` (PW-2)                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `user.aiCallsToday`                 | Admin     | Query    | `{ userIds[] }` — today's AI call counts per user for the admin page                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `auth.register`                     | Public    | Mutation | `{ email, password, firstName, lastName, region? }` — with `x-chefer-client: mobile` the response also carries `session: { token, expires }` for Bearer auth. `region` (ISO-3166 alpha-2, from the device locale) seeds `ChefProfile.preferredUnits` + `deliveryCurrency` via `defaultsForRegion` (P2-6); older apps omit it and get METRIC + EUR                                                                                                                                                                                |
+| `auth.register`                     | Public    | Mutation | `{ email, password, firstName, lastName, region? }` — with `x-chefer-client: mobile` the response also carries `session: { token, expires }` for Bearer auth. `region` (ISO-3166 alpha-2) seeds `ChefProfile.preferredUnits` + `deliveryCurrency` via `defaultsForRegion` (P2-6); older apps omit it and get METRIC + EUR. Emails the address-confirmation link in the background (P2-5)                                                                                                                                         |
 | `auth.login`                        | Public    | Mutation | `{ email, password }` — with `x-chefer-client: mobile` the response also carries `session: { token, expires }` for Bearer auth                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `auth.logout`                       | Public    | Mutation | — deletes the session resolved from cookie **or** Bearer token                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `auth.requestPasswordReset`         | Public    | Mutation | `{ email }` — enumeration-safe (always succeeds); rate-limited per IP (5/15 min) and per address (3/h)                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `auth.resetPassword`                | Public    | Mutation | `{ token, password }` — single-use 1 h token (sha256-stored); invalidates all sessions                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `auth.resetPassword`                | Public    | Mutation | `{ token, password }` — single-use 1 h token (sha256-stored); invalidates all sessions; also confirms the address (`emailVerified`) if it was not yet (P2-5)                                                                                                                                                                                                                                                                                                                                                                     |
+| `notifications.getEmailPreferences` | Protected | Query    | — `{ weekReady, weeklyRecap, emailConfirmed, email }`: the Monday / Sunday email switches and whether weekly emails can be sent (P2-5)                                                                                                                                                                                                                                                                                                                                                                                           |
+| `notifications.setEmailPreferences` | Protected | Mutation | `{ weekReady?, weeklyRecap? }` → same shape as `getEmailPreferences`                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `notifications.resendConfirmation`  | Protected | Mutation | — emails the signed 7-day confirmation link → `{ alreadyConfirmed }`; 3/h per user                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `notifications.confirmEmail`        | Public    | Mutation | `{ token }` — consumes the confirmation link (web `/verify-email`); BAD_REQUEST when invalid, expired or for a changed address; 20/15 min per IP                                                                                                                                                                                                                                                                                                                                                                                 |
+| `notifications.unsubscribe`         | Public    | Mutation | `{ token, resubscribe? }` — the emails' unsubscribe link (web `/unsubscribe`), no login: the signed token names the user and the scope (Monday, Sunday or both). → `{ scope, weekReady, weeklyRecap }`, never the address; 20/15 min per IP                                                                                                                                                                                                                                                                                      |
 | `auth.me`                           | Protected | Query    | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `preferences.hasProfile`            | Protected | Query    | — true once a ChefProfile with a **goal** exists (a bare row from registration defaults or display toggles does not count, P2-6)                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `preferences.get`                   | Protected | Query    | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `preferences.setup`                 | Premium   | Mutation | `{ goal, biologicalSex, age, heightCm, weightKg, activityLevel, cuisinePreferences, dietaryRestrictions, allergies, dislikedIngredients, mealsPerDay, servingSize? }` — `servingSize` optional since P2-3 (legacy; a value > 1 becomes household members)                                                                                                                                                                                                                                                                        |
 | `preferences.updateSafety`          | Protected | Mutation | `{ dietaryRestrictions, allergies, dislikedIngredients }` — free for every account (P1-2); filters free curated plans and feeds premium AI generation                                                                                                                                                                                                                                                                                                                                                                            |
-| `preferences.setAutoPlanWeekly`     | Protected | Mutation | `{ enabled }` — "Plan my week every Sunday" opt-out; only premium accounts are auto-planned (F-PLAN-4-3)                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `preferences.setAutoPlanWeekly`     | Protected | Mutation | `{ enabled }` — "Plan my week every Sunday" opt-out (F-PLAN-4-3); premium gets an AI week, free a curated one (P2-5)                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `preferences.setDisplayPreferences` | Protected | Mutation | `{ preferredUnits?: METRIC\|IMPERIAL, currency?: EUR\|USD\|GBP\|RON }` (at least one; `setDisplayPreferencesInputSchema` in `@chefer/types`) → `{ preferredUnits, currency }`. Free on every tier (P2-6, F-DASH-3-2). A units change moves `GymProfile.unit` (KG↔METRIC, LB↔IMPERIAL) through `gymProfileService.save`, so the stock rack swaps and progressions re-fold                                                                                                                                                         |
 | `preferences.updateTargets`         | Premium   | Mutation | Setup fields minus the safety arrays, all optional + `deliveryAddress?`, `weeklyBudgetEur?` (EUR). Still accepts `deliveryCurrency?` / `preferredUnits?` for shipped app builds (a units change also syncs the gym unit); current clients use `setDisplayPreferences`                                                                                                                                                                                                                                                            |
 | `preferences.saveProfileBasics`     | Protected | Mutation | `{ goal?, biologicalSex?, age?, heightCm?, weightKg?, activityLevel? }` — goal + body metrics storable on every tier (ux-fixes-plan.md 3.1) so the dashboard target is real; consuming them for AI generation stays premium                                                                                                                                                                                                                                                                                                      |
@@ -1517,7 +1580,8 @@ hidden, leaving no way back to the login form.
 | `EMAIL_MOCK_ENABLED`       | No       | true                                 | Mock logs emails (incl. reset links) to the console instead of sending                                                                                                   |
 | `RESEND_API_KEY`           | No       | —                                    | Required when `EMAIL_MOCK_ENABLED=false`                                                                                                                                 |
 | `EMAIL_FROM`               | No       | Chefer <onboarding@resend.dev>       | Sender address; shared Resend sender only delivers to the account owner — use a verified domain for real users                                                           |
-| `APP_URL`                  | No       | http://localhost:3000                | Base URL used in emailed links (password reset)                                                                                                                          |
+| `APP_URL`                  | No       | http://localhost:3000                | Base URL used in emailed links (password reset, weekly emails, unsubscribe, email confirmation)                                                                          |
+| `EMAIL_TOKEN_SECRET`       | No       | from `JWT_SECRET`                    | ≥ 32 chars; signs unsubscribe + confirmation links (P2-5). Set in prod so a `JWT_SECRET` rotation keeps old links                                                        |
 
 ### `apps/web/.env.local`
 

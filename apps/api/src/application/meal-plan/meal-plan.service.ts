@@ -258,7 +258,7 @@ export class MealPlanService {
     } = {},
   ): Promise<WeekPlanDto> {
     if (!premium) {
-      return this.generateCurated(userId, weekOffset);
+      return this.generateCurated(userId, weekOffset, options.origin);
     }
     // 1. Load user preferences + learning signals (P1-1: pinned favourites
     // and recent ratings feed the generation) + household members (F2). A
@@ -639,7 +639,12 @@ export class MealPlanService {
    * dislikes (P1-2 — safety is free; only personalisation depth is premium).
    * No AI calls; images are preset stock photos (instantly DONE).
    */
-  private async generateCurated(userId: string, weekOffset = 0): Promise<WeekPlanDto> {
+  private async generateCurated(
+    userId: string,
+    weekOffset = 0,
+    /** WEEKLY_AUTO when the Sunday worker builds a free user's week (P2-5). */
+    origin?: MealPlanOrigin,
+  ): Promise<WeekPlanDto> {
     await ensureCuratedRecipes();
 
     // F2: household members' allergies/restrictions are unioned with the
@@ -698,6 +703,7 @@ export class MealPlanService {
         })),
       })),
       recipeIds: uniqueRecipeIds,
+      origin,
     });
 
     return {

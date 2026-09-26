@@ -89,7 +89,12 @@ export class PasswordResetService {
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_COST);
 
     await prisma.$transaction([
-      prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+      prisma.user.update({
+        where: { id: user.id },
+        // Following the emailed link proves the inbox is theirs, which is
+        // what weekly emails need (audit P2-5).
+        data: { passwordHash, emailVerified: user.emailVerified ?? new Date() },
+      }),
       // Single-use: the consumed token (and any siblings) disappears.
       prisma.verificationToken.deleteMany({ where: { identifier: row.identifier } }),
       // Invalidate every existing session.

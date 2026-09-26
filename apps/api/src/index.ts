@@ -26,6 +26,7 @@ import { scanRouter } from './routers/scan.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
 import { recipeImageWorker } from './workers/recipe-image.worker.js';
+import { weeklyEmailWorker } from './workers/weekly-email.worker.js';
 import { weeklyPlanWorker } from './workers/weekly-plan.worker.js';
 
 const app: express.Express = express();
@@ -238,6 +239,9 @@ const server = app.listen(env.PORT, env.HOST, () => {
   // Sunday pre-generation of next week's plan for premium users (PW-5)
   weeklyPlanWorker.start();
 
+  // Monday "week ready" + Sunday recap emails, both tiers (audit P2-5)
+  weeklyEmailWorker.start();
+
   // Upsert the curated gym exercise library (prod never runs the seed). The
   // gym services also call it lazily, so a failure here only delays it.
   ensureExerciseLibrary().catch((err: unknown) => {
@@ -266,6 +270,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
   // Stop the workers first (image worker waits for in-flight jobs)
   ingredientPriceWorker.stop();
   weeklyPlanWorker.stop();
+  weeklyEmailWorker.stop();
   await recipeImageWorker.stop();
 
   server.close(() => {

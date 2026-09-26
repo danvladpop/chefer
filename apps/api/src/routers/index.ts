@@ -8,6 +8,7 @@ import { householdRouter } from './household.router.js';
 import { importRouter } from './import.router.js';
 import { ingredientsRouter } from './ingredients.router.js';
 import { mealPlanRouter } from './meal-plan.router.js';
+import { notificationsRouter } from './notifications.router.js';
 import { pantryRouter } from './pantry.router.js';
 import { preferencesRouter } from './preferences.router.js';
 import { profileRouter } from './profile.router.js';
@@ -25,6 +26,7 @@ export const appRouter = router({
   household: householdRouter,
   ingredients: ingredientsRouter,
   mealPlan: mealPlanRouter,
+  notifications: notificationsRouter,
   pantry: pantryRouter,
   preferences: preferencesRouter,
   profile: profileRouter,

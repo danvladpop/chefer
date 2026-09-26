@@ -99,6 +99,14 @@ export {
   trainingPauseRepository,
   type ITrainingPauseRepository,
   type CreateTrainingPauseData,
+  // Weekly emails (audit P2-5)
+  WeeklyEmailRepository,
+  weeklyEmailRepository,
+  type IWeeklyEmailRepository,
+  type WeeklyEmailKind,
+  type WeeklyEmailRecipient,
+  type WeeklyEmailPreferences,
+  type WeekLogRow,
 } from './repositories/index';
 
 // Re-export Prisma types for convenience
@@ -134,6 +142,7 @@ export type {
   SessionSet,
   ExerciseProgression,
   TrainingPause,
+  EmailSend,
 } from '@prisma/client';
 export {
   AiCallType,
