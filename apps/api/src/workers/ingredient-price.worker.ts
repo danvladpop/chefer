@@ -1,4 +1,5 @@
 import { prisma } from '@chefer/database';
+import { runOutsideAiCallContext } from '../lib/ai/call-context.js';
 import { aiService } from '../lib/ai/index.js';
 import type { Ingredient } from '../lib/ai/index.js';
 import {
@@ -49,9 +50,13 @@ export class IngredientPriceWorker {
     console.log('[IngredientPriceWorker] stopped');
   }
 
-  /** Triggers an immediate pass (no-op if one is already running). */
+  /**
+   * Triggers an immediate pass (no-op if one is already running). Called from
+   * user requests, so the pass is detached from that request's AI call
+   * context — it is a background job, never "that user's" AI call.
+   */
   wake(): void {
-    void this.tick();
+    runOutsideAiCallContext(() => void this.tick());
   }
 
   private async tick(): Promise<void> {
