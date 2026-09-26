@@ -1,8 +1,21 @@
 import { z } from 'zod';
+import { aiProviderEnvShape } from './ai/env-schema.js';
+import { AI_PROVIDER_NAMES, isValidChain, parseShadowRoutes } from './ai/routing.js';
 import { resolveEmailConfig, type EmailProvider } from './email/config.js';
 
 /** An empty value (a copied .env.example line) counts as unset. */
 const emptyAsUnset = (val: unknown) => (val === '' ? undefined : val);
+
+/** Optional provider chain, e.g. "gemini>groq" — empty counts as unset. */
+const aiRoute = z.preprocess(
+  (val) => (val === '' ? undefined : val),
+  z
+    .string()
+    .refine((v) => isValidChain(v, AI_PROVIDER_NAMES), {
+      message: `must be a provider chain of ${AI_PROVIDER_NAMES.join(', ')} joined by ">" (e.g. "gemini>groq")`,
+    })
+    .optional(),
+);
 
 const envSchema = z.object({
   // Node
@@ -41,19 +54,40 @@ const envSchema = z.object({
     .transform((val) => val === 'true'),
   AI_MOCK_DELAY_MS: z.coerce.number().int().nonnegative().default(0),
   AI_PROVIDER: z.enum(['gemini', 'openai']).default('gemini'),
-  GEMINI_API_KEY: z.string().optional(),
-  // Model names are config, not code (audit P0-5 groundwork): swapping to a
-  // newer or paid-tier model is an env change and a restart.
-  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
-  GEMINI_FAST_MODEL: z.string().default('gemini-2.5-flash-lite'),
-  // Secondary OpenAI-compatible provider (premium_plan.md §5.5 W3-A).
-  // When AI_SECONDARY_API_KEY is set (and AI_PROVIDER=gemini), the factory
-  // wraps Gemini in a failover to this endpoint; unset = no failover (the
-  // deploy runs "dark" until the key lands). AI_PROVIDER=openai uses this
-  // client standalone. Defaults target Groq's free tier.
-  AI_SECONDARY_API_KEY: z.string().optional(),
-  AI_SECONDARY_BASE_URL: z.string().url().default('https://api.groq.com/openai/v1'),
-  AI_SECONDARY_MODEL: z.string().default('openai/gpt-oss-120b'),
+  // Provider keys + model names, shared with the eval harness (ai/env-schema.ts).
+  ...aiProviderEnvShape,
+  // Per-workload provider chains (research §5.4). Unset = today's routing
+  // (lib/ai/routing.ts DEFAULT_AI_ROUTES). Providers: gemini, groq (= the
+  // AI_SECONDARY_* endpoint). Video extraction is Gemini-only, not routable.
+  AI_ROUTE_MEAL_PLAN: aiRoute,
+  AI_ROUTE_SWAP: aiRoute,
+  AI_ROUTE_CHEFERIZE: aiRoute,
+  AI_ROUTE_IMPORT_TEXT: aiRoute,
+  AI_ROUTE_VISION: aiRoute,
+  AI_ROUTE_CHAT: aiRoute,
+  AI_ROUTE_REVIEW: aiRoute,
+  AI_ROUTE_PRICES: aiRoute,
+  AI_ROUTE_SHOPPING: aiRoute,
+  // Shadow mode: "<workload>:<chain>[,…]" re-runs a sampled share of premium,
+  // consented, user-initiated calls on a candidate chain in the background
+  // and logs "[ai.shadow]" scores. Unset or sample 0 = off.
+  AI_SHADOW_ROUTE: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z
+      .string()
+      .superRefine((v, ctx) => {
+        try {
+          parseShadowRoutes(v);
+        } catch (err) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      })
+      .optional(),
+  ),
+  AI_SHADOW_SAMPLE: z.coerce.number().min(0).max(1).default(0),
 
   // Email — mock is enabled by default so local dev never sends real mail;
   // the mock logs the message (including reset links) to the console instead.
@@ -101,12 +135,23 @@ const envSchema = z.object({
   CLOUDINARY_API_SECRET: z.string().optional(),
 
   // Recipe image provider (audit P0-5 groundwork). pollinations = today's
-  // anonymous URL-based images; cloudflare = Workers AI text-to-image, bytes
-  // uploaded to Cloudinary (needs CF_ACCOUNT_ID + CF_API_TOKEN).
+  // anonymous URL-based images; cloudflare = Workers AI text-to-image (needs
+  // only CF_ACCOUNT_ID + CF_API_TOKEN), bytes stored on our own server.
   IMAGE_PROVIDER: z.enum(['pollinations', 'cloudflare']).default('pollinations'),
   CF_ACCOUNT_ID: z.string().optional(),
   CF_API_TOKEN: z.string().optional(),
   CF_IMAGE_MODEL: z.string().default('@cf/black-forest-labs/flux-1-schnell'),
+  // Where generated image bytes go. local = the uploads volume, served at
+  // /uploads/recipes/* like user photos; cloudinary = the optional CDN (needs
+  // the three CLOUDINARY_* keys).
+  IMAGE_STORAGE: z.enum(['local', 'cloudinary']).default('local'),
+  // Public origin of the API, used to build stored-image URLs outside a
+  // request (the image worker). Unset = APP_URL in production (single-origin
+  // deploy: Caddy routes /uploads/* to the API), http://localhost:PORT in dev.
+  API_PUBLIC_URL: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().url().optional(),
+  ),
 
   // Unsplash (optional — ingredient images fall back to category images without this)
   UNSPLASH_ACCESS_KEY: z.string().optional(),
@@ -150,6 +195,13 @@ function validateEnv(): Env {
     throw new Error(
       '❌ CF_ACCOUNT_ID and CF_API_TOKEN are required when IMAGE_PROVIDER=cloudflare',
     );
+  }
+
+  if (
+    data.IMAGE_STORAGE === 'cloudinary' &&
+    (!data.CLOUDINARY_CLOUD_NAME || !data.CLOUDINARY_API_KEY || !data.CLOUDINARY_API_SECRET)
+  ) {
+    throw new Error('❌ CLOUDINARY_* keys are required when IMAGE_STORAGE=cloudinary');
   }
 
   const email = resolveEmailConfig(data);

@@ -1,7 +1,9 @@
 import { TRPCError } from '@trpc/server';
 import express, { Router, type Request, type Response } from 'express';
 import { scanService } from '../application/tracker/scan.service.js';
+import { runWithAiCallContext } from '../lib/ai/call-context.js';
 import { asyncHandler } from '../lib/async-handler.js';
+import { isPremiumUser } from '../lib/entitlements.js';
 import { resolveRequestAuth } from '../lib/session-auth.js';
 
 // ─── Meal photo scan endpoint (F4 Snap-to-Log) ────────────────────────────────
@@ -40,7 +42,11 @@ scanRouter.post(
     }
 
     try {
-      const estimate = await scanService.analyzeMealPhoto(user, body.toString('base64'), mime);
+      // AI call context: lets shadow mode see a premium user's own request.
+      const estimate = await runWithAiCallContext(
+        { userId: user.id, premium: isPremiumUser(user) },
+        () => scanService.analyzeMealPhoto(user, body.toString('base64'), mime),
+      );
       res.json({ estimate });
     } catch (err) {
       if (err instanceof TRPCError && err.code === 'FORBIDDEN') {

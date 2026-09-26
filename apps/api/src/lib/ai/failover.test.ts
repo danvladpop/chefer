@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FailoverAIService } from './failover.js';
+import { ChainAIService, FailoverAIService, type ShadowHook } from './failover.js';
+import { DEFAULT_AI_ROUTES, resolveRoutes, type AiWorkload } from './routing.js';
 import type { IAIService, MealPlanInput } from './types.js';
 
 // ─── Failover wrapper (premium_plan.md §5.5 W3-A) ────────────────────────────
@@ -203,5 +204,147 @@ describe('FailoverAIService — coach review (P0-5 groundwork)', () => {
     };
     await expect(svc.generateReviewText(input)).resolves.toBe('From Groq.');
     expect(primary.generateReviewText).toHaveBeenCalledWith(input);
+  });
+});
+
+// ─── Route-driven chain (research §5.4 step 1) ───────────────────────────────
+
+function chain(
+  providers: Record<string, IAIService>,
+  routes: Readonly<Record<AiWorkload, readonly string[]>> = DEFAULT_AI_ROUTES,
+  shadow?: ShadowHook,
+): ChainAIService {
+  return new ChainAIService({
+    providers: Object.fromEntries(
+      Object.entries(providers).map(([name, service]) => [name, { name, service }]),
+    ),
+    routes,
+    shadow,
+  });
+}
+
+describe('ChainAIService — default routes equal today’s table', () => {
+  it('serves every workload in the same order FailoverAIService did', () => {
+    const svc = chain({ gemini: stubService(), groq: stubService() });
+    expect(svc.chainNames('mealPlan')).toEqual(['gemini', 'groq']);
+    expect(svc.chainNames('swap')).toEqual(['gemini', 'groq']);
+    expect(svc.chainNames('cheferize')).toEqual(['gemini', 'groq']);
+    expect(svc.chainNames('importText')).toEqual(['gemini', 'groq']);
+    expect(svc.chainNames('review')).toEqual(['gemini', 'groq']);
+    expect(svc.chainNames('chat')).toEqual(['groq', 'gemini']);
+    expect(svc.chainNames('prices')).toEqual(['groq', 'gemini']);
+    expect(svc.chainNames('shopping')).toEqual(['groq', 'gemini']);
+    expect(svc.chainNames('vision')).toEqual(['gemini']);
+    expect(svc.chainNames('video')).toEqual(['gemini']);
+  });
+});
+
+describe('ChainAIService — overrides and failover order', () => {
+  it('routes the meal plan groq-first when AI_ROUTE_MEAL_PLAN=groq>gemini', async () => {
+    const gemini = stubService();
+    const groq = stubService();
+    const routes = resolveRoutes({ mealPlan: ['groq', 'gemini'] }, ['gemini', 'groq']);
+    await chain({ gemini, groq }, routes).generateMealPlan(PLAN_INPUT);
+    expect(groq.generateMealPlan).toHaveBeenCalled();
+    expect(gemini.generateMealPlan).not.toHaveBeenCalled();
+  });
+
+  it('walks a three-provider chain in order on capacity errors', async () => {
+    const a = stubService({ generateRecipeSwap: failing(capacity429) });
+    const b = stubService({
+      generateRecipeSwap: failing(Object.assign(new Error('too large'), { status: 413 })),
+    });
+    const c = stubService({ generateRecipeSwap: vi.fn().mockResolvedValue({ id: 'from-c' }) });
+    const routes = { ...DEFAULT_AI_ROUTES, swap: ['a', 'b', 'c'] };
+    const result = await chain(
+      { a, b, c, gemini: stubService(), groq: stubService() },
+      routes,
+    ).generateRecipeSwap({} as never);
+    expect(result).toEqual({ id: 'from-c' });
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('a capacity/quota error — failing over to b'),
+    );
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('b capacity/quota error — failing over to c'),
+    );
+    expect(console.info).toHaveBeenCalledWith('[AI] generateRecipeSwap: served by c (failover)');
+  });
+
+  it('stops at the first non-capacity error', async () => {
+    const a = stubService({ generateRecipeSwap: failing(capacity429) });
+    const b = stubService({ generateRecipeSwap: failing(validationError) });
+    const c = stubService();
+    const routes = { ...DEFAULT_AI_ROUTES, swap: ['a', 'b', 'c'] };
+    await expect(
+      chain({ a, b, c, gemini: stubService(), groq: stubService() }, routes).generateRecipeSwap(
+        {} as never,
+      ),
+    ).rejects.toBe(validationError);
+    expect(c.generateRecipeSwap).not.toHaveBeenCalled();
+  });
+
+  it('moves on from an input a provider flags as unsupported (failover: true)', async () => {
+    const heic = Object.assign(new Error('image/heic not supported'), { failover: true });
+    const groq = stubService({ analyzeMealPhoto: failing(heic) });
+    const gemini = stubService();
+    const routes = { ...DEFAULT_AI_ROUTES, vision: ['groq', 'gemini'] };
+    await chain({ gemini, groq }, routes).analyzeMealPhoto('b64', 'image/heic');
+    expect(gemini.analyzeMealPhoto).toHaveBeenCalledWith('b64', 'image/heic');
+  });
+
+  it('routes photo extraction by AI_ROUTE_VISION, but video always to Gemini', async () => {
+    const gemini = stubService();
+    const groq = stubService();
+    const routes = { ...DEFAULT_AI_ROUTES, vision: ['groq'] };
+    const svc = chain({ gemini, groq }, routes);
+    await svc.extractRecipe({ imageBase64: 'abcd', mimeType: 'image/png' });
+    expect(groq.extractRecipe).toHaveBeenCalled();
+    await svc.extractRecipeAnnotated({ videoBase64: 'vid', mimeType: 'video/mp4' });
+    expect(gemini.extractRecipeAnnotated).toHaveBeenCalled();
+    expect(groq.extractRecipeAnnotated).not.toHaveBeenCalled();
+  });
+
+  it('refuses a workload with no configured provider', () => {
+    expect(() =>
+      chain({ gemini: stubService() }, { ...DEFAULT_AI_ROUTES, chat: ['groq'] }),
+    ).toThrow(/no configured provider for workload "chat"/);
+  });
+});
+
+describe('ChainAIService — shadow hook', () => {
+  it('observes a served call with its input, result and provider', async () => {
+    const observe = vi.fn();
+    const svc = chain({ gemini: stubService(), groq: stubService() }, DEFAULT_AI_ROUTES, {
+      observe,
+    });
+    await svc.generateMealPlan(PLAN_INPUT);
+    expect(observe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workload: 'mealPlan',
+        op: 'generateMealPlan',
+        input: PLAN_INPUT,
+        result: { days: [] },
+        servedBy: 'gemini',
+      }),
+    );
+  });
+
+  it('never observes chat (its tools write data) or video', async () => {
+    const observe = vi.fn();
+    const svc = chain({ gemini: stubService(), groq: stubService() }, DEFAULT_AI_ROUTES, {
+      observe,
+    });
+    await svc.chat([], { userId: 'u1', contextSummary: '' });
+    await svc.extractRecipeAnnotated({ videoBase64: 'v' });
+    expect(observe).not.toHaveBeenCalled();
+  });
+
+  it('a throwing hook cannot break the user’s call', async () => {
+    const svc = chain({ gemini: stubService(), groq: stubService() }, DEFAULT_AI_ROUTES, {
+      observe: () => {
+        throw new Error('boom');
+      },
+    });
+    await expect(svc.generateMealPlan(PLAN_INPUT)).resolves.toEqual({ days: [] });
   });
 });

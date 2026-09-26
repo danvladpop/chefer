@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import superjson from 'superjson';
 import { ZodError } from 'zod';
 import type { UserProfile } from '@chefer/types';
+import { runWithAiCallContext } from './ai/call-context.js';
 import { ConflictCause } from './conflict.js';
 import { isPremiumUser } from './entitlements.js';
 import { logger } from './logger.js';
@@ -59,7 +60,14 @@ const t = initTRPC.context<Context>().create({
  */
 const timingMiddleware = t.middleware(async ({ ctx, next, path, type }) => {
   const start = Date.now();
-  const result = await next();
+  // Signed-in requests carry an AI call context (who the AI call is for), so
+  // shadow mode can tell user calls from background jobs and free from
+  // premium (lib/ai/call-context.ts). It changes nothing else.
+  const result = ctx.user
+    ? await runWithAiCallContext({ userId: ctx.user.id, premium: isPremiumUser(ctx.user) }, () =>
+        next(),
+      )
+    : await next();
 
   logger.info(
     {

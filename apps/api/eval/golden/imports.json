@@ -1,0 +1,79 @@
+[
+  {
+    "id": "lentil-soup",
+    "file": "imports/lentil-soup.txt",
+    "expected": {
+      "nameIncludes": ["lentil"],
+      "keyIngredients": ["lentil", "onion", "carrot", "tomato", "stock"],
+      "kcalPerServing": 320,
+      "servings": 4
+    }
+  },
+  {
+    "id": "chicken-traybake",
+    "file": "imports/chicken-traybake.txt",
+    "expected": {
+      "nameIncludes": ["chicken"],
+      "keyIngredients": ["chicken", "potato", "pepper", "lemon"],
+      "kcalPerServing": 540,
+      "servings": 2
+    }
+  },
+  {
+    "id": "overnight-oats",
+    "file": "imports/overnight-oats.txt",
+    "expected": {
+      "nameIncludes": ["oat"],
+      "keyIngredients": ["oat", "milk", "yogurt", "berr"],
+      "kcalPerServing": 390,
+      "servings": 1
+    }
+  },
+  {
+    "id": "pad-thai",
+    "file": "imports/pad-thai.txt",
+    "expected": {
+      "nameIncludes": ["pad thai"],
+      "keyIngredients": ["noodle", "prawn", "egg", "peanut", "fish sauce"],
+      "kcalPerServing": 610,
+      "servings": 2
+    }
+  },
+  {
+    "id": "shakshuka-jsonld",
+    "file": "imports/shakshuka-jsonld.txt",
+    "expected": {
+      "nameIncludes": ["shakshuka"],
+      "keyIngredients": ["egg", "tomato", "pepper", "feta"],
+      "kcalPerServing": 350,
+      "servings": 3
+    }
+  },
+  {
+    "id": "vegan-chili",
+    "file": "imports/vegan-chili.txt",
+    "expected": {
+      "nameIncludes": ["chili"],
+      "keyIngredients": ["kidney", "black bean", "chickpea", "tomato"],
+      "kcalPerServing": 330,
+      "servings": 6
+    }
+  },
+  {
+    "id": "handwritten-banana-bread",
+    "file": "imports/handwritten-banana-bread.txt",
+    "expected": {
+      "nameIncludes": ["banana"],
+      "keyIngredients": ["banana", "butter", "sugar", "egg", "flour"],
+      "kcalPerServing": 225,
+      "servings": 10
+    }
+  },
+  {
+    "id": "no-recipe-article",
+    "file": "imports/no-recipe-article.txt",
+    "expected": {
+      "noRecipe": true
+    }
+  }
+]
