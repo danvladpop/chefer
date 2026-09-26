@@ -24,6 +24,7 @@ import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js'
 import { buildPantryMatcher } from '../pantry/pantry-match.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { inferCategory } from '../shared/category-map.js';
+import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
 import { aggregateIngredientLines, formatLineQuantity, tidyListItems } from './aggregate.js';
 
 export interface ShoppingListItemForWeek {
@@ -76,6 +77,11 @@ export interface WeekShoppingList {
   checkedKeys: string[];
   /** F3 pantry subtraction summary — always present (zeros when pantry is empty). */
   pantry: ShoppingListPantryInfo;
+  /**
+   * First day (0 = Monday) the list covers when the plan was made mid-week
+   * (audit F-PM-3); absent = the whole week. Additive.
+   */
+  fromDayOfWeek?: number;
 }
 
 /** Items as persisted in the ShoppingList table (images/prices re-resolved on read). */
@@ -114,6 +120,12 @@ function tidyAiItems(items: StoredShoppingListItem[]): StoredShoppingListItem[] 
       ? item
       : { ...item, category: inferCategory(item.ingredientName) },
   );
+}
+
+/** `fromDayOfWeek` for a response, only when the plan was made mid-week. */
+function fromDayField(plan: { weekStartDate: Date; createdAt: Date }): { fromDayOfWeek?: number } {
+  const from = firstShoppingDay(plan.weekStartDate, plan.createdAt);
+  return from > 0 ? { fromDayOfWeek: from } : {};
 }
 
 function customItemKey(planId: string, name: string, unit: string): string {
@@ -261,8 +273,9 @@ export class ShoppingListService {
 
     // One aggregation for the list, the AI prompt and the planner's cost chip
     // (aggregate.ts, audit F-SHOP-1-1/1-3).
+    const shopFrom = firstShoppingDay(targetPlan.weekStartDate, targetPlan.createdAt);
     const lines = aggregateIngredientLines(
-      targetPlan.days.flatMap((day) =>
+      daysFrom(targetPlan.days, shopFrom).flatMap((day) =>
         (day.meals as MealSlotJson[]).flatMap((slot) => {
           const recipe = recipeMap.get(slot.recipeId);
           if (!recipe) return [];
@@ -336,6 +349,7 @@ export class ShoppingListService {
       );
       return {
         planId: targetPlan.id,
+        ...fromDayField(targetPlan),
         weekStartDate: weekStart.toISOString(),
         weekEndDate: weekEnd.toISOString(),
         hasPlan: true,
@@ -359,6 +373,7 @@ export class ShoppingListService {
 
     return {
       planId: targetPlan.id,
+      ...fromDayField(targetPlan),
       weekStartDate: weekStart.toISOString(),
       weekEndDate: weekEnd.toISOString(),
       hasPlan: true,
@@ -611,7 +626,10 @@ export class ShoppingListService {
     // only needs to do the *hard* consolidation, and water/"to taste" lines
     // never reach it. This roughly halves the prompt.
     const rawIngredients = aggregateIngredientLines(
-      targetPlan.days.flatMap((day) =>
+      daysFrom(
+        targetPlan.days,
+        firstShoppingDay(targetPlan.weekStartDate, targetPlan.createdAt),
+      ).flatMap((day) =>
         (day.meals as MealSlotJson[]).flatMap((slot) => {
           const recipe = recipes.find((r) => r.id === slot.recipeId);
           if (!recipe) return [];
@@ -679,6 +697,7 @@ export class ShoppingListService {
 
     return {
       planId: targetPlan.id,
+      ...fromDayField(targetPlan),
       weekStartDate: weekStart.toISOString(),
       weekEndDate: weekEnd.toISOString(),
       hasPlan: true,

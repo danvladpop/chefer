@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from
 import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { cn, formatQuantity } from '@chefer/utils';
+import { cn, formatQuantity, shoppingWindowLabel } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { parseCustomItemInput } from '../../src/features/shopping-list/parse-custom-item';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
@@ -180,6 +180,10 @@ export default function ShoppingListScreen() {
             <Text variant="muted" className="text-xs">
               Week of {weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}
               {items.length > 0 ? ` · ${checkedCount}/${items.length} done` : ''}
+              {/* A plan made mid-week lists only the remaining days (audit F-PM-3) */}
+              {shoppingWindowLabel(weekList?.fromDayOfWeek)
+                ? ` · covers ${shoppingWindowLabel(weekList?.fromDayOfWeek)}`
+                : ''}
             </Text>
           </View>
           <View className="flex-row gap-1">

@@ -40,6 +40,7 @@ import { computeUsedPantryItemsForUser, getUseFirstIngredients } from '../pantry
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { findRecipeVisibleTo, isRecipeOpenTo } from '../recipe/recipe-access.js';
 import { estimatePlanCostEur, type PlanCostEstimate } from '../shared/plan-cost.js';
+import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
 import { planCuratedWeek } from './curated-planner.js';
 import { reconcileRecipeMacros } from './macro-reconcile.js';
 import { withServerRecipeIds } from './recipe-ids.js';
@@ -127,9 +128,15 @@ export interface WeekPlanDto {
   calorieTarget?: number;
   /**
    * Estimated week cost from the ingredient price vocabulary (P2-4) —
-   * the priced-shopping-list wedge, surfaced on the plan itself.
+   * the priced-shopping-list wedge, surfaced on the plan itself. Covers the
+   * days from `shoppingFromDay` on, like the shopping list.
    */
   estimatedCost?: PlanCostEstimate;
+  /**
+   * First day (0 = Monday) the list and cost cover, when the plan was made
+   * mid-week (audit F-PM-3). Absent = the whole week.
+   */
+  shoppingFromDay?: number;
   /**
    * What the generation learned from (P1-1) — present only on the response of
    * a premium generate, so the UI can show "built from N dishes you rated".
@@ -428,6 +435,7 @@ export class MealPlanService {
 
     // 7. Persist the meal plan (archives only the plan for the same week)
     const weekStartDate = getMondayOfWeek(weekOffset);
+    const shopFrom = firstShoppingDay(weekStartDate, new Date());
     const plan = await this.repo.createPlan({
       userId,
       weekStartDate,
@@ -471,7 +479,8 @@ export class MealPlanService {
           };
         }),
       })),
-      estimatedCost: await estimatePlanCostEur(weekPlan.days),
+      estimatedCost: await estimatePlanCostEur(daysFrom(weekPlan.days, shopFrom)),
+      ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
       personalisation: {
         pinnedDishNames: placedPinNames,
         likedCount: likedDishes.length,
@@ -585,6 +594,7 @@ export class MealPlanService {
 
     const uniqueRecipeIds = [...new Set(days.flatMap((d) => d.meals.map((m) => m.recipe.id)))];
     const weekStartDate = getMondayOfWeek(weekOffset);
+    const curatedShopFrom = firstShoppingDay(weekStartDate, new Date());
     const plan = await this.repo.createPlan({
       userId,
       weekStartDate,
@@ -606,7 +616,8 @@ export class MealPlanService {
           recipe: toRecipeDto(m.recipe, { imageUrl: m.recipe.imageUrl, imageStatus: 'DONE' }),
         })),
       })),
-      estimatedCost: await estimatePlanCostEur(days),
+      estimatedCost: await estimatePlanCostEur(daysFrom(days, curatedShopFrom)),
+      ...(curatedShopFrom > 0 && { shoppingFromDay: curatedShopFrom }),
     };
   }
 
@@ -720,6 +731,7 @@ export class MealPlanService {
     plan: {
       id: string;
       weekStartDate: Date;
+      createdAt?: Date;
       days: { dayOfWeek: number; meals: unknown }[];
     },
     userId?: string,
@@ -751,11 +763,13 @@ export class MealPlanService {
       return { dayOfWeek: d.dayOfWeek, meals };
     });
 
+    const shopFrom = firstShoppingDay(plan.weekStartDate, plan.createdAt);
     return {
       planId: plan.id,
       weekStartDate: plan.weekStartDate,
       days,
-      estimatedCost: await estimatePlanCostEur(days),
+      estimatedCost: await estimatePlanCostEur(daysFrom(days, shopFrom)),
+      ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
       ...(userId && { calorieTarget: await this.loadCalorieTarget(userId) }),
     };
   }

@@ -521,6 +521,12 @@ shoppingList.getForWeek { weekOffset }
   +- estimatedTotalEur = sum of item estimates (minus pantry-covered lines
        for pantryPlanning accounts)
 
+A plan made mid-week (a Friday signup, a Thursday regenerate, a copy first
+opened on Wednesday) lists and prices only the days from its creation day on
+(`shared/plan-window.ts`; `fromDayOfWeek` on the list, `shoppingFromDay` on the
+plan, "Covers Fri–Sun" on both clients). A new user's first list used to be the
+whole week — ~97 items / ~€169 for one person (audit F-PM-3).
+
 The planner's "≈ €X this week" chip (plan-cost.ts) prices the SAME aggregated
 lines, so it equals the list total unless the list adds custom items or
 subtracts pantry stock (F-SHOP-1-3).

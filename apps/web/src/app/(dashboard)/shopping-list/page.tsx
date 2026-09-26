@@ -32,7 +32,7 @@ import {
   X,
 } from 'lucide-react';
 import { ErrorState, Sheet } from '@chefer/ui';
-import { formatQuantity } from '@chefer/utils';
+import { formatQuantity, shoppingWindowLabel } from '@chefer/utils';
 
 const PRINT_STYLES = `
 @media print {
@@ -390,6 +390,16 @@ export default function ShoppingListPage() {
               {checkedCount}/{totalItems} checked
             </span>
           </div>
+        )}
+
+        {/* A plan made mid-week lists only the remaining days (audit F-PM-3) */}
+        {shoppingWindowLabel(weekList?.fromDayOfWeek) && (
+          <span
+            title="Your plan started mid-week, so the list and total cover the days ahead"
+            className="whitespace-nowrap rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-600"
+          >
+            Covers {shoppingWindowLabel(weekList?.fromDayOfWeek)}
+          </span>
         )}
 
         {/* Estimated week total from the ingredient price vocabulary */}
