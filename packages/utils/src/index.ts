@@ -230,3 +230,9 @@ export {
 } from './rebalance';
 export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from './rating';
 export { shoppingWindowLabel } from './shopping-window';
+export {
+  dayNutritionCaption,
+  PLAN_STATUS_LABEL,
+  planStatus,
+  type PlanStatus,
+} from './day-nutrition';

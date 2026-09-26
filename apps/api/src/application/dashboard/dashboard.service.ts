@@ -1,5 +1,6 @@
 import {
   chefProfileRepository,
+  dailyLogRepository,
   favouriteRecipeRepository,
   MealPlanOrigin,
   mealPlanRepository,
@@ -55,9 +56,15 @@ export interface DashboardSummary {
   nutrition: {
     dailyCalorieTarget: number;
     plannedKcal: number;
-    protein: { planned: number; targetG: number };
-    carbs: { planned: number; targetG: number };
-    fat: { planned: number; targetG: number };
+    /**
+     * What was LOGGED today (tracker), additive — the home ring used to show
+     * planned food only, e.g. "540 remaining" with 6,070 kcal eaten
+     * (audit F-DASH-1-2). Older clients ignore these fields.
+     */
+    eatenKcal: number;
+    protein: { planned: number; targetG: number; eaten: number };
+    carbs: { planned: number; targetG: number; eaten: number };
+    fat: { planned: number; targetG: number; eaten: number };
   };
   /**
    * Set when the active plan was created BEFORE its week began (PW-5 Sunday
@@ -139,16 +146,23 @@ export class DashboardService {
     const todayIndex = jsDay === 0 ? 6 : jsDay - 1; // convert to Mon=0
     const currentHourLocal = local?.localHour ?? new Date().getHours();
 
-    const [chefProfile, plan, favourites] = await Promise.all([
+    const [chefProfile, plan, favourites, todayLog] = await Promise.all([
       chefProfileRepository.findByUserId(userId),
       mealPlanRepository.findActiveWithDays(userId),
       favouriteRecipeRepository.findByUserId(userId, 4),
+      dailyLogRepository.findByDate(userId, local?.localDate ? now : new Date()),
     ]);
 
     const targets = resolveDailyTargets(chefProfile);
+    const eaten = {
+      kcal: todayLog?.totalKcal ?? 0,
+      protein: Math.round(todayLog?.totalProtein ?? 0),
+      carbs: Math.round(todayLog?.totalCarbs ?? 0),
+      fat: Math.round(todayLog?.totalFat ?? 0),
+    };
 
     if (!plan) {
-      return this.emptyDashboard(userId, firstName, now, todayIndex, targets, favourites);
+      return this.emptyDashboard(userId, firstName, now, todayIndex, targets, favourites, eaten);
     }
 
     // Join all recipe IDs
@@ -295,9 +309,14 @@ export class DashboardService {
       nutrition: {
         dailyCalorieTarget: targets.dailyCalorieTarget,
         plannedKcal,
-        protein: { planned: Math.round(plannedProtein), targetG: targets.proteinG },
-        carbs: { planned: Math.round(plannedCarbs), targetG: targets.carbsG },
-        fat: { planned: Math.round(plannedFat), targetG: targets.fatG },
+        eatenKcal: eaten.kcal,
+        protein: {
+          planned: Math.round(plannedProtein),
+          targetG: targets.proteinG,
+          eaten: eaten.protein,
+        },
+        carbs: { planned: Math.round(plannedCarbs), targetG: targets.carbsG, eaten: eaten.carbs },
+        fat: { planned: Math.round(plannedFat), targetG: targets.fatG, eaten: eaten.fat },
       },
     };
   }
@@ -309,6 +328,7 @@ export class DashboardService {
     todayIndex: number,
     targets: DailyTargets,
     favourites: Awaited<ReturnType<typeof favouriteRecipeRepository.findByUserId>>,
+    eaten: { kcal: number; protein: number; carbs: number; fat: number },
   ): DashboardSummary {
     return {
       user: { firstName, displayName: null },
@@ -331,9 +351,10 @@ export class DashboardService {
       nutrition: {
         dailyCalorieTarget: targets.dailyCalorieTarget,
         plannedKcal: 0,
-        protein: { planned: 0, targetG: targets.proteinG },
-        carbs: { planned: 0, targetG: targets.carbsG },
-        fat: { planned: 0, targetG: targets.fatG },
+        eatenKcal: eaten.kcal,
+        protein: { planned: 0, targetG: targets.proteinG, eaten: eaten.protein },
+        carbs: { planned: 0, targetG: targets.carbsG, eaten: eaten.carbs },
+        fat: { planned: 0, targetG: targets.fatG, eaten: eaten.fat },
       },
     };
   }

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import type { RouterOutputs } from '@/lib/trpc';
 import { ChevronRight } from 'lucide-react';
-import { cn } from '@chefer/utils';
+import { cn, dayNutritionCaption, PLAN_STATUS_LABEL, planStatus } from '@chefer/utils';
 
 // ─── Nutrition summary ────────────────────────────────────────────────────────
 // Calorie ring + macro bars for today. Lives in the dashboard's right rail at
@@ -28,24 +28,22 @@ interface NutritionSummaryProps {
 }
 
 export function NutritionSummary({ nutrition: n, nextMealName, className }: NutritionSummaryProps) {
-  const calPct = pct(n.plannedKcal, n.dailyCalorieTarget);
-  // Three-state honesty: a day planned 40% under target is NOT "on track" —
-  // for a Lose-Weight user the target already includes the deficit, so
-  // under-planning stacks a second, unplanned one (review P-2).
-  const ratio = n.plannedKcal / (n.dailyCalorieTarget || 1);
-  // An empty day isn't "under target", it's unplanned — don't scold (P-2).
-  const targetStatus =
-    n.plannedKcal === 0 ? 'none' : ratio > 1.05 ? 'over' : ratio < 0.85 ? 'under' : 'on';
-  const remaining = Math.max(n.dailyCalorieTarget - n.plannedKcal, 0);
+  // The ring shows what was EATEN today (audit F-DASH-1-2: it showed planned
+  // food — "540 remaining" with 6,070 kcal logged). The chip judges the plan
+  // (three-state honesty, review P-2) via the shared rules in @chefer/utils.
+  const calPct = pct(n.eatenKcal, n.dailyCalorieTarget);
+  const overEaten = n.eatenKcal > n.dailyCalorieTarget;
+  const targetStatus = planStatus(n.plannedKcal, n.dailyCalorieTarget);
   const ringFill = RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * calPct) / 100;
 
   return (
-    <div className={cn('rounded-2xl border bg-white p-4 shadow-sm sm:p-5', className)}>
+    <div
+      data-testid="nutrition-summary"
+      className={cn('rounded-2xl border bg-white p-4 shadow-sm sm:p-5', className)}
+    >
       {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-          Planned Today
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Today</p>
         <span
           className={cn(
             'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase',
@@ -55,13 +53,7 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
             targetStatus === 'none' && 'bg-gray-100 text-gray-600',
           )}
         >
-          {targetStatus === 'over'
-            ? 'Over Target'
-            : targetStatus === 'under'
-              ? 'Under Target'
-              : targetStatus === 'on'
-                ? 'On Track'
-                : 'No Meals Planned'}
+          {PLAN_STATUS_LABEL[targetStatus]}
         </span>
       </div>
 
@@ -76,7 +68,7 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
               height="128"
               viewBox="0 0 128 128"
               role="img"
-              aria-label={`${n.plannedKcal} of ${n.dailyCalorieTarget} kcal planned`}
+              aria-label={`${n.eatenKcal} of ${n.dailyCalorieTarget} kcal eaten today`}
             >
               <circle
                 cx="64"
@@ -91,7 +83,7 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
                 cy="64"
                 r={RING_RADIUS}
                 fill="none"
-                stroke="#944a00"
+                stroke={overEaten ? '#d97706' : '#944a00'}
                 strokeWidth="12"
                 strokeLinecap="round"
                 strokeDasharray={RING_CIRCUMFERENCE}
@@ -100,23 +92,23 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <p className="text-xl font-bold text-gray-900">{n.plannedKcal.toLocaleString()}</p>
+              <p className="text-xl font-bold text-gray-900">{n.eatenKcal.toLocaleString()}</p>
               <p className="text-xs text-gray-500">
-                of {n.dailyCalorieTarget.toLocaleString()} kcal
+                of {n.dailyCalorieTarget.toLocaleString()} kcal eaten
               </p>
             </div>
           </div>
           <p className="text-center text-xs text-gray-500">
-            {remaining.toLocaleString()} remaining
+            {dayNutritionCaption(n.eatenKcal, n.plannedKcal, n.dailyCalorieTarget)}
           </p>
         </div>
 
         {/* Macro bars */}
         <div className="flex flex-1 flex-col gap-3 sm:min-w-0">
           {[
-            { label: 'Protein', v: n.protein.planned, t: n.protein.targetG },
-            { label: 'Carbs', v: n.carbs.planned, t: n.carbs.targetG },
-            { label: 'Fat', v: n.fat.planned, t: n.fat.targetG },
+            { label: 'Protein', v: n.protein.eaten, t: n.protein.targetG },
+            { label: 'Carbs', v: n.carbs.eaten, t: n.carbs.targetG },
+            { label: 'Fat', v: n.fat.eaten, t: n.fat.targetG },
           ].map(({ label, v, t }) => (
             <div key={label}>
               {/* gap-2 + whitespace-nowrap: in the 288px rail a three-digit
@@ -129,7 +121,10 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
                 <div
-                  className="h-full rounded-full bg-[#944a00] transition-all"
+                  className={cn(
+                    'h-full rounded-full transition-all',
+                    v > t ? 'bg-amber-600' : 'bg-[#944a00]',
+                  )}
                   style={{ width: `${pct(v, t)}%` }}
                 />
               </div>
@@ -138,12 +133,19 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
         </div>
       </div>
 
-      {/* AI hint */}
+      {/* Next meal + a way to log it — the old line claimed every meal
+          "supports your daily nutrition goals", which wasn't checked (F-PM-4). */}
       {nextMealName && (
-        <div className="mt-4 rounded-xl bg-[#fff3e8] px-3 py-2.5">
-          <p className="text-xs text-[#944a00]">
-            🤖 Your upcoming <strong>{nextMealName}</strong> supports your daily nutrition goals.
+        <div className="mt-4 flex items-center justify-between gap-2 rounded-xl bg-[#fff3e8] px-3 py-2.5">
+          <p className="min-w-0 text-xs text-[#944a00]">
+            Up next: <strong>{nextMealName}</strong>
           </p>
+          <Link
+            href="/tracker"
+            className="flex min-h-11 shrink-0 items-center text-xs font-semibold text-[#944a00] hover:underline"
+          >
+            Log what you ate
+          </Link>
         </div>
       )}
 
