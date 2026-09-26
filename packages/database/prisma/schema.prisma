@@ -119,8 +119,9 @@ model User {
   weeklyEmailRecap Boolean   @default(true)
   // AI data consent (App Store 5.1.2(i)): when the user allowed Chefer to send
   // their data to the third-party AI provider. Null = not asked yet / revoked;
-  // clients show the consent sheet before the first AI action. Not enforced
-  // server-side (background jobs keep working).
+  // clients show the consent sheet before the first AI action. User-initiated
+  // procedures are gated client-side only; background AI jobs (weekly
+  // auto-plan, coach review wording) skip users without consent.
   aiDataConsentAt  DateTime?
 
   // Relations
