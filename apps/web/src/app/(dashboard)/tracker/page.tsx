@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
+import { TrainingDayNote } from '@/features/dashboard/components/training-day-note';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
@@ -214,11 +215,14 @@ export default function TrackerPage() {
     offPlan.fat;
   // All four targets come from the API's resolveDailyTargets — the same
   // source the dashboard uses, so the two surfaces can never disagree
-  // (prod-followups #4). Fallbacks only cover the pre-data render.
-  const target = data?.targets.dailyCalorieTarget ?? 2000;
-  const proteinTarget = data?.targets.proteinG ?? 125;
-  const carbsTarget = data?.targets.carbsG ?? 225;
-  const fatTarget = data?.targets.fatG ?? 67;
+  // (prod-followups #4). A premium lifter's training day swaps in the bumped
+  // targets, exactly like Today (audit P2-4). Fallbacks only cover the
+  // pre-data render.
+  const dayTargets = data?.adjustedTargets ?? data?.targets;
+  const target = dayTargets?.dailyCalorieTarget ?? 2000;
+  const proteinTarget = dayTargets?.proteinG ?? 125;
+  const carbsTarget = dayTargets?.carbsG ?? 225;
+  const fatTarget = dayTargets?.fatG ?? 67;
   const pct = (v: number, t: number) => Math.min(Math.round((v / (t || 1)) * 100), 100);
 
   return (
@@ -307,6 +311,7 @@ export default function TrackerPage() {
                 {loggedKcal.toLocaleString()} / {target.toLocaleString()} kcal
               </span>
             </div>
+            {data.trainingDay && <TrainingDayNote t={data.trainingDay} isToday={isToday} />}
             {[
               { label: 'Calories', v: loggedKcal, t: target, unit: 'kcal', colour: 'bg-[#944a00]' },
               {

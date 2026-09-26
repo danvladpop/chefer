@@ -1,19 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import type { RouterOutputs } from '@/lib/trpc';
-import { ChevronRight, Dumbbell, Lock } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { overTargetColor } from '@chefer/tokens';
-import type { TrainingDayNutrition } from '@chefer/types';
 import { CountUp, ProgressBar, progressOf, ProgressRing } from '@chefer/ui';
-import {
-  cn,
-  dayNutritionCaption,
-  PLAN_STATUS_LABEL,
-  planStatus,
-  trainingDayLine,
-} from '@chefer/utils';
+import { cn, dayNutritionCaption, PLAN_STATUS_LABEL, planStatus } from '@chefer/utils';
+import { TrainingDayNote } from './training-day-note';
 
 // ─── Nutrition summary ────────────────────────────────────────────────────────
 // Calorie ring + macro bars for today. Lives in the dashboard's right rail at
@@ -27,49 +20,6 @@ interface NutritionSummaryProps {
   /** Name of the next planned meal, used for the AI hint. Omit to hide it. */
   nextMealName?: string | undefined;
   className?: string;
-}
-
-/**
- * Training-aware nutrition (audit P2-4): the line under the header on a
- * lifter's training day. Premium sees the bump applied to the ring and bars;
- * free sees the same numbers locked, with the upgrade one tap away.
- */
-function TrainingDayNote({ t }: { t: TrainingDayNutrition }) {
-  if (!t.isTrainingDay) return null;
-  const workout = t.workoutName ?? 'Your workout';
-  const when = t.reason === 'COMPLETED' ? 'done' : 'today';
-  return (
-    <div
-      data-testid="training-day"
-      className={cn(
-        'mb-4 rounded-xl px-3 py-2.5',
-        t.applied ? 'bg-[#fff3e8]' : 'border border-dashed border-gray-300 bg-gray-50',
-      )}
-    >
-      <p
-        className={cn(
-          'flex items-center gap-1.5 text-xs font-semibold',
-          t.applied ? 'text-[#944a00]' : 'text-gray-700',
-        )}
-      >
-        <Dumbbell className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span className="min-w-0">{trainingDayLine(t)}</span>
-      </p>
-      {t.applied ? (
-        <p className="mt-0.5 text-xs text-[#944a00]/80">
-          {workout} {when} · protein at {t.basis.trainingDayProteinGPerKg} g/kg, added to today
-        </p>
-      ) : (
-        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
-          <span className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
-            <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            Premium adds this to today&apos;s targets
-          </span>
-          <UpgradeButton source="training-day" />
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function NutritionSummary({ nutrition: n, nextMealName, className }: NutritionSummaryProps) {
