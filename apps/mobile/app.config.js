@@ -50,7 +50,10 @@ const config = {
   slug: 'chefer',
   owner: 'cheferoni',
   scheme: IS_PRODUCTION ? 'chefer' : 'chefer-dev',
-  version: '0.0.1',
+  // App Store / Play marketing version. Part of the runtime fingerprint, so
+  // bumping it gives a new runtime: OTA updates reach only binaries built
+  // from this version on (a store binary is a new build anyway).
+  version: '1.0.0',
   // Explicit, not auto-detected: "web" is added only when react-native-web
   // resolves, which differs between pnpm's `expo` shim (NODE_PATH) and the
   // bare node calls in Gradle/Xcode — that flipped the runtime fingerprint
@@ -68,6 +71,11 @@ const config = {
     // public). Unset is fine: simulator builds don't sign, and EAS cloud
     // builds bring their own credentials.
     ...(process.env.EXPO_APPLE_TEAM_ID ? { appleTeamId: process.env.EXPO_APPLE_TEAM_ID } : {}),
+    config: {
+      // Only HTTPS and the OS's standard crypto — exempt from export
+      // compliance, so App Store Connect stops asking on every build.
+      usesNonExemptEncryption: false,
+    },
   },
   android: {
     package: IS_PRODUCTION ? 'dev.chefer.app' : 'dev.chefer.app.dev',
