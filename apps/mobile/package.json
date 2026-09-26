@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@chefer/api": "workspace:^",
+    "@chefer/tokens": "workspace:*",
     "@chefer/types": "workspace:*",
     "@chefer/ui-mobile": "workspace:^",
     "@chefer/utils": "workspace:*",

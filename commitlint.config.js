@@ -29,6 +29,7 @@ const config = {
         'mobile',
         'ui',
         'ui-mobile',
+        'tokens',
         'database',
         'types',
         'utils',

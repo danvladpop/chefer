@@ -19,6 +19,7 @@
    - [@chefer/ui](#54-cheferui)
    - [@chefer/tsconfig](#55-chefertsconfig)
    - [@chefer/eslint-config](#56-cheferesponse-config)
+   - [@chefer/tokens](#57-chefertokens)
 6. [Database Schema](#6-database-schema)
 7. [API Layer](#7-api-layer)
 8. [tRPC Procedure Map](#8-trpc-procedure-map)
@@ -45,6 +46,8 @@ chefer/
 │   ├── types/                  # Shared TypeScript types & enums
 │   ├── utils/                  # Pure utility functions
 │   ├── ui/                     # React component library (shadcn-style)
+│   ├── ui-mobile/              # React Native component library (NativeWind) for apps/mobile
+│   ├── tokens/                 # Zero-dependency design tokens (motion, elevation, radius)
 │   └── config/
 │       ├── tsconfig/           # Shared TypeScript configurations
 │       └── eslint/             # Shared ESLint flat configurations
@@ -326,8 +329,9 @@ API, Maestro E2E in `e2e/`).
   variant uses `chefer-dev://`), expo-dev-client, expo-updates (EAS Update),
   expo-secure-store (session token), tRPC + TanStack Query + superjson at the
   same versions as web
-- **Monorepo:** `metro.config.js` watches the workspace root so `@chefer/types`
-  and `@chefer/utils` (raw-TS exports) resolve; `@chefer/ui` and
+- **Monorepo:** `metro.config.js` watches the workspace root so `@chefer/types`,
+  `@chefer/utils`, `@chefer/tokens` and `@chefer/ui-mobile` (raw-TS exports) resolve
+  (Jest maps them to source in `jest.config.js`); `@chefer/ui` and
   `@chefer/database` are forbidden by lint (platform boundary)
 - **Auth:** `Authorization: Bearer <sessionToken>` + `x-chefer-client: mobile`
   header — see §9. Form rules (email, password length, confirm-password match)
@@ -555,6 +559,26 @@ Exports are per-file (e.g., `import { Button } from '@chefer/ui/button'`).
 | `nextjs.js`       | Extends base + Next.js + React hooks; forbids `react-native`/`expo*` imports (platform boundary)       |
 | `node.js`         | Extends base + Node.js rules                                                                           |
 | `react-native.js` | Extends base + React/hooks for `apps/mobile`; forbids `@chefer/ui`, `@chefer/database`, `next` imports |
+
+### 5.7 `@chefer/tokens`
+
+Zero-dependency design tokens — plain TS data (plus two pure helpers), importable by **both** apps at
+runtime and by both Tailwind configs at build time. Spec: `docs/audit-2026-09/motion-system.md` §2.
+
+| Module         | Exports                                                                                                                                                                                                                                                                                                                                |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `motion.ts`    | `duration` (instant 100 · fast 150 · base 220 · slow 320 · deliberate 600 · celebrate 1000 ms), `exit()` (≈70% of an enter), `easing` (cubic-bézier control points) + `cssEasing()`, `spring` (Reanimated configs) + `cssSpring` (the same springs as CSS `linear()`), `stagger`, `haptic` vocabulary, `pressScale`, `overTargetColor` |
+| `bezier.ts`    | `cubicBezier()` / `easingFn()` — JS easing for the few JS-thread tweens (count-up text)                                                                                                                                                                                                                                                |
+| `elevation.ts` | `elevation.e0…e4`, `e4Up` — warm two-layer shadow strings (web CSS variables; mobile RN `boxShadow` via `style`, never a toggled className)                                                                                                                                                                                            |
+| `radius.ts`    | Role radii in px: `inner` 8 · `control` 12 · `card` 16 · `sheet` 24 · `full`                                                                                                                                                                                                                                                           |
+
+Tests: Vitest (`pnpm --filter @chefer/tokens test`) — includes the spring integrator that regenerates
+`cssSpring`, so a spring edit without new `linear()` strings fails CI.
+
+Consumers today: `@chefer/ui-mobile`'s motion layer (`src/motion/`: `timing()`/`springs` Reanimated
+configs, `PressableScale`, `useReducedMotion`, `haptics`, `CountUp`, progress helpers) and the
+`Sheet`/`ProgressRing`/`ProgressBar` built on it. Web consumption (Tailwind `transitionDuration`/
+`transitionTimingFunction`/`boxShadow`/`borderRadius`) is still open — see `mobile_parity_backlog.md`.
 
 ---
 
