@@ -221,6 +221,25 @@ describe('ChatService', () => {
     expect(result).toContain('Falafel Pita'); // names what it replaced
   });
 
+  it('refunds the chat message when every provider is out of capacity, not on other errors', async () => {
+    const { aiService } = await import('../../lib/ai/index.js');
+    vi.mocked(prisma.aiCallLog.create).mockResolvedValue({ id: 'row1' } as never);
+    vi.mocked(aiService.chat).mockRejectedValueOnce(
+      Object.assign(new Error('daily free allocation used up'), { status: 429 }),
+    );
+    await expect(
+      service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]),
+    ).rejects.toMatchObject({ status: 429 });
+    expect(prisma.aiCallLog.delete).toHaveBeenCalledWith({ where: { id: 'row1' } });
+
+    vi.mocked(prisma.aiCallLog.delete).mockClear();
+    vi.mocked(aiService.chat).mockRejectedValueOnce(new Error('bad tool args'));
+    await expect(
+      service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]),
+    ).rejects.toThrow('bad tool args');
+    expect(prisma.aiCallLog.delete).not.toHaveBeenCalled();
+  });
+
   describe('swapMeal on a two-snack day (slotIndex, PR #42)', () => {
     const TWO_SNACKS = {
       ...PLAN,

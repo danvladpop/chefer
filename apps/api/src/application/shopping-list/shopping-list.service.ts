@@ -12,6 +12,7 @@ import {
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { slotPortion } from '@chefer/utils';
+import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient } from '../../lib/ai/types.js';
 import { hasFeature } from '../../lib/entitlements.js';
@@ -716,10 +717,16 @@ export class ShoppingListService {
 
     const weekLabel = `${weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${weekEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
-    const aiResult = await aiService.generateShoppingList({
-      ingredients: rawIngredients,
-      weekLabel,
-    });
+    let aiResult;
+    try {
+      aiResult = await aiService.generateShoppingList({ ingredients: rawIngredients, weekLabel });
+    } catch (err) {
+      throw toFriendlyAiError(
+        err,
+        'generateShoppingList',
+        "Couldn't tidy up the list right now. Please try again.",
+      );
+    }
 
     prisma.aiCallLog
       .create({ data: { userId, callType: AiCallType.SHOPPING_LIST } })

@@ -162,6 +162,23 @@ describe('WeeklyPlanWorker', () => {
     expect(vi.mocked(mealPlanService.generate).mock.calls[1]![0]).toBe('u2');
   });
 
+  it('stops premium AI generations for this tick once the AI is out of capacity; free weeks go on', async () => {
+    const { TRPCError } = await import('@trpc/server');
+    vi.mocked(prisma.user.findMany)
+      .mockResolvedValueOnce([{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }] as never)
+      .mockResolvedValueOnce([{ id: 'free1' }] as never);
+    vi.mocked(mealPlanService.generate).mockRejectedValueOnce(
+      new TRPCError({ code: 'SERVICE_UNAVAILABLE', message: 'over capacity' }),
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await worker.tick(SUNDAY);
+
+    const users = vi.mocked(mealPlanService.generate).mock.calls.map((c) => c[0]);
+    expect(users).toEqual(['p1', 'free1']); // p2/p3 wait for the next hourly tick
+  });
+
   it('also targets FREE accounts with a live session and the toggle on (P2-5)', async () => {
     await worker.tick(SUNDAY);
     const where = vi.mocked(prisma.user.findMany).mock.calls[1]![0]!.where!;

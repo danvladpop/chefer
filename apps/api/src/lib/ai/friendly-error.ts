@@ -15,7 +15,7 @@ export const AI_OVER_CAPACITY_MESSAGE =
  * that never carry a status: network timeouts and aborted fetches.
  */
 export function isCapacityAiError(err: unknown): boolean {
-  const status = (err as { status?: number }).status;
+  const status = (err as { status?: number } | null)?.status;
   if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
     return true;
   }
@@ -26,6 +26,17 @@ export function isCapacityAiError(err: unknown): boolean {
     );
   }
   return false;
+}
+
+/**
+ * A capacity failure at any layer: the raw upstream error, or the friendly
+ * SERVICE_UNAVAILABLE TRPCError a service already turned it into. Callers
+ * use it to refund a quota reservation (the user did nothing wrong) and
+ * background jobs to back off instead of hammering an exhausted provider.
+ */
+export function isAiCapacityFailure(err: unknown): boolean {
+  if (err instanceof TRPCError) return err.code === 'SERVICE_UNAVAILABLE';
+  return isCapacityAiError(err);
 }
 
 /**

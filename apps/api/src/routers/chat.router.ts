@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { Router, type Request, type Response } from 'express';
 import { chatService } from '../application/chat/chat.service.js';
+import { AI_OVER_CAPACITY_MESSAGE, isAiCapacityFailure } from '../lib/ai/friendly-error.js';
 import type { ChatMessage } from '../lib/ai/index.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { resolveRequestAuth } from '../lib/session-auth.js';
@@ -79,6 +80,12 @@ chatRouter.post(
         return;
       }
       console.error('Chat failed:', err);
+      // Every provider out of capacity (free-tier caps): the same calm
+      // sentence as everywhere else — mobile shows `error` verbatim.
+      if (isAiCapacityFailure(err)) {
+        res.status(503).json({ error: AI_OVER_CAPACITY_MESSAGE });
+        return;
+      }
       res.status(500).json({ error: 'The chef is unavailable right now. Please try again.' });
       return;
     }

@@ -1,6 +1,7 @@
 import { MealPlanOrigin, mealPlanRepository, prisma, type Prisma } from '@chefer/database';
 import { coachService } from '../application/coach/coach.service.js';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
+import { isAiCapacityFailure } from '../lib/ai/friendly-error.js';
 
 // ─── Weekly auto-generation (PW-5) ────────────────────────────────────────────
 // The premium pitch in one sentence: it cooked for me while I slept. Every
@@ -145,7 +146,13 @@ export class WeeklyPlanWorker {
 
     const nextMonday = mondayOfNextWeek(now);
     let generated = 0;
+    // Once the AI providers are out of capacity (free-tier daily caps), the
+    // remaining premium users would only hit the same wall — seven calls a
+    // plan. They are left for the next hourly tick (they still have no plan
+    // for next week, so they are picked up again); free curated weeks go on.
+    let aiExhausted = false;
     for (const user of users) {
+      if (user.premium && aiExhausted) continue;
       try {
         const existing = await mealPlanRepository.findByWeekStart(user.id, nextMonday);
         if (existing && !(await this.isReplaceableCopy(existing))) continue;
@@ -171,6 +178,12 @@ export class WeeklyPlanWorker {
         // One user's failure must not starve the rest of the sweep (a free
         // user's restrictions can exhaust the curated pool, for example).
         console.error(`[WeeklyPlanWorker] generation failed for user ${user.id}:`, err);
+        if (user.premium && isAiCapacityFailure(err)) {
+          aiExhausted = true;
+          console.warn(
+            '[WeeklyPlanWorker] AI over capacity — remaining premium plans wait for the next tick',
+          );
+        }
       }
     }
     if (generated > 0) {

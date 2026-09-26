@@ -1,5 +1,6 @@
 import { prisma } from '@chefer/database';
 import { runOutsideAiCallContext } from '../lib/ai/call-context.js';
+import { isAiCapacityFailure } from '../lib/ai/friendly-error.js';
 import { aiService } from '../lib/ai/index.js';
 import type { Ingredient } from '../lib/ai/index.js';
 import {
@@ -15,6 +16,18 @@ const SWEEP_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 h
 // Estimates older than this are re-generated on the next sweep. Weekly for
 // now — bump to 30 for a monthly cadence.
 const PRICE_REFRESH_DAYS = 7;
+
+// Capacity back-off: the first retry after a 429/quota error waits 90 s, each
+// further consecutive one doubles, capped at 1 h — so a provider whose free
+// daily quota is gone is asked about once an hour, not every 90 s, until the
+// day rolls over. Any successful pass resets it.
+const CAPACITY_RETRY_BASE_MS = 90_000;
+const CAPACITY_RETRY_MAX_MS = 60 * 60 * 1000;
+
+/** The wait before retry number `failures` (1-based) after a capacity error. */
+export function capacityRetryDelayMs(failures: number): number {
+  return Math.min(CAPACITY_RETRY_BASE_MS * 2 ** Math.max(0, failures - 1), CAPACITY_RETRY_MAX_MS);
+}
 
 // Ingredients per AI call. Keeps prompts small enough for reliable structured
 // output while pricing a whole vocabulary in a handful of calls.
@@ -32,6 +45,9 @@ const BATCH_SIZE = 40;
 export class IngredientPriceWorker {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
+  /** Consecutive capacity failures (for the back-off); 0 after a clean pass. */
+  private capacityFailures = 0;
+  private retryTimer: NodeJS.Timeout | null = null;
 
   start(): void {
     if (this.timer) return;
@@ -46,6 +62,10 @@ export class IngredientPriceWorker {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
+    }
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
     }
     console.log('[IngredientPriceWorker] stopped');
   }
@@ -65,19 +85,34 @@ export class IngredientPriceWorker {
     try {
       const vocabulary = await this.collectVocabulary();
       const toEstimate = await this.findStaleOrMissing(vocabulary);
-      if (toEstimate.length === 0) return;
+      if (toEstimate.length === 0) {
+        this.capacityFailures = 0;
+        return;
+      }
 
       console.log(`[IngredientPriceWorker] estimating ${toEstimate.length} ingredient prices…`);
       for (let i = 0; i < toEstimate.length; i += BATCH_SIZE) {
         await this.estimateBatch(toEstimate.slice(i, i + BATCH_SIZE));
       }
+      this.capacityFailures = 0;
     } catch (err) {
-      // Gemini free tier allows 5 requests/min — on quota errors, retry the
-      // remaining batches after a short back-off instead of waiting 12 h.
+      // Every provider busy or out of free quota — retry the remaining
+      // batches later instead of waiting 12 h, backing off so an exhausted
+      // daily quota is not hammered (capacityRetryDelayMs).
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
-        console.warn('[IngredientPriceWorker] rate limited — retrying remaining batches in 90s');
-        setTimeout(() => void this.tick(), 90_000);
+      if (isAiCapacityFailure(err) || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+        this.capacityFailures += 1;
+        const delay = capacityRetryDelayMs(this.capacityFailures);
+        console.warn(
+          `[IngredientPriceWorker] AI over capacity — retrying remaining batches in ${Math.round(
+            delay / 1000,
+          )}s (${msg.slice(0, 160)})`,
+        );
+        if (this.retryTimer) clearTimeout(this.retryTimer);
+        this.retryTimer = setTimeout(() => {
+          this.retryTimer = null;
+          void this.tick();
+        }, delay);
       } else {
         console.error('[IngredientPriceWorker] tick error', err);
       }

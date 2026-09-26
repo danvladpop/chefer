@@ -26,6 +26,7 @@ import {
   trainingDayBonus,
   trainingWeekdays,
 } from '@chefer/utils';
+import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type {
   Ingredient,
@@ -381,11 +382,13 @@ export class MealPlanService {
     try {
       weekPlan = await aiService.generateMealPlan(aiInput);
     } catch (err) {
-      console.error('AI generateMealPlan failed:', err);
-      throw new TRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: aiFailureMessage(err, 'Failed to generate meal plan. Please try again.'),
-      });
+      // Every provider in the chain out of capacity (free-tier daily caps) →
+      // the friendly "over capacity" sentence; the router refunds the quota.
+      throw toFriendlyAiError(
+        err,
+        'generateMealPlan',
+        'Failed to generate meal plan. Please try again.',
+      );
     }
 
     // 3a. Honest numbers first (audit F-REC-2-4): AI recipes whose stated
@@ -1032,11 +1035,11 @@ export class MealPlanService {
         },
       });
     } catch (err) {
-      console.error('AI generateRecipeSwap failed:', err);
-      throw new TRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: aiFailureMessage(err, 'Failed to swap recipe. Please try again.'),
-      });
+      throw toFriendlyAiError(
+        err,
+        'generateRecipeSwap',
+        'Failed to swap recipe. Please try again.',
+      );
     }
 
     // Server-minted id, as for generated weeks (recipe-ids.ts).
@@ -1474,19 +1477,6 @@ export function nearestPortionStep(ratio: number): number {
     (best, step) => (Math.abs(step - ratio) < Math.abs(best - ratio) ? step : best),
     1,
   );
-}
-
-/**
- * User-facing message for a failed AI call. Transient provider overloads
- * (Gemini 429/503 — already retried by the AI layer) get an honest
- * "try again shortly" instead of a generic failure.
- */
-function aiFailureMessage(err: unknown, fallback: string): string {
-  const status = (err as { status?: number }).status;
-  if (status === 429 || status === 503) {
-    return 'The AI service is temporarily overloaded. Please try again in a minute.';
-  }
-  return fallback;
 }
 
 /** The macro vocabulary rows for every ingredient in `recipes` (one query). */
