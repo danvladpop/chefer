@@ -162,7 +162,7 @@ export function NutritionSummary({ nutrition: n }: { nutrition: Nutrition }) {
       <View className="mb-4 items-center gap-2">
         <ProgressRing
           testID="calorie-ring"
-          accessibilityLabel={`${n.eatenKcal.toLocaleString()} of ${target.dailyCalorieTarget.toLocaleString()} kcal eaten today`}
+          accessibilityLabel={`${n.eatenKcal.toLocaleString('en-US')} of ${target.dailyCalorieTarget.toLocaleString('en-US')} kcal eaten today`}
           progress={calories}
           size={RING_SIZE}
           strokeWidth={RING_STROKE}
@@ -174,7 +174,7 @@ export function NutritionSummary({ nutrition: n }: { nutrition: Nutrition }) {
             className="text-xl font-bold text-gray-900"
           />
           <Text className="text-[12px] text-gray-500">
-            of {target.dailyCalorieTarget.toLocaleString()} kcal eaten
+            of {target.dailyCalorieTarget.toLocaleString('en-US')} kcal eaten
           </Text>
         </ProgressRing>
         <Text testID="calorie-remaining" className="text-center text-xs text-gray-500">

@@ -1,4 +1,4 @@
-# Dashboard (Home tab) E2E — M2-1.
+# Today tab (was Home) E2E — M2-1, P2-2.
 # Precondition: a signed-in session on the device (run auth.flow.yaml first;
 # it ends signed in). Asserts the dashboard's cards render against live data.
 appId: dev.chefer.app.dev
@@ -9,11 +9,31 @@ appId: dev.chefer.app.dev
       id: 'home-title'
     timeout: 30000
 - assertVisible:
-    id: 'week-outlook'
-- assertVisible:
     id: 'nutrition-summary'
 - assertVisible:
     id: 'nutrition-status'
+- assertVisible:
+    id: 'today-quick-add'
+
+# "See full day" opens the full tracker (it left More, F-PM-7)
+- tapOn:
+    id: 'today-full-day'
+- extendedWaitUntil:
+    visible:
+      id: 'tracker-title'
+    timeout: 15000
+- tapOn:
+    id: 'tracker-close'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+
+# The week outlook moved below the next meal
+- scrollUntilVisible:
+    element:
+      id: 'week-outlook'
+    direction: DOWN
 
 # Day panel toggles open and closed
 - tapOn:

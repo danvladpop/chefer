@@ -7,6 +7,18 @@ import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
 // targets show and open at their portion, and a protein-short day says so.
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+// The Today hero logs through tracker.logRecipe (P2-2) — no network here.
+jest.mock('../../src/lib/trpc', () => ({
+  trpc: {
+    useUtils: () => ({}),
+    tracker: {
+      logRecipe: {
+        useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }),
+      },
+    },
+  },
+}));
+jest.mock('../../src/features/tracker/rebalance-store', () => ({ recordRebalance: jest.fn() }));
 const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
 
 const nutrition = (calories: number, protein: number) => ({

@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -7,8 +7,9 @@ import {
   ScrollView,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Link, router, useFocusEffect } from 'expo-router';
-import { Card, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { localDateStr } from '@chefer/utils';
 import { ChefReviewBanner } from '../../src/features/coach/chef-review-banner';
 import { WeightCard } from '../../src/features/coach/weight-card';
@@ -18,14 +19,18 @@ import { NutritionSummary } from '../../src/features/dashboard/components/nutrit
 import { WeekOutlook } from '../../src/features/dashboard/components/week-outlook';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { TodaysWorkoutCard } from '../../src/features/gym/today/todays-workout-card';
+import { QuickAddSheet } from '../../src/features/tracker/quick-add-sheet';
+import { ScanMealCard } from '../../src/features/tracker/scan-meal-card';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
-// Home tab — port of apps/web (dashboard)/dashboard/page.tsx (M2-1).
-// Deviations from web, deliberate: no weight/coach cards yet (coach feature
-// arrives with M2-9/M2-10; the recharts weight chart needs an RN chart lib).
-// The calorie ring is back (animated, MO-06 — see nutrition-summary.tsx).
+// Today tab — port of apps/web (dashboard)/dashboard/page.tsx (M2-1, P2-2).
+// Home and the Tracker merged into one daily surface: what you ate against
+// the target (animated ring, MO-06), quick add / scan, the next meal with a
+// one-tap "I ate this" that advances past logged meals, and "See full day"
+// into the full tracker (which left More). Deviation from web, deliberate:
+// scanning shows the premium Snap-to-log card (no free demo sheet on mobile).
 export default function HomeScreen() {
   // The device's own day and hour decide "today" and the next meal (F-DASH-1-1).
   const {
@@ -53,6 +58,7 @@ export default function HomeScreen() {
     staleTime: 60_000,
   });
   const showProfileNudge = isPremium === true && hasProfile === false;
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -99,16 +105,26 @@ export default function HomeScreen() {
         <ModeSwitch />
 
         {/* Header */}
-        <View>
-          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-            {hasPlan ? 'Welcome Back, Chef' : 'Welcome, Chef'}
-          </Text>
-          <Text testID="home-title" variant="title" className="mt-0.5">
-            Your Daily Overview
-          </Text>
-          <Text variant="muted" className="mt-1 text-sm">
-            {d.today.date}
-          </Text>
+        <View className="flex-row items-end justify-between gap-3">
+          <View className="min-w-0 flex-1">
+            <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+              {d.today.date}
+            </Text>
+            <Text testID="home-title" variant="title" className="mt-0.5">
+              Today
+            </Text>
+          </View>
+          {/* The full tracker (portions, past days, un-logging) stays one tap
+              away — it left More when it became Today (F-PM-7). */}
+          <Pressable
+            testID="today-full-day"
+            accessibilityRole="button"
+            onPress={() => router.push('/tracker')}
+            className="min-h-11 flex-row items-center gap-1"
+          >
+            <Text className="text-sm font-semibold text-primary">See full day</Text>
+            <Ionicons name="chevron-forward" size={16} color="#944a00" />
+          </Pressable>
         </View>
 
         {/* PW-5: this week's plan was prepared before the week started */}
@@ -143,20 +159,27 @@ export default function HomeScreen() {
           </Link>
         )}
 
-        <WeekOutlook weekPlan={d.weekPlan} />
-
+        {/* What you ate vs target — driven by dashboard.summary's nutrition
+            fields, so server-side target changes flow straight through. */}
         <NutritionSummary nutrition={d.nutrition} />
 
-        <WeightCard />
-
-        <TodaysWorkoutCard />
+        {/* Off-plan logging: free quick add + premium Snap-to-log */}
+        <Button testID="today-quick-add" variant="outline" onPress={() => setQuickAddOpen(true)}>
+          <View className="flex-row items-center gap-1.5">
+            <Ionicons name="add" size={18} color="#944a00" />
+            <Text className="text-sm font-medium text-primary">Quick add</Text>
+          </View>
+        </Button>
+        <ScanMealCard date={localDateStr()} onLogged={() => void refetch()} />
 
         {heroMeal ? (
           <HeroMealCard meal={heroMeal} isTomorrow={heroIsTomorrow} />
         ) : (
-          <Card>
+          <Card testID="today-no-meal">
             <Text variant="muted">
-              No upcoming meals planned. Head to the Plan tab to get started.
+              {hasPlan
+                ? "You're all caught up for today."
+                : 'No meals planned yet. Head to the Plan tab to get started.'}
             </Text>
           </Card>
         )}
@@ -165,7 +188,7 @@ export default function HomeScreen() {
         {d.restOfToday.length > 0 && (
           <Card testID="rest-of-today">
             <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
-              Later Today
+              Later today
             </Text>
             <View className="gap-2.5">
               {d.restOfToday.map((meal, i) => (
@@ -192,6 +215,12 @@ export default function HomeScreen() {
             </View>
           </Card>
         )}
+
+        <WeekOutlook weekPlan={d.weekPlan} />
+
+        <WeightCard />
+
+        <TodaysWorkoutCard />
 
         {/* Recent favourites */}
         {d.recentFavourites.length > 0 && (
@@ -229,6 +258,13 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+
+      <QuickAddSheet
+        visible={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        date={localDateStr()}
+        onLogged={() => void refetch()}
+      />
     </Screen>
   );
 }

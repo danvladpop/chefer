@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   deriveMode,
+  FOOD_EXTRA_ROUTES,
   FOOD_NAV_ITEMS,
   GYM_NAV_ITEMS,
   isFocusRoute,
@@ -55,6 +56,46 @@ describe('nav item partitions', () => {
       expect(item.label.length).toBeGreaterThan(0);
       expect(item.icon).toBeDefined();
     }
+  });
+});
+
+describe('food IA (P2-2 / P2-8)', () => {
+  const item = (href: string) => FOOD_NAV_ITEMS.find((i) => i.href === href)!;
+
+  it('tab bar reads Today · Plan · Shop · Cookbook', () => {
+    expect(PRIMARY_NAV_ITEMS.map((i) => i.shortLabel ?? i.label)).toEqual([
+      'Today',
+      'Plan',
+      'Shop',
+      'Cookbook',
+    ]);
+  });
+
+  it('More holds Progress, My weeks, Profile and Preferences only', () => {
+    expect(SECONDARY_NAV_ITEMS.map((i) => i.href)).toEqual([
+      '/progress',
+      '/my-weeks',
+      '/profile',
+      '/preferences',
+    ]);
+  });
+
+  it('Tracker, Pantry, History and Ingredients left the nav', () => {
+    for (const href of FOOD_EXTRA_ROUTES) {
+      expect(FOOD_NAV_ITEMS.some((i) => i.href === href)).toBe(false);
+    }
+  });
+
+  it('old routes light the tab that absorbed them', () => {
+    expect(isItemActive('/tracker', item('/dashboard'))).toBe(true);
+    expect(isItemActive('/pantry', item('/shopping-list'))).toBe(true);
+    expect(isItemActive('/history/p1', item('/my-weeks'))).toBe(true);
+    expect(isItemActive('/recipes/r1', item('/dashboard'))).toBe(false);
+  });
+
+  it('old routes still render in Food mode', () => {
+    for (const href of FOOD_EXTRA_ROUTES) expect(deriveMode(href, 'gym')).toBe('food');
+    expect(deriveMode('/my-weeks', 'gym')).toBe('food');
   });
 });
 

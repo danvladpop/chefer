@@ -3,12 +3,14 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, View } from
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { PastWeeksSection } from '../src/features/history/past-weeks-section';
 import { trpc } from '../src/lib/trpc';
 
-// My Weeks — the 4-week rotation. Save refined weeks as named templates,
-// follow one (it applies now and future weeks carry it forward), rename,
-// delete. Every tier: templates never touch AI. Web parity: the
-// WeekTemplates panel on the meal-plan page.
+// My Weeks — the 4-week rotation plus past weeks (P2-8: History folded in).
+// Save refined weeks as named templates, follow one (it applies now and
+// future weeks carry it forward), rename, delete; below, past weeks to look
+// back at or restore. Every tier: templates never touch AI. Web parity: the
+// /my-weeks page. Reached from More and from the Plan tab.
 
 const MAX_TEMPLATES = 4;
 
@@ -251,6 +253,8 @@ export default function MyWeeksScreen() {
             </Card>
           ))
         )}
+
+        <PastWeeksSection />
       </ScrollView>
     </Screen>
   );

@@ -4,26 +4,63 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { ImportRecipeSheet } from '@/features/recipes/components/ImportRecipeSheet';
-import { RecipeImage } from '@/features/recipes/components/RecipeImage';
+import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { trpc } from '@/lib/trpc';
-import { Clock, Flame, Heart, Link2, Pencil, Plus, Search } from 'lucide-react';
+import { Clock, Compass, Flame, Heart, Link2, Pencil, Plus, Search } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
+import { cn } from '@chefer/utils';
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Cookbook (P2-8, PM review §5) ────────────────────────────────────────────
+// Was "Recipes", which only listed past-plan recipes (F-REC-1-4). The
+// Discover tab browses the curated collection — safety-filtered for the user
+// and their household — with meal-type and time filters (recipe.discover).
 
-type Tab = 'all' | 'saved' | 'my';
+type Tab = 'all' | 'saved' | 'my' | 'discover';
+
+const TABS = [
+  { key: 'all', label: 'All' },
+  { key: 'saved', label: '♥ Saved' },
+  { key: 'my', label: '✎ My Recipes' },
+  { key: 'discover', label: 'Discover' },
+] as const;
+
+type MealFilter = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+const MEAL_FILTERS: { key: MealFilter | null; label: string }[] = [
+  { key: null, label: 'Any meal' },
+  { key: 'breakfast', label: 'Breakfast' },
+  { key: 'lunch', label: 'Lunch' },
+  { key: 'dinner', label: 'Dinner' },
+  { key: 'snack', label: 'Snack' },
+];
+const QUICK_MINS = 30;
+
+/** The fields a recipe card needs — shared by recipe.list and recipe.discover rows. */
+interface CardRecipe {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  imageStatus?: ImageStatusType | null;
+  cuisineType: string;
+  prepTimeMins: number;
+  cookTimeMins: number;
+  nutritionInfo: unknown;
+  isFavourite: boolean;
+}
 
 export default function RecipesPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const rawFilter = searchParams.get('filter') ?? searchParams.get('tab') ?? 'all';
-  const initialTab: Tab = rawFilter === 'saved' ? 'saved' : rawFilter === 'my' ? 'my' : 'all';
+  const initialTab: Tab =
+    rawFilter === 'saved' || rawFilter === 'my' || rawFilter === 'discover' ? rawFilter : 'all';
 
   const [tab, setTab] = useState<Tab>(initialTab);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [importOpen, setImportOpen] = useState(false);
+  const [mealFilter, setMealFilter] = useState<MealFilter | null>(null);
+  const [quickOnly, setQuickOnly] = useState(false);
 
   // Debounce search
   const handleSearch = (value: string) => {
@@ -46,7 +83,18 @@ export default function RecipesPage() {
     isError,
     isRefetching,
     refetch,
-  } = trpc.recipe.list.useQuery(listInput);
+  } = trpc.recipe.list.useQuery(listInput, { enabled: tab !== 'discover' });
+  const discover = trpc.recipe.discover.useQuery(
+    {
+      search: debouncedSearch || undefined,
+      mealType: mealFilter ?? undefined,
+      maxTotalMins: quickOnly ? QUICK_MINS : undefined,
+    },
+    { enabled: tab === 'discover', staleTime: 60_000 },
+  );
+  const cards: CardRecipe[] | undefined = tab === 'discover' ? discover.data : recipes;
+  const cardsLoading = tab === 'discover' ? discover.isLoading : isLoading;
+  const cardsError = tab === 'discover' ? discover.isError : isError;
 
   const utils = trpc.useUtils();
   const toggleFav = trpc.recipe.toggleFavourite.useMutation({
@@ -64,6 +112,7 @@ export default function RecipesPage() {
     },
     onSettled: () => {
       void utils.recipe.list.invalidate();
+      void utils.recipe.discover.invalidate();
     },
   });
 
@@ -81,7 +130,7 @@ export default function RecipesPage() {
           <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
             Your Collection
           </p>
-          <h1 className="font-serif text-xl font-bold text-gray-900 sm:text-2xl">Recipes</h1>
+          <h1 className="font-serif text-xl font-bold text-gray-900 sm:text-2xl">Cookbook</h1>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {/* Import (F5 Cheferize) — visible on every tier: free users get the
@@ -108,13 +157,7 @@ export default function RecipesPage() {
 
       {/* Tabs */}
       <div className="scroll-rail mb-4 gap-1 border-b">
-        {(
-          [
-            { key: 'all', label: 'All Recipes' },
-            { key: 'saved', label: '♥ Saved' },
-            { key: 'my', label: '✎ My Recipes' },
-          ] as const
-        ).map(({ key, label }) => (
+        {TABS.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => handleTabChange(key)}
@@ -140,26 +183,66 @@ export default function RecipesPage() {
           type="search"
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
-          placeholder="Search recipes…"
+          placeholder={tab === 'discover' ? 'Search dishes or ingredients…' : 'Search recipes…'}
           aria-label="Search recipes"
           className="w-full rounded-xl border bg-white py-2.5 pl-9 pr-4 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
         />
       </div>
 
+      {/* Discover filters */}
+      {tab === 'discover' && (
+        <div
+          role="group"
+          aria-label="Filter the collection"
+          data-testid="discover-filters"
+          className="scroll-rail -mt-2 mb-6 gap-2"
+        >
+          {MEAL_FILTERS.map(({ key, label }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setMealFilter(key)}
+              aria-pressed={mealFilter === key}
+              className={cn(
+                'min-h-11 shrink-0 whitespace-nowrap rounded-full border px-4 text-sm font-medium transition-colors',
+                mealFilter === key
+                  ? 'border-[#944a00] bg-[#944a00] text-white'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setQuickOnly((q) => !q)}
+            aria-pressed={quickOnly}
+            className={cn(
+              'flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-sm font-medium transition-colors',
+              quickOnly
+                ? 'border-[#944a00] bg-[#fff3e8] text-[#944a00]'
+                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
+            )}
+          >
+            <Clock className="h-3.5 w-3.5" aria-hidden="true" />≤ {QUICK_MINS} min
+          </button>
+        </div>
+      )}
+
       {/* Content */}
-      {isLoading ? (
+      {cardsLoading ? (
         <RecipeGridSkeleton />
-      ) : isError && !recipes ? (
+      ) : cardsError && !cards ? (
         <ErrorState
           title="Couldn't load your recipes"
-          onRetry={() => void refetch()}
-          retrying={isRefetching}
+          onRetry={() => void (tab === 'discover' ? discover.refetch() : refetch())}
+          retrying={tab === 'discover' ? discover.isRefetching : isRefetching}
         />
-      ) : !recipes || recipes.length === 0 ? (
-        <EmptyState tab={tab} />
+      ) : !cards || cards.length === 0 ? (
+        <EmptyState tab={tab} searching={debouncedSearch.length > 0} onTab={handleTabChange} />
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {recipes.map((recipe) => {
+          {cards.map((recipe) => {
             const n = recipe.nutritionInfo as {
               calories: number;
               protein: number;
@@ -252,7 +335,29 @@ function Chip({ label, value }: { label: string; value: number }) {
   );
 }
 
-function EmptyState({ tab }: { tab: Tab }) {
+function EmptyState({
+  tab,
+  searching,
+  onTab,
+}: {
+  tab: Tab;
+  searching: boolean;
+  onTab: (tab: Tab) => void;
+}) {
+  if (tab === 'discover') {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-gray-50 px-4 py-16 text-center">
+        <Compass className="h-10 w-10 text-gray-300" aria-hidden="true" />
+        <p className="font-medium text-gray-700">No dishes match</p>
+        <p className="text-sm text-gray-500">
+          {searching
+            ? 'Try another word, or clear the filters.'
+            : 'Nothing in the collection fits these filters and your allergies.'}
+        </p>
+      </div>
+    );
+  }
+
   if (tab === 'saved') {
     return (
       <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-gray-50 py-16 text-center">
@@ -262,10 +367,10 @@ function EmptyState({ tab }: { tab: Tab }) {
           Tap the ♥ on any recipe to save it to your collection.
         </p>
         <button
-          onClick={() => window.history.back()}
+          onClick={() => onTab('all')}
           className="min-h-11 px-2 text-sm text-[#944a00] hover:underline"
         >
-          ← All Recipes
+          ← All recipes
         </button>
       </div>
     );
@@ -300,17 +405,33 @@ function EmptyState({ tab }: { tab: Tab }) {
         📖
       </span>
       <div>
-        <p className="font-medium text-gray-700">No recipes yet</p>
+        <p className="font-medium text-gray-700">
+          {searching ? 'No recipes match your search' : 'No recipes yet'}
+        </p>
         <p className="mt-1 text-sm text-gray-500">
-          Generate a meal plan and your recipes will appear here.
+          {searching
+            ? 'Try another word, or look in Discover.'
+            : 'Recipes from your meal plans appear here. Browse the collection meanwhile.'}
         </p>
       </div>
-      <Link
-        href="/meal-plan"
-        className="inline-flex min-h-11 items-center rounded-xl bg-[#944a00] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
-      >
-        Go to Meal Planner →
-      </Link>
+      <div className="flex flex-wrap justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => onTab('discover')}
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-[#944a00] px-5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
+        >
+          <Compass className="h-4 w-4" aria-hidden="true" />
+          Browse Discover
+        </button>
+        {!searching && (
+          <Link
+            href="/meal-plan"
+            className="inline-flex min-h-11 items-center rounded-xl border border-[#944a00]/30 px-5 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
+          >
+            Go to Meal Planner
+          </Link>
+        )}
+      </div>
     </div>
   );
 }

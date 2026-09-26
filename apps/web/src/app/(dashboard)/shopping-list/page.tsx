@@ -2,13 +2,17 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  PantryConfirmSheet,
-  PantryWeeklyConfirmAuto,
-} from '@/features/pantry/components/PantryConfirmSheet';
+import { PantryCheckBanner } from '@/features/pantry/components/PantryCheckBanner';
 import { PantryGhostBanner } from '@/features/pantry/components/PantryGhostBanner';
+import { PantryPanel } from '@/features/pantry/components/PantryPanel';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import {
+  ShopSegments,
+  shopViewFromParam,
+  shopViewHref,
+} from '@/features/shopping-list/components/ShopSegments';
 import { WeekNavigator } from '@/features/shopping-list/components/WeekNavigator';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -90,6 +94,8 @@ function getMondayOfWeek(offset: number): Date {
 }
 
 export default function ShoppingListPage() {
+  // Shop = "To buy" / "In my kitchen" (P2-8): ?view=kitchen shows the pantry.
+  const view = shopViewFromParam(useSearchParams().get('view'));
   const [weekOffset, setWeekOffset] = useState(0);
   // Legacy localStorage keys are migrated to the server once (P1-5), then
   // cleared — the server's checkedKeys is the source of truth from then on.
@@ -253,6 +259,21 @@ export default function ShoppingListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when the list first loads
   }, [weekList?.planId]);
 
+  if (view === 'kitchen') {
+    return (
+      <div className="mx-auto max-w-3xl p-4 lg:p-6">
+        <div className="mb-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+            YOUR KITCHEN
+          </p>
+          <h1 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">Shop</h1>
+        </div>
+        <ShopSegments view="kitchen" kitchenCount={pantry?.itemCount} className="mb-4" />
+        <PantryPanel />
+      </div>
+    );
+  }
+
   // A failed load is not an empty list (audit F-X-3-1).
   if (listError && !weekList) {
     return (
@@ -297,7 +318,7 @@ export default function ShoppingListPage() {
           THIS WEEK
         </p>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Shopping List</h1>
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Shop</h1>
 
           {/* Three ~150px buttons do not fit a phone header. Regenerate stays
               primary; Print and Send-to-Mobile move into an overflow menu —
@@ -368,6 +389,8 @@ export default function ShoppingListPage() {
         </div>
       </div>
 
+      <ShopSegments view="list" kitchenCount={pantry?.itemCount} className="mb-4" />
+
       {/* Week Navigator */}
       <div className="mb-4" data-print-hide>
         <WeekNavigator
@@ -436,7 +459,8 @@ export default function ShoppingListPage() {
         {pantry && pantry.itemCount > 0 && (
           <span className="flex items-center gap-1">
             <Link
-              href="/pantry"
+              href={shopViewHref('kitchen')}
+              replace
               className="flex min-h-11 items-center gap-1 whitespace-nowrap rounded-full border border-neutral-200 px-3 py-1 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 sm:min-h-0"
             >
               <Refrigerator className="h-3.5 w-3.5 shrink-0" />
@@ -456,6 +480,14 @@ export default function ShoppingListPage() {
           </span>
         )}
       </div>
+
+      {/* F3 weekly kitchen check — inline, never over the list (F-PM-13):
+          auto once a week for items 3+ days old, or by hand from the chip */}
+      <PantryCheckBanner
+        manualOpen={confirmOpen}
+        onManualClose={() => setConfirmOpen(false)}
+        className="mb-5"
+      />
 
       {/* F3 §6.4 ghost state (free tier): real seeded item count + the real
           savings this list would have seen */}
@@ -739,11 +771,6 @@ export default function ShoppingListPage() {
           </div>
         </div>
       </Sheet>
-
-      {/* F3: manual weekly kitchen check (header button) + the once-a-week
-          auto prompt (Sunday / first visit of the week, premium only) */}
-      <PantryConfirmSheet open={confirmOpen} onClose={() => setConfirmOpen(false)} />
-      <PantryWeeklyConfirmAuto />
     </div>
   );
 }

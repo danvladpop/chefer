@@ -493,7 +493,7 @@ recipe) and adds Restore there; on both mobile screens Restore asks first
 
 ### Week templates — "My weeks" (4-week rotation)
 
-Users save refined weeks as named templates (`mealPlan.saveAsTemplate`, max 4 — CONFLICT beyond) and rotate through them. `followTemplate` marks one followed (at most one) and applies it to the chosen week immediately (the existing plan for that week is archived); from then on carry-forward clones the followed template instead of the latest plan, so the followed week repeats indefinitely. `renameTemplate` / `deleteTemplate` / `unfollowTemplate` manage the set. Templates are `MealPlan` rows with `isTemplate=true`, invisible to week/active/history queries. All tiers, zero AI. UI: "My Weeks" screen on mobile (from the Plan tab) and the `WeekTemplates` panel on web's meal-plan page.
+Users save refined weeks as named templates (`mealPlan.saveAsTemplate`, max 4 — CONFLICT beyond) and rotate through them. `followTemplate` marks one followed (at most one) and applies it to the chosen week immediately (the existing plan for that week is archived); from then on carry-forward clones the followed template instead of the latest plan, so the followed week repeats indefinitely. `renameTemplate` / `deleteTemplate` / `unfollowTemplate` manage the set. Templates are `MealPlan` rows with `isTemplate=true`, invisible to week/active/history queries. All tiers, zero AI. UI: the **My weeks** page (web `/my-weeks`, mobile `my-weeks` screen; both reached from More and from the Plan tab) — saved weeks on top, past weeks below (`pastWeeks` in `@chefer/utils`: past weeks only, one card per week preferring the ACTIVE copy then the newest, newest week first — audit F-PLAN-6-3). It replaces History (web `/history` redirects; the read-only `/history/[planId]` view stays).
 
 ### Week carry-forward
 
@@ -635,22 +635,66 @@ The "Today" card's ring shows what was **eaten** (the day's DailyLog totals: `nu
 dashboard.summary
   ├─ load ChefProfile + active MealPlan + recent favourites (parallel)
   ├─ join all recipe IDs across the plan's days
-  ├─ nextMeal: resolved by MEAL TYPE, not position (getNextMealType)
-  │    └─ first meal type present in today's plan whose window is still
-  │       open — MEAL_WINDOW_END: breakfast <10, lunch <14, snack <17,
+  ├─ load today's DailyLog (eaten totals + loggedMeals)
+  ├─ nextMeal: resolveTodayMeals (@chefer/utils), by MEAL TYPE
+  │    ├─ skips slots already EATEN today (audit F-PM-10): the same recipe
+  │    │  was logged (Made it!, tracker, Today's "I ate this" — any meal
+  │    │  type), or a custom scan/quick-add was logged for that meal type
+  │    │  (not snacks: web quick-adds always land as "snack")
+  │    └─ then the first meal type present in today's plan whose window is
+  │       still open — MEAL_WINDOW_END: breakfast <10, lunch <14, snack <17,
   │       dinner <21. A 3-meal plan therefore surfaces dinner from 14:00
   │       (its snack window doesn't exist), a 4-meal plan surfaces the
   │       snack first.
-  ├─ restOfToday: today's meals whose type sorts after nextMeal
-  ├─ tomorrowFirstMeal: set only when every window has passed (late
-  │    evening) — the first meal of day (today+1) % 7, so the dashboard
-  │    hero renders a "Tomorrow" card instead of going blank
+  ├─ restOfToday: today's uneaten meals whose type sorts after nextMeal
+  ├─ tomorrowFirstMeal: set when nothing is left today — every window has
+  │    passed (late evening) or the rest is eaten — the first meal of day
+  │    (today+1) % 7, so the hero renders a "Tomorrow" card instead of
+  │    going blank or re-offering a meal already eaten
   └─ nutrition: planned kcal/macros for today vs targets
        └─ lifters only (P2-4): trainingDay + adjustedTargets (see below)
 ```
 
+### Today (P2-2) — Home + Tracker in one tab
+
+The food tab bar is **Today · Plan · Shop · Cookbook · More** on web below `lg`
+and on mobile; the desktop sidebar lists the same four, a divider, then More's
+items (Progress, My weeks, Profile, Preferences). Today (web `/dashboard`,
+mobile `(food)/index`) shows:
+
+```
+Today
+  ├─ ring: nutrition.eatenKcal against the target + macros (dashboard.summary —
+  │    uses nutrition.adjustedTargets on a training day, P2-4, so server-side
+  │    target changes flow straight through)
+  ├─ quick log: Quick add (free, tracker.logCustomMeal) + Scan a meal
+  │    (premium; free sees the demo ghost) — both refresh dashboard.summary
+  ├─ next meal (nextMeal, else tomorrowFirstMeal badged "Tomorrow"):
+  │    ├─ "I ate this" → tracker.logRecipe { date: local day, recipeId,
+  │    │    mealType, portionMultiplier: the plan slot's portion (P1-1
+  │    │    nextMeal.portion, clamped 0.5–2×; 1 when unset) } (atomic, idempotent; a premium
+  │    │    log may rebalance the week) → summary refetch → the spotlight
+  │    │    advances past the logged meal (resolveTodayMeals)
+  │    └─ "Cook it" → cook mode (?meal=type); "Made it!" there logs too
+  ├─ later today: restOfToday (uneaten meals after the spotlight)
+  └─ "See full day" → /tracker (portions, past days, un-logging); the
+       Tracker is no longer under More (F-PM-7) and lights the Today tab
+```
+
 The web hero card (`/dashboard`) renders `nextMeal`, else `tomorrowFirstMeal`
-(badged "Tomorrow", CTA "View Recipe"), else the "all caught up" empty state.
+(badged "Tomorrow", CTA "View recipe"), else the "all caught up" empty state.
+
+### Cookbook, Shop, My weeks (P2-8)
+
+- **Cookbook** (was Recipes): All (past-plan recipes) / Saved / My Recipes /
+  **Discover**. Discover calls `recipe.discover` — the curated pool filtered by
+  the owner's and household members' allergies and restrictions, with meal-type
+  chips, a "≤ 30 min" toggle and search. Every tier, no AI; results open, save
+  and cook like any recipe.
+- **Shop**: "To buy" (the shopping list) / "In my kitchen" (the pantry). See §18
+  for the inline "Still have these?" banner.
+- **My weeks**: saved weeks + past weeks (see §9 "Week templates").
+- **Ingredients** left the nav; `/ingredients` still works by URL.
 
 ### 10.1 Training-aware nutrition (audit P2-4)
 
@@ -1133,8 +1177,12 @@ shoppingList.toggleItems { keys, checked: true }        (protected)
 
 DEPLETION v1 (premium)
 pantry.confirmWeekly { clearIds }                        (premium)
-  ├─ auto-prompted once per week on the shopping list (Sunday / first visit,
-  │    localStorage-cooldowned; also manual from the pantry page header)
+  ├─ asked by the inline "Still have these?" banner (PantryCheckBanner on
+  │    web, pantry-check-banner on mobile) at the top of Shop — never a sheet
+  │    over the list (audit F-PM-13): at most once a week (answered or "Not
+  │    now" both count; web localStorage / mobile KV key = local Monday), and
+  │    only about items ≥ 3 days old (pantryItemsToConfirm, @chefer/utils);
+  │    also by hand from "Still have these?" on Shop → In my kitchen
   ├─ tapped items are deleted ("used it up")
   └─ kept rows older than 7 days decay quantity → 0 = the "some" state
        (amount unknown; updatedAt PRESERVED so use-first order holds)
@@ -1172,7 +1220,8 @@ honest teaser.
 **Free-tier ghost state (§6.4):** check-offs really seed the pantry, so after any
 check-off session the shopping list header shows "You now have N items in your
 kitchen — premium plans cook from them" plus the REAL computed savings figure for
-this list. The `/pantry` page is visible read-only with the upsell. Events:
+this list. Shop → "In my kitchen" (web `/shopping-list?view=kitchen`, which
+`/pantry` redirects to; mobile Shop tab segment) is visible read-only with the upsell. Events:
 `upgrade_prompt_shown {source: pantry}` (impression), `teaser_engaged {feature:
 pantry}`, `pantry_confirmed`, `plan_used_pantry {itemCount}`.
 

@@ -1,18 +1,15 @@
 import {
-  Activity,
   BarChart3,
   BookOpen,
   CalendarDays,
-  Carrot,
-  Clock,
   Dumbbell,
-  LayoutDashboard,
   ListChecks,
-  Refrigerator,
+  Repeat,
   Settings,
   ShoppingCart,
   SlidersHorizontal,
   Sun,
+  Sunrise,
   TrendingUp,
   User,
   type LucideIcon,
@@ -41,19 +38,38 @@ export interface NavItem {
   alsoActiveFor?: readonly string[];
 }
 
+// Food IA (audit P2-2 / P2-8, PM review §5): Today · Plan · Shop · Cookbook
+// in the tab bar, the rest in More. Today merges Home and the Tracker, Shop
+// holds the pantry ("In my kitchen"), My weeks holds history + saved weeks.
+// Old routes keep working: /tracker lights Today, /pantry redirects to the
+// Shop's kitchen segment, /history redirects to My weeks, /ingredients stays
+// reachable by URL (FOOD_EXTRA_ROUTES) but leaves the nav.
 export const FOOD_NAV_ITEMS: readonly NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', shortLabel: 'Home', icon: LayoutDashboard },
+  {
+    href: '/dashboard',
+    label: 'Today',
+    icon: Sunrise,
+    alsoActiveFor: ['/tracker'],
+  },
   { href: '/meal-plan', label: 'Meal Planner', shortLabel: 'Plan', icon: CalendarDays },
-  { href: '/recipes', label: 'Recipes', icon: BookOpen },
-  { href: '/ingredients', label: 'Ingredients', icon: Carrot },
-  { href: '/shopping-list', label: 'Shopping List', shortLabel: 'Shop', icon: ShoppingCart },
-  { href: '/pantry', label: 'Pantry', icon: Refrigerator },
-  { href: '/tracker', label: 'Tracker', icon: Activity },
+  {
+    href: '/shopping-list',
+    label: 'Shop',
+    icon: ShoppingCart,
+    alsoActiveFor: ['/pantry'],
+  },
+  { href: '/recipes', label: 'Cookbook', icon: BookOpen },
   { href: '/progress', label: 'Progress', icon: TrendingUp },
-  { href: '/history', label: 'History', icon: Clock },
+  { href: '/my-weeks', label: 'My weeks', icon: Repeat, alsoActiveFor: ['/history'] },
   { href: '/profile', label: 'Profile', icon: User },
   { href: '/preferences', label: 'Preferences', icon: Settings },
 ] as const;
+
+/**
+ * Food routes that are not nav destinations any more but must still render
+ * in Food mode (deep links, old bookmarks).
+ */
+export const FOOD_EXTRA_ROUTES = ['/tracker', '/pantry', '/history', '/ingredients'] as const;
 
 /** Alias of FOOD_NAV_ITEMS, kept for existing consumers (new code: navFor(mode)). */
 export const NAV_ITEMS: readonly NavItem[] = FOOD_NAV_ITEMS;
@@ -84,8 +100,8 @@ export const GYM_SECONDARY_NAV_ITEMS: readonly NavItem[] = [
 export const PRIMARY_NAV_HREFS = [
   '/dashboard',
   '/meal-plan',
-  '/recipes',
   '/shopping-list',
+  '/recipes',
 ] as const;
 
 export const PRIMARY_NAV_ITEMS: readonly NavItem[] = PRIMARY_NAV_HREFS.map(
@@ -140,6 +156,7 @@ export function modeOfPath(pathname: string): AppMode | null {
   const accountPages = ['/profile', '/preferences'];
   if (accountPages.some((href) => isNavItemActive(pathname, href))) return null;
   if (FOOD_NAV_ITEMS.some((item) => isNavItemActive(pathname, item.href))) return 'food';
+  if (FOOD_EXTRA_ROUTES.some((href) => isNavItemActive(pathname, href))) return 'food';
   return null;
 }
 

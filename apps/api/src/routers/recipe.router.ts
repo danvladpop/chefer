@@ -40,6 +40,24 @@ export const recipeRouter = router({
     }),
 
   /**
+   * Cookbook → Discover (F-REC-1-4): browse the curated recipe pool, already
+   * filtered by the user's and household's allergies and restrictions. Every
+   * tier, no AI. Additive.
+   */
+  discover: protectedProcedure
+    .input(
+      z.object({
+        mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']).optional(),
+        search: z.string().max(100).optional(),
+        maxTotalMins: z.number().int().min(5).max(600).optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      return recipeService.discover(ctx.user.id, input);
+    }),
+
+  /**
    * Returns a single manual recipe owned by the authenticated user.
    * Used to pre-fill the edit form.
    */

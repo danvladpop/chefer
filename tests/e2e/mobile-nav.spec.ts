@@ -66,6 +66,49 @@ test.describe('bottom tab bar', () => {
   });
 });
 
+test.describe('food IA (P2-2 / P2-8)', () => {
+  test.use({ viewport: MOBILE });
+
+  test('tab bar reads Today · Plan · Shop · Cookbook · More', async ({ page }) => {
+    await gotoAndSettle(page, '/dashboard');
+    await expect(bottomNav(page).locator('a, button')).toHaveText([
+      'Today',
+      'Plan',
+      'Shop',
+      'Cookbook',
+      'More',
+    ]);
+    await expect(bottomNav(page).locator('[aria-current="page"]')).toHaveAttribute(
+      'href',
+      '/dashboard',
+    );
+  });
+
+  test('the full tracker lights Today and is one tap from it', async ({ page }) => {
+    await gotoAndSettle(page, '/dashboard');
+    await page.getByTestId('today-full-day').click();
+    await expect(page).toHaveURL(/\/tracker$/);
+    await expect(bottomNav(page).locator('[aria-current="page"]')).toHaveAttribute(
+      'href',
+      '/dashboard',
+    );
+  });
+
+  test('old routes land on their new homes', async ({ page }) => {
+    await gotoAndSettle(page, '/history');
+    await expect(page).toHaveURL(/\/my-weeks$/);
+    await expect(page.getByRole('heading', { name: 'My weeks', level: 1 })).toBeVisible();
+
+    await gotoAndSettle(page, '/pantry');
+    await expect(page).toHaveURL(/\/shopping-list\?view=kitchen$/);
+    await expect(page.getByTestId('shop-segment-kitchen')).toHaveAttribute('aria-current', 'page');
+    await expect(bottomNav(page).locator('[aria-current="page"]')).toHaveAttribute(
+      'href',
+      '/shopping-list',
+    );
+  });
+});
+
 test.describe('more drawer', () => {
   test.use({ viewport: MOBILE });
 
@@ -75,8 +118,9 @@ test.describe('more drawer', () => {
 
     const drawer = page.getByRole('dialog', { name: 'More navigation' });
     await expect(drawer).toBeVisible();
-    // 11 destinations − 4 tab-bar slots = 7 drawer links (pantry joined in wave 2).
-    await expect(drawer.getByRole('link')).toHaveCount(7);
+    // 8 destinations − 4 tab-bar slots = 4 drawer links (P2-8: Tracker is
+    // Today, Pantry is in Shop, History is My weeks, Ingredients left the nav).
+    await expect(drawer.getByRole('link')).toHaveCount(4);
 
     // Focus must have moved inside the panel.
     expect(await drawer.evaluate((el) => el.contains(document.activeElement))).toBe(true);

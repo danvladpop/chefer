@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DayView } from '@/features/meal-plan/components/day-view';
@@ -11,7 +12,6 @@ import {
   ReplaceMealSheet,
   type ReplaceTarget,
 } from '@/features/meal-plan/components/ReplaceMealSheet';
-import { WeekTemplates } from '@/features/meal-plan/components/WeekTemplates';
 import { PantryUsageBanner } from '@/features/pantry/components/PantryUsageBanner';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
@@ -29,6 +29,7 @@ import {
   CookingPot,
   ImageIcon,
   RefreshCw,
+  Repeat,
   Sparkles,
   Wallet,
   Wand2,
@@ -669,10 +670,25 @@ export default function MealPlanPage() {
         </div>
       )}
 
-      {/* My weeks — save/rotate refined week templates (4-week rotation) */}
+      {/* My weeks (P2-8): saved weeks + past weeks live on their own page */}
       {!isPast && (
         <div className="mx-4 mb-6 sm:mx-6">
-          <WeekTemplates currentPlanId={weekOffset === 0 ? (plan?.planId ?? null) : null} />
+          <Link
+            href="/my-weeks"
+            data-testid="plan-my-weeks-link"
+            className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border bg-white px-4 py-3 text-sm transition hover:border-[#944a00]/30"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <Repeat className="h-4 w-4 shrink-0 text-[#944a00]" aria-hidden="true" />
+              <span className="min-w-0">
+                <span className="font-semibold text-gray-900">My weeks</span>
+                <span className="block text-xs text-gray-500">
+                  Save this week, follow a saved one, or look back at past weeks
+                </span>
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+          </Link>
         </div>
       )}
 

@@ -45,7 +45,7 @@ export function useCountUp(target: number, durationMs: number = duration.deliber
   return reduced ? safeTarget : display;
 }
 
-const defaultFormat = (n: number) => Math.round(n).toLocaleString();
+const defaultFormat = (n: number) => Math.round(n).toLocaleString('en-US');
 
 export interface CountUpProps extends Omit<TextProps, 'children'> {
   value: number;

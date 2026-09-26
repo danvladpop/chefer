@@ -2,16 +2,23 @@ import type { Page } from '@playwright/test';
 
 // ─── Shared layout assertions ─────────────────────────────────────────────────
 
-/** Authenticated routes worth sweeping. Mirrors NAV_ITEMS in apps/web. */
+/**
+ * Authenticated routes worth sweeping. Mirrors FOOD_NAV_ITEMS in apps/web,
+ * plus the routes that left the nav but still render (P2-8): /tracker
+ * (under Today), /ingredients, and the Shop's kitchen segment. /history and
+ * /pantry only redirect, so they are covered by their targets.
+ */
 export const APP_ROUTES = [
   '/dashboard',
   '/meal-plan',
   '/recipes',
+  '/recipes?tab=discover',
   '/ingredients',
   '/shopping-list',
+  '/shopping-list?view=kitchen',
   '/tracker',
   '/progress',
-  '/history',
+  '/my-weeks',
   '/profile',
   '/preferences',
   // Gym mode (gym_plan.md G5). /gym sends a profile-less account on to /gym/setup;
