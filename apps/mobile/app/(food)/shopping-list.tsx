@@ -3,9 +3,16 @@ import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from
 import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { cn, formatQuantity, shoppingWindowLabel } from '@chefer/utils';
+import {
+  cn,
+  formatMoney,
+  formatQuantity,
+  isConvertedCurrency,
+  shoppingWindowLabel,
+} from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { parseCustomItemInput } from '../../src/features/shopping-list/parse-custom-item';
+import { useCurrency } from '../../src/hooks/use-currency';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { trpc } from '../../src/lib/trpc';
@@ -43,6 +50,8 @@ export default function ShoppingListScreen() {
   const [newItemText, setNewItemText] = useState('');
   const isPremium = useIsPremium();
   const unitSystem = useUnitSystem();
+  // Prices are EUR estimates; shown in the user's currency (backlog P2-6).
+  const currency = useCurrency();
   const utils = trpc.useUtils();
 
   const weekStart = getMondayOfWeek(weekOffset);
@@ -217,16 +226,23 @@ export default function ShoppingListScreen() {
         {(weekList?.estimatedTotalEur != null || (pantry?.entitled && pantry.savedEur > 0)) && (
           <View className="flex-row flex-wrap gap-2">
             {weekList?.estimatedTotalEur != null && (
-              <View className="rounded-full border border-border bg-gray-50 px-3 py-1">
-                <Text className="text-xs font-medium text-gray-600">
-                  Est. total ~€{weekList.estimatedTotalEur.toFixed(2)}
+              <View
+                className="rounded-full border border-border bg-gray-50 px-3 py-1"
+                accessibilityLabel={
+                  isConvertedCurrency(currency)
+                    ? `Estimated total about ${formatMoney(weekList.estimatedTotalEur, currency)}, converted from euros at an approximate rate`
+                    : undefined
+                }
+              >
+                <Text testID="shopping-total" className="text-xs font-medium text-gray-600">
+                  Est. total ~{formatMoney(weekList.estimatedTotalEur, currency)}
                 </Text>
               </View>
             )}
             {pantry?.entitled && pantry.savedEur > 0 && (
               <View className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
                 <Text className="text-xs font-medium text-emerald-700">
-                  Saved ~€{pantry.savedEur.toFixed(2)} this week
+                  Saved ~{formatMoney(pantry.savedEur, currency)} this week
                 </Text>
               </View>
             )}
@@ -377,7 +393,7 @@ export default function ShoppingListScreen() {
                                 <Text numberOfLines={1} className="text-xs text-gray-500">
                                   {quantityLabel}
                                   {item.estimatedPriceEur != null &&
-                                    ` · ~€${item.estimatedPriceEur.toFixed(2)}`}
+                                    ` · ~${formatMoney(item.estimatedPriceEur, currency)}`}
                                   {item.pantryCovered && ' · in your kitchen'}
                                 </Text>
                               </View>

@@ -1,8 +1,10 @@
 import { TRPCError } from '@trpc/server';
 import {
+  chefProfileRepository,
   exerciseProgressionRepository,
   gymProfileRepository,
   type GymProfileUpdateData,
+  type IChefProfileRepository,
   type IExerciseProgressionRepository,
   type IGymProfileRepository,
   type InitialProgressionData,
@@ -32,9 +34,11 @@ import {
   instantiateTemplate,
   recommendTemplate,
   repBucket,
+  systemForWeightUnit,
   validateRoutine,
   volumeByGroup,
   weekStartOf,
+  weightUnitForSystem,
 } from '@chefer/utils';
 import { ensureExerciseLibrary } from '../../lib/exercise-library/ensure.js';
 import { gymBootstrapService, type GymBootstrapService } from './gym-bootstrap.service.js';
@@ -114,7 +118,31 @@ export class GymProfileService {
       IExerciseProgressionRepository,
       'findForUser'
     > = exerciseProgressionRepository,
+    private readonly chefProfiles: Pick<IChefProfileRepository, 'upsert'> = chefProfileRepository,
   ) {}
+
+  /**
+   * Food → Gym half of the one-unit-preference sync (backlog P2-6): a global
+   * unit change moves the gym unit through save(), so the stock rack swaps
+   * and progressions re-fold exactly as if the user had changed it in gym
+   * settings. No gym profile yet → nothing to do (setup picks the unit).
+   */
+  async syncFromPreferredUnits(userId: string, units: 'METRIC' | 'IMPERIAL'): Promise<void> {
+    const row = await this.repo.findByUserId(userId);
+    const unit = weightUnitForSystem(units);
+    if (!row || row.unit === unit) return;
+    await this.save(userId, { unit }, serverToday(), { syncPreferences: false });
+  }
+
+  /** Gym → Food half: a gym unit choice becomes the global preference. */
+  private async syncPreferredUnits(userId: string, unit: WeightUnit): Promise<void> {
+    try {
+      await this.chefProfiles.upsert(userId, { preferredUnits: systemForWeightUnit(unit) });
+    } catch (error) {
+      // Best effort — the gym change itself has already been saved.
+      console.error('GymProfileService: preferredUnits sync failed', error);
+    }
+  }
 
   async get(userId: string): Promise<GymProfileDto | null> {
     const row = await this.repo.findByUserId(userId);
@@ -130,6 +158,7 @@ export class GymProfileService {
     userId: string,
     input: SaveGymProfileInput,
     today: string = serverToday(),
+    options: { syncPreferences?: boolean } = {},
   ): Promise<GymProfileDto> {
     const row = await this.repo.findByUserId(userId);
     if (!row) {
@@ -192,6 +221,12 @@ export class GymProfileService {
         userId,
         rows.map((r) => r.exerciseId),
       );
+    }
+    // One unit preference across Food and Gym (P2-6): an lb gym means
+    // imperial recipes and body weight too. Skipped when the change came
+    // FROM the global preference, so the two never ping-pong.
+    if (input.unit !== undefined && input.unit !== row.unit && options.syncPreferences !== false) {
+      await this.syncPreferredUnits(userId, input.unit);
     }
     return saved;
   }
@@ -335,6 +370,9 @@ export class GymProfileService {
       },
       progressions: [...progressions.values()],
     });
+
+    // The unit picked in setup becomes the global preference (P2-6).
+    if (existing?.unit !== input.unit) await this.syncPreferredUnits(userId, input.unit);
 
     return this.bootstrap.get(userId, { today });
   }

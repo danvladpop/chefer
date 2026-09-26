@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { trpc } from '@/lib/trpc';
 import { Scale } from 'lucide-react';
 import { Line, LineChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { bodyWeightInUnit, bodyWeightUnit, formatBodyWeight } from '@chefer/utils';
 import { WeightLogForm } from './WeightLogForm';
 
 // ─── Dashboard weight quick-entry + 30-day sparkline (F1, coach) ──────────────
@@ -18,9 +20,12 @@ export function WeightCard() {
     { staleTime: 60_000 },
   );
   const { data: review } = trpc.coach.currentReview.useQuery(undefined, { staleTime: 60_000 });
+  // Stored in kg; shown in the user's unit (backlog P2-6).
+  const system = useUnitSystem();
+  const unit = bodyWeightUnit(system);
 
   const entries = history ?? [];
-  const chartData = entries.map((w) => ({ weight: w.weightKg }));
+  const chartData = entries.map((w) => ({ weight: bodyWeightInUnit(w.weightKg, system) }));
   const latest = entries[entries.length - 1];
   const first = entries[0];
   const delta =
@@ -39,12 +44,13 @@ export function WeightCard() {
         </p>
         {latest && (
           <p className="min-w-0 truncate text-xs text-gray-500">
-            <span className="font-semibold text-gray-800">{latest.weightKg} kg</span>
+            <span className="font-semibold text-gray-800">
+              {formatBodyWeight(latest.weightKg, system)}
+            </span>
             {delta != null && Math.abs(delta) >= 0.05 && (
               <span className={delta < 0 ? 'text-emerald-600' : 'text-gray-500'}>
                 {' '}
-                ({delta > 0 ? '+' : ''}
-                {delta.toFixed(1)} kg / 30d)
+                ({formatBodyWeight(delta, system, { signed: true })} / 30d)
               </span>
             )}
           </p>
@@ -55,7 +61,7 @@ export function WeightCard() {
       {chartData.length > 1 ? (
         <ResponsiveContainer width="100%" height={56}>
           <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
-            <Tooltip formatter={(val) => [`${String(val)} kg`]} labelFormatter={() => ''} />
+            <Tooltip formatter={(val) => [`${String(val)} ${unit}`]} labelFormatter={() => ''} />
             <Line
               type="monotone"
               dataKey="weight"
@@ -75,7 +81,9 @@ export function WeightCard() {
       {/* Quick entry */}
       <div className="mt-3">
         <WeightLogForm
-          placeholder={todayEntry ? `Logged today: ${todayEntry.weightKg} kg` : '72.5'}
+          {...(todayEntry && {
+            placeholder: `Logged today: ${formatBodyWeight(todayEntry.weightKg, system)}`,
+          })}
         />
       </div>
       {entries.length > 0 && (

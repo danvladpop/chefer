@@ -170,11 +170,15 @@ export function GymSettingsScreen() {
     bootstrap?.profile?.reminderTime ? Number(bootstrap.profile.reminderTime.split(':')[1]) : 0,
   );
 
+  const utils = trpc.useUtils();
   const saveMutation = trpc.gym.profile.save.useMutation({
-    onSuccess: (profile) =>
+    onSuccess: (profile, input) => {
       queryClient.setQueryData(gymBootstrapQueryKey, (prev: GymBootstrap | undefined) =>
         prev ? { ...prev, profile } : prev,
-      ),
+      );
+      // A kg/lb switch is also the global unit preference (P2-6).
+      if (input.unit !== undefined) void utils.preferences.get.invalidate();
+    },
   });
   const pauseCreateMutation = trpc.gym.pause.create.useMutation({
     onSuccess: () => {
@@ -259,6 +263,9 @@ export function GymSettingsScreen() {
               if (next) saveMutation.mutate({ unit: next });
             }}
           />
+          <Text variant="muted" className="text-xs">
+            Also switches recipes, shopping lists and your body weight.
+          </Text>
         </View>
 
         <View className="gap-2">

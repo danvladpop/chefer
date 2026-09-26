@@ -10,7 +10,9 @@ import type { ActivityLevel, BiologicalSex, Goal } from '@/features/onboarding/t
 import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
+import { DISPLAY_CURRENCIES, type DisplayCurrency } from '@chefer/types';
 import { Toast } from '@chefer/ui';
+import { currencySymbol, fromEur, toDisplayCurrency, toEur } from '@chefer/utils';
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
 import { HouseholdSection } from './household-section';
 
@@ -86,6 +88,22 @@ function computePreviewTargets(data: PreviewFormData) {
   };
 }
 
+// ─── Currency helpers (backlog P2-6) ──────────────────────────────────────────
+// The budget is stored in EUR; the field shows and takes the user's currency.
+
+const CURRENCY_LABELS: Record<DisplayCurrency, string> = {
+  EUR: 'Euro (€)',
+  USD: 'US dollar ($)',
+  GBP: 'British pound (£)',
+  RON: 'Romanian leu (RON)',
+};
+
+/** EUR budget → input text in `currency` ("55.56" EUR → "60" USD). */
+function budgetText(budgetEur: number | null | undefined, currency: DisplayCurrency): string {
+  if (budgetEur == null) return '';
+  return String(Math.round(fromEur(budgetEur, currency) * 100) / 100);
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FormData {
@@ -102,9 +120,12 @@ interface FormData {
   mealsPerDay: number;
   servingSize: number;
   deliveryAddress: string;
-  deliveryCurrency: string;
+  deliveryCurrency: DisplayCurrency;
   preferredUnits: 'METRIC' | 'IMPERIAL';
-  /** Weekly ingredient budget in EUR as input text; '' = no budget (P2-4). */
+  /**
+   * Weekly ingredient budget as input text IN deliveryCurrency; '' = no
+   * budget (P2-4). Converted to EUR on save.
+   */
   weeklyBudget: string;
 }
 
@@ -128,6 +149,9 @@ export function PreferencesForm({
   dietaryPreferences,
   isPremium,
 }: PreferencesFormProps) {
+  const initialCurrency = toDisplayCurrency(chefProfile?.deliveryCurrency);
+  const initialUnits =
+    (chefProfile?.preferredUnits as 'METRIC' | 'IMPERIAL' | undefined) ?? 'METRIC';
   const [data, setData] = useState<FormData>({
     goal: (chefProfile?.goal as Goal | null) ?? null,
     biologicalSex: (chefProfile?.biologicalSex as BiologicalSex | null) ?? null,
@@ -142,20 +166,22 @@ export function PreferencesForm({
     mealsPerDay: dietaryPreferences?.mealsPerDay ?? 3,
     servingSize: dietaryPreferences?.servingSize ?? 1,
     deliveryAddress: chefProfile?.deliveryAddress ?? '',
-    deliveryCurrency: chefProfile?.deliveryCurrency ?? 'EUR',
-    preferredUnits: (chefProfile?.preferredUnits as 'METRIC' | 'IMPERIAL' | undefined) ?? 'METRIC',
-    weeklyBudget: chefProfile?.weeklyBudgetEur != null ? String(chefProfile.weeklyBudgetEur) : '',
+    deliveryCurrency: initialCurrency,
+    preferredUnits: initialUnits,
+    weeklyBudget: budgetText(chefProfile?.weeklyBudgetEur, initialCurrency),
   });
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const utils = trpc.useUtils();
   const router = useRouter();
 
-  // Safety (allergies/restrictions/dislikes) saves through the free
-  // updateSafety procedure; everything else is premium-only updateTargets.
+  // Safety (allergies/restrictions/dislikes) and display units/currency save
+  // through free procedures; everything else is premium-only updateTargets.
   const safetyMutation = trpc.preferences.updateSafety.useMutation();
+  const displayMutation = trpc.preferences.setDisplayPreferences.useMutation();
   const targetsMutation = trpc.preferences.updateTargets.useMutation();
-  const isSaving = safetyMutation.isPending || targetsMutation.isPending;
+  const isSaving =
+    safetyMutation.isPending || displayMutation.isPending || targetsMutation.isPending;
 
   function onSaved() {
     capture('preferences_saved', { premium: isPremium });
@@ -165,6 +191,8 @@ export function PreferencesForm({
     void utils.preferences.get.invalidate();
     void utils.dashboard.invalidate();
     void utils.mealPlan.invalidate();
+    // A unit change also moves the gym's kg/lb (one preference, P2-6).
+    if (data.preferredUnits !== initialUnits) void utils.gym.invalidate();
     // Brief pause so the confirmation is seen before leaving the page.
     setTimeout(() => {
       router.push('/dashboard');
@@ -197,6 +225,13 @@ export function PreferencesForm({
         allergies: data.allergies,
         dislikedIngredients: data.dislikedIngredients,
       });
+      // Units + currency are free on every tier (audit F-DASH-3-2).
+      if (data.preferredUnits !== initialUnits || data.deliveryCurrency !== initialCurrency) {
+        await displayMutation.mutateAsync({
+          preferredUnits: data.preferredUnits,
+          currency: data.deliveryCurrency,
+        });
+      }
       if (isPremium) {
         await targetsMutation.mutateAsync({
           ...(data.goal !== null && { goal: data.goal }),
@@ -209,9 +244,9 @@ export function PreferencesForm({
           mealsPerDay: data.mealsPerDay,
           servingSize: data.servingSize,
           deliveryAddress: data.deliveryAddress || null,
-          deliveryCurrency: data.deliveryCurrency as 'EUR' | 'USD' | 'GBP' | 'RON',
-          preferredUnits: data.preferredUnits,
-          weeklyBudgetEur: data.weeklyBudget.trim() ? Number(data.weeklyBudget) : null,
+          weeklyBudgetEur: data.weeklyBudget.trim()
+            ? Math.min(2000, toEur(Number(data.weeklyBudget), data.deliveryCurrency))
+            : null,
         });
       }
       onSaved();
@@ -249,6 +284,82 @@ export function PreferencesForm({
             dietaryRestrictions: data.dietaryRestrictions,
           }}
         />
+
+        {/* Units & currency — free on every tier (backlog P2-6, audit
+            F-DASH-3-2). One unit system for recipes, shopping, body weight
+            and the gym; prices are EUR estimates shown in this currency. */}
+        <Section>
+          <h2 className="mb-4 text-base font-semibold">Units &amp; currency</h2>
+          <div className="space-y-5">
+            <div>
+              <p id="units-label" className="mb-1 block text-sm font-medium text-foreground">
+                Measurement units
+              </p>
+              <div role="radiogroup" aria-labelledby="units-label" className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ['METRIC', 'Metric (g, ml, kg)'],
+                    ['IMPERIAL', 'Imperial (oz, cups, lb)'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={data.preferredUnits === value}
+                    onClick={() => setData((d) => ({ ...d, preferredUnits: value }))}
+                    className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-medium transition ${
+                      data.preferredUnits === value
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-input text-muted-foreground hover:border-primary/40'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Recipes, shopping lists, your body weight and gym loads all use this system.
+              </p>
+            </div>
+            <div>
+              <label
+                htmlFor="currency-select"
+                className="mb-1 block text-sm font-medium text-foreground"
+              >
+                Currency
+              </label>
+              <select
+                id="currency-select"
+                value={data.deliveryCurrency}
+                onChange={(e) => {
+                  const next = e.target.value as DisplayCurrency;
+                  setData((d) => {
+                    // Keep the typed budget worth the same when the currency changes.
+                    const amount = Number(d.weeklyBudget);
+                    const weeklyBudget =
+                      d.weeklyBudget.trim() && Number.isFinite(amount)
+                        ? budgetText(toEur(amount, d.deliveryCurrency), next)
+                        : d.weeklyBudget;
+                    return { ...d, deliveryCurrency: next, weeklyBudget };
+                  });
+                }}
+                className="min-h-11 w-full max-w-xs rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                {DISPLAY_CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {CURRENCY_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Prices are estimates from typical supermarket prices
+                {data.deliveryCurrency !== 'EUR' && ', converted from euros at an approximate rate'}
+                .
+              </p>
+            </div>
+          </div>
+        </Section>
 
         {/* Personal targets — premium personalisation. Free users see the
             upgrade panel instead (mutations are server-gated regardless). */}
@@ -305,11 +416,13 @@ export function PreferencesForm({
                 it. Leave empty for no budget.
               </p>
               <div className="flex items-center gap-2">
-                <span className="text-lg font-medium text-muted-foreground">€</span>
+                <span className="text-lg font-medium text-muted-foreground">
+                  {currencySymbol(data.deliveryCurrency)}
+                </span>
                 <input
                   type="number"
                   min={1}
-                  max={2000}
+                  max={Math.round(fromEur(2000, data.deliveryCurrency))}
                   step="1"
                   value={data.weeklyBudget}
                   onChange={(e) => setData((d) => ({ ...d, weeklyBudget: e.target.value }))}
@@ -321,49 +434,6 @@ export function PreferencesForm({
               </div>
             </Section>
           </>
-        )}
-
-        {/* Units. Delivery address and currency were removed from this form
-            (2026-08-22): no shipped feature reads the address, and prices are
-            EUR-only until roadmap P2-4 honours deliveryCurrency end-to-end.
-            The stored values pass through handleSave untouched. Premium-only
-            because it saves through updateTargets. */}
-        {isPremium && (
-          <Section>
-            <h2 className="mb-4 text-base font-semibold">Units</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">
-                  Measurement Units
-                </label>
-                <div className="flex gap-2">
-                  {(
-                    [
-                      ['METRIC', 'Metric (g, ml)'],
-                      ['IMPERIAL', 'Imperial (oz, cups)'],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setData((d) => ({ ...d, preferredUnits: value }))}
-                      className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-medium transition ${
-                        data.preferredUnits === value
-                          ? 'border-primary bg-primary/5 text-primary'
-                          : 'border-input text-muted-foreground hover:border-primary/40'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  All recipe and shopping-list quantities are displayed in this system, whatever
-                  units the original recipe uses.
-                </p>
-              </div>
-            </div>
-          </Section>
         )}
 
         {/* Nutrition Preview */}

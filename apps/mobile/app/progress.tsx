@@ -11,7 +11,13 @@ import {
   Screen,
   Text,
 } from '@chefer/ui-mobile';
-import { cn, weightChangeTone, type WeightChangeTone } from '@chefer/utils';
+import {
+  bodyWeightInUnit,
+  cn,
+  formatBodyWeight,
+  weightChangeTone,
+  type WeightChangeTone,
+} from '@chefer/utils';
 import { WeightEntriesList } from '../src/features/coach/weight-entries-list';
 import { WeightLogForm } from '../src/features/coach/weight-log-form';
 import { trpc } from '../src/lib/trpc';
@@ -116,6 +122,8 @@ export default function ProgressScreen() {
       : [],
   }));
 
+  // Stored in kg; charted and labelled in the user's unit (backlog P2-6).
+  const system = preferences?.chefProfile?.preferredUnits ?? 'METRIC';
   const weights = weightQuery.data ?? [];
   const latestWeight = weights.at(-1)?.weightKg;
   const firstWeight = weights.at(0)?.weightKg;
@@ -130,7 +138,7 @@ export default function ProgressScreen() {
   // looks like one.
   const weightData = weights.map((w) => ({
     x: new Date(w.recordedAt).getTime() / DAY_MS,
-    y: w.weightKg,
+    y: bodyWeightInUnit(w.weightKg, system),
   }));
   const weightLabels = (() => {
     const firstX = weightData.at(0)?.x;
@@ -282,7 +290,7 @@ export default function ProgressScreen() {
                   <Text className="text-sm text-gray-500">
                     Current:{' '}
                     <Text testID="progress-weight-current" className="text-sm font-semibold">
-                      {latestWeight} kg
+                      {formatBodyWeight(latestWeight, system)}
                     </Text>
                   </Text>
                   {weightDelta != null && Math.abs(weightDelta) >= 0.05 && (
@@ -291,11 +299,10 @@ export default function ProgressScreen() {
                       <Text
                         testID="progress-weight-change"
                         // Colour alone doesn't tell a screen reader which way is good.
-                        accessibilityLabel={`${weightDelta > 0 ? '+' : ''}${weightDelta.toFixed(1)} kg${TONE_SUFFIX[tone]}`}
+                        accessibilityLabel={`${formatBodyWeight(weightDelta, system, { signed: true })}${TONE_SUFFIX[tone]}`}
                         className={cn('text-sm font-semibold', TONE_CLASS[tone])}
                       >
-                        {weightDelta > 0 ? '+' : ''}
-                        {weightDelta.toFixed(1)} kg
+                        {formatBodyWeight(weightDelta, system, { signed: true })}
                       </Text>
                     </Text>
                   )}
@@ -315,7 +322,7 @@ export default function ProgressScreen() {
               ) : weights.length > 0 ? (
                 <LineChart
                   testID="progress-weight-chart"
-                  accessibilityLabel={`Weight over the last 90 days, currently ${latestWeight} kg`}
+                  accessibilityLabel={`Weight over the last 90 days, currently ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}`}
                   data={weightData}
                   trend={weightData.map((p) => p.y)}
                   {...(weightLabels && { xLabels: weightLabels })}
@@ -329,7 +336,7 @@ export default function ProgressScreen() {
               )}
 
               <View className="mt-3">
-                <WeightLogForm label="Weight in kilograms" placeholder="72.5" />
+                <WeightLogForm placeholder={system === 'IMPERIAL' ? '160.5' : '72.5'} />
               </View>
               {weights.length > 0 && <WeightEntriesList entries={weights} />}
             </Card>

@@ -101,6 +101,15 @@ describe('PreferencesService.hasProfile', () => {
 
     await expect(service.hasProfile('user1')).resolves.toBe(false);
   });
+
+  it('returns false for a bare row without a goal (registration display defaults)', async () => {
+    const chefProfileRepo = makeChefProfileRepo({
+      findByUserId: vi.fn().mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, goal: null }),
+    });
+    const service = new PreferencesService(chefProfileRepo, makeDietaryPreferencesRepo());
+
+    await expect(service.hasProfile('user1')).resolves.toBe(false);
+  });
 });
 
 // ─── get ──────────────────────────────────────────────────────────────────────
@@ -375,5 +384,91 @@ describe('mergeSafetyList', () => {
       'Egg',
     ]);
     expect(mergeSafetyList(undefined, ['Soy'])).toEqual(['Soy']);
+  });
+});
+
+// ─── setDisplayPreferences (backlog P2-6) ─────────────────────────────────────
+
+describe('PreferencesService.setDisplayPreferences', () => {
+  function build(gymSync = vi.fn().mockResolvedValue(undefined)) {
+    const chefProfileRepo = makeChefProfileRepo({
+      upsert: vi.fn((_u: string, data) =>
+        Promise.resolve({
+          ...CHEF_PROFILE_FIXTURE,
+          preferredUnits: 'METRIC',
+          deliveryCurrency: 'EUR',
+          ...data,
+        } as never),
+      ),
+    });
+    const service = new PreferencesService(chefProfileRepo, makeDietaryPreferencesRepo(), {
+      syncFromPreferredUnits: gymSync,
+    });
+    return { service, chefProfileRepo, gymSync };
+  }
+
+  it('upserts units and currency (currency lands in deliveryCurrency)', async () => {
+    const { service, chefProfileRepo } = build();
+
+    const result = await service.setDisplayPreferences('user1', {
+      preferredUnits: 'IMPERIAL',
+      currency: 'USD',
+    });
+
+    expect(chefProfileRepo.upsert).toHaveBeenCalledWith('user1', {
+      preferredUnits: 'IMPERIAL',
+      deliveryCurrency: 'USD',
+    });
+    expect(result).toEqual({ preferredUnits: 'IMPERIAL', currency: 'USD' });
+  });
+
+  it('moves the gym unit when the unit system changes', async () => {
+    const { service, gymSync } = build();
+    await service.setDisplayPreferences('user1', { preferredUnits: 'IMPERIAL' });
+    expect(gymSync).toHaveBeenCalledWith('user1', 'IMPERIAL');
+  });
+
+  it('leaves the gym alone for a currency-only change', async () => {
+    const { service, gymSync, chefProfileRepo } = build();
+    await service.setDisplayPreferences('user1', { currency: 'GBP' });
+    expect(chefProfileRepo.upsert).toHaveBeenCalledWith('user1', { deliveryCurrency: 'GBP' });
+    expect(gymSync).not.toHaveBeenCalled();
+  });
+
+  it('still saves the preference when the gym sync fails', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { service } = build(vi.fn().mockRejectedValue(new Error('db down')));
+    await expect(
+      service.setDisplayPreferences('user1', { preferredUnits: 'METRIC' }),
+    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR' });
+    error.mockRestore();
+  });
+
+  it('reads an unknown stored currency back as EUR', async () => {
+    const chefProfileRepo = makeChefProfileRepo({
+      upsert: vi.fn().mockResolvedValue({
+        ...CHEF_PROFILE_FIXTURE,
+        preferredUnits: 'METRIC',
+        deliveryCurrency: null,
+      }),
+    });
+    const service = new PreferencesService(chefProfileRepo, makeDietaryPreferencesRepo());
+    await expect(
+      service.setDisplayPreferences('user1', { preferredUnits: 'METRIC' }),
+    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR' });
+  });
+
+  it('syncs the gym when old apps change units through update()', async () => {
+    vi.mocked(prisma.$transaction).mockResolvedValue(undefined);
+    const gymSync = vi.fn().mockResolvedValue(undefined);
+    const service = new PreferencesService(makeChefProfileRepo(), makeDietaryPreferencesRepo(), {
+      syncFromPreferredUnits: gymSync,
+    });
+    await service.update('user1', { preferredUnits: 'IMPERIAL' });
+    expect(gymSync).toHaveBeenCalledWith('user1', 'IMPERIAL');
+
+    gymSync.mockClear();
+    await service.update('user1', { mealsPerDay: 4 });
+    expect(gymSync).not.toHaveBeenCalled();
   });
 });

@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { IngredientFormModal } from '@/features/ingredients/components/IngredientFormModal';
+import { useCurrency } from '@/hooks/useCurrency';
 import { trpc } from '@/lib/trpc';
 import type { RouterOutputs } from '@/lib/trpc';
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
+import { formatMoney } from '@chefer/utils';
 
 type IngredientItem = RouterOutputs['ingredients']['list']['items'][0];
 
@@ -24,6 +26,8 @@ export default function IngredientsPage() {
   const [editTarget, setEditTarget] = useState<IngredientItem | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<IngredientItem | null>(null);
+  // Baseline prices are EUR; shown in the user's currency (backlog P2-6).
+  const currency = useCurrency();
 
   const handleSearch = (value: string) => {
     setSearch(value);
@@ -184,8 +188,12 @@ export default function IngredientsPage() {
 
                   {/* Price */}
                   <p className="mt-0.5 text-xs text-gray-500">
-                    {ing.pricePer100gEur != null && <>~€{ing.pricePer100gEur.toFixed(2)}/100g </>}
-                    {ing.pricePerPieceEur != null && <>~€{ing.pricePerPieceEur.toFixed(2)}/pc</>}
+                    {ing.pricePer100gEur != null && (
+                      <>~{formatMoney(ing.pricePer100gEur, currency)}/100g </>
+                    )}
+                    {ing.pricePerPieceEur != null && (
+                      <>~{formatMoney(ing.pricePerPieceEur, currency)}/pc</>
+                    )}
                   </p>
 
                   {/* Actions */}

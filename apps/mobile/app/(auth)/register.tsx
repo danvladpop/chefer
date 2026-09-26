@@ -4,6 +4,7 @@ import { Linking, View, type TextInput } from 'react-native';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from 'expo-router';
 import { Button, Input, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import { detectRegion } from '@chefer/utils';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
 import { registerSchema, type RegisterFormValues } from '../../src/features/auth/schemas';
 import { getWebUrl } from '../../src/lib/api-url';
@@ -19,6 +20,10 @@ const NO_STRONG_PASSWORD_OVERLAY = {
   autoComplete: 'off',
   textContentType: 'oneTimeCode',
 } as const;
+
+function withRegion(region: string | null): { region?: string } {
+  return region ? { region } : {};
+}
 
 export default function RegisterScreen() {
   return (
@@ -63,6 +68,9 @@ function RegisterForm() {
       email: values.email,
       password: values.password,
       ...(values.firstName ? { firstName: values.firstName } : {}),
+      // Location defaults (P2-6): the device region seeds units + currency.
+      // Intl only — Hermes ships it, no native dependency.
+      ...withRegion(detectRegion()),
     }),
   );
 

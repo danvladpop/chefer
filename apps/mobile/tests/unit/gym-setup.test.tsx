@@ -150,6 +150,26 @@ describe('SetupWizard', () => {
     expect(router.replace).toHaveBeenCalledWith('/today');
   });
 
+  it('defaults the unit to the saved unit preference (P2-6)', async () => {
+    trpc.preferences.get.useQuery.mockReturnValue(
+      queryResult({ data: { chefProfile: { preferredUnits: 'IMPERIAL' } } }),
+    );
+    const mutate = jest.fn();
+    trpc.gym.profile.completeSetup.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const user = userEvent.setup();
+    await renderWizard();
+    await goToPreview(user);
+    await waitFor(() => expect(screen.getByTestId('gym-setup-preview-day-0')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('gym-setup-next')); // → step 6
+    await user.press(screen.getByTestId('gym-setup-weights-help'));
+    await user.press(screen.getByTestId('gym-setup-next')); // → step 7
+    await user.press(screen.getByTestId('gym-setup-finish'));
+
+    const payload = (mutate.mock.calls as [CompleteSetupInput][])[0]?.[0];
+    expect(payload?.unit).toBe('LB');
+    trpc.preferences.get.useQuery.mockReturnValue(queryResult());
+  });
+
   it('back on the first step leaves setup', async () => {
     const user = userEvent.setup();
     trpc.gym.profile.completeSetup.useMutation.mockReturnValue(mutationResult());

@@ -5,6 +5,8 @@ import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Refrigerator } from 'lucide-react';
+import type { DisplayCurrency } from '@chefer/types';
+import { formatMoney } from '@chefer/utils';
 
 // ─── Pantry ghost state (F3, §6.4) ───────────────────────────────────────────
 // Free tier, shopping list header, after any check-off session: their
@@ -14,7 +16,14 @@ import { Refrigerator } from 'lucide-react';
 // upgrade_prompt_shown {source:'pantry'} as the impression and
 // teaser_engaged {feature:'pantry'} on interaction.
 
-export function PantryGhostBanner({ savedEur }: { savedEur: number }) {
+export function PantryGhostBanner({
+  savedEur,
+  currency = 'EUR',
+}: {
+  savedEur: number;
+  /** Display currency — savedEur is converted for display (P2-6). */
+  currency?: DisplayCurrency;
+}) {
   // Live count (pantry.list is invalidated after every check-off) so the
   // banner appears mid-session, right after the first items are seeded.
   const { data } = trpc.pantry.list.useQuery(undefined, { staleTime: 15_000 });
@@ -52,7 +61,7 @@ export function PantryGhostBanner({ savedEur }: { savedEur: number }) {
           </p>
           <p className="mt-1 text-sm text-gray-700">
             {savedEur > 0
-              ? `This week that would have saved ~€${savedEur.toFixed(2)} off this list.`
+              ? `This week that would have saved ~${formatMoney(savedEur, currency)} off this list.`
               : 'Premium plans use them up before they go to waste — and subtract them from this list.'}
           </p>
           <div className="mt-3">

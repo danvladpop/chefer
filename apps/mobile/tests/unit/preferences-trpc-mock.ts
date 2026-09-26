@@ -15,9 +15,14 @@ export function createTrpcPreferencesMock() {
         updateSafety: { useMutation: jest.fn() },
         updateTargets: { useMutation: jest.fn() },
         saveProfileBasics: { useMutation: jest.fn() },
+        setDisplayPreferences: { useMutation: jest.fn() },
+        setAutoPlanWeekly: {
+          useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false, isError: false })),
+        },
       },
       useUtils: jest.fn(() => ({
         preferences: { get: { invalidate: jest.fn() }, invalidate: jest.fn() },
+        gym: { invalidate: jest.fn() },
         mealPlan: { invalidate: jest.fn() },
         dashboard: { invalidate: jest.fn() },
       })),

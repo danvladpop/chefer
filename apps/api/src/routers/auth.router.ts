@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { regionCodeSchema } from '@chefer/types';
 import { authService } from '../application/auth/auth.service.js';
 import { passwordResetService } from '../application/auth/password-reset.service.js';
 import { assertWithinRateLimit } from '../lib/rate-limit.js';
@@ -14,6 +15,11 @@ const registerSchema = z.object({
     .max(100, 'Password too long'),
   firstName: z.string().min(1).max(50).optional(),
   lastName: z.string().min(1).max(50).optional(),
+  /**
+   * Device region (ISO-3166 alpha-2) for location defaults — units and
+   * currency (backlog P2-6). Optional: older apps don't send it.
+   */
+  region: regionCodeSchema.optional(),
 });
 
 const loginSchema = z.object({

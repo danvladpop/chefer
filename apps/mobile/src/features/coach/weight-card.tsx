@@ -3,7 +3,8 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Card, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, formatBodyWeight } from '@chefer/utils';
+import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
 import { WeightEntriesList } from './weight-entries-list';
 import { WeightLogForm } from './weight-log-form';
@@ -14,6 +15,8 @@ import { WeightLogForm } from './weight-log-form';
 
 export function WeightCard() {
   const [showEntries, setShowEntries] = useState(false);
+  // Stored in kg; shown in the user's unit (backlog P2-6).
+  const system = useUnitSystem();
 
   const { data: history } = trpc.tracker.weightHistory.useQuery(
     { days: 30 },
@@ -41,12 +44,13 @@ export function WeightCard() {
         </View>
         {latest && (
           <Text className="text-xs text-gray-500">
-            <Text className="text-xs font-semibold text-gray-800">{latest.weightKg} kg</Text>
+            <Text className="text-xs font-semibold text-gray-800">
+              {formatBodyWeight(latest.weightKg, system)}
+            </Text>
             {delta != null && Math.abs(delta) >= 0.05 && (
               <Text className={cn('text-xs', delta < 0 ? 'text-emerald-600' : 'text-gray-500')}>
                 {' '}
-                ({delta > 0 ? '+' : ''}
-                {delta.toFixed(1)} kg / 30d)
+                ({formatBodyWeight(delta, system, { signed: true })} / 30d)
               </Text>
             )}
           </Text>
@@ -68,7 +72,7 @@ export function WeightCard() {
 
       {/* Shared parser (audit F-DASH-3-1) lives in the form. */}
       <WeightLogForm
-        placeholder={latest ? `Today: ${latest.weightKg} kg?` : 'Log today’s weight (kg)'}
+        {...(latest && { placeholder: `Today: ${formatBodyWeight(latest.weightKg, system)}?` })}
       />
       <View className="mt-1 flex-row items-center justify-between">
         {entries.length > 0 ? (

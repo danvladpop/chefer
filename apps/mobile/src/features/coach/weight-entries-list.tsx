@@ -2,7 +2,13 @@ import { useState } from 'react';
 import { Alert, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@chefer/ui-mobile';
-import { parseBodyWeightKg } from '@chefer/utils';
+import {
+  bodyWeightInUnit,
+  formatBodyWeight,
+  parseBodyWeight,
+  type UnitSystem,
+} from '@chefer/utils';
+import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
 
 // Correct or remove weigh-ins (audit F-DASH-3-1) — mobile counterpart of web
@@ -11,9 +17,12 @@ import { trpc } from '../../lib/trpc';
 
 type Entry = { id: string; weightKg: number; recordedAt: Date };
 
-function EntryRow({ entry }: { entry: Entry }) {
+function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(String(entry.weightKg));
+  // Edited in the user's unit (lb for IMPERIAL, backlog P2-6); saved as kg.
+  const shown = String(bodyWeightInUnit(entry.weightKg, system));
+  const weightLabel = formatBodyWeight(entry.weightKg, system);
+  const [value, setValue] = useState(shown);
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
@@ -41,7 +50,7 @@ function EntryRow({ entry }: { entry: Entry }) {
   });
 
   const save = () => {
-    const parsed = parseBodyWeightKg(value);
+    const parsed = parseBodyWeight(value, system);
     if (!parsed.ok) {
       setError(parsed.error);
       return;
@@ -51,7 +60,7 @@ function EntryRow({ entry }: { entry: Entry }) {
   };
 
   const confirmDelete = () =>
-    Alert.alert('Delete weigh-in?', `${entry.weightKg} kg on ${dateLabel}`, [
+    Alert.alert('Delete weigh-in?', `${weightLabel} on ${dateLabel}`, [
       { text: 'Keep', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => remove.mutate({ id: entry.id }) },
     ]);
@@ -68,16 +77,16 @@ function EntryRow({ entry }: { entry: Entry }) {
             onChangeText={setValue}
             onSubmitEditing={save}
             keyboardType="decimal-pad"
-            accessibilityLabel={`Weight on ${dateLabel} in kilograms`}
+            accessibilityLabel={`Weight on ${dateLabel} in ${system === 'IMPERIAL' ? 'pounds' : 'kilograms'}`}
             className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
           />
         ) : (
-          <Text className="flex-1 text-sm font-semibold text-gray-900">{entry.weightKg} kg</Text>
+          <Text className="flex-1 text-sm font-semibold text-gray-900">{weightLabel}</Text>
         )}
         <Pressable
           testID={`weight-entry-${entry.id}-${editing ? 'save' : 'edit'}`}
           accessibilityRole="button"
-          accessibilityLabel={editing ? 'Save weight' : `Edit ${entry.weightKg} kg on ${dateLabel}`}
+          accessibilityLabel={editing ? 'Save weight' : `Edit ${weightLabel} on ${dateLabel}`}
           disabled={update.isPending}
           onPress={editing ? save : () => setEditing(true)}
           className="h-11 w-11 items-center justify-center"
@@ -87,15 +96,13 @@ function EntryRow({ entry }: { entry: Entry }) {
         <Pressable
           testID={`weight-entry-${entry.id}-${editing ? 'cancel' : 'delete'}`}
           accessibilityRole="button"
-          accessibilityLabel={
-            editing ? 'Cancel editing' : `Delete ${entry.weightKg} kg on ${dateLabel}`
-          }
+          accessibilityLabel={editing ? 'Cancel editing' : `Delete ${weightLabel} on ${dateLabel}`}
           disabled={remove.isPending}
           onPress={
             editing
               ? () => {
                   setEditing(false);
-                  setValue(String(entry.weightKg));
+                  setValue(shown);
                   setError(null);
                 }
               : confirmDelete
@@ -112,11 +119,12 @@ function EntryRow({ entry }: { entry: Entry }) {
 
 /** Newest-first list of weigh-ins with inline edit and confirm-to-delete. */
 export function WeightEntriesList({ entries }: { entries: Entry[] }) {
+  const system = useUnitSystem();
   const newestFirst = [...entries].reverse();
   return (
     <View testID="weight-entries" className="mt-2 border-t border-border pt-2">
       {newestFirst.map((entry) => (
-        <EntryRow key={entry.id} entry={entry} />
+        <EntryRow key={entry.id} entry={entry} system={system} />
       ))}
     </View>
   );

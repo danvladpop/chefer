@@ -91,6 +91,8 @@ function ProfileSettings({
   const save = trpc.gym.profile.save.useMutation({
     onSuccess: () => {
       void utils.gym.bootstrap.invalidate();
+      // A kg/lb switch is also the global unit preference (P2-6).
+      void utils.preferences.get.invalidate();
       setSaved('Saved');
       setTimeout(() => setSaved(null), 2500);
     },
@@ -132,7 +134,8 @@ function ProfileSettings({
           ))}
         </div>
         <p className="mt-2 text-xs text-gray-500">
-          Switching resets plates and dumbbells to the standard {unit === 'KG' ? 'lb' : 'kg'} set.
+          Switching resets plates and dumbbells to the standard {unit === 'KG' ? 'lb' : 'kg'} set,
+          and switches recipes, shopping lists and body weight too.
         </p>
       </GymCard>
 

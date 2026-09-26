@@ -1,7 +1,8 @@
 import { Pressable, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import type { DisplayCurrency } from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, formatMoney } from '@chefer/utils';
 
 // Week summary sheet — opened by tapping the week label on the Plan tab.
 // Day-level stays on the screen; WEEK-level lives here: per-day overview,
@@ -30,6 +31,8 @@ interface WeekSummarySheetProps {
   onMyWeeks: () => void;
   onSelectDay: (dayIndex: number) => void;
   onClose: () => void;
+  /** Display currency for the EUR cost estimate (P2-6); EUR when omitted. */
+  currency?: DisplayCurrency;
 }
 
 export function WeekSummarySheet({
@@ -47,6 +50,7 @@ export function WeekSummarySheet({
   onMyWeeks,
   onSelectDay,
   onClose,
+  currency = 'EUR',
 }: WeekSummarySheetProps) {
   const weekKcal = days.reduce((sum, d) => sum + d.totalKcal, 0);
   const plannedDays = days.filter((d) => d.mealsCount > 0).length;
@@ -99,7 +103,7 @@ export function WeekSummarySheet({
         {weekCostEur !== null && (
           <View className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
             <Text className="text-xs font-medium text-emerald-700">
-              ≈ €{weekCostEur.toFixed(2)} this week
+              ≈ {formatMoney(weekCostEur, currency)} this week
             </Text>
           </View>
         )}

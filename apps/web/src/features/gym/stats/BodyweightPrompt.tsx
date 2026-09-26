@@ -15,7 +15,7 @@ export function BodyweightPrompt() {
         Log your weight to unlock the bodyweight overlay and relative-strength trend.
       </p>
       <div className="w-full sm:w-64">
-        <WeightLogForm placeholder="72.5 kg" label="Weight in kilograms" />
+        <WeightLogForm />
       </div>
     </div>
   );
