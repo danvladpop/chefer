@@ -159,12 +159,22 @@ beforeEach(() => {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('RecipeImportService.preview — quota', () => {
-  it('lets a free user run their one daily preview and logs the attempt', async () => {
+  it('refuses free users before any fetch or AI call — premium-only per-user AI', async () => {
+    const ai = makeAi();
+    const service = new RecipeImportService(ai, recipeRepo(), prefsRepo(peanutVegetarian));
+    await expect(service.preview(freeUser, { text: 'A'.repeat(100) })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(ai.extractRecipe).not.toHaveBeenCalled();
+    expect(aiCallLog().create).not.toHaveBeenCalled();
+  });
+
+  it('logs a premium preview', async () => {
     const service = new RecipeImportService(makeAi(), recipeRepo(), prefsRepo(peanutVegetarian));
-    const preview = await service.preview(freeUser, { text: 'A'.repeat(100) });
+    const preview = await service.preview(premiumUser, { text: 'A'.repeat(100) });
     expect(preview.original.name).toBe('Peanut Chicken Satay');
     expect(aiCallLog().create).toHaveBeenCalledWith({
-      data: { userId: freeUser.id, callType: 'RECIPE_IMPORT' },
+      data: { userId: premiumUser.id, callType: 'RECIPE_IMPORT' },
     });
   });
 
@@ -172,18 +182,10 @@ describe('RecipeImportService.preview — quota', () => {
     const ai = makeAi();
     vi.mocked(ai.extractRecipe).mockRejectedValue(new Error('provider down'));
     const service = new RecipeImportService(ai, recipeRepo(), prefsRepo(peanutVegetarian));
-    await expect(service.preview(freeUser, { text: 'A'.repeat(100) })).rejects.toBeDefined();
+    await expect(service.preview(premiumUser, { text: 'A'.repeat(100) })).rejects.toBeDefined();
     const log = (prisma as unknown as { aiCallLog: { delete: ReturnType<typeof vi.fn> } })
       .aiCallLog;
     expect(log.delete).toHaveBeenCalledWith({ where: { id: 'log1' } });
-  });
-
-  it('blocks the second free preview of the day with an upgrade message', async () => {
-    aiCallLog().count.mockResolvedValue(1);
-    const service = new RecipeImportService(makeAi(), recipeRepo(), prefsRepo(peanutVegetarian));
-    await expect(service.preview(freeUser, { text: 'A'.repeat(100) })).rejects.toMatchObject({
-      code: 'TOO_MANY_REQUESTS',
-    });
   });
 
   it('blocks a premium user past 5 imports', async () => {

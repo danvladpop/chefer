@@ -85,6 +85,12 @@ describe('reserveMealScan (F4)', () => {
 });
 
 describe('reservation mechanics (audit F-PLAN-2-3, F-TRK-2-2)', () => {
+  it('answers FORBIDDEN, writing nothing, when the tier has no access (per-user AI is premium-only)', async () => {
+    await expect(reserveRecipeImport(free)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(txMock).not.toHaveBeenCalled();
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
   it('retries on a serialization conflict, so a concurrent winner is counted', async () => {
     txMock.mockRejectedValueOnce(Object.assign(new Error('conflict'), { code: 'P2034' }));
     await reserveMealScan(premium);
@@ -92,7 +98,7 @@ describe('reservation mechanics (audit F-PLAN-2-3, F-TRK-2-2)', () => {
   });
 
   it('release() refunds by deleting the reserved row', async () => {
-    const reservation = await reserveRecipeImport(free);
+    const reservation = await reserveRecipeImport(premium);
     await reservation.release();
     expect(prisma.aiCallLog.delete).toHaveBeenCalledWith({ where: { id: 'log1' } });
   });

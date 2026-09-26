@@ -13,6 +13,8 @@ import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
 import { Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { LockedChatPreview } from '../src/features/chat/locked-chat-preview';
+import { useIsPremium } from '../src/hooks/use-is-premium';
 import { getApiBaseUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
 import { streamChat, type ChatMessageInput } from '../src/lib/chat-stream';
@@ -33,6 +35,8 @@ export default function ChatScreen() {
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
   const nextId = useRef(1);
+  // Free tier: chat is premium-only — locked preview, no input.
+  const locked = useIsPremium() === false;
 
   const send = async () => {
     const content = draft.trim();
@@ -99,7 +103,8 @@ export default function ChatScreen() {
           contentContainerClassName="gap-3 px-4 py-2"
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
         >
-          {thread.length === 0 && (
+          {locked && <LockedChatPreview />}
+          {!locked && thread.length === 0 && (
             <Card testID="chat-empty">
               <Text variant="heading">Ask the chef anything</Text>
               <Text variant="muted" className="mt-1 text-sm">
@@ -133,7 +138,7 @@ export default function ChatScreen() {
           )}
         </ScrollView>
 
-        {quotaExhausted ? (
+        {locked ? null : quotaExhausted ? (
           <Card testID="chat-quota" className="m-4 border-primary/20 bg-accent">
             <Text className="text-sm font-semibold text-primary">
               You&apos;ve used today&apos;s chat messages

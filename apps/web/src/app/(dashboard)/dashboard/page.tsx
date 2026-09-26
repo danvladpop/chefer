@@ -342,7 +342,10 @@ export default function DashboardPage() {
             <div>
               <p className="font-semibold text-gray-800">Your weekly menu awaits</p>
               <p className="mt-0.5 text-sm text-gray-500">
-                Let AI craft a personalised 7-day plan for you.
+                {/* Tier-honest copy: free plans are chef-curated, not AI (F-DASH-1-5). */}
+                {isPremium
+                  ? 'Let the chef craft a personalised 7-day plan for you.'
+                  : 'Get a 7-day plan of chef-curated recipes that respect your allergies.'}
               </p>
             </div>
             {/* ?generate=1 starts generation on arrival — the button used to

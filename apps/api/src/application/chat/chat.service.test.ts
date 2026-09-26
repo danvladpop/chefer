@@ -163,11 +163,11 @@ describe('ChatService', () => {
     vi.mocked(prisma.aiCallLog.count).mockResolvedValue(0);
   });
 
-  it('free tier is cut off after the daily message limit (matrix-driven)', async () => {
-    vi.mocked(prisma.aiCallLog.count).mockResolvedValue(5);
+  it('free tier has no chat — premium-only per-user AI (FORBIDDEN, nothing logged)', async () => {
     await expect(service.chat(user(), [{ role: 'user', content: 'hi' }])).rejects.toMatchObject({
-      code: 'TOO_MANY_REQUESTS',
+      code: 'FORBIDDEN',
     });
+    expect(prisma.aiCallLog.create).not.toHaveBeenCalled();
   });
 
   it('premium (and admins) are unlimited — no count query at all', async () => {
@@ -282,7 +282,9 @@ describe('ChatService', () => {
     });
     vi.mocked(mealPlanService.getActive).mockResolvedValue(PLAN);
     const { aiService } = await import('../../lib/ai/index.js');
-    await service.chat(user(), [{ role: 'user', content: 'hi' }]);
+    // Chat itself is premium now; the teaser path is driven by the review's
+    // own status, which is what this test pins.
+    await service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]);
     const context = vi.mocked(aiService.chat).mock.calls.at(-1)![1];
 
     const result = await context.tools!.getMyReview();

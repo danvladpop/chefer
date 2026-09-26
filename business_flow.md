@@ -629,6 +629,15 @@ Real-device acceptance (wake lock, swipe, keyboard) is tracked in
 
 ## 13. AI Chat Flow
 
+> **Premium-only since 2026-09-25** (owner decision: per-user AI is premium). Free users
+> keep the chat button; it opens a locked preview — a labelled example conversation, the
+> upgrade sheet (`source: chat-locked`) and links to the free tools that do the same jobs
+> (Replace a meal, Quick add, Add to shopping list). The API answers free users with
+> FORBIDDEN from `reserveChatMessage`, sent as the existing 200 + `X-Chat-Quota-Exhausted`
+> response plus `X-Chat-Upgrade-Required`, so shipped mobile builds still show their
+> upgrade card. Recipe import (§16) and the AI nutrition auto-fill are premium-only the
+> same way; free Sunday coach reviews use the deterministic template, never live AI.
+
 The AI chef chat (P1-4) is a real assistant over the user's data, not canned
 responses. The widget (`ChatWidget.tsx`, every dashboard page) posts the
 message history to `POST /api/chat` on the API and renders the plain-text

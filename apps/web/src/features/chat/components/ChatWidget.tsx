@@ -7,6 +7,7 @@ import { capture } from '@/lib/analytics';
 import { useChat } from '@ai-sdk/react';
 import { TextStreamChatTransport, type UIMessage } from 'ai';
 import { MessageCircle, Send, Sparkles, X } from 'lucide-react';
+import { LockedChatPreview } from './LockedChatPreview';
 
 // Showcase what the chat can actually DO with the user's real plan (P1-4).
 const SUGGESTED_PROMPTS = [
@@ -35,6 +36,8 @@ export function ChatWidget() {
   // source: chat-quota — it was a bare text reply until now).
   const [quotaExhausted, setQuotaExhausted] = useState(false);
   const isPremium = useIsPremium();
+  // Free tier: chat is premium-only — show the locked preview, no input.
+  const locked = isPremium === false;
   useEffect(() => {
     if (isPremium) setQuotaExhausted(false);
   }, [isPremium]);
@@ -115,7 +118,8 @@ export function ChatWidget() {
 
           {/* Messages */}
           <div className="flex max-h-[55dvh] flex-col gap-3 overflow-y-auto overscroll-contain p-4 sm:max-h-80">
-            {messages.length === 0 && (
+            {locked && <LockedChatPreview />}
+            {!locked && messages.length === 0 && (
               <div>
                 <p className="mb-3 text-xs text-neutral-500">Try asking:</p>
                 <div className="flex flex-col gap-2">
@@ -169,8 +173,8 @@ export function ChatWidget() {
                     className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500"
                     aria-hidden="true"
                   />
-                  You&apos;ve used today&apos;s free messages. Premium chats without limits — and
-                  can swap meals and build your list for you.
+                  The AI chef is part of Premium — it can swap meals, log what you ate and build
+                  your list for you.
                 </p>
                 <UpgradeButton className="min-h-11 w-full sm:min-h-9" source="chat-quota" />
               </div>
@@ -189,7 +193,7 @@ export function ChatWidget() {
           </div>
 
           {/* Input */}
-          <div className="flex shrink-0 gap-2 border-t p-3">
+          <div className={`${locked ? 'hidden' : 'flex'} shrink-0 gap-2 border-t p-3`}>
             <input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}

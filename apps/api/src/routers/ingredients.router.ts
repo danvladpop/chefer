@@ -100,7 +100,7 @@ export const ingredientsRouter = router({
   estimateNutrition: protectedProcedure
     .input(z.object({ name: z.string().min(2).max(60) }))
     .mutation(async ({ ctx, input }) => {
-      return ingredientsService.estimateNutrition(ctx.user.id, input.name);
+      return ingredientsService.estimateNutrition(ctx.user, input.name);
     }),
 
   /**

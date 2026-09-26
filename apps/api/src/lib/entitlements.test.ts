@@ -39,7 +39,8 @@ describe('hasFeature', () => {
 
   it('counts a numeric limit as access', () => {
     expect(hasFeature(free, 'planGenerationsPerDay')).toBe(true);
-    expect(hasFeature(free, 'chatMessagesPerDay')).toBe(true);
+    // Chat is premium-only since 2026-09-25 (per-user AI).
+    expect(hasFeature(free, 'chatMessagesPerDay')).toBe(false);
   });
 });
 

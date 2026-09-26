@@ -159,11 +159,19 @@ export class CoachService {
       goal: profile?.goal ?? null,
       dishNames: await this.loadWeekDishNames(userId),
     };
+    // Free-tier reviews are a teaser (first line visible, body blurred), so
+    // they use the deterministic template: per-user AI is premium-only, and
+    // the Sunday sweep used to call the model for every free user (audit
+    // F-DASH-2-3).
     let reviewText: string;
-    try {
-      reviewText = await generateReviewText(textInput);
-    } catch {
+    if (!applyAdjustment) {
       reviewText = buildTemplateReviewText(textInput);
+    } else {
+      try {
+        reviewText = await generateReviewText(textInput);
+      } catch {
+        reviewText = buildTemplateReviewText(textInput);
+      }
     }
 
     // Move the cumulative dial BEFORE writing the review row: if the profile
