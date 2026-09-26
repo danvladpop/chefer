@@ -1041,6 +1041,20 @@ today" (`getDay.offPlanLogged`) and count in the totals. Every day write runs
 in a serializable transaction with retry, so parallel quick-adds from two
 devices all persist. Saving with nothing ticked un-logs the planned meals.
 
+**One entry per plan slot** (follow-up, 2026-09-26). A curated day can hold two
+identical snacks; entries used to be matched by recipe + meal type, so ticking
+one ticked both. `tracker.getDay` now gives each planned meal its `slotIndex`
+(its index in the plan day's `meals`), the tracker (web + mobile) keys rows by
+it and sends it back on each ticked entry, and Today's "I ate this" passes
+`dashboard.summary.nextMeal.slotIndex` to `tracker.logRecipe`. Matching is
+`matchLoggedToSlots` in `@chefer/utils` (tracker, and `resolveTodayMeals` for
+Today): an entry with a `slotIndex` claims that slot while it still holds the
+entry's recipe; any other entry claims the first unclaimed slot with its
+recipe (and type) — so an older entry without one ticks one snack, not both.
+`logRecipe` with a `slotIndex` replaces only that slot's entry; without one
+(cook mode, shipped apps) it keeps the recipe + meal type rule. No schema
+change: `slotIndex` is an optional field of the `loggedMeals` JSON.
+
 ### Free-tier honesty tools
 
 - **Quick add** (tracker): name + kcal only → `tracker.logCustomMeal`

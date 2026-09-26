@@ -15,6 +15,9 @@ const loggedMealSchema = z
       })
       .optional(),
     mealType: z.string().min(1).max(20),
+    // The plan slot a planned entry was ticked from (two identical snacks
+    // tick separately). Optional: older clients don't send it.
+    slotIndex: z.number().int().min(0).max(20).optional(),
     portionMultiplier: z.number().min(0.5).max(2),
     // Bounded (audit F-TRK-1-4): negative, huge or Infinity values used to be
     // stored and poisoned charts and coaching.
@@ -80,6 +83,8 @@ export const trackerRouter = router({
         recipeId: z.string().min(1),
         mealType: z.string().min(1).max(20),
         portionMultiplier: z.number().min(0.5).max(2).default(1),
+        // Today's "I ate this" names the plan slot (additive, optional).
+        slotIndex: z.number().int().min(0).max(20).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

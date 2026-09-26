@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { dailyLogRepository } from '@chefer/database';
+import { dailyLogRepository, mealPlanRepository } from '@chefer/database';
 import { dashboardService } from './dashboard.service.js';
 
 // Audit F-PM-10: after "Made it!" on dinner the dashboard still offered the
@@ -55,7 +55,7 @@ vi.mock('@chefer/database', async (importOriginal) => ({
   MealPlanOrigin: { WEEKLY_AUTO: 'WEEKLY_AUTO' },
 }));
 
-const logWith = (entries: { recipeId?: string; mealType: string }[]) =>
+const logWith = (entries: { recipeId?: string; mealType: string; slotIndex?: number }[]) =>
   vi.mocked(dailyLogRepository.findByDate).mockResolvedValue({
     totalKcal: 0,
     totalProtein: 0,
@@ -97,5 +97,43 @@ describe('dashboard summary — next meal skips logged meals', () => {
     const s = await summaryAt(12);
     expect(s.nextMeal?.recipe.prepTimeMins).toBe(10);
     expect(s.nextMeal?.recipe.cookTimeMins).toBe(30);
+  });
+
+  it('carries the plan slot index of today’s next meal', async () => {
+    const s = await summaryAt(12);
+    expect(s.nextMeal?.slotIndex).toBe(1);
+  });
+
+  describe('two identical snacks', () => {
+    beforeEach(() => {
+      vi.mocked(mealPlanRepository.findActiveWithDays).mockResolvedValueOnce({
+        origin: 'MANUAL',
+        createdAt: new Date('2026-09-21T08:00:00Z'),
+        days: [
+          {
+            dayOfWeek: 5,
+            meals: [
+              { type: 'breakfast', recipeId: 'oats' },
+              { type: 'snack', recipeId: 'salad' },
+              { type: 'dinner', recipeId: 'curry' },
+              { type: 'snack', recipeId: 'salad' },
+            ],
+          },
+        ],
+      } as never);
+    });
+
+    it('logging the first leaves the second next, with its own slot index', async () => {
+      logWith([{ recipeId: 'salad', mealType: 'snack', slotIndex: 1 }]);
+      const s = await summaryAt(15);
+      expect(s.nextMeal?.recipe.id).toBe('salad');
+      expect(s.nextMeal?.slotIndex).toBe(3);
+    });
+
+    it('a legacy entry without a slot index counts for one snack only', async () => {
+      logWith([{ recipeId: 'salad', mealType: 'snack' }]);
+      const s = await summaryAt(15);
+      expect(s.nextMeal?.slotIndex).toBe(3);
+    });
   });
 });

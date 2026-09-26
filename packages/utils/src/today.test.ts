@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isSlotEaten, MEAL_ORDER, MEAL_WINDOW_END, resolveTodayMeals } from './today';
+import {
+  isSlotEaten,
+  matchLoggedToSlots,
+  MEAL_ORDER,
+  MEAL_WINDOW_END,
+  resolveTodayMeals,
+} from './today';
 
 const breakfast = { type: 'breakfast', recipeId: 'oats' };
 const lunch = { type: 'lunch', recipeId: 'salad' };
@@ -121,5 +127,62 @@ describe('resolveTodayMeals — two-snack days (curated planner)', () => {
     const r = resolveTodayMeals(day, 15, [{ recipeId: 'apple', mealType: 'snack' }]);
     expect(r.next).toBe(snack2);
     expect(r.eaten).toEqual([snack1]);
+  });
+});
+
+describe('two identical snacks (slotIndex on logged meals)', () => {
+  // Plan day: breakfast 0, snack 1, lunch 2, snack 3 — both snacks the same recipe.
+  const day = [
+    { type: 'breakfast', recipeId: 'oats' },
+    { type: 'snack', recipeId: 'yogurt' },
+    { type: 'lunch', recipeId: 'salad' },
+    { type: 'snack', recipeId: 'yogurt' },
+  ];
+
+  it('one logged snack marks only one of the two', () => {
+    const r = resolveTodayMeals(day, 15, [{ recipeId: 'yogurt', mealType: 'snack' }]);
+    expect(r.eaten).toEqual([day[1]]);
+    expect(r.next).toBe(day[3]);
+  });
+
+  it('an entry with a slotIndex marks exactly that slot', () => {
+    const r = resolveTodayMeals(day, 15, [{ recipeId: 'yogurt', mealType: 'snack', slotIndex: 3 }]);
+    expect(r.eaten).toEqual([day[3]]);
+    expect(r.next).toBe(day[1]);
+  });
+
+  it('two entries mark both', () => {
+    const r = resolveTodayMeals(day, 15, [
+      { recipeId: 'yogurt', mealType: 'snack', slotIndex: 1 },
+      { recipeId: 'yogurt', mealType: 'snack' },
+    ]);
+    expect(r.eaten).toEqual([day[1], day[3]]);
+    expect(r.next).toBeNull();
+  });
+
+  it('matchLoggedToSlots: indexed entries first, then the first free slot of that type', () => {
+    const a = { recipeId: 'yogurt', mealType: 'snack', slotIndex: 3 };
+    const b = { recipeId: 'yogurt', mealType: 'snack' };
+    expect(matchLoggedToSlots(day, [b, a])).toEqual([undefined, b, undefined, a]);
+  });
+
+  it('a stale slotIndex (slot swapped since) falls back to recipe matching', () => {
+    const e = { recipeId: 'yogurt', mealType: 'snack', slotIndex: 2 };
+    expect(matchLoggedToSlots(day, [e])).toEqual([undefined, e, undefined, undefined]);
+  });
+
+  it('cross-type matching only with crossType', () => {
+    const e = { recipeId: 'salad', mealType: 'dinner' };
+    expect(matchLoggedToSlots(day, [e])).toEqual([undefined, undefined, undefined, undefined]);
+    expect(matchLoggedToSlots(day, [e], { crossType: true })[2]).toBe(e);
+  });
+
+  it('slotIndex on the slots overrides list position', () => {
+    const slots = [
+      { type: 'snack', recipeId: 'yogurt', slotIndex: 1 },
+      { type: 'snack', recipeId: 'yogurt', slotIndex: 3 },
+    ];
+    const e = { recipeId: 'yogurt', mealType: 'snack', slotIndex: 3 };
+    expect(matchLoggedToSlots(slots, [e])).toEqual([undefined, e]);
   });
 });

@@ -305,6 +305,7 @@ export {
   MEAL_ORDER,
   MEAL_WINDOW_END,
   isSlotEaten,
+  matchLoggedToSlots,
   resolveTodayMeals,
   type LoggedMealRef,
   type PlannedMealSlot,
