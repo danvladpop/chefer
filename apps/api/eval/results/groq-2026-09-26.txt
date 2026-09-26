@@ -1,0 +1,539 @@
+# pnpm ai:eval --route=all --provider=groq --limit=2 --delay-ms=3000 --verbose
+# 2026-09-26, Groq free tier, openai/gpt-oss-120b (reasoning_effort=low) + qwen/qwen3.8-27b (vision)
+# Branch fix/groq-chain-hardening. --limit=2 keeps the run inside the free tier's 200K tokens/day.
+
+[ai:eval] mealPlan on groq…
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":904,"outputTokens":2172,"reasoningTokens":1189,"ms":5048}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":933,"outputTokens":2417,"reasoningTokens":1417,"ms":5301}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":951,"outputTokens":2226,"reasoningTokens":1222,"ms":6189}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":972,"outputTokens":938,"reasoningTokens":271,"ms":2291}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":1000,"outputTokens":3274,"reasoningTokens":2590,"ms":7278}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":1023,"outputTokens":2466,"reasoningTokens":1429,"ms":5679}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":1044,"outputTokens":4000,"reasoningTokens":3641,"ms":9558}
+[AI] generateMealPlan (chunked): 7 days, 24320 tokens, paced 100275 ms
+[AI] generateMealPlan: served by api.groq.com/openai/gpt-oss-120b
+  ✓ solo-maintain (141664 ms)
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":899,"outputTokens":3381,"reasoningTokens":2724,"ms":7238}
+[AI] generateMealPlan.day: strict json_schema generation failed — retrying in json_object mode
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":935,"outputTokens":2405,"reasoningTokens":1746,"ms":7056}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":955,"outputTokens":3792,"reasoningTokens":2763,"ms":8260}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":981,"outputTokens":2981,"reasoningTokens":1970,"ms":8589}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":1001,"outputTokens":2535,"reasoningTokens":1473,"ms":5625}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":1033,"outputTokens":1954,"reasoningTokens":929,"ms":4365}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":1061,"outputTokens":1483,"reasoningTokens":433,"ms":4099}
+[AI] generateMealPlan (chunked): 7 days, 25396 tokens, paced 169355 ms
+[AI] generateMealPlan: served by api.groq.com/openai/gpt-oss-120b
+  ✓ peanut-allergy (223255 ms)
+[ai:eval] swap on groq…
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateRecipeSwap","inputTokens":345,"outputTokens":377,"reasoningTokens":99,"ms":1064}
+[AI] generateRecipeSwap: served by api.groq.com/openai/gpt-oss-120b
+  ✓ solo-maintain (1064 ms)
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateRecipeSwap","inputTokens":345,"outputTokens":513,"reasoningTokens":95,"ms":1405}
+[AI] generateRecipeSwap: served by api.groq.com/openai/gpt-oss-120b
+  ✓ peanut-allergy (1406 ms)
+[ai:eval] cheferize on groq…
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"cheferizeRecipe","inputTokens":794,"outputTokens":360,"reasoningTokens":122,"ms":1038}
+[AI] cheferizeRecipe: served by api.groq.com/openai/gpt-oss-120b
+  ✓ pad-thai-peanut-shellfish (1038 ms)
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"cheferizeRecipe","inputTokens":777,"outputTokens":581,"reasoningTokens":321,"ms":1373}
+[AI] cheferizeRecipe: served by api.groq.com/openai/gpt-oss-120b
+  ✓ shakshuka-egg-dairy (1373 ms)
+[ai:eval] importText on groq…
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"extractRecipe","inputTokens":689,"outputTokens":421,"reasoningTokens":115,"ms":1023}
+[AI] extractRecipe: served by api.groq.com/openai/gpt-oss-120b
+  ✓ lentil-soup (1023 ms)
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"extractRecipe","inputTokens":700,"outputTokens":612,"reasoningTokens":336,"ms":1579}
+[AI] extractRecipe: served by api.groq.com/openai/gpt-oss-120b
+  ✓ chicken-traybake (1579 ms)
+[ai:eval] vision on groq…
+[ai.usage] {"provider":"api.groq.com","model":"qwen/qwen3.8-27b","op":"analyzeMealPhoto","inputTokens":2149,"outputTokens":48,"ms":491}
+[AI] analyzeMealPhoto: served by api.groq.com/openai/gpt-oss-120b
+  ✓ synthetic-gradient (491 ms)
+[ai.usage] {"provider":"api.groq.com","model":"qwen/qwen3.8-27b","op":"analyzeMealPhoto","inputTokens":2149,"outputTokens":49,"ms":540}
+[AI] analyzeMealPhoto: served by api.groq.com/openai/gpt-oss-120b
+  ✓ synthetic-checker (540 ms)
+[ai:eval] review on groq…
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateReviewText","inputTokens":372,"outputTokens":233,"reasoningTokens":109,"ms":775}
+[AI] generateReviewText: served by api.groq.com/openai/gpt-oss-120b
+  ✓ on-track (775 ms)
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateReviewText","inputTokens":353,"outputTokens":126,"reasoningTokens":37,"ms":359}
+[AI] generateReviewText: served by api.groq.com/openai/gpt-oss-120b
+  ✓ low-logging (359 ms)
+[ai:eval] prices on groq…
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"estimateIngredientPrices","inputTokens":617,"outputTokens":955,"reasoningTokens":119,"ms":2516}
+[AI] estimateIngredientPrices: served by api.groq.com/openai/gpt-oss-120b
+  ✓ batch-1 (2517 ms)
+[AI] estimateIngredientPrices: rate limited — retrying once in 5000 ms
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"estimateIngredientPrices","inputTokens":616,"outputTokens":845,"reasoningTokens":10,"ms":2073}
+[AI] estimateIngredientPrices: served by api.groq.com/openai/gpt-oss-120b
+  ✓ batch-2 (7382 ms)
+[ai:eval] shopping on groq…
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateShoppingList","inputTokens":419,"outputTokens":246,"reasoningTokens":121,"ms":821}
+[AI] generateShoppingList: served by api.groq.com/openai/gpt-oss-120b
+  ✓ week-omnivore (821 ms)
+[AI] generateShoppingList: rate limited — retrying once in 5000 ms
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateShoppingList","inputTokens":402,"outputTokens":213,"reasoningTokens":82,"ms":581}
+[AI] generateShoppingList: served by api.groq.com/openai/gpt-oss-120b
+  ✓ week-vegan (5895 ms)
+
+workload   | provider | cases | errors | schema | allergen | restrict | kcal err | macro err | p50 ms | p95 ms | tokens in/out | checks                                                      | gate
+-----------|----------|-------|--------|--------|----------|----------|----------|-----------|--------|--------|---------------|-------------------------------------------------------------|-----
+mealPlan   | groq     | 2     | 0      | 100%   | 1        | 0        | 7.8%     | 20.2%     | 141664 | 223255 | 13692/36024   | sevenDays=1 mealCount=0.9 uniqueDishes=1                    | FAIL
+swap       | groq     | 2     | 0      | 100%   | 0        | 0        | —        | —         | 1064   | 1406   | 690/890       | —                                                           | PASS
+cheferize  | groq     | 2     | 0      | 100%   | 1        | 0        | —        | —         | 1038   | 1373   | 1571/941      | servings=1                                                  | FAIL
+importText | groq     | 2     | 0      | 100%   | 0        | 0        | 0%       | —         | 1023   | 1579   | 1389/1033     | sentinelCorrect=1 nameMatch=1 ingredientRecall=1 servings=1 | PASS
+vision     | groq     | 2     | 0      | 100%   | 0        | 0        | —        | —         | 491    | 540    | 4298/97       | dishMatch=1                                                 | PASS
+review     | groq     | 2     | 0      | 100%   | 0        | 0        | —        | —         | 359    | 775    | 725/359       | —                                                           | PASS
+prices     | groq     | 2     | 0      | 100%   | 0        | 0        | 13.7%    | —         | 2517   | 7382   | 1233/1800     | coverage=1                                                  | PASS
+shopping   | groq     | 2     | 0      | 100%   | 0        | 0        | —        | —         | 821    | 5895   | 821/459       | coverage=1 consolidated=1                                   | PASS
+
+gate FAIL mealPlan: 1 allergen violation(s)
+gate FAIL cheferize: 1 allergen violation(s)
+
+JSON report written to <scratchpad>/final.json (appended below)
+
+# JSON report
+{
+  "provider": "groq",
+  "ranAt": "2026-09-26T16:42:53.369Z",
+  "report": [
+    {
+      "summary": {
+        "workload": "mealPlan",
+        "provider": "groq",
+        "cases": 2,
+        "errors": 0,
+        "schemaValidPct": 100,
+        "allergenViolations": 1,
+        "restrictionViolations": 0,
+        "meanKcalErrorPct": 7.8,
+        "meanMacroErrorPct": 20.2,
+        "checks": {
+          "sevenDays": 1,
+          "mealCount": 0.9,
+          "uniqueDishes": 1
+        },
+        "p50Ms": 141664,
+        "p95Ms": 223255,
+        "inputTokens": 13692,
+        "outputTokens": 36024,
+        "gatePassed": false,
+        "gateFailures": [
+          "1 allergen violation(s)"
+        ]
+      },
+      "results": [
+        {
+          "id": "solo-maintain",
+          "ok": true,
+          "ms": 141664,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "kcalErrorPct": 12.7,
+            "macroErrorPct": 25.3,
+            "checks": {
+              "sevenDays": 1,
+              "mealCount": 0.8571428571428571,
+              "uniqueDishes": 1
+            }
+          },
+          "inputTokens": 6827,
+          "outputTokens": 17493
+        },
+        {
+          "id": "peanut-allergy",
+          "ok": true,
+          "ms": 223255,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 1,
+            "restrictionViolations": 0,
+            "kcalErrorPct": 2.8,
+            "macroErrorPct": 15,
+            "checks": {
+              "sevenDays": 1,
+              "mealCount": 1,
+              "uniqueDishes": 1
+            }
+          },
+          "inputTokens": 6865,
+          "outputTokens": 18531
+        }
+      ]
+    },
+    {
+      "summary": {
+        "workload": "swap",
+        "provider": "groq",
+        "cases": 2,
+        "errors": 0,
+        "schemaValidPct": 100,
+        "allergenViolations": 0,
+        "restrictionViolations": 0,
+        "checks": {},
+        "p50Ms": 1064,
+        "p95Ms": 1406,
+        "inputTokens": 690,
+        "outputTokens": 890,
+        "gatePassed": true,
+        "gateFailures": []
+      },
+      "results": [
+        {
+          "id": "solo-maintain",
+          "ok": true,
+          "ms": 1064,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "checks": {}
+          },
+          "inputTokens": 345,
+          "outputTokens": 377
+        },
+        {
+          "id": "peanut-allergy",
+          "ok": true,
+          "ms": 1406,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "checks": {}
+          },
+          "inputTokens": 345,
+          "outputTokens": 513
+        }
+      ]
+    },
+    {
+      "summary": {
+        "workload": "cheferize",
+        "provider": "groq",
+        "cases": 2,
+        "errors": 0,
+        "schemaValidPct": 100,
+        "allergenViolations": 1,
+        "restrictionViolations": 0,
+        "checks": {
+          "servings": 1
+        },
+        "p50Ms": 1038,
+        "p95Ms": 1373,
+        "inputTokens": 1571,
+        "outputTokens": 941,
+        "gatePassed": false,
+        "gateFailures": [
+          "1 allergen violation(s)"
+        ]
+      },
+      "results": [
+        {
+          "id": "pad-thai-peanut-shellfish",
+          "ok": true,
+          "ms": 1038,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 1,
+            "restrictionViolations": 0,
+            "checks": {
+              "servings": 1
+            }
+          },
+          "inputTokens": 794,
+          "outputTokens": 360
+        },
+        {
+          "id": "shakshuka-egg-dairy",
+          "ok": true,
+          "ms": 1373,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "checks": {
+              "servings": 1
+            }
+          },
+          "inputTokens": 777,
+          "outputTokens": 581
+        }
+      ]
+    },
+    {
+      "summary": {
+        "workload": "importText",
+        "provider": "groq",
+        "cases": 2,
+        "errors": 0,
+        "schemaValidPct": 100,
+        "allergenViolations": 0,
+        "restrictionViolations": 0,
+        "meanKcalErrorPct": 0,
+        "checks": {
+          "sentinelCorrect": 1,
+          "nameMatch": 1,
+          "ingredientRecall": 1,
+          "servings": 1
+        },
+        "p50Ms": 1023,
+        "p95Ms": 1579,
+        "inputTokens": 1389,
+        "outputTokens": 1033,
+        "gatePassed": true,
+        "gateFailures": []
+      },
+      "results": [
+        {
+          "id": "lentil-soup",
+          "ok": true,
+          "ms": 1023,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "kcalErrorPct": 0,
+            "checks": {
+              "sentinelCorrect": 1,
+              "nameMatch": 1,
+              "ingredientRecall": 1,
+              "servings": 1
+            }
+          },
+          "inputTokens": 689,
+          "outputTokens": 421
+        },
+        {
+          "id": "chicken-traybake",
+          "ok": true,
+          "ms": 1579,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "kcalErrorPct": 0,
+            "checks": {
+              "sentinelCorrect": 1,
+              "nameMatch": 1,
+              "ingredientRecall": 1,
+              "servings": 1
+            }
+          },
+          "inputTokens": 700,
+          "outputTokens": 612
+        }
+      ]
+    },
+    {
+      "summary": {
+        "workload": "vision",
+        "provider": "groq",
+        "cases": 2,
+        "errors": 0,
+        "schemaValidPct": 100,
+        "allergenViolations": 0,
+        "restrictionViolations": 0,
+        "checks": {
+          "dishMatch": 1
+        },
+        "p50Ms": 491,
+        "p95Ms": 540,
+        "inputTokens": 4298,
+        "outputTokens": 97,
+        "gatePassed": true,
+        "gateFailures": []
+      },
+      "results": [
+        {
+          "id": "synthetic-gradient",
+          "ok": true,
+          "ms": 491,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "checks": {
+              "dishMatch": 1
+            }
+          },
+          "inputTokens": 2149,
+          "outputTokens": 48
+        },
+        {
+          "id": "synthetic-checker",
+          "ok": true,
+          "ms": 540,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "checks": {
+              "dishMatch": 1
+            }
+          },
+          "inputTokens": 2149,
+          "outputTokens": 49
+        }
+      ]
+    },
+    {
+      "summary": {
+        "workload": "review",
+        "provider": "groq",
+        "cases": 2,
+        "errors": 0,
+        "schemaValidPct": 100,
+        "allergenViolations": 0,
+        "restrictionViolations": 0,
+        "checks": {},
+        "p50Ms": 359,
+        "p95Ms": 775,
+        "inputTokens": 725,
+        "outputTokens": 359,
+        "gatePassed": true,
+        "gateFailures": []
+      },
+      "results": [
+        {
+          "id": "on-track",
+          "ok": true,
+          "ms": 775,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "checks": {}
+          },
+          "inputTokens": 372,
+          "outputTokens": 233
+        },
+        {
+          "id": "low-logging",
+          "ok": true,
+          "ms": 359,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "checks": {}
+          },
+          "inputTokens": 353,
+          "outputTokens": 126
+        }
+      ]
+    },
+    {
+      "summary": {
+        "workload": "prices",
+        "provider": "groq",
+        "cases": 2,
+        "errors": 0,
+        "schemaValidPct": 100,
+        "allergenViolations": 0,
+        "restrictionViolations": 0,
+        "meanKcalErrorPct": 13.7,
+        "checks": {
+          "coverage": 1
+        },
+        "p50Ms": 2517,
+        "p95Ms": 7382,
+        "inputTokens": 1233,
+        "outputTokens": 1800,
+        "gatePassed": true,
+        "gateFailures": []
+      },
+      "results": [
+        {
+          "id": "batch-1",
+          "ok": true,
+          "ms": 2517,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "kcalErrorPct": 18.1,
+            "checks": {
+              "coverage": 1
+            }
+          },
+          "inputTokens": 617,
+          "outputTokens": 955
+        },
+        {
+          "id": "batch-2",
+          "ok": true,
+          "ms": 7382,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "kcalErrorPct": 9.2,
+            "checks": {
+              "coverage": 1
+            }
+          },
+          "inputTokens": 616,
+          "outputTokens": 845
+        }
+      ]
+    },
+    {
+      "summary": {
+        "workload": "shopping",
+        "provider": "groq",
+        "cases": 2,
+        "errors": 0,
+        "schemaValidPct": 100,
+        "allergenViolations": 0,
+        "restrictionViolations": 0,
+        "checks": {
+          "coverage": 1,
+          "consolidated": 1
+        },
+        "p50Ms": 821,
+        "p95Ms": 5895,
+        "inputTokens": 821,
+        "outputTokens": 459,
+        "gatePassed": true,
+        "gateFailures": []
+      },
+      "results": [
+        {
+          "id": "week-omnivore",
+          "ok": true,
+          "ms": 821,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "checks": {
+              "coverage": 1,
+              "consolidated": 1
+            }
+          },
+          "inputTokens": 419,
+          "outputTokens": 246
+        },
+        {
+          "id": "week-vegan",
+          "ok": true,
+          "ms": 5895,
+          "scores": {
+            "schemaValid": true,
+            "allergenViolations": 0,
+            "restrictionViolations": 0,
+            "checks": {
+              "coverage": 1,
+              "consolidated": 1
+            }
+          },
+          "inputTokens": 402,
+          "outputTokens": 213
+        }
+      ]
+    }
+  ]
+}
