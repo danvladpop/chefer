@@ -20,6 +20,32 @@ export function createTrpcPreferencesMock() {
           useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false, isError: false })),
         },
       },
+      // Weekly updates card (P2-5) — defaults: confirmed, both emails on.
+      notifications: {
+        getEmailPreferences: {
+          useQuery: jest.fn<unknown, unknown[]>(() => ({
+            data: {
+              weekReady: true,
+              weeklyRecap: true,
+              emailConfirmed: true,
+              email: 'ana@chefer.dev',
+            },
+            isLoading: false,
+            isError: false,
+          })),
+        },
+        setEmailPreferences: {
+          useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false, isError: false })),
+        },
+        resendConfirmation: {
+          useMutation: jest.fn(() => ({
+            mutate: jest.fn(),
+            isPending: false,
+            isSuccess: false,
+            isError: false,
+          })),
+        },
+      },
       useUtils: jest.fn(() => ({
         preferences: { get: { invalidate: jest.fn() }, invalidate: jest.fn() },
         gym: { invalidate: jest.fn() },

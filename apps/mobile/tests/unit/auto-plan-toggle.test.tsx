@@ -25,4 +25,9 @@ describe('AutoPlanToggle', () => {
     expect(mockMutate).toHaveBeenCalledWith({ enabled: false });
     expect(screen.getByTestId('prefs-auto-plan-switch').props.value).toBe(false);
   });
+
+  it('free accounts get the curated-week copy (P2-5)', async () => {
+    await render(<AutoPlanToggle initialEnabled isPremium={false} />);
+    expect(screen.getByText(/We pick a fresh week of recipes for you on Sunday/)).toBeTruthy();
+  });
 });

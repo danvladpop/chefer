@@ -10,6 +10,7 @@ import {
   applyGymQueryDefaults,
   createGymPersistOptions,
 } from '../src/features/gym/offline/query-persistence';
+import { useNotificationLinks } from '../src/features/notifications/use-notification-links';
 import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
 import { CURRENT_BUILD } from '../src/lib/current-build';
@@ -33,6 +34,8 @@ function createAppQueryClient() {
 
 export default function RootLayout() {
   const { ready, token } = useSession();
+  // Weekly plan / recap notification taps → the plan or Progress (P2-5).
+  useNotificationLinks(ready && token !== null);
 
   const [queryClient] = useState(createAppQueryClient);
   // Only gym.* queries are persisted (offline read model) — see query-persistence.ts.
