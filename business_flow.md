@@ -1168,11 +1168,60 @@ recipe.importSave { recipe, variant, sourceUrl?, ogImageUrl? }   (premium)
        → rateable + pinnable → flows into P1-1 generation placement
 ```
 
-**Free-tier ghost state (§6.4):** the Import button is visible to everyone; free users
-get one real extraction preview a day on their own URL, then the Cheferize diff renders
-BLURRED with the adaptation count visible ("3 adaptations for your preferences") and the
-upgrade CTA (`source: recipe-import`). Events: `recipe_imported {via}`,
+**Free tier (premium-only since 2026-09-25):** the Import button is visible to everyone;
+free users see a clearly labelled canned example (web) or a locked card (mobile) with
+the upgrade CTA (`source: recipe-import`) — no AI call, the API answers FORBIDDEN. Events: `recipe_imported {via}`,
 `recipe_cheferized`, `teaser_engaged {feature: import}`, `upgrade_prompt_shown`.
+
+### 16.1 From a video link (review form) — 2026-09-26
+
+Owner decision: Gemini's native video input is gone. A cooking video (YouTube, YouTube
+Shorts, TikTok, Instagram reel) is read from its **words only**, and the user reviews,
+corrects and completes what the AI managed to extract before saving.
+
+```
+Import → "Video" tab (web sheet + mobile screen; premium only — free users see the
+          same locked example/card as the other sources, no AI call)
+  ├─ link checked client-side AND server-side (@chefer/utils parseVideoUrl: one
+  │    YouTube/Shorts/TikTok/Instagram video — no channels, playlists, other hosts)
+  ├─ AI data consent (recipe-import; now names the Groq transcription for videos)
+recipe.importVideoPreview { url }   (protected; RECIPE_IMPORT quota → FREE FORBIDDEN,
+  │                                  PREMIUM 5/day, refunded on any failure)
+  ├─ yt-dlp metadata → caption/description
+  │    └─ caption carries the whole recipe (ingredients AND method)? → use it, stop
+  ├─ else one subtitle track (uploaded in the video's language, else the original
+  │    auto-captions — never a machine translation) → use it
+  ├─ else AUDIO ONLY → ffmpeg 16 kHz mono mp3 → Groq Whisper (whisper-large-v3-turbo)
+  │    ├─ caps: VIDEO_MAX_SECONDS (10 min) before download, VIDEO_MAX_DOWNLOAD_MB
+  │    └─ audio deleted right after transcription; nothing stored
+  ├─ a partial caption (ingredients, no method) rides along; used alone if
+  │    subtitles and speech come up empty
+  ├─ title + caption + transcript → extractRecipeAnnotated as TEXT (importText
+  │    route, any provider) — may return empty steps rather than invent them
+  └─ draft + notFound (name / ingredients / steps / servings not stated / time not
+       stated) + amounts that appear nowhere in the words + household allergen warning
+
+Review form (web VideoDraftForm, mobile video-draft-form):
+  ├─ "Check the details — we read this from the video's caption / captions / speech"
+  ├─ every field editable: name, servings, prep/cook minutes, ingredient rows
+  │    (amount, unit, name; add/remove), steps (add/remove)
+  ├─ "Not found — please add" until filled; servings/time "not stated — please check"
+  │    until touched; "Amount not heard — please check" per ingredient until edited
+  ├─ shared validation (videoDraftProblems): name, ≥1 measured ingredient, ≥1 step,
+  │    1–20 servings; per-serving nutrition rescaled if the serving count changed
+  └─ Save → recipe.importSave { variant: 'original', sourceUrl, ogImageUrl }
+       (same save path; allergen conflicts are shown as a warning on the form)
+```
+
+Errors the user can see: not a supported link; private / login-only video; video not
+found; video site refused us (YouTube bot check, rate limit); longer than 10 minutes;
+too large; no caption, subtitles or speech with a recipe; took too long; video import
+unavailable. Every one ends with "you can paste the recipe text instead" where it helps.
+
+**Legal note.** Downloading from TikTok and Instagram (and YouTube) may conflict with
+their terms. Chefer fetches only the single link the user explicitly submits — no
+crawling — reads the words rather than the footage, stores no media, and saves the
+result to the user's private collection with the source link.
 
 **Chat entry point:** the `importRecipe(url)` chat tool runs the same flow — premium
 saves automatically (adapted when safe and changed, else original); free gets the
@@ -1796,7 +1845,7 @@ user taps an AI action ──► requestAiConsent(feature, run, { usesAi })
 | `meal-plan` (premium only)   | Meal plan Generate/Regenerate, `/meal-plan?generate=1`       | Plan tab empty-week Generate, Week summary Regenerate |
 | `meal-swap` (premium only)   | Recipe page "Swap Recipe", Replace meal "Regenerate with AI" | Replace meal sheet "Regenerate with AI"               |
 | `meal-scan`                  | Tracker scan (after the file is picked, before upload)       | Snap-to-Log card (before camera/library opens)        |
-| `recipe-import`              | Import recipe sheet preview (URL / text / photo)             | Import recipe screen preview (URL / text)             |
+| `recipe-import`              | Import recipe sheet preview (URL / text / photo / video)     | Import recipe screen preview (URL / text / video)     |
 | `chat`                       | Chat widget send + suggested prompts                         | AI Chef screen send                                   |
 | `shopping-list`              | Shop "Regenerate list"                                       | Shop "Regenerate with AI"                             |
 
