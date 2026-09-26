@@ -28,7 +28,11 @@ import { trpc } from '../../../lib/trpc';
 import { ensureGymReminderPermission } from '../reminders/permission';
 import { gymBootstrapQueryKey } from '../use-gym-bootstrap';
 import { defaultUnitFromLocale } from './locale-unit';
-import { buildTemplatePreview, uniqueExercisesOf, type TemplatePreview } from './template-preview';
+import {
+  buildTemplatePreview,
+  knownWeightExercisesOf,
+  type TemplatePreview,
+} from './template-preview';
 
 // Gym setup (gym_plan.md §1.3 "Setup", programming-research §3.5). A 7-step
 // stepper with progress dots ending in `profile.completeSetup`. The preview
@@ -138,7 +142,7 @@ export function SetupWizard() {
     ? recommendQuery.data?.reason
     : recommendQuery.data?.alternatives.find((t) => t.key === templateKey)?.description;
 
-  const exercises = useMemo(() => (preview ? uniqueExercisesOf(preview) : []), [preview]);
+  const exercises = useMemo(() => (preview ? knownWeightExercisesOf(preview) : []), [preview]);
 
   // Starting weights (dogfood #2): the keyboard used to cover whichever
   // field you were typing into. `decimal-pad` has no Return key on iOS, so
@@ -313,7 +317,7 @@ export function SetupWizard() {
           <View className="gap-6">
             <StepHeader
               title="What equipment do you have?"
-              description="A commercial gym gets the most out of the program."
+              description="A commercial gym gets the most out of the program. Bodyweight plans use no weights, but a pull-up bar and a sturdy table help."
             />
             <ChipGroup
               testID="gym-setup-equipment"
@@ -574,6 +578,11 @@ export function SetupWizard() {
               value={weightsChoice ? [weightsChoice] : []}
               onChange={(v) => setWeightsChoice(v[0] ?? null)}
             />
+            {weightsChoice === 'know' && exercises.length === 0 ? (
+              <Text testID="gym-setup-weights-none" variant="muted" className="text-sm">
+                Nothing to enter: bodyweight exercises start from your reps.
+              </Text>
+            ) : null}
             {weightsChoice === 'know' && (
               <View className="gap-3">
                 {exercises.map((ex, i) => (

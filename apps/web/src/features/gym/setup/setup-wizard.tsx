@@ -200,7 +200,7 @@ export function SetupWizard() {
               [
                 ['FULL_GYM', 'Full gym', 'Barbells, machines, cables, dumbbells.'],
                 ['DUMBBELLS', 'Dumbbells + bench', 'A home or hotel setup.'],
-                ['BODYWEIGHT', 'Bodyweight', 'No equipment needed.'],
+                ['BODYWEIGHT', 'Bodyweight', 'No weights. A pull-up bar and a sturdy table help.'],
               ] as const
             ).map(([value, title, body]) => (
               <Choice
@@ -598,7 +598,12 @@ function ProgramStep({
             testId="setup-start-known"
           />
         </div>
-        {startMode === 'known' && (
+        {startMode === 'known' && candidates.length === 0 && (
+          <p className="mt-4 text-sm text-gray-600" data-testid="setup-known-none">
+            Nothing to enter: bodyweight exercises start from your reps.
+          </p>
+        )}
+        {startMode === 'known' && candidates.length > 0 && (
           <ul className="mt-4 divide-y">
             {candidates.map((meta) => (
               <li key={meta.id} className="flex items-center justify-between gap-3 py-2">
