@@ -79,3 +79,29 @@ describe('planCuratedWeek (audit F-PLAN-1-3)', () => {
     expect(protein('GAIN_MUSCLE')).toBeGreaterThanOrEqual(protein('MAINTAIN'));
   });
 });
+
+describe('planCuratedWeek — training days (audit P2-4)', () => {
+  // A kcal-perfect but low-protein dinner vs a protein-rich one that
+  // overshoots calories: a rest day takes the first, a training day the second.
+  const trainingPools = (): Record<MealType, RecipeData[]> => ({
+    breakfast: [recipe(600, 20)],
+    lunch: [recipe(600, 20)],
+    dinner: [recipe(600, 20), recipe(900, 60)],
+    snack: [],
+  });
+  const targets = { calories: 1800, proteinG: 150, goal: 'MAINTAIN' };
+  const mondayDinnerProtein = (week: ReturnType<typeof planCuratedWeek>) =>
+    week[0]!.meals.find((m) => m.type === 'dinner')!.recipe.nutritionInfo.protein;
+
+  it('a rest day keeps the calorie-closest dinner', () => {
+    expect(mondayDinnerProtein(planCuratedWeek(trainingPools(), targets, seeded()))).toBe(20);
+  });
+
+  it('a training day picks the higher-protein dinner', () => {
+    expect(
+      mondayDinnerProtein(
+        planCuratedWeek(trainingPools(), { ...targets, trainingDays: [0] }, seeded()),
+      ),
+    ).toBe(60);
+  });
+});

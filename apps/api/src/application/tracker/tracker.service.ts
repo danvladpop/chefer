@@ -11,6 +11,7 @@ import { hasFeature } from '../../lib/entitlements.js';
 import { rebalanceWeek, type RebalanceResult } from '../meal-plan/rebalance.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { findRecipeVisibleTo } from '../recipe/recipe-access.js';
+import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
 import { isRecipeEntry, mergeLoggedMeals } from './merge-log.js';
 
 export type { LoggedMealEntry };
@@ -107,7 +108,12 @@ export const trackerService = {
     // Full resolved targets — the tracker's macro bars must show the SAME
     // numbers as the dashboard (prod-followups #4: it used to hardcode
     // 150/250/70, which doesn't even sum to the calorie target).
-    const { dailyCalorieTarget, proteinG, carbsG, fatG } = resolveDailyTargets(profile);
+    // Lifters' protein follows bodyweight (audit P2-4) — same as the dashboard.
+    const { lifterBodyweightKg } = await trainingNutritionService.loadLifter(userId, profile);
+    const { dailyCalorieTarget, proteinG, carbsG, fatG } = resolveDailyTargets(
+      profile,
+      lifterBodyweightKg,
+    );
 
     // Determine day-of-week (0=Mon)
     const jsDay = date.getUTCDay();

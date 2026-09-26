@@ -8,7 +8,12 @@ import {
 } from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
-import { dayImagePriority, MealPlanService, restrictionWarningLabel } from './meal-plan.service.js';
+import {
+  dayImagePriority,
+  MealPlanService,
+  planOffTargetScore,
+  restrictionWarningLabel,
+} from './meal-plan.service.js';
 
 // ─── Module mocks (hoisted) ───────────────────────────────────────────────────
 
@@ -32,6 +37,10 @@ vi.mock('@chefer/database', async (importOriginal) => {
     // F3 wiring: generate loads use-first items + computes usedPantryItems —
     // empty pantry keeps every existing expectation identical.
     pantryItemRepository: { findByUser: vi.fn().mockResolvedValue([]) },
+    // P2-4 lifter lookups via the default training service: nobody lifts.
+    gymProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
+    weightEntryRepository: { findLatest: vi.fn().mockResolvedValue(null) },
+    routineRepository: { findActive: vi.fn().mockResolvedValue(null) },
     mealPlanRepository: {},
   };
 });
@@ -996,5 +1005,86 @@ describe('restrictionWarningLabel (allergen chip copy)', () => {
     expect(restrictionWarningLabel('Vegetarian')).toBe('non-vegetarian');
     expect(restrictionWarningLabel('Gluten-free')).toBe('gluten');
     expect(restrictionWarningLabel('Dairy free')).toBe('dairy');
+  });
+});
+
+describe('MealPlanService — training days (audit P2-4)', () => {
+  const lifterTraining = {
+    loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: 80 }),
+    trainingSchedule: vi.fn().mockResolvedValue([
+      { plannedWeekday: 0, name: 'Full Body A' },
+      { plannedWeekday: 3, name: 'Full Body B' },
+    ]),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([]);
+    vi.mocked(mealRatingRepository.findSignalsForUser).mockResolvedValue([]);
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+  });
+
+  it('premium: a lifter gets 1.8 g/kg protein and the routine days in the AI input', async () => {
+    const service = new MealPlanService(makeRepo(), undefined, lifterTraining);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue({
+      ...CHEF_PROFILE,
+      goal: 'GAIN_MUSCLE',
+    } as never);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+
+    await service.generate('user1', 0, true);
+
+    const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
+    expect(input.macroTargets?.proteinG).toBe(144);
+    expect(input.trainingDays?.days.map((d) => d.label)).toEqual(['Mon', 'Thu']);
+    expect(input.trainingDays?.proteinBonus).toBe(32);
+    expect(input.trainingDays?.kcalBonus).toBeGreaterThanOrEqual(150);
+  });
+
+  it('premium: no lifter, no training days in the prompt input', async () => {
+    const service = new MealPlanService(makeRepo(), undefined, {
+      loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: null }),
+      trainingSchedule: vi.fn(),
+    });
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+
+    await service.generate('user1', 0, true);
+
+    expect(vi.mocked(aiService.generateMealPlan).mock.calls[0]![0].trainingDays).toBeUndefined();
+  });
+
+  it('free: a lifter plan still has zero AI calls', async () => {
+    const service = new MealPlanService(makeRepo(), undefined, lifterTraining);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue({
+      ...CHEF_PROFILE,
+      goal: 'GAIN_MUSCLE',
+    } as never);
+
+    const plan = await service.generate('user1', 0, false);
+
+    expect(plan.days).toHaveLength(7);
+    expect(lifterTraining.trainingSchedule).toHaveBeenCalled();
+    expect(aiService.generateMealPlan).not.toHaveBeenCalled();
+  });
+
+  it('validation judges training days against the bumped targets', () => {
+    const day = (dayOfWeek: number, calories: number) => ({
+      dayOfWeek,
+      meals: [
+        {
+          recipe: {
+            ...AI_RECIPE,
+            nutritionInfo: { calories, protein: 150, carbs: 250, fat: 70, fiber: 0 },
+          },
+        },
+      ],
+    });
+    const base = { dailyCalorieTarget: 2000, proteinG: 150, carbsG: 250, fatG: 70 };
+    const bumped = { dailyCalorieTarget: 2600, proteinG: 150, carbsG: 250, fatG: 70 };
+    const plan = { days: [day(0, 2600), day(1, 2000)] };
+    expect(planOffTargetScore(plan, base)).toBeGreaterThan(0);
+    expect(planOffTargetScore(plan, base, new Map([[0, bumped]]))).toBe(0);
   });
 });

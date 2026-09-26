@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildLeftoversSection, buildMealPlanUserPrompt, buildUseFirstSection } from './prompts.js';
+import {
+  buildLeftoversSection,
+  buildMealPlanUserPrompt,
+  buildTrainingDaysSection,
+  buildUseFirstSection,
+} from './prompts.js';
 import type { MealPlanInput } from './types.js';
 
 // F3-owned prompt sections (feat/pantry) — the household section has its own
@@ -74,5 +79,37 @@ describe('buildLeftoversSection (F3)', () => {
     expect(section).toContain('reheat');
     const prompt = buildMealPlanUserPrompt({ ...baseInput, leftoversMode: true });
     expect(prompt).toContain('Cook-once-eat-twice');
+  });
+});
+
+describe('buildTrainingDaysSection (audit P2-4)', () => {
+  it('returns empty without training days — base prompt stays byte-identical', () => {
+    expect(buildTrainingDaysSection(baseInput)).toBe('');
+    expect(
+      buildTrainingDaysSection({
+        ...baseInput,
+        trainingDays: { days: [], kcalBonus: 240, proteinBonus: 32 },
+      }),
+    ).toBe('');
+  });
+
+  it('names the days and the bumped totals, and lands in the prompt', () => {
+    const input = {
+      ...baseInput,
+      macroTargets: { proteinG: 144, carbsG: 300, fatG: 70 },
+      trainingDays: {
+        days: [
+          { dayOfWeek: 0, label: 'Mon', workoutName: 'Full Body A' },
+          { dayOfWeek: 3, label: 'Thu', workoutName: 'Full Body B' },
+        ],
+        kcalBonus: 240,
+        proteinBonus: 32,
+      },
+    };
+    const section = buildTrainingDaysSection(input);
+    expect(section).toContain('0=Mon (Full Body A), 3=Thu (Full Body B)');
+    expect(section).toContain('~2640 kcal and ~176 g protein');
+    expect(section).toContain('Rest days stay at the targets above');
+    expect(buildMealPlanUserPrompt(input)).toContain(section);
   });
 });
