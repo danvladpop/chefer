@@ -1,4 +1,4 @@
-import { cn, slotPortion } from '@chefer/utils';
+import { cn, sumPlanDay } from '@chefer/utils';
 
 interface NutritionInfo {
   calories: number;
@@ -34,25 +34,9 @@ interface DayRecapBarProps {
 const TARGET_BAND = 0.15;
 
 export function DayRecapBar({ meals, calorieTarget, proteinGapG }: DayRecapBarProps) {
-  // Totals count each slot at its portion (P1-1).
-  const sums = meals.reduce(
-    (acc, m) => {
-      const p = slotPortion(m.portion);
-      return {
-        calories: acc.calories + m.recipe.nutritionInfo.calories * p,
-        protein: acc.protein + m.recipe.nutritionInfo.protein * p,
-        carbs: acc.carbs + m.recipe.nutritionInfo.carbs * p,
-        fat: acc.fat + m.recipe.nutritionInfo.fat * p,
-      };
-    },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-  const totals = {
-    calories: Math.round(sums.calories),
-    protein: Math.round(sums.protein),
-    carbs: Math.round(sums.carbs),
-    fat: Math.round(sums.fat),
-  };
+  // Totals count each slot at its portion (P1-1) — same sum as mobile.
+  const { kcal, protein, carbs, fat } = sumPlanDay(meals);
+  const totals = { calories: kcal, protein, carbs, fat };
 
   const delta = calorieTarget ? totals.calories - calorieTarget : 0;
   const offTarget = calorieTarget ? Math.abs(delta) / calorieTarget > TARGET_BAND : false;

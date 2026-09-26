@@ -80,6 +80,38 @@ export function isDayOnTarget(
   return kcalOk && proteinGapG(day.protein, targets.proteinG) === null;
 }
 
+/**
+ * A plan day's totals with each slot at its portion (kcal and grams rounded
+ * whole) — the one sum web and mobile show. Missing macros count as 0.
+ */
+export function sumPlanDay(
+  meals: {
+    portion?: number | null | undefined;
+    recipe: {
+      nutritionInfo: { calories?: number; protein?: number; carbs?: number; fat?: number };
+    };
+  }[],
+): { kcal: number; protein: number; carbs: number; fat: number } {
+  let kcal = 0;
+  let protein = 0;
+  let carbs = 0;
+  let fat = 0;
+  for (const m of meals) {
+    const p = slotPortion(m.portion);
+    const n = m.recipe.nutritionInfo;
+    kcal += (n.calories ?? 0) * p;
+    protein += (n.protein ?? 0) * p;
+    carbs += (n.carbs ?? 0) * p;
+    fat += (n.fat ?? 0) * p;
+  }
+  return {
+    kcal: Math.round(kcal),
+    protein: Math.round(protein),
+    carbs: Math.round(carbs),
+    fat: Math.round(fat),
+  };
+}
+
 export interface PortionMeal {
   kcal: number;
   protein: number;

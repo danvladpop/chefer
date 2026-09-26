@@ -291,6 +291,7 @@ export {
   proteinGapG,
   scaleNutrition,
   slotPortion,
+  sumPlanDay,
   type PortionMeal,
   type PortionOptions,
   type PortionPlan,

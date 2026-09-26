@@ -6,6 +6,7 @@ import {
   proteinGapG,
   scaleNutrition,
   slotPortion,
+  sumPlanDay,
   type PortionMeal,
 } from './meal-portion';
 
@@ -166,5 +167,18 @@ describe('portion helpers', () => {
       false,
     );
     expect(isDayOnTarget({ kcal: 2000, protein: 50 }, { calories: 2000 })).toBe(true);
+  });
+
+  it("sums a plan day at each slot's portion", () => {
+    expect(
+      sumPlanDay([
+        { recipe: { nutritionInfo: { calories: 400, protein: 20, carbs: 50, fat: 10 } } },
+        {
+          portion: 1.5,
+          recipe: { nutritionInfo: { calories: 600, protein: 41, carbs: 60, fat: 20 } },
+        },
+        { portion: null, recipe: { nutritionInfo: { calories: 100 } } },
+      ]),
+    ).toEqual({ kcal: 1400, protein: 82, carbs: 140, fat: 40 });
   });
 });
