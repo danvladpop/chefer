@@ -1,10 +1,13 @@
-import { ActivityIndicator, Pressable, Text, type PressableProps } from 'react-native';
+import { ActivityIndicator, Text } from 'react-native';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@chefer/utils';
+import { PressableScale, type PressableScaleProps } from '../motion/pressable-scale';
 import { colors } from './theme';
 
 // Same variant vocabulary as @chefer/ui's web Button. All sizes clear the
-// 44pt minimum touch target (CLAUDE.md).
+// 44pt minimum touch target (CLAUDE.md). Built on PressableScale (MO-01):
+// scales to 0.97 on press; solid fills also dim via `active:opacity-80`.
+// Buttons get no haptic — that would be too much (motion-system.md MO-01).
 const buttonVariants = cva(
   'flex-row items-center justify-center gap-2 rounded-md active:opacity-80 disabled:opacity-50',
   {
@@ -46,7 +49,7 @@ const buttonTextVariants = cva('text-sm font-medium', {
 });
 
 export interface ButtonProps
-  extends Omit<PressableProps, 'children'>, VariantProps<typeof buttonVariants> {
+  extends Omit<PressableScaleProps, 'children'>, VariantProps<typeof buttonVariants> {
   className?: string;
   loading?: boolean;
   /** Plain strings are wrapped in a variant-colored Text automatically. */
@@ -65,7 +68,7 @@ export function Button({
 }: ButtonProps) {
   const isDisabled = (disabled ?? false) || loading;
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       className={cn(buttonVariants({ variant, size }), className)}
       disabled={isDisabled}
@@ -91,6 +94,6 @@ export function Button({
       ) : (
         children
       )}
-    </Pressable>
+    </PressableScale>
   );
 }

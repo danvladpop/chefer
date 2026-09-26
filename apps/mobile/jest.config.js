@@ -2,12 +2,18 @@
 module.exports = {
   preset: 'jest-expo',
   testMatch: ['<rootDir>/tests/unit/**/*.test.{ts,tsx}'],
+  // Reanimated / worklets / expo-haptics mocks (motion primitives, P2-1).
+  setupFiles: ['<rootDir>/tests/setup/motion-mocks.js'],
   // The @chefer/* packages publish raw TS via an "import"-only exports map,
   // which Jest's CJS resolver can't follow — point straight at the source.
   moduleNameMapper: {
     '^@chefer/ui-mobile$': '<rootDir>/../../packages/ui-mobile/src/index.ts',
     '^@chefer/types$': '<rootDir>/../../packages/types/src/index.ts',
     '^@chefer/utils$': '<rootDir>/../../packages/utils/src/index.ts',
+    '^@chefer/tokens$': '<rootDir>/../../packages/tokens/src/index.ts',
+    // @chefer/ui-mobile imports these from its own node_modules; pin them to
+    // the app's copy so the global mocks in tests/setup apply to both.
+    '^(react-native-reanimated|react-native-worklets|expo-haptics)$': '<rootDir>/node_modules/$1',
   },
   // jest-expo's default pattern assumes npm/yarn layout; pnpm nests packages
   // under node_modules/.pnpm/<pkg>@<version>/node_modules/, so allow the RN /

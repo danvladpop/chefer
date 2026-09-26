@@ -9,6 +9,8 @@ export default [
       'dist/**',
       '*.config.{js,mjs,ts}',
       'expo-env.d.ts',
+      // Plain-JS jest setup (mocks); not part of the TS project.
+      'tests/setup/**',
     ],
   },
   ...reactNative,

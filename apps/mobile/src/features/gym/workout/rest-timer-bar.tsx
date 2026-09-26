@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Text } from '@chefer/ui-mobile';
+import { haptics, Text } from '@chefer/ui-mobile';
 import { adjustRest, REST_ADJUST_STEP_SEC, skipRest, useRestRemaining } from '../rest-timer';
-import { hapticRestDone } from './haptics';
 import { formatClock } from './workout-model';
 
 // Sticky rest bar (gym_plan.md §1.3). The ONLY subscriber to the 4×/s tick —
@@ -11,7 +10,7 @@ import { formatClock } from './workout-model';
 
 export function RestTimerBar() {
   const insets = useSafeAreaInsets();
-  const { remainingSec, state } = useRestRemaining(hapticRestDone);
+  const { remainingSec, state } = useRestRemaining(haptics.warning);
   if (!state) return null;
   const progress = state.durationSec > 0 ? 1 - remainingSec / state.durationSec : 1;
 

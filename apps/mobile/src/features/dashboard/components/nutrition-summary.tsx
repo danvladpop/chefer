@@ -1,34 +1,45 @@
 import { View } from 'react-native';
-import { Card, Text } from '@chefer/ui-mobile';
+import {
+  Card,
+  colors,
+  CountUp,
+  isOverTarget,
+  ProgressBar,
+  progressOf,
+  ProgressRing,
+  Text,
+} from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import type { RouterOutputs } from '../../../lib/trpc';
 
 // Port of apps/web/src/features/dashboard/components/nutrition-summary.tsx.
-// Deviation: the SVG calorie ring becomes a headline number + bar (no SVG
-// primitives in RN core; not worth a dependency for one ring).
+// The calorie ring matches web's (128pt, 12pt stroke, brand brown) and adds
+// the MO-06 motion: it animates to the planned total with a count-up in the
+// centre, and past 100% of the target the ring and the macro bars turn amber
+// with an overflow lap / end cap (owner decision 3, 2026-09-25).
 
 type Nutrition = RouterOutputs['dashboard']['summary']['nutrition'];
 
-/** Percentage of target, capped at 100 so the bar never overshoots. */
-function pct(value: number, target: number): number {
-  return Math.min(Math.round((value / (target || 1)) * 100), 100);
-}
+const RING_SIZE = 128;
+const RING_STROKE = 12;
 
 function MacroBar({ label, value, target }: { label: string; value: number; target: number }) {
+  const progress = progressOf(value, target);
+  const over = isOverTarget(progress);
   return (
     <View>
       <View className="mb-1 flex-row items-baseline justify-between gap-2">
         <Text className="text-xs font-medium text-gray-700">{label}</Text>
-        <Text className="text-xs text-gray-500">
+        <Text className={cn('text-xs', over ? 'font-semibold text-amber-700' : 'text-gray-500')}>
           {value}g / {target}g
         </Text>
       </View>
-      <View className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
-        <View
-          className="h-full rounded-full bg-primary"
-          style={{ width: `${pct(value, target)}%` }}
-        />
-      </View>
+      <ProgressBar
+        testID={`macro-${label.toLowerCase()}`}
+        accessibilityLabel={`${label} ${value} of ${target} grams`}
+        progress={progress}
+        overColor={colors.warning}
+      />
     </View>
   );
 }
@@ -40,6 +51,7 @@ export function NutritionSummary({ nutrition: n }: { nutrition: Nutrition }) {
   const targetStatus =
     n.plannedKcal === 0 ? 'none' : ratio > 1.05 ? 'over' : ratio < 0.85 ? 'under' : 'on';
   const remaining = Math.max(n.dailyCalorieTarget - n.plannedKcal, 0);
+  const calories = progressOf(n.plannedKcal, n.dailyCalorieTarget);
 
   const statusStyle = {
     over: { bg: 'bg-red-100', text: 'text-red-700', label: 'Over Target' },
@@ -64,18 +76,28 @@ export function NutritionSummary({ nutrition: n }: { nutrition: Nutrition }) {
         </View>
       </View>
 
-      {/* Calories */}
-      <View className="mb-1 flex-row items-baseline gap-2">
-        <Text className="text-2xl font-bold text-gray-900">{n.plannedKcal.toLocaleString()}</Text>
-        <Text className="text-xs text-gray-500">
-          of {n.dailyCalorieTarget.toLocaleString()} kcal · {remaining.toLocaleString()} remaining
+      {/* Calorie ring — stacked above the macros, like web's phone layout. */}
+      <View className="mb-4 items-center gap-2">
+        <ProgressRing
+          testID="calorie-ring"
+          accessibilityLabel={`${n.plannedKcal.toLocaleString()} of ${n.dailyCalorieTarget.toLocaleString()} kcal planned`}
+          progress={calories}
+          size={RING_SIZE}
+          strokeWidth={RING_STROKE}
+          overColor={colors.warning}
+        >
+          <CountUp
+            testID="calorie-count"
+            value={n.plannedKcal}
+            className="text-xl font-bold text-gray-900"
+          />
+          <Text className="text-[12px] text-gray-500">
+            of {n.dailyCalorieTarget.toLocaleString()} kcal
+          </Text>
+        </ProgressRing>
+        <Text testID="calorie-remaining" className="text-center text-xs text-gray-500">
+          {remaining.toLocaleString()} remaining
         </Text>
-      </View>
-      <View className="mb-4 h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
-        <View
-          className="h-full rounded-full bg-primary"
-          style={{ width: `${pct(n.plannedKcal, n.dailyCalorieTarget)}%` }}
-        />
       </View>
 
       {/* Macro bars */}

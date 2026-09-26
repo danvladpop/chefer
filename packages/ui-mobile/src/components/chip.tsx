@@ -1,6 +1,8 @@
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { cva } from 'class-variance-authority';
 import { cn } from '@chefer/utils';
+import { haptics } from '../motion/haptics';
+import { PressableScale } from '../motion/pressable-scale';
 
 const chipVariants = cva('min-h-11 flex-row items-center justify-center rounded-full border px-4', {
   variants: {
@@ -31,7 +33,10 @@ export interface ChipProps {
   testID?: string | undefined;
 }
 
-/** Pill toggle — filters, RIR answers, weekday pickers. 44pt tall. */
+/**
+ * Pill toggle — filters, RIR answers, weekday pickers. 44pt tall. Scales on
+ * press (MO-01) and ticks a selection haptic when tapped.
+ */
 export function Chip({
   label,
   selected = false,
@@ -41,16 +46,23 @@ export function Chip({
   testID,
 }: ChipProps) {
   return (
-    <Pressable
+    <PressableScale
       testID={testID}
       accessibilityRole="button"
       accessibilityState={{ selected, disabled }}
       disabled={disabled}
-      onPress={onPress}
+      onPress={
+        onPress
+          ? () => {
+              haptics.selection();
+              onPress();
+            }
+          : undefined
+      }
       className={cn(chipVariants({ selected }), disabled && 'opacity-50', className)}
     >
       <Text className={chipTextVariants({ selected })}>{label}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 

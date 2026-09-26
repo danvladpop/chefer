@@ -1,6 +1,8 @@
 import { memo, useEffect, useRef } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { cn } from '@chefer/utils';
+import { haptics } from '../motion/haptics';
+import { PressableScale } from '../motion/pressable-scale';
 import { STEPPER_REPEAT_DELAY_MS, STEPPER_REPEAT_INTERVAL_MS } from './stepper';
 
 // A compact − value + stepper (promoted from the gym workout's set rows, G4-B).
@@ -59,6 +61,7 @@ function ValueStepperImpl({
     const target = step(current, direction);
     if (target === current) return false;
     latest.current = { ...latest.current, value: target };
+    haptics.selection();
     emit(target);
     return true;
   };
@@ -73,7 +76,7 @@ function ValueStepperImpl({
 
   const display = format(value);
   const button = (direction: 1 | -1) => (
-    <Pressable
+    <PressableScale
       testID={`${testID}-${direction === 1 ? 'inc' : 'dec'}`}
       accessibilityRole="button"
       accessibilityLabel={`${direction === 1 ? 'Increase' : 'Decrease'} ${name.toLowerCase()}`}
@@ -85,7 +88,7 @@ function ValueStepperImpl({
       className="h-11 w-11 items-center justify-center rounded-md bg-muted active:opacity-70"
     >
       <Text className="text-xl font-semibold text-foreground">{direction === 1 ? '+' : '−'}</Text>
-    </Pressable>
+    </PressableScale>
   );
 
   return (
@@ -96,7 +99,7 @@ function ValueStepperImpl({
       className={cn('min-w-0 flex-row items-center', className)}
     >
       {button(-1)}
-      <Pressable
+      <PressableScale
         testID={`${testID}-value`}
         accessibilityRole={onPressValue ? 'button' : 'text'}
         accessibilityLabel={`${name} ${display} ${caption}${onPressValue ? ', tap to type' : ''}`}
@@ -115,7 +118,7 @@ function ValueStepperImpl({
           {display}
         </Text>
         <Text className="text-[12px] text-muted-foreground">{caption}</Text>
-      </Pressable>
+      </PressableScale>
       {button(1)}
     </View>
   );
