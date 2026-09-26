@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { DowngradeButton, UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { AccountDataCard } from '@/features/profile/components/AccountDataCard';
+import { AiConsentCard } from '@/features/profile/components/AiConsentCard';
 import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
 import { ChevronRight, Users } from 'lucide-react';
@@ -285,7 +286,8 @@ export default function ProfilePage() {
         </div>
       ) : null}
 
-      <div className="mt-4">
+      <div className="mt-4 space-y-4">
+        <AiConsentCard />
         <AccountDataCard />
       </div>
     </div>

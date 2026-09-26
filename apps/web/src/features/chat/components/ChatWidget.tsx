@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useAiConsent, useAiConsentOpen } from '@/features/ai-consent/AiConsentProvider';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
@@ -68,6 +69,14 @@ export function ChatWidget() {
   });
   const isLoading = status === 'submitted' || status === 'streaming';
 
+  // AI data consent (App Store 5.1.2(i)): the first message asks before
+  // anything is sent. While the consent sheet is up, the panel's own focus
+  // trap and Escape stand down so the sheet owns the keyboard.
+  const requestAiConsent = useAiConsent();
+  const consentOpen = useAiConsentOpen();
+  const consentOpenRef = useRef(consentOpen);
+  consentOpenRef.current = consentOpen;
+
   const wasLoadingRef = useRef(false);
   useEffect(() => {
     if (isLoading) {
@@ -96,6 +105,7 @@ export function ChatWidget() {
     else (panel?.querySelector<HTMLElement>(FOCUSABLE) ?? panel)?.focus();
 
     const onKeyDown = (e: KeyboardEvent): void => {
+      if (consentOpenRef.current) return;
       if (e.key === 'Escape') {
         e.stopPropagation();
         close();
@@ -131,17 +141,21 @@ export function ChatWidget() {
   const handleSend = () => {
     const text = inputValue.trim();
     if (!text || isLoading || quotaExhausted) return;
-    setInputValue('');
-    setChatError(null);
-    capture('chat_message_sent');
-    void sendMessage({ text });
+    requestAiConsent('chat', () => {
+      setInputValue('');
+      setChatError(null);
+      capture('chat_message_sent');
+      void sendMessage({ text });
+    });
   };
 
   const sendSuggested = (prompt: string) => {
     if (isLoading || quotaExhausted) return;
-    setChatError(null);
-    capture('chat_message_sent', { suggested: true });
-    void sendMessage({ text: prompt });
+    requestAiConsent('chat', () => {
+      setChatError(null);
+      capture('chat_message_sent', { suggested: true });
+      void sendMessage({ text: prompt });
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

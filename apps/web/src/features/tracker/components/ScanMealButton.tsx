@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
@@ -72,8 +73,17 @@ export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProp
     fileInputRef.current?.click();
   };
 
-  const onFileChosen = async (file: File | undefined) => {
+  // AI data consent (App Store 5.1.2(i)): asked after the photo is picked
+  // (the file picker needs the original tap) and before anything is uploaded.
+  // "Not now" drops the photo.
+  const requestAiConsent = useAiConsent();
+  const onFileChosen = (file: File | undefined) => {
     if (!file || scanning) return;
+    requestAiConsent('meal-scan', () => void scanFile(file));
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const scanFile = async (file: File) => {
     setScanning(true);
     setScanError(null);
     try {
@@ -144,7 +154,7 @@ export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProp
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={(e) => void onFileChosen(e.target.files?.[0])}
+        onChange={(e) => onFileChosen(e.target.files?.[0])}
       />
 
       {scanError && <p className="w-full text-xs text-red-600">{scanError}</p>}

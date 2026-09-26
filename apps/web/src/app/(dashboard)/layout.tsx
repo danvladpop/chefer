@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { AiConsentProvider } from '@/features/ai-consent/AiConsentProvider';
 import { ChatWidgetGate } from '@/features/chat/components/ChatWidgetGate';
 import { DashboardShell } from '@/features/nav/components/dashboard-shell';
 import { MODE_COOKIE, parseMode } from '@/features/nav/nav-items';
@@ -13,10 +14,13 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   const initialMode = parseMode((await cookies()).get(MODE_COOKIE)?.value) ?? 'food';
 
   return (
-    <DashboardShell initialMode={initialMode}>
-      {children}
-      {/* Hidden on /gym/workout*: the active workout stays distraction-free. */}
-      <ChatWidgetGate />
-    </DashboardShell>
+    // AI data consent guard (App Store 5.1.2(i)) for every AI action below.
+    <AiConsentProvider>
+      <DashboardShell initialMode={initialMode}>
+        {children}
+        {/* Hidden on /gym/workout*: the active workout stays distraction-free. */}
+        <ChatWidgetGate />
+      </DashboardShell>
+    </AiConsentProvider>
   );
 }

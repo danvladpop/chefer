@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { PantryCheckBanner } from '@/features/pantry/components/PantryCheckBanner';
 import { PantryGhostBanner } from '@/features/pantry/components/PantryGhostBanner';
 import { PantryPanel } from '@/features/pantry/components/PantryPanel';
@@ -128,6 +129,7 @@ export default function ShoppingListPage() {
   const utils = trpc.useUtils();
 
   // AI-regenerate mutation — updates the getForWeek cache inline on success
+  const requestAiConsent = useAiConsent();
   const regenerateMutation = trpc.shoppingList.regenerate.useMutation({
     onSuccess: (data) => {
       capture('shopping_list_regenerated');
@@ -330,7 +332,10 @@ export default function ShoppingListPage() {
             {/* AI consolidation is premium — free users see the upgrade CTA instead */}
             {isPremium !== false ? (
               <button
-                onClick={() => regenerateMutation.mutate({ weekOffset })}
+                onClick={() =>
+                  // Sends the plan's ingredients to the AI — ask first (5.1.2(i)).
+                  requestAiConsent('shopping-list', () => regenerateMutation.mutate({ weekOffset }))
+                }
                 disabled={regenerateMutation.isPending || !weekList?.hasPlan}
                 title={!weekList?.hasPlan ? 'Generate a meal plan first' : undefined}
                 className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50 sm:min-h-0 sm:flex-none"

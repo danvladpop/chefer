@@ -14,6 +14,10 @@ const m = vi.hoisted(() => ({
   swap: vi.fn(),
 }));
 vi.mock('@/features/recipes/components/RecipeImage', () => ({ RecipeImage: () => null }));
+// Consent already on record: the guard runs the action straight away.
+vi.mock('@/features/ai-consent/AiConsentProvider', () => ({
+  useAiConsent: () => (_feature: string, run: () => void) => run(),
+}));
 vi.mock('@/hooks/useIsPremium', () => ({ useIsPremium: () => m.isPremium }));
 vi.mock('@chefer/ui', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/ui')>()),

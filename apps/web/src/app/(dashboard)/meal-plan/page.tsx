@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { DayView } from '@/features/meal-plan/components/day-view';
 import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
@@ -35,7 +36,12 @@ import {
   Wand2,
 } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
-import { formatMoney, perPortionCost, toDisplayCurrency } from '@chefer/utils';
+import {
+  aiConsentRequiredFor,
+  formatMoney,
+  perPortionCost,
+  toDisplayCurrency,
+} from '@chefer/utils';
 import MealPlanLoading from './loading';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -247,8 +253,16 @@ export default function MealPlanPage() {
     },
   });
 
+  // AI data consent (App Store 5.1.2(i)): premium generation sends the
+  // profile to the AI provider; free generation is curated and never asks.
+  const requestAiConsent = useAiConsent();
+  const generateWithConsent = (input: { weekOffset: number; leftovers?: true }) =>
+    requestAiConsent('meal-plan', () => generateMutation.mutate(input), {
+      usesAi: aiConsentRequiredFor('meal-plan', isPremium),
+    });
+
   const handleGenerate = () =>
-    generateMutation.mutate({ weekOffset, ...(leftovers && { leftovers: true }) });
+    generateWithConsent({ weekOffset, ...(leftovers && { leftovers: true as const }) });
 
   // ?generate=1 (dashboard's "Generate My Week", prod-followups #9): start
   // generation on arrival when the week has no plan yet. Fires at most once
@@ -259,7 +273,7 @@ export default function MealPlanPage() {
     if (!wantsAutoGenerate || autoGenerateFired.current || isLoading) return;
     autoGenerateFired.current = true;
     router.replace('/meal-plan', { scroll: false });
-    if (!plan && !isGenerating) generateMutation.mutate({ weekOffset });
+    if (!plan && !isGenerating) generateWithConsent({ weekOffset });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once trigger keyed on load completion
   }, [wantsAutoGenerate, isLoading]);
 
