@@ -159,11 +159,11 @@ export function DayView({
       ) : (
         <>
           <div className="flex flex-col gap-3">
-            {meals.map((slot) => {
+            {meals.map((slot, slotIndex) => {
               const override = imageOverrides[slot.recipe.id];
               return (
                 <MealCard
-                  key={slot.type}
+                  key={`${slot.type}-${slotIndex}`}
                   variant="row"
                   mealType={slot.type}
                   recipe={slot.recipe}
