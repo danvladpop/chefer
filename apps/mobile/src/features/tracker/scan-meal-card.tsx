@@ -16,6 +16,7 @@ import {
   type MealPhotoEstimate,
 } from '../../lib/media-client';
 import { trpc } from '../../lib/trpc';
+import { recordRebalance } from './rebalance-store';
 
 // Snap-to-Log (F4 / M3-2) — mobile counterpart of web's ScanMealButton.
 // Camera or library → vision estimate → confirm card → logCustomMeal.
@@ -37,7 +38,8 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
   const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>('lunch');
 
   const logMutation = trpc.tracker.logCustomMeal.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      recordRebalance(data.rebalance);
       setEstimate(null);
       onLogged();
     },

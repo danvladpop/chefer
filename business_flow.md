@@ -673,6 +673,14 @@ other phones, was deleted).
             next week" (P1-1 signal)
 ```
 
+Mobile (`apps/mobile/app/cook/[id].tsx`) has the same finish: "Log this meal"
+→ `tracker.logRecipe`, then the rebalance banner (if the log triggered one)
+and the `StarRating` card (`src/features/recipes/star-rating.tsx` — 44pt stars
+labelled "Rate N stars", "who liked it" household chips, notes; helpers
+shared via `@chefer/utils` `rating.ts`). Mobile recipe detail shows the same
+card when opened from a Plan-tab day (`day` param), mirroring web's
+`?day=` gate.
+
 Real-device acceptance (wake lock, swipe, keyboard) is tracked in
 [`docs/device-checklist.md`](./docs/device-checklist.md) (P1-6).
 
@@ -835,6 +843,11 @@ devices all persist. Saving with nothing ticked un-logs the planned meals.
 
 - **Quick add** (tracker): name + kcal only → `tracker.logCustomMeal`
   (`estimatedBy: 'manual'`, mealType snack). Free for every account.
+  Mobile (`src/features/tracker/quick-add-sheet.tsx`, "Quick add" button on
+  the tracker, any non-future day) also lets the user pick the meal slot and
+  optional protein/carbs/fat; inline validation mirrors the API bounds via the
+  shared `parseQuickAdd` (`@chefer/utils`), API errors show in the sheet, and
+  the day's `tracker.getDay` is invalidated on success.
 - **Chat "I ate this"**: the `logMeal` chat tool logs the model's own macro
   estimate as a manual custom entry into today's log.
 - The camera button stays visible for free users; tapping it opens the
@@ -868,6 +881,19 @@ Undo is per-device and expires after 24 h — nothing about the swap pairs is
 stored server-side (wave-0 schema freeze). Analytics: `week_rebalanced` fires
 on the client when a log's response carries an applied rebalance. Failures in
 the rebalance path never fail the log save itself.
+
+**Mobile** (P1-7, 2026-09-26): every logging surface (tracker Save Day, quick
+add, photo scan, cook-mode log) feeds the response's `rebalance` into
+`src/features/tracker/rebalance-store.ts`, persisted in the app's SQLite KV.
+The store **merges** a new rebalance into the pending one
+(`mergePendingRebalance` in `@chefer/utils`: one entry per slot, a slot
+swapped twice keeps its original recipe for undo, a slot swapped back drops
+out; another plan or a stale hand-off is replaced) — so a second rebalance no
+longer destroys the first one's undo (audit F-TRK-3-2). The banner with Undo
+/ Dismiss renders **where the log happened** (tracker, cook-mode finish) and
+on the Plan tab (filtered to the displayed plan). Web still overwrites and
+shows the banner only on the meal-plan page — reverse row in
+`mobile_parity_backlog.md`.
 
 Routing: Caddy sends `/api/scan-meal` to the API in production; a Next.js
 rewrite proxies it in dev.

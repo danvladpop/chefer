@@ -11,13 +11,17 @@ import {
   localDateStr,
 } from '@chefer/utils';
 import { MealTypeBadge } from '../src/features/dashboard/components/meal-type-badge';
+import { QuickAddSheet } from '../src/features/tracker/quick-add-sheet';
+import { RebalanceBanner } from '../src/features/tracker/rebalance-banner';
+import { recordRebalance } from '../src/features/tracker/rebalance-store';
 import { ScanMealCard } from '../src/features/tracker/scan-meal-card';
 import { getRecipeImageUrl } from '../src/lib/recipe-image';
 import { trpc } from '../src/lib/trpc';
 
-// Tracker — port of apps/web (dashboard)/tracker/page.tsx (M2-4).
-// Deviations, deliberate: QuickAddSheet + week rebalance banner arrive with
-// the Sheet primitive follow-up; Snap-to-Log camera scan is M3-2.
+// Tracker — port of apps/web (dashboard)/tracker/page.tsx (M2-4), with quick
+// add, Snap-to-Log (M3-2) and the week-rebalance banner (P1-7). Deviation,
+// deliberate: the rebalance banner + undo shows HERE, right after the log
+// that caused it — web only shows it on the meal plan (F-TRK-3-2).
 
 type PortionKey = 0.5 | 1 | 1.5 | 2;
 const PORTION_OPTIONS: PortionKey[] = [0.5, 1, 1.5, 2];
@@ -65,6 +69,7 @@ export default function TrackerScreen() {
     Record<string, { checked: boolean; portion: PortionKey }>
   >({});
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [initialised, setInitialised] = useState<string | null>(null);
 
   const getKey = (recipeId: string, mealType: string) => `${recipeId}:${mealType}`;
@@ -94,7 +99,8 @@ export default function TrackerScreen() {
   }, [data, dateStr, initialised]);
 
   const upsertMutation = trpc.tracker.upsertDay.useMutation({
-    onSuccess: () => {
+    onSuccess: (result) => {
+      recordRebalance(result.rebalance);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
       void refetch();
@@ -255,6 +261,9 @@ export default function TrackerScreen() {
         />
       ) : (
         <ScrollView contentContainerClassName="gap-4 px-4 py-2 pb-8">
+          {/* Premium week rebalance triggered by a log on this screen */}
+          <RebalanceBanner />
+
           {/* Totals vs targets */}
           <Card testID="tracker-totals">
             <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
@@ -364,6 +373,18 @@ export default function TrackerScreen() {
             </View>
           )}
 
+          {/* Quick add (F4, all tiers) — any day, for off-plan food */}
+          <Button
+            testID="tracker-quick-add"
+            variant="outline"
+            onPress={() => setQuickAddOpen(true)}
+          >
+            <View className="flex-row items-center gap-1.5">
+              <Ionicons name="add" size={18} color="#944a00" />
+              <Text className="text-sm font-medium text-primary">Quick add</Text>
+            </View>
+          </Button>
+
           {/* Snap-to-Log (F4 / M3-2) — today only; past days are typed by hand */}
           {isToday && <ScanMealCard date={dateStr} onLogged={() => void refetch()} />}
 
@@ -436,6 +457,13 @@ export default function TrackerScreen() {
           </Button>
         </ScrollView>
       )}
+
+      <QuickAddSheet
+        visible={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        date={dateStr}
+        onLogged={() => void refetch()}
+      />
     </Screen>
   );
 }

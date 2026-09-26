@@ -9,14 +9,15 @@ import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sheet';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
 import { AllergenWarningChip } from '../../src/features/recipes/allergen-warning';
+import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
 // Plan tab — port of apps/web (dashboard)/meal-plan/page.tsx (M2-2), which
-// already renders day-by-day on phones (DayView). Deviations, deliberate:
-// recipe-photo SSE streaming waits for M3-1; pantry/rebalance banners for
-// M2-6/M2-10. Per-meal replace opens RecipePickerSheet (pick a recipe, any
+// already renders day-by-day on phones (DayView), incl. the week-rebalance
+// banner with undo (P1-7). Deviations, deliberate: recipe-photo SSE
+// streaming waits for M3-1; the pantry banner for M2-6/M2-10. Per-meal replace opens RecipePickerSheet (pick a recipe, any
 // tier; AI regen in its footer, premium) — mobile-first, not on web yet.
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -302,6 +303,9 @@ export default function MealPlanScreen() {
           </View>
 
           <ScrollView contentContainerClassName="gap-3 px-4 py-2 pb-8">
+            {/* A log elsewhere swapped future meals — say which, offer undo */}
+            <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
+
             {/* Badges row */}
             <View className="flex-row flex-wrap gap-2">
               {plan.carriedOver && (
@@ -342,7 +346,10 @@ export default function MealPlanScreen() {
                   testID={`plan-meal-${meal.type}`}
                   accessibilityRole="button"
                   onPress={() =>
-                    router.push({ pathname: '/recipe/[id]', params: { id: meal.recipe.id } })
+                    router.push({
+                      pathname: '/recipe/[id]',
+                      params: { id: meal.recipe.id, day: String(selectedDay), meal: meal.type },
+                    })
                   }
                   className="flex-row overflow-hidden rounded-2xl border border-border bg-card"
                 >

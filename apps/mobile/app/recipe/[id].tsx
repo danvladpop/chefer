@@ -1,20 +1,22 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
 import { cn, formatQuantity } from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
+import { StarRating } from '../../src/features/recipes/star-rating';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
 // Recipe detail — port of apps/web (dashboard)/recipes/[id]/page.tsx (M2-3).
-// Deviations, deliberate: cook mode (P1-3), meal-plan swap context, and the
-// star rating widget arrive with M2-2 (meal plan); import/edit with M2-10.
+// Like web, the star rating shows only when opened from a meal-plan day
+// (`day` param) — that's when the user actually ate it. Deviations,
+// deliberate: meal-plan swap context stays on the Plan tab's picker sheet.
 
 export default function RecipeDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, day, meal } = useLocalSearchParams<{ id: string; day?: string; meal?: string }>();
   const unitSystem = useUnitSystem();
 
   const { data: recipe, isLoading, isError } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
@@ -60,7 +62,7 @@ export default function RecipeDetailScreen() {
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
-      <ScrollView contentContainerClassName="pb-8">
+      <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="pb-8">
         {/* Hero image + back overlay */}
         <View className="relative">
           <Image
@@ -107,7 +109,9 @@ export default function RecipeDetailScreen() {
             <Button
               testID="recipe-cook"
               className="flex-1"
-              onPress={() => router.push({ pathname: '/cook/[id]', params: { id } })}
+              onPress={() =>
+                router.push({ pathname: '/cook/[id]', params: meal ? { id, meal } : { id } })
+              }
             >
               <View className="flex-row items-center gap-1.5">
                 <Ionicons name="restaurant-outline" size={16} color="white" />
@@ -243,8 +247,11 @@ export default function RecipeDetailScreen() {
               ))}
             </View>
           </Card>
+
+          {/* Star rating — shown when opened from a meal-plan day */}
+          {day !== undefined && <StarRating recipeId={id} />}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }
