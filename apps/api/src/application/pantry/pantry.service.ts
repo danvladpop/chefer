@@ -90,6 +90,27 @@ export class PantryService {
     return rows.length;
   }
 
+  /**
+   * Undoes seedFromPurchases for unticked list lines: removes the matching
+   * PURCHASE rows (same name and unit). MANUAL rows are the user's own and
+   * are never touched.
+   */
+  async revertPurchases(userId: string, purchased: PurchasedItemInput[]): Promise<number> {
+    const wanted = new Set(
+      purchased.map(
+        (item) =>
+          `${normalizeIngredientName(item.name)}|${item.unit.toLowerCase().trim() || 'pcs'}`,
+      ),
+    );
+    if (wanted.size === 0) return 0;
+    const rows = await this.repo.findByUser(userId);
+    const ids = rows
+      .filter((row) => row.source === 'PURCHASE' && wanted.has(`${row.ingredientName}|${row.unit}`))
+      .map((row) => row.id);
+    await this.repo.deleteByIds(userId, ids);
+    return ids.length;
+  }
+
   /** Manual add/edit (premium). Staples are rejected with a friendly message. */
   async addManual(
     userId: string,

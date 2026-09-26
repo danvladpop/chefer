@@ -73,13 +73,54 @@ describe('inferCategory', () => {
   });
 
   it('multi-word overrides outrank their fragments (#7)', () => {
-    expect(inferCategory('Chili powder')).toBe('other'); // spice, not produce
+    expect(inferCategory('Chili powder')).toBe('grains'); // spice (pantry), not produce
     expect(inferCategory('Peanut butter')).toBe('grains'); // pantry, not dairy
     expect(inferCategory('Almond butter')).toBe('grains');
   });
 
-  it('spices still fall back to other (#7)', () => {
-    expect(inferCategory('Smoked paprika')).toBe('other');
-    expect(inferCategory('Garam masala')).toBe('other');
+  it('spices, jars and tins go to the pantry aisle (F-SHOP-1-2)', () => {
+    expect(inferCategory('Smoked paprika')).toBe('grains');
+    expect(inferCategory('Garam masala')).toBe('grains');
+    expect(inferCategory('Canned tomatoes')).toBe('grains');
+    expect(inferCategory('Sun-dried tomatoes')).toBe('grains');
+  });
+
+  it('files every "Other" line from the audit list correctly (F-SHOP-1-2)', () => {
+    const expectations: Record<string, string> = {
+      'Sirloin steak': 'proteins',
+      Falafel: 'proteins',
+      'Lean beef mince': 'proteins',
+      'Vegetable stock': 'grains',
+      'Vegetable broth': 'grains',
+      'Tomato paste': 'grains',
+      'Tomato passata': 'grains',
+      'Garlic powder': 'grains',
+      'Red pepper flakes': 'grains',
+      'Balsamic glaze': 'grains',
+      'Lemon vinaigrette': 'grains',
+      'Olive oil dressing': 'grains',
+      'Vanilla whey protein powder': 'grains',
+      'Pumpkin seeds': 'grains',
+      Cumin: 'grains',
+      Turmeric: 'grains',
+      Saffron: 'grains',
+      'Ras el hanout': 'grains',
+      'Kalamata olives': 'grains',
+      'Dried apricots': 'grains',
+      'Ciabatta roll': 'grains',
+      'Artichoke hearts': 'produce',
+      Sweetcorn: 'produce',
+      'Green beans': 'produce',
+      'Mixed greens': 'produce',
+      'Fresh rosemary': 'produce',
+      'Frozen mixed berries': 'frozen',
+      'Frozen peas': 'frozen',
+      'Corn tortillas': 'grains',
+      'Coconut milk': 'grains',
+      'Chicken breast': 'proteins',
+    };
+    for (const [name, category] of Object.entries(expectations)) {
+      expect({ name, category: inferCategory(name) }).toEqual({ name, category });
+    }
   });
 });

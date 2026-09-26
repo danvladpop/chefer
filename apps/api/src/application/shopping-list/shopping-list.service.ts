@@ -24,6 +24,7 @@ import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js'
 import { buildPantryMatcher } from '../pantry/pantry-match.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { inferCategory } from '../shared/category-map.js';
+import { aggregateIngredientLines, formatLineQuantity, tidyListItems } from './aggregate.js';
 
 export interface ShoppingListItemForWeek {
   key: string;
@@ -101,6 +102,20 @@ function readCustomItems(raw: unknown): StoredShoppingListItem[] {
   return (raw as StoredShoppingListItem[]).map((i) => ({ ...i, isCustom: true }));
 }
 
+/**
+ * AI-consolidated rows get the derived list's rules (aggregate.ts): no water
+ * or "to taste" lines, no leftover duplicates, and the local aisle map
+ * wherever the stored category is missing or "other" — the model no longer
+ * categorises, and older rows were stored as "other" (audit F-SHOP-1-1/1-2).
+ */
+function tidyAiItems(items: StoredShoppingListItem[]): StoredShoppingListItem[] {
+  return tidyListItems(items).map((item) =>
+    item.category && item.category !== 'other'
+      ? item
+      : { ...item, category: inferCategory(item.ingredientName) },
+  );
+}
+
 function customItemKey(planId: string, name: string, unit: string): string {
   return `${planId}-custom-${name.toLowerCase().trim().replace(/\s+/g, '-')}-${unit.toLowerCase().trim()}`;
 }
@@ -170,6 +185,7 @@ export class ShoppingListService {
     user: UserProfile,
     items: ShoppingListItemForWeek[],
     estimatedTotalEur: number | null,
+    checkedKeys: string[] = [],
   ): Promise<{
     items: ShoppingListItemForWeek[];
     estimatedTotalEur: number | null;
@@ -181,10 +197,28 @@ export class ShoppingListService {
       return { items, estimatedTotalEur, pantry: { entitled, itemCount: 0, savedEur: 0 } };
     }
 
-    const matcher = buildPantryMatcher(pantryRows.map((row) => row.ingredientName));
+    const matcher = buildPantryMatcher(
+      pantryRows.map((row) => ({
+        name: row.ingredientName,
+        quantity: row.quantity,
+        unit: row.unit,
+      })),
+    );
+    // A ticked line was bought FOR this week: ticking seeds the pantry, and
+    // that pantry row must not flip the same line to "have it", drop it
+    // from the total and count it as saved (audit F-PAN-1-1).
+    const ticked = new Set(checkedKeys);
     const coveredKeys = new Set(
       items
-        .filter((item) => !item.isCustom && matcher(item.ingredientName) !== null)
+        .filter(
+          (item) =>
+            !item.isCustom &&
+            !ticked.has(item.key) &&
+            matcher(item.ingredientName, {
+              quantity: parseFloat(item.quantity),
+              unit: item.unit,
+            }) !== null,
+        )
         .map((item) => item.key),
     );
     const round = (v: number) => Math.round(v * 100) / 100;
@@ -225,52 +259,30 @@ export class ShoppingListService {
     const recipes = await mealPlanRepository.findRecipesByIds(uniqueIds);
     const recipeMap = new Map(recipes.map((r) => [r.id, r]));
 
-    // Aggregate ingredients. Merge key includes the unit: the same ingredient
-    // with two different units becomes two lines — previously the second unit
-    // silently overwrote the first, dropping its quantity.
-    const merged = new Map<
-      string,
-      {
-        name: string;
-        quantity: number;
-        unit: string;
-        category: GroceryCategory;
-        recipeIds: Set<string>;
-      }
-    >();
+    // One aggregation for the list, the AI prompt and the planner's cost chip
+    // (aggregate.ts, audit F-SHOP-1-1/1-3).
+    const lines = aggregateIngredientLines(
+      targetPlan.days.flatMap((day) =>
+        (day.meals as MealSlotJson[]).flatMap((slot) => {
+          const recipe = recipeMap.get(slot.recipeId);
+          if (!recipe) return [];
+          return (recipe.ingredients as unknown as Ingredient[]).map((ing) => ({
+            name: ing.name,
+            quantity: ing.quantity,
+            unit: ing.unit,
+            recipeId: slot.recipeId,
+          }));
+        }),
+      ),
+    );
 
-    for (const day of targetPlan.days) {
-      for (const slot of day.meals as MealSlotJson[]) {
-        const recipe = recipeMap.get(slot.recipeId);
-        if (!recipe) continue;
-        const ingredients = recipe.ingredients as unknown as Ingredient[];
-        for (const ing of ingredients) {
-          const name = ing.name.toLowerCase().trim();
-          const key = `${name}|${ing.unit.toLowerCase().trim()}`;
-          const existing = merged.get(key);
-          if (existing) {
-            existing.quantity += ing.quantity;
-            existing.recipeIds.add(slot.recipeId);
-          } else {
-            merged.set(key, {
-              name,
-              quantity: ing.quantity,
-              unit: ing.unit,
-              category: inferCategory(ing.name),
-              recipeIds: new Set([slot.recipeId]),
-            });
-          }
-        }
-      }
-    }
-
-    return [...merged.entries()].map(([key, data]) => ({
-      key: `${targetPlan.id}-${key}`,
-      ingredientName: data.name.charAt(0).toUpperCase() + data.name.slice(1),
-      quantity: Number.isInteger(data.quantity) ? String(data.quantity) : data.quantity.toFixed(1),
-      unit: data.unit,
-      category: data.category,
-      recipeNames: [...data.recipeIds].map((id) => recipeMap.get(id)?.name ?? '').filter(Boolean),
+    return lines.map((l) => ({
+      key: `${targetPlan.id}-${l.keyPart}`,
+      ingredientName: l.name,
+      quantity: formatLineQuantity(l.quantity),
+      unit: l.unit,
+      category: inferCategory(l.name),
+      recipeNames: l.recipeIds.map((id) => recipeMap.get(id)?.name ?? '').filter(Boolean),
     }));
   }
 
@@ -313,13 +325,14 @@ export class ShoppingListService {
     const customItems = readCustomItems(stored?.customItems);
     if (stored?.aiGenerated) {
       const finalized = await this.finalizeItems([
-        ...(stored.items as unknown as StoredShoppingListItem[]),
+        ...tidyAiItems(stored.items as unknown as StoredShoppingListItem[]),
         ...customItems,
       ]);
       const { items, estimatedTotalEur, pantry } = await this.applyPantry(
         user,
         finalized.items,
         finalized.estimatedTotalEur,
+        checkedKeys,
       );
       return {
         planId: targetPlan.id,
@@ -341,6 +354,7 @@ export class ShoppingListService {
       user,
       finalized.items,
       finalized.estimatedTotalEur,
+      checkedKeys,
     );
 
     return {
@@ -358,19 +372,19 @@ export class ShoppingListService {
   }
 
   /**
-   * F3 seeding: checked-off items are purchases — upsert them into the
-   * pantry (source PURCHASE; staples excluded inside PantryService).
-   * Unchecking never removes: you bought it last week and still have it.
+   * F3 seeding: the list lines behind the given keys, as purchases. Checking
+   * off upserts them into the pantry (source PURCHASE; staples excluded
+   * inside PantryService); unchecking takes that purchase back — it was a
+   * mis-tap, not something that is now in the kitchen (audit F-PAN-1-1).
    */
-  private async seedPantryFromKeys(
-    userId: string,
+  private async purchasedItemsForKeys(
     plan: MealPlan & { days: MealPlanDay[] },
     keys: string[],
-  ): Promise<void> {
+  ): Promise<{ name: string; quantity: number; unit: string }[]> {
     const stored = await prisma.shoppingList.findUnique({ where: { planId: plan.id } });
     const candidates: StoredShoppingListItem[] = [
       ...(stored?.aiGenerated
-        ? (stored.items as unknown as StoredShoppingListItem[])
+        ? tidyAiItems(stored.items as unknown as StoredShoppingListItem[])
         : await this.buildDerivedRawItems(plan)),
       ...readCustomItems(stored?.customItems),
     ];
@@ -382,7 +396,7 @@ export class ShoppingListService {
         quantity: parseFloat(item.quantity),
         unit: item.unit,
       }));
-    await pantryService.seedFromPurchases(userId, purchased);
+    return purchased;
   }
 
   /**
@@ -426,14 +440,14 @@ export class ShoppingListService {
           { isolationLevel: 'Serializable' },
         );
         // F3: checking off = buying — seed the pantry (all tiers: the free
-        // ghost state needs the real item count/savings). Never let a pantry
-        // failure break the check-off itself.
-        if (checked) {
-          try {
-            await this.seedPantryFromKeys(userId, plan, keys);
-          } catch (err) {
-            console.error('[pantry] Failed to seed from check-off:', err);
-          }
+        // ghost state needs the real item count/savings); unchecking reverts
+        // it. Never let a pantry failure break the check-off itself.
+        try {
+          const purchased = await this.purchasedItemsForKeys(plan, keys);
+          if (checked) await pantryService.seedFromPurchases(userId, purchased);
+          else await pantryService.revertPurchases(userId, purchased);
+        } catch (err) {
+          console.error('[pantry] Failed to sync the pantry with a check-off:', err);
         }
         return { checkedKeys };
       } catch (err) {
@@ -593,26 +607,23 @@ export class ShoppingListService {
     ];
     const recipes = await mealPlanRepository.findRecipesByIds(uniqueIds);
 
-    // Pre-merge exact name+unit duplicates before the AI call — the model only
-    // needs to do the *hard* consolidation (unit conversion, name variants).
-    // This roughly halves the prompt and speeds the call up noticeably.
-    const preMerged = new Map<string, { name: string; quantity: number; unit: string }>();
-    for (const day of targetPlan.days) {
-      for (const slot of day.meals as MealSlotJson[]) {
-        const recipe = recipes.find((r) => r.id === slot.recipeId);
-        if (!recipe) continue;
-        for (const ing of recipe.ingredients as unknown as Ingredient[]) {
-          const key = `${ing.name.toLowerCase().trim()}|${ing.unit.toLowerCase().trim()}`;
-          const existing = preMerged.get(key);
-          if (existing) {
-            existing.quantity += ing.quantity;
-          } else {
-            preMerged.set(key, { name: ing.name, quantity: ing.quantity, unit: ing.unit });
-          }
-        }
-      }
-    }
-    const rawIngredients = [...preMerged.values()];
+    // Pre-merge with the shared aggregator before the AI call — the model
+    // only needs to do the *hard* consolidation, and water/"to taste" lines
+    // never reach it. This roughly halves the prompt.
+    const rawIngredients = aggregateIngredientLines(
+      targetPlan.days.flatMap((day) =>
+        (day.meals as MealSlotJson[]).flatMap((slot) => {
+          const recipe = recipes.find((r) => r.id === slot.recipeId);
+          if (!recipe) return [];
+          return (recipe.ingredients as unknown as Ingredient[]).map((ing) => ({
+            name: ing.name,
+            quantity: ing.quantity,
+            unit: ing.unit,
+            recipeId: slot.recipeId,
+          }));
+        }),
+      ),
+    ).map((l) => ({ name: l.name, quantity: l.quantity, unit: l.unit }));
 
     const weekLabel = `${weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${weekEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
@@ -625,16 +636,18 @@ export class ShoppingListService {
       .create({ data: { userId, callType: AiCallType.SHOPPING_LIST } })
       .catch((err) => console.error('[aiCallLog] Failed to log SHOPPING_LIST call:', err));
 
-    const rawItems: StoredShoppingListItem[] = aiResult.items.map((item) => ({
-      // Stable key (no index): checked-off state in the UI survives reloads
-      key: `${targetPlan.id}-ai-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}-${item.unit.toLowerCase()}`,
-      ingredientName: item.ingredientName,
-      quantity: item.quantity,
-      unit: item.unit,
-      // The AI no longer categorises (saves output tokens) — infer locally
-      category: item.category ?? inferCategory(item.ingredientName),
-      recipeNames: [] as string[],
-    }));
+    const rawItems: StoredShoppingListItem[] = tidyAiItems(
+      aiResult.items.map((item) => ({
+        // Stable key (no index): checked-off state in the UI survives reloads
+        key: `${targetPlan.id}-ai-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}-${item.unit.toLowerCase()}`,
+        ingredientName: item.ingredientName,
+        quantity: item.quantity,
+        unit: item.unit,
+        // The AI no longer categorises (saves output tokens) — infer locally
+        category: item.category ?? inferCategory(item.ingredientName),
+        recipeNames: [] as string[],
+      })),
+    );
 
     // Persist so the AI-consolidated list survives reloads — getForWeek
     // serves it from now on (until the plan itself is regenerated). The AI
