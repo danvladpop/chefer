@@ -38,6 +38,10 @@ const envSchema = z.object({
   AI_MOCK_DELAY_MS: z.coerce.number().int().nonnegative().default(0),
   AI_PROVIDER: z.enum(['gemini', 'openai']).default('gemini'),
   GEMINI_API_KEY: z.string().optional(),
+  // Model names are config, not code (audit P0-5 groundwork): swapping to a
+  // newer or paid-tier model is an env change and a restart.
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
+  GEMINI_FAST_MODEL: z.string().default('gemini-2.5-flash-lite'),
   // Secondary OpenAI-compatible provider (premium_plan.md §5.5 W3-A).
   // When AI_SECONDARY_API_KEY is set (and AI_PROVIDER=gemini), the factory
   // wraps Gemini in a failover to this endpoint; unset = no failover (the
@@ -64,6 +68,14 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
+
+  // Recipe image provider (audit P0-5 groundwork). pollinations = today's
+  // anonymous URL-based images; cloudflare = Workers AI text-to-image, bytes
+  // uploaded to Cloudinary (needs CF_ACCOUNT_ID + CF_API_TOKEN).
+  IMAGE_PROVIDER: z.enum(['pollinations', 'cloudflare']).default('pollinations'),
+  CF_ACCOUNT_ID: z.string().optional(),
+  CF_API_TOKEN: z.string().optional(),
+  CF_IMAGE_MODEL: z.string().default('@cf/black-forest-labs/flux-1-schnell'),
 
   // Unsplash (optional — ingredient images fall back to category images without this)
   UNSPLASH_ACCESS_KEY: z.string().optional(),
@@ -93,6 +105,12 @@ function validateEnv(): EnvSchema {
     if (data.AI_PROVIDER === 'openai' && !data.AI_SECONDARY_API_KEY) {
       throw new Error('❌ AI_SECONDARY_API_KEY is required when AI_PROVIDER=openai');
     }
+  }
+
+  if (data.IMAGE_PROVIDER === 'cloudflare' && (!data.CF_ACCOUNT_ID || !data.CF_API_TOKEN)) {
+    throw new Error(
+      '❌ CF_ACCOUNT_ID and CF_API_TOKEN are required when IMAGE_PROVIDER=cloudflare',
+    );
   }
 
   if (!data.EMAIL_MOCK_ENABLED && !data.RESEND_API_KEY) {

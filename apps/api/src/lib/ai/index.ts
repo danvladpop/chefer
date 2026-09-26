@@ -10,7 +10,7 @@ import type { IAIService } from './types.js';
 //
 //   AI_MOCK_ENABLED=true   → MockAIService (fixture data, no API calls)
 //   AI_MOCK_ENABLED=false  → real provider, selected by AI_PROVIDER:
-//     AI_PROVIDER=gemini   → GeminiAIService (gemini-2.5-flash). If
+//     AI_PROVIDER=gemini   → GeminiAIService (GEMINI_MODEL / GEMINI_FAST_MODEL). If
 //       AI_SECONDARY_API_KEY is also set, the service is wrapped in
 //       FailoverAIService with an OpenAI-compatible secondary
 //       (AI_SECONDARY_BASE_URL / AI_SECONDARY_MODEL — Groq free tier by
@@ -47,13 +47,16 @@ function createAIService(): IAIService {
 
   switch (env.AI_PROVIDER) {
     case 'gemini': {
-      const primary = new GeminiAIService(env.GEMINI_API_KEY!);
+      const primary = new GeminiAIService(env.GEMINI_API_KEY!, {
+        main: env.GEMINI_MODEL,
+        fast: env.GEMINI_FAST_MODEL,
+      });
       if (!env.AI_SECONDARY_API_KEY) {
-        console.info('[AI] Using GeminiAIService (gemini-2.5-flash), no secondary configured');
+        console.info(`[AI] Using GeminiAIService (${env.GEMINI_MODEL}), no secondary configured`);
         return primary;
       }
       console.info(
-        `[AI] Using GeminiAIService (gemini-2.5-flash) with failover to ${secondaryName()}`,
+        `[AI] Using GeminiAIService (${env.GEMINI_MODEL}) with failover to ${secondaryName()}`,
       );
       return new FailoverAIService(primary, createSecondary(), {
         primary: 'gemini',

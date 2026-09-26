@@ -8,6 +8,7 @@ import {
   buildExtractRecipeVideoUserPrompt,
   buildIngredientPricesPrompt,
   buildMealPlanUserPrompt,
+  buildReviewUserPrompt,
   buildShoppingListPrompt,
   buildSwapUserPrompt,
   CHAT_SYSTEM_PROMPT,
@@ -19,6 +20,7 @@ import {
   MEAL_PHOTO_SYSTEM_PROMPT,
   MEAL_PHOTO_USER_PROMPT,
   MEAL_PLAN_SYSTEM_PROMPT,
+  REVIEW_SYSTEM_PROMPT,
   SHOPPING_LIST_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
 } from './prompts.js';
@@ -38,6 +40,7 @@ import type {
   ChatMessage,
   CheferizedRecipe,
   CheferizeInput,
+  CoachReviewInput,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -50,15 +53,23 @@ import type {
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
+import { logAiUsage } from './usage.js';
 
-// ─── Model ────────────────────────────────────────────────────────────────────
+// ─── Models ───────────────────────────────────────────────────────────────────
+// Names come from env (GEMINI_MODEL / GEMINI_FAST_MODEL) via the factory.
+// `fast` is the cheaper model for mechanical tasks (shopping-list
+// consolidation) where creative quality doesn't matter — roughly 2-3x lower
+// latency and a separate free-tier quota from the main model.
 
-const MODEL = 'gemini-2.5-flash';
+export interface GeminiModels {
+  main: string;
+  fast: string;
+}
 
-// Faster, cheaper model for mechanical tasks (shopping-list consolidation)
-// where creative quality doesn't matter — roughly 2-3× lower latency and a
-// separate free-tier quota from the main model.
-const FAST_MODEL = 'gemini-2.5-flash-lite';
+const DEFAULT_MODELS: GeminiModels = {
+  main: 'gemini-2.5-flash',
+  fast: 'gemini-2.5-flash-lite',
+};
 
 // Zod validators live in schemas.ts — shared with the OpenAI-compatible
 // secondary so both providers pass the exact same validation gates.
@@ -339,10 +350,30 @@ const RETRY_DELAYS_MS = [2_000, 6_000]; // between attempt 1→2 and 2→3
 
 export class GeminiAIService implements IAIService {
   private readonly client: GoogleGenAI;
+  private readonly models: GeminiModels;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, models: GeminiModels = DEFAULT_MODELS) {
     if (!apiKey) throw new Error('GeminiAIService: GEMINI_API_KEY is required');
     this.client = new GoogleGenAI({ apiKey });
+    this.models = models;
+  }
+
+  /** generateContent + one usage log line (tokens, latency) per call. */
+  private async generateLogged(
+    params: Parameters<GoogleGenAI['models']['generateContent']>[0],
+    op: string,
+  ): ReturnType<GoogleGenAI['models']['generateContent']> {
+    const started = Date.now();
+    const response = await this.client.models.generateContent(params);
+    logAiUsage({
+      provider: 'gemini',
+      model: params.model,
+      op,
+      inputTokens: response.usageMetadata?.promptTokenCount,
+      outputTokens: response.usageMetadata?.candidatesTokenCount,
+      ms: Date.now() - started,
+    });
+    return response;
   }
 
   /**
@@ -356,7 +387,7 @@ export class GeminiAIService implements IAIService {
     let lastError: unknown;
     for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
       try {
-        return await this.client.models.generateContent(params);
+        return await this.generateLogged(params, label);
       } catch (err) {
         lastError = err;
         if (!isTransientAiError(err) || attempt === RETRY_ATTEMPTS) throw err;
@@ -371,20 +402,23 @@ export class GeminiAIService implements IAIService {
   }
 
   async generateMealPlan(input: MealPlanInput): Promise<WeekPlanResponse> {
-    const response = await this.generateWithRetry({
-      model: MODEL,
-      contents: buildMealPlanUserPrompt(input),
-      config: {
-        systemInstruction: MEAL_PLAN_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        responseSchema: WEEK_PLAN_SCHEMA,
-        temperature: 0.7,
-        maxOutputTokens: 16384,
-        // Disable extended thinking to reduce latency; the structured schema
-        // already constrains output quality adequately.
-        thinkingConfig: { thinkingBudget: 0 },
+    const response = await this.generateWithRetry(
+      {
+        model: this.models.main,
+        contents: buildMealPlanUserPrompt(input),
+        config: {
+          systemInstruction: MEAL_PLAN_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: WEEK_PLAN_SCHEMA,
+          temperature: 0.7,
+          maxOutputTokens: 16384,
+          // Disable extended thinking to reduce latency; the structured schema
+          // already constrains output quality adequately.
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       },
-    });
+      'generateMealPlan',
+    );
 
     let raw: string | null | undefined;
     try {
@@ -425,18 +459,21 @@ export class GeminiAIService implements IAIService {
   }
 
   async generateRecipeSwap(input: SwapInput): Promise<RecipeData> {
-    const response = await this.generateWithRetry({
-      model: MODEL,
-      contents: buildSwapUserPrompt(input),
-      config: {
-        systemInstruction: SWAP_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        responseSchema: RECIPE_SCHEMA,
-        temperature: 0.8,
-        maxOutputTokens: 4096,
-        thinkingConfig: { thinkingBudget: 0 },
+    const response = await this.generateWithRetry(
+      {
+        model: this.models.main,
+        contents: buildSwapUserPrompt(input),
+        config: {
+          systemInstruction: SWAP_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: RECIPE_SCHEMA,
+          temperature: 0.8,
+          maxOutputTokens: 4096,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       },
-    });
+      'generateRecipeSwap',
+    );
 
     let raw: string | null | undefined;
     try {
@@ -461,18 +498,21 @@ export class GeminiAIService implements IAIService {
   }
 
   async generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse> {
-    const response = await this.generateWithRetry({
-      model: FAST_MODEL,
-      contents: buildShoppingListPrompt(input),
-      config: {
-        systemInstruction: SHOPPING_LIST_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        responseSchema: SHOPPING_LIST_RESPONSE_SCHEMA,
-        temperature: 0.2, // low temperature for deterministic consolidation
-        maxOutputTokens: 4096,
-        thinkingConfig: { thinkingBudget: 0 },
+    const response = await this.generateWithRetry(
+      {
+        model: this.models.fast,
+        contents: buildShoppingListPrompt(input),
+        config: {
+          systemInstruction: SHOPPING_LIST_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: SHOPPING_LIST_RESPONSE_SCHEMA,
+          temperature: 0.2, // low temperature for deterministic consolidation
+          maxOutputTokens: 4096,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       },
-    });
+      'generateShoppingList',
+    );
 
     let raw: string | null | undefined;
     try {
@@ -498,18 +538,21 @@ export class GeminiAIService implements IAIService {
   async estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]> {
     if (ingredientNames.length === 0) return [];
 
-    const response = await this.generateWithRetry({
-      model: MODEL,
-      contents: buildIngredientPricesPrompt(ingredientNames),
-      config: {
-        systemInstruction: INGREDIENT_PRICES_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        responseSchema: INGREDIENT_PRICES_RESPONSE_SCHEMA,
-        temperature: 0.1, // prices should be as deterministic as possible
-        maxOutputTokens: 8192,
-        thinkingConfig: { thinkingBudget: 0 },
+    const response = await this.generateWithRetry(
+      {
+        model: this.models.main,
+        contents: buildIngredientPricesPrompt(ingredientNames),
+        config: {
+          systemInstruction: INGREDIENT_PRICES_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: INGREDIENT_PRICES_RESPONSE_SCHEMA,
+          temperature: 0.1, // prices should be as deterministic as possible
+          maxOutputTokens: 8192,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       },
-    });
+      'estimateIngredientPrices',
+    );
 
     let raw: string | null | undefined;
     try {
@@ -540,7 +583,7 @@ export class GeminiAIService implements IAIService {
   async analyzeMealPhoto(imageBase64: string, mimeType: string): Promise<MealPhotoEstimate> {
     const response = await this.generateWithRetry(
       {
-        model: MODEL,
+        model: this.models.main,
         contents: [
           {
             role: 'user',
@@ -599,7 +642,7 @@ export class GeminiAIService implements IAIService {
 
     const response = await this.generateWithRetry(
       {
-        model: MODEL,
+        model: this.models.main,
         contents: [{ role: 'user', parts }],
         config: {
           systemInstruction: EXTRACT_RECIPE_SYSTEM_PROMPT,
@@ -657,7 +700,7 @@ export class GeminiAIService implements IAIService {
 
     const response = await this.generateWithRetry(
       {
-        model: MODEL,
+        model: this.models.main,
         contents: [{ role: 'user', parts }],
         config: {
           systemInstruction: isVideo
@@ -702,7 +745,7 @@ export class GeminiAIService implements IAIService {
   async cheferizeRecipe(input: CheferizeInput): Promise<CheferizedRecipe> {
     const response = await this.generateWithRetry(
       {
-        model: MODEL,
+        model: this.models.main,
         contents: buildCheferizeUserPrompt(input),
         config: {
           systemInstruction: CHEFERIZE_SYSTEM_PROMPT,
@@ -759,16 +802,19 @@ export class GeminiAIService implements IAIService {
     const MAX_TOOL_ROUNDS = 3;
     let finalText = '';
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-      const response = await this.client.models.generateContent({
-        model: MODEL,
-        contents,
-        config: {
-          systemInstruction,
-          temperature: 0.7,
-          maxOutputTokens: 1024,
-          ...(toolDeclarations && round < MAX_TOOL_ROUNDS ? { tools: toolDeclarations } : {}),
+      const response = await this.generateLogged(
+        {
+          model: this.models.main,
+          contents,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+            maxOutputTokens: 1024,
+            ...(toolDeclarations && round < MAX_TOOL_ROUNDS ? { tools: toolDeclarations } : {}),
+          },
         },
-      });
+        'chat',
+      );
 
       const calls = response.functionCalls;
       if (!calls?.length || !context.tools) {
@@ -790,5 +836,24 @@ export class GeminiAIService implements IAIService {
     }
 
     return streamText(finalText);
+  }
+
+  async generateReviewText(input: CoachReviewInput): Promise<string> {
+    const response = await this.generateLogged(
+      {
+        model: this.models.main,
+        contents: buildReviewUserPrompt(input),
+        config: {
+          systemInstruction: REVIEW_SYSTEM_PROMPT,
+          temperature: 0.7,
+          maxOutputTokens: 512,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      },
+      'generateReviewText',
+    );
+    const text = response.text?.trim();
+    if (!text) throw new Error('GeminiAIService: empty review text');
+    return text;
   }
 }
