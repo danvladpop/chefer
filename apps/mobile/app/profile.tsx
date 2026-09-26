@@ -2,7 +2,7 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { PLAN_FEATURES } from '@chefer/types';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, PressableScale, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { AccountDataCard } from '../src/features/profile/account-data-card';
 import { trpc } from '../src/lib/trpc';
@@ -31,6 +31,39 @@ function StatRow({ label, used, limit }: { label: string; used: number; limit: n
         </View>
       )}
     </View>
+  );
+}
+
+/**
+ * One tap from Profile to the household (backlog P2-3, PM review §5) — it
+ * used to be reachable only from More.
+ */
+function HouseholdRow() {
+  const { data: members = [] } = trpc.household.list.useQuery(undefined, { staleTime: 60_000 });
+  const summary =
+    members.length === 0
+      ? 'Just you — add the people you cook for'
+      : `${members.length + 1} at the table: you, ${members.map((m) => m.name).join(', ')}`;
+  return (
+    <PressableScale
+      pressScale="card"
+      testID="profile-household"
+      accessibilityRole="button"
+      accessibilityLabel="Your household"
+      onPress={() => router.push('/household')}
+      className="min-h-11 flex-row items-center gap-3 rounded-xl border border-border bg-card p-4"
+    >
+      <View className="h-10 w-10 items-center justify-center rounded-full bg-accent">
+        <Ionicons name="people-outline" size={20} color="#944a00" />
+      </View>
+      <View className="min-w-0 flex-1">
+        <Text className="font-semibold text-gray-900">Your household</Text>
+        <Text numberOfLines={1} variant="muted" className="text-sm">
+          {summary}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+    </PressableScale>
   );
 }
 
@@ -104,6 +137,8 @@ export default function ProfileScreen() {
             </View>
           </View>
         </Card>
+
+        <HouseholdRow />
 
         {/* Upgrade / downgrade (PW-2 free-beta semantics) */}
         {user && !isPremiumTier && user.role !== 'ADMIN' && (
