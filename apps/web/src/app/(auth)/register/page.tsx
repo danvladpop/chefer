@@ -26,7 +26,7 @@ export default async function RegisterPage() {
         <div className="text-center">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 font-serif text-2xl font-semibold text-[#944a00]"
+            className="inline-flex min-h-11 items-center gap-2 font-serif text-2xl font-semibold text-[#944a00]"
           >
             <span className="text-3xl" aria-hidden="true">
               🍽️
@@ -51,18 +51,24 @@ export default async function RegisterPage() {
           Already have an account?{' '}
           <Link
             href="/login"
-            className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+            className="touch-target relative font-medium text-primary underline underline-offset-4 hover:text-primary/80"
           >
             Sign in
           </Link>
         </p>
         <p className="text-center text-xs text-muted-foreground">
           By creating an account, you agree to our{' '}
-          <Link href="/terms" className="underline underline-offset-4 hover:text-foreground">
+          <Link
+            href="/terms"
+            className="touch-target relative underline underline-offset-4 hover:text-foreground"
+          >
             Terms of Service
           </Link>{' '}
           and{' '}
-          <Link href="/privacy" className="underline underline-offset-4 hover:text-foreground">
+          <Link
+            href="/privacy"
+            className="touch-target relative underline underline-offset-4 hover:text-foreground"
+          >
             Privacy Policy
           </Link>
           .

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 
 // ─── Diet type options ────────────────────────────────────────────────────────
 
@@ -49,6 +49,8 @@ export function StepDiet({ value, onChange }: StepDietProps) {
   const [allergyInput, setAllergyInput] = useState('');
   const [dislikeInput, setDislikeInput] = useState('');
   const allergyRef = useRef<HTMLInputElement>(null);
+  const allergyInputId = useId();
+  const allergyHintId = useId();
 
   // ── Diet type toggles ──────────────────────────────────────────────────────
 
@@ -64,7 +66,8 @@ export function StepDiet({ value, onChange }: StepDietProps) {
   function commitAllergyInput(raw: string) {
     const trimmed = raw.trim().replace(/,$/, '').trim();
     if (!trimmed) return;
-    if (!value.allergies.includes(trimmed)) {
+    // Case-insensitive: "Peanuts" and "peanuts" are the same allergy (F-ONB-1-7).
+    if (!value.allergies.some((a) => a.toLowerCase() === trimmed.toLowerCase())) {
       onChange({ ...value, allergies: [...value.allergies, trimmed] });
     }
     setAllergyInput('');
@@ -104,7 +107,7 @@ export function StepDiet({ value, onChange }: StepDietProps) {
   function addCustomDislike() {
     const trimmed = dislikeInput.trim();
     if (!trimmed) return;
-    if (!value.dislikedIngredients.includes(trimmed)) {
+    if (!value.dislikedIngredients.some((d) => d.toLowerCase() === trimmed.toLowerCase())) {
       onChange({ ...value, dislikedIngredients: [...value.dislikedIngredients, trimmed] });
     }
     setDislikeInput('');
@@ -127,7 +130,7 @@ export function StepDiet({ value, onChange }: StepDietProps) {
   // ── Shared styles ──────────────────────────────────────────────────────────
 
   const inputCls =
-    'flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+    'flex min-h-11 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 
   return (
     <div className="space-y-8">
@@ -169,21 +172,23 @@ export function StepDiet({ value, onChange }: StepDietProps) {
         {/* Allergies */}
         <div className="space-y-3">
           <div>
-            <p className="text-sm font-medium">Allergies</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <label htmlFor={allergyInputId} className="text-sm font-medium">
+              Allergies
+            </label>
+            <p id={allergyHintId} className="mt-0.5 text-xs text-muted-foreground">
               Type an allergy and press Enter or comma to add it.
             </p>
           </div>
 
           {/* Chip container */}
           <div
-            className="flex min-h-[2.5rem] flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
+            className="flex min-h-11 flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
             onClick={() => allergyRef.current?.focus()}
           >
             {value.allergies.map((allergy) => (
               <span
                 key={allergy}
-                className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-sm font-medium text-primary"
+                className="inline-flex items-center gap-1 rounded-md bg-primary/10 py-0.5 pl-2 pr-1 text-sm font-medium text-primary"
               >
                 {allergy}
                 <button
@@ -193,7 +198,7 @@ export function StepDiet({ value, onChange }: StepDietProps) {
                     removeAllergy(allergy);
                   }}
                   aria-label={`Remove ${allergy}`}
-                  className="rounded-full hover:text-primary/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="touch-target relative flex h-6 w-6 items-center justify-center rounded-full hover:bg-primary/10 hover:text-primary/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   ×
                 </button>
@@ -201,13 +206,15 @@ export function StepDiet({ value, onChange }: StepDietProps) {
             ))}
             <input
               ref={allergyRef}
+              id={allergyInputId}
+              aria-describedby={allergyHintId}
               type="text"
               placeholder={value.allergies.length === 0 ? 'e.g. peanuts, shellfish…' : ''}
               value={allergyInput}
               onChange={(e) => handleAllergyChange(e.target.value)}
               onKeyDown={handleAllergyKeyDown}
               onBlur={() => commitAllergyInput(allergyInput)}
-              className="min-w-[8rem] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="min-h-8 min-w-[8rem] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
         </div>
@@ -231,7 +238,7 @@ export function StepDiet({ value, onChange }: StepDietProps) {
                   type="button"
                   onClick={() => toggleDislike(ingredient)}
                   aria-pressed={selected}
-                  className={`rounded-full border px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                  className={`min-h-11 rounded-full border px-4 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     selected
                       ? 'border-primary bg-primary/5 font-medium text-primary'
                       : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
@@ -251,14 +258,14 @@ export function StepDiet({ value, onChange }: StepDietProps) {
                 .map((ingredient) => (
                   <span
                     key={ingredient}
-                    className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 px-3 py-1 text-sm font-medium text-primary"
+                    className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 py-1 pl-3 pr-1.5 text-sm font-medium text-primary"
                   >
                     {ingredient}
                     <button
                       type="button"
                       onClick={() => removeDislike(ingredient)}
                       aria-label={`Remove ${ingredient}`}
-                      className="rounded-full hover:text-primary/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      className="touch-target relative flex h-6 w-6 items-center justify-center rounded-full hover:bg-primary/10 hover:text-primary/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     >
                       ×
                     </button>
@@ -274,6 +281,7 @@ export function StepDiet({ value, onChange }: StepDietProps) {
                 button off-screen at 320px. */}
             <input
               type="text"
+              aria-label="Add another disliked ingredient"
               placeholder="Add another ingredient…"
               value={dislikeInput}
               onChange={(e) => setDislikeInput(e.target.value)}
@@ -284,7 +292,7 @@ export function StepDiet({ value, onChange }: StepDietProps) {
               type="button"
               onClick={addCustomDislike}
               disabled={!dislikeInput.trim()}
-              className="inline-flex h-10 shrink-0 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Add
             </button>

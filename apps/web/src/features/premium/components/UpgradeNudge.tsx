@@ -47,7 +47,7 @@ export function UpgradeNudge({
         {message}{' '}
         <Link
           href={`/premium?source=${encodeURIComponent(source)}`}
-          className="whitespace-nowrap font-semibold text-[#944a00] underline-offset-2 hover:underline"
+          className="touch-target relative whitespace-nowrap font-semibold text-[#944a00] underline-offset-2 hover:underline"
         >
           See premium →
         </Link>

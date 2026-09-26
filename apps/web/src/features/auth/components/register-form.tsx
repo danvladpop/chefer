@@ -80,7 +80,7 @@ export function RegisterForm() {
       )}
 
       {/* Name Row */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-3">
         <div className="space-y-1.5">
           <label htmlFor="firstName" className="block text-sm font-medium">
             First name
@@ -94,13 +94,14 @@ export function RegisterForm() {
             autoComplete="given-name"
             autoFocus
             disabled={isPending}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Alice"
             aria-invalid={errors.firstName ? 'true' : undefined}
+            aria-describedby={errors.firstName ? 'firstName-error' : undefined}
             {...register('firstName')}
           />
           {errors.firstName && (
-            <p className="text-sm text-destructive" role="alert">
+            <p id="firstName-error" className="text-sm text-destructive" role="alert">
               {errors.firstName.message}
             </p>
           )}
@@ -118,13 +119,14 @@ export function RegisterForm() {
             type="text"
             autoComplete="family-name"
             disabled={isPending}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Johnson"
             aria-invalid={errors.lastName ? 'true' : undefined}
+            aria-describedby={errors.lastName ? 'lastName-error' : undefined}
             {...register('lastName')}
           />
           {errors.lastName && (
-            <p className="text-sm text-destructive" role="alert">
+            <p id="lastName-error" className="text-sm text-destructive" role="alert">
               {errors.lastName.message}
             </p>
           )}
@@ -144,13 +146,14 @@ export function RegisterForm() {
           type="email"
           autoComplete="email"
           disabled={isPending}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           placeholder="you@example.com"
           aria-invalid={errors.email ? 'true' : undefined}
+          aria-describedby={errors.email ? 'email-error' : undefined}
           {...register('email')}
         />
         {errors.email && (
-          <p className="text-sm text-destructive" role="alert">
+          <p id="email-error" className="text-sm text-destructive" role="alert">
             {errors.email.message}
           </p>
         )}
@@ -170,14 +173,15 @@ export function RegisterForm() {
             type={showPassword ? 'text' : 'password'}
             autoComplete="new-password"
             disabled={isPending}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 pr-12 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Min. 8 characters"
             aria-invalid={errors.password ? 'true' : undefined}
+            aria-describedby={errors.password ? 'password-error' : undefined}
             {...register('password')}
           />
           <button
             type="button"
-            className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted-foreground hover:text-foreground"
             onClick={() => setShowPassword((prev) => !prev)}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
           >
@@ -209,7 +213,7 @@ export function RegisterForm() {
           </button>
         </div>
         {errors.password && (
-          <p className="text-sm text-destructive" role="alert">
+          <p id="password-error" className="text-sm text-destructive" role="alert">
             {errors.password.message}
           </p>
         )}
@@ -228,13 +232,14 @@ export function RegisterForm() {
           type={showPassword ? 'text' : 'password'}
           autoComplete="new-password"
           disabled={isPending}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           placeholder="Re-enter your password"
           aria-invalid={errors.confirmPassword ? 'true' : undefined}
+          aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
           {...register('confirmPassword')}
         />
         {errors.confirmPassword && (
-          <p className="text-sm text-destructive" role="alert">
+          <p id="confirmPassword-error" className="text-sm text-destructive" role="alert">
             {errors.confirmPassword.message}
           </p>
         )}
@@ -244,7 +249,7 @@ export function RegisterForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         aria-busy={isPending}
       >
         {isPending ? (

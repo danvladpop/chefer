@@ -17,7 +17,7 @@ export default function ForgotPasswordPage() {
         <div className="text-center">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 font-serif text-2xl font-semibold text-[#944a00]"
+            className="inline-flex min-h-11 items-center gap-2 font-serif text-2xl font-semibold text-[#944a00]"
           >
             <span className="text-3xl" aria-hidden="true">
               🍽️
@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
           Remembered it?{' '}
           <Link
             href="/login"
-            className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+            className="touch-target relative font-medium text-primary underline underline-offset-4 hover:text-primary/80"
           >
             Sign in
           </Link>

@@ -44,7 +44,7 @@ export function StepCuisine({ value, onChange }: StepCuisineProps) {
   }
 
   const pillCls = (active: boolean) =>
-    `inline-flex h-9 items-center justify-center rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+    `inline-flex min-h-11 items-center justify-center rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
       active
         ? 'border-primary bg-primary text-primary-foreground'
         : 'border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground'

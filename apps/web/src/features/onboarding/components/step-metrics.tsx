@@ -219,10 +219,10 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
   // ── Shared input class ───────────────────────────────────────────────────────
 
   const inputCls =
-    'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
+    'flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 
   const toggleBtnCls = (active: boolean) =>
-    `min-h-11 px-4 text-sm font-medium transition-colors focus-visible:outline-none sm:min-h-0 sm:px-3 sm:py-1.5 ${
+    `min-h-11 px-4 text-sm font-medium transition-colors focus-visible:outline-none sm:px-3 ${
       active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
     }`;
 
@@ -288,11 +288,17 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
         {/* Height */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="block text-sm font-medium">Height</label>
+            <label
+              htmlFor={heightUnit === 'cm' ? 'height-cm' : 'height-ft'}
+              className="block text-sm font-medium"
+            >
+              Height
+            </label>
             <div className="flex overflow-hidden rounded-md border border-input">
               <button
                 type="button"
                 onClick={() => switchHeightUnit('cm')}
+                aria-pressed={heightUnit === 'cm'}
                 className={toggleBtnCls(heightUnit === 'cm')}
               >
                 cm
@@ -300,6 +306,7 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
               <button
                 type="button"
                 onClick={() => switchHeightUnit('ft')}
+                aria-pressed={heightUnit === 'ft'}
                 className={toggleBtnCls(heightUnit === 'ft')}
               >
                 ft / in
@@ -309,8 +316,10 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
 
           {heightUnit === 'cm' ? (
             <input
+              id="height-cm"
               type="number"
               inputMode="decimal"
+              aria-label="Height in centimetres"
               min={50}
               max={280}
               placeholder="e.g. 175"
@@ -322,8 +331,10 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
             <div className="flex gap-3">
               <div className="flex-1 space-y-1">
                 <input
+                  id="height-ft"
                   type="number"
                   inputMode="numeric"
+                  aria-label="Height, feet"
                   min={3}
                   max={8}
                   placeholder="ft"
@@ -337,6 +348,7 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
                 <input
                   type="number"
                   inputMode="numeric"
+                  aria-label="Height, inches"
                   min={0}
                   max={11}
                   placeholder="in"
@@ -353,11 +365,14 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
         {/* Weight */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="block text-sm font-medium">Weight</label>
+            <label htmlFor="weight" className="block text-sm font-medium">
+              Weight
+            </label>
             <div className="flex overflow-hidden rounded-md border border-input">
               <button
                 type="button"
                 onClick={() => switchWeightUnit('kg')}
+                aria-pressed={weightUnit === 'kg'}
                 className={toggleBtnCls(weightUnit === 'kg')}
               >
                 kg
@@ -365,6 +380,7 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
               <button
                 type="button"
                 onClick={() => switchWeightUnit('lbs')}
+                aria-pressed={weightUnit === 'lbs'}
                 className={toggleBtnCls(weightUnit === 'lbs')}
               >
                 lbs
@@ -372,8 +388,10 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
             </div>
           </div>
           <input
+            id="weight"
             type="number"
             inputMode="decimal"
+            aria-label={`Weight in ${weightUnit === 'kg' ? 'kilograms' : 'pounds'}`}
             min={20}
             max={500}
             placeholder={weightUnit === 'kg' ? 'e.g. 75' : 'e.g. 165'}

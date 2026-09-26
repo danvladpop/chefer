@@ -2,9 +2,23 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { IngredientFormModal } from '@/features/ingredients/components/IngredientFormModal';
 import { IngredientPicker } from '@/features/recipes/components/IngredientPicker';
+import {
+  Field,
+  FormErrorSummary,
+  inputCls,
+  Section,
+} from '@/features/recipes/components/recipe-form-fields';
+import {
+  errorIdFor,
+  fieldErrorProps,
+  useRecipeFormErrors,
+  validateRecipeCore,
+  type RecipeFormErrors,
+  type RecipeFormFocusTargets,
+} from '@/features/recipes/lib/recipe-form';
 import { trpc } from '@/lib/trpc';
 import { uploadImage } from '@/lib/upload-image';
 import { ArrowLeft, Plus, Sparkles, Trash2, Upload, X } from 'lucide-react';
@@ -47,22 +61,35 @@ interface IngredientRow {
   unit: string;
 }
 
-interface FormErrors {
-  name?: string;
-  description?: string;
-  cuisineType?: string;
-  prepTimeMins?: string;
-  cookTimeMins?: string;
-  servings?: string;
-  ingredients?: string;
-  instructions?: string;
-  calories?: string;
-}
+const isValidRow = (i: IngredientRow) => Boolean(i.name.trim() && Number(i.quantity) > 0 && i.unit);
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function NewRecipePage() {
   const router = useRouter();
+
+  // Stable ids so every control has a real <label htmlFor> / aria-describedby
+  // target (F-X-5-1, F-REC-3-7).
+  const uid = useId();
+  const ids = {
+    name: `${uid}-name`,
+    description: `${uid}-description`,
+    cuisine: `${uid}-cuisine`,
+    cuisineFirstChip: `${uid}-cuisine-first`,
+    cuisineCustom: `${uid}-cuisine-custom`,
+    dietaryTags: `${uid}-dietary-tags`,
+    prepTimeMins: `${uid}-prep`,
+    cookTimeMins: `${uid}-cook`,
+    servings: `${uid}-servings`,
+    ingredients: `${uid}-ingredients`,
+    instructions: `${uid}-instructions`,
+    nutrition: `${uid}-nutrition`,
+    enterManual: `${uid}-nutrition-manual`,
+  };
+  const ingredientNameId = (i: number) => `${uid}-ingredient-${i}-name`;
+  const ingredientQtyId = (i: number) => `${uid}-ingredient-${i}-qty`;
+  const stepId = (i: number) => `${uid}-step-${i}`;
+  const nutritionId = (key: string) => `${uid}-nutrition-${key}`;
 
   // Basic fields
   const [name, setName] = useState('');
@@ -101,7 +128,7 @@ export default function NewRecipePage() {
     fiber: '',
   });
 
-  const [errors, setErrors] = useState<FormErrors>({});
+  const { errors, clear: clearError, report: reportErrors } = useRecipeFormErrors();
 
   const cuisineType = useCustomCuisine ? cuisineCustom.trim() : (cuisineChip ?? '');
 
@@ -112,7 +139,7 @@ export default function NewRecipePage() {
   const validRows = useMemo(
     () =>
       ingredients
-        .filter((i) => i.name.trim() && Number(i.quantity) > 0 && i.unit)
+        .filter(isValidRow)
         .map((i) => ({ name: i.name.trim(), quantity: Number(i.quantity), unit: i.unit })),
     [ingredients],
   );
@@ -139,6 +166,12 @@ export default function NewRecipePage() {
         fiber: Number(manual.fiber) || 0,
       }
     : (computed?.perServing ?? { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+
+  // The auto-computed calories can arrive after a failed submit — drop the
+  // then-stale "could not be computed" error.
+  useEffect(() => {
+    if (nutrition.calories > 0) clearError('calories');
+  }, [nutrition.calories, clearError]);
 
   // ── AI image generation (deterministic URL from name + cuisine) ────────────
   const aiImageQuery = trpc.recipe.aiImageUrl.useQuery(
@@ -182,16 +215,20 @@ export default function NewRecipePage() {
     setIngredients((prev) => [...prev, { name: '', quantity: '', unit: 'g' }]);
   const removeIngredient = (i: number) =>
     setIngredients((prev) => prev.filter((_, idx) => idx !== i));
-  const updateIngredient = (i: number, field: keyof IngredientRow, value: string) =>
+  const updateIngredient = (i: number, field: keyof IngredientRow, value: string) => {
+    clearError('ingredients');
     setIngredients((prev) =>
       prev.map((ing, idx) => (idx === i ? { ...ing, [field]: value } : ing)),
     );
+  };
 
   const addInstruction = () => setInstructions((prev) => [...prev, '']);
   const removeInstruction = (i: number) =>
     setInstructions((prev) => prev.filter((_, idx) => idx !== i));
-  const updateInstruction = (i: number, value: string) =>
+  const updateInstruction = (i: number, value: string) => {
+    clearError('instructions');
     setInstructions((prev) => prev.map((ins, idx) => (idx === i ? value : ins)));
+  };
 
   const addTag = (tag: string) => {
     const t = tag.trim().toLowerCase();
@@ -201,22 +238,42 @@ export default function NewRecipePage() {
 
   // ── Validation & submit ────────────────────────────────────────────────────
   const validate = (): boolean => {
-    const errs: FormErrors = {};
-    if (!name.trim()) errs.name = 'Recipe name is required.';
-    if (!description.trim()) errs.description = 'Description is required.';
+    const errs: RecipeFormErrors = validateRecipeCore({
+      name,
+      description,
+      prepTimeMins,
+      cookTimeMins,
+      servings,
+      instructions,
+    });
     if (!cuisineType) errs.cuisineType = 'Pick a cuisine or enter your own.';
-    if (!prepTimeMins || Number(prepTimeMins) < 0) errs.prepTimeMins = 'Enter prep time (0+).';
-    if (!cookTimeMins || Number(cookTimeMins) < 0) errs.cookTimeMins = 'Enter cook time (0+).';
-    if (!servings || Number(servings) < 1) errs.servings = 'At least 1 serving.';
     if (validRows.length === 0) errs.ingredients = 'Add at least one ingredient.';
-    if (instructions.filter((s) => s.trim()).length === 0)
-      errs.instructions = 'Add at least one instruction step.';
     if (nutrition.calories <= 0)
       errs.calories = manualNutrition
         ? 'Enter calories.'
         : 'Nutrition could not be computed — check your ingredients or enter it manually.';
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+
+    // Where focus lands for each error: the first incomplete ingredient row's
+    // missing field, the first step, the calories input (or the "enter
+    // manually" switch when nutrition is auto-computed).
+    const badRow = Math.max(
+      0,
+      ingredients.findIndex((r) => !isValidRow(r)),
+    );
+    const targets: RecipeFormFocusTargets = {
+      name: ids.name,
+      description: ids.description,
+      cuisineType: useCustomCuisine ? ids.cuisineCustom : ids.cuisineFirstChip,
+      prepTimeMins: ids.prepTimeMins,
+      cookTimeMins: ids.cookTimeMins,
+      servings: ids.servings,
+      ingredients: ingredients[badRow]?.name.trim()
+        ? ingredientQtyId(badRow)
+        : ingredientNameId(badRow),
+      instructions: stepId(0),
+      calories: manualNutrition ? nutritionId('calories') : ids.enterManual,
+    };
+    return reportErrors(errs, targets);
   };
 
   const handleSubmit = (e: React.SyntheticEvent) => {
@@ -252,35 +309,48 @@ export default function NewRecipePage() {
       <div className="mb-6 flex items-center gap-3">
         <Link
           href="/recipes"
-          className="flex h-9 w-9 items-center justify-center rounded-full border bg-white text-gray-500 shadow-sm transition-colors hover:text-gray-800"
+          aria-label="Back to recipes"
+          className="touch-target relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white text-gray-500 shadow-sm transition-colors hover:text-gray-800"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         </Link>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
             My Recipes
           </p>
           <h1 className="font-serif text-2xl font-bold text-gray-900">Create Recipe</h1>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      {/* noValidate: our own validation owns the messages — the browser's
+          tooltip fought it (and pointed at fields under the sticky header). */}
+      <form onSubmit={handleSubmit} noValidate className="space-y-8">
         {/* ── Basic Info ─────────────────────────────────────────────── */}
         <Section title="Basic Info">
-          <Field label="Recipe Name" error={errors.name}>
+          <Field id={ids.name} label="Recipe Name" error={errors.name}>
             <input
+              id={ids.name}
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                clearError('name');
+              }}
               placeholder="e.g. Grandma's Pasta Sauce"
+              {...fieldErrorProps(ids.name, errors.name)}
               className={inputCls(!!errors.name)}
             />
           </Field>
 
-          <Field label="Description" error={errors.description}>
+          <Field id={ids.description} label="Description" error={errors.description}>
             <textarea
+              id={ids.description}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                clearError('description');
+              }}
+              {...fieldErrorProps(ids.description, errors.description)}
               rows={3}
               placeholder="Brief description of the dish…"
               className={inputCls(!!errors.description)}
@@ -288,16 +358,18 @@ export default function NewRecipePage() {
           </Field>
 
           {/* Cuisine chips + free text */}
-          <Field label="Cuisine" error={errors.cuisineType}>
-            <div className="flex flex-wrap gap-1.5">
-              {CUISINE_PRESETS.map((c) => (
+          <Field id={ids.cuisine} label="Cuisine" error={errors.cuisineType} group>
+            <div className="flex flex-wrap gap-2">
+              {CUISINE_PRESETS.map((c, idx) => (
                 <Chip
                   key={c}
+                  id={idx === 0 ? ids.cuisineFirstChip : undefined}
                   label={c}
                   active={!useCustomCuisine && cuisineChip === c}
                   onClick={() => {
                     setCuisineChip(c);
                     setUseCustomCuisine(false);
+                    clearError('cuisineType');
                   }}
                 />
               ))}
@@ -309,18 +381,24 @@ export default function NewRecipePage() {
             </div>
             {useCustomCuisine && (
               <input
+                id={ids.cuisineCustom}
                 type="text"
                 value={cuisineCustom}
-                onChange={(e) => setCuisineCustom(e.target.value)}
+                onChange={(e) => {
+                  setCuisineCustom(e.target.value);
+                  clearError('cuisineType');
+                }}
                 placeholder="e.g. Fusion, Nordic…"
+                aria-label="Custom cuisine"
+                {...fieldErrorProps(ids.cuisine, errors.cuisineType)}
                 className={`mt-2 ${inputCls(!!errors.cuisineType)}`}
               />
             )}
           </Field>
 
           {/* Dietary tag chips + free text */}
-          <Field label="Dietary Tags">
-            <div className="flex flex-wrap gap-1.5">
+          <Field id={ids.dietaryTags} label="Dietary Tags" group>
+            <div className="flex flex-wrap gap-2">
               {DIETARY_TAG_PRESETS.map((t) => (
                 <Chip
                   key={t}
@@ -336,7 +414,7 @@ export default function NewRecipePage() {
             </div>
             {/* Custom tags the user added */}
             {tags.filter((t) => !DIETARY_TAG_PRESETS.includes(t)).length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <div className="mt-2 flex flex-wrap gap-2">
                 {tags
                   .filter((t) => !DIETARY_TAG_PRESETS.includes(t))
                   .map((t) => (
@@ -348,9 +426,10 @@ export default function NewRecipePage() {
                       <button
                         type="button"
                         onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
-                        aria-label={`Remove ${t}`}
+                        aria-label={`Remove ${t} tag`}
+                        className="touch-target relative rounded-full"
                       >
-                        <X className="h-3 w-3" />
+                        <X className="h-3 w-3" aria-hidden="true" />
                       </button>
                     </span>
                   ))}
@@ -367,35 +446,57 @@ export default function NewRecipePage() {
                 }
               }}
               placeholder="Add your own tag and press Enter…"
+              aria-label="Add a custom dietary tag"
               className={`mt-2 ${inputCls(false)}`}
             />
           </Field>
 
           <div className="grid grid-cols-3 gap-4">
-            <Field label="Prep (min)" error={errors.prepTimeMins}>
+            <Field id={ids.prepTimeMins} label="Prep (min)" error={errors.prepTimeMins}>
               <input
+                id={ids.prepTimeMins}
                 type="number"
                 min={0}
+                step={1}
+                inputMode="numeric"
                 value={prepTimeMins}
-                onChange={(e) => setPrepTimeMins(e.target.value)}
+                onChange={(e) => {
+                  setPrepTimeMins(e.target.value);
+                  clearError('prepTimeMins');
+                }}
+                {...fieldErrorProps(ids.prepTimeMins, errors.prepTimeMins)}
                 className={inputCls(!!errors.prepTimeMins)}
               />
             </Field>
-            <Field label="Cook (min)" error={errors.cookTimeMins}>
+            <Field id={ids.cookTimeMins} label="Cook (min)" error={errors.cookTimeMins}>
               <input
+                id={ids.cookTimeMins}
                 type="number"
                 min={0}
+                step={1}
+                inputMode="numeric"
                 value={cookTimeMins}
-                onChange={(e) => setCookTimeMins(e.target.value)}
+                onChange={(e) => {
+                  setCookTimeMins(e.target.value);
+                  clearError('cookTimeMins');
+                }}
+                {...fieldErrorProps(ids.cookTimeMins, errors.cookTimeMins)}
                 className={inputCls(!!errors.cookTimeMins)}
               />
             </Field>
-            <Field label="Servings" error={errors.servings}>
+            <Field id={ids.servings} label="Servings" error={errors.servings}>
               <input
+                id={ids.servings}
                 type="number"
                 min={1}
+                step={1}
+                inputMode="numeric"
                 value={servings}
-                onChange={(e) => setServings(e.target.value)}
+                onChange={(e) => {
+                  setServings(e.target.value);
+                  clearError('servings');
+                }}
+                {...fieldErrorProps(ids.servings, errors.servings)}
                 className={inputCls(!!errors.servings)}
               />
             </Field>
@@ -420,12 +521,12 @@ export default function NewRecipePage() {
                     setImageSource(null);
                   }}
                   aria-label="Remove image"
-                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-white shadow hover:bg-gray-600"
+                  className="touch-target absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-white shadow hover:bg-gray-600"
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
                 {imageSource === 'ai' && (
-                  <span className="absolute bottom-1 left-1 rounded-full bg-black/50 px-1.5 py-0.5 text-[9px] font-medium text-white">
+                  <span className="absolute bottom-1 left-1 rounded-full bg-black/50 px-1.5 py-0.5 text-xs font-medium text-white">
                     AI generated
                   </span>
                 )}
@@ -437,13 +538,14 @@ export default function NewRecipePage() {
             )}
 
             <div className="flex w-full flex-col gap-2 sm:w-auto">
-              <label className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 sm:min-h-0 sm:w-fit sm:justify-start">
+              <label className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 focus-within:ring-2 focus-within:ring-[#944a00] hover:bg-gray-50 sm:min-h-0 sm:w-fit sm:justify-start">
                 <Upload className="h-3.5 w-3.5" />
                 {uploading ? 'Uploading…' : 'Upload from device'}
                 <input
                   type="file"
                   accept="image/*"
-                  className="hidden"
+                  // sr-only, not hidden: display:none took the upload out of the tab order.
+                  className="sr-only"
                   onChange={(e) => void handleUpload(e.target.files?.[0])}
                 />
               </label>
@@ -457,17 +559,25 @@ export default function NewRecipePage() {
                 <Sparkles className="h-3.5 w-3.5" />
                 {aiImageQuery.isFetching ? 'Generating…' : 'Generate with AI'}
               </button>
-              <p className="text-[11px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 Upload a photo from your phone or computer, or let AI create one from the recipe
                 name. The AI image may take ~20 s to appear the first time.
               </p>
-              {uploadError && <p className="text-xs text-red-500">{uploadError}</p>}
+              {uploadError && (
+                <p role="alert" className="text-xs text-red-600">
+                  {uploadError}
+                </p>
+              )}
             </div>
           </div>
         </Section>
 
         {/* ── Ingredients ────────────────────────────────────────────── */}
-        <Section title="Ingredients" error={errors.ingredients}>
+        <Section
+          title="Ingredients"
+          error={errors.ingredients}
+          errorId={errorIdFor(ids.ingredients)}
+        >
           <div className="space-y-2">
             {/* Two rows on a phone. Side by side, the quantity (80px), unit
                 (112px) and delete (32px) controls plus gaps consume 248px of
@@ -478,6 +588,10 @@ export default function NewRecipePage() {
                 className="flex flex-col gap-2 rounded-xl border p-2 sm:flex-row sm:items-center sm:border-0 sm:p-0"
               >
                 <IngredientPicker
+                  id={ingredientNameId(i)}
+                  ariaLabel={`Name for ingredient ${i + 1}`}
+                  invalid={!!errors.ingredients && !ing.name.trim()}
+                  describedBy={errors.ingredients ? errorIdFor(ids.ingredients) : undefined}
                   value={ing.name}
                   onSelect={(selected) => updateIngredient(i, 'name', selected)}
                   onCreateCustom={(query) => setCustomModalFor({ row: i, query })}
@@ -491,8 +605,17 @@ export default function NewRecipePage() {
                     value={ing.quantity}
                     onChange={(e) => updateIngredient(i, 'quantity', e.target.value)}
                     placeholder="Qty"
+                    id={ingredientQtyId(i)}
                     aria-label={`Quantity for ingredient ${i + 1}`}
-                    className="w-20 shrink-0 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
+                    aria-invalid={
+                      (!!errors.ingredients && !(Number(ing.quantity) > 0)) || undefined
+                    }
+                    aria-describedby={errors.ingredients ? errorIdFor(ids.ingredients) : undefined}
+                    className={`w-20 shrink-0 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none ${
+                      errors.ingredients && !(Number(ing.quantity) > 0)
+                        ? 'border-red-400 focus:border-red-500'
+                        : 'focus:border-[#944a00]'
+                    }`}
                   />
                   <select
                     value={ing.unit}
@@ -511,9 +634,9 @@ export default function NewRecipePage() {
                       type="button"
                       onClick={() => removeIngredient(i)}
                       aria-label={`Remove ingredient ${i + 1}`}
-                      className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 sm:ml-0 sm:h-8 sm:w-8"
+                      className="touch-target relative ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 sm:ml-0 sm:h-8 sm:w-8"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -523,7 +646,7 @@ export default function NewRecipePage() {
           <button
             type="button"
             onClick={addIngredient}
-            className="mt-2 flex items-center gap-1.5 text-sm font-medium text-[#944a00] hover:underline"
+            className="mt-1 flex min-h-11 items-center gap-1.5 text-sm font-medium text-[#944a00] hover:underline"
           >
             <Plus className="h-4 w-4" />
             Add Ingredient
@@ -531,27 +654,38 @@ export default function NewRecipePage() {
         </Section>
 
         {/* ── Instructions ───────────────────────────────────────────── */}
-        <Section title="Instructions" error={errors.instructions}>
+        <Section
+          title="Instructions"
+          error={errors.instructions}
+          errorId={errorIdFor(ids.instructions)}
+        >
           <div className="space-y-2">
             {instructions.map((step, i) => (
               <div key={i} className="flex items-start gap-2">
-                <span className="mt-2.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#fff3e8] text-[11px] font-bold text-[#944a00]">
+                <span
+                  aria-hidden="true"
+                  className="mt-2.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#fff3e8] text-xs font-bold text-[#944a00]"
+                >
                   {i + 1}
                 </span>
                 <textarea
+                  id={stepId(i)}
                   value={step}
                   onChange={(e) => updateInstruction(i, e.target.value)}
                   rows={2}
                   placeholder={`Step ${i + 1}…`}
-                  className="flex-1 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
+                  aria-label={`Step ${i + 1}`}
+                  {...fieldErrorProps(ids.instructions, errors.instructions)}
+                  className={`min-w-0 flex-1 ${inputCls(!!errors.instructions)}`}
                 />
                 {instructions.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeInstruction(i)}
-                    className="mt-2 flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500"
+                    aria-label={`Remove step ${i + 1}`}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -560,7 +694,7 @@ export default function NewRecipePage() {
           <button
             type="button"
             onClick={addInstruction}
-            className="mt-2 flex items-center gap-1.5 text-sm font-medium text-[#944a00] hover:underline"
+            className="mt-1 flex min-h-11 items-center gap-1.5 text-sm font-medium text-[#944a00] hover:underline"
           >
             <Plus className="h-4 w-4" />
             Add Step
@@ -568,7 +702,11 @@ export default function NewRecipePage() {
         </Section>
 
         {/* ── Nutrition (auto-computed) ──────────────────────────────── */}
-        <Section title="Nutrition (per serving)" error={errors.calories}>
+        <Section
+          title="Nutrition (per serving)"
+          error={errors.calories}
+          errorId={errorIdFor(ids.nutrition)}
+        >
           {!manualNutrition ? (
             <div className="rounded-xl border bg-gray-50 p-4">
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -578,8 +716,8 @@ export default function NewRecipePage() {
                 <Stat label="Fat" value={`${nutrition.fat} g`} />
                 <Stat label="Fiber" value={`${nutrition.fiber} g`} />
               </div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-500">
-                <span>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-x-2 text-xs text-gray-500">
+                <span className="min-w-0">
                   {computing
                     ? 'Computing from ingredients…'
                     : computed && computed.unmatched.length > 0
@@ -589,9 +727,14 @@ export default function NewRecipePage() {
                         : 'Add ingredients to compute nutrition automatically.'}
                 </span>
                 <button
+                  id={ids.enterManual}
                   type="button"
-                  onClick={() => setManualNutrition(true)}
-                  className="font-medium text-[#944a00] hover:underline"
+                  onClick={() => {
+                    setManualNutrition(true);
+                    clearError('calories');
+                  }}
+                  aria-describedby={errors.calories ? errorIdFor(ids.nutrition) : undefined}
+                  className="flex min-h-11 items-center font-medium text-[#944a00] hover:underline"
                 >
                   Enter manually instead
                 </button>
@@ -609,14 +752,22 @@ export default function NewRecipePage() {
                     ['fiber', 'Fiber (g)'],
                   ] as const
                 ).map(([key, label]) => (
-                  <Field key={key} label={label}>
+                  <Field key={key} id={nutritionId(key)} label={label}>
                     <input
+                      id={nutritionId(key)}
                       type="number"
                       min={0}
                       step="0.1"
+                      inputMode="decimal"
                       value={manual[key]}
-                      onChange={(e) => setManual((m) => ({ ...m, [key]: e.target.value }))}
+                      onChange={(e) => {
+                        setManual((m) => ({ ...m, [key]: e.target.value }));
+                        if (key === 'calories') clearError('calories');
+                      }}
                       onFocus={(e) => e.currentTarget.select()}
+                      {...(key === 'calories'
+                        ? fieldErrorProps(ids.nutrition, errors.calories)
+                        : {})}
                       className={inputCls(key === 'calories' && !!errors.calories)}
                     />
                   </Field>
@@ -624,8 +775,11 @@ export default function NewRecipePage() {
               </div>
               <button
                 type="button"
-                onClick={() => setManualNutrition(false)}
-                className="mt-1 text-[11px] font-medium text-[#944a00] hover:underline"
+                onClick={() => {
+                  setManualNutrition(false);
+                  clearError('calories');
+                }}
+                className="flex min-h-11 items-center text-xs font-medium text-[#944a00] hover:underline"
               >
                 Compute automatically from ingredients instead
               </button>
@@ -634,26 +788,32 @@ export default function NewRecipePage() {
         </Section>
 
         {/* ── Submit ─────────────────────────────────────────────────── */}
-        {createMutation.error && (
-          <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-            {createMutation.error.message}
-          </p>
-        )}
+        <div>
+          <FormErrorSummary errors={errors} />
+          {createMutation.error && (
+            <p
+              role="alert"
+              className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
+            >
+              {createMutation.error.message}
+            </p>
+          )}
 
-        <div className="flex flex-col-reverse gap-3 pb-8 sm:flex-row sm:justify-end">
-          <Link
-            href="/recipes"
-            className="flex min-h-11 items-center justify-center rounded-xl border bg-white px-5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
-          >
-            Cancel
-          </Link>
-          <button
-            type="submit"
-            disabled={createMutation.isPending}
-            className="flex min-h-11 items-center justify-center rounded-xl bg-[#944a00] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] disabled:opacity-60"
-          >
-            {createMutation.isPending ? 'Saving…' : 'Save Recipe'}
-          </button>
+          <div className="flex flex-col-reverse gap-3 pb-8 sm:flex-row sm:justify-end">
+            <Link
+              href="/recipes"
+              className="flex min-h-11 items-center justify-center rounded-xl border bg-white px-5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+            >
+              Cancel
+            </Link>
+            <button
+              type="submit"
+              disabled={createMutation.isPending}
+              className="flex min-h-11 items-center justify-center rounded-xl bg-[#944a00] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] disabled:opacity-60"
+            >
+              {createMutation.isPending ? 'Saving…' : 'Save Recipe'}
+            </button>
+          </div>
         </div>
       </form>
 
@@ -675,12 +835,26 @@ export default function NewRecipePage() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function Chip({
+  id,
+  label,
+  active,
+  onClick,
+}: {
+  id?: string | undefined;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  // touch-target: a 44px hit area without making 22 chips 44px tall; the
+  // gap-2 rows keep neighbouring hit areas from overlapping (F-X-2-1).
   return (
     <button
+      id={id}
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+      aria-pressed={active}
+      className={`touch-target relative rounded-full border px-3 py-1.5 text-xs font-medium transition ${
         active
           ? 'border-[#944a00] bg-[#944a00] text-white'
           : 'border-gray-200 bg-white text-gray-600 hover:border-[#944a00]/40 hover:text-[#944a00]'
@@ -695,49 +869,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="text-center">
       <p className="text-sm font-bold text-gray-900">{value}</p>
-      <p className="text-[11px] text-gray-500">{label}</p>
+      <p className="text-xs text-gray-500">{label}</p>
     </div>
   );
-}
-
-function Section({
-  title,
-  children,
-  error,
-}: {
-  title: string;
-  children: React.ReactNode;
-  error?: string | undefined;
-}) {
-  return (
-    <div>
-      <h2 className="mb-4 border-b pb-2 font-semibold text-gray-900">{title}</h2>
-      <div className="space-y-4">{children}</div>
-      {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  error?: string | undefined;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
-      {children}
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
-    </div>
-  );
-}
-
-function inputCls(hasError: boolean) {
-  return `w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none ${
-    hasError ? 'border-red-400 focus:border-red-500' : 'focus:border-[#944a00]'
-  }`;
 }

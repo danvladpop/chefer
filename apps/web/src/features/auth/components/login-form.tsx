@@ -84,7 +84,7 @@ export function LoginForm() {
           autoComplete="email"
           autoFocus
           disabled={loginMutation.isPending}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           placeholder="you@example.com"
           aria-invalid={errors.email ? 'true' : undefined}
           aria-describedby={errors.email ? 'email-error' : undefined}
@@ -108,8 +108,7 @@ export function LoginForm() {
           </label>
           <Link
             href="/forgot-password"
-            className="text-xs text-primary underline-offset-4 hover:underline"
-            tabIndex={-1}
+            className="-my-2 inline-flex min-h-11 items-center text-sm text-primary underline-offset-4 hover:underline"
           >
             Forgot password?
           </Link>
@@ -120,7 +119,7 @@ export function LoginForm() {
             type={showPassword ? 'text' : 'password'}
             autoComplete="current-password"
             disabled={loginMutation.isPending}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="••••••••"
             aria-invalid={errors.password ? 'true' : undefined}
             aria-describedby={errors.password ? 'password-error' : undefined}
@@ -167,14 +166,17 @@ export function LoginForm() {
       </div>
 
       {/* Remember Me */}
-      <div className="flex items-center gap-2">
+      <div className="flex min-h-11 items-center gap-3">
         <input
           id="rememberMe"
           type="checkbox"
-          className="h-4 w-4 rounded border-input accent-primary"
+          className="h-5 w-5 shrink-0 rounded border-input accent-primary"
           {...register('rememberMe')}
         />
-        <label htmlFor="rememberMe" className="text-sm text-muted-foreground">
+        <label
+          htmlFor="rememberMe"
+          className="flex min-h-11 flex-1 items-center text-sm text-muted-foreground"
+        >
           Keep me signed in for 30 days
         </label>
       </div>
@@ -183,7 +185,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={loginMutation.isPending}
-        className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         aria-busy={loginMutation.isPending}
       >
         {loginMutation.isPending ? (

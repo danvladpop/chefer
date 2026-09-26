@@ -287,7 +287,7 @@ export function OnboardingWizard({
             type="button"
             onClick={handleBack}
             disabled={isSubmitting}
-            className="inline-flex h-11 items-center justify-center rounded-md sm:h-10 border border-input bg-background px-6 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center rounded-md border border-input bg-background px-6 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {step === 1 ? 'Cancel' : 'Back'}
           </button>
@@ -296,7 +296,7 @@ export function OnboardingWizard({
             type="button"
             onClick={handleContinue}
             disabled={!canContinue() || isSubmitting}
-            className="inline-flex h-11 items-center justify-center rounded-md sm:h-10 bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? 'Saving…' : step === totalSteps ? 'Finish' : 'Continue'}
           </button>
