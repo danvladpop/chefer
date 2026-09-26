@@ -1,4 +1,7 @@
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import type { TrainingDayNutrition } from '@chefer/types';
 import {
   Card,
   colors,
@@ -9,7 +12,13 @@ import {
   ProgressRing,
   Text,
 } from '@chefer/ui-mobile';
-import { cn, dayNutritionCaption, PLAN_STATUS_LABEL, planStatus } from '@chefer/utils';
+import {
+  cn,
+  dayNutritionCaption,
+  PLAN_STATUS_LABEL,
+  planStatus,
+  trainingDayLine,
+} from '@chefer/utils';
 import type { RouterOutputs } from '../../../lib/trpc';
 
 // Port of apps/web/src/features/dashboard/components/nutrition-summary.tsx.
@@ -55,9 +64,76 @@ function MacroBar({
   );
 }
 
+/**
+ * Training-aware nutrition (audit P2-4), mirrors web's TrainingDayNote: on a
+ * lifter's training day, premium sees the bump applied to the ring and bars;
+ * free sees the same numbers locked, with the upgrade path (Profile).
+ */
+function TrainingDayNote({ t }: { t: TrainingDayNutrition }) {
+  if (!t.isTrainingDay) return null;
+  const workout = t.workoutName ?? 'Your workout';
+  const when = t.reason === 'COMPLETED' ? 'done' : 'today';
+  return (
+    <View
+      testID="training-day"
+      className={cn(
+        'mb-4 rounded-xl px-3 py-2.5',
+        t.applied ? 'bg-accent' : 'border border-dashed border-gray-300 bg-gray-50',
+      )}
+    >
+      <View className="flex-row items-center gap-1.5">
+        <Ionicons
+          name="barbell-outline"
+          size={16}
+          color={t.applied ? colors.primary : colors.mutedForeground}
+        />
+        <Text
+          testID="training-day-line"
+          className={cn(
+            'min-w-0 flex-1 text-xs font-semibold',
+            t.applied ? 'text-primary' : 'text-gray-700',
+          )}
+        >
+          {trainingDayLine(t)}
+        </Text>
+      </View>
+      {t.applied ? (
+        <Text className="mt-0.5 text-xs text-primary/80">
+          {workout} {when} · protein at {t.basis.trainingDayProteinGPerKg} g/kg, added to today
+        </Text>
+      ) : (
+        <>
+          <View className="mt-1 flex-row items-center gap-1.5">
+            <Ionicons name="lock-closed-outline" size={14} color={colors.mutedForeground} />
+            <Text className="min-w-0 flex-1 text-xs text-gray-600">
+              Premium adds this to today&apos;s targets
+            </Text>
+          </View>
+          <Pressable
+            testID="training-day-upgrade"
+            accessibilityRole="button"
+            onPress={() => router.push('/profile')}
+            className="min-h-11 justify-center"
+          >
+            <Text className="text-xs font-semibold text-primary">Upgrade from your Profile →</Text>
+          </Pressable>
+        </>
+      )}
+    </View>
+  );
+}
+
 export function NutritionSummary({ nutrition: n }: { nutrition: Nutrition }) {
-  const status = planStatus(n.plannedKcal, n.dailyCalorieTarget);
-  const calories = progressOf(n.eatenKcal, n.dailyCalorieTarget);
+  // Premium lifters on a training day get the bumped targets (audit P2-4);
+  // everyone else keeps the base targets the older fields carry.
+  const target = n.adjustedTargets ?? {
+    dailyCalorieTarget: n.dailyCalorieTarget,
+    proteinG: n.protein.targetG,
+    carbsG: n.carbs.targetG,
+    fatG: n.fat.targetG,
+  };
+  const status = planStatus(n.plannedKcal, target.dailyCalorieTarget);
+  const calories = progressOf(n.eatenKcal, target.dailyCalorieTarget);
 
   const statusStyle = {
     over: { bg: 'bg-red-100', text: 'text-red-700' },
@@ -80,11 +156,13 @@ export function NutritionSummary({ nutrition: n }: { nutrition: Nutrition }) {
         </View>
       </View>
 
+      {n.trainingDay ? <TrainingDayNote t={n.trainingDay} /> : null}
+
       {/* Calorie ring — stacked above the macros, like web's phone layout. */}
       <View className="mb-4 items-center gap-2">
         <ProgressRing
           testID="calorie-ring"
-          accessibilityLabel={`${n.eatenKcal.toLocaleString()} of ${n.dailyCalorieTarget.toLocaleString()} kcal eaten today`}
+          accessibilityLabel={`${n.eatenKcal.toLocaleString()} of ${target.dailyCalorieTarget.toLocaleString()} kcal eaten today`}
           progress={calories}
           size={RING_SIZE}
           strokeWidth={RING_STROKE}
@@ -96,11 +174,11 @@ export function NutritionSummary({ nutrition: n }: { nutrition: Nutrition }) {
             className="text-xl font-bold text-gray-900"
           />
           <Text className="text-[12px] text-gray-500">
-            of {n.dailyCalorieTarget.toLocaleString()} kcal eaten
+            of {target.dailyCalorieTarget.toLocaleString()} kcal eaten
           </Text>
         </ProgressRing>
         <Text testID="calorie-remaining" className="text-center text-xs text-gray-500">
-          {dayNutritionCaption(n.eatenKcal, n.plannedKcal, n.dailyCalorieTarget)}
+          {dayNutritionCaption(n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
         </Text>
       </View>
 
@@ -109,16 +187,16 @@ export function NutritionSummary({ nutrition: n }: { nutrition: Nutrition }) {
         <MacroBar
           label="Protein"
           value={n.protein.eaten}
-          target={n.protein.targetG}
+          target={target.proteinG}
           planned={n.protein.planned}
         />
         <MacroBar
           label="Carbs"
           value={n.carbs.eaten}
-          target={n.carbs.targetG}
+          target={target.carbsG}
           planned={n.carbs.planned}
         />
-        <MacroBar label="Fat" value={n.fat.eaten} target={n.fat.targetG} planned={n.fat.planned} />
+        <MacroBar label="Fat" value={n.fat.eaten} target={target.fatG} planned={n.fat.planned} />
       </View>
     </Card>
   );
