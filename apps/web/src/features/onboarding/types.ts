@@ -1,3 +1,5 @@
+import type { OnboardingIntent } from '@chefer/types';
+
 // Mirror of the Prisma enums — kept here so client components don't need
 // to import @chefer/database (which pulls in the Prisma server runtime).
 
@@ -27,10 +29,10 @@ export interface WizardData {
   dietaryRestrictions: string[];
   allergies: string[];
   dislikedIngredients: string[];
-  // Step 4 — T-011
+  // Step 4 — T-011. No serving size: the household is the one people
+  // model (P2-3, audit F-PM-8).
   cuisinePreferences: string[];
   mealsPerDay: number;
-  servingSize: number;
 }
 
 export const TOTAL_STEPS = 4;
@@ -47,7 +49,6 @@ export const EMPTY_WIZARD_DATA: WizardData = {
   dislikedIngredients: [],
   cuisinePreferences: [],
   mealsPerDay: 3,
-  servingSize: 1,
 };
 
 /** Shape of preferences.get, narrowed to what the wizard reads. */
@@ -59,6 +60,8 @@ export interface SavedPreferences {
     heightCm: number | null;
     weightKg: number | null;
     activityLevel: string | null;
+    /** Onboarding step 0 answer (P2-3); absent on older API responses. */
+    onboardingIntent?: string | null;
   } | null;
   dietaryPreferences: {
     dietaryRestrictions: string[];
@@ -66,7 +69,6 @@ export interface SavedPreferences {
     dislikedIngredients: string[];
     cuisinePreferences: string[];
     mealsPerDay: number;
-    servingSize: number;
   } | null;
 }
 
@@ -91,6 +93,13 @@ export function wizardDataFromPreferences(saved: SavedPreferences | null): Wizar
     dislikedIngredients: diet?.dislikedIngredients ?? [],
     cuisinePreferences: diet?.cuisinePreferences ?? [],
     mealsPerDay: diet?.mealsPerDay ?? EMPTY_WIZARD_DATA.mealsPerDay,
-    servingSize: diet?.servingSize ?? EMPTY_WIZARD_DATA.servingSize,
   };
+}
+
+const INTENTS: readonly OnboardingIntent[] = ['EAT_BETTER', 'HOUSEHOLD', 'TRAIN'];
+
+/** The saved onboarding intent, or null when never answered (P2-3). */
+export function savedIntent(saved: SavedPreferences | null): OnboardingIntent | null {
+  const raw = saved?.chefProfile?.onboardingIntent;
+  return INTENTS.find((i) => i === raw) ?? null;
 }

@@ -1,8 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { DowngradeButton, UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { AccountDataCard } from '@/features/profile/components/AccountDataCard';
+import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
+import { ChevronRight, Users } from 'lucide-react';
 import { PLAN_FEATURES } from '@chefer/types';
 
 // ─── Usage bar ────────────────────────────────────────────────────────────────
@@ -55,6 +58,33 @@ function StatRow({
       <UsageBar used={used} limit={limit} />
       {sublabel && <p className="mt-0.5 text-xs text-gray-500">{sublabel}</p>}
     </div>
+  );
+}
+
+// ─── Household entry (P2-3, PM review §5) ─────────────────────────────────────
+// One tap from Profile to the household — it used to sit at the bottom of
+// Preferences, inside More.
+
+function HouseholdCard() {
+  const { members, memberCount, peopleCount } = useHousehold();
+  const summary =
+    memberCount === 0
+      ? 'Just you — add the people you cook for'
+      : `${peopleCount} at the table: you, ${members.map((m) => m.name).join(', ')}`;
+  return (
+    <Link
+      href="/preferences#household"
+      className="mb-6 flex min-h-11 items-center gap-3 rounded-2xl border bg-white p-4 shadow-sm transition-colors hover:bg-neutral-50 sm:p-5"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#fff3e8] text-[#944a00]">
+        <Users className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold text-gray-900">Your household</span>
+        <span className="block truncate text-sm text-gray-600">{summary}</span>
+      </span>
+      <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
+    </Link>
   );
 }
 
@@ -128,6 +158,8 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      <HouseholdCard />
 
       {/* Upgrade CTA for free users (admins are implicitly premium) */}
       {user && user.planTier !== 'PREMIUM' && user.role !== 'ADMIN' && (

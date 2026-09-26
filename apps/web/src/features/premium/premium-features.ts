@@ -61,6 +61,8 @@ export const FREE_EQUIVALENT_LABELS: Partial<Record<PlanFeatureKey, string>> = {
   aiShoppingList: 'Standard list',
   photoLogging: 'Manual quick-add',
   trainingNutrition: 'Protein from your bodyweight',
+  // Members and their allergies are free (P2-3); only the scaling is premium.
+  householdPlans: 'Members + their allergies',
 };
 
 export const SOURCE_FEATURE_PRIORITY: Partial<Record<string, PlanFeatureKey[]>> = {

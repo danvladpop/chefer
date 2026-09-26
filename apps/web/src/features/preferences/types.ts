@@ -20,5 +20,4 @@ export interface DietaryPreferencesData {
   allergies: string[];
   dislikedIngredients: string[];
   mealsPerDay: number;
-  servingSize: number;
 }

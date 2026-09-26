@@ -64,7 +64,8 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
       // Post-upgrade activation (review P-8) is shown by the shell-mounted
       // PostUpgradeActivation — signalled via storage + event because THIS
       // button usually sits in free-only UI that unmounts when the tier flips.
-      sessionStorage.setItem(ACTIVATION_FLAG, '1');
+      // The value is the source, so activation leads with it (F-PREM-1-5).
+      sessionStorage.setItem(ACTIVATION_FLAG, source);
       // The tier gates data everywhere (plans, preferences, quotas) — drop the
       // whole client cache, and refresh server components: the upgrade panels
       // on /onboarding and /preferences are rendered server-side, so a client
