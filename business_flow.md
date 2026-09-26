@@ -475,6 +475,8 @@ Plans continue week to week until changed: `mealPlan.getForWeek` for the current
 
 ### Shopping list & ingredient price vocabulary
 
+**Shopping state survives plan changes** (audit F-SHOP-2-1, F-PLAN-6-1): check-offs and custom items are stored per plan, so `MealPlanRepository.createPlan` copies them from the same-week plan it replaces (regenerate, follow a template) onto the new plan. History **Restore** re-creates the old plan as the newest row for its week, archiving only that week, and brings that plan's own ticks and custom items back.
+
 ```
 shoppingList.getForWeek { weekOffset }
   |
@@ -606,9 +608,10 @@ The web hero card (`/dashboard`) renders `nextMeal`, else `tomorrowFirstMeal`
   ├─ servings scaler + collapsible ingredients checklist
   │    (quantities scale live in the user's unit system)
   └─ Finish → "Made it!"
-       ├─ tracker.getDay + tracker.upsertDay: APPENDS one serving of the
-       │    recipe's macros to today's log (portionMultiplier 1 — cooking
-       │    for 4 doesn't mean you ate 4×)
+       ├─ tracker.logRecipe: atomically APPENDS one serving of the
+       │    recipe's stored macros to today's log (portionMultiplier 1 —
+       │    cooking for 4 doesn't mean you ate 4×); idempotent per
+       │    recipe + meal type, so a double tap logs once
        ├─ capture('meal_cooked' { mealType })
        └─ StarRatingWidget — "your rating shapes what the chef cooks up
             next week" (P1-1 signal)
@@ -745,8 +748,15 @@ POST /api/scan-meal (session cookie, raw image body — same transport as upload
 
 Custom entries render on the tracker as their own rows (name + "estimated" /
 "quick add" chip, deletable via `tracker.deleteCustomMeal`) and count toward
-the day's progress bars. They are preserved verbatim when the planned-meal
-save flow rewrites the day (`tracker.upsertDay`).
+the day's progress bars.
+
+**Day saves merge, they never replace** (audit 2026-09-25, F-PM-1 / F-TRK-1-2).
+`tracker.upsertDay` carries only the planned meals the tracker shows; the
+server keeps every custom entry and every logged recipe that isn't in today's
+plan (e.g. cooked before a regenerate or swap). Those appear under "Also logged
+today" (`getDay.offPlanLogged`) and count in the totals. Every day write runs
+in a serializable transaction with retry, so parallel quick-adds from two
+devices all persist. Saving with nothing ticked un-logs the planned meals.
 
 ### Free-tier honesty tools
 

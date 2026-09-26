@@ -10,6 +10,8 @@ import type { UserProfile } from '@chefer/types';
 import { hasFeature } from '../../lib/entitlements.js';
 import { rebalanceWeek, type RebalanceResult } from '../meal-plan/rebalance.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
+import { findRecipeVisibleTo } from '../recipe/recipe-access.js';
+import { isRecipeEntry, mergeLoggedMeals } from './merge-log.js';
 
 export type { LoggedMealEntry };
 
@@ -26,9 +28,26 @@ export interface DayPlanMeal {
   fat: number;
 }
 
+/** A logged planned-recipe entry whose recipe is no longer in today's plan. */
+export interface OffPlanLoggedMeal {
+  recipeId: string;
+  recipeName: string;
+  mealType: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
 export interface DayTrackerData {
   date: string; // YYYY-MM-DD
   plannedMeals: DayPlanMeal[];
+  /**
+   * Logged recipes that aren't among today's planned meals — e.g. cooked
+   * before a regenerate or swap. The tracker shows and counts them (audit
+   * F-PM-1). Additive: older clients ignore it.
+   */
+  offPlanLogged: OffPlanLoggedMeal[];
   log: {
     loggedMeals: LoggedMealEntry[];
     totalKcal: number;
@@ -51,6 +70,24 @@ export interface DaySummary {
   totalCarbs: number;
   totalFat: number;
   hasLog: boolean;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function dayDate(dateStr: string): Date {
+  const date = new Date(dateStr);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+}
+
+/** Recipe ids the tracker shows as planned for this date (same source as getDay). */
+async function plannedRecipeIdsFor(userId: string, dateStr: string): Promise<Set<string>> {
+  const plan = await mealPlanRepository.findActiveWithDays(userId);
+  const jsDay = dayDate(dateStr).getUTCDay();
+  const dayOfWeek = jsDay === 0 ? 6 : jsDay - 1;
+  const day = plan?.days.find((d) => d.dayOfWeek === dayOfWeek);
+  const slots = (day?.meals ?? []) as { recipeId: string }[];
+  return new Set(slots.map((s) => s.recipeId));
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -109,9 +146,32 @@ export const trackerService = {
       }
     }
 
+    const plannedIds = new Set(plannedMeals.map((m) => m.recipeId));
+    const offPlanEntries = ((log?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [])
+      .filter(isRecipeEntry)
+      .filter((m) => !plannedIds.has(m.recipeId));
+    const offPlanNames =
+      offPlanEntries.length > 0
+        ? new Map(
+            (await mealPlanRepository.findRecipesByIds(offPlanEntries.map((m) => m.recipeId))).map(
+              (r) => [r.id, r.name],
+            ),
+          )
+        : new Map<string, string>();
+    const offPlanLogged: OffPlanLoggedMeal[] = offPlanEntries.map((m) => ({
+      recipeId: m.recipeId,
+      recipeName: offPlanNames.get(m.recipeId) ?? 'Logged meal',
+      mealType: m.mealType,
+      kcal: m.kcal,
+      protein: m.protein,
+      carbs: m.carbs,
+      fat: m.fat,
+    }));
+
     return {
       date: dateStr,
       plannedMeals,
+      offPlanLogged,
       log: log
         ? {
             loggedMeals: log.loggedMeals as unknown as LoggedMealEntry[],
@@ -130,35 +190,49 @@ export const trackerService = {
     dateStr: string,
     loggedMeals: LoggedMealEntry[],
   ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
-    const log = await this.writeDay(user.id, dateStr, loggedMeals);
+    const plannedRecipeIds = await plannedRecipeIdsFor(user.id, dateStr);
+    const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) =>
+      mergeLoggedMeals(stored, loggedMeals, plannedRecipeIds),
+    );
     const rebalance = await this.maybeRebalance(user);
     return { log, rebalance };
   },
 
-  /** Persists a day's logged meals with recomputed totals (no rebalance). */
-  async writeDay(
-    userId: string,
+  /**
+   * Logs one serving of a recipe ("Made it!" in cook mode). Atomic and
+   * idempotent: an existing entry for the same recipe and meal type is
+   * replaced, so a double tap can't double-log (F-M-TRK-1-1). Nutrition
+   * comes from the stored recipe, never the client.
+   */
+  async logRecipe(
+    user: UserProfile,
     dateStr: string,
-    loggedMeals: LoggedMealEntry[],
-  ): Promise<DailyLog> {
-    const date = new Date(dateStr);
-    date.setUTCHours(0, 0, 0, 0);
-
-    // Compute totals from loggedMeals
-    const totalKcal = Math.round(loggedMeals.reduce((s, m) => s + m.kcal, 0));
-    const totalProtein = loggedMeals.reduce((s, m) => s + m.protein, 0);
-    const totalCarbs = loggedMeals.reduce((s, m) => s + m.carbs, 0);
-    const totalFat = loggedMeals.reduce((s, m) => s + m.fat, 0);
-
-    return dailyLogRepository.upsert({
-      userId,
-      date,
-      loggedMeals,
-      totalKcal,
-      totalProtein: Math.round(totalProtein * 10) / 10,
-      totalCarbs: Math.round(totalCarbs * 10) / 10,
-      totalFat: Math.round(totalFat * 10) / 10,
-    });
+    input: { recipeId: string; mealType: string; portionMultiplier: number },
+  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
+    const recipe = await findRecipeVisibleTo(user.id, input.recipeId);
+    if (!recipe) throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    const n = recipe.nutritionInfo as {
+      calories?: number;
+      protein?: number;
+      carbs?: number;
+      fat?: number;
+    };
+    const p = input.portionMultiplier;
+    const entry: LoggedMealEntry = {
+      recipeId: recipe.id,
+      mealType: input.mealType,
+      portionMultiplier: p,
+      kcal: Math.round((n.calories ?? 0) * p),
+      protein: Math.round((n.protein ?? 0) * p * 10) / 10,
+      carbs: Math.round((n.carbs ?? 0) * p * 10) / 10,
+      fat: Math.round((n.fat ?? 0) * p * 10) / 10,
+    };
+    const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
+      ...stored.filter((m) => !(m.recipeId === entry.recipeId && m.mealType === entry.mealType)),
+      entry,
+    ]);
+    const rebalance = await this.maybeRebalance(user);
+    return { log, rebalance };
   },
 
   /**
@@ -179,11 +253,9 @@ export const trackerService = {
       fat: number;
     },
   ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
-    const date = new Date(dateStr);
-    date.setUTCHours(0, 0, 0, 0);
-    const existing = await dailyLogRepository.findByDate(user.id, date);
-    const loggedMeals = [
-      ...((existing?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? []),
+    // Atomic append — parallel adds no longer overwrite each other (F-TRK-1-2).
+    const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
+      ...stored,
       {
         custom: { name: entry.name, estimatedBy: entry.estimatedBy },
         mealType: entry.mealType,
@@ -193,8 +265,7 @@ export const trackerService = {
         carbs: entry.carbs,
         fat: entry.fat,
       },
-    ];
-    const log = await this.writeDay(user.id, dateStr, loggedMeals);
+    ]);
     const rebalance = await this.maybeRebalance(user);
     return { log, rebalance };
   },
@@ -205,16 +276,12 @@ export const trackerService = {
    * cannot be deleted here.
    */
   async deleteCustomMeal(userId: string, dateStr: string, entryIndex: number): Promise<DailyLog> {
-    const date = new Date(dateStr);
-    date.setUTCHours(0, 0, 0, 0);
-    const existing = await dailyLogRepository.findByDate(userId, date);
-    const loggedMeals = (existing?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
-    const target = loggedMeals[entryIndex];
-    if (!target?.custom) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'No custom entry at that position.' });
-    }
-    const remaining = loggedMeals.filter((_, i) => i !== entryIndex);
-    return this.writeDay(userId, dateStr, remaining);
+    return dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) => {
+      if (!stored[entryIndex]?.custom) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'No custom entry at that position.' });
+      }
+      return stored.filter((_, i) => i !== entryIndex);
+    });
   },
 
   /**

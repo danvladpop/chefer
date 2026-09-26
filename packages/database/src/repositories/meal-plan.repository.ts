@@ -32,6 +32,12 @@ export interface CreateMealPlanData {
     meals: { type: string; recipeId: string }[];
   }[];
   recipeIds: string[]; // ids already persisted
+  /**
+   * Plan whose shopping check-offs and custom items the new plan inherits.
+   * Defaults to the same-week active plan being replaced (regenerate, follow
+   * a template); restore passes the plan it brings back.
+   */
+  carryShoppingFromPlanId?: string | undefined;
 }
 
 export interface IMealPlanRepository {
@@ -56,7 +62,6 @@ export interface IMealPlanRepository {
     limit?: number,
     offset?: number,
   ): Promise<(MealPlan & { days: MealPlanDay[] })[]>;
-  restorePlan(userId: string, planId: string): Promise<void>;
   findByIdForUser(
     userId: string,
     planId: string,
@@ -215,14 +220,30 @@ export class MealPlanRepository implements IMealPlanRepository {
     const { userId, weekStartDate, days } = data;
 
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const sameWeekActive = {
+        userId,
+        status: MealPlanStatus.ACTIVE,
+        weekStartDate,
+        isTemplate: false,
+      };
+      const carryFromId =
+        data.carryShoppingFromPlanId ??
+        (
+          await tx.mealPlan.findFirst({
+            where: sameWeekActive,
+            orderBy: { createdAt: 'desc' },
+            select: { id: true },
+          })
+        )?.id;
+
       // Archive only plans for the same week (same weekStartDate), not all active plans.
       await tx.mealPlan.updateMany({
-        where: { userId, status: MealPlanStatus.ACTIVE, weekStartDate, isTemplate: false },
+        where: sameWeekActive,
         data: { status: MealPlanStatus.ARCHIVED },
       });
 
       // Create the new plan with its days
-      return tx.mealPlan.create({
+      const plan = await tx.mealPlan.create({
         data: {
           userId,
           weekStartDate,
@@ -235,6 +256,26 @@ export class MealPlanRepository implements IMealPlanRepository {
           },
         },
       });
+
+      // Shopping state is keyed by planId, so a new plan used to start with no
+      // ticks and no custom items (audit F-SHOP-2-1). Carry both over as a bare
+      // row (aiGenerated=false: the list itself is re-derived for the new plan).
+      if (carryFromId) {
+        const previous = await tx.shoppingList.findUnique({ where: { planId: carryFromId } });
+        const custom = previous?.customItems as unknown[] | null | undefined;
+        if (previous && (previous.checkedKeys.length > 0 || (custom?.length ?? 0) > 0)) {
+          await tx.shoppingList.create({
+            data: {
+              planId: plan.id,
+              items: [],
+              aiGenerated: false,
+              checkedKeys: previous.checkedKeys,
+              customItems: previous.customItems ?? [],
+            },
+          });
+        }
+      }
+      return plan;
     });
   }
 
@@ -287,19 +328,6 @@ export class MealPlanRepository implements IMealPlanRepository {
       orderBy: { createdAt: 'desc' },
       take: limit,
       skip: offset,
-    });
-  }
-
-  async restorePlan(userId: string, planId: string): Promise<void> {
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.mealPlan.updateMany({
-        where: { userId, status: MealPlanStatus.ACTIVE, isTemplate: false },
-        data: { status: MealPlanStatus.ARCHIVED },
-      });
-      await tx.mealPlan.update({
-        where: { id: planId },
-        data: { status: MealPlanStatus.ACTIVE },
-      });
     });
   }
 

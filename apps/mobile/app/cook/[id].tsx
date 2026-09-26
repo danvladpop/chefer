@@ -100,7 +100,7 @@ export default function CookModeScreen() {
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
   const [showIngredients, setShowIngredients] = useState(false);
 
-  const upsertDay = trpc.tracker.upsertDay.useMutation({
+  const upsertDay = trpc.tracker.logRecipe.useMutation({
     onSuccess: () => {
       setLogged(true);
       void utils.tracker.getDay.invalidate();
@@ -109,30 +109,18 @@ export default function CookModeScreen() {
     },
   });
 
-  const logMeal = async () => {
+  const logMeal = () => {
     if (!recipe || logged || upsertDay.isPending) {
       return;
     }
-    const today = todayIso();
-    // upsertDay REPLACES the day's meals — fetch what's logged and append.
-    const day = await utils.tracker.getDay.fetch({ date: today });
-    const existing = day.log?.loggedMeals ?? [];
-    const n = recipe.nutritionInfo;
+    // Server-side atomic append: never clobbers other entries, and a double
+    // tap can't double-log (F-PM-1, F-M-TRK-1-1).
     upsertDay.mutate({
-      date: today,
-      loggedMeals: [
-        ...existing,
-        {
-          recipeId: recipe.id,
-          mealType,
-          // One serving eaten — cooking for 4 doesn't mean you ate 4×.
-          portionMultiplier: 1,
-          kcal: n.calories,
-          protein: n.protein,
-          carbs: n.carbs,
-          fat: n.fat,
-        },
-      ],
+      date: todayIso(),
+      recipeId: recipe.id,
+      mealType,
+      // One serving eaten — cooking for 4 doesn't mean you ate 4×.
+      portionMultiplier: 1,
     });
   };
 
@@ -255,7 +243,7 @@ export default function CookModeScreen() {
             testID="cook-log"
             loading={upsertDay.isPending}
             disabled={logged}
-            onPress={() => void logMeal()}
+            onPress={logMeal}
           >
             {logged ? 'Logged to tracker ✓' : 'Log this meal'}
           </Button>

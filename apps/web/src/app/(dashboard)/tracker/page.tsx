@@ -106,9 +106,15 @@ export default function TrackerPage() {
     setSavedSuccess(false);
   };
 
-  // Custom entries already logged for this day (no recipeId). upsertDay
-  // REPLACES the day's list, so they must ride along on every save.
-  const customEntries = (data?.log?.loggedMeals ?? []).filter((m) => !m.recipeId);
+  // Custom and off-plan entries are server-owned: upsertDay merges, so the
+  // save sends only the planned meals this page manages (F-PM-1, F-TRK-1-2).
+  const offPlanLogged = data?.offPlanLogged ?? [];
+  // A day that already has planned meals logged can be saved with nothing
+  // ticked — that un-logs them (F-TRK-1-3).
+  const plannedIds = new Set(data?.plannedMeals.map((m) => m.recipeId) ?? []);
+  const hadPlannedLogged = (data?.log?.loggedMeals ?? []).some(
+    (m) => m.recipeId !== undefined && plannedIds.has(m.recipeId),
+  );
   // Rendered rows (F4): custom entries with their delete-target index into
   // the FULL loggedMeals array preserved.
   const customRows = customEntryRows(data?.log?.loggedMeals ?? []);
@@ -129,9 +135,8 @@ export default function TrackerPage() {
           fat: Math.round(m.fat * portion * 10) / 10,
         };
       });
-    const loggedMeals = [...plannedLogged, ...customEntries];
-    if (loggedMeals.length === 0) return;
-    upsertMutation.mutate({ date: dateStr, loggedMeals });
+    if (plannedLogged.length === 0 && !hadPlannedLogged) return;
+    upsertMutation.mutate({ date: dateStr, loggedMeals: plannedLogged });
   };
 
   const changeDate = (delta: number) => {
@@ -151,27 +156,44 @@ export default function TrackerPage() {
     carbs: customCarbs,
     fat: customFat,
   } = customEntryTotals(data?.log?.loggedMeals ?? []);
+  const offPlan = offPlanLogged.reduce(
+    (t, m) => ({
+      kcal: t.kcal + m.kcal,
+      protein: t.protein + m.protein,
+      carbs: t.carbs + m.carbs,
+      fat: t.fat + m.fat,
+    }),
+    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+  );
   const loggedKcal =
     loggedMeals.reduce(
       (s, m) =>
         s + Math.round(m.kcal * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1)),
       0,
-    ) + customKcal;
+    ) +
+    customKcal +
+    offPlan.kcal;
   const loggedProtein =
     loggedMeals.reduce(
       (s, m) => s + m.protein * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
       0,
-    ) + customProtein;
+    ) +
+    customProtein +
+    offPlan.protein;
   const loggedCarbs =
     loggedMeals.reduce(
       (s, m) => s + m.carbs * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
       0,
-    ) + customCarbs;
+    ) +
+    customCarbs +
+    offPlan.carbs;
   const loggedFat =
     loggedMeals.reduce(
       (s, m) => s + m.fat * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
       0,
-    ) + customFat;
+    ) +
+    customFat +
+    offPlan.fat;
   // All four targets come from the API's resolveDailyTargets — the same
   // source the dashboard uses, so the two surfaces can never disagree
   // (prod-followups #4). Fallbacks only cover the pre-data render.
@@ -383,6 +405,37 @@ export default function TrackerPage() {
             </div>
           )}
 
+          {/* Off-plan meals (F-PM-1): logged recipes that have since left
+              today's plan (regenerate or swap). Kept and counted. */}
+          {offPlanLogged.length > 0 && (
+            <div className="mb-6" data-testid="tracker-off-plan">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                Also logged today
+              </p>
+              <div className="space-y-3">
+                {offPlanLogged.map((m) => (
+                  <div
+                    key={`${m.recipeId}:${m.mealType}`}
+                    className="flex flex-col gap-1 rounded-2xl border border-neutral-200 bg-white p-3"
+                  >
+                    <span
+                      className={`self-start rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${MEAL_COLOURS[m.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                    >
+                      {m.mealType}
+                    </span>
+                    <p className="min-w-0 truncate text-sm font-medium text-neutral-800">
+                      {m.recipeName}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {Math.round(m.kcal)} kcal · {Math.round(m.protein)}g P · {Math.round(m.carbs)}
+                      g C · {Math.round(m.fat)}g F
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Custom entries (F4): photo scans + quick-adds. Saved server-side
               the moment they're logged — no relation to the Save button. */}
           {customRows.length > 0 && (
@@ -440,7 +493,11 @@ export default function TrackerPage() {
             <button
               type="button"
               onClick={handleSave}
-              disabled={loggedMeals.length === 0 || upsertMutation.isPending || savedSuccess}
+              disabled={
+                (loggedMeals.length === 0 && !hadPlannedLogged) ||
+                upsertMutation.isPending ||
+                savedSuccess
+              }
               className="sticky bottom-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#944a00] py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-[#7a3d00] disabled:opacity-50 lg:static lg:shadow-none"
             >
               {upsertMutation.isPending ? (
@@ -449,8 +506,10 @@ export default function TrackerPage() {
                 '✓ Saved!'
               ) : (
                 <>
-                  <Save className="h-4 w-4" /> Log {loggedMeals.length} meal
-                  {loggedMeals.length !== 1 ? 's' : ''}
+                  <Save className="h-4 w-4" />{' '}
+                  {loggedMeals.length === 0
+                    ? 'Clear logged meals'
+                    : `Log ${loggedMeals.length} meal${loggedMeals.length !== 1 ? 's' : ''}`}
                 </>
               )}
             </button>

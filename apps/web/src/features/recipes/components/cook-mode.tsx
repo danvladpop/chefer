@@ -179,7 +179,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
 
   // ── "Made it!": append to today's log, then rate ──
   const utils = trpc.useUtils();
-  const upsertDay = trpc.tracker.upsertDay.useMutation({
+  const upsertDay = trpc.tracker.logRecipe.useMutation({
     onSuccess: (result) => {
       setLogged(true);
       capture('meal_cooked', { mealType });
@@ -192,41 +192,18 @@ export function CookMode({ recipeId }: { recipeId: string }) {
     },
   });
 
-  const logMeal = useCallback(async () => {
+  const logMeal = useCallback(() => {
     if (!recipe || logged || upsertDay.isPending) return;
-    const today = todayIso();
-    // upsertDay REPLACES the day's meals — fetch what's already logged and append.
-    const day = await utils.tracker.getDay.fetch({ date: today });
-    // Entries may be planned recipes (recipeId) or custom quick-adds
-    // (custom) — both ride along verbatim.
-    const existing = (day.log?.loggedMeals ?? []) as {
-      recipeId?: string;
-      custom?: { name: string; estimatedBy: 'vision' | 'manual' };
-      mealType: string;
-      portionMultiplier: number;
-      kcal: number;
-      protein: number;
-      carbs: number;
-      fat: number;
-    }[];
-    const n = recipe.nutritionInfo;
+    // Server-side atomic append: never clobbers other entries, and a double
+    // tap can't double-log (F-PM-1, F-TRK-1-2).
     upsertDay.mutate({
-      date: today,
-      loggedMeals: [
-        ...existing,
-        {
-          recipeId: recipe.id,
-          mealType,
-          // One serving eaten — cooking for 4 doesn't mean you ate 4×.
-          portionMultiplier: 1,
-          kcal: n.calories,
-          protein: n.protein,
-          carbs: n.carbs,
-          fat: n.fat,
-        },
-      ],
+      date: todayIso(),
+      recipeId: recipe.id,
+      mealType,
+      // One serving eaten — cooking for 4 doesn't mean you ate 4×.
+      portionMultiplier: 1,
     });
-  }, [recipe, logged, upsertDay, utils, mealType]);
+  }, [recipe, logged, upsertDay, mealType]);
 
   if (isLoading || !recipe) {
     return (
@@ -261,7 +238,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
 
         {!logged ? (
           <button
-            onClick={() => void logMeal()}
+            onClick={logMeal}
             disabled={upsertDay.isPending}
             className="flex min-h-12 items-center gap-2 rounded-2xl bg-[#944a00] px-8 text-base font-semibold text-white shadow-sm hover:bg-[#7a3d00] disabled:opacity-50"
           >

@@ -1137,10 +1137,28 @@ export class MealPlanService {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found.' });
     }
 
-    // Archive current active plans and set target to ACTIVE
-    await this.repo.restorePlan(userId, planId);
+    if (target.isTemplate) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found.' });
+    }
 
-    return this.getActive(userId) as Promise<WeekPlanDto>;
+    // Restore = a fresh copy of the old plan as the newest row for its week.
+    // Flipping the old row back to ACTIVE didn't work: week lookups take the
+    // newest row, so the restored plan never showed, and every other week's
+    // plan was archived too (audit F-PLAN-6-1). createPlan archives only the
+    // same week and carries the old plan's shopping ticks and custom items.
+    const days = target.days.map((d) => ({
+      dayOfWeek: d.dayOfWeek,
+      meals: d.meals as { type: string; recipeId: string; leftoverOf?: string }[],
+    }));
+    const restored = await this.repo.createPlan({
+      userId,
+      weekStartDate: target.weekStartDate,
+      days,
+      recipeIds: [...new Set(days.flatMap((d) => d.meals.map((m) => m.recipeId)))],
+      carryShoppingFromPlanId: target.id,
+    });
+
+    return this.assemblePlanDto({ ...restored, days: target.days }, userId);
   }
 
   async getById(userId: string, planId: string): Promise<WeekPlanDto> {
