@@ -36,9 +36,7 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
   const portion = meal.portion;
   const logPortion = Math.min(2, Math.max(0.5, slotPortion(portion)));
   const openRecipe = () =>
-    router.push(
-      `/recipe/${meal.recipe.id}${portion !== undefined ? `?portion=${portion}` : ''}`,
-    );
+    router.push(`/recipe/${meal.recipe.id}${portion !== undefined ? `?portion=${portion}` : ''}`);
   const totalMins = meal.recipe.prepTimeMins + (meal.recipe.cookTimeMins ?? 0);
 
   return (
