@@ -128,4 +128,22 @@ describe('estimatePlanCostEur', () => {
     expect(unscaled.totalEur).toBe(4);
     expect(unscaled).not.toHaveProperty('portions');
   });
+
+  it('multiplies the P1-1 slot portion by the household scale (1.5× slot, 2-portion table → 3×)', async () => {
+    const days = [
+      {
+        meals: [
+          {
+            portion: 1.5,
+            recipe: {
+              servings: 1,
+              ingredients: [{ name: 'Chicken breast', quantity: 100, unit: 'g' }],
+            },
+          },
+        ],
+      },
+    ];
+    expect((await estimatePlanCostEur(days, { portions: 2 })).totalEur).toBe(3);
+    expect((await estimatePlanCostEur(days)).totalEur).toBe(1.5);
+  });
 });

@@ -3,6 +3,7 @@ import { mealPlanRepository, pantryItemRepository, prisma } from '@chefer/databa
 import type { UserProfile } from '@chefer/types';
 import { householdService } from '../household/household.service.js';
 import { pantryService } from '../pantry/pantry.service.js';
+import { estimatePlanCostEur } from '../shared/plan-cost.js';
 import { carryCheckedKeys, ShoppingListService } from './shopping-list.service.js';
 
 // ─── Module mocks (style: recipe-import.service.test.ts) ─────────────────────
@@ -390,6 +391,42 @@ describe('ShoppingListService — household scaling (P2-3, audit F-PM-5)', () =>
 
     expect(list.items.find((i) => i.ingredientName === 'Tomato')!.quantity).toBe('600');
     expect(list.estimatedTotalEur).toBe(9);
+  });
+
+  it('composes with the P1-1 slot portion: 1.5× slot × 2-portion table = 3× for premium, 1.5× for free', async () => {
+    const portioned = {
+      ...PLAN,
+      days: [
+        {
+          id: 'd0',
+          mealPlanId: 'plan1',
+          dayOfWeek: 0,
+          meals: [{ type: 'dinner', recipeId: 'r1', portion: 1.5 }],
+        },
+      ],
+    };
+    const recipe = { ...RECIPE, servings: 1 };
+    planWithRecipes();
+    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(portioned as never);
+    vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([recipe] as never);
+    // The plan chip prices the same slots through estimatePlanCostEur.
+    const planDays = [{ meals: [{ recipe, portion: 1.5 }] }];
+
+    vi.mocked(householdService.scalingPortions).mockResolvedValue(2);
+    const premium = await service.getForWeek(premiumUser, 0);
+    expect(premium.items.find((i) => i.ingredientName === 'Tomato')!.quantity).toBe('1800');
+    expect(premium.items.find((i) => i.ingredientName === 'Beef')!.quantity).toBe('900');
+    // (1800 × €0.5 + 900 × €2) / 100 = €27, and the plan chip agrees.
+    expect(premium.estimatedTotalEur).toBe(27);
+    const premiumChip = await estimatePlanCostEur(planDays, { portions: 2 });
+    expect(premiumChip.totalEur).toBe(premium.estimatedTotalEur);
+
+    vi.mocked(householdService.scalingPortions).mockResolvedValue(null);
+    const free = await service.getForWeek(freeUser, 0);
+    expect(free.items.find((i) => i.ingredientName === 'Tomato')!.quantity).toBe('900');
+    expect(free.estimatedTotalEur).toBe(13.5);
+    const freeChip = await estimatePlanCostEur(planDays);
+    expect(freeChip.totalEur).toBe(free.estimatedTotalEur);
   });
 
   it('free households (and solo users) keep recipes as written, with no portions field', async () => {
