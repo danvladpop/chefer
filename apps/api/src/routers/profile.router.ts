@@ -1,5 +1,7 @@
 import { AiCallType, prisma } from '@chefer/database';
-import { protectedProcedure, router } from '../lib/trpc.js';
+import { AI_PROVIDERS } from '@chefer/types';
+import { aiProviderDisclosure } from '../lib/ai/index.js';
+import { protectedProcedure, publicProcedure, router } from '../lib/trpc.js';
 
 /**
  * Known free-tier limits for the AI providers used by Chefer.
@@ -11,7 +13,23 @@ const GEMINI_FREE_LIMITS = {
   requestsPerMinute: 10,
 } as const;
 
+/**
+ * Groq free tier, per model (https://console.groq.com/docs/rate-limits,
+ * checked 2026-09-26: 30 RPM, 1K RPD for openai/gpt-oss-120b).
+ */
+const GROQ_FREE_LIMITS = {
+  requestsPerDay: 1_000,
+  requestsPerMinute: 30,
+} as const;
+
 export const profileRouter = router({
+  /**
+   * Which AI providers receive user data right now (the consent sheet,
+   * profile toggle and privacy page name them). Public: the privacy page is
+   * read signed out. Derived from the live routing (lib/ai/index.ts).
+   */
+  aiProviders: publicProcedure.query(() => aiProviderDisclosure),
+
   /**
    * Returns today's AI usage counts per call type for the current user,
    * alongside the known free-tier limits for each provider.
@@ -39,7 +57,9 @@ export const profileRouter = router({
       counts[log.callType]++;
     }
 
-    // Total Gemini calls (meal plan + swap + shopping list + chat + vision)
+    // Total AI calls (meal plan + swap + shopping list + chat + vision). The
+    // field keeps its old name for shipped clients; it counts whatever
+    // provider serves them (primaryProvider).
     const geminiTotal =
       counts[AiCallType.MEAL_PLAN] +
       counts[AiCallType.RECIPE_SWAP] +
@@ -48,9 +68,20 @@ export const profileRouter = router({
       counts[AiCallType.SCAN] +
       counts[AiCallType.RECIPE_IMPORT];
 
+    const primary = aiProviderDisclosure.primary;
     return {
       today: counts,
       geminiTotal,
+      /** The provider serving most workloads (admin telemetry card). */
+      primaryProvider: {
+        id: primary,
+        name: AI_PROVIDERS[primary].name,
+        ...(primary === 'gemini'
+          ? GEMINI_FREE_LIMITS
+          : primary === 'groq'
+            ? GROQ_FREE_LIMITS
+            : { requestsPerDay: null, requestsPerMinute: null }),
+      },
       limits: {
         gemini: GEMINI_FREE_LIMITS,
         // Pollinations is free with no enforced limits

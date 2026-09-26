@@ -4,7 +4,8 @@ import { createContext, useCallback, useContext, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { AI_CONSENT_COPY, AI_CONSENT_FEATURE_DATA, type AiConsentFeature } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
-import { aiConsentIntro, needsAiDataConsent } from '@chefer/utils';
+import { aiConsentBackupLine, aiConsentIntro, needsAiDataConsent } from '@chefer/utils';
+import { useAiProviderDisclosure } from './use-ai-providers';
 
 // ─── AI data consent gate (App Store 5.1.2(i)) ───────────────────────────────
 // Every client action that sends personal data to the AI provider goes
@@ -47,6 +48,8 @@ export function useAiConsentOpen(): boolean {
 export function AiConsentProvider({ children }: { children: React.ReactNode }) {
   const utils = trpc.useUtils();
   const { data: me } = trpc.user.me.useQuery(undefined, { staleTime: 30_000 });
+  const providers = useAiProviderDisclosure();
+  const backupLine = aiConsentBackupLine(providers);
   const [pending, setPending] = useState<{ feature: AiConsentFeature; run: () => void } | null>(
     null,
   );
@@ -115,7 +118,7 @@ export function AiConsentProvider({ children }: { children: React.ReactNode }) {
         }
       >
         <div className="space-y-3 px-5 pb-2 text-sm text-gray-700" data-testid="ai-consent-sheet">
-          <p>{aiConsentIntro(feature)}</p>
+          <p>{aiConsentIntro(feature, providers)}</p>
           <div>
             <h3 className="font-semibold text-gray-900">{AI_CONSENT_COPY.sentHeading}</h3>
             <ul className="mt-1 list-disc space-y-1 pl-5">
@@ -125,7 +128,7 @@ export function AiConsentProvider({ children }: { children: React.ReactNode }) {
             </ul>
           </div>
           <p className="font-medium text-gray-900">{AI_CONSENT_COPY.noTraining}</p>
-          <p>{AI_CONSENT_COPY.backupProvider}</p>
+          {backupLine && <p>{backupLine}</p>}
           <p>{AI_CONSENT_COPY.control}</p>
           <p>
             <a

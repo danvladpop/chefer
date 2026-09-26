@@ -1,8 +1,10 @@
 import { Linking, Switch, View } from 'react-native';
 import { AI_CONSENT_COPY } from '@chefer/types';
 import { Button, Card, Text } from '@chefer/ui-mobile';
+import { aiConsentToggleOn } from '@chefer/utils';
 import { getWebUrl } from '../../lib/api-url';
 import { trpc } from '../../lib/trpc';
+import { useAiProviderDisclosure } from '../ai-consent/use-ai-providers';
 
 // AI & your data (App Store 5.1.2(i)) — the standing control for the consent
 // the AI guard asks for before the first AI action. Off = the next AI action
@@ -13,6 +15,7 @@ const TRACK = { true: '#944a00', false: '#d1d5db' };
 export function AiConsentCard() {
   const utils = trpc.useUtils();
   const { data: user } = trpc.user.me.useQuery(undefined, { staleTime: 30_000 });
+  const providers = useAiProviderDisclosure();
   const onSaved = ({ aiDataConsentAt }: { aiDataConsentAt: Date | null }) =>
     utils.user.me.setData(undefined, (prev) => (prev ? { ...prev, aiDataConsentAt } : prev));
   const grant = trpc.user.grantAiDataConsent.useMutation({ onSuccess: onSaved });
@@ -27,7 +30,7 @@ export function AiConsentCard() {
         <View className="min-w-0 flex-1">
           <Text className="text-sm font-medium text-gray-900">{AI_CONSENT_COPY.toggleTitle}</Text>
           <Text variant="muted" className="text-xs">
-            {enabled ? AI_CONSENT_COPY.toggleOn : AI_CONSENT_COPY.toggleOff}
+            {enabled ? aiConsentToggleOn(providers) : AI_CONSENT_COPY.toggleOff}
           </Text>
         </View>
         <Switch

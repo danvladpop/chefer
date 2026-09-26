@@ -81,6 +81,18 @@ describe('ScanService.analyzeMealPhoto', () => {
     expect(console.error).toHaveBeenCalledWith('[AI] analyzeMealPhoto failed:', gemini429);
   });
 
+  it('refunds the scan on a capacity failure, but not on a bad read (attempts count)', async () => {
+    const release = vi.fn();
+    vi.mocked(reserveMealScan).mockResolvedValue({ release });
+    analyzeMock.mockRejectedValueOnce(Object.assign(new Error('daily cap'), { status: 429 }));
+    await new ScanService().analyzeMealPhoto(premiumUser, 'AAAA', 'image/jpeg').catch(() => null);
+    expect(release).toHaveBeenCalledTimes(1);
+
+    analyzeMock.mockRejectedValueOnce(new Error('response failed validation'));
+    await new ScanService().analyzeMealPhoto(premiumUser, 'AAAA', 'image/jpeg').catch(() => null);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
   it('maps other AI failures to the friendly photo fallback', async () => {
     analyzeMock.mockRejectedValue(new Error('response failed validation'));
     await expect(

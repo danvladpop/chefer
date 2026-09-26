@@ -2,6 +2,12 @@ import type { ZodType } from 'zod';
 import { getAiCallContext } from './call-context.js';
 import { CHAT_TOOL_DEFINITIONS, dispatchChatTool, streamText } from './chat-tools.js';
 import {
+  CF_FREE_NEURONS_PER_DAY,
+  neuronsForCall,
+  textBudgetAllows,
+  type NeuronBudget,
+} from './cloudflare-budget.js';
+import {
   buildCheferizeUserPrompt,
   buildExtractRecipeUserPrompt,
   buildIngredientPricesPrompt,
@@ -86,6 +92,13 @@ import { logAiUsage } from './usage.js';
 //   token budget (rate-limit.ts). See docs/ai-providers.md "Groq limits".
 // - RATE LIMITS: background calls (isBackgroundCall) wait out one short 429
 //   and retry; interactive calls throw so the chain can fail over.
+// - CLOUDFLARE WORKERS AI (free-only mode) is this same client at
+//   …/accounts/{id}/ai/v1 with a `neuronBudget`: every call adds its reported
+//   neurons to the day's ledger, and once the text share is used up calls
+//   throw a capacity error (429, no retry) so the chain moves on or the user
+//   gets the friendly "over capacity" message.
+// - FAST MODEL: `fastModel` (optional) serves the simple JSON workloads in
+//   FAST_MODEL_OPS; everything else uses `model`.
 
 const REQUEST_TIMEOUT_MS = 90_000;
 
@@ -128,6 +141,16 @@ const BACKGROUND_OPS = new Set([
   'generateReviewText',
 ]);
 const CHUNK_LABEL = 'generateMealPlan.day';
+/**
+ * Operations simple enough for a smaller model (AI_SECONDARY_FAST_MODEL /
+ * CF_FAST_MODEL): flat JSON lookups and a short paragraph — no allergen
+ * reasoning, no recipes. Chat stays on the main model (tool calls write data).
+ */
+export const FAST_MODEL_OPS: ReadonlySet<string> = new Set([
+  'estimateIngredientPrices',
+  'generateShoppingList',
+  'generateReviewText',
+]);
 
 /** Image types OpenAI-compatible vision endpoints accept as data URLs. */
 const VISION_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -148,6 +171,16 @@ export interface OpenAICompatConfig {
    * vision model.
    */
   reasoningEffort?: 'low' | 'medium' | 'high' | undefined;
+  /** Cheaper model for FAST_MODEL_OPS at the same endpoint; unset = `model` for everything. */
+  fastModel?: string | undefined;
+  /** `reasoning_effort` for `fastModel` (resolved like reasoningEffort). */
+  fastReasoningEffort?: 'low' | 'medium' | 'high' | undefined;
+  /** Extra request fields for vision-model calls (e.g. Gemma 4's thinking switch). */
+  visionExtras?: Record<string, unknown> | undefined;
+  /** Workers AI: today's neuron ledger + the text share; calls stop once it is used up. */
+  neuronBudget?: NeuronBudget | undefined;
+  /** Provider name in usage logs; default = the endpoint's hostname. */
+  providerLabel?: string | undefined;
   /** Test seam: waits between chunk retries and rate-limit pauses. */
   sleep?: ((ms: number) => Promise<void>) | undefined;
   /** Test seam: clock for the rate-limit state. */
@@ -178,6 +211,8 @@ interface ChatCompletionResponse {
     completion_tokens?: number;
     total_tokens?: number;
     completion_tokens_details?: { reasoning_tokens?: number };
+    /** Workers AI only: what the call cost (also sent as the cf-ai-neurons header). */
+    neurons?: number;
   };
 }
 
@@ -325,15 +360,19 @@ type HttpError = Error & { status?: number; retryAfterMs?: number; failover?: bo
 
 /**
  * Groq's strict structured-output mode could not produce a schema-valid
- * document: 400 json_validate_failed ("Failed to validate JSON", or "max
- * completion tokens reached before generating a valid document"). Not a
+ * document: 400 json_validate_failed ("Failed to validate JSON", "max
+ * completion tokens reached before generating a valid document", or
+ * "Generated JSON does not match the expected schema" — the error text is cut
+ * at 300 chars, so the code itself may be missing from the message). Not a
  * rejection of json_schema itself — the call is retried in json_object mode.
  */
 function isStrictGenerationFailure(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   return (
     (err as HttpError).status === 400 &&
-    /json_validate_failed|failed to validate json|max completion tokens reached/i.test(err.message)
+    /json_validate_failed|failed to validate json|max completion tokens reached|does not match the expected schema/i.test(
+      err.message,
+    )
   );
 }
 
@@ -415,7 +454,7 @@ export class OpenAICompatibleAIService implements IAIService {
   private async chatCompletion(
     body: Record<string, unknown>,
     label: string,
-    model: string = this.config.model,
+    model: string = this.textModelFor(label),
   ): Promise<ChatCompletionResponse> {
     try {
       return await this.chatCompletionOnce(body, label, model);
@@ -435,25 +474,59 @@ export class OpenAICompatibleAIService implements IAIService {
     }
   }
 
+  /** The model for a text call: the fast model for FAST_MODEL_OPS when set. */
+  private textModelFor(label: string): string {
+    return this.config.fastModel && FAST_MODEL_OPS.has(label)
+      ? this.config.fastModel
+      : this.config.model;
+  }
+
+  /** Model-specific request fields: reasoning effort (text models), vision extras. */
+  private modelExtras(model: string): Record<string, unknown> {
+    // Reasoning effort applies to the text models only (the vision model is a
+    // different family with different accepted values).
+    if (model === this.config.model && this.config.reasoningEffort) {
+      return { reasoning_effort: this.config.reasoningEffort };
+    }
+    if (model === this.config.fastModel && this.config.fastReasoningEffort) {
+      return { reasoning_effort: this.config.fastReasoningEffort };
+    }
+    if (model === this.config.visionModel && model !== this.config.model) {
+      return this.config.visionExtras ?? {};
+    }
+    return {};
+  }
+
+  /**
+   * Workers AI's text share of today's free neurons is used up: a capacity
+   * error (429 → the chain fails over; last in the chain → the friendly
+   * over-capacity message). No retryAfterMs, so nothing waits and retries.
+   */
+  private budgetExhaustedError(label: string, budget: NeuronBudget): HttpError {
+    const err: HttpError = new Error(
+      `OpenAICompatibleAIService: ${label} skipped — today's Workers AI text budget is used up (${Math.round(
+        budget.ledger.usedToday(),
+      )}/${budget.textLimit} of ${CF_FREE_NEURONS_PER_DAY} neurons)`,
+    );
+    err.status = 429;
+    return err;
+  }
+
   private async chatCompletionOnce(
     body: Record<string, unknown>,
     label: string,
     model: string,
   ): Promise<ChatCompletionResponse> {
+    const budget = this.config.neuronBudget;
+    if (budget && !textBudgetAllows(budget)) throw this.budgetExhaustedError(label, budget);
     const started = Date.now();
-    // Reasoning effort applies to the text model only (the vision model is a
-    // different family with different accepted values).
-    const reasoning =
-      this.config.reasoningEffort && model === this.config.model
-        ? { reasoning_effort: this.config.reasoningEffort }
-        : {};
     const res = await fetch(`${this.config.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${this.config.apiKey}`,
       },
-      body: JSON.stringify({ model, ...reasoning, ...body }),
+      body: JSON.stringify({ model, ...this.modelExtras(model), ...body }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     this.rate.record(res.headers);
@@ -478,6 +551,21 @@ export class OpenAICompatibleAIService implements IAIService {
     const outputTokens = json.usage?.completion_tokens;
     this.lastPromptTokens = inputTokens;
     this.tokensSpent += json.usage?.total_tokens ?? (inputTokens ?? 0) + (outputTokens ?? 0);
+    let neurons: { neurons: number; neuronsToday: number } | undefined;
+    if (budget) {
+      const spent = neuronsForCall({
+        reported: json.usage?.neurons,
+        header: res.headers.get('cf-ai-neurons'),
+        model,
+        inputTokens,
+        outputTokens,
+      });
+      budget.ledger.record(spent);
+      neurons = {
+        neurons: Math.round(spent * 100) / 100,
+        neuronsToday: Math.round(budget.ledger.usedToday()),
+      };
+    }
     logAiUsage({
       provider: this.providerName(),
       model,
@@ -486,12 +574,14 @@ export class OpenAICompatibleAIService implements IAIService {
       outputTokens,
       reasoningTokens: json.usage?.completion_tokens_details?.reasoning_tokens,
       ms: Date.now() - started,
+      ...neurons,
     });
     return json;
   }
 
   /** Host of the endpoint (api.groq.com, api.cloudflare.com, …) for usage logs. */
   private providerName(): string {
+    if (this.config.providerLabel) return this.config.providerLabel;
     try {
       return new URL(this.config.baseUrl).hostname;
     } catch {

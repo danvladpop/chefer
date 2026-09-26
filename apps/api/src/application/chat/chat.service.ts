@@ -5,6 +5,7 @@ import {
   mealRatingRepository,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { isAiCapacityFailure } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type { ChatContext, ChatMessage, ChatTools } from '../../lib/ai/index.js';
 import { isPremiumUser } from '../../lib/entitlements.js';
@@ -295,8 +296,10 @@ export class ChatService {
    */
   async chat(user: UserProfile, messages: ChatMessage[]): Promise<ReadableStream> {
     // Atomic reservation up front — the quota counts attempts (parallel
-    // sends used to get 7 of 5 through — audit F-REC-4-2 family).
-    await reserveChatMessage(user);
+    // sends used to get 7 of 5 through — audit F-REC-4-2 family). A capacity
+    // failure (every provider busy or out of free quota) is refunded: that
+    // attempt was ours, not the user's.
+    const reservation = await reserveChatMessage(user);
 
     const plan = await mealPlanService.getActive(user.id);
     const contextSummary = await this.buildContextSummary(user, plan);
@@ -306,7 +309,12 @@ export class ChatService {
       contextSummary,
       tools: this.buildTools(user, plan),
     };
-    return aiService.chat(messages, context);
+    try {
+      return await aiService.chat(messages, context);
+    } catch (err) {
+      if (isAiCapacityFailure(err)) await reservation.release();
+      throw err;
+    }
   }
 }
 

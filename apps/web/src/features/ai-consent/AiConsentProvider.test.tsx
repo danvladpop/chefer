@@ -9,11 +9,13 @@ import { AiConsentProvider, useAiConsent } from './AiConsentProvider';
 
 interface MockState {
   user: { aiDataConsentAt: Date | null };
+  providers: { primary: string; backups: string[] } | undefined;
   grant: ReturnType<typeof vi.fn>;
   action: ReturnType<typeof vi.fn>;
 }
 const m: MockState = vi.hoisted(() => ({
   user: { aiDataConsentAt: null },
+  providers: undefined,
   grant: vi.fn(),
   action: vi.fn(),
 }));
@@ -44,6 +46,9 @@ vi.mock('@/lib/trpc', () => ({
     useUtils: () => ({
       user: { me: { setData: vi.fn(), fetch: () => Promise.resolve(m.user) } },
     }),
+    profile: {
+      aiProviders: { useQuery: () => ({ data: m.providers }) },
+    },
     user: {
       me: { useQuery: () => ({ data: m.user }) },
       grantAiDataConsent: {
@@ -115,6 +120,16 @@ describe('AiConsentProvider', () => {
     expect(screen.getByRole('link', { name: 'Privacy policy' }).getAttribute('href')).toBe(
       '/privacy',
     );
+  });
+
+  it('names Groq and Cloudflare, never Gemini, when the server runs free-only', () => {
+    m.providers = { primary: 'groq', backups: ['cloudflare'] };
+    renderGate();
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+    expect(screen.getByText(/sends some of your data to Groq/)).toBeTruthy();
+    expect(screen.getByText(/handled by Cloudflare Workers AI/)).toBeTruthy();
+    expect(screen.queryByText(/Gemini/)).toBeNull();
+    m.providers = undefined;
   });
 
   it('"Not now" sends nothing and records nothing', () => {

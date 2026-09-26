@@ -11,9 +11,10 @@ import {
 import { Linking, View } from 'react-native';
 import { AI_CONSENT_COPY, AI_CONSENT_FEATURE_DATA, type AiConsentFeature } from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
-import { aiConsentIntro, needsAiDataConsent } from '@chefer/utils';
+import { aiConsentBackupLine, aiConsentIntro, needsAiDataConsent } from '@chefer/utils';
 import { getWebUrl } from '../../lib/api-url';
 import { trpc } from '../../lib/trpc';
+import { useAiProviderDisclosure } from './use-ai-providers';
 
 // ─── AI data consent gate (App Store 5.1.2(i)) ───────────────────────────────
 // Mirrors apps/web/src/features/ai-consent/AiConsentProvider.tsx; the copy and
@@ -194,6 +195,8 @@ export function AiConsentHost() {
 
 function AiConsentSheet({ state }: { state: ConsentState }) {
   const { feature } = state;
+  const providers = useAiProviderDisclosure();
+  const backupLine = aiConsentBackupLine(providers);
   return (
     <Sheet
       visible={state.open}
@@ -212,7 +215,7 @@ function AiConsentSheet({ state }: { state: ConsentState }) {
         </View>
       }
     >
-      <Text className="text-base text-gray-800">{aiConsentIntro(feature)}</Text>
+      <Text className="text-base text-gray-800">{aiConsentIntro(feature, providers)}</Text>
       <View className="gap-1">
         <Text className="text-sm font-semibold text-gray-900">{AI_CONSENT_COPY.sentHeading}</Text>
         {AI_CONSENT_FEATURE_DATA[feature].data.map((line) => (
@@ -223,9 +226,11 @@ function AiConsentSheet({ state }: { state: ConsentState }) {
         ))}
       </View>
       <Text className="text-sm font-medium text-gray-900">{AI_CONSENT_COPY.noTraining}</Text>
-      <Text variant="muted" className="text-sm">
-        {AI_CONSENT_COPY.backupProvider}
-      </Text>
+      {backupLine && (
+        <Text variant="muted" className="text-sm">
+          {backupLine}
+        </Text>
+      )}
       <Text variant="muted" className="text-sm">
         {AI_CONSENT_COPY.control}
       </Text>

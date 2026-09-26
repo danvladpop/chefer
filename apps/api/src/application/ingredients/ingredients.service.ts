@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import { buildPollinationsUrl } from '../../lib/image-gen/pollinations.js';
 import { resolveIngredientImage } from '../../lib/ingredient-images/index.js';
@@ -387,11 +388,11 @@ export class IngredientsService {
       estimate = estimates[0];
     } catch (err) {
       await reservation.release();
-      console.error('AI estimateIngredientPrices failed:', err);
-      throw new TRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Could not estimate nutrition right now. Please fill it in manually.',
-      });
+      throw toFriendlyAiError(
+        err,
+        'estimateIngredientPrices',
+        'Could not estimate nutrition right now. Please fill it in manually.',
+      );
     }
     if (!estimate) return null;
 

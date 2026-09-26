@@ -4,9 +4,12 @@ import {
   AI_WORKLOADS,
   DEFAULT_AI_ROUTES,
   describeRoutes,
+  FREE_ONLY_AI_ROUTES,
   isValidChain,
+  nonFreeRouteSettings,
   parseChain,
   parseShadowRoutes,
+  providersInRoutes,
   resolveRoutes,
 } from './routing.js';
 
@@ -109,5 +112,37 @@ describe('parseShadowRoutes', () => {
     expect(() => parseShadowRoutes('dessert:groq')).toThrow(/cannot be shadowed/);
     expect(() => parseShadowRoutes('mealPlan')).toThrow(/<workload>:<chain>/);
     expect(() => parseShadowRoutes('mealPlan:claude')).toThrow(/unknown AI provider/);
+  });
+});
+
+describe('free-only mode', () => {
+  it('routes every workload, vision included, groq first then cloudflare', () => {
+    for (const w of AI_WORKLOADS) expect(FREE_ONLY_AI_ROUTES[w]).toEqual(['groq', 'cloudflare']);
+  });
+
+  it('resolves to groq>cloudflare with those defaults, and never falls back to gemini', () => {
+    const table = resolveRoutes({}, ['groq', 'cloudflare'], undefined, FREE_ONLY_AI_ROUTES);
+    expect(describeRoutes(table)).not.toContain('gemini');
+    expect(providersInRoutes(table)).toEqual(['groq', 'cloudflare']);
+    // Without the CF keys it is Groq alone — still no Gemini.
+    const groqOnly = resolveRoutes({}, ['groq'], undefined, FREE_ONLY_AI_ROUTES);
+    expect(providersInRoutes(groqOnly)).toEqual(['groq']);
+  });
+
+  it('flags every setting that names gemini, and nothing else', () => {
+    expect(
+      nonFreeRouteSettings({
+        AI_ROUTE_CHAT: 'groq>gemini',
+        AI_ROUTE_SWAP: 'groq>cloudflare',
+        AI_ROUTE_VISION: undefined,
+        AI_SHADOW_ROUTE: 'mealPlan:cloudflare,swap:Gemini',
+      }),
+    ).toEqual(['AI_ROUTE_CHAT=groq>gemini', 'AI_SHADOW_ROUTE=mealPlan:cloudflare,swap:Gemini']);
+    expect(nonFreeRouteSettings({ AI_ROUTE_CHAT: '' })).toEqual([]);
+  });
+
+  it('accepts cloudflare in chains', () => {
+    expect(AI_PROVIDER_NAMES).toContain('cloudflare');
+    expect(parseChain('groq>cloudflare', AI_PROVIDER_NAMES)).toEqual(['groq', 'cloudflare']);
   });
 });

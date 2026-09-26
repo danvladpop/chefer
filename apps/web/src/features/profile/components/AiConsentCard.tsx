@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useAiProviderDisclosure } from '@/features/ai-consent/use-ai-providers';
 import { trpc } from '@/lib/trpc';
 import { AI_CONSENT_COPY } from '@chefer/types';
 import { Switch } from '@chefer/ui';
+import { aiConsentToggleOn } from '@chefer/utils';
 
 // ─── AI & your data (App Store 5.1.2(i)) ─────────────────────────────────────
 // The standing control for the consent the AI guard asks for before the first
@@ -13,6 +15,7 @@ import { Switch } from '@chefer/ui';
 export function AiConsentCard() {
   const utils = trpc.useUtils();
   const { data: user } = trpc.user.me.useQuery(undefined, { staleTime: 30_000 });
+  const providers = useAiProviderDisclosure();
   const onSaved = ({ aiDataConsentAt }: { aiDataConsentAt: Date | null }) =>
     utils.user.me.setData(undefined, (prev) => (prev ? { ...prev, aiDataConsentAt } : prev));
   const grant = trpc.user.grantAiDataConsent.useMutation({ onSuccess: onSaved });
@@ -29,7 +32,7 @@ export function AiConsentCard() {
             {AI_CONSENT_COPY.toggleTitle}
           </p>
           <p className="mt-0.5 text-xs text-gray-600">
-            {enabled ? AI_CONSENT_COPY.toggleOn : AI_CONSENT_COPY.toggleOff}{' '}
+            {enabled ? aiConsentToggleOn(providers) : AI_CONSENT_COPY.toggleOff}{' '}
             <Link
               href={AI_CONSENT_COPY.privacyPath}
               className="touch-target relative text-[#944a00] underline underline-offset-4"

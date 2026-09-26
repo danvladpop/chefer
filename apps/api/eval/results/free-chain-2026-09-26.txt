@@ -1,0 +1,151 @@
+# pnpm ai:eval --route=all --provider=groq>cloudflare --limit=2 --delay-ms=3000 --verbose
+# 2026-09-26, free-only chain: Groq free tier (openai/gpt-oss-120b, reasoning_effort=low; qwen/qwen3.8-27b vision) → Cloudflare Workers AI free plan.
+# Branch feat/free-ai-chain, before d4bff59 (the peanut-allergy plan error below is the bug that commit fixes; not re-run to stay inside the call budget).
+# Groq served every case, so Cloudflare was not reached in this run; see the Cloudflare-only run below. Ids and keys redacted.
+
+[ai:eval] mealPlan on groq>cloudflare…
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":904,"outputTokens":2311,"reasoningTokens":1318,"ms":5277}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":938,"outputTokens":2383,"reasoningTokens":1403,"ms":5320}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":958,"outputTokens":2021,"reasoningTokens":1021,"ms":4923}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":979,"outputTokens":2773,"reasoningTokens":1716,"ms":6217}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":1001,"outputTokens":2114,"reasoningTokens":1088,"ms":4913}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":1031,"outputTokens":2287,"reasoningTokens":1197,"ms":5159}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":1061,"outputTokens":2864,"reasoningTokens":1818,"ms":6219}
+[AI] generateMealPlan (chunked): 7 days, 23625 tokens, paced 97175 ms
+[AI] generateMealPlan: served by api.groq.com/openai/gpt-oss-120b
+  ✓ solo-maintain (135218 ms)
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":899,"outputTokens":2815,"reasoningTokens":1826,"ms":6224}
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":935,"outputTokens":2435,"reasoningTokens":1739,"ms":5575}
+  ! peanut-allergy (75794 ms) — OpenAICompatibleAIService: generateMealPlan.day failed with HTTP 400 — {"error":{"message":"Generated JSON does not match the expected schema. Please adjust your prompt. See 'failed_generation' for more details. Error: jsonschema: '/meals/2/recipe/nutritionInfo/carbs' does not validate with /propert
+[ai:eval] swap on groq>cloudflare…
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateRecipeSwap","inputTokens":345,"outputTokens":298,"reasoningTokens":28,"ms":1027}
+[AI] generateRecipeSwap: served by api.groq.com/openai/gpt-oss-120b
+  ✓ solo-maintain (1027 ms)
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateRecipeSwap","inputTokens":345,"outputTokens":467,"reasoningTokens":67,"ms":1389}
+[AI] generateRecipeSwap: served by api.groq.com/openai/gpt-oss-120b
+  ✓ peanut-allergy (1389 ms)
+[ai:eval] cheferize on groq>cloudflare…
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"cheferizeRecipe","inputTokens":794,"outputTokens":312,"reasoningTokens":71,"ms":1080}
+[AI] cheferizeRecipe: served by api.groq.com/openai/gpt-oss-120b
+  ✓ pad-thai-peanut-shellfish (1081 ms)
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"cheferizeRecipe","inputTokens":777,"outputTokens":534,"reasoningTokens":285,"ms":1428}
+[AI] cheferizeRecipe: served by api.groq.com/openai/gpt-oss-120b
+  ✓ shakshuka-egg-dairy (1428 ms)
+[ai:eval] importText on groq>cloudflare…
+[AI] extractRecipe: rate limited — retrying once in 2000 ms
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"extractRecipe","inputTokens":689,"outputTokens":629,"reasoningTokens":322,"ms":1446}
+[AI] extractRecipe: served by api.groq.com/openai/gpt-oss-120b
+  ✓ lentil-soup (3791 ms)
+[AI] extractRecipe: rate limited — retrying once in 5000 ms
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"extractRecipe","inputTokens":700,"outputTokens":592,"reasoningTokens":307,"ms":1905}
+[AI] extractRecipe: served by api.groq.com/openai/gpt-oss-120b
+  ✓ chicken-traybake (7243 ms)
+[ai:eval] vision on groq>cloudflare…
+[ai.usage] {"provider":"api.groq.com","model":"qwen/qwen3.8-27b","op":"analyzeMealPhoto","inputTokens":2149,"outputTokens":45,"ms":680}
+[AI] analyzeMealPhoto: served by api.groq.com/openai/gpt-oss-120b
+  ✓ synthetic-gradient (681 ms)
+[ai.usage] {"provider":"api.groq.com","model":"qwen/qwen3.8-27b","op":"analyzeMealPhoto","inputTokens":2149,"outputTokens":49,"ms":951}
+[AI] analyzeMealPhoto: served by api.groq.com/openai/gpt-oss-120b
+  ✓ synthetic-checker (952 ms)
+[ai:eval] review on groq>cloudflare…
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateReviewText","inputTokens":372,"outputTokens":186,"reasoningTokens":68,"ms":484}
+[AI] generateReviewText: served by api.groq.com/openai/gpt-oss-120b
+  ✓ on-track (485 ms)
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateReviewText","inputTokens":353,"outputTokens":171,"reasoningTokens":59,"ms":740}
+[AI] generateReviewText: served by api.groq.com/openai/gpt-oss-120b
+  ✓ low-logging (740 ms)
+[ai:eval] prices on groq>cloudflare…
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"estimateIngredientPrices","inputTokens":617,"outputTokens":844,"reasoningTokens":10,"ms":2146}
+[AI] estimateIngredientPrices: served by api.groq.com/openai/gpt-oss-120b
+  ✓ batch-1 (2146 ms)
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"estimateIngredientPrices","inputTokens":616,"outputTokens":843,"reasoningTokens":10,"ms":2051}
+[AI] estimateIngredientPrices: served by api.groq.com/openai/gpt-oss-120b
+  ✓ batch-2 (2052 ms)
+[ai:eval] shopping on groq>cloudflare…
+[AI] generateShoppingList: rate limited — retrying once in 8000 ms
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateShoppingList","inputTokens":419,"outputTokens":289,"reasoningTokens":164,"ms":804}
+[AI] generateShoppingList: served by api.groq.com/openai/gpt-oss-120b
+  ✓ week-omnivore (9120 ms)
+[ai.usage] {"provider":"api.groq.com","model":"openai/gpt-oss-120b","op":"generateShoppingList","inputTokens":402,"outputTokens":200,"reasoningTokens":69,"ms":563}
+[AI] generateShoppingList: served by api.groq.com/openai/gpt-oss-120b
+  ✓ week-vegan (563 ms)
+
+workload   | provider        | cases | errors | schema | allergen | restrict | kcal err | macro err | p50 ms | p95 ms | tokens in/out | checks                                                      | gate
+-----------|-----------------|-------|--------|--------|----------|----------|----------|-----------|--------|--------|---------------|-------------------------------------------------------------|-----
+mealPlan   | groq>cloudflare | 2     | 1      | 50%    | 0        | 0        | 2.7%     | 13.4%     | 75794  | 135218 | 8706/22003    | sevenDays=1 mealCount=1 uniqueDishes=1                      | FAIL
+swap       | groq>cloudflare | 2     | 0      | 100%   | 0        | 0        | —        | —         | 1027   | 1389   | 690/765       | —                                                           | PASS
+cheferize  | groq>cloudflare | 2     | 0      | 100%   | 0        | 0        | —        | —         | 1081   | 1428   | 1571/846      | servings=1                                                  | PASS
+importText | groq>cloudflare | 2     | 0      | 100%   | 0        | 0        | 0%       | —         | 3791   | 7243   | 1389/1221     | sentinelCorrect=1 nameMatch=1 ingredientRecall=1 servings=1 | PASS
+vision     | groq>cloudflare | 2     | 0      | 100%   | 0        | 0        | —        | —         | 681    | 952    | 4298/94       | dishMatch=1                                                 | PASS
+review     | groq>cloudflare | 2     | 0      | 100%   | 0        | 0        | —        | —         | 485    | 740    | 725/357       | —                                                           | PASS
+prices     | groq>cloudflare | 2     | 0      | 100%   | 0        | 0        | 13.7%    | —         | 2052   | 2146   | 1233/1687     | coverage=1                                                  | PASS
+shopping   | groq>cloudflare | 2     | 0      | 100%   | 0        | 0        | —        | —         | 563    | 9120   | 821/489       | coverage=1 consolidated=1                                   | PASS
+
+gate FAIL mealPlan: 1/2 cases errored; schema-valid 50% < 95%
+
+JSON report written to /private/tmp/claude-501/-Users-danpop-work-git-projects-chefer/1169ce76-580e-4907-a845-32f7a414cef3/scratchpad/chain.json
+exit=1
+
+# ────────────────────────────────────────────────────────────────────────────
+# pnpm ai:eval --route=all --provider=cloudflare --limit=1 --delay-ms=1000 --verbose
+# 2026-09-26, Cloudflare Workers AI free plan alone: @cf/openai/gpt-oss-120b (reasoning_effort=low),
+# @cf/google/gemma-4-26b-a4b-it for vision (thinking off). 15 calls here + 4 endpoint probes = 19 Cloudflare calls.
+# ("served by workers-ai/@cf/openai/gpt-oss-120b" is the provider's display name; the photo ran on gemma-4, see its [ai.usage] line.)
+
+[ai:eval] mealPlan on cloudflare…
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":530,"outputTokens":2970,"ms":70167,"neurons":219.36,"neuronsToday":219}
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":560,"outputTokens":3402,"ms":59104,"neurons":249.77,"neuronsToday":469}
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":582,"outputTokens":3192,"ms":34839,"neurons":236.15,"neuronsToday":705}
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":610,"outputTokens":1903,"ms":24282,"neurons":149.16,"neuronsToday":854}
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":635,"outputTokens":3726,"ms":59500,"neurons":274.25,"neuronsToday":1129}
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":654,"outputTokens":4000,"ms":73967,"neurons":293.54,"neuronsToday":1422}
+[AI] generateMealPlan.day: response JSON is malformed (output may have been truncated) — Unterminated string in JSON at position 3109 — one repair retry
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":1718,"outputTokens":2320,"ms":41962,"neurons":212.85,"neuronsToday":1635}
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"generateMealPlan.day","inputTokens":678,"outputTokens":3124,"ms":45412,"neurons":234.57,"neuronsToday":1870}
+[AI] generateMealPlan (chunked): 7 days, 30604 tokens, paced 0 ms
+[AI] generateMealPlan: served by workers-ai/@cf/openai/gpt-oss-120b
+  ✓ solo-maintain (409241 ms)
+[ai:eval] swap on cloudflare…
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"generateRecipeSwap","inputTokens":310,"outputTokens":363,"ms":6840,"neurons":34.61,"neuronsToday":1904}
+[AI] generateRecipeSwap: served by workers-ai/@cf/openai/gpt-oss-120b
+  ✓ solo-maintain (6840 ms)
+[ai:eval] cheferize on cloudflare…
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"cheferizeRecipe","inputTokens":759,"outputTokens":593,"ms":11162,"neurons":64.58,"neuronsToday":1969}
+[AI] cheferizeRecipe: served by workers-ai/@cf/openai/gpt-oss-120b
+  ✓ pad-thai-peanut-shellfish (11162 ms)
+[ai:eval] importText on cloudflare…
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"extractRecipe","inputTokens":654,"outputTokens":570,"ms":13142,"neurons":59.67,"neuronsToday":2029}
+[AI] extractRecipe: served by workers-ai/@cf/openai/gpt-oss-120b
+  ✓ lentil-soup (13143 ms)
+[ai:eval] vision on cloudflare…
+[ai.usage] {"provider":"cloudflare","model":"@cf/google/gemma-4-26b-a4b-it","op":"analyzeMealPhoto","inputTokens":619,"outputTokens":46,"ms":840,"neurons":6.88,"neuronsToday":2035}
+[AI] analyzeMealPhoto: served by workers-ai/@cf/openai/gpt-oss-120b
+  ✓ synthetic-gradient (840 ms)
+[ai:eval] review on cloudflare…
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"generateReviewText","inputTokens":365,"outputTokens":210,"ms":3294,"neurons":25.93,"neuronsToday":2061}
+[AI] generateReviewText: served by workers-ai/@cf/openai/gpt-oss-120b
+  ✓ on-track (3296 ms)
+[ai:eval] prices on cloudflare…
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"estimateIngredientPrices","inputTokens":582,"outputTokens":1780,"ms":35260,"neurons":139.88,"neuronsToday":2201}
+[AI] estimateIngredientPrices: served by workers-ai/@cf/openai/gpt-oss-120b
+  ✓ batch-1 (35261 ms)
+[ai:eval] shopping on cloudflare…
+[ai.usage] {"provider":"cloudflare","model":"@cf/openai/gpt-oss-120b","op":"generateShoppingList","inputTokens":384,"outputTokens":264,"ms":5386,"neurons":30.22,"neuronsToday":2231}
+[AI] generateShoppingList: served by workers-ai/@cf/openai/gpt-oss-120b
+  ✓ week-omnivore (5386 ms)
+
+workload   | provider   | cases | errors | schema | allergen | restrict | kcal err | macro err | p50 ms | p95 ms | tokens in/out | checks                                                      | gate
+-----------|------------|-------|--------|--------|----------|----------|----------|-----------|--------|--------|---------------|-------------------------------------------------------------|-----
+mealPlan   | cloudflare | 1     | 0      | 100%   | 0        | 0        | 8.8%     | 10.9%     | 409241 | 409241 | 5967/24637    | sevenDays=1 mealCount=1 uniqueDishes=1                      | PASS
+swap       | cloudflare | 1     | 0      | 100%   | 0        | 0        | —        | —         | 6840   | 6840   | 310/363       | —                                                           | PASS
+cheferize  | cloudflare | 1     | 0      | 100%   | 0        | 0        | —        | —         | 11162  | 11162  | 759/593       | servings=1                                                  | PASS
+importText | cloudflare | 1     | 0      | 100%   | 0        | 0        | 0%       | —         | 13143  | 13143  | 654/570       | sentinelCorrect=1 nameMatch=1 ingredientRecall=1 servings=1 | PASS
+vision     | cloudflare | 1     | 0      | 100%   | 0        | 0        | —        | —         | 840    | 840    | 619/46        | dishMatch=1                                                 | PASS
+review     | cloudflare | 1     | 0      | 100%   | 0        | 0        | —        | —         | 3296   | 3296   | 365/210       | —                                                           | PASS
+prices     | cloudflare | 1     | 0      | 100%   | 0        | 0        | 10.7%    | —         | 35261  | 35261  | 582/1780      | coverage=1                                                  | PASS
+shopping   | cloudflare | 1     | 0      | 100%   | 0        | 0        | —        | —         | 5386   | 5386   | 384/264       | coverage=1 consolidated=1                                   | PASS
+
+Cloudflare Workers AI: 15 calls, 2231 neurons (free plan: 10,000/day)
+
+JSON report written to /private/tmp/claude-501/-Users-danpop-work-git-projects-chefer/1169ce76-580e-4907-a845-32f7a414cef3/scratchpad/cf.json
+exit=0

@@ -10,6 +10,7 @@ import {
   type EvalProviderName,
 } from '../routing.js';
 import type { IAIService } from '../types.js';
+import { onAiUsage } from '../usage.js';
 import { loadEvalProviderConfig } from './env.js';
 import { GOLDEN_DIR, loadGoldenSet } from './golden.js';
 import { EVAL_WORKLOADS, runEval } from './runner.js';
@@ -28,7 +29,7 @@ import {
 //
 //   --route        mealPlan, swap, cheferize, importText, vision, review, prices,
 //                  shopping (chat is not evaluated offline: its tools write data)
-//   --provider     a chain like the AI_ROUTE_* values: gemini, groq, groq>gemini,
+//   --provider     a chain like the AI_ROUTE_* values: gemini, groq, cloudflare, groq>cloudflare,
 //                  or mock (fixtures, no keys, no cost)
 //   --limit        at most N cases per workload (cost control on live providers)
 //   --concurrency  cases in flight at once (default 1)
@@ -145,6 +146,16 @@ export async function main(): Promise<void> {
     return;
   }
 
+  // Workers AI neurons spent by this run (usage.neurons on every CF call).
+  let neurons = 0;
+  let cfCalls = 0;
+  onAiUsage((u) => {
+    if (u.neurons !== undefined) {
+      neurons += u.neurons;
+      cfCalls += 1;
+    }
+  });
+
   // Provider chatter ([ai.usage], "served by") would bury the table.
   if (!args.verbose) console.info = () => undefined;
 
@@ -175,6 +186,11 @@ export async function main(): Promise<void> {
 
   const summaries = report.map((r) => r.summary);
   process.stdout.write(`\n${formatSummaryTable(summaries)}\n\n`);
+  if (cfCalls > 0) {
+    process.stdout.write(
+      `Cloudflare Workers AI: ${cfCalls} calls, ${Math.round(neurons)} neurons (free plan: 10,000/day)\n\n`,
+    );
+  }
   const json = JSON.stringify({ provider, ranAt: new Date().toISOString(), report }, null, 2);
   if (args.out) {
     writeFileSync(args.out, `${json}\n`);

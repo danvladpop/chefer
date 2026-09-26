@@ -1,5 +1,5 @@
 import type { UserProfile } from '@chefer/types';
-import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
+import { isAiCapacityFailure, toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type { MealPhotoEstimate } from '../../lib/ai/index.js';
 import { reserveMealScan } from '../../lib/quotas.js';
@@ -21,14 +21,16 @@ export class ScanService {
     mimeType: string,
   ): Promise<MealPhotoEstimate> {
     // Atomic reservation: parallel scans can't exceed the daily limit
-    // (12 of 10 — audit F-TRK-2-2). Attempts count, so no refund.
-    await reserveMealScan(user);
+    // (12 of 10 — audit F-TRK-2-2). Attempts count — except a capacity
+    // failure (every provider busy or out of free quota), which is refunded.
+    const reservation = await reserveMealScan(user);
 
     // Upstream AI failures (free-tier 429s, timeouts) become one friendly
     // sentence (§4.5.2); the raw error stays in the server log.
     try {
       return await aiService.analyzeMealPhoto(imageBase64, mimeType);
     } catch (err) {
+      if (isAiCapacityFailure(err)) await reservation.release();
       throw toFriendlyAiError(
         err,
         'analyzeMealPhoto',

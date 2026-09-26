@@ -30,5 +30,19 @@ export function loadEvalProviderConfig(): ProviderConfig {
     secondaryModel: env.AI_SECONDARY_MODEL,
     visionModel: env.AI_VISION_MODEL,
     reasoningEffort: env.AI_SECONDARY_REASONING_EFFORT,
+    secondaryFastModel: env.AI_SECONDARY_FAST_MODEL,
+    // The eval builds only the providers named in --provider, so the CF keys
+    // being present is enough here (no opt-in needed, unlike the app).
+    cloudflare:
+      env.CF_ACCOUNT_ID && env.CF_API_TOKEN
+        ? {
+            accountId: env.CF_ACCOUNT_ID,
+            apiToken: env.CF_API_TOKEN,
+            textModel: env.CF_TEXT_MODEL,
+            visionModel: env.CF_VISION_MODEL,
+            fastModel: env.CF_FAST_MODEL,
+            textNeuronBudget: env.CF_TEXT_NEURON_BUDGET,
+          }
+        : undefined,
   };
 }

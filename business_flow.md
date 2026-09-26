@@ -1828,8 +1828,11 @@ user taps an AI action ──► requestAiConsent(feature, run, { usesAi })
   └─ null (never asked, or revoked)
         └─ consent Sheet (AI_CONSENT_COPY):
              "Allow AI to use your data?"
-             "To <action>, Chefer sends some of your data to Google Gemini, a
+             "To <action>, Chefer sends some of your data to <primary>, a
               third-party AI service, which uses it only to produce the result."
+             (<primary>/<backups> from profile.aiProviders — Google Gemini +
+              Groq by default; Groq + Cloudflare Workers AI when the API runs
+              AI_FREE_ONLY=true)
              What gets sent: <per-feature list, AI_CONSENT_FEATURE_DATA>
              "Your data is not used to train AI models."
              backup-provider line · "You can turn this off at any time in
@@ -1856,6 +1859,23 @@ recipe image generation.
 
 **Revoking:** Profile → "AI & your data" → "Allow AI features to process my
 data" switch (web + mobile) → `user.revokeAiDataConsent` / `grantAiDataConsent`.
+
+**Who is named (2026-09-26):** the sheet, the Profile switch's "on" text, the
+web privacy page ("AI processing" + "Who receives your data") and the support
+FAQ never hard-code a provider. They read `profile.aiProviders` (public), which
+the API derives from its live route table, and fill the shared templates in
+`@chefer/types` `AI_CONSENT_COPY` via `@chefer/utils` (`aiConsentIntro`,
+`aiConsentBackupLine`, `aiConsentToggleOn`). Until it answers, or against an
+API that predates it, clients show the standard set (Gemini, Groq backup).
+
+**When the AI is out of capacity** (every provider in a chain busy or past its
+free daily quota): the user sees "The chef is over capacity right now — give it
+a minute and try again." (never a raw error), and the day's quota reservation is
+refunded — plans, swaps, imports and ingredient estimates on any failure,
+chat messages and meal scans on capacity failures only (other failed attempts
+still count). The Sunday auto-plan stops asking for premium plans for that tick
+and retries the rest on the next hourly tick; the ingredient-price worker backs
+off 90 s → doubling → 1 h.
 
 ---
 
