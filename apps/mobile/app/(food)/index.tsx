@@ -191,9 +191,9 @@ export default function HomeScreen() {
               Later today
             </Text>
             <View className="gap-2.5">
-              {d.restOfToday.map((meal) => (
+              {d.restOfToday.map((meal, i) => (
                 <Pressable
-                  key={meal.mealType}
+                  key={`${meal.mealType}-${i}`}
                   testID={`later-today-${meal.mealType}`}
                   accessibilityRole="button"
                   disabled={!meal.recipeId}

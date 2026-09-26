@@ -630,11 +630,11 @@ export default function MealPlanPage() {
                     }`}
                   >
                     {/* Meal cards */}
-                    {day.meals.map((slot) => {
+                    {day.meals.map((slot, slotIndex) => {
                       const override = imageOverrides[slot.recipe.id];
                       return (
                         <MealCard
-                          key={slot.type}
+                          key={`${slot.type}-${slotIndex}`}
                           mealType={slot.type}
                           recipe={slot.recipe}
                           planId={plan.planId}
