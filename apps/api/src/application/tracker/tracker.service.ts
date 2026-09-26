@@ -355,6 +355,21 @@ export const trackerService = {
     return weightEntryRepository.create({ userId, weightKg, recordedAt });
   },
 
+  async updateWeight(userId: string, id: string, weightKg: number, dateStr?: string) {
+    const updated = await weightEntryRepository.updateForUser(userId, id, {
+      weightKg,
+      ...(dateStr && { recordedAt: new Date(dateStr) }),
+    });
+    if (!updated) throw new TRPCError({ code: 'NOT_FOUND', message: 'Weigh-in not found' });
+    return updated;
+  },
+
+  async deleteWeight(userId: string, id: string) {
+    const deleted = await weightEntryRepository.deleteForUser(userId, id);
+    if (!deleted) throw new TRPCError({ code: 'NOT_FOUND', message: 'Weigh-in not found' });
+    return { success: true as const };
+  },
+
   async weightHistory(userId: string, days: number) {
     return weightEntryRepository.findLastN(userId, days);
   },

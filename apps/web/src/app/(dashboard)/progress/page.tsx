@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { WeightEntriesList } from '@/features/coach/components/WeightEntriesList';
+import { WeightLogForm } from '@/features/coach/components/WeightLogForm';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
 import { Flame, Scale, TrendingUp } from 'lucide-react';
@@ -19,9 +20,6 @@ import {
 import { ErrorState } from '@chefer/ui';
 
 export default function ProgressPage() {
-  const [weightInput, setWeightInput] = useState('');
-  const [weightSaved, setWeightSaved] = useState(false);
-
   // Tooltips stay on the default hover trigger. Tapping a chart already opens
   // them: browsers fire compatibility mouse events (mouseover/mousemove/click)
   // on tap, which is what Recharts listens for. Measured against a click
@@ -43,19 +41,10 @@ export default function ProgressPage() {
   } = trpc.tracker.monthlySummary.useQuery(undefined, {
     staleTime: 60_000,
   });
-  const { data: weightHistory, refetch: refetchWeight } = trpc.tracker.weightHistory.useQuery(
+  const { data: weightHistory } = trpc.tracker.weightHistory.useQuery(
     { days: 90 },
     { staleTime: 60_000 },
   );
-
-  const logWeightMutation = trpc.tracker.logWeight.useMutation({
-    onSuccess: () => {
-      setWeightSaved(true);
-      setWeightInput('');
-      setTimeout(() => setWeightSaved(false), 3000);
-      void refetchWeight();
-    },
-  });
 
   const chartData = (monthly?.days ?? []).map((d) => ({
     date: format(parseISO(d.date), 'dd MMM'),
@@ -283,31 +272,10 @@ export default function ProgressPage() {
             )}
 
             {/* Log weight input */}
-            <div className="mt-4 flex gap-2">
-              <input
-                type="number"
-                step="0.1"
-                min="30"
-                max="300"
-                value={weightInput}
-                onChange={(e) => setWeightInput(e.target.value)}
-                placeholder="72.5"
-                inputMode="decimal"
-                aria-label="Weight in kilograms"
-                className="min-h-11 min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-sm focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00]"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const kg = parseFloat(weightInput);
-                  if (!isNaN(kg) && kg > 0) logWeightMutation.mutate({ weightKg: kg });
-                }}
-                disabled={!weightInput || logWeightMutation.isPending || weightSaved}
-                className="min-h-11 shrink-0 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition hover:bg-[#7a3d00] disabled:opacity-50"
-              >
-                {weightSaved ? '✓ Saved' : 'Log'}
-              </button>
+            <div className="mt-4">
+              <WeightLogForm label="Weight in kilograms" />
             </div>
+            <WeightEntriesList entries={weightHistory ?? []} />
           </div>
         </>
       )}

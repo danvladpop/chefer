@@ -70,13 +70,35 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * in kg/week. Returns null unless there are ≥5 points spanning ≥10 days —
  * anything less is scale noise, not a trend.
  */
+/** Faster than this between two weigh-ins is a typo, not physiology. */
+const MAX_PLAUSIBLE_KG_PER_DAY = 3;
+
+/**
+ * Drops weigh-ins that jump more than 3 kg/day from the last kept point
+ * (a 1000 kg or 8 kg typo), so one bad entry can't flip the coach's read of
+ * a plateau (audit F-DASH-3-1). Input must be sorted oldest first.
+ */
+export function dropWeightOutliers(sorted: WeightPoint[]): WeightPoint[] {
+  const kept: WeightPoint[] = [];
+  for (const point of sorted) {
+    const prev = kept[kept.length - 1];
+    if (prev) {
+      const days = Math.max(1, (point.recordedAt.getTime() - prev.recordedAt.getTime()) / DAY_MS);
+      if (Math.abs(point.weightKg - prev.weightKg) > MAX_PLAUSIBLE_KG_PER_DAY * days) continue;
+    }
+    kept.push(point);
+  }
+  return kept;
+}
+
 export function computeEwmaTrendKgPerWeek(
   points: WeightPoint[],
   alpha: number = EWMA_ALPHA,
 ): number | null {
-  if (points.length < MIN_TREND_POINTS) return null;
-
-  const sorted = [...points].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
+  const sorted = dropWeightOutliers(
+    [...points].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime()),
+  );
+  if (sorted.length < MIN_TREND_POINTS) return null;
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
   if (!first || !last) return null;

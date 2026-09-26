@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, parseBodyWeightKg } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { WeightEntriesList } from './weight-entries-list';
 
 // Port of web features/coach/WeightCard (wave-2b). Deviation: the recharts
 // sparkline becomes a View-based bar sparkline — no chart library needed for
@@ -12,6 +13,8 @@ import { trpc } from '../../lib/trpc';
 export function WeightCard() {
   const [weightInput, setWeightInput] = useState('');
   const [weightSaved, setWeightSaved] = useState(false);
+  const [inputError, setInputError] = useState<string | null>(null);
+  const [showEntries, setShowEntries] = useState(false);
 
   const { data: history, refetch } = trpc.tracker.weightHistory.useQuery(
     { days: 30 },
@@ -37,11 +40,17 @@ export function WeightCard() {
   const max = Math.max(...entries.map((e) => e.weightKg));
   const range = Math.max(max - min, 0.1);
 
+  // Shared parser (audit F-DASH-3-1): out-of-range values used to be dropped
+  // silently here and saved as-is on web.
   const submit = () => {
-    const kg = parseFloat(weightInput.replace(',', '.'));
-    if (Number.isFinite(kg) && kg > 20 && kg < 500 && !logWeightMutation.isPending) {
-      logWeightMutation.mutate({ weightKg: Math.round(kg * 10) / 10 });
+    if (logWeightMutation.isPending) return;
+    const parsed = parseBodyWeightKg(weightInput);
+    if (!parsed.ok) {
+      setInputError(parsed.error);
+      return;
     }
+    setInputError(null);
+    logWeightMutation.mutate({ weightKg: parsed.kg });
   };
 
   return (
@@ -84,7 +93,10 @@ export function WeightCard() {
         <TextInput
           testID="weight-input"
           value={weightInput}
-          onChangeText={setWeightInput}
+          onChangeText={(text) => {
+            setWeightInput(text);
+            setInputError(null);
+          }}
           onSubmitEditing={submit}
           keyboardType="decimal-pad"
           placeholder={latest ? `Today: ${latest.weightKg} kg?` : 'Log today’s weight (kg)'}
@@ -105,9 +117,24 @@ export function WeightCard() {
           <Ionicons name={weightSaved ? 'checkmark' : 'add'} size={20} color="white" />
         </Pressable>
       </View>
-      {logWeightMutation.isError && (
-        <Text className="mt-1 text-xs text-red-600">{logWeightMutation.error.message}</Text>
+      {(inputError ?? logWeightMutation.error) && (
+        <Text testID="weight-error" className="mt-1 text-xs text-red-600">
+          {inputError ?? logWeightMutation.error?.message}
+        </Text>
       )}
+      {entries.length > 0 && (
+        <Pressable
+          testID="weight-entries-toggle"
+          accessibilityRole="button"
+          onPress={() => setShowEntries((v) => !v)}
+          className="mt-1 min-h-11 justify-center"
+        >
+          <Text className="text-xs font-medium text-primary">
+            {showEntries ? 'Hide entries' : 'Edit or delete entries'}
+          </Text>
+        </Pressable>
+      )}
+      {showEntries && <WeightEntriesList entries={entries} />}
     </Card>
   );
 }

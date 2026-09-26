@@ -199,3 +199,9 @@ export {
 export { guessMealType, parseStepDuration } from './cook-mode';
 export { buildPickerSections, type PickerSection } from './recipe-picker';
 export * from './gym';
+export {
+  BODY_WEIGHT_KG_MIN,
+  BODY_WEIGHT_KG_MAX,
+  parseBodyWeightKg,
+  type WeightParseResult,
+} from './weight';

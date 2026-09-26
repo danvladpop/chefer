@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BODY_WEIGHT_KG_MAX, BODY_WEIGHT_KG_MIN } from '@chefer/utils';
 import { trackerService } from '../application/tracker/tracker.service.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
 
@@ -24,6 +25,17 @@ const loggedMealSchema = z
   })
   .refine((m) => (m.recipeId != null) !== (m.custom != null), {
     message: 'A logged meal needs exactly one of recipeId or custom',
+  });
+
+// Body weight (audit F-DASH-3-1): 1000 kg, 0.001 kg and 2099 dates used to be
+// accepted and poisoned /progress and the coach's trend. The date is the
+// client's LOCAL day; allowing today+1 (UTC) covers every timezone.
+const bodyWeightKgSchema = z.number().finite().min(BODY_WEIGHT_KG_MIN).max(BODY_WEIGHT_KG_MAX);
+const weightDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((d) => new Date(d).getTime() <= Date.now() + 24 * 60 * 60 * 1000, {
+    message: "A weigh-in can't be in the future",
   });
 
 export const trackerRouter = router({
@@ -109,15 +121,32 @@ export const trackerRouter = router({
   logWeight: protectedProcedure
     .input(
       z.object({
-        weightKg: z.number().positive(),
-        date: z
-          .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/)
-          .optional(),
+        weightKg: bodyWeightKgSchema,
+        date: weightDateSchema.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       return trackerService.logWeight(ctx.user.id, input.weightKg, input.date);
+    }),
+
+  // Correct or remove a weigh-in (audit F-DASH-3-1). Owner-scoped: someone
+  // else's entry id answers NOT_FOUND.
+  updateWeight: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        weightKg: bodyWeightKgSchema,
+        date: weightDateSchema.optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return trackerService.updateWeight(ctx.user.id, input.id, input.weightKg, input.date);
+    }),
+
+  deleteWeight: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      return trackerService.deleteWeight(ctx.user.id, input.id);
     }),
 
   weightHistory: protectedProcedure
