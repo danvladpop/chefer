@@ -437,31 +437,46 @@ export class ShoppingListService {
   }
 
   /**
+   * The plan's list lines exactly as `getForWeek` serves them (before
+   * pricing): the AI-consolidated rows when stored, else the derived lines —
+   * slot portions (P1-1) and the premium household scale (P2-3) included —
+   * plus the user's custom items.
+   */
+  private async listLinesForPlan(
+    user: UserProfile,
+    plan: MealPlan & { days: MealPlanDay[] },
+  ): Promise<StoredShoppingListItem[]> {
+    const stored = await prisma.shoppingList.findUnique({ where: { planId: plan.id } });
+    return [
+      ...(stored?.aiGenerated
+        ? tidyAiItems(stored.items as unknown as StoredShoppingListItem[])
+        : await this.buildDerivedRawItems(plan, await householdService.scalingPortions(user))),
+      ...readCustomItems(stored?.customItems),
+    ];
+  }
+
+  /**
    * F3 seeding: the list lines behind the given keys, as purchases. Checking
    * off upserts them into the pantry (source PURCHASE; staples excluded
    * inside PantryService); unchecking takes that purchase back — it was a
    * mis-tap, not something that is now in the kitchen (audit F-PAN-1-1).
+   * The quantity is the one the list shows, household scale included — a
+   * family of four ticking "Chicken 1.2 kg" bought 1.2 kg, not one
+   * recipe's 300 g.
    */
   private async purchasedItemsForKeys(
+    user: UserProfile,
     plan: MealPlan & { days: MealPlanDay[] },
     keys: string[],
   ): Promise<{ name: string; quantity: number; unit: string }[]> {
-    const stored = await prisma.shoppingList.findUnique({ where: { planId: plan.id } });
-    const candidates: StoredShoppingListItem[] = [
-      ...(stored?.aiGenerated
-        ? tidyAiItems(stored.items as unknown as StoredShoppingListItem[])
-        : await this.buildDerivedRawItems(plan)),
-      ...readCustomItems(stored?.customItems),
-    ];
     const wanted = new Set(keys);
-    const purchased = candidates
+    return (await this.listLinesForPlan(user, plan))
       .filter((item) => wanted.has(item.key))
       .map((item) => ({
         name: item.ingredientName,
         quantity: parseFloat(item.quantity),
         unit: item.unit,
       }));
-    return purchased;
   }
 
   /**
@@ -471,11 +486,12 @@ export class ShoppingListService {
    * has no persisted list yet.
    */
   async toggleItems(
-    userId: string,
+    user: UserProfile,
     planId: string,
     keys: string[],
     checked: boolean,
   ): Promise<{ checkedKeys: string[] }> {
+    const userId = user.id;
     const plan = await mealPlanRepository.findByIdForUser(userId, planId);
     if (!plan) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
@@ -508,7 +524,7 @@ export class ShoppingListService {
         // ghost state needs the real item count/savings); unchecking reverts
         // it. Never let a pantry failure break the check-off itself.
         try {
-          const purchased = await this.purchasedItemsForKeys(plan, keys);
+          const purchased = await this.purchasedItemsForKeys(user, plan, keys);
           if (checked) await pantryService.seedFromPurchases(userId, purchased);
           else await pantryService.revertPurchases(userId, purchased);
         } catch (err) {
@@ -777,13 +793,13 @@ export class ShoppingListService {
   }
 
   async searchStores(
-    userId: string,
+    user: UserProfile,
     planId: string,
     userLat?: number,
     userLng?: number,
     deliveryAddress?: string,
   ): Promise<GrocerySearchResult> {
-    // Get the week list to have ingredient info
+    const userId = user.id;
     const allPlans = await mealPlanRepository.findAllByUserId(userId, 52, 0);
     const plan =
       allPlans.find((p) => p.id === planId) ??
@@ -801,19 +817,15 @@ export class ShoppingListService {
       };
     }
 
-    type MealSlotJson = PlanMealSlotJson;
-    const uniqueIds = [
-      ...new Set(plan.days.flatMap((d) => (d.meals as MealSlotJson[]).map((m) => m.recipeId))),
-    ];
-    const recipes = await mealPlanRepository.findRecipesByIds(uniqueIds);
-    const ingredients = recipes.flatMap((r) =>
-      (r.ingredients as unknown as Ingredient[]).map((ing) => ({
-        name: ing.name,
-        quantity: String(ing.quantity),
-        unit: ing.unit,
-        category: inferCategory(ing.name),
-      })),
-    );
+    // The stores are searched for the list the user sees — aggregated across
+    // the week, per slot portion and household scale — not each recipe's
+    // ingredients once (which under-bought every repeated or 2× dish).
+    const ingredients = (await this.listLinesForPlan(user, plan)).map((item) => ({
+      name: item.ingredientName,
+      quantity: item.quantity,
+      unit: item.unit,
+      category: item.category,
+    }));
 
     const searchInput: Parameters<typeof groceryAIService.searchNearbyStores>[0] = {
       ingredients,

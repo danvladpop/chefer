@@ -465,7 +465,9 @@ Hard rules:
   about health conditions. Food, habits and next week's cooking only.
 - If their calorie budget changed, present it as YOUR decision as their chef
   ("I've trimmed next week's budget by 100 kcal") — never as math.
-- If adherence was low, coach the logging habit warmly instead of the numbers.`;
+- If adherence was low, coach the logging habit warmly instead of the numbers.
+- If protein data is given, they lift: say in one line how their protein
+  compared with their target, and if short, suggest a protein-forward dish.`;
 
 export function buildReviewUserPrompt(input: CoachReviewInput): string {
   const lines = [
@@ -474,6 +476,11 @@ export function buildReviewUserPrompt(input: CoachReviewInput): string {
     input.weightTrendKg !== null
       ? `Weight trend: ${input.weightTrendKg > 0 ? '+' : ''}${input.weightTrendKg.toFixed(2)} kg per week.`
       : 'Weight trend: not enough weigh-ins yet.',
+    ...(input.protein
+      ? [
+          `Average protein on logged days: ${input.protein.avgDailyG} g vs a ${input.protein.targetG} g daily target (${input.protein.gPerKg} g per kg bodyweight — they lift).`,
+        ]
+      : []),
     `Goal: ${input.goal ?? 'MAINTAIN'}.`,
     input.adjustmentKcal !== 0
       ? `Decision already made: next week's calorie budget changes by ${input.adjustmentKcal > 0 ? '+' : ''}${input.adjustmentKcal} kcal. State it as your call.`

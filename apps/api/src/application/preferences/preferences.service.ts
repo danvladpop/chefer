@@ -191,8 +191,10 @@ export function resolveDailyTargets(
   } | null,
   /**
    * Lifter bodyweight from trainingNutritionService.loadLifter (audit P2-4):
-   * when set, protein is 1.8 g/kg instead of the goal's split, and carbs take
-   * up the difference so calories are unchanged. Omitted = the old rules.
+   * when set, protein follows the goal's g/kg rule (GAIN 1.8, LOSE 2.0,
+   * MAINTAIN / EAT_HEALTHIER 1.6 — @chefer/utils) instead of the goal's
+   * split, and carbs take up the difference so calories are unchanged.
+   * Omitted = the old rules.
    */
   lifterBodyweightKg?: number | null,
 ): DailyTargets {
@@ -220,7 +222,9 @@ export function resolveDailyTargets(
     dailyCalorieTarget: calories,
     ...splitToGrams(calories, split, profile?.weightKg ?? null),
   };
-  return lifterBodyweightKg ? withLifterProtein(targets, lifterBodyweightKg) : targets;
+  return lifterBodyweightKg
+    ? withLifterProtein(targets, lifterBodyweightKg, profile?.goal ?? null)
+    : targets;
 }
 
 // ─── Input / Output Types ─────────────────────────────────────────────────────

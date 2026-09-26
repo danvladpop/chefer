@@ -26,7 +26,7 @@ export const shoppingListRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      return shoppingListService.toggleItems(ctx.user.id, input.planId, input.keys, input.checked);
+      return shoppingListService.toggleItems(ctx.user, input.planId, input.keys, input.checked);
     }),
 
   /**
@@ -76,7 +76,7 @@ export const shoppingListRouter = router({
     )
     .query(async ({ ctx, input }) => {
       return shoppingListService.searchStores(
-        ctx.user.id,
+        ctx.user,
         input.planId,
         input.lat,
         input.lng,

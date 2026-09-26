@@ -6,13 +6,16 @@ import {
   weightEntryRepository,
 } from '@chefer/database';
 import type { DailyLog, LoggedMealEntry } from '@chefer/database';
-import type { UserProfile } from '@chefer/types';
+import type { NutritionTargets, TrainingDayNutrition, UserProfile } from '@chefer/types';
 import { slotPortion } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
 import { rebalanceWeek, type RebalanceResult } from '../meal-plan/rebalance.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { findRecipeVisibleTo } from '../recipe/recipe-access.js';
-import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
+import {
+  trainingDayFields,
+  trainingNutritionService,
+} from '../training-nutrition/training-nutrition.service.js';
 import { isRecipeEntry, mergeLoggedMeals } from './merge-log.js';
 
 export type { LoggedMealEntry };
@@ -69,6 +72,18 @@ export interface DayTrackerData {
     carbsG: number;
     fatG: number;
   };
+  /**
+   * GAIN_MUSCLE lifters only: this day's training-day adjustment — the same
+   * payload `dashboard.summary.nutrition.trainingDay` carries (audit P2-4
+   * follow-up). Additive; `targets` above keeps meaning the BASE targets.
+   */
+  trainingDay?: TrainingDayNutrition;
+  /**
+   * This day's targets with the training-day bump applied — present only when
+   * it applies (premium, training day). New clients show these instead of
+   * `targets`, exactly as Today does.
+   */
+  adjustedTargets?: NutritionTargets;
 }
 
 export interface DaySummary {
@@ -101,7 +116,12 @@ async function plannedRecipeIdsFor(userId: string, dateStr: string): Promise<Set
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export const trackerService = {
-  async getDay(userId: string, dateStr: string): Promise<DayTrackerData> {
+  async getDay(
+    userId: string,
+    dateStr: string,
+    /** The viewer, for the tier-gated training-day bump. Optional for tests. */
+    viewer?: UserProfile,
+  ): Promise<DayTrackerData> {
     const date = new Date(dateStr);
     date.setUTCHours(0, 0, 0, 0);
 
@@ -112,19 +132,24 @@ export const trackerService = {
       dailyLogRepository.findByDate(userId, date),
     ]);
 
-    // Full resolved targets — the tracker's macro bars must show the SAME
-    // numbers as the dashboard (prod-followups #4: it used to hardcode
-    // 150/250/70, which doesn't even sum to the calorie target).
-    // Lifters' protein follows bodyweight (audit P2-4) — same as the dashboard.
-    const { lifterBodyweightKg } = await trainingNutritionService.loadLifter(userId, profile);
-    const { dailyCalorieTarget, proteinG, carbsG, fatG } = resolveDailyTargets(
-      profile,
-      lifterBodyweightKg,
-    );
-
     // Determine day-of-week (0=Mon)
     const jsDay = date.getUTCDay();
     const dayOfWeek = jsDay === 0 ? 6 : jsDay - 1;
+
+    // Full resolved targets — the tracker's macro bars must show the SAME
+    // numbers as the dashboard (prod-followups #4: it used to hardcode
+    // 150/250/70, which doesn't even sum to the calorie target). Lifters'
+    // protein follows bodyweight and a training day gets the same bump as
+    // Today (audit P2-4) — one service computes both surfaces.
+    const {
+      targets: { dailyCalorieTarget, proteinG, carbsG, fatG },
+      training,
+    } = await trainingNutritionService.targetsForDay(
+      userId,
+      profile,
+      { localDate: dateStr, weekday: dayOfWeek },
+      viewer ? hasFeature(viewer, 'trainingNutrition') : false,
+    );
 
     const plannedMeals: DayPlanMeal[] = [];
 
@@ -196,6 +221,7 @@ export const trackerService = {
           }
         : null,
       targets: { dailyCalorieTarget, proteinG, carbsG, fatG },
+      ...trainingDayFields(training),
     };
   },
 

@@ -3,24 +3,43 @@ import type { NutritionTargets, TrainingDayNutrition, TrainingDayReason } from '
 // ─── Training-aware nutrition (audit P2-4, gym_plan.md D11 follow-up) ─────────
 // Deterministic rules that connect the gym to the food side. No AI.
 //
-// Who: a LIFTER is a user with a set-up gym profile, goal GAIN_MUSCLE and a
-// known bodyweight (latest weight log, else the nutrition profile).
+// Who: a LIFTER is a user with a set-up gym profile, a goal and a known
+// bodyweight (latest weight log, else the nutrition profile).
 //
-// 1. Base protein (every tier): 1.8 g per kg of bodyweight, replacing the
-//    goal's percentage split (which, capped at 2.2 g/kg, put every lifter at
-//    the cap — 175 g for 80 kg — a target no free plan came near). 1.8 g/kg
-//    sits inside the 1.6–2.2 g/kg evidence range (ISSN position stand;
-//    Morton et al. 2018: gains plateau around 1.6, upper CI 2.2).
-// 2. Training day (premium applies it, free sees a locked preview): on a day
-//    with a completed or scheduled workout, protein rises to 2.2 g/kg and
-//    calories by 10% of the base target (rounded to 10, kept within
-//    150–300 kcal); the kcal not covered by the extra protein goes to carbs.
+// 1. Base protein (every tier), by goal, replacing the goal's percentage
+//    split. Calories never change: the grams moved go to/from carbs.
+//      GAIN_MUSCLE   1.8 g/kg — the split, capped at 2.2 g/kg, put every
+//                    lifter at the cap (175 g for 80 kg), a target no free
+//                    plan came near. Inside the 1.6–2.2 g/kg range (ISSN
+//                    position stand; Morton et al. 2018: gains plateau
+//                    around 1.6, upper CI 2.2).
+//      LOSE_WEIGHT   2.0 g/kg — a deficit raises the protein needed to keep
+//                    muscle (Helms et al. 2014: ~2.3–3.1 g/kg of lean mass,
+//                    roughly 1.8–2.7 g/kg of bodyweight). 2.0 is reachable
+//                    on a cut without crowding out carbs.
+//      MAINTAIN,
+//      EAT_HEALTHIER 1.6 g/kg — at maintenance calories the plateau point
+//                    of Morton et al. is enough; the 20–25% splits gave
+//                    lifters ~1.2–1.5 g/kg.
+// 2. Training day — GAIN_MUSCLE lifters only (a surplus goal; eating back
+//    training calories would erode a cut's deficit). Premium applies it,
+//    free sees a locked preview: on a day with a completed or scheduled
+//    workout, protein rises to 2.2 g/kg and calories by 10% of the base
+//    target (rounded to 10, kept within 150–300 kcal); the kcal not covered
+//    by the extra protein goes to carbs.
 // 3. Post-workout meal (every tier): ~0.4 g protein per kg (per-meal dose
 //    from Schoenfeld & Aragon 2018), rounded to 5 g, 20–45 g; 30 g when
 //    bodyweight is unknown.
 
-/** Base protein for lifters, every tier. */
+/** Base protein for GAIN_MUSCLE lifters, every tier (the training-day rules build on it). */
 export const LIFTER_PROTEIN_G_PER_KG = 1.8;
+/** Base protein for lifters by goal, every tier. Goals not listed get no lifter rule. */
+export const LIFTER_PROTEIN_G_PER_KG_BY_GOAL: Readonly<Record<string, number>> = {
+  GAIN_MUSCLE: LIFTER_PROTEIN_G_PER_KG,
+  LOSE_WEIGHT: 2.0,
+  MAINTAIN: 1.6,
+  EAT_HEALTHIER: 1.6,
+};
 /** Protein on a training day (premium). */
 export const TRAINING_DAY_PROTEIN_G_PER_KG = 2.2;
 /** Training-day calorie bump: a share of the base target, rounded and clamped. */
@@ -32,7 +51,17 @@ const POST_WORKOUT_DEFAULT_G = 30;
 const POST_WORKOUT_MIN_G = 20;
 const POST_WORKOUT_MAX_G = 45;
 
-/** Whether the lifter rules apply: set-up gym profile + GAIN_MUSCLE + bodyweight. */
+/** A lifter's base protein (g/kg) for this goal, or null when the goal has no lifter rule. */
+export function lifterProteinGPerKg(goal: string | null | undefined): number | null {
+  return goal ? (LIFTER_PROTEIN_G_PER_KG_BY_GOAL[goal] ?? null) : null;
+}
+
+/** Whether a lifter with this goal gets the training-day bump (GAIN_MUSCLE only). */
+export function hasTrainingDayBump(goal: string | null | undefined): boolean {
+  return goal === 'GAIN_MUSCLE';
+}
+
+/** Whether the lifter rules apply: set-up gym profile + a goal with a g/kg rule + bodyweight. */
 export function isLifter(input: {
   goal: string | null | undefined;
   hasGymProfile: boolean;
@@ -40,19 +69,25 @@ export function isLifter(input: {
 }): boolean {
   return (
     input.hasGymProfile &&
-    input.goal === 'GAIN_MUSCLE' &&
+    lifterProteinGPerKg(input.goal) !== null &&
     typeof input.bodyweightKg === 'number' &&
     input.bodyweightKg > 0
   );
 }
 
 /**
- * Replaces the protein target with the lifter's g/kg base. Calories stay
- * fixed: the protein grams removed (or added) move to carbs (both 4 kcal/g),
- * never below zero.
+ * Replaces the protein target with the lifter's g/kg base for their goal
+ * (GAIN_MUSCLE's 1.8 when the goal is omitted). Calories stay fixed: the
+ * protein grams removed (or added) move to carbs (both 4 kcal/g), never
+ * below zero.
  */
-export function withLifterProtein<T extends NutritionTargets>(targets: T, bodyweightKg: number): T {
-  const proteinG = Math.round(bodyweightKg * LIFTER_PROTEIN_G_PER_KG);
+export function withLifterProtein<T extends NutritionTargets>(
+  targets: T,
+  bodyweightKg: number,
+  goal?: string | null,
+): T {
+  const perKg = lifterProteinGPerKg(goal ?? 'GAIN_MUSCLE') ?? LIFTER_PROTEIN_G_PER_KG;
+  const proteinG = Math.round(bodyweightKg * perKg);
   const carbsG = Math.max(0, targets.carbsG + (targets.proteinG - proteinG));
   return { ...targets, proteinG, carbsG };
 }

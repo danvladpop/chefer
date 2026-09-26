@@ -10,9 +10,14 @@ import {
   type IWeightEntryRepository,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { lifterProteinGPerKg } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { computeBmrTdee, resolveDailyTargets } from '../preferences/preferences.service.js';
+import {
+  trainingNutritionService,
+  type TrainingNutritionService,
+} from '../training-nutrition/training-nutrition.service.js';
 import { generateReviewText } from './review-text.js';
 import {
   buildTemplateReviewText,
@@ -82,6 +87,10 @@ export class CoachService {
     private readonly reviewRepo: IChefReviewRepository = chefReviewRepository,
     private readonly profileRepo: IChefProfileRepository = chefProfileRepository,
     private readonly weightRepo: IWeightEntryRepository = weightEntryRepository,
+    private readonly training: Pick<
+      TrainingNutritionService,
+      'loadLifter'
+    > = trainingNutritionService,
   ) {}
 
   /**
@@ -112,6 +121,7 @@ export class CoachService {
     const weekLogs: ReviewDayLog[] = logs.map((l) => ({
       date: l.date,
       totalKcal: l.totalKcal,
+      totalProtein: l.totalProtein,
       mealCount: Array.isArray(l.loggedMeals) ? l.loggedMeals.length : 0,
     }));
     const loggedDays = weekLogs.filter((l) => l.mealCount > 0).length;
@@ -123,8 +133,13 @@ export class CoachService {
       this.reviewRepo.findPreviousBefore(userId, weekStart),
     ]);
 
-    const targets = resolveDailyTargets(profile);
+    // The same targets every other surface shows: lifters are judged on
+    // their g/kg protein rule, not the goal's percentage split (audit P2-4
+    // follow-up). Calories are identical either way.
+    const { lifterBodyweightKg } = await this.training.loadLifter(userId, profile);
+    const targets = resolveDailyTargets(profile, lifterBodyweightKg);
     const metrics = computeReviewMetrics(weekLogs, weights);
+    const proteinGPerKg = lifterBodyweightKg ? lifterProteinGPerKg(profile?.goal) : null;
 
     const bmrTdee =
       profile?.weightKg && profile.heightCm && profile.age && profile.activityLevel
@@ -158,6 +173,13 @@ export class CoachService {
       adjustmentKcal,
       goal: profile?.goal ?? null,
       dishNames: await this.loadWeekDishNames(userId),
+      protein: proteinGPerKg
+        ? {
+            avgDailyG: metrics.avgDailyProteinG,
+            targetG: targets.proteinG,
+            gPerKg: proteinGPerKg,
+          }
+        : null,
     };
     // Free-tier reviews are a teaser (first line visible, body blurred), so
     // they use the deterministic template: per-user AI is premium-only, and

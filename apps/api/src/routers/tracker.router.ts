@@ -53,7 +53,7 @@ export const trackerRouter = router({
   getDay: protectedProcedure
     .input(z.object({ date: calendarDateSchema }))
     .query(async ({ ctx, input }) => {
-      return trackerService.getDay(ctx.user.id, input.date);
+      return trackerService.getDay(ctx.user.id, input.date, ctx.user);
     }),
 
   upsertDay: protectedProcedure

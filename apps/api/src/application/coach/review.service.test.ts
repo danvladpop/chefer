@@ -151,6 +151,19 @@ describe('computeReviewMetrics', () => {
     const metrics = computeReviewMetrics([], []);
     expect(metrics.adherencePct).toBe(0);
     expect(metrics.avgDailyKcal).toBe(0);
+    expect(metrics.avgDailyProteinG).toBe(0);
+  });
+
+  it('averages protein over logged days only', () => {
+    const metrics = computeReviewMetrics(
+      [
+        { ...dayLog(0, 2000), totalProtein: 150 },
+        { ...dayLog(1, 2000), totalProtein: 130 },
+        { ...dayLog(2, 0, 0), totalProtein: 0 },
+      ],
+      [],
+    );
+    expect(metrics.avgDailyProteinG).toBe(140);
   });
 });
 
@@ -288,6 +301,22 @@ describe('buildTemplateReviewText', () => {
   it('coaches the habit instead of numbers at low adherence', () => {
     const text = buildTemplateReviewText({ ...base, adherencePct: 29, loggedDays: 2 });
     expect(text).toMatch(/logging habit/i);
+  });
+
+  it('a lifter short on protein gets the gap against their g/kg target', () => {
+    const text = buildTemplateReviewText({
+      ...base,
+      protein: { avgDailyG: 120, targetG: 144, gPerKg: 1.8 },
+    });
+    expect(text).toContain('24 g short of your 144 g lifting target (1.8 g per kg)');
+    expect(text.split('\n')[0]).toContain('5 of 7'); // teaser line unchanged
+  });
+
+  it('a lifter on target is told so; non-lifters get no protein line', () => {
+    expect(
+      buildTemplateReviewText({ ...base, protein: { avgDailyG: 150, targetG: 160, gPerKg: 2 } }),
+    ).toMatch(/Protein averaged 150 g a day against your 160 g lifting target/);
+    expect(buildTemplateReviewText(base)).not.toMatch(/protein/i);
   });
 
   it('never mentions BMR or algorithms (non-medical tone rule)', () => {

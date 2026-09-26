@@ -727,29 +727,33 @@ The pure maths lives in `@chefer/utils` (`training-nutrition.ts`); the gym
 reads live in `trainingNutritionService` (API).
 
 **Who is a lifter:** a set-up gym profile (`GymProfile.setupCompletedAt`),
-goal `GAIN_MUSCLE`, and a known bodyweight (latest `WeightEntry`, else
-`ChefProfile.weightKg`). Other goals keep the old rules (follow-up).
+a goal, and a known bodyweight (latest `WeightEntry`, else
+`ChefProfile.weightKg`). Every goal has a g/kg protein base (follow-up,
+2026-09-26); only `GAIN_MUSCLE` lifters get the training-day rules.
 
-| Rule              | Value                                                                                                                                                                            | Tier                                                                                                                          |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Base protein      | **1.8 g/kg** bodyweight (replaces the goal's 35% split, which sat at the 2.2 g/kg cap for every lifter); carbs absorb the difference so kcal is unchanged                        | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context and both generation paths |
-| Training day      | a workout **completed** that day (any day), else a routine day **planned** for that weekday outside a training pause                                                             | —                                                                                                                             |
-| Training-day bump | protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                              | **premium** applies it; **free** sees the same numbers locked (upgrade source `training-day`)                                 |
-| Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                       | every tier                                                                                                                    |
-| Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets | premium                                                                                                                       |
-| Free curated week | training weekdays weigh the protein shortfall double in `planCuratedWeek`, so those days pick the higher-protein combinations (usually dinner); no kcal bump                     | free                                                                                                                          |
+| Rule              | Value                                                                                                                                                                                                          | Tier                                                                                                                                        |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base protein      | by goal: **GAIN_MUSCLE 1.8 g/kg**, **LOSE_WEIGHT 2.0 g/kg** (keeps muscle in a deficit), **MAINTAIN / EAT_HEALTHIER 1.6 g/kg** — replaces the goal's % split; carbs absorb the difference so kcal is unchanged | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context, coach review and both generation paths |
+| Training day      | a workout **completed** that day (any day), else a routine day **planned** for that weekday outside a training pause                                                                                           | —                                                                                                                                           |
+| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                | **premium** applies it; **free** sees the same numbers locked (upgrade source `training-day`)                                               |
+| Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                                                     | every tier                                                                                                                                  |
+| Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets                               | premium                                                                                                                                     |
+| Free curated week | training weekdays weigh the protein shortfall double in `planCuratedWeek`, so those days pick the higher-protein combinations (usually dinner); no kcal bump                                                   | free                                                                                                                                        |
 
 ```
-dashboard.summary (lifter)
-  ├─ trainingNutritionService.loadLifter → lifterBodyweightKg
-  ├─ resolveDailyTargets(profile, bw) → base targets (protein 1.8 g/kg)
+dashboard.summary / tracker.getDay (lifter)
+  └─ trainingNutritionService.targetsForDay(profile, day, premium)
+  ├─ loadLifter → lifterBodyweightKg
+  ├─ resolveDailyTargets(profile, bw) → base targets (protein g/kg by goal)
   │    — the existing nutrition fields keep carrying the BASE targets,
   │      so shipped clients see no change in meaning
-  ├─ trainingDayFor(localDate, weekday) → COMPLETED | SCHEDULED | rest
-  └─ nutrition.trainingDay { isTrainingDay, reason, workoutName,
+  ├─ GAIN_MUSCLE only: trainingDayFor(localDate, weekday)
+  │    → COMPLETED | SCHEDULED | rest
+  └─ trainingDay { isTrainingDay, reason, workoutName,
        kcalBonus, proteinBonus, applied, basis }            (optional)
-     nutrition.adjustedTargets { dailyCalorieTarget, proteinG,
+     adjustedTargets { dailyCalorieTarget, proteinG,
        carbsG, fatG }         (optional — premium AND training day)
+     (under `nutrition.` on the dashboard, top level on getDay)
 ```
 
 **Clients (web + mobile, same copy):** the Today nutrition card shows
@@ -758,6 +762,17 @@ use `adjustedTargets`, with "Full Body A today · protein at 2.2 g/kg, added
 to today". Free: the line is locked ("Premium adds this to today's targets")
 with the upgrade button (web) or "Upgrade from your Profile →" (mobile).
 Rest days and non-lifters show nothing new.
+
+**Tracker (web `/tracker`, mobile `tracker`):** the same line in the day's
+progress card, from `tracker.getDay`'s `trainingDay` / `adjustedTargets`, so
+the tracker bars match Today's ring. On another day the copy says "this day"
+("Full Body A planned · …, added to this day"; "Premium adds this to this
+day's targets"); a past day with a finished workout counts too.
+
+**Coach weekly review (§14):** lifters are judged against their g/kg protein
+target — one line with the week's average ("Protein averaged 120 g a day, 24
+g short of your 144 g lifting target (1.8 g per kg) — …"). Non-lifters get no
+protein line.
 
 **Workout summary (web + mobile, every tier):** a refuel card — "Aim for ~30 g
 protein in your next meal" — linking the next planned meal (from
@@ -915,7 +930,8 @@ the adjusted target must shape next week's budget)
   │         │    same Sunday changes nothing
   │         ├─ <3 logged days → no review ("log more days" is itself the coach)
   │         ├─ metrics (application/coach/review.service.ts — pure, unit-tested):
-  │         │    adherence = logged days / 7; avg kcal over logged days;
+  │         │    adherence = logged days / 7; avg kcal (and protein) over
+  │         │    logged days;
   │         │    weight trend = EWMA (α=0.25) over ≤28 days of WeightEntry
   │         │    rows, null unless ≥5 points spanning ≥10 days
   │         ├─ adjustment policy (deterministic, conservative):
@@ -929,6 +945,8 @@ the adjusted target must shape next week's budget)
   │         │    adjustment and BEFORE the protein cap — so the dashboard
   │         │    ring, tracker bars, chat context AND next week's generation
   │         │    budget all move together (ordering unit-tested)
+  │         ├─ targets: resolveDailyTargets(profile, lifter bodyweight) —
+  │         │    lifters (§10.1) get a protein line vs their g/kg target
   │         └─ prose: Gemini (application/coach/review-text.ts — warm,
   │              non-medical, never mentions BMR/algorithms; first line
   │              stands alone) with the deterministic template as mock/
@@ -1223,7 +1241,9 @@ SEEDING (all tiers — the free ghost state needs real data)
 shoppingList.toggleItems { keys, checked: true }        (protected)
   ├─ P1-5 check-off transaction commits first (a pantry failure never
   │    breaks the check-off)
-  └─ PantryService.seedFromPurchases: each checked item's name/qty/unit →
+  └─ PantryService.seedFromPurchases: each checked item's name/qty/unit —
+       the quantity the list shows (slot portions + premium household
+       scale), not one recipe's base quantity →
        upsert PantryItem (source PURCHASE, name normalized,
        @@unique(userId, ingredientName, unit) collapses re-buys)
        ├─ STAPLES DENYLIST: salt, pepper, oil/vinegar/salt families, water,

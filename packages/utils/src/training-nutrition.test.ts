@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   applyTrainingDayBonus,
   buildTrainingDayNutrition,
+  hasTrainingDayBump,
   isLifter,
+  lifterProteinGPerKg,
   postWorkoutProteinG,
   resolveTrainingDay,
   trainingDayBonus,
@@ -16,9 +18,13 @@ import {
 const BASE = { dailyCalorieTarget: 2980, proteinG: 176, carbsG: 346, fatG: 83 };
 
 describe('isLifter', () => {
-  it('needs a gym profile, GAIN_MUSCLE and a bodyweight', () => {
+  it('needs a gym profile, a goal with a g/kg rule and a bodyweight', () => {
     expect(isLifter({ goal: 'GAIN_MUSCLE', hasGymProfile: true, bodyweightKg: 80 })).toBe(true);
-    expect(isLifter({ goal: 'MAINTAIN', hasGymProfile: true, bodyweightKg: 80 })).toBe(false);
+    expect(isLifter({ goal: 'LOSE_WEIGHT', hasGymProfile: true, bodyweightKg: 80 })).toBe(true);
+    expect(isLifter({ goal: 'MAINTAIN', hasGymProfile: true, bodyweightKg: 80 })).toBe(true);
+    expect(isLifter({ goal: 'EAT_HEALTHIER', hasGymProfile: true, bodyweightKg: 80 })).toBe(true);
+    expect(isLifter({ goal: null, hasGymProfile: true, bodyweightKg: 80 })).toBe(false);
+    expect(isLifter({ goal: 'SOMETHING_ELSE', hasGymProfile: true, bodyweightKg: 80 })).toBe(false);
     expect(isLifter({ goal: 'GAIN_MUSCLE', hasGymProfile: false, bodyweightKg: 80 })).toBe(false);
     expect(isLifter({ goal: 'GAIN_MUSCLE', hasGymProfile: true, bodyweightKg: null })).toBe(false);
     expect(isLifter({ goal: 'GAIN_MUSCLE', hasGymProfile: true, bodyweightKg: 0 })).toBe(false);
@@ -42,6 +48,42 @@ describe('withLifterProtein', () => {
     );
     expect(t.proteinG).toBe(162);
     expect(t.carbsG).toBe(0);
+  });
+});
+
+describe('lifter protein by goal', () => {
+  it('GAIN 1.8, LOSE 2.0, MAINTAIN / EAT_HEALTHIER 1.6 g/kg; unknown goals none', () => {
+    expect(lifterProteinGPerKg('GAIN_MUSCLE')).toBe(1.8);
+    expect(lifterProteinGPerKg('LOSE_WEIGHT')).toBe(2.0);
+    expect(lifterProteinGPerKg('MAINTAIN')).toBe(1.6);
+    expect(lifterProteinGPerKg('EAT_HEALTHIER')).toBe(1.6);
+    expect(lifterProteinGPerKg(null)).toBeNull();
+    expect(lifterProteinGPerKg('BULK')).toBeNull();
+  });
+
+  it('a cutting lifter gets 2.0 g/kg with calories unchanged (carbs absorb it)', () => {
+    const cut = { dailyCalorieTarget: 2100, proteinG: 176, carbsG: 184, fatG: 70 };
+    const t = withLifterProtein(cut, 80, 'LOSE_WEIGHT');
+    expect(t.proteinG).toBe(160);
+    expect(t.carbsG).toBe(184 + 16);
+    expect(t.fatG).toBe(70);
+    expect(t.dailyCalorieTarget).toBe(2100);
+    expect(t.proteinG * 4 + t.carbsG * 4).toBe(cut.proteinG * 4 + cut.carbsG * 4);
+  });
+
+  it('a maintaining lifter gets 1.6 g/kg, taken from carbs', () => {
+    const maintain = { dailyCalorieTarget: 2600, proteinG: 163, carbsG: 293, fatG: 87 };
+    const t = withLifterProtein(maintain, 80, 'MAINTAIN');
+    expect(t.proteinG).toBe(128);
+    expect(t.carbsG).toBe(293 + 35);
+    expect(t.proteinG * 4 + t.carbsG * 4).toBe(maintain.proteinG * 4 + maintain.carbsG * 4);
+  });
+
+  it('only GAIN_MUSCLE lifters get the training-day bump', () => {
+    expect(hasTrainingDayBump('GAIN_MUSCLE')).toBe(true);
+    expect(hasTrainingDayBump('LOSE_WEIGHT')).toBe(false);
+    expect(hasTrainingDayBump('MAINTAIN')).toBe(false);
+    expect(hasTrainingDayBump(null)).toBe(false);
   });
 });
 

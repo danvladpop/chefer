@@ -343,4 +343,9 @@ export interface CoachReviewInput {
   goal: string | null;
   /** Dish names from the reviewed week's plan (for flavour, may be empty). */
   dishNames: string[];
+  /**
+   * Lifters only (audit P2-4 follow-up): average protein vs their g/kg
+   * target. Absent for everyone else.
+   */
+  protein?: { avgDailyG: number; targetG: number; gPerKg: number } | null;
 }

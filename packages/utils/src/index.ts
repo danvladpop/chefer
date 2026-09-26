@@ -265,12 +265,15 @@ export {
 } from './day-nutrition';
 export {
   LIFTER_PROTEIN_G_PER_KG,
+  LIFTER_PROTEIN_G_PER_KG_BY_GOAL,
   POST_WORKOUT_PROTEIN_G_PER_KG,
   TRAINING_DAY_KCAL,
   TRAINING_DAY_PROTEIN_G_PER_KG,
   applyTrainingDayBonus,
   buildTrainingDayNutrition,
+  hasTrainingDayBump,
   isLifter,
+  lifterProteinGPerKg,
   postWorkoutProteinG,
   resolveTrainingDay,
   trainingDayBonus,

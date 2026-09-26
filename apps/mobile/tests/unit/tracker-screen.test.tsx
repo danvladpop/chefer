@@ -8,6 +8,8 @@ import TrackerScreen from '../../app/tracker';
 const mockUpsert = jest.fn();
 const mockRecordRebalance = jest.fn();
 const mockUpsertOpts: { onSuccess?: (data: unknown) => void } = {};
+// Audit P2-4 follow-up: per-test training-day fields on the getDay payload.
+let mockDayExtras: Record<string, unknown> = {};
 
 jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn() } }));
 jest.mock('../../src/features/tracker/scan-meal-card', () => ({ ScanMealCard: () => null }));
@@ -35,6 +37,7 @@ jest.mock('../../src/lib/trpc', () => ({
             log: null,
             offPlanLogged: [],
             targets: { dailyCalorieTarget: 2000, proteinG: 125, carbsG: 225, fatG: 65 },
+            ...mockDayExtras,
             plannedMeals: [
               {
                 recipeId: 'r1',
@@ -98,7 +101,52 @@ async function renderTracker() {
   );
 }
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockDayExtras = {};
+});
+
+const trainingDay = (applied: boolean) => ({
+  isTrainingDay: true,
+  reason: 'SCHEDULED',
+  workoutName: 'Full Body A',
+  kcalBonus: 200,
+  proteinBonus: 32,
+  applied,
+  basis: { bodyweightKg: 80, proteinGPerKg: 1.8, trainingDayProteinGPerKg: 2.2 },
+});
+
+describe('TrackerScreen — training-day targets (audit P2-4)', () => {
+  it('premium: the line shows and the bars use the bumped targets, like Today', async () => {
+    mockDayExtras = {
+      trainingDay: trainingDay(true),
+      adjustedTargets: { dailyCalorieTarget: 2200, proteinG: 157, carbsG: 267, fatG: 65 },
+    };
+    await renderTracker();
+    expect(screen.getByTestId('training-day-line')).toHaveTextContent(
+      'Training day · +200 kcal, +32 g protein',
+    );
+    expect(screen.getByText('0 / 2200')).toBeOnTheScreen();
+    expect(screen.getByText('0 / 157')).toBeOnTheScreen();
+    expect(screen.queryByTestId('training-day-upgrade')).not.toBeOnTheScreen();
+  });
+
+  it('free: the same line locked, base targets kept', async () => {
+    mockDayExtras = { trainingDay: trainingDay(false) };
+    await renderTracker();
+    expect(screen.getByTestId('training-day-line')).toHaveTextContent(
+      'Training day · +200 kcal, +32 g protein',
+    );
+    expect(screen.getByTestId('training-day-upgrade')).toBeOnTheScreen();
+    expect(screen.getByText('0 / 2000')).toBeOnTheScreen();
+    expect(screen.getByText('0 / 125')).toBeOnTheScreen();
+  });
+
+  it('non-lifters: no line', async () => {
+    await renderTracker();
+    expect(screen.queryByTestId('training-day')).not.toBeOnTheScreen();
+  });
+});
 
 describe('TrackerScreen', () => {
   it('opens Quick add from the tracker', async () => {

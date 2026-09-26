@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mealPlanRepository, pantryItemRepository, prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { groceryAIService } from '../../lib/grocery-ai/index.js';
 import { householdService } from '../household/household.service.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { estimatePlanCostEur } from '../shared/plan-cost.js';
@@ -34,7 +35,9 @@ vi.mock('@chefer/database', async (importOriginal) => {
 
 // The AI module validates env at import time — mock it (never called here).
 vi.mock('../../lib/ai/index.js', () => ({ aiService: {} }));
-vi.mock('../../lib/grocery-ai/index.js', () => ({ groceryAIService: {} }));
+vi.mock('../../lib/grocery-ai/index.js', () => ({
+  groceryAIService: { searchNearbyStores: vi.fn().mockResolvedValue({ stores: [] }) },
+}));
 vi.mock('../../lib/ingredient-images/index.js', () => ({
   resolveIngredientImage: vi.fn().mockResolvedValue('https://img.example/x.jpg'),
 }));
@@ -235,7 +238,7 @@ describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
   });
 
   it('checking off derived items seeds the pantry with their name/qty/unit', async () => {
-    await service.toggleItems('u1', 'plan1', ['plan1-tomato|g'], true);
+    await service.toggleItems(freeUser, 'plan1', ['plan1-tomato|g'], true);
 
     expect(pantryService.seedFromPurchases).toHaveBeenCalledWith('u1', [
       { name: 'Tomato', quantity: 600, unit: 'g' },
@@ -243,7 +246,7 @@ describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
   });
 
   it('unchecking takes the purchase back out of the pantry (F-PAN-1-1)', async () => {
-    await service.toggleItems('u1', 'plan1', ['plan1-tomato|g'], false);
+    await service.toggleItems(freeUser, 'plan1', ['plan1-tomato|g'], false);
     expect(pantryService.seedFromPurchases).not.toHaveBeenCalled();
     expect(pantryService.revertPurchases).toHaveBeenCalledWith('u1', [
       { name: 'Tomato', quantity: 600, unit: 'g' },
@@ -252,13 +255,78 @@ describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
 
   it('a pantry failure never breaks the check-off itself', async () => {
     vi.mocked(pantryService.seedFromPurchases).mockRejectedValueOnce(new Error('db down'));
-    const result = await service.toggleItems('u1', 'plan1', ['plan1-tomato|g'], true);
+    const result = await service.toggleItems(freeUser, 'plan1', ['plan1-tomato|g'], true);
     expect(result.checkedKeys).toContain('plan1-tomato|g');
   });
 
+  it('seeds the quantity the list shows — slot portion × household scale (#38/#40)', async () => {
+    // A 2× slot of a 4-serving recipe for a household of 6 portions:
+    // 600 g × 2 × 6/4 = 1800 g on the list, and in the pantry.
+    vi.mocked(mealPlanRepository.findByIdForUser).mockResolvedValue({
+      ...PLAN,
+      days: [{ ...PLAN.days[0], meals: [{ type: 'dinner', recipeId: 'r1', portion: 2 }] }],
+    } as never);
+    vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([
+      { ...RECIPE, servings: 4 },
+    ] as never);
+    vi.mocked(householdService.scalingPortions).mockResolvedValueOnce(6).mockResolvedValueOnce(6);
+
+    await service.toggleItems(premiumUser, 'plan1', ['plan1-tomato|g'], true);
+
+    expect(householdService.scalingPortions).toHaveBeenCalledWith(premiumUser);
+    expect(pantryService.seedFromPurchases).toHaveBeenCalledWith('u1', [
+      { name: 'Tomato', quantity: 1800, unit: 'g' },
+    ]);
+
+    // …and it matches the line getForWeek serves for the same plan.
+    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(
+      await mealPlanRepository.findByIdForUser('u1', 'plan1'),
+    );
+    const list = await service.getForWeek(premiumUser, 0);
+    expect(list.items.find((i) => i.key === 'plan1-tomato|g')!.quantity).toBe('1800');
+  });
+
   it('checked keys that match no list item seed nothing', async () => {
-    await service.toggleItems('u1', 'plan1', ['plan1-nonexistent|g'], true);
+    await service.toggleItems(freeUser, 'plan1', ['plan1-nonexistent|g'], true);
     expect(pantryService.seedFromPurchases).toHaveBeenCalledWith('u1', []);
+  });
+});
+
+describe('ShoppingListService — store search uses the aggregated list', () => {
+  const service = new ShoppingListService();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
+  });
+
+  it('searches for the list lines (repeats summed, portions and household applied)', async () => {
+    // The same recipe twice in the week, once at 2×, for 6 portions of a
+    // 4-serving recipe: tomato 600 g × (1 + 2) × 6/4 = 2700 g — one line.
+    const plan = {
+      ...PLAN,
+      days: [
+        { ...PLAN.days[0], meals: [{ type: 'dinner', recipeId: 'r1' }] },
+        {
+          id: 'd1',
+          mealPlanId: 'plan1',
+          dayOfWeek: 1,
+          meals: [{ type: 'dinner', recipeId: 'r1', portion: 2 }],
+        },
+      ],
+    };
+    vi.mocked(mealPlanRepository.findAllByUserId).mockResolvedValue([plan] as never);
+    vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([
+      { ...RECIPE, servings: 4 },
+    ] as never);
+    vi.mocked(householdService.scalingPortions).mockResolvedValueOnce(6);
+
+    await service.searchStores(premiumUser, 'plan1');
+
+    const input = vi.mocked(groceryAIService.searchNearbyStores).mock.calls[0]![0];
+    expect(input.ingredients.filter((i) => i.name === 'Tomato')).toEqual([
+      { name: 'Tomato', quantity: '2700', unit: 'g', category: 'produce' },
+    ]);
   });
 });
 
