@@ -56,11 +56,15 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
             Week of {format(weekStart, 'dd MMM')} – {format(weekEnd, 'dd MMM yyyy')}
           </span>
         </div>
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[plan.status] ?? STATUS_STYLES['ARCHIVED']}`}
-        >
-          {plan.status}
-        </span>
+        {/* Only a replaced week needs a badge; the raw "ACTIVE" enum on every
+            past week read as if the week were still running. */}
+        {plan.status !== 'ACTIVE' && (
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES['ARCHIVED']}`}
+          >
+            Replaced
+          </span>
+        )}
       </div>
 
       {/* Recipe preview chips */}
