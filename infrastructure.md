@@ -1132,6 +1132,23 @@ per-user time zone is stored, uses **fixed UTC hours**: Mondays from 07:00 UTC
 - **Idempotency**: `claimSend` inserts the `EmailSend` row _before_ sending
   (`@@unique(userId, kind, weekStart)`); a failed send releases it so a later
   tick retries. 600 ms between sends (Resend's 2 req/s).
+- **Daily cap** (`EMAIL_DAILY_CAP`, default 400 for SMTP/Gmail): a sweep's
+  budget is `cap − 50` minus every send in the last rolling 24h — weekly
+  claims (`WeeklyEmailRepository.countSendsSince`, survives restarts) plus
+  this process's password-reset/confirmation sends (`transactionalSendLog`,
+  in memory). At the budget, or on a provider sending-limit reply
+  (`EmailQuotaError`: Gmail `5.4.5`, `421/454 4.7.x`), the sweep stops
+  _before_ claiming — the failed user's claim is released — and returns
+  `capped` + `deferred`. The worker re-runs a capped sweep every tick,
+  anchored to its original time (a Sunday recap finished on Monday still
+  covers Sunday's week), for up to 48 h. Catch-ups live in memory: an API
+  restart after the scheduled day drops them (those users miss that one
+  email; nobody is emailed twice).
+- **Transport** (`lib/email/index.ts`): `EMAIL_PROVIDER` = console mock,
+  Resend (HTTP) or SMTP (nodemailer; Gmail + App Password — see §10 "Sending
+  email from Gmail"). The sweep uses the raw `emailTransport`; password reset
+  and confirmation use `emailService`, which records each send for the budget
+  and is never capped.
 - Templates: `lib/email/templates.ts` (branded HTML + text part, escaped).
   Every weekly email carries an unsubscribe link and a `List-Unsubscribe`
   header.
@@ -1577,39 +1594,95 @@ hidden, leaving no way back to the login form.
 
 ### `apps/api/.env`
 
-| Variable                   | Required | Default                              | Description                                                                                                                                                              |
-| -------------------------- | -------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `NODE_ENV`                 | No       | development                          | Runtime environment                                                                                                                                                      |
-| `PORT`                     | No       | 3001                                 | HTTP listen port                                                                                                                                                         |
-| `HOST`                     | No       | 0.0.0.0                              | HTTP listen host                                                                                                                                                         |
-| `DATABASE_URL`             | **Yes**  | —                                    | PostgreSQL connection string                                                                                                                                             |
-| `JWT_SECRET`               | **Yes**  | —                                    | Min 32 chars                                                                                                                                                             |
-| `JWT_EXPIRES_IN`           | No       | 15m                                  | Access token TTL                                                                                                                                                         |
-| `REFRESH_TOKEN_SECRET`     | **Yes**  | —                                    | Min 32 chars                                                                                                                                                             |
-| `REFRESH_TOKEN_EXPIRES_IN` | No       | 30d                                  | Refresh token TTL                                                                                                                                                        |
-| `CORS_ORIGINS`             | No       | http://localhost:3000                | Comma-separated allowed origins                                                                                                                                          |
-| `REDIS_URL`                | No       | —                                    | Redis connection string                                                                                                                                                  |
-| `RATE_LIMIT_MAX`           | No       | 100                                  | Max requests per window                                                                                                                                                  |
-| `RATE_LIMIT_WINDOW_MS`     | No       | 60000                                | Rate limit window (ms)                                                                                                                                                   |
-| `AI_MOCK_ENABLED`          | No       | true                                 | `true` = fixture data; `false` = real AI provider                                                                                                                        |
-| `AI_PROVIDER`              | No       | gemini                               | Active provider: `gemini` (primary, optional failover) \| `openai` (OpenAI-compatible client standalone)                                                                 |
-| `GEMINI_API_KEY`           | No       | —                                    | Required when `AI_PROVIDER=gemini` + mock disabled                                                                                                                       |
-| `GEMINI_MODEL`             | No       | gemini-2.5-flash                     | Main Gemini model id (generation, swaps, chat, review)                                                                                                                   |
-| `GEMINI_FAST_MODEL`        | No       | gemini-2.5-flash-lite                | Cheaper Gemini model for mechanical calls (shopping-list consolidation)                                                                                                  |
-| `AI_SECONDARY_API_KEY`     | No       | —                                    | Enables the OpenAI-compatible failover secondary (§5.5 W3-A) when set with `AI_PROVIDER=gemini`; required for `AI_PROVIDER=openai`. Unset = Gemini alone (failover dark) |
-| `AI_SECONDARY_BASE_URL`    | No       | https://api.groq.com/openai/v1       | OpenAI-compatible endpoint of the secondary (no trailing slash)                                                                                                          |
-| `AI_SECONDARY_MODEL`       | No       | openai/gpt-oss-120b                  | Model id at the secondary endpoint. The default has **no vision** — photo calls stay Gemini-only                                                                         |
-| `GROCERY_AI_MOCK_ENABLED`  | No       | true                                 | Use fixture grocery store data (no Claude call)                                                                                                                          |
-| `UNSPLASH_ACCESS_KEY`      | No       | —                                    | Unsplash API key for ingredient images; falls back to category images without it. Get a free key at https://unsplash.com/developers                                      |
-| `IMAGE_PROVIDER`           | No       | pollinations                         | Recipe image provider: `pollinations` or `cloudflare` (needs `CF_ACCOUNT_ID` + `CF_API_TOKEN`; uploads to Cloudinary)                                                    |
-| `CF_ACCOUNT_ID`            | No       | —                                    | Cloudflare account id (Workers AI), required when `IMAGE_PROVIDER=cloudflare`                                                                                            |
-| `CF_API_TOKEN`             | No       | —                                    | Cloudflare API token with the Workers AI permission                                                                                                                      |
-| `CF_IMAGE_MODEL`           | No       | @cf/black-forest-labs/flux-1-schnell | Workers AI text-to-image model id                                                                                                                                        |
-| `EMAIL_MOCK_ENABLED`       | No       | true                                 | Mock logs emails (incl. reset links) to the console instead of sending                                                                                                   |
-| `RESEND_API_KEY`           | No       | —                                    | Required when `EMAIL_MOCK_ENABLED=false`                                                                                                                                 |
-| `EMAIL_FROM`               | No       | Chefer <onboarding@resend.dev>       | Sender address; shared Resend sender only delivers to the account owner — use a verified domain for real users                                                           |
-| `APP_URL`                  | No       | http://localhost:3000                | Base URL used in emailed links (password reset, weekly emails, unsubscribe, email confirmation)                                                                          |
-| `EMAIL_TOKEN_SECRET`       | No       | from `JWT_SECRET`                    | ≥ 32 chars; signs unsubscribe + confirmation links (P2-5). Set in prod so a `JWT_SECRET` rotation keeps old links                                                        |
+| Variable                   | Required | Default                                                         | Description                                                                                                                                                                           |
+| -------------------------- | -------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                 | No       | development                                                     | Runtime environment                                                                                                                                                                   |
+| `PORT`                     | No       | 3001                                                            | HTTP listen port                                                                                                                                                                      |
+| `HOST`                     | No       | 0.0.0.0                                                         | HTTP listen host                                                                                                                                                                      |
+| `DATABASE_URL`             | **Yes**  | —                                                               | PostgreSQL connection string                                                                                                                                                          |
+| `JWT_SECRET`               | **Yes**  | —                                                               | Min 32 chars                                                                                                                                                                          |
+| `JWT_EXPIRES_IN`           | No       | 15m                                                             | Access token TTL                                                                                                                                                                      |
+| `REFRESH_TOKEN_SECRET`     | **Yes**  | —                                                               | Min 32 chars                                                                                                                                                                          |
+| `REFRESH_TOKEN_EXPIRES_IN` | No       | 30d                                                             | Refresh token TTL                                                                                                                                                                     |
+| `CORS_ORIGINS`             | No       | http://localhost:3000                                           | Comma-separated allowed origins                                                                                                                                                       |
+| `REDIS_URL`                | No       | —                                                               | Redis connection string                                                                                                                                                               |
+| `RATE_LIMIT_MAX`           | No       | 100                                                             | Max requests per window                                                                                                                                                               |
+| `RATE_LIMIT_WINDOW_MS`     | No       | 60000                                                           | Rate limit window (ms)                                                                                                                                                                |
+| `AI_MOCK_ENABLED`          | No       | true                                                            | `true` = fixture data; `false` = real AI provider                                                                                                                                     |
+| `AI_PROVIDER`              | No       | gemini                                                          | Active provider: `gemini` (primary, optional failover) \| `openai` (OpenAI-compatible client standalone)                                                                              |
+| `GEMINI_API_KEY`           | No       | —                                                               | Required when `AI_PROVIDER=gemini` + mock disabled                                                                                                                                    |
+| `GEMINI_MODEL`             | No       | gemini-2.5-flash                                                | Main Gemini model id (generation, swaps, chat, review)                                                                                                                                |
+| `GEMINI_FAST_MODEL`        | No       | gemini-2.5-flash-lite                                           | Cheaper Gemini model for mechanical calls (shopping-list consolidation)                                                                                                               |
+| `AI_SECONDARY_API_KEY`     | No       | —                                                               | Enables the OpenAI-compatible failover secondary (§5.5 W3-A) when set with `AI_PROVIDER=gemini`; required for `AI_PROVIDER=openai`. Unset = Gemini alone (failover dark)              |
+| `AI_SECONDARY_BASE_URL`    | No       | https://api.groq.com/openai/v1                                  | OpenAI-compatible endpoint of the secondary (no trailing slash)                                                                                                                       |
+| `AI_SECONDARY_MODEL`       | No       | openai/gpt-oss-120b                                             | Model id at the secondary endpoint. The default has **no vision** — photo calls stay Gemini-only                                                                                      |
+| `GROCERY_AI_MOCK_ENABLED`  | No       | true                                                            | Use fixture grocery store data (no Claude call)                                                                                                                                       |
+| `UNSPLASH_ACCESS_KEY`      | No       | —                                                               | Unsplash API key for ingredient images; falls back to category images without it. Get a free key at https://unsplash.com/developers                                                   |
+| `IMAGE_PROVIDER`           | No       | pollinations                                                    | Recipe image provider: `pollinations` or `cloudflare` (needs `CF_ACCOUNT_ID` + `CF_API_TOKEN`; uploads to Cloudinary)                                                                 |
+| `CF_ACCOUNT_ID`            | No       | —                                                               | Cloudflare account id (Workers AI), required when `IMAGE_PROVIDER=cloudflare`                                                                                                         |
+| `CF_API_TOKEN`             | No       | —                                                               | Cloudflare API token with the Workers AI permission                                                                                                                                   |
+| `CF_IMAGE_MODEL`           | No       | @cf/black-forest-labs/flux-1-schnell                            | Workers AI text-to-image model id                                                                                                                                                     |
+| `EMAIL_PROVIDER`           | No       | from `EMAIL_MOCK_ENABLED`                                       | `mock` \| `resend` \| `smtp`. Unset = legacy switch: `EMAIL_MOCK_ENABLED=true` → mock, `false` → Resend. An explicit value wins                                                       |
+| `EMAIL_MOCK_ENABLED`       | No       | true                                                            | Legacy switch, used only when `EMAIL_PROVIDER` is unset. Mock logs emails (incl. reset links) to the console instead of sending                                                       |
+| `RESEND_API_KEY`           | No       | —                                                               | Required when the provider is `resend`                                                                                                                                                |
+| `EMAIL_FROM`               | No       | smtp: `Chefer <SMTP_USER>`; else Chefer <onboarding@resend.dev> | Sender. Resend: the shared sender only delivers to the account owner — use a verified domain. Gmail: must be `SMTP_USER` or a verified "Send mail as" alias (startup warns otherwise) |
+| `SMTP_HOST`                | No       | smtp.gmail.com                                                  | SMTP server (`EMAIL_PROVIDER=smtp`)                                                                                                                                                   |
+| `SMTP_PORT`                | No       | 465                                                             | 465 = implicit TLS; 587 = STARTTLS (set `SMTP_SECURE=false`)                                                                                                                          |
+| `SMTP_SECURE`              | No       | true                                                            | `true` for port 465; startup warns on a port/TLS mismatch                                                                                                                             |
+| `SMTP_USER`                | smtp     | —                                                               | SMTP login — for Gmail, the full address. Required when `EMAIL_PROVIDER=smtp`                                                                                                         |
+| `SMTP_PASS`                | smtp     | —                                                               | SMTP password — for Gmail, a 16-letter **App Password** (spaces are stripped), never the account password. Required when `EMAIL_PROVIDER=smtp`                                        |
+| `EMAIL_DAILY_CAP`          | No       | 400 for smtp, none otherwise                                    | Max sends per rolling 24h. Weekly emails stop at cap − 50 (headroom for password-reset/confirmation emails, which are never blocked); see "Sending email from Gmail"                  |
+| `APP_URL`                  | No       | http://localhost:3000                                           | Base URL used in emailed links (password reset, weekly emails, unsubscribe, email confirmation)                                                                                       |
+| `EMAIL_TOKEN_SECRET`       | No       | from `JWT_SECRET`                                               | ≥ 32 chars; signs unsubscribe + confirmation links (P2-5). Set in prod so a `JWT_SECRET` rotation keeps old links                                                                     |
+
+### Sending email from Gmail (runbook)
+
+Production can send from a plain Gmail account (today: `cheferapp.help@gmail.com`)
+over SMTP — no domain needed. Resend can't send "from" a gmail.com address,
+hence the `smtp` provider (`apps/api/src/lib/email/smtp.ts`, nodemailer).
+
+1. Sign in to the Gmail account → Google Account → Security → turn on
+   **2-Step Verification** (App Passwords don't exist without it).
+2. Open <https://myaccount.google.com/apppasswords>, create an App Password
+   named "Chefer API" and copy the 16 letters (shown once).
+3. On the VM, add to `.env.production` (and drop `EMAIL_MOCK_ENABLED` /
+   `RESEND_API_KEY` — `EMAIL_PROVIDER` wins anyway):
+
+   ```
+   EMAIL_PROVIDER=smtp
+   SMTP_USER=cheferapp.help@gmail.com
+   SMTP_PASS=abcdefghijklmnop
+   EMAIL_FROM="Chefer <cheferapp.help@gmail.com>"
+   ```
+
+   `SMTP_HOST`/`SMTP_PORT`/`SMTP_SECURE` default to `smtp.gmail.com:465` with
+   TLS; `EMAIL_DAILY_CAP` defaults to 400.
+
+4. Redeploy: on the VM, `cd ~/chefer && ./infrastructure/scripts/deploy.sh` (or the next
+   push to master). Its `up -d` recreates the api container because its env
+   changed — a plain `docker restart` would keep the old env.
+   The API log line `api server listening` shows `emailMode: "smtp"` and
+   `emailDailyCap: 400`; a `⚠️ [email]` line means a From/port mismatch.
+5. Test: request a password reset for your own account on the live site; the
+   email arrives from the Gmail address. A failure logs the SMTP reply
+   (`535 5.7.8` = wrong App Password; a timeout = outbound 465 blocked by the
+   host's egress rules).
+
+**Limits and deliverability.** Google's "Gmail sending limits" page
+(<https://support.google.com/mail/answer/22839>, checked 2026-09-26) says a
+personal account that sends more than **500 emails a day** (or to more than
+500 recipients in one message) is blocked from sending for **1 to 24 hours**
+("You have reached a limit for sending mail"). Hence the 400 cap: weekly
+emails use at most 350 of any rolling 24 hours, password-reset and
+confirmation emails always keep the last 50 (and are never refused by the
+cap — only Gmail's own limit can stop them). When a weekly sweep hits the cap
+the rest go out on later hourly ticks, for up to 48 hours
+(`WeeklyEmailWorker`). Caveats: a gmail.com sender has no SPF/DKIM alignment
+with Chefer's own domain, so some inboxes will file it as promotions or spam,
+and the ceiling is ~500/day total. Past a few hundred weekly recipients, move
+to a custom domain with Resend (verify the domain, set
+`EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `EMAIL_FROM="Chefer <hello@your-domain>"`)
+or a Google Workspace account (2,000/day).
 
 ### `apps/web/.env.local`
 

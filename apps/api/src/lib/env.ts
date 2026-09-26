@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import { resolveEmailConfig, type EmailProvider } from './email/config.js';
+
+/** An empty value (a copied .env.example line) counts as unset. */
+const emptyAsUnset = (val: unknown) => (val === '' ? undefined : val);
 
 const envSchema = z.object({
   // Node
@@ -53,14 +57,32 @@ const envSchema = z.object({
 
   // Email — mock is enabled by default so local dev never sends real mail;
   // the mock logs the message (including reset links) to the console instead.
+  // EMAIL_PROVIDER (mock | resend | smtp) picks the transport; unset keeps the
+  // legacy switch: EMAIL_MOCK_ENABLED=true → mock, false → Resend. See
+  // lib/email/config.ts and "Sending email from Gmail" in infrastructure.md.
+  EMAIL_PROVIDER: z.preprocess(emptyAsUnset, z.enum(['mock', 'resend', 'smtp']).optional()),
   EMAIL_MOCK_ENABLED: z
     .string()
     .default('true')
     .transform((val) => val === 'true'),
   RESEND_API_KEY: z.string().optional(),
-  // The shared Resend sender only delivers to the account owner's inbox —
-  // swap for a verified-domain address before real users need email.
-  EMAIL_FROM: z.string().default('Chefer <onboarding@resend.dev>'),
+  // Unset: the SMTP_USER address for smtp, else the shared Resend sender —
+  // which only delivers to the Resend account owner's inbox.
+  EMAIL_FROM: z.preprocess(emptyAsUnset, z.string().optional()),
+  // SMTP (EMAIL_PROVIDER=smtp). Defaults target Gmail with implicit TLS; the
+  // password is a Google App Password, never the account password.
+  SMTP_HOST: z.string().default('smtp.gmail.com'),
+  SMTP_PORT: z.coerce.number().int().positive().default(465),
+  SMTP_SECURE: z
+    .string()
+    .default('true')
+    .transform((val) => val === 'true'),
+  SMTP_USER: z.preprocess(emptyAsUnset, z.string().optional()),
+  SMTP_PASS: z.preprocess(emptyAsUnset, z.string().optional()),
+  // Max emails per rolling 24h (default 400 for smtp, none otherwise). The
+  // weekly emails stop 50 short of it — that headroom is kept for
+  // password-reset and confirmation emails.
+  EMAIL_DAILY_CAP: z.preprocess(emptyAsUnset, z.coerce.number().int().positive().optional()),
   // Base URL used in emailed links (reset password, etc.)
   APP_URL: z.string().url().default('http://localhost:3000'),
   // Signs the weekly-email unsubscribe and email-confirmation links (audit
@@ -69,7 +91,7 @@ const envSchema = z.object({
   // in inboxes — set this in production so the two rotate independently.
   // An empty value (copied .env.example) counts as unset.
   EMAIL_TOKEN_SECRET: z.preprocess(
-    (val) => (val === '' ? undefined : val),
+    emptyAsUnset,
     z.string().min(32, 'EMAIL_TOKEN_SECRET must be at least 32 characters').optional(),
   ),
 
@@ -92,7 +114,15 @@ const envSchema = z.object({
 
 type EnvSchema = z.infer<typeof envSchema>;
 
-function validateEnv(): EnvSchema {
+/** The parsed env, with the email settings resolved (lib/email/config.ts). */
+export type Env = Omit<EnvSchema, 'EMAIL_PROVIDER' | 'EMAIL_FROM' | 'EMAIL_DAILY_CAP'> & {
+  EMAIL_PROVIDER: EmailProvider;
+  EMAIL_FROM: string;
+  /** Max sends per rolling 24h, or null for no cap. */
+  EMAIL_DAILY_CAP: number | null;
+};
+
+function validateEnv(): Env {
   const parsed = envSchema.safeParse(process.env);
 
   if (!parsed.success) {
@@ -122,11 +152,21 @@ function validateEnv(): EnvSchema {
     );
   }
 
-  if (!data.EMAIL_MOCK_ENABLED && !data.RESEND_API_KEY) {
-    throw new Error('❌ RESEND_API_KEY is required when EMAIL_MOCK_ENABLED=false');
+  const email = resolveEmailConfig(data);
+  if (email.errors.length > 0) {
+    throw new Error(`❌ ${email.errors.join('\n❌ ')}`);
   }
+  // env.ts loads before the logger, so these go straight to the console.
+  for (const warning of email.warnings) console.warn(`⚠️  [email] ${warning}`);
 
-  return data;
+  return {
+    ...data,
+    EMAIL_PROVIDER: email.config.provider,
+    EMAIL_FROM: email.config.from,
+    EMAIL_DAILY_CAP: email.config.dailyCap,
+    // Normalised (Gmail App Password spaces stripped).
+    SMTP_PASS: email.config.smtp?.pass ?? data.SMTP_PASS,
+  };
 }
 
 export const env = validateEnv();

@@ -795,9 +795,11 @@ quick add.
 ## 11. Password Reset Flow
 
 > Added 2026-08-21 (roadmap P0-6). Email goes through `IEmailService`
-> (`apps/api/src/lib/email`): a console-logging mock when
-> `EMAIL_MOCK_ENABLED=true` (default — the logged link is the local testing
-> workflow), Resend otherwise.
+> (`apps/api/src/lib/email`), chosen by `EMAIL_PROVIDER`: a console-logging
+> mock (default — the logged link is the local testing workflow), Resend, or
+> SMTP (a Gmail account + App Password, 2026-09-26). Reset and confirmation
+> emails always have priority: the daily cap (`EMAIL_DAILY_CAP`) never
+> blocks them, and weekly emails stop 50 sends short of it to leave them room.
 
 ```
 /forgot-password → auth.requestPasswordReset { email }   (public)
@@ -1622,8 +1624,13 @@ for each:
   build → nothing to say?  skip (no plan this week / an empty recap week)
         → claimSend (insert EmailSend; @@unique → a second tick or a restart
           loses the claim and sends nothing)
-        → send (Resend; console mock in dev)
+        → send (EMAIL_PROVIDER: Gmail SMTP / Resend; console mock in dev)
             └─ failure → release the claim, the next tick retries
+  daily cap (EMAIL_DAILY_CAP, 400 for Gmail): budget = cap − 50 − sends in
+  the last 24h. Budget spent, or the provider says "sending limit" →
+  stop BEFORE the next claim (a failed user's claim is released); the rest
+  go out on later hourly ticks, for up to 48h (a capped Sunday recap
+  finishes Monday for the week that ended).
 ```
 
 - **Monday** lists one dinner per day, the shopping-list estimate in the

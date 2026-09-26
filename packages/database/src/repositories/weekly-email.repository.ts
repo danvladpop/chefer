@@ -48,6 +48,11 @@ export interface IWeeklyEmailRepository {
   claimSend(userId: string, kind: WeeklyEmailKind, weekStart: Date): Promise<boolean>;
   /** Releases a claim whose email failed, so a later tick retries it. */
   releaseSend(userId: string, kind: WeeklyEmailKind, weekStart: Date): Promise<void>;
+  /**
+   * Weekly emails claimed (sent or in flight) since `since`, every user and
+   * kind — the weekly sweep's share of the daily send cap (EMAIL_DAILY_CAP).
+   */
+  countSendsSince(since: Date): Promise<number>;
   getPreferences(userId: string): Promise<WeeklyEmailPreferences | null>;
   setPreferences(
     userId: string,
@@ -115,6 +120,10 @@ export class WeeklyEmailRepository implements IWeeklyEmailRepository {
 
   async releaseSend(userId: string, kind: WeeklyEmailKind, weekStart: Date): Promise<void> {
     await prisma.emailSend.deleteMany({ where: { userId, kind, weekStart } });
+  }
+
+  async countSendsSince(since: Date): Promise<number> {
+    return prisma.emailSend.count({ where: { sentAt: { gte: since } } });
   }
 
   async getPreferences(userId: string): Promise<WeeklyEmailPreferences | null> {

@@ -13,7 +13,8 @@ import { weeklyEmailService } from '../application/notifications/weekly-email.se
 //   pnpm exec tsx --env-file=.env src/scripts/send-weekly-emails.ts recap  [--user=a@b.c] [--dry-run]
 //
 // --dry-run prints each rendered email (text part) without claiming or sending.
-// With EMAIL_MOCK_ENABLED=true (the default) a real run logs to the console.
+// With the mock provider (the default) a real run logs to the console. Real
+// runs respect EMAIL_DAILY_CAP like the worker does.
 
 async function main(): Promise<void> {
   const [kind, ...flags] = process.argv.slice(2);
@@ -50,7 +51,7 @@ async function main(): Promise<void> {
     console.log(`\n── To: ${preview.to}\n── Subject: ${preview.subject}\n${preview.text}\n`);
   }
   console.log(
-    `${kind}: ${result.sent} sent, ${result.skipped} skipped (nothing to say or already sent), ${result.failed} failed${dryRun ? ` — dry run, ${result.previews.length} rendered` : ''}`,
+    `${kind}: ${result.sent} sent, ${result.skipped} skipped (nothing to say or already sent), ${result.failed} failed${result.capped ? `, ${result.deferred} deferred (EMAIL_DAILY_CAP reached — run again tomorrow)` : ''}${dryRun ? ` — dry run, ${result.previews.length} rendered` : ''}`,
   );
 }
 

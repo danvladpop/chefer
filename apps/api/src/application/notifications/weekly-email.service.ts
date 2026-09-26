@@ -18,7 +18,14 @@ import {
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { formatBodyWeight, formatMoney, toDisplayCurrency } from '@chefer/utils';
-import { emailService, type EmailMessage, type IEmailService } from '../../lib/email/index.js';
+import { bulkDailyAllowance } from '../../lib/email/config.js';
+import {
+  EmailQuotaError,
+  emailTransport,
+  transactionalSendLog,
+  type EmailMessage,
+  type IEmailService,
+} from '../../lib/email/index.js';
 import {
   renderWeeklyRecapEmail,
   renderWeekReadyEmail,
@@ -44,6 +51,15 @@ import { shoppingListService } from '../shopping-list/shopping-list.service.js';
 // week) before it goes out, and recipients who already have a claim for the
 // week are never even loaded — restarts and repeated ticks can't double-send.
 // A failed send releases its claim so the next tick retries it.
+//
+// Daily cap (EMAIL_DAILY_CAP — Gmail allows ~500 sends a day): a sweep may
+// use `cap − 50` minus everything already sent in the last 24 hours (weekly
+// claims in email_sends + this process's password-reset/confirmation sends),
+// so those always keep 50 sends of headroom. At the budget the sweep stops
+// BEFORE claiming, so the users it didn't reach have no claim and a later
+// tick picks them up; a provider "sending limit" error releases the claim and
+// stops the sweep the same way. The result says `capped` and how many were
+// `deferred` — the worker keeps retrying the sweep hourly (weekly-email.worker).
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
@@ -152,6 +168,22 @@ export function weightChangeLabel(
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
+/**
+ * EMAIL_DAILY_CAP minus the priority reserve, minus every send in the last
+ * rolling 24 hours: weekly claims (email_sends, survives restarts) and this
+ * process's password-reset/confirmation sends. Null when there is no cap.
+ */
+export async function defaultSendBudget(
+  repo: Pick<IWeeklyEmailRepository, 'countSendsSince'>,
+  cap: number | null = env.EMAIL_DAILY_CAP,
+  transactionalLastDay: () => number = () => transactionalSendLog.countLastDay(),
+  now: Date = new Date(),
+): Promise<number | null> {
+  if (cap === null) return null;
+  const weekly = await repo.countSendsSince(new Date(now.getTime() - DAY_MS));
+  return Math.max(0, bulkDailyAllowance(cap) - weekly - transactionalLastDay());
+}
+
 export interface WeeklyEmailDeps {
   repo: IWeeklyEmailRepository;
   email: IEmailService;
@@ -165,6 +197,11 @@ export interface WeeklyEmailDeps {
   appUrl: string;
   unsubscribeUrl: (userId: string, scope: UnsubscribeScope) => string;
   sendDelayMs: number;
+  /**
+   * How many more weekly emails may go out right now (rolling 24h), or null
+   * for no cap. Read once per sweep.
+   */
+  sendBudget: () => Promise<number | null>;
 }
 
 export interface SweepOptions {
@@ -178,6 +215,10 @@ export interface SweepResult {
   sent: number;
   skipped: number;
   failed: number;
+  /** Recipients left for a later tick because the daily cap was reached. */
+  deferred: number;
+  /** True when the sweep stopped early at the daily cap / a sending limit. */
+  capped: boolean;
   /** Rendered emails, only in dry-run mode. */
   previews: EmailMessage[];
 }
@@ -193,7 +234,7 @@ export class WeeklyEmailService {
   constructor(deps: Partial<WeeklyEmailDeps> = {}) {
     this.deps = {
       repo: weeklyEmailRepository,
-      email: emailService,
+      email: emailTransport,
       mealPlans: mealPlanRepository,
       profiles: chefProfileRepository,
       ratings: mealRatingRepository,
@@ -204,6 +245,7 @@ export class WeeklyEmailService {
       appUrl: env.APP_URL,
       unsubscribeUrl,
       sendDelayMs: DEFAULT_SEND_DELAY_MS,
+      sendBudget: () => defaultSendBudget(this.deps.repo),
       ...deps,
     };
   }
@@ -225,10 +267,28 @@ export class WeeklyEmailService {
     build: (user: WeeklyEmailRecipient) => Promise<RenderedEmail | null>,
   ): Promise<SweepResult> {
     const weekStart = weekStartUtc(now);
-    const result: SweepResult = { sent: 0, skipped: 0, failed: 0, previews: [] };
+    const result: SweepResult = {
+      sent: 0,
+      skipped: 0,
+      failed: 0,
+      deferred: 0,
+      capped: false,
+      previews: [],
+    };
     const recipients = await this.deps.repo.findRecipients(kind, weekStart, options.userId);
+    let budget = options.dryRun || recipients.length === 0 ? null : await this.deps.sendBudget();
 
-    for (const user of recipients) {
+    const stop = (index: number, reason: string) => {
+      result.capped = true;
+      result.deferred = recipients.length - index;
+      console.warn(`[WeeklyEmail] ${kind}: ${reason} — ${result.deferred} left for a later tick`);
+    };
+
+    for (const [index, user] of recipients.entries()) {
+      if (budget !== null && budget <= 0) {
+        stop(index, 'daily send cap reached');
+        break;
+      }
       try {
         const rendered = await build(user);
         if (!rendered) {
@@ -248,6 +308,7 @@ export class WeeklyEmailService {
         try {
           await this.deps.email.send(message);
           result.sent += 1;
+          if (budget !== null) budget -= 1;
         } catch (err) {
           await this.deps.repo.releaseSend(user.id, kind, weekStart);
           throw err;
@@ -256,6 +317,12 @@ export class WeeklyEmailService {
           await new Promise((r) => setTimeout(r, this.deps.sendDelayMs));
         }
       } catch (err) {
+        if (err instanceof EmailQuotaError) {
+          // The provider's own limit: everyone left (this user included,
+          // whose claim was released above) waits for a later tick.
+          stop(index, 'the provider reported a sending limit');
+          break;
+        }
         // One user's failure must never starve the rest of the sweep.
         result.failed += 1;
         console.error(`[WeeklyEmail] ${kind} failed for user ${user.id}:`, err);

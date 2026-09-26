@@ -218,7 +218,8 @@ const server = app.listen(env.PORT, env.HOST, () => {
       port: env.PORT,
       environment: env.NODE_ENV,
       aiMode: env.AI_MOCK_ENABLED ? 'mock' : env.AI_PROVIDER,
-      emailMode: env.EMAIL_MOCK_ENABLED ? 'mock' : 'resend',
+      emailMode: env.EMAIL_PROVIDER,
+      emailDailyCap: env.EMAIL_DAILY_CAP,
     },
     'api server listening',
   );
