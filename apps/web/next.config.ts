@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   // Don't advertise the framework (audit F-X-4-10).
   poweredByHeader: false,
   reactCompiler: false,
-  transpilePackages: ['@chefer/ui', '@chefer/utils', '@chefer/types'],
+  transpilePackages: ['@chefer/ui', '@chefer/utils', '@chefer/types', '@chefer/tokens'],
   images: {
     // On the small production VM, skip Next's image optimizer: it removes a CPU/
     // memory load and lets same-host uploaded images render without per-host

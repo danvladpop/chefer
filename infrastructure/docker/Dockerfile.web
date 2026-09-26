@@ -13,6 +13,7 @@ COPY packages/config/tsconfig/package.json ./packages/config/tsconfig/
 COPY packages/config/eslint/package.json ./packages/config/eslint/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
+COPY packages/tokens/package.json ./packages/tokens/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/database/package.json ./packages/database/
 COPY apps/api/package.json ./apps/api/
@@ -41,6 +42,7 @@ COPY turbo.json ./
 COPY packages/config/tsconfig ./packages/config/tsconfig
 COPY packages/types ./packages/types
 COPY packages/utils ./packages/utils
+COPY packages/tokens ./packages/tokens
 COPY packages/ui ./packages/ui
 COPY packages/database ./packages/database
 COPY apps/api ./apps/api
