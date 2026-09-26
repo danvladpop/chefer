@@ -2,6 +2,7 @@ import { Image, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Card, Text } from '@chefer/ui-mobile';
+import { formatPortion } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import type { RouterOutputs } from '../../../lib/trpc';
 import { MealTypeBadge } from './meal-type-badge';
@@ -15,7 +16,12 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
       testID="hero-meal-card-open"
       accessibilityRole="button"
       accessibilityLabel={`Open ${meal.recipe.name}`}
-      onPress={() => router.push(`/recipe/${meal.recipe.id}`)}
+      onPress={() =>
+        router.push(
+          // P1-1: a portioned plan slot opens pre-set to its portion.
+          `/recipe/${meal.recipe.id}${meal.portion !== undefined ? `?portion=${meal.portion}` : ''}`,
+        )
+      }
       className="active:opacity-80"
     >
       <Card testID="hero-meal-card" className="overflow-hidden p-0">
@@ -45,7 +51,10 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
             </View>
             <View className="flex-row items-center gap-1">
               <Ionicons name="flame-outline" size={14} color="#944a00" />
-              <Text className="text-xs text-gray-500">{meal.recipe.kcal} kcal</Text>
+              <Text className="text-xs text-gray-500">
+                {meal.recipe.kcal} kcal
+                {meal.portion !== undefined && ` · ${formatPortion(meal.portion)} portion`}
+              </Text>
             </View>
           </View>
         </View>

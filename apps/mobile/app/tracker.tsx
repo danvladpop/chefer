@@ -8,7 +8,9 @@ import {
   customEntryChipLabel,
   customEntryRows,
   customEntryTotals,
+  formatPortion,
   localDateStr,
+  slotPortion,
 } from '@chefer/utils';
 import { MealTypeBadge } from '../src/features/dashboard/components/meal-type-badge';
 import { QuickAddSheet } from '../src/features/tracker/quick-add-sheet';
@@ -23,9 +25,19 @@ import { trpc } from '../src/lib/trpc';
 // deliberate: the rebalance banner + undo shows HERE, right after the log
 // that caused it — web only shows it on the meal plan (F-TRK-3-2).
 
-type PortionKey = 0.5 | 1 | 1.5 | 2;
+type PortionKey = number;
 const PORTION_OPTIONS: PortionKey[] = [0.5, 1, 1.5, 2];
-const PORTION_LABELS: Record<PortionKey, string> = { 0.5: '½×', 1: '1×', 1.5: '1½×', 2: '2×' };
+
+/**
+ * P1-1: a planned meal's default portion is its plan slot's (a curated day
+ * sized to 1¼× logs 1¼×), within the tracker's 0.5–2 range — same rule as
+ * web. The picker gets that portion as an extra option when it's not one of
+ * the four.
+ */
+const planPortionOf = (meal: { portion?: number }): PortionKey =>
+  Math.min(2, Math.max(0.5, slotPortion(meal.portion)));
+const portionOptionsFor = (meal: { portion?: number }): PortionKey[] =>
+  [...new Set([...PORTION_OPTIONS, planPortionOf(meal)])].sort((a, b) => a - b);
 
 // Local calendar day, not the UTC one (F-TRK-1-1).
 const toDateStr = (d: Date): string => localDateStr(d);
@@ -88,7 +100,7 @@ export default function TrackerScreen() {
         }
         init[getKey(m.recipeId, m.mealType)] = {
           checked: true,
-          portion: m.portionMultiplier as PortionKey,
+          portion: m.portionMultiplier,
         };
       }
       setCheckedMeals(init);
@@ -110,11 +122,11 @@ export default function TrackerScreen() {
     onSuccess: () => void refetch(),
   });
 
-  const toggleMeal = (recipeId: string, mealType: string) => {
+  const toggleMeal = (recipeId: string, mealType: string, planPortion: PortionKey) => {
     const k = getKey(recipeId, mealType);
     setCheckedMeals((prev) => ({
       ...prev,
-      [k]: { checked: !(prev[k]?.checked ?? false), portion: prev[k]?.portion ?? 1 },
+      [k]: { checked: !(prev[k]?.checked ?? false), portion: prev[k]?.portion ?? planPortion },
     }));
     setSavedSuccess(false);
   };
@@ -155,24 +167,24 @@ export default function TrackerScreen() {
 
   const checked = (recipeId: string, mealType: string) =>
     checkedMeals[getKey(recipeId, mealType)]?.checked ?? false;
-  const portionOf = (recipeId: string, mealType: string): PortionKey =>
-    checkedMeals[getKey(recipeId, mealType)]?.portion ?? 1;
+  const portionOf = (m: { recipeId: string; mealType: string; portion?: number }): PortionKey =>
+    checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? planPortionOf(m);
 
   const loggedPlanned = (data?.plannedMeals ?? []).filter((m) => checked(m.recipeId, m.mealType));
   const loggedKcal =
-    loggedPlanned.reduce((s, m) => s + Math.round(m.kcal * portionOf(m.recipeId, m.mealType)), 0) +
+    loggedPlanned.reduce((s, m) => s + Math.round(m.kcal * portionOf(m)), 0) +
     customTotals.kcal +
     offPlanTotals.kcal;
   const loggedProtein =
-    loggedPlanned.reduce((s, m) => s + m.protein * portionOf(m.recipeId, m.mealType), 0) +
+    loggedPlanned.reduce((s, m) => s + m.protein * portionOf(m), 0) +
     customTotals.protein +
     offPlanTotals.protein;
   const loggedCarbs =
-    loggedPlanned.reduce((s, m) => s + m.carbs * portionOf(m.recipeId, m.mealType), 0) +
+    loggedPlanned.reduce((s, m) => s + m.carbs * portionOf(m), 0) +
     customTotals.carbs +
     offPlanTotals.carbs;
   const loggedFat =
-    loggedPlanned.reduce((s, m) => s + m.fat * portionOf(m.recipeId, m.mealType), 0) +
+    loggedPlanned.reduce((s, m) => s + m.fat * portionOf(m), 0) +
     customTotals.fat +
     offPlanTotals.fat;
 
@@ -181,7 +193,7 @@ export default function TrackerScreen() {
       return;
     }
     const plannedLogged = loggedPlanned.map((m) => {
-      const portion = portionOf(m.recipeId, m.mealType);
+      const portion = portionOf(m);
       return {
         recipeId: m.recipeId,
         mealType: m.mealType,
@@ -300,7 +312,7 @@ export default function TrackerScreen() {
             <View className="gap-2">
               {(data?.plannedMeals ?? []).map((meal) => {
                 const isChecked = checked(meal.recipeId, meal.mealType);
-                const portion = portionOf(meal.recipeId, meal.mealType);
+                const portion = portionOf(meal);
                 return (
                   <View
                     key={getKey(meal.recipeId, meal.mealType)}
@@ -313,7 +325,7 @@ export default function TrackerScreen() {
                       testID={`tracker-meal-${meal.mealType}`}
                       accessibilityRole="button"
                       accessibilityState={{ checked: isChecked }}
-                      onPress={() => toggleMeal(meal.recipeId, meal.mealType)}
+                      onPress={() => toggleMeal(meal.recipeId, meal.mealType, planPortionOf(meal))}
                       className="flex-row items-center gap-3"
                     >
                       <Image
@@ -331,6 +343,8 @@ export default function TrackerScreen() {
                         </Text>
                         <Text className="text-xs text-gray-500">
                           {Math.round(meal.kcal * portion)} kcal
+                          {planPortionOf(meal) !== 1 &&
+                            ` · plan ${formatPortion(planPortionOf(meal))}`}
                         </Text>
                       </View>
                       <View
@@ -345,7 +359,7 @@ export default function TrackerScreen() {
 
                     {isChecked && (
                       <View className="mt-2 flex-row gap-1.5">
-                        {PORTION_OPTIONS.map((p) => (
+                        {portionOptionsFor(meal).map((p) => (
                           <Pressable
                             key={p}
                             accessibilityRole="button"
@@ -363,7 +377,7 @@ export default function TrackerScreen() {
                                 portion === p ? 'text-primary-foreground' : 'text-gray-600',
                               )}
                             >
-                              {PORTION_LABELS[p]}
+                              {formatPortion(p)}
                             </Text>
                           </Pressable>
                         ))}

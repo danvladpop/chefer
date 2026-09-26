@@ -3,8 +3,9 @@ import { ActivityIndicator, Pressable, ScrollView, Switch, View } from 'react-na
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, DENSE_MAX_FONT_SCALE, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { cn, formatMoney } from '@chefer/utils';
+import { cn, formatMoney, sumPlanDay } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { PlanDayTotals } from '../../src/features/meal-plan/plan-day-totals';
 import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
 import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sheet';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
@@ -376,6 +377,13 @@ export default function MealPlanScreen() {
                 />
               ))
             )}
+            {meals.length > 0 && (
+              <PlanDayTotals
+                meals={meals}
+                calorieTarget={plan.calorieTarget}
+                proteinGapG={day?.proteinGapG}
+              />
+            )}
           </ScrollView>
 
           <RecipePickerSheet
@@ -417,7 +425,7 @@ export default function MealPlanScreen() {
                 label,
                 dayIndex: i,
                 mealsCount: dayMeals.length,
-                totalKcal: dayMeals.reduce((sum, m) => sum + m.recipe.nutritionInfo.calories, 0),
+                totalKcal: sumPlanDay(dayMeals).kcal,
                 isToday: todayIndex === i,
               };
             })}
