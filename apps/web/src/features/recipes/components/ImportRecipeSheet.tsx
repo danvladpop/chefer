@@ -176,7 +176,9 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
       }
       size="lg"
       footer={
-        preview ? (
+        isPremium === false ? (
+          <UpgradeButton className="min-h-11 w-full" source="recipe-import" />
+        ) : preview ? (
           isPremium ? (
             <div className="flex w-full items-center gap-3">
               <button
@@ -216,7 +218,9 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
         )
       }
     >
-      {preview ? (
+      {isPremium === false ? (
+        <ImportLockedDemo />
+      ) : preview ? (
         <PreviewStep
           preview={preview}
           isPremium={isPremium}
@@ -296,18 +300,52 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
             </div>
           )}
 
-          {isPremium === false && (
-            <p className="mt-3 text-xs text-gray-500">
-              Free preview: 1 import a day. Premium imports, adapts and saves up to 5 a day.
-            </p>
-          )}
-
           {previewMutation.isError && (
             <p className="mt-3 text-sm text-red-600">{previewMutation.error.message}</p>
           )}
         </div>
       )}
     </Sheet>
+  );
+}
+
+// ─── Locked demo (free tier) ──────────────────────────────────────────────────
+// Recipe import is per-user AI, so it is premium-only (owner decision
+// 2026-09-25). Free users see a clearly labelled, canned example of what the
+// chef does — no AI call, no daily preview to burn.
+
+const DEMO_CHANGES = [
+  'Swapped peanut butter for toasted sunflower seed butter',
+  'Swapped chicken for extra-firm tofu (vegetarian)',
+  'Rescaled from 4 servings to 2',
+];
+
+function ImportLockedDemo() {
+  return (
+    <div className="space-y-4" data-testid="import-locked">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Example</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border bg-gray-50 p-3">
+          <p className="text-xs font-semibold text-gray-500">Original</p>
+          <p className="mt-1 text-sm font-semibold text-gray-900">Chicken Peanut Satay</p>
+          <p className="mt-1 text-xs text-gray-600">From a food blog · serves 4</p>
+        </div>
+        <div className="rounded-xl border border-[#944a00]/30 bg-[#fff8f0] p-3">
+          <p className="text-xs font-semibold text-[#944a00]">Cheferized for you</p>
+          <p className="mt-1 text-sm font-semibold text-gray-900">Tofu Satay</p>
+          <ul className="mt-1 space-y-0.5 text-xs text-gray-700">
+            {DEMO_CHANGES.map((c) => (
+              <li key={c}>· {c}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      <p className="flex items-start gap-2 text-sm text-gray-700">
+        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
+        Premium imports any recipe from a link, pasted text or a cookbook photo, adapts it to your
+        allergies and household, and saves it to your collection.
+      </p>
+    </div>
   );
 }
 

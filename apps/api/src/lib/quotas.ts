@@ -51,7 +51,14 @@ async function reserve(
   callType: AiCallType,
   limit: number | null,
   exceeded: () => TRPCError,
+  premiumOnlyMessage = 'This is a premium feature. Upgrade to use it.',
 ): Promise<QuotaReservation> {
+  // A limit of 0 means the tier has no access at all: answer FORBIDDEN before
+  // anything is written ("You've used today's 0 free chat messages" was the
+  // old copy for this case).
+  if (limit === 0) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: premiumOnlyMessage });
+  }
   if (limit === null) {
     const row = await prisma.aiCallLog.create({ data: { userId, callType } });
     return releaser(row.id);
@@ -140,8 +147,9 @@ export async function reserveRecipeImport(user: UserProfile): Promise<QuotaReser
         code: 'TOO_MANY_REQUESTS',
         message: isPremiumUser(user)
           ? `You've hit today's limit of ${limit} recipe imports. It resets at midnight UTC.`
-          : `You've used today's free import preview. Upgrade for ${PLAN_FEATURES.recipeImportsPerDay.premium} imports a day, adapted to you and saved to your collection.`,
+          : `You've used today's recipe imports. It resets at midnight UTC.`,
       }),
+    'Importing recipes is a premium feature. Upgrade to import and adapt any recipe.',
   );
 }
 
@@ -174,7 +182,24 @@ export async function reserveChatMessage(user: UserProfile): Promise<QuotaReserv
     () =>
       new TRPCError({
         code: 'TOO_MANY_REQUESTS',
-        message: `You've used today's ${limit} free chat messages. Upgrade for unlimited AI chef chat.`,
+        message: `You've used today's ${limit} chat messages. It resets at midnight UTC.`,
       }),
+    'The AI chef chat is a premium feature. Upgrade to chat with your chef.',
+  );
+}
+
+/** Reserves one AI nutrition estimate (premium-only; audit F-PAN-2-4). */
+export async function reserveNutritionEstimate(user: UserProfile): Promise<QuotaReservation> {
+  const limit = getLimit(user, 'aiNutritionEstimatesPerDay');
+  return reserve(
+    user.id,
+    AiCallType.INGREDIENT_PRICES,
+    limit,
+    () =>
+      new TRPCError({
+        code: 'TOO_MANY_REQUESTS',
+        message: `You've hit today's limit of ${limit} AI nutrition estimates. It resets at midnight UTC.`,
+      }),
+    'Auto-filling nutrition with AI is a premium feature. Enter the values by hand, or upgrade.',
   );
 }

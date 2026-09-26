@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
-import { AiCallType, prisma } from '@chefer/database';
+import { prisma } from '@chefer/database';
+import type { UserProfile } from '@chefer/types';
 import { aiService } from '../../lib/ai/index.js';
 import { buildPollinationsUrl } from '../../lib/image-gen/pollinations.js';
 import { resolveIngredientImage } from '../../lib/ingredient-images/index.js';
@@ -10,6 +11,7 @@ import {
   RECIPE_UNITS,
   type ComputedNutrition,
 } from '../../lib/ingredient-prices/index.js';
+import { reserveNutritionEstimate } from '../../lib/quotas.js';
 import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js';
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
@@ -337,7 +339,7 @@ export class IngredientsService {
    * call; only genuinely unknown names cost a Gemini request.
    */
   async estimateNutrition(
-    userId: string,
+    user: UserProfile,
     rawName: string,
   ): Promise<{
     caloriesPer100g: number | null;
@@ -351,6 +353,7 @@ export class IngredientsService {
     pricePerPieceEur: number | null;
     source: 'catalog' | 'ai';
   } | null> {
+    const userId = user.id;
     const name = normalizeIngredientName(rawName);
 
     const existing = await prisma.ingredientPrice.findFirst({
@@ -375,11 +378,15 @@ export class IngredientsService {
       };
     }
 
+    // Catalog matches stay free; the AI fallback is per-user AI, so it is
+    // premium-only and capped (audit F-PAN-2-4). The reservation logs the call.
+    const reservation = await reserveNutritionEstimate(user);
     let estimate;
     try {
       const estimates = await aiService.estimateIngredientPrices([name]);
       estimate = estimates[0];
     } catch (err) {
+      await reservation.release();
       console.error('AI estimateIngredientPrices failed:', err);
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
@@ -387,11 +394,6 @@ export class IngredientsService {
       });
     }
     if (!estimate) return null;
-
-    // Log AI call (fire-and-forget — never crash the request if logging fails)
-    prisma.aiCallLog
-      .create({ data: { userId, callType: AiCallType.INGREDIENT_PRICES } })
-      .catch((err) => console.error('[aiCallLog] Failed to log INGREDIENT_PRICES call:', err));
 
     return {
       caloriesPer100g: estimate.caloriesPer100g,

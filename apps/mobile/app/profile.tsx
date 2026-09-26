@@ -146,8 +146,11 @@ export default function ProfileScreen() {
             </Text>
             {(() => {
               const tier = isPremiumTier ? 'premium' : 'free';
+              // false = no access on this tier → 0, and the row is hidden below
+              // (it used to render "0 / unlimited" — audit F-PROF-1-2).
               const lim = (key: keyof typeof PLAN_FEATURES): number | null => {
                 const access = PLAN_FEATURES[key][tier];
+                if (access === false) return 0;
                 return typeof access === 'number' ? access : null;
               };
               const rows = [

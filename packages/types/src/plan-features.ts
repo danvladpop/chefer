@@ -96,12 +96,14 @@ export const PLAN_FEATURES = {
     upsell: false,
   },
   chatMessagesPerDay: {
-    // Enforced by ChatService.assertChatQuota (P1-4).
-    free: 5,
+    // Per-user AI is premium-only (owner decision 2026-09-25): free users see
+    // a locked chat preview. Enforced by reserveChatMessage (lib/quotas.ts).
+    free: false,
     premium: true,
-    label: 'Unlimited AI chef chat',
-    description: 'Ask the AI chef anything about your plan — free users get 5 messages a day.',
-    upsell: false,
+    label: 'AI chef chat',
+    description:
+      'Ask the AI chef anything — it can swap meals, log what you ate and import recipes for you.',
+    upsell: true,
   },
   // ── Premium expansion (premium_plan.md) — keys land in wave 0, features
   //    per wave. Copy is live on upgrade surfaces from day one.
@@ -154,10 +156,9 @@ export const PLAN_FEATURES = {
     upsell: false,
   },
   recipeImportsPerDay: {
-    // Enforced via AiCallLog type RECIPE_IMPORT (F5). Free tier gets one
-    // extraction preview a day (the §6.4 ghost state); premium gets the
-    // full import + Cheferize flow.
-    free: 1,
+    // Enforced via AiCallLog type RECIPE_IMPORT (F5). Premium-only since
+    // 2026-09-25 (per-user AI is premium): free users see a canned example.
+    free: false,
     premium: 5,
     label: 'Daily recipe imports',
     description: 'How many recipes can be imported per day. Resets at midnight UTC.',
@@ -180,6 +181,16 @@ export const PLAN_FEATURES = {
     label: 'Gym training & progressive overload',
     description:
       'Exercise library with technique videos, editable routines, offline workout logging and week-over-week progression suggestions.',
+    upsell: false,
+  },
+  aiNutritionEstimatesPerDay: {
+    // "Auto-fill with AI" on the custom-ingredient form — per-user AI, so
+    // premium-only; it used to be an ungated AI call (audit F-PAN-2-4).
+    // Enforced via AiCallLog type INGREDIENT_PRICES.
+    free: false,
+    premium: 30,
+    label: 'AI nutrition auto-fill',
+    description: "Estimate a custom ingredient's nutrition with AI.",
     upsell: false,
   },
 } as const satisfies Record<string, PlanFeature>;

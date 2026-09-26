@@ -57,7 +57,17 @@ chatRouter.post(
     try {
       stream = await chatService.chat(user, messages);
     } catch (err) {
-      if (err instanceof TRPCError && err.code === 'TOO_MANY_REQUESTS') {
+      // FORBIDDEN = chat is premium-only for this tier (per-user AI, owner
+      // decision 2026-09-25). It rides the same 200 + quota-header path so
+      // shipped mobile builds show their upgrade surface, plus a new header
+      // for clients that render the locked preview.
+      if (err instanceof TRPCError && err.code === 'FORBIDDEN') {
+        res.setHeader('X-Chat-Upgrade-Required', '1');
+      }
+      if (
+        err instanceof TRPCError &&
+        (err.code === 'TOO_MANY_REQUESTS' || err.code === 'FORBIDDEN')
+      ) {
         // Deliver the quota message as a normal chat reply (200 text stream)
         // — the widget renders it inline instead of a generic transport error.
         // The header is the machine-readable signal: the widget swaps its
