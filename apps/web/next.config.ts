@@ -2,6 +2,8 @@ import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 
 const nextConfig: NextConfig = {
+  // Don't advertise the framework (audit F-X-4-10).
+  poweredByHeader: false,
   reactCompiler: false,
   transpilePackages: ['@chefer/ui', '@chefer/utils', '@chefer/types'],
   images: {
@@ -44,6 +46,18 @@ const nextConfig: NextConfig = {
         source: '/(.*)',
         headers: [
           { key: 'X-Frame-Options', value: 'DENY' },
+          // Audit F-X-4-10: the API had helmet, the web app had no HSTS or
+          // CSP. This CSP only locks down framing, plugins, <base> and form
+          // targets; a script/style allowlist needs a prod pass against
+          // PostHog, Sentry and the image CDNs first.
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains',
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
+          },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           {

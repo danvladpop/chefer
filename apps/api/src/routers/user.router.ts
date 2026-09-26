@@ -20,8 +20,17 @@ const updateUserSchema = z.object({
   id: z.string().cuid(),
   name: z.string().min(2).max(100).optional(),
   email: z.string().email().optional(),
+  /** Required to change your own email (audit F-X-4-6). */
+  currentPassword: z.string().min(1).max(100).optional(),
   role: z.nativeEnum(UserRole).optional(),
-  image: z.string().url().optional(),
+  // https only: `javascript:` and plain-http tracking URLs were accepted
+  // (audit F-PROF-1-3).
+  image: z
+    .string()
+    .url()
+    .max(2048)
+    .refine((u) => u.startsWith('https://'), 'Image must be an https URL')
+    .optional(),
 });
 
 const listUsersSchema = z.object({
@@ -82,6 +91,7 @@ export const userRouter = router({
       email: input.email,
       name: input.name,
       role: input.role,
+      password: input.password,
     });
   }),
 
@@ -89,7 +99,7 @@ export const userRouter = router({
    * Update a user. Admins can update any user; regular users can only update themselves.
    */
   update: protectedProcedure.input(updateUserSchema).mutation(async ({ ctx, input }) => {
-    const { id, ...data } = input;
+    const { id, currentPassword, ...data } = input;
 
     // Non-admins can only update themselves and cannot change role
     if (ctx.user.role !== 'ADMIN') {
@@ -103,6 +113,30 @@ export const userRouter = router({
         throw new TRPCError({
           code: 'FORBIDDEN',
           message: 'You cannot change your own role',
+        });
+      }
+    }
+
+    // Admins can't change their own role, and the last admin can't be
+    // demoted — either would lock everyone out of admin (audit F-ADM-1-3).
+    if (data.role && data.role !== 'ADMIN') {
+      if (id === ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'You cannot change your own role' });
+      }
+      const target = await userService.findById(id);
+      if (target?.role === 'ADMIN' && (await userService.countAdmins()) <= 1) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'You cannot demote the last admin' });
+      }
+    }
+
+    // Changing the sign-in email takes the current password, so a stolen
+    // session can't become a permanent takeover via email change + reset
+    // (audit F-PROF-1-3, F-X-4-6). Admins editing other users are exempt.
+    if (data.email !== undefined && id === ctx.user.id) {
+      if (!currentPassword || !(await userService.verifyPassword(id, currentPassword))) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Enter your current password to change your email',
         });
       }
     }
