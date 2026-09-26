@@ -23,9 +23,11 @@ import {
   normalizeIngredientName,
 } from '../../lib/ingredient-prices/index.js';
 import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js';
+import { householdService } from '../household/household.service.js';
 import { buildPantryMatcher } from '../pantry/pantry-match.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { inferCategory } from '../shared/category-map.js';
+import { householdScaleFactor } from '../shared/household-scale.js';
 import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
 import {
   aggregateIngredientLines,
@@ -89,6 +91,13 @@ export interface WeekShoppingList {
    * (audit F-PM-3); absent = the whole week. Additive.
    */
   fromDayOfWeek?: number;
+  /**
+   * Portions the list's quantities and total are sized for — present only
+   * when a premium household's list was scaled to the whole table (backlog
+   * P2-3, audit F-PM-5). Absent = recipes as written (single portion for
+   * curated plans). Per-person cost = total ÷ this, never ÷ head count.
+   */
+  portions?: number;
 }
 
 /** Items as persisted in the ShoppingList table (images/prices re-resolved on read). */
@@ -292,6 +301,7 @@ export class ShoppingListService {
   /** Derived (non-AI) item lines from the plan's recipes — the P1-5 merge. */
   private async buildDerivedRawItems(
     targetPlan: MealPlan & { days: MealPlanDay[] },
+    portions: number | null = null,
   ): Promise<StoredShoppingListItem[]> {
     type MealSlotJson = PlanMealSlotJson;
     const uniqueIds = [
@@ -310,11 +320,13 @@ export class ShoppingListService {
         (day.meals as MealSlotJson[]).flatMap((slot) => {
           const recipe = recipeMap.get(slot.recipeId);
           if (!recipe) return [];
-          // P1-1: a portioned slot (1.5× of one serving) buys that much.
+          // P1-1: a portioned slot (1.5× of one serving) buys that much;
+          // P2-3: a premium household multiplies it by portions ÷ servings.
           const portion = slotPortion(slot.portion);
+          const factor = householdScaleFactor(recipe.servings, portions);
           return (recipe.ingredients as unknown as Ingredient[]).map((ing) => ({
             name: ing.name,
-            quantity: ing.quantity * portion,
+            quantity: ing.quantity * portion * factor,
             unit: ing.unit,
             recipeId: slot.recipeId,
           }));
@@ -367,6 +379,9 @@ export class ShoppingListService {
     // an ITEM source — a bare row must not shadow the derived list.
     const stored = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
     const checkedKeys = [...new Set(stored?.checkedKeys ?? [])];
+    // Premium households get the list sized for the whole table (P2-3).
+    const portions = await householdService.scalingPortions(user);
+    const sized = portions !== null ? { portions } : {};
     // User-added items overlay whichever list is served (derived or AI).
     const customItems = readCustomItems(stored?.customItems);
     if (stored?.aiGenerated) {
@@ -392,10 +407,11 @@ export class ShoppingListService {
         aiGenerated: true,
         checkedKeys,
         pantry,
+        ...sized,
       };
     }
 
-    const rawItems = await this.buildDerivedRawItems(targetPlan);
+    const rawItems = await this.buildDerivedRawItems(targetPlan, portions);
     const finalized = await this.finalizeItems([...rawItems, ...customItems]);
     const { items, estimatedTotalEur, pantry } = await this.applyPantry(
       user,
@@ -416,6 +432,7 @@ export class ShoppingListService {
       aiGenerated: false,
       checkedKeys,
       pantry,
+      ...sized,
     };
   }
 
@@ -654,6 +671,7 @@ export class ShoppingListService {
       ),
     ];
     const recipes = await mealPlanRepository.findRecipesByIds(uniqueIds);
+    const portions = await householdService.scalingPortions(user);
 
     // Pre-merge with the shared aggregator before the AI call — the model
     // only needs to do the *hard* consolidation, and water/"to taste" lines
@@ -666,11 +684,13 @@ export class ShoppingListService {
         (day.meals as MealSlotJson[]).flatMap((slot) => {
           const recipe = recipes.find((r) => r.id === slot.recipeId);
           if (!recipe) return [];
-          // P1-1: a portioned slot (1.5× of one serving) buys that much.
+          // P1-1: a portioned slot (1.5× of one serving) buys that much;
+          // P2-3: a premium household multiplies it by portions ÷ servings.
           const portion = slotPortion(slot.portion);
+          const factor = householdScaleFactor(recipe.servings, portions);
           return (recipe.ingredients as unknown as Ingredient[]).map((ing) => ({
             name: ing.name,
-            quantity: ing.quantity * portion,
+            quantity: ing.quantity * portion * factor,
             unit: ing.unit,
             recipeId: slot.recipeId,
           }));
@@ -710,7 +730,7 @@ export class ShoppingListService {
     const before = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
     const previousItems = before?.aiGenerated
       ? tidyAiItems(before.items as unknown as StoredShoppingListItem[])
-      : await this.buildDerivedRawItems(targetPlan);
+      : await this.buildDerivedRawItems(targetPlan, portions);
     const checkedKeys = carryCheckedKeys(
       before?.checkedKeys ?? [],
       [...previousItems, ...readCustomItems(before?.customItems)],
@@ -752,6 +772,7 @@ export class ShoppingListService {
       aiGenerated: true,
       checkedKeys,
       pantry,
+      ...(portions !== null && { portions }),
     };
   }
 

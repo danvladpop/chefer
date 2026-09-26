@@ -16,6 +16,7 @@ import {
 import { WeekNavigator } from '@/features/shopping-list/components/WeekNavigator';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
@@ -41,6 +42,7 @@ import {
   formatMoney,
   formatQuantity,
   isConvertedCurrency,
+  perPortionCost,
   shoppingWindowLabel,
 } from '@chefer/utils';
 
@@ -105,6 +107,7 @@ export default function ShoppingListPage() {
   // (was a hand-rolled `fixed inset-0` click-catcher).
   const listMenu = useMenu();
   const isPremium = useIsPremium();
+  const { memberCount } = useHousehold();
   const unitSystem = useUnitSystem();
   // Prices are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
@@ -442,6 +445,34 @@ export default function ShoppingListPage() {
           >
             Est. total ~{formatMoney(weekList.estimatedTotalEur, currency)}
           </span>
+        )}
+
+        {/* Who the quantities are for (P2-3, audit F-PM-5): a premium
+            household's list is scaled to the table; a free table's list is
+            recipes as written (one portion) and says so. */}
+        {weekList?.portions != null ? (
+          <span
+            title="Quantities and total are scaled to everyone at your table"
+            className="whitespace-nowrap rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-xs font-medium text-[#944a00]"
+          >
+            For {weekList.portions} portions
+            {weekList.estimatedTotalEur != null &&
+              ` · ~${formatMoney(
+                perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
+                currency,
+              )} each`}
+          </span>
+        ) : (
+          weekList?.hasPlan &&
+          memberCount > 0 && (
+            <Link
+              href="/preferences#household"
+              title="Premium scales the list to your whole table"
+              className="flex min-h-11 items-center whitespace-nowrap rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-600 sm:min-h-0"
+            >
+              Sized for 1 portion
+            </Link>
+          )
         )}
 
         {/* F3 savings counter: Σ prices of pantry-covered items, already

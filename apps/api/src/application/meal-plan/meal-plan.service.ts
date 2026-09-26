@@ -18,6 +18,7 @@ import {
 } from '@chefer/database';
 import {
   applyTrainingDayBonus,
+  householdPortionSum,
   PLAN_PORTION_STEPS,
   proteinGapG,
   slotPortion,
@@ -43,7 +44,11 @@ import {
 import { normalizeIngredientName } from '../../lib/ingredient-prices/index.js';
 import type { MacroVocabularyRow } from '../../lib/recipe-import/macro-check.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
-import { computeHouseholdContext, mergeHouseholdSafety } from '../household/household.service.js';
+import {
+  computeHouseholdContext,
+  legacyServingSizePlaceholders,
+  mergeHouseholdSafety,
+} from '../household/household.service.js';
 import { pairLeftovers } from '../pantry/leftovers.js';
 import { computeUsedPantryItemsForUser, getUseFirstIngredients } from '../pantry/pantry-context.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
@@ -178,6 +183,16 @@ export interface WeekPlanDto {
   };
 }
 
+/** How a read shows the plan to this viewer (backlog P2-3). */
+export interface PlanViewOptions {
+  /**
+   * Premium household scaling (`householdPlans`): the week cost is sized for
+   * the whole table, matching the shopping list. The router decides it from
+   * the viewer's tier.
+   */
+  householdScaling?: boolean;
+}
+
 // ─── Week helper ──────────────────────────────────────────────────────────────
 
 function getMondayOfWeek(offset: number): Date {
@@ -246,7 +261,12 @@ export class MealPlanService {
       return this.generateCurated(userId, weekOffset);
     }
     // 1. Load user preferences + learning signals (P1-1: pinned favourites
-    // and recent ratings feed the generation) + household members (F2).
+    // and recent ratings feed the generation) + household members (F2). A
+    // legacy "cooking for N" becomes members first — the household is the
+    // one people model (P2-3, audit F-PM-8).
+    await this.householdRepo
+      .migrateLegacyServingSize(userId, (n) => legacyServingSizePlaceholders(n))
+      .catch((err: unknown) => console.error('[meal-plan] servingSize migration failed', err));
     const [chefProfile, dietaryPrefs, pinnedCandidates, ratingSignals, householdMembers] =
       await Promise.all([
         chefProfileRepository.findByUserId(userId),
@@ -331,7 +351,9 @@ export class MealPlanService {
       dislikedIngredients: ownerSafety.dislikedIngredients,
       cuisinePreferences: dietaryPrefs?.cuisinePreferences ?? [],
       mealsPerDay: dietaryPrefs?.mealsPerDay ?? 3,
-      servingSize: dietaryPrefs?.servingSize ?? 1,
+      // Servings come from the household (owner 1 + members' portions), never
+      // from the legacy serving-size setting (P2-3, audit F-PM-8).
+      servingSize: householdContext?.portionSum ?? 1,
       pinnedDishNames: pinnedFavourites.map((f) => f.recipe.name),
       likedDishes,
       dislikedDishes,
@@ -535,7 +557,10 @@ export class MealPlanService {
           };
         }),
       })),
-      estimatedCost: await estimatePlanCostEur(daysFrom(weekPlan.days, shopFrom)),
+      // Sized for the table (P2-3): premium generation IS household scaling.
+      estimatedCost: await estimatePlanCostEur(daysFrom(weekPlan.days, shopFrom), {
+        portions: householdContext?.portionSum ?? null,
+      }),
       ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
       personalisation: {
         pinnedDishNames: placedPinNames,
@@ -785,6 +810,12 @@ export class MealPlanService {
     );
   }
 
+  /** Table portion sum, or null when it's just the owner (P2-3). */
+  private async householdPortions(userId: string): Promise<number | null> {
+    const members = await this.householdRepo.findByUserId(userId);
+    return members.length > 0 ? householdPortionSum(members) : null;
+  }
+
   /**
    * The user's live daily targets (calories + macros) — same resolver the
    * dashboard ring and premium generation use, so every surface shows one
@@ -813,6 +844,7 @@ export class MealPlanService {
       days: { dayOfWeek: number; meals: unknown }[];
     },
     userId?: string,
+    view: PlanViewOptions = {},
   ): Promise<WeekPlanDto> {
     const allMeals = plan.days.flatMap((d) => d.meals as PlanMealSlotJson[]);
     const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
@@ -848,11 +880,13 @@ export class MealPlanService {
     });
 
     const shopFrom = firstShoppingDay(plan.weekStartDate, plan.createdAt);
+    const portions = userId && view.householdScaling ? await this.householdPortions(userId) : null;
     return {
       planId: plan.id,
       weekStartDate: plan.weekStartDate,
       days,
-      estimatedCost: await estimatePlanCostEur(daysFrom(days, shopFrom)),
+      // Same scaling as the shopping list, so the chip equals the list total.
+      estimatedCost: await estimatePlanCostEur(daysFrom(days, shopFrom), { portions }),
       ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
       ...(targets && {
         calorieTarget: targets.dailyCalorieTarget,
@@ -865,17 +899,21 @@ export class MealPlanService {
    * Returns the active meal plan for the user with all recipes joined,
    * or null if no active plan exists.
    */
-  async getActive(userId: string): Promise<WeekPlanDto | null> {
+  async getActive(userId: string, view: PlanViewOptions = {}): Promise<WeekPlanDto | null> {
     const plan = await this.repo.findActiveWithDays(userId);
     if (!plan) return null;
-    return this.assemblePlanDto(plan, userId);
+    return this.assemblePlanDto(plan, userId, view);
   }
 
   /**
    * Returns the meal plan for a given week offset (0 = current, -1 = last week, 1 = next week).
    * Returns null if no plan exists for that week.
    */
-  async getForWeek(userId: string, weekOffset: number): Promise<WeekPlanDto | null> {
+  async getForWeek(
+    userId: string,
+    weekOffset: number,
+    view: PlanViewOptions = {},
+  ): Promise<WeekPlanDto | null> {
     const monday = getMondayOfWeek(weekOffset);
     let plan = await this.repo.findByWeekStart(userId, monday);
 
@@ -910,13 +948,13 @@ export class MealPlanService {
         });
         const created = await this.repo.findByWeekStart(userId, monday);
         if (created) {
-          return { ...(await this.assemblePlanDto(created, userId)), carriedOver: true };
+          return { ...(await this.assemblePlanDto(created, userId, view)), carriedOver: true };
         }
       }
     }
 
     if (!plan) return null;
-    return this.assemblePlanDto(plan, userId);
+    return this.assemblePlanDto(plan, userId, view);
   }
 
   /**
@@ -1340,12 +1378,12 @@ export class MealPlanService {
     return this.assemblePlanDto({ ...restored, days: target.days }, userId);
   }
 
-  async getById(userId: string, planId: string): Promise<WeekPlanDto> {
+  async getById(userId: string, planId: string, view: PlanViewOptions = {}): Promise<WeekPlanDto> {
     const plan = await this.repo.findByIdForUser(userId, planId);
     if (!plan) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found.' });
     }
-    return this.assemblePlanDto(plan, userId);
+    return this.assemblePlanDto(plan, userId, view);
   }
 }
 

@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
+import Link from 'next/link';
 import { AutoPlanToggle } from '@/features/preferences/components/auto-plan-toggle';
 import { PreferencesForm } from '@/features/preferences/components/preferences-form';
 import type { ChefProfileData, DietaryPreferencesData } from '@/features/preferences/types';
 import { createServerClient } from '@/lib/trpc-server';
+import { Users } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
 
 export const metadata: Metadata = {
@@ -56,7 +58,6 @@ export default async function PreferencesPage() {
         allergies: result.dietaryPreferences.allergies,
         dislikedIngredients: result.dietaryPreferences.dislikedIngredients,
         mealsPerDay: result.dietaryPreferences.mealsPerDay,
-        servingSize: result.dietaryPreferences.servingSize,
       };
     }
   } catch {
@@ -88,6 +89,15 @@ export default async function PreferencesPage() {
             ? 'Update your goals, body metrics, and dietary preferences at any time.'
             : 'Your allergies and dietary restrictions apply to every plan — free or premium.'}
         </p>
+        {/* Household is its own entry point, not buried below the diet form
+            (P2-3, PM review §5). */}
+        <Link
+          href="#household"
+          className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-primary underline-offset-2 hover:underline"
+        >
+          <Users className="h-4 w-4" aria-hidden="true" />
+          Who you cook for — your household
+        </Link>
         {isPremium && chefProfile?.dailyCalorieTarget && (
           <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
             <span className="font-medium text-primary">

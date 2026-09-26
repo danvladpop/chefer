@@ -22,7 +22,7 @@
 14. [Adaptive Chef Weekly Review Flow](#14-adaptive-chef-weekly-review-flow)
 15. [Snap-to-Log Flow (F4)](#15-snap-to-log-flow-f4)
 16. [Recipe Import & Cheferize Flow](#16-recipe-import--cheferize-flow)
-17. _(reserved for the F2 Household flow — lands with feat/household)_
+17. [Household Plans Flow (F2)](#17-household-plans-flow-f2)
 18. [Zero-Waste Pantry Flow (F3)](#18-zero-waste-pantry-flow-f3)
 19. [Beta Feedback Flow](#19-beta-feedback-flow)
 20. [Native App Update Flow (OTA, M4-4)](#20-native-app-update-flow-ota-m4-4)
@@ -67,6 +67,21 @@ Browser
         └── createSession → chefer_session cookie
             (HttpOnly, SameSite=Strict, Secure in prod, 30 days)
 3. Client redirects to /onboarding
+4. Onboarding step 0 — "What brings you here?" (backlog P2-3, F-PM-6; web and
+   mobile share `onboardingSteps` from @chefer/utils). Asked while
+   ChefProfile.onboardingIntent is null; the answer is saved with
+   preferences.setIntent (every tier):
+   ├── Eat better (EAT_BETTER) → the tier's food wizard, unchanged
+   │     (free: diet → goal → metrics; premium: goal → metrics → diet → cuisine)
+   ├── Feed my household (HOUSEHOLD) → "Who's at your table?" (add members,
+   │     free) → the food wizard
+   └── Train (TRAIN) → gym setup first (web /gym/setup; mobile Gym mode →
+         Today → setup). Food setup comes later: re-opening /onboarding skips
+         the question and runs the food steps.
+   Skip still works on every step (mobile "Skip for now" saves what is filled
+   and leaves; web "Skip this question" continues with the solo flow).
+   The premium wizard no longer asks "How many people are you cooking for?"
+   — the household is the one people model (F-PM-8).
 ```
 
 Admins can additionally create users via `user.create` (admin-only).
@@ -1065,7 +1080,8 @@ recipe.importPreview { url | text | imageBase64 }   (protected — free gets 1/d
   │      og:image captured, 20 k char cap)
   ├─ IAIService.extractRecipe (structured output; photo path uses vision)
   ├─ IAIService.cheferizeRecipe — allergen/restriction substitutions, soft dislike
-  │    swaps, servings rescaled to the profile serving size
+  │    swaps, servings rescaled to the household portion sum (P2-3); the
+  │    allergy set is the household union (members included)
   ├─ P1-2 allergen matcher RE-VALIDATES the adapted output (AI never trusted for
   │    safety) — surviving terms are listed and the adapted variant is unusable
   └─ macro cross-check vs the ingredient vocabulary (>25% off → "estimate uncertain")
@@ -1099,61 +1115,89 @@ text is stored or republished — only the structured recipe data the user cooks
 
 ## 17. Household Plans Flow (F2)
 
-**"Feed the Whole Table"** (premium_plan.md W2-D): the account owner adds the
-people they cook for — partner, kids, the flatmate with the nut allergy — and
-one generated week feeds all of them safely, at the right amounts.
+**"Feed the Whole Table"** (premium_plan.md W2-D; reworked by backlog P2-3):
+the account owner adds the people they cook for — partner, kids, the flatmate
+with the nut allergy — and every week is safe for all of them. **Member safety
+is free on every tier; portion scaling is premium.** The household is the one
+people model: there is no separate "cooking for N" setting any more (F-PM-8).
 
 ```
-Preferences → "My household" section
-  ├─ household.list (protected) — member chips with per-member safety summary
-  ├─ household.add (premium, cap PLAN_FEATURES.householdMembers = 5)
-  │    member = { name, portionFactor 0.25–3 (0.5 kid … 1.5 big eater),
-  │              isKid, allergies[], dietaryRestrictions[], dislikedIngredients[] }
-  │    → per-member editor reuses the onboarding StepDiet safety component
-  │    → `household_member_added` on save
-  ├─ household.update (premium) / household.remove (protected — a downgraded
-  │    user must still be able to manage the members that filter their plans)
-  └─ free tier ghost state (§6.4): ghost chips ("+ add your partner") → tap
-       renders a sample merged week from the user's OWN diet + one fictional
-       member; fires `upgrade_prompt_shown {source: 'household'}` +
-       `teaser_engaged {feature: 'household'}`; UpgradeButton source=household
+Entry points (≤ 2 taps from Profile / "You", PM review §5)
+  ├─ web: Profile → "Your household" card → /preferences#household
+  │        (the Preferences header also links straight to the section)
+  ├─ mobile: Profile → "Household" row → /household (also More → Household)
+  └─ onboarding: intent "Feed my household" → "Who's at your table?" step
 
-mealPlan.generate with members present
-  ├─ PREMIUM (AI): computeHouseholdContext →
-  │    MealPlanInput.householdContext {
-  │      memberCount, portionSum = ceil(1 + Σ portionFactor),
-  │      mergedSafety = union(owner + every member allergies/restrictions),
-  │      dislikeNotes = ["avoid mushrooms for Maria", …]  (soft)
-  │    }
-  │    ├─ merged union ALSO replaces the top-level Allergies/Restrictions
-  │    │    prompt fields (hard, every dish)
-  │    ├─ prompt: buildHouseholdSection — servings=portionSum, quantities
-  │    │    scaled, dislikes soft-balanced ("or note who the dish suits")
-  │    └─ recipes come back with servings = portionSum → shopping list
-  │         quantities scale automatically (list derives from ingredients)
-  └─ FREE (curated): loadMergedSafety → safeCuratedPools(mergedUnion) —
-       the SAME filterSafeRecipes, unchanged. SAFETY IS NEVER PREMIUM:
-       the matrix gates the members UI, but existing members keep
-       filtering every tier's plans (e.g. after a downgrade).
-       Swaps (curated AND AI) use the union too.
+Members (household.* — protected, EVERY tier, cap householdMembers = 5)
+  ├─ household.list — member chips with per-member safety summary
+  ├─ household.add — { name, portionFactor 0.25–3 (0.5 kid … 1.5 big eater),
+  │    isKid, allergies[], dietaryRestrictions[], dislikedIngredients[] }
+  │    count + insert in one SERIALIZABLE transaction (F-ONB-3-1: parallel
+  │    adds can no longer pass the cap); `household_member_added` on save
+  ├─ household.update / household.remove — ownership-scoped; removing asks
+  │    to confirm first (F-ONB-3-2)
+  └─ quick chips on an empty household: "+ add your partner" / "+ add a kid"
+       ├─ premium: open the editor pre-filled (kid = ½ portion, isKid)
+       └─ free: the §6.4 ghost reflects the chip tapped (F-PM-12) — the kid
+            chip shows a sample kid at ½ portion with a peanut allergy, the
+            partner chip a vegetarian adult — then offers "Add a kid" (free,
+            pre-filled editor) and the premium scaling upsell
+            (`upgrade_prompt_shown {source: 'household'}`,
+            `teaser_engaged {feature: 'household'}`)
 
-Cooking & eating surfaces
-  ├─ recipe page: "cooking for your household of N" note under servings
-  ├─ cook mode: servings pre-set to the household portionSum (not the
-  │    recipe's stored servings) when members exist
-  ├─ meal-plan page: week cost shows per-household total AND ≈€/person
-  └─ ratings: optional "who liked it" member chips on the star widget →
-       stored as a "Liked by: Maria, Tom" line inside MealRating.notes
-       (v1 — no schema change; the P1-1 signal reader is unaffected)
+Legacy "cooking for N" (DietaryPreferences.servingSize > 1)
+  └─ converted ONCE into N−1 "Person 2…N" placeholder members (only when the
+       user has none) and reset to 1 — at API boot (backfill), when an older
+       app build writes servingSize through preferences.setup/updateTargets,
+       and lazily on household.list / mealPlan.generate. Idempotent: the
+       conditional reset is the claim. preferences.get still returns
+       servingSize, derived from the household (≤ 6), for builds in the stores.
+
+SAFETY — every tier (members' allergies + restrictions ∪ the owner's)
+  ├─ free curated generation + curated swaps: loadMergedSafety →
+  │    safeCuratedPools(union) — the same filterSafeRecipes
+  ├─ premium AI generation + AI swaps: householdContext.mergedSafety on the
+  │    prompt AND the post-generation safety pass
+  ├─ allergen warnings (plan cards, recipe page, cook mode): allergenWarnings
+  │    are computed against the union
+  └─ recipe import (premium): the Cheferize preferences and the fail-closed
+       save check use the union too
+
+SCALING — premium only (`householdPlans`)
+  ├─ generation: servings = householdPortionSum = ceil(1 + Σ portionFactor)
+  │    (householdContext.portionSum → prompt "servings=N", MealPlanInput
+  │    .servingSize); the legacy setting is never read. Imports adapt to the
+  │    same number.
+  ├─ shopping list (derived AND the AI-consolidation input): every recipe's
+  │    ingredients × portions / recipe.servings — a single-portion curated
+  │    week ×portions, a recipe already generated for the table ×1 — and the
+  │    list reports `portions`
+  ├─ plan week cost: estimatedCost scaled the same way (chip = list total),
+  │    with `portions`
+  └─ recipe page + cook mode default to the table's servings
+FREE households: lists, costs and recipe pages stay as written (single
+portion for curated plans) and say so ("sized for 1 portion — Premium scales
+it for your table"). Per-person cost is ALWAYS total ÷ the portions the list
+was sized for (perPortionCost), never a single-portion total ÷ head count
+(F-PM-5).
+
+Ratings: optional "who liked it" member chips on the star widget → stored as
+a "Liked by: Maria, Tom" line inside MealRating.notes.
 ```
 
-**Downgrade semantics:** nothing is deleted (the /premium FAQ promise).
-Members stay visible in a read-only list with remove; their safety union
-keeps applying to free curated plans; add/edit come back with premium.
+**Downgrade semantics:** nothing is deleted and nothing about members changes
+— they stay fully editable on free, and their safety keeps applying. Only the
+scaling stops (lists go back to recipes as written).
+
+**Post-upgrade activation (web):** the "You're premium" sheet orders its steps
+by the upgrade `source` and hides what is already done (F-PREM-1-5, F-PM-9):
+source `household` → "Add your table" first (→ /preferences#household); users
+who already have a profile never see "Set your goal" or a link to /onboarding
+(which redirects them) — targets link to /preferences#targets.
 
 **Events:** `household_member_added`, `upgrade_prompt_shown {source:
-'household'}`, `teaser_engaged {feature: 'household'}` (see
-docs/analytics-funnel.md).
+'household'}`, `teaser_engaged {feature: 'household'}`, `onboarding_intent
+{intent}` (see docs/analytics-funnel.md).
 
 ---
 

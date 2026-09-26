@@ -94,4 +94,56 @@ describe('estimatePlanCostEur', () => {
     expect(result).toEqual({ totalEur: null, pricedLines: 0, totalLines: 0 });
     expect(prisma.ingredientPrice.findMany).not.toHaveBeenCalled();
   });
+
+  it('scales a premium household to the table: curated ×portions, table-sized recipes ×1 (F-PM-5)', async () => {
+    const days = [
+      // Curated, written for one: ×3.
+      {
+        meals: [
+          {
+            recipe: {
+              servings: 1,
+              ingredients: [{ name: 'Chicken breast', quantity: 100, unit: 'g' }],
+            },
+          },
+        ],
+      },
+      // AI recipe already generated for 3: unchanged.
+      {
+        meals: [
+          {
+            recipe: {
+              servings: 3,
+              ingredients: [{ name: 'Chicken breast', quantity: 300, unit: 'g' }],
+            },
+          },
+        ],
+      },
+    ];
+    const scaled = await estimatePlanCostEur(days, { portions: 3 });
+    expect(scaled.totalEur).toBe(6); // 600 g × €1.00/100 g
+    expect(scaled.portions).toBe(3);
+
+    const unscaled = await estimatePlanCostEur(days);
+    expect(unscaled.totalEur).toBe(4);
+    expect(unscaled).not.toHaveProperty('portions');
+  });
+
+  it('multiplies the P1-1 slot portion by the household scale (1.5× slot, 2-portion table → 3×)', async () => {
+    const days = [
+      {
+        meals: [
+          {
+            portion: 1.5,
+            recipe: {
+              servings: 1,
+              ingredients: [{ name: 'Chicken breast', quantity: 100, unit: 'g' }],
+            },
+          },
+        ],
+      },
+    ];
+    expect((await estimatePlanCostEur(days, { portions: 2 })).totalEur).toBe(3);
+    expect((await estimatePlanCostEur(days)).totalEur).toBe(1.5);
+  });
 });

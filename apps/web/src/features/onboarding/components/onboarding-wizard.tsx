@@ -2,12 +2,17 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { HouseholdSection } from '@/features/preferences/components/household-section';
 import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
+import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import { EMPTY_WIZARD_DATA, TOTAL_STEPS, type Goal, type WizardData } from '../types';
+import type { OnboardingIntent } from '@chefer/types';
+import { onboardingSteps } from '@chefer/utils';
+import { EMPTY_WIZARD_DATA, type Goal, type WizardData } from '../types';
 import { StepCuisine } from './step-cuisine';
 import { StepDiet } from './step-diet';
 import { StepGoal } from './step-goal';
+import { StepIntent } from './step-intent';
 import { StepMetrics } from './step-metrics';
 
 // ─── Wizard Component ─────────────────────────────────────────────────────────
@@ -17,20 +22,39 @@ import { StepMetrics } from './step-metrics';
 // (preferences.saveProfileBasics, free tier stores them so the dashboard
 // target is real). The old step 2 was a premium pitch masquerading as
 // onboarding progress (review O-1); the pitch is now a card under step 3.
+//
+// Step 0 (backlog P2-3, audit F-PM-6): "What brings you here?" — asked while
+// the profile has no intent. Households get "Who's at your table?" before the
+// food steps; gym-goers go straight to gym setup (food setup later — opening
+// /onboarding again skips the question). The step list comes from the shared
+// `onboardingSteps`, so web and mobile route identically. There is no
+// serving-size question any more: the household is the one people model.
 
 export function OnboardingWizard({
   isPremium,
   initialData = EMPTY_WIZARD_DATA,
+  initialIntent = null,
 }: {
   isPremium: boolean;
   /** Saved preferences, so a re-run never starts blank (F-ONB-1-1). */
   initialData?: WizardData;
+  /** The saved onboarding intent; null asks the question. */
+  initialIntent?: OnboardingIntent | null;
 }) {
   const router = useRouter();
-  const totalSteps = isPremium ? TOTAL_STEPS : 3;
+  const [askIntent] = useState(initialIntent === null);
+  const [intent, setIntent] = useState<OnboardingIntent | null>(initialIntent);
+  const steps = onboardingSteps({ intent, askIntent, isPremium });
+  const totalSteps = steps.length;
+  // 1-based position in `steps` (kept 1-based so progress reads naturally).
   const [step, setStep] = useState(1);
+  const stepKey = steps[step - 1] ?? steps[steps.length - 1];
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<WizardData>(initialData);
+
+  const intentMutation = trpc.preferences.setIntent.useMutation({
+    onError: (err) => setError(err.message),
+  });
 
   const setupMutation = trpc.preferences.setup.useMutation({
     onSuccess: () => router.push('/dashboard'),
@@ -50,9 +74,10 @@ export function OnboardingWizard({
   // ── Validation ──────────────────────────────────────────────────────────────
 
   function canContinue(): boolean {
-    if (!isPremium) return true; // both free steps are optional
-    if (step === 1) return data.goal !== null;
-    if (step === 2)
+    if (stepKey === 'intent') return intent !== null;
+    if (!isPremium) return true; // every free step is optional
+    if (stepKey === 'goal') return data.goal !== null;
+    if (stepKey === 'metrics')
       return (
         data.biologicalSex !== null &&
         data.age !== null &&
@@ -63,18 +88,50 @@ export function OnboardingWizard({
         data.weightKg > 0 &&
         data.activityLevel !== null
       );
-    return true; // Steps 3 and 4 are optional
+    return true; // Diet, cuisine and the table are optional
   }
 
   // ── Navigation ──────────────────────────────────────────────────────────────
 
+  function stepIndexOf(key: (typeof steps)[number]): number {
+    const index = steps.indexOf(key);
+    return index >= 0 ? index + 1 : 1;
+  }
+
+  async function handleIntentContinue() {
+    if (intent === null) return;
+    try {
+      await intentMutation.mutateAsync({ intent });
+    } catch {
+      return; // onError surfaced it
+    }
+    capture('onboarding_intent', { intent });
+    if (intent === 'TRAIN') {
+      // Gym-goers set up training first; food setup can wait (F-PM-6).
+      router.push('/gym/setup');
+      return;
+    }
+    setStep((s) => s + 1);
+  }
+
   function handleContinue() {
     setError(null);
+    if (stepKey === 'intent') {
+      void handleIntentContinue();
+      return;
+    }
     if (step < totalSteps) {
       setStep((s) => s + 1);
     } else {
       void handleFinish();
     }
+  }
+
+  /** "Skip this question": no intent stored, the solo flow continues. */
+  function handleSkipIntent() {
+    setError(null);
+    setIntent(null);
+    setStep((s) => s + 1);
   }
 
   function handleBack() {
@@ -116,7 +173,7 @@ export function OnboardingWizard({
     // F-ONB-1-3): send them to the first missing step and say why.
     if (data.goal === null) {
       setError('Pick a goal to finish setting up.');
-      setStep(1);
+      setStep(stepIndexOf('goal'));
       return;
     }
     if (
@@ -127,7 +184,7 @@ export function OnboardingWizard({
       data.activityLevel === null
     ) {
       setError('Add your body metrics to finish setting up.');
-      setStep(2);
+      setStep(stepIndexOf('metrics'));
       return;
     }
 
@@ -143,12 +200,12 @@ export function OnboardingWizard({
       dislikedIngredients: data.dislikedIngredients,
       cuisinePreferences: data.cuisinePreferences,
       mealsPerDay: data.mealsPerDay,
-      servingSize: data.servingSize,
     });
   }
 
   const progressPct = Math.round((step / totalSteps) * 100);
-  const isSubmitting = setupMutation.isPending || safetyMutation.isPending;
+  const isSubmitting =
+    setupMutation.isPending || safetyMutation.isPending || intentMutation.isPending;
 
   return (
     <div className="flex min-h-[calc(100dvh-4rem)] flex-col">
@@ -183,8 +240,36 @@ export function OnboardingWizard({
             </div>
           )}
 
+          {stepKey === 'intent' && (
+            <StepIntent
+              value={intent}
+              onChange={(next) => setIntent(next)}
+              onSkip={handleSkipIntent}
+            />
+          )}
+
+          {stepKey === 'table' && (
+            <div className="space-y-6">
+              <div className="space-y-1 text-center">
+                <h1 className="text-2xl font-bold tracking-tight">Who&apos;s at your table?</h1>
+                <p className="text-sm text-muted-foreground">
+                  Add the people you cook for. Their allergies and restrictions apply to every plan
+                  — free. You can change this any time in Preferences.
+                </p>
+              </div>
+              <HouseholdSection
+                isPremium={isPremium}
+                ownerSafety={{
+                  allergies: data.allergies,
+                  dietaryRestrictions: data.dietaryRestrictions,
+                }}
+                variant="onboarding"
+              />
+            </div>
+          )}
+
           {/* Free flow: safety first, then a preview of premium personalisation */}
-          {!isPremium && step === 1 && (
+          {!isPremium && stepKey === 'diet' && (
             <StepDiet
               value={{
                 dietaryRestrictions: data.dietaryRestrictions,
@@ -195,7 +280,7 @@ export function OnboardingWizard({
             />
           )}
 
-          {!isPremium && step === 2 && (
+          {!isPremium && stepKey === 'goal' && (
             <div className="space-y-4">
               <p className="text-center text-sm text-muted-foreground">
                 Optional — skip if you just want chef-picked meals.
@@ -207,7 +292,7 @@ export function OnboardingWizard({
             </div>
           )}
 
-          {!isPremium && step === 3 && (
+          {!isPremium && stepKey === 'metrics' && (
             <div className="space-y-8">
               <div className="space-y-4">
                 <p className="text-center text-sm text-muted-foreground">
@@ -235,14 +320,14 @@ export function OnboardingWizard({
             </div>
           )}
 
-          {isPremium && step === 1 && (
+          {isPremium && stepKey === 'goal' && (
             <StepGoal
               value={data.goal}
               onChange={(goal: Goal) => setData((d) => ({ ...d, goal }))}
             />
           )}
 
-          {isPremium && step === 2 && (
+          {isPremium && stepKey === 'metrics' && (
             <StepMetrics
               value={{
                 biologicalSex: data.biologicalSex,
@@ -256,7 +341,7 @@ export function OnboardingWizard({
             />
           )}
 
-          {isPremium && step === 3 && (
+          {isPremium && stepKey === 'diet' && (
             <StepDiet
               value={{
                 dietaryRestrictions: data.dietaryRestrictions,
@@ -267,14 +352,16 @@ export function OnboardingWizard({
             />
           )}
 
-          {isPremium && step === 4 && (
+          {isPremium && stepKey === 'cuisine' && (
             <StepCuisine
               value={{
                 cuisinePreferences: data.cuisinePreferences,
                 mealsPerDay: data.mealsPerDay,
-                servingSize: data.servingSize,
               }}
               onChange={(cuisine) => setData((d) => ({ ...d, ...cuisine }))}
+              // Leaving mid-wizard would lose the answers; the household is
+              // reachable from Profile and Preferences afterwards.
+              showHouseholdHint={false}
             />
           )}
         </div>
@@ -298,7 +385,13 @@ export function OnboardingWizard({
             disabled={!canContinue() || isSubmitting}
             className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSubmitting ? 'Saving…' : step === totalSteps ? 'Finish' : 'Continue'}
+            {isSubmitting
+              ? 'Saving…'
+              : stepKey === 'intent' && intent === 'TRAIN'
+                ? 'Set up training'
+                : step === totalSteps
+                  ? 'Finish'
+                  : 'Continue'}
           </button>
         </div>
       </div>

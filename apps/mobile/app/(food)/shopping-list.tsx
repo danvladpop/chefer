@@ -8,6 +8,7 @@ import {
   formatMoney,
   formatQuantity,
   isConvertedCurrency,
+  perPortionCost,
   shoppingWindowLabel,
 } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
@@ -15,6 +16,7 @@ import { PantryCheckBanner } from '../../src/features/pantry/pantry-check-banner
 import { PantryPanel } from '../../src/features/pantry/pantry-panel';
 import { parseCustomItemInput } from '../../src/features/shopping-list/parse-custom-item';
 import { useCurrency } from '../../src/hooks/use-currency';
+import { useHousehold } from '../../src/hooks/use-household';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { trpc } from '../../src/lib/trpc';
@@ -62,6 +64,7 @@ export default function ShoppingListScreen() {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [newItemText, setNewItemText] = useState('');
   const isPremium = useIsPremium();
+  const { memberCount } = useHousehold();
   const unitSystem = useUnitSystem();
   // Prices are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
@@ -280,6 +283,27 @@ export default function ShoppingListScreen() {
               >
                 <Text testID="shopping-total" className="text-xs font-medium text-gray-600">
                   Est. total ~{formatMoney(weekList.estimatedTotalEur, currency)}
+                </Text>
+              </View>
+            )}
+            {/* Who the quantities are for (P2-3, F-PM-5): a premium
+                household's list is scaled to the table. */}
+            {weekList?.portions != null && (
+              <View className="rounded-full border border-primary/20 bg-accent px-3 py-1">
+                <Text testID="shopping-portions" className="text-xs font-medium text-primary">
+                  For {weekList.portions} portions
+                  {weekList.estimatedTotalEur != null &&
+                    ` · ~${formatMoney(
+                      perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
+                      currency,
+                    )} each`}
+                </Text>
+              </View>
+            )}
+            {weekList?.hasPlan && weekList.portions == null && memberCount > 0 && (
+              <View className="rounded-full border border-border bg-gray-50 px-3 py-1">
+                <Text testID="shopping-one-portion" className="text-xs font-medium text-gray-600">
+                  Sized for 1 portion
                 </Text>
               </View>
             )}

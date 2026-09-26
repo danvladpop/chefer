@@ -118,7 +118,6 @@ interface FormData {
   dislikedIngredients: string[];
   cuisinePreferences: string[];
   mealsPerDay: number;
-  servingSize: number;
   deliveryAddress: string;
   deliveryCurrency: DisplayCurrency;
   preferredUnits: 'METRIC' | 'IMPERIAL';
@@ -164,7 +163,6 @@ export function PreferencesForm({
     dislikedIngredients: dietaryPreferences?.dislikedIngredients ?? [],
     cuisinePreferences: dietaryPreferences?.cuisinePreferences ?? [],
     mealsPerDay: dietaryPreferences?.mealsPerDay ?? 3,
-    servingSize: dietaryPreferences?.servingSize ?? 1,
     deliveryAddress: chefProfile?.deliveryAddress ?? '',
     deliveryCurrency: initialCurrency,
     preferredUnits: initialUnits,
@@ -242,7 +240,6 @@ export function PreferencesForm({
           ...(data.activityLevel !== null && { activityLevel: data.activityLevel }),
           cuisinePreferences: data.cuisinePreferences,
           mealsPerDay: data.mealsPerDay,
-          servingSize: data.servingSize,
           deliveryAddress: data.deliveryAddress || null,
           weeklyBudgetEur: data.weeklyBudget.trim()
             ? Math.min(2000, toEur(Number(data.weeklyBudget), data.deliveryCurrency))
@@ -373,13 +370,17 @@ export function PreferencesForm({
 
         {isPremium && (
           <>
-            {/* Goal */}
-            <Section>
+            {/* Goal — #targets is where "update your targets" links land
+                (post-upgrade activation, audit F-PM-9) */}
+            <section
+              id="targets"
+              className="scroll-mt-20 rounded-xl border bg-card p-4 shadow-sm sm:p-6"
+            >
               <StepGoal
                 value={data.goal}
                 onChange={(goal: Goal) => setData((d) => ({ ...d, goal }))}
               />
-            </Section>
+            </section>
 
             {/* Body metrics */}
             <Section>
@@ -402,9 +403,10 @@ export function PreferencesForm({
                 value={{
                   cuisinePreferences: data.cuisinePreferences,
                   mealsPerDay: data.mealsPerDay,
-                  servingSize: data.servingSize,
                 }}
                 onChange={(cuisine) => setData((d) => ({ ...d, ...cuisine }))}
+                // The household section is on this page (P2-3).
+                showHouseholdHint={false}
               />
             </Section>
 

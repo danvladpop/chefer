@@ -2,9 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { ONBOARDING_INTENTS, type OnboardingIntent } from '@chefer/types';
 import { Button, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { onboardingSteps, type OnboardingStepKey } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
+import { setMode } from '../gym/mode-store';
+import { HouseholdEditor } from '../household/household-editor';
 import { CuisineStep, type CuisineStepValue } from '../preferences/components/cuisine-step';
 import { GoalStep } from '../preferences/components/goal-step';
 import { MetricsStep } from '../preferences/components/metrics-step';
@@ -16,6 +20,7 @@ import type {
   MetricsValue,
   SafetyValue,
 } from '../preferences/types';
+import { IntentStep } from './intent-step';
 
 // Onboarding — dogfood feedback #9: a new account used to land straight on
 // the dashboard. Now register (app/(auth)/register.tsx) routes here first.
@@ -27,9 +32,33 @@ import type {
 //    OPTIONAL goal and body metrics (free preferences.saveProfileBasics,
 //    P1-2 / ux-fixes-plan 3.1).
 // Sign-in never routes here (app/(auth)/login.tsx is unchanged).
+//
+// Step 0 (backlog P2-3, audit F-PM-6): "What brings you here?" while the
+// profile has no intent — households get "Who's at your table?" before the
+// food steps, gym-goers go straight to Gym setup (food later). The step list
+// is the shared `onboardingSteps`, same as web. No serving-size question:
+// the household is the one people model (F-PM-8).
 
-const FREE_TITLES = ['Diet & safety', 'Your goal', 'Body metrics'];
-const PREMIUM_TITLES = ['Your goal', 'Body metrics', 'Diet & restrictions', 'Cuisine & cadence'];
+function stepTitle(key: OnboardingStepKey, isPremium: boolean): string {
+  switch (key) {
+    case 'intent':
+      return 'What brings you here?';
+    case 'table':
+      return 'Who’s at your table?';
+    case 'diet':
+      return isPremium ? 'Diet & restrictions' : 'Diet & safety';
+    case 'goal':
+      return 'Your goal';
+    case 'metrics':
+      return 'Body metrics';
+    case 'cuisine':
+      return 'Cuisine & cadence';
+  }
+}
+
+function parseIntent(raw: unknown): OnboardingIntent | null {
+  return ONBOARDING_INTENTS.find((i) => i === raw) ?? null;
+}
 
 interface CompleteMetrics {
   biologicalSex: BiologicalSex;
@@ -89,13 +118,18 @@ export function OnboardingWizard() {
   const [cuisine, setCuisine] = useState<CuisineStepValue>({
     cuisinePreferences: [],
     mealsPerDay: 3,
-    servingSize: 1,
   });
+  const [intent, setIntent] = useState<OnboardingIntent | null>(null);
 
   // Start from what's already saved: a wizard re-opened after upgrading used
   // to start blank, and Finish saved empty allergy lists over the real ones
   // (audit F-ONB-1-1). Mirrors web's wizardDataFromPreferences.
   const savedPrefs = trpc.preferences.get.useQuery();
+  // The saved intent, captured once: a saved answer skips the question.
+  const savedIntent = useRef<OnboardingIntent | null | undefined>(undefined);
+  if (savedIntent.current === undefined && savedPrefs.data) {
+    savedIntent.current = parseIntent(savedPrefs.data.chefProfile?.onboardingIntent);
+  }
   const hydrated = useRef(false);
   useEffect(() => {
     const saved = savedPrefs.data;
@@ -125,7 +159,6 @@ export function OnboardingWizard() {
       setCuisine({
         cuisinePreferences: diet.cuisinePreferences,
         mealsPerDay: diet.mealsPerDay,
-        servingSize: diet.servingSize,
       });
     }
   }, [savedPrefs.data]);
@@ -137,6 +170,9 @@ export function OnboardingWizard() {
     onError: (err) => setError(err.message),
   });
   const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
+    onError: (err) => setError(err.message),
+  });
+  const intentMutation = trpc.preferences.setIntent.useMutation({
     onError: (err) => setError(err.message),
   });
 
@@ -164,11 +200,20 @@ export function OnboardingWizard() {
     );
   }
 
-  const totalSteps = isPremium ? 4 : 3;
-  const titles = isPremium ? PREMIUM_TITLES : FREE_TITLES;
+  const askIntent = (savedIntent.current ?? null) === null;
+  const steps = onboardingSteps({
+    intent: askIntent ? intent : (savedIntent.current ?? null),
+    askIntent,
+    isPremium,
+  });
+  const totalSteps = steps.length;
+  const stepKey: OnboardingStepKey = steps[Math.min(step, totalSteps - 1)] ?? 'diet';
   const progressPct = Math.round(((step + 1) / totalSteps) * 100);
   const isSubmitting =
-    setupMutation.isPending || safetyMutation.isPending || profileBasicsMutation.isPending;
+    setupMutation.isPending ||
+    safetyMutation.isPending ||
+    profileBasicsMutation.isPending ||
+    intentMutation.isPending;
 
   function handleAgeText(raw: string) {
     setAgeText(raw);
@@ -204,7 +249,6 @@ export function OnboardingWizard() {
           dislikedIngredients: safety.dislikedIngredients,
           cuisinePreferences: cuisine.cuisinePreferences,
           mealsPerDay: cuisine.mealsPerDay,
-          servingSize: cuisine.servingSize,
         });
         void utils.preferences.invalidate();
         void utils.dashboard.invalidate();
@@ -259,7 +303,32 @@ export function OnboardingWizard() {
     goToDashboard();
   }
 
+  async function handleIntentContinue() {
+    if (intent === null) {
+      return;
+    }
+    try {
+      await intentMutation.mutateAsync({ intent });
+    } catch {
+      return; // onError surfaced it
+    }
+    if (intent === 'TRAIN') {
+      // Gym-goers set up training first; food setup can wait (F-PM-6). Same
+      // path as the Food | Gym switch: Today underneath, Setup on top.
+      setMode('gym');
+      router.replace('/today');
+      router.push('/gym/setup');
+      return;
+    }
+    setStep((s) => s + 1);
+  }
+
   function handleContinue() {
+    setError(null);
+    if (stepKey === 'intent') {
+      void handleIntentContinue();
+      return;
+    }
     if (step < totalSteps - 1) {
       setStep((s) => s + 1);
     } else {
@@ -270,70 +339,68 @@ export function OnboardingWizard() {
   // ── Step content ─────────────────────────────────────────────────────────
 
   let content: React.ReactNode = null;
-  if (isPremium) {
-    if (step === 0) {
-      content = <GoalStep value={goal} onChange={setGoal} />;
-    } else if (step === 1) {
-      content = (
-        <MetricsStep
-          value={metrics}
-          onChange={setMetrics}
-          goal={goal}
-          ageText={ageText}
-          heightText={heightText}
-          weightText={weightText}
-          onAgeText={handleAgeText}
-          onHeightText={handleHeightText}
-          onWeightText={handleWeightText}
-        />
-      );
-    } else if (step === 2) {
-      content = <SafetyStep value={safety} onChange={setSafety} testIDPrefix="onb" />;
-    } else {
-      content = <CuisineStep value={cuisine} onChange={setCuisine} />;
-    }
+  const metricsStep = (
+    <MetricsStep
+      value={metrics}
+      onChange={setMetrics}
+      goal={goal}
+      ageText={ageText}
+      heightText={heightText}
+      weightText={weightText}
+      onAgeText={handleAgeText}
+      onHeightText={handleHeightText}
+      onWeightText={handleWeightText}
+    />
+  );
+  if (stepKey === 'intent') {
+    content = <IntentStep value={intent} onChange={setIntent} />;
+  } else if (stepKey === 'table') {
+    content = (
+      <View className="gap-3">
+        <Text variant="muted" className="text-sm">
+          Add the people you cook for. Their allergies and restrictions apply to every plan — free.
+          You can change this any time from Profile → Household.
+        </Text>
+        <HouseholdEditor variant="onboarding" />
+      </View>
+    );
+  } else if (stepKey === 'diet') {
+    content = <SafetyStep value={safety} onChange={setSafety} testIDPrefix="onb" />;
+  } else if (stepKey === 'cuisine') {
+    content = <CuisineStep value={cuisine} onChange={setCuisine} />;
+  } else if (isPremium) {
+    content = stepKey === 'goal' ? <GoalStep value={goal} onChange={setGoal} /> : metricsStep;
+  } else if (stepKey === 'goal') {
+    content = (
+      <View className="gap-3">
+        <Text variant="muted" className="text-center text-sm">
+          Optional — skip if you just want chef-picked meals.
+        </Text>
+        <GoalStep value={goal} onChange={setGoal} />
+      </View>
+    );
   } else {
-    if (step === 0) {
-      content = <SafetyStep value={safety} onChange={setSafety} testIDPrefix="onb" />;
-    } else if (step === 1) {
-      content = (
-        <View className="gap-3">
-          <Text variant="muted" className="text-center text-sm">
-            Optional — skip if you just want chef-picked meals.
-          </Text>
-          <GoalStep value={goal} onChange={setGoal} />
-        </View>
-      );
-    } else {
-      content = (
-        <View className="gap-3">
-          <Text variant="muted" className="text-center text-sm">
-            Optional — with these, your calorie target is computed from your body instead of a
-            default.
-          </Text>
-          <MetricsStep
-            value={metrics}
-            onChange={setMetrics}
-            goal={goal}
-            ageText={ageText}
-            heightText={heightText}
-            weightText={weightText}
-            onAgeText={handleAgeText}
-            onHeightText={handleHeightText}
-            onWeightText={handleWeightText}
-          />
-        </View>
-      );
-    }
+    content = (
+      <View className="gap-3">
+        <Text variant="muted" className="text-center text-sm">
+          Optional — with these, your calorie target is computed from your body instead of a
+          default.
+        </Text>
+        {metricsStep}
+      </View>
+    );
   }
 
-  const canContinue = isPremium
-    ? step === 0
-      ? goal !== null
-      : step === 1
-        ? isMetricsValid(metrics)
-        : true
-    : true;
+  const canContinue =
+    stepKey === 'intent'
+      ? intent !== null
+      : isPremium
+        ? stepKey === 'goal'
+          ? goal !== null
+          : stepKey === 'metrics'
+            ? isMetricsValid(metrics)
+            : true
+        : true;
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
@@ -353,7 +420,7 @@ export function OnboardingWizard() {
             Step {step + 1} of {totalSteps} · {progressPct}%
           </Text>
           <Text testID="onboarding-title" variant="heading">
-            {titles[step]}
+            {stepTitle(stepKey, isPremium)}
           </Text>
         </View>
       </View>
@@ -387,7 +454,11 @@ export function OnboardingWizard() {
           disabled={!canContinue || isSubmitting}
           onPress={handleContinue}
         >
-          {step === totalSteps - 1 ? 'Finish' : 'Continue'}
+          {stepKey === 'intent' && intent === 'TRAIN'
+            ? 'Set up training'
+            : step === totalSteps - 1
+              ? 'Finish'
+              : 'Continue'}
         </Button>
         {/* Skip sits under Continue: thumb reach, and clear of the top-right
             corner (the dev-client Tools bubble swallowed taps there). */}

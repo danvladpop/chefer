@@ -132,11 +132,13 @@ export const PLAN_FEATURES = {
     upsell: true,
   },
   householdPlans: {
+    // Portion SCALING only (backlog P2-3). Adding members and their allergies
+    // is free — safety is never premium (see householdMembers).
     free: false,
     premium: true,
     label: 'One plan that feeds the whole table',
     description:
-      'Add your partner and kids with their own allergies and portions — plans, servings and the shopping list scale for everyone.',
+      'Servings, the shopping list and the week cost scale to everyone at your table, kids at half portions — with an honest per-person cost.',
     upsell: true,
   },
   pantryPlanning: {
@@ -165,8 +167,10 @@ export const PLAN_FEATURES = {
     upsell: false,
   },
   householdMembers: {
-    // Cap on HouseholdMember rows per user (F2). Pure limit plumbing.
-    free: false,
+    // Cap on HouseholdMember rows per user (F2). Free since backlog P2-3:
+    // members' allergies and restrictions filter every plan, and safety is
+    // never premium — only portion scaling (householdPlans) is.
+    free: 5,
     premium: 5,
     label: 'Household members',
     description: 'How many household members can share your plan.',

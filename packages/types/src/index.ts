@@ -3,6 +3,7 @@ export * from './plan-features';
 export * from './gym';
 export * from './preferences';
 export * from './training-nutrition';
+export * from './household';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

@@ -15,10 +15,20 @@ export function createTrpcOnboardingMock() {
         setup: { useMutation: jest.fn() },
         updateSafety: { useMutation: jest.fn() },
         saveProfileBasics: { useMutation: jest.fn() },
+        setIntent: { useMutation: jest.fn(() => mutationResult()) },
+      },
+      // "Who's at your table?" (P2-3) renders the household editor.
+      household: {
+        list: { useQuery: jest.fn(() => queryResult({ data: [] })) },
+        add: { useMutation: jest.fn(() => mutationResult()) },
+        remove: { useMutation: jest.fn(() => mutationResult()) },
       },
       useUtils: jest.fn(() => ({
-        preferences: { invalidate: jest.fn() },
+        preferences: { invalidate: jest.fn(), get: { invalidate: jest.fn() } },
         dashboard: { invalidate: jest.fn() },
+        household: { list: { invalidate: jest.fn() } },
+        mealPlan: { invalidate: jest.fn() },
+        shoppingList: { getForWeek: { invalidate: jest.fn() } },
       })),
     },
   };

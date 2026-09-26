@@ -472,3 +472,102 @@ describe('PreferencesService.setDisplayPreferences', () => {
     expect(gymSync).not.toHaveBeenCalled();
   });
 });
+
+// ─── One people model + intent (backlog P2-3) ─────────────────────────────────
+
+describe('PreferencesService — household is the one people model (F-PM-8)', () => {
+  beforeEach(() => {
+    vi.mocked(prisma.$transaction).mockResolvedValue(undefined);
+  });
+
+  const makeHousehold = (members: { portionFactor: number }[] = []) => ({
+    list: vi.fn().mockResolvedValue(members),
+    migrateLegacyServingSize: vi.fn().mockResolvedValue(0),
+  });
+
+  it('get() reports servingSize from the household, for app builds in the stores', async () => {
+    const household = makeHousehold([{ portionFactor: 1 }, { portionFactor: 0.5 }]);
+    const service = new PreferencesService(
+      makeChefProfileRepo(),
+      makeDietaryPreferencesRepo({
+        findByUserId: vi.fn().mockResolvedValue({ ...DIETARY_PREFS_FIXTURE, servingSize: 1 }),
+      }),
+      undefined,
+      household,
+    );
+    const result = await service.get('user1');
+    expect(household.list).toHaveBeenCalledWith('user1');
+    expect(result.dietaryPreferences?.servingSize).toBe(3);
+  });
+
+  it('get() of a solo user reports 1 even if a stale legacy value was stored', async () => {
+    const service = new PreferencesService(
+      makeChefProfileRepo(),
+      makeDietaryPreferencesRepo({
+        findByUserId: vi.fn().mockResolvedValue({ ...DIETARY_PREFS_FIXTURE, servingSize: 4 }),
+      }),
+      undefined,
+      makeHousehold([]),
+    );
+    expect((await service.get('user1')).dietaryPreferences?.servingSize).toBe(1);
+  });
+
+  it('a servingSize > 1 from an old build is absorbed into the household', async () => {
+    const household = makeHousehold();
+    const service = new PreferencesService(
+      makeChefProfileRepo(),
+      makeDietaryPreferencesRepo(),
+      undefined,
+      household,
+    );
+    await service.update('user1', { servingSize: 3 });
+    expect(household.migrateLegacyServingSize).toHaveBeenCalledWith('user1');
+
+    household.migrateLegacyServingSize.mockClear();
+    await service.update('user1', { servingSize: 1 });
+    await service.update('user1', { mealsPerDay: 4 });
+    expect(household.migrateLegacyServingSize).not.toHaveBeenCalled();
+  });
+
+  it('setup() without a servingSize leaves the column alone (current clients)', async () => {
+    vi.mocked(prisma.dietaryPreferences.upsert).mockClear();
+    const household = makeHousehold();
+    const service = new PreferencesService(
+      makeChefProfileRepo(),
+      makeDietaryPreferencesRepo(),
+      undefined,
+      household,
+    );
+    await service.setup('user1', {
+      goal: 'MAINTAIN',
+      biologicalSex: 'FEMALE',
+      age: 34,
+      heightCm: 168,
+      weightKg: 62,
+      activityLevel: 'LIGHTLY_ACTIVE',
+      dietaryRestrictions: [],
+      allergies: [],
+      dislikedIngredients: [],
+      cuisinePreferences: [],
+      mealsPerDay: 3,
+    });
+    const call = vi.mocked(prisma.dietaryPreferences.upsert).mock.calls[0]![0];
+    expect(call.update).not.toHaveProperty('servingSize');
+    expect(call.create).not.toHaveProperty('servingSize');
+    expect(household.migrateLegacyServingSize).not.toHaveBeenCalled();
+  });
+});
+
+describe('PreferencesService.setIntent (F-PM-6)', () => {
+  it('stores the onboarding intent on the chef profile', async () => {
+    const upsert = vi
+      .fn()
+      .mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, goal: null, onboardingIntent: 'TRAIN' });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await expect(service.setIntent('user1', 'TRAIN')).resolves.toEqual({ intent: 'TRAIN' });
+    expect(upsert).toHaveBeenCalledWith('user1', { onboardingIntent: 'TRAIN' });
+  });
+});

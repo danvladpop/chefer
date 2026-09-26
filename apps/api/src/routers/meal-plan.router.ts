@@ -1,8 +1,13 @@
 import { z } from 'zod';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
-import { isPremiumUser } from '../lib/entitlements.js';
+import { hasFeature, isPremiumUser } from '../lib/entitlements.js';
 import { reserveAiSwap, reservePlanGeneration } from '../lib/quotas.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
+
+// Premium households see the week cost sized for the whole table (P2-3).
+const planView = (user: Parameters<typeof hasFeature>[0]) => ({
+  householdScaling: hasFeature(user, 'householdPlans'),
+});
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -40,7 +45,7 @@ export const mealPlanRouter = router({
    * Returns the user's current active meal plan with all recipes, or null.
    */
   getActive: protectedProcedure.query(async ({ ctx }) => {
-    return mealPlanService.getActive(ctx.user.id);
+    return mealPlanService.getActive(ctx.user.id, planView(ctx.user));
   }),
 
   /**
@@ -53,7 +58,7 @@ export const mealPlanRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      return mealPlanService.getForWeek(ctx.user.id, input.weekOffset);
+      return mealPlanService.getForWeek(ctx.user.id, input.weekOffset, planView(ctx.user));
     }),
 
   /**
@@ -185,6 +190,6 @@ export const mealPlanRouter = router({
   getById: protectedProcedure
     .input(z.object({ planId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
-      return mealPlanService.getById(ctx.user.id, input.planId);
+      return mealPlanService.getById(ctx.user.id, input.planId, planView(ctx.user));
     }),
 });

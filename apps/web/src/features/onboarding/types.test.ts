@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_WIZARD_DATA, wizardDataFromPreferences } from './types';
+import { EMPTY_WIZARD_DATA, savedIntent, wizardDataFromPreferences } from './types';
 
 describe('wizardDataFromPreferences', () => {
   it('starts blank when nothing is saved', () => {
@@ -18,7 +18,6 @@ describe('wizardDataFromPreferences', () => {
         dislikedIngredients: ['Olives'],
         cuisinePreferences: ['Thai'],
         mealsPerDay: 4,
-        servingSize: 2,
       },
     });
     expect(data.allergies).toEqual(['Peanuts', 'Shellfish']);
@@ -41,5 +40,36 @@ describe('wizardDataFromPreferences', () => {
     });
     expect(data).toMatchObject({ goal: 'MAINTAIN', age: 34, activityLevel: 'LIGHTLY_ACTIVE' });
     expect(data.allergies).toEqual([]);
+  });
+});
+
+describe('savedIntent (P2-3)', () => {
+  const profile = {
+    goal: null,
+    biologicalSex: null,
+    age: null,
+    heightCm: null,
+    weightKg: null,
+    activityLevel: null,
+  };
+
+  it('reads a stored intent', () => {
+    expect(
+      savedIntent({
+        chefProfile: { ...profile, onboardingIntent: 'HOUSEHOLD' },
+        dietaryPreferences: null,
+      }),
+    ).toBe('HOUSEHOLD');
+  });
+
+  it('is null when never answered or unknown', () => {
+    expect(savedIntent(null)).toBeNull();
+    expect(savedIntent({ chefProfile: profile, dietaryPreferences: null })).toBeNull();
+    expect(
+      savedIntent({
+        chefProfile: { ...profile, onboardingIntent: 'OTHER' },
+        dietaryPreferences: null,
+      }),
+    ).toBeNull();
   });
 });

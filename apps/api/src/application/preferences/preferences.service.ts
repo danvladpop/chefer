@@ -11,8 +11,9 @@ import {
   type UpsertChefProfileData,
   type UpsertDietaryPreferencesData,
 } from '@chefer/database';
-import type { DisplayCurrency, SetDisplayPreferencesInput } from '@chefer/types';
+import type { DisplayCurrency, OnboardingIntent, SetDisplayPreferencesInput } from '@chefer/types';
 import { toDisplayCurrency, withLifterProtein } from '@chefer/utils';
+import { derivedServingSize, householdService } from '../household/household.service.js';
 
 // ─── Activity multipliers (Mifflin-St Jeor) ──────────────────────────────────
 
@@ -236,7 +237,8 @@ export interface SetupPreferencesInput {
   dislikedIngredients: string[];
   cuisinePreferences: string[];
   mealsPerDay: number;
-  servingSize: number;
+  /** Legacy "cooking for N" — only older app builds send it (P2-3). */
+  servingSize?: number | undefined;
 }
 
 export interface UpdatePreferencesInput {
@@ -293,6 +295,16 @@ export interface PreferencesDto {
   dietaryPreferences: DietaryPreferences | null;
 }
 
+/**
+ * The household slice PreferencesService needs (backlog P2-3, one people
+ * model). Injected so unit tests can omit it and this service never owns
+ * household data.
+ */
+export interface HouseholdPort {
+  list(userId: string): Promise<{ portionFactor: number }[]>;
+  migrateLegacyServingSize(userId: string): Promise<number>;
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class PreferencesService {
@@ -301,7 +313,28 @@ export class PreferencesService {
     private readonly dietaryPreferencesRepo: IDietaryPreferencesRepository,
     /** Optional so unit tests can omit it; the singleton wires the gym. */
     private readonly gymUnits?: GymUnitSync,
+    /** Optional so unit tests can omit it; the singleton wires the household. */
+    private readonly household?: HouseholdPort,
   ) {}
+
+  /**
+   * "What brings you here?" (backlog P2-3, audit F-PM-6) — free on every
+   * tier. Never counts as a profile: hasProfile still needs a goal.
+   */
+  async setIntent(userId: string, intent: OnboardingIntent): Promise<{ intent: OnboardingIntent }> {
+    const profile = await this.chefProfileRepo.upsert(userId, { onboardingIntent: intent });
+    return { intent: profile.onboardingIntent ?? intent };
+  }
+
+  /**
+   * A servingSize written by an older app build is the legacy "cooking for
+   * N": convert it into household members right away (one people model).
+   */
+  private async absorbLegacyServingSize(userId: string, servingSize: number | undefined) {
+    if (servingSize !== undefined && servingSize > 1 && this.household) {
+      await this.household.migrateLegacyServingSize(userId);
+    }
+  }
 
   /**
    * True once the user has a personalised profile (a goal is set). A bare
@@ -351,11 +384,23 @@ export class PreferencesService {
    * Returns ChefProfile + DietaryPreferences for a user (either may be null).
    */
   async get(userId: string): Promise<PreferencesDto> {
+    // The household read runs first: it converts a legacy servingSize, so
+    // the preferences row read after it is already migrated.
+    const members = this.household ? await this.household.list(userId) : null;
     const [chefProfile, dietaryPreferences] = await Promise.all([
       this.chefProfileRepo.findByUserId(userId),
       this.dietaryPreferencesRepo.findByUserId(userId),
     ]);
-    return { chefProfile, dietaryPreferences };
+    // servingSize stays readable for app builds in the stores, but it now
+    // reports the household (owner + members' portions), never a second
+    // "cooking for N" (audit F-PM-8).
+    return {
+      chefProfile,
+      dietaryPreferences:
+        dietaryPreferences && members
+          ? { ...dietaryPreferences, servingSize: derivedServingSize(members) }
+          : dietaryPreferences,
+    };
   }
 
   async setAutoPlanWeekly(userId: string, enabled: boolean): Promise<{ autoPlanWeekly: boolean }> {
@@ -429,18 +474,20 @@ export class PreferencesService {
         }),
         prisma.dietaryPreferences.upsert({
           where: { userId },
+          // servingSize only arrives from older app builds (P2-3); it is
+          // absorbed into the household right after this write.
           create: {
             userId,
             ...safety,
             cuisinePreferences,
             mealsPerDay,
-            servingSize,
+            ...(servingSize !== undefined && { servingSize }),
           },
           update: {
             ...safety,
             cuisinePreferences,
             mealsPerDay,
-            servingSize,
+            ...(servingSize !== undefined && { servingSize }),
           },
         }),
       ]);
@@ -451,6 +498,7 @@ export class PreferencesService {
         message: 'Failed to save your preferences. Please try again.',
       });
     }
+    await this.absorbLegacyServingSize(userId, servingSize);
   }
 
   /**
@@ -547,6 +595,8 @@ export class PreferencesService {
 
     // Old mobile builds still send units through updateTargets — same sync.
     if (preferredUnits !== undefined) await this.syncGymUnit(userId, preferredUnits);
+    // …and a serving size — the legacy "cooking for N" (P2-3).
+    await this.absorbLegacyServingSize(userId, servingSize);
 
     return this.get(userId);
   }
@@ -563,4 +613,5 @@ export const preferencesService = new PreferencesService(
       await gymProfileService.syncFromPreferredUnits(userId, units);
     },
   },
+  householdService,
 );

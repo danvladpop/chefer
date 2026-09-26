@@ -184,7 +184,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
   // Servings adjuster. F2: with household members it defaults to the whole
   // table's portion sum — the count generation scaled the plan's recipes to.
-  const { portionSum, peopleCount } = useHousehold();
+  const { portionSum, peopleCount, tablePortions } = useHousehold();
   const [servings, setServings] = useState<number | null>(null);
   const baseServings = recipe?.servings ?? 1;
   // P1-1: opened from a portioned plan slot, quantities start at that
@@ -415,7 +415,17 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         />
       </div>
 
-      {/* F2: per-person framing when a household is set up */}
+      {/* F2: per-person framing when a household is set up. Free tables keep
+          the recipe as written — scaling is premium (P2-3). */}
+      {portionSum === null && tablePortions !== null && (
+        <p className="-mt-6 mb-8 flex items-center gap-1.5 text-xs text-gray-500">
+          <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0">
+            Everyone&apos;s allergies at your table of {peopleCount} are checked. Premium scales the
+            quantities to all of you — use the servings control to adjust by hand.
+          </span>
+        </p>
+      )}
       {portionSum !== null && (
         <p className="-mt-6 mb-8 flex items-center gap-1.5 text-xs text-gray-500">
           <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

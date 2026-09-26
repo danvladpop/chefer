@@ -6,6 +6,7 @@ import { Button, Card, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-
 import { cn, formatPortion, formatQuantity, scaleNutrition, slotPortion } from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { StarRating } from '../../src/features/recipes/star-rating';
+import { useHousehold } from '../../src/hooks/use-household';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
@@ -38,6 +39,7 @@ export default function RecipeDetailScreen() {
   });
 
   const [servings, setServings] = useState<number | null>(null);
+  const { portionSum } = useHousehold();
 
   if (isLoading) {
     return (
@@ -64,8 +66,10 @@ export default function RecipeDetailScreen() {
   const isSaved = savedData?.isSaved ?? false;
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const n = recipe.nutritionInfo;
-  // Opened from a portioned plan slot, quantities start at that portion.
-  const selectedServings = servings ?? Math.round(recipe.servings * planPortion * 100) / 100;
+  // Opened from a portioned plan slot, quantities start at that portion (P1-1);
+  // premium households start from the whole table (P2-3) — the two multiply.
+  const selectedServings =
+    servings ?? Math.round((portionSum ?? recipe.servings) * planPortion * 100) / 100;
   const planN = scaleNutrition(n, planPortion);
   const scale = selectedServings / (recipe.servings || 1);
 

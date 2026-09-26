@@ -27,6 +27,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
       p['$transaction'] = vi.fn(async (fn: (tx: unknown) => unknown) => fn(p));
       return p;
     })(),
+    householdMemberRepository: { findByUserId: vi.fn().mockResolvedValue([]) },
   };
 });
 
@@ -285,6 +286,40 @@ describe('RecipeImportService.save — fail closed', () => {
       variant: 'original',
     })) as unknown as { id: string };
     expect(saved.id).toBe('recipe-1');
+  });
+});
+
+describe('RecipeImportService — the whole table (P2-3)', () => {
+  const household = (members: unknown[]) => ({ findByUserId: vi.fn().mockResolvedValue(members) });
+  const noSafety = { allergies: [], dietaryRestrictions: [], dislikedIngredients: [] };
+
+  it("a member's allergy blocks saving an adapted recipe that contains it", async () => {
+    const service = new RecipeImportService(
+      makeAi(),
+      recipeRepo(),
+      prefsRepo(noSafety),
+      household([{ portionFactor: 0.5, allergies: ['peanuts'], dietaryRestrictions: [] }]),
+    );
+    await expect(
+      service.save(premiumUser, { recipe: missedPeanutAdaptation.adapted, variant: 'adapted' }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('adapts to the household portion sum, not the legacy serving size', async () => {
+    const ai = makeAi();
+    const service = new RecipeImportService(
+      ai,
+      recipeRepo(),
+      prefsRepo({ ...noSafety, servingSize: 4 }),
+      household([
+        { portionFactor: 1, allergies: [], dietaryRestrictions: [] },
+        { portionFactor: 0.5, allergies: ['sesame'], dietaryRestrictions: [] },
+      ]),
+    );
+    await service.preview(premiumUser, { text: 'A'.repeat(100) });
+    const input = vi.mocked(ai.cheferizeRecipe).mock.calls[0]![0];
+    expect(input.targetServings).toBe(3);
+    expect(input.preferences.allergies).toEqual(['sesame']);
   });
 });
 

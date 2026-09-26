@@ -4,12 +4,12 @@ import { cn } from '@chefer/utils';
 import { CUISINE_OPTIONS } from '../types';
 
 const MEALS_OPTIONS = [2, 3, 4, 5] as const;
-const SERVING_OPTIONS = [1, 2, 3, 4, 5, 6] as const;
 
+// No serving size: the household is the one people model (backlog P2-3,
+// audit F-PM-8) — who you cook for lives on the Household screen.
 export interface CuisineStepValue {
   cuisinePreferences: string[];
   mealsPerDay: number;
-  servingSize: number;
 }
 
 export interface CuisineStepProps {
@@ -91,37 +91,6 @@ export function CuisineStep({ value, onChange }: CuisineStepProps) {
                 )}
               >
                 {n}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      <View className="gap-2">
-        <Text variant="label">Serving size</Text>
-        <Text variant="muted" className="text-xs">
-          How many people are you cooking for?
-        </Text>
-        <View className="flex-row flex-wrap gap-2">
-          {SERVING_OPTIONS.map((n) => (
-            <Pressable
-              key={n}
-              testID={`serving-${n}`}
-              accessibilityRole="button"
-              accessibilityState={{ selected: value.servingSize === n }}
-              onPress={() => onChange({ ...value, servingSize: n })}
-              className={cn(
-                'h-11 w-14 items-center justify-center rounded-md border',
-                value.servingSize === n ? 'border-primary bg-primary' : 'border-border bg-white',
-              )}
-            >
-              <Text
-                className={cn(
-                  'text-sm font-semibold',
-                  value.servingSize === n ? 'text-primary-foreground' : 'text-gray-600',
-                )}
-              >
-                {n === 6 ? '6+' : n}
               </Text>
             </Pressable>
           ))}

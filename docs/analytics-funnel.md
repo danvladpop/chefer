@@ -34,19 +34,20 @@ feature): `coach-review`, `snap-scan`, `recipe-import`, `household`, `pantry`,
 
 ### Premium expansion (premium_plan.md §3.4 — events land with their wave)
 
-| Event                    | Properties              | Fired when                                          |
-| ------------------------ | ----------------------- | --------------------------------------------------- |
-| `premium_page_viewed`    | `source`                | The `/premium` showcase page mounts (wave 0)        |
-| `teaser_engaged`         | `feature`               | A ghost state / locked mini-demo is interacted with |
-| `weight_logged`          | —                       | Weight quick-entry saved (F1)                       |
-| `chef_review_viewed`     | —                       | Weekly review sheet opened (F1)                     |
-| `meal_scanned`           | `confirmed`             | Photo scan estimate confirmed or discarded (F4)     |
-| `week_rebalanced`        | —                       | Rebalance applied after a log (F4)                  |
-| `recipe_imported`        | `via: url\|photo\|text` | Import preview generated (F5)                       |
-| `recipe_cheferized`      | —                       | Adapted version saved (F5)                          |
-| `household_member_added` | —                       | Household member created (F2)                       |
-| `pantry_confirmed`       | —                       | Weekly pantry confirm sheet completed (F3)          |
-| `plan_used_pantry`       | `itemCount`             | Generated plan consumed pantry items (F3)           |
+| Event                    | Properties              | Fired when                                                                                       |
+| ------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `premium_page_viewed`    | `source`                | The `/premium` showcase page mounts (wave 0)                                                     |
+| `teaser_engaged`         | `feature`               | A ghost state / locked mini-demo is interacted with                                              |
+| `weight_logged`          | —                       | Weight quick-entry saved (F1)                                                                    |
+| `chef_review_viewed`     | —                       | Weekly review sheet opened (F1)                                                                  |
+| `meal_scanned`           | `confirmed`             | Photo scan estimate confirmed or discarded (F4)                                                  |
+| `week_rebalanced`        | —                       | Rebalance applied after a log (F4)                                                               |
+| `recipe_imported`        | `via: url\|photo\|text` | Import preview generated (F5)                                                                    |
+| `recipe_cheferized`      | —                       | Adapted version saved (F5)                                                                       |
+| `household_member_added` | —                       | Household member created (F2; every tier since P2-3)                                             |
+| `onboarding_intent`      | `intent`                | Onboarding step 0 answered: EAT_BETTER\|HOUSEHOLD\|TRAIN (P2-3) — segment activation by audience |
+| `pantry_confirmed`       | —                       | Weekly pantry confirm sheet completed (F3)                                                       |
+| `plan_used_pantry`       | `itemCount`             | Generated plan consumed pantry items (F3)                                                        |
 
 ### Feature usage (PW-1 matrix coverage)
 

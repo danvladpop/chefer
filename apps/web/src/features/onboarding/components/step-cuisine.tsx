@@ -1,5 +1,8 @@
 'use client';
 
+import Link from 'next/link';
+import { Users } from 'lucide-react';
+
 // ─── Cuisine options ───────────────────────────────────────────────────────────
 
 const CUISINE_OPTIONS: { value: string; label: string; icon: string }[] = [
@@ -18,24 +21,28 @@ const CUISINE_OPTIONS: { value: string; label: string; icon: string }[] = [
 ];
 
 const MEALS_OPTIONS = [2, 3, 4, 5] as const;
-const SERVING_OPTIONS = [1, 2, 3, 4, 5, 6] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface StepCuisineValues {
   cuisinePreferences: string[];
   mealsPerDay: number;
-  servingSize: number;
 }
 
 interface StepCuisineProps {
   value: StepCuisineValues;
   onChange: (value: StepCuisineValues) => void;
+  /**
+   * Point at the household instead of asking "how many people" — the
+   * household is the one people model (P2-3, audit F-PM-8). Off where the
+   * household editor is already on screen.
+   */
+  showHouseholdHint?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function StepCuisine({ value, onChange }: StepCuisineProps) {
+export function StepCuisine({ value, onChange, showHouseholdHint = true }: StepCuisineProps) {
   function toggleCuisine(cuisine: string) {
     const next = value.cuisinePreferences.includes(cuisine)
       ? value.cuisinePreferences.filter((c) => c !== cuisine)
@@ -111,31 +118,22 @@ export function StepCuisine({ value, onChange }: StepCuisineProps) {
           </div>
         </div>
 
-        {/* Serving size */}
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm font-medium">Serving size</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              How many people are you cooking for?
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {SERVING_OPTIONS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => onChange({ ...value, servingSize: n })}
-                aria-pressed={value.servingSize === n}
-                className={pillCls(value.servingSize === n)}
+        {/* Who you cook for lives in the household (P2-3, F-PM-8) */}
+        {showHouseholdHint && (
+          <p className="flex items-start gap-2 rounded-xl border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+            <Users className="mt-0.5 h-4 w-4 shrink-0 text-[#944a00]" aria-hidden="true" />
+            <span className="min-w-0">
+              Cooking for others?{' '}
+              <Link
+                href="/preferences#household"
+                className="font-medium text-primary underline-offset-2 hover:underline"
               >
-                {n === 6 ? '6+' : n}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {value.servingSize === 1 ? '1 person' : `${value.servingSize} people`}
+                Add them to your household
+              </Link>{' '}
+              — servings and the shopping list follow your table.
+            </span>
           </p>
-        </div>
+        )}
       </div>
     </div>
   );

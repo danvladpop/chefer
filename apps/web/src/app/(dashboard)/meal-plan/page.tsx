@@ -35,7 +35,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
-import { formatMoney, toDisplayCurrency } from '@chefer/utils';
+import { formatMoney, perPortionCost, toDisplayCurrency } from '@chefer/utils';
 import MealPlanLoading from './loading';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -133,10 +133,13 @@ export default function MealPlanPage() {
   const weeklyBudget = prefs?.chefProfile?.weeklyBudgetEur ?? null;
   // Costs are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = toDisplayCurrency(prefs?.chefProfile?.deliveryCurrency);
-  // F2: with household members the week feeds several people — show the cost
-  // per person next to the household total.
-  const { memberCount, peopleCount } = useHousehold();
-  const perPersonCost = weekCost !== null && memberCount > 0 ? weekCost / peopleCount : null;
+  // Honest per-person cost (P2-3, audit F-PM-5): divide by the portions the
+  // cost was SIZED for (premium households — the API scales the week to the
+  // table), never a single-portion total by the head count. A free table's
+  // cost is for one portion and says so.
+  const { memberCount } = useHousehold();
+  const costPortions = plan?.estimatedCost?.portions ?? null;
+  const perPortion = perPortionCost(weekCost, costPortions);
   const overBudget =
     weekCost !== null && weeklyBudget !== null && weekCost > weeklyBudget
       ? Math.round((weekCost - weeklyBudget) * 100) / 100
@@ -345,9 +348,17 @@ export default function MealPlanPage() {
           >
             <Wallet className="h-3 w-3" aria-hidden="true" />≈ {formatMoney(weekCost, currency)}{' '}
             this week
-            {perPersonCost !== null && (
+            {perPortion !== null && costPortions !== null && (
               <span className="font-normal opacity-80">
-                · {formatMoney(perPersonCost, currency)}/person for {peopleCount}
+                · {formatMoney(perPortion, currency)}/portion · {costPortions} portions
+              </span>
+            )}
+            {costPortions === null && memberCount > 0 && (
+              <span
+                className="font-normal opacity-80"
+                title="Premium sizes the list and cost for your whole table"
+              >
+                · for 1 portion
               </span>
             )}
           </span>

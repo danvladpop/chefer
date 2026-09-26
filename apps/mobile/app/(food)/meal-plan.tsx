@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, Switch, View } from 'react-na
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, DENSE_MAX_FONT_SCALE, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { cn, formatMoney, sumPlanDay } from '@chefer/utils';
+import { cn, formatMoney, perPortionCost, sumPlanDay } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { PlanDayTotals } from '../../src/features/meal-plan/plan-day-totals';
 import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
@@ -11,6 +11,7 @@ import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sh
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { useCurrency } from '../../src/hooks/use-currency';
+import { useHousehold } from '../../src/hooks/use-household';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { trpc } from '../../src/lib/trpc';
 
@@ -65,6 +66,7 @@ export default function MealPlanScreen() {
   const [summaryOpen, setSummaryOpen] = useState(false);
 
   const isPremium = useIsPremium();
+  const { memberCount } = useHousehold();
   const isPast = weekOffset < 0;
   const todayIndex = weekOffset === 0 ? getTodayDayIndex() : null;
 
@@ -128,6 +130,8 @@ export default function MealPlanScreen() {
   const day = plan?.days.find((d) => d.dayOfWeek === selectedDay);
   const meals = day?.meals ?? [];
   const weekCost = plan?.estimatedCost?.totalEur ?? null;
+  // Portions the cost is sized for — premium households only (P2-3).
+  const costPortions = plan?.estimatedCost?.portions ?? null;
   // Costs are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
 
@@ -331,8 +335,17 @@ export default function MealPlanScreen() {
               )}
               {weekCost !== null && (
                 <View className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
-                  <Text className="text-xs font-medium text-emerald-700">
+                  <Text testID="plan-week-cost" className="text-xs font-medium text-emerald-700">
                     ≈ {formatMoney(weekCost, currency)} this week
+                    {/* Honest per-portion cost (P2-3, F-PM-5): only when the API
+                        sized the week for the table — never total ÷ heads. */}
+                    {costPortions !== null &&
+                      ` · ${formatMoney(
+                        perPortionCost(weekCost, costPortions) ?? 0,
+                        currency,
+                      )}/portion · ${costPortions} portions`}
+                    {/* A free table's week is sized for one portion — say so. */}
+                    {costPortions === null && memberCount > 0 && ' · for 1 portion'}
                   </Text>
                 </View>
               )}
