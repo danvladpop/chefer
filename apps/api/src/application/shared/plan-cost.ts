@@ -4,12 +4,18 @@ import {
   estimateItemPriceEur,
   normalizeIngredientName,
 } from '../../lib/ingredient-prices/index.js';
+import { aggregateIngredientLines, formatLineQuantity } from '../shopping-list/aggregate.js';
 
 // ─── Weekly plan cost estimation (P2-4) ───────────────────────────────────────
 // Sums per-line EUR estimates from the ingredient price vocabulary across
 // every meal slot of the week (a recipe cooked twice counts twice). Priced
 // shopping lists are the product's wedge — this surfaces the same numbers on
 // the plan itself.
+//
+// It prices the SAME aggregated lines the shopping list shows (aggregate.ts),
+// so the chip equals the list total unless the list adds custom items or
+// subtracts pantry stock — both visible on the list (audit F-SHOP-1-3; they
+// disagreed by ~€19 with nothing on screen to explain it).
 
 export interface PlanCostEstimate {
   /** Sum of the priced lines, or null when nothing could be priced. */
@@ -19,9 +25,20 @@ export interface PlanCostEstimate {
 }
 
 export async function estimatePlanCostEur(
-  days: { meals: { recipe: { ingredients: Ingredient[] } }[] }[],
+  days: { meals: { recipe: { id?: string; ingredients: Ingredient[] } }[] }[],
 ): Promise<PlanCostEstimate> {
-  const lines = days.flatMap((d) => d.meals.flatMap((m) => m.recipe.ingredients));
+  const lines = aggregateIngredientLines(
+    days.flatMap((d) =>
+      d.meals.flatMap((m) =>
+        m.recipe.ingredients.map((ing) => ({
+          name: ing.name,
+          quantity: ing.quantity,
+          unit: ing.unit,
+          recipeId: m.recipe.id ?? '',
+        })),
+      ),
+    ),
+  );
   if (lines.length === 0) return { totalEur: null, pricedLines: 0, totalLines: 0 };
 
   const names = [...new Set(lines.map((l) => normalizeIngredientName(l.name)))];
@@ -40,7 +57,10 @@ export async function estimatePlanCostEur(
   let priced = 0;
   for (const line of lines) {
     const row = rowMap.get(normalizeIngredientName(line.name));
-    const price = row ? estimateItemPriceEur(row, line.quantity, line.unit) : null;
+    // Same quantity string the list prices (formatLineQuantity), so rounding
+    // can't make the two totals drift apart.
+    const quantity = parseFloat(formatLineQuantity(line.quantity));
+    const price = row ? estimateItemPriceEur(row, quantity, line.unit) : null;
     if (price != null) {
       total += price;
       priced += 1;

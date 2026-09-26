@@ -46,7 +46,7 @@ const CATEGORY_KEYWORDS: Record<string, GroceryCategory> = {
   leek: 'produce',
   ginger: 'produce',
   // "chili powder" is a spice — must outrank the produce "chili" below
-  'chili powder': 'other',
+  'chili powder': 'grains',
   chili: 'produce',
   chilli: 'produce',
   pea: 'produce',
@@ -155,7 +155,147 @@ const CATEGORY_KEYWORDS: Record<string, GroceryCategory> = {
   hazelnut: 'grains',
   sesame: 'grains',
   cocoa: 'grains',
+  // Audit F-SHOP-1-2: 18 of 80 lines landed in "Other" (steak, falafel,
+  // stock, spices, olives, sweetcorn…). "grains" is the "Grains & Pantry"
+  // aisle in both apps, so spices, jars and tins go there.
+  steak: 'proteins',
+  sirloin: 'proteins',
+  mince: 'proteins',
+  veal: 'proteins',
+  venison: 'proteins',
+  falafel: 'proteins',
+  meatball: 'proteins',
+  chorizo: 'proteins',
+  salami: 'proteins',
+  prosciutto: 'proteins',
+  pancetta: 'proteins',
+  crab: 'proteins',
+  mussel: 'proteins',
+  scallop: 'proteins',
+  squid: 'proteins',
+  haddock: 'proteins',
+  halibut: 'proteins',
+  tilapia: 'proteins',
+  'sea bass': 'proteins',
+  edamame: 'proteins',
+  'protein powder': 'grains',
+  'green bean': 'produce',
+  'runner bean': 'produce',
+  'broad bean': 'produce',
+  'bean sprout': 'produce',
+  artichoke: 'produce',
+  sweetcorn: 'produce',
+  corn: 'produce',
+  rosemary: 'produce',
+  thyme: 'produce',
+  dill: 'produce',
+  sage: 'produce',
+  tarragon: 'produce',
+  lemongrass: 'produce',
+  greens: 'produce',
+  salad: 'produce',
+  romaine: 'produce',
+  watercress: 'produce',
+  chard: 'produce',
+  'bok choy': 'produce',
+  'pak choi': 'produce',
+  okra: 'produce',
+  parsnip: 'produce',
+  turnip: 'produce',
+  beet: 'produce',
+  jalapeno: 'produce',
+  jalapeño: 'produce',
+  plum: 'produce',
+  apricot: 'produce',
+  fig: 'produce',
+  kiwi: 'produce',
+  pomegranate: 'produce',
+  cherry: 'produce',
+  date: 'produce',
+  cumin: 'grains',
+  paprika: 'grains',
+  turmeric: 'grains',
+  cinnamon: 'grains',
+  nutmeg: 'grains',
+  cardamom: 'grains',
+  saffron: 'grains',
+  oregano: 'grains',
+  'bay leaf': 'grains',
+  'bay leaves': 'grains',
+  curry: 'grains',
+  masala: 'grains',
+  'ras el hanout': 'grains',
+  "za'atar": 'grains',
+  sumac: 'grains',
+  allspice: 'grains',
+  vanilla: 'grains',
+  yeast: 'grains',
+  cornstarch: 'grains',
+  'corn starch': 'grains',
+  olive: 'grains',
+  caper: 'grains',
+  pickle: 'grains',
+  gherkin: 'grains',
+  jam: 'grains',
+  chocolate: 'grains',
+  raisin: 'grains',
+  ciabatta: 'grains',
+  baguette: 'grains',
+  bagel: 'grains',
+  brioche: 'grains',
+  sourdough: 'grains',
+  crouton: 'grains',
+  cracker: 'grains',
+  'creme fraiche': 'dairy',
+  'crème fraîche': 'dairy',
+  mascarpone: 'dairy',
+  skyr: 'dairy',
+  quark: 'dairy',
+  cottage: 'dairy',
 };
+
+// Words that turn any ingredient into a pantry product, whatever it is made
+// of: "tomato paste", "vegetable stock", "garlic powder", "chili flakes",
+// "balsamic glaze", "lemon vinaigrette". Checked on the LAST word before
+// the keyword map, which would otherwise file them under their base food.
+const PANTRY_HEADS = new Set([
+  'stock',
+  'broth',
+  'bouillon',
+  'sauce',
+  'paste',
+  'powder',
+  'seasoning',
+  'spice',
+  'flake',
+  'extract',
+  'oil',
+  'vinegar',
+  'glaze',
+  'vinaigrette',
+  'dressing',
+  'passata',
+  'salsa',
+  'seed',
+  'syrup',
+  'cube',
+  'ketchup',
+  'mayonnaise',
+  'mustard',
+]);
+
+/** "flakes" → "flake"; enough for the head-word check. */
+function lastWordSingular(name: string): string {
+  const words = name
+    .toLowerCase()
+    .replace(/[^a-z\s-]/g, ' ')
+    .trim()
+    .split(/\s+/);
+  const last = words[words.length - 1] ?? '';
+  if (last.endsWith('ies')) return `${last.slice(0, -3)}y`;
+  if (last.endsWith('s') && !last.endsWith('ss')) return last.slice(0, -1);
+  return last;
+}
 
 // Longest keyword first so "pepperoni" wins over "pepper" when both match a
 // candidate boundary (defence in depth on top of the word-boundary regex).
@@ -174,6 +314,9 @@ const MATCHERS: { pattern: RegExp; category: GroceryCategory }[] = Object.entrie
   }));
 
 export function inferCategory(ingredientName: string): GroceryCategory {
+  if (/\bfrozen\b/i.test(ingredientName)) return 'frozen';
+  if (/\b(canned|tinned|jarred|dried|sun-dried|sundried)\b/i.test(ingredientName)) return 'grains';
+  if (PANTRY_HEADS.has(lastWordSingular(ingredientName))) return 'grains';
   for (const { pattern, category } of MATCHERS) {
     if (pattern.test(ingredientName)) return category;
   }

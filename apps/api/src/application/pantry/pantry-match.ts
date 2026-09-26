@@ -1,3 +1,4 @@
+import { isShortOf } from '../shopping-list/aggregate.js';
 import { isStapleIngredient } from './staples.js';
 
 // ─── Pantry ↔ ingredient matching (F3, pure) ─────────────────────────────────
@@ -9,46 +10,88 @@ function normalize(name: string): string {
   return name.toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
+// Cuts of the same animal: a pantry "chicken breast" covers a recipe's
+// "chicken" (and the reverse). Anything else after the base food makes a
+// different product — "lemon juice" is not a lemon (audit F-PAN-1-2).
+const CUT_WORDS = new Set([
+  'breast',
+  'thigh',
+  'fillet',
+  'leg',
+  'wing',
+  'drumstick',
+  'steak',
+  'mince',
+  'loin',
+  'tenderloin',
+]);
+
+function singularWord(word: string): string {
+  if (word.length <= 3 || /(ss|us|is)$/.test(word)) return word;
+  if (word.endsWith('ies')) return `${word.slice(0, -3)}y`;
+  if (/(toes|shes|ches|xes)$/.test(word)) return word.slice(0, -2);
+  if (word.endsWith('s')) return word.slice(0, -1);
+  return word;
+}
+
+function words(name: string): string[] {
+  return normalize(name)
+    .split(' ')
+    .filter((w) => w.length > 0)
+    .map(singularWord);
+}
+
 /**
- * Loose-but-bounded name match: exact normalized equality, or one whole name
- * containing the other ("tomato" covers "cherry tomatoes", "chicken breast"
- * covers "chicken"). Terms under 3 chars never match by containment.
+ * Head-noun name match (audit F-PAN-1-2). Equal names match; otherwise the
+ * shorter name must be the END of the longer one — its head noun — so
+ * "tomato" covers "cherry tomatoes" and "rice" covers "basmati rice", but
+ * "lemon" no longer covers "lemon juice" or "lemon vinaigrette", and "rice"
+ * no longer covers "rice vinegar". The one exception is a cut of meat
+ * ("chicken breast" ↔ "chicken"). Terms under 3 chars never match.
  */
 export function namesMatch(a: string, b: string): boolean {
-  const na = normalize(a);
-  const nb = normalize(b);
-  if (na.length === 0 || nb.length === 0) return false;
-  if (na === nb) return true;
-  const [shorter, longer] = na.length <= nb.length ? [na, nb] : [nb, na];
-  if (shorter.length < 3) return false;
-  // Whole-word containment ("pepper" must not cover "peppermint"), tolerant
-  // of simple plurals on either side (tomato ↔ tomatoes).
-  const variants = new Set([shorter]);
-  if (shorter.endsWith('es')) variants.add(shorter.slice(0, -2));
-  if (shorter.endsWith('s')) variants.add(shorter.slice(0, -1));
-  return [...variants].some(
-    (variant) =>
-      variant.length >= 3 &&
-      new RegExp(`(^|\\s)${escapeRegExp(variant)}(s|es)?($|\\s)`).test(longer),
-  );
+  const wa = words(a);
+  const wb = words(b);
+  if (wa.length === 0 || wb.length === 0) return false;
+  if (wa.join(' ') === wb.join(' ')) return true;
+  const [shorter, longer] = wa.length <= wb.length ? [wa, wb] : [wb, wa];
+  if (shorter.length === longer.length) return false;
+  if (shorter.join(' ').length < 3) return false;
+
+  const tail = longer.slice(longer.length - shorter.length);
+  if (tail.join(' ') === shorter.join(' ')) return true;
+
+  const head = longer.slice(0, shorter.length);
+  const rest = longer.slice(shorter.length);
+  return head.join(' ') === shorter.join(' ') && rest.every((w) => CUT_WORDS.has(w));
 }
 
-function escapeRegExp(term: string): string {
-  return term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+/** A pantry row: a bare name (unknown amount) or a name with its amount. */
+export type PantryEntry = string | { name: string; quantity: number; unit: string };
 
 /**
- * Returns a matcher closing over the user's pantry names: given an ingredient
- * name it returns the matching pantry name, or null when the pantry does not
- * cover it. Staples are never "covered" — they are not tracked at all.
+ * Returns a matcher closing over the user's pantry: given an ingredient name
+ * (and, when known, the amount needed) it returns the covering pantry name,
+ * or null. Staples are never "covered" — they are not tracked at all. A
+ * pantry row with a known amount smaller than the need doesn't cover it
+ * (3 eggs don't cover a list line of 11).
  */
 export function buildPantryMatcher(
-  pantryNames: string[],
-): (ingredientName: string) => string | null {
-  const names = pantryNames.map(normalize).filter((n) => n.length > 0);
-  return (ingredientName: string) => {
+  pantry: PantryEntry[],
+): (ingredientName: string, need?: { quantity: number; unit: string }) => string | null {
+  const entries = pantry
+    .map((entry) =>
+      typeof entry === 'string'
+        ? { name: normalize(entry), quantity: 0, unit: '' }
+        : { ...entry, name: normalize(entry.name) },
+    )
+    .filter((entry) => entry.name.length > 0);
+  return (ingredientName, need) => {
     if (isStapleIngredient(ingredientName)) return null;
-    return names.find((pantryName) => namesMatch(pantryName, ingredientName)) ?? null;
+    const hit = entries.find(
+      (entry) => namesMatch(entry.name, ingredientName) && !(need && isShortOf(entry, need)),
+    );
+    return hit?.name ?? null;
   };
 }
 

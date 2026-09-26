@@ -497,13 +497,34 @@ Plans continue week to week until changed: `mealPlan.getForWeek` for the current
 ```
 shoppingList.getForWeek { weekOffset }
   |
-  +- persisted AI list exists for the plan? -> serve it (aiGenerated: true)
-  +- else deterministic merge of recipe ingredients (merge key: name|unit)
+  +- persisted AI list exists for the plan? -> serve it (aiGenerated: true),
+  |    tidied by the same rules (tidyListItems + local aisle map)
+  +- else aggregateIngredientLines (shopping-list/aggregate.ts):
+  |    canonical name (Egg = Eggs, "Fresh parsley" = parsley, parentheticals
+  |    dropped) + unit family (g/kg/oz/lb together, ml/l/tsp/tbsp/cup
+  |    together, count units only with the same unit); mixed units are summed
+  |    and shown in the unit that contributed most. Water, ice, "to taste"
+  |    and bare salt-and-pepper lines are dropped (audit F-SHOP-1-1)
+  +- aisle: category-map.ts — frozen/canned/dried prefixes and pantry head
+  |    words (stock, sauce, paste, powder, oil, …) first, then keywords
+  |    (F-SHOP-1-2); "grains" is the "Grains & Pantry" aisle
   |
   +- every item joined against IngredientPrice (store-agnostic vocabulary):
   |    estimatedPriceEur = quantity x pricePer100g / per100ml / perPiece
   |    unpriced ingredients -> IngredientPriceWorker.wake()
-  +- estimatedTotalEur = sum of item estimates
+  +- estimatedTotalEur = sum of item estimates (minus pantry-covered lines
+       for pantryPlanning accounts)
+
+The planner's "≈ €X this week" chip (plan-cost.ts) prices the SAME aggregated
+lines, so it equals the list total unless the list adds custom items or
+subtracts pantry stock (F-SHOP-1-3).
+
+Pantry coverage (F-PAN-1-1/1-2): a line the user has ticked this week is
+never "have it" (ticking seeds the pantry, which used to flip the same line
+to covered and count it as saved); unticking removes that PURCHASE row again.
+The matcher compares head nouns ("lemon" no longer covers "lemon juice",
+"rice" no longer covers "rice vinegar"; cuts of meat still match) and a
+pantry row with a known, smaller amount doesn't cover the line.
 
 All displayed quantities (shopping list + recipe pages) are converted to the
 user's preferred unit system (ChefProfile.preferredUnits, set in Preferences):

@@ -42,7 +42,10 @@ vi.mock('../../workers/ingredient-price.worker.js', () => ({
 // Seeding delegates to PantryService (staple filtering lives there — covered
 // by pantry.service.test.ts); here we assert the delegation itself.
 vi.mock('../pantry/pantry.service.js', () => ({
-  pantryService: { seedFromPurchases: vi.fn().mockResolvedValue(1) },
+  pantryService: {
+    seedFromPurchases: vi.fn().mockResolvedValue(1),
+    revertPurchases: vi.fn().mockResolvedValue(1),
+  },
 }));
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -91,7 +94,7 @@ const pantryRow = (name: string) => ({
   id: `p-${name}`,
   userId: 'u1',
   ingredientName: name,
-  quantity: 500,
+  quantity: 1000,
   unit: 'g',
   source: 'PURCHASE',
   updatedAt: new Date(),
@@ -137,6 +140,32 @@ describe('ShoppingListService — F3 pantry subtraction', () => {
     expect(list.items.every((i) => i.pantryCovered === undefined)).toBe(true);
     expect(list.estimatedTotalEur).toBe(9); // full total — nothing subtracted
     expect(list.pantry).toEqual({ entitled: false, itemCount: 1, savedEur: 3 });
+  });
+
+  it('a ticked line is never "have it", even though ticking seeded the pantry (F-PAN-1-1)', async () => {
+    planWithRecipes();
+    vi.mocked(pantryItemRepository.findByUser).mockResolvedValue([pantryRow('tomato')] as never);
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue({
+      planId: 'plan1',
+      items: [],
+      aiGenerated: false,
+      checkedKeys: ['plan1-tomato|g'],
+      customItems: [],
+    } as never);
+    const list = await service.getForWeek(premiumUser, 0);
+    const tomato = list.items.find((i) => i.ingredientName === 'Tomato')!;
+    expect(tomato.pantryCovered).toBeUndefined();
+    expect(list.pantry.savedEur).toBe(0);
+    expect(list.estimatedTotalEur).toBe(9);
+  });
+
+  it('a pantry amount smaller than the line does not cover it (F-PAN-1-2)', async () => {
+    planWithRecipes();
+    vi.mocked(pantryItemRepository.findByUser).mockResolvedValue([
+      { ...pantryRow('tomato'), quantity: 200 },
+    ] as never);
+    const list = await service.getForWeek(premiumUser, 0);
+    expect(list.items.find((i) => i.ingredientName === 'Tomato')!.pantryCovered).toBeUndefined();
   });
 
   it('empty pantry: zeros, and the list is exactly the pre-F3 shape', async () => {
@@ -205,9 +234,12 @@ describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
     ]);
   });
 
-  it('unchecking never touches the pantry (you still have it)', async () => {
+  it('unchecking takes the purchase back out of the pantry (F-PAN-1-1)', async () => {
     await service.toggleItems('u1', 'plan1', ['plan1-tomato|g'], false);
     expect(pantryService.seedFromPurchases).not.toHaveBeenCalled();
+    expect(pantryService.revertPurchases).toHaveBeenCalledWith('u1', [
+      { name: 'Tomato', quantity: 600, unit: 'g' },
+    ]);
   });
 
   it('a pantry failure never breaks the check-off itself', async () => {

@@ -33,15 +33,28 @@ describe('estimatePlanCostEur', () => {
     ] as never);
   });
 
-  it('sums priced lines across all slots (per occurrence, not per unique recipe)', async () => {
+  it('sums every slot (per occurrence), merged into shopping-list lines', async () => {
     const result = await estimatePlanCostEur([
       day([{ name: 'Chicken Breast', quantity: 200, unit: 'g' }]), // 2 × €1.00
       day([{ name: 'chicken breast', quantity: 100, unit: 'g' }]), // 1 × €1.00
       day([{ name: 'Olive Oil', quantity: 100, unit: 'ml' }]), // 1 × €0.90
     ]);
     expect(result.totalEur).toBe(3.9);
-    expect(result.pricedLines).toBe(3);
-    expect(result.totalLines).toBe(3);
+    // Same lines the list shows: 300 g chicken breast + 100 ml olive oil.
+    expect(result.pricedLines).toBe(2);
+    expect(result.totalLines).toBe(2);
+  });
+
+  it('skips water and to-taste lines like the list does (F-SHOP-1-3)', async () => {
+    const result = await estimatePlanCostEur([
+      day([
+        { name: 'chicken breast', quantity: 100, unit: 'g' },
+        { name: 'Water', quantity: 3, unit: 'cups' },
+        { name: 'Salt and pepper', quantity: 1, unit: 'to taste' },
+      ]),
+    ]);
+    expect(result.totalLines).toBe(1);
+    expect(result.totalEur).toBe(1.0);
   });
 
   it('counts unmatched ingredients as unpriced, not zero-cost failures', async () => {

@@ -55,7 +55,29 @@ describe('namesMatch', () => {
 
   it('never matches inside another word', () => {
     expect(namesMatch('pepper', 'peppermint')).toBe(false);
-    expect(namesMatch('rice', 'rice vinegar')).toBe(true); // whole word — fine
+    expect(namesMatch('rice', 'rice vinegar')).toBe(false); // vinegar is the head noun
+  });
+
+  it('matches the head noun only (audit F-PAN-1-2)', () => {
+    expect(namesMatch('lemon', 'lemon juice')).toBe(false);
+    expect(namesMatch('lemon', 'Lemon vinaigrette')).toBe(false);
+    expect(namesMatch('rice', 'basmati rice')).toBe(true);
+    expect(namesMatch('chicken', 'chicken thighs')).toBe(true); // a cut
+    expect(namesMatch('coconut', 'coconut milk')).toBe(false);
+    expect(namesMatch('eggs', 'Egg')).toBe(true);
+  });
+
+  it('a known smaller amount does not cover the line; unknown amounts do', () => {
+    const matcher = buildPantryMatcher([
+      { name: 'eggs', quantity: 3, unit: 'pcs' },
+      { name: 'rice', quantity: 0, unit: 'some' },
+      { name: 'milk', quantity: 1, unit: 'l' },
+    ]);
+    expect(matcher('Eggs', { quantity: 11, unit: 'pcs' })).toBeNull();
+    expect(matcher('Eggs', { quantity: 2, unit: 'pieces' })).toBe('eggs');
+    expect(matcher('Basmati rice', { quantity: 300, unit: 'g' })).toBe('rice');
+    expect(matcher('Milk', { quantity: 250, unit: 'ml' })).toBe('milk');
+    expect(matcher('Milk', { quantity: 2, unit: 'l' })).toBeNull();
   });
 
   it('short terms never match by containment', () => {
