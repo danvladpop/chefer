@@ -333,17 +333,15 @@ type HttpError = Error & { status?: number; retryAfterMs?: number; failover?: bo
  * rejection of json_schema itself — the call is retried in json_object mode.
  */
 function isStrictGenerationFailure(err: unknown): boolean {
-  const e = err as HttpError;
+  if (!(err instanceof Error)) return false;
   return (
-    e?.status === 400 &&
-    /json_validate_failed|failed to validate json|max completion tokens reached/i.test(
-      e.message ?? '',
-    )
+    (err as HttpError).status === 400 &&
+    /json_validate_failed|failed to validate json|max completion tokens reached/i.test(err.message)
   );
 }
 
 function isTruncation(err: unknown): boolean {
-  return /max completion tokens reached|truncated/i.test((err as Error)?.message ?? '');
+  return err instanceof Error && /max completion tokens reached|truncated/i.test(err.message);
 }
 
 /**
