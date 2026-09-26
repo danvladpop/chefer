@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { AutoPlanToggle } from '../src/features/preferences/auto-plan-toggle';
 import { SafetyStep } from '../src/features/preferences/components/safety-step';
 import { GoalBodyCard, type GoalBodySavePayload } from '../src/features/preferences/goal-body-card';
 import type {
@@ -169,6 +170,10 @@ export default function PreferencesScreen() {
               </Text>
               <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
             </Pressable>
+          )}
+
+          {isPremium === true && (
+            <AutoPlanToggle initialEnabled={data?.chefProfile?.autoPlanWeekly ?? true} />
           )}
 
           {/* Units + budget — saved via premium updateTargets */}

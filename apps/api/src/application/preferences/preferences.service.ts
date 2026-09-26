@@ -297,6 +297,11 @@ export class PreferencesService {
     return { chefProfile, dietaryPreferences };
   }
 
+  async setAutoPlanWeekly(userId: string, enabled: boolean): Promise<{ autoPlanWeekly: boolean }> {
+    const profile = await this.chefProfileRepo.upsert(userId, { autoPlanWeekly: enabled });
+    return { autoPlanWeekly: profile.autoPlanWeekly };
+  }
+
   /**
    * Upserts ChefProfile and DietaryPreferences in a single transaction.
    * Safe to call multiple times (idempotent).

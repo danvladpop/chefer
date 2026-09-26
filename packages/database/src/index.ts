@@ -141,5 +141,6 @@ export {
   Prisma,
   BiologicalSex,
   MealPlanStatus,
+  MealPlanOrigin,
   ImageStatus,
 } from '@prisma/client';

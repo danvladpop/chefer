@@ -1,6 +1,7 @@
 import {
   chefProfileRepository,
   favouriteRecipeRepository,
+  MealPlanOrigin,
   mealPlanRepository,
   mealRatingRepository,
 } from '@chefer/database';
@@ -264,9 +265,11 @@ export class DashboardService {
       if (firstSlot) tomorrowFirstMeal = toHeroMeal(firstSlot);
     }
 
-    // PW-5: was this week's plan waiting before the week started?
+    // PW-5: did the Sunday worker prepare this week? Only WEEKLY_AUTO plans —
+    // a carry-forward copy or a manual plan made early used to claim "the
+    // chef prepared this week's plan for you on Sunday" (audit F-PLAN-4-2).
     let weekReady: DashboardSummary['weekReady'] = null;
-    if (plan.createdAt < plan.weekStartDate) {
+    if (plan.origin === MealPlanOrigin.WEEKLY_AUTO) {
       const signals = await mealRatingRepository.findSignalsForUser(userId, 20);
       weekReady = { preparedAt: plan.createdAt, ratedCount: signals.length };
     }

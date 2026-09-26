@@ -118,6 +118,7 @@ function makeRepo() {
     deleteTemplate: vi.fn().mockResolvedValue(undefined),
     setFollowedTemplate: vi.fn().mockResolvedValue(undefined),
     findFollowedTemplate: vi.fn().mockResolvedValue(null),
+    hasShoppingProgress: vi.fn().mockResolvedValue(false),
   };
 }
 

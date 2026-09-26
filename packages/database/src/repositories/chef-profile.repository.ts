@@ -20,6 +20,8 @@ export interface UpsertChefProfileData {
   deliveryAddress?: string | null;
   deliveryCurrency?: string | null;
   preferredUnits?: 'METRIC' | 'IMPERIAL';
+  /** Premium Sunday auto-planning opt-out (audit F-PLAN-4-3). */
+  autoPlanWeekly?: boolean;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────
