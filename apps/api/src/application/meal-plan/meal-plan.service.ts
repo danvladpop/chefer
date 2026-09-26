@@ -987,15 +987,18 @@ export class MealPlanService {
     mealType: string,
     _reason?: string,
     premium = false,
+    requestedSlotIndex?: number,
   ): Promise<RecipeDto> {
     // Verify the plan belongs to this user (look up by ID so it works for any week)
     const plan = await this.repo.findByIdForUser(userId, planId);
     if (!plan) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
     }
+    // Validated before any AI call, so a stale index never costs a generation.
+    const slotIndex = resolvePlanSlot(plan, dayOfWeek, mealType, requestedSlotIndex);
 
     if (!premium) {
-      return this.swapCurated(userId, planId, dayOfWeek, mealType, plan);
+      return this.swapCurated(userId, planId, dayOfWeek, mealType, plan, slotIndex);
     }
 
     // Load dietary preferences for the swap prompt. Safety is the household
@@ -1007,9 +1010,7 @@ export class MealPlanService {
     ]);
 
     // Find the current recipe name in the plan day
-    type MealSlotJson = { type: string; recipeId: string };
-    const day = plan.days.find((d: { dayOfWeek: number }) => d.dayOfWeek === dayOfWeek);
-    const slot = day ? (day.meals as MealSlotJson[]).find((m) => m.type === mealType) : undefined;
+    const slot = slotAt(plan, dayOfWeek, slotIndex);
     const currentRecipe = slot ? await this.repo.findRecipeById(slot.recipeId) : null;
 
     // Call AI swap
@@ -1043,7 +1044,7 @@ export class MealPlanService {
     // to a safe curated recipe instead.
     if (findSafetyIssues(newRecipe, mergedSafety).length > 0) {
       console.warn('[meal-plan] AI swap failed the safety check; using a curated recipe');
-      return this.swapCurated(userId, planId, dayOfWeek, mealType, plan);
+      return this.swapCurated(userId, planId, dayOfWeek, mealType, plan, slotIndex);
     }
 
     // Reuse an existing image if we've generated this dish before
@@ -1071,7 +1072,13 @@ export class MealPlanService {
     ]);
 
     // Update the day's meal slot
-    await this.repo.updateDayMeal(planId, dayOfWeek, mealType, newRecipe.id);
+    await this.repo.updateDayMeal(
+      planId,
+      dayOfWeek,
+      mealType,
+      newRecipe.id,
+      ...slotArgs(undefined, slotIndex),
+    );
 
     if (!reusedUrl) recipeImageWorker.wake();
 
@@ -1091,16 +1098,14 @@ export class MealPlanService {
     dayOfWeek: number,
     mealType: string,
     plan: { days: { dayOfWeek: number; meals: unknown }[] },
+    slotIndex: number | null,
   ): Promise<RecipeDto> {
     await ensureCuratedRecipes();
 
     // F2: swap alternatives must be safe for the whole household too.
     const safety = await this.loadMergedSafety(userId);
 
-    const day = plan.days.find((d) => d.dayOfWeek === dayOfWeek);
-    const slot = day
-      ? (day.meals as PlanMealSlotJson[]).find((m) => m.type === mealType)
-      : undefined;
+    const slot = slotAt(plan, dayOfWeek, slotIndex);
 
     const newRecipe = pickRandomCurated(mealType as MealType, slot?.recipeId, safety);
     if (!newRecipe) {
@@ -1126,7 +1131,7 @@ export class MealPlanService {
       dayOfWeek,
       mealType,
       newRecipe.id,
-      ...(portion !== undefined && portion !== 1 ? [portion] : []),
+      ...slotArgs(portion, slotIndex),
     );
 
     return toRecipeDto(newRecipe, { imageUrl: newRecipe.imageUrl, imageStatus: 'DONE' });
@@ -1141,18 +1146,26 @@ export class MealPlanService {
     dayOfWeek: number,
     mealType: string,
     recipeId: string,
+    requestedSlotIndex?: number,
   ): Promise<RecipeDto> {
     const plan = await this.repo.findByIdForUser(userId, planId);
     if (!plan) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
     }
+    const slotIndex = resolvePlanSlot(plan, dayOfWeek, mealType, requestedSlotIndex);
 
     const recipe = await findRecipeVisibleTo(userId, recipeId, this.repo);
     if (!recipe) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     }
 
-    await this.repo.updateDayMeal(planId, dayOfWeek, mealType, recipeId);
+    await this.repo.updateDayMeal(
+      planId,
+      dayOfWeek,
+      mealType,
+      recipeId,
+      ...slotArgs(undefined, slotIndex),
+    );
 
     return rowToRecipeDto(recipe);
   }
@@ -1398,6 +1411,57 @@ export class MealPlanService {
 export const mealPlanService = new MealPlanService(mealPlanRepository);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+type SlotPlan = { days: { dayOfWeek: number; meals: unknown }[] };
+
+/**
+ * The index in `day.meals` of the slot a per-slot operation addresses. A
+ * curated day can hold two snacks, so `mealType` alone is ambiguous: clients
+ * send `slotIndex`, which must point at a slot of that type (BAD_REQUEST
+ * otherwise — a stale client view must not overwrite a different meal).
+ * Without it (shipped mobile builds) the first slot of the type is used, as
+ * before; null when the day has no such slot.
+ */
+export function resolvePlanSlot(
+  plan: SlotPlan,
+  dayOfWeek: number,
+  mealType: string,
+  slotIndex?: number,
+): number | null {
+  const meals = (plan.days.find((d) => d.dayOfWeek === dayOfWeek)?.meals ??
+    []) as PlanMealSlotJson[];
+  if (slotIndex === undefined) {
+    const first = meals.findIndex((m) => m.type === mealType);
+    return first === -1 ? null : first;
+  }
+  if (meals[slotIndex]?.type !== mealType) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'That meal is no longer in this slot. Refresh the plan and try again.',
+    });
+  }
+  return slotIndex;
+}
+
+function slotAt(
+  plan: SlotPlan,
+  dayOfWeek: number,
+  slotIndex: number | null,
+): PlanMealSlotJson | undefined {
+  if (slotIndex === null) return undefined;
+  const day = plan.days.find((d) => d.dayOfWeek === dayOfWeek);
+  return (day?.meals as PlanMealSlotJson[] | undefined)?.[slotIndex];
+}
+
+/** Trailing `updateDayMeal` args: the portion (undefined at 1×), then the slot index. */
+function slotArgs(
+  portion: number | undefined,
+  slotIndex: number | null,
+): [portion?: number | undefined, slotIndex?: number] {
+  const sized = portion !== undefined && portion !== 1 ? portion : undefined;
+  if (slotIndex === null) return sized !== undefined ? [sized] : [];
+  return [sized, slotIndex];
+}
 
 /** The plan portion step closest to `ratio` (0.75×–2×). */
 export function nearestPortionStep(ratio: number): number {

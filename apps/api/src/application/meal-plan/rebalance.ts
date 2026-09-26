@@ -27,6 +27,12 @@ import { resolveDailyTargets } from '../preferences/preferences.service.js';
 export interface RebalanceSwap {
   dayOfWeek: number; // 0 = Monday … 6 = Sunday
   mealType: string;
+  /**
+   * The slot's index in `day.meals` (a curated day can hold two snacks).
+   * Additive: undo sends it to mealPlan.replaceRecipe so the right snack is
+   * restored; older clients ignore it.
+   */
+  slotIndex?: number;
   previousRecipeId: string;
   newRecipeId: string;
   /** Names for the banner copy ("I adjusted Thursday dinner…"). */
@@ -52,6 +58,8 @@ export interface RebalanceResult {
 export interface RebalanceSlot {
   dayOfWeek: number;
   mealType: string;
+  /** Index in `day.meals`; absent in fixtures = the first slot of the type. */
+  slotIndex?: number;
   recipeId: string;
   recipeName: string;
   kcal: number;
@@ -150,6 +158,7 @@ export function selectRebalanceSwaps(input: RebalanceSelectionInput): RebalanceS
     selection.swaps.push({
       dayOfWeek: best.slot.dayOfWeek,
       mealType: best.slot.mealType,
+      ...(best.slot.slotIndex !== undefined && { slotIndex: best.slot.slotIndex }),
       previousRecipeId: best.slot.recipeId,
       previousRecipeName: best.slot.recipeName,
       newRecipeId: best.candidate.id,
@@ -224,7 +233,11 @@ export async function rebalanceWeek(userId: string, planId: string): Promise<Reb
   type MealSlotJson = { type: string; recipeId: string; portion?: number };
   const futureDays = plan.days.filter((d) => d.dayOfWeek > todayIndex);
   const futureSlotJson = futureDays.flatMap((d) =>
-    (d.meals as MealSlotJson[]).map((m) => ({ dayOfWeek: d.dayOfWeek, ...m })),
+    (d.meals as MealSlotJson[]).map((m, slotIndex) => ({
+      dayOfWeek: d.dayOfWeek,
+      slotIndex,
+      ...m,
+    })),
   );
   if (futureSlotJson.length === 0) return noop;
 
@@ -240,6 +253,7 @@ export async function rebalanceWeek(userId: string, planId: string): Promise<Reb
       {
         dayOfWeek: m.dayOfWeek,
         mealType: m.type,
+        slotIndex: m.slotIndex,
         recipeId: m.recipeId,
         recipeName: row.name,
         // P1-1: a portioned slot counts at its portion.
@@ -279,7 +293,15 @@ export async function rebalanceWeek(userId: string, planId: string): Promise<Reb
   // exist before plan slots reference them.
   await ensureCuratedRecipes();
   for (const swap of selection.swaps) {
-    await mealPlanRepository.updateDayMeal(planId, swap.dayOfWeek, swap.mealType, swap.newRecipeId);
+    // By index: on a two-snack day the second snack is its own slot.
+    await mealPlanRepository.updateDayMeal(
+      planId,
+      swap.dayOfWeek,
+      swap.mealType,
+      swap.newRecipeId,
+      undefined,
+      swap.slotIndex,
+    );
   }
 
   return {

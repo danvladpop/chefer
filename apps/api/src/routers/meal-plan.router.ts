@@ -9,6 +9,11 @@ const planView = (user: Parameters<typeof hasFeature>[0]) => ({
   householdScaling: hasFeature(user, 'householdPlans'),
 });
 
+// A slot's index in `day.meals` (a curated day can hold two snacks). Optional
+// and additive: shipped mobile builds omit it and get the first slot of
+// `mealType`, as before. When sent, the slot must be of `mealType`.
+const slotIndexSchema = z.number().int().min(0).max(20).optional();
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export const mealPlanRouter = router({
@@ -72,7 +77,7 @@ export const mealPlanRouter = router({
 
   /**
    * Swaps a single meal slot with an AI-generated alternative.
-   * Input: planId, dayOfWeek (0=Mon), mealType, optional reason.
+   * Input: planId, dayOfWeek (0=Mon), mealType, optional slotIndex, optional reason.
    */
   swapRecipe: protectedProcedure
     .input(
@@ -80,6 +85,7 @@ export const mealPlanRouter = router({
         planId: z.string().min(1),
         dayOfWeek: z.number().int().min(0).max(6),
         mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+        slotIndex: slotIndexSchema,
         reason: z.string().optional(),
       }),
     )
@@ -93,6 +99,7 @@ export const mealPlanRouter = router({
           input.mealType,
           input.reason,
           isPremiumUser(ctx.user),
+          input.slotIndex,
         );
       } catch (err) {
         await reservation.release();
@@ -109,6 +116,7 @@ export const mealPlanRouter = router({
         planId: z.string().min(1),
         dayOfWeek: z.number().int().min(0).max(6),
         mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+        slotIndex: slotIndexSchema,
         recipeId: z.string().min(1),
       }),
     )
@@ -119,6 +127,7 @@ export const mealPlanRouter = router({
         input.dayOfWeek,
         input.mealType,
         input.recipeId,
+        input.slotIndex,
       );
     }),
 

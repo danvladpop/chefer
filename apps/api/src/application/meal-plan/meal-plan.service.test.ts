@@ -7,11 +7,13 @@ import {
   mealRatingRepository,
 } from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
+import { pickRandomCurated } from '../../lib/curated-recipes/index.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import {
   dayImagePriority,
   MealPlanService,
   planOffTargetScore,
+  resolvePlanSlot,
   restrictionWarningLabel,
 } from './meal-plan.service.js';
 
@@ -1006,7 +1008,7 @@ describe('MealPlanService — AI output is safety-checked', () => {
 
     expect(swapped.name).not.toContain('Omelette');
     expect(repo.upsertRecipes).not.toHaveBeenCalled();
-    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 0, 'dinner', swapped.id);
+    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 0, 'dinner', swapped.id, undefined, 0);
   });
 
   it("getRecipe flags a recipe that conflicts with the viewer's allergies", async () => {
@@ -1250,7 +1252,7 @@ describe('MealPlanService — curated slot portions (P1-1)', () => {
 
     await service.swapRecipe('user1', 'plan1', 0, 'dinner', undefined, false);
 
-    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 0, 'dinner', 'swap', 1.5);
+    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 0, 'dinner', 'swap', 1.5, 0);
   });
 
   it('a free swap of a 1× slot stays 1×', async () => {
@@ -1263,7 +1265,7 @@ describe('MealPlanService — curated slot portions (P1-1)', () => {
 
     await service.swapRecipe('user1', 'plan1', 0, 'dinner', undefined, false);
 
-    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 0, 'dinner', 'swap');
+    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 0, 'dinner', 'swap', undefined, 0);
   });
 
   it('a free lifter is portioned toward, and judged against, bodyweight protein (P2-4)', async () => {
@@ -1292,5 +1294,92 @@ describe('MealPlanService — curated slot portions (P1-1)', () => {
     const dto = await new MealPlanService(repo, undefined, lifter).getById('user1', 'plan1');
     expect(dto.proteinTarget).toBe(144);
     expect(dto.days[0]!.proteinGapG).toBe(144 - 80); // 40 g × 2 servings
+  });
+});
+
+describe('MealPlanService — per-slot operations on a two-snack day', () => {
+  // A curated free day can hold two snacks (curated-planner.ts): index 3 and 4.
+  const TWO_SNACK_PLAN = {
+    id: 'plan1',
+    weekStartDate: new Date('2026-09-21'),
+    days: [
+      {
+        dayOfWeek: 2,
+        meals: [
+          { type: 'breakfast', recipeId: 'b1' },
+          { type: 'lunch', recipeId: 'l1' },
+          { type: 'dinner', recipeId: 'd1' },
+          { type: 'snack', recipeId: 's1' },
+          { type: 'snack', recipeId: 's2' },
+        ],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+  });
+
+  it('swaps the second snack when slotIndex is 4', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(TWO_SNACK_PLAN);
+    const service = new MealPlanService(repo);
+
+    await service.swapRecipe('user1', 'plan1', 2, 'snack', undefined, false, 4);
+
+    // The alternative is drawn against the SECOND snack's recipe…
+    expect(vi.mocked(pickRandomCurated).mock.calls[0]?.[1]).toBe('s2');
+    // …and only that slot is written.
+    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 2, 'snack', 'swap', undefined, 4);
+  });
+
+  it('replaces the second snack when slotIndex is 4', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(TWO_SNACK_PLAN);
+    repo.findRecipeById.mockResolvedValue({ ...AI_RECIPE, id: 'mine', source: 'AI' });
+    const service = new MealPlanService(repo);
+
+    await service.replaceRecipe('user1', 'plan1', 2, 'snack', 'mine', 4);
+
+    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 2, 'snack', 'mine', undefined, 4);
+  });
+
+  it('rejects a slotIndex that points at a different meal type with BAD_REQUEST', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(TWO_SNACK_PLAN);
+    repo.findRecipeById.mockResolvedValue({ ...AI_RECIPE, id: 'mine', source: 'AI' });
+    const service = new MealPlanService(repo);
+
+    // Index 2 is dinner, not a snack; index 9 does not exist.
+    await expect(
+      service.swapRecipe('user1', 'plan1', 2, 'snack', undefined, true, 2),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      service.replaceRecipe('user1', 'plan1', 2, 'snack', 'mine', 9),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    // Validated before any AI call or write.
+    expect(aiService.generateRecipeSwap).not.toHaveBeenCalled();
+    expect(repo.updateDayMeal).not.toHaveBeenCalled();
+  });
+
+  it('without slotIndex the first snack is used, as shipped mobile builds expect', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(TWO_SNACK_PLAN);
+    const service = new MealPlanService(repo);
+
+    await service.swapRecipe('user1', 'plan1', 2, 'snack', undefined, false);
+
+    expect(vi.mocked(pickRandomCurated).mock.calls[0]?.[1]).toBe('s1');
+    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 2, 'snack', 'swap', undefined, 3);
+  });
+
+  it('resolvePlanSlot: first match without an index, null when the day has no such slot', () => {
+    expect(resolvePlanSlot(TWO_SNACK_PLAN, 2, 'snack')).toBe(3);
+    expect(resolvePlanSlot(TWO_SNACK_PLAN, 2, 'snack', 4)).toBe(4);
+    expect(resolvePlanSlot(TWO_SNACK_PLAN, 5, 'snack')).toBeNull();
+    expect(() => resolvePlanSlot(TWO_SNACK_PLAN, 5, 'snack', 0)).toThrow();
   });
 });
