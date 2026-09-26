@@ -9,7 +9,21 @@ export type ReasoningEffortSetting = (typeof REASONING_EFFORT_SETTINGS)[number];
 // schema (lib/env.ts) and parsed on its own by the eval harness (lib/ai/eval),
 // which must run without the API's database/auth env. One source of defaults.
 
+/** "true"/"false" env flag; empty or unset = false. */
+const envFlag = z.preprocess(
+  (val) => (val === '' || val === undefined ? 'false' : val),
+  z.enum(['true', 'false']).transform((v) => v === 'true'),
+);
+
+/** Optional string where an empty value (a copied .env.example line) counts as unset. */
+const optionalString = z.preprocess((val) => (val === '' ? undefined : val), z.string().optional());
+
 export const aiProviderEnvShape = {
+  // Free-only mode (owner decision 2026-09-26): every workload runs
+  // groq>cloudflare (routing.ts FREE_ONLY_AI_ROUTES), Gemini is never built,
+  // GEMINI_API_KEY is not required and any AI_ROUTE_*/AI_SHADOW_ROUTE naming
+  // gemini refuses to start. Unset = today's routing, unchanged.
+  AI_FREE_ONLY: envFlag,
   GEMINI_API_KEY: z.string().optional(),
   // Model names are config, not code (audit P0-5 groundwork): swapping to a
   // newer or paid-tier model is an env change and a restart.
@@ -35,4 +49,28 @@ export const aiProviderEnvShape = {
     (val) => (val === '' ? undefined : val),
     z.enum(REASONING_EFFORT_SETTINGS).default('auto'),
   ),
+  // Optional cheaper model at the secondary endpoint for the simple JSON
+  // workloads (ingredient prices, shopping-list tidy-up, weekly review prose —
+  // FAST_MODEL_OPS in openai.ts), e.g. openai/gpt-oss-20b. Unset = off (every
+  // call uses AI_SECONDARY_MODEL). See docs/ai-providers.md "Free-only mode".
+  AI_SECONDARY_FAST_MODEL: optionalString,
+
+  // Cloudflare Workers AI. The same account/token also serve recipe images
+  // (IMAGE_PROVIDER=cloudflare). As a TEXT provider it is used only when a
+  // route names `cloudflare` or AI_FREE_ONLY=true — having the keys for images
+  // alone changes no text routing.
+  CF_ACCOUNT_ID: optionalString,
+  CF_API_TOKEN: optionalString,
+  // https://developers.cloudflare.com/workers-ai/models/gpt-oss-120b/ (checked 2026-09-26).
+  CF_TEXT_MODEL: z.string().default('@cf/openai/gpt-oss-120b'),
+  // Photos on Workers AI. Gemma 4 (Apache 2.0) — not Llama 3.2/4 Vision,
+  // whose licence withholds the multimodal models from EU-based developers.
+  // https://developers.cloudflare.com/workers-ai/models/gemma-4-26b-a4b-it/
+  CF_VISION_MODEL: z.string().default('@cf/google/gemma-4-26b-a4b-it'),
+  // Cheaper Workers AI model for the FAST_MODEL_OPS workloads, e.g.
+  // @cf/openai/gpt-oss-20b (~half the neurons). Unset = off.
+  CF_FAST_MODEL: optionalString,
+  // Text stops going to Workers AI once today's neurons (text + images, per
+  // UTC day, in memory) reach this; images keep the rest of the free 10,000.
+  CF_TEXT_NEURON_BUDGET: z.coerce.number().int().min(0).max(10_000).default(8_000),
 };

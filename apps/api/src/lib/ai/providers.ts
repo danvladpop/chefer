@@ -1,3 +1,4 @@
+import { cloudflareNeuronLedger } from './cloudflare-budget.js';
 import type { ReasoningEffortSetting } from './env-schema.js';
 import type { ProviderRef } from './failover.js';
 import { GeminiAIService } from './gemini.js';
@@ -20,6 +21,40 @@ export interface ProviderConfig {
   visionModel: string;
   /** AI_SECONDARY_REASONING_EFFORT; unset = auto. */
   reasoningEffort?: ReasoningEffortSetting | undefined;
+  /** AI_SECONDARY_FAST_MODEL: the simple JSON workloads at the secondary; unset = off. */
+  secondaryFastModel?: string | undefined;
+  /**
+   * Workers AI as a text provider. Set only when it may be used (a route
+   * names `cloudflare`, or AI_FREE_ONLY) — the image keys alone never enable it.
+   */
+  cloudflare?: CloudflareTextConfig | undefined;
+}
+
+export interface CloudflareTextConfig {
+  accountId: string;
+  apiToken: string;
+  /** CF_TEXT_MODEL, e.g. @cf/openai/gpt-oss-120b */
+  textModel: string;
+  /** CF_VISION_MODEL, e.g. @cf/google/gemma-4-26b-a4b-it */
+  visionModel: string;
+  /** CF_FAST_MODEL; unset = off. */
+  fastModel?: string | undefined;
+  /** CF_TEXT_NEURON_BUDGET — text stops once today's neurons reach it. */
+  textNeuronBudget: number;
+}
+
+/** Workers AI's OpenAI-compatible base URL (…/chat/completions is appended). */
+export function cloudflareBaseUrl(accountId: string): string {
+  return `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/v1`;
+}
+
+/**
+ * Extra request fields for a Workers AI vision model. Gemma 4 thinks by
+ * default (chat_template_kwargs.enable_thinking, per its input schema); a
+ * nutrition read of one photo does not need it and it costs neurons.
+ */
+export function cloudflareVisionExtras(model: string): Record<string, unknown> | undefined {
+  return /gemma-4/i.test(model) ? { chat_template_kwargs: { enable_thinking: false } } : undefined;
 }
 
 /**
@@ -56,6 +91,7 @@ export function configuredProviders(config: ProviderConfig): AiProviderName[] {
   const names: AiProviderName[] = [];
   if (config.geminiApiKey) names.push('gemini');
   if (config.secondaryApiKey) names.push('groq');
+  if (config.cloudflare) names.push('cloudflare');
   return names;
 }
 
@@ -91,8 +127,39 @@ export function createProvider(
           model: config.secondaryModel,
           visionModel: config.visionModel,
           reasoningEffort: resolveReasoningEffort(config.reasoningEffort, config.secondaryModel),
+          fastModel: config.secondaryFastModel,
+          fastReasoningEffort: config.secondaryFastModel
+            ? resolveReasoningEffort(config.reasoningEffort, config.secondaryFastModel)
+            : undefined,
           mealPlanMode: options.leadsMealPlan ? 'chunked' : 'single',
         }),
       };
+    case 'cloudflare': {
+      const cf = config.cloudflare;
+      if (!cf) throw new Error('cloudflare needs CF_ACCOUNT_ID and CF_API_TOKEN');
+      return {
+        name: `workers-ai/${cf.textModel}`,
+        service: new OpenAICompatibleAIService({
+          apiKey: cf.apiToken,
+          baseUrl: cloudflareBaseUrl(cf.accountId),
+          model: cf.textModel,
+          visionModel: cf.visionModel,
+          visionExtras: cloudflareVisionExtras(cf.visionModel),
+          // Workers AI honours reasoning_effort on gpt-oss (measured
+          // 2026-09-26: 57 vs 186 completion tokens for the same answer).
+          reasoningEffort: resolveReasoningEffort(config.reasoningEffort, cf.textModel),
+          fastModel: cf.fastModel,
+          fastReasoningEffort: cf.fastModel
+            ? resolveReasoningEffort(config.reasoningEffort, cf.fastModel)
+            : undefined,
+          // No per-minute token cap and a 128K context: the per-day strict
+          // schema chunks are the most reliable plan shape wherever it sits in
+          // the chain (a single 7-day call would outgrow its output budget).
+          mealPlanMode: 'chunked',
+          neuronBudget: { ledger: cloudflareNeuronLedger, textLimit: cf.textNeuronBudget },
+          providerLabel: 'cloudflare',
+        }),
+      };
+    }
   }
 }

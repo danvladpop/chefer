@@ -1,3 +1,4 @@
+import { CF_IMAGE_NEURONS_ESTIMATE, cloudflareNeuronLedger } from '../ai/cloudflare-budget.js';
 import { logAiUsage } from '../ai/usage.js';
 import { ImagenRateLimitError } from './errors.js';
 import { buildRecipeImagePrompt } from './prompt.js';
@@ -67,11 +68,19 @@ export class CloudflareImageService implements IRecipeImageService {
       }
       base64 = image;
     }
+    // Images share the free 10K neurons/day with Workers AI text: count them
+    // in the same ledger so text stops at CF_TEXT_NEURON_BUDGET and leaves
+    // images the rest (cloudflare-budget.ts).
+    const reported = Number(res.headers.get('cf-ai-neurons'));
+    const spent = Number.isFinite(reported) && reported > 0 ? reported : CF_IMAGE_NEURONS_ESTIMATE;
+    cloudflareNeuronLedger.record(spent);
     logAiUsage({
       provider: 'cloudflare',
       model: this.config.model,
       op: 'recipeImage',
       ms: Date.now() - started,
+      neurons: Math.round(spent * 100) / 100,
+      neuronsToday: Math.round(cloudflareNeuronLedger.usedToday()),
     });
 
     return this.config.upload(base64, mimeType, input.recipeId);

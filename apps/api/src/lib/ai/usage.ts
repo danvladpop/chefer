@@ -19,6 +19,9 @@ export interface AiUsage {
   /** Hidden reasoning tokens included in outputTokens (gpt-oss / qwen), when reported. */
   reasoningTokens?: number | undefined;
   ms: number;
+  /** Workers AI only: this call's neurons, and today's running total (text + images). */
+  neurons?: number | undefined;
+  neuronsToday?: number | undefined;
   /** True when the call was made by shadow mode (never served to a user). */
   shadow?: boolean | undefined;
 }

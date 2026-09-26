@@ -1,3 +1,9 @@
+import {
+  FREE_ONLY_AI_PROVIDER_DISCLOSURE,
+  LEGACY_AI_PROVIDER_DISCLOSURE,
+  type AiProviderDisclosure,
+  type AiProviderId,
+} from '@chefer/types';
 import { env } from '../env.js';
 import { hasAiDataConsent } from './consent.js';
 import { ChainAIService, type ProviderRef } from './failover.js';
@@ -12,11 +18,15 @@ import {
   AI_PROVIDER_NAMES,
   AI_ROUTE_ENV_KEYS,
   AI_WORKLOADS,
+  DEFAULT_AI_ROUTES,
   describeRoutes,
+  FREE_ONLY_AI_ROUTES,
   parseChain,
   parseShadowRoutes,
+  providersInRoutes,
   resolveRoutes,
   type AiProviderName,
+  type AiRouteTable,
   type AiWorkload,
 } from './routing.js';
 import { ShadowRunner } from './shadow.js';
@@ -39,14 +49,27 @@ import type { IAIService } from './types.js';
 //   AI_PROVIDER=openai) that provider serves everything directly, as before.
 //   AI_SHADOW_ROUTE / AI_SHADOW_SAMPLE add background shadow replays
 //   (shadow.ts); unset or 0 = off.
+//   cloudflare — Workers AI's OpenAI-compatible endpoint (CF_TEXT_MODEL /
+//     CF_VISION_MODEL, neuron budget CF_TEXT_NEURON_BUDGET). Only built when
+//     AI_FREE_ONLY=true or a route/shadow setting names it.
+//   AI_FREE_ONLY=true: Gemini is never built; every workload defaults to
+//     groq>cloudflare (routing.ts FREE_ONLY_AI_ROUTES). env.ts refuses to
+//     start if a route still names gemini.
 //
 // To add a new provider: create <provider>.ts implementing IAIService, add
 // its name to routing.ts AI_PROVIDER_NAMES, build it in providers.ts, add its
 // key to env.ts. Nothing else changes.
 
+/** Whether any AI_ROUTE_* / AI_SHADOW_ROUTE value names `cloudflare`. */
+function routesMentionCloudflare(): boolean {
+  const values = [...AI_WORKLOADS.map((w) => env[AI_ROUTE_ENV_KEYS[w]]), env.AI_SHADOW_ROUTE];
+  return values.some((v) => v !== undefined && /cloudflare/i.test(v));
+}
+
 const providerConfig: ProviderConfig = {
-  // AI_PROVIDER=openai means "no Gemini", even if a Gemini key is present.
-  geminiApiKey: env.AI_PROVIDER === 'gemini' ? env.GEMINI_API_KEY : undefined,
+  // AI_PROVIDER=openai means "no Gemini", even if a Gemini key is present;
+  // so does free-only mode.
+  geminiApiKey: env.AI_PROVIDER === 'gemini' && !env.AI_FREE_ONLY ? env.GEMINI_API_KEY : undefined,
   geminiModel: env.GEMINI_MODEL,
   geminiFastModel: env.GEMINI_FAST_MODEL,
   secondaryApiKey: env.AI_SECONDARY_API_KEY,
@@ -54,7 +77,23 @@ const providerConfig: ProviderConfig = {
   secondaryModel: env.AI_SECONDARY_MODEL,
   visionModel: env.AI_VISION_MODEL,
   reasoningEffort: env.AI_SECONDARY_REASONING_EFFORT,
+  secondaryFastModel: env.AI_SECONDARY_FAST_MODEL,
+  // Workers AI text only when asked for: the CF keys alone (recipe images)
+  // must not change today's routing.
+  cloudflare:
+    env.CF_ACCOUNT_ID && env.CF_API_TOKEN && (env.AI_FREE_ONLY || routesMentionCloudflare())
+      ? {
+          accountId: env.CF_ACCOUNT_ID,
+          apiToken: env.CF_API_TOKEN,
+          textModel: env.CF_TEXT_MODEL,
+          visionModel: env.CF_VISION_MODEL,
+          fastModel: env.CF_FAST_MODEL,
+          textNeuronBudget: env.CF_TEXT_NEURON_BUDGET,
+        }
+      : undefined,
 };
+
+const defaultRoutes = env.AI_FREE_ONLY ? FREE_ONLY_AI_ROUTES : DEFAULT_AI_ROUTES;
 
 /** AI_ROUTE_* values that are set, parsed (env.ts already validated them). */
 function routeOverrides(): Partial<Record<AiWorkload, AiProviderName[]>> {
@@ -113,7 +152,18 @@ function createAIService(): IAIService {
   }
 
   const available = configuredProviders(providerConfig);
-  const routes = resolveRoutes(routeOverrides(), available, (msg) => console.warn(`[AI] ${msg}`));
+  const routes = resolveRoutes(
+    routeOverrides(),
+    available,
+    (msg) => console.warn(`[AI] ${msg}`),
+    defaultRoutes,
+  );
+  activeRoutes = routes;
+  if (env.AI_FREE_ONLY) {
+    console.info(
+      `[AI] free-only mode: ${available.join(', ')} (Cloudflare text budget ${env.CF_TEXT_NEURON_BUDGET} neurons/day)`,
+    );
+  }
   const providers: Record<string, ProviderRef> = Object.fromEntries(
     available.map((p) => [
       p,
@@ -140,7 +190,40 @@ function createAIService(): IAIService {
   return new ChainAIService({ providers, routes, shadow: shadow ?? undefined });
 }
 
+/** The live route table (null in mock mode), for the provider disclosure. */
+let activeRoutes: AiRouteTable | null = null;
+
 export const aiService: IAIService = createAIService();
+
+/**
+ * Who receives user data, for the consent sheet, profile toggle and privacy
+ * page (profile.aiProviders). Derived from the live route table, so the copy
+ * follows the config and cannot go stale: the provider leading the most
+ * workloads is `primary`, every other routed provider (and shadow candidates)
+ * a backup. Mock mode reports the mode's usual set.
+ */
+function computeDisclosure(): AiProviderDisclosure {
+  const fallback = env.AI_FREE_ONLY
+    ? FREE_ONLY_AI_PROVIDER_DISCLOSURE
+    : LEGACY_AI_PROVIDER_DISCLOSURE;
+  if (!activeRoutes) return fallback;
+  const lead = new Map<AiProviderId, number>();
+  for (const w of AI_WORKLOADS) {
+    const first = activeRoutes[w][0];
+    if (first) lead.set(first, (lead.get(first) ?? 0) + 1);
+  }
+  const top = [...lead].sort((a, b) => b[1] - a[1])[0];
+  if (!top) return fallback;
+  const primary = top[0];
+  const shadow = env.AI_SHADOW_ROUTE && env.AI_SHADOW_SAMPLE > 0 ? env.AI_SHADOW_ROUTE : '';
+  const all = [
+    ...providersInRoutes(activeRoutes),
+    ...AI_PROVIDER_NAMES.filter((p) => shadow.includes(p)),
+  ] as AiProviderId[];
+  return { primary, backups: [...new Set(all)].filter((p) => p !== primary) };
+}
+
+export const aiProviderDisclosure: AiProviderDisclosure = computeDisclosure();
 
 // Re-export types for convenience
 export type { IAIService } from './types.js';

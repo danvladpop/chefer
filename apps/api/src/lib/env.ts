@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { aiProviderEnvShape } from './ai/env-schema.js';
-import { AI_PROVIDER_NAMES, isValidChain, parseShadowRoutes } from './ai/routing.js';
+import {
+  AI_PROVIDER_NAMES,
+  AI_ROUTE_ENV_KEYS,
+  isValidChain,
+  nonFreeRouteSettings,
+  parseShadowRoutes,
+} from './ai/routing.js';
 import { resolveEmailConfig, type EmailProvider } from './email/config.js';
 
 /** An empty value (a copied .env.example line) counts as unset. */
@@ -57,8 +63,9 @@ const envSchema = z.object({
   // Provider keys + model names, shared with the eval harness (ai/env-schema.ts).
   ...aiProviderEnvShape,
   // Per-workload provider chains (research §5.4). Unset = today's routing
-  // (lib/ai/routing.ts DEFAULT_AI_ROUTES). Providers: gemini, groq (= the
-  // AI_SECONDARY_* endpoint).
+  // (lib/ai/routing.ts DEFAULT_AI_ROUTES, or FREE_ONLY_AI_ROUTES when
+  // AI_FREE_ONLY=true). Providers: gemini, groq (= the AI_SECONDARY_*
+  // endpoint), cloudflare (Workers AI, CF_*).
   AI_ROUTE_MEAL_PLAN: aiRoute,
   AI_ROUTE_SWAP: aiRoute,
   AI_ROUTE_CHEFERIZE: aiRoute,
@@ -149,8 +156,8 @@ const envSchema = z.object({
   // anonymous URL-based images; cloudflare = Workers AI text-to-image (needs
   // only CF_ACCOUNT_ID + CF_API_TOKEN), bytes stored on our own server.
   IMAGE_PROVIDER: z.enum(['pollinations', 'cloudflare']).default('pollinations'),
-  CF_ACCOUNT_ID: z.string().optional(),
-  CF_API_TOKEN: z.string().optional(),
+  // CF_ACCOUNT_ID / CF_API_TOKEN live in ai/env-schema.ts (Workers AI text
+  // uses them too).
   CF_IMAGE_MODEL: z.string().default('@cf/black-forest-labs/flux-1-schnell'),
   // Where generated image bytes go. local = the uploads volume, served at
   // /uploads/recipes/* like user photos; cloudinary = the optional CDN (needs
@@ -194,7 +201,29 @@ export function validateEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const data = parsed.data;
 
   // Provider-specific key guards — fail fast so the error is obvious at startup.
-  if (!data.AI_MOCK_ENABLED) {
+  // Free-only mode (AI_FREE_ONLY=true): Gemini is never used, so its key is
+  // not required — and a route that still names it must not start.
+  if (data.AI_FREE_ONLY) {
+    const nonFree = nonFreeRouteSettings({
+      ...Object.fromEntries(
+        Object.values(AI_ROUTE_ENV_KEYS).map((key) => [key, data[key]] as const),
+      ),
+      AI_SHADOW_ROUTE: data.AI_SHADOW_ROUTE,
+    });
+    if (nonFree.length > 0) {
+      throw new Error(
+        `❌ AI_FREE_ONLY=true but these settings route to a non-free provider: ${nonFree.join(', ')}`,
+      );
+    }
+    if (!data.AI_MOCK_ENABLED && !data.AI_SECONDARY_API_KEY) {
+      throw new Error('❌ AI_SECONDARY_API_KEY (Groq) is required when AI_FREE_ONLY=true');
+    }
+    if (!data.AI_MOCK_ENABLED && (!data.CF_ACCOUNT_ID || !data.CF_API_TOKEN)) {
+      console.warn(
+        '⚠️  [AI] AI_FREE_ONLY=true without CF_ACCOUNT_ID/CF_API_TOKEN — Groq only, no failover',
+      );
+    }
+  } else if (!data.AI_MOCK_ENABLED) {
     if (data.AI_PROVIDER === 'gemini' && !data.GEMINI_API_KEY) {
       throw new Error('❌ GEMINI_API_KEY is required when AI_PROVIDER=gemini');
     }
