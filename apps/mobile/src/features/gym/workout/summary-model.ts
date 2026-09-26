@@ -1,4 +1,5 @@
 import type {
+  ExerciseBest,
   GymBootstrap,
   PersonalRecord,
   ProgressionDto,
@@ -71,10 +72,14 @@ function build(summary: SessionSummaryDto, exercises: SummaryExercise[]): Summar
 export function sessionPrs(
   view: SummaryView,
   recent: readonly SessionSummaryDto[],
+  /** Bootstrap `olderBests`: records older than `recent` (audit F-GYM-6-1). */
+  olderBests?: Record<string, ExerciseBest>,
 ): PersonalRecord[] {
   const others = recent.filter((s) => s.id !== view.id);
   const self: SessionSummaryDto = { ...view.summary, status: 'COMPLETED' };
-  return collectPrs([...others, self]).filter((pr) => pr.sessionId === view.id);
+  return collectPrs([...others, self], undefined, olderBests).filter(
+    (pr) => pr.sessionId === view.id,
+  );
 }
 
 export interface NextTimeRow {

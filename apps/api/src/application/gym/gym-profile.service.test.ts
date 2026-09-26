@@ -74,7 +74,19 @@ function setup(existing = null as ReturnType<typeof profileRow> | null) {
     get: vi.fn().mockResolvedValue({ profile: null }),
   };
   const ensure = vi.fn().mockResolvedValue(undefined);
-  return { service: new GymProfileService(repo, bootstrap, ensure), repo, bootstrap, ensure };
+  const progressions = { recompute: vi.fn().mockResolvedValue(undefined) };
+  const progressionRepo = {
+    findForUser: vi
+      .fn()
+      .mockResolvedValue([{ exerciseId: 'barbell-bench-press' }, { exerciseId: 'back-squat' }]),
+  };
+  return {
+    service: new GymProfileService(repo, bootstrap, ensure, progressions, progressionRepo),
+    repo,
+    bootstrap,
+    ensure,
+    progressions,
+  };
 }
 
 beforeEach(() => {
@@ -194,6 +206,21 @@ describe('GymProfileService.save / recommend', () => {
       reminderEnabled: false,
       platePairsKg: [20, 10],
     });
+  });
+
+  it('a unit change re-folds every progression onto the new inventory (F-GYM-11-2)', async () => {
+    const { service, progressions } = setup(profileRow({ unit: 'KG' }));
+    await service.save(USER, { unit: 'LB' });
+    expect(progressions.recompute).toHaveBeenCalledWith(USER, [
+      'barbell-bench-press',
+      'back-squat',
+    ]);
+  });
+
+  it('settings that do not touch the inventory leave progressions alone', async () => {
+    const { service, progressions } = setup(profileRow({ unit: 'KG' }));
+    await service.save(USER, { weeklyGoal: 4, unit: 'KG' }, '2026-09-24');
+    expect(progressions.recompute).not.toHaveBeenCalled();
   });
 
   it('recommend is a pure engine composition (no repository calls)', () => {

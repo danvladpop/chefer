@@ -1,6 +1,7 @@
 import {
   DEFAULT_PLATE_PAIRS_KG,
   type EquipmentProfile,
+  type ExerciseBest,
   type ExerciseDto,
   type ExerciseMeta,
   type ExerciseSlot,
@@ -269,6 +270,8 @@ export const PR_LABELS: Record<PrKind, string> = {
 export function livePr(
   se: SessionExerciseDoc,
   prior: SessionSummaryDto[],
+  /** This exercise's bootstrap `olderBests` entry (audit F-GYM-6-1). */
+  olderBest?: ExerciseBest,
 ): { setId: string; kind: PrKind } | null {
   if (se.skipped) return null;
   const sets = workingSets(se);
@@ -281,6 +284,7 @@ export function livePr(
       exerciseId: se.exerciseId,
       history: prior,
       candidate: { weightKg: s.weightKg, reps: s.reps, rir },
+      best: olderBest,
     })[0];
     if (kind && (best === null || PR_RANK[kind] > PR_RANK[best.kind])) {
       best = { setId: s.id, kind };

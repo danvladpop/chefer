@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Rir, SessionSummaryDto } from '@chefer/types';
 import { bestE1rm, e1rmConfidence, epley } from './e1rm';
-import { collectPrs, detectPrs } from './prs';
+import { collectPrs, detectPrs, summarizeBests } from './prs';
 import { KG_PROFILE, slotFor } from './test-fixtures';
 import { warmupSets } from './warmups';
 
@@ -234,5 +234,57 @@ describe('PRs (research §4.2 #8)', () => {
       session('2026-09-03', [{ id: 'pull-up', sets: [[0, 10]] }]),
     ]);
     expect(prs).toEqual([expect.objectContaining({ kind: 'reps', reps: 10, e1rmKg: null })]);
+  });
+});
+
+describe('older bests seed live PRs (audit F-GYM-6-1)', () => {
+  // The audit: bench 100×8 in May (outside the 12-week bootstrap window),
+  // 70×6 in September; logging 80×6 today was celebrated as an e1RM PR.
+  const old = session('2026-05-01', [{ sets: [[100, 8]] }]);
+  const recent = session('2026-09-01', [{ sets: [[70, 6]] }]);
+  const olderBests = summarizeBests([old]);
+
+  it('summarizes max weight, e1RM and a Pareto frontier', () => {
+    const best = summarizeBests([
+      session('2026-04-01', [
+        {
+          sets: [
+            [100, 5],
+            [90, 8],
+            [80, 6],
+          ],
+        },
+      ]),
+    ])['barbell-bench-press'];
+    if (!best) throw new Error('expected a bench best');
+    expect(best.maxWeightKg).toBe(100);
+    expect(best.maxE1rmKg).toBeGreaterThan(110);
+    expect(best.frontier).toEqual([
+      [100, 5],
+      [90, 8],
+    ]); // 80×6 is beaten by 90×8 on both
+  });
+
+  it('no false PR when the real best is older than the recent window', () => {
+    const detect = (best?: (typeof olderBests)[string]) =>
+      detectPrs({
+        exerciseId: 'barbell-bench-press',
+        history: [recent],
+        candidate: { weightKg: 80, reps: 6 },
+        best,
+      });
+    expect(detect()).not.toEqual([]); // the bug: recent history alone says PR
+    expect(detect(olderBests['barbell-bench-press'])).toEqual([]);
+  });
+
+  it('still awards a real PR over the all-time best', () => {
+    expect(
+      detectPrs({
+        exerciseId: 'barbell-bench-press',
+        history: [recent],
+        candidate: { weightKg: 102.5, reps: 8 },
+        best: olderBests['barbell-bench-press'],
+      })[0],
+    ).toBe('e1rm');
   });
 });

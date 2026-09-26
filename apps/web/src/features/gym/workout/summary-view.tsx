@@ -87,7 +87,7 @@ export function SummaryView({ id }: { id: string }) {
     ),
   );
   const prior = data.recentSessions.filter((s) => s.id !== doc.id && s.startedAt < doc.startedAt);
-  const prs = livePrs(doc, prior);
+  const prs = livePrs(doc, prior, data.olderBests);
   const inventory = profile ?? FALLBACK_PROFILE;
 
   return (

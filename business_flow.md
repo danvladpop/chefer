@@ -1189,6 +1189,10 @@ Last working set ticked → optional RIR chips (0/1/2/3+), highlighted while cal
   "today + routine" → gym.routine.save (online only; one CONFLICT rebase onto the
   server's routine, else the swap stays today-only)
 Finish → confirm if working sets are unticked → finish() → summary
+  Web renders the summary in place and only rewrites the URL (history.replaceState), so
+  finishing with no connection shows the summary, not the browser's error page (F-GYM-5-1)
+  Live PR badges and the summary's PRs compare against recent sessions AND the bootstrap's
+  `olderBests` (all-time), so an old best is never re-celebrated (F-GYM-6-1)
   Summary "Next time" reads the optimistically folded cached progressions;
   Adjust → gym.progression.setOverride (online only)
 Android back / ⌄ → minimise (the session stays resumable from Today); Discard is confirmed

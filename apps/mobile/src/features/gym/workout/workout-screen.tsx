@@ -125,6 +125,7 @@ export function WorkoutScreen() {
   const supersets = useMemo(() => derivedSupersets, [supersetKey]);
 
   const live = useRef({ prior, lookup, profile, bootstrap, supersets });
+  const olderBests = bootstrap?.olderBests;
   useEffect(() => {
     live.current = { prior, lookup, profile, bootstrap, supersets };
   }, [prior, lookup, profile, bootstrap, supersets]);
@@ -192,7 +193,8 @@ export function WorkoutScreen() {
           setRirPendingId((prev) => (prev === seId ? null : prev));
           return;
         }
-        const before = set.isWarmup ? null : livePr(se, live.current.prior);
+        const olderBest = live.current.bootstrap?.olderBests?.[se.exerciseId];
+        const before = set.isWarmup ? null : livePr(se, live.current.prior, olderBest);
         const next = dispatchWorkout(
           {
             type: 'completeSet',
@@ -210,7 +212,7 @@ export function WorkoutScreen() {
           after.lastSetRir === null &&
           workingSets(after).every((s) => s.completedAt !== null);
         setRirPendingId((prev) => (finishedExercise ? seId : prev === seId ? prev : null));
-        const pr = after && !set.isWarmup ? livePr(after, live.current.prior) : null;
+        const pr = after && !set.isWarmup ? livePr(after, live.current.prior, olderBest) : null;
         if (pr?.setId === setId && before?.kind !== pr.kind) hapticPr();
         else hapticTick();
       },
@@ -303,6 +305,7 @@ export function WorkoutScreen() {
       profile,
       lookup,
       prior,
+      olderBests,
       handlers,
       onSheet: openSheet,
       onToggle: (seId) =>
@@ -326,7 +329,7 @@ export function WorkoutScreen() {
         if (pendingScrollId.current === seId) scheduleScroll();
       },
     }),
-    [unit, profile, lookup, prior, handlers, openSheet, scheduleScroll],
+    [unit, profile, lookup, prior, olderBests, handlers, openSheet, scheduleScroll],
   );
 
   // ── Finish / discard / minimise ────────────────────────────────────────────

@@ -66,8 +66,8 @@ export function SummaryScreen({ id }: { id: string }) {
   }, [bootstrap?.library]);
 
   const prs = useMemo(
-    () => (view ? sessionPrs(view, bootstrap?.recentSessions ?? []) : []),
-    [view, bootstrap?.recentSessions],
+    () => (view ? sessionPrs(view, bootstrap?.recentSessions ?? [], bootstrap?.olderBests) : []),
+    [view, bootstrap?.recentSessions, bootstrap?.olderBests],
   );
   const rows = useMemo(() => (view ? nextTimeRows(view, bootstrap) : []), [view, bootstrap]);
 

@@ -26,6 +26,7 @@ import {
   ENGINE_VERSION,
   progressionKey,
   shouldOfferDeload,
+  summarizeBests,
   toSessionSummary,
   weekStartOf,
   type ExerciseLookup,
@@ -79,18 +80,28 @@ export class GymBootstrapService {
     const today = input.today ?? serverToday();
     await this.ensure();
 
-    const [ctx, exerciseRows, progressionRows, sessionDates, recentRows, pauses, latestWeight] =
-      await Promise.all([
-        this.contextLoader.load(userId),
-        this.exerciseRepo.findVisible(userId),
-        this.progressionRepo.findForUser(userId),
-        this.sessionRepo.findCompletedDates(userId),
-        this.sessionRepo.findCompleted(userId, {
-          fromLocalDate: addDaysLocal(today, -RECENT_SESSION_DAYS),
-        }),
-        this.pauseRepo.listForUser(userId),
-        this.weightRepo.findLatest(userId),
-      ]);
+    const windowStart = addDaysLocal(today, -RECENT_SESSION_DAYS);
+    const [
+      ctx,
+      exerciseRows,
+      progressionRows,
+      sessionDates,
+      recentRows,
+      olderRows,
+      pauses,
+      latestWeight,
+    ] = await Promise.all([
+      this.contextLoader.load(userId),
+      this.exerciseRepo.findVisible(userId),
+      this.progressionRepo.findForUser(userId),
+      this.sessionRepo.findCompletedDates(userId),
+      this.sessionRepo.findCompleted(userId, { fromLocalDate: windowStart }),
+      // Everything before the window, condensed to per-exercise bests below:
+      // live PR badges used to compare against 12 weeks only (F-GYM-6-1).
+      this.sessionRepo.findCompleted(userId, { toLocalDate: addDaysLocal(windowStart, -1) }),
+      this.pauseRepo.listForUser(userId),
+      this.weightRepo.findLatest(userId),
+    ]);
 
     const { lookup, metas } = lookupFromRows(exerciseRows);
 
@@ -127,6 +138,7 @@ export class GymBootstrapService {
       offers: this.offers(ctx, progressions, allWeeks, sessionDates, today),
       activePause: this.activePause(pauses, today),
       bodyweightKg: latestWeight?.weightKg ?? null,
+      olderBests: summarizeBests(olderRows.map((r) => toSessionSummary(toSessionDoc(r)))),
       serverTime: new Date().toISOString(),
       engineVersion: ENGINE_VERSION,
     };
