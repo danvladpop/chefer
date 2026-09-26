@@ -169,13 +169,9 @@ describe('OpenAICompatibleAIService — vision (research §5.4 step 2)', () => {
     expect(typeof (req['messages'] as { content: unknown }[])[1]?.content).toBe('string');
   });
 
-  it('refuses photos without a vision model, and video always', async () => {
+  it('refuses photos without a vision model', async () => {
     const svc = new OpenAICompatibleAIService(BASE);
     await expect(svc.analyzeMealPhoto('QUJD', 'image/jpeg')).rejects.toThrow(/no vision model/);
-    const withVision = new OpenAICompatibleAIService({ ...BASE, visionModel: 'v' });
-    await expect(withVision.extractRecipeAnnotated({ videoBase64: 'v' })).rejects.toThrow(
-      /Gemini-only/,
-    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

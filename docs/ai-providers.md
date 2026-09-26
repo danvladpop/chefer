@@ -33,9 +33,11 @@ error (a validation failure, a bad input) is returned straight away.
 - A provider without a key is dropped from every chain. With no `AI_SECONDARY_API_KEY`, every
   workload is Gemini alone, as before. An override naming a missing provider logs a warning at
   startup.
-- **Video stays Gemini-only.** Video recipe extraction (`pnpm recipes:from-video`) is not a
-  workload and cannot be routed: no OpenAI-compatible provider takes video input. The research
-  doc (§5.3) describes the keyframes + Whisper pipeline that would replace it.
+- **No provider is sent video (2026-09-26).** Video links (in-app "Video" import and
+  `pnpm recipes:from-video`) are read from their words — caption, subtitles, or a Groq Whisper
+  transcript (`WHISPER_MODEL`) — and extracted as TEXT on the `importText` route, so
+  `AI_ROUTE_IMPORT_TEXT` covers them. Gemini's video input is no longer used anywhere; see
+  infrastructure.md §7 "VideoRecipeService".
 - **Meal plans on Groq are chunked.** When `groq` leads `AI_ROUTE_MEAL_PLAN`, the week is
   generated as 7 sequential per-day calls with strict JSON schema, then assembled and validated.
   The meal-plan service applies macro reconciliation, the day-total retry and allergen enforcement

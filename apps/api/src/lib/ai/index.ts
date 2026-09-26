@@ -35,7 +35,7 @@ import type { IAIService } from './types.js';
 //   Each workload runs down its provider chain (AI_ROUTE_* env vars; unset =
 //   today's table in routing.ts): capacity/quota/413 errors fail over, cheap
 //   high-volume calls (chat, prices, shopping list) go groq-first, vision
-//   and video stay Gemini-only. With a single provider (no secondary key, or
+//   is Gemini-first (video links are read as text — lib/video-import). With a single provider (no secondary key, or
 //   AI_PROVIDER=openai) that provider serves everything directly, as before.
 //   AI_SHADOW_ROUTE / AI_SHADOW_SAMPLE add background shadow replays
 //   (shadow.ts); unset or 0 = off.

@@ -1,20 +1,32 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { VIDEO_IMPORT_COPY } from '@chefer/types';
+import { Button, Card, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
+import { cn, isSupportedVideoUrl } from '@chefer/utils';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
+import {
+  VideoDraftForm,
+  type VideoDraftRecipe,
+  type VideoImportPreview,
+} from '../src/features/recipes/video-draft-form';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc, type RouterOutputs } from '../src/lib/trpc';
 
 // Recipe import (F5 Cheferize) — port of web's ImportRecipeSheet (wave-2b).
-// Sources: URL + pasted text. Photo import lands with M3-2's image-picker
-// work. Free tier gets the real extraction preview (1/day — the §6.4 ghost
-// state); saving either variant is premium, enforced server-side.
+// Sources: URL, pasted text and a video link. Photo import lands with M3-2's
+// image-picker work. Per-user AI is premium-only: free users see a locked
+// card instead of the form, like web's locked example (the API answers
+// FORBIDDEN anyway).
+//
+// Video links (2026-09-26): the API reads the video's words (caption,
+// subtitles or speech) into a draft, and VideoDraftForm lets the user correct
+// and complete it before it is saved as the original.
 
 type Preview = RouterOutputs['recipe']['importPreview'];
 type Variant = 'original' | 'adapted';
+type SourceTab = 'url' | 'text' | 'video';
 
 function VariantCard({
   title,
@@ -66,10 +78,12 @@ export default function ImportRecipeScreen() {
   const isPremium = useIsPremium();
   const utils = trpc.useUtils();
 
-  const [tab, setTab] = useState<'url' | 'text'>('url');
+  const [tab, setTab] = useState<SourceTab>('url');
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [videoPreview, setVideoPreview] = useState<VideoImportPreview | null>(null);
   const [variant, setVariant] = useState<Variant>('adapted');
 
   const previewMutation = trpc.recipe.importPreview.useMutation({
@@ -77,6 +91,9 @@ export default function ImportRecipeScreen() {
       setPreview(data);
       setVariant(data.safety.ok && data.changes.length > 0 ? 'adapted' : 'original');
     },
+  });
+  const videoPreviewMutation = trpc.recipe.importVideoPreview.useMutation({
+    onSuccess: (data) => setVideoPreview(data),
   });
   const saveMutation = trpc.recipe.importSave.useMutation({
     onSuccess: () => {
@@ -88,17 +105,49 @@ export default function ImportRecipeScreen() {
   // AI data consent (App Store 5.1.2(i)): the link/text and the user's safety
   // preferences go to the AI provider — ask before the first import.
   const requestAiConsent = useAiConsent();
+  const previewPending = previewMutation.isPending || videoPreviewMutation.isPending;
+  const previewError = previewMutation.error ?? videoPreviewMutation.error;
+  const videoUrlInvalid =
+    tab === 'video' && videoUrl.trim() !== '' && !isSupportedVideoUrl(videoUrl);
+  const canPreview =
+    tab === 'url'
+      ? url.trim() !== ''
+      : tab === 'text'
+        ? text.trim().length >= 20
+        : isSupportedVideoUrl(videoUrl);
+
   const runPreview = () => {
-    if (previewMutation.isPending) {
+    if (previewPending) {
       return;
     }
-    if (tab === 'url' && url.trim()) {
+    if (tab === 'video' && isSupportedVideoUrl(videoUrl)) {
+      const input = { url: videoUrl.trim() };
+      requestAiConsent('recipe-import', () => videoPreviewMutation.mutate(input));
+    } else if (tab === 'url' && url.trim()) {
       const input = { url: url.trim() };
       requestAiConsent('recipe-import', () => previewMutation.mutate(input));
     } else if (tab === 'text' && text.trim().length >= 20) {
       const input = { text: text.trim() };
       requestAiConsent('recipe-import', () => previewMutation.mutate(input));
     }
+  };
+
+  const saveVideoDraft = (recipe: VideoDraftRecipe) => {
+    if (!videoPreview) {
+      return;
+    }
+    // A reviewed draft is saved as-is: the `original` variant, no Cheferize.
+    saveMutation.mutate({
+      recipe,
+      variant: 'original',
+      sourceUrl: videoPreview.sourceUrl,
+      ogImageUrl: videoPreview.ogImageUrl,
+    });
+  };
+  const startOver = () => {
+    setPreview(null);
+    setVideoPreview(null);
+    saveMutation.reset();
   };
 
   const adaptedUsable = preview ? preview.safety.ok && preview.changes.length > 0 : false;
@@ -120,20 +169,48 @@ export default function ImportRecipeScreen() {
         </Text>
       </View>
 
-      <ScrollView contentContainerClassName="gap-4 px-4 pb-8">
-        {!preview ? (
+      <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 pb-8">
+        {isPremium === false ? (
+          <Card testID="import-locked" className="border-primary/20 bg-accent">
+            <Text className="text-sm font-semibold text-primary">Importing recipes is premium</Text>
+            <Text className="mt-1 text-xs text-primary/80">
+              Premium imports any recipe from a link, pasted text or a cooking video, adapts it to
+              your allergies and household, and saves it to your collection.
+            </Text>
+            <Button
+              testID="import-locked-upgrade"
+              variant="outline"
+              size="sm"
+              className="mt-3 self-start"
+              onPress={() =>
+                router.push({ pathname: '/profile', params: { source: 'recipe-import' } })
+              }
+            >
+              See Premium
+            </Button>
+          </Card>
+        ) : videoPreview ? (
+          <VideoDraftForm
+            preview={videoPreview}
+            saving={saveMutation.isPending}
+            saveError={saveMutation.error?.message ?? null}
+            onBack={startOver}
+            onSave={saveVideoDraft}
+          />
+        ) : !preview ? (
           <>
             <Text variant="muted" className="text-sm">
-              Paste a recipe link or its text — the chef extracts it and adapts it to your dietary
-              needs.
+              Paste a recipe link, its text or a cooking video — the chef extracts it and adapts it
+              to your dietary needs.
             </Text>
 
             {/* Source tabs */}
             <View className="flex-row rounded-lg border border-border p-1">
               {(
                 [
-                  ['url', 'From a link'],
+                  ['url', 'Link'],
                   ['text', 'Paste text'],
+                  ['video', VIDEO_IMPORT_COPY.tabLabel],
                 ] as const
               ).map(([key, label]) => (
                 <Pressable
@@ -158,7 +235,33 @@ export default function ImportRecipeScreen() {
               ))}
             </View>
 
-            {tab === 'url' ? (
+            {tab === 'video' ? (
+              <View className="gap-2">
+                <Text variant="muted" className="text-sm">
+                  {VIDEO_IMPORT_COPY.intro}
+                </Text>
+                <TextInput
+                  testID="import-video-url"
+                  accessibilityLabel="Video link"
+                  value={videoUrl}
+                  onChangeText={setVideoUrl}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  placeholder={VIDEO_IMPORT_COPY.urlPlaceholder}
+                  placeholderTextColor="#9ca3af"
+                  className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+                />
+                {videoUrlInvalid && (
+                  <Text testID="import-video-invalid" className="text-sm text-red-600">
+                    {VIDEO_IMPORT_COPY.unsupportedUrl}
+                  </Text>
+                )}
+                <Text variant="muted" className="text-xs">
+                  {VIDEO_IMPORT_COPY.privacyNote}
+                </Text>
+              </View>
+            ) : tab === 'url' ? (
               <TextInput
                 testID="import-url"
                 value={url}
@@ -183,15 +286,19 @@ export default function ImportRecipeScreen() {
 
             <Button
               testID="import-preview"
-              loading={previewMutation.isPending}
-              disabled={tab === 'url' ? !url.trim() : text.trim().length < 20}
+              loading={previewPending}
+              disabled={!canPreview}
               onPress={runPreview}
             >
-              {previewMutation.isPending ? 'Extracting…' : 'Preview import'}
+              {previewPending
+                ? tab === 'video'
+                  ? VIDEO_IMPORT_COPY.reading
+                  : 'Extracting…'
+                : 'Preview import'}
             </Button>
-            {previewMutation.isError && (
-              <Card className="border-red-200 bg-red-50">
-                <Text className="text-sm text-red-600">{previewMutation.error.message}</Text>
+            {previewError && (
+              <Card testID="import-error" className="border-red-200 bg-red-50">
+                <Text className="text-sm text-red-600">{previewError.message}</Text>
               </Card>
             )}
           </>
@@ -246,49 +353,37 @@ export default function ImportRecipeScreen() {
               }
             />
 
-            {isPremium === false ? (
-              <Card testID="import-upsell" className="border-primary/20 bg-accent">
-                <Text className="text-sm font-semibold text-primary">
-                  Saving imports is premium
-                </Text>
-                <Text className="mt-1 text-xs text-primary/80">
-                  You&apos;ve seen what the chef would do with this recipe — premium saves it to
-                  your collection, adapted to your allergies and goals. Upgrade from your Profile.
-                </Text>
-              </Card>
-            ) : (
-              <Button
-                testID="import-save"
-                loading={saveMutation.isPending}
-                disabled={!chosen}
-                onPress={() => {
-                  if (chosen) {
-                    saveMutation.mutate({
-                      recipe: chosen,
-                      variant,
-                      sourceUrl: preview.sourceUrl,
-                      ogImageUrl: preview.ogImageUrl,
-                    });
-                  }
-                }}
-              >
-                {variant === 'adapted' ? 'Save Cheferized recipe' : 'Save original recipe'}
-              </Button>
-            )}
+            <Button
+              testID="import-save"
+              loading={saveMutation.isPending}
+              disabled={!chosen}
+              onPress={() => {
+                if (chosen) {
+                  saveMutation.mutate({
+                    recipe: chosen,
+                    variant,
+                    sourceUrl: preview.sourceUrl,
+                    ogImageUrl: preview.ogImageUrl,
+                  });
+                }
+              }}
+            >
+              {variant === 'adapted' ? 'Save Cheferized recipe' : 'Save original recipe'}
+            </Button>
             {saveMutation.isError && (
               <Card className="border-red-200 bg-red-50">
                 <Text className="text-sm text-red-600">{saveMutation.error.message}</Text>
               </Card>
             )}
 
-            <Button variant="ghost" onPress={() => setPreview(null)}>
+            <Button variant="ghost" onPress={startOver}>
               <Text variant="muted" className="text-xs">
                 Start over
               </Text>
             </Button>
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

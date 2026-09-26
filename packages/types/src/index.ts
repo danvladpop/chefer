@@ -7,6 +7,7 @@ export * from './household';
 export * from './ai-consent';
 export * from './account-deletion';
 export * from './support';
+export * from './video-import';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

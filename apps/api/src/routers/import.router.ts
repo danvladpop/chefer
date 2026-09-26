@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { VIDEO_IMPORT_COPY } from '@chefer/types';
+import { isSupportedVideoUrl } from '@chefer/utils';
 import { recipeImportService } from '../application/recipe-import/recipe-import.service.js';
 import { premiumProcedure, protectedProcedure, router } from '../lib/trpc.js';
 
@@ -8,7 +10,12 @@ import { premiumProcedure, protectedProcedure, router } from '../lib/trpc.js';
 //
 // importPreview is PROTECTED, not premium: the free tier gets one extraction
 // preview a day (the §6.4 ghost state) — the quota inside the service
-// enforces `recipeImportsPerDay` (free 1 / premium 5). importSave is premium.
+// enforces `recipeImportsPerDay` (premium 5; free 0 → FORBIDDEN, the UIs
+// show a canned example instead). importSave is premium.
+//
+// importVideoPreview (2026-09-26) reads a video link's WORDS — caption,
+// subtitles or a Whisper transcript — into an editable draft; the client saves
+// the reviewed draft through importSave as the `original` variant.
 
 // ~5.4 MB of base64 ≈ a 4 MB image; express.json caps bodies at 10 MB.
 const MAX_IMAGE_BASE64_CHARS = 5_600_000;
@@ -66,6 +73,26 @@ export const importRouter = router({
       ...(input.mimeType !== undefined ? { mimeType: input.mimeType } : {}),
     });
   }),
+
+  /**
+   * YouTube / TikTok / Instagram link → a recipe DRAFT for the review form,
+   * read from the video's caption, subtitles or speech (never its frames).
+   * Same quota as importPreview; refunded when the video can't be read.
+   */
+  importVideoPreview: protectedProcedure
+    .input(
+      z.object({
+        url: z
+          .string()
+          .trim()
+          .url()
+          .max(2048)
+          .refine(isSupportedVideoUrl, { message: VIDEO_IMPORT_COPY.unsupportedUrl }),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return recipeImportService.previewVideo(ctx.user, input.url);
+    }),
 
   /**
    * Saves the imported recipe (original or Cheferized) into the user's

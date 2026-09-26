@@ -235,7 +235,6 @@ describe('ChainAIService — default routes equal today’s table', () => {
     expect(svc.chainNames('prices')).toEqual(['groq', 'gemini']);
     expect(svc.chainNames('shopping')).toEqual(['groq', 'gemini']);
     expect(svc.chainNames('vision')).toEqual(['gemini']);
-    expect(svc.chainNames('video')).toEqual(['gemini']);
   });
 });
 
@@ -292,16 +291,17 @@ describe('ChainAIService — overrides and failover order', () => {
     expect(gemini.analyzeMealPhoto).toHaveBeenCalledWith('b64', 'image/heic');
   });
 
-  it('routes photo extraction by AI_ROUTE_VISION, but video always to Gemini', async () => {
+  it('routes photo extraction by AI_ROUTE_VISION, and video-link text by AI_ROUTE_IMPORT_TEXT', async () => {
     const gemini = stubService();
     const groq = stubService();
-    const routes = { ...DEFAULT_AI_ROUTES, vision: ['groq'] };
+    const routes = { ...DEFAULT_AI_ROUTES, vision: ['groq'], importText: ['groq'] };
     const svc = chain({ gemini, groq }, routes);
     await svc.extractRecipe({ imageBase64: 'abcd', mimeType: 'image/png' });
     expect(groq.extractRecipe).toHaveBeenCalled();
-    await svc.extractRecipeAnnotated({ videoBase64: 'vid', mimeType: 'video/mp4' });
-    expect(gemini.extractRecipeAnnotated).toHaveBeenCalled();
-    expect(groq.extractRecipeAnnotated).not.toHaveBeenCalled();
+    // A video link is read as text (its transcript) — no Gemini-only path.
+    await svc.extractRecipeAnnotated({ text: 'This is the text of a cooking video…' });
+    expect(groq.extractRecipeAnnotated).toHaveBeenCalled();
+    expect(gemini.extractRecipeAnnotated).not.toHaveBeenCalled();
   });
 
   it('refuses a workload with no configured provider', () => {
@@ -329,13 +329,12 @@ describe('ChainAIService — shadow hook', () => {
     );
   });
 
-  it('never observes chat (its tools write data) or video', async () => {
+  it('never observes chat (its tools write data)', async () => {
     const observe = vi.fn();
     const svc = chain({ gemini: stubService(), groq: stubService() }, DEFAULT_AI_ROUTES, {
       observe,
     });
     await svc.chat([], { userId: 'u1', contextSummary: '' });
-    await svc.extractRecipeAnnotated({ videoBase64: 'v' });
     expect(observe).not.toHaveBeenCalled();
   });
 

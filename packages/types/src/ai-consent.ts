@@ -41,6 +41,7 @@ export const AI_CONSENT_FEATURE_DATA: Record<AiConsentFeature, { action: string;
       action: 'read and adapt the recipe',
       data: [
         'The link, text or photo you submit',
+        'For a video link: its caption and subtitles, or its audio transcribed by Groq (deleted right after)',
         'Your allergies, dietary restrictions and disliked ingredients',
       ],
     },

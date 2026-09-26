@@ -5,6 +5,11 @@ import type { UserProfile } from '@chefer/types';
 import { MockAIService } from '../../lib/ai/mock.js';
 import type { CheferizedRecipe, ExtractedRecipe, IAIService } from '../../lib/ai/types.js';
 import { headCheckImage } from '../../lib/recipe-import/index.js';
+import { MockVideoTranscriber } from '../../lib/video-import/index.js';
+import {
+  VideoRecipeService,
+  type VideoRecipeResult,
+} from '../video-import/video-recipe.service.js';
 import { findSafetyIssues, RecipeImportService } from './recipe-import.service.js';
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
@@ -411,5 +416,139 @@ describe('findSafetyIssues', () => {
     expect(issues).toContain('peanuts');
     expect(issues).toContain('vegetarian'); // chicken + no vegetarian tag
     expect(issues).not.toContain('shellfish');
+  });
+});
+
+// ─── Video-link import (transcript → editable draft) ─────────────────────────
+
+describe('RecipeImportService.previewVideo', () => {
+  const household = { findByUserId: vi.fn().mockResolvedValue([]) };
+  const URL = 'https://www.youtube.com/shorts/abcdef123';
+
+  function videoResult(overrides: Partial<VideoRecipeResult> = {}): VideoRecipeResult {
+    return {
+      recipe: extracted,
+      stage: 'speech',
+      confidence: 'medium',
+      assumptions: ["'a splash of coconut milk' read as 200 ml."],
+      sourceUrl: URL,
+      platform: 'youtube',
+      title: 'Satay in 20',
+      creator: 'chef',
+      thumbnailUrl: 'https://i.ytimg.com/vi/abcdef123/hq.jpg',
+      captionChars: 0,
+      transcriptChars: 200,
+      sourceText: 'Grill 500 g chicken, then 120 g peanut butter sauce. Marinate 20 minutes.',
+      ...overrides,
+    };
+  }
+
+  function service(video: { extract: ReturnType<typeof vi.fn> }, ai = makeAi()) {
+    return new RecipeImportService(
+      ai,
+      recipeRepo(),
+      prefsRepo(peanutVegetarian),
+      household,
+      video as unknown as Pick<VideoRecipeService, 'extract'>,
+    );
+  }
+
+  it('is premium-only: free users are refused before the video is touched', async () => {
+    const video = { extract: vi.fn() };
+    await expect(service(video).previewVideo(freeUser, URL)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(video.extract).not.toHaveBeenCalled();
+    expect(aiCallLog().create).not.toHaveBeenCalled();
+  });
+
+  it('meters a premium preview on the RECIPE_IMPORT quota', async () => {
+    await service({ extract: vi.fn().mockResolvedValue(videoResult()) }).previewVideo(
+      premiumUser,
+      URL,
+    );
+    expect(aiCallLog().create).toHaveBeenCalledWith({
+      data: { userId: premiumUser.id, callType: 'RECIPE_IMPORT' },
+    });
+  });
+
+  it('refunds the reservation when the video cannot be read', async () => {
+    const video = { extract: vi.fn().mockRejectedValue(new Error('private')) };
+    await expect(service(video).previewVideo(premiumUser, URL)).rejects.toBeDefined();
+    const log = (prisma as unknown as { aiCallLog: { delete: ReturnType<typeof vi.fn> } })
+      .aiCallLog;
+    expect(log.delete).toHaveBeenCalledWith({ where: { id: 'log1' } });
+  });
+
+  it('returns an editable draft with the "not found" fields and unheard amounts', async () => {
+    const ai = makeAi();
+    const preview = await service(
+      { extract: vi.fn().mockResolvedValue(videoResult()) },
+      ai,
+    ).previewVideo(premiumUser, URL);
+
+    expect(preview.via).toBe('video');
+    expect(preview.draft.name).toBe('Peanut Chicken Satay');
+    expect(preview.transcriptSource).toBe('speech');
+    // Servings were never said; the time was ("20 minutes").
+    expect(preview.notFound).toEqual(['servings']);
+    // 200 ml coconut milk appears nowhere in the words.
+    expect(preview.unverifiedQuantities).toEqual([2]);
+    expect(preview.assumptions).toEqual(["'a splash of coconut milk' read as 200 ml."]);
+    expect(preview.ogImageUrl).toBe('https://i.ytimg.com/vi/abcdef123/hq.jpg');
+    // A draft for the user to complete — never Cheferized.
+    expect(ai.cheferizeRecipe).not.toHaveBeenCalled();
+  });
+
+  it("warns (without blocking) when the draft conflicts with the household's safety", async () => {
+    const preview = await service({
+      extract: vi.fn().mockResolvedValue(videoResult()),
+    }).previewVideo(premiumUser, URL);
+    expect(preview.safety.ok).toBe(false);
+    expect(preview.safety.issues.length).toBeGreaterThan(0);
+  });
+
+  it('marks empty name, ingredients and steps as not found', async () => {
+    const preview = await service({
+      extract: vi.fn().mockResolvedValue(
+        videoResult({
+          recipe: { ...extracted, name: '', instructions: [], prepTimeMins: 0, cookTimeMins: 0 },
+        }),
+      ),
+    }).previewVideo(premiumUser, URL);
+    expect(preview.draft.name).toBe('');
+    expect(preview.notFound).toEqual(['name', 'instructions', 'servings', 'time']);
+  });
+
+  it('drops expiring TikTok/Instagram thumbnails', async () => {
+    const preview = await service({
+      extract: vi.fn().mockResolvedValue(
+        videoResult({
+          platform: 'tiktok',
+          thumbnailUrl: 'https://p16.tiktokcdn.com/x.jpg?x-expires=1',
+        }),
+      ),
+    }).previewVideo(premiumUser, URL);
+    expect(preview.ogImageUrl).toBeNull();
+  });
+
+  it('runs end-to-end on the mock transcriber and mock extractor (no yt-dlp, no Whisper)', async () => {
+    const mockAi = new MockAIService();
+    const importService = new RecipeImportService(
+      mockAi,
+      recipeRepo(),
+      prefsRepo({ allergies: [], dietaryRestrictions: [], dislikedIngredients: [] }),
+      household,
+      new VideoRecipeService(mockAi, new MockVideoTranscriber()),
+    );
+    const preview = await importService.previewVideo(
+      premiumUser,
+      'https://www.instagram.com/reel/caption-only/',
+    );
+    expect(preview.transcriptSource).toBe('caption');
+    expect(preview.draft.instructions).toEqual([]);
+    expect(preview.notFound).toContain('instructions');
+    expect(preview.draft.name).toContain('imported via video');
+    expect(preview.safety.ok).toBe(true);
   });
 });

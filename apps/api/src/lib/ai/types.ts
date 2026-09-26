@@ -136,17 +136,14 @@ export interface MealPhotoEstimate {
 // ─── Recipe extraction (F5 Cheferize) ────────────────────────────────────────
 
 /**
- * Exactly one of url/text/imageBase64/videoBase64 is the PRIMARY source;
- * mimeType accompanies images and video. `text` may additionally accompany
- * `videoBase64` as the clip's caption — the two-stage video extractor sends
- * both, because captions carry the quantities and the video carries the method.
+ * Exactly one of url/text/imageBase64 is the source; mimeType accompanies
+ * images. Video links arrive as `text` — the video's caption, subtitles or
+ * speech transcript (lib/video-import); no provider is ever sent video.
  */
 export interface RecipeExtractionSource {
   url?: string;
   text?: string;
   imageBase64?: string;
-  /** Base64 mp4 of a short cooking clip (reel/Short/TikTok). Gemini-only. */
-  videoBase64?: string;
   mimeType?: string;
 }
 

@@ -17,9 +17,16 @@ import {
   Loader2,
   Sparkles,
   Users,
+  Video,
 } from 'lucide-react';
+import { VIDEO_IMPORT_COPY } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { cn } from '@chefer/utils';
+import { cn, isSupportedVideoUrl } from '@chefer/utils';
+import {
+  VideoDraftForm,
+  type VideoDraftRecipe,
+  type VideoImportPreviewData,
+} from './VideoDraftForm';
 
 // ─── Cheferize Anything (F5) — import + diff sheet ───────────────────────────
 // Free tier gets the real extraction preview (1/day, the §6.4 ghost state);
@@ -27,8 +34,12 @@ import { cn } from '@chefer/utils';
 // the upgrade CTA (source `recipe-import`). Premium sees the full diff and
 // can save either variant. Copyright stance: personal collection only — the
 // import keeps its source link and is never shown to other users.
+//
+// Video links (2026-09-26) take a different path: the API reads the video's
+// words (caption, subtitles or speech) into a DRAFT, and VideoDraftForm lets
+// the user correct and complete it before it is saved as the original.
 
-type SourceTab = 'url' | 'text' | 'photo';
+type SourceTab = 'url' | 'text' | 'photo' | 'video';
 
 type ImportPreviewData = {
   via: 'url' | 'photo' | 'text';
@@ -74,7 +85,9 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
     null,
   );
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState('');
   const [preview, setPreview] = useState<ImportPreviewData | null>(null);
+  const [videoPreview, setVideoPreview] = useState<VideoImportPreviewData | null>(null);
   const [variant, setVariant] = useState<'adapted' | 'original'>('adapted');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,6 +97,13 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
       if (isPremium === false) capture('teaser_engaged', { feature: 'import' });
       setVariant(data.safety.ok && data.changes.length > 0 ? 'adapted' : 'original');
       setPreview(data);
+    },
+  });
+
+  const videoPreviewMutation = trpc.recipe.importVideoPreview.useMutation({
+    onSuccess: (data) => {
+      capture('recipe_imported', { via: 'video' });
+      setVideoPreview(data);
     },
   });
 
@@ -106,7 +126,9 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
 
   const reset = () => {
     setPreview(null);
+    setVideoPreview(null);
     previewMutation.reset();
+    videoPreviewMutation.reset();
     saveMutation.reset();
   };
 
@@ -144,14 +166,18 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
   const canSubmit =
     (tab === 'url' && /^https?:\/\/\S+\.\S+/.test(url.trim())) ||
     (tab === 'text' && text.trim().length >= 20) ||
-    (tab === 'photo' && photo !== null);
+    (tab === 'photo' && photo !== null) ||
+    (tab === 'video' && isSupportedVideoUrl(videoUrl));
+  const videoUrlInvalid =
+    tab === 'video' && videoUrl.trim() !== '' && !isSupportedVideoUrl(videoUrl);
 
   // AI data consent (App Store 5.1.2(i)): the link/text/photo and the user's
   // safety preferences go to the AI provider — ask before the first import.
   const requestAiConsent = useAiConsent();
   const handlePreview = () => {
     requestAiConsent('recipe-import', () => {
-      if (tab === 'url') previewMutation.mutate({ url: url.trim() });
+      if (tab === 'video') videoPreviewMutation.mutate({ url: videoUrl.trim() });
+      else if (tab === 'url') previewMutation.mutate({ url: url.trim() });
       else if (tab === 'text') previewMutation.mutate({ text: text.trim() });
       else if (photo)
         previewMutation.mutate({ imageBase64: photo.base64, mimeType: photo.mimeType });
@@ -169,6 +195,20 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
     });
   };
 
+  const handleVideoSave = (recipe: VideoDraftRecipe) => {
+    if (!videoPreview) return;
+    // A reviewed draft is saved as-is: the `original` variant, no Cheferize.
+    setVariant('original');
+    saveMutation.mutate({
+      recipe,
+      variant: 'original',
+      sourceUrl: videoPreview.sourceUrl,
+      ogImageUrl: videoPreview.ogImageUrl,
+    });
+  };
+
+  const previewPending = previewMutation.isPending || videoPreviewMutation.isPending;
+  const previewError = previewMutation.error ?? videoPreviewMutation.error;
   const adaptedUsable = preview ? preview.safety.ok && preview.changes.length > 0 : false;
 
   return (
@@ -177,15 +217,15 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
       onClose={handleClose}
       title="Import a recipe"
       description={
-        preview
+        preview || videoPreview
           ? undefined
-          : 'Paste a link, paste the text, or snap a cookbook page — the chef imports it and adapts it to you.'
+          : 'Paste a link or the text, snap a cookbook page, or share a cooking video — the chef imports it for you.'
       }
       size="lg"
       footer={
         isPremium === false ? (
           <UpgradeButton className="min-h-11 w-full" source="recipe-import" />
-        ) : preview ? (
+        ) : videoPreview ? undefined : preview ? (
           isPremium ? (
             <div className="flex w-full items-center gap-3">
               <button
@@ -210,13 +250,13 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
         ) : (
           <button
             onClick={handlePreview}
-            disabled={!canSubmit || previewMutation.isPending}
+            disabled={!canSubmit || previewPending}
             className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] disabled:opacity-50"
           >
-            {previewMutation.isPending ? (
+            {previewPending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Reading the recipe…
+                {tab === 'video' ? VIDEO_IMPORT_COPY.reading : 'Reading the recipe…'}
               </>
             ) : (
               'Preview import'
@@ -227,6 +267,14 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
     >
       {isPremium === false ? (
         <ImportLockedDemo />
+      ) : videoPreview ? (
+        <VideoDraftForm
+          preview={videoPreview}
+          saving={saveMutation.isPending}
+          saveError={saveMutation.error?.message ?? null}
+          onBack={reset}
+          onSave={handleVideoSave}
+        />
       ) : preview ? (
         <PreviewStep
           preview={preview}
@@ -239,12 +287,13 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
       ) : (
         <div>
           {/* Source tabs */}
-          <div className="mb-4 grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1">
+          <div className="mb-4 grid grid-cols-4 gap-1 rounded-xl bg-gray-100 p-1">
             {(
               [
                 { key: 'url', label: 'Link', icon: Link2 },
                 { key: 'text', label: 'Paste', icon: ClipboardType },
                 { key: 'photo', label: 'Photo', icon: Camera },
+                { key: 'video', label: VIDEO_IMPORT_COPY.tabLabel, icon: Video },
               ] as const
             ).map(({ key, label, icon: Icon }) => (
               <button
@@ -252,7 +301,7 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
                 onClick={() => setTab(key)}
                 aria-pressed={tab === key}
                 className={cn(
-                  'flex min-h-11 items-center justify-center gap-1.5 rounded-lg text-sm font-medium transition-colors',
+                  'flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg text-sm font-medium transition-colors',
                   tab === key ? 'bg-white text-[#944a00] shadow-sm' : 'text-gray-500',
                 )}
               >
@@ -307,9 +356,27 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
             </div>
           )}
 
-          {previewMutation.isError && (
-            <p className="mt-3 text-sm text-red-600">{previewMutation.error.message}</p>
+          {tab === 'video' && (
+            <div>
+              <p className="mb-2 text-sm text-gray-600">{VIDEO_IMPORT_COPY.intro}</p>
+              <input
+                type="url"
+                inputMode="url"
+                aria-label="Video link"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder={VIDEO_IMPORT_COPY.urlPlaceholder}
+                aria-invalid={videoUrlInvalid || undefined}
+                className="w-full rounded-xl border bg-white px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
+              />
+              {videoUrlInvalid && (
+                <p className="mt-2 text-sm text-red-600">{VIDEO_IMPORT_COPY.unsupportedUrl}</p>
+              )}
+              <p className="mt-2 text-xs text-gray-500">{VIDEO_IMPORT_COPY.privacyNote}</p>
+            </div>
           )}
+
+          {previewError && <p className="mt-3 text-sm text-red-600">{previewError.message}</p>}
         </div>
       )}
     </Sheet>
@@ -349,8 +416,8 @@ function ImportLockedDemo() {
       </div>
       <p className="flex items-start gap-2 text-sm text-gray-700">
         <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
-        Premium imports any recipe from a link, pasted text or a cookbook photo, adapts it to your
-        allergies and household, and saves it to your collection.
+        Premium imports any recipe from a link, pasted text, a cookbook photo or a cooking video,
+        adapts it to your allergies and household, and saves it to your collection.
       </p>
     </div>
   );
