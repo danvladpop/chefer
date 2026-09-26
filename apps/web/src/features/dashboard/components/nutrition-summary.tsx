@@ -64,7 +64,7 @@ export function NutritionSummary({ nutrition: n, nextMealName, className }: Nutr
             overColor={overTargetColor}
           >
             <CountUp value={n.eatenKcal} className="text-xl font-bold text-gray-900" />
-            <span className="text-xs text-gray-500">
+            <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
               of {n.dailyCalorieTarget.toLocaleString()} kcal eaten
             </span>
           </ProgressRing>
