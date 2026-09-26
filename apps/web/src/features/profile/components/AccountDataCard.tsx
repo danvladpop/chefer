@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Download, Trash2 } from 'lucide-react';
+import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
 
 // ─── Your data ────────────────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ export function AccountDataCard() {
           onClick={() => setDeleteOpen(true)}
         >
           <Trash2 aria-hidden="true" />
-          Delete account
+          {COPY.button}
         </Button>
       </div>
       {exportError && (
@@ -72,32 +73,41 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
     // cached query.
     onSuccess: () => window.location.assign('/'),
   });
-  const ready = password.length > 0 && confirmText === 'DELETE';
+  const ready = password.length > 0 && confirmText.trim().toUpperCase() === COPY.confirmWord;
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title="Delete your account?"
-      description="This permanently deletes your plans, logs, recipes, workouts and preferences. It can't be undone."
+      title={COPY.title}
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {COPY.cancel}
           </Button>
           <Button
             variant="destructive"
             disabled={!ready || deleteMutation.isPending}
-            onClick={() => deleteMutation.mutate({ password, confirm: 'DELETE' })}
+            onClick={() => deleteMutation.mutate({ password, confirm: COPY.confirmWord })}
           >
-            {deleteMutation.isPending ? 'Deleting…' : 'Delete my account'}
+            {deleteMutation.isPending ? COPY.submitting : COPY.submit}
           </Button>
         </div>
       }
     >
       <div className="space-y-3 px-5 pb-2">
+        <div className="space-y-2 text-sm text-gray-700" data-testid="delete-account-summary">
+          <p className="font-medium text-gray-900">{COPY.permanent}</p>
+          <p>{COPY.listHeading}</p>
+          <ul className="list-disc space-y-1 pl-5">
+            {COPY.deleted.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <p className="text-xs text-gray-600">{COPY.backups}</p>
+        </div>
         <label className="block text-sm font-medium text-gray-800">
-          Your password
+          {COPY.passwordLabel}
           <input
             type="password"
             autoComplete="current-password"
@@ -107,7 +117,7 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
           />
         </label>
         <label className="block text-sm font-medium text-gray-800">
-          Type DELETE to confirm
+          {COPY.confirmLabel}
           <input
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
