@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 // Per-segment tab title (F-X-1-1) — the page itself is a client component and
-// can't export metadata. Renders as "Recipes | Chefer" via the root template.
-export const metadata: Metadata = { title: 'Recipes' };
+// can't export metadata. Renders as "Cookbook | Chefer" via the root template.
+export const metadata: Metadata = { title: 'Cookbook' };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return children;
