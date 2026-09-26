@@ -11,6 +11,8 @@ import {
   type UpsertChefProfileData,
   type UpsertDietaryPreferencesData,
 } from '@chefer/database';
+import type { DisplayCurrency, SetDisplayPreferencesInput } from '@chefer/types';
+import { toDisplayCurrency } from '@chefer/utils';
 
 // ─── Activity multipliers (Mifflin-St Jeor) ──────────────────────────────────
 
@@ -265,6 +267,20 @@ export function mergeSafetyList(saved: string[] | undefined, submitted: string[]
   return merged;
 }
 
+/**
+ * Keeps GymProfile.unit in step with ChefProfile.preferredUnits (backlog
+ * P2-6: one unit preference across Food and Gym). Implemented by
+ * GymProfileService, injected so this service never imports the gym graph.
+ */
+export interface GymUnitSync {
+  syncFromPreferredUnits(userId: string, units: 'METRIC' | 'IMPERIAL'): Promise<void>;
+}
+
+export interface DisplayPreferencesDto {
+  preferredUnits: 'METRIC' | 'IMPERIAL';
+  currency: DisplayCurrency;
+}
+
 export interface PreferencesDto {
   chefProfile: ChefProfile | null;
   dietaryPreferences: DietaryPreferences | null;
@@ -276,14 +292,52 @@ export class PreferencesService {
   constructor(
     private readonly chefProfileRepo: IChefProfileRepository,
     private readonly dietaryPreferencesRepo: IDietaryPreferencesRepository,
+    /** Optional so unit tests can omit it; the singleton wires the gym. */
+    private readonly gymUnits?: GymUnitSync,
   ) {}
 
   /**
-   * Returns true if the user already has a ChefProfile (completed onboarding).
+   * True once the user has a personalised profile (a goal is set). A bare
+   * ChefProfile row is not enough: registration now creates one just to hold
+   * the location-default units and currency (P2-6), and toggles such as
+   * setAutoPlanWeekly or setDisplayPreferences upsert one too.
    */
   async hasProfile(userId: string): Promise<boolean> {
     const profile = await this.chefProfileRepo.findByUserId(userId);
-    return profile !== null;
+    return profile?.goal != null;
+  }
+
+  /**
+   * Unit system + currency — free for every tier (audit F-DASH-3-2: units
+   * used to save only through the premium updateTargets, so free users could
+   * not change them at all). A unit change also moves the gym profile's
+   * KG/LB unit so Food and Gym never disagree.
+   */
+  async setDisplayPreferences(
+    userId: string,
+    input: SetDisplayPreferencesInput,
+  ): Promise<DisplayPreferencesDto> {
+    const data: UpsertChefProfileData = {};
+    if (input.preferredUnits !== undefined) data.preferredUnits = input.preferredUnits;
+    if (input.currency !== undefined) data.deliveryCurrency = input.currency;
+    const profile = await this.chefProfileRepo.upsert(userId, data);
+    if (input.preferredUnits !== undefined) {
+      await this.syncGymUnit(userId, input.preferredUnits);
+    }
+    return {
+      preferredUnits: profile.preferredUnits,
+      currency: toDisplayCurrency(profile.deliveryCurrency),
+    };
+  }
+
+  /** Best effort: the unit preference is saved even if the gym side fails. */
+  private async syncGymUnit(userId: string, units: 'METRIC' | 'IMPERIAL'): Promise<void> {
+    if (!this.gymUnits) return;
+    try {
+      await this.gymUnits.syncFromPreferredUnits(userId, units);
+    } catch (error) {
+      console.error('PreferencesService: gym unit sync failed', error);
+    }
   }
 
   /**
@@ -484,6 +538,9 @@ export class PreferencesService {
       });
     }
 
+    // Old mobile builds still send units through updateTargets — same sync.
+    if (preferredUnits !== undefined) await this.syncGymUnit(userId, preferredUnits);
+
     return this.get(userId);
   }
 }
@@ -491,4 +548,12 @@ export class PreferencesService {
 export const preferencesService = new PreferencesService(
   chefProfileRepository,
   dietaryPreferencesRepository,
+  {
+    // Lazy import: many services import this module; the gym graph loads
+    // only when a unit actually changes.
+    async syncFromPreferredUnits(userId, units) {
+      const { gymProfileService } = await import('../gym/gym-profile.service.js');
+      await gymProfileService.syncFromPreferredUnits(userId, units);
+    },
+  },
 );

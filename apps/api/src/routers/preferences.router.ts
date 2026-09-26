@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { setDisplayPreferencesInputSchema } from '@chefer/types';
 import {
   computeMacroTargets,
   preferencesService,
@@ -72,6 +73,17 @@ export const preferencesRouter = router({
   updateSafety: protectedProcedure.input(safetySchema).mutation(async ({ input, ctx }) => {
     return preferencesService.update(ctx.user.id, input);
   }),
+
+  /**
+   * Unit system + currency — free for every tier (backlog P2-6, audit
+   * F-DASH-3-2). A unit change also moves the gym KG/LB unit. updateTargets
+   * keeps accepting both fields for app builds already in the stores.
+   */
+  setDisplayPreferences: protectedProcedure
+    .input(setDisplayPreferencesInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      return preferencesService.setDisplayPreferences(ctx.user.id, input);
+    }),
 
   /** Goal, body metrics, cuisine and cadence — premium personalisation. */
   updateTargets: premiumProcedure.input(targetsSchema).mutation(async ({ input, ctx }) => {

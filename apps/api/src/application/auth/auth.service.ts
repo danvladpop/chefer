@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import type { Response } from 'express';
 import { prisma } from '@chefer/database';
 import type { AuthResult, MobileSession } from '@chefer/types';
+import { defaultsForRegion } from '@chefer/utils';
 
 /** A valid bcrypt hash (cost 12) of a random string: login's timing decoy. */
 const DUMMY_PASSWORD_HASH = '$2b$12$qZC9DEJlYpJdBOlrTJu.OOnTjzpY1TBuTh.s6KARjC.Sn6ECa.RAq';
@@ -19,6 +20,8 @@ export interface RegisterInput {
   password: string;
   firstName?: string | undefined;
   lastName?: string | undefined;
+  /** Device region, e.g. "US" — seeds units + currency (P2-6). */
+  region?: string | undefined;
 }
 
 export interface LoginInput {
@@ -35,7 +38,7 @@ export interface AuthOptions {
 
 export class AuthService {
   async register(input: RegisterInput, res: Response, options?: AuthOptions): Promise<AuthResult> {
-    const { email, password, firstName, lastName } = input;
+    const { email, password, firstName, lastName, region } = input;
 
     const existing = await prisma.user.findUnique({
       where: { email: email.toLowerCase().trim() },
@@ -49,6 +52,7 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const name = [firstName, lastName].filter(Boolean).join(' ') || null;
+    const display = region ? defaultsForRegion(region) : null;
 
     const user = await prisma.user.create({
       data: {
@@ -57,6 +61,15 @@ export class AuthService {
         firstName: firstName ?? null,
         lastName: lastName ?? null,
         name,
+        // Location defaults (backlog P2-6): a US signup starts imperial + USD,
+        // a UK one in GBP, and so on. Only when the client sent a region —
+        // otherwise the schema defaults (METRIC, EUR) apply as before. The
+        // row carries no goal, so preferences.hasProfile stays false.
+        ...(display && {
+          chefProfile: {
+            create: { preferredUnits: display.preferredUnits, deliveryCurrency: display.currency },
+          },
+        }),
       },
     });
 

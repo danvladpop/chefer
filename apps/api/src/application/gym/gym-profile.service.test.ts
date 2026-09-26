@@ -80,12 +80,21 @@ function setup(existing = null as ReturnType<typeof profileRow> | null) {
       .fn()
       .mockResolvedValue([{ exerciseId: 'barbell-bench-press' }, { exerciseId: 'back-squat' }]),
   };
+  const chefProfiles = { upsert: vi.fn().mockResolvedValue({}) };
   return {
-    service: new GymProfileService(repo, bootstrap, ensure, progressions, progressionRepo),
+    service: new GymProfileService(
+      repo,
+      bootstrap,
+      ensure,
+      progressions,
+      progressionRepo,
+      chefProfiles,
+    ),
     repo,
     bootstrap,
     ensure,
     progressions,
+    chefProfiles,
   };
 }
 
@@ -98,6 +107,16 @@ beforeEach(() => {
 });
 
 describe('GymProfileService.completeSetup', () => {
+  it('the unit picked in setup becomes the global preference (P2-6)', async () => {
+    const { service, chefProfiles } = setup();
+    await service.completeSetup(USER, setupInput({ unit: 'LB' }), '2026-09-24');
+    expect(chefProfiles.upsert).toHaveBeenCalledWith(USER, { preferredUnits: 'IMPERIAL' });
+
+    const rerun = setup(profileRow({ unit: 'LB' }));
+    await rerun.service.completeSetup(USER, setupInput({ unit: 'LB' }), '2026-09-24');
+    expect(rerun.chefProfiles.upsert).not.toHaveBeenCalled();
+  });
+
   it('writes profile + active routine + initial progressions in one repository call', async () => {
     const { service, repo, bootstrap, ensure } = setup();
 
@@ -221,6 +240,52 @@ describe('GymProfileService.save / recommend', () => {
     const { service, progressions } = setup(profileRow({ unit: 'KG' }));
     await service.save(USER, { weeklyGoal: 4, unit: 'KG' }, '2026-09-24');
     expect(progressions.recompute).not.toHaveBeenCalled();
+  });
+
+  // ── One unit preference across Food and Gym (backlog P2-6) ──────────────────
+
+  it('a gym unit change becomes the global unit preference', async () => {
+    const { service, chefProfiles } = setup(profileRow({ unit: 'KG' }));
+    await service.save(USER, { unit: 'LB' });
+    expect(chefProfiles.upsert).toHaveBeenCalledWith(USER, { preferredUnits: 'IMPERIAL' });
+  });
+
+  it('an unchanged unit, or a change coming FROM preferences, does not write back', async () => {
+    const { service, chefProfiles } = setup(profileRow({ unit: 'KG' }));
+    await service.save(USER, { unit: 'KG', weeklyGoal: 4 }, '2026-09-24');
+    await service.save(USER, { unit: 'LB' }, '2026-09-24', { syncPreferences: false });
+    expect(chefProfiles.upsert).not.toHaveBeenCalled();
+  });
+
+  it('syncFromPreferredUnits runs the full save (stock rack swap + re-fold)', async () => {
+    const { service, repo, progressions, chefProfiles } = setup(
+      profileRow({ ...defaultInventory('KG') }),
+    );
+    await service.syncFromPreferredUnits(USER, 'IMPERIAL');
+    const data = vi.mocked(repo.update).mock.calls[0]![1];
+    expect(data.unit).toBe('LB');
+    expect(data.barWeightKg).toBe(defaultInventory('LB').barWeightKg);
+    expect(progressions.recompute).toHaveBeenCalled();
+    // No ping-pong back into preferences.
+    expect(chefProfiles.upsert).not.toHaveBeenCalled();
+  });
+
+  it('syncFromPreferredUnits is a no-op without a gym profile or when already matching', async () => {
+    const none = setup(null);
+    await none.service.syncFromPreferredUnits(USER, 'IMPERIAL');
+    expect(none.repo.update).not.toHaveBeenCalled();
+
+    const same = setup(profileRow({ unit: 'LB' }));
+    await same.service.syncFromPreferredUnits(USER, 'IMPERIAL');
+    expect(same.repo.update).not.toHaveBeenCalled();
+  });
+
+  it('a failed preference write never fails the gym save', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { service, chefProfiles } = setup(profileRow({ unit: 'KG' }));
+    chefProfiles.upsert.mockRejectedValue(new Error('db down'));
+    await expect(service.save(USER, { unit: 'LB' })).resolves.toMatchObject({ unit: 'LB' });
+    error.mockRestore();
   });
 
   it('recommend is a pure engine composition (no repository calls)', () => {

@@ -109,4 +109,30 @@ describe('AuthService.register', () => {
     });
     expect(mobile.session?.token).toBeTruthy();
   });
+
+  it('seeds units + currency from the device region (P2-6)', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.user.create).mockResolvedValue(dbUser as never);
+
+    await service.register({ email: dbUser.email, password: PASSWORD, region: 'US' }, mockRes());
+    const us = vi.mocked(prisma.user.create).mock.calls.at(-1)![0];
+    expect(us.data.chefProfile).toEqual({
+      create: { preferredUnits: 'IMPERIAL', deliveryCurrency: 'USD' },
+    });
+
+    await service.register({ email: dbUser.email, password: PASSWORD, region: 'RO' }, mockRes());
+    const ro = vi.mocked(prisma.user.create).mock.calls.at(-1)![0];
+    expect(ro.data.chefProfile).toEqual({
+      create: { preferredUnits: 'METRIC', deliveryCurrency: 'RON' },
+    });
+  });
+
+  it('creates no profile row when the client sends no region (older apps)', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.user.create).mockResolvedValue(dbUser as never);
+
+    await service.register({ email: dbUser.email, password: PASSWORD }, mockRes());
+    const call = vi.mocked(prisma.user.create).mock.calls.at(-1)![0];
+    expect(call.data.chefProfile).toBeUndefined();
+  });
 });
