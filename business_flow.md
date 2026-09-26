@@ -590,6 +590,8 @@ IngredientPriceWorker (background)
 
 `dashboard.summary` (protected) assembles the daily overview in `DashboardService.getSummary`. Web and mobile send `{ localDate, localHour }` (the device's own day and hour, via `localDateStr` in `@chefer/utils`), so "today", the day label and the next meal follow the user's time zone; older clients without it fall back to server time (audit F-DASH-1-1). The tracker likewise sends the local calendar day, never the UTC one (F-TRK-1-1).
 
+The "Today" card's ring shows what was **eaten** (the day's DailyLog totals: `nutrition.eatenKcal` and `protein/carbs/fat.eaten`, additive fields) against the target, with the plan as a caption ("1,870 planned · 1,200 left"); the chip judges the plan ("Plan on track / under / over target", shared `planStatus` in `@chefer/utils`). It used to show planned food only — "540 remaining" with 6,070 kcal logged (audit F-DASH-1-2).
+
 ```
 dashboard.summary
   ├─ load ChefProfile + active MealPlan + recent favourites (parallel)

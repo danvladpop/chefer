@@ -23,7 +23,7 @@ test.describe('desktop shell is intact', () => {
     // Exactly one *visible* nutrition panel — the rail. Both copies always
     // exist in the DOM; only CSS decides which one shows, so filter on
     // visibility rather than counting matches.
-    await expect(page.getByText('Planned Today').filter({ visible: true })).toHaveCount(1);
+    await expect(page.getByTestId('nutrition-summary').filter({ visible: true })).toHaveCount(1);
 
     expect(
       await page.evaluate(
@@ -39,7 +39,7 @@ test.describe('desktop shell is intact', () => {
     await expect(page.locator('aside')).toBeVisible();
 
     // Still exactly one visible panel, just relocated into the main column.
-    await expect(page.getByText('Planned Today').filter({ visible: true })).toHaveCount(1);
+    await expect(page.getByTestId('nutrition-summary').filter({ visible: true })).toHaveCount(1);
 
     const railHidden = await page.evaluate(() => {
       const rail = document.querySelector('.xl\\:flex.w-72');
