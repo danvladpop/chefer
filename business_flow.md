@@ -52,11 +52,18 @@ Browser
 ```
 1. User fills in RegisterForm at /(auth)/register
    └── email, password, firstName?, lastName? (react-hook-form + Zod)
+   └── the client adds region? — detectRegion() from @chefer/utils reads the
+       browser (navigator.languages) / device (Intl, no native dependency)
+       locale, e.g. "en-US" → "US"
 2. auth.register (public tRPC mutation, rate-limited 10/15 min per IP)
    └── AuthService.register
         ├── reject with CONFLICT when the email already has an account
         ├── bcrypt.hash(password, 12)
         ├── prisma.user.create (role USER, planTier FREE)
+        │    └── with a region: nested ChefProfile { preferredUnits, deliveryCurrency }
+        │        from defaultsForRegion (P2-6) — US/LR/MM → IMPERIAL, else METRIC;
+        │        US → USD, GB → GBP, RO → RON, eurozone/else → EUR. The row has
+        │        no goal, so preferences.hasProfile stays false and onboarding runs.
         └── createSession → chefer_session cookie
             (HttpOnly, SameSite=Strict, Secure in prod, 30 days)
 3. Client redirects to /onboarding
@@ -542,6 +549,14 @@ All displayed quantities (shopping list + recipe pages) are converted to the
 user's preferred unit system (ChefProfile.preferredUnits, set in Preferences):
 METRIC shows g/kg/ml/l (cups -> ml), IMPERIAL shows oz/lb/fl oz/cups.
 
+All displayed prices (shopping-list lines + total, pantry savings, the
+meal-plan week cost / per-person / over-budget copy, the ingredient browser)
+are EUR estimates converted to ChefProfile.deliveryCurrency by formatMoney in
+@chefer/utils — one static, approximate table (EUR 1, USD 1.08, GBP 0.85,
+RON 4.97; EUR_EXCHANGE_RATES in currency.ts). The API stays EUR; converted
+figures say "converted from euros at an approximate rate". The premium weekly
+budget is typed in the user's currency and stored as weeklyBudgetEur.
+
 shoppingList.regenerate { weekOffset }   (PREMIUM only; ticks carry over by ingredient name)
   +- Gemini consolidates raw ingredients -> persisted in ShoppingList table
      (keyed by planId) -> subsequent getForWeek calls serve it
@@ -574,12 +589,36 @@ IngredientPriceWorker (background)
   +- IAIService.estimateIngredientPrices (Gemini, batches of 40)
 ```
 
+### Units & currency — one preference, every tier (P2-6)
+
+```
+Preferences → "Units & currency" (web preferences-form, mobile /preferences)
+  └── preferences.setDisplayPreferences { preferredUnits?, currency? }   (FREE, every tier)
+        ├── ChefProfile.preferredUnits / deliveryCurrency upserted
+        └── units changed → gymProfileService.syncFromPreferredUnits
+              └── gym profile exists and differs → gymProfileService.save({ unit })
+                    (METRIC ↔ KG, IMPERIAL ↔ LB; stock rack swap + progression re-fold)
+
+Gym settings unit switch / gym setup
+  └── gym.profile.save { unit } / gym.profile.completeSetup
+        └── ChefProfile.preferredUnits follows the gym unit (reverse sync;
+            the forward path passes syncPreferences:false, so no ping-pong)
+        └── setup's unit question defaults from preferredUnits (locale when
+            the user has no profile yet)
+```
+
+- **Defaults** come from the device region at registration (see §2). Accounts created before P2-6, or from app builds that don't send a region, start METRIC + EUR and can change both freely.
+- **Where units apply:** recipe/shopping quantities (`formatQuantity`), body weight on web + mobile (dashboard weight card, weight log + entry editing, /progress chart and deltas, the gym bodyweight prompt, the coach review's kg/wk trend — `formatBodyWeight` / `formatWeightTrend`) and gym loads (via the synced gym unit).
+- **Body weight stays kg in the API.** IMPERIAL users type pounds; `parseBodyWeight(input, 'IMPERIAL')` accepts 44–881 lb (the API's 20–400 kg) with lb error copy and sends kg rounded to 0.1. A displayed lb value (0.1 lb) round-trips to the same stored kg.
+- `preferences.updateTargets` still accepts `preferredUnits` / `deliveryCurrency` for app builds already in the stores (and syncs the gym the same way), but it is premium — current clients never send units through it.
+- Not yet in the user's unit: the body-metrics step of onboarding / Goal & body (web has its own kg/lb + cm/ft toggles; mobile is metric-only v1).
+
 ### Profile personalisation gating (P1-2: safety is free)
 
 - **Safety is free on every tier**: `preferences.updateSafety` (`protectedProcedure`) writes allergies, dietary restrictions and disliked ingredients. Free curated plans and free swaps are filtered by them (`lib/curated-recipes/safety.ts`); premium AI generation feeds them into the prompt.
 - **AI output is never trusted for safety** (audit F-PLAN-1-9, 2026-09-25): after `generateMealPlan` every dish is re-checked against the household's allergies and restrictions, and a failing slot is replaced from the safe curated pool (or dropped when nothing safe fits); an unsafe AI swap falls back to a curated swap. The matcher scans name, ingredients **and steps**, and accepts qualified substitutes ("dairy-free milk", "vegan butter", "egg-free mayo", "gluten-free pasta") only for their own allergen family.
 - **Warnings instead of silence**: `mealPlan.getRecipe` and every plan response carry an optional `allergenWarnings: string[]` (the viewer's conflicting allergies/restrictions). Web and mobile show a red "Contains …" banner on recipe detail and in cook mode, and a chip on plan meal cards — e.g. after allergies change under an existing plan (F-REC-2-3, F-PLAN-1-7). Mobile import now shows the same "could not fully remove" warning as web when an adaptation fails safety (F-M-REC-4-1).
-- **Personalisation depth is premium**: `preferences.setup` / `preferences.updateTargets` (`premiumProcedure`) own goal, body metrics, calorie targets, cuisine and meal cadence → free users receive `FORBIDDEN`.
+- **Personalisation depth is premium**: `preferences.setup` / `preferences.updateTargets` (`premiumProcedure`) own goal, body metrics, calorie targets, cuisine, meal cadence and the weekly budget → free users receive `FORBIDDEN`. Units and currency are **not** personalisation depth: they save through the free `preferences.setDisplayPreferences` (P2-6, audit F-DASH-3-2).
 - The Preferences page shows free users the editable safety section plus a locked-targets upgrade panel; the Onboarding wizard branches — free: 3 steps (safety → optional goal → optional body metrics, stored via `preferences.saveProfileBasics` with the premium pitch as a card under step 3), premium: 4 steps (goal → metrics → diet → cuisine). Both platforms start the wizard from the user's saved preferences (`preferences.get`), and `preferences.setup` never shrinks the safety lists, so re-opening onboarding after an upgrade can't erase allergies (audit F-ONB-1-1, 2026-09-25).
 - **Numbers you can trust** (audit P1-1, 2026-09-26): free curated weeks are planned toward the user's calorie and protein targets (snacks added when three meals fall short; a 2,000 kcal target now lands ~5% off instead of 18–29% under). Premium AI plans get the protein/carbs/fat targets in the prompt, macro drift counts in the retry, and AI recipes whose stated calories don't match their ingredients are resized so the recipe delivers what it claims (bounded 0.6–1.8×; beyond that the honest computed numbers are shown).
 - **Pool exhaustion is the upsell**: when the curated pool keeps fewer than `MIN_SAFE_POOL_SIZE` safe recipes for any plan meal type, `mealPlan.generate` / free swap throw `PRECONDITION_FAILED` and the meal-plan page renders a contextual upgrade prompt ("not enough free recipes matching your restrictions") instead of an error.
