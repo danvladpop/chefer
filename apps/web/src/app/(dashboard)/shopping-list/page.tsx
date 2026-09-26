@@ -473,6 +473,12 @@ export default function ShoppingListPage() {
         </div>
       ) : (
         <div className="relative space-y-6">
+          {/* A failed regenerate used to be silent (audit F-SHOP-1-5). */}
+          {regenerateMutation.isError && (
+            <p role="alert" className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">
+              Couldn&apos;t rebuild the list — your list and ticks are unchanged. Try again.
+            </p>
+          )}
           {/* Regenerating overlay — dims the current list while the AI consolidates */}
           {regenerateMutation.isPending && (
             <div className="absolute inset-0 z-10 flex items-start justify-center rounded-2xl bg-white/70 pt-10 backdrop-blur-[1px]">

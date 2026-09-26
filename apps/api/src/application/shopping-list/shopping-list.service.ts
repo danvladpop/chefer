@@ -25,7 +25,12 @@ import { buildPantryMatcher } from '../pantry/pantry-match.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { inferCategory } from '../shared/category-map.js';
 import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
-import { aggregateIngredientLines, formatLineQuantity, tidyListItems } from './aggregate.js';
+import {
+  aggregateIngredientLines,
+  canonicalIngredientName,
+  formatLineQuantity,
+  tidyListItems,
+} from './aggregate.js';
 
 export interface ShoppingListItemForWeek {
   key: string;
@@ -126,6 +131,30 @@ function tidyAiItems(items: StoredShoppingListItem[]): StoredShoppingListItem[] 
 function fromDayField(plan: { weekStartDate: Date; createdAt: Date }): { fromDayOfWeek?: number } {
   const from = firstShoppingDay(plan.weekStartDate, plan.createdAt);
   return from > 0 ? { fromDayOfWeek: from } : {};
+}
+
+/**
+ * Check-offs for a regenerated list: every new row whose canonical name was
+ * ticked before, plus ticked custom items (their keys are stable).
+ */
+export function carryCheckedKeys(
+  previousChecked: string[],
+  previousItems: { key: string; ingredientName: string; isCustom?: boolean }[],
+  nextItems: { key: string; ingredientName: string }[],
+): string[] {
+  const ticked = new Set(previousChecked);
+  const tickedNames = new Set(
+    previousItems
+      .filter((i) => ticked.has(i.key) && !i.isCustom)
+      .map((i) => canonicalIngredientName(i.ingredientName)),
+  );
+  const carried = nextItems
+    .filter((i) => tickedNames.has(canonicalIngredientName(i.ingredientName)))
+    .map((i) => i.key);
+  const customTicked = previousItems
+    .filter((i) => i.isCustom && ticked.has(i.key))
+    .map((i) => i.key);
+  return [...new Set([...carried, ...customTicked])];
 }
 
 function customItemKey(planId: string, name: string, unit: string): string {
@@ -669,8 +698,18 @@ export class ShoppingListService {
 
     // Persist so the AI-consolidated list survives reloads — getForWeek
     // serves it from now on (until the plan itself is regenerated). The AI
-    // list has fresh item keys, so previous check-offs no longer apply —
-    // clear them rather than leaving orphans (P1-5).
+    // list has fresh item keys, so check-offs are carried over BY INGREDIENT
+    // NAME (canonical, so "Eggs" ticks "Egg"); regenerating used to wipe
+    // every tick with no warning (audit F-SHOP-1-5 / F-M-SHOP-2-1).
+    const before = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
+    const previousItems = before?.aiGenerated
+      ? tidyAiItems(before.items as unknown as StoredShoppingListItem[])
+      : await this.buildDerivedRawItems(targetPlan);
+    const checkedKeys = carryCheckedKeys(
+      before?.checkedKeys ?? [],
+      [...previousItems, ...readCustomItems(before?.customItems)],
+      rawItems,
+    );
     const itemsJson = rawItems as unknown as Prisma.InputJsonValue;
     await prisma.shoppingList.upsert({
       where: { planId: targetPlan.id },
@@ -681,7 +720,7 @@ export class ShoppingListService {
       },
       // customItems is deliberately untouched — user-added items survive an
       // AI regenerate (their keys are stable, unlike the AI rows').
-      update: { items: itemsJson, aiGenerated: true, checkedKeys: [] },
+      update: { items: itemsJson, aiGenerated: true, checkedKeys },
     });
 
     const stored = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
@@ -705,7 +744,7 @@ export class ShoppingListService {
       weekOffset,
       estimatedTotalEur,
       aiGenerated: true,
-      checkedKeys: [],
+      checkedKeys,
       pantry,
     };
   }
