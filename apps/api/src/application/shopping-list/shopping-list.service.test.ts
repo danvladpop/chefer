@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mealPlanRepository, pantryItemRepository, prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { pantryService } from '../pantry/pantry.service.js';
-import { ShoppingListService } from './shopping-list.service.js';
+import { carryCheckedKeys, ShoppingListService } from './shopping-list.service.js';
 
 // ─── Module mocks (style: recipe-import.service.test.ts) ─────────────────────
 
@@ -289,5 +289,24 @@ describe('ShoppingListService — plans made mid-week (audit F-PM-3)', () => {
     expect(list.fromDayOfWeek).toBe(4);
     // Only Friday's stew: 600 g tomato, not Monday's + Friday's 1,200 g.
     expect(list.items.find((i) => i.ingredientName === 'Tomato')?.quantity).toBe('600');
+  });
+});
+
+describe('carryCheckedKeys — regenerate keeps ticks (audit F-SHOP-1-5)', () => {
+  it('maps ticks onto the new rows by canonical name and keeps ticked custom items', () => {
+    const previous = [
+      { key: 'p-eggs|large', ingredientName: 'Eggs' },
+      { key: 'p-olive oil|tbsp', ingredientName: 'Olive oil' },
+      { key: 'p-rice|g', ingredientName: 'Rice' },
+      { key: 'p-custom-soap-pcs', ingredientName: 'Soap', isCustom: true },
+    ];
+    const next = [
+      { key: 'p-ai-egg-large', ingredientName: 'Egg' },
+      { key: 'p-ai-olive-oil-ml', ingredientName: 'Olive oil' },
+      { key: 'p-ai-rice-g', ingredientName: 'Rice' },
+    ];
+    expect(
+      carryCheckedKeys(['p-eggs|large', 'p-olive oil|tbsp', 'p-custom-soap-pcs'], previous, next),
+    ).toEqual(['p-ai-egg-large', 'p-ai-olive-oil-ml', 'p-custom-soap-pcs']);
   });
 });

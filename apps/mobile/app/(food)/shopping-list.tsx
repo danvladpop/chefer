@@ -258,6 +258,11 @@ export default function ShoppingListScreen() {
                 {regenerateMutation.isPending ? 'Consolidating with AI…' : 'Regenerate with AI'}
               </Button>
             )}
+            {regenerateMutation.isError && (
+              <Text testID="regenerate-error" className="text-xs text-red-600">
+                Couldn&apos;t rebuild the list — your list and ticks are unchanged. Try again.
+              </Text>
+            )}
 
             {/* Add your own item */}
             <View className="flex-row gap-2">

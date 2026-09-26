@@ -542,7 +542,7 @@ All displayed quantities (shopping list + recipe pages) are converted to the
 user's preferred unit system (ChefProfile.preferredUnits, set in Preferences):
 METRIC shows g/kg/ml/l (cups -> ml), IMPERIAL shows oz/lb/fl oz/cups.
 
-shoppingList.regenerate { weekOffset }   (PREMIUM only)
+shoppingList.regenerate { weekOffset }   (PREMIUM only; ticks carry over by ingredient name)
   +- Gemini consolidates raw ingredients -> persisted in ShoppingList table
      (keyed by planId) -> subsequent getForWeek calls serve it
 
