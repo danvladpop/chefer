@@ -36,18 +36,19 @@ export const recipeSchema = z.object({
   imageUrl: z.string().nullable(),
 });
 
-export const weekPlanResponseSchema = z.object({
-  days: z.array(
+/** One day of a plan — also the unit of the chunked (per-day) generation. */
+export const dayPlanSchema = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  meals: z.array(
     z.object({
-      dayOfWeek: z.number().int().min(0).max(6),
-      meals: z.array(
-        z.object({
-          type: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
-          recipe: recipeSchema,
-        }),
-      ),
+      type: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+      recipe: recipeSchema,
     }),
   ),
+});
+
+export const weekPlanResponseSchema = z.object({
+  days: z.array(dayPlanSchema),
 });
 
 // ExtractedRecipe = RecipeData minus id/imageUrl — the AI extracts content,

@@ -1,8 +1,20 @@
 import { z } from 'zod';
+import { AI_PROVIDER_NAMES, isValidChain, parseShadowRoutes } from './ai/routing.js';
 import { resolveEmailConfig, type EmailProvider } from './email/config.js';
 
 /** An empty value (a copied .env.example line) counts as unset. */
 const emptyAsUnset = (val: unknown) => (val === '' ? undefined : val);
+
+/** Optional provider chain, e.g. "gemini>groq" — empty counts as unset. */
+const aiRoute = z.preprocess(
+  (val) => (val === '' ? undefined : val),
+  z
+    .string()
+    .refine((v) => isValidChain(v, AI_PROVIDER_NAMES), {
+      message: `must be a provider chain of ${AI_PROVIDER_NAMES.join(', ')} joined by ">" (e.g. "gemini>groq")`,
+    })
+    .optional(),
+);
 
 const envSchema = z.object({
   // Node
@@ -54,6 +66,42 @@ const envSchema = z.object({
   AI_SECONDARY_API_KEY: z.string().optional(),
   AI_SECONDARY_BASE_URL: z.string().url().default('https://api.groq.com/openai/v1'),
   AI_SECONDARY_MODEL: z.string().default('openai/gpt-oss-120b'),
+  // Vision model at the same OpenAI-compatible endpoint, used only when a
+  // photo call is routed there (AI_ROUTE_VISION). Groq's vision model:
+  // https://console.groq.com/docs/vision (checked 2026-09-26).
+  AI_VISION_MODEL: z.string().default('qwen/qwen3.8-27b'),
+  // Per-workload provider chains (research §5.4). Unset = today's routing
+  // (lib/ai/routing.ts DEFAULT_AI_ROUTES). Providers: gemini, groq (= the
+  // AI_SECONDARY_* endpoint). Video extraction is Gemini-only, not routable.
+  AI_ROUTE_MEAL_PLAN: aiRoute,
+  AI_ROUTE_SWAP: aiRoute,
+  AI_ROUTE_CHEFERIZE: aiRoute,
+  AI_ROUTE_IMPORT_TEXT: aiRoute,
+  AI_ROUTE_VISION: aiRoute,
+  AI_ROUTE_CHAT: aiRoute,
+  AI_ROUTE_REVIEW: aiRoute,
+  AI_ROUTE_PRICES: aiRoute,
+  AI_ROUTE_SHOPPING: aiRoute,
+  // Shadow mode: "<workload>:<chain>[,…]" re-runs a sampled share of premium,
+  // consented, user-initiated calls on a candidate chain in the background
+  // and logs "[ai.shadow]" scores. Unset or sample 0 = off.
+  AI_SHADOW_ROUTE: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z
+      .string()
+      .superRefine((v, ctx) => {
+        try {
+          parseShadowRoutes(v);
+        } catch (err) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      })
+      .optional(),
+  ),
+  AI_SHADOW_SAMPLE: z.coerce.number().min(0).max(1).default(0),
 
   // Email — mock is enabled by default so local dev never sends real mail;
   // the mock logs the message (including reset links) to the console instead.
