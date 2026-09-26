@@ -502,15 +502,16 @@ React component library. Peer deps: `react`, `react-dom`. Built with `class-vari
 
 **Components:**
 
-| Component | Variants / Notes                                                                                                       |
-| --------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `Button`  | default, destructive, outline, secondary, ghost, link · sizes: sm, default, lg, icon · supports `asChild`, `isLoading` |
-| `Input`   | label, error message, hint text, icon slots                                                                            |
-| `Card`    | CardHeader, CardTitle, CardDescription, CardContent, CardFooter                                                        |
-| `Badge`   | default, secondary, destructive, outline, success, warning, info                                                       |
-| `Toast`   | success / error, auto-dismiss                                                                                          |
-| `Sheet`   | Responsive dialog — bottom sheet below `sm`, centred dialog above. Sizes sm/md/lg/xl, optional footer slot             |
-| `Drawer`  | Edge slide-over (left/right). Used for the mobile navigation menu                                                      |
+| Component    | Variants / Notes                                                                                                                                                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Button`     | default, destructive, outline, secondary, ghost, link · sizes: sm, default, lg, icon · supports `asChild`, `isLoading`                                                                                                                                        |
+| `Input`      | label, error message, hint text, icon slots                                                                                                                                                                                                                   |
+| `Card`       | CardHeader, CardTitle, CardDescription, CardContent, CardFooter                                                                                                                                                                                               |
+| `Badge`      | default, secondary, destructive, outline, success, warning, info                                                                                                                                                                                              |
+| `Toast`      | success / error, auto-dismiss                                                                                                                                                                                                                                 |
+| `Sheet`      | Responsive dialog — bottom sheet below `sm`, centred dialog above. Sizes sm/md/lg/xl, optional footer slot                                                                                                                                                    |
+| `Drawer`     | Edge slide-over (left/right). Used for the mobile navigation menu                                                                                                                                                                                             |
+| `ErrorState` | Load-failure panel with Try again (`onRetry`, or `retryHref` for server components). Render it before any empty state — pages used to show "No meal plan yet — Generate" when the API failed (audit F-X-3-1). `@chefer/ui-mobile` has a matching `ErrorState` |
 
 `Sheet` and `Drawer` share `lib/use-dismissable.ts`, which provides a
 ref-counted body scroll lock, a Tab focus trap, Escape-to-close and focus

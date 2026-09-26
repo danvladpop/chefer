@@ -10,6 +10,7 @@ export {
   type ChipProps,
 } from './components/chip';
 export { EmptyState, type EmptyStateProps } from './components/empty-state';
+export { ErrorState, type ErrorStateProps } from './components/error-state';
 export { Input, type InputProps } from './components/input';
 export {
   KeyboardAwareScrollView,

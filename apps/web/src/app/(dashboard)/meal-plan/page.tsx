@@ -33,6 +33,7 @@ import {
   Sparkles,
   Wand2,
 } from 'lucide-react';
+import { ErrorState } from '@chefer/ui';
 import MealPlanLoading from './loading';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -115,8 +116,13 @@ export default function MealPlanPage() {
   const {
     data: plan,
     isLoading,
+    isError,
+    isRefetching,
     refetch,
   } = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { retry: false });
+  // A failed load is not an empty week: never offer "Generate" over a plan we
+  // simply couldn't fetch (audit F-X-3-1, F-PLAN-1-4).
+  const loadFailed = isError && !plan;
 
   // Week cost + budget (P2-4). Every tier sees the cost; the budget is a
   // premium preference and simply comes back null for free users.
@@ -351,7 +357,7 @@ export default function MealPlanPage() {
         )}
 
         {/* F3 "cook once, eat twice" toggle — premium generation option */}
-        {!isPast && isPremium && (
+        {!isPast && !loadFailed && isPremium && (
           <button
             type="button"
             onClick={() => setLeftovers((v) => !v)}
@@ -368,7 +374,9 @@ export default function MealPlanPage() {
           </button>
         )}
 
-        {!isPast && (
+        {/* Hidden while the week failed to load — "Generate" would overwrite
+            a plan we simply couldn't fetch (F-X-3-1). */}
+        {!isPast && !loadFailed && (
           <button
             onClick={handleGenerate}
             disabled={isGenerating}
@@ -390,13 +398,18 @@ export default function MealPlanPage() {
       {/* §6.5 Monday nudge: free user opening a week that has no plan yet —
           premium members woke up to one (PW-5). Mount-gated so the nudge
           cap's daily slot is only consumed on the actual trigger moment. */}
-      {isPremium === false && isCurrent && !isLoading && !plan && new Date().getDay() === 1 && (
-        <UpgradeNudge
-          source="monday-nudge"
-          message="Premium members woke up to a fresh week today."
-          className="mx-4 mb-2 sm:mx-6"
-        />
-      )}
+      {isPremium === false &&
+        isCurrent &&
+        !isLoading &&
+        !loadFailed &&
+        !plan &&
+        new Date().getDay() === 1 && (
+          <UpgradeNudge
+            source="monday-nudge"
+            message="Premium members woke up to a fresh week today."
+            className="mx-4 mb-2 sm:mx-6"
+          />
+        )}
 
       {/* Learning signals used by the last generation (P1-1) */}
       {personalisation &&
@@ -516,8 +529,18 @@ export default function MealPlanPage() {
         </div>
       )}
 
+      {loadFailed && (
+        <div className="px-4 py-6 sm:px-6">
+          <ErrorState
+            title="Couldn't load your meal plan"
+            onRetry={() => void refetch()}
+            retrying={isRefetching}
+          />
+        </div>
+      )}
+
       {/* Empty state */}
-      {!isLoading && !plan && (
+      {!isLoading && !loadFailed && !plan && (
         <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 text-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-[#fff3e8] text-4xl">
             🍽️

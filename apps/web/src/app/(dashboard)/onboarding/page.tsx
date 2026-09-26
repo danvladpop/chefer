@@ -7,6 +7,7 @@ import {
   type WizardData,
 } from '@/features/onboarding/types';
 import { createServerClient } from '@/lib/trpc-server';
+import { ErrorState } from '@chefer/ui';
 
 // ─── Onboarding Page ──────────────────────────────────────────────────────────
 // Server component — checks if the user already has a profile and redirects
@@ -18,12 +19,11 @@ export default async function OnboardingPage() {
   const headerStore = await headers();
   const cookieHeader = headerStore.get('cookie') ?? '';
 
-  // Defaults are the fall-through state: if the API call fails (network error,
-  // etc.) we let the wizard render — the worst case is the user goes through
-  // onboarding again (idempotent upsert).
+  // If the API call fails we show an error rather than a blank wizard.
   let isPremium = true;
   let hasProfile = false;
   let initialData: WizardData = EMPTY_WIZARD_DATA;
+  let loadFailed = false;
 
   try {
     const client = createServerClient(cookieHeader);
@@ -39,12 +39,27 @@ export default async function OnboardingPage() {
     // saved allergies on Finish (F-ONB-1-1).
     initialData = wizardDataFromPreferences(await client.preferences.get.query());
   } catch {
+    // A blank wizard over data we couldn't load would save empty safety
+    // lists (F-ONB-1-1): show an error instead.
+    loadFailed = true;
     // Swallow API failures and render the wizard (see above). Note that
     // redirect() must stay outside this block — it signals by throwing a
     // NEXT_REDIRECT error that a bare catch would silently discard.
   }
 
   if (hasProfile) redirect('/dashboard');
+
+  if (loadFailed) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-10">
+        <ErrorState
+          title="Couldn't load your setup"
+          message="Nothing has been changed. Check your connection and try again."
+          retryHref="/onboarding"
+        />
+      </div>
+    );
+  }
 
   return <OnboardingWizard isPremium={isPremium} initialData={initialData} />;
 }

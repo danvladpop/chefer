@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { trpc } from '../src/lib/trpc';
 
@@ -19,6 +19,7 @@ export default function HistoryScreen() {
   const {
     data: plans = [],
     isLoading,
+    isError,
     refetch,
   } = trpc.mealPlan.list.useQuery({ limit, offset: 0 }, { staleTime: 30_000 });
 
@@ -51,6 +52,12 @@ export default function HistoryScreen() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#944a00" />
         </View>
+      ) : isError && plans.length === 0 ? (
+        <ErrorState
+          title="Couldn't load your past plans"
+          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          onRetry={() => void refetch()}
+        />
       ) : plans.length === 0 ? (
         <Card className="mx-4 items-center border-dashed py-12">
           <Ionicons name="time-outline" size={40} color="#d1d5db" />

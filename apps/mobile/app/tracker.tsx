@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn, customEntryChipLabel, customEntryRows, customEntryTotals } from '@chefer/utils';
 import { MealTypeBadge } from '../src/features/dashboard/components/meal-type-badge';
 import { ScanMealCard } from '../src/features/tracker/scan-meal-card';
@@ -51,7 +51,7 @@ export default function TrackerScreen() {
   const isToday = todayStr === dateStr;
   const isFuture = selectedDate > new Date() && !isToday;
 
-  const { data, isLoading, refetch } = trpc.tracker.getDay.useQuery(
+  const { data, isLoading, isError, refetch } = trpc.tracker.getDay.useQuery(
     { date: dateStr },
     { enabled: !isFuture, staleTime: 30_000 },
   );
@@ -242,6 +242,12 @@ export default function TrackerScreen() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#944a00" />
         </View>
+      ) : isError && !data && !isFuture ? (
+        <ErrorState
+          title="Couldn't load this day"
+          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          onRetry={() => void refetch()}
+        />
       ) : (
         <ScrollView contentContainerClassName="gap-4 px-4 py-2 pb-8">
           {/* Totals vs targets */}

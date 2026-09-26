@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { PlanHistoryCard } from '@/features/history/components/PlanHistoryCard';
 import { trpc } from '@/lib/trpc';
 import { Clock } from 'lucide-react';
+import { ErrorState } from '@chefer/ui';
 
 export default function HistoryPage() {
   const limit = 10;
@@ -11,8 +12,23 @@ export default function HistoryPage() {
   const {
     data: plans = [],
     isLoading,
+    isError,
+    isRefetching,
     refetch,
   } = trpc.mealPlan.list.useQuery({ limit, offset: 0 }, { staleTime: 30_000 });
+
+  // A failed load is not an empty history (audit F-X-3-1).
+  if (isError && plans.length === 0) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
+        <ErrorState
+          title="Couldn't load your past plans"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

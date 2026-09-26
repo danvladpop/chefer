@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { trpc } from '../src/lib/trpc';
 
 // My Weeks — the 4-week rotation. Save refined weeks as named templates,
@@ -18,7 +18,7 @@ export default function MyWeeksScreen() {
   const [renameValue, setRenameValue] = useState('');
 
   const utils = trpc.useUtils();
-  const { data: templates, isLoading } = trpc.mealPlan.listTemplates.useQuery();
+  const { data: templates, isLoading, isError, refetch } = trpc.mealPlan.listTemplates.useQuery();
   const { data: currentPlan } = trpc.mealPlan.getForWeek.useQuery({ weekOffset: 0 });
 
   const invalidate = () => {
@@ -158,6 +158,12 @@ export default function MyWeeksScreen() {
           <View className="items-center py-8">
             <ActivityIndicator size="large" color="#944a00" />
           </View>
+        ) : isError && !templates ? (
+          <ErrorState
+            title="Couldn't load your saved weeks"
+            icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+            onRetry={() => void refetch()}
+          />
         ) : !templates || templates.length === 0 ? (
           <Card testID="my-weeks-empty" className="items-center border-dashed py-8">
             <Ionicons name="albums-outline" size={32} color="#d1d5db" />

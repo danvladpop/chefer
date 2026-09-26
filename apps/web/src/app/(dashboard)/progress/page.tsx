@@ -16,6 +16,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { ErrorState } from '@chefer/ui';
 
 export default function ProgressPage() {
   const [weightInput, setWeightInput] = useState('');
@@ -33,7 +34,13 @@ export default function ProgressPage() {
   /** Slightly larger than the default, so the point under a fingertip reads. */
   const activeDot = { r: 6 };
 
-  const { data: monthly, isLoading } = trpc.tracker.monthlySummary.useQuery(undefined, {
+  const {
+    data: monthly,
+    isLoading,
+    isError,
+    isRefetching,
+    refetch,
+  } = trpc.tracker.monthlySummary.useQuery(undefined, {
     staleTime: 60_000,
   });
   const { data: weightHistory, refetch: refetchWeight } = trpc.tracker.weightHistory.useQuery(
@@ -123,7 +130,16 @@ export default function ProgressPage() {
         </div>
       )}
 
-      {!isLoading && (
+      {/* A failed load is not an empty history (audit F-X-3-1). */}
+      {!isLoading && isError && !monthly && (
+        <ErrorState
+          title="Couldn't load your progress"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
+      )}
+
+      {!isLoading && !(isError && !monthly) && (
         <>
           {/* Calorie line chart */}
           <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">

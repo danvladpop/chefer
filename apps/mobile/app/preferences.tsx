@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { SafetyStep } from '../src/features/preferences/components/safety-step';
 import { GoalBodyCard, type GoalBodySavePayload } from '../src/features/preferences/goal-body-card';
@@ -25,7 +25,7 @@ import { trpc } from '../src/lib/trpc';
 
 export default function PreferencesScreen() {
   const isPremium = useIsPremium();
-  const { data, isLoading } = trpc.preferences.get.useQuery();
+  const { data, isLoading, isError, refetch } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
 
   // ── Safety (free) ──────────────────────────────────────────────────────────
@@ -102,6 +102,15 @@ export default function PreferencesScreen() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#944a00" />
         </View>
+      ) : isError && !data ? (
+        // Never show an empty form over data we couldn't load — saving it
+        // wrote empty allergy lists over the real ones (F-ONB-2-1).
+        <ErrorState
+          title="Couldn't load your preferences"
+          description="Nothing has been changed. Check your connection and try again."
+          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          onRetry={() => void refetch()}
+        />
       ) : (
         <ScrollView contentContainerClassName="gap-4 px-4 pb-8" keyboardShouldPersistTaps="handled">
           <Text variant="muted" className="text-sm">

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
-import { Button, Screen, Text } from '@chefer/ui-mobile';
+import { Button, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
@@ -40,7 +40,7 @@ export default function RecipesScreen() {
     myRecipesOnly: tab === 'my',
     limit: 30,
   };
-  const { data: recipes, isLoading } = trpc.recipe.list.useQuery(listInput);
+  const { data: recipes, isLoading, isError, refetch } = trpc.recipe.list.useQuery(listInput);
 
   const utils = trpc.useUtils();
   const toggleFav = trpc.recipe.toggleFavourite.useMutation({
@@ -137,6 +137,12 @@ export default function RecipesScreen() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#944a00" />
         </View>
+      ) : isError && !recipes ? (
+        <ErrorState
+          title="Couldn't load your recipes"
+          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          onRetry={() => void refetch()}
+        />
       ) : !recipes || recipes.length === 0 ? (
         <EmptyState tab={tab} />
       ) : (

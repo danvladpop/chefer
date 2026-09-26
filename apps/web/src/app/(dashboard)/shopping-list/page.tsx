@@ -31,7 +31,7 @@ import {
   Smartphone,
   X,
 } from 'lucide-react';
-import { Sheet } from '@chefer/ui';
+import { ErrorState, Sheet } from '@chefer/ui';
 import { formatQuantity } from '@chefer/utils';
 
 const PRINT_STYLES = `
@@ -98,10 +98,13 @@ export default function ShoppingListPage() {
   weekEnd.setDate(weekStart.getDate() + 6);
 
   // Fetch shopping list for the selected week
-  const { data: weekList, isLoading: listLoading } = trpc.shoppingList.getForWeek.useQuery(
-    { weekOffset },
-    { staleTime: 60_000 },
-  );
+  const {
+    data: weekList,
+    isLoading: listLoading,
+    isError: listError,
+    isRefetching: listRefetching,
+    refetch: refetchList,
+  } = trpc.shoppingList.getForWeek.useQuery({ weekOffset }, { staleTime: 60_000 });
 
   const utils = trpc.useUtils();
 
@@ -239,6 +242,19 @@ export default function ShoppingListPage() {
     clearLegacyChecked();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when the list first loads
   }, [weekList?.planId]);
+
+  // A failed load is not an empty list (audit F-X-3-1).
+  if (listError && !weekList) {
+    return (
+      <div className="mx-auto max-w-3xl p-4 lg:p-6">
+        <ErrorState
+          title="Couldn't load your shopping list"
+          onRetry={() => void refetchList()}
+          retrying={listRefetching}
+        />
+      </div>
+    );
+  }
 
   if (listLoading) {
     return (
