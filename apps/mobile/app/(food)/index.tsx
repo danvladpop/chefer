@@ -24,8 +24,8 @@ import { trpc } from '../../src/lib/trpc';
 
 // Home tab — port of apps/web (dashboard)/dashboard/page.tsx (M2-1).
 // Deviations from web, deliberate: no weight/coach cards yet (coach feature
-// arrives with M2-9/M2-10; the recharts weight chart needs an RN chart lib),
-// and the calorie ring is a bar (see nutrition-summary.tsx).
+// arrives with M2-9/M2-10; the recharts weight chart needs an RN chart lib).
+// The calorie ring is back (animated, MO-06 — see nutrition-summary.tsx).
 export default function HomeScreen() {
   // The device's own day and hour decide "today" and the next meal (F-DASH-1-1).
   const {
