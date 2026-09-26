@@ -8,4 +8,11 @@ export const SITE_DESCRIPTION =
   'Chefer plans a week of meals around your goals and allergies, prices the shopping list before you shop, tracks what you eat, and plans your gym training too.';
 
 /** Public, indexable routes (everything else sits behind sign-in). */
-export const PUBLIC_ROUTES = ['/', '/login', '/register', '/privacy', '/terms'] as const;
+export const PUBLIC_ROUTES = [
+  '/',
+  '/login',
+  '/register',
+  '/privacy',
+  '/terms',
+  '/support',
+] as const;

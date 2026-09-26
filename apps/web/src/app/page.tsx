@@ -306,6 +306,13 @@ export default async function HomePage() {
             className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-gray-700"
           >
             Privacy Policy
+          </Link>{' '}
+          ·{' '}
+          <Link
+            href="/support"
+            className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-gray-700"
+          >
+            Support
           </Link>
         </p>
         <p className="mt-3 text-xs">&copy; {new Date().getFullYear()} Chefer</p>
