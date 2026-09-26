@@ -167,8 +167,9 @@ export type Env = Omit<EnvSchema, 'EMAIL_PROVIDER' | 'EMAIL_FROM' | 'EMAIL_DAILY
   EMAIL_DAILY_CAP: number | null;
 };
 
-function validateEnv(): Env {
-  const parsed = envSchema.safeParse(process.env);
+/** Validates an env source (process.env at startup; a plain object in tests). */
+export function validateEnv(source: NodeJS.ProcessEnv = process.env): Env {
+  const parsed = envSchema.safeParse(source);
 
   if (!parsed.success) {
     const errors = parsed.error.flatten().fieldErrors;
