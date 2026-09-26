@@ -158,7 +158,8 @@ export const userRouter = router({
           message: 'You cannot delete your own account',
         });
       }
-      await userService.delete(input.id);
+      // Same full purge as self-deletion (orphan-free, sessions revoked).
+      await deleteAccount(input.id);
       return { success: true };
     }),
 
