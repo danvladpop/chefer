@@ -99,8 +99,9 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      # BusyBox wget (Alpine) has no --spider flag; -O /dev/null is the portable form
-      test: ['CMD-SHELL', 'wget -q -O /dev/null http://localhost:3000/api/health || exit 1']
+      # BusyBox wget (Alpine) has no --spider flag; -O /dev/null is the portable form.
+      # 127.0.0.1, not localhost: localhost resolves to ::1 first and Next listens on IPv4 only.
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1']
       interval: 30s
       timeout: 10s
       retries: 3
