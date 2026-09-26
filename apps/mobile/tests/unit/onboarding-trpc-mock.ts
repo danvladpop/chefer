@@ -21,6 +21,7 @@ export function createTrpcOnboardingMock() {
       household: {
         list: { useQuery: jest.fn(() => queryResult({ data: [] })) },
         add: { useMutation: jest.fn(() => mutationResult()) },
+        update: { useMutation: jest.fn(() => mutationResult()) },
         remove: { useMutation: jest.fn(() => mutationResult()) },
       },
       useUtils: jest.fn(() => ({
