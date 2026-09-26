@@ -1,7 +1,9 @@
 import { TRPCError } from '@trpc/server';
 import {
+  exerciseProgressionRepository,
   gymProfileRepository,
   type GymProfileUpdateData,
+  type IExerciseProgressionRepository,
   type IGymProfileRepository,
   type InitialProgressionData,
 } from '@chefer/database';
@@ -38,6 +40,7 @@ import { ensureExerciseLibrary } from '../../lib/exercise-library/ensure.js';
 import { gymBootstrapService, type GymBootstrapService } from './gym-bootstrap.service.js';
 import { resolveSlot } from './gym-context.js';
 import { readGoalHistory, readOfferState, serverToday, toJson, toProfileDto } from './mappers.js';
+import { progressionService, type ProgressionService } from './progression.service.js';
 import { catalogLookup, templateSummary, templateToDays } from './routine.service.js';
 
 // ─── GymProfileService (gym_plan.md §4.1, D4/D10) ────────────────────────────
@@ -53,6 +56,29 @@ const lbToKg = (lb: number) => round2(lb / LB_PER_KG);
  * users get NATIVE pound plates/dumbbells (45/35/25… lb) stored as kg at
  * 0.01 precision — not converted kilogram plates.
  */
+/** True when the stored rack is exactly `unit`'s stock inventory (never customised). */
+function isStockInventory(
+  row: {
+    barWeightKg: number;
+    platePairsKg: number[];
+    dumbbellsKg: number[];
+    machineStepKg: number;
+    cableStepKg: number;
+  },
+  unit: WeightUnit,
+): boolean {
+  const stock = defaultInventory(unit);
+  const same = (a: number[], b: number[]) =>
+    a.length === b.length && a.every((v, i) => Math.abs(v - (b[i] ?? NaN)) < 0.01);
+  return (
+    Math.abs(row.barWeightKg - stock.barWeightKg) < 0.01 &&
+    same(row.platePairsKg, stock.platePairsKg) &&
+    same(row.dumbbellsKg, stock.dumbbellsKg) &&
+    Math.abs(row.machineStepKg - stock.machineStepKg) < 0.01 &&
+    Math.abs(row.cableStepKg - stock.cableStepKg) < 0.01
+  );
+}
+
 export function defaultInventory(unit: WeightUnit): EquipmentProfile {
   if (unit === 'LB') {
     return {
@@ -83,6 +109,11 @@ export class GymProfileService {
     private readonly repo: IGymProfileRepository = gymProfileRepository,
     private readonly bootstrap: Pick<GymBootstrapService, 'get'> = gymBootstrapService,
     private readonly ensure: () => Promise<void> = ensureExerciseLibrary,
+    private readonly progressions: Pick<ProgressionService, 'recompute'> = progressionService,
+    private readonly progressionRepo: Pick<
+      IExerciseProgressionRepository,
+      'findForUser'
+    > = exerciseProgressionRepository,
   ) {}
 
   async get(userId: string): Promise<GymProfileDto | null> {
@@ -106,6 +137,18 @@ export class GymProfileService {
     }
     const data: GymProfileUpdateData = {};
     if (input.unit !== undefined) data.unit = input.unit;
+    // Switching units with the stock inventory swaps in the new unit's stock
+    // inventory (45/35/25 lb plates, 5-lb dumbbells) — a kg rack under an lb
+    // label kept prescribing 30.9 lb dumbbells (audit F-GYM-11-2). A
+    // customised inventory is the user's and stays; explicit fields win.
+    if (input.unit !== undefined && input.unit !== row.unit && isStockInventory(row, row.unit)) {
+      const stock = defaultInventory(input.unit);
+      data.barWeightKg = stock.barWeightKg;
+      data.platePairsKg = stock.platePairsKg;
+      data.dumbbellsKg = stock.dumbbellsKg;
+      data.machineStepKg = stock.machineStepKg;
+      data.cableStepKg = stock.cableStepKg;
+    }
     if (input.experience !== undefined) data.experience = input.experience;
     if (input.equipmentAccess !== undefined) data.equipmentAccess = input.equipmentAccess;
     if (input.weeklyGoal !== undefined) data.weeklyGoal = input.weeklyGoal;
@@ -129,7 +172,28 @@ export class GymProfileService {
       const history = readGoalHistory(row.goalHistory).filter((g) => g.fromWeek !== fromWeek);
       data.goalHistory = toJson([...history, { fromWeek, goal: input.weeklyGoal }]);
     }
-    return toProfileDto(await this.repo.update(userId, data));
+    const saved = toProfileDto(await this.repo.update(userId, data));
+
+    // A unit or inventory change leaves every stored target snapped to the
+    // OLD inventory — switching to lb showed 176.4 lb bench and 30.9 lb
+    // dumbbells (audit F-GYM-11-2). Re-fold every progression against the
+    // new inventory so next targets are loads the user can actually make.
+    const inventoryChanged =
+      (input.unit !== undefined && input.unit !== row.unit) ||
+      input.barWeightKg !== undefined ||
+      input.platePairsKg !== undefined ||
+      input.dumbbellsKg !== undefined ||
+      input.machineStepKg !== undefined ||
+      input.cableStepKg !== undefined ||
+      input.microPlates !== undefined;
+    if (inventoryChanged) {
+      const rows = await this.progressionRepo.findForUser(userId);
+      await this.progressions.recompute(
+        userId,
+        rows.map((r) => r.exerciseId),
+      );
+    }
+    return saved;
   }
 
   /** Pure engine — powers the setup preview; no database access. */

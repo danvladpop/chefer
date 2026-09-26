@@ -1,4 +1,5 @@
 import type {
+  ExerciseBest,
   ExerciseMeta,
   GymBootstrap,
   PrKind,
@@ -143,6 +144,8 @@ const PR_RANK: Record<PrKind, number> = { e1rm: 3, weight: 2, reps: 1 };
 export function livePrs(
   doc: WorkoutSessionDoc,
   history: SessionSummaryDto[],
+  /** Bootstrap `olderBests`: records older than `history` (audit F-GYM-6-1). */
+  olderBests?: Record<string, ExerciseBest>,
 ): Map<string, { setId: string; kind: PrKind }> {
   const prior = history.filter((s) => s.id !== doc.id);
   const out = new Map<string, { setId: string; kind: PrKind }>();
@@ -155,6 +158,7 @@ export function livePrs(
         exerciseId: se.exerciseId,
         history: prior,
         candidate: { weightKg: s.weightKg, reps: s.reps },
+        best: olderBests?.[se.exerciseId],
       })[0];
       if (kind && (!best || PR_RANK[kind] > PR_RANK[best.kind])) {
         best = { setId: s.id, kind };

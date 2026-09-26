@@ -26,6 +26,7 @@ import { ExerciseCard } from './components/exercise-card';
 import { PlateSheet } from './components/plate-sheet';
 import { RestTimerBar } from './components/rest-timer-bar';
 import { newId } from './ids';
+import { SummaryView } from './summary-view';
 import { useActiveWorkout } from './use-active-workout';
 import {
   buildAddExerciseAction,
@@ -71,6 +72,10 @@ export function WorkoutView() {
   const [setMenu, setSetMenu] = useState<{ seId: string; setId: string } | null>(null);
   const [confirm, setConfirm] = useState<'finish' | 'discard' | null>(null);
   const [finishing, setFinishing] = useState(false);
+  // Set after Finish: the summary renders in place (audit F-GYM-5-1 — a
+  // router navigation needs a server round trip and showed the browser's
+  // "No internet" page when finishing offline).
+  const [finishedId, setFinishedId] = useState<string | null>(null);
 
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   useWakeLock(session !== null);
@@ -107,8 +112,10 @@ export function WorkoutView() {
   const history = useMemo(() => data?.recentSessions ?? [], [data?.recentSessions]);
   const prs = useMemo(
     () =>
-      session ? livePrs(session, history) : new Map<string, { setId: string; kind: PrKind }>(),
-    [session, history],
+      session
+        ? livePrs(session, history, data?.olderBests)
+        : new Map<string, { setId: string; kind: PrKind }>(),
+    [session, history, data?.olderBests],
   );
   // Stable per-exercise "last time" arrays, so memoised cards skip re-rendering.
   const exerciseIdsKey = session ? session.exercises.map((e) => e.exerciseId).join('|') : '';
@@ -170,6 +177,10 @@ export function WorkoutView() {
     (seId: string, setId: string) => setSetMenu({ seId, setId }),
     [],
   );
+
+  if (finishedId) {
+    return <SummaryView id={finishedId} />;
+  }
 
   if (!hasMounted) {
     return (
@@ -252,7 +263,11 @@ export function WorkoutView() {
       offline: typeof navigator !== 'undefined' && !navigator.onLine,
     });
     prs.forEach((pr) => captureGymEvent('pr_achieved', { kind: pr.kind }));
-    router.replace(`/gym/summary/${finished.id}`);
+    // Client render + URL update, no navigation: works with no connection
+    // (the finished doc waits in the outbox). Next syncs replaceState with
+    // its router, so Back/refresh land on the summary route as before.
+    setFinishedId(finished.id);
+    window.history.replaceState(null, '', `/gym/summary/${finished.id}`);
   };
 
   const actionsSe = exercises.find((e) => e.id === actionsFor) ?? null;

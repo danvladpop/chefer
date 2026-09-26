@@ -188,8 +188,22 @@ export interface GymBootstrap {
   activePause: ActivePauseDto | null;
   /** Latest known bodyweight (kg) from the nutrition weight log. */
   bodyweightKg: number | null;
+  /**
+   * Per-exercise bests from completed sessions OLDER than `recentSessions`
+   * (audit F-GYM-6-1: live PR badges compared against 12 weeks only and
+   * celebrated false PRs). Optional/additive — older clients ignore it.
+   */
+  olderBests?: Record<string, ExerciseBest>;
   serverTime: string;
   engineVersion: number;
+}
+
+/** Compact all-time record for one exercise — what a new set must beat. */
+export interface ExerciseBest {
+  maxWeightKg: number;
+  maxE1rmKg: number | null;
+  /** Pareto frontier of [weightKg, reps] working sets (no set both heavier and longer). */
+  frontier: [number, number][];
 }
 
 export type SyncStatus = 'applied' | 'stale' | 'rejected';

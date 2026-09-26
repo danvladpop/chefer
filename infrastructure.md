@@ -1020,7 +1020,9 @@ routine); `mappers.ts` owns row ↔ DTO mapping (all dates ISO strings).
   by `updatedSince`; custom create/update/archive (owner-only; max 200). Calls
   `ensureExerciseLibrary()` lazily.
 - **GymProfileService** — `get`/`save` (partial; a weekly-goal change appends to `goalHistory`
-  from the current week), `recommend` (pure engine, no DB: `recommendTemplate`,
+  from the current week; a unit switch with the stock inventory swaps in the new unit's stock
+  plates/dumbbells, and any unit or inventory change re-folds every progression via
+  `ProgressionService.recompute` so targets are loads the user can make — audit F-GYM-11-2), `recommend` (pure engine, no DB: `recommendTemplate`,
   `instantiateTemplate`, `estimateDurationMin`, `volumeByGroup`, `validateRoutine`),
   `completeSetup` (ONE transaction via `gymProfileRepository.completeSetup`: profile with
   unit-appropriate default plates/dumbbells — LB users get native lb plates stored as kg —,
@@ -1049,7 +1051,10 @@ routine); `mappers.ts` owns row ↔ DTO mapping (all dates ISO strings).
 - **GymBootstrapService** — the one offline read model: profile, active routine, `nextWorkout`
   (engine `buildNextWorkout` for the pointer's day), library (delta + `libraryCursor`),
   progressions with prescriptions, last 12 weeks of completed sessions (engine
-  `toSessionSummary`, newest first), weeks + streak (engine `summarizeWeeks`), offers (deload via
+  `toSessionSummary`, newest first), `olderBests` (per-exercise max weight / e1RM / Pareto
+  frontier of everything before that window, engine `summarizeBests` — live PR badges and the
+  summary's PR count seed from it, so a best older than 12 weeks no longer yields false PRs,
+  F-GYM-6-1; additive), weeks + streak (engine `summarizeWeeks`), offers (deload via
   `shouldOfferDeload`, stall on `STALL_SUGGEST_SWAP`, comeback after > 8 days, monthly recap on
   days 1–7; dismissals by key), latest bodyweight. `today` is the device-local date from the
   client (server UTC date fallback).

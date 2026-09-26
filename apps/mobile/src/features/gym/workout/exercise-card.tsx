@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import {
   RIR_VALUES,
   type EquipmentProfile,
+  type ExerciseBest,
   type ExerciseDto,
   type Rir,
   type SessionExerciseDoc,
@@ -43,6 +44,8 @@ export interface WorkoutContext {
   lookup: (exerciseId: string) => ExerciseDto;
   /** Completed sessions before this one (last-time column, PRs, history). */
   prior: SessionSummaryDto[];
+  /** Bootstrap `olderBests` — PRs must beat these too (audit F-GYM-6-1). */
+  olderBests?: Record<string, ExerciseBest> | undefined;
   handlers: SetRowHandlers;
   onSheet: (request: WorkoutSheetRequest) => void;
   onToggle: (seId: string) => void;
@@ -97,7 +100,10 @@ function ExerciseCardImpl({
     [se.exerciseId, ctx.prior],
   );
   const lastNote = useMemo(() => lastNoteFor(se.exerciseId, ctx.prior), [se.exerciseId, ctx.prior]);
-  const pr = useMemo(() => livePr(se, ctx.prior), [se, ctx.prior]);
+  const pr = useMemo(
+    () => livePr(se, ctx.prior, ctx.olderBests?.[se.exerciseId]),
+    [se, ctx.prior, ctx.olderBests],
+  );
   const sentence = useMemo(() => explain(se.prescription, ctx.unit), [se.prescription, ctx.unit]);
   const weightMode = weightModeOf(meta, ctx.profile);
   const working = workingSets(se);

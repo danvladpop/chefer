@@ -153,6 +153,9 @@ describe('GymBootstrapService.get', () => {
     // Last 12 weeks of completed sessions, newest first.
     expect(sessionRepo.findCompleted).toHaveBeenCalledWith(USER, { fromLocalDate: '2026-07-02' });
     expect(b.recentSessions.map((s) => s.id)).toEqual([newer.id, older.id]);
+    // Sessions before the window are condensed to per-exercise bests (F-GYM-6-1).
+    expect(sessionRepo.findCompleted).toHaveBeenCalledWith(USER, { toLocalDate: '2026-07-01' });
+    expect(b.olderBests).toEqual(expect.any(Object));
     // Every week since setup is shipped (the offline fold re-derives the streak from them).
     expect(b.weeks).toHaveLength(14);
     expect(b.streak.current).toBe(4);
