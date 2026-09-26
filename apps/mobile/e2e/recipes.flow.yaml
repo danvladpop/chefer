@@ -1,4 +1,4 @@
-# Recipes list + detail E2E — M2-3. Signs in as the seeded alice account
+# Cookbook (was Recipes) list + detail E2E — M2-3, P2-8. Signs in as the seeded alice account
 # (data-rich catalog); costs 1 login of the 10/15min per-IP budget.
 appId: dev.chefer.app.dev
 ---
@@ -49,7 +49,7 @@ appId: dev.chefer.app.dev
       id: 'home-title'
     timeout: 15000
 
-- tapOn: '.*Recipes.*'
+- tapOn: '.*Cookbook.*'
 - extendedWaitUntil:
     visible:
       id: 'recipes-title'

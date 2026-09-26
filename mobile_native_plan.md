@@ -328,6 +328,9 @@ improvising installs.
 - expo-router groups per §2 layout. Bottom tabs mirroring the web tab bar:
   Dashboard, Meal Plan, Tracker, Recipes, More (More hosts pantry/shopping-list/
   preferences/profile — confirm against `apps/web/src/features/nav`).
+  _2026-09-26 (audit P2-2 / P2-8): now Today · Plan · Shop · Cookbook · More —
+  Today merges Home + Tracker, Shop holds the pantry, Cookbook adds Discover,
+  My weeks (More) holds saved + past weeks._
 - NativeWind theme tokens ported from `apps/web/tailwind.config` (colors, radii, fonts).
   Dark mode via `useColorScheme`.
 - `packages/ui-mobile` bootstrapped with the first primitives: `Button`, `Card`, `Text`,

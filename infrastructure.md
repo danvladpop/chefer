@@ -342,8 +342,13 @@ Being built
 out per [`mobile_native_plan.md`](./mobile_native_plan.md); currently: auth
 (login/register/logout via Bearer session, forgot/reset password), NativeWind theme (web's brand
 tokens), a **Food / Gym mode switch** (gym_plan.md D3) between two tab
-shells — Food: Home/Plan/Recipes/Shop/More (mirrors
-`apps/web/src/features/nav/nav-items.ts`); Gym: Today/Routine/Exercises/Stats —
+shells — Food: Today/Plan/Shop/Cookbook/More (mirrors
+`apps/web/src/features/nav/nav-items.ts`; P2-2 / P2-8: Today = Home + Tracker
+with "I ate this" and "See full day" → `tracker`, Shop has To buy / In my
+kitchen segments with the inline "Still have these?" banner, Cookbook has
+Discover, More lists AI Chef, Progress, My weeks (saved + past weeks),
+Household, Profile, Preferences; the `tracker`, `pantry` and `history`
+screens still open by route); Gym: Today/Routine/Exercises/Stats —
 and the three-layer test harness (Jest+RNTL unit, Vitest contract vs the live
 API, Maestro E2E in `e2e/`).
 

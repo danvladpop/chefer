@@ -10,17 +10,26 @@ import { CURRENT_BUILD } from '../../src/lib/current-build';
 import { trpc } from '../../src/lib/trpc';
 
 // Secondary nav hub — the mobile counterpart of web's MobileNavDrawer
-// (SECONDARY_NAV_ITEMS in apps/web/src/features/nav/nav-items.ts). Rows are
-// added as their screens land in Wave 2.
-const ITEMS: { href: Href; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { href: '/chat', label: 'AI Chef', icon: 'chatbubble-ellipses-outline' },
-  { href: '/tracker', label: 'Tracker', icon: 'pulse-outline' },
-  { href: '/progress', label: 'Progress', icon: 'stats-chart-outline' },
-  { href: '/pantry', label: 'Pantry', icon: 'file-tray-stacked-outline' },
-  { href: '/history', label: 'History', icon: 'time-outline' },
-  { href: '/household', label: 'Household', icon: 'people-outline' },
-  { href: '/profile', label: 'Profile', icon: 'person-outline' },
-  { href: '/preferences', label: 'Preferences', icon: 'settings-outline' },
+// (SECONDARY_NAV_ITEMS in apps/web/src/features/nav/nav-items.ts). P2-2 /
+// P2-8: Tracker moved into Today ("See full day"), Pantry into Shop ("In my
+// kitchen"), History into My weeks. Their screens still open by route.
+const ITEMS: {
+  href: Href;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  testID: string;
+}[] = [
+  { href: '/chat', label: 'AI Chef', icon: 'chatbubble-ellipses-outline', testID: 'more-ai chef' },
+  { href: '/progress', label: 'Progress', icon: 'stats-chart-outline', testID: 'more-progress' },
+  { href: '/my-weeks', label: 'My weeks', icon: 'repeat-outline', testID: 'more-my-weeks' },
+  { href: '/household', label: 'Household', icon: 'people-outline', testID: 'more-household' },
+  { href: '/profile', label: 'Profile', icon: 'person-outline', testID: 'more-profile' },
+  {
+    href: '/preferences',
+    label: 'Preferences',
+    icon: 'settings-outline',
+    testID: 'more-preferences',
+  },
 ];
 
 // Beta feedback — mobile counterpart of web's FeedbackDialog (M2-10).
@@ -88,7 +97,7 @@ export default function MoreScreen() {
           {ITEMS.map((item, i) => (
             <Pressable
               key={item.label}
-              testID={`more-${item.label.toLowerCase()}`}
+              testID={item.testID}
               accessibilityRole="button"
               onPress={() => router.push(item.href)}
               className={

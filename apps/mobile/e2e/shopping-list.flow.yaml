@@ -19,3 +19,17 @@ appId: dev.chefer.app.dev
     commands:
       - assertVisible:
           id: 'add-item-input'
+
+# Shop = To buy / In my kitchen (P2-8): the pantry moved here from More
+- scrollUntilVisible:
+    element:
+      id: 'shop-segment-kitchen'
+    direction: UP
+- tapOn:
+    id: 'shop-segment-kitchen'
+- extendedWaitUntil:
+    visible:
+      id: 'shopping-title'
+    timeout: 15000
+- tapOn:
+    id: 'shop-segment-list'

@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Link } from 'expo-router';
-import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { Link, useLocalSearchParams } from 'expo-router';
+import { Button, Card, ErrorState, Screen, SegmentedControl, Text } from '@chefer/ui-mobile';
 import {
   cn,
   formatMoney,
@@ -11,6 +11,8 @@ import {
   shoppingWindowLabel,
 } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { PantryCheckBanner } from '../../src/features/pantry/pantry-check-banner';
+import { PantryPanel } from '../../src/features/pantry/pantry-panel';
 import { parseCustomItemInput } from '../../src/features/shopping-list/parse-custom-item';
 import { useCurrency } from '../../src/hooks/use-currency';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
@@ -18,8 +20,16 @@ import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { trpc } from '../../src/lib/trpc';
 
 // Shop tab — port of apps/web (dashboard)/shopping-list/page.tsx (M2-5).
-// Deviations, deliberate: no print / send-to-mobile (this IS the phone), and
-// the pantry confirm sheets + ghost banner arrive with M2-6 (pantry).
+// P2-8: "To buy" / "In my kitchen" segments (the pantry moved here from More)
+// and the inline weekly "Still have these?" banner (F-PM-13). Deviations,
+// deliberate: no print / send-to-mobile (this IS the phone), and no free
+// pantry ghost banner yet.
+
+type ShopView = 'list' | 'kitchen';
+const SHOP_SEGMENTS = [
+  { value: 'list' as const, label: 'To buy', testID: 'shop-segment-list' },
+  { value: 'kitchen' as const, label: 'In my kitchen', testID: 'shop-segment-kitchen' },
+];
 
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=120&h=120&fit=crop&q=80';
@@ -45,6 +55,9 @@ function getMondayOfWeek(offset: number): Date {
 }
 
 export default function ShoppingListScreen() {
+  // Deep links (/shopping-list?view=kitchen) open the kitchen segment.
+  const params = useLocalSearchParams<{ view?: string }>();
+  const [view, setView] = useState<ShopView>(params.view === 'kitchen' ? 'kitchen' : 'list');
   const [weekOffset, setWeekOffset] = useState(0);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [newItemText, setNewItemText] = useState('');
@@ -148,6 +161,36 @@ export default function ShoppingListScreen() {
     addItemMutation.mutate({ planId: weekList.planId, items: [parsed] });
   };
 
+  const segments = (
+    <SegmentedControl
+      options={SHOP_SEGMENTS}
+      value={view}
+      onChange={setView}
+      accessibilityLabel="Shop sections"
+      testID="shop-segments"
+    />
+  );
+
+  if (view === 'kitchen') {
+    return (
+      <Screen className="px-0">
+        <ScrollView contentContainerClassName="gap-4 px-4 py-4">
+          <ModeSwitch />
+          <View>
+            <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+              Your Kitchen
+            </Text>
+            <Text testID="shopping-title" variant="title">
+              Shop
+            </Text>
+          </View>
+          {segments}
+          <PantryPanel />
+        </ScrollView>
+      </Screen>
+    );
+  }
+
   if (isLoading) {
     return (
       <Screen>
@@ -177,6 +220,7 @@ export default function ShoppingListScreen() {
     <Screen className="px-0">
       <ScrollView contentContainerClassName="gap-4 px-4 py-4">
         <ModeSwitch />
+        {segments}
         {/* Header + week navigator */}
         <View className="flex-row items-center justify-between gap-2">
           <View className="min-w-0 flex-1">
@@ -184,7 +228,7 @@ export default function ShoppingListScreen() {
               {weekOffset === 0 ? 'This Week' : weekOffset === 1 ? 'Next Week' : 'Past Week'}
             </Text>
             <Text testID="shopping-title" variant="title">
-              Shopping List
+              Shop
             </Text>
             <Text variant="muted" className="text-xs">
               Week of {weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}
@@ -248,6 +292,9 @@ export default function ShoppingListScreen() {
             )}
           </View>
         )}
+
+        {/* Weekly kitchen check — inline, never over the list (F-PM-13) */}
+        <PantryCheckBanner />
 
         {!weekList?.hasPlan ? (
           /* Empty state */

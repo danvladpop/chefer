@@ -1,5 +1,7 @@
-# More-hub screens E2E — M2-4 tracker, M2-6 pantry, M2-7 preferences,
-# M2-8 profile. Precondition: signed-in session (any account).
+# More-hub screens E2E — M2-7 preferences, M2-8 profile, My weeks (P2-8).
+# The tracker (Today → "See full day") and the pantry (Shop → In my kitchen)
+# left More in P2-2 / P2-8; dashboard.flow and shopping-list.flow cover them.
+# Precondition: signed-in session (any account).
 appId: dev.chefer.app.dev
 ---
 - runFlow: common/connect.yaml
@@ -8,25 +10,6 @@ appId: dev.chefer.app.dev
       id: 'home-title'
     timeout: 30000
 - tapOn: '.*More.*'
-
-- tapOn:
-    id: 'more-tracker'
-- extendedWaitUntil:
-    visible:
-      id: 'tracker-title'
-    timeout: 15000
-- assertVisible:
-    id: 'tracker-totals'
-- tapOn:
-    id: 'tracker-close'
-
-- tapOn:
-    id: 'more-pantry'
-- extendedWaitUntil:
-    visible:
-      id: 'pantry-title'
-    timeout: 15000
-- tapOn: 'Back'
 
 - tapOn:
     id: 'more-profile'
@@ -48,14 +31,19 @@ appId: dev.chefer.app.dev
     id: 'preferences-safety'
 - tapOn: 'Back'
 
-# History (M2-10)
+# My weeks (P2-8: saved weeks + past weeks, History folded in)
 - tapOn:
-    id: 'more-history'
+    id: 'more-my-weeks'
 - extendedWaitUntil:
     visible:
-      id: 'history-title'
+      id: 'my-weeks-title'
     timeout: 15000
-- tapOn: 'Back'
+- scrollUntilVisible:
+    element:
+      id: 'past-weeks'
+    direction: DOWN
+- tapOn:
+    id: 'my-weeks-back'
 
 # Feedback card renders on the More hub
 - assertVisible:

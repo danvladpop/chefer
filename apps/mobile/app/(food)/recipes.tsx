@@ -1,29 +1,63 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Pressable, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
-import { Button, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Chip, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
-// Recipes tab — port of apps/web (dashboard)/recipes/page.tsx (M2-3).
-// Deviations, deliberate: Import (F5) and Create/Edit recipe forms are not
-// ported yet — tracked in the plan as part of M2-10's sweep.
+// Cookbook tab (was Recipes) — port of apps/web (dashboard)/recipes/page.tsx
+// (M2-3, P2-8). Discover browses the curated collection, safety-filtered for
+// the user and their household (recipe.discover), with meal-type and time
+// filters — the old tab only listed past-plan recipes (F-REC-1-4).
 
-type Tab = 'all' | 'saved' | 'my';
+type Tab = 'all' | 'saved' | 'my' | 'discover';
 
 const TABS = [
-  { key: 'all', label: 'All Recipes' },
+  { key: 'all', label: 'All' },
   { key: 'saved', label: '♥ Saved' },
-  { key: 'my', label: '✎ My Recipes' },
+  { key: 'my', label: '✎ Mine' },
+  { key: 'discover', label: 'Discover' },
 ] as const;
+
+type MealFilter = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+const MEAL_FILTERS: { key: MealFilter | null; label: string }[] = [
+  { key: null, label: 'Any meal' },
+  { key: 'breakfast', label: 'Breakfast' },
+  { key: 'lunch', label: 'Lunch' },
+  { key: 'dinner', label: 'Dinner' },
+  { key: 'snack', label: 'Snack' },
+];
+const QUICK_MINS = 30;
+
+/** The fields a card needs — shared by recipe.list and recipe.discover rows. */
+interface CardRecipe {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  cuisineType: string;
+  prepTimeMins: number;
+  cookTimeMins: number;
+  nutritionInfo: unknown;
+  isFavourite: boolean;
+}
 
 export default function RecipesScreen() {
   const [tab, setTab] = useState<Tab>('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [mealFilter, setMealFilter] = useState<MealFilter | null>(null);
+  const [quickOnly, setQuickOnly] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearch = (value: string) => {
@@ -40,7 +74,18 @@ export default function RecipesScreen() {
     myRecipesOnly: tab === 'my',
     limit: 30,
   };
-  const { data: recipes, isLoading, isError, refetch } = trpc.recipe.list.useQuery(listInput);
+  const list = trpc.recipe.list.useQuery(listInput, { enabled: tab !== 'discover' });
+  const discover = trpc.recipe.discover.useQuery(
+    {
+      search: debouncedSearch || undefined,
+      mealType: mealFilter ?? undefined,
+      maxTotalMins: quickOnly ? QUICK_MINS : undefined,
+    },
+    { enabled: tab === 'discover', staleTime: 60_000 },
+  );
+  const active = tab === 'discover' ? discover : list;
+  const recipes: CardRecipe[] | undefined = active.data;
+  const { isLoading, isError, refetch } = active;
 
   const utils = trpc.useUtils();
   const toggleFav = trpc.recipe.toggleFavourite.useMutation({
@@ -58,7 +103,10 @@ export default function RecipesScreen() {
         utils.recipe.list.setData(listInput, context.previous);
       }
     },
-    onSettled: () => void utils.recipe.list.invalidate(),
+    onSettled: () => {
+      void utils.recipe.list.invalidate();
+      void utils.recipe.discover.invalidate();
+    },
   });
 
   return (
@@ -71,7 +119,7 @@ export default function RecipesScreen() {
               Your Collection
             </Text>
             <Text testID="recipes-title" variant="title">
-              Recipes
+              Cookbook
             </Text>
           </View>
           <View className="flex-row gap-2">
@@ -106,7 +154,7 @@ export default function RecipesScreen() {
               accessibilityRole="button"
               onPress={() => setTab(key)}
               className={cn(
-                'min-h-11 justify-center px-4',
+                'min-h-11 justify-center px-3',
                 tab === key && 'border-b-2 border-primary',
               )}
             >
@@ -127,10 +175,36 @@ export default function RecipesScreen() {
           testID="recipes-search"
           value={search}
           onChangeText={handleSearch}
-          placeholder="Search recipes…"
+          placeholder={tab === 'discover' ? 'Search dishes or ingredients…' : 'Search recipes…'}
           placeholderTextColor="#9ca3af"
           className="h-11 rounded-xl border border-input bg-background px-4 text-base text-foreground"
         />
+
+        {/* Discover filters */}
+        {tab === 'discover' && (
+          <ScrollView
+            testID="discover-filters"
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerClassName="gap-2"
+          >
+            {MEAL_FILTERS.map(({ key, label }) => (
+              <Chip
+                key={label}
+                label={label}
+                selected={mealFilter === key}
+                onPress={() => setMealFilter(key)}
+                testID={`discover-meal-${key ?? 'any'}`}
+              />
+            ))}
+            <Chip
+              label={`≤ ${QUICK_MINS} min`}
+              selected={quickOnly}
+              onPress={() => setQuickOnly((q) => !q)}
+              testID="discover-quick"
+            />
+          </ScrollView>
+        )}
       </View>
 
       {isLoading ? (
@@ -144,7 +218,7 @@ export default function RecipesScreen() {
           onRetry={() => void refetch()}
         />
       ) : !recipes || recipes.length === 0 ? (
-        <EmptyState tab={tab} />
+        <EmptyState tab={tab} onDiscover={() => setTab('discover')} />
       ) : (
         <FlatList
           data={recipes}
@@ -245,13 +319,21 @@ export default function RecipesScreen() {
   );
 }
 
-function EmptyState({ tab }: { tab: Tab }) {
+function EmptyState({ tab, onDiscover }: { tab: Tab; onDiscover: () => void }) {
   return (
     <View
       testID="recipes-empty"
       className="mx-4 items-center rounded-2xl border border-dashed border-border bg-gray-50 py-16"
     >
-      {tab === 'saved' ? (
+      {tab === 'discover' ? (
+        <>
+          <Ionicons name="compass-outline" size={40} color="#d1d5db" />
+          <Text className="mt-3 font-medium text-gray-700">No dishes match</Text>
+          <Text variant="muted" className="mt-1 px-6 text-center text-sm">
+            Try another word, or clear the filters.
+          </Text>
+        </>
+      ) : tab === 'saved' ? (
         <>
           <Ionicons name="heart-outline" size={40} color="#d1d5db" />
           <Text className="mt-3 font-medium text-gray-700">No saved recipes yet</Text>
@@ -272,11 +354,16 @@ function EmptyState({ tab }: { tab: Tab }) {
           <Text className="text-4xl">📖</Text>
           <Text className="mt-3 font-medium text-gray-700">No recipes yet</Text>
           <Text variant="muted" className="mb-4 mt-1 px-6 text-center text-sm">
-            Generate a meal plan and your recipes will appear here.
+            Recipes from your meal plans appear here. Browse the collection meanwhile.
           </Text>
-          <Link href="/meal-plan" asChild>
-            <Button>Go to Meal Planner</Button>
-          </Link>
+          <View className="gap-2">
+            <Button testID="recipes-browse-discover" onPress={onDiscover}>
+              Browse Discover
+            </Button>
+            <Link href="/meal-plan" asChild>
+              <Button variant="outline">Go to Meal Planner</Button>
+            </Link>
+          </View>
         </>
       )}
     </View>
