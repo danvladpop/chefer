@@ -6,7 +6,7 @@ import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { PastWeeksSection } from '../src/features/history/past-weeks-section';
 import { trpc } from '../src/lib/trpc';
 
-// My Weeks — the 4-week rotation plus past weeks (P2-8: History folded in).
+// My Weeks — up to 4 saved weeks plus past weeks (P2-8: History folded in).
 // Save refined weeks as named templates, follow one (it applies now and
 // future weeks carry it forward), rename, delete; below, past weeks to look
 // back at or restore. Every tier: templates never touch AI. Web parity: the
@@ -98,7 +98,7 @@ export default function MyWeeksScreen() {
         </Pressable>
         <View>
           <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-            Your Rotation
+            Saved & past weeks
           </Text>
           <Text testID="my-weeks-title" variant="title">
             My Weeks
@@ -108,8 +108,7 @@ export default function MyWeeksScreen() {
 
       <ScrollView contentContainerClassName="gap-3 px-4 py-2 pb-8">
         <Text variant="muted" className="text-sm">
-          Refine a great week, save it, and rotate through up to {MAX_TEMPLATES}. The week you
-          follow repeats automatically until you switch.
+          Save a week you like and reuse it. The week you follow repeats each week until you switch.
         </Text>
 
         {/* Save the current week */}

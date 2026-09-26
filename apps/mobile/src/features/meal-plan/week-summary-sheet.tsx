@@ -82,7 +82,7 @@ export function WeekSummarySheet({
               Regenerate Week
             </Button>
             <Button testID="plan-my-weeks" variant="ghost" onPress={onMyWeeks}>
-              My Weeks — save & rotate plans
+              My Weeks — save & reuse weeks
             </Button>
           </View>
         )
