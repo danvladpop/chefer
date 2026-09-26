@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { View, type TextInput } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Card, Input, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { AuthField, AuthScreen, backToLogin } from '../../src/features/auth/auth-screen';
@@ -53,9 +54,9 @@ function ForgotPasswordForm() {
 
       {sent ? (
         <Card className="gap-2" testID="forgot-password-sent">
-          <Text className="text-center text-3xl" accessibilityElementsHidden>
-            📬
-          </Text>
+          <View className="items-center" accessibilityElementsHidden>
+            <Ionicons name="mail-unread-outline" size={32} color="#944a00" />
+          </View>
           <Text className="text-center">
             If an account exists for that address, a reset link is on its way. It expires in one
             hour — check your spam folder too.

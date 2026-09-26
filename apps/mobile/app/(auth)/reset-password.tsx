@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
+import { View } from 'react-native';
 import type { TextInput } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button, Card, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
@@ -69,9 +71,9 @@ function ResetPasswordForm({ token }: { token: string }) {
   if (done) {
     return (
       <Card className="gap-3" testID="reset-password-done">
-        <Text className="text-center text-3xl" accessibilityElementsHidden>
-          ✅
-        </Text>
+        <View className="items-center" accessibilityElementsHidden>
+          <Ionicons name="checkmark-circle-outline" size={32} color="#944a00" />
+        </View>
         <Text className="text-center">
           Your password has been changed and all devices signed out. Sign in with your new password.
         </Text>
