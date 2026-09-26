@@ -726,6 +726,14 @@ the adjusted target must shape next week's budget)
 - Dashboard `WeightCard`: free-for-everyone weight quick-entry + 30-day
   sparkline over the existing `tracker.logWeight`/`tracker.weightHistory`
   procedures (`weight_logged` on save) + "log N more days" coaching hint.
+- Weigh-ins are validated everywhere by the shared `parseBodyWeightKg`
+  (`@chefer/utils`, 20–400 kg, "72,5" accepted, exponents rejected) with an
+  inline error, and the API enforces the same bounds plus "not in the
+  future". Entries can be corrected or deleted (`tracker.updateWeight` /
+  `tracker.deleteWeight`): web lists them on /progress (linked from the
+  card), mobile expands them inside the dashboard card. Reads ignore
+  future-dated rows, and the coach's EWMA trend drops jumps over 3 kg/day,
+  so a single typo can't swing the weekly adjustment (audit F-DASH-3-1).
 - Chat tool `getMyReview`: the model can quote the latest review; free users
   get the teaser line + an upgrade suggestion.
 

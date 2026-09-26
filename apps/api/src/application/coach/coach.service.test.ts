@@ -106,6 +106,8 @@ function makeProfileRepo(overrides: Partial<IChefProfileRepository> = {}): IChef
 function makeWeightRepo(overrides: Partial<IWeightEntryRepository> = {}): IWeightEntryRepository {
   return {
     create: vi.fn(),
+    updateForUser: vi.fn(),
+    deleteForUser: vi.fn(),
     findLastN: vi.fn().mockResolvedValue(plateauWeights()),
     findLatest: vi.fn().mockResolvedValue(null),
     findInRange: vi.fn().mockResolvedValue([]),

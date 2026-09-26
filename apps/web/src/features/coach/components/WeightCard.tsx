@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { capture } from '@/lib/analytics';
+import Link from 'next/link';
 import { trpc } from '@/lib/trpc';
 import { Scale } from 'lucide-react';
 import { Line, LineChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { WeightLogForm } from './WeightLogForm';
 
 // ─── Dashboard weight quick-entry + 30-day sparkline (F1, coach) ──────────────
 // Weight logging is FREE — it's data honesty, and it feeds the free-tier
@@ -13,24 +13,11 @@ import { Line, LineChart, ResponsiveContainer, Tooltip } from 'recharts';
 // weight store). Chart conventions follow /progress (recharts, emerald line).
 
 export function WeightCard() {
-  const [weightInput, setWeightInput] = useState('');
-  const [weightSaved, setWeightSaved] = useState(false);
-
-  const { data: history, refetch } = trpc.tracker.weightHistory.useQuery(
+  const { data: history } = trpc.tracker.weightHistory.useQuery(
     { days: 30 },
     { staleTime: 60_000 },
   );
   const { data: review } = trpc.coach.currentReview.useQuery(undefined, { staleTime: 60_000 });
-
-  const logWeightMutation = trpc.tracker.logWeight.useMutation({
-    onSuccess: () => {
-      capture('weight_logged');
-      setWeightSaved(true);
-      setWeightInput('');
-      setTimeout(() => setWeightSaved(false), 3000);
-      void refetch();
-    },
-  });
 
   const entries = history ?? [];
   const chartData = entries.map((w) => ({ weight: w.weightKg }));
@@ -86,31 +73,19 @@ export function WeightCard() {
       )}
 
       {/* Quick entry */}
-      <div className="mt-3 flex gap-2">
-        <input
-          type="number"
-          step="0.1"
-          min="30"
-          max="300"
-          value={weightInput}
-          onChange={(e) => setWeightInput(e.target.value)}
+      <div className="mt-3">
+        <WeightLogForm
           placeholder={todayEntry ? `Logged today: ${todayEntry.weightKg} kg` : '72.5'}
-          inputMode="decimal"
-          aria-label="Today's weight in kilograms"
-          className="min-h-11 min-w-0 flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00]"
         />
-        <button
-          type="button"
-          onClick={() => {
-            const kg = parseFloat(weightInput);
-            if (!isNaN(kg) && kg > 0) logWeightMutation.mutate({ weightKg: kg });
-          }}
-          disabled={!weightInput || logWeightMutation.isPending || weightSaved}
-          className="min-h-11 shrink-0 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition hover:bg-[#7a3d00] disabled:opacity-50"
-        >
-          {weightSaved ? '✓ Saved' : 'Log'}
-        </button>
       </div>
+      {entries.length > 0 && (
+        <Link
+          href="/progress#weight-entries"
+          className="mt-1 inline-flex min-h-11 items-center text-xs font-medium text-[#944a00] hover:underline"
+        >
+          Edit or delete entries
+        </Link>
+      )}
 
       {/* Coaching hint — the engagement loop toward the Sunday review. */}
       {review?.status === 'none' && review.daysNeeded > 0 && (

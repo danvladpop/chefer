@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { Button, Input, Text } from '@chefer/ui-mobile';
+import { parseBodyWeightKg } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 
 // "Missing bodyweight" empty state (gym_plan.md §6.2): a one-tap path to log
@@ -8,6 +9,7 @@ import { trpc } from '../../../lib/trpc';
 // strength-trend overlay and the monthly recap's bodyweight row.
 export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: string }) {
   const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
   const logWeight = trpc.tracker.logWeight.useMutation({
     onSuccess: () => {
@@ -15,14 +17,20 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
       void utils.gym.bootstrap.invalidate();
       void utils.gym.stats.bodyweight.invalidate();
       void utils.gym.stats.monthlyRecap.invalidate();
+      void utils.tracker.weightHistory.invalidate();
     },
+    onError: (err) => setError(err.message),
   });
 
   const submit = () => {
-    const kg = parseFloat(value.replace(',', '.'));
-    if (Number.isFinite(kg) && kg > 20 && kg < 500 && !logWeight.isPending) {
-      logWeight.mutate({ weightKg: Math.round(kg * 10) / 10 });
+    if (logWeight.isPending) return;
+    const parsed = parseBodyWeightKg(value);
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return;
     }
+    setError(null);
+    logWeight.mutate({ weightKg: parsed.kg });
   };
 
   return (
@@ -34,7 +42,10 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
         <Input
           testID={`${testID}-input`}
           value={value}
-          onChangeText={setValue}
+          onChangeText={(text) => {
+            setValue(text);
+            setError(null);
+          }}
           onSubmitEditing={submit}
           keyboardType="decimal-pad"
           placeholder="Weight (kg)"
@@ -48,6 +59,11 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
           Log your weight
         </Button>
       </View>
+      {error && (
+        <Text testID={`${testID}-error`} className="text-xs text-red-600">
+          {error}
+        </Text>
+      )}
     </View>
   );
 }

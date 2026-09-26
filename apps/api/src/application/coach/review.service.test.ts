@@ -54,6 +54,31 @@ describe('computeEwmaTrendKgPerWeek', () => {
     ).toBeNull();
   });
 
+  it('ignores a typo weigh-in instead of letting it swing the trend (F-DASH-3-1)', () => {
+    const clean = points([
+      [0, 80],
+      [3, 80],
+      [6, 80],
+      [9, 80],
+      [12, 80],
+    ]);
+    const withTypo = [...clean, ...points([[7, 1000]]), ...points([[8, 8]])];
+    expect(computeEwmaTrendKgPerWeek(withTypo)).toBe(0);
+  });
+
+  it('keeps real multi-day changes (3 kg over 4 days is plausible)', () => {
+    const trend = computeEwmaTrendKgPerWeek(
+      points([
+        [0, 80],
+        [4, 83],
+        [8, 83],
+        [10, 83],
+        [12, 83],
+      ]),
+    );
+    expect(trend).toBeGreaterThan(0);
+  });
+
   it('reads a flat series as zero trend', () => {
     const trend = computeEwmaTrendKgPerWeek(
       points([
