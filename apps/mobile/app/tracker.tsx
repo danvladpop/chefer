@@ -221,6 +221,7 @@ export default function TrackerScreen() {
         <Pressable
           testID="tracker-prev-day"
           accessibilityRole="button"
+          accessibilityLabel="Previous day"
           onPress={() => changeDate(-1)}
           className="h-11 w-11 items-center justify-center rounded-lg border border-border"
         >
@@ -238,6 +239,7 @@ export default function TrackerScreen() {
         <Pressable
           testID="tracker-next-day"
           accessibilityRole="button"
+          accessibilityLabel="Next day"
           disabled={isToday}
           onPress={() => changeDate(1)}
           className={cn(

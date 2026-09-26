@@ -21,6 +21,21 @@ export interface TextProps extends RNTextProps, VariantProps<typeof textVariants
   className?: string;
 }
 
-export function Text({ className, variant, ...props }: TextProps) {
-  return <RNText className={cn(textVariants({ variant }), className)} {...props} />;
+/**
+ * Dynamic Type still scales text, but capped at 1.8× by default: at the AX
+ * sizes (up to ~3.1×) labels collided and ran off-screen — "M TU W TH",
+ * "Calories0 / 2728" (audit F-M-X-5-1). Dense controls (chips, segmented
+ * controls) pass a tighter cap.
+ */
+export const DEFAULT_MAX_FONT_SCALE = 1.8;
+export const DENSE_MAX_FONT_SCALE = 1.3;
+
+export function Text({ className, variant, maxFontSizeMultiplier, ...props }: TextProps) {
+  return (
+    <RNText
+      className={cn(textVariants({ variant }), className)}
+      maxFontSizeMultiplier={maxFontSizeMultiplier ?? DEFAULT_MAX_FONT_SCALE}
+      {...props}
+    />
+  );
 }

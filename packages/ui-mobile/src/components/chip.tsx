@@ -3,6 +3,7 @@ import { cva } from 'class-variance-authority';
 import { cn } from '@chefer/utils';
 import { haptics } from '../motion/haptics';
 import { PressableScale } from '../motion/pressable-scale';
+import { DENSE_MAX_FONT_SCALE } from './text';
 
 const chipVariants = cva('min-h-11 flex-row items-center justify-center rounded-full border px-4', {
   variants: {
@@ -61,7 +62,9 @@ export function Chip({
       }
       className={cn(chipVariants({ selected }), disabled && 'opacity-50', className)}
     >
-      <Text className={chipTextVariants({ selected })}>{label}</Text>
+      <Text className={chipTextVariants({ selected })} maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}>
+        {label}
+      </Text>
     </PressableScale>
   );
 }

@@ -36,7 +36,12 @@ export {
   STEPPER_REPEAT_INTERVAL_MS,
   type StepperProps,
 } from './components/stepper';
-export { Text, type TextProps } from './components/text';
+export {
+  DEFAULT_MAX_FONT_SCALE,
+  DENSE_MAX_FONT_SCALE,
+  Text,
+  type TextProps,
+} from './components/text';
 export {
   useFieldChain,
   type FieldChainBinding,

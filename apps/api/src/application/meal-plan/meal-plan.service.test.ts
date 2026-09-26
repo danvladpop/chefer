@@ -992,8 +992,8 @@ describe('MealPlanService.restore', () => {
 
 describe('restrictionWarningLabel (allergen chip copy)', () => {
   it('turns diet restrictions into what the dish contains', () => {
-    expect(restrictionWarningLabel('Paleo')).toBe('non-paleo ingredients');
-    expect(restrictionWarningLabel('Vegetarian')).toBe('non-vegetarian ingredients');
+    expect(restrictionWarningLabel('Paleo')).toBe('non-paleo');
+    expect(restrictionWarningLabel('Vegetarian')).toBe('non-vegetarian');
     expect(restrictionWarningLabel('Gluten-free')).toBe('gluten');
     expect(restrictionWarningLabel('Dairy free')).toBe('dairy');
   });

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, DENSE_MAX_FONT_SCALE, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
@@ -160,9 +160,14 @@ export default function MealPlanScreen() {
           onPress={() => {
             if (plan) setSummaryOpen(true);
           }}
-          className="min-h-11 flex-row items-center gap-2"
+          className="min-h-11 min-w-0 flex-shrink flex-row items-center gap-2"
         >
-          <Text testID="plan-week-label" className="text-sm font-medium text-gray-700">
+          <Text
+            testID="plan-week-label"
+            numberOfLines={1}
+            maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+            className="min-w-0 flex-shrink text-sm font-medium text-gray-700"
+          >
             {weekLabel}
           </Text>
           <View
@@ -172,6 +177,7 @@ export default function MealPlanScreen() {
             )}
           >
             <Text
+              maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
               className={cn(
                 'text-[12px] font-semibold uppercase',
                 isPast ? 'text-gray-500' : weekOffset === 0 ? 'text-primary' : 'text-blue-600',
@@ -282,6 +288,9 @@ export default function MealPlanScreen() {
                   )}
                 >
                   <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
                     className={cn(
                       'text-[12px] font-semibold uppercase',
                       isSelected ? 'text-primary-foreground' : 'text-gray-600',
