@@ -105,6 +105,32 @@ describe('RebalanceBanner', () => {
     expect(mockInvalidate).toHaveBeenCalled();
   });
 
+  it('undo restores each snack of a two-snack day by its slot index', async () => {
+    recordRebalance(
+      result([
+        swap({ mealType: 'snack', slotIndex: 3, previousRecipeId: 'snack-1' }),
+        swap({ mealType: 'snack', slotIndex: 4, previousRecipeId: 'snack-2' }),
+      ]),
+    );
+    const user = userEvent.setup();
+    await render(<RebalanceBanner />);
+    await user.press(screen.getByTestId('rebalance-undo'));
+    expect(mockReplace).toHaveBeenCalledWith({
+      planId: 'plan-1',
+      dayOfWeek: 3,
+      mealType: 'snack',
+      slotIndex: 3,
+      recipeId: 'snack-1',
+    });
+    expect(mockReplace).toHaveBeenCalledWith({
+      planId: 'plan-1',
+      dayOfWeek: 3,
+      mealType: 'snack',
+      slotIndex: 4,
+      recipeId: 'snack-2',
+    });
+  });
+
   it('survives a restart (reads the persisted hand-off)', async () => {
     recordRebalance(result([swap()]));
     resetRebalanceStoreForTests(); // drop the in-memory copy, keep storage
