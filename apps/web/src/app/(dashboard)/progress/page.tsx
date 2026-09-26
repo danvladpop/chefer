@@ -18,6 +18,7 @@ import {
   YAxis,
 } from 'recharts';
 import { ErrorState } from '@chefer/ui';
+import { weightChangeTone } from '@chefer/utils';
 
 export default function ProgressPage() {
   // Tooltips stay on the default hover trigger. Tapping a chart already opens
@@ -45,6 +46,9 @@ export default function ProgressPage() {
     { days: 90 },
     { staleTime: 60_000 },
   );
+  const { data: preferences } = trpc.preferences.get.useQuery(undefined, {
+    staleTime: 300_000,
+  });
 
   const chartData = (monthly?.days ?? []).map((d) => ({
     date: format(parseISO(d.date), 'dd MMM'),
@@ -73,6 +77,9 @@ export default function ProgressPage() {
   const firstWeight = weightHistory?.[0]?.weightKg;
   const weightDelta =
     latestWeight != null && firstWeight != null ? latestWeight - firstWeight : null;
+  // Gain is good news for GAIN_MUSCLE — it used to be red for everyone (audit F-TRK-4-1).
+  const weightTone =
+    weightDelta != null ? weightChangeTone(weightDelta, preferences?.chefProfile?.goal) : 'neutral';
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
@@ -225,7 +232,13 @@ export default function ProgressPage() {
                   <div>
                     <span className="text-neutral-500">Change: </span>
                     <span
-                      className={`font-semibold ${weightDelta && weightDelta < 0 ? 'text-emerald-600' : 'text-red-500'}`}
+                      className={`font-semibold ${
+                        weightTone === 'positive'
+                          ? 'text-emerald-600'
+                          : weightTone === 'negative'
+                            ? 'text-red-500'
+                            : 'text-neutral-800'
+                      }`}
                     >
                       {weightDelta !== null && weightDelta > 0 ? '+' : ''}
                       {weightDelta?.toFixed(1)} kg

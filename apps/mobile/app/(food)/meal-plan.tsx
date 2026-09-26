@@ -1,17 +1,15 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Switch, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
-import { MealTypeBadge } from '../../src/features/dashboard/components/meal-type-badge';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
 import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sheet';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
-import { AllergenWarningChip } from '../../src/features/recipes/allergen-warning';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
-import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
 // Plan tab — port of apps/web (dashboard)/meal-plan/page.tsx (M2-2), which
@@ -341,65 +339,29 @@ export default function MealPlanScreen() {
               </Card>
             ) : (
               meals.map((meal) => (
-                <Pressable
+                <PlanMealCard
                   key={`${meal.type}-${meal.recipe.id}`}
                   testID={`plan-meal-${meal.type}`}
-                  accessibilityRole="button"
-                  onPress={() =>
-                    router.push({
-                      pathname: '/recipe/[id]',
-                      params: { id: meal.recipe.id, day: String(selectedDay), meal: meal.type },
-                    })
+                  day={selectedDay}
+                  meal={meal}
+                  trailing={
+                    // Replace this meal — opens the recipe picker sheet (all
+                    // tiers; the AI option inside it stays premium)
+                    !isPast && (
+                      <Pressable
+                        testID={`plan-meal-swap-${meal.type}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Replace ${meal.recipe.name}`}
+                        onPress={() =>
+                          setPickerTarget({ mealType: meal.type, mealName: meal.recipe.name })
+                        }
+                        className="w-11 items-center justify-center border-l border-border"
+                      >
+                        <Ionicons name="swap-horizontal-outline" size={18} color="#944a00" />
+                      </Pressable>
+                    )
                   }
-                  className="flex-row overflow-hidden rounded-2xl border border-border bg-card"
-                >
-                  <Image
-                    source={{ uri: getRecipeImageUrl(meal.recipe.imageUrl) }}
-                    className="h-28 w-24"
-                    resizeMode="cover"
-                  />
-                  <View className="min-w-0 flex-1 justify-between p-3">
-                    <View className="gap-1">
-                      <View className="flex-row items-center gap-2">
-                        <MealTypeBadge mealType={meal.type} />
-                        {meal.leftoverOf && (
-                          <View className="rounded-full bg-gray-100 px-2 py-0.5">
-                            <Text className="text-xs uppercase text-gray-500">
-                              Leftovers · {meal.leftoverOf}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text numberOfLines={2} className="text-sm font-semibold text-gray-900">
-                        {meal.recipe.name}
-                      </Text>
-                      <AllergenWarningChip warnings={meal.recipe.allergenWarnings} />
-                    </View>
-                    <View className="flex-row items-center gap-3">
-                      <Text className="text-xs text-gray-500">
-                        {meal.recipe.prepTimeMins + meal.recipe.cookTimeMins}m
-                      </Text>
-                      <Text className="text-xs text-gray-500">
-                        {meal.recipe.nutritionInfo.calories} kcal
-                      </Text>
-                    </View>
-                  </View>
-                  {/* Replace this meal — opens the recipe picker sheet (all
-                      tiers; the AI option inside it stays premium) */}
-                  {!isPast && (
-                    <Pressable
-                      testID={`plan-meal-swap-${meal.type}`}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Replace ${meal.recipe.name}`}
-                      onPress={() =>
-                        setPickerTarget({ mealType: meal.type, mealName: meal.recipe.name })
-                      }
-                      className="w-11 items-center justify-center border-l border-border"
-                    >
-                      <Ionicons name="swap-horizontal-outline" size={18} color="#944a00" />
-                    </Pressable>
-                  )}
-                </Pressable>
+                />
               ))
             )}
           </ScrollView>

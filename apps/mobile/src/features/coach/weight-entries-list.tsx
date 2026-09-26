@@ -6,8 +6,8 @@ import { parseBodyWeightKg } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
 // Correct or remove weigh-ins (audit F-DASH-3-1) — mobile counterpart of web
-// features/coach/WeightEntriesList. Web hosts it on /progress; mobile has no
-// progress screen yet, so it expands inside the dashboard weight card.
+// features/coach/WeightEntriesList. Hosted on /progress (as on web) and, for
+// quick fixes, expandable inside the dashboard weight card.
 
 type Entry = { id: string; weightKg: number; recordedAt: Date };
 

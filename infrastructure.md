@@ -376,7 +376,6 @@ API, Maestro E2E in `e2e/`).
 | `preferences`            | Free safety + goal/body (every tier, `saveProfileBasics`) + premium units/budget (M2-7, dogfood #6)                     | `/preferences`                       |
 | `profile`                | Account card, up/downgrade (PW-2), AI usage quotas (M2-8)                                                               | `/profile`                           |
 | `chat`                   | Streaming AI chef chat, quota upgrade gate (M2-9/M3-1)                                                                  | chat widget                          |
-| `history`                | Past plans list + restore (M2-10)                                                                                       | `/history`                           |
 | `onboarding`             | Post-register wizard: free 3-step (safety, optional goal/metrics) or premium 4-step → `preferences.setup` (dogfood #9)  | `/onboarding`                        |
 | `cook/[id]`              | Cook mode: steps, timers, keep-awake, log to tracker (P1-3)                                                             | `/recipes/[id]/cook`                 |
 | `import-recipe`          | F5 import: URL/text preview + premium save                                                                              | Import sheet                         |
@@ -395,7 +394,9 @@ API, Maestro E2E in `e2e/`).
 | `gym/exercise/[id]`      | Exercise detail (placeholder, G2-D)                                                                                     | — (G5)                               |
 | `gym/exercise-form`      | Custom exercise form (placeholder, G2-D)                                                                                | — (G5)                               |
 | `gym/settings`           | Units, weekly goal, equipment, reminder, pause, needs-attention (G2-B)                                                  | — (G5)                               |
-| ----------------------   | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `history/index`          | Past plans list; View week + Restore behind a ConfirmSheet, per-row pending (M2-10, P1-7)                               | `/history`                           |
+| `history/[planId]`       | Read-only week: day chips, meals → recipe, Restore with confirm (P1-7; `status` route param hides it for ACTIVE)        | `/history/[planId]`                  |
+| `progress`               | 28-day calories vs target + macros, 90-day weight chart, goal-aware change, log form, entries edit/delete (P1-7)        | `/progress`                          |
 
 **Food / Gym mode (gym_plan.md D3, §5.1).** `(food)` and `(gym)` are two
 `Tabs` groups registered side by side in the root `Stack` (groups add no URL

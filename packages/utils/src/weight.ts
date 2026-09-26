@@ -26,3 +26,27 @@ export function parseBodyWeightKg(input: string): WeightParseResult {
   }
   return { ok: true, kg };
 }
+
+// ─── Weight-change tone (audit F-TRK-4-1) ─────────────────────────────────────
+// Progress used to paint every gain red and every loss green — wrong for a
+// user whose goal is to gain muscle. The tone follows the profile goal.
+
+export type WeightChangeTone = 'positive' | 'negative' | 'neutral';
+
+/** Changes smaller than this read as "no change" (entries are 0.1 kg precise). */
+const WEIGHT_CHANGE_EPSILON_KG = 0.05;
+
+/**
+ * Whether a weight change is good news for this goal. Gaining is positive for
+ * GAIN_MUSCLE, losing is positive for LOSE_WEIGHT; any other goal (maintain,
+ * eat healthier, none set) has no direction, so the change stays neutral.
+ */
+export function weightChangeTone(
+  deltaKg: number,
+  goal: string | null | undefined,
+): WeightChangeTone {
+  if (!Number.isFinite(deltaKg) || Math.abs(deltaKg) < WEIGHT_CHANGE_EPSILON_KG) return 'neutral';
+  if (goal === 'GAIN_MUSCLE') return deltaKg > 0 ? 'positive' : 'negative';
+  if (goal === 'LOSE_WEIGHT') return deltaKg < 0 ? 'positive' : 'negative';
+  return 'neutral';
+}

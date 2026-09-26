@@ -30,6 +30,10 @@ export interface LineChartProps {
   secondary?: LineSeries;
   /** Optional x-axis labels at given x positions. */
   xLabels?: readonly { x: number; label: string }[];
+  /** Fixed x range (e.g. a whole month when only some days have data). */
+  xDomain?: { min: number; max: number };
+  /** Dashed horizontal guide, e.g. a daily calorie target. Always kept in view. */
+  reference?: { y: number; label?: string };
   width?: number;
   height?: number;
   color?: string;
@@ -56,6 +60,8 @@ export function LineChart({
   trend,
   secondary,
   xLabels,
+  reference,
+  xDomain,
   width: widthProp,
   height = 180,
   color = colors.primary,
@@ -72,9 +78,11 @@ export function LineChart({
   const yExtent = paddedExtent([
     ...data.map((p) => p.y),
     ...(trend ?? []).filter((v): v is number => v !== null),
+    ...(reference ? [reference.y] : []),
   ]);
   const secondaryExtent = paddedExtent(secondaryData.map((p) => p.y));
-  const xExtent = paddedExtent([...data.map((p) => p.x), ...secondaryData.map((p) => p.x)], 0);
+  const xExtent =
+    xDomain ?? paddedExtent([...data.map((p) => p.x), ...secondaryData.map((p) => p.x)], 0);
 
   if (data.length === 0 || !yExtent || !xExtent) {
     return (
@@ -162,6 +170,31 @@ export function LineChart({
               ) : null}
             </G>
           ))}
+
+          {reference ? (
+            <G>
+              <Line
+                x1={plotLeft}
+                x2={plotRight}
+                y1={y(reference.y)}
+                y2={y(reference.y)}
+                stroke={colors.mutedForeground}
+                strokeWidth={1}
+                strokeDasharray="4 4"
+              />
+              {reference.label ? (
+                <SvgText
+                  x={plotRight}
+                  y={y(reference.y) - 4}
+                  fontSize={10}
+                  fill={colors.mutedForeground}
+                  textAnchor="end"
+                >
+                  {reference.label}
+                </SvgText>
+              ) : null}
+            </G>
+          ) : null}
 
           {y2 && secondaryData.length > 1 ? (
             <Polyline

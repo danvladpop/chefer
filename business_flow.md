@@ -475,7 +475,10 @@ user setting:
 A 7-column grid needs ~900px, so on a phone it showed roughly a third of one
 column and reaching Sunday meant scrolling sideways through the whole week. The
 single-day view is a different information architecture, not a scaled-down grid.
-`/history/[planId]` renders the same component in read-only mode.
+`/history/[planId]` renders the same component in read-only mode. Mobile has
+the same read-only detail (`app/history/[planId].tsx`: day chips, meals open the
+recipe) and adds Restore there; on both mobile screens Restore asks first
+(`ConfirmSheet`) and only the row being restored shows a spinner.
 
 ### Meal swap
 
@@ -789,8 +792,15 @@ the adjusted target must shape next week's budget)
   (`@chefer/utils`, 20–400 kg, "72,5" accepted, exponents rejected) with an
   inline error, and the API enforces the same bounds plus "not in the
   future". Entries can be corrected or deleted (`tracker.updateWeight` /
-  `tracker.deleteWeight`): web lists them on /progress (linked from the
-  card), mobile expands them inside the dashboard card. Reads ignore
+  `tracker.deleteWeight`): both platforms list them on Progress (web
+  /progress, mobile `progress` — linked from the card's "See progress" and
+  from More); mobile can also expand them inside the dashboard card.
+- Progress (web + mobile): 28-day calories vs target and macro breakdown
+  (`tracker.monthlySummary`), 90-day weight chart (`tracker.weightHistory`)
+  with current weight and change. The change is coloured by goal via the
+  shared `weightChangeTone` (`@chefer/utils`): gaining is green for
+  GAIN_MUSCLE, losing is green for LOSE_WEIGHT, other goals stay neutral
+  (audit F-TRK-4-1). Reads ignore
   future-dated rows, and the coach's EWMA trend drops jumps over 3 kg/day,
   so a single typo can't swing the weekly adjustment (audit F-DASH-3-1).
 - Chat tool `getMyReview`: the model can quote the latest review; free users

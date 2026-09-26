@@ -1,34 +1,24 @@
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { Card, Text } from '@chefer/ui-mobile';
-import { cn, parseBodyWeightKg } from '@chefer/utils';
+import { cn } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { WeightEntriesList } from './weight-entries-list';
+import { WeightLogForm } from './weight-log-form';
 
 // Port of web features/coach/WeightCard (wave-2b). Deviation: the recharts
 // sparkline becomes a View-based bar sparkline — no chart library needed for
-// an axis-free 30-day trend.
+// an axis-free 30-day trend. The full 90-day chart lives on /progress.
 
 export function WeightCard() {
-  const [weightInput, setWeightInput] = useState('');
-  const [weightSaved, setWeightSaved] = useState(false);
-  const [inputError, setInputError] = useState<string | null>(null);
   const [showEntries, setShowEntries] = useState(false);
 
-  const { data: history, refetch } = trpc.tracker.weightHistory.useQuery(
+  const { data: history } = trpc.tracker.weightHistory.useQuery(
     { days: 30 },
     { staleTime: 60_000 },
   );
-
-  const logWeightMutation = trpc.tracker.logWeight.useMutation({
-    onSuccess: () => {
-      setWeightSaved(true);
-      setWeightInput('');
-      setTimeout(() => setWeightSaved(false), 3000);
-      void refetch();
-    },
-  });
 
   const entries = history ?? [];
   const latest = entries.at(-1);
@@ -39,19 +29,6 @@ export function WeightCard() {
   const min = Math.min(...entries.map((e) => e.weightKg));
   const max = Math.max(...entries.map((e) => e.weightKg));
   const range = Math.max(max - min, 0.1);
-
-  // Shared parser (audit F-DASH-3-1): out-of-range values used to be dropped
-  // silently here and saved as-is on web.
-  const submit = () => {
-    if (logWeightMutation.isPending) return;
-    const parsed = parseBodyWeightKg(weightInput);
-    if (!parsed.ok) {
-      setInputError(parsed.error);
-      return;
-    }
-    setInputError(null);
-    logWeightMutation.mutate({ weightKg: parsed.kg });
-  };
 
   return (
     <Card testID="weight-card">
@@ -89,51 +66,35 @@ export function WeightCard() {
         </View>
       )}
 
-      <View className="flex-row gap-2">
-        <TextInput
-          testID="weight-input"
-          value={weightInput}
-          onChangeText={(text) => {
-            setWeightInput(text);
-            setInputError(null);
-          }}
-          onSubmitEditing={submit}
-          keyboardType="decimal-pad"
-          placeholder={latest ? `Today: ${latest.weightKg} kg?` : 'Log today’s weight (kg)'}
-          placeholderTextColor="#9ca3af"
-          className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
-        />
+      {/* Shared parser (audit F-DASH-3-1) lives in the form. */}
+      <WeightLogForm
+        placeholder={latest ? `Today: ${latest.weightKg} kg?` : 'Log today’s weight (kg)'}
+      />
+      <View className="mt-1 flex-row items-center justify-between">
+        {entries.length > 0 ? (
+          <Pressable
+            testID="weight-entries-toggle"
+            accessibilityRole="button"
+            onPress={() => setShowEntries((v) => !v)}
+            className="min-h-11 justify-center"
+          >
+            <Text className="text-xs font-medium text-primary">
+              {showEntries ? 'Hide entries' : 'Edit or delete entries'}
+            </Text>
+          </Pressable>
+        ) : (
+          <View />
+        )}
         <Pressable
-          testID="weight-save"
-          accessibilityRole="button"
-          accessibilityLabel="Log weight"
-          disabled={logWeightMutation.isPending || !weightInput.trim()}
-          onPress={submit}
-          className={cn(
-            'h-11 w-11 items-center justify-center rounded-md bg-primary',
-            (logWeightMutation.isPending || !weightInput.trim()) && 'opacity-40',
-          )}
+          testID="weight-see-progress"
+          accessibilityRole="link"
+          onPress={() => router.push('/progress')}
+          className="min-h-11 flex-row items-center gap-0.5 pl-3"
         >
-          <Ionicons name={weightSaved ? 'checkmark' : 'add'} size={20} color="white" />
+          <Text className="text-xs font-medium text-primary">See progress</Text>
+          <Ionicons name="chevron-forward" size={12} color="#944a00" />
         </Pressable>
       </View>
-      {(inputError ?? logWeightMutation.error) && (
-        <Text testID="weight-error" className="mt-1 text-xs text-red-600">
-          {inputError ?? logWeightMutation.error?.message}
-        </Text>
-      )}
-      {entries.length > 0 && (
-        <Pressable
-          testID="weight-entries-toggle"
-          accessibilityRole="button"
-          onPress={() => setShowEntries((v) => !v)}
-          className="mt-1 min-h-11 justify-center"
-        >
-          <Text className="text-xs font-medium text-primary">
-            {showEntries ? 'Hide entries' : 'Edit or delete entries'}
-          </Text>
-        </Pressable>
-      )}
       {showEntries && <WeightEntriesList entries={entries} />}
     </Card>
   );

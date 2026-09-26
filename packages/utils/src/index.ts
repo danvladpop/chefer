@@ -203,6 +203,8 @@ export {
   BODY_WEIGHT_KG_MIN,
   BODY_WEIGHT_KG_MAX,
   parseBodyWeightKg,
+  weightChangeTone,
+  type WeightChangeTone,
   type WeightParseResult,
 } from './weight';
 export {

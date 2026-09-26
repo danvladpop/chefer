@@ -3,11 +3,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
-import { trpc } from '../src/lib/trpc';
+import { useRestorePlan } from '../../src/features/history/use-restore-plan';
+import { trpc } from '../../src/lib/trpc';
 
-// Plan history — port of apps/web /history (M2-10). Deviation: the per-plan
-// detail page (/history/[planId]) is not ported yet — restore covers the
-// main job; detail arrives with a later sweep.
+// Plan history — port of apps/web /history (M2-10). Each week opens its
+// read-only detail (/history/[planId]); Restore asks first and spins only the
+// row being restored (audit F-M-PREM-1-1).
 
 const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
   ACTIVE: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
@@ -23,9 +24,7 @@ export default function HistoryScreen() {
     refetch,
   } = trpc.mealPlan.list.useQuery({ limit, offset: 0 }, { staleTime: 30_000 });
 
-  const restoreMutation = trpc.mealPlan.restore.useMutation({
-    onSuccess: () => void refetch(),
-  });
+  const restore = useRestorePlan();
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
@@ -73,6 +72,7 @@ export default function HistoryScreen() {
             const weekEnd = new Date(plan.weekEndDate);
             const status = STATUS_STYLES[plan.status] ?? STATUS_STYLES.ARCHIVED;
             const opts = { month: 'short', day: 'numeric' } as const;
+            const weekLabel = weekStart.toLocaleDateString('en-GB', opts);
             return (
               <Card key={plan.id} testID={`history-plan-${plan.id}`} className="gap-2">
                 <View className="flex-row items-center justify-between">
@@ -96,20 +96,42 @@ export default function HistoryScreen() {
                   {plan.macroSummary.avgCarbs}g C · {plan.macroSummary.avgFat}g F
                 </Text>
 
-                {plan.status !== 'ACTIVE' && (
-                  <Button
-                    variant="outline"
-                    loading={restoreMutation.isPending}
-                    onPress={() => restoreMutation.mutate({ planId: plan.id })}
-                  >
-                    Restore this week
-                  </Button>
+                {restore.errorFor(plan.id) && (
+                  <Text className="text-xs text-red-600">{restore.errorFor(plan.id)}</Text>
                 )}
+                <View className="flex-row gap-2">
+                  <Button
+                    testID={`history-view-${plan.id}`}
+                    variant="outline"
+                    className="flex-1"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/history/[planId]',
+                        params: { planId: plan.id, status: plan.status },
+                      })
+                    }
+                  >
+                    View week
+                  </Button>
+                  {plan.status !== 'ACTIVE' && (
+                    <Button
+                      testID={`history-restore-${plan.id}`}
+                      variant="outline"
+                      className="flex-1"
+                      loading={restore.pendingPlanId === plan.id}
+                      disabled={restore.pendingPlanId !== null}
+                      onPress={() => restore.requestRestore(plan.id, weekLabel)}
+                    >
+                      Restore
+                    </Button>
+                  )}
+                </View>
               </Card>
             );
           })}
         </ScrollView>
       )}
+      {restore.sheet}
     </Screen>
   );
 }
