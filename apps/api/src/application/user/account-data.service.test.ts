@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '@chefer/database';
+import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
 import { deleteAccount } from './account-data.service.js';
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
@@ -17,8 +18,14 @@ vi.mock('@chefer/database', async (importOriginal) => {
       user: { findUnique: vi.fn(), delete: vi.fn(op('user.delete')) },
       mealPlan: { findMany: vi.fn() },
       shoppingList: { deleteMany: vi.fn(op('shoppingList.deleteMany')) },
-      recipe: { deleteMany: vi.fn(op('recipe.deleteMany')) },
-      ingredientPrice: { deleteMany: vi.fn(op('ingredientPrice.deleteMany')) },
+      recipe: {
+        findMany: vi.fn(async () => []),
+        deleteMany: vi.fn(op('recipe.deleteMany')),
+      },
+      ingredientPrice: {
+        findMany: vi.fn(async () => []),
+        deleteMany: vi.fn(op('ingredientPrice.deleteMany')),
+      },
       verificationToken: { deleteMany: vi.fn(op('verificationToken.deleteMany')) },
       workoutSession: { deleteMany: vi.fn(op('workoutSession.deleteMany')) },
       routine: { deleteMany: vi.fn(op('routine.deleteMany')) },
@@ -28,9 +35,14 @@ vi.mock('@chefer/database', async (importOriginal) => {
   };
 });
 
+vi.mock('../../lib/uploads/uploaded-files.js', () => ({
+  deleteUploadedFiles: vi.fn(async () => 0),
+}));
+
 type Op = { op: string; args: { where: Record<string, unknown> } };
 
 beforeEach(() => {
+  vi.mocked(deleteUploadedFiles).mockClear();
   vi.mocked(prisma.user.findUnique).mockReset();
   vi.mocked(prisma.mealPlan.findMany).mockReset();
   vi.mocked(prisma.$transaction)
@@ -91,5 +103,33 @@ describe('deleteAccount', () => {
     vi.mocked(prisma.$transaction).mockRejectedValue(new Error('FK violation'));
 
     await expect(deleteAccount('u1')).rejects.toThrow('FK violation');
+    expect(deleteUploadedFiles).not.toHaveBeenCalled();
+  });
+
+  it('removes the uploaded photos of the avatar, own recipes and custom ingredients after the commit', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      email: 'a@test.dev',
+      image: 'https://x.dev/uploads/avatar.jpg',
+    } as never);
+    vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.recipe.findMany).mockResolvedValue([
+      { imageUrl: 'https://x.dev/uploads/r1.jpg' },
+      { imageUrl: null },
+    ] as never);
+    vi.mocked(prisma.ingredientPrice.findMany).mockResolvedValue([
+      { imageUrl: 'https://x.dev/uploads/i1.png' },
+    ] as never);
+
+    await deleteAccount('u1');
+
+    expect(prisma.recipe.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { creatorId: 'u1', source: 'MANUAL' } }),
+    );
+    expect(deleteUploadedFiles).toHaveBeenCalledWith([
+      'https://x.dev/uploads/avatar.jpg',
+      'https://x.dev/uploads/r1.jpg',
+      null,
+      'https://x.dev/uploads/i1.png',
+    ]);
   });
 });

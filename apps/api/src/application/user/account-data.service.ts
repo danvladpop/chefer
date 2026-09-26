@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { prisma } from '@chefer/database';
+import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
 
 // ─── Account data: export and self-deletion (audit P0-6) ─────────────────────
 // Users had no way to get their data or delete their account; the privacy
@@ -111,13 +112,25 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
  *   row that uses it could abort the whole delete.
  * Household members are the user's own extra eaters (no other accounts are
  * linked to them), so they simply cascade — there is nothing to hand over.
- * Everything runs in one transaction: all or nothing.
+ * Everything runs in one transaction: all or nothing. After it commits, the
+ * photo files the account uploaded (avatar, own recipes, custom ingredients)
+ * are removed from the uploads volume, best effort (backlog P0-6).
  */
 export async function deleteAccount(userId: string): Promise<void> {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, image: true },
+  });
   if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
   const plans = await prisma.mealPlan.findMany({ where: { userId }, select: { id: true } });
   const planIds = plans.map((p) => p.id);
+  const [ownRecipes, ownIngredients] = await Promise.all([
+    prisma.recipe.findMany({
+      where: { creatorId: userId, source: 'MANUAL' },
+      select: { imageUrl: true },
+    }),
+    prisma.ingredientPrice.findMany({ where: { creatorId: userId }, select: { imageUrl: true } }),
+  ]);
 
   await prisma.$transaction([
     prisma.shoppingList.deleteMany({ where: { planId: { in: planIds } } }),
@@ -130,5 +143,11 @@ export async function deleteAccount(userId: string): Promise<void> {
     prisma.routine.deleteMany({ where: { userId } }),
     prisma.session.deleteMany({ where: { userId } }),
     prisma.user.delete({ where: { id: userId } }),
+  ]);
+
+  await deleteUploadedFiles([
+    user.image,
+    ...ownRecipes.map((r) => r.imageUrl),
+    ...ownIngredients.map((i) => i.imageUrl),
   ]);
 }
