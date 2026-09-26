@@ -1410,7 +1410,11 @@ Food/Gym switch (header of every tab root) → persisted mode
   ├─ no GymProfile → /gym/setup
   │     days/week → experience → equipment + units → weekdays/reminder
   │     → gym.profile.recommend (pure engine: template + volume hints)
+  │         equipment answer is a hard limit: Dumbbells → dumbbell + bodyweight moves,
+  │         Bodyweight → bodyweight moves only (curated swaps, else closest same-pattern
+  │         alternative, else the slot is dropped); saved routines are never rewritten
   │     → "Help me find my weights" (calibration) | "I know my weights"
+  │         (loadable lifts only; an all-bodyweight program has nothing to enter)
   │     → gym.profile.completeSetup  (profile + active routine + initial progressions)
   └─ profile exists → Gym tabs: Today / Routine / Exercises / Stats
 ```
