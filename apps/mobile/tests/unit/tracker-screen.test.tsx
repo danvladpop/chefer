@@ -37,7 +37,6 @@ jest.mock('../../src/lib/trpc', () => ({
             log: null,
             offPlanLogged: [],
             targets: { dailyCalorieTarget: 2000, proteinG: 125, carbsG: 225, fatG: 65 },
-            ...mockDayExtras,
             plannedMeals: [
               {
                 recipeId: 'r1',
@@ -62,6 +61,8 @@ jest.mock('../../src/lib/trpc', () => ({
                 portion: 1.25,
               },
             ],
+            // Last, so a test can replace plannedMeals / log too.
+            ...mockDayExtras,
           },
           isLoading: false,
           isError: false,
@@ -208,5 +209,87 @@ describe('TrackerScreen', () => {
       jest.runOnlyPendingTimers();
     });
     jest.useRealTimers();
+  });
+});
+
+describe('TrackerScreen — two identical snacks', () => {
+  const snack = (slotIndex: number) => ({
+    recipeId: 'yog',
+    recipeName: 'Greek Yogurt',
+    mealType: 'snack',
+    imageUrl: null,
+    kcal: 150,
+    protein: 15,
+    carbs: 10,
+    fat: 5,
+    slotIndex,
+  });
+  const logged = (slotIndex?: number) => ({
+    recipeId: 'yog',
+    mealType: 'snack',
+    ...(slotIndex !== undefined && { slotIndex }),
+    portionMultiplier: 1,
+    kcal: 150,
+    protein: 15,
+    carbs: 10,
+    fat: 5,
+  });
+  const ticks = () =>
+    screen
+      .getAllByTestId('tracker-meal-snack')
+      .map(
+        (row) =>
+          (row.props as { accessibilityState?: { checked?: boolean } }).accessibilityState?.checked,
+      );
+
+  it('ticking one snack leaves the other unticked and saves its slot', async () => {
+    mockDayExtras = { plannedMeals: [snack(1), snack(3)] };
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await renderTracker();
+    const [, secondSnack] = screen.getAllByTestId('tracker-meal-snack');
+    if (!secondSnack) throw new Error('expected two snack rows');
+    await user.press(secondSnack);
+    expect(ticks()).toEqual([false, true]);
+    await user.press(screen.getByTestId('tracker-save'));
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        loggedMeals: [expect.objectContaining({ recipeId: 'yog', slotIndex: 3 })],
+      }),
+    );
+    await act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    jest.useRealTimers();
+  });
+
+  it('a logged entry with a slotIndex ticks only its own slot', async () => {
+    mockDayExtras = {
+      plannedMeals: [snack(1), snack(3)],
+      log: {
+        loggedMeals: [logged(3)],
+        totalKcal: 150,
+        totalProtein: 15,
+        totalCarbs: 10,
+        totalFat: 5,
+      },
+    };
+    await renderTracker();
+    expect(ticks()).toEqual([false, true]);
+  });
+
+  it('a legacy entry without a slotIndex ticks the first snack only', async () => {
+    mockDayExtras = {
+      plannedMeals: [snack(1), snack(3)],
+      log: {
+        loggedMeals: [logged()],
+        totalKcal: 150,
+        totalProtein: 15,
+        totalCarbs: 10,
+        totalFat: 5,
+      },
+    };
+    await renderTracker();
+    expect(ticks()).toEqual([true, false]);
   });
 });

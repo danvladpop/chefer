@@ -103,6 +103,24 @@ describe('HeroMealCard (Today)', () => {
     });
   });
 
+  it('sends the plan slot, so the second of two identical snacks logs separately', async () => {
+    const user = userEvent.setup();
+    await render(
+      <HeroMealCard meal={{ ...MEAL, mealType: 'snack', slotIndex: 3 }} isTomorrow={false} />,
+    );
+    await user.press(screen.getByTestId('today-ate-this'));
+    const [args] = mockMutate.mock.calls[0] as [Record<string, unknown>];
+    expect(args.slotIndex).toBe(3);
+  });
+
+  it('omits slotIndex when the summary has none', async () => {
+    const user = userEvent.setup();
+    await render(<HeroMealCard meal={MEAL} isTomorrow={false} />);
+    await user.press(screen.getByTestId('today-ate-this'));
+    const [args] = mockMutate.mock.calls[0] as [Record<string, unknown>];
+    expect(args).not.toHaveProperty('slotIndex');
+  });
+
   it('shows prep + cook time, not prep alone (F-PM-10)', async () => {
     await render(<HeroMealCard meal={MEAL} isTomorrow={false} />);
     expect(screen.getByTestId('hero-meal-time')).toHaveTextContent('40 min');
