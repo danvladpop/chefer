@@ -1,17 +1,21 @@
 /**
  * extract-video-recipes.ts
  *
- * Batch driver for the two-stage short-video recipe extractor — the tool that
- * builds Chefer's CURATED recipe dataset from cooking reels/Shorts/TikToks.
+ * Batch driver for the video-link recipe extractor — the tool that builds
+ * Chefer's CURATED recipe dataset from cooking reels/Shorts/TikToks.
  *
- * It exists to answer one question that decides the economics of the dataset:
- * WHAT FRACTION OF CLIPS ESCALATE? Stage 1 (caption only) costs ~550 input
- * tokens and no bandwidth; stage 2 (the clip) costs ~20,000 and a download an
- * order of magnitude larger. The escalation rate is the multiplier on both, so
- * this script reports it per run rather than leaving it to be assumed.
+ * Same pipeline as the in-app "From a video link" import
+ * (application/video-import/video-recipe.service.ts): the recipe is read from
+ * the video's WORDS — its caption, else its subtitles, else a Whisper
+ * transcript of the audio — through the ordinary text extraction. No model is
+ * sent video. The per-run breakdown shows how often each source was needed:
+ * the speech step is the only one that downloads media and costs Whisper time.
  *
  * Nothing is written to the database. Output is a JSON file for the review
  * queue — an unreviewed extraction must never reach the shared pool.
+ *
+ * Needs yt-dlp + ffmpeg on PATH (`brew install yt-dlp ffmpeg`), and
+ * AI_MOCK_ENABLED=false with AI_SECONDARY_API_KEY set for the speech step.
  *
  * Usage:
  *   pnpm recipes:from-video <url> [url…]
@@ -93,14 +97,14 @@ async function main(): Promise<void> {
       drafts.push({ ...result, extractedAt: new Date().toISOString() });
 
       const secs = ((Date.now() - started) / 1000).toFixed(1);
-      const stage = result.stage === 'caption' ? 'caption ' : 'VIDEO   ';
       console.error(
-        `${label} ${stage} ${secs}s  ${result.recipe.name} ` +
+        `${label} ${result.stage.padEnd(9)} ${secs}s  ${result.recipe.name || '(no name)'} ` +
           `(${result.recipe.ingredients.length} ingredients, ` +
           `${result.recipe.instructions.length} steps, ${result.confidence} confidence)`,
       );
-      if (result.escalationReason) console.error(`        ↳ escalated: ${result.escalationReason}`);
-      if (result.renames.length) console.error(`        ↳ renamed: ${result.renames.join(', ')}`);
+      if (result.recipe.instructions.length === 0) {
+        console.error('        ↳ no method in the words — fill it in during review');
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       failures.push({ url, error: message });
@@ -114,16 +118,17 @@ async function main(): Promise<void> {
 
   await writeFile(options.out, JSON.stringify({ drafts, failures }, null, 2), 'utf8');
 
-  // ── The number this script exists to produce ──────────────────────────────
-  const escalated = drafts.filter((d) => d.stage === 'video').length;
-  const captionOnly = drafts.length - escalated;
-  const rate = drafts.length ? Math.round((escalated / drafts.length) * 100) : 0;
+  // ── Which words carried the recipes ───────────────────────────────────────
+  const count = (stage: Draft['stage']) => drafts.filter((d) => d.stage === stage).length;
+  const speech = count('speech');
+  const rate = drafts.length ? Math.round((speech / drafts.length) * 100) : 0;
 
   console.error(`\n${'─'.repeat(60)}`);
   console.error(`  extracted        ${drafts.length}/${urls.length}`);
-  console.error(`  caption only     ${captionOnly}  (~550 input tokens each)`);
-  console.error(`  escalated        ${escalated}  (~20,000 input tokens each)`);
-  console.error(`  ESCALATION RATE  ${rate}%`);
+  console.error(`  caption          ${count('caption')}  (metadata only)`);
+  console.error(`  subtitles        ${count('subtitles')}  (a few KB of text)`);
+  console.error(`  speech           ${speech}  (audio download + Whisper)`);
+  console.error(`  SPEECH RATE      ${rate}%`);
   if (failures.length) console.error(`  failed           ${failures.length}`);
   const lowConfidence = drafts.filter((d) => d.confidence === 'low').length;
   if (lowConfidence) console.error(`  low confidence   ${lowConfidence}  — review these first`);

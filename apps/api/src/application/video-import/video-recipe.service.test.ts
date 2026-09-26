@@ -1,40 +1,40 @@
 import { TRPCError } from '@trpc/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnnotatedExtraction, ExtractedRecipe, IAIService } from '../../lib/ai/types.js';
-import type {
-  DownloadedVideo,
-  IMediaFetcher,
-  VideoMetadata,
+import {
+  DERIVED_SERVINGS_NOTE,
+  VideoImportError,
+  type IVideoTranscriber,
+  type VideoTranscript,
 } from '../../lib/video-import/index.js';
-import { VideoRecipeService } from './video-recipe.service.js';
+import { NO_RECIPE_IN_VIDEO_MESSAGE, VideoRecipeService } from './video-recipe.service.js';
 
-// The AI module validates env at import time — mock it; every test injects its
-// own stub IAIService and IMediaFetcher through the constructor anyway.
+// The AI module validates env at import time — mock it; every test injects
+// its own stub IAIService and transcriber through the constructor anyway.
 vi.mock('../../lib/ai/index.js', () => ({ aiService: {} }));
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
-const CAPTION = `Air Fried Chipotle Honey Chicken Tenders
-• 1.5 lbs chicken tenderloins
-• 1/4 cup honey
-• 2 garlic cloves
-406 cal / 49g protein`;
+const CAPTION = `Garlic butter noodles
+• 200 g noodles
+• 3 garlic cloves
+• 2 tbsp butter`;
 
 function recipe(overrides: Partial<ExtractedRecipe> = {}): ExtractedRecipe {
   return {
-    name: 'Chipotle Honey Chicken Tenders',
-    description: 'Crispy air-fried tenders in a sweet-hot glaze.',
+    name: 'Garlic Butter Noodles',
+    description: 'Buttery noodles with plenty of garlic.',
     ingredients: [
-      { name: 'chicken tenderloins', quantity: 680, unit: 'g' },
-      { name: 'honey', quantity: 0.25, unit: 'cup' },
+      { name: 'noodles', quantity: 200, unit: 'g' },
+      { name: 'garlic', quantity: 3, unit: 'clove' },
     ],
-    instructions: ['Bread the chicken.', 'Air fry at 190C for 14 minutes.'],
-    nutritionInfo: { calories: 406, protein: 49, carbs: 38, fat: 6, fiber: 3 },
-    cuisineType: 'American',
-    dietaryTags: [],
-    prepTimeMins: 15,
-    cookTimeMins: 15,
-    servings: 3,
+    instructions: ['Boil the noodles.', 'Fry the garlic in butter and toss.'],
+    nutritionInfo: { calories: 520, protein: 14, carbs: 70, fat: 20, fiber: 3 },
+    cuisineType: 'Asian',
+    dietaryTags: ['vegetarian'],
+    prepTimeMins: 5,
+    cookTimeMins: 10,
+    servings: 2,
     ...overrides,
   };
 }
@@ -43,168 +43,139 @@ function annotated(overrides: Partial<AnnotatedExtraction> = {}): AnnotatedExtra
   return { recipe: recipe(), confidence: 'high', assumptions: [], ...overrides };
 }
 
-function metadata(overrides: Partial<VideoMetadata> = {}): VideoMetadata {
+function transcript(overrides: Partial<VideoTranscript> = {}): VideoTranscript {
   return {
+    platform: 'youtube',
+    sourceUrl: 'https://www.youtube.com/shorts/abcdef123',
+    title: 'Garlic noodles in 10 minutes',
+    creator: 'noodle_chef',
     caption: CAPTION,
-    sourceUrl: 'https://www.instagram.com/reel/ABC123/',
-    creator: 'hunt4shredz',
-    durationSecs: 15,
+    transcript: 'boil the noodles for five minutes, then fry the garlic in the butter',
+    source: 'subtitles',
+    durationSecs: 45,
+    thumbnailUrl: 'https://i.ytimg.com/vi/abcdef123/hq.jpg',
     ...overrides,
   };
 }
 
-function video(overrides: Partial<DownloadedVideo> = {}): DownloadedVideo {
-  return { base64: 'AAAA', mimeType: 'video/mp4', bytes: 4, downscaled: false, ...overrides };
-}
-
-function makeMedia(meta = metadata(), clip = video()): IMediaFetcher {
+function makeTranscriber(result: VideoTranscript | Error = transcript()): IVideoTranscriber {
   return {
-    fetchMetadata: vi.fn().mockResolvedValue(meta),
-    downloadVideo: vi.fn().mockResolvedValue(clip),
+    transcribe:
+      result instanceof Error
+        ? vi.fn().mockRejectedValue(result)
+        : vi.fn().mockResolvedValue(result),
   };
 }
 
-function makeAi(...responses: AnnotatedExtraction[]): IAIService {
-  const extractRecipeAnnotated = vi.fn();
-  for (const r of responses) extractRecipeAnnotated.mockResolvedValueOnce(r);
+function makeAi(response: AnnotatedExtraction | Error = annotated()): IAIService {
+  const extractRecipeAnnotated =
+    response instanceof Error
+      ? vi.fn().mockRejectedValue(response)
+      : vi.fn().mockResolvedValue(response);
   return { extractRecipeAnnotated } as unknown as IAIService;
 }
+
+const URL = 'https://youtu.be/abcdef123';
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('VideoRecipeService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
-  describe('stage 1 suffices', () => {
-    it('returns the caption extraction without downloading the video', async () => {
-      const media = makeMedia();
-      const ai = makeAi(annotated());
-      const result = await new VideoRecipeService(ai, media).extract('https://ig/reel/x');
+  it('extracts from the words only — one TEXT source, never video', async () => {
+    const ai = makeAi();
+    const result = await new VideoRecipeService(ai, makeTranscriber()).extract(URL);
 
-      expect(result.stage).toBe('caption');
-      expect(result.escalationReason).toBeNull();
-      expect(media.downloadVideo).not.toHaveBeenCalled();
-      expect(ai.extractRecipeAnnotated).toHaveBeenCalledTimes(1);
-      // The cheap stage must never be handed the clip.
-      expect(ai.extractRecipeAnnotated).toHaveBeenCalledWith({ text: CAPTION });
-    });
-
-    it('carries provenance through', async () => {
-      const result = await new VideoRecipeService(makeAi(annotated()), makeMedia()).extract(
-        'https://ig/reel/x',
-      );
-      expect(result.sourceUrl).toBe('https://www.instagram.com/reel/ABC123/');
-      expect(result.creator).toBe('hunt4shredz');
-      expect(result.captionChars).toBe(CAPTION.length);
-    });
+    expect(ai.extractRecipeAnnotated).toHaveBeenCalledOnce();
+    const [source] = vi.mocked(ai.extractRecipeAnnotated).mock.calls[0]!;
+    expect(Object.keys(source)).toEqual(['text']);
+    expect(source.text).toContain('VIDEO TITLE: Garlic noodles in 10 minutes');
+    expect(source.text).toContain(CAPTION);
+    expect(source.text).toContain('fry the garlic in the butter');
+    expect(result.sourceText).toBe(source.text);
   });
 
-  describe('escalation to stage 2', () => {
-    it('escalates when the caption carries no method', async () => {
-      // The measured real-world case: captions list ingredients, not steps.
-      const media = makeMedia();
-      const ai = makeAi(annotated({ recipe: recipe({ instructions: [] }) }), annotated());
-      const result = await new VideoRecipeService(ai, media).extract('https://ig/reel/x');
+  it('reports which words the recipe came from, with provenance', async () => {
+    const result = await new VideoRecipeService(
+      makeAi(),
+      makeTranscriber(transcript({ source: 'speech' })),
+    ).extract(URL);
+    expect(result.stage).toBe('speech');
+    expect(result.sourceUrl).toBe('https://www.youtube.com/shorts/abcdef123');
+    expect(result.creator).toBe('noodle_chef');
+    expect(result.platform).toBe('youtube');
+    expect(result.captionChars).toBe(CAPTION.length);
+  });
 
-      expect(result.stage).toBe('video');
-      expect(result.escalationReason).toContain('0 instruction(s)');
-      expect(media.downloadVideo).toHaveBeenCalledOnce();
-      expect(ai.extractRecipeAnnotated).toHaveBeenLastCalledWith({
-        videoBase64: 'AAAA',
-        mimeType: 'video/mp4',
-        text: CAPTION, // the caption rides along — it holds the quantities
-      });
-    });
+  it('maps a transcript failure to its friendly sentence', async () => {
+    const service = new VideoRecipeService(
+      makeAi(),
+      makeTranscriber(new VideoImportError('PRIVATE', 'yt-dlp: Private video')),
+    );
+    const error = await service.extract(URL).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(TRPCError);
+    expect(error).toMatchObject({ code: 'BAD_REQUEST' });
+    expect((error as TRPCError).message).toMatch(/private or needs a login/);
+    expect((error as TRPCError).message).not.toMatch(/yt-dlp/);
+  });
 
-    it('escalates on low confidence', async () => {
-      const ai = makeAi(annotated({ confidence: 'low' }), annotated());
-      const result = await new VideoRecipeService(ai, makeMedia()).extract('https://ig/reel/x');
-      expect(result.stage).toBe('video');
-      expect(result.escalationReason).toBe('low confidence from the caption alone');
-    });
+  it('maps a timeout to TIMEOUT and a blocked site to SERVICE_UNAVAILABLE', async () => {
+    await expect(
+      new VideoRecipeService(makeAi(), makeTranscriber(new VideoImportError('TIMEOUT'))).extract(
+        URL,
+      ),
+    ).rejects.toMatchObject({ code: 'TIMEOUT' });
+    await expect(
+      new VideoRecipeService(makeAi(), makeTranscriber(new VideoImportError('BLOCKED'))).extract(
+        URL,
+      ),
+    ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+  });
 
-    it('escalates when the caption holds no recipe at all', async () => {
-      const ai = makeAi(annotated({ recipe: recipe({ name: 'NO_RECIPE_FOUND' }) }), annotated());
-      const result = await new VideoRecipeService(ai, makeMedia()).extract('https://ig/reel/x');
-      expect(result.escalationReason).toBe('no recipe found in the caption');
-    });
-
-    it('skips stage 1 entirely when there is no usable caption', async () => {
-      const media = makeMedia(metadata({ caption: '#food #viral' }));
-      const ai = makeAi(annotated());
-      const result = await new VideoRecipeService(ai, media).extract('https://ig/reel/x');
-
-      expect(result.escalationReason).toBe('no usable caption');
-      // One call, not two — no tokens wasted on a hashtag dump.
-      expect(ai.extractRecipeAnnotated).toHaveBeenCalledTimes(1);
-      expect(result.stage).toBe('video');
+  it('rejects a video whose words hold no recipe at all', async () => {
+    const ai = makeAi(
+      annotated({ recipe: recipe({ name: 'NO_RECIPE_FOUND', ingredients: [], instructions: [] }) }),
+    );
+    await expect(new VideoRecipeService(ai, makeTranscriber()).extract(URL)).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: NO_RECIPE_IN_VIDEO_MESSAGE,
     });
   });
 
-  describe('stage-2 output handling', () => {
-    it("rewrites video names to the caption stage's cleaner wording", async () => {
-      const captionStage = annotated({
-        recipe: recipe({
-          instructions: [],
-          ingredients: [
-            { name: 'eggs', quantity: 2, unit: 'piece' },
-            { name: 'garlic', quantity: 2, unit: 'clove' },
-          ],
-        }),
-      });
-      const videoStage = annotated({
-        recipe: recipe({
-          ingredients: [
-            { name: 'large eggs', quantity: 2, unit: 'piece' },
-            { name: 'garlic cloves, minced', quantity: 2, unit: 'clove' },
-          ],
-        }),
-      });
-      const result = await new VideoRecipeService(
-        makeAi(captionStage, videoStage),
-        makeMedia(),
-      ).extract('https://ig/reel/x');
+  it('keeps a partial recipe, blanking a sentinel name for the form to ask for', async () => {
+    const ai = makeAi(annotated({ recipe: recipe({ name: 'NO_RECIPE_FOUND', instructions: [] }) }));
+    const result = await new VideoRecipeService(ai, makeTranscriber()).extract(URL);
+    expect(result.recipe.name).toBe('');
+    expect(result.recipe.instructions).toEqual([]);
+    expect(result.recipe.ingredients).toHaveLength(2);
+  });
 
-      expect(result.recipe.ingredients.map((i) => i.name)).toEqual(['eggs', 'garlic']);
-      expect(result.renames).toHaveLength(2);
-    });
+  it('caps confidence when nobody stated the serving count', async () => {
+    const result = await new VideoRecipeService(makeAi(), makeTranscriber()).extract(URL);
+    expect(result.confidence).toBe('medium');
+    expect(result.assumptions).toContain(DERIVED_SERVINGS_NOTE);
+  });
 
-    it('flags a re-encoded clip for the reviewer', async () => {
-      const ai = makeAi(annotated({ recipe: recipe({ instructions: [] }) }), annotated());
-      const media = makeMedia(metadata(), video({ downscaled: true }));
-      const result = await new VideoRecipeService(ai, media).extract('https://ig/reel/x');
-      expect(result.assumptions.some((a) => a.includes('re-encoded'))).toBe(true);
-    });
+  it('keeps confidence when the words state the serving count', async () => {
+    const result = await new VideoRecipeService(
+      makeAi(),
+      makeTranscriber(transcript({ caption: `${CAPTION}\nServes 2` })),
+    ).extract(URL);
+    expect(result.confidence).toBe('high');
+    expect(result.assumptions).not.toContain(DERIVED_SERVINGS_NOTE);
+  });
 
-    it('caps confidence and flags the draft when servings were derived', async () => {
-      // CAPTION states "per serving", never a yield — the model still says
-      // "high", so the service must override it.
-      const ai = makeAi(annotated({ recipe: recipe({ instructions: [] }) }), annotated());
-      const result = await new VideoRecipeService(ai, makeMedia()).extract('https://ig/reel/x');
-
-      expect(result.confidence).toBe('medium');
-      expect(result.assumptions.some((a) => a.includes('NOT stated'))).toBe(true);
-    });
-
-    it('trusts the model when the caption states a yield', async () => {
-      const media = makeMedia(metadata({ caption: `${CAPTION}\nServes 4` }));
-      const ai = makeAi(annotated({ recipe: recipe({ instructions: [] }) }), annotated());
-      const result = await new VideoRecipeService(ai, media).extract('https://ig/reel/x');
-
-      expect(result.confidence).toBe('high');
-      expect(result.assumptions.some((a) => a.includes('NOT stated'))).toBe(false);
-    });
-
-    it('rejects a video with no recipe in it', async () => {
-      const ai = makeAi(
-        annotated({ recipe: recipe({ instructions: [] }) }),
-        annotated({ recipe: recipe({ name: 'NO_RECIPE_FOUND' }) }),
-      );
-      await expect(
-        new VideoRecipeService(ai, makeMedia()).extract('https://ig/reel/x'),
-      ).rejects.toThrow(TRPCError);
-    });
+  it('turns a provider failure into the friendly import error', async () => {
+    const error = await new VideoRecipeService(
+      makeAi(Object.assign(new Error('503 overloaded'), { status: 503 })),
+      makeTranscriber(),
+    )
+      .extract(URL)
+      .catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
   });
 });

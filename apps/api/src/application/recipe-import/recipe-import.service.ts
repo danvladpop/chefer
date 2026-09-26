@@ -8,7 +8,12 @@ import {
   type IFavouriteRecipeRepository,
   type Recipe,
 } from '@chefer/database';
-import type { UserProfile } from '@chefer/types';
+import type {
+  UserProfile,
+  VideoDraftField,
+  VideoPlatform,
+  VideoTranscriptSource,
+} from '@chefer/types';
 import { householdPortionSum } from '@chefer/utils';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
@@ -36,7 +41,16 @@ import {
   headCheckImage,
   type MacroCheckResult,
 } from '../../lib/recipe-import/index.js';
+import {
+  DERIVED_SERVINGS_NOTE,
+  findNotFoundFields,
+  unverifiedQuantityIndexes,
+} from '../../lib/video-import/index.js';
 import { mergeHouseholdSafety } from '../household/household.service.js';
+import {
+  videoRecipeService,
+  type VideoRecipeService,
+} from '../video-import/video-recipe.service.js';
 
 // ─── Cheferize Anything (F5) — recipe import service ─────────────────────────
 // Extract (URL/text/photo) → Cheferize (adapt to the user) → save into the
@@ -66,6 +80,32 @@ export interface ImportPreview {
   macroCheck: MacroCheckResult;
   sourceUrl: string | null;
   ogImageUrl: string | null;
+}
+
+/**
+ * Video-link import (owner decision 2026-09-26): a DRAFT read from the video's
+ * words for the user to review, correct and complete in a form — no Cheferize
+ * pass, no diff. Saved through importSave as the `original` variant.
+ */
+export interface VideoImportPreview {
+  via: 'video';
+  /** The extraction; `name`, `ingredients` or `instructions` may be empty. */
+  draft: ExtractedRecipe;
+  /** Fields the video's words did not cover — "not found — please add". */
+  notFound: VideoDraftField[];
+  /** Ingredient indexes whose amount appears nowhere in the words. */
+  unverifiedQuantities: number[];
+  /** What the model inferred ("a drizzle" read as 1 tbsp). */
+  assumptions: string[];
+  transcriptSource: VideoTranscriptSource;
+  /** The draft vs the household's allergies/restrictions (warning only). */
+  safety: ImportSafety;
+  platform: VideoPlatform;
+  sourceUrl: string;
+  /** The video thumbnail (YouTube only — TikTok/Instagram CDN links expire). */
+  ogImageUrl: string | null;
+  videoTitle: string;
+  creator: string | null;
 }
 
 export interface ImportSaveInput {
@@ -131,6 +171,7 @@ export class RecipeImportService {
         }[]
       >;
     } = householdMemberRepository,
+    private readonly video: Pick<VideoRecipeService, 'extract'> = videoRecipeService,
   ) {}
 
   /**
@@ -263,6 +304,59 @@ export class RecipeImportService {
       macroCheck,
       sourceUrl,
       ogImageUrl,
+    };
+  }
+
+  /**
+   * Video link → reviewable draft. Premium-only like every AI import (the
+   * RECIPE_IMPORT quota is FORBIDDEN for free), metered on the same daily
+   * reservation and refunded when the video cannot be read.
+   */
+  async previewVideo(user: UserProfile, url: string): Promise<VideoImportPreview> {
+    const reservation = await reserveRecipeImport(user);
+    try {
+      return await this.runVideoPreview(user, url);
+    } catch (err) {
+      await reservation.release();
+      throw err;
+    }
+  }
+
+  private async runVideoPreview(user: UserProfile, url: string): Promise<VideoImportPreview> {
+    const result = await this.video.extract(url);
+    const draft = sanitizeExtracted(result.recipe);
+
+    const [prefs, members] = await Promise.all([
+      this.prefsRepo.findByUserId(user.id),
+      this.householdRepo.findByUserId(user.id),
+    ]);
+    const issues = findSafetyIssues(
+      draft,
+      mergeHouseholdSafety(
+        {
+          allergies: prefs?.allergies ?? [],
+          dietaryRestrictions: prefs?.dietaryRestrictions ?? [],
+          dislikedIngredients: [], // dislikes are soft — never a warning here
+        },
+        members,
+      ),
+    );
+
+    return {
+      via: 'video',
+      draft,
+      notFound: findNotFoundFields(draft, result.sourceText),
+      unverifiedQuantities: unverifiedQuantityIndexes(draft.ingredients, result.sourceText),
+      // The form flags an unstated serving count itself; the curated-pool
+      // reviewer note would only repeat it.
+      assumptions: result.assumptions.filter((a) => a !== DERIVED_SERVINGS_NOTE).slice(0, 10),
+      transcriptSource: result.stage,
+      safety: { ok: issues.length === 0, issues },
+      platform: result.platform,
+      sourceUrl: result.sourceUrl,
+      ogImageUrl: result.platform === 'youtube' ? result.thumbnailUrl : null,
+      videoTitle: result.title.slice(0, 200),
+      creator: result.creator,
     };
   }
 

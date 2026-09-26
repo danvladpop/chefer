@@ -58,7 +58,7 @@ const envSchema = z.object({
   ...aiProviderEnvShape,
   // Per-workload provider chains (research §5.4). Unset = today's routing
   // (lib/ai/routing.ts DEFAULT_AI_ROUTES). Providers: gemini, groq (= the
-  // AI_SECONDARY_* endpoint). Video extraction is Gemini-only, not routable.
+  // AI_SECONDARY_* endpoint).
   AI_ROUTE_MEAL_PLAN: aiRoute,
   AI_ROUTE_SWAP: aiRoute,
   AI_ROUTE_CHEFERIZE: aiRoute,
@@ -88,6 +88,17 @@ const envSchema = z.object({
       .optional(),
   ),
   AI_SHADOW_SAMPLE: z.coerce.number().min(0).max(1).default(0),
+
+  // Video-link recipe import (lib/video-import): words only — caption, then
+  // subtitles, then the audio transcribed by Whisper at AI_SECONDARY_BASE_URL
+  // with AI_SECONDARY_API_KEY (no key = no speech step). Needs yt-dlp + ffmpeg
+  // on PATH (Dockerfile.api). AI_MOCK_ENABLED=true uses a canned transcript.
+  WHISPER_MODEL: z.string().default('whisper-large-v3-turbo'),
+  // Longest video read, in seconds; longer ones are refused before download.
+  VIDEO_MAX_SECONDS: z.coerce.number().int().positive().max(3600).default(600),
+  // Largest source download yt-dlp may start (the transcoded audio sent to
+  // Whisper is ~0.25 MB/min regardless).
+  VIDEO_MAX_DOWNLOAD_MB: z.coerce.number().int().positive().max(500).default(50),
 
   // Email — mock is enabled by default so local dev never sends real mail;
   // the mock logs the message (including reset links) to the console instead.

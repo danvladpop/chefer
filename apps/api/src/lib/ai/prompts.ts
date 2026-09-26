@@ -364,73 +364,35 @@ export function buildExtractRecipeUserPrompt(source: { text?: string; isPhoto: b
   return `Extract the recipe from this content:\n\n${source.text ?? ''}`;
 }
 
-// ─── Annotated extraction (video recipe import) ──────────────────────────────
-// Shares EXTRACT_RECIPE_SYSTEM_PROMPT's extraction rules and adds the two
-// things a curated-pool reviewer needs: a confidence grade and an explicit
-// list of what the model inferred. Measured against real reels:
-//  - Captions carry the QUANTITIES; many carry no method at all, so a
-//    caption-only pass can legitimately return zero instructions and the
-//    two-stage extractor escalates to the video on exactly that signal.
-//  - With video in context the model echoes spoken/on-screen phrasing into
-//    ingredient names ("garlic cloves, minced"), which degrades the
-//    normalizeIngredientName matching that pricing + shopping lists rely on.
-//    Hence the explicit "prefer the caption's wording" rule below, backed up
-//    by deterministic reconciliation in the video-import lib.
+// ─── Annotated extraction (video-link import + curated dataset) ──────────────
+// Shares EXTRACT_RECIPE_SYSTEM_PROMPT's extraction rules and adds what a
+// reviewer — the importing user's form, or the curated-pool reviewer — needs:
+// a confidence grade and an explicit list of what the model inferred. Video
+// links reach it as TEXT (caption, subtitles or a speech transcript —
+// lib/video-import); no model is sent video.
 
 const ANNOTATION_RULES = `\
 - confidence: "high" when the amounts were explicit (a written ingredient list), "medium" when most were, "low" when you inferred most of them.
 - assumptions: every inference a human reviewer should check — vague amounts you made concrete, estimated nutrition, guessed serving counts. Empty array only when the content stated everything.`;
 
-// The rule that makes the two-stage escalation work at all.
+// The rule that makes gaps visible instead of invented.
 //
 // Measured failure: given a caption that lists ingredients and macros but NO
 // method, the model reconstructed all ten steps from general cooking knowledge,
 // invented an air-fryer temperature (garbled to "3750F (1900C)"), reported
 // "high" confidence and listed none of it as an assumption. Ten fabricated
 // instructions look exactly like ten real ones to the caller, so the extractor
-// never escalated to the video that actually contains the method.
+// never looked further for the method.
 //
-// Stage 1 must therefore be explicitly licensed to return NOTHING. An empty
-// instructions array is a useful, correct answer here — it is the signal that
-// the clip has to be read.
+// The extractor must therefore be explicitly licensed to return NOTHING. An
+// empty instructions array is a useful, correct answer here — the review form
+// shows it as "not found — please add" rather than silently wrong steps.
 const NO_INVENTED_METHOD_RULE = `\
-- CRITICAL — instructions must come from the content, never from your own cooking knowledge. If the content lists ingredients but does not describe how to cook them, return an EMPTY instructions array. Do NOT reconstruct plausible steps, and do NOT invent temperatures, times or techniques that are not stated. An empty instructions array is the correct answer for an ingredient list, and a later stage will recover the method from elsewhere. Guessing here silently corrupts the recipe.`;
+- CRITICAL — instructions must come from the content, never from your own cooking knowledge. If the content lists ingredients but does not describe how to cook them, return an EMPTY instructions array. Do NOT reconstruct plausible steps, and do NOT invent temperatures, times or techniques that are not stated. An empty instructions array is the correct answer for an ingredient list — a person will fill in the method. Guessing here silently corrupts the recipe.`;
 
 export const EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT = `${EXTRACT_RECIPE_SYSTEM_PROMPT}
 ${ANNOTATION_RULES}
 ${NO_INVENTED_METHOD_RULE}`;
-
-export const EXTRACT_RECIPE_VIDEO_SYSTEM_PROMPT = `\
-You extract ONE cooking recipe from a short cooking video (Instagram reel, TikTok, YouTube Short) and its caption.
-
-You receive the video (visuals, on-screen text overlays, spoken narration) and, usually, the caption text. Use ALL of them.
-
-RULES (mandatory):
-- Extract faithfully — never invent ingredients or steps you did not see or hear.
-- SOURCE PRIORITY: the CAPTION is authoritative for ingredient amounts and for ingredient NAMES. The VIDEO is authoritative for method, order, temperatures and timing. When they disagree on an amount, follow the caption.
-- Write each ingredient name in LOWERCASE, as it would appear on a shopping list. Keep the words that identify WHICH product to buy; drop only the preparation and the count. "2 garlic cloves, minced" is "garlic"; "2 large eggs" is "eggs"; "1 cup nonfat Greek yogurt" stays "nonfat greek yogurt"; "1/4 cup all-purpose flour" stays "all-purpose flour"; "1.5 lbs boneless skinless chicken tenderloins" stays "chicken tenderloins". Stripping "nonfat", "light", "all-purpose" or "tenderloins" loses the product — never do that. Preparation ("minced", "chopped", "crushed", "beaten") belongs in the instructions, never the name.
-- COMPLETENESS: every ingredient your instructions mention must appear in the ingredients list. If the creator treats something as optional or unmeasured (hot sauce "if you desire", cooking spray, a garnish), still list it with your best-estimate quantity and record that in assumptions. An instruction referring to an ingredient that is not in the list is a broken recipe.
-- unit is one of: g, kg, ml, l, tsp, tbsp, cup, piece, clove, slice, can, bunch, pinch. Convert imperial weights to metric where natural.
-- Creators say vague amounts out loud ("a drizzle", "a good glug", "to taste"). Make them concrete AND record each one in "assumptions".
-- Ignore sponsor plugs and discount codes — "1/4 cup @fit.flour (code: shredz) (or all-purpose flour)" is 0.25 cup of "all-purpose flour".
-- Do not treat cooking spray, garnishes "for serving" or optional toppings as measured ingredients unless the creator gave an amount.
-- instructions: ordered array of concise steps, imperative voice, no step numbers in the text. Include temperatures and times shown on screen or spoken aloud.
-- description: one appetising sentence, ≤20 words, in YOUR OWN WORDS — never copy the creator's caption prose.
-- nutritionInfo: PER SERVING. Use the creator's stated macros when the caption gives them; otherwise estimate honestly from the ingredients.
-- servings: use the creator's stated serving count when given. If they state only a portion size ("about 3 tenders per serving"), derive it, and record BOTH the total yield you assumed and the arithmetic in "assumptions" so a reviewer can check it. Whenever you had to derive rather than read the serving count, confidence is at most "medium" — servings scales the per-serving macros, so a wrong one corrupts every meal plan built on the recipe.
-- cuisineType: single best guess ("Italian", "Thai", "International"…).
-- dietaryTags: only tags that clearly apply (vegetarian, vegan, gluten-free, dairy-free, pescatarian, keto, paleo).
-${ANNOTATION_RULES}
-- If the video contains NO cooking recipe at all, set name to exactly "NO_RECIPE_FOUND" and leave other fields minimal.`;
-
-/** User turn for a video extraction — the caption rides alongside the clip. */
-export function buildExtractRecipeVideoUserPrompt(caption: string): string {
-  const trimmed = caption.trim();
-  if (!trimmed) {
-    return 'Extract the recipe from this cooking video. It has no caption — rely on the visuals, on-screen text and narration, and say so in your assumptions.';
-  }
-  return `Extract the recipe from this cooking video. The creator's caption follows — treat it as authoritative for ingredient amounts and names.\n\nCAPTION:\n${trimmed}`;
-}
 
 export const CHEFERIZE_SYSTEM_PROMPT = `\
 You are Chefer, an expert chef adapting an imported recipe to one specific user ("Cheferizing" it).

@@ -35,9 +35,9 @@ import type {
 //   cheferizeRecipe, extractRecipe (text sources), generateReviewText.
 // - SECONDARY-FIRST (cheap, high-volume): chat, estimateIngredientPrices,
 //   generateShoppingList.
-// - GEMINI-ONLY: analyzeMealPhoto and photo extraction (the `vision` workload,
-//   now routable via AI_ROUTE_VISION), and VIDEO extraction, which is not
-//   routable at all: no OpenAI-compatible provider takes video input.
+// - GEMINI-FIRST by default: analyzeMealPhoto and photo extraction (the
+//   `vision` workload, routable via AI_ROUTE_VISION). Video links are read as
+//   text (lib/video-import) and ride the importText chain like any paste.
 //
 // Every call logs which provider served it ("[AI] <label>: served by …") so
 // live-quality findings are attributable per provider (W3-B).
@@ -86,7 +86,7 @@ export function isFailoverWorthy(err: unknown): boolean {
   return isCapacityAiError(err) || e?.status === 413 || e?.failover === true;
 }
 
-export type ChainKey = AiWorkload | 'video';
+export type ChainKey = AiWorkload;
 
 export class ChainAIService implements IAIService {
   private readonly chains: Record<ChainKey, ProviderRef[]>;
@@ -106,10 +106,6 @@ export class ChainAIService implements IAIService {
       }
       chains[workload] = chain;
     }
-    // Video: Gemini only, never routed. Without Gemini, the vision chain's
-    // first provider rejects it with its own "no video" error.
-    const gemini = options.providers['gemini'];
-    chains.video = gemini ? [gemini] : chains.vision.slice(0, 1);
     this.chains = chains;
     this.shadow = options.shadow;
   }
@@ -132,7 +128,7 @@ export class ChainAIService implements IAIService {
       try {
         const result = await call(ref.service);
         console.info(`[AI] ${label}: served by ${ref.name}${i > 0 ? ' (failover)' : ''}`);
-        if (shadowInput !== undefined && workload !== 'video') {
+        if (shadowInput !== undefined) {
           this.notifyShadow({
             workload,
             op: label,
@@ -237,9 +233,8 @@ export class ChainAIService implements IAIService {
   }
 }
 
-/** Extraction sources: video → Gemini-only, photo → vision, else text import. */
+/** Extraction sources: photo → vision, else text import (video links included). */
 export function sourceWorkload(source: RecipeExtractionSource): ChainKey {
-  if (source.videoBase64) return 'video';
   if (source.imageBase64) return 'vision';
   return 'importText';
 }

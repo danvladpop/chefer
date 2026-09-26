@@ -45,8 +45,8 @@ export const AI_ROUTE_ENV_KEYS = {
  * - primary-first (quality-sensitive): plan, swap, cheferize, text import, review;
  * - secondary-first (cheap, high-volume): chat, prices, shopping list;
  * - vision (meal photo, photo import): Gemini only.
- * Video extraction is not a workload here: it is Gemini-only by design (no
- * OpenAI-compatible provider takes video input).
+ * Video links are not a workload of their own: lib/video-import turns them
+ * into text (caption, subtitles or a Whisper transcript) → importText.
  */
 export const DEFAULT_AI_ROUTES: Readonly<Record<AiWorkload, readonly AiProviderName[]>> = {
   mealPlan: ['gemini', 'groq'],

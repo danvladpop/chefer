@@ -76,8 +76,8 @@ import { logAiUsage } from './usage.js';
 //   extractRecipe) use `visionModel` (AI_VISION_MODEL, Groq
 //   qwen/qwen3.8-27b by default) with an `image_url` part holding a base64
 //   data URL. Without a vision model they throw. The chain only routes photos
-//   here when AI_ROUTE_VISION says so. VIDEO is never accepted: no
-//   OpenAI-compatible provider takes video input; it stays Gemini-only.
+//   here when AI_ROUTE_VISION says so. Video links reach this client as
+//   plain text (their caption/subtitles/transcript — lib/video-import).
 // - MEAL PLAN: `mealPlanMode: 'chunked'` (set by the factory when this
 //   provider is FIRST in the meal-plan route) generates the week as 7 per-day
 //   calls with a strict JSON schema, then assembles and validates the week.
@@ -320,9 +320,6 @@ export const DAY_PLAN_JSON_SCHEMA = {
 
 const NO_VISION_MESSAGE =
   'OpenAICompatibleAIService: no vision model configured (AI_VISION_MODEL) — photo calls cannot run here.';
-
-const NO_VIDEO_MESSAGE =
-  'OpenAICompatibleAIService: video input is Gemini-only — no OpenAI-compatible provider takes video.';
 
 type HttpError = Error & { status?: number; retryAfterMs?: number; failover?: boolean };
 
@@ -798,9 +795,8 @@ export class OpenAICompatibleAIService implements IAIService {
     return parseMealPhotoResponse(raw);
   }
 
-  /** Text or photo sources; photos use the vision model. Video never runs here. */
+  /** Text or photo sources; photos use the vision model. */
   async extractRecipeAnnotated(source: RecipeExtractionSource): Promise<AnnotatedExtraction> {
-    if (source.videoBase64) throw new Error(NO_VIDEO_MESSAGE);
     if (!source.imageBase64 && !source.text) {
       throw new Error(
         'OpenAICompatibleAIService.extractRecipeAnnotated: expected text or a photo.',
@@ -818,7 +814,6 @@ export class OpenAICompatibleAIService implements IAIService {
   }
 
   async extractRecipe(source: RecipeExtractionSource): Promise<ExtractedRecipe> {
-    if (source.videoBase64) throw new Error(NO_VIDEO_MESSAGE);
     if (!source.imageBase64 && !source.text) {
       throw new Error(
         'OpenAICompatibleAIService.extractRecipe: expected text or a photo (URL sources must be fetched by the recipe-import service first).',
