@@ -4,6 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WeightLogForm } from './WeightLogForm';
 
 const mutate = vi.fn();
+const unitSystem = vi.hoisted(() => {
+  const state: { value: 'METRIC' | 'IMPERIAL' } = { value: 'METRIC' };
+  return state;
+});
+vi.mock('@/hooks/useUnitSystem', () => ({ useUnitSystem: () => unitSystem.value }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
@@ -18,7 +23,10 @@ vi.mock('@/lib/trpc', () => ({
 }));
 
 afterEach(cleanup);
-beforeEach(() => mutate.mockClear());
+beforeEach(() => {
+  mutate.mockClear();
+  unitSystem.value = 'METRIC';
+});
 
 function submit(value: string) {
   render(<WeightLogForm />);
@@ -42,5 +50,23 @@ describe('WeightLogForm (audit F-DASH-3-1)', () => {
   it('submits on Enter (form submit) with a comma decimal', () => {
     submit('72,5');
     expect(mutate).toHaveBeenCalledWith({ weightKg: 72.5 });
+  });
+});
+
+describe('WeightLogForm in pounds (backlog P2-6)', () => {
+  beforeEach(() => {
+    unitSystem.value = 'IMPERIAL';
+  });
+
+  it('labels the field in pounds and sends kg', () => {
+    submit('160');
+    expect(screen.getByRole('textbox').getAttribute('aria-label')).toMatch(/pounds/);
+    expect(mutate).toHaveBeenCalledWith({ weightKg: 72.6 });
+  });
+
+  it('explains the range in pounds', () => {
+    submit('900');
+    expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toMatch(/between 44 and 881 lb/);
   });
 });

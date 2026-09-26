@@ -11,6 +11,7 @@ import { PantryGhostBanner } from '@/features/pantry/components/PantryGhostBanne
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { WeekNavigator } from '@/features/shopping-list/components/WeekNavigator';
 import { useLocalStorage } from '@/hooks/use-local-storage';
+import { useCurrency } from '@/hooks/useCurrency';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
@@ -32,7 +33,12 @@ import {
   X,
 } from 'lucide-react';
 import { ErrorState, Sheet, useMenu } from '@chefer/ui';
-import { formatQuantity, shoppingWindowLabel } from '@chefer/utils';
+import {
+  formatMoney,
+  formatQuantity,
+  isConvertedCurrency,
+  shoppingWindowLabel,
+} from '@chefer/utils';
 
 const PRINT_STYLES = `
 @media print {
@@ -94,6 +100,8 @@ export default function ShoppingListPage() {
   const listMenu = useMenu();
   const isPremium = useIsPremium();
   const unitSystem = useUnitSystem();
+  // Prices are EUR estimates; shown in the user's currency (backlog P2-6).
+  const currency = useCurrency();
 
   const weekStart = getMondayOfWeek(weekOffset);
   const weekEnd = new Date(weekStart);
@@ -402,10 +410,14 @@ export default function ShoppingListPage() {
         {/* Estimated week total from the ingredient price vocabulary */}
         {weekList?.estimatedTotalEur != null && (
           <span
-            title="Baseline estimate from typical supermarket prices"
+            title={
+              isConvertedCurrency(currency)
+                ? 'Baseline estimate from typical supermarket prices, converted from EUR at an approximate rate'
+                : 'Baseline estimate from typical supermarket prices'
+            }
             className="whitespace-nowrap rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-600"
           >
-            Est. total ~€{weekList.estimatedTotalEur.toFixed(2)}
+            Est. total ~{formatMoney(weekList.estimatedTotalEur, currency)}
           </span>
         )}
 
@@ -416,7 +428,7 @@ export default function ShoppingListPage() {
             title="Items you already have, subtracted from this list"
             className="whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
           >
-            Saved ~€{pantry.savedEur.toFixed(2)} this week
+            Saved ~{formatMoney(pantry.savedEur, currency)} this week
           </span>
         )}
 
@@ -449,7 +461,7 @@ export default function ShoppingListPage() {
           savings this list would have seen */}
       {pantry && !pantry.entitled && (
         <div className="mb-5" data-print-hide>
-          <PantryGhostBanner savedEur={pantry.savedEur} />
+          <PantryGhostBanner savedEur={pantry.savedEur} currency={currency} />
         </div>
       )}
 
@@ -608,7 +620,7 @@ export default function ShoppingListPage() {
                                   <span
                                     className={`ml-2 font-medium ${item.pantryCovered ? 'line-through opacity-60' : ''}`}
                                   >
-                                    ~€{item.estimatedPriceEur.toFixed(2)}
+                                    ~{formatMoney(item.estimatedPriceEur, currency)}
                                   </span>
                                 )}
                                 {item.pantryCovered && (

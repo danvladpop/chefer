@@ -1,24 +1,28 @@
 'use client';
 
 import { useState } from 'react';
+import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import { cn, parseBodyWeightKg } from '@chefer/utils';
+import { cn, parseBodyWeight } from '@chefer/utils';
 
 // One weigh-in form for the dashboard card, /progress and the gym stats
 // prompt (audit F-DASH-3-1, F-TRK-1-7). It used to be three copies of a bare
 // input + button outside any <form>: Enter did nothing, 1000 kg saved, and 0
 // or −5 was a silent no-op. Validation mirrors the API via the shared parser.
+// The field takes the user's unit (lb for IMPERIAL, backlog P2-6) and sends kg.
 
 export function WeightLogForm({
-  placeholder = '72.5',
-  label = "Today's weight in kilograms",
+  placeholder,
+  label,
   inputClassName,
 }: {
   placeholder?: string;
   label?: string;
   inputClassName?: string;
 }) {
+  const system = useUnitSystem();
+  const imperial = system === 'IMPERIAL';
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -39,7 +43,7 @@ export function WeightLogForm({
 
   const submit = (e: React.SyntheticEvent) => {
     e.preventDefault();
-    const parsed = parseBodyWeightKg(value);
+    const parsed = parseBodyWeight(value, system);
     if (!parsed.ok) {
       setError(parsed.error);
       return;
@@ -58,9 +62,9 @@ export function WeightLogForm({
             setValue(e.target.value);
             if (error) setError(null);
           }}
-          placeholder={placeholder}
+          placeholder={placeholder ?? (imperial ? '160.5 lb' : '72.5 kg')}
           inputMode="decimal"
-          aria-label={label}
+          aria-label={label ?? `Today's weight in ${imperial ? 'pounds' : 'kilograms'}`}
           aria-invalid={error != null}
           aria-describedby={error ? 'weight-log-error' : undefined}
           className={cn(

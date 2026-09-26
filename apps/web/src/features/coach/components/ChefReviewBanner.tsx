@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { ChefHat, Lock, TrendingDown, TrendingUp } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
+import { formatWeightTrend } from '@chefer/utils';
 
 // ─── Weekly chef review banner (F1, coach) ────────────────────────────────────
 // The upgraded Monday banner: shows while the latest review is fresh (the API
@@ -20,15 +22,9 @@ import { Sheet } from '@chefer/ui';
 const TEASER_PLACEHOLDER =
   'Your chef wrote a few more lines about your week — the trend, the pattern behind it, and what next week should change.';
 
-function formatTrend(trendKg: number | null): string | null {
-  if (trendKg == null) return null;
-  const abs = Math.abs(trendKg).toFixed(1);
-  if (Math.abs(trendKg) < 0.05) return 'steady';
-  return `${trendKg < 0 ? '−' : '+'}${abs} kg/wk`;
-}
-
 export function ChefReviewBanner() {
   const { data } = trpc.coach.currentReview.useQuery(undefined, { staleTime: 60_000 });
+  const system = useUnitSystem();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   // Ghost-state impression — once per mount, only when the teaser renders.
@@ -85,7 +81,7 @@ export function ChefReviewBanner() {
 
   // ── Premium: summary + full-review sheet ───────────────────────────────────
   const r = data.review;
-  const trend = formatTrend(r.weightTrendKg);
+  const trend = formatWeightTrend(r.weightTrendKg, system);
   const TrendIcon = (r.weightTrendKg ?? 0) < -0.05 ? TrendingDown : TrendingUp;
 
   return (

@@ -1,10 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { trpc } from '@/lib/trpc';
 import { format } from 'date-fns';
 import { Check, Pencil, Trash2, X } from 'lucide-react';
-import { parseBodyWeightKg } from '@chefer/utils';
+import {
+  bodyWeightInUnit,
+  formatBodyWeight,
+  parseBodyWeight,
+  type UnitSystem,
+} from '@chefer/utils';
 
 // Correct or remove weigh-ins (audit F-DASH-3-1). Before this, a typo like
 // 1000 kg stayed forever: it flattened the /progress chart, became "Current"
@@ -12,9 +18,13 @@ import { parseBodyWeightKg } from '@chefer/utils';
 
 type Entry = { id: string; weightKg: number; recordedAt: Date };
 
-function EntryRow({ entry }: { entry: Entry }) {
+function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
   const [mode, setMode] = useState<'view' | 'edit' | 'confirm-delete'>('view');
-  const [value, setValue] = useState(String(entry.weightKg));
+  // Edited in the user's unit (lb for IMPERIAL, backlog P2-6); saved as kg.
+  const shown = String(bodyWeightInUnit(entry.weightKg, system));
+  const weightLabel = formatBodyWeight(entry.weightKg, system);
+  const unitName = system === 'IMPERIAL' ? 'pounds' : 'kilograms';
+  const [value, setValue] = useState(shown);
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
@@ -39,7 +49,7 @@ function EntryRow({ entry }: { entry: Entry }) {
 
   const save = (e: React.SyntheticEvent) => {
     e.preventDefault();
-    const parsed = parseBodyWeightKg(value);
+    const parsed = parseBodyWeight(value, system);
     if (!parsed.ok) {
       setError(parsed.error);
       return;
@@ -62,7 +72,7 @@ function EntryRow({ entry }: { entry: Entry }) {
             inputMode="decimal"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            aria-label={`Weight on ${dateLabel} in kilograms`}
+            aria-label={`Weight on ${dateLabel} in ${unitName}`}
             aria-invalid={error != null}
             className="min-h-11 min-w-0 flex-1 rounded-xl border border-gray-200 px-3 text-sm focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00]"
           />
@@ -79,7 +89,7 @@ function EntryRow({ entry }: { entry: Entry }) {
             aria-label="Cancel editing"
             onClick={() => {
               setMode('view');
-              setValue(String(entry.weightKg));
+              setValue(shown);
               setError(null);
             }}
             className={iconButton}
@@ -90,7 +100,7 @@ function EntryRow({ entry }: { entry: Entry }) {
       ) : mode === 'confirm-delete' ? (
         <div className="flex items-center gap-2">
           <span className="min-w-0 flex-1 text-sm text-gray-700">
-            Delete {entry.weightKg} kg on {dateLabel}?
+            Delete {weightLabel} on {dateLabel}?
           </span>
           <button
             type="button"
@@ -111,12 +121,10 @@ function EntryRow({ entry }: { entry: Entry }) {
       ) : (
         <div className="flex items-center gap-2">
           <span className="w-24 shrink-0 text-sm text-gray-500">{dateLabel}</span>
-          <span className="min-w-0 flex-1 text-sm font-semibold text-gray-900">
-            {entry.weightKg} kg
-          </span>
+          <span className="min-w-0 flex-1 text-sm font-semibold text-gray-900">{weightLabel}</span>
           <button
             type="button"
-            aria-label={`Edit ${entry.weightKg} kg on ${dateLabel}`}
+            aria-label={`Edit ${weightLabel} on ${dateLabel}`}
             onClick={() => setMode('edit')}
             className={iconButton}
           >
@@ -124,7 +132,7 @@ function EntryRow({ entry }: { entry: Entry }) {
           </button>
           <button
             type="button"
-            aria-label={`Delete ${entry.weightKg} kg on ${dateLabel}`}
+            aria-label={`Delete ${weightLabel} on ${dateLabel}`}
             onClick={() => setMode('confirm-delete')}
             className={iconButton}
           >
@@ -143,6 +151,7 @@ function EntryRow({ entry }: { entry: Entry }) {
 
 /** Newest-first list of weigh-ins with inline edit and confirm-to-delete. */
 export function WeightEntriesList({ entries, limit = 10 }: { entries: Entry[]; limit?: number }) {
+  const system = useUnitSystem();
   const [showAll, setShowAll] = useState(false);
   const newestFirst = [...entries].reverse();
   const visible = showAll ? newestFirst : newestFirst.slice(0, limit);
@@ -153,7 +162,7 @@ export function WeightEntriesList({ entries, limit = 10 }: { entries: Entry[]; l
       <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">Entries</p>
       <ul className="divide-y divide-gray-100">
         {visible.map((entry) => (
-          <EntryRow key={entry.id} entry={entry} />
+          <EntryRow key={entry.id} entry={entry} system={system} />
         ))}
       </ul>
       {newestFirst.length > limit && (

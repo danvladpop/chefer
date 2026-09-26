@@ -18,7 +18,12 @@ import {
   YAxis,
 } from 'recharts';
 import { ErrorState } from '@chefer/ui';
-import { weightChangeTone } from '@chefer/utils';
+import {
+  bodyWeightInUnit,
+  bodyWeightUnit,
+  formatBodyWeight,
+  weightChangeTone,
+} from '@chefer/utils';
 
 export default function ProgressPage() {
   // Tooltips stay on the default hover trigger. Tapping a chart already opens
@@ -59,9 +64,12 @@ export default function ProgressPage() {
     fat: d.hasLog ? Math.round(d.totalFat) : null,
   }));
 
+  // Stored in kg; charted and labelled in the user's unit (backlog P2-6).
+  const system = preferences?.chefProfile?.preferredUnits ?? 'METRIC';
+  const unit = bodyWeightUnit(system);
   const weightData = (weightHistory ?? []).map((w) => ({
     date: format(new Date(w.recordedAt), 'dd MMM'),
-    weight: w.weightKg,
+    weight: bodyWeightInUnit(w.weightKg, system),
   }));
 
   const daysLogged = (monthly?.days ?? []).filter((d) => d.hasLog).length;
@@ -229,7 +237,7 @@ export default function ProgressPage() {
               <div className="mb-4 flex gap-4 text-sm">
                 <div>
                   <span className="text-neutral-500">Current: </span>
-                  <span className="font-semibold">{latestWeight} kg</span>
+                  <span className="font-semibold">{formatBodyWeight(latestWeight, system)}</span>
                 </div>
                 {firstWeight != null && firstWeight !== latestWeight && (
                   <div>
@@ -243,8 +251,8 @@ export default function ProgressPage() {
                             : 'text-neutral-800'
                       }`}
                     >
-                      {weightDelta !== null && weightDelta > 0 ? '+' : ''}
-                      {weightDelta?.toFixed(1)} kg
+                      {weightDelta !== null &&
+                        formatBodyWeight(weightDelta, system, { signed: true })}
                     </span>
                   </div>
                 )}
@@ -269,7 +277,7 @@ export default function ProgressPage() {
                     width={40}
                     domain={['auto', 'auto']}
                   />
-                  <Tooltip formatter={(val) => [`${String(val)} kg`]} />
+                  <Tooltip formatter={(val) => [`${String(val)} ${unit}`]} />
                   <Line
                     type="monotone"
                     dataKey="weight"
@@ -277,7 +285,7 @@ export default function ProgressPage() {
                     strokeWidth={2}
                     dot={{ r: 3 }}
                     activeDot={activeDot}
-                    name="Weight (kg)"
+                    name={`Weight (${unit})`}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -289,7 +297,7 @@ export default function ProgressPage() {
 
             {/* Log weight input */}
             <div className="mt-4">
-              <WeightLogForm label="Weight in kilograms" />
+              <WeightLogForm />
             </div>
             <WeightEntriesList entries={weightHistory ?? []} />
           </div>

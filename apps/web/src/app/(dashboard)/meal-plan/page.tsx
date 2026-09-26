@@ -27,13 +27,14 @@ import {
   ChevronLeft,
   ChevronRight,
   CookingPot,
-  Euro,
   ImageIcon,
   RefreshCw,
   Sparkles,
+  Wallet,
   Wand2,
 } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
+import { formatMoney, toDisplayCurrency } from '@chefer/utils';
 import MealPlanLoading from './loading';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -129,6 +130,8 @@ export default function MealPlanPage() {
   const { data: prefs } = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
   const weekCost = plan?.estimatedCost?.totalEur ?? null;
   const weeklyBudget = prefs?.chefProfile?.weeklyBudgetEur ?? null;
+  // Costs are EUR estimates; shown in the user's currency (backlog P2-6).
+  const currency = toDisplayCurrency(prefs?.chefProfile?.deliveryCurrency);
   // F2: with household members the week feeds several people — show the cost
   // per person next to the household total.
   const { memberCount, peopleCount } = useHousehold();
@@ -339,10 +342,11 @@ export default function MealPlanPage() {
             }`}
             title="Estimated ingredient cost for the whole week"
           >
-            <Euro className="h-3 w-3" aria-hidden="true" />≈ €{weekCost.toFixed(2)} this week
+            <Wallet className="h-3 w-3" aria-hidden="true" />≈ {formatMoney(weekCost, currency)}{' '}
+            this week
             {perPersonCost !== null && (
               <span className="font-normal opacity-80">
-                · €{perPersonCost.toFixed(2)}/person for {peopleCount}
+                · {formatMoney(perPersonCost, currency)}/person for {peopleCount}
               </span>
             )}
           </span>
@@ -472,10 +476,11 @@ export default function MealPlanPage() {
       {overBudget !== null && (
         <div className="mx-4 mb-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 sm:mx-6">
           <p className="flex items-start gap-2 text-xs text-amber-900">
-            <Euro className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
-            This week comes to ≈ €{weekCost?.toFixed(2)} — about €{overBudget.toFixed(2)} over your
-            €{weeklyBudget} budget. Regenerate for a cheaper week, or raise the budget in
-            Preferences.
+            <Wallet className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
+            This week comes to ≈ {formatMoney(weekCost ?? 0, currency)} — about{' '}
+            {formatMoney(overBudget, currency)} over your{' '}
+            {formatMoney(weeklyBudget ?? 0, currency, { decimals: 0 })} budget. Regenerate for a
+            cheaper week, or raise the budget in Preferences.
           </p>
         </div>
       )}

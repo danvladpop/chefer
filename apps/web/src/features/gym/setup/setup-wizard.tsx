@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, Check, ChevronRight } from 'lucide-react';
@@ -12,7 +12,7 @@ import {
   type WeightUnit,
 } from '@chefer/types';
 import { Button, Input } from '@chefer/ui';
-import { cn, unitLabel, VOLUME_GROUP_LABELS } from '@chefer/utils';
+import { cn, unitLabel, VOLUME_GROUP_LABELS, weightUnitForSystem } from '@chefer/utils';
 import { CardLabel, GymCard } from '../shared/gym-card';
 import { ToggleRow } from '../shared/toggle-row';
 import { useGymData } from '../shared/use-gym-data';
@@ -62,10 +62,17 @@ export function SetupWizard() {
   const [knownWeights, setKnownWeights] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
-  // The unit defaults to the locale (after mount: SSR has no navigator).
+  // The unit defaults to the global unit preference (one preference across
+  // Food and Gym, P2-6) — or, without a profile yet, to the locale (after
+  // mount: SSR has no navigator). Applied once, so it never overrides a pick.
+  const prefs = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
+  const unitDefaulted = useRef(false);
   useEffect(() => {
-    setUnit(defaultUnitForLocale(navigator.language));
-  }, []);
+    if (unitDefaulted.current || prefs.isLoading) return;
+    unitDefaulted.current = true;
+    const preferred = prefs.data?.chefProfile?.preferredUnits;
+    setUnit(preferred ? weightUnitForSystem(preferred) : defaultUnitForLocale(navigator.language));
+  }, [prefs.isLoading, prefs.data]);
 
   // Experienced lifters usually know their weights (§1.3: calibrate is the beginner default).
   useEffect(() => {
@@ -86,6 +93,8 @@ export function SetupWizard() {
   const complete = trpc.gym.profile.completeSetup.useMutation({
     onSuccess: async (bootstrap) => {
       utils.gym.bootstrap.setData({ today: localDate() }, bootstrap);
+      // The setup unit became the global unit preference (P2-6).
+      void utils.preferences.get.invalidate();
       if (reminderOn) {
         // Reminders fire from the phone app; the web stores the preference only.
         await saveProfile.mutateAsync({ reminderEnabled: true, reminderTime }).catch(() => null);
@@ -217,6 +226,9 @@ export function SetupWizard() {
               </Choice>
             ))}
           </div>
+          <p className="mt-2 text-xs text-gray-500">
+            Also used for recipes, shopping lists and your body weight.
+          </p>
         </Question>
       )}
 

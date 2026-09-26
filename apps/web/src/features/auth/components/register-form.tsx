@@ -7,6 +7,7 @@ import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
+import { detectRegion } from '@chefer/utils';
 
 const registerSchema = z
   .object({
@@ -58,11 +59,14 @@ export function RegisterForm() {
 
   const onSubmit = (data: RegisterFormValues) => {
     setServerError(null);
+    // Location defaults (P2-6): the browser's region seeds units + currency.
+    const region = detectRegion(typeof navigator === 'undefined' ? [] : navigator.languages);
     registerMutation.mutate({
       email: data.email,
       password: data.password,
       firstName: data.firstName,
       lastName: data.lastName,
+      ...(region && { region }),
     });
   };
 
