@@ -86,3 +86,16 @@ describe('roundQuantity', () => {
     expect(roundQuantity(0.3, 'piece')).toBe(0.5);
   });
 });
+
+describe('vocabulary plausibility (audit F-PAN-2-1)', () => {
+  it('a row whose calories contradict its macros is ignored, never trusted', () => {
+    // "Cod" claiming 300 kcal with 18 g protein and ~no fat or carbs is nonsense.
+    const bad = [row('cod fillet', 300, 18, 0, 0.7), ...VOCAB.slice(1)];
+    // Dropping it (and the fixture's own inconsistent lemon row) leaves too
+    // little coverage to dispute the AI: the recipe is left as stated rather
+    // than resized against bogus numbers.
+    const result = reconcileRecipeMacros(cod(1100), bad);
+    expect(result.action).toBe('unknown');
+    expect(result.recipe.ingredients[0]).toMatchObject({ quantity: 180 });
+  });
+});

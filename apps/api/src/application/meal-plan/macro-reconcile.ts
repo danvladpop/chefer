@@ -1,6 +1,7 @@
 import type { RecipeData } from '../../lib/ai/types.js';
 import {
   addMacros,
+  macrosAreConsistent,
   normalizeIngredientName,
   quantityToGrams,
   type ComputedNutrition,
@@ -74,8 +75,10 @@ export function reconcileRecipeMacros(
   recipe: RecipeData,
   vocabulary: MacroVocabularyRow[] | Map<string, MacroVocabularyRow>,
 ): ReconcileResult {
-  const rows =
-    vocabulary instanceof Map ? vocabulary : new Map(vocabulary.map((r) => [r.ingredientName, r]));
+  // Self-contradicting rows (calories ≠ 4P+4C+9F) count as unmatched: they
+  // must not resize a recipe (audit F-PAN-2-1).
+  const all = vocabulary instanceof Map ? [...vocabulary.values()] : vocabulary;
+  const rows = new Map(all.filter(macrosAreConsistent).map((r) => [r.ingredientName, r]));
   const lines = recipe.ingredients.length;
   const { nutrition, matched } = computePerServing(recipe, rows);
   if (lines === 0 || matched / lines < MIN_COVERAGE || nutrition.calories <= 0) {
