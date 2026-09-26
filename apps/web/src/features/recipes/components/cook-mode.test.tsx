@@ -14,9 +14,11 @@ const RECIPE = {
   instructions: ['Chop the tomatoes.', 'Simmer for 5 minutes.', 'Blend and serve.'],
 };
 
+let mockSearch = '';
+const mockLogRecipe = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ back: vi.fn(), push: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(mockSearch),
 }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -44,13 +46,17 @@ vi.mock('@/lib/trpc', () => ({
     },
     tracker: {
       logRecipe: {
-        useMutation: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+        useMutation: () => ({ mutate: mockLogRecipe, isPending: false, isError: false }),
       },
     },
   },
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  mockSearch = '';
+  mockLogRecipe.mockReset();
+});
 
 const key = (k: string, init: KeyboardEventInit = {}, target: Element | Document = document) =>
   fireEvent.keyDown(target, { key: k, ...init });
@@ -126,5 +132,31 @@ describe('CookMode keyboard control (F-REC-6-5)', () => {
     expect(hint()?.textContent).not.toMatch(/Space/);
     key('ArrowRight');
     expect(hint()?.textContent).toMatch(/Space/);
+  });
+});
+
+describe('CookMode — plan portion (audit P1-1)', () => {
+  it('starts at the plan portion and logs it on "Made it!"', () => {
+    mockSearch = 'meal=dinner&portion=1.5';
+    render(<CookMode recipeId="r1" />);
+    // A 2-serving recipe at a 1.5× slot: 3 servings, like the shopping list.
+    expect(screen.getByText('3')).toBeTruthy();
+    key('ArrowRight');
+    key('ArrowRight');
+    key('ArrowRight');
+    fireEvent.click(screen.getByText('Made it! Log this meal'));
+    expect(mockLogRecipe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipeId: 'r1', mealType: 'dinner', portionMultiplier: 1.5 }),
+    );
+  });
+
+  it('logs one serving without a plan portion', () => {
+    mockSearch = 'meal=lunch';
+    render(<CookMode recipeId="r1" />);
+    key('ArrowRight');
+    key('ArrowRight');
+    key('ArrowRight');
+    fireEvent.click(screen.getByText('Made it! Log this meal'));
+    expect(mockLogRecipe).toHaveBeenCalledWith(expect.objectContaining({ portionMultiplier: 1 }));
   });
 });

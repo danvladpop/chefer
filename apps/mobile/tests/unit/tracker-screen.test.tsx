@@ -46,6 +46,18 @@ jest.mock('../../src/lib/trpc', () => ({
                 carbs: 50,
                 fat: 10,
               },
+              {
+                // P1-1: a curated slot sized to 1¼× of the recipe
+                recipeId: 'r2',
+                recipeName: 'Chicken Rice Bowl',
+                mealType: 'lunch',
+                imageUrl: null,
+                kcal: 600,
+                protein: 40,
+                carbs: 60,
+                fat: 20,
+                portion: 1.25,
+              },
             ],
           },
           isLoading: false,
@@ -119,6 +131,31 @@ describe('TrackerScreen', () => {
       mockUpsertOpts.onSuccess?.({ log: {}, rebalance });
     });
     expect(mockRecordRebalance).toHaveBeenCalledWith(rebalance);
+    await act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    jest.useRealTimers();
+  });
+
+  it('logs a planned meal at its plan portion by default (P1-1)', async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await renderTracker();
+    expect(screen.getByText(/750 kcal · plan 1¼×/)).toBeOnTheScreen();
+    await user.press(screen.getByTestId('tracker-meal-lunch'));
+    await user.press(screen.getByTestId('tracker-save'));
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        loggedMeals: [
+          expect.objectContaining({
+            recipeId: 'r2',
+            portionMultiplier: 1.25,
+            kcal: 750,
+            protein: 50,
+          }),
+        ],
+      }),
+    );
     await act(() => {
       jest.runOnlyPendingTimers();
     });

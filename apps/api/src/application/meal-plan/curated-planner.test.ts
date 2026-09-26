@@ -33,8 +33,10 @@ const seeded = () => {
   return () => (s = (s * 16807) % 2147483647) / 2147483647;
 };
 
-const dayKcal = (d: { meals: { recipe: RecipeData }[] }) =>
-  d.meals.reduce((sum, m) => sum + m.recipe.nutritionInfo.calories, 0);
+const dayKcal = (d: { meals: { recipe: RecipeData; portion: number }[] }) =>
+  d.meals.reduce((sum, m) => sum + m.recipe.nutritionInfo.calories * m.portion, 0);
+const dayProtein = (d: { meals: { recipe: RecipeData; portion: number }[] }) =>
+  d.meals.reduce((sum, m) => sum + m.recipe.nutritionInfo.protein * m.portion, 0);
 
 describe('planCuratedWeek (audit F-PLAN-1-3)', () => {
   it('lands every day near a 2,000 kcal target, adding a snack when needed', () => {
@@ -53,7 +55,7 @@ describe('planCuratedWeek (audit F-PLAN-1-3)', () => {
   it('stays at three meals when they already fit a smaller target', () => {
     const week = planCuratedWeek(
       pools(),
-      { calories: 1500, proteinG: 80, goal: 'LOSE_WEIGHT' },
+      { calories: 1500, proteinG: 60, goal: 'LOSE_WEIGHT' },
       seeded(),
     );
     expect(week.every((d) => d.meals.length === 3)).toBe(true);
@@ -71,37 +73,111 @@ describe('planCuratedWeek (audit F-PLAN-1-3)', () => {
 
   it('picks higher-protein combinations for GAIN_MUSCLE', () => {
     const p = pools();
-    p.lunch.push(recipe(560, 55), recipe(540, 50));
-    const protein = (goal: string) =>
-      planCuratedWeek(p, { calories: 2000, proteinG: 160, goal }, seeded())
+    const lean = [recipe(560, 55), recipe(540, 50)];
+    p.lunch.push(...lean);
+    const leanIds = new Set(lean.map((r) => r.id));
+    const leanPicks = (goal: string) =>
+      planCuratedWeek(p, { calories: 2000, proteinG: 100, goal }, seeded())
         .flatMap((d) => d.meals)
-        .reduce((s, m) => s + m.recipe.nutritionInfo.protein, 0);
-    expect(protein('GAIN_MUSCLE')).toBeGreaterThanOrEqual(protein('MAINTAIN'));
+        .filter((m) => leanIds.has(m.recipe.id)).length;
+    expect(leanPicks('GAIN_MUSCLE')).toBeGreaterThanOrEqual(leanPicks('MAINTAIN'));
+    expect(leanPicks('GAIN_MUSCLE')).toBeGreaterThan(0);
+  });
+
+  describe('portions (audit P1-1)', () => {
+    it.each([
+      [1600, 90],
+      [1600, 140],
+      [2000, 90],
+      [2000, 140],
+      [2000, 175],
+      [2800, 90],
+      [2800, 140],
+      [2800, 175],
+      [3200, 90],
+      [3200, 140],
+      [3200, 175],
+    ])('lands every day within ±10%% of %i kcal (protein %i g)', (calories, proteinG) => {
+      const week = planCuratedWeek(pools(), { calories, proteinG, goal: 'MAINTAIN' }, seeded());
+      for (const day of week) {
+        expect(Math.abs(dayKcal(day) - calories) / calories).toBeLessThanOrEqual(0.1);
+        expect(day.kcal).toBe(Math.round(dayKcal(day)));
+        for (const m of day.meals) {
+          expect(m.portion).toBeGreaterThanOrEqual(0.75);
+          expect(m.portion).toBeLessThanOrEqual(2);
+        }
+      }
+    });
+
+    it('reports an honest protein gap only when the day really is short', () => {
+      const week = planCuratedWeek(
+        pools(),
+        { calories: 2000, proteinG: 175, goal: 'GAIN_MUSCLE' },
+        seeded(),
+      );
+      for (const day of week) {
+        const short = 175 - dayProtein(day);
+        if (day.proteinGapG === null) expect(short).toBeLessThan(17.5);
+        else expect(day.proteinGapG).toBe(Math.round(short));
+      }
+      // This small fixture pool can't reach 175 g inside 2,000 kcal.
+      expect(week.some((d) => d.proteinGapG !== null)).toBe(true);
+    });
+
+    it('keeps portions at 1x when the recipes already fit', () => {
+      const flat: Record<MealType, RecipeData[]> = {
+        breakfast: [1, 2, 3].map(() => recipe(500, 30)),
+        lunch: [1, 2, 3].map(() => recipe(700, 40)),
+        dinner: [1, 2, 3].map(() => recipe(800, 50)),
+        snack: [recipe(200, 10)],
+      };
+      const week = planCuratedWeek(flat, { calories: 2000, proteinG: 110, goal: 'MAINTAIN' });
+      expect(week.every((d) => d.meals.every((m) => m.portion === 1))).toBe(true);
+      expect(week.every((d) => d.meals.length === 3)).toBe(true);
+    });
+
+    it('upsizes the protein-dense dish for a lifter', () => {
+      const p: Record<MealType, RecipeData[]> = {
+        breakfast: [1, 2, 3].map(() => recipe(450, 12)),
+        lunch: [1, 2, 3].map(() => recipe(550, 60)),
+        dinner: [1, 2, 3].map(() => recipe(600, 25)),
+        snack: [recipe(200, 5)],
+      };
+      const week = planCuratedWeek(p, { calories: 2400, proteinG: 175, goal: 'GAIN_MUSCLE' });
+      for (const day of week) {
+        const lunch = day.meals.find((m) => m.type === 'lunch')!;
+        expect(lunch.portion).toBe(Math.max(...day.meals.map((m) => m.portion)));
+        expect(lunch.portion).toBeGreaterThan(1);
+      }
+    });
   });
 });
 
 describe('planCuratedWeek — training days (audit P2-4)', () => {
-  // A kcal-perfect but low-protein dinner vs a protein-rich one that
-  // overshoots calories: a rest day takes the first, a training day the second.
+  // With portions (P1-1) every day already chases protein inside the ±10%
+  // calorie band; a training day weighs the shortfall double, so it trades
+  // more calorie accuracy for protein than a rest day does.
   const trainingPools = (): Record<MealType, RecipeData[]> => ({
     breakfast: [recipe(600, 20)],
     lunch: [recipe(600, 20)],
-    dinner: [recipe(600, 20), recipe(900, 60)],
+    dinner: [recipe(600, 20), recipe(600, 40)],
     snack: [],
   });
   const targets = { calories: 1800, proteinG: 150, goal: 'MAINTAIN' };
-  const mondayDinnerProtein = (week: ReturnType<typeof planCuratedWeek>) =>
-    week[0]!.meals.find((m) => m.type === 'dinner')!.recipe.nutritionInfo.protein;
 
-  it('a rest day keeps the calorie-closest dinner', () => {
-    expect(mondayDinnerProtein(planCuratedWeek(trainingPools(), targets, seeded()))).toBe(20);
+  it('a rest day stays calorie-exact', () => {
+    const monday = planCuratedWeek(trainingPools(), targets, seeded())[0]!;
+    expect(monday.kcal).toBe(1800);
+    expect(monday.protein).toBe(90);
   });
 
-  it('a training day picks the higher-protein dinner', () => {
-    expect(
-      mondayDinnerProtein(
-        planCuratedWeek(trainingPools(), { ...targets, trainingDays: [0] }, seeded()),
-      ),
-    ).toBe(60);
+  it('a training day leans further toward protein, still inside the band', () => {
+    const monday = planCuratedWeek(
+      trainingPools(),
+      { ...targets, trainingDays: [0] },
+      seeded(),
+    )[0]!;
+    expect(monday.protein).toBeGreaterThan(90);
+    expect(Math.abs(monday.kcal - 1800) / 1800).toBeLessThanOrEqual(0.1);
   });
 });

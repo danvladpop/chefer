@@ -1,4 +1,4 @@
-import { cn } from '@chefer/utils';
+import { cn, sumPlanDay } from '@chefer/utils';
 
 interface NutritionInfo {
   calories: number;
@@ -11,6 +11,8 @@ interface NutritionInfo {
 interface MealSlot {
   type: string;
   recipe: { nutritionInfo: NutritionInfo };
+  /** P1-1: servings of the recipe this slot is (absent = 1). */
+  portion?: number | undefined;
 }
 
 interface DayRecapBarProps {
@@ -21,21 +23,20 @@ interface DayRecapBarProps {
    * letting an under-planned day pass silently (trust fix P-1).
    */
   calorieTarget?: number | undefined;
+  /**
+   * P1-1: grams the day's protein falls short of target (DayPlanDto.proteinGapG,
+   * present only when meaningfully short) — shown as an honest hint.
+   */
+  proteinGapG?: number | undefined;
 }
 
 /** Matches the API's PLAN_KCAL_TOLERANCE — one band, every surface. */
 const TARGET_BAND = 0.15;
 
-export function DayRecapBar({ meals, calorieTarget }: DayRecapBarProps) {
-  const totals = meals.reduce(
-    (acc, m) => ({
-      calories: acc.calories + m.recipe.nutritionInfo.calories,
-      protein: acc.protein + m.recipe.nutritionInfo.protein,
-      carbs: acc.carbs + m.recipe.nutritionInfo.carbs,
-      fat: acc.fat + m.recipe.nutritionInfo.fat,
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
+export function DayRecapBar({ meals, calorieTarget, proteinGapG }: DayRecapBarProps) {
+  // Totals count each slot at its portion (P1-1) — same sum as mobile.
+  const { kcal, protein, carbs, fat } = sumPlanDay(meals);
+  const totals = { calories: kcal, protein, carbs, fat };
 
   const delta = calorieTarget ? totals.calories - calorieTarget : 0;
   const offTarget = calorieTarget ? Math.abs(delta) / calorieTarget > TARGET_BAND : false;
@@ -59,6 +60,14 @@ export function DayRecapBar({ meals, calorieTarget }: DayRecapBarProps) {
         <span>C {totals.carbs}g</span>
         <span>F {totals.fat}g</span>
       </div>
+      {proteinGapG !== undefined && proteinGapG > 0 && (
+        <p
+          data-testid="day-protein-gap"
+          className="mt-1 rounded-md bg-amber-50 px-1.5 py-1 text-xs font-medium text-amber-800"
+        >
+          Protein short by {proteinGapG} g — add a snack
+        </p>
+      )}
     </div>
   );
 }

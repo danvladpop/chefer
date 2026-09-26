@@ -27,7 +27,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Sheet, Toast } from '@chefer/ui';
-import { formatQuantity } from '@chefer/utils';
+import { formatPortion, formatQuantity, scaleNutrition, slotPortion } from '@chefer/utils';
 
 // Swap-undo handoff (review F-2): the swap navigates to the NEW recipe's page,
 // so the undo offer travels through sessionStorage and is only honoured
@@ -72,6 +72,15 @@ const MEAL_COLOURS: Record<string, string> = {
   snack: 'bg-purple-100 text-purple-700',
 };
 
+/** Cook-mode query: the meal type and, for a portioned plan slot, its portion. */
+function cookQuery(meal: string | null, portion: number): string {
+  const params = new URLSearchParams();
+  if (meal) params.set('meal', meal);
+  if (portion !== 1) params.set('portion', String(portion));
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -91,6 +100,8 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const planId = searchParams.get('planId');
   const day = searchParams.get('day');
   const meal = searchParams.get('meal');
+  // P1-1: the plan slot's portion (servings of this recipe), when not 1×.
+  const planPortion = slotPortion(parseFloat(searchParams.get('portion') ?? ''));
   const dayParam = day !== null ? parseInt(day, 10) : null;
 
   const hasSwapContext = Boolean(planId && day !== null && meal);
@@ -176,7 +187,10 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const { portionSum, peopleCount } = useHousehold();
   const [servings, setServings] = useState<number | null>(null);
   const baseServings = recipe?.servings ?? 1;
-  const selectedServings = servings ?? portionSum ?? baseServings;
+  // P1-1: opened from a portioned plan slot, quantities start at that
+  // portion (it composes with the household portion sum, never replaces it).
+  const defaultServings = Math.round((portionSum ?? baseServings) * planPortion * 100) / 100;
+  const selectedServings = servings ?? defaultServings;
   const scale = selectedServings / baseServings;
 
   // Saved-recipe picker state
@@ -307,7 +321,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
           {/* Cook mode (P1-3) — the primary action on a recipe you're about to make */}
           <Link
-            href={`/recipes/${id}/cook${meal ? `?meal=${meal}` : ''}`}
+            href={`/recipes/${id}/cook${cookQuery(meal, planPortion)}`}
             className="flex min-h-11 items-center gap-1.5 rounded-xl bg-[#944a00] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#7a3d00]"
           >
             <ChefHat className="h-3.5 w-3.5" />
@@ -410,6 +424,18 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             {selectedServings !== portionSum ? ` — adjusted to ${selectedServings} servings` : ''}.
             Nutrition facts stay per serving.
           </span>
+        </p>
+      )}
+
+      {/* P1-1: the plan sized this slot to the day's targets */}
+      {planPortion !== 1 && (
+        <p
+          data-testid="plan-portion-note"
+          className="-mt-6 mb-8 rounded-xl bg-[#fff3e8] px-3 py-2 text-xs text-[#944a00]"
+        >
+          Your plan has a <strong>{formatPortion(planPortion)} portion</strong> here —{' '}
+          {scaleNutrition(n, planPortion).calories} kcal ·{' '}
+          {Math.round(scaleNutrition(n, planPortion).protein)} g protein. Quantities start at it.
         </p>
       )}
 

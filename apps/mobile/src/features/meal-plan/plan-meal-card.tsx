@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Text } from '@chefer/ui-mobile';
+import { formatPortion, slotPortion } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import type { RouterOutputs } from '../../lib/trpc';
 import { MealTypeBadge } from '../dashboard/components/meal-type-badge';
@@ -27,6 +28,9 @@ export function PlanMealCard({
   trailing?: ReactNode;
   day?: number;
 }) {
+  // P1-1: the slot may be sized to the day's targets (1½× the recipe).
+  const portion = slotPortion(meal.portion);
+  const portionParam = portion !== 1 ? { portion: String(portion) } : {};
   return (
     <Pressable
       testID={testID}
@@ -36,8 +40,8 @@ export function PlanMealCard({
           pathname: '/recipe/[id]',
           params:
             day === undefined
-              ? { id: meal.recipe.id }
-              : { id: meal.recipe.id, day: String(day), meal: meal.type },
+              ? { id: meal.recipe.id, ...portionParam }
+              : { id: meal.recipe.id, day: String(day), meal: meal.type, ...portionParam },
         })
       }
       className="flex-row overflow-hidden rounded-2xl border border-border bg-card"
@@ -58,6 +62,13 @@ export function PlanMealCard({
                 </Text>
               </View>
             )}
+            {portion !== 1 && (
+              <View testID={`${testID}-portion`} className="rounded-full bg-accent px-2 py-0.5">
+                <Text className="text-xs font-semibold text-primary">
+                  {formatPortion(portion)} portion
+                </Text>
+              </View>
+            )}
           </View>
           <Text numberOfLines={2} className="text-sm font-semibold text-gray-900">
             {meal.recipe.name}
@@ -68,7 +79,9 @@ export function PlanMealCard({
           <Text className="text-xs text-gray-500">
             {meal.recipe.prepTimeMins + meal.recipe.cookTimeMins}m
           </Text>
-          <Text className="text-xs text-gray-500">{meal.recipe.nutritionInfo.calories} kcal</Text>
+          <Text className="text-xs text-gray-500">
+            {Math.round(meal.recipe.nutritionInfo.calories * portion)} kcal
+          </Text>
         </View>
       </View>
       {trailing}

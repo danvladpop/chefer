@@ -17,11 +17,20 @@ import { trpc } from '@/lib/trpc';
 import { addDays, format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Flame, Save, Trash2 } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
-import { localDateStr } from '@chefer/utils';
+import { formatPortion, localDateStr, slotPortion } from '@chefer/utils';
 
-type PortionKey = 0.5 | 1 | 1.5 | 2;
-const PORTION_LABELS: Record<PortionKey, string> = { 0.5: '½×', 1: '1×', 1.5: '1½×', 2: '2×' };
+type PortionKey = number;
 const PORTION_OPTIONS: PortionKey[] = [0.5, 1, 1.5, 2];
+
+/**
+ * P1-1: a planned meal's default portion is the plan slot's (a curated day
+ * sized to 1¼× logs 1¼×), within the tracker's 0.5–2 range. The picker gets
+ * that portion as an extra option when it isn't one of the four.
+ */
+const planPortionOf = (meal: { portion?: number }): PortionKey =>
+  Math.min(2, Math.max(0.5, slotPortion(meal.portion)));
+const portionOptionsFor = (meal: { portion?: number }): PortionKey[] =>
+  [...new Set([...PORTION_OPTIONS, planPortionOf(meal)])].sort((a, b) => a - b);
 
 // Local calendar day, not the UTC one (F-TRK-1-1).
 const toDateStr = (d: Date): string => localDateStr(d);
@@ -67,7 +76,7 @@ export default function TrackerPage() {
         if (!m.recipeId) continue;
         init[getKey(m.recipeId, m.mealType)] = {
           checked: true,
-          portion: m.portionMultiplier as PortionKey,
+          portion: m.portionMultiplier,
         };
       }
       setCheckedMeals(init);
@@ -94,11 +103,11 @@ export default function TrackerPage() {
     onSuccess: () => void refetch(),
   });
 
-  const toggleMeal = (recipeId: string, mealType: string) => {
+  const toggleMeal = (recipeId: string, mealType: string, planPortion: PortionKey) => {
     const k = getKey(recipeId, mealType);
     setCheckedMeals((prev) => ({
       ...prev,
-      [k]: { checked: !(prev[k]?.checked ?? false), portion: prev[k]?.portion ?? 1 },
+      [k]: { checked: !(prev[k]?.checked ?? false), portion: prev[k]?.portion ?? planPortion },
     }));
     setSavedSuccess(false);
   };
@@ -127,7 +136,7 @@ export default function TrackerPage() {
     const plannedLogged = data.plannedMeals
       .filter((m) => checkedMeals[getKey(m.recipeId, m.mealType)]?.checked)
       .map((m) => {
-        const portion = checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1;
+        const portion = checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? planPortionOf(m);
         return {
           recipeId: m.recipeId,
           mealType: m.mealType,
@@ -171,28 +180,34 @@ export default function TrackerPage() {
   const loggedKcal =
     loggedMeals.reduce(
       (s, m) =>
-        s + Math.round(m.kcal * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1)),
+        s +
+        Math.round(
+          m.kcal * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? planPortionOf(m)),
+        ),
       0,
     ) +
     customKcal +
     offPlan.kcal;
   const loggedProtein =
     loggedMeals.reduce(
-      (s, m) => s + m.protein * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
+      (s, m) =>
+        s + m.protein * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? planPortionOf(m)),
       0,
     ) +
     customProtein +
     offPlan.protein;
   const loggedCarbs =
     loggedMeals.reduce(
-      (s, m) => s + m.carbs * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
+      (s, m) =>
+        s + m.carbs * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? planPortionOf(m)),
       0,
     ) +
     customCarbs +
     offPlan.carbs;
   const loggedFat =
     loggedMeals.reduce(
-      (s, m) => s + m.fat * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? 1),
+      (s, m) =>
+        s + m.fat * (checkedMeals[getKey(m.recipeId, m.mealType)]?.portion ?? planPortionOf(m)),
       0,
     ) +
     customFat +
@@ -342,7 +357,7 @@ export default function TrackerPage() {
               {data.plannedMeals.map((meal) => {
                 const k = getKey(meal.recipeId, meal.mealType);
                 const isChecked = checkedMeals[k]?.checked ?? false;
-                const portion = checkedMeals[k]?.portion ?? 1;
+                const portion = checkedMeals[k]?.portion ?? planPortionOf(meal);
                 const scaledKcal = Math.round(meal.kcal * portion);
 
                 return (
@@ -378,7 +393,9 @@ export default function TrackerPage() {
                             action. Visual size holds; the hit area is 44px. */}
                         <button
                           type="button"
-                          onClick={() => toggleMeal(meal.recipeId, meal.mealType)}
+                          onClick={() =>
+                            toggleMeal(meal.recipeId, meal.mealType, planPortionOf(meal))
+                          }
                           aria-pressed={isChecked}
                           className="-m-2.5 flex h-11 w-11 shrink-0 items-center justify-center p-2.5"
                           aria-label={`${isChecked ? 'Uncheck' : 'Check'} ${meal.recipeName}`}
@@ -400,7 +417,7 @@ export default function TrackerPage() {
                           aria-label={`Portion size for ${meal.recipeName}`}
                           className="flex flex-1 gap-1 sm:flex-none"
                         >
-                          {PORTION_OPTIONS.map((p) => (
+                          {portionOptionsFor(meal).map((p) => (
                             <button
                               key={p}
                               type="button"
@@ -408,11 +425,15 @@ export default function TrackerPage() {
                               aria-pressed={portion === p && isChecked}
                               className={`min-h-11 flex-1 rounded-lg px-2 text-xs font-medium transition-all sm:flex-none sm:px-3 ${portion === p && isChecked ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
                             >
-                              {PORTION_LABELS[p]}
+                              {formatPortion(p)}
                             </button>
                           ))}
                         </div>
-                        <span className="shrink-0 text-xs text-neutral-500">{scaledKcal} kcal</span>
+                        <span className="shrink-0 text-xs text-neutral-500">
+                          {scaledKcal} kcal
+                          {planPortionOf(meal) !== 1 &&
+                            ` · plan ${formatPortion(planPortionOf(meal))}`}
+                        </span>
                       </div>
                     </div>
                   </div>

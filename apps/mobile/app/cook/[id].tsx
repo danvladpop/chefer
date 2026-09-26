@@ -4,7 +4,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
-import { cn, formatQuantity, guessMealType, localDateStr, parseStepDuration } from '@chefer/utils';
+import {
+  cn,
+  formatPortion,
+  formatQuantity,
+  guessMealType,
+  localDateStr,
+  parseStepDuration,
+  slotPortion,
+} from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { StarRating } from '../../src/features/recipes/star-rating';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
@@ -90,8 +98,14 @@ function StepTimer({ seconds }: { seconds: number }) {
 
 export default function CookModeScreen() {
   useKeepAwake();
-  const { id, meal } = useLocalSearchParams<{ id: string; meal?: string }>();
+  const { id, meal, portion } = useLocalSearchParams<{
+    id: string;
+    meal?: string;
+    portion?: string;
+  }>();
   const mealType = meal ?? guessMealType();
+  // P1-1: cooking a portioned plan slot shows its quantities and logs it.
+  const planPortion = slotPortion(parseFloat(portion ?? ''));
   const unitSystem = useUnitSystem();
 
   const { data: recipe, isLoading } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
@@ -123,8 +137,9 @@ export default function CookModeScreen() {
       date: todayIso(),
       recipeId: recipe.id,
       mealType,
-      // One serving eaten — cooking for 4 doesn't mean you ate 4×.
-      portionMultiplier: 1,
+      // One serving eaten — cooking for 4 doesn't mean you ate 4×. A plan
+      // slot sized to 1.5× means you ate 1.5 servings (P1-1).
+      portionMultiplier: Math.min(2, Math.max(0.5, planPortion)),
     });
   };
 
@@ -190,6 +205,11 @@ export default function CookModeScreen() {
         /* Ingredient checklist */
         <ScrollView contentContainerClassName="gap-2 px-4 py-3 pb-8">
           <Text variant="heading">Ingredients</Text>
+          {planPortion !== 1 && (
+            <Text testID="cook-plan-portion" variant="muted" className="text-xs">
+              Set for your plan&apos;s {formatPortion(planPortion)} portion.
+            </Text>
+          )}
           {recipe.ingredients.map((ing, i) => {
             const isChecked = checkedIngredients.has(i);
             return (
@@ -224,7 +244,7 @@ export default function CookModeScreen() {
                     isChecked ? 'text-gray-400 line-through' : 'text-gray-800',
                   )}
                 >
-                  {formatQuantity(ing.quantity, ing.unit, unitSystem)} {ing.name}
+                  {formatQuantity(ing.quantity * planPortion, ing.unit, unitSystem)} {ing.name}
                 </Text>
               </Pressable>
             );

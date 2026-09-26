@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button, Card, EmptyState, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, sumPlanDay } from '@chefer/utils';
 import { useRestorePlan } from '../../src/features/history/use-restore-plan';
 import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
 import { trpc } from '../../src/lib/trpc';
@@ -39,7 +39,8 @@ export default function HistoryPlanScreen() {
   const meals = [...(day?.meals ?? [])].sort(
     (a, b) => MEAL_ORDER.indexOf(a.type) - MEAL_ORDER.indexOf(b.type),
   );
-  const dayKcal = meals.reduce((sum, m) => sum + m.recipe.nutritionInfo.calories, 0);
+  // Each slot at its portion (P1-1) — the same sum as the Plan tab and web.
+  const dayKcal = sumPlanDay(meals).kcal;
   const canRestore = plan != null && status !== 'ACTIVE';
 
   return (
@@ -155,6 +156,11 @@ export default function HistoryPlanScreen() {
                 <Text testID="history-day-kcal" className="text-xs text-gray-500">
                   Day total · {dayKcal.toLocaleString('en-GB')} kcal
                 </Text>
+                {day?.proteinGapG !== undefined && (
+                  <Text testID="history-day-protein-gap" className="text-xs text-amber-800">
+                    Protein short by {day.proteinGapG} g
+                  </Text>
+                )}
                 {meals.map((meal) => (
                   <PlanMealCard
                     key={`${meal.type}-${meal.recipe.id}`}

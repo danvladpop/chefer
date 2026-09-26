@@ -280,3 +280,20 @@ export {
   type ResolvedTrainingDay,
   type TrainingDayBonus,
 } from './training-nutrition';
+export {
+  choosePortions,
+  formatPortion,
+  isDayOnTarget,
+  MIN_PROTEIN_GAP_G,
+  PLAN_KCAL_BAND,
+  PLAN_PORTION_STEPS,
+  PROTEIN_SHORT_BAND,
+  proteinGapG,
+  scaleNutrition,
+  slotPortion,
+  sumPlanDay,
+  type PortionMeal,
+  type PortionOptions,
+  type PortionPlan,
+  type PortionTargets,
+} from './meal-portion';

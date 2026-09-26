@@ -28,6 +28,8 @@ interface MealSlot {
   type: string;
   /** F3 leftovers: source-day name when the slot re-plates a dinner. */
   leftoverOf?: string;
+  /** P1-1: servings of the recipe this slot is (absent = 1). */
+  portion?: number;
   recipe: {
     id: string;
     name: string;
@@ -44,6 +46,8 @@ interface MealSlot {
 export interface PlanDay {
   dayOfWeek: number;
   meals: MealSlot[];
+  /** P1-1: grams short of the protein target, when meaningfully short. */
+  proteinGapG?: number;
 }
 
 export type ImageOverrides = Record<string, { imageUrl: string | null; status: ImageStatusType }>;
@@ -155,11 +159,11 @@ export function DayView({
       ) : (
         <>
           <div className="flex flex-col gap-3">
-            {meals.map((slot) => {
+            {meals.map((slot, slotIndex) => {
               const override = imageOverrides[slot.recipe.id];
               return (
                 <MealCard
-                  key={slot.type}
+                  key={`${slot.type}-${slotIndex}`}
                   variant="row"
                   mealType={slot.type}
                   recipe={slot.recipe}
@@ -169,6 +173,7 @@ export function DayView({
                   imageUrlOverride={override?.imageUrl}
                   imageStatusOverride={override?.status}
                   leftoverLabel={slot.leftoverOf}
+                  portion={slot.portion}
                   onReplace={
                     onReplaceMeal ? () => onReplaceMeal(slot.type, slot.recipe.name) : undefined
                   }
@@ -176,7 +181,7 @@ export function DayView({
               );
             })}
           </div>
-          <DayRecapBar meals={meals} calorieTarget={calorieTarget} />
+          <DayRecapBar meals={meals} calorieTarget={calorieTarget} proteinGapG={day?.proteinGapG} />
         </>
       )}
     </div>

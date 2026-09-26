@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button, Card, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
-import { cn, formatQuantity } from '@chefer/utils';
+import { cn, formatPortion, formatQuantity, scaleNutrition, slotPortion } from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { StarRating } from '../../src/features/recipes/star-rating';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
@@ -16,7 +16,14 @@ import { trpc } from '../../src/lib/trpc';
 // deliberate: meal-plan swap context stays on the Plan tab's picker sheet.
 
 export default function RecipeDetailScreen() {
-  const { id, day, meal } = useLocalSearchParams<{ id: string; day?: string; meal?: string }>();
+  const { id, day, meal, portion } = useLocalSearchParams<{
+    id: string;
+    day?: string;
+    meal?: string;
+    portion?: string;
+  }>();
+  // P1-1: the plan slot's portion (servings of this recipe), when not 1×.
+  const planPortion = slotPortion(parseFloat(portion ?? ''));
   const unitSystem = useUnitSystem();
 
   const { data: recipe, isLoading, isError } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
@@ -57,7 +64,9 @@ export default function RecipeDetailScreen() {
   const isSaved = savedData?.isSaved ?? false;
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const n = recipe.nutritionInfo;
-  const selectedServings = servings ?? recipe.servings;
+  // Opened from a portioned plan slot, quantities start at that portion.
+  const selectedServings = servings ?? Math.round(recipe.servings * planPortion * 100) / 100;
+  const planN = scaleNutrition(n, planPortion);
   const scale = selectedServings / (recipe.servings || 1);
 
   return (
@@ -110,7 +119,14 @@ export default function RecipeDetailScreen() {
               testID="recipe-cook"
               className="flex-1"
               onPress={() =>
-                router.push({ pathname: '/cook/[id]', params: meal ? { id, meal } : { id } })
+                router.push({
+                  pathname: '/cook/[id]',
+                  params: {
+                    id,
+                    ...(meal && { meal }),
+                    ...(planPortion !== 1 && { portion: String(planPortion) }),
+                  },
+                })
               }
             >
               <View className="flex-row items-center gap-1.5">
@@ -150,6 +166,16 @@ export default function RecipeDetailScreen() {
               </View>
             ))}
           </View>
+
+          {/* P1-1: the plan sized this slot to the day's targets */}
+          {planPortion !== 1 && (
+            <View testID="recipe-plan-portion" className="rounded-xl bg-accent px-3 py-2">
+              <Text className="text-xs text-primary">
+                Your plan has a {formatPortion(planPortion)} portion here — {planN.calories} kcal ·{' '}
+                {Math.round(planN.protein)} g protein. Quantities start at it.
+              </Text>
+            </View>
+          )}
 
           {/* Macros */}
           <View className="flex-row gap-2">

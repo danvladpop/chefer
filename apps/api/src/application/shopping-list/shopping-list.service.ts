@@ -7,9 +7,11 @@ import {
   prisma,
   type MealPlan,
   type MealPlanDay,
+  type PlanMealSlotJson,
   type Prisma,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { slotPortion } from '@chefer/utils';
 import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient } from '../../lib/ai/types.js';
 import { hasFeature } from '../../lib/entitlements.js';
@@ -291,7 +293,7 @@ export class ShoppingListService {
   private async buildDerivedRawItems(
     targetPlan: MealPlan & { days: MealPlanDay[] },
   ): Promise<StoredShoppingListItem[]> {
-    type MealSlotJson = { type: string; recipeId: string };
+    type MealSlotJson = PlanMealSlotJson;
     const uniqueIds = [
       ...new Set(
         targetPlan.days.flatMap((d) => (d.meals as MealSlotJson[]).map((m) => m.recipeId)),
@@ -308,9 +310,11 @@ export class ShoppingListService {
         (day.meals as MealSlotJson[]).flatMap((slot) => {
           const recipe = recipeMap.get(slot.recipeId);
           if (!recipe) return [];
+          // P1-1: a portioned slot (1.5× of one serving) buys that much.
+          const portion = slotPortion(slot.portion);
           return (recipe.ingredients as unknown as Ingredient[]).map((ing) => ({
             name: ing.name,
-            quantity: ing.quantity,
+            quantity: ing.quantity * portion,
             unit: ing.unit,
             recipeId: slot.recipeId,
           }));
@@ -643,7 +647,7 @@ export class ShoppingListService {
       };
     }
 
-    type MealSlotJson = { type: string; recipeId: string };
+    type MealSlotJson = PlanMealSlotJson;
     const uniqueIds = [
       ...new Set(
         targetPlan.days.flatMap((d) => (d.meals as MealSlotJson[]).map((m) => m.recipeId)),
@@ -662,9 +666,11 @@ export class ShoppingListService {
         (day.meals as MealSlotJson[]).flatMap((slot) => {
           const recipe = recipes.find((r) => r.id === slot.recipeId);
           if (!recipe) return [];
+          // P1-1: a portioned slot (1.5× of one serving) buys that much.
+          const portion = slotPortion(slot.portion);
           return (recipe.ingredients as unknown as Ingredient[]).map((ing) => ({
             name: ing.name,
-            quantity: ing.quantity,
+            quantity: ing.quantity * portion,
             unit: ing.unit,
             recipeId: slot.recipeId,
           }));
@@ -774,7 +780,7 @@ export class ShoppingListService {
       };
     }
 
-    type MealSlotJson = { type: string; recipeId: string };
+    type MealSlotJson = PlanMealSlotJson;
     const uniqueIds = [
       ...new Set(plan.days.flatMap((d) => (d.meals as MealSlotJson[]).map((m) => m.recipeId))),
     ];

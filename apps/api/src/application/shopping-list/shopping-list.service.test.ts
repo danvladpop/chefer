@@ -292,6 +292,41 @@ describe('ShoppingListService — plans made mid-week (audit F-PM-3)', () => {
   });
 });
 
+describe('ShoppingListService — portioned plan slots (audit P1-1)', () => {
+  const service = new ShoppingListService();
+
+  it("scales a slot's ingredients by its portion and sums across slots", async () => {
+    const portioned = {
+      ...PLAN,
+      days: [
+        {
+          id: 'd0',
+          mealPlanId: 'plan1',
+          dayOfWeek: 0,
+          meals: [{ type: 'dinner', recipeId: 'r1', portion: 1.5 }],
+        },
+        {
+          id: 'd1',
+          mealPlanId: 'plan1',
+          dayOfWeek: 1,
+          meals: [{ type: 'dinner', recipeId: 'r1' }],
+        },
+      ],
+    };
+    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(portioned as never);
+    vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([RECIPE] as never);
+    vi.mocked(prisma.ingredientPrice.findMany).mockResolvedValue(PRICES as never);
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
+    vi.mocked(pantryItemRepository.findByUser).mockResolvedValue([]);
+
+    const list = await service.getForWeek(freeUser, 0);
+
+    // 600 g × 1.5 + 600 g × 1 = 1,500 g tomato; 300 × 2.5 = 750 g beef.
+    expect(list.items.find((i) => i.ingredientName === 'Tomato')?.quantity).toBe('1500');
+    expect(list.items.find((i) => i.ingredientName === 'Beef')?.quantity).toBe('750');
+  });
+});
+
 describe('carryCheckedKeys — regenerate keeps ticks (audit F-SHOP-1-5)', () => {
   it('maps ticks onto the new rows by canonical name and keeps ticked custom items', () => {
     const previous = [

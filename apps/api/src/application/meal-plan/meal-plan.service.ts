@@ -13,9 +13,17 @@ import {
   type FavouriteRecipeWithRecipe,
   type IHouseholdMemberRepository,
   type IMealPlanRepository,
+  type PlanMealSlotJson,
   type Recipe,
 } from '@chefer/database';
-import { applyTrainingDayBonus, trainingDayBonus, trainingWeekdays } from '@chefer/utils';
+import {
+  applyTrainingDayBonus,
+  PLAN_PORTION_STEPS,
+  proteinGapG,
+  slotPortion,
+  trainingDayBonus,
+  trainingWeekdays,
+} from '@chefer/utils';
 import { aiService } from '../../lib/ai/index.js';
 import type {
   Ingredient,
@@ -93,14 +101,27 @@ export interface RecipeDto {
 
 export interface MealSlotDto {
   type: MealType;
+  /** The recipe as written — nutritionInfo stays per ONE serving. */
   recipe: RecipeDto;
   /** F3 leftovers: source-day name when this slot is "Leftovers from X". */
   leftoverOf?: string;
+  /**
+   * P1-1: how many servings of `recipe` this slot is (0.75–2); absent = 1.
+   * Clients scale the slot's kcal/macros, pre-set recipe servings and log
+   * this portion. Additive — older clients ignore it and show 1×.
+   */
+  portion?: number;
 }
 
 export interface DayPlanDto {
   dayOfWeek: number;
   meals: MealSlotDto[];
+  /**
+   * P1-1: grams the day's portioned protein falls short of the user's target,
+   * present only when meaningfully short (under 90% and ≥ 10 g). Clients show
+   * "Protein short by N g — add a snack" instead of calling the day on target.
+   */
+  proteinGapG?: number;
 }
 
 export const MAX_WEEK_TEMPLATES = 4;
@@ -131,6 +152,8 @@ export interface WeekPlanDto {
    * days that land off target (trust fix P-1/P-2 in docs/ux-fixes-plan.md).
    */
   calorieTarget?: number;
+  /** P1-1: the daily protein target (g) the day totals were judged against. */
+  proteinTarget?: number;
   /**
    * Estimated week cost from the ingredient price vocabulary (P2-4) —
    * the priced-shopping-list wedge, surfaced on the plan itself. Covers the
@@ -613,10 +636,10 @@ export class MealPlanService {
       });
     }
 
-    // Each day picks toward the user's calorie and protein targets, adding
-    // snacks when three meals fall short (curated-planner.ts, audit
-    // F-PLAN-1-3 / F-PM-4). Variety rule unchanged: no repeat until a pool
-    // is used up.
+    // Each day picks toward the user's calorie and protein targets, sizes
+    // every slot's portion (0.75×–2×) and adds snacks when the mains still
+    // fall short (curated-planner.ts, audit F-PLAN-1-3 / F-PM-4 / P1-1).
+    // Variety rule unchanged: no repeat until a pool is used up.
     // Lifters (audit P2-4): protein from bodyweight, and the routine's
     // training days lean toward the higher-protein combinations. The
     // training-day calorie bump itself is premium.
@@ -636,12 +659,18 @@ export class MealPlanService {
     const uniqueRecipeIds = [...new Set(days.flatMap((d) => d.meals.map((m) => m.recipe.id)))];
     const weekStartDate = getMondayOfWeek(weekOffset);
     const curatedShopFrom = firstShoppingDay(weekStartDate, new Date());
+    // P1-1: each slot's portion is stored in the day JSON (1× is left out,
+    // so untouched slots look exactly like before).
     const plan = await this.repo.createPlan({
       userId,
       weekStartDate,
       days: days.map((d) => ({
         dayOfWeek: d.dayOfWeek,
-        meals: d.meals.map((m) => ({ type: m.type, recipeId: m.recipe.id })),
+        meals: d.meals.map((m) => ({
+          type: m.type,
+          recipeId: m.recipe.id,
+          ...(m.portion !== 1 && { portion: m.portion }),
+        })),
       })),
       recipeIds: uniqueRecipeIds,
     });
@@ -649,13 +678,16 @@ export class MealPlanService {
     return {
       planId: plan.id,
       weekStartDate: plan.weekStartDate,
-      calorieTarget: await this.loadCalorieTarget(userId),
+      calorieTarget: targets.dailyCalorieTarget,
+      proteinTarget: targets.proteinG,
       days: days.map((d) => ({
         dayOfWeek: d.dayOfWeek,
         meals: d.meals.map((m) => ({
           type: m.type,
           recipe: toRecipeDto(m.recipe, { imageUrl: m.recipe.imageUrl, imageStatus: 'DONE' }),
+          ...(m.portion !== 1 && { portion: m.portion }),
         })),
+        ...(d.proteinGapG !== null && { proteinGapG: d.proteinGapG }),
       })),
       estimatedCost: await estimatePlanCostEur(daysFrom(days, curatedShopFrom)),
       ...(curatedShopFrom > 0 && { shoppingFromDay: curatedShopFrom }),
@@ -754,12 +786,17 @@ export class MealPlanService {
   }
 
   /**
-   * The user's live daily calorie target — same resolver the dashboard ring
-   * and premium generation use, so every surface shows one number (P-1/P-3).
+   * The user's live daily targets (calories + macros) — same resolver the
+   * dashboard ring and premium generation use, so every surface shows one
+   * number (P-1/P-3).
    */
-  private async loadCalorieTarget(userId: string): Promise<number> {
+  private async loadTargets(userId: string) {
     const chefProfile = await chefProfileRepository.findByUserId(userId);
-    return resolveDailyTargets(chefProfile ?? null).dailyCalorieTarget;
+    // Lifters (audit P2-4): protein from bodyweight — the same base targets
+    // the curated portions were chosen against, so a plan's protein-gap hint
+    // (P1-1) and the dashboard agree.
+    const { lifterBodyweightKg } = await this.training.loadLifter(userId, chefProfile ?? null);
+    return resolveDailyTargets(chefProfile ?? null, lifterBodyweightKg);
   }
 
   /**
@@ -777,17 +814,18 @@ export class MealPlanService {
     },
     userId?: string,
   ): Promise<WeekPlanDto> {
-    type MealSlotJson = { type: string; recipeId: string; leftoverOf?: string };
-    const allMeals = plan.days.flatMap((d) => d.meals as MealSlotJson[]);
+    const allMeals = plan.days.flatMap((d) => d.meals as PlanMealSlotJson[]);
     const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
-    const [recipeRows, safety] = await Promise.all([
+    const [recipeRows, safety, targets] = await Promise.all([
       this.repo.findRecipesByIds(uniqueIds),
       userId ? this.loadMergedSafety(userId) : Promise.resolve(null),
+      userId ? this.loadTargets(userId) : Promise.resolve(null),
     ]);
     const recipeMap = new Map<string, Recipe>(recipeRows.map((r) => [r.id, r]));
 
     const days: DayPlanDto[] = plan.days.map((d) => {
-      const meals = (d.meals as MealSlotJson[]).map((m) => {
+      let protein = 0;
+      const meals = (d.meals as PlanMealSlotJson[]).map((m) => {
         const row = recipeMap.get(m.recipeId);
         if (!row) {
           throw new TRPCError({
@@ -795,13 +833,18 @@ export class MealPlanService {
             message: `Recipe ${m.recipeId} not found in database.`,
           });
         }
+        const portion = slotPortion(m.portion);
+        protein += ((row.nutritionInfo as unknown as NutritionInfo).protein ?? 0) * portion;
         return {
           type: m.type as MealType,
           recipe: withAllergenWarnings(rowToRecipeDto(row), row, safety),
           ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
+          ...(portion !== 1 && { portion }),
         };
       });
-      return { dayOfWeek: d.dayOfWeek, meals };
+      // P1-1: an honest per-day protein hint, judged on portioned totals.
+      const gap = meals.length > 0 ? proteinGapG(protein, targets?.proteinG) : null;
+      return { dayOfWeek: d.dayOfWeek, meals, ...(gap !== null && { proteinGapG: gap }) };
     });
 
     const shopFrom = firstShoppingDay(plan.weekStartDate, plan.createdAt);
@@ -811,7 +854,10 @@ export class MealPlanService {
       days,
       estimatedCost: await estimatePlanCostEur(daysFrom(days, shopFrom)),
       ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
-      ...(userId && { calorieTarget: await this.loadCalorieTarget(userId) }),
+      ...(targets && {
+        calorieTarget: targets.dailyCalorieTarget,
+        proteinTarget: targets.proteinG,
+      }),
     };
   }
 
@@ -1007,9 +1053,10 @@ export class MealPlanService {
     // F2: swap alternatives must be safe for the whole household too.
     const safety = await this.loadMergedSafety(userId);
 
-    type MealSlotJson = { type: string; recipeId: string };
     const day = plan.days.find((d) => d.dayOfWeek === dayOfWeek);
-    const slot = day ? (day.meals as MealSlotJson[]).find((m) => m.type === mealType) : undefined;
+    const slot = day
+      ? (day.meals as PlanMealSlotJson[]).find((m) => m.type === mealType)
+      : undefined;
 
     const newRecipe = pickRandomCurated(mealType as MealType, slot?.recipeId, safety);
     if (!newRecipe) {
@@ -1019,7 +1066,24 @@ export class MealPlanService {
           "We don't have another free recipe matching your restrictions — upgrade for AI swaps that always fit your needs.",
       });
     }
-    await this.repo.updateDayMeal(planId, dayOfWeek, mealType, newRecipe.id);
+    // P1-1: a portioned slot keeps its calories — the new dish is sized to
+    // the old slot's kcal (nearest portion step), so the day stays on target.
+    const oldPortion = slotPortion(slot?.portion);
+    let portion: number | undefined;
+    if (slot && oldPortion !== 1) {
+      const oldRow = await this.repo.findRecipeById(slot.recipeId);
+      const oldKcal = (oldRow?.nutritionInfo as unknown as NutritionInfo | undefined)?.calories;
+      portion = oldKcal
+        ? nearestPortionStep((oldKcal * oldPortion) / (newRecipe.nutritionInfo.calories || 1))
+        : undefined;
+    }
+    await this.repo.updateDayMeal(
+      planId,
+      dayOfWeek,
+      mealType,
+      newRecipe.id,
+      ...(portion !== undefined && portion !== 1 ? [portion] : []),
+    );
 
     return toRecipeDto(newRecipe, { imageUrl: newRecipe.imageUrl, imageStatus: 'DONE' });
   }
@@ -1187,7 +1251,7 @@ export class MealPlanService {
     if (plans.length === 0) return [];
 
     // Collect all recipe IDs across all plans
-    type MealSlotJson = { type: string; recipeId: string };
+    type MealSlotJson = PlanMealSlotJson;
     const allIds = new Set<string>();
     for (const plan of plans) {
       for (const day of plan.days) {
@@ -1204,18 +1268,19 @@ export class MealPlanService {
 
       // Calculate average daily macros
       const dayTotals = plan.days.map((day) => {
-        const dayMeals = (day.meals as MealSlotJson[]).map((m) => recipeMap.get(m.recipeId));
         let kcal = 0,
           protein = 0,
           carbs = 0,
           fat = 0;
-        for (const recipe of dayMeals) {
+        for (const m of day.meals as MealSlotJson[]) {
+          const recipe = recipeMap.get(m.recipeId);
           if (!recipe) continue;
           const n = recipe.nutritionInfo as unknown as NutritionInfo;
-          kcal += n.calories ?? 0;
-          protein += n.protein ?? 0;
-          carbs += n.carbs ?? 0;
-          fat += n.fat ?? 0;
+          const p = slotPortion(m.portion);
+          kcal += (n.calories ?? 0) * p;
+          protein += (n.protein ?? 0) * p;
+          carbs += (n.carbs ?? 0) * p;
+          fat += (n.fat ?? 0) * p;
         }
         return { kcal, protein, carbs, fat };
       });
@@ -1262,7 +1327,7 @@ export class MealPlanService {
     // same week and carries the old plan's shopping ticks and custom items.
     const days = target.days.map((d) => ({
       dayOfWeek: d.dayOfWeek,
-      meals: d.meals as { type: string; recipeId: string; leftoverOf?: string }[],
+      meals: d.meals as PlanMealSlotJson[],
     }));
     const restored = await this.repo.createPlan({
       userId,
@@ -1289,6 +1354,14 @@ export class MealPlanService {
 export const mealPlanService = new MealPlanService(mealPlanRepository);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** The plan portion step closest to `ratio` (0.75×–2×). */
+export function nearestPortionStep(ratio: number): number {
+  return PLAN_PORTION_STEPS.reduce<number>(
+    (best, step) => (Math.abs(step - ratio) < Math.abs(best - ratio) ? step : best),
+    1,
+  );
+}
 
 /**
  * User-facing message for a failed AI call. Transient provider overloads
