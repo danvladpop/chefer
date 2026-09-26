@@ -18,6 +18,7 @@ import {
 } from '@chefer/database';
 import {
   applyTrainingDayBonus,
+  hasTrainingDayBump,
   householdPortionSum,
   PLAN_PORTION_STEPS,
   proteinGapG,
@@ -298,9 +299,12 @@ export class MealPlanService {
     const { lifterBodyweightKg } = await this.training.loadLifter(userId, chefProfile ?? null);
     const liveTargets = resolveDailyTargets(chefProfile ?? null, lifterBodyweightKg);
     const liveCalorieTarget = liveTargets.dailyCalorieTarget;
-    const trainingDays = lifterBodyweightKg
-      ? trainingWeekdays(await this.training.trainingSchedule(userId))
-      : [];
+    // Training days (and their bump) are GAIN_MUSCLE-only; other lifters
+    // get the g/kg protein base alone.
+    const trainingDays =
+      lifterBodyweightKg && hasTrainingDayBump(chefProfile?.goal)
+        ? trainingWeekdays(await this.training.trainingSchedule(userId))
+        : [];
     const trainingBonus =
       lifterBodyweightKg && trainingDays.length > 0
         ? trainingDayBonus(liveCalorieTarget, lifterBodyweightKg)
@@ -676,9 +680,10 @@ export class MealPlanService {
     const profile = await chefProfileRepository.findByUserId(userId);
     const { lifterBodyweightKg } = await this.training.loadLifter(userId, profile ?? null);
     const targets = resolveDailyTargets(profile ?? null, lifterBodyweightKg);
-    const trainingDays = lifterBodyweightKg
-      ? trainingWeekdays(await this.training.trainingSchedule(userId)).map((d) => d.dayOfWeek)
-      : [];
+    const trainingDays =
+      lifterBodyweightKg && hasTrainingDayBump(profile?.goal)
+        ? trainingWeekdays(await this.training.trainingSchedule(userId)).map((d) => d.dayOfWeek)
+        : [];
     const days = planCuratedWeek(pools, {
       calories: targets.dailyCalorieTarget,
       proteinG: targets.proteinG,

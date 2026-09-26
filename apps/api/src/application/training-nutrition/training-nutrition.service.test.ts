@@ -53,9 +53,19 @@ describe('TrainingNutritionService.loadLifter', () => {
     });
   });
 
-  it('other goals skip the reads entirely', async () => {
-    const { svc, gymProfileRepo } = service({ setupCompletedAt: new Date(), latestWeightKg: 80 });
+  it('every goal with a g/kg rule counts (LOSE_WEIGHT, MAINTAIN too)', async () => {
+    const { svc } = service({ setupCompletedAt: new Date(), latestWeightKg: 80 });
     expect(await svc.loadLifter('u1', { goal: 'MAINTAIN', weightKg: 80 })).toEqual({
+      lifterBodyweightKg: 80,
+    });
+    expect(await svc.loadLifter('u1', { goal: 'LOSE_WEIGHT', weightKg: 80 })).toEqual({
+      lifterBodyweightKg: 80,
+    });
+  });
+
+  it('no goal skips the reads entirely', async () => {
+    const { svc, gymProfileRepo } = service({ setupCompletedAt: new Date(), latestWeightKg: 80 });
+    expect(await svc.loadLifter('u1', { goal: null, weightKg: 80 })).toEqual({
       lifterBodyweightKg: null,
     });
     expect(gymProfileRepo.findByUserId).not.toHaveBeenCalled();
