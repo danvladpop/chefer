@@ -344,3 +344,9 @@ export {
   type ActivationStepCopy,
   type ActivationStepKey,
 } from './premium-activation';
+export {
+  aiConsentIntro,
+  aiConsentRequiredFor,
+  needsAiDataConsent,
+  type AiConsentSubject,
+} from './ai-consent';

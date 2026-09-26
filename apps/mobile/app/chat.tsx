@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
 import { Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { LockedChatPreview } from '../src/features/chat/locked-chat-preview';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { getApiBaseUrl } from '../src/lib/api-url';
@@ -37,12 +38,19 @@ export default function ChatScreen() {
   const nextId = useRef(1);
   // Free tier: chat is premium-only — locked preview, no input.
   const locked = useIsPremium() === false;
+  // AI data consent (App Store 5.1.2(i)): the first message asks before
+  // anything is sent; "Not now" keeps the draft and sends nothing.
+  const requestAiConsent = useAiConsent();
 
-  const send = async () => {
+  const send = () => {
     const content = draft.trim();
     if (!content || streaming || quotaExhausted) {
       return;
     }
+    requestAiConsent('chat', () => void sendNow(content));
+  };
+
+  const sendNow = async (content: string) => {
     setError(null);
     setDraft('');
 
@@ -164,7 +172,7 @@ export default function ChatScreen() {
               accessibilityRole="button"
               accessibilityLabel="Send"
               disabled={streaming || !draft.trim()}
-              onPress={() => void send()}
+              onPress={send}
               className={cn(
                 'h-11 w-11 items-center justify-center rounded-full bg-primary',
                 (streaming || !draft.trim()) && 'opacity-40',

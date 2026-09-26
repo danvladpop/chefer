@@ -48,6 +48,8 @@ export interface UserDto {
   planTier: PlanTier;
   image: string | null;
   emailVerified: Date | null;
+  /** When the user allowed AI features to process their data (null = not yet / revoked). */
+  aiDataConsentAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -202,6 +204,30 @@ export class UserService {
   }
 
   /**
+   * Grants (records now) or revokes (clears) the caller's consent to send
+   * their data to the third-party AI provider (App Store 5.1.2(i)). Granting
+   * again keeps the original timestamp, so a double tap is a no-op.
+   */
+  async setAiDataConsent(id: string, granted: boolean): Promise<{ aiDataConsentAt: Date | null }> {
+    const existing = await this.userRepository.findById(id);
+    if (!existing) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: `User not found: ${id}` });
+    }
+    if (granted && existing.aiDataConsentAt) {
+      return { aiDataConsentAt: existing.aiDataConsentAt };
+    }
+    if (!granted && !existing.aiDataConsentAt) {
+      return { aiDataConsentAt: null };
+    }
+    try {
+      const updated = await this.userRepository.setAiDataConsent(id, granted ? new Date() : null);
+      return { aiDataConsentAt: updated.aiDataConsentAt };
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+
+  /**
    * Deletes a user by ID.
    */
   async delete(id: string): Promise<void> {
@@ -229,6 +255,7 @@ export class UserService {
     planTier?: PlanTier;
     image: string | null;
     emailVerified: Date | null;
+    aiDataConsentAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
   }): UserDto {
@@ -242,6 +269,7 @@ export class UserService {
       planTier: user.planTier ?? 'FREE',
       image: user.image,
       emailVerified: user.emailVerified,
+      aiDataConsentAt: user.aiDataConsentAt ?? null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

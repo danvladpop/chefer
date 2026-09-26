@@ -16,6 +16,7 @@ import {
   type MealPhotoEstimate,
 } from '../../lib/media-client';
 import { trpc } from '../../lib/trpc';
+import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { recordRebalance } from './rebalance-store';
 
 // Snap-to-Log (F4 / M3-2) — mobile counterpart of web's ScanMealButton.
@@ -45,7 +46,15 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
     },
   });
 
-  const pick = async (source: 'camera' | 'library') => {
+  // AI data consent (App Store 5.1.2(i)): asked before the camera/library
+  // opens; the provider runs the pick only after its sheet is fully gone
+  // (iOS can't present the picker over a dismissing Modal). "Not now" = no
+  // photo is taken or sent.
+  const requestAiConsent = useAiConsent();
+  const pick = (source: 'camera' | 'library') =>
+    requestAiConsent('meal-scan', () => void pickNow(source));
+
+  const pickNow = async (source: 'camera' | 'library') => {
     setError(null);
     setUpgradeNeeded(false);
     const options: ImagePicker.ImagePickerOptions = {
@@ -107,7 +116,7 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
               variant="outline"
               className="flex-1"
               loading={scanning}
-              onPress={() => void pick('camera')}
+              onPress={() => pick('camera')}
             >
               <View className="flex-row items-center gap-1.5">
                 <Ionicons name="camera-outline" size={16} color="#944a00" />
@@ -119,7 +128,7 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
               variant="outline"
               className="flex-1"
               loading={scanning}
-              onPress={() => void pick('library')}
+              onPress={() => pick('library')}
             >
               <View className="flex-row items-center gap-1.5">
                 <Ionicons name="images-outline" size={16} color="#944a00" />

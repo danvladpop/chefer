@@ -3,7 +3,8 @@ import { ActivityIndicator, Pressable, ScrollView, Switch, View } from 'react-na
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, DENSE_MAX_FONT_SCALE, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { cn, formatMoney, perPortionCost, sumPlanDay } from '@chefer/utils';
+import { aiConsentRequiredFor, cn, formatMoney, perPortionCost, sumPlanDay } from '@chefer/utils';
+import { useAiConsent } from '../../src/features/ai-consent/ai-consent-provider';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { PlanDayTotals } from '../../src/features/meal-plan/plan-day-totals';
 import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
@@ -105,6 +106,16 @@ export default function MealPlanScreen() {
       }
     },
   });
+
+  // AI data consent (App Store 5.1.2(i)): premium generation and swaps send
+  // the profile to the AI provider; free ones are curated and never ask.
+  const requestAiConsent = useAiConsent();
+  const generateWithConsent = () =>
+    requestAiConsent(
+      'meal-plan',
+      () => generateMutation.mutate({ weekOffset, ...(leftovers && { leftovers: true }) }),
+      { usesAi: aiConsentRequiredFor('meal-plan', isPremium) },
+    );
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
     onSuccess: () => {
@@ -242,9 +253,7 @@ export default function MealPlanScreen() {
               <Button
                 testID="plan-generate"
                 loading={generateMutation.isPending}
-                onPress={() =>
-                  generateMutation.mutate({ weekOffset, ...(leftovers && { leftovers: true }) })
-                }
+                onPress={generateWithConsent}
               >
                 {generateMutation.isPending ? 'Cooking up your week…' : 'Generate Plan'}
               </Button>
@@ -424,12 +433,15 @@ export default function MealPlanScreen() {
               isPremium === true
                 ? () => {
                     if (!pickerTarget) return;
-                    swapMutation.mutate({
-                      planId: plan.planId,
-                      dayOfWeek: selectedDay,
-                      mealType: pickerTarget.mealType,
-                      slotIndex: pickerTarget.slotIndex,
-                    });
+                    const target = pickerTarget;
+                    requestAiConsent('meal-swap', () =>
+                      swapMutation.mutate({
+                        planId: plan.planId,
+                        dayOfWeek: selectedDay,
+                        mealType: target.mealType,
+                        slotIndex: target.slotIndex,
+                      }),
+                    );
                   }
                 : undefined
             }
@@ -457,9 +469,7 @@ export default function MealPlanScreen() {
             leftovers={leftovers}
             onToggleLeftovers={setLeftovers}
             regenerating={generateMutation.isPending}
-            onRegenerate={() =>
-              generateMutation.mutate({ weekOffset, ...(leftovers && { leftovers: true }) })
-            }
+            onRegenerate={generateWithConsent}
             onMyWeeks={() => {
               setSummaryOpen(false);
               router.push('/my-weeks');

@@ -1,16 +1,17 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { SUPPORT_EMAIL } from '@chefer/types';
 
 export const metadata: Metadata = { title: 'Privacy Policy' };
 
-// Plain-language beta privacy policy — linked from register/login since
+// Plain-language privacy policy — linked from register/login since
 // launch; the link 404'd until this page existed (review L-3).
 
 export default function PrivacyPage() {
   return (
     <main id="main" className="mx-auto max-w-2xl px-4 py-12">
       <h1 className="font-serif text-3xl font-semibold text-gray-900">Privacy Policy</h1>
-      <p className="mt-2 text-sm text-gray-500">Chefer beta · last updated 23 August 2026</p>
+      <p className="mt-2 text-sm text-gray-500">Chefer · last updated 26 September 2026</p>
 
       <div className="mt-8 space-y-6 text-sm leading-relaxed text-gray-700">
         <section>
@@ -25,10 +26,27 @@ export default function PrivacyPage() {
         <section>
           <h2 className="mb-1 font-semibold text-gray-900">AI processing</h2>
           <p>
-            Plan generation, meal-photo scanning, recipe import and chat send the relevant data
-            (your preferences, targets, the photo or page you submitted) to an AI provider
-            (currently Google Gemini) to produce the result. We do not use your data to train
-            models.
+            Plan generation, meal swaps, meal-photo scanning, recipe import, chat and AI
+            shopping-list tidy-up send the relevant data (your preferences and allergies, goals and
+            body metrics, the photo, recipe or message you submitted) to an AI provider — currently
+            Google Gemini; if Gemini is overloaded, a text-only request may be handled by our backup
+            AI provider, Groq — to produce the result. We do not use your data to train models.
+          </p>
+          <p className="mt-2">
+            We ask for your permission before the first AI feature sends anything, and tell you what
+            that feature sends. If you choose <em>Not now</em>, nothing is sent. You can withdraw
+            permission at any time in <em>Profile → AI &amp; your data</em>, on the web or in the
+            app; we then ask again before the next AI feature runs. The weekly plan and weekly
+            review we prepare for you automatically follow the same choice: without your permission,
+            nothing is sent to the AI provider for them.
+          </p>
+        </section>
+        <section>
+          <h2 className="mb-1 font-semibold text-gray-900">Camera &amp; photos</h2>
+          <p>
+            The iOS and Android app use your camera or photo library only when you choose to take or
+            attach a photo — for example to scan a meal or add a recipe photo. Nothing is read in
+            the background.
           </p>
         </section>
         <section>
@@ -39,12 +57,37 @@ export default function PrivacyPage() {
           </p>
         </section>
         <section>
-          <h2 className="mb-1 font-semibold text-gray-900">Backups &amp; deletion</h2>
+          <h2 className="mb-1 font-semibold text-gray-900">Deleting your account</h2>
           <p>
-            The database is backed up daily. You can download all your data or delete your account
-            and everything in it at any time from <em>Profile → Your data</em>, on the web or in the
-            app. Deleted data is gone from the live database immediately and ages out of backups
-            within 14 days.
+            You can delete your account yourself at any time: <em>Profile → Delete account</em>, on
+            the web or in the iOS and Android app (you confirm with your password). This removes
+            your account and everything in it — preferences, plans, logs, recipes, workouts,
+            household and feedback — from the live database immediately, and signs you out on every
+            device. You can also download all your data first from <em>Profile → Your data</em>.
+          </p>
+          <p className="mt-2">
+            The database is backed up daily. Deleted data rolls off the backups within the 14-day
+            backup retention window.
+          </p>
+        </section>
+        <section>
+          <h2 className="mb-1 font-semibold text-gray-900">Contact</h2>
+          <p>
+            Questions about your data or this policy? Email{' '}
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="touch-target relative text-[#944a00] underline underline-offset-4"
+            >
+              {SUPPORT_EMAIL}
+            </a>{' '}
+            or see{' '}
+            <Link
+              href="/support"
+              className="touch-target relative text-[#944a00] underline underline-offset-4"
+            >
+              Help &amp; support
+            </Link>
+            .
           </p>
         </section>
       </div>
@@ -62,6 +105,13 @@ export default function PrivacyPage() {
           className="touch-target relative text-[#944a00] underline underline-offset-4"
         >
           Terms of Service
+        </Link>{' '}
+        ·{' '}
+        <Link
+          href="/support"
+          className="touch-target relative text-[#944a00] underline underline-offset-4"
+        >
+          Support
         </Link>
       </p>
     </main>

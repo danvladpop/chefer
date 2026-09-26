@@ -4,6 +4,9 @@ export * from './gym';
 export * from './preferences';
 export * from './training-nutrition';
 export * from './household';
+export * from './ai-consent';
+export * from './account-deletion';
+export * from './support';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

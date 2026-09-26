@@ -39,6 +39,12 @@ export interface SheetProps {
   className?: string;
   /** The title gets `${testID}-title`, the close button `${testID}-close`. */
   testID?: string;
+  /**
+   * Called once the sheet is fully gone (exit played, Modal dismissed). Use
+   * it to present something native next (camera, another Modal): iOS refuses
+   * to present while a dismissal is still in flight.
+   */
+  onExited?: () => void;
 }
 
 const SCRIM_COLOR = 'rgba(0,0,0,0.4)';
@@ -79,6 +85,7 @@ export function Sheet({
   maxHeight = '85%',
   className,
   testID,
+  onExited,
 }: SheetProps) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -96,12 +103,23 @@ export function Sheet({
   const mountedRef = useRef(mounted);
   const visibleRef = useRef(visible);
   const onCloseRef = useRef(onClose);
+  const onExitedRef = useRef(onExited);
   const reopenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     mountedRef.current = mounted;
     visibleRef.current = visible;
     onCloseRef.current = onClose;
+    onExitedRef.current = onExited;
   });
+
+  // onExited: iOS reports the real dismissal through Modal.onDismiss; Android
+  // has no such event and its Modal is gone once `mounted` flips false.
+  const wasMounted = useRef(mounted);
+  useEffect(() => {
+    if (wasMounted.current && !mounted && Platform.OS !== 'ios') onExitedRef.current?.();
+    wasMounted.current = mounted;
+  }, [mounted]);
+  const handleDismiss = useCallback(() => onExitedRef.current?.(), []);
 
   const animateIn = useCallback(() => {
     closing.current = false;
@@ -192,6 +210,7 @@ export function Sheet({
       transparent
       animationType="none"
       onRequestClose={requestClose}
+      onDismiss={Platform.OS === 'ios' ? handleDismiss : undefined}
       statusBarTranslucent
       testID={testID}
     >

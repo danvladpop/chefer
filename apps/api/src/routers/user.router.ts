@@ -158,7 +158,8 @@ export const userRouter = router({
           message: 'You cannot delete your own account',
         });
       }
-      await userService.delete(input.id);
+      // Same full purge as self-deletion (orphan-free, sessions revoked).
+      await deleteAccount(input.id);
       return { success: true };
     }),
 
@@ -191,6 +192,23 @@ export const userRouter = router({
       await authService.logout(ctx.sessionToken, ctx.res);
       return { success: true as const };
     }),
+
+  /**
+   * Records the caller's consent to send their data to the third-party AI
+   * provider (App Store 5.1.2(i)). Clients ask before the first AI action;
+   * idempotent. Additive — `user.me` carries `aiDataConsentAt`.
+   */
+  grantAiDataConsent: protectedProcedure.mutation(async ({ ctx }) => {
+    return userService.setAiDataConsent(ctx.user.id, true);
+  }),
+
+  /**
+   * Withdraws AI data consent (Profile toggle). The next AI action asks again.
+   * Not enforced server-side: background jobs keep working.
+   */
+  revokeAiDataConsent: protectedProcedure.mutation(async ({ ctx }) => {
+    return userService.setAiDataConsent(ctx.user.id, false);
+  }),
 
   /**
    * Upgrades the current user to the PREMIUM plan.

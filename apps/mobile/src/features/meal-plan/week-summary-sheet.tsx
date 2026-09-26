@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { DisplayCurrency } from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
 import { cn, formatMoney } from '@chefer/utils';
+import { AiConsentHost } from '../ai-consent/ai-consent-provider';
 
 // Week summary sheet — opened by tapping the week label on the Plan tab.
 // Day-level stays on the screen; WEEK-level lives here: per-day overview,
@@ -147,6 +148,8 @@ export function WeekSummarySheet({
           </Pressable>
         ))}
       </View>
+      {/* Its AI action's consent sheet nests here (iOS can't stack root Modals). */}
+      <AiConsentHost />
     </Sheet>
   );
 }

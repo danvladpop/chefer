@@ -94,13 +94,41 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
 }
 
 /**
- * Deletes the account and everything that cascades from it. The user's own
- * recipes (MANUAL) are removed first — the relation is SetNull, which would
- * otherwise leave them behind without an owner.
+ * Deletes the account and ALL of its data (App Store 5.1.1(v); audit P0-6).
+ * Used by the self-serve `user.deleteSelf` and the admin `user.delete`.
+ *
+ * Most rows cascade from the users row (schema `onDelete: Cascade`), incl.
+ * every Session — so the user is signed out on every device at once. The
+ * explicit deletes cover what does NOT cascade or could block the delete:
+ * - shopping_lists — keyed by planId with no FK, so they would be orphaned;
+ * - the user's own MANUAL/imported recipes — the relation is SetNull, which
+ *   would leave them behind without an owner. AI-generated recipe rows are
+ *   shared recipe content (no personal data) and are kept, owner nulled;
+ * - private custom ingredients (ingredient_prices.creatorId, no FK);
+ * - pending password-reset tokens (keyed by email, no FK);
+ * - workout sessions and routines BEFORE the user row: their exercise FKs
+ *   are RESTRICT, and a custom exercise cascading away before the routine
+ *   row that uses it could abort the whole delete.
+ * Household members are the user's own extra eaters (no other accounts are
+ * linked to them), so they simply cascade — there is nothing to hand over.
+ * Everything runs in one transaction: all or nothing.
  */
 export async function deleteAccount(userId: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+  if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+  const plans = await prisma.mealPlan.findMany({ where: { userId }, select: { id: true } });
+  const planIds = plans.map((p) => p.id);
+
   await prisma.$transaction([
+    prisma.shoppingList.deleteMany({ where: { planId: { in: planIds } } }),
     prisma.recipe.deleteMany({ where: { creatorId: userId, source: 'MANUAL' } }),
+    prisma.ingredientPrice.deleteMany({ where: { creatorId: userId } }),
+    prisma.verificationToken.deleteMany({
+      where: { identifier: `reset:${user.email.toLowerCase().trim()}` },
+    }),
+    prisma.workoutSession.deleteMany({ where: { userId } }),
+    prisma.routine.deleteMany({ where: { userId } }),
+    prisma.session.deleteMany({ where: { userId } }),
     prisma.user.delete({ where: { id: userId } }),
   ]);
 }

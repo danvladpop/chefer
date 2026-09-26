@@ -8,7 +8,9 @@ vi.mock('@chefer/database', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@chefer/database')>();
   return {
     ...mod,
-    prisma: { user: { findMany: vi.fn().mockResolvedValue([]) } },
+    prisma: {
+      user: { findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) },
+    },
     mealPlanRepository: {
       findByWeekStart: vi.fn().mockResolvedValue(null),
       findFollowedTemplate: vi.fn().mockResolvedValue(null),
@@ -39,6 +41,7 @@ describe('WeeklyPlanWorker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(prisma.user.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.user.count).mockResolvedValue(0);
     vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(null);
     vi.mocked(mealPlanRepository.findFollowedTemplate).mockResolvedValue(null);
     vi.mocked(mealPlanRepository.hasShoppingProgress).mockResolvedValue(false);
@@ -191,5 +194,35 @@ describe('WeeklyPlanWorker', () => {
     await worker.tick(SUNDAY);
 
     expect(mealPlanService.generate).not.toHaveBeenCalled();
+  });
+
+  // ─── AI data consent (App Store 5.1.2(i)) ───────────────────────────────────
+
+  it('premium AI generation only targets users with AI data consent', async () => {
+    await worker.tick(SUNDAY);
+    const where = vi.mocked(prisma.user.findMany).mock.calls[0]![0]!.where!;
+    expect(where.planTier).toBe('PREMIUM');
+    expect(where.aiDataConsentAt).toEqual({ not: null });
+  });
+
+  it('counts and logs the premium users skipped for missing consent', async () => {
+    vi.mocked(prisma.user.count).mockResolvedValueOnce(3);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await worker.tick(SUNDAY);
+
+    const countWhere = vi.mocked(prisma.user.count).mock.calls[0]![0]!.where!;
+    expect(countWhere).toMatchObject({ planTier: 'PREMIUM', aiDataConsentAt: null });
+    expect(log).toHaveBeenCalledWith(
+      '[WeeklyPlanWorker] skipped 3 premium user(s) without AI data consent',
+    );
+    log.mockRestore();
+  });
+
+  it('free curated weeks involve no AI and are not consent-gated', async () => {
+    await worker.tick(SUNDAY);
+    const freeWhere = vi.mocked(prisma.user.findMany).mock.calls[1]![0]!.where!;
+    expect(freeWhere.planTier).toBe('FREE');
+    expect(freeWhere).not.toHaveProperty('aiDataConsentAt');
   });
 });

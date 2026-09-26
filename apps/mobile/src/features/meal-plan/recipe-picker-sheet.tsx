@@ -5,6 +5,7 @@ import { Button, Sheet, Text } from '@chefer/ui-mobile';
 import { buildPickerSections } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc } from '../../lib/trpc';
+import { AiConsentHost } from '../ai-consent/ai-consent-provider';
 
 // Bottom sheet for replacing one meal slot. Primary action: pick a specific
 // recipe (free tier included — replaceRecipe has no quota). Secondary, in the
@@ -157,6 +158,8 @@ export function RecipePickerSheet({
           }}
         />
       )}
+      {/* Its AI action's consent sheet nests here (iOS can't stack root Modals). */}
+      <AiConsentHost />
     </Sheet>
   );
 }

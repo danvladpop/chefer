@@ -100,11 +100,17 @@ export class CoachService {
    *
    * `applyAdjustment` is the premium switch: free-tier reviews are teaser
    * material only — their calorie dial never moves.
+   *
+   * `aiText` decides whether the review text may be written by the AI
+   * provider. The sweep passes false for users without AI data consent
+   * (App Store 5.1.2(i)): they get the deterministic template, and the
+   * calorie adjustment (no AI involved) still applies.
    */
   async runWeeklyReview(
     userId: string,
     now: Date = new Date(),
     applyAdjustment = true,
+    aiText = applyAdjustment,
   ): Promise<ChefReview | null> {
     const weekStart = weekStartUtc(now);
     const weekEnd = new Date(weekStart.getTime() + 7 * DAY_MS);
@@ -186,7 +192,7 @@ export class CoachService {
     // the Sunday sweep used to call the model for every free user (audit
     // F-DASH-2-3).
     let reviewText: string;
-    if (!applyAdjustment) {
+    if (!applyAdjustment || !aiText) {
       reviewText = buildTemplateReviewText(textInput);
     } else {
       try {
@@ -227,8 +233,13 @@ export class CoachService {
    * this week's review for every user who logged ≥3 days. Premium
    * (adaptiveCoaching) users get adjustments applied; free users get
    * teaser-only reviews. One user's failure never starves the rest.
+   *
+   * AI data consent (App Store 5.1.2(i)): a premium user whose
+   * `aiDataConsentAt` is null is still reviewed, but the text comes from the
+   * template — none of their data goes to the AI provider. Counted in
+   * `aiSkipped` and logged.
    */
-  async runReviewSweep(now: Date = new Date()): Promise<{ reviewed: number }> {
+  async runReviewSweep(now: Date = new Date()): Promise<{ reviewed: number; aiSkipped: number }> {
     const weekStart = weekStartUtc(now);
 
     const candidates = await prisma.dailyLog.groupBy({
@@ -237,7 +248,7 @@ export class CoachService {
       _count: { userId: true },
       having: { userId: { _count: { gte: MIN_LOGGED_DAYS } } },
     });
-    if (candidates.length === 0) return { reviewed: 0 };
+    if (candidates.length === 0) return { reviewed: 0, aiSkipped: 0 };
 
     const users = await prisma.user.findMany({
       where: { id: { in: candidates.map((c) => c.userId) } },
@@ -249,23 +260,32 @@ export class CoachService {
         role: true,
         planTier: true,
         image: true,
+        aiDataConsentAt: true,
       },
     });
 
     let reviewed = 0;
+    let aiSkipped = 0;
     for (const user of users) {
       try {
         // Skip users already reviewed this week so `reviewed` counts real work.
         const existing = await this.reviewRepo.findByUserAndWeek(user.id, weekStart);
         if (existing) continue;
         const premium = hasFeature(user, 'adaptiveCoaching');
-        const row = await this.runWeeklyReview(user.id, now, premium);
+        const aiText = premium && Boolean(user.aiDataConsentAt);
+        const row = await this.runWeeklyReview(user.id, now, premium, aiText);
         if (row) reviewed += 1;
+        if (row && premium && !aiText) aiSkipped += 1;
       } catch (err) {
         console.error(`[coach] review failed for user ${user.id}:`, err);
       }
     }
-    return { reviewed };
+    if (aiSkipped > 0) {
+      console.log(
+        `[coach] ${aiSkipped} premium review(s) used the template: no AI data consent (5.1.2(i))`,
+      );
+    }
+    return { reviewed, aiSkipped };
   }
 
   /**

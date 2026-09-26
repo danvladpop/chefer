@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
+import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { AllergenWarningBanner } from '@/features/recipes/components/AllergenWarning';
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react';
 import { Sheet, Toast } from '@chefer/ui';
 import {
+  aiConsentRequiredFor,
   defaultCookServings,
   formatPortion,
   formatQuantity,
@@ -116,6 +118,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const searchParams = useSearchParams();
   const unitSystem = useUnitSystem();
   const isPremium = useIsPremium();
+  const requestAiConsent = useAiConsent();
 
   const planId = searchParams.get('planId');
   const day = searchParams.get('day');
@@ -392,12 +395,18 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               <button
                 onClick={() => {
                   if (planId && day !== null && meal) {
-                    swapMutation.mutate({
-                      planId,
-                      dayOfWeek: parseInt(day, 10),
-                      mealType: meal as 'breakfast' | 'lunch' | 'dinner' | 'snack',
-                      slotIndex,
-                    });
+                    // Premium swaps call the AI — ask first (App Store 5.1.2(i)).
+                    requestAiConsent(
+                      'meal-swap',
+                      () =>
+                        swapMutation.mutate({
+                          planId,
+                          dayOfWeek: parseInt(day, 10),
+                          mealType: meal as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+                          slotIndex,
+                        }),
+                      { usesAi: aiConsentRequiredFor('meal-swap', isPremium) },
+                    );
                   }
                 }}
                 disabled={swapMutation.isPending}

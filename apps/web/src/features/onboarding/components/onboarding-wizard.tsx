@@ -316,7 +316,7 @@ export function OnboardingWizard({
               <UpgradeCard
                 source="onboarding"
                 title="Want every week generated around this profile?"
-                description="Free plans are chef-picked and always respect your allergies. Premium — free during the beta — has the AI chef build each week around your goal, targets and taste."
+                description="Free plans are chef-picked and always respect your allergies. Premium — free for now — has the AI chef build each week around your goal, targets and taste."
                 perkDisplay="carousel"
               />
             </div>

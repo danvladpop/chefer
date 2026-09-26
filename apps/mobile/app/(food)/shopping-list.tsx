@@ -11,6 +11,7 @@ import {
   perPortionCost,
   shoppingWindowLabel,
 } from '@chefer/utils';
+import { useAiConsent } from '../../src/features/ai-consent/ai-consent-provider';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { PantryCheckBanner } from '../../src/features/pantry/pantry-check-banner';
 import { PantryGhostBanner } from '../../src/features/pantry/pantry-ghost-banner';
@@ -126,6 +127,8 @@ export default function ShoppingListScreen() {
       void utils.pantry.list.invalidate();
     },
   });
+  // Sends the plan's ingredients to the AI — ask first (App Store 5.1.2(i)).
+  const requestAiConsent = useAiConsent();
   const regenerateMutation = trpc.shoppingList.regenerate.useMutation({
     onSuccess: (data) => {
       utils.shoppingList.getForWeek.setData({ weekOffset }, data);
@@ -350,7 +353,9 @@ export default function ShoppingListScreen() {
                 testID="regenerate-list"
                 variant="outline"
                 loading={regenerateMutation.isPending}
-                onPress={() => regenerateMutation.mutate({ weekOffset })}
+                onPress={() =>
+                  requestAiConsent('shopping-list', () => regenerateMutation.mutate({ weekOffset }))
+                }
               >
                 {regenerateMutation.isPending ? 'Consolidating with AI…' : 'Regenerate with AI'}
               </Button>

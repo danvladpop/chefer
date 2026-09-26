@@ -39,7 +39,7 @@ export function PlanFooterCard({ source }: { source: string }) {
         className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs font-semibold text-[#944a00] transition-colors hover:bg-[#fff3e8]"
       >
         <Sparkles className="h-3.5 w-3.5" />
-        Go premium — free in beta
+        Go premium — free for now
       </Link>
     );
   }
@@ -59,7 +59,7 @@ export function PlanFooterCard({ source }: { source: string }) {
       </button>
       <p className="text-xs font-semibold text-gray-800">Free plan</p>
       <p className="mt-0.5 text-xs leading-snug text-gray-600">
-        Chef-picked recipes. Go premium for your personal AI chef — free during the beta.
+        Chef-picked recipes. Go premium for your personal AI chef — free for now.
       </p>
       <UpgradeButton className="mt-2 w-full" source={source} />
     </div>

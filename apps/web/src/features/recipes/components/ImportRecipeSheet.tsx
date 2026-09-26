@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { useEntitlement } from '@/hooks/useEntitlement';
 import { capture } from '@/lib/analytics';
@@ -145,10 +146,16 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
     (tab === 'text' && text.trim().length >= 20) ||
     (tab === 'photo' && photo !== null);
 
+  // AI data consent (App Store 5.1.2(i)): the link/text/photo and the user's
+  // safety preferences go to the AI provider — ask before the first import.
+  const requestAiConsent = useAiConsent();
   const handlePreview = () => {
-    if (tab === 'url') previewMutation.mutate({ url: url.trim() });
-    else if (tab === 'text') previewMutation.mutate({ text: text.trim() });
-    else if (photo) previewMutation.mutate({ imageBase64: photo.base64, mimeType: photo.mimeType });
+    requestAiConsent('recipe-import', () => {
+      if (tab === 'url') previewMutation.mutate({ url: url.trim() });
+      else if (tab === 'text') previewMutation.mutate({ text: text.trim() });
+      else if (photo)
+        previewMutation.mutate({ imageBase64: photo.base64, mimeType: photo.mimeType });
+    });
   };
 
   const handleSave = () => {

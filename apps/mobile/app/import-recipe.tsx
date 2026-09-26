@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc, type RouterOutputs } from '../src/lib/trpc';
 
@@ -84,14 +85,19 @@ export default function ImportRecipeScreen() {
     },
   });
 
+  // AI data consent (App Store 5.1.2(i)): the link/text and the user's safety
+  // preferences go to the AI provider — ask before the first import.
+  const requestAiConsent = useAiConsent();
   const runPreview = () => {
     if (previewMutation.isPending) {
       return;
     }
     if (tab === 'url' && url.trim()) {
-      previewMutation.mutate({ url: url.trim() });
+      const input = { url: url.trim() };
+      requestAiConsent('recipe-import', () => previewMutation.mutate(input));
     } else if (tab === 'text' && text.trim().length >= 20) {
-      previewMutation.mutate({ text: text.trim() });
+      const input = { text: text.trim() };
+      requestAiConsent('recipe-import', () => previewMutation.mutate(input));
     }
   };
 

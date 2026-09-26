@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { trpc } from '@/lib/trpc';
@@ -70,6 +71,7 @@ export function ReplaceMealSheet({
       onClose();
     },
   });
+  const requestAiConsent = useAiConsent();
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
     onSuccess: () => {
       invalidate();
@@ -102,12 +104,15 @@ export function ReplaceMealSheet({
             disabled={busy}
             onClick={() => {
               if (!target) return;
-              swapMutation.mutate({
-                planId: target.planId,
-                dayOfWeek: target.dayOfWeek,
-                mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
-                slotIndex: target.slotIndex,
-              });
+              // Premium-only button: always an AI call — ask first (5.1.2(i)).
+              requestAiConsent('meal-swap', () =>
+                swapMutation.mutate({
+                  planId: target.planId,
+                  dayOfWeek: target.dayOfWeek,
+                  mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+                  slotIndex: target.slotIndex,
+                }),
+              );
             }}
             className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
           >

@@ -90,6 +90,14 @@ export default function MoreScreen() {
           >
             <Text className="text-sm text-gray-500 underline">Privacy</Text>
           </Pressable>
+          <Pressable
+            testID="more-support"
+            accessibilityRole="link"
+            onPress={() => void Linking.openURL(getWebUrl('/support'))}
+            className="min-h-11 justify-center"
+          >
+            <Text className="text-sm text-gray-500 underline">Support</Text>
+          </Pressable>
         </View>
 
         <Button

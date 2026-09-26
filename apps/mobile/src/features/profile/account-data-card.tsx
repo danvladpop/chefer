@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Share, TextInput, View } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Button, Card, Sheet, Text } from '@chefer/ui-mobile';
+import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
+import { Button, Card, PasswordInput, Sheet, Text } from '@chefer/ui-mobile';
 import { clearToken } from '../../lib/auth-store';
 import { trpc } from '../../lib/trpc';
 
@@ -41,9 +43,10 @@ export function AccountDataCard() {
         <Button
           testID="profile-delete-account"
           variant="outline"
+          className="border-red-200"
           onPress={() => setDeleteOpen(true)}
         >
-          Delete account
+          <Text className="font-semibold text-red-700">{COPY.button}</Text>
         </Button>
       </View>
       {exportError && <Text className="mt-2 text-sm text-red-700">{exportError}</Text>}
@@ -53,55 +56,72 @@ export function AccountDataCard() {
 }
 
 function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const queryClient = useQueryClient();
   const [password, setPassword] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const deleteMutation = trpc.user.deleteSelf.useMutation({
+    // The server already revoked every session. Drop the local one and every
+    // cached (incl. persisted gym) query, then back to the auth screen.
     onSuccess: async () => {
       await clearToken();
+      queryClient.clear();
       router.replace('/(auth)');
     },
   });
-  const ready = password.length > 0 && confirmText === 'DELETE';
+  const ready = password.length > 0 && confirmText.trim().toUpperCase() === COPY.confirmWord;
 
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
-      title="Delete your account?"
+      title={COPY.title}
+      testID="delete-account"
       footer={
         <View className="gap-2">
           <Button
             testID="delete-account-confirm"
+            variant="destructive"
+            size="lg"
             disabled={!ready}
             loading={deleteMutation.isPending}
-            onPress={() => deleteMutation.mutate({ password, confirm: 'DELETE' })}
+            onPress={() => deleteMutation.mutate({ password, confirm: COPY.confirmWord })}
           >
-            Delete my account
+            {COPY.submit}
           </Button>
-          <Button variant="ghost" onPress={onClose}>
-            Cancel
+          <Button variant="outline" size="lg" onPress={onClose}>
+            {COPY.cancel}
           </Button>
         </View>
       }
     >
       <View className="gap-3">
-        <Text variant="muted" className="text-sm">
-          This permanently deletes your plans, logs, recipes, workouts and preferences. It
-          can&apos;t be undone.
-        </Text>
-        <Text className="text-sm font-medium text-gray-800">Your password</Text>
-        <TextInput
-          accessibilityLabel="Your password"
-          secureTextEntry
+        <Text className="text-sm font-semibold text-gray-900">{COPY.permanent}</Text>
+        <View testID="delete-account-summary" className="gap-1">
+          <Text className="text-sm text-gray-800">{COPY.listHeading}</Text>
+          {COPY.deleted.map((line) => (
+            <View key={line} className="flex-row gap-2">
+              <Text className="text-sm text-gray-700">•</Text>
+              <Text className="min-w-0 flex-1 text-sm text-gray-700">{line}</Text>
+            </View>
+          ))}
+          <Text variant="muted" className="text-xs">
+            {COPY.backups}
+          </Text>
+        </View>
+        <Text className="text-sm font-medium text-gray-800">{COPY.passwordLabel}</Text>
+        <PasswordInput
+          testID="delete-account-password"
+          accessibilityLabel={COPY.passwordLabel}
           autoComplete="current-password"
           value={password}
           onChangeText={setPassword}
-          className="min-h-11 rounded-lg border border-gray-300 px-3 text-base"
         />
-        <Text className="text-sm font-medium text-gray-800">Type DELETE to confirm</Text>
+        <Text className="text-sm font-medium text-gray-800">{COPY.confirmLabel}</Text>
         <TextInput
-          accessibilityLabel="Type DELETE to confirm"
+          testID="delete-account-confirm-text"
+          accessibilityLabel={COPY.confirmLabel}
           autoCapitalize="characters"
+          autoCorrect={false}
           value={confirmText}
           onChangeText={setConfirmText}
           className="min-h-11 rounded-lg border border-gray-300 px-3 text-base"

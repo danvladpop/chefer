@@ -418,4 +418,37 @@ describe('CoachService.runReviewSweep', () => {
 
     expect(reviewed).toBe(1);
   });
+
+  // ─── AI data consent (App Store 5.1.2(i)) ───────────────────────────────────
+
+  it('premium users without AI data consent get the template, not the AI', async () => {
+    vi.mocked(prisma.dailyLog.groupBy).mockResolvedValue([{ userId: 'u1' }] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { ...PREMIUM_USER, aiDataConsentAt: null },
+    ] as never);
+    const reviewRepo = makeReviewRepo();
+    const service = new CoachService(reviewRepo, makeProfileRepo(), makeWeightRepo());
+
+    const { reviewed, aiSkipped } = await service.runReviewSweep(SUNDAY);
+
+    const select = vi.mocked(prisma.user.findMany).mock.calls[0]![0]!.select!;
+    expect(select).toMatchObject({ aiDataConsentAt: true });
+    expect(generateReviewText).not.toHaveBeenCalled();
+    expect(reviewed).toBe(1);
+    expect(aiSkipped).toBe(1);
+    expect(reviewRepo.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('premium users with AI data consent get the AI-written review', async () => {
+    vi.mocked(prisma.dailyLog.groupBy).mockResolvedValue([{ userId: 'u1' }] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { ...PREMIUM_USER, aiDataConsentAt: new Date('2026-08-01') },
+    ] as never);
+    const service = new CoachService(makeReviewRepo(), makeProfileRepo(), makeWeightRepo());
+
+    const { aiSkipped } = await service.runReviewSweep(SUNDAY);
+
+    expect(generateReviewText).toHaveBeenCalledTimes(1);
+    expect(aiSkipped).toBe(0);
+  });
 });

@@ -16,7 +16,7 @@ export function FeedbackCard() {
 
   return (
     <Card testID="feedback-card" className="gap-2">
-      <Text variant="heading">Beta feedback</Text>
+      <Text variant="heading">Feedback</Text>
       <Text variant="muted" className="text-xs">
         Something broken, confusing, or missing? Tell us — it goes straight to the team.
       </Text>

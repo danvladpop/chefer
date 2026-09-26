@@ -43,7 +43,7 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
       open={open}
       onClose={close}
       title="Send feedback"
-      description="Rough edge, missing feature, wrong number — anything helps during the beta."
+      description="Rough edge, missing feature, wrong number — anything helps."
       footer={
         sent ? (
           <Button className="w-full" onClick={close}>
