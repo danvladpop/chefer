@@ -53,7 +53,7 @@ const POST_WORKOUT_MAX_G = 45;
 
 /** A lifter's base protein (g/kg) for this goal, or null when the goal has no lifter rule. */
 export function lifterProteinGPerKg(goal: string | null | undefined): number | null {
-  return (goal && LIFTER_PROTEIN_G_PER_KG_BY_GOAL[goal]) || null;
+  return goal ? (LIFTER_PROTEIN_G_PER_KG_BY_GOAL[goal] ?? null) : null;
 }
 
 /** Whether a lifter with this goal gets the training-day bump (GAIN_MUSCLE only). */

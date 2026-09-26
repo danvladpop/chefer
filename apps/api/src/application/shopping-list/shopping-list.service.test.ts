@@ -280,7 +280,7 @@ describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
 
     // …and it matches the line getForWeek serves for the same plan.
     vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(
-      (await mealPlanRepository.findByIdForUser('u1', 'plan1')) as never,
+      await mealPlanRepository.findByIdForUser('u1', 'plan1'),
     );
     const list = await service.getForWeek(premiumUser, 0);
     expect(list.items.find((i) => i.key === 'plan1-tomato|g')!.quantity).toBe('1800');
