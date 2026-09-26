@@ -37,6 +37,12 @@ export interface DayPlanMeal {
    * to this. Additive — older clients ignore it and log 1×.
    */
   portion?: number;
+  /**
+   * The slot's index in the plan day's `meals` (additive). Clients key rows
+   * by it and send it back on logged entries, so two identical snacks tick
+   * separately.
+   */
+  slotIndex?: number;
 }
 
 /** A logged planned-recipe entry whose recipe is no longer in today's plan. */
@@ -161,7 +167,7 @@ export const trackerService = {
         const recipes = await mealPlanRepository.findRecipesByIds(recipeIds);
         const recipeMap = new Map(recipes.map((r) => [r.id, r]));
 
-        for (const slot of mealSlots) {
+        for (const [slotIndex, slot] of mealSlots.entries()) {
           const recipe = recipeMap.get(slot.recipeId);
           if (!recipe) continue;
           const nutrition = recipe.nutritionInfo as {
@@ -180,6 +186,7 @@ export const trackerService = {
             carbs: nutrition.carbs ?? 0,
             fat: nutrition.fat ?? 0,
             ...(slotPortion(slot.portion) !== 1 && { portion: slotPortion(slot.portion) }),
+            slotIndex,
           });
         }
       }
@@ -243,11 +250,20 @@ export const trackerService = {
    * idempotent: an existing entry for the same recipe and meal type is
    * replaced, so a double tap can't double-log (F-M-TRK-1-1). Nutrition
    * comes from the stored recipe, never the client.
+   *
+   * With a `slotIndex` (Today's "I ate this") only the entry for that slot
+   * is replaced, so logging the second of two identical snacks keeps the
+   * first. Without one (cook mode, older clients) the old rule stands.
    */
   async logRecipe(
     user: UserProfile,
     dateStr: string,
-    input: { recipeId: string; mealType: string; portionMultiplier: number },
+    input: {
+      recipeId: string;
+      mealType: string;
+      portionMultiplier: number;
+      slotIndex?: number | undefined;
+    },
   ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
     const recipe = await findRecipeVisibleTo(user.id, input.recipeId);
     if (!recipe) throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
@@ -261,14 +277,20 @@ export const trackerService = {
     const entry: LoggedMealEntry = {
       recipeId: recipe.id,
       mealType: input.mealType,
+      ...(input.slotIndex !== undefined && { slotIndex: input.slotIndex }),
       portionMultiplier: p,
       kcal: Math.round((n.calories ?? 0) * p),
       protein: Math.round((n.protein ?? 0) * p * 10) / 10,
       carbs: Math.round((n.carbs ?? 0) * p * 10) / 10,
       fat: Math.round((n.fat ?? 0) * p * 10) / 10,
     };
+    const sameEntry = (m: LoggedMealEntry) =>
+      m.recipeId === entry.recipeId &&
+      (entry.slotIndex !== undefined
+        ? m.slotIndex === entry.slotIndex
+        : m.mealType === entry.mealType);
     const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
-      ...stored.filter((m) => !(m.recipeId === entry.recipeId && m.mealType === entry.mealType)),
+      ...stored.filter((m) => !sameEntry(m)),
       entry,
     ]);
     const rebalance = await this.maybeRebalance(user);

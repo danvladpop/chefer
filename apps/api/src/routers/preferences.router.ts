@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { setDisplayPreferencesInputSchema, setOnboardingIntentInputSchema } from '@chefer/types';
 import {
-  computeMacroTargets,
   preferencesService,
   type UpdatePreferencesInput,
 } from '../application/preferences/preferences.service.js';
+import { trainingNutritionService } from '../application/training-nutrition/training-nutrition.service.js';
 import { premiumProcedure, protectedProcedure, router } from '../lib/trpc.js';
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -153,14 +153,9 @@ export const preferencesRouter = router({
         ]),
       }),
     )
-    .query(async ({ input }) => {
-      return computeMacroTargets(
-        input.weightKg,
-        input.heightCm,
-        input.age,
-        input.activityLevel,
-        input.biologicalSex,
-        input.goal,
-      );
+    // The preferences macro preview. Lifters get the bodyweight protein rule,
+    // like the dashboard; `lifter` (additive) says so for the form's note.
+    .query(async ({ input, ctx }) => {
+      return trainingNutritionService.previewTargets(ctx.user.id, input);
     }),
 });

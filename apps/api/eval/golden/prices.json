@@ -1,0 +1,50 @@
+{
+  "batches": [
+    [
+      "chicken breast",
+      "white rice",
+      "olive oil",
+      "egg",
+      "banana",
+      "rolled oats",
+      "broccoli",
+      "red lentils",
+      "salmon fillet",
+      "whole milk"
+    ],
+    [
+      "butter",
+      "potato",
+      "tomato",
+      "cheddar",
+      "almonds",
+      "apple",
+      "onion",
+      "dried spaghetti",
+      "greek yogurt",
+      "firm tofu"
+    ]
+  ],
+  "kcalPer100g": {
+    "chicken breast": 120,
+    "white rice": 360,
+    "olive oil": 884,
+    "egg": 143,
+    "banana": 89,
+    "rolled oats": 379,
+    "broccoli": 34,
+    "red lentils": 358,
+    "salmon fillet": 208,
+    "whole milk": 61,
+    "butter": 717,
+    "potato": 77,
+    "tomato": 18,
+    "cheddar": 403,
+    "almonds": 579,
+    "apple": 52,
+    "onion": 40,
+    "dried spaghetti": 371,
+    "greek yogurt": 97,
+    "firm tofu": 144
+  }
+}

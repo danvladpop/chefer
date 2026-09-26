@@ -3,10 +3,10 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import express, { Router, type Request, type Response } from 'express';
 import { asyncHandler } from '../lib/async-handler.js';
+import { UPLOADS_DIR } from '../lib/image-cdn/local.js';
 import { sniffImageMime } from '../lib/image-sniff.js';
 import { consume } from '../lib/rate-limit.js';
 import { resolveRequestAuth } from '../lib/session-auth.js';
-import { UPLOADS_DIR } from '../lib/uploads/uploaded-files.js';
 
 // ─── Image uploads ────────────────────────────────────────────────────────────
 // Session-authenticated raw-body upload (no multipart, no extra deps): the
@@ -27,6 +27,8 @@ const EXT_BY_MIME: Record<string, string> = {
   'image/avif': 'avif',
 };
 
+// The directory lives in lib/image-cdn/local.ts (generated recipe images share
+// it); re-exported for index.ts's static route.
 export { UPLOADS_DIR };
 
 export const uploadsRouter: Router = Router();

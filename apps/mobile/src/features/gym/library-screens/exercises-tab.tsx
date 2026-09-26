@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { MUSCLE_LABELS, type VolumeGroup } from '@chefer/types';
@@ -142,7 +143,13 @@ export function ExercisesTab() {
                   cachePolicy="disk"
                 />
               ) : (
-                <View className="h-12 w-12 rounded-lg bg-muted" />
+                // No public-domain photo (some home moves, custom exercises).
+                <View
+                  testID={`exercises-item-${item.id}-placeholder`}
+                  className="h-12 w-12 items-center justify-center rounded-lg bg-muted"
+                >
+                  <Ionicons name="barbell-outline" size={22} color="#9ca3af" />
+                </View>
               )}
               <View className="min-w-0 flex-1">
                 <Text className="font-medium" numberOfLines={1}>

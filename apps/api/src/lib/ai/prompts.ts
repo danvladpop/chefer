@@ -206,6 +206,38 @@ Cuisines: ${cuisines}${signalLines.length ? `\n${signalLines.join('\n')}` : ''}
 Days: 0=Mon…6=Sun. Exactly ${input.mealsPerDay} meals per day.`;
 }
 
+// ─── Meal plan in day chunks (research §5.3/§5.4) ────────────────────────────
+// Small-context providers (Groq free: 8K tokens/minute) cannot return a whole
+// 5.5–9k-token week in one response, so the OpenAI-compatible client asks for
+// one day at a time: the same system prompt and user prompt, plus a chunk
+// instruction naming the day and the dishes already planned. Gemini keeps the
+// single-call path.
+
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+export const MEAL_PLAN_DAY_CHUNK_RULES = `
+
+CHUNKED MODE: the week is generated one day at a time. Produce ONLY the single
+day the user message names — one day object, not the whole week. Every rule
+above still applies to that day.`;
+
+export function buildMealPlanDayChunkPrompt(
+  input: MealPlanInput,
+  dayOfWeek: number,
+  alreadyPlanned: string[],
+): string {
+  const lines = [
+    buildMealPlanUserPrompt(input),
+    `Generate ONLY day ${dayOfWeek} (${DAY_NAMES[dayOfWeek] ?? `day ${dayOfWeek}`}): dayOfWeek=${dayOfWeek}, exactly ${input.mealsPerDay} meals.`,
+  ];
+  if (alreadyPlanned.length > 0) {
+    lines.push(
+      `Already planned on earlier days (do NOT repeat or closely imitate): ${alreadyPlanned.join(', ')}.`,
+    );
+  }
+  return lines.join('\n');
+}
+
 // ─── Recipe Swap ──────────────────────────────────────────────────────────────
 
 export const SWAP_SYSTEM_PROMPT = `\
@@ -442,6 +474,7 @@ suggestion.
 
 You have tools. When the user asks to swap/change/replace a meal, call
 swapMeal — the swap is applied to their actual plan, so confirm what changed.
+A day can have two snacks; for the second one pass occurrence 2.
 When they ask to scale a recipe for more or fewer people, call scaleRecipe.
 When they tell you they ATE something off-plan ("I ate a burger", "had a
 croissant"), call logMeal with the dish name and your best realistic macro

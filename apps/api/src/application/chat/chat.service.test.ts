@@ -215,9 +215,67 @@ describe('ChatService', () => {
       'lunch',
       undefined,
       true,
+      undefined,
     );
     expect(result).toContain('Grilled Halloumi Bowl');
     expect(result).toContain('Falafel Pita'); // names what it replaced
+  });
+
+  describe('swapMeal on a two-snack day (slotIndex, PR #42)', () => {
+    const TWO_SNACKS = {
+      ...PLAN,
+      days: [
+        {
+          dayOfWeek: 2,
+          meals: [
+            { type: 'breakfast' as const, recipe: recipe('Oats', 12) },
+            { type: 'snack' as const, recipe: recipe('Greek Yogurt', 15) },
+            { type: 'lunch' as const, recipe: recipe('Falafel Pita', 20) },
+            { type: 'snack' as const, recipe: recipe('Hummus Plate', 8) },
+            { type: 'dinner' as const, recipe: recipe('Mushroom Risotto', 17) },
+          ],
+        },
+      ],
+    };
+
+    async function tools() {
+      const { aiService } = await import('../../lib/ai/index.js');
+      vi.mocked(mealPlanService.getActive).mockResolvedValue(TWO_SNACKS);
+      await service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]);
+      return vi.mocked(aiService.chat).mock.calls[0]![1].tools!;
+    }
+
+    it('occurrence 2 swaps the second snack by its slot index', async () => {
+      const result = await (
+        await tools()
+      ).swapMeal({ dayOfWeek: 2, mealType: 'snack', occurrence: 2 });
+      expect(mealPlanService.swapRecipe).toHaveBeenCalledWith(
+        'u1',
+        'plan1',
+        2,
+        'snack',
+        undefined,
+        true,
+        3,
+      );
+      expect(result).toContain("Wednesday's second snack (Hummus Plate)");
+    });
+
+    it('no occurrence keeps the first snack (as before)', async () => {
+      const result = await (await tools()).swapMeal({ dayOfWeek: 2, mealType: 'snack' });
+      expect(vi.mocked(mealPlanService.swapRecipe).mock.calls[0]?.[6]).toBeUndefined();
+      expect(result).toContain("Wednesday's first snack (Greek Yogurt)");
+    });
+
+    it('an occurrence the day does not have answers without swapping or reserving quota', async () => {
+      const { reserveAiSwap } = await import('../../lib/quotas.js');
+      const result = await (
+        await tools()
+      ).swapMeal({ dayOfWeek: 2, mealType: 'snack', occurrence: 3 });
+      expect(result).toBe('Wednesday has only 2 snack slots — nothing to swap.');
+      expect(mealPlanService.swapRecipe).not.toHaveBeenCalled();
+      expect(reserveAiSwap).not.toHaveBeenCalled();
+    });
   });
 
   it('scaleRecipe rescales ingredient quantities from the active plan', async () => {

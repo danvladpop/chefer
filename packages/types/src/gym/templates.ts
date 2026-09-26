@@ -3,7 +3,7 @@
 // (instantiateTemplate) live in the engine (@chefer/utils gym/templates).
 // Weekday convention: 0 = Monday … 6 = Sunday.
 
-import type { GymEquipmentAccess, TrainingExperience } from './vocab';
+import { ExerciseEquipment, type GymEquipmentAccess, type TrainingExperience } from './vocab';
 
 export interface TemplateExercise {
   exerciseId: string;
@@ -549,9 +549,21 @@ export const PROGRAM_TEMPLATES: readonly ProgramTemplate[] = [
 ];
 
 /**
+ * What each setup answer can actually use (audit F-GYM-2-1). "Bodyweight"
+ * exercises may need a pull-up bar, a chair or a sturdy table, but no weights.
+ * FULL_GYM is unrestricted.
+ */
+export const EQUIPMENT_ACCESS_SETS: Record<GymEquipmentAccess, readonly ExerciseEquipment[]> = {
+  FULL_GYM: Object.values(ExerciseEquipment),
+  DUMBBELLS: ['DUMBBELL', 'BODYWEIGHT'],
+  BODYWEIGHT: ['BODYWEIGHT'],
+};
+
+/**
  * Equipment adaptation (research §3.5): exercise → replacement when the user's
- * gym lacks it. Unlisted exercises are kept (the user can swap in the editor).
- * The engine may extend this map; entries must reference catalog slugs.
+ * gym lacks it. Every target must be inside that access set (catalog test).
+ * Anything still out of the set after this table is replaced by the engine
+ * with the closest in-set alternative, or dropped (instantiateTemplate).
  */
 export const EQUIPMENT_SWAPS: Record<
   Exclude<GymEquipmentAccess, 'FULL_GYM'>,
@@ -560,51 +572,93 @@ export const EQUIPMENT_SWAPS: Record<
   DUMBBELLS: {
     'barbell-bench-press': 'dumbbell-bench-press',
     'machine-chest-press': 'dumbbell-bench-press',
-    'cable-fly': 'incline-dumbbell-press',
+    'cable-fly': 'dumbbell-fly',
     'overhead-press': 'seated-dumbbell-shoulder-press',
     'back-squat': 'goblet-squat',
     'front-squat': 'goblet-squat',
     'hack-squat': 'bulgarian-split-squat',
     'leg-press': 'goblet-squat',
-    'leg-extension': 'bulgarian-split-squat',
+    'leg-extension': 'walking-lunge',
     'barbell-row': 'single-arm-dumbbell-row',
-    'chest-supported-row': 'single-arm-dumbbell-row',
+    'chest-supported-row': 'incline-dumbbell-row',
     'seated-cable-row': 'single-arm-dumbbell-row',
     'lat-pulldown': 'pull-up',
-    'face-pull': 'reverse-pec-deck',
-    'reverse-pec-deck': 'single-arm-dumbbell-row',
+    'assisted-pull-up': 'pull-up',
+    'straight-arm-pulldown': 'pull-up',
+    'face-pull': 'dumbbell-reverse-fly',
+    'reverse-pec-deck': 'dumbbell-reverse-fly',
     'cable-lateral-raise': 'dumbbell-lateral-raise',
-    'triceps-pushdown': 'skull-crusher',
-    'overhead-cable-triceps-extension': 'skull-crusher',
-    'seated-leg-curl': 'romanian-deadlift',
-    'lying-leg-curl': 'romanian-deadlift',
-    'standing-calf-raise': 'dumbbell-shrug',
-    'seated-calf-raise': 'dumbbell-shrug',
+    'barbell-curl': 'dumbbell-curl',
+    'preacher-curl': 'incline-dumbbell-curl',
+    'triceps-pushdown': 'dumbbell-skull-crusher',
+    'overhead-cable-triceps-extension': 'dumbbell-overhead-triceps-extension',
+    'skull-crusher': 'dumbbell-skull-crusher',
+    'close-grip-bench-press': 'diamond-push-up',
+    'romanian-deadlift': 'dumbbell-romanian-deadlift',
+    deadlift: 'dumbbell-romanian-deadlift',
+    'cable-pull-through': 'dumbbell-romanian-deadlift',
+    'hip-thrust': 'dumbbell-hip-thrust',
+    'seated-leg-curl': 'slider-leg-curl',
+    'lying-leg-curl': 'slider-leg-curl',
+    'standing-calf-raise': 'dumbbell-calf-raise',
+    'seated-calf-raise': 'dumbbell-calf-raise',
     'cable-crunch': 'hanging-knee-raise',
+    'pallof-press': 'plank',
   },
   BODYWEIGHT: {
     'barbell-bench-press': 'push-up',
     'dumbbell-bench-press': 'push-up',
-    'incline-dumbbell-press': 'push-up',
     'machine-chest-press': 'push-up',
     'cable-fly': 'push-up',
-    'overhead-press': 'push-up',
-    'seated-dumbbell-shoulder-press': 'push-up',
-    'back-squat': 'bulgarian-split-squat',
-    'front-squat': 'bulgarian-split-squat',
-    'hack-squat': 'bulgarian-split-squat',
-    'goblet-squat': 'bulgarian-split-squat',
-    'leg-press': 'walking-lunge',
-    'leg-extension': 'walking-lunge',
-    'romanian-deadlift': 'hip-thrust',
-    'barbell-row': 'chin-up',
-    'chest-supported-row': 'chin-up',
-    'seated-cable-row': 'chin-up',
-    'single-arm-dumbbell-row': 'chin-up',
+    'dumbbell-fly': 'push-up',
+    'incline-dumbbell-press': 'decline-push-up',
+    'overhead-press': 'pike-push-up',
+    'seated-dumbbell-shoulder-press': 'pike-push-up',
+    'dumbbell-lateral-raise': 'pike-push-up',
+    'cable-lateral-raise': 'pike-push-up',
+    'back-squat': 'bodyweight-bulgarian-split-squat',
+    'front-squat': 'bodyweight-bulgarian-split-squat',
+    'hack-squat': 'bodyweight-bulgarian-split-squat',
+    'goblet-squat': 'bodyweight-bulgarian-split-squat',
+    'bulgarian-split-squat': 'bodyweight-bulgarian-split-squat',
+    'leg-press': 'bodyweight-squat',
+    'leg-extension': 'reverse-lunge',
+    'walking-lunge': 'reverse-lunge',
+    'barbell-row': 'inverted-row',
+    'chest-supported-row': 'inverted-row',
+    'incline-dumbbell-row': 'inverted-row',
+    'seated-cable-row': 'inverted-row',
+    'single-arm-dumbbell-row': 'inverted-row',
+    'face-pull': 'inverted-row',
+    'reverse-pec-deck': 'inverted-row',
+    'dumbbell-reverse-fly': 'inverted-row',
     'lat-pulldown': 'pull-up',
-    'triceps-pushdown': 'chest-dip',
-    'overhead-cable-triceps-extension': 'chest-dip',
+    'assisted-pull-up': 'pull-up',
+    'straight-arm-pulldown': 'pull-up',
+    'barbell-curl': 'chin-up',
+    'dumbbell-curl': 'chin-up',
+    'incline-dumbbell-curl': 'chin-up',
+    'hammer-curl': 'chin-up',
+    'preacher-curl': 'chin-up',
+    'triceps-pushdown': 'diamond-push-up',
+    'overhead-cable-triceps-extension': 'diamond-push-up',
+    'dumbbell-overhead-triceps-extension': 'diamond-push-up',
+    'skull-crusher': 'diamond-push-up',
+    'dumbbell-skull-crusher': 'diamond-push-up',
+    'close-grip-bench-press': 'diamond-push-up',
+    'romanian-deadlift': 'single-leg-romanian-deadlift',
+    'dumbbell-romanian-deadlift': 'single-leg-romanian-deadlift',
+    deadlift: 'single-leg-romanian-deadlift',
+    'cable-pull-through': 'glute-bridge',
+    'hip-thrust': 'glute-bridge',
+    'dumbbell-hip-thrust': 'glute-bridge',
+    'seated-leg-curl': 'slider-leg-curl',
+    'lying-leg-curl': 'slider-leg-curl',
+    'standing-calf-raise': 'single-leg-calf-raise',
+    'seated-calf-raise': 'single-leg-calf-raise',
+    'dumbbell-calf-raise': 'single-leg-calf-raise',
     'cable-crunch': 'hanging-knee-raise',
+    'pallof-press': 'plank',
   },
 };
 

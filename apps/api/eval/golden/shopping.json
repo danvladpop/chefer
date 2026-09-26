@@ -1,0 +1,151 @@
+[
+  {
+    "id": "week-omnivore",
+    "input": {
+      "weekLabel": "Mon 5 Oct \u2013 Sun 11 Oct 2026",
+      "ingredients": [
+        {
+          "name": "chicken breast",
+          "quantity": 300,
+          "unit": "g"
+        },
+        {
+          "name": "Chicken breast",
+          "quantity": 250,
+          "unit": "g"
+        },
+        {
+          "name": "onion",
+          "quantity": 1,
+          "unit": "piece"
+        },
+        {
+          "name": "onions",
+          "quantity": 2,
+          "unit": "piece"
+        },
+        {
+          "name": "olive oil",
+          "quantity": 2,
+          "unit": "tbsp"
+        },
+        {
+          "name": "olive oil",
+          "quantity": 15,
+          "unit": "ml"
+        },
+        {
+          "name": "rice",
+          "quantity": 150,
+          "unit": "g"
+        },
+        {
+          "name": "broccoli",
+          "quantity": 200,
+          "unit": "g"
+        },
+        {
+          "name": "garlic",
+          "quantity": 3,
+          "unit": "clove"
+        },
+        {
+          "name": "eggs",
+          "quantity": 4,
+          "unit": "piece"
+        },
+        {
+          "name": "egg",
+          "quantity": 2,
+          "unit": "piece"
+        },
+        {
+          "name": "milk",
+          "quantity": 200,
+          "unit": "ml"
+        }
+      ]
+    }
+  },
+  {
+    "id": "week-vegan",
+    "input": {
+      "weekLabel": "Mon 12 Oct \u2013 Sun 18 Oct 2026",
+      "ingredients": [
+        {
+          "name": "chickpeas",
+          "quantity": 400,
+          "unit": "g"
+        },
+        {
+          "name": "canned chickpeas",
+          "quantity": 1,
+          "unit": "can"
+        },
+        {
+          "name": "spinach",
+          "quantity": 100,
+          "unit": "g"
+        },
+        {
+          "name": "baby spinach",
+          "quantity": 50,
+          "unit": "g"
+        },
+        {
+          "name": "tofu",
+          "quantity": 200,
+          "unit": "g"
+        },
+        {
+          "name": "soy sauce",
+          "quantity": 2,
+          "unit": "tbsp"
+        },
+        {
+          "name": "brown rice",
+          "quantity": 200,
+          "unit": "g"
+        },
+        {
+          "name": "lentils",
+          "quantity": 250,
+          "unit": "g"
+        },
+        {
+          "name": "tomatoes",
+          "quantity": 4,
+          "unit": "piece"
+        }
+      ]
+    }
+  },
+  {
+    "id": "week-small",
+    "input": {
+      "weekLabel": "Mon 19 Oct \u2013 Sun 25 Oct 2026",
+      "ingredients": [
+        {
+          "name": "oats",
+          "quantity": 50,
+          "unit": "g"
+        },
+        {
+          "name": "oats",
+          "quantity": 50,
+          "unit": "g"
+        },
+        {
+          "name": "banana",
+          "quantity": 1,
+          "unit": "piece"
+        },
+        {
+          "name": "bananas",
+          "quantity": 2,
+          "unit": "piece"
+        }
+      ]
+    }
+  }
+]

@@ -48,6 +48,11 @@ export interface MetricsStepProps {
   onChange: (value: MetricsValue) => void;
   /** Selected goal — applies its kcal adjustment to the live preview (web P-3). */
   goal?: Goal | null;
+  /**
+   * A lifter's protein target and why (preferences only): shown under the
+   * calorie estimate, since it replaces the goal's percentage split.
+   */
+  lifterProtein?: { proteinG: number; note: string } | null;
   /** Local text state for the three numeric fields (kept by the caller so
       the input doesn't reformat mid-typing, same reason as web's step-metrics). */
   ageText: string;
@@ -66,6 +71,7 @@ export function MetricsStep({
   value,
   onChange,
   goal,
+  lifterProtein,
   ageText,
   heightText,
   weightText,
@@ -190,6 +196,16 @@ export function MetricsStep({
                 ? `kcal / day · ${preview.maintenance.toLocaleString('en-US')} maintenance`
                 : 'kcal / day · Mifflin-St Jeor estimate'}
             </Text>
+            {lifterProtein && (
+              <View testID="metrics-lifter-protein" className="mt-2 items-center gap-0.5">
+                <Text className="text-base font-semibold text-foreground">
+                  {`${lifterProtein.proteinG} g protein / day`}
+                </Text>
+                <Text variant="muted" className="text-center text-xs">
+                  {lifterProtein.note}
+                </Text>
+              </View>
+            )}
           </>
         ) : (
           <Text variant="muted" className="text-center text-sm">

@@ -33,7 +33,8 @@
     "db:studio": "turbo run db:studio --filter=@chefer/database",
     "prepare": "husky",
     "upload:images": "npx tsx --env-file=apps/api/.env scripts/upload-to-cloudinary.ts",
-    "recipes:from-video": "apps/api/node_modules/.bin/tsx --env-file=apps/api/.env scripts/extract-video-recipes.ts"
+    "recipes:from-video": "apps/api/node_modules/.bin/tsx --env-file=apps/api/.env scripts/extract-video-recipes.ts",
+    "ai:eval": "pnpm --filter @chefer/api ai:eval"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.3.0",

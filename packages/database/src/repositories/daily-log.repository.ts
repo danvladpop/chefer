@@ -15,6 +15,12 @@ export interface LoggedMealEntry {
       }
     | undefined;
   mealType: string;
+  /**
+   * Index of the plan slot (in the day's `meals`) this entry was logged
+   * from, so two slots with the same recipe tick separately. Optional in the
+   * JSON column: older entries and cook-mode logs have none.
+   */
+  slotIndex?: number | undefined;
   portionMultiplier: number;
   kcal: number;
   protein: number;

@@ -102,6 +102,9 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
                   date: localDateStr(),
                   recipeId: meal.recipe.id,
                   mealType: meal.mealType,
+                  // The plan slot, so the second of two identical snacks
+                  // logs as its own entry.
+                  ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
                   portionMultiplier: logPortion,
                 })
               }

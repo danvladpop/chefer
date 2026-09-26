@@ -953,4 +953,383 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     videoStartSec: 500,
     videoChannel: 'Jeff Nippard',
   },
+  // ── Home variants (audit F-GYM-2-1) ──
+  // Photos: free-exercise-db ids where a faithful match exists, else null.
+  // Videos: dedicated single-exercise tutorials, oEmbed-verified 2026-09-26.
+  'dumbbell-romanian-deadlift': {
+    cues: [
+      'Push your hips back as the dumbbells slide down your thighs.',
+      'Keep a soft knee bend that never changes.',
+      'Stop when your hamstrings stretch, usually just below the knee.',
+      'Stand tall by driving your hips forward, not leaning back.',
+    ],
+    mistakes: [
+      'Rounding the lower back to reach the dumbbells lower.',
+      'Bending the knees more, turning it into a squat.',
+    ],
+    blurb:
+      'The dumbbell version of the best hamstring builder — same hinge and stretch, loaded with whatever dumbbells you have.',
+    freeExerciseDbId: 'Stiff-Legged_Dumbbell_Deadlift',
+    videoId: 'aa57T45iFSE',
+    videoStartSec: 0,
+    videoChannel: 'NASM',
+  },
+  'dumbbell-hip-thrust': {
+    cues: [
+      'Rest your upper back on the bench, just below the shoulder blades.',
+      'Hold one dumbbell across your hip crease with both hands.',
+      'Drive through your heels until hips and knees line up.',
+      'Squeeze your glutes and pause a beat at the top.',
+    ],
+    mistakes: [
+      'Arching the lower back at lockout instead of squeezing glutes.',
+      'Feet too far away, shifting the work to the hamstrings.',
+    ],
+    blurb:
+      'Hip-thrust glute work for a home setup: one heavy dumbbell on the hips and a bench behind you.',
+    freeExerciseDbId: null,
+    videoId: '29OfN4ztW_g',
+    videoStartSec: 0,
+    videoChannel: 'J2FIT Strength & Conditioning',
+  },
+  'dumbbell-overhead-triceps-extension': {
+    cues: [
+      'Cup the top of one dumbbell with both hands overhead.',
+      'Keep your elbows pointing forward, close to your head.',
+      'Lower behind your head until your triceps fully stretch.',
+    ],
+    mistakes: [
+      'Flaring the elbows wide so the shoulders take over.',
+      'Arching the lower back to push the weight up.',
+    ],
+    blurb:
+      'Trains the long head of the triceps in its stretched position — the dumbbell stand-in for overhead cable extensions.',
+    freeExerciseDbId: 'Seated_Triceps_Press',
+    videoId: '-Vyt2QdsR7E',
+    videoStartSec: 0,
+    videoChannel: 'ScottHermanFitness',
+  },
+  'dumbbell-skull-crusher': {
+    cues: [
+      'Lie on the bench with the dumbbells above your shoulders, palms in.',
+      'Bend only at the elbows, lowering beside your head.',
+      'Keep your upper arms still and angled slightly back.',
+    ],
+    mistakes: [
+      'Letting the elbows drift out and turn it into a press.',
+      'Dropping the weights fast instead of controlling the stretch.',
+    ],
+    blurb:
+      'A lying triceps extension with dumbbells: easier on the wrists than a straight bar and needs only a bench.',
+    freeExerciseDbId: 'Lying_Dumbbell_Tricep_Extension',
+    videoId: 'ir5PsbniVSc',
+    videoStartSec: 0,
+    videoChannel: 'ScottHermanFitness',
+  },
+  'dumbbell-reverse-fly': {
+    cues: [
+      'Lie chest-down on an incline bench, arms hanging straight down.',
+      'Keep a slight, fixed bend in the elbows.',
+      'Sweep the dumbbells out wide, leading with your pinkies.',
+      'Stop at shoulder height; control the way down.',
+    ],
+    mistakes: [
+      'Squeezing the shoulder blades hard so the upper back takes over.',
+      'Swinging heavy dumbbells with momentum from the torso.',
+    ],
+    blurb:
+      'Rear-delt isolation with light dumbbells — replaces face pulls and the reverse pec deck when there is no cable or machine.',
+    freeExerciseDbId: 'Reverse_Flyes',
+    videoId: 'buuYPLVXsJg',
+    videoStartSec: 0,
+    videoChannel: 'Colossus Fitness',
+  },
+  'dumbbell-fly': {
+    cues: [
+      'Keep a slight bend in the elbows the whole rep.',
+      'Open your arms wide until you feel a deep chest stretch.',
+      'Bring the dumbbells together like hugging a big tree.',
+    ],
+    mistakes: [
+      'Bending the elbows more on the way up, making it a press.',
+      'Going too heavy and dropping too deep at the stretch.',
+    ],
+    blurb:
+      'A chest isolation move that needs only dumbbells and a bench; the stand-in for cable flyes at home.',
+    freeExerciseDbId: 'Dumbbell_Flyes',
+    videoId: 'LzFvciCdoW0',
+    videoStartSec: 0,
+    videoChannel: 'Buff Dudes',
+  },
+  'incline-dumbbell-row': {
+    cues: [
+      'Lie chest-down on a bench set to about 30 degrees.',
+      'Row the dumbbells toward your hips, elbows close to your sides.',
+      'Squeeze your shoulder blades together at the top.',
+    ],
+    mistakes: [
+      'Lifting the chest off the pad to cheat the weight up.',
+      'Shrugging the shoulders up toward the ears.',
+    ],
+    blurb:
+      'The bench supports your chest, so your back does all the work and your lower back gets a rest.',
+    freeExerciseDbId: 'Dumbbell_Incline_Row',
+    videoId: 'llFTFDwmGcw',
+    videoStartSec: 0,
+    videoChannel: 'Colossus Fitness',
+  },
+  'dumbbell-calf-raise': {
+    cues: [
+      'Stand on a step with your heels hanging off the edge.',
+      'Lower slowly until your calves fully stretch.',
+      'Rise onto the balls of your feet and pause at the top.',
+    ],
+    mistakes: [
+      'Bouncing out of the bottom instead of pausing in the stretch.',
+      'Bending the knees to push the weight up.',
+    ],
+    blurb:
+      'Calf work with nothing but dumbbells and a step; the full stretch at the bottom matters more than the load.',
+    freeExerciseDbId: 'Standing_Dumbbell_Calf_Raise',
+    videoId: 'H6WptvjXkgw',
+    videoStartSec: 0,
+    videoChannel: 'J2FIT Strength & Conditioning',
+  },
+  'bodyweight-squat': {
+    cues: [
+      'Stand with feet shoulder-width apart, toes slightly out.',
+      'Sit down between your heels, knees tracking over your toes.',
+      'Go as deep as you can with your chest up.',
+      'Drive up through the whole foot.',
+    ],
+    mistakes: [
+      'Letting the heels lift off the floor at the bottom.',
+      'Cutting depth short as the set gets hard.',
+    ],
+    blurb:
+      'The starting point for bodyweight leg training. Once 30 clean reps feel easy, move on to split squats.',
+    freeExerciseDbId: 'Bodyweight_Squat',
+    videoId: 'ZLJBfYF_oO0',
+    videoStartSec: 0,
+    videoChannel: 'Born Fitness',
+  },
+  'reverse-lunge': {
+    cues: [
+      'Step back far enough that your front shin stays vertical.',
+      'Drop your back knee straight down toward the floor.',
+      'Push through your front heel to return to standing.',
+    ],
+    mistakes: [
+      'Letting the front knee cave inward on the way up.',
+      'Pushing off the back foot instead of the front leg.',
+    ],
+    blurb:
+      'Easier on the knees than a forward lunge and needs no room to walk; count reps per leg.',
+    freeExerciseDbId: null,
+    videoId: 'u_zSfK5ZFU4',
+    videoStartSec: 0,
+    videoChannel: 'BuiltLean',
+  },
+  'bodyweight-bulgarian-split-squat': {
+    cues: [
+      'Rest the top of your back foot on a chair or couch.',
+      'Keep most of your weight on the front foot.',
+      'Drop straight down, torso tall, until the back knee nearly touches.',
+    ],
+    mistakes: [
+      'Standing too close to the chair, so the front knee jams forward.',
+      'Rushing the bottom instead of controlling it.',
+    ],
+    blurb:
+      'The hardest bodyweight quad exercise here. One leg carries almost your whole weight, so it keeps working long after squats get easy.',
+    freeExerciseDbId: null,
+    videoId: '6Wpr0bgmKRE',
+    videoStartSec: 0,
+    videoChannel: 'Mind Pump',
+  },
+  'single-leg-romanian-deadlift': {
+    cues: [
+      'Stand on one leg with a soft bend in the knee.',
+      'Hinge forward as your free leg reaches straight back.',
+      'Keep your hips square to the floor, not rotating open.',
+      'Stand up by squeezing the glute of your standing leg.',
+    ],
+    mistakes: ['Rounding the back to reach lower.', 'Opening the hip so the back leg turns out.'],
+    blurb:
+      'A bodyweight hinge that still loads the hamstrings, because one leg carries the load. Touch a wall for balance if you need to.',
+    freeExerciseDbId: null,
+    videoId: 'Zfr6wizR8rs',
+    videoStartSec: 0,
+    videoChannel: 'Squat University',
+  },
+  'slider-leg-curl': {
+    cues: [
+      'Lie on your back with your heels on a towel or sliders.',
+      'Lift your hips into a bridge and keep them up.',
+      'Pull your heels toward your glutes, then slide them out slowly.',
+    ],
+    mistakes: [
+      'Letting the hips drop as the legs straighten.',
+      'Rushing the slide out, where most of the work happens.',
+    ],
+    blurb:
+      'A leg curl with no machine: a towel on a smooth floor trains the hamstrings through knee flexion.',
+    freeExerciseDbId: 'Platform_Hamstring_Slides',
+    videoId: 'e17hjjvQLQQ',
+    videoStartSec: 0,
+    videoChannel: 'Onnit Academy',
+  },
+  'nordic-curl': {
+    cues: [
+      'Kneel with your ankles anchored under a couch or by a partner.',
+      'Keep a straight line from knees to head.',
+      'Lower as slowly as you can, then catch yourself with your hands.',
+    ],
+    mistakes: [
+      'Bending at the hips to shorten the lever.',
+      'Dropping fast instead of fighting the whole way down.',
+    ],
+    blurb:
+      'One of the hardest hamstring exercises there is. Slow lowering builds strength that protects against strains; start with a few good reps.',
+    freeExerciseDbId: 'Floor_Glute-Ham_Raise',
+    videoId: '_e9vFU9-tkc',
+    videoStartSec: 0,
+    videoChannel: 'E3 Rehab',
+  },
+  'glute-bridge': {
+    cues: [
+      'Lie on your back, knees bent, feet flat near your glutes.',
+      'Drive through your heels and lift your hips.',
+      'Squeeze your glutes hard at the top for a second.',
+    ],
+    mistakes: [
+      'Arching the lower back instead of extending the hips.',
+      'Pushing through the toes, shifting work to the quads.',
+    ],
+    blurb:
+      'The floor version of the hip thrust. Once 25 reps feel easy, move to the single-leg bridge.',
+    freeExerciseDbId: 'Butt_Lift_Bridge',
+    videoId: 'L9KZfxT654Y',
+    videoStartSec: 0,
+    videoChannel: 'Runna',
+  },
+  'single-leg-glute-bridge': {
+    cues: [
+      'Lift one foot and hug that knee toward your chest.',
+      'Drive through the heel of the planted foot.',
+      'Keep your hips level as they rise.',
+    ],
+    mistakes: [
+      'Letting one hip drop lower than the other.',
+      'Arching the lower back to get higher.',
+    ],
+    blurb:
+      'Doubles the load on each glute without any equipment, so it is the next step after the two-leg bridge.',
+    freeExerciseDbId: 'Single_Leg_Glute_Bridge',
+    videoId: 'sVfp4LN9niA',
+    videoStartSec: 0,
+    videoChannel: 'PureGym',
+  },
+  'single-leg-calf-raise': {
+    cues: [
+      'Stand on one foot on a step, heel hanging off.',
+      'Lightly hold a wall or rail for balance only.',
+      'Lower into a full stretch, then rise as high as possible.',
+    ],
+    mistakes: [
+      'Bouncing out of the bottom instead of pausing.',
+      'Pulling yourself up with the hand on the wall.',
+    ],
+    blurb:
+      'Working one leg at a time puts your whole bodyweight on each calf, which is enough load to grow them.',
+    freeExerciseDbId: null,
+    videoId: 'ORT4oJ_R8Qs',
+    videoStartSec: 0,
+    videoChannel: 'ScottHermanFitness',
+  },
+  'inverted-row': {
+    cues: [
+      'Hang under a low bar or sturdy table, body straight.',
+      'Pull your chest to the bar, elbows about 45 degrees out.',
+      'Squeeze your shoulder blades together at the top.',
+    ],
+    mistakes: [
+      'Letting the hips sag so the body forms a banana.',
+      'Stopping short instead of touching chest to bar.',
+    ],
+    blurb:
+      'The bodyweight horizontal row. Walk your feet forward to make it harder, or bend your knees to make it easier.',
+    freeExerciseDbId: 'Inverted_Row',
+    videoId: '5Vy6mjhXg7s',
+    videoStartSec: 0,
+    videoChannel: 'Danny Matranga',
+  },
+  'incline-push-up': {
+    cues: [
+      'Put your hands on a bench, table or counter edge.',
+      'Keep a straight line from head to heels.',
+      'Lower your chest to the edge, then press away.',
+    ],
+    mistakes: [
+      'Letting the hips sag toward the floor.',
+      'Flaring the elbows straight out to the sides.',
+    ],
+    blurb:
+      'The push-up made easier: the higher your hands, the lighter it gets. Use it until floor push-ups hit 8 reps.',
+    freeExerciseDbId: 'Incline_Push-Up',
+    videoId: '0JUrOH--Kdk',
+    videoStartSec: 0,
+    videoChannel: 'NASM',
+  },
+  'decline-push-up': {
+    cues: [
+      'Put your feet on a bench or chair, hands on the floor.',
+      'Keep your body rigid from head to heels.',
+      'Lower until your chest is just above the floor.',
+    ],
+    mistakes: [
+      'Piking the hips up to make it easier.',
+      'Letting the head drop toward the floor first.',
+    ],
+    blurb:
+      'Raising your feet shifts more of your weight onto your hands and more work onto the upper chest. It is the harder next step after push-ups.',
+    freeExerciseDbId: 'Decline_Push-Up',
+    videoId: 'SKPab2YC8BE',
+    videoStartSec: 0,
+    videoChannel: 'ScottHermanFitness',
+  },
+  'diamond-push-up': {
+    cues: [
+      'Place your hands close together under your chest.',
+      'Keep your elbows tucked close to your ribs.',
+      'Lower until your chest touches your hands, then press up.',
+    ],
+    mistakes: [
+      'Flaring the elbows out, which strains the wrists and shoulders.',
+      'Letting the hips sag on the way up.',
+    ],
+    blurb:
+      'A close-hand push-up that moves the work onto the triceps, so it covers triceps training without equipment.',
+    freeExerciseDbId: 'Push-Ups_-_Close_Triceps_Position',
+    videoId: 'J0DnG1_S92I',
+    videoStartSec: 0,
+    videoChannel: 'ScottHermanFitness',
+  },
+  'pike-push-up': {
+    cues: [
+      'From a push-up, walk your feet in and lift your hips high.',
+      'Lower the top of your head toward the floor between your hands.',
+      'Press back up until your arms are straight.',
+    ],
+    mistakes: [
+      'Letting the hips drop so it becomes a normal push-up.',
+      'Flaring the elbows straight out to the sides.',
+    ],
+    blurb:
+      'Overhead-press training with no weights: the more vertical your body, the harder it gets. Raise your feet to progress.',
+    freeExerciseDbId: null,
+    videoId: '66x0qQiJ-MA',
+    videoStartSec: 0,
+    videoChannel: 'Minus The Gym',
+  },
 };

@@ -4,13 +4,17 @@ import {
   PROGRAM_TEMPLATES,
   type RoutineLike,
   type SessionSummaryDto,
+  type TrainingExperience,
   type VolumeGroup,
 } from '@chefer/types';
 import {
+  closestAccessibleAlternative,
   defaultTargetRir,
   estimateDurationMin,
   instantiateTemplate,
+  isWithinEquipmentAccess,
   recommendTemplate,
+  resolveSlotExercise,
 } from './templates';
 import { lookup } from './test-fixtures';
 import {
@@ -329,8 +333,8 @@ describe('instantiateTemplate', () => {
     expect(dayA.map((e) => e.exerciseId)).toEqual([
       'goblet-squat',
       'dumbbell-bench-press',
-      'single-arm-dumbbell-row',
-      'romanian-deadlift',
+      'incline-dumbbell-row',
+      'slider-leg-curl',
       'dumbbell-lateral-raise',
       'dumbbell-curl',
     ]);
@@ -342,17 +346,24 @@ describe('instantiateTemplate', () => {
       repMin: 12,
       repMax: 20,
     });
-    // RDL stays a barbell lift with its slot range.
-    expect(dayA.find((e) => e.exerciseId === 'romanian-deadlift')).toMatchObject({
-      repMin: 10,
+    // The seated leg curl slot becomes a bodyweight slider curl with its own range.
+    expect(dayA.find((e) => e.exerciseId === 'slider-leg-curl')).toMatchObject({
+      repMin: 8,
+      repMax: 15,
+    });
+    // Day B's barbell RDL becomes the dumbbell RDL (audit F-GYM-2-1), DB range widened.
+    expect(r.days[1]?.exercises[0]).toMatchObject({
+      exerciseId: 'dumbbell-romanian-deadlift',
+      repMin: 8,
       repMax: 15,
     });
   });
 
   it('bodyweight variants use the exercise range and merge collapsed slots (≤ 5 sets)', () => {
     const r = instantiateTemplate('ppl6-intermediate', 'BODYWEIGHT', lookup);
-    const pushA = r.days[0]?.exercises ?? [];
-    const pushUps = pushA.filter((e) => e.exerciseId === 'push-up');
+    // Push B: machine chest press (3) + cable fly (2) both become push-ups.
+    const pushB = r.days[3]?.exercises ?? [];
+    const pushUps = pushB.filter((e) => e.exerciseId === 'push-up');
     expect(pushUps).toHaveLength(1);
     expect(pushUps[0]).toMatchObject({ sets: 5, repMin: 8, repMax: 20 });
   });
@@ -680,5 +691,129 @@ describe('completedSetsByWeek', () => {
     expect(weeks.map((w) => w.weekStart)).toEqual(['2026-08-31', '2026-09-07']);
     expect(weeks[0]?.sets).toMatchObject({ chest: 2, triceps: 1, 'front-delts': 1, back: 0 });
     expect(weeks[1]?.sets).toMatchObject({ chest: 1 });
+  });
+});
+
+describe('equipment access (audit F-GYM-2-1)', () => {
+  const ACCESS = ['FULL_GYM', 'DUMBBELLS', 'BODYWEIGHT'] as const;
+  const EXPERIENCE = ['BEGINNER', 'INTERMEDIATE'] as const;
+  const DAYS = [2, 3, 4, 5, 6] as const;
+
+  const offEquipment = (key: string, access: (typeof ACCESS)[number]) =>
+    instantiateTemplate(key, access, lookup).days.flatMap((d) =>
+      d.exercises
+        .filter((e) => {
+          const m = lookup(e.exerciseId);
+          return !m || !isWithinEquipmentAccess(m, access);
+        })
+        .map((e) => `${d.name}: ${e.exerciseId} (${lookup(e.exerciseId)?.equipment})`),
+    );
+
+  const combos = DAYS.flatMap((days) =>
+    EXPERIENCE.flatMap((experience) => ACCESS.map((access) => [days, experience, access] as const)),
+  );
+
+  it('covers all 30 setup combinations', () => {
+    expect(combos).toHaveLength(30);
+  });
+
+  it.each(combos)(
+    '%d days · %s · %s: every recommended slot is within the equipment access set',
+    (days, experience, access) => {
+      const { key } = recommendTemplate({ days, experience, equipmentAccess: access });
+      expect(offEquipment(key, access)).toEqual([]);
+      // Nothing is silently hollowed out: every day still has a real session.
+      for (const day of instantiateTemplate(key, access, lookup).days) {
+        expect(day.exercises.length, `${key} ${access} ${day.name}`).toBeGreaterThanOrEqual(3);
+      }
+    },
+  );
+
+  it('holds for every template the setup lets you pick, not just the recommendation', () => {
+    for (const t of PROGRAM_TEMPLATES) {
+      for (const access of ACCESS) {
+        expect(offEquipment(t.key, access), `${t.key} ${access}`).toEqual([]);
+      }
+    }
+  });
+
+  it('keeps the program balanced: every major group trained on a full gym is still trained', () => {
+    const direct = (key: string, access: (typeof ACCESS)[number], experience: TrainingExperience) =>
+      new Map(
+        volumeByGroup(instantiateTemplate(key, access, lookup), lookup, experience).map((v) => [
+          v.group,
+          v.direct,
+        ]),
+      );
+    for (const t of PROGRAM_TEMPLATES) {
+      const full = direct(t.key, 'FULL_GYM', t.experience);
+      for (const access of ['DUMBBELLS', 'BODYWEIGHT'] as const) {
+        const home = direct(t.key, access, t.experience);
+        for (const group of [
+          'chest',
+          'back',
+          'quads',
+          'hamstrings',
+          'glutes',
+          'triceps',
+        ] as const) {
+          if ((full.get(group) ?? 0) > 0) {
+            expect(home.get(group) ?? 0, `${t.key} ${access} ${group}`).toBeGreaterThan(0);
+          }
+        }
+      }
+    }
+  });
+
+  it('the engine replaces an out-of-set exercise with the closest in-set alternative', () => {
+    const skull = lookup('skull-crusher');
+    if (!skull) {
+      throw new Error('skull-crusher');
+    }
+    // Same swap group, same pattern, same category → the dumbbell skull crusher.
+    expect(closestAccessibleAlternative(skull, 'DUMBBELLS')?.id).toBe('dumbbell-skull-crusher');
+    const row = lookup('barbell-row');
+    if (!row) {
+      throw new Error('barbell-row');
+    }
+    expect(closestAccessibleAlternative(row, 'BODYWEIGHT')?.id).toBe('inverted-row');
+    expect(closestAccessibleAlternative(row, 'DUMBBELLS')?.id).toBe('incline-dumbbell-row');
+  });
+
+  it('drops a slot when nothing in the set trains that pattern', () => {
+    const abduction = lookup('hip-abduction-machine');
+    if (!abduction) {
+      throw new Error('hip-abduction-machine');
+    }
+    expect(closestAccessibleAlternative(abduction, 'BODYWEIGHT')).toBeNull();
+    expect(resolveSlotExercise('hip-abduction-machine', 'BODYWEIGHT', lookup)).toBeNull();
+    expect(resolveSlotExercise('hip-abduction-machine', 'FULL_GYM', lookup)).toBe(
+      'hip-abduction-machine',
+    );
+  });
+
+  it('falls back to the engine when the curated swap table misses an exercise', () => {
+    // An empty pool means nothing qualifies, so an unmapped machine lift is dropped…
+    expect(resolveSlotExercise('hip-abduction-machine', 'DUMBBELLS', lookup, [])).toBeNull();
+    // …while curated swaps and in-set exercises never consult the pool.
+    expect(resolveSlotExercise('romanian-deadlift', 'DUMBBELLS', lookup, [])).toBe(
+      'dumbbell-romanian-deadlift',
+    );
+    expect(resolveSlotExercise('push-up', 'BODYWEIGHT', lookup, [])).toBe('push-up');
+    // Unknown slugs (custom exercises) are kept: equipment can't be checked.
+    expect(resolveSlotExercise('my-custom-lift', 'BODYWEIGHT', lookup)).toBe('my-custom-lift');
+  });
+
+  it('never prescribes a barbell RDL, EZ-bar skull crusher, barbell hip thrust or pec deck on dumbbells', () => {
+    const banned = ['romanian-deadlift', 'skull-crusher', 'hip-thrust', 'reverse-pec-deck'];
+    for (const t of PROGRAM_TEMPLATES) {
+      const ids = instantiateTemplate(t.key, 'DUMBBELLS', lookup).days.flatMap((d) =>
+        d.exercises.map((e) => e.exerciseId),
+      );
+      expect(
+        ids.filter((id) => banned.includes(id)),
+        t.key,
+      ).toEqual([]);
+    }
   });
 });

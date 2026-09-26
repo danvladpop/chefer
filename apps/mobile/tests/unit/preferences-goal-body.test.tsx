@@ -95,4 +95,50 @@ describe('Preferences — Goal & body (dogfood feedback #6)', () => {
       activityLevel: 'MODERATELY_ACTIVE',
     });
   });
+
+  it('shows a lifter the bodyweight protein and why, from computeTargets', async () => {
+    trpc.preferences.get.useQuery.mockReturnValue(
+      queryResult({
+        data: {
+          chefProfile: {
+            goal: 'GAIN_MUSCLE',
+            biologicalSex: 'MALE',
+            age: 30,
+            heightCm: 180,
+            weightKg: 80,
+            activityLevel: 'MODERATELY_ACTIVE',
+          },
+          dietaryPreferences: null,
+        },
+      }),
+    );
+    trpc.preferences.computeTargets.useQuery.mockReturnValue({
+      data: { proteinG: 144, lifter: { bodyweightKg: 80, proteinGPerKg: 1.8 } },
+    });
+    await renderScreen();
+
+    expect(trpc.preferences.computeTargets.useQuery).toHaveBeenLastCalledWith(
+      {
+        goal: 'GAIN_MUSCLE',
+        biologicalSex: 'MALE',
+        age: 30,
+        heightCm: 180,
+        weightKg: 80,
+        activityLevel: 'MODERATELY_ACTIVE',
+      },
+      expect.anything(),
+    );
+    expect(screen.getByText('144 g protein / day')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Protein set from your bodyweight (1.8 g/kg) because you train.'),
+    ).toBeOnTheScreen();
+  });
+
+  it('shows no protein line for a non-lifter', async () => {
+    trpc.preferences.computeTargets.useQuery.mockReturnValue({
+      data: { proteinG: 176, lifter: null },
+    });
+    await renderScreen();
+    expect(screen.queryByTestId('metrics-lifter-protein')).not.toBeOnTheScreen();
+  });
 });

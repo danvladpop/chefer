@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { computeMacroTargets } from '../preferences/preferences.service.js';
 import { TrainingNutritionService } from './training-nutrition.service.js';
 
 // Audit P2-4: the gym facts the food side reads. Repositories are faked —
@@ -84,6 +85,41 @@ describe('TrainingNutritionService.loadLifter', () => {
         weightKg: 80,
       }),
     ).toEqual({ lifterBodyweightKg: null });
+  });
+});
+
+describe('TrainingNutritionService.previewTargets', () => {
+  const metrics = {
+    goal: 'GAIN_MUSCLE',
+    biologicalSex: 'MALE',
+    age: 30,
+    heightCm: 180,
+    weightKg: 80,
+    activityLevel: 'MODERATELY_ACTIVE',
+  };
+  const split = computeMacroTargets(80, 180, 30, 'MODERATELY_ACTIVE', 'MALE', 'GAIN_MUSCLE');
+
+  it('a non-lifter sees the goal split, lifter null', async () => {
+    const { svc } = service({ latestWeightKg: 80 });
+    expect(await svc.previewTargets('u1', metrics)).toEqual({ ...split, lifter: null });
+  });
+
+  it('a lifter sees 1.8 g/kg protein on GAIN_MUSCLE, calories unchanged', async () => {
+    const { svc } = service({ setupCompletedAt: new Date(), latestWeightKg: null });
+    const t = await svc.previewTargets('u1', metrics);
+    expect(t.dailyCalorieTarget).toBe(split.dailyCalorieTarget);
+    expect(t.proteinG).toBe(144);
+    expect(t.carbsG).toBe(split.carbsG + (split.proteinG - 144));
+    expect(t.fatG).toBe(split.fatG);
+    expect(t.proteinPct).toBe(Math.round(((144 * 4) / t.dailyCalorieTarget) * 100));
+    expect(t.lifter).toEqual({ bodyweightKg: 80, proteinGPerKg: 1.8 });
+  });
+
+  it('uses the latest logged bodyweight and the goal rule (LOSE_WEIGHT 2.0)', async () => {
+    const { svc } = service({ setupCompletedAt: new Date(), latestWeightKg: 85 });
+    const t = await svc.previewTargets('u1', { ...metrics, goal: 'LOSE_WEIGHT' });
+    expect(t.proteinG).toBe(170);
+    expect(t.lifter).toEqual({ bodyweightKg: 85, proteinGPerKg: 2 });
   });
 });
 

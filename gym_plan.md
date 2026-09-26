@@ -79,7 +79,12 @@ opens **Setup**. After that the app remembers the last mode used and opens in it
    keep up on a busy week. Consistency beats ambition.")
 2. Experience: _New or returning_ (under 6 months of consistent lifting) / _Experienced_.
 3. Equipment: **Full gym** (default) / Dumbbells + bench / Bodyweight. Units: kg / lb,
-   defaulting to the locale.
+   defaulting to the locale. The answer is a hard limit (audit F-GYM-2-1): a generated
+   program only uses equipment in that access set (`EQUIPMENT_ACCESS_SETS`: Dumbbells =
+   dumbbell + bodyweight moves, Bodyweight = bodyweight moves only, which may still need a
+   pull-up bar or a sturdy table). Curated swaps (`EQUIPMENT_SWAPS`) cover every template
+   slot; the engine replaces anything left over with the closest same-pattern alternative
+   or drops the slot. Saved routines are never rewritten.
 4. Which days, roughly, and when? A weekday picker plus an optional time, used for the
    week strip and reminders. Can be skipped.
 5. **Preview:** the recommended template, with its days and exercises in cards, a
@@ -471,7 +476,7 @@ This implements research §1 as written. Modules:
 | `e1rm.ts`            | `epley(weight, reps, rir?)`, `bestSessionE1rm(sets)`, and the validity rules (≤ 10 reps; 11–12 low confidence; > 12 excluded)                                                                                                                                                                            |
 | `prs.ts`             | `detectPrs(history, set) → Pr[]` (weight, rep-at-weight and e1RM PRs, ranked; one badge per exercise)                                                                                                                                                                                                    |
 | `volume.ts`          | `fractionalSets(routine)` per muscle per week and per session, `MUSCLE_LANDMARKS` (research §2.2), and `validateRoutine(routine, experience) → Hint[]` (rules V1–V11)                                                                                                                                    |
-| `templates.ts`       | `recommendTemplate({ days, experience, equipment })` (research §3.5), `instantiateTemplate(key, equipment)` (applies the equipment swaps), `estimateDurationMin(day)`                                                                                                                                    |
+| `templates.ts`       | `recommendTemplate({ days, experience, equipment })` (research §3.5), `instantiateTemplate(key, equipment)` (applies the equipment swaps, then enforces the access set via `resolveSlotExercise` / `closestAccessibleAlternative`), `estimateDurationMin(day)`                                           |
 | `weeks.ts`           | Monday-based `weekKey(localDate)`, `summarizeWeeks(sessions, goalHistory, pauses) → WeekSummary[]` (met / flex / paused / under / empty, flex-token accrual and spend), `currentStreak`                                                                                                                  |
 | `deload.ts`          | the reactive and proactive triggers, `deloadPrescription(slot, state)`                                                                                                                                                                                                                                   |
 | `reentry.ts`         | break-gap rules (research §1.8, including the age ≥ 65 column when the nutrition profile knows the user's age)                                                                                                                                                                                           |
@@ -1113,3 +1118,17 @@ null`. This is explicitly additive (optional, new field only) per this task's ow
     `plugins: [react()]` so JSX resolves under Vitest's esbuild transform; this only affects test
     runs, not the Next.js build (which already uses its own JSX transform). `NextUpCard` in
     `today-view.tsx` was exported (was module-private) so it could be rendered in isolation.
+24. 2026-09-26 (audit F-GYM-2-1, S2): the equipment answer was ignored — Dumbbells setups got
+    a barbell RDL, EZ-bar skull crusher, barbell hip thrust and reverse pec deck; Bodyweight
+    setups got 7–16 machine/barbell/dumbbell/cable lifts per program (152 off-equipment slots
+    across the 30 setup combinations). Fixed by 22 new home variants (catalog 55 → 77: DB RDL,
+    DB hip thrust, DB overhead/lying triceps extensions, DB reverse fly, DB fly, chest-supported
+    DB row, DB calf raise; bodyweight squat, reverse lunge, bodyweight Bulgarian split squat,
+    single-leg RDL, slider leg curl, nordic curl, glute bridge, single-leg glute bridge,
+    single-leg calf raise, inverted row, incline/decline/diamond/pike push-ups), complete swap
+    tables and an engine rule (every slot within `EQUIPMENT_ACCESS_SETS`, else closest
+    same-pattern alternative, else dropped). Bodyweight moves use `loadType BODYWEIGHT`
+    (reps → sets → "try a harder variation" from the same swap group). 69/77 have photo pairs;
+    all 22 new ones have an oEmbed-verified video. D10's "less polish" still applies to
+    volume balance (bodyweight programs get only info-level side-delt hints), not equipment.
+    Existing saved routines are untouched; a "swap exercises you can't do" hint is deferred.

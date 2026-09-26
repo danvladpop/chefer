@@ -40,6 +40,12 @@ export interface DashboardSummary {
      * `recipe.kcal` already includes it. Additive — older clients ignore it.
      */
     portion?: number;
+    /**
+     * Today's next meal only: the slot's index in the plan day's `meals`.
+     * Clients pass it to tracker.logRecipe so the second of two identical
+     * snacks logs as its own entry. Additive.
+     */
+    slotIndex?: number;
     recipe: {
       id: string;
       name: string;
@@ -271,11 +277,13 @@ export class DashboardService {
     // @chefer/utils resolveTodayMeals, which also puts them in day order.
     // Every slot counts: a curated day can hold two snacks, and picking the
     // first slot per type used to hide the second one from Today.
-    const orderedMeals = todayMeals.filter((slot) => recipeMap.has(slot.recipeId));
+    const orderedMeals = todayMeals
+      .map((slot, slotIndex) => ({ ...slot, slotIndex }))
+      .filter((slot) => recipeMap.has(slot.recipeId));
     const loggedToday = (todayLog?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
     const resolved = resolveTodayMeals(orderedMeals, currentHourLocal, loggedToday);
 
-    const toHeroMeal = (slot: MealSlot): DashboardSummary['nextMeal'] => {
+    const toHeroMeal = (slot: MealSlot & { slotIndex?: number }): DashboardSummary['nextMeal'] => {
       const recipe = recipeMap.get(slot.recipeId);
       if (!recipe) return null;
       const n = recipe.nutritionInfo as unknown as NutritionInfo;
@@ -283,6 +291,7 @@ export class DashboardService {
       return {
         mealType: slot.type,
         ...(portion !== 1 && { portion }),
+        ...(slot.slotIndex !== undefined && { slotIndex: slot.slotIndex }),
         recipe: {
           id: recipe.id,
           name: recipe.name,

@@ -1,5 +1,6 @@
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
+import { UPLOADS_DIR } from '../image-cdn/local.js';
 import { logger } from '../logger.js';
 
 // ─── User-uploaded image files ────────────────────────────────────────────────
@@ -8,7 +9,8 @@ import { logger } from '../logger.js';
 // that URL. Account deletion (backlog P0-6) removes the files the account's
 // rows point at, so "delete my account" also erases the photos.
 
-export const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads');
+// One definition, shared with generated recipe images (lib/image-cdn/local.ts).
+export { UPLOADS_DIR };
 
 const UPLOADED_FILE = /\/uploads\/([0-9a-f-]{36}\.(?:jpg|png|webp|gif|avif))$/;
 

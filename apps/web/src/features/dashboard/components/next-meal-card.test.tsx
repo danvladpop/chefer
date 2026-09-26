@@ -83,6 +83,19 @@ describe('NextMealCard', () => {
     expect(screen.getByText(/1½×/)).toBeTruthy();
   });
 
+  it('sends the plan slot, so the second of two identical snacks logs separately', () => {
+    render(<NextMealCard meal={{ ...MEAL, mealType: 'snack', slotIndex: 3 }} isTomorrow={false} />);
+    fireEvent.click(screen.getByTestId('today-ate-this'));
+    expect(mocks.mutate).toHaveBeenCalledWith(expect.objectContaining({ slotIndex: 3 }));
+  });
+
+  it('omits slotIndex when the summary has none', () => {
+    render(<NextMealCard meal={MEAL} isTomorrow={false} />);
+    fireEvent.click(screen.getByTestId('today-ate-this'));
+    const [args] = mocks.mutate.mock.calls[0] as [Record<string, unknown>];
+    expect(args).not.toHaveProperty('slotIndex');
+  });
+
   it('shows the real time (prep + cook), not prep alone (F-PM-10)', () => {
     render(<NextMealCard meal={MEAL} isTomorrow={false} />);
     expect(screen.getByText('40 min')).toBeTruthy();

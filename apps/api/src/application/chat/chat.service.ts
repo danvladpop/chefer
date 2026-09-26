@@ -26,6 +26,11 @@ import { trainingNutritionService } from '../training-nutrition/training-nutriti
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+/** "first", "second", … for the swap confirmation (two-snack days). */
+function ordinal(n: number): string {
+  return ['first', 'second', 'third', 'fourth'][n - 1] ?? `#${n}`;
+}
+
 /** 0=Monday … 6=Sunday for today (matches dayOfWeek in plans). */
 function getTodayDayIndex(): number {
   const jsDay = new Date().getDay();
@@ -120,21 +125,47 @@ export class ChatService {
   /** Tool handlers over the real services — the chat can DO things (P1-4). */
   private buildTools(user: UserProfile, plan: WeekPlanDto | null): ChatTools {
     return {
-      swapMeal: async ({ dayOfWeek, mealType }) => {
+      swapMeal: async ({ dayOfWeek, mealType, occurrence }) => {
         if (!plan) return 'No active meal plan to swap in — generate a plan first.';
         if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
           return 'Invalid day — use 0 (Monday) through 6 (Sunday).';
         }
-        const reservation = await reserveAiSwap(user);
+        // A curated day can hold two snacks: `occurrence` (1-based, in plan
+        // order) picks the slot and becomes swapRecipe's slotIndex (PR #42).
+        // Validated before the quota reservation, so a miss costs nothing.
         const day = plan.days.find((d) => d.dayOfWeek === dayOfWeek);
-        const before = day?.meals.find((m) => m.type === mealType)?.recipe.name;
+        const ofType = (day?.meals ?? [])
+          .map((m, index) => ({ m, index }))
+          .filter(({ m }) => m.type === mealType);
+        let slotIndex: number | undefined;
+        if (occurrence !== undefined) {
+          if (!Number.isInteger(occurrence) || occurrence < 1) {
+            return 'Invalid occurrence — use 1 for the first slot of that meal type, 2 for the second.';
+          }
+          const target = ofType[occurrence - 1];
+          if (!target) {
+            return `${DAY_NAMES[dayOfWeek]} has ${ofType.length === 0 ? 'no' : `only ${ofType.length}`} ${mealType} slot${ofType.length === 1 ? '' : 's'} — nothing to swap.`;
+          }
+          slotIndex = target.index;
+        }
+        const reservation = await reserveAiSwap(user);
+        const before = (ofType[(occurrence ?? 1) - 1] ?? ofType[0])?.m.recipe.name;
         const swapped = await mealPlanService
-          .swapRecipe(user.id, plan.planId, dayOfWeek, mealType, undefined, isPremiumUser(user))
+          .swapRecipe(
+            user.id,
+            plan.planId,
+            dayOfWeek,
+            mealType,
+            undefined,
+            isPremiumUser(user),
+            slotIndex,
+          )
           .catch(async (err: unknown) => {
             await reservation.release();
             throw err;
           });
-        return `Swapped ${DAY_NAMES[dayOfWeek]}'s ${mealType}${before ? ` (${before})` : ''} for "${swapped.name}" (${swapped.nutritionInfo.calories} kcal, ${swapped.nutritionInfo.protein}g protein). The meal plan is updated.`;
+        const label = ofType.length > 1 ? `${ordinal(occurrence ?? 1)} ${mealType}` : mealType;
+        return `Swapped ${DAY_NAMES[dayOfWeek]}'s ${label}${before ? ` (${before})` : ''} for "${swapped.name}" (${swapped.nutritionInfo.calories} kcal, ${swapped.nutritionInfo.protein}g protein). The meal plan is updated.`;
       },
 
       addToShoppingList: async ({ items }) => {

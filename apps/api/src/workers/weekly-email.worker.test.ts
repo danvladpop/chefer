@@ -46,3 +46,63 @@ describe('WeeklyEmailWorker schedule (fixed UTC hours)', () => {
     await expect(worker.tick(new Date('2026-09-21T08:00:00Z'))).resolves.toBeUndefined();
   });
 });
+
+describe('WeeklyEmailWorker — sweeps cut short by the daily cap', () => {
+  const capped = { sent: 350, skipped: 0, failed: 0, deferred: 40, capped: true, previews: [] };
+  const done = { sent: 40, skipped: 0, failed: 0, deferred: 0, capped: false, previews: [] };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  it('retries a capped Monday sweep on Tuesday, anchored to Monday, until it completes', async () => {
+    const worker = new WeeklyEmailWorker();
+    const monday = new Date('2026-09-21T07:00:00Z');
+    vi.mocked(weeklyEmailService.sendWeekReady).mockResolvedValueOnce(capped);
+    await worker.tick(monday);
+
+    vi.mocked(weeklyEmailService.sendWeekReady).mockResolvedValueOnce(capped);
+    await worker.tick(new Date('2026-09-22T07:00:00Z'));
+    expect(weeklyEmailService.sendWeekReady).toHaveBeenLastCalledWith(monday);
+
+    vi.mocked(weeklyEmailService.sendWeekReady).mockResolvedValueOnce(done);
+    await worker.tick(new Date('2026-09-22T08:00:00Z'));
+    expect(weeklyEmailService.sendWeekReady).toHaveBeenCalledTimes(3);
+
+    // Completed — the next tick has nothing to do.
+    await worker.tick(new Date('2026-09-22T09:00:00Z'));
+    expect(weeklyEmailService.sendWeekReady).toHaveBeenCalledTimes(3);
+  });
+
+  it('a capped Sunday recap finishes on Monday for the week that ended', async () => {
+    const worker = new WeeklyEmailWorker();
+    const sunday = new Date('2026-09-27T17:00:00Z');
+    vi.mocked(weeklyEmailService.sendWeeklyRecap).mockResolvedValueOnce(capped);
+    await worker.tick(sunday);
+
+    const monday = new Date('2026-09-28T18:00:00Z');
+    await worker.tick(monday);
+    // The scheduled Monday sweep runs first, then the recap catch-up.
+    expect(weeklyEmailService.sendWeekReady).toHaveBeenCalledWith(monday);
+    expect(weeklyEmailService.sendWeeklyRecap).toHaveBeenLastCalledWith(sunday);
+    expect(vi.mocked(weeklyEmailService.sendWeekReady).mock.invocationCallOrder[0]!).toBeLessThan(
+      vi.mocked(weeklyEmailService.sendWeeklyRecap).mock.invocationCallOrder[1]!,
+    );
+  });
+
+  it('gives up 48 hours after the first capped sweep', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const worker = new WeeklyEmailWorker();
+    vi.mocked(weeklyEmailService.sendWeekReady).mockResolvedValue(capped);
+    await worker.tick(new Date('2026-09-21T07:00:00Z'));
+    await worker.tick(new Date('2026-09-23T06:00:00Z'));
+    expect(weeklyEmailService.sendWeekReady).toHaveBeenCalledTimes(2);
+
+    await worker.tick(new Date('2026-09-23T08:00:00Z'));
+    expect(weeklyEmailService.sendWeekReady).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/catch-up window closed/));
+    vi.mocked(weeklyEmailService.sendWeekReady).mockResolvedValue(done);
+    warn.mockRestore();
+  });
+});
