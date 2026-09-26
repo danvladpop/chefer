@@ -58,15 +58,74 @@ export const AI_CONSENT_FEATURE_DATA: Record<AiConsentFeature, { action: string;
     },
   };
 
-/** Shared sheet + settings copy. `{action}` is filled from AI_CONSENT_FEATURE_DATA. */
+// ─── Who receives the data ───────────────────────────────────────────────────
+// The AI providers are a server setting (AI_FREE_ONLY), so the copy never
+// hard-codes one: the API reports the active set (`profile.aiProviders`) and
+// the helpers in @chefer/utils fill `{primary}` / `{backups}` / `{providers}`
+// from this table. Until that answer arrives (or on an old server) clients
+// use DEFAULT_AI_PROVIDER_DISCLOSURE.
+
+/** Every AI provider Chefer can send user data to, with its public-facing facts. */
+export const AI_PROVIDERS = {
+  gemini: {
+    name: 'Google Gemini',
+    shortName: 'Gemini',
+    privacyName: 'Google (Gemini API)',
+    privacyDetail: 'It may process data in the United States and other countries.',
+  },
+  groq: {
+    name: 'Groq',
+    shortName: 'Groq',
+    privacyName: 'Groq',
+    privacyDetail:
+      'United States. Under its services agreement Groq does not use what we send to train models.',
+  },
+  cloudflare: {
+    name: 'Cloudflare Workers AI',
+    shortName: 'Cloudflare',
+    privacyName: 'Cloudflare (Workers AI)',
+    privacyDetail:
+      'Cloudflare is a US company and runs the models on its global network, so a request may be processed outside the EU. Cloudflare does not use what we send to train models.',
+  },
+} as const;
+export type AiProviderId = keyof typeof AI_PROVIDERS;
+export const AI_PROVIDER_IDS = Object.keys(AI_PROVIDERS) as AiProviderId[];
+
+/** Which providers are live: the main one, and the ones it fails over to. */
+export interface AiProviderDisclosure {
+  primary: AiProviderId;
+  backups: AiProviderId[];
+}
+
+/** Standard routing: Gemini, with Groq as the backup. */
+export const LEGACY_AI_PROVIDER_DISCLOSURE: AiProviderDisclosure = {
+  primary: 'gemini',
+  backups: ['groq'],
+};
+
+/** AI_FREE_ONLY=true: Groq's free tier, with Cloudflare Workers AI as the backup. */
+export const FREE_ONLY_AI_PROVIDER_DISCLOSURE: AiProviderDisclosure = {
+  primary: 'groq',
+  backups: ['cloudflare'],
+};
+
+/** What clients assume before the server has answered. */
+export const DEFAULT_AI_PROVIDER_DISCLOSURE = LEGACY_AI_PROVIDER_DISCLOSURE;
+
+/**
+ * Shared sheet + settings copy. `{action}` is filled from
+ * AI_CONSENT_FEATURE_DATA; `{primary}`, `{primaryShort}`, `{backups}` and
+ * `{providers}` from the active AiProviderDisclosure (see @chefer/utils
+ * aiConsentIntro / aiConsentBackupLine / aiConsentToggleOn).
+ */
 export const AI_CONSENT_COPY = {
   title: 'Allow AI to use your data?',
   intro:
-    'To {action}, Chefer sends some of your data to Google Gemini, a third-party AI service, which uses it only to produce the result.',
+    'To {action}, Chefer sends some of your data to {primary}, a third-party AI service, which uses it only to produce the result.',
   sentHeading: 'What gets sent',
   noTraining: 'Your data is not used to train AI models.',
   backupProvider:
-    'If Gemini is overloaded, a text-only request may be handled by Groq, a backup AI service, instead.',
+    'If {primaryShort} is busy, a request may be handled by {backups}, a backup AI service, instead.',
   control: 'We only ask once. You can turn this off at any time in Profile → AI & your data.',
   privacyLabel: 'Privacy policy',
   privacyPath: '/privacy',
@@ -78,6 +137,6 @@ export const AI_CONSENT_COPY = {
   cardTitle: 'AI & your data',
   toggleTitle: 'Allow AI features to process my data',
   toggleOn:
-    'Meal plans, swaps, photo scans, recipe imports and chat send the data they need to Google Gemini. Not used for training.',
+    'Meal plans, swaps, photo scans, recipe imports and chat send the data they need to {providers}. Not used for training.',
   toggleOff: 'Off. We’ll ask again before any AI feature sends your data.',
 } as const;

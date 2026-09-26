@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { AI_CONSENT_FEATURE_DATA, AI_CONSENT_FEATURES } from '@chefer/types';
-import { aiConsentIntro, aiConsentRequiredFor, needsAiDataConsent } from './ai-consent';
+import {
+  AI_CONSENT_FEATURE_DATA,
+  AI_CONSENT_FEATURES,
+  FREE_ONLY_AI_PROVIDER_DISCLOSURE,
+  LEGACY_AI_PROVIDER_DISCLOSURE,
+} from '@chefer/types';
+import {
+  aiConsentBackupLine,
+  aiConsentIntro,
+  aiConsentRequiredFor,
+  aiConsentToggleOn,
+  formatAiProviderNames,
+  needsAiDataConsent,
+  toAiProviderDisclosure,
+} from './ai-consent';
 
 describe('needsAiDataConsent (App Store 5.1.2(i))', () => {
   it('asks when the user has not consented', () => {
@@ -41,13 +54,57 @@ describe('aiConsentRequiredFor', () => {
 });
 
 describe('aiConsentIntro', () => {
-  it('names the provider and the action for every feature', () => {
+  it('names the provider and the action for every feature (standard routing by default)', () => {
     for (const f of AI_CONSENT_FEATURES) {
       const intro = aiConsentIntro(f);
       expect(intro).toContain('Google Gemini');
       expect(intro).toContain(AI_CONSENT_FEATURE_DATA[f].action);
-      expect(intro).not.toContain('{action}');
+      expect(intro).not.toMatch(/\{\w+\}/);
       expect(AI_CONSENT_FEATURE_DATA[f].data.length).toBeGreaterThan(0);
     }
+  });
+
+  it('names Groq and never Gemini in free-only mode', () => {
+    for (const f of AI_CONSENT_FEATURES) {
+      const intro = aiConsentIntro(f, FREE_ONLY_AI_PROVIDER_DISCLOSURE);
+      expect(intro).toContain('Groq');
+      expect(intro).not.toMatch(/Gemini|\{\w+\}/);
+    }
+  });
+});
+
+describe('provider lines', () => {
+  it('names the backup and every provider, per mode', () => {
+    expect(aiConsentBackupLine(LEGACY_AI_PROVIDER_DISCLOSURE)).toBe(
+      'If Gemini is busy, a request may be handled by Groq, a backup AI service, instead.',
+    );
+    expect(aiConsentBackupLine(FREE_ONLY_AI_PROVIDER_DISCLOSURE)).toBe(
+      'If Groq is busy, a request may be handled by Cloudflare Workers AI, a backup AI service, instead.',
+    );
+    expect(aiConsentToggleOn(FREE_ONLY_AI_PROVIDER_DISCLOSURE)).toContain(
+      'send the data they need to Groq and Cloudflare Workers AI.',
+    );
+    expect(aiConsentToggleOn(LEGACY_AI_PROVIDER_DISCLOSURE)).toContain('Google Gemini and Groq');
+  });
+
+  it('has no backup line without a backup', () => {
+    expect(aiConsentBackupLine({ primary: 'groq', backups: [] })).toBeNull();
+  });
+
+  it('formats lists', () => {
+    expect(formatAiProviderNames(['groq'])).toBe('Groq');
+    expect(formatAiProviderNames(['gemini', 'groq', 'cloudflare'])).toBe(
+      'Google Gemini, Groq and Cloudflare Workers AI',
+    );
+  });
+
+  it('accepts a known server answer and falls back on anything else', () => {
+    expect(toAiProviderDisclosure({ primary: 'groq', backups: ['cloudflare'] })).toEqual(
+      FREE_ONLY_AI_PROVIDER_DISCLOSURE,
+    );
+    expect(toAiProviderDisclosure({ primary: 'openai', backups: [] })).toEqual(
+      LEGACY_AI_PROVIDER_DISCLOSURE,
+    );
+    expect(toAiProviderDisclosure(undefined)).toEqual(LEGACY_AI_PROVIDER_DISCLOSURE);
   });
 });
