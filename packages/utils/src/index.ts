@@ -350,3 +350,14 @@ export {
   needsAiDataConsent,
   type AiConsentSubject,
 } from './ai-consent';
+export {
+  finalizeVideoDraft,
+  isSupportedVideoUrl,
+  parseQuantityInput,
+  parseVideoUrl,
+  videoDraftProblems,
+  videoDraftToForm,
+  videoFormToDraft,
+  type VideoDraftFormValues,
+  type VideoDraftLike,
+} from './video-import';
