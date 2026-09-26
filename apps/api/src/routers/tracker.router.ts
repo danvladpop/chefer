@@ -27,20 +27,31 @@ const loggedMealSchema = z
     message: 'A logged meal needs exactly one of recipeId or custom',
   });
 
+// A real calendar day (audit F-TRK-1-5): 2026-13-45 used to reach Prisma
+// and 500, and 2026-02-31 silently rolled over to 03-03.
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((d) => {
+    const parsed = new Date(`${d}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === d;
+  }, 'Not a real calendar date');
+
+/** The client's LOCAL day; today+1 (UTC) covers every timezone. */
+const notFuture = (d: string) => new Date(d).getTime() <= Date.now() + 24 * 60 * 60 * 1000;
+
+// Logging writes a day: it must be a real date and not in the future.
+const logDateSchema = calendarDateSchema.refine(notFuture, "You can't log a future day");
+
 // Body weight (audit F-DASH-3-1): 1000 kg, 0.001 kg and 2099 dates used to be
 // accepted and poisoned /progress and the coach's trend. The date is the
 // client's LOCAL day; allowing today+1 (UTC) covers every timezone.
 const bodyWeightKgSchema = z.number().finite().min(BODY_WEIGHT_KG_MIN).max(BODY_WEIGHT_KG_MAX);
-const weightDateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .refine((d) => new Date(d).getTime() <= Date.now() + 24 * 60 * 60 * 1000, {
-    message: "A weigh-in can't be in the future",
-  });
+const weightDateSchema = calendarDateSchema.refine(notFuture, "A weigh-in can't be in the future");
 
 export const trackerRouter = router({
   getDay: protectedProcedure
-    .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+    .input(z.object({ date: calendarDateSchema }))
     .query(async ({ ctx, input }) => {
       return trackerService.getDay(ctx.user.id, input.date);
     }),
@@ -48,7 +59,7 @@ export const trackerRouter = router({
   upsertDay: protectedProcedure
     .input(
       z.object({
-        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        date: logDateSchema,
         // May be empty: unticking every planned meal un-logs them (F-TRK-1-3).
         // Custom and off-plan entries survive — the server merges.
         loggedMeals: z.array(loggedMealSchema).max(50),
@@ -65,7 +76,7 @@ export const trackerRouter = router({
   logRecipe: protectedProcedure
     .input(
       z.object({
-        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        date: logDateSchema,
         recipeId: z.string().min(1),
         mealType: z.string().min(1).max(20),
         portionMultiplier: z.number().min(0.5).max(2).default(1),
@@ -83,7 +94,7 @@ export const trackerRouter = router({
   logCustomMeal: protectedProcedure
     .input(
       z.object({
-        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        date: logDateSchema,
         name: z.string().min(1).max(200),
         estimatedBy: z.enum(['vision', 'manual']),
         mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
@@ -102,7 +113,7 @@ export const trackerRouter = router({
   deleteCustomMeal: protectedProcedure
     .input(
       z.object({
-        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        date: calendarDateSchema,
         entryIndex: z.number().int().min(0),
       }),
     )
