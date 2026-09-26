@@ -907,7 +907,8 @@ POST /api/chat (session cookie)
   ├─ log AiCallLog CHAT
   └─ aiService.chat(messages, { contextSummary, tools })
        ├─ Gemini: bounded function-calling loop, then streams the answer
-       │    ├─ swapMeal(dayOfWeek, mealType) → MealPlanService.swapRecipe
+       │    ├─ swapMeal(dayOfWeek, mealType, occurrence?) → MealPlanService.swapRecipe
+       │    │    (occurrence 2 = the day's second snack → slotIndex; omitted = first)
        │    │    (a chat swap IS a plan swap — the meal-plan page reflects it)
        │    ├─ scaleRecipe(recipeName, servings) → quantities rescaled from
        │    │    the active plan

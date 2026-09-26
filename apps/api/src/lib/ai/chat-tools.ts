@@ -25,12 +25,17 @@ export const CHAT_TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'swapMeal',
     description:
-      "Swaps one meal slot in the user's active weekly plan for an alternative recipe. Use when the user asks to swap, change or replace a meal.",
+      'Swaps one meal slot in the user\'s active weekly plan for an alternative recipe. Use when the user asks to swap, change or replace a meal. A day can hold two snacks: to swap the second one ("my second snack", "the afternoon snack", or the later of the two snacks listed for that day) pass occurrence 2.',
     parameters: {
       type: 'object',
       properties: {
         dayOfWeek: { type: 'number', description: 'Day to swap: 0=Monday … 6=Sunday' },
         mealType: { type: 'string', description: 'One of: breakfast, lunch, dinner, snack' },
+        occurrence: {
+          type: 'number',
+          description:
+            'Which slot of that meal type on the day, in the order listed: 1 = first (default), 2 = second (e.g. the second snack)',
+        },
       },
       required: ['dayOfWeek', 'mealType'],
     },
@@ -136,9 +141,11 @@ export async function dispatchChatTool(
 ): Promise<string> {
   try {
     if (name === 'swapMeal') {
+      const occurrence = args['occurrence'] == null ? undefined : Number(args['occurrence']);
       return await tools.swapMeal({
         dayOfWeek: Number(args['dayOfWeek']),
         mealType: String(args['mealType']),
+        ...(occurrence !== undefined && { occurrence }),
       });
     }
     if (name === 'scaleRecipe') {

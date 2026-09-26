@@ -256,8 +256,12 @@ export interface ChatMessage {
  * is fed back to the model.
  */
 export interface ChatTools {
-  /** Swaps a slot in the user's active plan. dayOfWeek: 0=Monday…6=Sunday. */
-  swapMeal(args: { dayOfWeek: number; mealType: string }): Promise<string>;
+  /**
+   * Swaps a slot in the user's active plan. dayOfWeek: 0=Monday…6=Sunday.
+   * `occurrence` picks among same-type slots on a day (1 = first, 2 = second
+   * snack); omitted = the first, as before.
+   */
+  swapMeal(args: { dayOfWeek: number; mealType: string; occurrence?: number }): Promise<string>;
   /** Rescales a recipe from the active plan to a serving count. */
   scaleRecipe(args: { recipeName: string; servings: number }): Promise<string>;
   /** Adds user-requested items to this week's shopping list (custom overlay). */
