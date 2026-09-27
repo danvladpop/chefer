@@ -25,6 +25,10 @@ export type WorkoutAction =
   | { type: 'setRir'; seId: string; rir: Rir | null; at: string }
   | { type: 'addSet'; seId: string; newSetId: string; at: string }
   | { type: 'removeSet'; seId: string; setId: string; at: string }
+  // PAT-16 (T-05.A1.2): undoes a `removeSet` by re-inserting the same set
+  // (same id, values and completedAt) at its original index. A no-op if a
+  // set with that id already exists (a stale/duplicate Undo tap).
+  | { type: 'restoreSet'; seId: string; set: SessionSetDoc; index: number; at: string }
   | {
       type: 'swapExercise';
       seId: string;
@@ -236,6 +240,17 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
             ...se,
             sets: reindex(sortedByPosition(se.sets).filter((s) => s.id !== action.setId)),
           })),
+      );
+    case 'restoreSet':
+      return withExercises(
+        mapExercise(doc, action.seId, (se) => {
+          if (se.sets.some((s) => s.id === action.set.id)) {
+            return se; // already there: a stale/duplicate Undo tap is a no-op
+          }
+          const sets = sortedByPosition(se.sets);
+          const at = Math.max(0, Math.min(action.index, sets.length));
+          return { ...se, sets: reindex([...sets.slice(0, at), action.set, ...sets.slice(at)]) };
+        }),
       );
     case 'swapExercise':
       return withExercises(
