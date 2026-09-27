@@ -215,7 +215,14 @@ export class DashboardService {
       // B-31 interim (T-00.12): "tracks" = logged on ≥ 3 of the last 7 days.
       dailyLogRepository.findLastN(userId, 7),
     ]);
-    const showNutritionCards = chefProfile?.goal != null || recentLogs.length >= 3;
+    // A DailyLog row survives with an empty loggedMeals after the user
+    // removes every entry for that day (mutateDay upserts the row rather
+    // than deleting it) — count only days that still have >= 1 entry, else
+    // logged-then-cleared days would wrongly count as "tracks".
+    const daysWithEntries = recentLogs.filter(
+      (log) => ((log.loggedMeals as unknown as LoggedMealEntry[] | null) ?? []).length > 0,
+    ).length;
+    const showNutritionCards = chefProfile?.goal != null || daysWithEntries >= 3;
 
     // Lifters get protein from bodyweight; on a training day the bump is
     // applied for premium and previewed for free (audit P2-4). The tracker

@@ -35,14 +35,35 @@ describe('dashboard summary — showNutritionCards (B-31 interim, T-00.12)', () 
 
   it('is true for a goal-less user who logged on 3 of the last 7 days (rev 2: the ring stays home)', async () => {
     vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue({ goal: null } as never);
-    vi.mocked(dailyLogRepository.findLastN).mockResolvedValue([{}, {}, {}] as never);
+    const loggedDay = { loggedMeals: [{ mealType: 'breakfast', kcal: 400 }] };
+    vi.mocked(dailyLogRepository.findLastN).mockResolvedValue([
+      loggedDay,
+      loggedDay,
+      loggedDay,
+    ] as never);
     const s = await dashboardService.getSummary('u1', 'Ana', { localDate: '2026-09-26' });
     expect(s.showNutritionCards).toBe(true);
   });
 
   it('is false for a goal-less user who logged only 2 of the last 7 days', async () => {
     vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue({ goal: null } as never);
-    vi.mocked(dailyLogRepository.findLastN).mockResolvedValue([{}, {}] as never);
+    const loggedDay = { loggedMeals: [{ mealType: 'breakfast', kcal: 400 }] };
+    vi.mocked(dailyLogRepository.findLastN).mockResolvedValue([loggedDay, loggedDay] as never);
+    const s = await dashboardService.getSummary('u1', 'Ana', { localDate: '2026-09-26' });
+    expect(s.showNutritionCards).toBe(false);
+  });
+
+  it('is false for a goal-less user with 3 empty log rows in the last 7 days (B-31)', async () => {
+    // A DailyLog row survives with an empty loggedMeals after the user
+    // removes every entry for that day (mutateDay upserts, never deletes) —
+    // logged-then-cleared days must not count as "tracks".
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue({ goal: null } as never);
+    const emptyDay = { loggedMeals: [] };
+    vi.mocked(dailyLogRepository.findLastN).mockResolvedValue([
+      emptyDay,
+      emptyDay,
+      emptyDay,
+    ] as never);
     const s = await dashboardService.getSummary('u1', 'Ana', { localDate: '2026-09-26' });
     expect(s.showNutritionCards).toBe(false);
   });
