@@ -1527,6 +1527,112 @@ export class MealPlanService {
     return { dayOfWeek, meals: mealDtos, kcal: Math.round(kcal), protein: Math.round(protein) };
   }
 
+  /**
+   * §wave-1 L-PLAN (T-planDay, UX-07 "Plan this day"): fills ONE currently
+   * unplanned day of an EXISTING plan in place — every other day's `meals`
+   * is untouched. Until this existed, the only way to add a day was
+   * `generate({ shape: { days: [d] } })`, which rewrites the whole plan
+   * document (every other day too), because `generate` always calls
+   * `createPlan` fresh.
+   *
+   * Always uses the curated (zero-AI-cost) picker — the same engine the free
+   * tier's `generate` uses — regardless of the caller's plan tier: filling
+   * one day doesn't warrant a full AI-personalised regeneration, and this
+   * keeps the operation fast and free to retry. The router reserves it
+   * against the same `CURATED_PLAN` daily quota `generate`'s free path uses
+   * (`reservePlanGeneration(user, false)`).
+   *
+   * Rejects a day that already has meals (`CONFLICT`) — Replace/AI-swap own
+   * changing an existing slot, `generate` owns redoing the whole week.
+   */
+  async planDay(userId: string, planId: string, dayOfWeek: number): Promise<WeekPlanDto> {
+    const plan = await this.repo.findByIdForUser(userId, planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+    const day = plan.days.find((d) => d.dayOfWeek === dayOfWeek);
+    if (!day) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'That day is not part of this plan.' });
+    }
+    const existingMeals = day.meals as unknown as PlanMealSlotJson[];
+    if (existingMeals.length > 0) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'This day already has a plan — use Replace or Regenerate instead.',
+      });
+    }
+
+    await ensureCuratedRecipes();
+    const safety = await this.loadMergedSafety(userId);
+    const pools = safeCuratedPools(safety);
+
+    // The stored shape, with `days` forced to just this one day for this
+    // call only (never persisted) — mirrors `generate`'s one-off `shape`
+    // override (T-07.2/T-07.3).
+    const storedShape = await planShapeService.getShape(userId);
+    const shape: CuratedShapeOptions = { ...storedShape, days: [dayOfWeek] };
+    const wantedMainTypes = (['breakfast', 'lunch', 'dinner'] as MealType[]).filter((type) =>
+      resolvePlanSlots(shape.slots ?? []).includes(type),
+    );
+    // T-10.4: same pool-exhaustion signal `generate` gives — only the meal
+    // types this day's shape actually wants must clear the bar.
+    const exhausted = wantedMainTypes.filter((type) => pools[type].length < MIN_SAFE_POOL_SIZE);
+    if (exhausted.length > 0) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message:
+          "We don't have enough free recipes matching your restrictions — upgrade for AI-generated plans that always fit your needs.",
+        cause: new PoolExhaustedCause(),
+      });
+    }
+
+    const profile = await chefProfileRepository.findByUserId(userId);
+    const { lifterBodyweightKg } = await this.training.loadLifter(userId, profile ?? null);
+    const targets = resolveDailyTargets(profile ?? null, lifterBodyweightKg);
+    const trainingDays =
+      lifterBodyweightKg && hasTrainingDayBump(profile?.goal)
+        ? trainingWeekdays(await this.training.trainingSchedule(userId)).map((d) => d.dayOfWeek)
+        : [];
+
+    const planned = planCuratedWeek(
+      pools,
+      {
+        calories: targets.dailyCalorieTarget,
+        proteinG: targets.proteinG,
+        goal: profile?.goal ?? null,
+        ...(trainingDays.length > 0 && { trainingDays }),
+      },
+      Math.random,
+      shape,
+    );
+    const plannedDay = planned.find((d) => d.dayOfWeek === dayOfWeek);
+    if (!plannedDay || plannedDay.meals.length === 0) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: "We couldn't fit a plan for that day — try again or adjust your plan settings.",
+      });
+    }
+
+    await this.repo.setDayMeals(
+      planId,
+      dayOfWeek,
+      plannedDay.meals.map((m) => ({
+        type: m.type,
+        recipeId: m.recipe.id,
+        ...(m.portion !== 1 && { portion: m.portion }),
+      })),
+    );
+
+    const updatedPlan = await this.repo.findByIdForUser(userId, planId);
+    if (!updatedPlan) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Plan disappeared while it was being updated.',
+      });
+    }
+    return this.assemblePlanDto(updatedPlan, userId, {});
+  }
+
   // ─── Week templates ("My weeks") ────────────────────────────────────────────
   // Up to MAX_WEEK_TEMPLATES named saved weeks the user rotates through. All
   // free-tier: no AI is involved anywhere in templates.

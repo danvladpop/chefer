@@ -62,6 +62,26 @@ export const mealPlanRouter = router({
       }
     }),
 
+  /**
+   * §wave-1 L-PLAN (UX-07 "Plan this day"): adds meals to ONE currently
+   * unplanned day of an existing plan, without rewriting the rest of the
+   * week (unlike `generate({ shape: { days: [d] } })`, which replaces the
+   * whole plan document today). Always the curated, zero-AI-cost picker —
+   * see `MealPlanService.planDay` — so it's reserved against the same
+   * `CURATED_PLAN` daily quota `generate`'s free path uses, for every tier.
+   */
+  planDay: protectedProcedure
+    .input(z.object({ planId: z.string().min(1), dayOfWeek: z.number().int().min(0).max(6) }))
+    .mutation(async ({ ctx, input }) => {
+      const reservation = await reservePlanGeneration(ctx.user, false);
+      try {
+        return await mealPlanService.planDay(ctx.user.id, input.planId, input.dayOfWeek);
+      } catch (err) {
+        await reservation.release();
+        throw err;
+      }
+    }),
+
   /** §T-07.1: the user's "how you cook" plan shape (legacy default when unset). */
   getShape: protectedProcedure.query(async ({ ctx }) => {
     return planShapeService.getShape(ctx.user.id);

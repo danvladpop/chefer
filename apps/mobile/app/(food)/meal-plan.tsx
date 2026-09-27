@@ -217,6 +217,24 @@ export default function MealPlanScreen() {
     },
   });
 
+  // wave-1 L-PLAN (UX-07 "Plan this day"): fills just the tapped unplanned
+  // day in place via the new `planDay` procedure — it used to open Plan
+  // settings instead, which changes the whole week's shape rather than
+  // adding this one day. setData (not refetch), same reasoning as generate.
+  const planDayMutation = trpc.mealPlan.planDay.useMutation({
+    onSuccess: (data) => {
+      utils.mealPlan.getForWeek.setData({ weekOffset }, data);
+      invalidateDerived();
+      showSnackbar({ message: `${DAY_LABELS[selectedDay]} planned.`, tone: 'success' });
+      if (__DEV__) console.warn('[analytics stub] plan_day_filled', { dayOfWeek: selectedDay });
+    },
+    onError: (err) => {
+      // SnackbarOptions only has 'success' | 'info' (no error tone) — the
+      // default (neutral) styling is used, same as elsewhere in this file.
+      showSnackbar({ message: err.message });
+    },
+  });
+
   // T-08.5/T-08.6: Replace and AI swap are undoable the same way (Q-6: AI
   // swap ships as commit + Undo, no preview) — call `replaceRecipe` back to
   // the id that was in the slot. `target` is captured at click time so the
@@ -596,10 +614,21 @@ export default function MealPlanScreen() {
                         testID="plan-day-add"
                         accessibilityRole="button"
                         accessibilityLabel={`Plan ${DAY_LABELS[selectedDay]} too`}
-                        onPress={() => setSettingsOpen(true)}
-                        className="mt-2 min-h-11 items-center justify-center px-2"
+                        disabled={planDayMutation.isPending || !plan}
+                        onPress={() =>
+                          plan &&
+                          planDayMutation.mutate({
+                            planId: plan.planId,
+                            dayOfWeek: selectedDay,
+                          })
+                        }
+                        className="mt-2 min-h-11 flex-row items-center justify-center px-2"
                       >
-                        <Text className="text-xs font-semibold text-primary">Plan this day</Text>
+                        {planDayMutation.isPending ? (
+                          <ActivityIndicator size="small" />
+                        ) : (
+                          <Text className="text-xs font-semibold text-primary">Plan this day</Text>
+                        )}
                       </Pressable>
                     )}
                   </>

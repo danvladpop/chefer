@@ -131,6 +131,14 @@ export interface IMealPlanRepository {
     dayOfWeek: number,
     portions: (number | undefined)[],
   ): Promise<void>;
+  /**
+   * §wave-1 planDay: overwrites one day's `meals` array in full — unlike
+   * `updateDayMeal`/`setDayPortions`, which patch one slot or a portions
+   * vector index-aligned to the day's CURRENT meals, this is for a day that
+   * had none. Every other day is untouched. No-op when the day doesn't
+   * exist in this plan.
+   */
+  setDayMeals(planId: string, dayOfWeek: number, meals: PlanMealSlotJson[]): Promise<void>;
   /** True when the plan's shopping list has ticks or custom items. */
   hasShoppingProgress(planId: string): Promise<boolean>;
   findAllByUserId(
@@ -500,6 +508,25 @@ export class MealPlanRepository implements IMealPlanRepository {
     await prisma.mealPlanDay.update({
       where: { id: day.id },
       data: { meals: updated },
+    });
+  }
+
+  /** §wave-1 planDay: overwrites one day's `meals` array in full, by day. */
+  async setDayMeals(planId: string, dayOfWeek: number, meals: PlanMealSlotJson[]): Promise<void> {
+    const day = await prisma.mealPlanDay.findFirst({
+      where: { mealPlanId: planId, dayOfWeek },
+    });
+    if (!day) return;
+
+    await prisma.mealPlanDay.update({
+      where: { id: day.id },
+      data: { meals },
+    });
+    // An edited copy is the user's week now: the Sunday worker must not
+    // replace it (audit F-PLAN-4-2), same as updateDayMeal/setSlotPinned.
+    await prisma.mealPlan.updateMany({
+      where: { id: planId, origin: MealPlanOrigin.CARRY_FORWARD },
+      data: { origin: MealPlanOrigin.USER },
     });
   }
 

@@ -506,6 +506,26 @@ PREMIUM generation: an explicit `shape` override narrows the AI week to
   shape automatically — a follow-up).
 ```
 
+**Plan just one day (`mealPlan.planDay`, wave-1 L-PLAN, UX-07 "Plan this
+day").** Until this wave, the only way to add a day that the shape leaves
+unplanned was `generate({ shape: { days: [d] } })` — which, because
+`generate` always calls `createPlan` fresh, silently rewrote the WHOLE plan
+document, not just that day. `mealPlan.planDay({ planId, dayOfWeek })` fills
+one currently-unplanned day (`meals: []`) of an existing plan in place — every
+other day is left byte-for-byte untouched (`MealPlanRepository.setDayMeals`,
+a full-day write, as opposed to `updateDayMeal`/`setDayPortions`'s single-slot
+patches) — and returns the whole updated `WeekPlanDto` so a client can
+`setData` it exactly like a `generate` response. It always uses the curated,
+zero-AI-cost picker (the same engine the free tier's `generate` uses)
+regardless of the caller's plan tier, since filling one day doesn't warrant a
+full AI-personalised regeneration; it is reserved against the same
+`AiCallType.CURATED_PLAN` daily quota `generate`'s free path uses. `CONFLICT`
+if the day already has meals (Replace/Regenerate own changing an existing
+day), `PRECONDITION_FAILED` with the same `PoolExhaustedCause` pool-exhaustion
+signal as `generate` (T-10.4) if the curated pool can't cover the day's
+shape. Mobile's "Plan this day" link (below) now calls it directly instead of
+opening Plan settings; web's own unplanned-day line (T-07.6, below) does too.
+
 **Your picks survive regeneration (T-07.4).** A meal chosen via `replaceRecipe`
 is marked `pinned` ("Your pick") and keeps its portion (bug T-BUG-X2/T-08.5:
 it used to always reset to 1×). `mealPlan.setSlotPinned` toggles the pin
@@ -565,8 +585,13 @@ picker.ts`) — a pure stand-in for the server-side, safety-aware
 * **Pool-exhaustion cause (T-10.4).** Reads `error.data.poolExhausted`
   defensively (not wired through `trpc.ts` on this branch yet), falling
   back to today's generic message.
-* **Web parity:** none of the above has landed on web yet — see
-  `mobile_parity_backlog.md` (2026-09-28 rows).
+* **Plan this day (wave-1 L-PLAN).** The unplanned-day line's "Plan this
+  day" link now calls `mealPlan.planDay({ planId, dayOfWeek })` directly
+  (it used to open Plan settings) and shows a "{Day} planned." success
+  snackbar — `setData`, not refetch, same as Regenerate.
+* **Web parity:** see the web section below (T-07.6/T-08.9, wave-1
+  `feat/ux-now/plan-web`) and `mobile_parity_backlog.md` for anything still
+  mobile-only.
 
 ### Weekly auto-generation (PW-5; free curated weeks since P2-5)
 

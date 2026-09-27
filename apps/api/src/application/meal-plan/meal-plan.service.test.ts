@@ -123,6 +123,7 @@ function makeRepo() {
     updateDayMeal: vi.fn().mockResolvedValue(undefined),
     setSlotPinned: vi.fn().mockResolvedValue(undefined),
     setDayPortions: vi.fn().mockResolvedValue(undefined),
+    setDayMeals: vi.fn().mockResolvedValue(undefined),
     findAllByUserId: vi.fn().mockResolvedValue([]),
     findByIdForUser: vi.fn().mockResolvedValue(null),
     findByWeekStart: vi.fn().mockResolvedValue(null),
@@ -1789,6 +1790,96 @@ describe('MealPlanService.scaleDay (T-11.3, portion cap T-11.4)', () => {
     const service = new MealPlanService(repo);
 
     await expect(service.scaleDay('user1', 'plan1', 3, 1.25)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+});
+
+describe('MealPlanService.planDay (wave-1 L-PLAN, UX-07 "Plan this day")', () => {
+  const basePlan = {
+    id: 'plan1',
+    weekStartDate: new Date('2026-08-17'),
+    days: [
+      { dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'd1' }] },
+      { dayOfWeek: 3, meals: [] },
+    ],
+  };
+  const filledPlan = {
+    ...basePlan,
+    days: [
+      basePlan.days[0],
+      {
+        dayOfWeek: 3,
+        meals: [
+          { type: 'breakfast', recipeId: 'b1' },
+          { type: 'lunch', recipeId: 'l1' },
+          { type: 'dinner', recipeId: 'd1' },
+        ],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+  });
+
+  it('fills an unplanned day with the curated picker, leaving every other day untouched', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValueOnce(basePlan).mockResolvedValueOnce(filledPlan);
+    repo.findRecipesByIds.mockResolvedValue([
+      { ...AI_RECIPE, id: 'd1' },
+      { ...AI_RECIPE, id: 'b1' },
+      { ...AI_RECIPE, id: 'l1' },
+    ]);
+    const service = new MealPlanService(repo);
+
+    const result = await service.planDay('user1', 'plan1', 3);
+
+    // Persists via setDayMeals (a full-day write), never updateDayMeal/
+    // setDayPortions (single-slot patches) — and only for day 3.
+    expect(repo.setDayMeals).toHaveBeenCalledOnce();
+    const [planIdArg, dayArg, mealsArg] = repo.setDayMeals.mock.calls[0]!;
+    expect(planIdArg).toBe('plan1');
+    expect(dayArg).toBe(3);
+    expect((mealsArg as { type: string }[]).map((m) => m.type).slice(0, 3)).toEqual([
+      'breakfast',
+      'lunch',
+      'dinner',
+    ]);
+    expect(repo.updateDayMeal).not.toHaveBeenCalled();
+
+    // The response is the whole plan (day 0 unaffected, day 3 now filled) —
+    // clients can `setData` it the same way `generate`'s response is applied.
+    expect(result.days.find((d) => d.dayOfWeek === 0)?.meals).toHaveLength(1);
+    expect(result.days.find((d) => d.dayOfWeek === 3)?.meals.length).toBeGreaterThan(0);
+  });
+
+  it('rejects a day that already has meals — Replace/Regenerate own that job', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(basePlan);
+    const service = new MealPlanService(repo);
+
+    await expect(service.planDay('user1', 'plan1', 0)).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(repo.setDayMeals).not.toHaveBeenCalled();
+  });
+
+  it('404s for a plan the user does not own', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(null);
+    const service = new MealPlanService(repo);
+
+    await expect(service.planDay('attacker', 'plan1', 3)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('404s for a day the plan does not have', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({ id: 'plan1', days: [] });
+    const service = new MealPlanService(repo);
+
+    await expect(service.planDay('user1', 'plan1', 5)).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
   });
