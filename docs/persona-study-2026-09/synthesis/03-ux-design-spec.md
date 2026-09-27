@@ -2687,7 +2687,7 @@ premium-only lines):
   chef; a week planned for you every Monday; budget-fit weeks _(only once shipped)_. The pantry line is removed until
   UX-15 ships.
 - Closing line: `Chefer offers general healthy-eating and training guidance. It isn’t a medical device and doesn’t
-  give medical advice.`
+give medical advice.`
   **Screenshots, in order:** (1) Gym Today → a "Next time" summary with its reason; (2) Plan with the training-day
   header and `Checked for your table`; (3) Shop aisles with the share button; (4) household allergy read-back;
   (5) cook mode. Captions ≤ 6 words: `Know what to lift next` · `Meals that follow your training` ·
@@ -4203,3 +4203,1964 @@ modules.
 
 Initial spec: principles P1–P12, patterns PAT-1–13, Now UX-01–08, 10, 12, 13, 21, 22, 25, 26; Next UX-09, 11, 14–20, 28;
 Later UX-23, 24, 27; Don't/Stop; 5-wave packaging.
+
+---
+
+<a id="owner-feedback-delta"></a>
+
+## § Owner feedback delta (2026-09-27)
+
+**Status:** rev 3 of this spec, appended 2026-09-27. Role: principal product designer (the author of §0–§7).
+**Inputs:** [`05-owner-feedback-po.md`](./05-owner-feedback-po.md) (O-01…O-21, B-40…B-44, scope amendments §3.3,
+wave placement §4, decisions D-14…D-21), the owner's own words and screenshots in
+[`../owner-feedback-2026-09-27/`](../owner-feedback-2026-09-27/feedback.txt),
+[`06-cardio-research.md`](./06-cardio-research.md), and the mobile and web code at `origin/master` @ `8c9de2c` (wave 0
+merged). Documents only. No code was changed.
+
+**Rules for this section.**
+
+- **Nothing above this heading was edited or moved.** The wave briefs (`waves/W0.md`–`W4.md`) point into §0–§7 by
+  line range, and those ranges stay valid. Where this section changes an earlier spec, it says so as
+  **"UX-xx amendment An"**, with the delta and new acceptance criteria. **The amendment wins** over the earlier text
+  where the two disagree. Stage 4 folds the amendments into the `T-xx.n` tasks; the wave briefs get new pointer rows
+  into this section (§D.9).
+- **IDs:** `UX-40`…`UX-44` = `B-40`…`B-44` (the stable-ID rule of this spec). New shared patterns continue at
+  **PAT-15**. New Analytics events follow PAT-13 (no food text, no weights as properties, no exercise names).
+- **The evidence here is different in kind.** §1–§6 rest on synthetic personas. This section rests on **one real user
+  (the owner) on a real phone with his own data** (n = 1), plus code read at `8c9de2c`. Where he independently hit
+  what the panel found (CI-02, CI-42, CI-49, CI-52), the earlier spec stands and gets sharper. Where it is new (cardio,
+  library governance, correcting history), the design is still a hypothesis, and each spec names its **Validate** step.
+- **Bucket changes:** the Now set gains **UX-40** (slice 1 in wave 1, slice 2 in wave 2) and **UX-44** (wave 2,
+  cut-able). **UX-41**, **UX-42** and **UX-43** are Next and form the new **wave 5**. UX-42 has a Now slice inside
+  UX-05 (amendment A2), and an optional minimal slice in wave 2 (⚖ D-20).
+
+Contents: [D.0 What the owner hit](#d0-owner-baseline) · [D.1 Open decisions, as designed](#d1-decisions) ·
+[D.2 New patterns PAT-15…17](#d2-patterns) · [UX-40](#ux-40) · [UX-41](#ux-41) · [UX-42](#ux-42) · [UX-43](#ux-43) ·
+[UX-44](#ux-44) · [D.8 Amendments](#d8-amendments) · [D.9 Packaging delta](#d9-packaging) ·
+[D.10 Changelog](#d10-changelog)
+
+<a id="d0-owner-baseline"></a>
+
+### D.0 What the owner hit (baseline additions to §0)
+
+Read from the six screenshots and the code. The §0 table is still right; these rows are what it did not cover.
+
+| Area                       | Today (evidence)                                                                                                                                                                                                                                                                                                                                                                              | Screens / files                                                                                                                                         |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Set row                    | Seven equal tiles `[−][40][+][−][10][+][✓]`. Each `ValueStepper` has no inner gap; the two steppers sit 4 pt apart (`gap-1`), so the kg `+` touches the reps `−`, and the reps `+` sits next to the ✓, which looks like another tile. Remove = long-press on the row → `Remove set 2?` ConfirmSheet, or ⋯ → `Remove a set` (last unlogged only).                                              | [image1](../owner-feedback-2026-09-27/images/image1.png), `src/features/gym/workout/set-row.tsx`, `packages/ui-mobile/src/components/value-stepper.tsx` |
+| Tiny values                | Set 2 renders `55` and `8` at ~4 pt while sets 1 and 3 are normal. The value `Text` has `adjustsFontSizeToFit` inside a `PressableScale` (`value-stepper.tsx` L112), which can shrink to fit during a transform or zero-width layout pass and never grow back.                                                                                                                                | [image3](../owner-feedback-2026-09-27/images/image3.png)                                                                                                |
+| Cardio                     | A custom "Indoor bike" is coached as `3 × 1 s · 0/3 done`, `Starting weight: 15 kg. Aim for 1 s.`, with kg steppers on every row. The header counts `0/3 sets`.                                                                                                                                                                                                                               | [image6](../owner-feedback-2026-09-27/images/image6.png), `06` §0                                                                                       |
+| Resume card                | `Resume workout · Full Body B · [Resume]`. No time, no progress, no current exercise. The week card beneath still shows `0-week streak` (UX-36 (4) fixes that).                                                                                                                                                                                                                               | [image5](../owner-feedback-2026-09-27/images/image5.png), `src/features/gym/today/today-screen.tsx` L237–251                                            |
+| Past workouts on Gym Today | One row: `Full Body A · 2026-09-27 →` (ISO `localDate`), under `Weekly goal met · 5 sessions`. `bootstrap.recentSessions` already holds 12 weeks (`RECENT_SESSION_DAYS = 84`) offline; the screen shows `[0]`.                                                                                                                                                                                | [image2](../owner-feedback-2026-09-27/images/image2.png), `today-screen.tsx` L425–441                                                                   |
+| Deleting a past session    | Only from session detail, through a native `Alert` (`Delete this session?`). It calls `gym.session.delete` directly, so it fails offline, and there is no undo. There is no edit.                                                                                                                                                                                                             | `src/features/gym/history/session-detail-screen.tsx` L35–56                                                                                             |
+| Exercise library           | `+ Custom` in the Exercises header for everyone. The custom form has a `Timed exercise (seconds, not reps)` checkbox and no other shape. `gym.library.createCustom` is a plain `protectedProcedure`. Roles: `USER`, `MODERATOR`, `ADMIN`.                                                                                                                                                     | `src/features/gym/library-screens/exercises-tab.tsx` L63–68, `exercise-form-screen.tsx` L346                                                            |
+| Recipe form (mobile)       | Six required fields (name, description, cuisine, ≥ 1 complete ingredient, ≥ 1 step, servings ≥ 1) with **no** marker and an inline `Create recipe` that is disabled with no reason. Cuisine and unit are free text; prep and cook are prefilled `10`/`20`; macros are typed. No `KeyboardAwareScrollView`, no sticky footer. A save error shows the raw server message. Fiber is sent as `0`. | [image4](../owner-feedback-2026-09-27/images/image4.png), `apps/mobile/app/recipe-form.tsx` L165–175, L193–194, L429                                    |
+| Photo upload               | The error line reads `[object Object]` because `uploadImage` passes the `{ error: { code, message } }` object to `new Error()`. The upload itself failed (likely > 5 MB at `quality: 0.8`; to confirm in logs).                                                                                                                                                                               | image4, `apps/mobile/src/lib/media-client.ts` L86–88                                                                                                    |
+| Recipe form (web)          | Already has cuisine presets, a canonical unit list, `IngredientPicker` over `ingredients.search`, private custom ingredients, auto-computed nutrition with a coverage line and a manual fallback, plus a `Fiber (g)` input and a `Fiber` stat. Requires description, cuisine, instructions and calories > 0.                                                                                  | `apps/web/src/app/(dashboard)/recipes/new/page.tsx`, `features/recipes/components/IngredientPicker.tsx`, `features/recipes/lib/recipe-form.ts`          |
+| Kit after wave 0           | `Snackbar`/`useSnackbar`, `ExplainSheet`, `ChangeNoticeCard`, `TimePicker` exist. There is **no** select or combobox, no form-field wrapper (the kit `Input` has no label or error prop) and **no `react-native-gesture-handler`** in the binary: a swipe gesture must be JS (`PanResponder` + Reanimated) to ship over OTA.                                                                  | `packages/ui-mobile/src/index.ts`, `apps/mobile/package.json`                                                                                           |
+
+**Protect (P11), restated for this delta:** D1 logger speed (pre-filled weights, one-tap ✓, rest timer, plate keypad,
+offline), D2 Why?/Next time, D4 exercise detail, D22 (half sessions count, never red), and the web recipe form's
+auto-nutrition, which mobile is catching up to. The set-row redesign (UX-05 A1) is the one **deliberate** change to
+D1's layout. Its visual diff is expected, and its speed must not regress (AC below).
+
+<a id="d1-decisions"></a>
+
+### D.1 Open decisions, as designed
+
+Each row: what this section designs (the recommended option from `05` §5, which is also the build default unless the
+owner answers otherwise), and the alternative in one paragraph, so either ships without a redesign.
+
+| #        | Designed here                                                                                                                                                                                                                  | Alternative, and what changes if chosen                                                                                                                                                                                                                                               |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **D-14** | (b) A `TRAINER` role that can author library exercises (an authoring permission, not a tier). Everyone else gets `Request an exercise`. Trainers are appointed by an admin in the web admin Users page.                        | (a) Admins only: identical UI, minus the Trainer option in the admin role picker. (c) Reuse `MODERATOR`: identical UI, and the web label reads "Moderator (can add exercises)". (d) Keep user customs: UX-43 is dropped, and only UX-42's tracking-type fix to the custom form ships. |
+| **D-15** | (a) + optional (c): existing custom exercises stay usable and editable by their owner, history intact, never deleted. A one-time `Use the library’s {name} instead?` card appears on the custom's detail where a match exists. | (b) Hide them: **not designable without breaking P5** (their history would disappear from view). If chosen anyway, the history keeps rendering them under `Archived exercise`.                                                                                                        |
+| **D-16** | UI for provenance only: every catalogue row shows `Verified` or `Estimated` (UX-41). The source name appears in the ingredient detail (`Source: USDA FoodData Central`) once counsel confirms the licence.                     | (e) Estimates only: the `Verified` badge never appears, and every row reads `Estimated`. The rest of UX-41 ships unchanged.                                                                                                                                                           |
+| **D-17** | Build default (a) **not shown**. The designed (b) is specified in UX-42 behind `cardioCaloriesOnSummary`: a range on the workout summary only, hidden without a body weight, never on Food.                                    | (c) Feed into food targets: out of scope here. It needs B-06's capped, visible rule and a PAT-14 change notice ("Today’s target +200 kcal for your ride").                                                                                                                            |
+| **D-18** | (a) Fiber leaves every input and every default display on web and mobile. The API keeps the optional field, and mobile keeps sending `0` (or the computed value in slice 2).                                                   | (c) Keep it: web keeps its box and its stat; mobile stays as it is. (b) is ruled out (it breaks shipped clients).                                                                                                                                                                     |
+| **D-19** | (a) A recipe saves with **a name and at least one ingredient line with an amount**. Servings default to 1 (as `05` proposes; today's form prefills 2), shown as a visible stepper. Everything else is optional.                | (b) Also ≥ 1 step: the Steps heading gains ` *`, and the missing-fields line adds `and one step`.                                                                                                                                                                                     |
+| **D-20** | (b) A minimal cardio slice in wave 2 L-GYM (duration and duration + distance, 10–12 machines, timer or typed time, effort chips, "same as last time"), with the rest in wave 5.                                                | (a) All of UX-42 in wave 5. Until then, UX-05 A2 stops the nonsense coaching, and the only way to log a bike stays a (now correctly typed) custom exercise.                                                                                                                           |
+| **D-21** | (a) Any past session can be edited or deleted. A PAT-14 change notice appears whenever a "Next time" target moves as a result.                                                                                                 | (b) Last N days: sessions older than N show `Edit` disabled with `Workouts older than {n} days can’t be changed.` (c) Delete only: UX-44's edit mode is dropped, and the delete-with-undo half stays.                                                                                 |
+
+<a id="d2-patterns"></a>
+
+### D.2 New shared patterns (PAT-15…PAT-17)
+
+Built by the first lane that needs each one (§D.9). Kit components go in `packages/ui-mobile/src/components/` and are
+exported from `packages/ui-mobile/src/index.ts`.
+
+#### PAT-15 — Select field and select sheet (the mobile "dropdown")
+
+The owner asked for "dropdowns". On a phone, a dropdown is a **field that opens a sheet**, not a native menu that
+covers the keyboard.
+
+- **New:** `packages/ui-mobile/src/components/select-sheet.tsx` → `SelectField` + `SelectSheet`.
+  `SelectField` props: `label`, `value`, `options` (`{ value, label, group?, detail? }[]`), `onChange`, `placeholder`,
+  `required?`, `error?`, `searchable?` (auto when > 12 options), `allowOther?` (`{ label: 'Other…', inputLabel }`),
+  `testID`. It looks like an `Input` with a `chevron-down` (16 pt) at the trailing edge, 44 pt tall, and shows the
+  selected label or the placeholder in `text-muted-foreground`.
+- **SelectSheet:** a kit `Sheet` (MO-02) titled with the field's label. Options are 48 pt rows grouped under muted
+  group headers. The selected row has a `checkmark` and `accessibilityState={{ selected: true }}`. When searchable, a
+  search input sits at the top and filters as you type. `Other…` swaps the list for one input and a `Use this` button.
+  Tapping a row selects it and closes the sheet (one tap); `haptics.selection` fires.
+- **Rules:** values are canonical strings (never display labels); the sheet never opens by itself on mount; Android back
+  closes it; with the keyboard up, the first tap on a row selects (PAT-11 `keyboardShouldPersistTaps="handled"`).
+- **A11y:** the field is `accessibilityRole="button"` with label `{label}, {value or 'not set'}{, required}` and hint
+  `Opens a list to choose from`.
+
+#### PAT-16 — Remove a row with Undo (swipe or menu)
+
+For rows the user must be able to take back in under 2 s (sets, cardio entries, ingredient lines, recent workouts).
+
+- **Two paths, always both:** (1) a visible **row menu**: a `⋯` (`ellipsis-horizontal`, 20 pt) at the end of the row's
+  label line, 44 × 44 pt hit area, opening a small `Sheet` whose first row is `Remove {thing}`; (2) **swipe left** on
+  the row reveals a 72 pt red `Remove` action; releasing past 40 % of the row width, or tapping the action, removes.
+- **No confirm; Undo instead** (P5): the row exits (MO-04 remove: fade `fast`, then height collapse `base`), and the
+  snackbar (PAT-4) says `Removed {thing}` + `Undo` for 8 s. Undo re-inserts the row at the same index with the same
+  values and state (MO-04 insert). `haptics.warning` on remove, none on undo.
+- **Gesture, OTA-safe:** implemented with RN core `PanResponder` driving a Reanimated shared value (both are in the
+  binary; `react-native-gesture-handler` is not). The responder claims the gesture only when `|dx| > 12` and
+  `|dx| > 2 × |dy|`, so vertical scrolling always wins. **Fallback:** if the swipe fights the ScrollView on either OS
+  in QA, ship the menu + Undo alone, and move the swipe to W4's native release with RNGH `Swipeable`. The menu path
+  alone satisfies every acceptance criterion except the swipe-specific one.
+- **Reduced motion:** the row disappears with a 150 ms fade and no height animation; the swipe still tracks the finger
+  (user-driven) but snaps without a spring.
+- **A11y:** the row exposes `accessibilityActions={[{ name: 'delete', label: 'Remove {thing}' }]}` (VoiceOver rotor
+  "Actions", TalkBack actions menu). The `⋯` button's label is `Options for {thing}`.
+- **Lives in:** `apps/mobile/src/components/swipe-to-remove.tsx` (app-level, not kit, so it can be promoted to the kit
+  later without a cross-lane edit in wave 1).
+
+#### PAT-17 — Required fields and "what’s missing"
+
+The owner: "Add star to mandatory fields so it is clear why the user cannot click Create which is disabled."
+
+- **New:** `packages/ui-mobile/src/components/form-field.tsx` → `FormField` (props: `label`, `required?`, `hint?`,
+  `error?`, `children`, `testID`). Renders the label (`variant="label"`), then ` *` in `text-primary` when required,
+  the control, then either the error (`text-destructive`, `alert-circle` 14 pt, linked with
+  `accessibilityDescribedBy`/`aria-describedby` on web) or the hint (muted). The label's accessible name is
+  `{label}, required`. The `*` itself is `accessibilityElementsHidden`.
+- **Legend:** forms with any required field show `* Required` (muted, `text-xs`) once, under the title.
+- **The primary button is never silently disabled.** It stays enabled and sits in a sticky footer (PAT-11). While the
+  form is incomplete, a one-line **missing summary** sits above it (`Add a name and at least one ingredient.`).
+  Tapping the button while incomplete does not submit: it scrolls to the first missing field, focuses it, shows the
+  inline errors on every missing field, and runs one MO-08 shake on the button plus `haptics.error`.
+- **Alternative (not recommended):** a disabled button with the missing summary as its reason. It meets the owner's
+  literal ask, but a disabled control cannot move focus to the problem, and screen readers skip disabled buttons.
+
+---
+
+<a id="ux-40"></a>
+
+### UX-40 A recipe form you can finish _(new, Now: slice 1 wave 1, slice 2 wave 2)_
+
+**Problem & evidence.** The owner, as a real user: "all the fields are mandatory (hard to use)", "Add star to
+mandatory fields so it is clear why the user cannot click Create which is disabled", "Add dropdowns for quantities,
+for cuisine type", "measurement units … a dropdown instead of free text", "ingredients should be a dropdown with
+search", "I don't think we should keep 'fiber'", and a photo that failed with `[object Object]`
+([image4](../owner-feedback-2026-09-27/images/image4.png): 626 / 56 / 60 / 20 typed by hand above a `Create recipe`
+button). The panel said the same first: CI-02 (P05-M11, "the manual recipe form is 36 boxes"), CI-15 (truncated unit
+boxes "piec", "tbs"), CI-38 (editing strips diet tags, bug B-01). The code confirms it (§D.0): six silent required
+fields, free-text cuisine and unit, typed macros, no keyboard handling. **It is also a parity bug:** the web form has
+had presets, the unit list, ingredient search and computed nutrition for months (§D.0), and no
+`mobile_parity_backlog.md` row covered the gap.
+
+> "all the fields are mandatory (hard to use)" · "so it is clear why the user cannot click Create" (owner)
+
+**User story.** As a home cook saving my own recipe on my phone, I want to type a name and the ingredients, pick units
+and cuisine from a list, add a photo, and save, with the app working out the nutrition, so that my recipe is in my
+cookbook in a couple of minutes instead of never.
+
+**⚖ D-18, D-19** (designed as recommended, §D.1). **Protect:** D10 (cook mode renders a recipe with no steps as "no
+cook mode", not an error), D25 (import safety), the web form's computed nutrition (mobile copies it, web keeps it).
+
+#### Flow & states
+
+**Slice 1 (wave 1, L-SAFE, same PR window as T-01.6).** One scrolling screen in a `KeyboardAwareScrollView` with a
+sticky footer (PAT-11). The order puts the two required things first and hides the optional detail.
+
+```
+←  New recipe
+   * Required
+┌───────────────────────────────────────────────┐
+│ Name *                                        │
+│ [ Grandma’s lasagna                         ] │
+│ Servings                     [ − ]  1  [ + ]  │
+│ Cuisine                                       │
+│ [ Choose a cuisine                        ▾ ] │  PAT-15, optional
+├ Ingredients * ────────────────────────────────┤
+│ [ 200 ] [ g        ▾ ] [ flour            ] ⋯ │
+│ [  ½  ] [ tsp      ▾ ] [ salt             ] ⋯ │
+│   ¼   ½   ¾   1   1½   2     ← while a        │
+│                                quantity is    │
+│                                focused        │
+│ [ + Add ingredient ]                          │
+├ Steps ────────────────────────────────────────┤
+│ ① [ Describe this step…                   ] ⋯ │
+│ [ + Add step ]                                │
+├ Photo ────────────────────────────────────────┤
+│ [ 🖼  Add a photo ]                            │
+├ Nutrition per serving · optional ─────────────┤
+│ kcal [    ] Protein g [   ] Carbs g [   ] Fat g [   ]
+│ More details ▸   Description · prep and cook  │  MO-05, collapsed
+└───────────────────────────────────────────────┘
+══ sticky footer ═════════════════════════════════
+  Add a name and at least one ingredient.          ← only while incomplete
+  [               Create recipe               ]
+```
+
+- **Required (D-19):** `Name *` and `Ingredients *`. An ingredient line counts when it has a name and a quantity
+  greater than 0 (the unit always has a value, default `g`). Blank lines are ignored. A line with a name but no
+  amount is **incomplete**, not ignored: it gets the row error `Add an amount, or remove this line.`
+- **Servings:** kit `Stepper`, 1–20, default 1. It is the only numeric field that is never blank.
+- **Cuisine (O-16):** `SelectField` (PAT-15) over the shared `CUISINE_PRESETS` (moved from the web page to
+  `@chefer/types`, "shared-first") plus `Other…`. Optional. When blank, the server stores `international` (the
+  existing stored default), and no cuisine chip shows on the recipe.
+- **Unit (O-17):** `SelectField` over the canonical list, grouped: **Weight** `g`, `kg` · **Volume** `ml`, `l`, `tsp`,
+  `tbsp`, `cup` · **Count** `piece`, `small`, `medium`, `large`, `clove`, `slice`, `can`, `bunch` · **Other**
+  `pinch`. The list moves from `apps/api/src/lib/ingredient-prices/index.ts` (`RECIPE_UNITS`) to `@chefer/types`, so
+  it renders offline and matches `ingredients.units` exactly. The field is 88 pt wide and never truncates (`tbsp` fits,
+  fixing CI-15's "tbs"). An edited recipe with a legacy free-text unit (`pcs`) shows it as a selected `Other` value;
+  it is never silently changed.
+- **Quantity (O-17, "dropdowns for quantities"):** a decimal-pad field (72 pt) with `NumericReturnBar` (`Next` →
+  the unit, then the name), plus a **fraction chip row** `¼ ½ ¾ 1 1½ 2` under the line while its quantity field has
+  focus. A chip sets the value (`½` → `0.5`, displayed `½`); `,` is accepted as the decimal separator. _This reads the
+  owner's "dropdowns for quantities" as "don't make me type common amounts". `05` §5 asks him to confirm; if he meant
+  servings, the stepper already covers it._
+- **Steps:** optional. A recipe with no steps saves; its detail shows `No steps yet · Add steps` (owner only) and cook
+  mode is hidden, not broken.
+- **More details (collapsed):** `Description`, `Prep (min)`, `Cook (min)`, all optional, **blank by default** (today
+  they prefill `10`/`20`, which invents times). Blank times are sent as `0` and mean "unknown". Recipe detail hides
+  a `0` time instead of showing `0 min`. In edit mode, the section opens if any of its fields has a value.
+- **Nutrition (slice 1):** four optional fields per serving, **no fiber (D-18)**. If they don't add up (UX-19 §5's
+  4/4/9 ± 25 % rule, shared in `@chefer/utils`), an amber line appears: `These don’t add up: {n} g {macro} is about
+{kcal} kcal.` It never blocks saving. If left blank, detail shows `Nutrition not added` instead of `0 kcal`.
+- **Row actions (PAT-16):** each ingredient and step line has a `⋯` (`Remove ingredient` / `Remove step`,
+  `Move up` / `Move down` for steps) with Undo, replacing today's grey `✕` (16 pt icon, easy to mis-tap next to the
+  name field). Swipe-to-remove joins in slice 2, once L-GYM's `swipe-to-remove.tsx` (PAT-16) is merged (§D.9).
+- **The footer (PAT-17):** `Create recipe` (or `Save changes`) is always enabled. While incomplete, the missing
+  summary reads, by case: `Add a name and at least one ingredient.` · `Add a name.` · `Add at least one ingredient.`
+  · `Finish the ingredient on line {n}.` Tapping the button while incomplete scrolls to and focuses the first problem.
+
+**States.**
+
+| State                      | What the user sees                                                                                                                                                                                                                                                                             |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default (create)           | As the wireframe; name focused only when opened from `+ New recipe` (not from an empty state, where the keyboard would hide the explanation).                                                                                                                                                  |
+| Loading (edit)             | A skeleton of the form (PAT-8: title bar, three field blocks, two ingredient lines), not today's full-screen spinner.                                                                                                                                                                          |
+| Load error (edit)          | `ErrorState` `Couldn’t load your recipe` · `Nothing has been changed.` · `Try again`.                                                                                                                                                                                                          |
+| Incomplete + tap Create    | Scroll + focus + inline errors (`Add a name.` · `Add at least one ingredient with an amount.` · `Add an amount, or remove this line.`), one shake, `haptics.error`.                                                                                                                            |
+| Saving                     | Button shows its spinner and `Creating…` / `Saving…`; fields stay editable but a second tap does nothing.                                                                                                                                                                                      |
+| Save error                 | A card above the footer: `Couldn’t save your recipe. Nothing you typed is lost.` + `Try again`. Never the raw server message (today L429). Validation errors from the server map onto the matching field.                                                                                      |
+| Offline                    | A muted line under the title `You’re offline. Your recipe stays on this screen until you’re back.` The footer button reads `Needs a connection` (disabled, the one exception to PAT-17, because nothing is missing). Photo: `Add a photo` disabled with the same reason.                       |
+| Leave with unsaved changes | `ConfirmSheet` `Discard your changes?` · `You’ll lose what you typed on this recipe.` · destructive `Discard` · `Keep editing`. Same on Android back and the iOS swipe-back.                                                                                                                   |
+| Saved                      | Back to where the user came from; snackbar `Saved to your Cookbook` (UX-21.2's copy) with `View` → the recipe.                                                                                                                                                                                 |
+| Edit (O-15)                | Title `Edit recipe` (sentence case; today `Edit Recipe`). Diet tags, photo, unit, times and nutrition all round-trip unchanged unless edited (T-01.6 fixes the `dietaryTags: []` loss). **Before building, reproduce the owner's O-15** (`05` §5): the fix list grows by whatever else he hit. |
+| Free vs premium            | Slice 1 has no premium element.                                                                                                                                                                                                                                                                |
+
+**Photo states** (the richer UI; the W0-D hotfix, UX-21 amendment A1 row 21.19, already makes the message a sentence):
+
+```
+Idle        [ 🖼  Add a photo ]
+Uploading   ┌──────────────────────────┐
+            │ (local preview, dimmed)  │  spinner · “Uploading photo…”
+            └──────────────────────────┘
+Done        ┌──────────────────────────┐
+            │ (photo)                  │
+            └──────────────────────────┘
+            [ Change photo ]  [ Remove ]
+Failed      ┌──────────────────────────┐
+            │ (local preview, greyed)  │
+            └──────────────────────────┘
+            ⚠ Couldn’t add the photo. {reason}
+            [ Try again ]  [ Choose another ]
+```
+
+- The local preview appears the moment a photo is picked (the picker's `uri`), so the user sees their choice
+  whatever the upload does. `Try again` re-uploads the same bytes; nothing is re-picked.
+- **Reason by cause** (never a code, never `[object Object]`): too large (413) → `That photo is too big. Choose another,
+or use a screenshot of it.` · no connection → `No connection. Try again when you’re back online.` · signed out (401) →
+  `Sign in again to add photos.` · anything else → `Something went wrong on our side. Try again in a moment.`
+- `Create recipe` while uploading reads `Uploading photo…` (disabled, spinner). If the upload then fails, the button
+  comes back and the recipe can be saved without a photo; the error stays visible.
+- The oversize cause disappears for good when W4's native release adds client-side resizing (`05` §3.3 B-21).
+
+**Slice 2 (wave 2, L-RECIPE): searchable ingredients and computed nutrition (O-21, web parity).**
+
+The ingredient **name** field becomes a combobox trigger. Tapping it (or `+ Add ingredient`) opens a full-height
+`Sheet` with the search focused:
+
+```
+┌ Add ingredient ─────────────────────────────── ✕ ┐
+│ [ 🔍  oat                                      ] │
+│ YOUR INGREDIENTS                                  │
+│   My oat bread                 250 kcal / 100 g   │
+│ CHEFER CATALOGUE                                  │
+│   Oats, rolled                 379 kcal / 100 g   │
+│   Oat milk                      46 kcal / 100 ml  │
+│   Oat bran                     246 kcal / 100 g   │
+│ ───────────────────────────────────────────────── │
+│ ＋ Add “oat” as my ingredient                      │
+│    Use “oat” as typed · no nutrition              │
+└───────────────────────────────────────────────────┘
+```
+
+- Search calls `ingredients.search` (catalogue plus the user's private rows) from 2 characters, debounced 250 ms, with
+  results kept while typing (no flicker; stable keys). Private rows list first. Each row is 52 pt: name, then
+  `{kcal} kcal / 100 g` (or `/ 100 ml`, `/ piece` when that is the row's natural unit). From wave 5, rows also carry
+  `Verified` or `Estimated` (UX-41).
+- **Picking** fills the name, links the line to the catalogue row, and, if the unit is still the default, sets the
+  row's natural unit (`Eggs` → `piece`, `Milk` → `ml`). The line shows a small `nutrition-outline` icon (muted, 14 pt)
+  meaning "counted in nutrition"; `accessibilityLabel` `{name}, nutrition known`.
+- **`Use “{text}” as typed`** keeps today's behaviour: free text, no nutrition. The line shows no icon, and the
+  nutrition card's coverage line names it.
+- **`Add “{text}” as my ingredient`** opens the custom-ingredient sheet (the mobile twin of the web's
+  `IngredientFormModal`, over `ingredients.createCustom`):
+
+```
+┌ New ingredient ────────────────────────────── ✕ ┐
+│ Only you can see this ingredient.                │
+│ Name *              [ My protein bread         ] │
+│ Nutrition per 100 g *                            │
+│ kcal [    ]  Protein g [   ]  Carbs g [   ]  Fat g [   ]
+│ [ ✦ Fill in for me ]                  🔒 Premium │
+│ One piece weighs (g) · optional   [      ]       │
+│ [            Save ingredient            ]        │
+└──────────────────────────────────────────────────┘
+```
+
+`Fill in for me` calls `ingredients.estimateNutrition` (AI, premium per the AI rule): on premium it fills the four
+fields with `Estimated — check against the label` under them; on free it shows `lock-closed-outline` and opens the
+PremiumSheet (PAT-3, source `ingredient-autofill`). It is the only lock on this screen (P4). No fiber field (D-18).
+Saving returns to the form with the new ingredient picked.
+
+- **Nutrition becomes computed** (`ingredients.computeNutrition`, the web model):
+
+```
+├ Nutrition per serving ───────────── Calculated ┤
+│  626 kcal · Protein 56 g · Carbs 60 g · Fat 20 g │
+│  From 5 of 6 ingredients · no data for: cinnamon │
+│  Edit numbers                                     │
+```
+
+Numbers count up when they change (MO-06, `CountUp`); while computing, the old numbers stay with a shimmer.
+`Edit numbers` switches to the slice-1 manual fields prefilled with the computed values, with a `Use calculated
+  numbers` link back. `recipe_nutrition_mode` records which mode was saved. Offline: the last computed numbers stay,
+and new lines show `Will calculate when you’re online.`
+
+- **Compute failed:** `Couldn’t calculate nutrition. Try again, or enter the numbers yourself.` with `Try again` and
+  `Edit numbers`. Saving still works (nutrition is optional).
+
+#### Copy
+
+| Key            | Copy                                                                                                                                                                                                                                                                                                                                                  |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| titles         | `New recipe` · `Edit recipe` · legend `* Required`                                                                                                                                                                                                                                                                                                    |
+| fields         | `Name` · `Servings` · `Cuisine` · placeholder `Choose a cuisine` · `Other…` · `Ingredients` · `Steps` · `Photo` · `Nutrition per serving` · `optional` · `More details` · `Description` · `Prep (min)` · `Cook (min)` · unit groups `Weight` · `Volume` · `Count` · `Other`                                                                           |
+| missing        | `Add a name and at least one ingredient.` · `Add a name.` · `Add at least one ingredient.` · `Finish the ingredient on line {n}.` · field errors `Add a name.` · `Add at least one ingredient with an amount.` · `Add an amount, or remove this line.`                                                                                                |
+| buttons        | `Create recipe` · `Save changes` · `Creating…` · `Saving…` · `Needs a connection` · `+ Add ingredient` · `+ Add step` · menus `Remove ingredient` · `Remove step` · `Move up` · `Move down` · snackbar `Removed {ingredient \| step {n}}` + `Undo`                                                                                                    |
+| save           | `Couldn’t save your recipe. Nothing you typed is lost.` · `Try again` · `Saved to your Cookbook` · `View` · offline `You’re offline. Your recipe stays on this screen until you’re back.`                                                                                                                                                             |
+| discard        | `Discard your changes?` · `You’ll lose what you typed on this recipe.` · `Discard` · `Keep editing`                                                                                                                                                                                                                                                   |
+| photo          | `Add a photo` · `Uploading photo…` · `Change photo` · `Remove` · `Couldn’t add the photo.` · `That photo is too big. Choose another, or use a screenshot of it.` · `No connection. Try again when you’re back online.` · `Sign in again to add photos.` · `Something went wrong on our side. Try again in a moment.` · `Try again` · `Choose another` |
+| nutrition      | `These don’t add up: {n} g {macro} is about {kcal} kcal.` · detail `Nutrition not added` · `Calculated` · `From {m} of {n} ingredients · no data for: {names}` · `Edit numbers` · `Use calculated numbers` · `Will calculate when you’re online.` · `Couldn’t calculate nutrition. Try again, or enter the numbers yourself.`                         |
+| search (sl. 2) | title `Add ingredient` · placeholder `Search ingredients` · groups `Your ingredients` · `Chefer catalogue` · `{kcal} kcal / 100 g` · `Add “{text}” as my ingredient` · `Use “{text}” as typed · no nutrition` · empty `No match for “{text}”.`                                                                                                        |
+| custom (sl. 2) | title `New ingredient` · `Only you can see this ingredient.` · `Nutrition per 100 g` · `Fill in for me` · `Estimated — check against the label` · `One piece weighs (g)` · `Save ingredient`                                                                                                                                                          |
+| detail         | `No steps yet` · `Add steps`                                                                                                                                                                                                                                                                                                                          |
+
+Strings live in a new `apps/mobile/src/features/recipes/form/copy.ts`; the missing-summary builder and the
+requiredness rule live in `packages/utils/src/recipe-form.ts` (shared with web).
+
+#### Components & files
+
+**Mobile (slice 1):** `app/recipe-form.tsx` (rebuilt as sections; keeps the route and `?id=` contract) · NEW
+`src/features/recipes/form/ingredient-line.tsx`, `step-line.tsx`, `photo-field.tsx`, `nutrition-fields.tsx`,
+`form-footer.tsx`, `copy.ts` · `app/recipe/[id].tsx` (hide `0` times, `Nutrition not added`, `No steps yet`) · kit NEW
+`select-sheet.tsx` (PAT-15), `form-field.tsx` (PAT-17), export lines in `packages/ui-mobile/src/index.ts` · reuse kit
+`Stepper`, `KeyboardAwareScrollView`, `useScrollFieldIntoView`, `NumericReturnBar`, `useFieldChain`,
+`ConfirmSheet`, `useSnackbar`, `Sheet`. (PAT-16's swipe component is built by L-GYM; slice 1 uses the menu path.)
+**Shared:** NEW `packages/types/src/recipe-form.ts` (`CUISINE_PRESETS`, `RECIPE_UNITS`, `RECIPE_UNIT_GROUPS`; the API
+re-exports `RECIPE_UNITS` from here) · NEW `packages/utils/src/recipe-form.ts` (`recipeMissingFields()`,
+`missingSummary()`, `parseQuantity()` incl. `½` and `,`) · `packages/utils/src/quick-add.ts` macro sanity (reused).
+**Server (additive):** `routers/recipe.router.ts` create/update: `description`, `instructions`, `cuisineType` accept
+empty (`''`, `[]`), with the stored defaults (`international`, `''`) applied in `application/recipe/**`. Old clients
+send what they send today and keep working.
+**Mobile (slice 2):** NEW `src/features/ingredients/ingredient-search-sheet.tsx`, `custom-ingredient-sheet.tsx`,
+`use-computed-nutrition.ts`; `src/features/recipes/form/ingredient-line.tsx`, `nutrition-fields.tsx`. Read-only on
+`routers/ingredients.router.ts` (no server change).
+
+#### Interaction & motion
+
+MO-01 on every pressable (kit). MO-04 for ingredient and step lines (insert on `+ Add`, remove with Undo). MO-05 for
+`More details` (chevron rotates `fast`). MO-02 for the select and search sheets. MO-08 on submit: one shake of the
+footer button on a blocked tap; scroll-to-first-error uses the smooth scroll only when reduced motion is off. MO-06
+`CountUp` on computed nutrition. Fraction chips: `haptics.selection`. Save success: MO-07 tier 2 (snackbar). Reduced
+motion: fades only, instant scroll, no shake (the error text and `haptics.error` carry the message).
+
+#### Accessibility
+
+Every field has a visible label through `FormField` (a placeholder is not a label); errors are linked and announced
+(`accessibilityLiveRegion="polite"` on Android, `announceForAccessibility` on iOS for the first error after a blocked
+tap). Ingredient lines read as one sentence group: `Ingredient {n}: {qty} {unit} {name}`, with the three controls
+individually reachable. Fraction chips are a radio group labelled `Common amounts`. All targets ≥ 44 pt (the unit
+field is 44 pt tall even though it looks compact). At 1.8× text, the ingredient line wraps: quantity + unit on the
+first line, the name full-width on the second; nothing truncates. The sticky footer never covers a focused field
+(PAT-11).
+
+#### Analytics
+
+`recipe_form_opened { mode: create|edit, from }` · `recipe_form_blocked_tap { missingCount }` ·
+`recipe_form_submitted { mode, ingredientCount, stepCount, hasPhoto, nutritionMode: none|manual|computed }` ·
+`recipe_form_abandoned { mode, missingCount }` (leave without saving) · `upload_failed { status, where: 'recipe' }` ·
+slice 2: `ingredient_picked { source: mine|catalogue|typed }` · `custom_ingredient_created { via: 'recipe_form',
+autofill: bool }`. No recipe names, ingredient names or quantities as properties.
+
+#### Acceptance criteria
+
+1. A recipe with only a name and one ingredient line (`200 g flour`) saves on mobile and on web; description, cuisine,
+   steps, times and nutrition are all optional (D-19), and a level-0 client payload still saves (contract test).
+2. `Name` and `Ingredients` show ` *`, the form shows `* Required` once, and screen readers read "Name, required".
+3. With a missing name, the footer reads `Add a name.`; tapping `Create recipe` focuses the name field, shows the inline
+   error, and does not submit. No state exists in which the button is disabled without a visible reason (offline
+   reads `Needs a connection`).
+4. A line with a name and no amount blocks saving with `Finish the ingredient on line {n}.`; a fully blank line is
+   ignored.
+5. Cuisine and unit are chosen from lists (PAT-15) that render offline; the unit list equals `ingredients.units`
+   (unit test on the shared constant); `tbsp` and `piece` are never truncated at default or 1.8× text on a 320 pt
+   screen.
+6. The fraction chips set `½` → 0.5, and `0,5` typed is accepted as 0.5.
+7. No fiber input or fiber stat on web or mobile; saving still sends a valid `nutritionInfo` (D-18).
+8. A failed photo upload shows one of the four sentences, never `[object Object]` or a status code; `Try again`
+   retries the same photo; the recipe can be saved without it.
+9. Editing a recipe and saving without changes leaves every field, the photo and the diet tags unchanged (O-15 and
+   T-01.6 regression test). Leaving with changes asks `Discard your changes?`.
+10. Removing an ingredient line takes ≤ 2 taps (⋯ → Remove; from slice 2 also one swipe) and `Undo` restores it in
+    place.
+11. On an iPhone SE-size screen with the keyboard up, the primary button is visible or one scroll away, and every
+    numeric field has Done/Next (PAT-11).
+12. **Slice 2:** typing `oat` and picking `Oats, rolled` links the line and sets nutrition to computed; a coverage line
+    names unmatched lines; `Edit numbers` switches to manual; a private ingredient created from the form is not
+    returned by `ingredients.search` for another account (API test); `Fill in for me` is locked on free.
+13. **Slice 2:** a 6-ingredient recipe with a photo is created in ≤ 3 min in the owner check and the P05/P08 re-run
+    (`05` §6.2), down from the "36 boxes" baseline.
+
+#### Edge cases
+
+Legacy units and cuisines on old recipes display as `Other` values and survive an edit untouched. A recipe edited on
+web with fiber > 0 keeps its stored fiber (not shown). Pasting a multi-line ingredient list into a name field does not
+split it (out of scope; import does that, UX-17). Recipes saved with `0` times: the planner treats `0` as unknown, not
+"0 minutes" (stage 4: check UX-07's time cap does not rank them as fastest). An imported recipe opened in this form keeps
+its source link. Photo picked, then the user leaves: the uploaded file is orphaned (acceptable; cleanup is a server
+job). Slice 2: a catalogue row renamed by an admin keeps linked lines pointing at it (link by ID, from wave 5).
+
+#### Web parity
+
+Web already has the picker, units, presets and computed nutrition. Web changes in the same PR group: remove the
+`Fiber (g)` input and the `Fiber` stat (`recipes/new/page.tsx` L717, L752, and the edit page); relax
+`validateRecipeCore` (`features/recipes/lib/recipe-form.ts`) and the page's cuisine and calories checks to D-19 (name +
+≥ 1 ingredient); add the ` *` markers and the `* Required` legend (`features/recipes/components/recipe-form-fields.tsx`);
+import `CUISINE_PRESETS` from `@chefer/types`. **Record slice 2 in `mobile_parity_backlog.md` in the slice-1 PR**, so the
+ledger reflects the gap until wave 2 closes it.
+
+**Dependencies.** W0-D (upload message, UX-21 A1). T-01.6 (diet tags on edit), same lane and PR window. PAT-4, PAT-11,
+PAT-15, PAT-16, PAT-17. Slice 2: nothing new on the server. Wave 5 (UX-41) adds `Verified`/`Estimated` and line
+links by ID. **Validate:** the owner check (`05` §6.1, W1 and W2 rows) and P05/P08 in the next study wave.
+
+---
+
+<a id="ux-41"></a>
+
+### UX-41 A curated ingredient catalogue you can see and trust _(new, Next: wave 5, L-INGR)_
+
+**Problem & evidence.** The owner: "Ingredients should have a pretty strong data set, created by admins. However
+users should be able to add their own ingredients, but they should be available only for them. Ingredients should
+have macros, measurement unit, calories, etc." **Most of the data model exists** (`05` O-20): `IngredientPrice` holds
+per-100 g kcal/protein/carbs/fat, `gramsPerPiece`, a `creatorId` for private rows, and admins can edit global rows on
+the web Ingredients page. What is missing is **trust and reach**: rows are AI-estimated (`source` default
+`AI_ESTIMATE`) with nothing in the UI saying so, there are no allergen or diet tags per ingredient, recipe lines are free
+text with no link to a row, and **mobile has no ingredient UI at all**. CI-28 (Sev 4, food search in grams), CI-10 and
+CI-06 (numbers nobody believed) are the panel side of the same gap.
+
+**User story.** As a cook and a tracker, I want to search one list of ingredients whose numbers say where they come
+from, add my own private ones, and see macros per the unit I actually use, so that my recipes, my logs and my safety
+checks rest on numbers I can trust.
+
+**⚖ D-16** (§D.1). **⚖ B-29 boundary** (§D.8 "Don't"): generic ingredients only. No brands, no barcodes, no public
+user entries, ever. **Protect:** D17 (the one-sheet logging speed of UX-19), D24 (private custom rows stay private).
+
+#### Flow & states
+
+**(1) One ingredient row, everywhere.** Search results in the recipe form (UX-40 slice 2), the Log sheet (UX-19 A1)
+and the new My ingredients screen use one row component:
+
+```
+Oats, rolled                                   ✓ Verified
+379 kcal · P 13 g · C 68 g · F 7 g   per 100 g
+```
+
+`✓ Verified` (`shield-checkmark-outline`, muted, **not green**: a checked value is not a health claim) or
+`Estimated` (`help-circle-outline`, muted). Private rows show `Yours` instead. The badge is text + icon, never colour
+alone.
+
+**(2) Ingredient detail sheet** (tap any row's `ⓘ`, 44 pt, or the name in My ingredients):
+
+```
+┌ Oats, rolled ─────────────────────────────── ✕ ┐
+│ ✓ Verified · Source: USDA FoodData Central       │
+│ Also called: fulgi de ovăz                       │
+│ PER 100 G                                        │
+│   Energy        379 kcal                         │
+│   Protein       13 g                             │
+│   Carbs         68 g                             │
+│   Fat           7 g                              │
+│ PER UNIT                                         │
+│   1 cup (about 80 g)          303 kcal           │
+│   1 tbsp (about 5 g)           19 kcal           │
+│ ALLERGENS                                        │
+│   Cereals containing gluten (oats)               │
+│   Check the label: oats are often processed      │
+│   with wheat.                                    │
+│ DIETS  Vegan · Vegetarian                        │
+└──────────────────────────────────────────────────┘
+```
+
+- **Per unit** answers the owner's "macros per unit": one line for each unit the row can convert to (`piece` via
+  `gramsPerPiece`, volume units via a density), with the gram weight shown (`about 80 g`) so the conversion is never
+  hidden (P9). Rows without a conversion show only per 100 g.
+- **Allergens** use the EU Annex II list (the 14) in plain names, and the PAT-2 `LabelCaveat` where the risk sits in
+  a bought product (oats, stock, soy sauce). **Never** "allergen-free": a row with no tags reads `No EU-listed
+allergens in our data. Check the label on packaged food.` (P3).
+- **Estimated rows** replace the source line with `Estimated by Chefer · not yet checked`, and the per-100 g numbers
+  carry `~`. A `How we estimate` link opens an ExplainSheet.
+
+**(3) My ingredients (mobile, new).** Reached from Food › More › `My ingredients`, the Settings hub (PAT-9 Food group,
+new row `My ingredients`) and the recipe form's search sheet (`Manage my ingredients`).
+
+```
+My ingredients                                  [ + New ]
+[ Mine | Catalogue ]
+[ 🔍 Search                                          ]
+MINE (3)
+  My protein bread      250 kcal / 100 g   Used in 2 recipes  ›
+  Mum’s ajvar           110 kcal / 100 g                       ›
+  Granola, homemade     471 kcal / 100 g   Used in 1 recipe   ›
+```
+
+- `Mine` lists the user's private rows (newest first); `Catalogue` is a read-only search over global rows (≥ 2
+  characters; no browse-all list, the catalogue is large).
+- A private row opens the same sheet as UX-40's `New ingredient`, prefilled, with `Save changes` and a destructive
+  `Delete ingredient` at the bottom. Delete when the row is used: `ConfirmSheet` `Delete “{name}”?` · `It’s used in {n}
+recipes. They keep the ingredient’s name but lose its nutrition.` · `Delete` · `Keep it`. Then snackbar `Deleted
+{name}` + `Undo` (8 s).
+- A private row whose name matches a verified catalogue row gets a one-time line in its sheet: `Chefer’s catalogue has
+a checked “{name}”. Use it in your recipes instead?` · `Use the catalogue’s` (relinks this user's lines) · `Keep
+mine`. Never automatic.
+
+**(4) Admin review (web only).** The existing web Ingredients page (`app/(dashboard)/ingredients`) gains, for admins:
+
+- A `Needs review` filter: estimated global rows sorted by **how many recipe lines and logs use them** (the review
+  queue). Each row opens the existing `IngredientFormModal`, extended with: `Source` (select: licensed table name /
+  `Chefer estimate`), `Allergens` (the 14 as a multi-select chip group), `Diets` (`Vegan`, `Vegetarian`), `Also
+called` (synonyms, one per line; Romanian first, B-18/B-24), `Weight of one piece (g)` and `Density (g per ml)`,
+  and a primary `Mark as verified` next to `Save`.
+- `Merge into…` on a duplicate row (picker over the catalogue): lines and logs linked to the duplicate move to the
+  target; the duplicate becomes a synonym.
+- An import report (admin-only card) after each licensed seed run: `{n} added · {m} updated · {k} left as estimates`.
+- No fiber input (D-18); the stored value is kept and computed from the source.
+
+**(5) Recipe lines link by ID.** From wave 5, a line picked from the catalogue stores its row ID (additive JSON, `05`
+§3.2 B-41). A one-off backfill links existing lines where the match is certain and leaves the rest as free text. Users
+see this only as the `nutrition-outline` icon on a linked line (UX-40) and as better numbers.
+
+**States.** Loading: skeleton rows (3). Empty `Mine`: `EmptyState` `No ingredients of your own yet` · `Add one when
+the catalogue doesn’t have it.` · `+ New ingredient`. Search, no result: `No “{q}” in the catalogue.` + `Add “{q}” as
+my ingredient`. Error: `ErrorState` `Couldn’t load ingredients` · `Nothing has been changed.` · `Try again`. Offline:
+`Mine` shows the last loaded list with `Offline · showing what was saved {time}`; `Catalogue` search, create, edit
+and delete show `Needs a connection` (Food writes, PAT-8). Free vs premium: everything is free; only `Fill in for me`
+(AI estimate) is premium (UX-40).
+
+#### Copy
+
+| Key          | Copy                                                                                                                                                                                                                                                              |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| badges       | `Verified` · `Estimated` · `Yours` · a11y `Checked against {source}` · `Estimated by Chefer, not yet checked` · `Your own ingredient`                                                                                                                             |
+| detail       | `Source: {source}` · `Estimated by Chefer · not yet checked` · `How we estimate` · `Also called: {names}` · `Per 100 g` · `Per unit` · `1 {unit} (about {g} g)` · `Allergens` · `Diets` · `No EU-listed allergens in our data. Check the label on packaged food.` |
+| explain      | `How we estimate` / `Where a food isn’t in a checked table yet, Chefer estimates its nutrition from similar foods. Estimates can be off by 10–20 %. Our team checks the most-used ones first.`                                                                    |
+| my list      | `My ingredients` · `Mine` · `Catalogue` · `Used in {n} recipe(s)` · `+ New` · `Manage my ingredients`                                                                                                                                                             |
+| delete       | `Delete “{name}”?` · `It’s used in {n} recipes. They keep the ingredient’s name but lose its nutrition.` · `Delete` · `Keep it` · snackbar `Deleted {name}` + `Undo`                                                                                              |
+| relink       | `Chefer’s catalogue has a checked “{name}”. Use it in your recipes instead?` · `Use the catalogue’s` · `Keep mine`                                                                                                                                                |
+| empty/errors | `No ingredients of your own yet` · `Add one when the catalogue doesn’t have it.` · `No “{q}” in the catalogue.` · `Couldn’t load ingredients`                                                                                                                     |
+| admin (web)  | `Needs review` · `Mark as verified` · `Merge into…` · `Source` · `Allergens` · `Diets` · `Also called` · `Density (g per ml)` · `{n} added · {m} updated · {k} left as estimates`                                                                                 |
+
+Strings: `apps/mobile/src/features/ingredients/copy.ts`; badge and allergen labels shared in
+`packages/utils/src/ingredient-copy.ts` (web uses the same words).
+
+#### Components & files
+
+**Mobile:** NEW `app/ingredients.tsx` (My ingredients), `src/features/ingredients/ingredient-row.tsx`,
+`ingredient-detail-sheet.tsx`, `copy.ts` (the search sheet and custom sheet exist from UX-40 slice 2);
+`app/(food)/more.tsx` (one row), `app/settings.tsx` (one row). **Web:** `app/(dashboard)/ingredients/page.tsx`,
+`features/ingredients/components/IngredientFormModal.tsx` (admin fields, verify, merge), NEW
+`features/ingredients/components/ReviewQueue.tsx`. **Shared:** `packages/types` (allergen and diet enums per
+ingredient, the `ingredientId` line contract), `packages/utils/src/ingredient-copy.ts`, unit conversion in
+`packages/utils/src/units.ts`. **Needs (additive, W5-0):** `IngredientPrice` `verifiedAt`, `source` values,
+allergen/diet tags, synonyms, `densityGPerMl`; `ingredients.reviewQueue`, `ingredients.verify`, `ingredients.merge`
+(admin); usage counts on `ingredients.list`.
+
+#### Interaction & motion
+
+MO-02 sheets; MO-04 on create/delete in `Mine`; MO-14 on the `Mine | Catalogue` segmented thumb (kit). No haptics
+except `haptics.success` on save. Reduced motion: fades.
+
+#### Accessibility
+
+Rows read `{name}, {kcal} kilocalories per 100 grams, {verified | estimated | your own}`. The detail's tables are
+label/value pairs readable in order. Badges never rely on colour. 1.8× text: macros wrap to a second line; names
+never truncate.
+
+#### Analytics
+
+`ingredient_detail_opened { source: verified|estimated|mine, from }` · `custom_ingredient_created { via }` (UX-40) ·
+`custom_ingredient_deleted { usedInCount }` · `custom_relinked { accepted }` · admin: `ingredient_verified`,
+`ingredient_merged` (server-side). No ingredient names as properties.
+
+#### Acceptance criteria
+
+1. Every catalogue row on every surface (recipe form, Log sheet, My ingredients, web) shows `Verified`, `Estimated` or
+   `Yours`; no estimated row is shown without the word.
+2. A private ingredient is visible only to its creator (API test across two accounts) and is never AI-refreshed.
+3. The detail sheet shows per-100 g values and, where a conversion exists, per-unit lines with the gram weight.
+4. No surface says "allergen-free", "safe" or equivalent (the forbidden-phrases lint covers the new copy module).
+5. An admin can filter `Needs review`, mark a row verified, set allergens and diets, and merge a duplicate; linked
+   lines move with the merge (API test).
+6. Deleting a used private row warns with the recipe count and offers Undo.
+7. No brand names, barcodes or shared user rows exist anywhere (B-29 boundary; a data test on the seed).
+8. Recipe lines picked from the catalogue store the row ID; a level-0 client that sends free-text lines still saves
+   (contract test).
+
+#### Edge cases
+
+A user's private row named exactly like a catalogue row: both appear, `Yours` first. A verified row later edited by an
+admin: `verifiedAt` stays, the source line gains `· updated {date}`. A licensed source missing a Romanian staple
+(zacuscă): stays estimated and is labelled so. Density-less volume lines (`1 cup spinach`) are counted as unmatched in
+the nutrition coverage line, never guessed silently.
+
+#### Web parity
+
+Web has the list and the form; this spec adds badges, the detail view (as a drawer), admin review, merge and synonyms
+to web in the same lane. Mobile gets its first ingredient UI. Nothing is web-only except admin review (admins work on
+the web by design).
+
+**Dependencies.** D-16 (and counsel, B-26) before any import; W5-0 contracts; UX-40 slice 2 (search and custom
+sheets). **Unblocks:** UX-01 A1, UX-11 A1, UX-19 A1, UX-17 A1 (§D.8). **Validate:** P07 and P04 in the next study wave
+(`05` §6.2).
+
+---
+
+<a id="ux-42"></a>
+
+### UX-42 Cardio as a first-class exercise type _(new, Next: Now slice in UX-05 A2; minimal slice wave 2 per ⚖ D-20; full wave 5)_
+
+**Problem & evidence.** The owner: "I cannot log cardio workouts with time and not sets", "There isn't really any
+cardio exercises", "cardio exercises maybe should not be measured in set with kg, but rather in minutes with some
+sort of intensity". [image6](../owner-feedback-2026-09-27/images/image6.png) shows an `Indoor bike` coached as
+`3 × 1 s · 0/3 done`, `Starting weight: 15 kg. Aim for 1 s.`, with kg steppers on three rows and `0/3 sets` in the
+header. `06` §0 confirms there is exactly one logging shape (`weightKg × reps`) and zero cardio entries in the
+catalogue. Panel side: CI-20 (endurance "not modelled", P10), and B-06 plans food for run days that cannot be logged.
+Every serious competitor treats cardio as a **different row shape inside the same workout** (`06` §1, §7).
+
+> "I cannot log cardio workouts with time and not sets … The UX needs improvements there." (owner)
+
+**User story.** As someone who warms up on the bike and finishes on the rower, I want to log minutes, distance and how
+hard it felt in the same workout as my lifts, with a timer if I'm doing it now or a quick entry if I did it earlier,
+and get a sensible "next time", so that my training log holds all of my training.
+
+**⚖ D-17, D-20** (§D.1). **Protect:** D1 (strength rows, speed and offline unchanged), D2 (cardio "Next time" follows
+the same Why?/Adjust pattern), D22 (a cardio-only session counts toward the week like any finished workout).
+**D-11:** all free.
+
+#### Flow & states
+
+**(1) Find it.** The Exercises tab and the workout's exercise picker (add and swap) get a `Cardio` chip first in the
+muscle-group row. Cardio rows show `Time · distance` (or `Time`) as their subtitle instead of the equipment, and an
+icon per equipment (`bicycle-outline`, `walk-outline`, `boat-outline` for the rower, `water-outline` for the pool,
+`fitness-outline` otherwise). A swap from a cardio exercise suggests other cardio first (`Matches your equipment`
+logic from UX-05 H).
+
+**(2) The cardio entry (one row, not sets).** When a cardio exercise is in a workout, its card holds **one entry**
+(INTERVALS, wave 5, holds rounds). No kg, no sets, no RIR question.
+
+```
+Live workout, timer mode
+┌ 🚲 Stationary Bike (Upright)                          ⋯ ┐
+│ Cardio · last time 20 min · 7.2 km · Moderate            │
+│ ┌ Next time ─────────────────────────────────── Why? ┐   │
+│ │ 22 min at a moderate effort.                        │   │
+│ └─────────────────────────────────────────────────────┘   │
+│ [  Timer  |  Enter  ]                                    │
+│                   12:48                                  │
+│        [ ❚❚ Pause ]            [ ■ Stop ]                │
+│ Quick fill  ( Same as last time ) ( 22 min · moderate )  │
+└──────────────────────────────────────────────────────────┘
+
+Enter mode (or after Stop)
+┌ 🚲 Stationary Bike (Upright)                          ⋯ ┐
+│ Time        [ 22 ] min  [ 00 ] s                          │
+│             10  15  20  30  45  60                        │
+│ Distance    [ 7.9 ] km                  optional          │
+│ Level       [ − ]   8   [ + ]           optional          │
+│ How hard was it?                                          │
+│  ( Easy )        ( Moderate )        ( Hard )             │
+│  can talk        short sentences      a few words         │
+│                                        Exact effort ▸     │
+│ [                   ✓  Log it                    ]        │
+└──────────────────────────────────────────────────────────┘
+
+Logged
+┌ 🚲 Stationary Bike (Upright)                          ⋯ ┐
+│ ✓ 22:00 · 7.9 km · Moderate · level 8          Edit      │
+└──────────────────────────────────────────────────────────┘
+```
+
+- **Fields by tracking type** (`06` §5.1) and equipment:
+
+  | Tracking type       | Fields shown                                                                                            | Example                                      |
+  | ------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+  | `DURATION`          | Time · effort · level (machines with a dial: stair climber, spin bike)                                  | Stair Climber, Jump Rope, Spin Class         |
+  | `DURATION_DISTANCE` | Time · distance · effort · level (bike, elliptical) or incline % (treadmill) or damper (rower)          | Treadmill Run, Rowing Machine, Outdoor Cycle |
+  | `DISTANCE`          | Distance · effort (time optional)                                                                       | Outdoor Walk logged from memory              |
+  | `INTERVALS` (W5)    | Rounds · work time + effort · rest time + effort; the timer runs work/rest with a haptic at each switch | Rowing Intervals, Bodyweight HIIT            |
+
+- **Timer or Enter.** A `SegmentedControl` (kit, MO-14). **Timer** is the default in a live workout; **Enter** is the
+  default when logging a past workout (backfill), editing (UX-44) or once the entry has a time. The timer is
+  wall-clock based (`timerStartedAt` + accumulated seconds in the active-session doc), so it survives an app kill,
+  a minimise and a locked phone, fully offline. `Pause` accumulates; `Stop` fills Time (rounded to the second) and
+  switches to Enter so the user adds distance and effort. A timer left running for 3 h pauses itself and the card
+  asks `Still going? You’ve been on the timer for 3 hours.` · `Keep going` · `Stop at 3:00:00`.
+- **One running timer at a time.** While a cardio timer runs, the bottom bar shows it instead of the rest timer
+  (`🚲 12:48 · Stop`, MO-11 ring). Ticking a strength set during cardio (a superset-style finisher) starts no rest timer.
+- **Time entry:** minutes + seconds fields (`NumericReturnBar`, `Next` chains to distance) plus duration chips `10 15
+20 30 45 60`. Distance in the user's unit: `km` or `mi` (new `distanceUnit`, defaulted from the device locale like
+  the weight unit); rowers and pools use metres (`2,000 m`). Level is an integer stepper 1–30; incline 0–15 % in 0.5
+  steps; all optional.
+- **Effort (`06` §2):** three chips with the talk-test line under each: `Easy` (can talk) = RPE 3, `Moderate` (short
+  sentences) = RPE 5, `Hard` (a few words) = RPE 7. `Exact effort ▸` reveals a 1–10 chip row (the existing RIR chip
+  pattern) for users who think in RPE; picking a number highlights the band it falls in. Effort is **optional**: an
+  entry logged without it is valid, and its Next time holds rather than progresses.
+- **Quick fill (presets):** `Same as last time` first (when there is history), then the exercise's catalogue presets
+  (e.g. `10 min · easy` warm-up, `20 min · moderate`, `30 min · easy`). A preset **fills** the fields; it never logs by
+  itself. `Log it` then commits, so a repeat of last time is 2 taps.
+- **`Log it`** requires a time (or a distance for `DISTANCE`). It sets the entry's `completedAt`, collapses the card to
+  the logged line (MO-05) with MO-07 tier 1 (tick draw, `haptics.success`), and counts as one done item.
+- **Header progress in mixed sessions:** when a session contains a cardio entry, the header reads `{done}/{planned}
+done` and counts each cardio entry as one item (a11y `5 of 7 done`). Strength-only sessions keep `{done}/{planned}
+sets` unchanged (D1 visual diff empty).
+- **Remove:** the card ⋯ keeps `Swap exercise`, `Skip exercise`, `Move up/down`, `Note`, and gains `Remove from this
+workout`. A logged entry can be cleared with ⋯ → `Clear entry` + Undo (PAT-16).
+
+**(3) Next time for cardio** (`packages/utils/src/gym/reasons.ts`; rule from `06` §4). Same card, `Why?` and Adjust as
+strength (D2). One dimension moves at a time, ≤ 10 % per week, rounded to whole minutes or 0.1 km.
+
+| Situation                                        | Next-time sentence (exact)                                                                              |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| First time                                       | `First time on the {name}: do what feels right and log it. We’ll suggest next time from this.`          |
+| Hit the target at the same or an easier effort   | `You did {time} at {effort}, so next time: {time′} at the same effort.`                                 |
+| Hit the time, but it felt harder than the target | `{time} felt {effort}, harder than last time, so the same time next time.`                              |
+| Short of the target                              | `You did {done} of {target}, so the same target next time.`                                             |
+| Three steady sessions at the same effort         | `Three steady sessions at {effort}. Next time, try level {n+1}, or keep {time} and go a little faster.` |
+| No effort logged                                 | `Same as last time. Log how hard it felt and we can suggest more.`                                      |
+| Why? sheet footnote                              | `We add at most 10 % a week, so your heart, joints and tendons keep up.`                                |
+
+**Minimal slice (wave 2, D-20 b)** ships only the first, "no effort" and a `Same as last time: {time} at {effort}.`
+sentence; the progression rows arrive in wave 5.
+
+**(4) Summary, history, stats.** The summary lists cardio as `Stationary Bike · 22 min · 7.9 km · Moderate` with its
+Next time. History rows: a cardio-only session reads `{min} min · {km} km`; a mixed one `{min} min · {n} sets · 1
+cardio`. Session detail shows the entry's fields, never `0 kg × 0`. Wave 5 adds a Stats `Cardio` view (weekly cardio
+minutes as a `BarChart`, one bar per week, 12 weeks) and, on a cardio exercise's detail, `Time` and `Distance` over
+time (`LineChart`) plus bests `Longest`, `Farthest`, `Fastest {5 km | 2,000 m}` in place of the e1RM chart.
+
+**(5) Routines.** A routine day can hold cardio slots. In the routine editor a cardio slot reads `Time [20] min ·
+Effort [Moderate]` (optional distance target) instead of `sets × reps`; order decides warm-up or finisher. The day's
+duration estimate (`packages/utils/src/gym/duration.ts`) adds the slot's time instead of `sets × (40 s + rest)`.
+
+**(6) Calories (⚖ D-17, flag `cardioCaloriesOnSummary`, off by default).** When on and the user has a body weight, the
+summary's cardio row adds `About {low}–{high} kcal` with `Why a range?` → ExplainSheet: `Worked out from the activity,
+your time and your body weight ({kg} kg). Real burn varies by 15–25 % between people, so we show a range. Chefer
+doesn’t add this to your food targets.` Never a single number, never on Food, never without a body weight (no prompt
+to add one here).
+
+**(7) Custom and requested exercises** get a required `How do you track it?` chip row (`Weight × reps` · `Reps only` ·
+`Time` · `Time + distance` · `Distance`) replacing the `Timed exercise` checkbox, so a bike can never be created in the
+strength shape again (UX-43 owns who can create).
+
+**States.** Offline: everything works offline (D1), including the timer. Loading: none beyond the workout's own.
+Error: sync failures use the existing outbox chip (MO-08). Empty: n/a (the catalogue ships with the app). Old
+exercises: a custom `Indoor bike` created before wave 5 stays strength-shaped until the owner accepts the one-time
+`Use the library’s Stationary Bike (Upright) instead?` (D-15, UX-43).
+
+#### Copy
+
+| Key         | Copy                                                                                                                                                                                                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| picker      | chip `Cardio` · subtitle `Time · distance` · `Time`                                                                                                                                                                                                      |
+| entry       | `Timer` · `Enter` · `Pause` · `Resume` · `Stop` · `Quick fill` · `Same as last time` · `{min} min · {effort}` · `Time` · `min` · `s` · `Distance` · `Level` · `Incline` · `Damper` · `optional` · `How hard was it?` · `Log it` · `Edit` · `Clear entry` |
+| effort      | `Easy` · `can talk` · `Moderate` · `short sentences` · `Hard` · `a few words` · `Exact effort` · a11y `Effort {n} out of 10`                                                                                                                             |
+| timer       | bottom bar `{exercise short name} {mm:ss} · Stop` · `Still going? You’ve been on the timer for 3 hours.` · `Keep going` · `Stop at 3:00:00`                                                                                                              |
+| progress    | header `{done}/{planned} done` (mixed sessions only)                                                                                                                                                                                                     |
+| next time   | the sentence table above                                                                                                                                                                                                                                 |
+| summary     | `{name} · {time} · {distance} · {effort}` · `About {low}–{high} kcal` · `Why a range?`                                                                                                                                                                   |
+| history     | `{min} min · {km} km` · `{min} min · {n} sets · {c} cardio`                                                                                                                                                                                              |
+| stats (W5)  | `Cardio` · `Minutes a week` · `Longest` · `Farthest` · `Fastest {distance}`                                                                                                                                                                              |
+| custom form | `How do you track it?` · `Weight × reps` · `Reps only` · `Time` · `Time + distance` · `Distance`                                                                                                                                                         |
+
+Strings in `apps/mobile/src/features/gym/copy.ts`; reason sentences in `packages/utils/src/gym/reasons.ts` (shared with
+web).
+
+#### Components & files
+
+**Mobile:** NEW `src/features/gym/workout/cardio-entry.tsx`, `effort-chips.tsx`, `cardio-timer.ts` (wall-clock timer
+state in the active session); `exercise-card.tsx` (branch on tracking type), `workout-screen.tsx` (header count, one
+bottom timer), `rest-timer-bar.tsx` (cardio timer variant), `workout-model.ts` (no strength defaults for cardio),
+`summary-screen.tsx`, `summary-model.ts`, `history/session-view.ts`, `library/exercise-picker.tsx` and
+`library-screens/exercises-tab.tsx` (`Cardio` chip), `library-screens/exercise-form-screen.tsx` (tracking-type chips),
+`routine/day-editor.tsx` (cardio slot), `stats/*` + NEW `stats/cardio-view.tsx` (W5),
+`library-screens/exercise-detail-screen.tsx` (W5 bests). **Shared:** `packages/types/src/gym/exercise-catalog.ts` (10–12
+entries in W2, 30 in W5, `06` §6), `packages/types/src/gym/schemas.ts` (additive fields), `packages/utils/src/gym/`
+`cardio.ts` (NEW: progression rule, pace, unit conversion), `reasons.ts`, `duration.ts`. **Server (additive):** the
+`06` §5 fields, delivery gated by `clientApiLevel` so old binaries never receive a shape they can't render (stage 4
+picks the mechanism). **Kit reused:** `SegmentedControl`, `Stepper`, `Chip`/`ChipGroup`, `NumericReturnBar`,
+`ProgressRing` (timer ring), `ExplainSheet`, `CountUp`, `BarChart`, `LineChart`.
+
+#### Interaction & motion
+
+Timer digits update once a second with no animation (a ticking number is information, not motion). The bottom timer
+bar uses MO-11 (ring). `Log it` → MO-07 tier 1 + MO-05 collapse. Presets fill fields with a 150 ms highlight fade on
+the changed values (MO-06 style). Effort chips: MO-14 selection, `haptics.selection`. Reduced motion: no ring sweep
+(a static ring updated per second), fades only.
+
+#### Accessibility
+
+The timer digits are `accessibilityRole="timer"` (Android) / a static label on iOS, **not** a live region (no
+announcement every second); `Stop` announces `Stopped at {time}`. Effort chips are a radio group labelled `How hard
+was it?`, each chip's label includes its talk-test line (`Moderate, can talk in short sentences`). All targets ≥ 44
+pt. At 1.8× text, fields stack one per line and the timer digits are capped at 1.3× (`DENSE_MAX_FONT_SCALE`) so
+`Pause`/`Stop` stay on screen.
+
+#### Analytics
+
+`cardio_logged { trackingType, via: timer|entry|preset, hasDistance, hasEffort }` · `cardio_timer_started` ·
+`cardio_preset_used { kind: last|catalogue }` · existing `suggestion_overridden { kind: 'cardio' }` · wave 5:
+`cardio_calories_shown` (flag on only). No durations, distances or calories as properties (PAT-13).
+
+#### Acceptance criteria
+
+1. Adding `Stationary Bike (Upright)` to any workout shows one cardio entry with no kg, no sets and no RIR question;
+   the owner's image6 situation cannot be reproduced with a catalogue exercise.
+2. Timer: start, kill the app, reopen 5 min later → the timer shows the right elapsed time; `Stop` fills Time; this
+   works in airplane mode.
+3. Repeating last time takes 2 taps (`Same as last time` → `Log it`).
+4. A session with bench press and a bike finishes; the header reads `… done`; the summary, history row and session
+   detail show both correctly; the week counts it once (D22).
+5. Unit tests for every Next-time row, including the 10 % weekly ceiling and "no effort → hold".
+6. Distances display in km or mi per the user's setting and are stored in metres (round-trip test).
+7. With D-17 at its default, no calorie number appears anywhere; with the flag on, only a range, only on the summary,
+   only with a body weight.
+8. The custom-exercise form requires `How do you track it?`; choosing `Time + distance` hides sets, reps and kg.
+9. Catalogue: 10–12 cardio machines in wave 2 (D-20 b), 30 entries in wave 5, each with a tracking type, cue and
+   equipment; the `Cardio` chip lists them.
+10. A level-0 client's bootstrap contains no cardio-typed exercise it cannot render (contract test).
+11. At 1.8× text on a 320 pt screen, the entry's fields, `Log it` and the timer controls are all reachable without
+    horizontal scroll.
+
+#### Edge cases
+
+A cardio entry with only distance (outdoor walk from memory): valid for `DISTANCE`, and for `DURATION_DISTANCE` it asks
+for a time (`Add a time to log this.`). Pausing the workout (Save for later, UX-36) pauses a running cardio timer.
+Backfilled sessions hide `Timer`. Swapping a strength exercise for a cardio one mid-workout drops its unlogged sets
+and keeps logged ones in history under the original exercise. Deload weeks do not change cardio targets. A user with
+`LB` weight and `KM` distance is valid (independent settings).
+
+#### Web parity
+
+Web gym (G5) must at least **render** cardio in the same PR group: history (`gym/history/[id]`), summary
+(`gym/summary/[id]`) and stats never show `0 kg × 0` for a cardio entry. Logging cardio on the web workout page
+(`features/gym/workout/workout-view.tsx`) follows in the same lane when the web workout exists; otherwise add a
+`mobile_parity_backlog.md` reverse row (the gym is mobile-first by the owner's scoping, `05` B-44). Shared logic is
+in `@chefer/utils`.
+
+**Dependencies.** UX-05 A2 (the Now slice), W2-0 or W5-0 contracts, `06` §5–§7. Cross-links: UX-06 A1 (a logged run
+marks the day), UX-43 (the catalogue must exist before custom creation is restricted). **Validate:** P10 (a 40-min
+ride and a 10 km run inside a gym session) and the owner check `05` §6.1 row W2/W5.
+
+---
+
+<a id="ux-43"></a>
+
+### UX-43 A governed exercise library ⚖ _(new, Next: wave 5, L-GYMDATA, after UX-42's catalogue)_
+
+**Problem & evidence.** The owner: "Gym - exercises - +custom -> This should be a feature available only for admins,
+or maybe create a roll like 'trainers' that can also add new exercises. In general we should have a pretty strong DB
+for exercises, not really needed to create new ones." [image6](../owner-feedback-2026-09-27/images/image6.png) is the
+evidence of the cost: a user-made exercise with strength defaults, coached with confident nonsense. Today `+ Custom`
+sits in the Exercises header for everyone (`exercises-tab.tsx` L63–68), and `gym.library.createCustom` is a plain
+`protectedProcedure`. **Counter-evidence to respect:** the custom exercise is currently the **only** way to log what
+the library lacks (all cardio; loaded bodyweight, CI-42; niche machines), and P01's `Bodyweight + load` was a custom.
+So restriction must never leave a user unable to log what they did (`05` §2.2).
+
+**User story.** As a lifter who meets a machine the library doesn't have, I want to ask for it and log it straight
+away, and as a trainer I want to add it properly, so that the library stays clean and I never lose a workout.
+
+**⚖ D-14, D-15** (designed as recommended, §D.1). **Protect:** D4 (exercise detail), D5 (routine, session and target
+editing is untouched: swap, add, reorder and override all stay), D-11 (a role is not a tier).
+
+#### Flow & states
+
+**(1) What a regular user sees instead of `+ Custom`.** The Exercises header loses `+ Custom`. The request path lives
+where the need appears: at the end of a search.
+
+```
+Exercises                                        (no header button)
+[ 🔍 landmine                                         ]
+  (no results)
+┌──────────────────────────────────────────────────┐
+│ No “landmine” in the library.                     │
+│ [ Request “landmine” ]                            │
+└──────────────────────────────────────────────────┘
+…and under every list:   Can’t find an exercise?  Request it
+```
+
+The same empty-result block and footer appear in the workout's exercise picker (add and swap). **That is the one that
+matters:** the need arises mid-workout.
+
+**(2) Request sheet.**
+
+```
+┌ Request an exercise ──────────────────────────── ✕ ┐
+│ We’ll review it for the library. You can log it     │
+│ straight away.                                       │
+│ Name *                [ Landmine press            ] │
+│ Did you mean?  Landmine Row ›   Barbell Press ›     │  ← library matches while typing
+│ How do you track it? *                               │
+│ (Weight × reps) (Reps only) (Time) (Time + distance) (Distance)
+│ Equipment             [ Barbell                 ▾ ] │  PAT-15
+│ Link to a video · optional [ https://…           ] │
+│ [            Request and use it             ]        │
+└──────────────────────────────────────────────────────┘
+```
+
+- `Did you mean?` shows up to 3 library matches (name and synonym search) from 3 characters; tapping one uses that
+  exercise instead and closes the sheet. This is the cheapest way to shrink the queue.
+- `Request and use it` creates a **requested exercise**: private to the user, usable at once, with the chosen tracking
+  shape. From the workout picker it is also added to today's workout.
+- **Offline:** the requested exercise is created locally (client ID) and queued in the outbox like a session, so a
+  mid-workout request never fails; the sheet's button reads `Request and use it` either way, and the row shows
+  `Requested · sends when you’re online`. **Needs (additive):** an outbox op for exercise requests (stage 4). If stage 4
+  rules that out, the fallback is online-only with `Needs a connection. Log it on a similar exercise and add a note.`
+
+**(3) A requested exercise in use.**
+
+- In the workout: the card works like any exercise of its tracking type, with the last-time column from the user's own
+  history, but **no engine suggestion, no Why?, no Next time**. In their place, one muted line: `Requested · no
+suggestions until it’s in the library. Log what you do.` (This is what stops image6's nonsense at the root.)
+- In the Exercises tab: under `Mine`, with a status chip: `Requested`, `In the library`, `Matched` or `Not added`.
+
+**(4) When an admin or trainer resolves it** (one-time card at the top of the Exercises tab and, if the user is
+mid-routine, a snackbar on Gym Today):
+
+| Outcome                    | Message (exact)                                                                         | What happens                                                |
+| -------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Added to the library       | `“{name}” is now in the library. Your {n} sessions moved to it.`                        | History and routine slots move to the new library exercise. |
+| Matched to an existing one | `We matched “{name}” to {library name}. Your history moved with it.`                    | Same move, to the existing exercise.                        |
+| Not added                  | `We didn’t add “{name}” to the library: {reason}. You can keep logging it as your own.` | It stays private and log-only.                              |
+
+Reasons are short and fixed: `it’s already in the library as {name}`, `it isn’t a gym exercise`, `we can’t show it
+safely yet`.
+
+**(5) Existing custom exercises (D-15 a + c).** They stay under `Mine` with a `Custom` chip, usable and editable by
+their owner (the form gains `How do you track it?`, UX-42 §7), history intact, never deleted. New creation is off. Where
+an admin has mapped a custom's name to a library exercise, its detail screen shows once:
+
+```
+┌──────────────────────────────────────────────────┐
+│ Chefer’s library has Stationary Bike (Upright).   │
+│ Use it instead? Your history moves with it.       │
+│ [ Use the library’s ]   [ Keep mine ]             │
+└──────────────────────────────────────────────────┘
+```
+
+`Keep mine` is remembered; the card never returns for that exercise.
+
+**(6) Trainers and admins (authoring).** Users with `TRAINER` or `ADMIN` see `+ New exercise` in the Exercises header on
+mobile and web. It opens the exercise form (today's custom form, extended): name, `How do you track it?`, equipment,
+muscles, rep range and rest (strength) or default time and presets (cardio), increment, cues (up to 3), and on web
+only, photos and a video link. Saving creates a **library** exercise visible to everyone, marked with its author and
+provenance so the code-synced catalogue never overwrites it. A banner on the form says `This adds to the library for
+everyone.` Editing a library exercise shows `Changes reach everyone’s library on their next sync.`
+
+**(7) Web admin.** NEW `app/(dashboard)/admin/exercise-requests`: requests grouped by normalised name with a count
+(`Landmine press · 7 requests`), newest first within a count. Row actions: `Add to library` (opens the authoring form
+prefilled), `Match to…` (exercise picker), `Not added` (reason chips as above). The existing admin Users page role
+select gains `Trainer` with the hint `Can add and edit library exercises. Not a paid plan.`
+
+**(8) Rollout (flag, then enforce; `05` §2.2).** Flag `exerciseRequests` (OTA): **on** only after UX-42's cardio
+catalogue and the library-gap pass (loaded bodyweight: `Weighted Dip`, `Weighted Pull-up`, `Weighted Push-up`; common
+machine variants) are live. With the flag on, `+ Custom` is hidden for users with no custom exercises and replaced by
+`Request` for all. After the OTA adoption window, the server enforces authoring through `trainerProcedure`; an old
+binary that still calls `createCustom` gets a readable `FORBIDDEN`: `Adding exercises is now done by Chefer’s
+trainers. Update the app to request one.`
+
+**States.** Loading: the tab's existing skeleton. Empty search: the request block above. Error (request failed after
+retries): the row shows `Couldn’t send your request · Try again` (the exercise stays usable). Offline: §(2). Free vs
+premium: all free.
+
+#### Copy
+
+| Key          | Copy                                                                                                                                                                                                               |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| entry points | `No “{q}” in the library.` · `Request “{q}”` · `Can’t find an exercise?` · `Request it`                                                                                                                            |
+| sheet        | `Request an exercise` · `We’ll review it for the library. You can log it straight away.` · `Name` · `Did you mean?` · `How do you track it?` · `Equipment` · `Link to a video` · `optional` · `Request and use it` |
+| in use       | `Requested · no suggestions until it’s in the library. Log what you do.` · `Requested · sends when you’re online` · `Couldn’t send your request` · `Try again`                                                     |
+| status chips | `Requested` · `In the library` · `Matched` · `Not added` · `Custom`                                                                                                                                                |
+| outcomes     | the table in §(4) · reasons `it’s already in the library as {name}` · `it isn’t a gym exercise` · `we can’t show it safely yet`                                                                                    |
+| map card     | `Chefer’s library has {name}. Use it instead? Your history moves with it.` · `Use the library’s` · `Keep mine`                                                                                                     |
+| authoring    | `+ New exercise` · `This adds to the library for everyone.` · `Changes reach everyone’s library on their next sync.`                                                                                               |
+| admin (web)  | `Exercise requests` · `{name} · {n} requests` · `Add to library` · `Match to…` · `Not added` · role `Trainer` · `Can add and edit library exercises. Not a paid plan.`                                             |
+| old binaries | `Adding exercises is now done by Chefer’s trainers. Update the app to request one.`                                                                                                                                |
+
+#### Components & files
+
+**Mobile:** `library-screens/exercises-tab.tsx` (header, footer, empty block, status chips), NEW
+`library-screens/request-exercise-sheet.tsx`, `library/exercise-picker.tsx` (footer + empty block),
+`library-screens/exercise-form-screen.tsx` (tracking type; library authoring for trainers),
+`library-screens/exercise-detail-screen.tsx` (map card), `workout/exercise-card.tsx` (requested line, no suggestion),
+`today/today-screen.tsx` (resolution snackbar), `offline/outbox.ts` (request op). **Web:** `app/(dashboard)/gym/exercises/`
+`page.tsx` and `new/` (role-gated), NEW `app/(dashboard)/admin/exercise-requests/page.tsx`,
+`app/(dashboard)/admin/users/page.tsx` (Trainer). **Server (W5-0, additive):** `UserRole.TRAINER` (or D-14's
+alternative), `trainerProcedure` in `apps/api/src/lib/trpc.ts` (CLAUDE.md rule 5), exercise provenance and request
+status, `gym.library.requestExercise`, admin `gym.library.requests.*`, history move on resolve. Docs duty:
+`infrastructure.md` §6, §7, §8, §9 and `business_flow.md` §4 at implementation time.
+
+#### Interaction & motion
+
+MO-02 for the sheet; MO-04 when a request resolves and the row changes group; MO-14 for chips. No haptics except
+`haptics.success` on `Request and use it`. Reduced motion: fades.
+
+#### Accessibility
+
+`Request it` links are buttons with ≥ 44 pt hit areas (`hitSlop` on the inline link). The `Did you mean?` matches are
+buttons labelled `Use {name} instead`. Status chips carry words, not colour alone. The requested-exercise line is read
+before the sets.
+
+#### Analytics
+
+`exercise_requested { from: library|picker|search_empty, trackingType, offline }` · `exercise_request_match_used`
+(Did you mean?) · `exercise_request_resolved { outcome }` (server) · `custom_mapped { accepted }` ·
+`exercise_authored { role, isEdit }`. Exercise names are not sent (sizing the gap list is done from the admin queue).
+
+#### Acceptance criteria
+
+1. With the flag on, a `USER` sees no `+ Custom`; an empty search in the Exercises tab and in the workout picker offers
+   `Request “{q}”`.
+2. A requested exercise can be logged immediately, online or offline, and never shows a Why?, a Next time or an engine
+   load.
+3. `Did you mean?` offers existing library exercises before a request is created.
+4. Resolving a request as added or matched moves the user's history and routine slots to the library exercise (API
+   test), and the user sees the exact outcome message once.
+5. Existing custom exercises remain listed, usable and editable, with history intact; none is deleted or hidden (D-15).
+6. `TRAINER` and `ADMIN` can create and edit library exercises on mobile and web; `USER` cannot (API test through
+   `trainerProcedure`, not an `if` in the handler).
+7. The flag cannot be turned on before UX-42's catalogue and the library-gap entries exist (a release checklist item
+   with a data test counting cardio and weighted-bodyweight entries).
+8. An old binary calling `createCustom` after enforcement gets the readable message, not a raw error (contract test).
+9. The Trainer role changes no entitlement anywhere (a test that `TRAINER` has the same premium state as `USER`).
+
+#### Edge cases
+
+Two users request the same name: one admin decision resolves both. A request duplicating another request of the same
+user: `Did you mean?` lists the user's own requested exercise first. A trainer demoted to user: their library
+exercises stay (authored content belongs to the library). A user who deletes their account: their requested exercises
+go with it; library exercises they authored as trainer stay, with the author shown as `Chefer`. Routine templates only
+ever reference library exercises.
+
+#### Web parity
+
+Web `gym/exercises/new` is role-gated the same way, and web users get the same request sheet on the web Exercises
+page. Admin tooling is web-only by design. Shared: request schema and outcome copy in `@chefer/types` /
+`@chefer/utils`.
+
+**Dependencies.** UX-42 catalogue (hard gate), D-14, D-15, W5-0 contracts. **Validate:** P01 and P03 (experts) react
+to `Request an exercise` replacing `+ Custom` (`05` §6.2) — the real test of whether restriction costs trust.
+
+---
+
+<a id="ux-44"></a>
+
+### UX-44 Correct a past workout _(new, Now, cut-able: wave 2, L-GYM)_
+
+**Problem & evidence.** The owner: "The previous sessions should be editable (either delete them entirely - with
+confirmation of course, or edit specific exercise, replace, swap, edit reps, kg etc.)". Today delete exists but is
+buried in session detail behind a native `Alert`, works only online and has no undo; there is **no edit**
+(`session-detail-screen.tsx` L35–56). A mistyped kg stays in history and feeds next week's target, because
+progression folds over completed sessions: the CI-31 trust problem through the back door. This is the gym twin of
+UX-19's "fix mistakes" (CI-48).
+
+**User story.** As a lifter who typed 600 instead of 60, or logged the same workout twice, I want to fix or delete
+that workout from where I see it, and be told if it changes my next targets, so that my history and my progression
+stay right.
+
+**⚖ D-21** (a: any past session, §D.1). **Protect:** D1 (the live logger is unchanged; edit mode is a variant), D2
+(Next time is recomputed, never silently: PAT-14), D22 (the week and streak recompute from data, and the confirm says
+so up front).
+
+#### Flow & states
+
+**(1) Entry points.** Every completed session row, wherever it is listed, has a `⋯` (44 pt): Gym Today `Recent`
+(UX-36 A2), Stats › History (UX-36 (5)). The menu: `Edit workout` · `Delete workout`. Session detail gets a header
+`Edit` text button and a `⋯` with `Delete workout`; the bottom `Delete` button and the native `Alert` go.
+
+**(2) Edit mode** (the logger, in a variant):
+
+```
+┌ Cancel        Editing · Tue 22 Sep            Save ┐
+│ Full Body A · Tue 22 Sep · 18:10         Change ›  │
+├────────────────────────────────────────────────────┤
+│ Barbell Bench Press                             ⋯  │
+│ Set 1   [ −  60 kg  + ]  [ −  8 reps  + ]   (✓)    │
+│ Set 2   [ −  60 kg  + ]  [ −  7 reps  + ]   (✓)    │
+│ Set 3   [ − 600 kg  + ]  [ −  6 reps  + ]   (✓)    │  ← the typo
+│ + Add set                                          │
+│ 🚲 Stationary Bike · ✓ 20:00 · Moderate    Edit ⋯  │
+│ + Add exercise                                     │
+└────────────────────────────────────────────────────┘
+```
+
+- **What differs from the live logger:** no elapsed clock, no rest timer, no auto-advance or auto-scroll, no Why? or
+  Next-time banners (they describe the future, and the notice in (4) covers it), no effort-question prompt (RIR stays
+  editable through the exercise ⋯ → `Change effort`). Sets show as they were logged; unticking one means "not done".
+  Values open the same keypad (`NumberSheet`, with the plate calculator); rows use the UX-05 A1 set row, including
+  remove with Undo.
+- **Exercise ⋯ in edit mode:** `Replace exercise` (the picker; applies to this workout only, never the routine), `Remove
+from this workout`, `Move up` / `Move down`, `Note`, `Change effort`. Replacing keeps the logged sets' numbers on the
+  new exercise (the typical case is "I logged it under the wrong machine").
+- **Date and time:** `Change ›` opens a sheet with date chips (the dates `Log a past workout` offers, from Monday of last
+  week to today, plus the session's current date) and the `TimePicker` (PAT-10). Never a future time.
+- **Save** writes through the offline outbox (`gym.session.upsertMany` is idempotent and replaces children), shows
+  snackbar `Workout updated`, and returns to where the user came from. If nothing is ticked any more, Save asks
+  instead: `Nothing is ticked. Delete this workout?` · `Delete workout` · `Keep editing`.
+- **Cancel with edits:** `ConfirmSheet` `Discard your edits?` · `Your workout stays as it was.` · `Discard edits` ·
+  `Keep editing` (also on Android back and swipe-back).
+
+**(3) Delete, with a confirm that says what changes, then Undo.**
+
+```
+┌ Delete this workout? ────────────────────────────┐
+│ Full Body A on Tue 22 Sep: 18 sets.               │
+│ This week goes from 5 to 4 sessions.              │  ← only when it changes
+│ Your streak goes from 3 weeks to 2.               │  ← only when it changes
+│ Next time targets for its exercises are worked    │
+│ out again.                                        │
+│ [ Delete workout ]                    [ Keep it ] │
+└───────────────────────────────────────────────────┘
+```
+
+After confirming, the row leaves the list (MO-04) and the snackbar says `Workout deleted` + `Undo` (8 s). The delete is
+held on the device until the snackbar ends, then sent through the outbox, so Undo is instant and works offline.
+**Needs (additive):** a delete op in the gym outbox (stage 4: a queued `session.delete` or a deleted flag on upsert).
+
+**(4) When a target moves (PAT-14).** After an edit or delete is synced and progression is recomputed, if any
+exercise's next target changed, Gym Today shows one `ChangeNoticeCard`:
+
+```
+┌ CHANGED ─────────────────────────────────────────┐
+│ Next time changed after your edit                 │
+│ Barbell Bench Press    62.5 kg → 60 kg            │
+│ Squat                  80 kg → 82.5 kg            │
+│ Because you edited Tuesday’s sets.         Why?   │
+│ [ Use the new targets ]   [ Keep the old ones ]   │
+└───────────────────────────────────────────────────┘
+```
+
+Up to 3 rows, then `and {n} more`. `Keep the old ones` writes the old values as the user's own overrides (the existing
+`progression.setOverride`, "Your target wins", D2). No card when nothing moved.
+
+**States.** Loading (detail opened from a row beyond the cached 12 weeks): the detail's existing skeleton. Error
+(sync of an edit failed): the outbox chip shows `Not synced · Retry` (MO-08) and the edit stays on the device. Offline:
+edit and delete work fully; the change notice appears after sync. Empty: n/a. Conflict: another device edited the same
+session later → last write wins by `clientUpdatedAt` (as today), and the losing device shows snackbar `This workout was
+changed on another device. Showing the latest.`
+
+#### Copy
+
+| Key       | Copy                                                                                                                                                                                                                                                                               |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| menus     | `Edit workout` · `Delete workout` · `Edit` · `Replace exercise` · `Remove from this workout` · `Change effort` · `Move up` · `Move down` · `Note`                                                                                                                                  |
+| edit mode | `Editing · {weekday d Mon}` · `Cancel` · `Save` · `Change` · `Workout updated` · `Nothing is ticked. Delete this workout?` · `Keep editing`                                                                                                                                        |
+| discard   | `Discard your edits?` · `Your workout stays as it was.` · `Discard edits` · `Keep editing`                                                                                                                                                                                         |
+| delete    | `Delete this workout?` · `{name} on {weekday d Mon}: {n} sets.` · `This week goes from {a} to {b} sessions.` · `Your streak goes from {a} weeks to {b}.` · `Next time targets for its exercises are worked out again.` · `Delete workout` · `Keep it` · `Workout deleted` + `Undo` |
+| notice    | `Next time changed after your edit` · `Because you edited {weekday}’s sets.` · `Because you deleted {weekday}’s workout.` · `Use the new targets` · `Keep the old ones` · `and {n} more`                                                                                           |
+| sync      | `Not synced · Retry` · `This workout was changed on another device. Showing the latest.`                                                                                                                                                                                           |
+
+#### Components & files
+
+**Mobile:** `history/session-detail-screen.tsx` (header Edit + ⋯, remove the `Alert`), `today/recent-workouts.tsx`
+(row ⋯; built by UX-36 A2), `stats/history-view.tsx` (row ⋯), `workout/workout-screen.tsx` (edit-mode variant; no
+timers), NEW `workout/edit-session-header.tsx`, NEW `use-edit-session.ts` (loads a completed session into an editable
+draft, separate from the active-session store so a live workout is never touched), `offline/outbox.ts` (delete op),
+`today/today-screen.tsx` (notice slot for gym rules, PAT-14). **Shared:** `packages/utils/src/gym/` (week/streak
+preview for the confirm, from the existing week summariser). **Server (additive):** progression recompute on upsert of
+a completed session (exists for delete), the before/after target diff returned or derivable for the notice.
+
+#### Interaction & motion
+
+MO-04 row exit on delete and re-entry on Undo; MO-09 push into edit mode; PAT-14 card slides in once (no haptic);
+`haptics.warning` on delete, `haptics.success` on Save. Reduced motion: fades, no slide.
+
+#### Accessibility
+
+Row ⋯ buttons are labelled `Options for {name}, {weekday d Mon}`; the rows also expose `accessibilityActions` `Edit`
+and `Delete` (PAT-16). The edit header announces `Editing {name}, {date}`. The confirm body is read in full before the
+buttons. Notice rows read as `{exercise}: {before} to {after}`.
+
+#### Analytics
+
+`session_edited { setsChanged, exercisesReplaced, exercisesRemoved, dateChanged }` · `session_deleted { from:
+recent|history|detail }` · `session_delete_undone` · `session_edit_discarded` · `target_notice_answered { choice:
+new|keep, source: 'session_edit' }`. Counts and booleans only.
+
+#### Acceptance criteria
+
+1. From Gym Today `Recent` and from Stats › History, a completed session can be opened for editing in ≤ 2 taps (⋯ →
+   `Edit workout`).
+2. Changing 600 kg to 60 kg on Tuesday and saving updates history, the summary and the exercise's next target; the
+   change notice names the exercise with before → after, and `Keep the old ones` keeps the old target as an override.
+3. Edits save offline and sync later; the live active-session store is never modified by an edit (unit test).
+4. Delete asks first, naming the workout, its sets and any change to this week's count or the streak; `Undo` within
+   8 s restores it with nothing sent to the server; after 8 s it syncs, also when started offline.
+5. `Replace exercise` in edit mode never offers to change the routine.
+6. A session's date can move within the offered range and never into the future; week counts recompute.
+7. No native `Alert` remains in the session-detail delete path.
+8. A progression recomputed after an edit equals a fresh fold over the edited history (engine unit test, `05` §6.3).
+
+#### Edge cases
+
+Editing a session that holds a PR: the PR is recomputed (a corrected 600 kg PR disappears without a celebration).
+Editing a deload session keeps its deload flag. Deleting the only session of a week in a paused period changes nothing
+in the streak (pause wins, UX-36). Editing a backfilled session is the same as any other. A session older than the
+cached 12 weeks is edited after loading it online; offline it shows `Connect to load older workouts.` in the list and
+cannot be opened.
+
+#### Web parity
+
+The gym is mobile-first by the owner's scoping. Web `gym/history/[id]` gets `Delete workout` with the same confirm and
+Undo in T-36.7 if the page is touched; web edit mode is a `mobile_parity_backlog.md` reverse row in T-36.7's list.
+
+**Dependencies.** UX-36 A2 (the Recent list to act from) and UX-36 (5) (History), UX-05 A1 (set row with remove),
+PAT-4, PAT-5, PAT-14. **If capacity forces a cut:** cut edit mode first; keep the ⋯ `Delete workout` with confirm and
+Undo (`05` §3.1). **Validate:** P09 "fix a wrong set" and the owner check W2 row (`05` §6.1).
+
+---
+
+<a id="d8-amendments"></a>
+
+### D.8 Amendments to existing specs
+
+Each amendment states the **delta** against the earlier section and its **new acceptance criteria**, numbered to
+follow the spec's own list. Earlier criteria still apply unless an amendment says it replaces one.
+
+<a id="ux-05-a1"></a>
+
+#### UX-05 amendment A1 — The set row, regrouped (O-05, O-06; follows the O-07 hotfix) · wave 1, L-GYM
+
+**Evidence.** [image1](../owner-feedback-2026-09-27/images/image1.png): "Deleting a set should be easier here, also
+the + button for kg is too close to the - button on reps. Same for + button on reps with the checkmark, they should
+feel a bit more grouped." [image3](../owner-feedback-2026-09-27/images/image3.png): set 2's values at ~4 pt. CI-42
+(P03: set delete only by long-press).
+
+**Delta to UX-05 G.** The bullet "A visible way to delete a set: `Remove set` in the exercise's ⋯ menu … plus a
+`minus-circle-outline` 44 pt button at the end of an unticked extra set row. Long-press stays." is **replaced** by the
+design below (any set, not only extra ones; no confirm; Undo).
+
+```
+Today (image1)                      Amended
+Set 2                               Set 2      Last 55 × 8                  ⋯
+[−][60][+][−][10][+][✓]             ┌─────────────────┐  ┌──────────────────┐  ╭────╮
+ 7 equal tiles, 4 pt apart          │ −   60 kg    +  │  │ −   10 reps   +  │  │ ✓  │
+                                    └─────────────────┘  └──────────────────┘  ╰────╯
+                                       one kg group     8 pt    one reps group  8 pt  round ✓
+```
+
+- **Grouping.** Each field is **one filled container** (`bg-muted`, `rounded-control`, 48 pt tall) holding `−`,
+  the value and `+`. The buttons inside have no fill of their own (pressed state: 5 % darker, MO-01), so the eye reads
+  two controls, not six tiles. The groups sit **8 pt apart** (today 4 pt, and the two tiles touched visually because
+  every tile had the same fill), and the ✓ sits 8 pt after the reps group.
+- **The ✓ looks like a different thing.** A 48 pt **circle** (`rounded-full`), outlined `border-2 border-primary/40`
+  with a `checkmark` icon (26 pt, `text-primary`) when open; filled emerald with a white check when done (unchanged
+  meaning, new shape). Shape plus fill, never colour alone.
+- **Sizes that fit.** `−`/`+` are 44 × 48 pt (≥ 44 pt, CLAUDE.md); the value cell is flexible with a 44 pt minimum. On
+  a 375 pt phone the controls line has ~331 pt: 2 × (88 + 45) + 8 + 8 + 48 = 330 pt fits. **Below 330 pt available**
+  (320 pt phones) **or at font scale > 1.3**, the row switches to the stacked layout (the web set row already does
+  this, `sm:flex-row`):
+
+```
+Set 2     Last 55 × 8                         ⋯
+┌──────────────────────────────┐   ╭────╮
+│ −          55 kg           + │   │    │
+└──────────────────────────────┘   │ ✓  │
+┌──────────────────────────────┐   │    │
+│ −          8 reps          + │   ╰────╯
+└──────────────────────────────┘
+```
+
+- **Values never shrink to nothing (builds on the W0-D fix, UX-21 A1 row 21.20).** No `adjustsFontSizeToFit`. The value
+  is 17 pt semibold tabular; values of 6 characters or more (`102.5`, `1:30:00`) use 15 pt. The size is a pure function
+  of the string, so three identical rows always render identically. Captions (`kg`, `reps`, `s`) stay 12 pt.
+- **Removing a set (PAT-16).** The label line gains a `⋯` (44 pt hit area) on every set, logged or not, opening a
+  small sheet: `Remove set {n}` (destructive). Swipe left on the row also removes it. Long-press opens the same sheet
+  (no longer a ConfirmSheet). There is **no confirm**: the row exits (MO-04), later sets renumber, and snackbar
+  `Removed set {n}` + `Undo` (8 s) restores it in place with its values and tick. The rest timer is not touched. The
+  exercise ⋯ menu's `Remove a set` is renamed `Remove last set` (it removes the last unlogged set, or the last set when
+  all are logged).
+- **Nothing else changes:** pre-filled weights, one-tap ✓, the value tap to the keypad, long-press repeat on `−`/`+`,
+  the last-time text, the PR chip, weight propagation to later unticked sets. D1's speed is the constraint.
+
+**Files.** `src/features/gym/workout/set-row.tsx`, `packages/ui-mobile/src/components/value-stepper.tsx` (a `grouped`
+variant: container fill, transparent buttons, deterministic font size; the plain variant stays for other callers),
+`workout-screen.tsx` (remove → Undo instead of the `removeSet` ConfirmSheet), `workout-sheets.tsx` (menu rename),
+NEW `apps/mobile/src/components/swipe-to-remove.tsx` (PAT-16). Web: `features/gym/workout/components/set-row.tsx`
+(same grouping and 8 pt gaps; its set-number menu already removes a set, add Undo).
+
+**New acceptance criteria (UX-05).**
+
+12. The kg `+` and the reps `−` are in different filled containers with ≥ 8 pt of card background between them, and
+    the ✓ is a circle; every control is ≥ 44 pt in both dimensions (layout test at 320, 375 and 402 pt widths).
+13. Three sets with identical values render identical font sizes for every value, including after tick, untick, value
+    edits and rotation, at 1.0× and 1.3× text (Jest render test on `ValueStepper`, `05` §6.3).
+14. Any set, logged or not, is removed in ≤ 2 taps (⋯ → Remove) or one swipe; `Undo` restores it at the same position
+    with the same values and state; no confirm dialog appears.
+15. At 320 pt or > 1.3× text the row stacks, and nothing overflows horizontally.
+16. In a 20-set session on the owner's phone, logging speed does not regress: median time from ✓ on one set to ✓ on
+    the next is within 10 % of the pre-change build (Maestro timing on the same flow). The D1 visual diff is expected
+    for the set row only; the Why? sheet diff stays empty.
+
+<a id="ux-05-a2"></a>
+
+#### UX-05 amendment A2 — Sane defaults for timed and custom exercises (O-02; the UX-42 Now slice) · wave 1, L-GYM
+
+**Evidence.** image6: `Starting weight: 15 kg. Aim for 1 s.` on a custom timed exercise; `3 × 1 s` from
+`repMin = 1`. The coaching (D2) is the gym's most praised asset, and a nonsense "why" attacks it.
+
+**Delta (new bullet under UX-05 A, and a new row in its reason table).**
+
+- A **timed** exercise (`isTimed`) never gets an engine load suggestion and shows no kg stepper (`weightMode` `none`,
+  the `BW` cell) **unless** the user has logged a load on it before (a weighted plank keeps its load).
+- A timed exercise's aim is at least 20 s; when the exercise's own range is below 10 s, the aim is omitted rather than
+  invented.
+- A **custom** exercise with no history gets the neutral first-time line instead of a guessed load:
+
+| Situation                    | Sentence (exact)                                                 |
+| ---------------------------- | ---------------------------------------------------------------- |
+| Timed, first time            | `New: hold for about {n} s, or log what you managed.`            |
+| Timed, range under 10 s      | `New: log how long you went.`                                    |
+| Custom, first time, weighted | `New: pick a weight you can lift for {repMin} reps, and log it.` |
+
+**New acceptance criteria (UX-05).** 17. A custom timed exercise with `repMin = 1` shows no kg stepper, no `Starting
+weight`, and never `Aim for 1 s` (engine unit test plus the image6 flow in Maestro). 18. A timed exercise logged with
+a load keeps offering that load next time.
+
+**Files.** `packages/utils/src/gym/progression.ts` (suggestion for timed/custom), `reasons.ts`,
+`src/features/gym/workout/workout-model.ts` (`weightModeOf`, `defaultSlotParams`).
+
+<a id="ux-36-a1"></a>
+
+#### UX-36 amendment A1 — A Resume card worth a glance (O-09) · wave 1, L-GYM
+
+**Evidence.** [image5](../owner-feedback-2026-09-27/images/image5.png): `Resume workout · Full Body B · [Resume]`. The
+owner: "maybe it would be nice to see the ongoing timer and how many exercises are done, how many are left, or maybe
+current ongoing exercise … figure it out what would be best from a UX perspective." CI-49 (P09's "baby woke up" job).
+
+**Delta to UX-36 (3).** The Resume card (spec'd there as `Full Body A · 5 of 11 sets · Resume`) becomes:
+
+```
+Active (minimised)                                   Saved for later
+┌ WORKOUT IN PROGRESS ─────────────── 23:14 ┐        ┌ WORKOUT PAUSED ────────────── 23 min in ┐
+│ Full Body B                                │        │ Full Body B                              │
+│ ▓▓▓▓▓▓▓▓▓░░░░░░  3 of 5 exercises · 9 of 15 sets   │ ▓▓▓▓▓▓▓▓▓░░░░░░  3 of 5 exercises · 9 of 15 sets
+│ Now: Seated Cable Row · set 2 of 3         │        │ Next: Seated Cable Row · set 2 of 3      │
+│ [ Resume ]                                 │        │ [ Resume ]      Finish with 9 sets       │
+└────────────────────────────────────────────┘        │ Keeps until 18:40 tomorrow               │
+                                                      └──────────────────────────────────────────┘
+```
+
+- **What earns its place, in order:** (1) the **elapsed time**, top right, because it answers "how long have I been at
+  it" and signals the workout is still running; (2) **progress** as a kit `ProgressBar` of sets plus the words
+  `{e} of {E} exercises · {s} of {S} sets` (exercises answer "how much is left", sets are the precise count); (3)
+  **where you are**: `Now: {exercise} · set {k} of {n}` (the logger's current focus, the same pure function the logger
+  uses, so the card and the logger never disagree). This order was chosen over a list of remaining exercises: the card
+  must stay one glance and ≤ 4 lines at 1.0× text.
+- **Active:** the time ticks each second (`mm:ss`, `h:mm:ss` after an hour), from `session.startedAt` as the logger's
+  header does. **Saved for later** (UX-36 (3)): eyebrow `WORKOUT PAUSED`, static `{n} min in` (time up to the save,
+  not wall-clock), `Next:` instead of `Now:`, a secondary text button `Finish with {s} sets` (opens UX-36 (3)'s finish
+  sheet), and `Keeps until {time} tomorrow` (the 24 h rule).
+- **Cardio running** (UX-42): `Now: Stationary Bike · timer 12:48`. **Everything logged:** `All sets logged · Finish when
+you’re ready.` and the primary button becomes `Finish workout`. **A backfilled session** (Log a past workout): no
+  timer; the eyebrow reads `LOGGING {WEEKDAY D MON}`.
+- **Food Today** (UX-04's workout card, L-HOME in wave 2) uses the same summary: `Workout paused · 3 of 5 exercises ·
+Resume`.
+- **Needs (local only):** a `pausedAt` on the active-session doc (device store; stripped or ignored on upload).
+
+**Copy.** `WORKOUT IN PROGRESS` · `WORKOUT PAUSED` · `LOGGING {WEEKDAY D MON}` · `{e} of {E} exercises · {s} of {S}
+sets` · `Now: {exercise} · set {k} of {n}` · `Next: {exercise} · set {k} of {n}` · `Now: {exercise} · timer {mm:ss}` ·
+`{n} min in` · `Finish with {s} sets` · `Keeps until {time} tomorrow` · `All sets logged · Finish when you’re ready.` ·
+`Resume` · `Finish workout`.
+
+**A11y.** The card is one element labelled as a sentence: `Workout in progress: Full Body B, 23 minutes, 3 of 5
+exercises done, now Seated Cable Row set 2 of 3. Resume.`; the ticking time is not a live region. At 1.8× text the
+progress words wrap under the bar; nothing truncates.
+
+**Motion.** The bar fills with MO-06 when the card appears after a set was logged; reduced motion: no tween.
+
+**Files.** NEW `src/features/gym/today/resume-card.tsx`, `today-screen.tsx` (L237–251 replaced),
+`offline/active-session-store.ts` (`pausedAt`), NEW `packages/utils/src/gym/resume.ts` (`resumeSummary()`, shared
+with web and Food Today), reusing `ElapsedTime` from `workout/rest-timer-bar.tsx` and `currentFocus()` from
+`workout-model.ts`. Web: `features/gym/today/today-view.tsx` `ResumeBanner` (same summary) in T-36.7.
+
+**New acceptance criteria (UX-36).** 9. The Resume card shows the live elapsed time, `{e} of {E} exercises · {s} of
+{S} sets`, and the current exercise and set, matching the logger exactly (shared function; unit test). 10. After `Save
+for later`, the card shows the static time, `Next:`, `Finish with {s} sets` and the keep-until time. 11. The card stays
+≤ 4 text lines at 1.0× on a 375 pt screen.
+
+<a id="ux-36-a2"></a>
+
+#### UX-36 amendment A2 — Recent workouts on Gym Today (O-10, O-11) · wave 1, L-GYM (`Show more` may trail to wave 2)
+
+**Evidence.** [image2](../owner-feedback-2026-09-27/images/image2.png): `Weekly goal met · 5 sessions` above a single
+`Full Body A · 2026-09-27 →`. The owner: "I would like to see my previous workouts (3 or 5 something like this)
+highlighting date and maybe hour if it's in the same day, or group them somehow if they are in the same day. Also, add
+a show more or show history button that would load 3-5 more sessions from the past." CI-52.
+
+**Delta to UX-36 (5).** The single `Last workout · {dayName}, {relative day}` row is **replaced** by a `Recent`
+section at the same position (below `Log a past workout`):
+
+```
+RECENT
+Today
+  Full Body A          18:10 · 42 min · 18 sets             ⋯  ›
+  Evening ride         07:30 · 25 min · 8.1 km              ⋯  ›
+Yesterday
+  Full Body B          46 min · 20 sets · PR                ⋯  ›
+[ Show more ]                                   All history ›
+```
+
+- **3 sessions by default** (the owner's "3 or 5": 3 keeps Gym Today short, and the day grouping can still show a
+  same-day pair plus one). `Show more` adds 5 at a time, up to 13 inline; after that only `All history ›` (→ Stats ›
+  History, UX-36 (5)) remains.
+- **Grouping:** sessions are grouped under **day headers**: `Today`, `Yesterday`, then `{weekday d Mon}` (`Thu 24
+Sep`), newest first; **never an ISO date**. The **start time** (`HH:MM`, device locale format) is shown only when
+  two or more sessions share a day, as the owner asked.
+- **Row:** name (wraps to 2 lines, never truncated), then `{min} min · {n} sets{ · PR}`; cardio-only sessions read `{min}
+min · {km} km` (UX-42). Tap → session detail. The `⋯` (Edit / Delete) appears **when UX-44 ships** (wave 2); until
+  then the row is a plain link.
+- **Data:** the first 3 and the first `Show more` pages come from `bootstrap.recentSessions` (12 weeks, cached,
+  offline). Beyond that, `gym.session.list` with its cursor (online).
+- **States:** no completed sessions → the section is hidden (no empty nagging, P6). `Show more` loading → 2 skeleton
+  rows. Beyond the cache while offline → `Connect to load older workouts.` Load error → `Couldn’t load older workouts.`
+  - `Try again`. Only `COMPLETED` sessions are listed (the active one is the Resume card).
+
+**Copy.** `Recent` · `Today` · `Yesterday` · `{weekday d Mon}` · `{HH:MM}` · `{min} min · {n} sets` · `PR` · `Show
+more` · `All history` · `Connect to load older workouts.` · `Couldn’t load older workouts.` · `Try again`.
+
+**A11y.** Day headers are headers (`accessibilityRole="header"`); rows read `{name}, {day}{ at HH:MM}, {min} minutes,
+{n} sets{, personal record}`; `Show more` announces `{n} more workouts loaded`.
+
+**Motion.** New rows from `Show more` enter with MO-04 (insert, stagger 30 ms, max 5). Reduced motion: fade.
+
+**Files.** NEW `src/features/gym/today/recent-workouts.tsx`, `today-screen.tsx` (L425–441 replaced), NEW
+`packages/utils/src/gym/recent.ts` (`groupRecentSessions(sessions, today)`: pure, unit-tested, shared with web). Web:
+`features/gym/today/today-view.tsx` (its single `lastSession` link becomes the same list) in T-36.7.
+
+**New acceptance criteria (UX-36).** 12. With 5 sessions this week (two on one day), Gym Today lists 3 under day
+headers, the same-day pair shows start times, no ISO date appears anywhere on Gym Today. 13. `Show more` adds 5 rows
+(offline from the cache), then more online through the cursor; `All history` opens Stats › History. 14. The section
+is absent for a user with no finished sessions.
+
+<a id="ux-21-a1"></a>
+
+#### UX-21 amendment A1 — Two hotfix rows (O-18, O-07) · wave 0-D
+
+Two new rows in the UX-21 table, shipped as the **W0-D hotfix PR** before wave 1 branches (`05` §4.1):
+
+| #     | Bug                                                                                                                                                             | UI change                                                                                                                                                                                                                                                                                                                                      |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 21.19 | **O-18** recipe photo upload fails and shows `[object Object]` ([image4](../owner-feedback-2026-09-27/images/image4.png)); any `uploadImage` caller inherits it | The client reads either error shape (`{ error: string }` or `{ error: { code, message } }`) and maps it to one of UX-40's four photo sentences; the uploads route answers an oversize body with a 413 and a string message; the picker asks for a smaller image within `expo-image-picker`'s options. The richer photo states come with UX-40. |
+| 21.20 | **O-07** set values render at ~4 pt on one row ([image3](../owner-feedback-2026-09-27/images/image3.png))                                                       | `ValueStepper` drops `adjustsFontSizeToFit` and sizes the value by string length (17 pt; 15 pt at ≥ 6 characters). No layout change otherwise (the regrouping is UX-05 A1 in wave 1).                                                                                                                                                          |
+
+**New acceptance criteria (UX-21).** 11. No upload failure anywhere shows `[object Object]` or a status code; a > 5 MB
+fixture photo either uploads or shows `That photo is too big. Choose another, or use a screenshot of it.` (Maestro
+`recipe-create-photo.flow.yaml`). 12. Three set rows with identical values render identical font sizes (Jest).
+
+**Files.** `apps/mobile/src/lib/media-client.ts`, `apps/mobile/app/recipe-form.tsx` (the `pickPhoto` block only),
+`apps/api/src/routers/uploads.router.ts`, `packages/ui-mobile/src/components/value-stepper.tsx` (+ test).
+
+<a id="ux-01-a1"></a>
+
+#### UX-01 amendment A1 — Safety by lookup for linked ingredient lines (O-20) · wave 5, L-INGR
+
+**Delta to UX-01 (the matcher).** Once UX-41 links recipe lines to catalogue rows, a **linked** line is checked by its
+row's allergen and diet tags (the EU 14 plus flags); a **free-text** line keeps the pattern matcher. PAT-2 copy can
+then cite the ingredient: `Checked for tree nuts, incl. granola`. Label caveats (stock, oats) stay caveats: a generic
+row cannot know the brand. No change to UX-01's Now scope or wave-1 build.
+**New acceptance criteria (UX-01).** 15. A recipe line linked to `Granola` is flagged for tree nuts through the
+catalogue tag (a row in the safety regression suite, `05` §6.2 P04). 16. Unlinking a line (editing its name) falls back
+to the matcher with no loss of coverage (suite re-run).
+
+<a id="ux-11-a1"></a>
+
+#### UX-11 amendment A1 — Own-recipe numbers explain themselves (O-20, O-21) · wave 5, L-INGR
+
+**Delta to UX-11.** On recipe detail, an own recipe's computed nutrition is tappable (PAT-1): the Explain sheet lists
+each linked line's contribution (`80 g oats, rolled · 303 kcal`), then `Not counted: {names}` for unmatched lines, then
+`Numbers per serving, for {n} servings.` Estimated rows carry `~`. Manual numbers explain as `You entered these.`
+**New acceptance criteria (UX-11).** A recipe with computed nutrition shows a sheet whose rows sum to the shown kcal
+(± 1 per line, rounding), and never presents an estimated row without `~`.
+
+<a id="ux-19-a1"></a>
+
+#### UX-19 amendment A1 — Better ingredients in the Log sheet (O-20) · wave 5, L-INGR
+
+**Delta to UX-19 §1.** The `Ingredients (per 100 g)` group uses UX-41's row (with `Verified` / `Estimated` / `Yours`),
+lists the user's private ingredients first, and ends with `Add “{text}” as my ingredient` (the UX-40 custom sheet; it
+returns to the Log sheet with the amount row open). **Still no brands and no barcodes** (B-29).
+**New acceptance criteria (UX-19).** 7. A private ingredient created from the Log sheet is loggable in grams at once
+and appears in no other account's search. 8. Every catalogue result shows its provenance badge.
+
+<a id="ux-17-a1"></a>
+
+#### UX-17 amendment A1 — The import draft uses the same ingredient line · with N4 (UX-17), or wave 5 if N4 has not run
+
+**Delta to UX-17.** The review draft's ingredient rows reuse UX-40's `ingredient-line.tsx`: unit from the canonical
+list (PAT-15), quantity with fractions, and, from wave 5, a catalogue link per line with the same search sheet. Lines
+the importer matched are pre-linked; uncertain ones are left unlinked, never guessed. This carries UX-01 A1's lookup and
+UX-11 A1's explained numbers to imports for free.
+**New acceptance criteria (UX-17).** 7. An imported recipe's units are all canonical or visibly `Other`; linked lines
+show the nutrition icon; a level-0 import still saves.
+
+<a id="ux-06-a1"></a>
+
+#### UX-06 amendment A1 — A logged ride or run marks the day (O-01) · wave 5, L-GYMDATA
+
+**Delta to UX-06.** A finished session containing a `DURATION_DISTANCE` or `DISTANCE` cardio entry of ≥ 20 min marks
+that day as a `Run` day for food purposes (if the user uses run kinds, UX-06 §1), unless the day is already `Long run`.
+Manually set kinds always win. Any resulting target change goes through the PAT-14 notice (UX-11). Calories: only per
+⚖ D-17 (no effect at its default).
+**New acceptance criteria (UX-06).** A 25-min treadmill run logged on an unplanned day marks it `Run` with a change
+notice; a manual `Long run` is never downgraded.
+
+<a id="pat-9-a1"></a>
+
+#### PAT-9 amendment A1 — Settings map row
+
+The settings hub's **Food** group gains `My ingredients` → `app/ingredients.tsx` (UX-41), after `Household`. Built with
+UX-41 in wave 5 (the hub file is free by then).
+
+<a id="dont-a1"></a>
+
+#### §6 "Don't" amendment A1 — B-29's boundary, written down
+
+B-29 stays **Don't**. The boundary, from `05` §2.1: a **curated generic-ingredient catalogue with private user rows**
+(UX-41) is not the MyFitnessPal race. **Brands, barcodes and public or shared user entries remain Don't.** A future ask
+to add a branded product as a shared entry is B-29 territory and is declined with this line.
+
+---
+
+<a id="d9-packaging"></a>
+
+### D.9 Packaging delta
+
+Follows `05` §4 and the lanes in `waves/W0.md`–`W4.md` (which supersede §7 here, per `waves/README.md`). The rules of
+§7.1 hold: **one owner per file per wave**, web parity travels with its lane, shared logic goes to `@chefer/types` /
+`@chefer/utils`, additive API only. Mobile paths are under `apps/mobile/` unless shown otherwise.
+
+#### D.9.1 Where each item goes
+
+| Wave / lane                                                           | Items (this section)                                                                                                                                                                          | Files it adds to its "Owns" (beyond what the brief already lists)                                                                                                                                                                                                                                                                                                                                                                                                                                            | Size | Ship         |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- | ------------ |
+| **W0-D hotfix** (`fix/owner-feedback-hotfix`, before W1 is cut)       | UX-21 A1 rows 21.19 (O-18) and 21.20 (O-07)                                                                                                                                                   | `src/lib/media-client.ts`; `app/recipe-form.tsx` (`pickPhoto` block only); `apps/api/src/routers/uploads.router.ts`; `packages/ui-mobile/src/components/value-stepper.tsx` (+ test)                                                                                                                                                                                                                                                                                                                          | S    | API + OTA    |
+| **W1 L-GYM** (amended)                                                | UX-05 A1 (set row), UX-05 A2 (timed/custom defaults), UX-36 A1 (Resume card), UX-36 A2 (Recent; `Show more` may trail to W2)                                                                  | `packages/ui-mobile/src/components/value-stepper.tsx` (**handed over from W0-D**, `grouped` variant); NEW `src/components/swipe-to-remove.tsx` (PAT-16); NEW `src/features/gym/today/resume-card.tsx`, `recent-workouts.tsx`; NEW `packages/utils/src/gym/recent.ts`, `resume.ts`; `src/features/gym/offline/active-session-store.ts` (`pausedAt`). Web: `features/gym/today/today-view.tsx`, `features/gym/workout/components/set-row.tsx`                                                                  | +M   | OTA          |
+| **W1 L-SAFE** (amended)                                               | UX-40 slice 1 (with T-01.6 in the same PR window; O-15 repro first); PAT-15, PAT-17                                                                                                           | NEW `packages/ui-mobile/src/components/select-sheet.tsx`, `form-field.tsx`, and the export lines in `packages/ui-mobile/src/index.ts` (**the only W1 lane that adds kit exports**); NEW `src/features/recipes/form/**`; NEW `packages/types/src/recipe-form.ts`, `packages/utils/src/recipe-form.ts`; `apps/api/src/lib/ingredient-prices/index.ts` (the `RECIPE_UNITS` line becomes a re-export; coordinate with L-TRACK, which edits catalogue search in T-19.1); `mobile_parity_backlog.md` (slice-2 row) | +M   | API + OTA    |
+| **W2-0 mini contracts** (one PR at the start of W2; only if D-20 = b) | UX-42 minimal schema; UX-44's outbox delete op                                                                                                                                                | `packages/database/prisma/schema.prisma` (gym models only, additive), gym repositories, `packages/types/src/gym/schemas.ts`, `clientApiLevel` gate; `infrastructure.md` §6, §8                                                                                                                                                                                                                                                                                                                               | S    | API          |
+| **W2 L-GYM** (continuing)                                             | **UX-44**; **UX-42 minimal** (D-20 b; displaces T-36.6, which trails to W3 or is cut); UX-36 A2 `Show more` if it slipped; T-36.7 web parity incl. UX-36 A1/A2                                | `packages/types/src/gym/exercise-catalog.ts` (10–12 cardio entries); NEW `src/features/gym/workout/cardio-entry.tsx`, `effort-chips.tsx`, `cardio-timer.ts`, `edit-session-header.tsx`, `use-edit-session.ts`; `src/features/gym/offline/outbox.ts`; `packages/utils/src/gym/cardio.ts` (NEW), `duration.ts`                                                                                                                                                                                                 | L    | API + OTA    |
+| **W2 L-RECIPE** (new, 5th lane; batch 2 under the 3-agent cap)        | UX-40 slice 2                                                                                                                                                                                 | `app/recipe-form.tsx`, `src/features/recipes/form/**` (freed by W1 L-SAFE); NEW `src/features/ingredients/**` (search sheet, custom sheet, computed nutrition). **Read-only:** `routers/ingredients.router.ts`, `application/ingredients/**`, `src/components/swipe-to-remove.tsx`. Closes the `mobile_parity_backlog.md` row                                                                                                                                                                                | M    | OTA          |
+| **W2 L-HOME** (one line)                                              | UX-36 A1 tail: Food Today workout card uses `resumeSummary()`                                                                                                                                 | none new (`src/features/dashboard/**` is already L-HOME's); reads `packages/utils/src/gym/resume.ts`                                                                                                                                                                                                                                                                                                                                                                                                         | —    | OTA          |
+| **W2 L-MONEY** (one line)                                             | The `ingredient-autofill` premium source for UX-40 slice 2's lock                                                                                                                             | none new (`packages/utils/src/premium-pitch.ts` job copy is already L-MONEY's); L-RECIPE only passes the source string                                                                                                                                                                                                                                                                                                                                                                                       | —    | OTA          |
+| **W4 Native-Release** (adds)                                          | O-18 root cause: client-side photo resize; PAT-16 fallback only if the JS swipe failed QA                                                                                                     | `apps/mobile/package.json`: `expo-image-manipulator`; optionally `react-native-gesture-handler`                                                                                                                                                                                                                                                                                                                                                                                                              | S    | native build |
+| **W5-0 Contracts** (first, one PR)                                    | UX-41, UX-42 (rest), UX-43 schema, types and middleware                                                                                                                                       | `schema.prisma`, repositories, `packages/types/src/**`, `apps/api/src/lib/trpc.ts` (`trainerProcedure`), `infrastructure.md` §6, §7, §9, `business_flow.md` §4                                                                                                                                                                                                                                                                                                                                               | M    | API          |
+| **W5 L-INGR**                                                         | **UX-41**; UX-01 A1, UX-11 A1, UX-19 A1, PAT-9 A1; UX-17 A1 if N4 has not run                                                                                                                 | `application/ingredients/**`, `routers/ingredients.router.ts`, ingredient seed scripts, `application/safety/**` (the lookup hook; no other W5 lane touches it); web `features/ingredients/**`, `app/(dashboard)/ingredients/**`; mobile `src/features/ingredients/**`, NEW `app/ingredients.tsx`, `app/(food)/more.tsx`, `app/settings.tsx`, `src/features/tracker/quick-add-sheet.tsx` (ingredient group), `app/recipe/[id].tsx` (nutrition explain)                                                        | L    | API + OTA    |
+| **W5 L-GYMDATA**                                                      | **UX-42** (rest: 30 entries, INTERVALS, progression rows, cardio stats and bests, D-17 flag), then **UX-43** (request, authoring, admin queue, library-gap pass, flag then enforce), UX-06 A1 | `packages/types/src/gym/**`, `packages/utils/src/gym/**`, `application/gym/**`, `routers/gym/**`, `application/training-days/**`; mobile `src/features/gym/**`, `app/gym/**`, `app/(gym)/**`; web `features/gym/**`, `app/(dashboard)/gym/**`, `app/(dashboard)/admin/**` (exercise requests, Trainer role). One lane, because UX-42 and UX-43 both edit the library and the exercise form                                                                                                                   | L    | API + OTA    |
+
+**W5 timing.** After W3; W4's release engineering can run beside it (`05` §4.4). Everything in W5 is OTA-shippable.
+Inside L-GYMDATA the order is fixed: cardio catalogue → library-gap pass → UX-43's flag on (UX-43 AC 7).
+
+**If capacity forces a cut** (this delta only; §7.1's list is unchanged): cut UX-44's edit mode first (keep delete
+with confirm and Undo), then UX-40 slice 2 (the parity row stays open), then UX-42's wave-2 minimal slice (fall back to
+D-20 a; UX-05 A2 still stops the nonsense coaching). **Never cut** W0-D, UX-05 A1 or UX-05 A2.
+
+**Load check (opinion).** W1 L-GYM was already the largest lane; its additions are S-sized UI on files it owns, plus
+two new small components. W2 L-GYM becomes L (UX-44 + UX-42 minimal + T-36.7); T-36.6 is the release valve, as `05`
+proposed.
+
+#### D.9.2 File-ownership map delta (adds to §7.3 and the wave briefs' "Owns")
+
+| Files / dirs                                                                                                                   | W0-D                    | Wave 1                        | Wave 2                                    | Wave 5                         |
+| ------------------------------------------------------------------------------------------------------------------------------ | ----------------------- | ----------------------------- | ----------------------------------------- | ------------------------------ |
+| `packages/ui-mobile/src/components/value-stepper.tsx`                                                                          | W0-D                    | L-GYM                         | —                                         | —                              |
+| `packages/ui-mobile/src/components/select-sheet.tsx`, `form-field.tsx` (NEW), `packages/ui-mobile/src/index.ts`                | —                       | L-SAFE                        | —                                         | —                              |
+| `src/components/swipe-to-remove.tsx` (NEW)                                                                                     | —                       | L-GYM                         | read-only for L-RECIPE                    | —                              |
+| `src/lib/media-client.ts`, `apps/api/src/routers/uploads.router.ts`                                                            | W0-D                    | —                             | —                                         | —                              |
+| `app/recipe-form.tsx`, `src/features/recipes/form/**`                                                                          | W0-D (`pickPhoto` only) | L-SAFE                        | L-RECIPE                                  | —                              |
+| `src/features/ingredients/**` (NEW), `app/ingredients.tsx` (NEW)                                                               | —                       | —                             | L-RECIPE                                  | L-INGR                         |
+| `packages/types/src/recipe-form.ts`, `packages/utils/src/recipe-form.ts` (NEW)                                                 | —                       | L-SAFE                        | L-RECIPE (fixes only)                     | —                              |
+| `packages/types/src/gym/exercise-catalog.ts`, `packages/types/src/gym/schemas.ts`                                              | —                       | read-only                     | W2-0 then L-GYM                           | W5-0 then L-GYMDATA            |
+| `schema.prisma` (gym models)                                                                                                   | —                       | —                             | W2-0                                      | W5-0                           |
+| `schema.prisma` (ingredients, roles), `apps/api/src/lib/trpc.ts`                                                               | —                       | —                             | —                                         | W5-0                           |
+| `application/ingredients/**`, `routers/ingredients.router.ts`, web `features/ingredients/**`, `app/(dashboard)/ingredients/**` | —                       | L-TRACK (search rows, T-19.1) | read-only                                 | L-INGR                         |
+| `application/safety/**`                                                                                                        | —                       | L-SAFE                        | read-only (L-SAFE2 calls it)              | L-INGR (lookup hook)           |
+| `app/(food)/more.tsx`, `app/settings.tsx`                                                                                      | —                       | —                             | L-HOME (`settings.tsx` jobs row)          | L-INGR (one row each)          |
+| `src/features/tracker/quick-add-sheet.tsx`                                                                                     | —                       | L-TRACK                       | L-MONEY (Snap taste only)                 | L-INGR (ingredient group)      |
+| web `app/(dashboard)/admin/**`                                                                                                 | —                       | —                             | —                                         | L-GYMDATA                      |
+| `mobile_parity_backlog.md`                                                                                                     | —                       | L-SAFE (slice-2 row)          | L-RECIPE (closes it), L-GYM (T-36.7 rows) | L-GYMDATA (web cardio, if any) |
+
+#### D.9.3 Pointer rows for the wave briefs
+
+Add these to the "Pointers" table of each brief (lines in this file at rev 3; earlier rows are unchanged).
+
+| Brief / lane                    | Item                                                                                | Heading in 03                                        | Lines     |
+| ------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------- | --------- |
+| all                             | Delta rules, baseline, protected delights                                           | § Owner feedback delta, D.0                          | 4211–4266 |
+| all                             | Decisions as designed                                                               | D.1                                                  | 4269–4284 |
+| W1 L-GYM, L-SAFE                | PAT-15, PAT-16, PAT-17                                                              | D.2                                                  | 4287–4349 |
+| W0-D                            | Hotfix rows 21.19, 21.20                                                            | UX-21 amendment A1                                   | 5685–5700 |
+| W1 L-GYM                        | Set row regrouped + remove with Undo                                                | UX-05 amendment A1 (AC 12–16)                        | 5469–5541 |
+| W1 L-GYM                        | Timed/custom defaults                                                               | UX-05 amendment A2 (AC 17–18)                        | 5544–5569 |
+| W1 L-GYM (+ W2 L-HOME tail)     | Resume card                                                                         | UX-36 amendment A1 (AC 9–11)                         | 5572–5628 |
+| W1 L-GYM                        | Recent workouts on Gym Today                                                        | UX-36 amendment A2 (AC 12–14)                        | 5631–5682 |
+| W1 L-SAFE, W2 L-RECIPE          | Recipe form (slice 1; slice 2)                                                      | UX-40 (AC 4614–4642)                                 | 4354–4664 |
+| W2 L-GYM                        | Correct a past workout                                                              | UX-44 (AC 5427–5440)                                 | 5295–5457 |
+| W2 L-GYM (D-20 b), W5 L-GYMDATA | Cardio                                                                              | UX-42 (AC 5052–5071)                                 | 4858–5091 |
+| W5 L-INGR                       | Ingredient catalogue                                                                | UX-41 (AC 4823–4836)                                 | 4669–4853 |
+| W5 L-INGR                       | Linked-line safety, explained recipe numbers, Log sheet, import draft, settings row | UX-01 A1 · UX-11 A1 · UX-19 A1 · UX-17 A1 · PAT-9 A1 | 5703–5761 |
+| W5 L-GYMDATA                    | Governed library                                                                    | UX-43 (AC 5257–5273)                                 | 5096–5290 |
+| W5 L-GYMDATA                    | Logged run marks the day                                                            | UX-06 amendment A1                                   | 5746–5754 |
+| all food lanes                  | B-29 boundary                                                                       | §6 "Don't" amendment A1                              | 5764–5768 |
+
+**Definition of done additions (§7.5):** the owner quick check rows for the wave (`05` §6.1) pass on the iPhone and the
+Pixel 8; the Jest font-size test (UX-05 AC 13, UX-21 AC 12) and the photo-upload Maestro flow (UX-21 AC 11) are in CI;
+every new procedure is in `infrastructure.md` §8 and `business_flow.md` (`gym.library.requestExercise`, admin request
+procedures, `ingredients.reviewQueue` / `verify` / `merge`); the Trainer role is in §9 and `business_flow.md` §4.
+
+<a id="d10-changelog"></a>
+
+### D.10 Changelog
+
+#### Rev 3 — 2026-09-27 (owner feedback delta; appended, §0–§7 and Appendices A–B untouched)
+
+- **Added:** UX-40 (Now; slice 1 W1 L-SAFE, slice 2 W2 L-RECIPE), UX-41 (Next, W5), UX-42 (Next; Now slice via
+  UX-05 A2, minimal W2 per D-20 b, full W5), UX-43 ⚖ (Next, W5, gated on UX-42's catalogue), UX-44 (Now, cut-able, W2);
+  PAT-15 select field/sheet, PAT-16 remove with Undo (JS swipe, OTA-safe), PAT-17 required fields and "what's missing".
+- **Amended:** UX-05 A1 (set row regrouped, any set removable with Undo; replaces UX-05 G's delete bullet), UX-05 A2
+  (no kg or `Aim for 1 s` on timed/custom), UX-36 A1 (Resume card: time, exercises and sets, current exercise; replaces
+  UX-36 (3)'s card line), UX-36 A2 (Recent list with day grouping, same-day times, `Show more`; replaces UX-36 (5)'s
+  `Last workout` row), UX-21 A1 (rows 21.19 upload errors and 21.20 tiny values, W0-D), UX-01 A1, UX-11 A1, UX-19 A1,
+  UX-17 A1, UX-06 A1 (all W5 or with N4), PAT-9 A1 (`My ingredients`), §6 Don't A1 (B-29 boundary).
+- **Decisions designed:** D-14 (b) Trainer role, D-15 (a + c), D-16 (provenance UI either way), D-17 (a) by default
+  with (b) behind a flag, D-18 (a), D-19 (a) with servings default 1, D-20 (b), D-21 (a); each with its alternative.
+- **Packaging:** new W0-D hotfix PR; W1 L-GYM and L-SAFE amended; W2 gains W2-0 mini contracts (if D-20 b) and a 5th
+  lane L-RECIPE; W4's native batch adds `expo-image-manipulator`; new W5 "Data foundations" (W5-0, L-INGR, L-GYMDATA).
+  Ownership hand-overs: `value-stepper.tsx` W0-D → L-GYM; kit `index.ts` to L-SAFE in W1.
+- **For stage 4:** new tasks for UX-40…UX-44; amend T-05.7 (A1, A2), T-36.3 (A1), T-36.5 (A2), T-01.6 (O-15 repro);
+  add W0-D tasks for 21.19/21.20. IDs never change. Open follow-ups for the owner (from `05` §5): what failed on recipe
+  edit (O-15), what "dropdowns for quantities" meant (O-17; designed as fraction chips), and the photo's size and origin
+  (O-18).
+
+---
+
+<a id="d11-addendum"></a>
+
+### D.11 Addendum: O-22…O-26 (owner, same day)
+
+**Input:** the addendum at the end of [`feedback.txt`](../owner-feedback-2026-09-27/feedback.txt), screenshots
+[image7](../owner-feedback-2026-09-27/images/image7-swap-sheet-keyboard.png) and
+[image8](../owner-feedback-2026-09-27/images/image8-routine-editor.png), and `05` rev 1.1 (§1.2b, §1.2c image scan,
+T-05.10, T-05.11, D-22). Code read: `src/features/gym/library/exercise-picker.tsx`, `routine/day-editor.tsx`,
+`library-screens/photo-crossfade.tsx`, `library-screens/exercises-tab.tsx`, `workout/exercise-card.tsx`. Same rules as
+the rest of this section: append-only, and the amendment wins over the earlier text.
+
+**⚖ D-22, as designed:** (a) now: keep free-exercise-db photos, fix ratio and crop, add a designed placeholder, and hide
+any photo the audit marks as the wrong exercise. (b) later, for the audit's wrong-content list and the 8 photo-less
+exercises: commissioned illustrations drop into the same 3:2 slot with no UI change. **Alternative:** (c) video stills
+only. Same slot and rules; the source changes, and exercises without a curated video keep the placeholder.
+
+<a id="ux-05-a3"></a>
+
+#### UX-05 amendment A3 — A swap sheet that makes room for the keyboard (O-22) · wave 1, L-GYM (T-05.8)
+
+**Evidence.** image7: with the keyboard up, the `Swap exercise` sheet shows 11 muscle chips in four wrapped rows
+(~200 pt), and only **one and a half** results remain visible (`Bodyweight Squat`, then half of `Front Squat`). The
+`Search exercises` placeholder is barely visible on white. The owner: "Maybe add an animation that collapses the muscle
+pills above when the keyboard opens, so more exercises are visible while searching." P01 found the same (CI-34, "only
+~2 results fit").
+
+**Delta to UX-05 H.** H's "while the search field has focus, the muscle chips collapse into one horizontal scroll row"
+stands. This amendment adds **when** it happens, **how it moves**, and the field itself.
+
+```
+Keyboard down (unchanged)                  Keyboard up (search focused)
+┌ Swap exercise ─────────────────── ✕ ┐    ┌ Swap exercise ─────────────────── ✕ ┐
+│ [ 🔍 Search exercises              ] │    │ [ 🔍 squ|                     ⓧ   ] │
+│ (Chest)(Back)(Quads)(Hamstrings)     │    │ (Quads ✓)(Chest)(Back)(Hamstr… ⇢    │ ← one row, scrolls sideways
+│ (Glutes)(Side delts)(Rear delts)     │    │ MATCHES YOUR EQUIPMENT               │
+│ (Front delts)(Biceps)(Triceps)       │    │ ▭ Bodyweight Squat · Quads · similar │
+│ (Calves)(Abs)                        │    │ ▭ Front Squat · Quads · barbell      │
+│ MATCHES YOUR EQUIPMENT               │    │ ▭ Goblet Squat · Quads · dumbbell    │
+│ ▭ Bodyweight Squat                   │    │ ▭ Hack Squat · Quads · machine       │
+│ ▭ Front Squat                        │    │ ▭ Leg Press · Quads · machine        │
+│ …                                    │    ├─────────── keyboard ────────────────┤
+```
+
+- **Trigger:** keyboard show and hide, not focus alone (an external keyboard shows no on-screen keyboard, so nothing
+  should collapse): `keyboardWillShow` / `keyboardWillHide` on iOS, `keyboardDidShow` / `keyboardDidHide` on Android.
+  It happens **once per show or hide, never per keystroke** (UX-05 H: no reflow while typing).
+- **Collapsed strip:** one horizontally scrolling row of the same chips, 44 pt tall, with the **selected chip first**
+  and a 24 pt fade at the trailing edge that hints at more. Selecting a chip in the strip filters exactly as before; the
+  selection survives collapse and expand.
+- **Sheet height:** with the keyboard up, the sheet takes its maximum height, so the list gets every point above the
+  keyboard. `keyboardDismissMode="on-drag"` on the list: scrolling the results lowers the keyboard, and the chips
+  expand back.
+- **Search field:** a leading `search` icon (18 pt), `placeholderTextColor` from the `muted-foreground` token (≥ 4.5:1
+  on the sheet background, fixing image7's near-invisible placeholder), a clear button `ⓧ` (44 pt hit area) once there
+  is text, and `accessibilityLabel="Search exercises"` (a placeholder is not a label).
+- **The same behaviour applies to the Exercises tab** (`exercises-tab.tsx`: search plus muscle and equipment chips).
+  There, both chip groups collapse into the one strip, with muscle groups first.
+- **Result:** on a 667 pt-tall screen with the keyboard up, **≥ 5 results** are visible (today 1½).
+
+**Motion (MO-05 expand/collapse, with MO-04's FLIP technique; transform and opacity only).** On show: the wrapped chip
+block fades out and moves up 8 pt (`duration.fast`, `ease-exit`), and the strip fades in (`duration.fast`,
+`ease-enter`). The list, which jumps up by the height difference in layout, is first translated back down by that
+difference and then animated to `translateY: 0` over `duration.base` with `ease-standard` (FLIP: measure the old and
+new offsets with `onLayout`, animate only the transform). On hide, the reverse. No height is ever animated. Durations
+come from `@chefer/tokens`, not the keyboard event's own duration. **Reduced motion** (`useReducedMotion()`): the swap
+is instant, with no translate and no fade; the layout still collapses, because that is the function, not decoration.
+Code comment names `MO-05`.
+
+**Copy.** Placeholder `Search exercises` (unchanged) · clear button label `Clear search` · strip a11y `Muscle
+filters, scroll sideways for more`.
+
+**A11y.** The strip is a horizontal `ScrollView` whose chips stay individually focusable with `accessibilityState`
+`selected`. Collapsing never moves screen-reader focus away from the search field. At 1.8× text, the strip's chips grow
+in height and the list keeps ≥ 3 rows visible.
+
+**New acceptance criteria (UX-05).** 19. With the keyboard up on an iPhone SE-size screen, the swap sheet and the
+Exercises tab show ≥ 5 results; chips sit in one row with the selected chip first. 20. The chips collapse and expand
+exactly once per keyboard show and hide, never while typing (a render-count test on the chip container), and the
+selected muscle filter survives both. 21. The placeholder text meets 4.5:1 contrast in light mode (token check), and the
+field has an accessible name. 22. With reduced motion on, the collapse is instant and no transform animation runs.
+
+**Files.** `src/features/gym/library/exercise-picker.tsx`, `library-screens/exercises-tab.tsx`, NEW
+`src/features/gym/library/collapsible-chip-filters.tsx` (the wrapped↔strip component with the FLIP, used by both), NEW
+`src/features/gym/library/use-keyboard-visible.ts`. Web: `features/gym/routine/components/ExercisePickerSheet.tsx`
+gets the placeholder contrast and label only (a desktop keyboard doesn't cover the list).
+
+<a id="ux-05-a4"></a>
+
+#### UX-05 amendment A4 — A routine-editor card you can read (O-23) · wave 1, L-GYM (T-05.3)
+
+**Evidence.** image8: the expanded exercise card still reads `Dumbbel… · 2 × 10–15 · 90 s`; its header also holds a
+chevron and two ↑/↓ buttons, which is what squeezes the name to 8 characters. Below: five full-width stepper tiles
+(`sets`, `min reps`, `max reps`, `rest (s)`, `target RIR`) with equal weight, `Swap` as a full-width outline button with
+`Remove` beside it, then a day footer where `Add exercise` wraps inside its button next to a filled red `Delete`. The
+owner: "the name of the exercise is not fully visible ('Dumbbel…'), even when the card is opened … cluttered; add some
+spacing or similar to make it feel lighter." CI-43 (P06, P09).
+
+**Delta to UX-05 C.** C's rules stay (names wrap, `Add exercise` never clips, live duration, day `Delete` into `⋯`).
+This amendment redesigns the card.
+
+```
+Compact (default)                                   Expanded (one at a time)
+┌────────────────────────────────────────────┐     ┌────────────────────────────────────────────┐
+│ Dumbbell Romanian Deadlift              ⌄ ⋯ │     │ Dumbbell Romanian Deadlift              ⌃ ⋯ │
+│ 2 sets · 10–15 reps · 90 s rest             │     │ 2 sets · 10–15 reps · 90 s rest             │
+└────────────────────────────────────────────┘     │                                            │
+┌────────────────────────────────────────────┐     │ Sets                  Rest between sets     │
+│ A1  Seated Cable Row                    ⌄ ⋯ │     │ [ −     2     + ]     [ −    90 s    + ]    │
+│ 3 sets · 10–12 reps · 60 s rest             │     │                                            │
+└────────────────────────────────────────────┘     │ Reps from             to                    │
+  + Add exercise                                   │ [ −    10     + ]     [ −    15     + ]    │
+                                                   │                                            │
+Day footer                                         │ More ▸  Target effort · Superset            │
+┌────────────────────────────────────────────┐     │                                            │
+│ [ + Add exercise                          ] │     │ Swap exercise                     Remove    │
+│ ~41 min                                 ⋯   │     └────────────────────────────────────────────┘
+└────────────────────────────────────────────┘
+```
+
+- **The name owns the header.** It wraps to **2 lines** (`numberOfLines={2}` at default text; no limit above 1.3×)
+  and is never truncated in either state. The ↑/↓ buttons leave the header for the card's `⋯` (`Move up`, `Move down`,
+  `Swap exercise`, `Remove`), so the header holds only the name, the chevron and `⋯`. The summary moves to its own
+  second line in words: `{n} sets · {min}–{max} reps · {rest} s rest` (P7; `3 × 8–12` stays for the logger).
+- **Compact vs expanded.** Cards are compact by default. **One card is expanded at a time** (opening another collapses
+  the first), so a long day stays scannable. A newly added exercise opens expanded.
+- **Hierarchy in the expanded card.** A two-column grid with labels **above** the controls (13 pt, `text-muted-foreground`,
+  sentence case), 16 pt between rows, 12 pt between columns. Row 1: `Sets` · `Rest between sets`. Row 2: `Reps from` ·
+  `to`. `More ▸` (MO-05) reveals `Target effort (RIR)` (a GlossaryTerm, PAT-7) and the `Superset with next` switch. They
+  are expert settings, out of a beginner's way. _This differs from `05`'s sketch (rest under More): rest is a common
+  per-exercise choice, and pairing it with sets fills the grid evenly._
+- **Lighter controls.** The steppers use UX-05 A1's grouped `ValueStepper` (one filled container, transparent `−`/`+`,
+  44 pt targets). The value shows its unit (`90 s`), so there is no caption under the number.
+- **One filled button per screen area.** In the card: `Swap exercise` is a text button (`text-primary`) and `Remove` a
+  text button (`text-destructive`), on one line at the bottom. In the day footer: a full-width outline `+ Add exercise`
+  that never wraps, the live `~{n} min`, and the day `⋯` (`Duplicate day`, `Delete day` with the existing confirm).
+  The filled red `Delete` goes (UX-05 C already moved it).
+- **Spacing.** 16 pt card padding, 12 pt between cards, no border on compact cards (a `bg-card` fill on the `bg-background`
+  page is enough), a 1 pt `border-border` and elevation `e1` on the expanded card. The superset marker stays (violet
+  left border) and its `A1` label moves to the start of the name line.
+- **Remove** keeps the screen's confirm today; it switches to PAT-16 (Undo, no confirm) because the routine is only
+  saved on `Save` and the snackbar can restore it.
+
+**Motion.** MO-05 for expand/collapse and `More ▸` (chevron rotates `duration.fast`; content fades in with the
+container's layout transition). MO-04 FLIP for `Move up` / `Move down` and the accordion's neighbour collapse.
+Reduced motion: instant. Code comments name MO-05 and MO-04.
+
+**Copy.** `{n} sets · {min}–{max} reps · {rest} s rest` · `Sets` · `Rest between sets` · `Reps from` · `to` · `More` ·
+`Target effort (RIR)` · `Superset with next` · `Swap exercise` · `Remove` · `Move up` · `Move down` · `+ Add exercise`
+· `Duplicate day` · `Delete day` · snackbar `Removed {name}` + `Undo`.
+
+**A11y.** The header is one button: `{name}, {summary}. Double-tap to {show | hide} settings.` with `expanded` state;
+`⋯` is labelled `Options for {name}`. Each stepper's label is its accessible name (`Sets, 2`). At 1.8× text, the grid
+becomes one column and nothing truncates.
+
+**New acceptance criteria (UX-05).** 23. On a 375 pt screen at default and 1.8× text, every exercise name in the
+routine editor shows in full (2 lines at default; unlimited above 1.3×), in both compact and expanded states (snapshot
+with `Dumbbell Romanian Deadlift` and `Single-Leg Romanian Deadlift`). 24. The expanded card has one filled control
+area per row (the steppers), `Swap exercise` and `Remove` are text buttons, and target RIR and superset sit under
+`More`. 25. Only one card is expanded at a time. 26. `+ Add exercise` never wraps; the day's delete is only in `⋯`.
+
+**Files.** `src/features/gym/routine/day-editor.tsx`, `app/gym/routine-editor.tsx`, `routine/reducer.ts` (accordion
+state if it is kept in the reducer), reusing the kit `ValueStepper` grouped variant (A1). Web:
+`features/gym/routine/components/PhoneEditorList.tsx`, `DayCard.tsx`, `ExerciseFieldsForm.tsx` (same hierarchy and
+names on phone widths; `DesktopEditorBoard.tsx` unchanged).
+
+<a id="ux-05-a5"></a>
+
+#### UX-05 amendment A5 — Two library staples (O-24, O-25; the B-43 gap pass, pulled forward) · wave 1, L-GYM (T-05.10)
+
+| Slug (permanent)              | Name                            | Aliases                                                        | Pattern / swap group                             | Equipment · load type             | Rep range | Photo / video                                                                       |
+| ----------------------------- | ------------------------------- | -------------------------------------------------------------- | ------------------------------------------------ | --------------------------------- | --------- | ----------------------------------------------------------------------------------- |
+| `back-extension`              | Back Extension (Hyperextension) | `hyperextension`, `hyper`, `45° back extension`, `roman chair` | `hip-extension` (lower back, glutes, hamstrings) | MACHINE (bench) · BODYWEIGHT_PLUS | 10–15     | free-exercise-db pair via `vendor-exercise-photos.ts` (ID to verify), curated video |
+| `incline-barbell-bench-press` | Incline Barbell Bench Press     | `incline bench`, `incline barbell press`                       | `incline-push` · `swapGroup: 'incline-press'`    | BARBELL · WEIGHTED                | 6–10      | same                                                                                |
+
+- **Proposed cues** (content check before merge): Back Extension `Hinge at the hips, not the lower back.` · `Stop when
+your body is in a straight line; don’t arch past it.` · `Hold a plate to your chest to add load.` Incline Barbell
+  Bench Press `Set the bench to 30–45°.` · `Lower the bar to your upper chest.` · `Keep your shoulder blades pinned back.`
+- They behave like any library exercise: tappable name → detail (D4), photos per A6, swap suggestions. Old binaries
+  render them as ordinary strength exercises (synced at boot).
+
+**New acceptance criteria (UX-05).** 27. Searching `hyper`, `back ext` or `roman chair` finds Back Extension; searching
+`incline bench` finds Incline Barbell Bench Press. 28. Swapping Incline Dumbbell Press lists Incline Barbell Bench
+Press first under `Matches your equipment` for a full-gym user. 29. Both have 3 cues, a photo pair that passes A6's
+audit, and a video.
+
+**Files.** `packages/types/src/gym/exercise-catalog.ts`, `exercise-content.ts`, `apps/api/static/exercises/` (4 WebP
+files), `scripts/gym/vendor-exercise-photos.ts` (the IDs), `catalog.test.ts`.
+
+<a id="ux-05-a6"></a>
+
+#### UX-05 amendment A6 — Exercise images: one ratio, one crop, a real placeholder (O-26) · wave 1, L-GYM (T-05.11); art per ⚖ D-22
+
+**Evidence.** The owner: "Check the images for all exercises: some are not visible or not rendered correctly." `05`
+§1.2c scanned all 138 files: **none is missing or broken**. The symptoms have other causes: (a) 8 exercises have no
+photo by design and show a letter tile or a blank grey square (image6's `I`); (b) mixed shapes, with 128 files at
+600×401 but `assisted-pull-up` 600×900 portrait, `pallof-press` 600×338 and `hack-squat` 600×600, while the detail
+view crops everything to a **square** (`photo-crossfade.tsx`, `aspectRatio: 1`, `cover`), cutting a third of each
+landscape photo; (c) some photos may show a different variation, which only a person can spot; (d) load or cache
+failures on the device.
+
+**The rules.**
+
+1. **One aspect ratio: 3:2, everywhere.** It is the ratio of 128 of the 138 files. The detail hero is full width at
+   3:2 (not square). Every thumbnail (Exercises tab, picker, workout card header, technique sheet) is **60 × 40 pt**.
+   The row stays ≥ 44 pt tall; the image is not a separate touch target.
+2. **One crop, done once, at the source.** `scripts/gym/vendor-exercise-photos.ts` normalises every file to **600 ×
+   400** (3:2) with a per-image focal point (default centre; a manual override list for outliers such as
+   `assisted-pull-up`, which is cropped around the body, not the ceiling). The app then always renders `contentFit="cover"`
+   with no per-screen cropping logic, and a thumbnail and its detail photo show the same framing. Letterboxing is not
+   used (it made the square view look broken).
+3. **A designed placeholder, never a letter or a blank.** Exercises with no photo (the 8, custom and requested
+   exercises, cardio without art) get the same 3:2 tile: `bg-accent`, the equipment icon centred (`barbell-outline`,
+   `bicycle-outline`, `body-outline`, `fitness-outline`, `walk-outline`, `water-outline`; 40 % of the tile height,
+   `text-primary` at 60 % opacity), and on the detail hero only, the primary muscle below it (`Glutes`). Tokens only, so
+   it works in dark mode (P12). When D-22 (b) art arrives, it replaces the placeholder in the same slot.
+4. **Loading and failure.** While loading: the tile's `bg-muted` fill, then the photo fades in (MO-13, `duration.fast`;
+   reduced motion: appears at once). On a load error: the placeholder, one silent retry on the next mount, and the event
+   `exercise_image_failed { exerciseId }` (catalogue slugs only; custom exercises send `custom`). No broken-image icon,
+   no error text.
+5. **Wrong content is hidden until fixed.** The audit (below) produces a list of photos that show the wrong exercise
+   or variation. Those exercises show the placeholder until replacement art lands (D-22 b). A wrong photo on the
+   technique screen is worse than none (D4).
+6. **Alt text.** Photos are decorative next to the name (`accessible={false}`) in lists. On the detail hero, the label is
+   `{name}, start and end positions`; the placeholder is `No photo yet`.
+
+**The audit (T-05.11).** A dev script `scripts/gym/exercise-photo-contact-sheet.ts` renders every exercise's two
+photos at thumbnail and hero size into one HTML page; a person ticks **correct exercise** and **correct crop** for
+each, on an iPhone and the Pixel 8. The owner's list of the exercises he saw wrong (`05` §5 follow-up) seeds the check.
+The output is two lists in `apps/api/static/exercises/README.md`: focal-point overrides and hidden photos.
+
+**New acceptance criteria (UX-05).** 30. Every exercise image surface uses one shared component and the 3:2 ratio
+(grep: no other `aspectRatio` or square exercise-image style remains in `src/features/gym/**`). 31. All 138+ source
+files are 600 × 400 after vendoring (a script test). 32. The 8 photo-less exercises, customs and requested exercises
+show the icon placeholder, never a letter or a blank tile, in all five surfaces. 33. A forced image 404 shows the
+placeholder and fires `exercise_image_failed`. 34. The contact-sheet audit is recorded with the reviewer, date and
+both lists, and every hidden photo shows the placeholder.
+
+**Files.** NEW `src/features/gym/components/exercise-image.tsx` (`ExerciseImage` with `size: 'thumb' | 'hero'`,
+placeholder, fade, failure event; it sits next to `mode-switch.tsx` in L-GYM's folder), `library/exercise-image.ts`
+(URL helper, unchanged), `library-screens/photo-crossfade.tsx` (3:2, uses `ExerciseImage`), `exercises-tab.tsx`,
+`library/exercise-picker.tsx`, `workout/exercise-card.tsx`, `workout/workout-sheets.tsx`,
+`scripts/gym/vendor-exercise-photos.ts`, NEW `scripts/gym/exercise-photo-contact-sheet.ts`,
+`apps/api/static/exercises/**`. Web (same lane): `features/gym/library/ExerciseCard.tsx`, `PhotoCrossfade.tsx` (3:2
+and the same placeholder).
+
+#### D.11.1 Packaging delta for the addendum
+
+All of it lands in **W1 L-GYM**. It is S-sized UI on files the lane already owns, plus catalogue data, as `05` §4.2 says.
+
+| Task (`05`)      | UX               | Adds to L-GYM's "Owns" in wave 1 (beyond D.9.1)                                                                                                                                                                             | Size |
+| ---------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| T-05.8 (amended) | UX-05 A3         | NEW `library/collapsible-chip-filters.tsx`, `library/use-keyboard-visible.ts` (inside `src/features/gym/**`, already owned); web `features/gym/routine/components/ExercisePickerSheet.tsx` (already owned)                  | S    |
+| T-05.3 (amended) | UX-05 A4         | none new: `routine/day-editor.tsx`, `app/gym/routine-editor.tsx` and web `features/gym/routine/components/*` are already L-GYM's                                                                                            | S    |
+| T-05.10 (new)    | UX-05 A5         | **`packages/types/src/gym/exercise-catalog.ts` and `exercise-content.ts` (additive rows only)**; `apps/api/static/exercises/**`; `scripts/gym/**`. This **replaces** the "read-only" wave-1 cell for the catalogue in D.9.2 | S    |
+| T-05.11 (new)    | UX-05 A6, ⚖ D-22 | NEW `src/features/gym/components/exercise-image.tsx`; `scripts/gym/exercise-photo-contact-sheet.ts` (NEW); `apps/api/static/exercises/README.md`. Art per D-22 (b) is an external task and ships as data later (no lane)    | S    |
+
+**Order inside L-GYM:** A6's `ExerciseImage` before A5's photos (the new rows go straight into the new component), and
+A1's grouped `ValueStepper` before A4 (the editor reuses it). **Cut order:** A4's `More ▸` split and the accordion can
+trail to W2; never cut A3's collapse or A6's placeholder.
+
+**Pointer rows for `waves/W1.md` (L-GYM):**
+
+| Item                             | Heading in 03                 | Lines     |
+| -------------------------------- | ----------------------------- | --------- |
+| D-22 as designed, addendum rules | D.11                          | 5885–5898 |
+| Swap sheet and keyboard          | UX-05 amendment A3 (AC 19–22) | 5901–5968 |
+| Routine-editor card              | UX-05 amendment A4 (AC 23–26) | 5971–6047 |
+| Library staples                  | UX-05 amendment A5 (AC 27–29) | 6050–6070 |
+| Exercise images                  | UX-05 amendment A6 (AC 30–34) | 6073–6127 |
+
+<a id="d12-changelog-addendum"></a>
+
+### D.12 Changelog (addendum)
+
+- **Rev 3.1 — 2026-09-27:** added D.11 for the owner's addendum (O-22…O-26). UX-05 A3 is the keyboard-aware swap sheet
+  and Exercises tab: chips collapse to one row on keyboard show, MO-05 with a FLIP translate, an instant reduced-motion
+  fallback, and placeholder contrast. UX-05 A4 is the routine-editor card: full names on 2 lines, compact and expanded
+  states with one open at a time, a two-column grid, RIR and superset under `More`, text buttons, and the day actions in
+  `⋯`. UX-05 A5 adds Back Extension (Hyperextension) and Incline Barbell Bench Press. UX-05 A6 sets the image rules:
+  3:2 everywhere, a source crop to 600 × 400, an icon placeholder, hiding wrong-content photos, and a contact-sheet
+  audit. D-22 is designed as (a) now plus (b) later. All of it goes to W1 L-GYM (T-05.8, T-05.3, new T-05.10, T-05.11).
+  The catalogue files move from read-only to L-GYM in wave 1 (additive rows). §0–§7 and D.0–D.10 are unchanged.

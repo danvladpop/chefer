@@ -1382,3 +1382,54 @@ widens V2 and V4. §9 adds D-11 (gym premium) and D-12 (health sync).
 ### Rev 1 — 2026-09-27, synthesis v1 (n/7)
 
 Initial backlog B-01 to B-34.
+
+### Rev 4 — 2026-09-27, owner feedback 2026-09-27 (first real-user evidence)
+
+Appended after rev 1 so no earlier section is edited. The full evaluation (21 atomic items O-01…O-21, conflicts,
+wave placement and validation) is in [`05-owner-feedback-po.md`](./05-owner-feedback-po.md). §6.1, §9 and the
+consolidated UX table above are **not** updated in place. Read them together with this entry until the next full revision
+folds it in.
+
+**Added**
+| ID | Title | Bucket | RICE (R/I/C/E → score) | From |
+|---|---|---|---|---|
+| B-40 | A recipe form you can finish (mobile parity: name + 1 ingredient required, `*` and a reason on the disabled Create, cuisine and unit pickers, ingredient search, auto-macros, no fiber input) | **Now** | 2+O / 2 / 90 % / M → 1.8 | O-13, O-14, O-16, O-17, O-19, O-21; CI-02 (P05-M11), CI-15 |
+| B-41 | Curated generic-ingredient catalogue (licensed source, admin-verified, EU-14 allergen and diet tags per ingredient, canonical units, private custom rows on mobile) | Next (enabler) | 5 / 1 / 60 % / L → 0.75 | O-20; builds on the existing `IngredientPrice` catalogue |
+| B-42 | Cardio as a first-class exercise type (`trackingType`, a ~30-entry cardio catalogue, time/distance/RPE rows, a deterministic progression) | Next (Now slice inside B-05; optional minimal W2 slice, D-20) | 2+O / 2 / 80 % / L → 0.8 | O-01, O-03, O-04 (`06-cardio-research.md`); CI-20 |
+| B-43 | A governed exercise library (authoring by admins or a trainer role, `Request an exercise`, gap-filling; existing customs kept) ⚖ | Next (only after B-42's catalogue) | 5 / 1 / 60 % / M → 1.5 | O-08 (the owner's updated decision) |
+| B-44 | Correct a past workout (edit, swap, remove; delete with confirmation and Undo; recompute with a B-11 notice) | **Now** (cut-able) | 3+O / 1 / 80 % / M → 1.2 | O-12; CI-52, CI-31 |
+
+**Scope changed (same bucket):** **B-05**: grouped kg and reps steppers, delete any set (swipe + Undo), no kg or "Aim for 1 s"
+nonsense on timed or custom exercises (O-02, O-05, O-06); confidence 85 → 90 %, score 4.3 → 4.5 · **B-36**: a Resume
+card with time in, exercises done/left and the current exercise (O-09); Gym Today `Recent` 3–5 workouts with same-day
+grouping, times and `Show more` (O-10, O-11); confidence 80 → 90 %, score 4.8 → 5.4 · **B-21**: the recipe photo
+upload failure and `[object Object]` (O-18), and tiny set values in `ValueStepper` (O-07), via a W0-D hotfix PR ·
+**B-01, B-06, B-11, B-19**: hooks that activate once B-41 or B-42 land (no change to their Now scope) · **B-29**:
+boundary clarified and **kept as Don't**. A curated generic-ingredient catalogue with private user rows (B-41) is not
+the MyFitnessPal race; brands, barcodes and public user entries remain Don't.
+
+**Standing decision updated (owner):** library exercise authoring moves from every user to admins or a trainer role
+(B-43). `gym_plan.md` D5 (routine, session and target editing at every level) is unchanged, and all gym features stay
+free (a role is not a tier).
+
+**New owner decisions** (listed in 05 §5, continuing §9): **D-14** who authors exercises (admin / trainer / moderator)
+· **D-15** the fate of existing custom exercises (recommend: keep, never delete, offer to map) · **D-16** ingredient data
+source and licence (recommend USDA FDC + CIQUAL, counsel to confirm; no Open Food Facts) · **D-17** cardio calories
+(recommend a range on the summary only) · **D-18** fiber (remove from input and display, keep the data) · **D-19**
+minimum recipe fields (name + 1 ingredient) · **D-20** cardio timing (recommend a minimal slice in W2) · **D-21**
+editing past workouts (any session, with a change notice).
+
+**Waves:** a new **W0-D** hotfix PR before W1 is cut · W1 L-GYM (T-05.7, T-36.3, T-36.5 amended) and L-SAFE (B-40 slice 1
+with T-01.6) · W2 L-GYM (B-44, optional B-42 minimal) and a new W2 lane **L-RECIPE** (B-40 slice 2) · a new **W5 "Data
+foundations"** (W5-0 contracts, L-INGR for B-41, L-GYMDATA for B-42 and B-43) · W4's native batch gains image resizing.
+
+**Process note:** the web recipe form's ingredient search, units, cuisine presets and auto-macros never reached mobile,
+and `mobile_parity_backlog.md` has no row for them. Add the row now (B-40 slice 2 drains it). Next new ID: **B-45**.
+
+**Addendum (same day, O-22…O-26; see 05 §1.2b–§1.2c):** **B-05** scope += an animated chip collapse and a readable
+placeholder on the swap sheet (O-22, T-05.8), a lighter routine-editor card with the full name (O-23, T-05.3), and an
+exercise-image audit (O-26, new T-05.11). The file scan found all 138 photos present and valid, so the fault lies in
+fit, crop, content or the 8 photo-less exercises. **B-43**: Hyperextension and Incline Barbell Bench Press
+(O-24, O-25; both confirmed missing from the 77-entry catalogue) are pulled forward into W1 L-GYM as new T-05.10. New
+decision **D-22**: keep free-exercise-db photos and fix fit, versus commissioning art for flagged and photo-less
+exercises.

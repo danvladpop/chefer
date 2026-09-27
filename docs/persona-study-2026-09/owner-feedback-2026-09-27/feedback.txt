@@ -1,0 +1,44 @@
+Feedback
+Gym Bug: Log new workout is not working properly. I cannot log cardio workouts with time and not sets when. The UX needs improvements there.
+
+Add new receipt Bug: all the fields are mandatory (hard to use)
+Edit created receipt is not working properly.
+Add dropdowns for quantities, for cuisine type.
+Add star to mandatory fields so it is clear why the user cannot click Create which is disabled.
+
+[IMAGE: images/image1.png]
+
+Deleting a set should be easier here, also the + button for kg is too close to the - button on reps. Same for + button on reps with the checkmark, they should feel a bit more grouped
+
+[IMAGE: images/image3.png]
+
+For set 2 for some reason the kg and reps are really really small. We should fix thatI don’t think we should keep “fiber” for recipes - we can just remove that and keep only the 3 macros.
+
+[IMAGE: images/image4.png]
+
+When I try to create a recipe and I want to add a photo for it, I got an error there. And my photo was not added
+
+Gym - exercises - +custom -> This should be a feature available only for admins, or maybe create a roll like “trainers” that can also add new exercises. In general we should have a pretty strong DB for exercises, not really needed to create new ones.
+[IMAGE: images/image6.png]
+
+There isn’t really any cardio exercises - we should have a good datapool for this as well. Of course cardio exercises maybe should not be measured in set with kg, but rather in minutes with some sort of intensity (this is maybe a bit more complex topic, so do a bit of research regarding what is the best approach to defining cardio exercises)
+[IMAGE: images/image5.png]
+
+In this Resume workout section, maybe it would be nice to see the ongoing timer and how many exercises are done, how many are left, or maybe current ongoing exercise, something like this, figure it out what would be best from a UX perspective.
+[IMAGE: images/image2.png]
+
+There are 5 sessions for this week, but I see only this Full Body A. I would like to see my previous workouts (3 or 5 something like this) highlighting date and maybe hour if it’s in the same day, or group them somehow if they are in the same day. Also, add a show more or show history button that would load 3-5 more sessions from the past. The previous sessions should be editable (either delete them entirely - with confirmation of course, or edit specific exercise, replace, swap, edit reps, kg etc.)
+
+For ingredients - Ingredients should have a pretty strong data set, created by admins. However users should be able to add their own ingredients, but they should be available only for them. Ingredients should have macros, measurement unit, calories, etc. When creating recipes, ingredients should be a dropdown with search.For measurement units this should also be a dropdown instead of free text when creating the recipe.
+---
+Addendum (owner, 2026-09-27, sent in chat)
+
+[IMAGE: images/image7-swap-sheet-keyboard.png]
+Swap exercise sheet: the keyboard covers most of the exercises. Maybe add an animation that collapses the muscle pills above when the keyboard opens, so more exercises are visible while searching.
+
+[IMAGE: images/image8-routine-editor.png]
+Edit routine: the name of the exercise is not fully visible ("Dumbbel…"), even when the card is opened. It should be visible. The UI also feels a bit cluttered; add some spacing or similar to make it feel lighter.
+
+Add the hyperextension exercise (not present yet).
+Add the incline barbell bench press (not present yet).
+Check the images for all exercises: some are not visible or not rendered correctly.

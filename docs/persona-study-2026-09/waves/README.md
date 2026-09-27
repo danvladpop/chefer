@@ -3,7 +3,7 @@
 This folder condenses `docs/persona-study-2026-09/synthesis/04-technical-plan.md` (rev 2, final — the
 implementation plan for 20 "Now" items, 147 tasks `T-xx.n` + `T-BUG-*`, in waves 0–4) plus the relevant acceptance
 criteria from `03-ux-design-spec.md` and the owner decisions in `02-business-strategy.md` §9, into one brief per
-wave: `W0.md`, `W1.md`, `W2.md`, `W3.md`, `W4.md`. Each wave brief is meant to be the **only** synthesis document a
+wave: `W0.md`, `W1.md`, `W2.md`, `W3.md`, `W4.md`, and (owner feedback 2026-09-27) `W5.md`. Each wave brief is meant to be the **only** synthesis document a
 fresh Claude Code session needs to read before spinning up lane agents — it should never need the full 4,300 lines
 of source docs. Where a `Wn.md` and the synthesis docs disagree, the synthesis docs are correct (something drifted
 while condensing) — the pointers in each `Wn.md` §4 tell you exactly where to look.
@@ -11,7 +11,8 @@ while condensing) — the pointers in each `Wn.md` §4 tell you exactly where to
 ## How to run a wave
 
 Start a **new** Claude Code session (do not reuse a session that has read the full synthesis docs — that defeats the
-token-saving point of these briefs) and paste this, replacing `{N}` with the wave number (0–4):
+token-saving point of these briefs) and paste this, replacing `{N}` with the wave number (0–5; for the W0-D
+hotfix lane use `0` and say "run only lane W0-D"):
 
 ```
 Read only these three files, in this order: docs/persona-study-2026-09/waves/README.md,
@@ -75,13 +76,34 @@ session will see that from `W4.md`.
 Fill in as each wave runs. PRs column: integration-branch PR into `master`, plus each lane's PR into the
 integration branch if useful to track separately.
 
-| Wave | State | Lane PRs | Integration PR → master | Deployed | Notes |
-| ---- | ----- | -------- | ----------------------- | -------- | ----- |
-| 0    |       |          |                         |          |       |
-| 1    |       |          |                         |          |       |
-| 2    |       |          |                         |          |       |
-| 3    |       |          |                         |          |       |
-| 4    |       |          |                         |          |       |
+| Wave | State                      | Lane PRs                                                               | Integration PR → master | Deployed                                  | Notes                                                                                                                                                      |
+| ---- | -------------------------- | ---------------------------------------------------------------------- | ----------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | Merged to master (8c9de2c) | #57 kit, #58 hotfix, #59 contracts (merged into `integrate/ux-now-w0`) | #60 merged 2026-09-27   | Deploy started 2026-09-27 (API, then OTA) | 2026-09-27. Flags all off. Pre-existing: web `/unsubscribe`+`/verify-email` sweep failures; mobile "See full day" → tracker fails in Maestro on master too |
+| 1    |                            |                                                                        |                         |                                           |                                                                                                                                                            |
+| 2    |                            |                                                                        |                         |                                           |                                                                                                                                                            |
+| 3    |                            |                                                                        |                         |                                           |                                                                                                                                                            |
+| 0-D  | Not started                |                                                                        |                         |                                           | Owner feedback 2026-09-27: T-BUG-O1 (upload), T-BUG-O2 (tiny values). Own PR → `master`; must deploy **before** W1 is cut                                  |
+| 4    |                            |                                                                        |                         |                                           |                                                                                                                                                            |
+| 5    | Not started                |                                                                        |                         |                                           | Owner feedback 2026-09-27 ("Data foundations"): after W3, beside W4. Blocked in part by D-14, D-16 (+ counsel)                                             |
+
+## Owner feedback 2026-09-27 — what changed in which wave
+
+The owner used the app on his phone and reported 26 items (`synthesis/05-owner-feedback-po.md`, O-01…O-26). The UX
+delta is appended to `03-ux-design-spec.md` (§ Owner feedback delta, from L4211; addendum D.11 from L5885) and the
+technical delta to `04-technical-plan.md` (§ Owner feedback delta, from L1698). The earlier sections of both files are
+untouched, so every existing pointer stays valid. The briefs mark each addition "(owner feedback 2026-09-27)".
+
+| Wave     | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **W0-D** | **New hotfix lane** (`W0.md` §3): recipe photo upload shows `[object Object]` (the client stringifies an error object; a > 5 MB body's 413 becomes a 500), and set 2's values render at ~4 pt (unbounded `adjustsFontSizeToFit`). Merge and deploy before W1 is cut                                                                                                                                                                                                                                   |
+| **W1**   | **L-GYM +9 tasks:** set row regrouped + remove any set with Undo (JS swipe), no kg / `Aim for 1 s` on timed and custom exercises, keyboard-aware swap sheet, readable routine-editor card, Back Extension + Incline Barbell Bench Press, exercise images (3:2, placeholder, audit), a richer Resume card, a `Recent` list on Gym Today. **L-SAFE +7:** the recipe form you can finish (slice 1), the O-15 recipe-edit fixes, fiber removed on web. **L-PLAN:** one guard (recipes with unknown times) |
+| **W2**   | **W2-0** gym mini contracts (only if ⚖ D-20 = b); **L-GYM:** correct or delete a past workout (UX-44), a minimal cardio slice (UX-42, D-20 b; T-36.6 trails or is cut), web parity for the Resume card and Recent list; **new 5th lane L-RECIPE** (mobile ingredient search, private ingredients, computed nutrition); one line each for L-HOME and L-MONEY                                                                                                                                           |
+| **W3**   | No change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **W4**   | The native release adds `expo-image-manipulator` (on-device photo resize, the upload root cause) and, only if W1's JS swipe failed QA, `react-native-gesture-handler` as a direct dependency                                                                                                                                                                                                                                                                                                          |
+| **W5**   | **New wave** (`W5.md`): W5-0 contracts → L-INGR (curated ingredient catalogue, provenance, private rows, admin review, recipe lines linked by id, safety by lookup) ‖ L-GYMDATA (the rest of cardio, then a governed exercise library: requests, trainer/admin authoring, flag then enforce)                                                                                                                                                                                                          |
+
+Owner decisions added: D-14…D-22 (`05` §5); technical questions Q-22…Q-36 (`04` Δ8). Each has a default in the
+brief that needs it.
 
 ## Inconsistencies found while condensing
 
@@ -119,3 +141,21 @@ of stage 3.
    `T-10.8` in `W2.md`); "an import counts only after saving" is also not how the quota is enforced today — the
    preview **is** the AI cost (Q-19, same task). Both have defaults recorded in `W2.md` §2 pending the owner's
    answer.
+6. **_(owner feedback 2026-09-27)_ `react-native-gesture-handler` is already in the installed binaries.** `04` §1's
+   facts table, §2.14 and Q-17, and 03's PAT-16 ("not in the binary") say it is absent. The local release builds
+   show `RNGestureHandler (3.2.1)` in `ios/Podfile.lock` and `libgesturehandler.so` in the APK, pulled in
+   transitively by `expo-router`. It is not a **direct** dependency, so JS can't import it reliably under pnpm. The
+   plan keeps the JS swipe first; the fallback may ship over OTA if the fingerprint check passes (`04` Δ0, Q-29).
+7. **_(owner feedback 2026-09-27)_ UX-44 needs no outbox op or schema** (03 D.9.1 planned W2-0 for it). A past-session
+   delete is a `status: DISCARDED` upsert through the existing outbox; W2-0 now exists only for cardio (`04` Δ2.3, R11).
+8. **_(owner feedback 2026-09-27)_ Ingredients get a new id-keyed `Ingredient` table**, not new columns on
+   `IngredientPrice` as 03 UX-41 lists: the name primary key leaks private names across accounts (T-BUG-X8) and can't
+   hold a private row next to a same-name catalogue row (`04` Δ2.5, Q-25).
+9. **_(owner feedback 2026-09-27)_ Small path and scope corrections to 03:** `app/settings.tsx` is
+   `app/settings/index.tsx`; the web recipe **detail** page also shows fiber (`recipes/[id]/page.tsx` L497), which
+   03's fiber list missed; the exercise catalogue files are writable by W1 L-GYM for additive rows (03 D.11.1
+   supersedes D.9.2's "read-only"); re-cropped exercise photos must get new file names or installed apps keep the old
+   crops (`04` Δ2.7).
+10. **_(owner feedback 2026-09-27)_ Back Extension's load type.** 03 UX-05 A5 sets `BODYWEIGHT_PLUS` and a cue says
+    "hold a plate"; the engine maps that type to the dip-belt model, so the logger shows `BW` unless the user owns a
+    belt. W1 must extend T-05.7's `+ Add weight` to held loads (Q-28).
