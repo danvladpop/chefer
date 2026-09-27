@@ -143,8 +143,23 @@ function SetRowImpl({
             </RNText>
           </View>
         ) : null}
+        {/* UX-05 A1 (T-05.A1.2, PAT-16): a visible ⋯ on every set's label
+            line, opening the same remove options as long-press. */}
+        <Pressable
+          testID={`${testID}-menu`}
+          accessibilityRole="button"
+          accessibilityLabel={`Options for ${label}`}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          onPress={longPress}
+          className="h-11 w-11 items-center justify-center"
+        >
+          <RNText className="text-lg font-bold text-muted-foreground">⋯</RNText>
+        </Pressable>
       </View>
-      <View className="flex-row items-center gap-1">
+      {/* UX-05 A1 (T-05.A1.1, O-05/O-06): grouped kg/reps containers 8 pt
+          apart, and before the ✓, which is now a round 48 pt control — one
+          filled shape per control, not seven equal tiles. */}
+      <View className="flex-row items-center gap-2">
         {weightMode === 'none' ? (
           <View className="min-h-11 flex-1 items-center justify-center">
             <Text testID={`${testID}-weight-value`} className="text-base font-semibold">
@@ -155,6 +170,7 @@ function SetRowImpl({
           <ValueStepper
             className="flex-1"
             testID={`${testID}-weight`}
+            variant="grouped"
             name="Weight"
             value={set.weightKg}
             next={nextWeight}
@@ -168,6 +184,7 @@ function SetRowImpl({
         <ValueStepper
           className="flex-1"
           testID={`${testID}-reps`}
+          variant="grouped"
           name={timed ? 'Seconds' : 'Reps'}
           value={set.reps}
           next={nextReps}
@@ -184,8 +201,8 @@ function SetRowImpl({
           accessibilityLabel={done ? `${summary}. Logged, tap to undo` : `Log ${summary}`}
           onPress={() => onTick(seId, set.id)}
           className={cn(
-            'h-14 w-14 items-center justify-center rounded-xl border-2 active:opacity-70',
-            done ? 'border-emerald-600 bg-emerald-600' : 'border-border bg-background',
+            'h-12 w-12 items-center justify-center rounded-full border-2 active:opacity-70',
+            done ? 'border-emerald-600 bg-emerald-600' : 'border-primary/40 bg-background',
           )}
         >
           <RNText

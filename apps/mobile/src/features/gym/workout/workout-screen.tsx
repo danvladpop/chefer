@@ -4,7 +4,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect } from 'expo-router';
 import type { ExerciseDto, Rir } from '@chefer/types';
-import { Button, ConfirmSheet, EmptyState, haptics, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  ConfirmSheet,
+  EmptyState,
+  haptics,
+  Screen,
+  Text,
+  useSnackbar,
+} from '@chefer/ui-mobile';
 import { sameKg, sessionSupersetKey, type SessionSupersetSlot } from '@chefer/utils';
 import { ExercisePicker } from '../library/exercise-picker';
 import { localDate, newId } from '../offline/ids';
@@ -49,8 +57,7 @@ type SheetState =
   | { kind: 'picker'; mode: 'swap' | 'add'; seId: string | null; scope: SwapScope }
   | { kind: 'finish' }
   | { kind: 'discard' }
-  | { kind: 'minimise' }
-  | { kind: 'removeSet'; seId: string; setId: string };
+  | { kind: 'minimise' };
 
 /** iOS can't present a Modal while another is still dismissing. */
 const SHEET_SWAP_DELAY_MS = 380;
@@ -80,6 +87,7 @@ export function WorkoutScreen() {
   const { data: bootstrap } = useGymBootstrap();
   const online = useIsOnline();
   const swapRoutine = useRoutineSwap();
+  const snackbar = useSnackbar();
   const [finishing, setFinishing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const isActive = session !== null;
@@ -240,9 +248,28 @@ export function WorkoutScreen() {
       },
       onOpenWeight: (seId, setId) => openSheet({ kind: 'weight', seId, setId }),
       onOpenReps: (seId, setId) => openSheet({ kind: 'reps', seId, setId }),
-      onLongPress: (seId, setId) => openSheet({ kind: 'removeSet', seId, setId }),
+      // UX-05 A1 (T-05.A1.2, PAT-16): any set, logged or not, is removed with
+      // no confirm — the ⋯ and long-press both land here — and restored by
+      // Undo, in place, with its values and tick.
+      onLongPress: (seId, setId) => {
+        const se = getResumableSession()?.exercises.find((e) => e.id === seId);
+        const index = se?.sets.findIndex((s) => s.id === setId) ?? -1;
+        const set = se && index >= 0 ? se.sets[index] : undefined;
+        const label = se ? setLabelOf(se, setId) : null;
+        if (!se || !set) return;
+        dispatchWorkout({ type: 'removeSet', seId, setId });
+        haptics.warning();
+        snackbar.show({
+          message: `Removed ${label?.toLowerCase() ?? 'set'}`,
+          actionLabel: 'Undo',
+          durationMs: 8000,
+          onAction: () => {
+            dispatchWorkout({ type: 'restoreSet', seId, set, index });
+          },
+        });
+      },
     }),
-    [openSheet],
+    [openSheet, snackbar],
   );
 
   // ── Expansion + auto-scroll to the current exercise ────────────────────────
@@ -484,8 +511,6 @@ export function WorkoutScreen() {
         ? 'Changing your routine needs a connection. This swap applies to today only.'
         : null;
   const unticked = planned - done;
-  const removeSetLabel =
-    content?.kind === 'removeSet' && contentSe ? setLabelOf(contentSe, content.setId) : null;
 
   return (
     <Screen className="px-0" edges={['top', 'left', 'right']}>
@@ -637,11 +662,13 @@ export function WorkoutScreen() {
           closeSheet();
         }}
         onRemoveSet={() => {
-          const target = contentSe
-            ? [...byPosition(contentSe.sets)]
-                .reverse()
-                .find((s) => s.completedAt === null && !s.isWarmup)
-            : undefined;
+          // "Remove last set" (renamed, T-05.A1.2): the last unlogged
+          // working set, or — once every set is logged — the last working
+          // set outright.
+          const working = contentSe
+            ? [...byPosition(contentSe.sets)].reverse().filter((s) => !s.isWarmup)
+            : [];
+          const target = working.find((s) => s.completedAt === null) ?? working[0];
           if (contentSe && target) {
             dispatchWorkout({ type: 'removeSet', seId: contentSe.id, setId: target.id });
           }
@@ -737,22 +764,6 @@ export function WorkoutScreen() {
         onConfirm={() => {
           closeSheet();
           leaveWorkout();
-        }}
-      />
-      <ConfirmSheet
-        visible={active?.kind === 'removeSet'}
-        onClose={closeSheet}
-        testID="workout-remove-set-sheet"
-        title={`Remove ${removeSetLabel?.toLowerCase() ?? 'this set'}?`}
-        body={`${contentMeta?.name ?? 'This exercise'} loses this set for today. Your routine doesn’t change.`}
-        confirmLabel="Remove set"
-        cancelLabel="Keep it"
-        destructive
-        onConfirm={() => {
-          if (content?.kind === 'removeSet') {
-            dispatchWorkout({ type: 'removeSet', seId: content.seId, setId: content.setId });
-          }
-          closeSheet();
         }}
       />
     </Screen>

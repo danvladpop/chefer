@@ -195,6 +195,9 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
   const { visible, onClose, exercise, name, isFirst, isLast, routineBlockedReason } = props;
   const [page, setPage] = useState<MenuPage>('actions');
   const [note, setNote] = useState(exercise?.notes ?? '');
+  // UX-05 A1 (T-05.A1.2): renamed "Remove last set" — it removes the last
+  // unlogged set, or (once every set is logged) the last set outright.
+  const hasWorkingSet = exercise?.sets.some((s) => !s.isWarmup) ?? false;
   const hasOpenSet = exercise?.sets.some((s) => !s.isWarmup && s.completedAt === null) ?? false;
 
   const titles: Record<MenuPage, string> = {
@@ -224,9 +227,15 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
           <MenuRow testID="menu-add-set" label="Add set" onPress={props.onAddSet} />
           <MenuRow
             testID="menu-remove-set"
-            label="Remove a set"
-            hint={hasOpenSet ? 'Removes the last set you haven’t logged.' : 'Every set is logged.'}
-            disabled={!hasOpenSet}
+            label="Remove last set"
+            hint={
+              hasOpenSet
+                ? 'Removes the last set you haven’t logged.'
+                : hasWorkingSet
+                  ? 'Removes the last set.'
+                  : 'No sets to remove.'
+            }
+            disabled={!hasWorkingSet}
             onPress={props.onRemoveSet}
           />
           <MenuRow
