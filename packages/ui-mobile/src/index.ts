@@ -70,7 +70,7 @@ export {
   type FieldChainBinding,
   type UseFieldChainResult,
 } from './components/use-field-chain';
-export { ValueStepper, type ValueStepperProps } from './components/value-stepper';
+export { ValueStepper, valueFontSize, type ValueStepperProps } from './components/value-stepper';
 export { chartPalette, colors } from './components/theme';
 // Charts (react-native-svg)
 export {
