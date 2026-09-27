@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { cn } from '@chefer/utils';
 import { Text } from './text';
 
@@ -16,8 +15,9 @@ export interface FormFieldProps {
 
 /**
  * PAT-17 field wrapper: label (` *` in `text-primary` when required), the
- * control, then either the error (destructive, `alert-circle`) or the hint
- * (muted). The `*` glyph is `accessibilityElementsHidden` — the label's
+ * control, then either the error (destructive, a plain "⚠" glyph — kit
+ * components carry no icon-font dependency) or the hint (muted). The `*`
+ * glyph is `accessibilityElementsHidden` — the label's
  * accessible name already reads "{label}, required" instead.
  *
  * The error `Text` carries a `nativeID` (`${testID}-error`) so a control
@@ -62,7 +62,9 @@ export function FormField({
           accessibilityLiveRegion="polite"
           nativeID={errorId}
         >
-          <Ionicons name="alert-circle" size={14} color="#dc2626" />
+          <Text accessibilityElementsHidden className="text-xs text-destructive">
+            ⚠
+          </Text>
           <Text
             testID={testID ? `${testID}-error-text` : undefined}
             className="flex-1 text-xs text-destructive"

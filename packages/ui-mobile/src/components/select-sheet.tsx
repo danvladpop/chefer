@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { cn } from '@chefer/utils';
 import { haptics } from '../motion/haptics';
 import { PressableScale } from '../motion/pressable-scale';
@@ -21,15 +20,15 @@ export interface SelectFieldProps<T extends string = string> {
   value: T | null;
   options: readonly SelectOption<T>[];
   onChange: (value: T) => void;
-  placeholder?: string;
+  placeholder?: string | undefined;
   required?: boolean;
   error?: string;
   /** Show a search box in the sheet. Defaults to on when there are > 12 options. */
   searchable?: boolean;
   /** Adds an "Other…" row that swaps the list for a free-text input. */
-  allowOther?: { label?: string; inputLabel: string };
+  allowOther?: { label?: string; inputLabel: string } | undefined;
   className?: string;
-  testID?: string;
+  testID?: string | undefined;
 }
 
 /**
@@ -78,11 +77,15 @@ export function SelectField<T extends string = string>({
         >
           {displayLabel ?? placeholder}
         </Text>
-        <Ionicons name="chevron-down" size={16} color="#6b7280" />
+        <Text accessibilityElementsHidden className="text-xs text-muted-foreground">
+          ▾
+        </Text>
       </Pressable>
       {error ? (
         <View className="flex-row items-center gap-1">
-          <Ionicons name="alert-circle" size={14} color="#dc2626" />
+          <Text accessibilityElementsHidden className="text-xs text-destructive">
+            ⚠
+          </Text>
           <Text className="flex-1 text-xs text-destructive">{error}</Text>
         </View>
       ) : null}
@@ -112,8 +115,8 @@ export interface SelectSheetProps<T extends string = string> {
   value: T | null;
   onChange: (value: T) => void;
   searchable?: boolean;
-  allowOther?: { label?: string; inputLabel: string };
-  testID?: string;
+  allowOther?: { label?: string; inputLabel: string } | undefined;
+  testID?: string | undefined;
 }
 
 /**
@@ -239,7 +242,14 @@ export function SelectSheet<T extends string = string>({
                         </Text>
                       ) : null}
                     </View>
-                    {isSelected ? <Ionicons name="checkmark" size={18} color="#944a00" /> : null}
+                    {isSelected ? (
+                      <Text
+                        accessibilityElementsHidden
+                        className="text-base font-bold text-primary"
+                      >
+                        ✓
+                      </Text>
+                    ) : null}
                   </PressableScale>
                 );
               })}
@@ -273,9 +283,9 @@ function OtherInput({
 }: {
   value: string;
   onChangeText: (v: string) => void;
-  placeholder?: string;
-  testID?: string;
-  accessibilityLabel?: string;
+  placeholder?: string | undefined;
+  testID?: string | undefined;
+  accessibilityLabel?: string | undefined;
 }) {
   return (
     <TextInput

@@ -74,12 +74,24 @@ export default function RecipeDetailScreen() {
   const isSaved = savedData?.isSaved ?? false;
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const n = recipe.nutritionInfo;
+  // D-18/UX-40: a blank nutrition section (never filled in, or D-19's
+  // minimum-only save) shows "Nutrition not added" instead of "0 kcal".
+  const nutritionAdded = n.calories > 0 || n.protein > 0 || n.carbs > 0 || n.fat > 0;
   // Opened from a portioned plan slot, quantities start at that portion (P1-1);
   // premium households start from the whole table (P2-3) — the two multiply.
   const selectedServings =
     servings ?? defaultCookServings(recipe.servings, portionSum, planPortion);
   const planN = scaleNutrition(n, planPortion);
   const scale = selectedServings / (recipe.servings || 1);
+  // UX-40: "0 min" invents a time nobody entered — a blank prep/cook field
+  // is sent as 0 and means "unknown", so the stat is hidden, not shown as 0.
+  const timeStats = (
+    [
+      ['Prep', recipe.prepTimeMins],
+      ['Cook', recipe.cookTimeMins],
+      ['Total', totalTime],
+    ] as const
+  ).filter(([, minutes]) => minutes > 0);
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
@@ -162,22 +174,24 @@ export default function RecipeDetailScreen() {
             </Button>
           </View>
 
-          {/* Stats */}
-          <View className="flex-row justify-between rounded-2xl border border-border bg-gray-50 px-4 py-3">
-            {(
-              [
-                ['Prep', `${recipe.prepTimeMins}m`],
-                ['Cook', `${recipe.cookTimeMins}m`],
-                ['Total', `${totalTime}m`],
-                ['Energy', `${n.calories} kcal`],
-              ] as const
-            ).map(([label, value]) => (
-              <View key={label} className="items-center">
-                <Text className="text-xs text-gray-500">{label}</Text>
-                <Text className="text-sm font-semibold text-gray-800">{value}</Text>
-              </View>
-            ))}
-          </View>
+          {/* Stats — a 0 prep/cook/total time or an empty nutrition is
+              hidden rather than shown as "0m" / "0 kcal" (UX-40). */}
+          {(timeStats.length > 0 || nutritionAdded) && (
+            <View className="flex-row justify-between rounded-2xl border border-border bg-gray-50 px-4 py-3">
+              {timeStats.map(([label, minutes]) => (
+                <View key={label} className="items-center">
+                  <Text className="text-xs text-gray-500">{label}</Text>
+                  <Text className="text-sm font-semibold text-gray-800">{minutes}m</Text>
+                </View>
+              ))}
+              {nutritionAdded && (
+                <View className="items-center">
+                  <Text className="text-xs text-gray-500">Energy</Text>
+                  <Text className="text-sm font-semibold text-gray-800">{n.calories} kcal</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* P1-1: the plan sized this slot to the day's targets */}
           {planPortion !== 1 && (
@@ -189,22 +203,23 @@ export default function RecipeDetailScreen() {
             </View>
           )}
 
-          {/* Macros */}
-          <View className="flex-row gap-2">
-            {(
-              [
-                ['Protein', n.protein],
-                ['Carbs', n.carbs],
-                ['Fat', n.fat],
-                ['Fiber', n.fiber],
-              ] as const
-            ).map(([label, value]) => (
-              <View key={label} className="flex-1 items-center rounded-xl bg-gray-100 py-2">
-                <Text className="text-xs text-gray-500">{label}</Text>
-                <Text className="text-sm font-semibold text-gray-800">{value}g</Text>
-              </View>
-            ))}
-          </View>
+          {/* Macros — no Fiber (D-18); hidden entirely when nothing was added. */}
+          {nutritionAdded && (
+            <View className="flex-row gap-2">
+              {(
+                [
+                  ['Protein', n.protein],
+                  ['Carbs', n.carbs],
+                  ['Fat', n.fat],
+                ] as const
+              ).map(([label, value]) => (
+                <View key={label} className="flex-1 items-center rounded-xl bg-gray-100 py-2">
+                  <Text className="text-xs text-gray-500">{label}</Text>
+                  <Text className="text-sm font-semibold text-gray-800">{value}g</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           {/* Ingredients + servings adjuster */}
           <Card testID="recipe-ingredients">
@@ -247,23 +262,30 @@ export default function RecipeDetailScreen() {
             </View>
           </Card>
 
-          {/* Instructions */}
+          {/* Instructions — D10/UX-40: no steps is a valid recipe, not an
+              error; the card reads "No steps yet" instead of rendering empty. */}
           <Card testID="recipe-instructions">
             <Text variant="heading" className="mb-3">
               Instructions
             </Text>
-            <View className="gap-4">
-              {recipe.instructions.map((step, i) => (
-                <View key={i} className="flex-row gap-3">
-                  <View className="h-6 w-6 items-center justify-center rounded-full bg-primary">
-                    <Text className="text-xs font-bold text-primary-foreground">{i + 1}</Text>
+            {recipe.instructions.length > 0 ? (
+              <View className="gap-4">
+                {recipe.instructions.map((step, i) => (
+                  <View key={i} className="flex-row gap-3">
+                    <View className="h-6 w-6 items-center justify-center rounded-full bg-primary">
+                      <Text className="text-xs font-bold text-primary-foreground">{i + 1}</Text>
+                    </View>
+                    <Text className="min-w-0 flex-1 text-sm leading-relaxed text-gray-700">
+                      {step}
+                    </Text>
                   </View>
-                  <Text className="min-w-0 flex-1 text-sm leading-relaxed text-gray-700">
-                    {step}
-                  </Text>
-                </View>
-              ))}
-            </View>
+                ))}
+              </View>
+            ) : (
+              <Text testID="recipe-no-steps" variant="muted" className="text-sm">
+                No steps yet
+              </Text>
+            )}
           </Card>
 
           {/* Nutrition facts. bug B-22: the label used to read "per {recipe.
@@ -278,25 +300,33 @@ export default function RecipeDetailScreen() {
                 per serving
               </Text>
             </Text>
-            <View className="flex-row flex-wrap">
-              {(
-                [
-                  ['Calories', `${n.calories} kcal`],
-                  ['Protein', `${n.protein}g`],
-                  ['Carbs', `${n.carbs}g`],
-                  ['Fat', `${n.fat}g`],
-                ] as const
-              ).map(([label, value]) => (
-                <View key={label} className={cn('w-1/2 flex-row justify-between py-1 pr-4')}>
-                  <Text className="text-sm text-gray-500">{label}</Text>
-                  <Text className="text-sm font-medium text-gray-800">{value}</Text>
+            {nutritionAdded ? (
+              <>
+                <View className="flex-row flex-wrap">
+                  {(
+                    [
+                      ['Calories', `${n.calories} kcal`],
+                      ['Protein', `${n.protein}g`],
+                      ['Carbs', `${n.carbs}g`],
+                      ['Fat', `${n.fat}g`],
+                    ] as const
+                  ).map(([label, value]) => (
+                    <View key={label} className={cn('w-1/2 flex-row justify-between py-1 pr-4')}>
+                      <Text className="text-sm text-gray-500">{label}</Text>
+                      <Text className="text-sm font-medium text-gray-800">{value}</Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
-            {selectedServings !== recipe.servings && (
-              <Text testID="recipe-nutrition-scaled" variant="muted" className="mt-2 text-xs">
-                Scaled for {formatFractionalQuantity(selectedServings)} servings:{' '}
-                {Math.round(n.calories * selectedServings)} kcal total
+                {selectedServings !== recipe.servings && (
+                  <Text testID="recipe-nutrition-scaled" variant="muted" className="mt-2 text-xs">
+                    Scaled for {formatFractionalQuantity(selectedServings)} servings:{' '}
+                    {Math.round(n.calories * selectedServings)} kcal total
+                  </Text>
+                )}
+              </>
+            ) : (
+              <Text testID="recipe-nutrition-not-added" variant="muted" className="text-sm">
+                Nutrition not added
               </Text>
             )}
           </Card>
