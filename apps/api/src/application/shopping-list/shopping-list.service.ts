@@ -351,12 +351,13 @@ export class ShoppingListService {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
 
-    // Find the plan for this week (single indexed query); for offset 0 fall
-    // back to the active plan.
-    let targetPlan = await mealPlanRepository.findByWeekStart(userId, weekStart);
-    if (!targetPlan && weekOffset === 0) {
-      targetPlan = await mealPlanRepository.findActiveWithDays(userId);
-    }
+    // Find the plan for this week (single indexed query). B-13/T-00.15: this
+    // used to fall back to findActiveWithDays for offset 0 — whichever plan
+    // happened to be ACTIVE, any week — which leaked a later week's plan
+    // into "this week"'s Shop view once that week became the sole active
+    // plan (every Sunday planner's view). findForWeek only ever matches
+    // THIS calendar week.
+    const targetPlan = await mealPlanRepository.findForWeek(userId, weekStart);
 
     if (!targetPlan) {
       const { pantry } = await this.applyPantry(user, [], null);
@@ -661,8 +662,10 @@ export class ShoppingListService {
       return planMonday.toDateString() === targetDateStr;
     });
 
+    // B-13/T-00.15: same bug as getForWeek above — findActiveWithDays could
+    // return a different week's plan. findForWeek matches THIS week only.
     if (!targetPlan && weekOffset === 0) {
-      targetPlan = (await mealPlanRepository.findActiveWithDays(userId)) ?? undefined;
+      targetPlan = (await mealPlanRepository.findForWeek(userId, weekStart)) ?? undefined;
     }
 
     if (!targetPlan) {

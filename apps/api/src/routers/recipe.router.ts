@@ -33,6 +33,12 @@ export const recipeRouter = router({
         myRecipesOnly: z.boolean().optional(),
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(50).optional(),
+        /**
+         * T-00.11 (B-34/B-46): drop recipes unsafe for the user's/household's
+         * allergies and dietary restrictions. Optional — old clients that omit
+         * it keep today's unfiltered list.
+         */
+        forTable: z.boolean().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {

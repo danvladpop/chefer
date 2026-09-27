@@ -20,7 +20,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
       $transaction: vi.fn(),
     },
     mealPlanRepository: {
-      findByWeekStart: vi.fn().mockResolvedValue(null),
+      findForWeek: vi.fn().mockResolvedValue(null),
       findActiveWithDays: vi.fn().mockResolvedValue(null),
       findByIdForUser: vi.fn().mockResolvedValue(null),
       findRecipesByIds: vi.fn().mockResolvedValue([]),
@@ -112,7 +112,7 @@ const pantryRow = (name: string) => ({
 });
 
 function planWithRecipes() {
-  vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(PLAN as never);
+  vi.mocked(mealPlanRepository.findForWeek).mockResolvedValue(PLAN as never);
   vi.mocked(mealPlanRepository.findByIdForUser).mockResolvedValue(PLAN as never);
   vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([RECIPE] as never);
   vi.mocked(prisma.ingredientPrice.findMany).mockResolvedValue(PRICES as never);
@@ -279,7 +279,7 @@ describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
     ]);
 
     // …and it matches the line getForWeek serves for the same plan.
-    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(
+    vi.mocked(mealPlanRepository.findForWeek).mockResolvedValue(
       await mealPlanRepository.findByIdForUser('u1', 'plan1'),
     );
     const list = await service.getForWeek(premiumUser, 0);
@@ -354,7 +354,7 @@ describe('ShoppingListService — plans made mid-week (audit F-PM-3)', () => {
         },
       ],
     };
-    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(midWeekPlan as never);
+    vi.mocked(mealPlanRepository.findForWeek).mockResolvedValue(midWeekPlan as never);
     vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([RECIPE] as never);
     vi.mocked(prisma.ingredientPrice.findMany).mockResolvedValue(PRICES as never);
     vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
@@ -365,6 +365,29 @@ describe('ShoppingListService — plans made mid-week (audit F-PM-3)', () => {
     expect(list.fromDayOfWeek).toBe(4);
     // Only Friday's stew: 600 g tomato, not Monday's + Friday's 1,200 g.
     expect(list.items.find((i) => i.ingredientName === 'Tomato')?.quantity).toBe('600');
+  });
+});
+
+describe('ShoppingListService — B-13 week-matched reads (T-00.15)', () => {
+  const service = new ShoppingListService();
+
+  it('Sunday: only next week planned → Shop is empty, never leaks next week', async () => {
+    // Only a plan for a DIFFERENT week exists, and it's the sole ACTIVE
+    // plan — findActiveWithDays would return it (the old bug). findForWeek
+    // must not: it only ever matches THIS week.
+    vi.mocked(mealPlanRepository.findForWeek).mockResolvedValue(null);
+    vi.mocked(mealPlanRepository.findActiveWithDays).mockResolvedValue({
+      ...PLAN,
+      id: 'plan-next-week',
+      weekStartDate: new Date('2026-10-05'),
+    } as never);
+    vi.mocked(pantryItemRepository.findByUser).mockResolvedValue([]);
+
+    const list = await service.getForWeek(freeUser, 0);
+
+    expect(list.hasPlan).toBe(false);
+    expect(list.items).toEqual([]);
+    expect(mealPlanRepository.findActiveWithDays).not.toHaveBeenCalled();
   });
 });
 
@@ -389,7 +412,7 @@ describe('ShoppingListService — portioned plan slots (audit P1-1)', () => {
         },
       ],
     };
-    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(portioned as never);
+    vi.mocked(mealPlanRepository.findForWeek).mockResolvedValue(portioned as never);
     vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([RECIPE] as never);
     vi.mocked(prisma.ingredientPrice.findMany).mockResolvedValue(PRICES as never);
     vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
@@ -475,7 +498,7 @@ describe('ShoppingListService — household scaling (P2-3, audit F-PM-5)', () =>
     };
     const recipe = { ...RECIPE, servings: 1 };
     planWithRecipes();
-    vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(portioned as never);
+    vi.mocked(mealPlanRepository.findForWeek).mockResolvedValue(portioned as never);
     vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([recipe] as never);
     // The plan chip prices the same slots through estimatePlanCostEur.
     const planDays = [{ meals: [{ recipe, portion: 1.5 }] }];

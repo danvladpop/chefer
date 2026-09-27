@@ -106,6 +106,16 @@ export interface DashboardSummary {
    * "your week is ready" at the start of the week.
    */
   weekReady: { preparedAt: Date; ratedCount: number } | null;
+  /**
+   * B-31 interim (T-00.12): the calorie ring, weight card, profile nudge and
+   * Snap-to-log assume a goal — meaningless (and once, embarrassing) for a
+   * user who never set one, e.g. someone who only wants to log what they
+   * ate. True when `chefProfile.goal` is set, OR the user already tracks
+   * (logged on ≥ 3 of the last 7 days — the ring stays home for them too,
+   * rev 2). No persisted field yet (that's wave 1's
+   * `ChefProfile.showNutritionOnToday`) — derived fresh every call.
+   */
+  showNutritionCards: boolean;
 }
 
 // ─── Meal type schedules ───────────────────────────────────────────────────────
@@ -184,12 +194,35 @@ export class DashboardService {
     const todayIndex = jsDay === 0 ? 6 : jsDay - 1; // convert to Mon=0
     const currentHourLocal = local?.localHour ?? new Date().getHours();
 
-    const [chefProfile, plan, favourites, todayLog] = await Promise.all([
+    // B-13/T-00.15: "Today" reads the plan whose WEEK matches `now`, not
+    // whichever plan happens to be ACTIVE — findActiveWithDays could return
+    // a different (e.g. next) week's plan once that week became the sole
+    // active one, showing tomorrow's-week meals as today's on the dashboard.
+    const monday = new Date(now);
+    if (useUtc) {
+      monday.setUTCDate(now.getUTCDate() - todayIndex);
+      monday.setUTCHours(0, 0, 0, 0);
+    } else {
+      monday.setDate(now.getDate() - todayIndex);
+      monday.setHours(0, 0, 0, 0);
+    }
+
+    const [chefProfile, plan, favourites, todayLog, recentLogs] = await Promise.all([
       chefProfileRepository.findByUserId(userId),
-      mealPlanRepository.findActiveWithDays(userId),
+      mealPlanRepository.findForWeek(userId, monday),
       favouriteRecipeRepository.findByUserId(userId, 4),
       dailyLogRepository.findByDate(userId, local?.localDate ? now : new Date()),
+      // B-31 interim (T-00.12): "tracks" = logged on ≥ 3 of the last 7 days.
+      dailyLogRepository.findLastN(userId, 7),
     ]);
+    // A DailyLog row survives with an empty loggedMeals after the user
+    // removes every entry for that day (mutateDay upserts the row rather
+    // than deleting it) — count only days that still have >= 1 entry, else
+    // logged-then-cleared days would wrongly count as "tracks".
+    const daysWithEntries = recentLogs.filter(
+      (log) => ((log.loggedMeals as unknown as LoggedMealEntry[] | null) ?? []).length > 0,
+    ).length;
+    const showNutritionCards = chefProfile?.goal != null || daysWithEntries >= 3;
 
     // Lifters get protein from bodyweight; on a training day the bump is
     // applied for premium and previewed for free (audit P2-4). The tracker
@@ -217,6 +250,7 @@ export class DashboardService {
         favourites,
         eaten,
         training,
+        showNutritionCards,
       );
     }
 
@@ -361,6 +395,7 @@ export class DashboardService {
       tomorrowFirstMeal,
       restOfToday,
       weekReady,
+      showNutritionCards,
       recentFavourites: favourites.map((f) => ({
         id: f.recipe.id,
         name: f.recipe.name,
@@ -393,6 +428,7 @@ export class DashboardService {
     favourites: Awaited<ReturnType<typeof favouriteRecipeRepository.findByUserId>>,
     eaten: { kcal: number; protein: number; carbs: number; fat: number },
     training: TrainingDayResult | null,
+    showNutritionCards: boolean,
   ): DashboardSummary {
     return {
       user: { firstName, displayName: null },
@@ -405,6 +441,7 @@ export class DashboardService {
       tomorrowFirstMeal: null,
       restOfToday: [],
       weekReady: null,
+      showNutritionCards,
       recentFavourites: favourites.map((f) => ({
         id: f.recipe.id,
         name: f.recipe.name,

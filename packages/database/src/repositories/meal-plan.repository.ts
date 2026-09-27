@@ -68,6 +68,19 @@ export interface IMealPlanRepository {
   findRecipesBySource(source: 'AI' | 'MANUAL' | 'CURATED'): Promise<Recipe[]>;
   createPlan(data: CreateMealPlanData): Promise<MealPlan>;
   findActiveWithDays(userId: string): Promise<(MealPlan & { days: MealPlanDay[] }) | null>;
+  /**
+   * The plan whose week matches `weekStart` (B-13, T-00.15) — unlike
+   * `findActiveWithDays`, which returns the newest ACTIVE plan across ANY
+   * week and can leak a later week's plan into a "this week" view once that
+   * later week becomes the sole active plan. `getActive`, `getForWeek`
+   * offset 0, `dashboard.summary` and `shoppingList.getForWeek` all read
+   * this instead. Same match as `findByWeekStart` (see there for the
+   * same-calendar-day comparison).
+   */
+  findForWeek(
+    userId: string,
+    weekStart: Date,
+  ): Promise<(MealPlan & { days: MealPlanDay[] }) | null>;
   archiveOldPlans(userId: string): Promise<void>;
   updateDayMeal(
     planId: string,
@@ -313,6 +326,20 @@ export class MealPlanRepository implements IMealPlanRepository {
       include: { days: { orderBy: { dayOfWeek: 'asc' } } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * B-13 (T-00.15): "this week", matched by calendar week rather than by
+   * whichever plan happens to be ACTIVE (see the interface doc comment).
+   * Delegates to findByWeekStart, which already does this same-day
+   * comparison — kept as its own named method since callers reason about it
+   * as "the plan for this week", not "the plan whose weekStartDate is X".
+   */
+  async findForWeek(
+    userId: string,
+    weekStart: Date,
+  ): Promise<(MealPlan & { days: MealPlanDay[] }) | null> {
+    return this.findByWeekStart(userId, weekStart);
   }
 
   async archiveOldPlans(userId: string): Promise<void> {

@@ -910,11 +910,15 @@ export class MealPlanService {
   }
 
   /**
-   * Returns the active meal plan for the user with all recipes joined,
-   * or null if no active plan exists.
+   * Returns the plan for the CURRENT calendar week, or null. Kept for old
+   * clients (they don't send a week offset); B-13/T-00.15: it used to read
+   * `findActiveWithDays` — whichever plan happened to be ACTIVE, any week —
+   * which leaked a later week's plan once that week became the sole active
+   * plan (e.g. a Sunday planner generating next week). It no longer falls
+   * back to next week.
    */
   async getActive(userId: string, view: PlanViewOptions = {}): Promise<WeekPlanDto | null> {
-    const plan = await this.repo.findActiveWithDays(userId);
+    const plan = await this.repo.findForWeek(userId, getMondayOfWeek(0));
     if (!plan) return null;
     return this.assemblePlanDto(plan, userId, view);
   }
@@ -929,12 +933,12 @@ export class MealPlanService {
     view: PlanViewOptions = {},
   ): Promise<WeekPlanDto | null> {
     const monday = getMondayOfWeek(weekOffset);
-    let plan = await this.repo.findByWeekStart(userId, monday);
-
-    // For offset 0, fall back to the active plan
-    if (!plan && weekOffset === 0) {
-      plan = await this.repo.findActiveWithDays(userId);
-    }
+    // B-13/T-00.15: matched to THIS week only — no more falling back to
+    // findActiveWithDays for offset 0, which used to show a different week's
+    // plan whenever it was the only ACTIVE row (every Sunday planner's view
+    // corrupted). Carry-forward below is the only other source for "this
+    // week has no plan of its own".
+    const plan = await this.repo.findForWeek(userId, monday);
 
     // Carry-forward: a week without a plan continues the user's most recent
     // one (current and future weeks only — the past stays as it was). The
@@ -960,7 +964,7 @@ export class MealPlanService {
           // choice and stays.
           origin: followed ? MealPlanOrigin.TEMPLATE : MealPlanOrigin.CARRY_FORWARD,
         });
-        const created = await this.repo.findByWeekStart(userId, monday);
+        const created = await this.repo.findForWeek(userId, monday);
         if (created) {
           return { ...(await this.assemblePlanDto(created, userId, view)), carriedOver: true };
         }
@@ -1146,7 +1150,17 @@ export class MealPlanService {
   }
 
   /**
-   * Replaces a single meal slot with a specific saved recipe chosen by the user.
+   * Replaces a single meal slot with a specific saved recipe chosen by the
+   * user. B-34/B-46 (T-00.11): this used to accept anything `recipeId`
+   * pointed at, including a recipe that conflicts with the user's or
+   * household's allergies/dietary restrictions — Replace is picked from
+   * search, not the safety-filtered curated pool, so nothing upstream
+   * guaranteed it was edible. Rejected with `UNSAFE_FOR_TABLE` (message
+   * names the conflicting allergen/restriction) unless the caller passes
+   * `acknowledgeConflict: true` AND the recipe is the user's own manual one
+   * — someone else's or a curated recipe never gets a bypass. Additive:
+   * `acknowledgeConflict` is optional, so older clients keep hitting the
+   * rejection with no way to override (safe default).
    */
   async replaceRecipe(
     userId: string,
@@ -1155,6 +1169,7 @@ export class MealPlanService {
     mealType: string,
     recipeId: string,
     requestedSlotIndex?: number,
+    acknowledgeConflict?: boolean,
   ): Promise<RecipeDto> {
     const plan = await this.repo.findByIdForUser(userId, planId);
     if (!plan) {
@@ -1165,6 +1180,18 @@ export class MealPlanService {
     const recipe = await findRecipeVisibleTo(userId, recipeId, this.repo);
     if (!recipe) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+
+    const safety = await this.loadMergedSafety(userId);
+    const issues = findSafetyIssues(rowToRecipeData(recipe), safety);
+    if (issues.length > 0) {
+      const isOwnRecipe = recipe.source === 'MANUAL' && recipe.creatorId === userId;
+      if (!acknowledgeConflict || !isOwnRecipe) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: `UNSAFE_FOR_TABLE: this recipe contains ${issues[0]}, which conflicts with an allergy or dietary restriction set for your table.`,
+        });
+      }
     }
 
     await this.repo.updateDayMeal(

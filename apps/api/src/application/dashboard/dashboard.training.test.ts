@@ -20,12 +20,15 @@ vi.mock('@chefer/database', async (importOriginal) => ({
     }),
   },
   mealPlanRepository: {
-    findActiveWithDays: vi.fn().mockResolvedValue(null),
+    findForWeek: vi.fn().mockResolvedValue(null),
     findRecipesByIds: vi.fn().mockResolvedValue([]),
   },
   favouriteRecipeRepository: { findByUserId: vi.fn().mockResolvedValue([]) },
   mealRatingRepository: { findSignalsForUser: vi.fn().mockResolvedValue([]) },
-  dailyLogRepository: { findByDate: vi.fn().mockResolvedValue(null) },
+  dailyLogRepository: {
+    findByDate: vi.fn().mockResolvedValue(null),
+    findLastN: vi.fn().mockResolvedValue([]),
+  },
   gymProfileRepository: {
     findByUserId: vi.fn().mockResolvedValue({ setupCompletedAt: new Date('2026-09-01') }),
   },

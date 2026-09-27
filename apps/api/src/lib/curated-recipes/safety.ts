@@ -13,6 +13,18 @@ export interface SafetyPrefs {
   dislikedIngredients: string[];
 }
 
+/**
+ * The slice of a recipe the safety check actually reads. `RecipeData`
+ * satisfies it structurally, but so does a bare Prisma `Recipe` row (cast
+ * only on `ingredients`, its one JSON field) — callers (pantry.service.ts's
+ * `whatCanIMake`, recipe.service.ts's `list({ forTable })`, T-00.11) no
+ * longer have to fabricate unused RecipeData fields just to run the filter.
+ */
+export type SafetyCheckable = Pick<
+  RecipeData,
+  'name' | 'ingredients' | 'instructions' | 'dietaryTags'
+>;
+
 // Dairy words must not match their plant-based namesakes ("almond butter",
 // "coconut milk", "oat milk") — those are safe for dairy allergies and for
 // vegan/dairy-free diets, and blocking them would gut the compliant pool.
@@ -211,7 +223,7 @@ function matchesAny(text: string, patterns: string[]): boolean {
 // Steps are scanned too: an adapted recipe once kept "whisk peanut butter
 // with coconut milk" in its method while its ingredient list was clean
 // (audit F-REC-4-6).
-function recipeText(recipe: RecipeData): string {
+function recipeText(recipe: SafetyCheckable): string {
   const parts = [recipe.name, ...recipe.ingredients.map((i) => i.name), ...recipe.instructions];
   return parts.join(' \n ').toLowerCase();
 }
@@ -220,7 +232,7 @@ function recipeText(recipe: RecipeData): string {
  * True when the recipe is safe for the given preferences. Exported for unit
  * tests; production code goes through filterSafeRecipes.
  */
-export function isRecipeSafe(recipe: RecipeData, prefs: SafetyPrefs): boolean {
+export function isRecipeSafe(recipe: SafetyCheckable, prefs: SafetyPrefs): boolean {
   const text = recipeText(recipe);
   const tags = recipe.dietaryTags.map((t) => t.toLowerCase());
 
@@ -254,7 +266,7 @@ export function isRecipeSafe(recipe: RecipeData, prefs: SafetyPrefs): boolean {
  * wrong. Dislikes are soft preferences and are not reported.
  */
 export function findSafetyIssues(
-  recipe: RecipeData,
+  recipe: SafetyCheckable,
   prefs: Pick<SafetyPrefs, 'allergies' | 'dietaryRestrictions'>,
 ): string[] {
   const none = { allergies: [], dietaryRestrictions: [], dislikedIngredients: [] };

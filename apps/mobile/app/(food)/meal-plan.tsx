@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -138,6 +138,19 @@ export default function MealPlanScreen() {
     swapMutation.reset();
     replaceMutation.reset();
   };
+
+  // B-13 (T-00.15): confirms the server sent the WEEK actually asked for —
+  // a monitoring signal for the "next week shown as this week" bug class,
+  // not just this one fix. No mobile analytics SDK yet (see
+  // src/features/gym/analytics.ts) — dev-only stub, wired to the real
+  // transport in wave 1.
+  useEffect(() => {
+    if (isLoading) return;
+    const expected = getMondayOfWeek(weekOffset).toDateString();
+    const weekMatches = !plan || new Date(plan.weekStartDate).toDateString() === expected;
+    if (__DEV__) console.warn('[analytics stub] plan_shown', { surface: 'plan', weekMatches });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per load, not on every render
+  }, [plan?.planId, plan?.weekStartDate, isLoading, weekOffset]);
 
   const weekLabel = formatWeekLabel(getMondayOfWeek(weekOffset));
   const day = plan?.days.find((d) => d.dayOfWeek === selectedDay);
@@ -419,7 +432,10 @@ export default function MealPlanScreen() {
             mealName={pickerTarget?.mealName ?? ''}
             busy={replaceMutation.isPending || swapMutation.isPending}
             error={replaceMutation.error?.message ?? swapMutation.error?.message ?? null}
-            onSelect={(recipeId) => {
+            // T-00.11 (B-34/B-46): replaceRecipe rejects an unsafe recipe with
+            // FORBIDDEN — the sheet offers "Use anyway" for the user's own.
+            unsafeError={replaceMutation.error?.data?.code === 'FORBIDDEN'}
+            onSelect={(recipeId, acknowledgeConflict) => {
               if (!pickerTarget) return;
               replaceMutation.mutate({
                 planId: plan.planId,
@@ -427,6 +443,7 @@ export default function MealPlanScreen() {
                 mealType: pickerTarget.mealType,
                 slotIndex: pickerTarget.slotIndex,
                 recipeId,
+                ...(acknowledgeConflict && { acknowledgeConflict }),
               });
             }}
             onAiSwap={
