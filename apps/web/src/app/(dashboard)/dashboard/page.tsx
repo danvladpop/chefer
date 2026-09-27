@@ -495,12 +495,14 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Right rail — xl+ only. Below that the same panel renders inline
-             in the main column above. ─────────────────────────────────────── */}
-      <div className="hidden w-72 shrink-0 flex-col gap-4 xl:flex">
-        {showNutritionCards && (
+             in the main column above. B-31 interim (T-00.12): the rail holds
+             only the nutrition panel, so it is omitted entirely when that is
+             hidden — otherwise goal-less users get an empty 288px column. ── */}
+      {showNutritionCards && (
+        <div className="hidden w-72 shrink-0 flex-col gap-4 xl:flex">
           <NutritionSummary nutrition={d.nutrition} className="sticky top-6" />
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
