@@ -489,12 +489,11 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         </p>
       )}
 
-      {/* Macros */}
-      <div className="mb-8 grid grid-cols-4 gap-3">
+      {/* Macros — no Fiber (D-18) */}
+      <div className="mb-8 grid grid-cols-3 gap-3">
         <MacroChip label="Protein" value={n.protein} />
         <MacroChip label="Carbs" value={n.carbs} />
         <MacroChip label="Fat" value={n.fat} />
-        <MacroChip label="Fiber" value={n.fiber} />
       </div>
 
       {/* Two-column layout */}

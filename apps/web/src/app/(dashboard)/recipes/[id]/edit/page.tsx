@@ -7,6 +7,7 @@ import {
   Field,
   FormErrorSummary,
   inputCls,
+  RequiredLegend,
   Section,
 } from '@/features/recipes/components/recipe-form-fields';
 import {
@@ -33,18 +34,18 @@ interface NutritionInfo {
   protein: string;
   carbs: string;
   fat: string;
-  fiber: string;
 }
 
 const isValidIngredient = (i: Ingredient) =>
   Boolean(i.name.trim() && Number(i.quantity) > 0 && i.unit.trim());
 
+// D-18: no fiber field — a stored value round-trips via `storedFiber` below,
+// out of band from the visible form.
 const NUTRITION_FIELDS = [
   ['calories', 'Calories (kcal)'],
   ['protein', 'Protein (g)'],
   ['carbs', 'Carbs (g)'],
   ['fat', 'Fat (g)'],
-  ['fiber', 'Fiber (g)'],
 ] as const;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -106,8 +107,11 @@ export default function EditRecipePage() {
     protein: '',
     carbs: '',
     fat: '',
-    fiber: '0',
   });
+  // D-18/T-BUG-O3 C6: fiber has no input, but a stored value (e.g. from web's
+  // own computed nutrition on create) must round-trip on edit, not be
+  // silently zeroed.
+  const [storedFiber, setStoredFiber] = useState(0);
   const [hydrated, setHydrated] = useState(false);
   const { errors, clear: clearError, report: reportErrors } = useRecipeFormErrors();
 
@@ -151,8 +155,8 @@ export default function EditRecipePage() {
       protein: String(n.protein),
       carbs: String(n.carbs),
       fat: String(n.fat),
-      fiber: String(n.fiber ?? 0),
     });
+    setStoredFiber(n.fiber ?? 0);
     setHydrated(true);
   }, [recipe, hydrated, isFetchedAfterMount, isFetching]);
 
@@ -204,6 +208,8 @@ export default function EditRecipePage() {
 
   // ─── Validation & Submit ────────────────────────────────────────────────────
 
+  // T-40.6 (D-19): only the name and >= 1 ingredient are required — cuisine
+  // and nutrition are both optional now, on both platforms.
   const validate = (): boolean => {
     const errs: RecipeFormErrors = validateRecipeCore({
       name,
@@ -213,10 +219,7 @@ export default function EditRecipePage() {
       servings,
       instructions,
     });
-    if (!cuisineType.trim()) errs.cuisineType = 'Cuisine type is required.';
     if (!ingredients.some(isValidIngredient)) errs.ingredients = 'Add at least one ingredient.';
-    if (!nutrition.calories.trim() || !(Number(nutrition.calories) >= 0))
-      errs.calories = 'Enter calories (0 or more).';
 
     // Focus lands on the first incomplete ingredient row's first missing field.
     const badRow = Math.max(
@@ -232,13 +235,11 @@ export default function EditRecipePage() {
     const targets: RecipeFormFocusTargets = {
       name: ids.name,
       description: ids.description,
-      cuisineType: ids.cuisineType,
       prepTimeMins: ids.prepTimeMins,
       cookTimeMins: ids.cookTimeMins,
       servings: ids.servings,
       ingredients: ingredientFieldId(badRow, badField),
       instructions: stepId(0),
-      calories: nutritionId('calories'),
     };
     return reportErrors(errs, targets);
   };
@@ -275,7 +276,8 @@ export default function EditRecipePage() {
         protein: Number(nutrition.protein) || 0,
         carbs: Number(nutrition.carbs) || 0,
         fat: Number(nutrition.fat) || 0,
-        fiber: Number(nutrition.fiber) || 0,
+        // T-BUG-O3 C6/D-18: never shown, but the stored value round-trips.
+        fiber: storedFiber,
       },
     });
   };
@@ -338,12 +340,13 @@ export default function EditRecipePage() {
           <h1 className="font-serif text-2xl font-bold text-gray-900">Edit Recipe</h1>
         </div>
       </div>
+      <RequiredLegend />
 
       {/* noValidate: our own validation owns the messages (F-REC-3-7). */}
       <form onSubmit={handleSubmit} noValidate className="space-y-8">
         {/* ── Basic Info ─────────────────────────────────────────────── */}
         <Section title="Basic Info">
-          <Field id={ids.name} label="Recipe Name" error={errors.name}>
+          <Field id={ids.name} label="Recipe Name" required error={errors.name}>
             <input
               id={ids.name}
               type="text"
@@ -352,6 +355,7 @@ export default function EditRecipePage() {
                 setName(e.target.value);
                 clearError('name');
               }}
+              aria-required="true"
               {...fieldErrorProps(ids.name, errors.name)}
               className={inputCls(!!errors.name)}
             />
@@ -462,7 +466,7 @@ export default function EditRecipePage() {
 
         {/* ── Ingredients ────────────────────────────────────────────── */}
         <Section
-          title="Ingredients"
+          title="Ingredients *"
           error={errors.ingredients}
           errorId={errorIdFor(ids.ingredients)}
         >
@@ -583,7 +587,7 @@ export default function EditRecipePage() {
 
         {/* ── Nutrition ──────────────────────────────────────────────── */}
         <Section title="Nutrition (per serving)">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {NUTRITION_FIELDS.map(([key, label]) => {
               const error = key === 'calories' ? errors.calories : undefined;
               return (
