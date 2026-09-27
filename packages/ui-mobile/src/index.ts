@@ -32,6 +32,13 @@ export {
 } from './components/segmented-control';
 export { Sheet, type SheetProps } from './components/sheet';
 export {
+  Snackbar,
+  resetSnackbarForTests,
+  useSnackbar,
+  type SnackbarOptions,
+  type SnackbarProps,
+} from './components/snackbar';
+export {
   Stepper,
   STEPPER_REPEAT_DELAY_MS,
   STEPPER_REPEAT_INTERVAL_MS,

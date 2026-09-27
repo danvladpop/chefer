@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { Snackbar } from '@chefer/ui-mobile';
 import { AiConsentHost, AiConsentProvider } from '../src/features/ai-consent/ai-consent-provider';
 import { useSession } from '../src/features/auth/use-session';
 import { installQueryConnectivity } from '../src/features/gym/offline/connectivity';
@@ -110,6 +111,9 @@ export default function RootLayout() {
               </Stack.Protected>
             </Stack>
             <AiConsentHost />
+            {/* PAT-4 (T-00.2): one snackbar host for the whole app, mounted
+              above the tab bar so it never sits under it. */}
+            <Snackbar />
           </AiConsentProvider>
         </GymSyncProvider>
       </PersistQueryClientProvider>
