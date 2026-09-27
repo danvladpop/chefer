@@ -81,13 +81,27 @@ free workout log too, not meal planning alone (CI-16/CI-25).
        age 16, Romania's age of digital consent). The submit button stays
        enabled either way; an unticked box shows an inline error instead.
        acceptedTermsVersion is LEGAL_VERSIONS.terms (@chefer/types).
+   └── Re-accept sheet (TermsReacceptGate web, TermsReacceptSheet mobile,
+       mounted in the signed-in shell): fires for a signed-in account whose
+       latest recorded TERMS version is OLDER than LEGAL_VERSIONS.terms. A
+       MISSING record (every account from before this wave) is treated as
+       "not yet applicable", not "stale" — the sheet does not mass-prompt
+       the entire existing user base the moment this ships; it only fires
+       for an account that already went through this consent flow once and
+       the document has since moved past what it recorded.
 2. auth.register (public tRPC mutation, rate-limited 10/15 min per IP)
    └── AuthService.register
-        ├── clientApiLevel ≥ 1 (both current web + mobile builds) requires
-        │    acceptedTerms + acceptedTermsVersion and ageConfirmed — BAD_REQUEST
-        │    otherwise. clientApiLevel 0 (an installed binary from before this
-        │    wave) sends none of these fields and registers unchanged — the
-        │    server backstop, not the primary control (the UI is)
+        ├── clientApiLevel ≥ 2 (the level this wave's web + mobile builds
+        │    send) requires acceptedTerms + acceptedTermsVersion and
+        │    ageConfirmed — BAD_REQUEST otherwise. Gated on 2, not 1,
+        │    deliberately: a wave-0 mobile build already out on OTA sends
+        │    level 1 (it understands the health-consent error, §2.8) but has
+        │    no consent checkboxes — gating on >= 1 would have locked every
+        │    wave-0 phone out of registration the moment this API deployed,
+        │    since an OTA cannot land on a changed native runtime.
+        │    clientApiLevel 0/1 (that wave-0 OTA, or an older installed
+        │    binary) sends none of these fields and registers unchanged —
+        │    the server backstop, not the primary control (the UI is)
         ├── reject with CONFLICT when the email already has an account
         ├── bcrypt.hash(password, 12)
         ├── prisma.user.create (role USER, planTier FREE)
@@ -104,10 +118,15 @@ free workout log too, not meal planning alone (CI-16/CI-25).
         │    (HttpOnly, SameSite=Strict, Secure in prod, 30 days)
         └── T-39.2: every consent field actually sent is logged through
              ConsentService.record — TERMS, PRIVACY (both stamped with
-             acceptedTermsVersion), AGE, and (same signup) the
-             EMAIL_WEEK_READY/EMAIL_RECAP/AUTO_PLAN defaults, all `granted:
-             false`. Best-effort — a logging failure never turns a
-             successful registration into an error response.
+             acceptedTermsVersion) and AGE, only when the client is level
+             >= 2 and actually sent them (a level 0/1 signup never agreed to
+             anything, so gets none of these three rows — the re-accept
+             sheet catches it once that account is on a level >= 2 client).
+             The EMAIL_WEEK_READY/EMAIL_RECAP/AUTO_PLAN defaults (`granted:
+             false`) are logged for EVERY registration regardless of level,
+             since the column defaults apply unconditionally. Best-effort —
+             a logging failure never turns a successful registration into
+             an error response.
    └── the router then emails the address-confirmation link in the
        background (P2-5, §23) — never blocks or fails the signup
 3. Client redirects to /onboarding

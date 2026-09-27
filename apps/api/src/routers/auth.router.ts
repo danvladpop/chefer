@@ -22,11 +22,13 @@ const registerSchema = z.object({
    */
   region: regionCodeSchema.optional(),
   /**
-   * Explicit sign-up consent (T-39.1, T-26.5). All optional here — an old
-   * client below `clientApiLevel` 1 sends none of these and still registers;
-   * `AuthService.register` is what requires them once the caller declares
-   * level ≥ 1 (never a `z.literal(true)` at the schema level, or an old
-   * client's omission would fail validation instead of being ignored).
+   * Explicit sign-up consent (T-39.1, T-26.5). All optional here — a client
+   * below `clientApiLevel` 2 (a wave-0 client already out on OTA, which
+   * sends level 1, or an older installed binary at level 0) sends none of
+   * these and still registers; `AuthService.register` is what requires them
+   * once the caller declares level ≥ 2 (never a `z.literal(true)` at the
+   * schema level, or an old client's omission would fail validation instead
+   * of being ignored).
    */
   acceptedTerms: z.boolean().optional(),
   ageConfirmed: z.boolean().optional(),

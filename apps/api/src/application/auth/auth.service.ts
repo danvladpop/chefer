@@ -25,10 +25,12 @@ export interface RegisterInput {
   region?: string | undefined;
   /**
    * Explicit sign-up consent (T-39.1, T-26.5). All optional at the schema
-   * level so a client below `clientApiLevel` 1 — an installed binary that
-   * predates this wave — still registers unchanged (CLAUDE.md Platform
-   * Parity: API changes stay additive). `AuthService.register` is what
-   * requires them once the caller declares level ≥ 1.
+   * level so a client below `clientApiLevel` 2 — a wave-0 client already out
+   * on OTA (level 1, no consent checkboxes) or an older installed binary
+   * (level 0) — still registers unchanged (CLAUDE.md Platform Parity: API
+   * changes stay additive). `AuthService.register` is what requires them
+   * once the caller declares level ≥ 2 (the first level whose UI renders the
+   * boxes).
    */
   acceptedTerms?: boolean | undefined;
   ageConfirmed?: boolean | undefined;
@@ -47,8 +49,9 @@ export interface AuthOptions {
   /** Include the session token in the response body (mobile clients only). */
   includeSession?: boolean;
   /**
-   * `ctx.clientApiLevel` (register only) — level ≥ 1 must send explicit
-   * consent; level 0 (old installed binaries) registers as it always has.
+   * `ctx.clientApiLevel` (register only) — level ≥ 2 must send explicit
+   * consent; level 0/1 (a wave-0 OTA client or an older installed binary)
+   * registers as it always has.
    */
   clientApiLevel?: number;
   /** `ctx.isMobileClient` (register only) — the consent log's `source`. */
@@ -60,13 +63,18 @@ export class AuthService {
     const { email, password, firstName, lastName, region, acceptedTerms, ageConfirmed } = input;
     const acceptedTermsVersion = input.acceptedTermsVersion;
 
-    // T-39.1 / T-26.5: a level ≥ 1 client (this wave's mobile + web builds,
+    // T-39.1 / T-26.5: a level ≥ 2 client (this wave's mobile + web builds,
     // §2.8) must tick both boxes in its UI before it ever reaches here — this
-    // is the server backstop, not the primary control. A level 0 client (an
-    // installed binary from before this wave) sends neither field and
-    // registers exactly as it always has (AC1 compat).
+    // is the server backstop, not the primary control. Level 0/1 — a wave-0
+    // client already out on OTA (level 1: understands the health-consent
+    // error, but has no consent checkboxes yet) or an older installed binary
+    // (level 0) — sends neither field and registers exactly as it always
+    // has (AC1 compat). Gating on 2, not 1, is deliberate: bumping the
+    // header on 1 would have locked out every wave-0 phone the moment this
+    // API deployed, since their JS runtime already sends level 1 and cannot
+    // take this wave's OTA on a changed native runtime.
     const clientApiLevel = options?.clientApiLevel ?? 0;
-    if (clientApiLevel >= 1) {
+    if (clientApiLevel >= 2) {
       if (!acceptedTerms || !acceptedTermsVersion) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -190,9 +198,12 @@ export class AuthService {
 
   /**
    * T-39.2: every consent write goes through `ConsentService.record` so the
-   * log is complete. A level 0 client's registration logs nothing here (it
-   * sent no explicit consent to record) — the pre-existing static disclaimer
-   * text is not claimed as an explicit acceptance event.
+   * log is complete. TERMS/PRIVACY/AGE are only recorded when the caller
+   * actually sent them (a level ≥ 2 client) — a level 0/1 registration's
+   * pre-existing static disclaimer text is never claimed as an explicit
+   * acceptance event. The email/auto-plan defaults, below, are recorded for
+   * every registration regardless of level, since the column defaults apply
+   * unconditionally.
    */
   private async recordRegistrationConsent(
     userId: string,
@@ -228,21 +239,18 @@ export class AuthService {
       writes.push(consentService.record({ userId, kind: ConsentKind.AGE, granted: true, source }));
     }
     // T-39.3 (⚖ D-13): the email/auto-plan defaults a brand-new account
-    // starts with, logged so the choice is provable even though nobody was
-    // asked for it — only for accounts that actually went through this
-    // explicit-consent path (level ≥ 1); a level 0 registration logs nothing.
-    if (acceptedTerms) {
-      writes.push(
-        consentService.record({
-          userId,
-          kind: ConsentKind.EMAIL_WEEK_READY,
-          granted: false,
-          source,
-        }),
-        consentService.record({ userId, kind: ConsentKind.EMAIL_RECAP, granted: false, source }),
-        consentService.record({ userId, kind: ConsentKind.AUTO_PLAN, granted: false, source }),
-      );
-    }
+    // starts with, logged so the choice is provable — for EVERY new
+    // registration, regardless of client level. The Prisma column defaults
+    // apply the same `false` values whether or not the client sent explicit
+    // consent, so a level 0/1 registration (no consent boxes yet) gets these
+    // three rows too; it just never gets TERMS/PRIVACY/AGE rows, since it
+    // never actually agreed to anything — the re-accept sheet catches that
+    // account once it's on a level ≥ 2 client.
+    writes.push(
+      consentService.record({ userId, kind: ConsentKind.EMAIL_WEEK_READY, granted: false, source }),
+      consentService.record({ userId, kind: ConsentKind.EMAIL_RECAP, granted: false, source }),
+      consentService.record({ userId, kind: ConsentKind.AUTO_PLAN, granted: false, source }),
+    );
 
     await Promise.all(writes);
   }

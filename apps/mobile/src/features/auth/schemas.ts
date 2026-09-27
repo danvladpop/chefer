@@ -15,9 +15,10 @@ import {
 
 export const loginSchema = loginFormSchema;
 
-// T-39.1 / T-26.5: the mobile app always sends `x-chefer-api-level: 1`
-// (trpc-links.ts), so both boxes are required client-side — an unchecked box
-// keeps the submit button enabled (03 §UX-26 AC) but shows an inline error.
+// T-39.1 / T-26.5: this build of the mobile app always sends
+// `x-chefer-api-level: 2` (trpc-links.ts), so both boxes are required
+// client-side — an unchecked box keeps the submit button enabled (03 §UX-26
+// AC) but shows an inline error.
 export const registerSchema = withPasswordConfirmation({
   email: authEmailSchema,
   password: newPasswordSchema,
