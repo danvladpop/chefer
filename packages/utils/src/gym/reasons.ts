@@ -67,8 +67,17 @@ function aimText(reps: number[], repMin: number, timed: boolean): string {
   return repsList(reps, timed);
 }
 
-/** One-sentence explanation shown under the suggestion (research §1.11 wording). */
-export function explain(suggestion: Suggestion, unit: WeightUnit): string {
+/**
+ * One-sentence explanation shown under the suggestion (research §1.11 wording).
+ * `when` says whether the sentence describes today's targets (inside the
+ * workout, the default) or the next session's (the post-workout summary,
+ * where "today" would be wrong — AC2, T-05.1).
+ */
+export function explain(
+  suggestion: Suggestion,
+  unit: WeightUnit,
+  when: 'today' | 'next' = 'today',
+): string {
   const s = suggestion;
   const i = s.inputs;
   const lt = loadTypeOf(i);
@@ -81,9 +90,14 @@ export function explain(suggestion: Suggestion, unit: WeightUnit): string {
   const delta = deltaText(last, s.weightKg, unit);
   const equipment = str(i, 'equipment');
   const bigJumpLine = ` It's a big jump, so ${Math.max(1, repMin - 2)}+ reps is a win.`;
+  const whenWord = when === 'today' ? 'today' : 'next time';
 
   switch (s.reasonCode) {
     case 'START':
+      // A degenerate timed range (O-02, T-05.A2.1): no invented load or aim.
+      if (timed && flag(i, 'timedFirstTime')) {
+        return 'New: log how long you went.';
+      }
       return lt === 'WEIGHTED'
         ? `Starting weight: ${w}. Aim for ${aim}.`
         : `Start with ${s.sets} × ${aim}${lt === 'ASSISTED' ? ` at ${w}` : ''}.`;
@@ -93,12 +107,19 @@ export function explain(suggestion: Suggestion, unit: WeightUnit): string {
       if (timed) {
         return `You held ${repMax} s on every set, so up to ${w}. Aim for ${aim}.`;
       }
+      // A back-off/drop set was excluded from the decision (B-07): name the
+      // top sets explicitly so the number never looks like it came from
+      // nowhere.
+      if (flag(i, 'hadBackoffSets')) {
+        const topReps = repsList(nums(i, 'lastReps'), false);
+        return `Your top sets were ${formatLoad(last, unit, lt)} × ${topReps}, so ${whenWord}: ${w} — aim for ${aim}.`;
+      }
       const tail = flag(i, 'bigJump') ? bigJumpLine : ` Aim for ${aim}.`;
       if (equipment === 'DUMBBELL') {
         const what = flag(i, 'perHand') ? 'pair' : 'dumbbell';
         return `Top of the range, so up to the ${formatLoad(s.weightKg, unit)} ${what}.${tail}`;
       }
-      return `You hit ${repMax} on every set, so +${delta} today.${tail}`;
+      return `You hit ${repMax} on every set, so +${delta} ${whenWord}.${tail}`;
     }
     case 'TOP_EASY_DOUBLE_JUMP':
       return `${repMax} reps on every set with 3+ left in the tank, so we're jumping ${delta}.`;
@@ -124,7 +145,7 @@ export function explain(suggestion: Suggestion, unit: WeightUnit): string {
     case 'MISSED_ONCE':
       return timed
         ? `Tough day, so same again. Hold ${repMin} s on every set.`
-        : `Tough day, so same weight. Get ${repMin} on every set.`;
+        : `Tough day at ${w}, so same weight. Get ${repMin} on every set.`;
     case 'MISSED_TWICE':
       return `Two sessions under ${repMin}${timed ? ' s' : ' reps'}, so dropping to ${w} to build back up.`;
     case 'STALL_RESET':
@@ -134,6 +155,16 @@ export function explain(suggestion: Suggestion, unit: WeightUnit): string {
         ? "You've maxed out this exercise's progression. Try a harder variation."
         : 'This lift has stalled twice lately. Try a variation or a different rep range.';
     case 'INCOMPLETE': {
+      // A lifted set heavier than the prescription is better evidence than
+      // the plan (B-08): the next target starts from what was lifted, not
+      // from "same targets".
+      if (flag(i, 'liftedHeavier')) {
+        const done = num(i, 'completedSets') ?? 1;
+        const planned = num(i, 'plannedSets') ?? done;
+        const liftedReps = num(i, 'liftedReps');
+        const repsPart = liftedReps === null ? '' : ` × ${liftedReps}`;
+        return `You lifted ${w}${repsPart} on ${done} of ${planned} sets, so ${whenWord} starts from ${w}.`;
+      }
       const skipped = Math.max(1, (num(i, 'plannedSets') ?? 1) - (num(i, 'completedSets') ?? 0));
       return skipped === 1
         ? 'You skipped a set, so same targets next time.'

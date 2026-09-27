@@ -212,7 +212,7 @@ describe('applyExposure — bookkeeping', () => {
     expect(out.lastExposureDate).toBe('2026-09-01');
   });
 
-  it('uses the lightest working weight when sets differ, snapped to achievable', () => {
+  it('uses the heaviest working weight when sets differ, snapped to achievable (B-07)', () => {
     const s = known(bench, 60);
     const e = exposureOf(bench, '2026-09-01', 0, [], 1, {
       loggedSets: [
@@ -222,9 +222,12 @@ describe('applyExposure — bookkeeping', () => {
       ],
     });
     const out = applyExposure({ slot: bench, state: s, exposure: e, profile: P, experience: INT });
-    expect(out.next.inputs['lastWeightKg']).toBe(60);
-    expect(out.next.weightKg).toBe(60);
-    expect(out.lastTotalReps).toBe(10);
+    // 61 rounds to 60, which is not more than one 2.5 kg step below the 62.5
+    // top, so it still counts as a working set (not a back-off), and the
+    // heaviest logged weight — never the lightest — becomes W.
+    expect(out.next.inputs['lastWeightKg']).toBe(62.5);
+    expect(out.next.weightKg).toBe(62.5);
+    expect(out.lastTotalReps).toBe(19);
   });
 
   it('counts progress against a baseline even without a stored rep total', () => {
@@ -693,21 +696,28 @@ describe('ramp-up sets logged as working sets (research §1.5 working weight)', 
     expect(rampSetCount([set(0, 10), set(10, 6)], pullUp)).toBe(0);
   });
 
-  it('bench 40, 60, 70×9, 60×7 builds reps at 60 instead of dropping to the first ramp set', () => {
+  it('bench 40, 60, 70×9, 60×7 keeps the top weight of 70, not the trailing back-off (B-07)', () => {
     const b = slotFor('barbell-bench-press', 3, 6, 8);
     const out = run(b, fresh(b, INT), [set(40, 10), set(60, 10), set(70, 9), set(60, 7)], 1);
-    expect(out.next.weightKg).toBe(60);
+    // 40, 60 are the ramp; the trailing 60×7 is a back-off after the 70 top
+    // set (more than one 2.5 kg step lighter) and is excluded too, so only
+    // 70×9 is judged. One good top set (of 3 planned) holds at 70 rather
+    // than jumping — it does not overreact to a single heavy set.
+    expect(out.next.weightKg).toBe(70);
     expect(out.next.reasonCode).toBe('ADD_REPS');
     expect(out.next.reps).toEqual([8, 8, 8]);
-    expect(out.next.inputs['lastWeightKg']).toBe(60);
+    expect(out.next.inputs['lastWeightKg']).toBe(70);
+    expect(out.next.inputs['hadBackoffSets']).toBe(true);
   });
 
-  it('seated row 40, 50, 55, 50 calibrates up from 50, not 40', () => {
+  it('seated row 40, 50, 55, 50 calibrates up from the top weight of 55, not 40 or 50 (B-07)', () => {
     const row = slotFor('seated-cable-row', 3, 8, 12);
     const out = run(row, fresh(row, INT), [set(40, 10), set(50, 10), set(55, 8), set(50, 8)], 2);
-    expect(out.next.inputs['lastWeightKg']).toBe(50);
+    // 40, 50 are the ramp; the trailing 50×8 is a back-off after the 55 top
+    // set and is excluded, so W is the heaviest set actually lifted: 55.
+    expect(out.next.inputs['lastWeightKg']).toBe(55);
     expect(out.next.reasonCode).toBe('CALIBRATING_UP');
-    expect(out.next.weightKg).toBeGreaterThan(50);
+    expect(out.next.weightKg).toBeGreaterThan(55);
   });
 
   it('a failed set at the top weight no longer drags the ramp weight down', () => {
@@ -724,14 +734,17 @@ describe('ramp-up sets logged as working sets (research §1.5 working weight)', 
     expect(out.next.weightKg).toBe(80);
   });
 
-  it('straight sets with a heavier test set keep the conservative lightest weight', () => {
+  it('straight sets with a heavier test set adopt the heavier weight, not the straight-set weight (B-07)', () => {
     const out = run(
       bench,
       known(bench, 60),
       [set(60, 12), set(60, 12), set(60, 12), set(70, 8)],
       1,
     );
-    expect(out.next.inputs['lastWeightKg']).toBe(60);
+    // The 70 kg test set is the last set (nothing lighter follows it), so it
+    // is not a back-off: it is the heaviest set lifted and becomes W.
+    expect(out.next.inputs['lastWeightKg']).toBe(70);
+    expect(out.next.weightKg).toBe(70);
   });
 
   it('a partial exposure while calibrating at a new weight is judged, not ignored', () => {

@@ -335,7 +335,7 @@ function NextTimeRow({
               {prescriptionText(suggestion, unit, meta?.loadType, timed)}
             </p>
           </div>
-          <p className="mt-0.5 text-xs text-gray-500">{explain(suggestion, unit)}</p>
+          <p className="mt-0.5 text-xs text-gray-500">{explain(suggestion, unit, 'next')}</p>
           {!editing && (
             <button
               type="button"

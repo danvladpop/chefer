@@ -297,8 +297,17 @@ export function livePr(
 
 export type WeightMode = 'plates' | 'keypad' | 'none';
 
-/** Tapping the weight: plate calculator (barbell/smith), keypad, or nothing (pure bodyweight). */
-export function weightModeOf(meta: ExerciseMeta, profile: EquipmentProfile): WeightMode {
+/**
+ * Tapping the weight: plate calculator (barbell/smith), keypad, or nothing
+ * (pure bodyweight, or a timed exercise with no logged load yet — a weighted
+ * plank keeps its stepper once a load has been logged on it, O-02/T-05.A2.1).
+ */
+export function weightModeOf(
+  meta: ExerciseMeta,
+  profile: EquipmentProfile,
+  hasLoggedLoad = false,
+): WeightMode {
+  if (meta.isTimed && !hasLoggedLoad) return 'none';
   const model = loadModel({ exercise: meta });
   if (model === 'NONE' || (model === 'BELT' && !profile.hasDipBelt)) return 'none';
   return model === 'PLATES' ? 'plates' : 'keypad';

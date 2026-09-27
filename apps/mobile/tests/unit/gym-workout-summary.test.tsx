@@ -140,8 +140,9 @@ describe('SummaryScreen', () => {
     expect(screen.getByTestId('summary-next-time')).toHaveTextContent('Next time');
     expect(screen.getByTestId('summary-next-0-direction')).toHaveTextContent('↑');
     expect(screen.getByTestId('summary-next-0-target')).toHaveTextContent('62.5 kg × 8 / 8 / 8');
+    // T-05.1 AC2: the summary ("next") context never says "today".
     expect(screen.getByTestId('summary-next-0-reason')).toHaveTextContent(
-      /You hit 12 on every set, so \+2\.5 kg today\./,
+      /You hit 12 on every set, so \+2\.5 kg next time\./,
     );
   });
 

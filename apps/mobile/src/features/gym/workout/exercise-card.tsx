@@ -105,7 +105,7 @@ function ExerciseCardImpl({
     [se, ctx.prior, ctx.olderBests],
   );
   const sentence = useMemo(() => explain(se.prescription, ctx.unit), [se.prescription, ctx.unit]);
-  const weightMode = weightModeOf(meta, ctx.profile);
+  const weightMode = weightModeOf(meta, ctx.profile, se.prescription.weightKg > 0);
   const working = workingSets(se);
   const warmups = warmupSetsOf(se);
   const done = working.filter(isDone).length;
