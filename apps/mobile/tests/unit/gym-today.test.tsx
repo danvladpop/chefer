@@ -1,8 +1,8 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
-import type { GymOffer, NextWorkoutDto, RoutineDto } from '@chefer/types';
-import { addDaysLocal } from '@chefer/utils';
+import type { GymOffer, NextWorkoutDto, RoutineDto, SessionSummaryDto } from '@chefer/types';
+import { addDaysLocal, weekdayOf } from '@chefer/utils';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
 import { localDate } from '../../src/features/gym/offline/ids';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
@@ -354,6 +354,88 @@ describe('TodayScreen', () => {
       );
       expect(screen.queryByTestId(`gym-today-backfill-date-${today}`)).not.toBeOnTheScreen();
       expect(screen.queryByTestId(`gym-today-backfill-date-${tomorrow}`)).not.toBeOnTheScreen();
+    });
+  });
+
+  describe('done / rest states (bug B-15)', () => {
+    function todaySession(overrides: Partial<SessionSummaryDto> = {}): SessionSummaryDto {
+      const today = localDate();
+      return {
+        id: 'done-session',
+        name: 'Upper A',
+        routineDayId: 'd1',
+        status: 'COMPLETED',
+        localDate: today,
+        startedAt: `${today}T18:00:00.000Z`,
+        finishedAt: `${today}T18:52:00.000Z`,
+        isDeload: false,
+        exercises: [
+          {
+            exerciseId: 'bench',
+            skipped: false,
+            lastSetRir: 2,
+            sets: [{ weightKg: 60, reps: 10, isWarmup: false, completed: true }],
+          },
+        ],
+        ...overrides,
+      };
+    }
+
+    it('shows "Done today" (no Start) once a session finished today, even on a training weekday', async () => {
+      const user = userEvent.setup();
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: ROUTINE,
+          nextWorkout: NEXT_WORKOUT,
+          recentSessions: [todaySession()],
+        }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByTestId('gym-today-done')).toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-today-next-up')).not.toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-today-start')).not.toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-done')).toHaveTextContent(/Upper A · 52 min · 1 sets/);
+      expect(screen.getByTestId('gym-today-done-next')).toHaveTextContent(/Upper A/);
+
+      await user.press(screen.getByTestId('gym-today-done-summary'));
+      expect(router.push).toHaveBeenCalledWith({
+        pathname: '/gym/summary/[id]',
+        params: { id: 'done-session' },
+      });
+
+      await user.press(screen.getByTestId('gym-today-done-pick-day'));
+      await waitFor(() => expect(screen.getByTestId('gym-today-day-picker')).toBeOnTheScreen());
+    });
+
+    it('shows "Rest day" with "Start {day} anyway" when nothing is done and the next day is due a different weekday', async () => {
+      const user = userEvent.setup();
+      const restDayWeekday = (weekdayOf(localDate()) + 1) % 7;
+      const restRoutine: RoutineDto = {
+        ...ROUTINE,
+        days: ROUTINE.days.map((d) =>
+          d.id === 'd1' ? { ...d, plannedWeekday: restDayWeekday } : d,
+        ),
+      };
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: restRoutine,
+          nextWorkout: NEXT_WORKOUT,
+          recentSessions: [],
+        }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByTestId('gym-today-rest')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-rest')).toHaveTextContent(/Rest day/);
+      expect(screen.queryByTestId('gym-today-next-up')).not.toBeOnTheScreen();
+
+      await user.press(screen.getByTestId('gym-today-rest-start-anyway'));
+      expect(router.push).toHaveBeenCalledWith('/gym/workout');
     });
   });
 });

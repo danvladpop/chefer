@@ -156,7 +156,7 @@ describe('active session store — crash safety', () => {
     before.set(doc, 'user-a');
 
     const afterRelaunch = createActiveSessionStore();
-    expect(afterRelaunch.get()).toEqual({ v: 1, ownerId: 'user-a', doc });
+    expect(afterRelaunch.get()).toEqual({ v: 1, ownerId: 'user-a', doc, pausedAt: null });
   });
 
   it('quarantines an unreadable payload instead of deleting it', () => {

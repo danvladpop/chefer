@@ -21,9 +21,10 @@ import type {
 import { deloadContinues } from './deload';
 import { durationMinutes } from './duration';
 import { applyExposure, initialState, prescribe, progressionKey, repBucket } from './progression';
+import { collectPrs } from './prs';
 import type { ExerciseLookup } from './volume';
 import { warmupSets } from './warmups';
-import { addDaysLocal, settleWeeks, weekStartOf, type WeekRow } from './weeks';
+import { addDaysLocal, settleWeeks, weekdayOf, weekStartOf, type WeekRow } from './weeks';
 
 export interface ProgressionEntry {
   state: ProgressionState;
@@ -60,6 +61,96 @@ export function nextDayIdAfter(routine: RoutineDto, completedDayId: string | nul
     return days[0]?.id ?? null;
   }
   return days[(idx + 1) % days.length]?.id ?? null;
+}
+
+export type TodayStatus =
+  /** Nothing done today, and the rotation's next day is due today (or has no fixed weekday) — show Start. */
+  | { kind: 'training' }
+  /** A session was already completed today: `nextWorkout` (the rotation's now-next day) is upcoming, not today's. */
+  | { kind: 'done'; dayName: string; weekday: number | null }
+  /** Nothing done today, but the rotation's next day is due a different weekday — offer it anyway. */
+  | { kind: 'rest'; dayName: string; weekday: number | null };
+
+/**
+ * Bug B-15 (T-05.9): `bootstrap.nextWorkout` is always "the rotation's next
+ * day", which advances the instant Finish runs — so right after finishing
+ * day A today, it already points at day B, and Gym Today would offer B with
+ * a Start button on the SAME day. This classifies today so the caller can
+ * show `Done today` (no Start) or `Rest day` (`Start {day} anyway`) instead
+ * of blindly rendering whatever `nextWorkout` says.
+ */
+export function todayStatus(input: {
+  bootstrap: Pick<GymBootstrap, 'recentSessions' | 'nextWorkout' | 'activeRoutine'>;
+  today: string;
+}): TodayStatus {
+  const { bootstrap, today } = input;
+  const doneToday = bootstrap.recentSessions.some(
+    (s) => s.status === 'COMPLETED' && s.localDate === today,
+  );
+  const next = bootstrap.nextWorkout;
+  const weekday =
+    (next && bootstrap.activeRoutine?.days.find((d) => d.id === next.dayId)?.plannedWeekday) ??
+    null;
+
+  if (doneToday) {
+    return { kind: 'done', dayName: next?.dayName ?? '', weekday };
+  }
+  if (!next || weekday === null || weekday === weekdayOf(today)) {
+    return { kind: 'training' };
+  }
+  return { kind: 'rest', dayName: next.dayName, weekday };
+}
+
+export interface DoneTodayCard {
+  session: SessionSummaryDto;
+  durationMin: number;
+  workingSets: number;
+  /** How many exercises in this session set a PR (weight / reps / e1RM). */
+  prCount: number;
+  /** The rotation's now-next day (already advanced by Finish), for "Next session: …". */
+  next: { dayName: string; weekday: number | null } | null;
+}
+
+/**
+ * The `Done today` Gym Today card's data (T-05.9, bug B-15 companion): the
+ * session finished today plus its stats and what's next, or null when
+ * nothing was finished today (the caller falls back to `todayStatus`).
+ */
+export function doneTodayCard(input: {
+  bootstrap: Pick<GymBootstrap, 'recentSessions' | 'nextWorkout' | 'activeRoutine' | 'olderBests'>;
+  today: string;
+}): DoneTodayCard | null {
+  const { bootstrap, today } = input;
+  const session = bootstrap.recentSessions.find(
+    (s) => s.status === 'COMPLETED' && s.localDate === today,
+  );
+  if (!session) return null;
+
+  const durationMin = session.finishedAt
+    ? Math.max(
+        0,
+        Math.round(
+          (new Date(session.finishedAt).getTime() - new Date(session.startedAt).getTime()) / 60000,
+        ),
+      )
+    : 0;
+  const workingSets = session.exercises.reduce(
+    (n, ex) => n + ex.sets.filter((s) => !s.isWarmup && s.completed).length,
+    0,
+  );
+  const prCount = collectPrs(bootstrap.recentSessions, undefined, bootstrap.olderBests).filter(
+    (r) => r.sessionId === session.id,
+  ).length;
+  const next = bootstrap.nextWorkout
+    ? {
+        dayName: bootstrap.nextWorkout.dayName,
+        weekday:
+          bootstrap.activeRoutine?.days.find((d) => d.id === bootstrap.nextWorkout?.dayId)
+            ?.plannedWeekday ?? null,
+      }
+    : null;
+
+  return { session, durationMin, workingSets, prCount, next };
 }
 
 /** Newest first: localDate, then startedAt, then id. */

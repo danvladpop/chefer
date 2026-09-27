@@ -10,9 +10,11 @@ import { foldHistory, prescribe, progressionKey, repBucket } from './progression
 import {
   applyFinishedSession,
   buildNextWorkout,
+  doneTodayCard,
   equipmentProfileOf,
   exposuresFromSession,
   nextDayIdAfter,
+  todayStatus,
   toSessionSummary,
   type ProgressionEntry,
 } from './session';
@@ -134,6 +136,90 @@ describe('nextDayIdAfter', () => {
     expect(nextDayIdAfter(ROUTINE, null)).toBe('dA');
     expect(nextDayIdAfter(ROUTINE, 'gone')).toBe('dA');
     expect(nextDayIdAfter({ ...ROUTINE, days: [] }, 'dA')).toBeNull();
+  });
+});
+
+// T-05.9 (bug B-15): `bootstrap.nextWorkout` always points at the rotation's
+// next day, which advances the instant Finish runs — `todayStatus` is what
+// stops Gym Today offering that day, with a Start button, on the SAME day.
+describe('todayStatus (bug B-15)', () => {
+  const MONDAY = '2026-09-07'; // dA "Upper" (plannedWeekday 0)
+  const TUESDAY = '2026-09-08';
+  const THURSDAY = '2026-09-10'; // dB "Lower" (plannedWeekday 3)
+
+  it('training: nothing done today and the next day is due today', () => {
+    const boot = bootstrapFor(MONDAY);
+    expect(todayStatus({ bootstrap: boot, today: MONDAY })).toEqual({ kind: 'training' });
+  });
+
+  it('rest: nothing done today, but the next day is due a different weekday', () => {
+    const boot = bootstrapFor(TUESDAY);
+    expect(todayStatus({ bootstrap: boot, today: TUESDAY })).toEqual({
+      kind: 'rest',
+      dayName: 'Upper',
+      weekday: 0,
+    });
+  });
+
+  it('done: a session was already finished today, even though the next day is due today', () => {
+    const boot = bootstrapFor(MONDAY, {
+      recentSessions: [summary('s1', MONDAY, 'barbell-bench-press', [[60, 8, true]])],
+    });
+    expect(todayStatus({ bootstrap: boot, today: MONDAY })).toEqual({
+      kind: 'done',
+      dayName: 'Upper',
+      weekday: 0,
+    });
+  });
+
+  it('done takes priority even on an otherwise-rest weekday', () => {
+    const boot = bootstrapFor(THURSDAY, {
+      recentSessions: [summary('s1', THURSDAY, 'barbell-bench-press', [[60, 8, true]])],
+    });
+    expect(todayStatus({ bootstrap: boot, today: THURSDAY }).kind).toBe('done');
+  });
+
+  it('training: no active routine day has a fixed weekday (flexible schedule)', () => {
+    const flexible: RoutineDto = {
+      ...ROUTINE,
+      days: ROUTINE.days.map((d) => ({ ...d, plannedWeekday: null })),
+    };
+    const boot = bootstrapFor(TUESDAY, { activeRoutine: flexible });
+    expect(todayStatus({ bootstrap: boot, today: TUESDAY })).toEqual({ kind: 'training' });
+  });
+
+  it('training: no nextWorkout at all (nothing planned)', () => {
+    const boot = bootstrapFor(TUESDAY, { nextWorkout: null });
+    expect(todayStatus({ bootstrap: boot, today: TUESDAY })).toEqual({ kind: 'training' });
+  });
+});
+
+describe('doneTodayCard (T-05.9)', () => {
+  const MONDAY = '2026-09-07';
+  const PRIOR_MONDAY = '2026-08-31';
+
+  it('is null when nothing was finished today', () => {
+    const boot = bootstrapFor(MONDAY);
+    expect(doneTodayCard({ bootstrap: boot, today: MONDAY })).toBeNull();
+  });
+
+  it("summarises today's session (duration, working sets, PR count, next)", () => {
+    const boot = bootstrapFor(MONDAY, {
+      recentSessions: [
+        summary('older', PRIOR_MONDAY, 'barbell-bench-press', [[60, 8, true]]),
+        // Two completed working sets, the second beating the prior 60 kg — a PR.
+        summary('s1', MONDAY, 'barbell-bench-press', [
+          [60, 8, true],
+          [70, 8, true],
+        ]),
+      ],
+    });
+    const card = doneTodayCard({ bootstrap: boot, today: MONDAY });
+    expect(card?.session.id).toBe('s1');
+    expect(card?.durationMin).toBe(60); // summary() finishes 1h after it starts
+    expect(card?.workingSets).toBe(2);
+    expect(card?.prCount).toBe(1);
+    expect(card?.next).toEqual({ dayName: 'Upper', weekday: 0 });
   });
 });
 

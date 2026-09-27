@@ -1582,6 +1582,48 @@ Mon}`, never an ISO date), with a start time shown only when two sessions
 Web parity: not yet built this wave — see `mobile_parity_backlog.md` (planned
 for W2 alongside the web today-view rework).
 
+### Done / rest states and the Food Today workout card (bug B-15, T-05.9/T-04.6)
+
+`bootstrap.nextWorkout` always reflects the **rotation's** next day, which
+advances the instant `Finish` runs (server-side `rotationAppliedAt`). Left
+alone, that means finishing day A today makes Gym Today immediately offer day
+B with a `Start` button, on the same day (bug B-15: "Finish workout A ›
+Done → Today shows B with Start"). `todayStatus({ bootstrap, today })`
+(`packages/utils/src/gym/session.ts`) closes that gap by classifying today
+against `recentSessions` and the next day's `plannedWeekday`:
+
+- **`done`** — a `COMPLETED` session already has `localDate === today`
+  (checked first, regardless of weekday). Gym Today shows `Done today` with
+  the just-finished session's stats (`doneTodayCard()`: duration, working
+  sets, PR count via `collectPrs`) and `Next session: {weekday} — {dayName}`;
+  no Start button. `See summary` opens that session; `Train again today? Pick
+a day` reuses the existing day-picker sheet.
+- **`rest`** — nothing done today, and the next day's `plannedWeekday`
+  (looked up on `activeRoutine`) doesn't match `weekdayOf(today)`. Gym Today
+  shows `Rest day` and a secondary `Start {dayName} anyway`, which starts that
+  day exactly like the normal Start button.
+- **`training`** — nothing done today and the next day IS due today (or has
+  no fixed weekday / nothing is planned at all): the existing "Next up" card,
+  unchanged.
+
+The Food Today dashboard card (`TodaysWorkoutCard`,
+`src/features/gym/today/todays-workout-card.tsx`, UX-04 §5 — placed on the
+Food dashboard by L-HOME, component owned by L-GYM) shares the same
+`todayStatus()` call, so the two surfaces can never disagree: `TRAINING
+TODAY`/`TRAINING TONIGHT` (after 16:00 local) with a one-tap `Start workout`
+that starts the session directly and pushes `/gym/workout`; `Done today ✓ ·
+Next: {dayName} on {weekday}` (whole card taps through to Gym Today, no
+button); `Rest day · Next: {dayName} on {weekday}` with a `Train anyway` text
+link (→ Gym Today, does not start the session itself).
+
+**Bug B-26** (a stuck spinner at the top of Gym Today after "Done", > 10 s):
+the pull-to-refresh spinner used to mirror the bootstrap query's own
+`isRefetching` indefinitely, so a hung refetch (host load, a flaky
+connection) spun forever. `useTimedRefresh()`
+(`src/features/gym/today/use-timed-refresh.ts`) decouples the two — the
+spinner always drops after 10 s, whether or not the refetch itself ever
+settles.
+
 - The routine is a **rotation, not a calendar**: "next up" is the next day in
   sequence; missed days roll forward and are never marked failed.
 - Outbox entries are removed only on an `applied`/`stale` ack; a `rejected`
