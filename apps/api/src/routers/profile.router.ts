@@ -1,6 +1,7 @@
 import { AiCallType, prisma } from '@chefer/database';
 import { AI_PROVIDERS } from '@chefer/types';
 import { aiProviderDisclosure } from '../lib/ai/index.js';
+import { allFlags } from '../lib/flags.js';
 import { protectedProcedure, publicProcedure, router } from '../lib/trpc.js';
 
 /**
@@ -31,6 +32,15 @@ export const profileRouter = router({
   aiProviders: publicProcedure.query(() => aiProviderDisclosure),
 
   /**
+   * Feature flags (§2.9, T-00.8). Public — read before sign-in matters for
+   * some (e.g. a landing-page pitch) and there's nothing sensitive in a
+   * flag name. Cached by clients like `profile.aiProviders`. A failed or
+   * absent response means "treat every flag as off" — old APIs and old
+   * clients behave exactly as today.
+   */
+  flags: publicProcedure.query(() => allFlags()),
+
+  /**
    * Returns today's AI usage counts per call type for the current user,
    * alongside the known free-tier limits for each provider.
    */
@@ -52,6 +62,8 @@ export const profileRouter = router({
       [AiCallType.CHAT]: 0,
       [AiCallType.SCAN]: 0,
       [AiCallType.RECIPE_IMPORT]: 0,
+      // S17, rev 2: curated-plan imports (display only, see Q-18).
+      [AiCallType.CURATED_PLAN]: 0,
     };
     for (const log of logs) {
       counts[log.callType]++;

@@ -173,6 +173,20 @@ const envSchema = z.object({
 
   // Unsplash (optional — ingredient images fall back to category images without this)
   UNSPLASH_ACCESS_KEY: z.string().optional(),
+
+  // Feature flags (§2.9, T-00.8) — comma list of enabled keys, e.g.
+  // "trainingBumpFree,ownTargetsFree". Unknown/misspelled keys are dropped
+  // (never crash startup over a typo); a missing key means OFF. Parsed set
+  // lives in lib/flags.ts.
+  FEATURE_FLAGS: z.string().default(''),
+
+  // Health-data consent enforcement (§2.8, T-26.1). `off` records nothing;
+  // `declared` rejects un-consented health writes only from clients that
+  // declare `x-chefer-api-level >= 1`; `all` rejects from every client. Old
+  // binaries (no header) are NEVER rejected under `declared`. Every wave-0
+  // deploy stays `off` — flipping modes is a later, explicit rollout step
+  // (§2.8 "rollout").
+  HEALTH_CONSENT_ENFORCE: z.enum(['off', 'declared', 'all']).default('off'),
 });
 
 type EnvSchema = z.infer<typeof envSchema>;

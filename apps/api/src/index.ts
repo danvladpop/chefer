@@ -7,6 +7,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { householdService } from './application/household/household.service.js';
+import { consentBackfillService } from './application/privacy/consent-backfill.service.js';
 import {
   createContext,
   requestIdMiddleware,
@@ -57,6 +58,7 @@ app.use(
       'X-Request-ID',
       'x-trpc-source',
       'x-chefer-client',
+      'x-chefer-api-level',
     ],
   }),
 );
@@ -260,6 +262,18 @@ const server = app.listen(env.PORT, env.HOST, () => {
     })
     .catch((err: unknown) => {
       logger.error({ err }, 'legacy servingSize backfill failed at boot');
+    });
+
+  // ConsentEvent boot backfill (§2.13, T-39.2): one migration-sourced AI
+  // event per non-null aiDataConsentAt. Idempotent — a failure here only
+  // delays it to the next boot.
+  consentBackfillService
+    .backfillAiConsentEvents()
+    .then((result) => {
+      if (result.users > 0) logger.info(result, 'ConsentEvent AI backfill from aiDataConsentAt');
+    })
+    .catch((err: unknown) => {
+      logger.error({ err }, 'ConsentEvent AI backfill failed at boot');
     });
 });
 
