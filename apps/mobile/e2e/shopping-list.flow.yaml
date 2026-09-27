@@ -20,6 +20,33 @@ appId: dev.chefer.app.dev
       - assertVisible:
           id: 'add-item-input'
 
+# Bug B-28 regression: ticking an item must not make the category header or
+# a sibling item disappear/jump out of reach (the header's own label text
+# used to be able to wrap and reflow everything below it on every tick —
+# see category-header.tsx). Expand the first category, tick its first item,
+# confirm the header and item are still there, then untick to leave the list
+# unchanged for the rest of the flow.
+- runFlow:
+    when:
+      notVisible:
+        id: 'shopping-empty'
+    commands:
+      - tapOn:
+          id: 'category-.*'
+          index: 0
+      - tapOn:
+          id: 'item-.*'
+          index: 0
+      - assertVisible:
+          id: 'category-.*'
+          index: 0
+      - assertVisible:
+          id: 'item-.*'
+          index: 0
+      - tapOn:
+          id: 'item-.*'
+          index: 0
+
 # Shop = To buy / In my kitchen (P2-8): the pantry moved here from More
 - scrollUntilVisible:
     element:

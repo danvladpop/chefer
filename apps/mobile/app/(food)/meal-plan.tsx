@@ -538,7 +538,7 @@ export default function MealPlanScreen() {
                     : ''}
               </Text>
               <Button
-                testID="plan-regenerate"
+                testID="plan-regenerate-action"
                 variant="outline"
                 size="sm"
                 loading={generateMutation.isPending}
