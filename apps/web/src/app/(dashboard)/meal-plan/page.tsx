@@ -358,7 +358,8 @@ export default function MealPlanPage() {
   const planDayMutation = trpc.mealPlan.planDay.useMutation({
     onMutate: (input) => setPlanningDay(input.dayOfWeek),
     onSettled: () => setPlanningDay(null),
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
+      capture('plan_day_filled', { dayOfWeek: input.dayOfWeek });
       void refetch();
       setToast({ message: `${DAY_NAMES[selectedDay]} planned.` });
     },
