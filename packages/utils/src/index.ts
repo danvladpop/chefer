@@ -427,6 +427,7 @@ export {
 export {
   parseQuantity,
   recipeMissingFields,
+  firstIncompleteIngredientLineIndex,
   missingSummary,
   type RecipeFormIngredientLike,
   type RecipeFormMinimum,

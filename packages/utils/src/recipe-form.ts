@@ -13,33 +13,62 @@ export interface RecipeFormMinimum {
   ingredients: RecipeFormIngredientLike[];
 }
 
-export type RecipeFormMissingField = 'name' | 'ingredient';
+export type RecipeFormMissingField = 'name' | 'ingredient' | 'incompleteLine';
+
+const isComplete = (i: RecipeFormIngredientLike) =>
+  i.name.trim() !== '' && Number.isFinite(i.quantity) && i.quantity > 0;
+const isNamedIncomplete = (i: RecipeFormIngredientLike) => i.name.trim() !== '' && !isComplete(i);
 
 /**
  * D-19: the recipe minimum is a name and at least one ingredient LINE with a
- * NAME and an AMOUNT > 0. A named line with no amount is incomplete (not
- * counted) rather than silently dropped, so the missing-summary can tell the
- * user which line needs a number instead of just "add an ingredient".
+ * NAME and an AMOUNT > 0. A named line with no amount is incomplete, not
+ * just ignored (AC4): it blocks saving with its own `'incompleteLine'` flag
+ * — even alongside another, already-complete line — so nothing typed is
+ * silently dropped on submit. Only when NO line has a name at all (every
+ * line is blank, or there are no lines) does the generic `'ingredient'`
+ * flag apply.
  */
 export function recipeMissingFields(recipe: RecipeFormMinimum): RecipeFormMissingField[] {
   const missing: RecipeFormMissingField[] = [];
   if (!recipe.name.trim()) missing.push('name');
-  const hasCompleteIngredient = recipe.ingredients.some(
-    (i) => i.name.trim() !== '' && Number.isFinite(i.quantity) && i.quantity > 0,
-  );
-  if (!hasCompleteIngredient) missing.push('ingredient');
+  if (recipe.ingredients.some(isNamedIncomplete)) {
+    missing.push('incompleteLine');
+  } else if (!recipe.ingredients.some(isComplete)) {
+    missing.push('ingredient');
+  }
   return missing;
+}
+
+/** Index (0-based) of the first named-but-amountless line, or null. AC4's "line {n}" is this + 1. */
+export function firstIncompleteIngredientLineIndex(
+  ingredients: RecipeFormIngredientLike[],
+): number | null {
+  const index = ingredients.findIndex(isNamedIncomplete);
+  return index === -1 ? null : index;
 }
 
 /**
  * The footer's "what's missing" sentence (PAT-17: the primary button is
- * never silently disabled — a blocked tap always explains why).
+ * never silently disabled — a blocked tap always explains why). `lineNumber`
+ * (1-based) names the incomplete line when `missing` includes
+ * `'incompleteLine'` and `'name'` isn't also missing — pass
+ * `firstIncompleteIngredientLineIndex(...) + 1`.
  */
-export function missingSummary(missing: RecipeFormMissingField[]): string | null {
+export function missingSummary(
+  missing: RecipeFormMissingField[],
+  lineNumber?: number,
+): string | null {
   if (missing.length === 0) return null;
+  if (missing.includes('incompleteLine') && !missing.includes('name')) {
+    return lineNumber != null
+      ? `Finish the ingredient on line ${lineNumber}.`
+      : 'Add an amount, or remove this line.';
+  }
   const parts: string[] = [];
   if (missing.includes('name')) parts.push('a name');
-  if (missing.includes('ingredient')) parts.push('at least one ingredient with an amount');
+  if (missing.includes('ingredient') || missing.includes('incompleteLine')) {
+    parts.push('at least one ingredient with an amount');
+  }
   return `Add ${parts.join(' and ')} to save.`;
 }
 

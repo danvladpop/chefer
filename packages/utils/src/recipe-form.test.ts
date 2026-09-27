@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { missingSummary, parseQuantity, recipeMissingFields } from './recipe-form';
+import {
+  firstIncompleteIngredientLineIndex,
+  missingSummary,
+  parseQuantity,
+  recipeMissingFields,
+} from './recipe-form';
 
 describe('recipeMissingFields (T-40.1, D-19)', () => {
   it('flags a missing name', () => {
@@ -8,15 +13,20 @@ describe('recipeMissingFields (T-40.1, D-19)', () => {
     ).toEqual(['name']);
   });
 
-  it('flags when no ingredient line is COMPLETE (name + amount > 0)', () => {
+  it('flags a generic "ingredient" only when NO line has a name at all', () => {
     expect(recipeMissingFields({ name: 'Bread', ingredients: [] })).toEqual(['ingredient']);
     expect(
-      recipeMissingFields({ name: 'Bread', ingredients: [{ name: 'flour', quantity: 0 }] }),
+      recipeMissingFields({ name: 'Bread', ingredients: [{ name: '', quantity: NaN }] }),
     ).toEqual(['ingredient']);
-    // A named line with no amount is incomplete, not just ignored.
+  });
+
+  it('AC4: a named line with no amount is "incompleteLine", not the generic "ingredient"', () => {
+    expect(
+      recipeMissingFields({ name: 'Bread', ingredients: [{ name: 'flour', quantity: 0 }] }),
+    ).toEqual(['incompleteLine']);
     expect(
       recipeMissingFields({ name: 'Bread', ingredients: [{ name: 'flour', quantity: NaN }] }),
-    ).toEqual(['ingredient']);
+    ).toEqual(['incompleteLine']);
   });
 
   it('passes with a name and one complete ingredient line — the whole D-19 minimum', () => {
@@ -25,7 +35,7 @@ describe('recipeMissingFields (T-40.1, D-19)', () => {
     ).toEqual([]);
   });
 
-  it('a second incomplete line does not block a save once one line is complete', () => {
+  it('AC4: a named-but-amountless line blocks saving even when another line is complete', () => {
     expect(
       recipeMissingFields({
         name: 'Bread',
@@ -34,7 +44,40 @@ describe('recipeMissingFields (T-40.1, D-19)', () => {
           { name: 'salt', quantity: 0 },
         ],
       }),
+    ).toEqual(['incompleteLine']);
+  });
+
+  it('a fully blank line (no name, no amount) is ignored — not flagged as incomplete', () => {
+    expect(
+      recipeMissingFields({
+        name: 'Bread',
+        ingredients: [
+          { name: 'flour', quantity: 200 },
+          { name: '', quantity: NaN },
+        ],
+      }),
     ).toEqual([]);
+  });
+});
+
+describe('firstIncompleteIngredientLineIndex (AC4)', () => {
+  it('finds the first named line with no amount', () => {
+    expect(
+      firstIncompleteIngredientLineIndex([
+        { name: 'flour', quantity: 200 },
+        { name: 'salt', quantity: 0 },
+        { name: 'pepper', quantity: 0 },
+      ]),
+    ).toBe(1);
+  });
+
+  it('returns null when every line is either complete or fully blank', () => {
+    expect(
+      firstIncompleteIngredientLineIndex([
+        { name: 'flour', quantity: 200 },
+        { name: '', quantity: NaN },
+      ]),
+    ).toBeNull();
   });
 });
 
@@ -49,6 +92,20 @@ describe('missingSummary (PAT-17 — never a silently disabled button)', () => {
       'Add at least one ingredient with an amount to save.',
     );
     expect(missingSummary(['name', 'ingredient'])).toBe(
+      'Add a name and at least one ingredient with an amount to save.',
+    );
+  });
+
+  it('AC4: an incomplete line gets its own "Finish the ingredient on line {n}." message', () => {
+    expect(missingSummary(['incompleteLine'], 2)).toBe('Finish the ingredient on line 2.');
+  });
+
+  it('falls back to a generic line message when no line number is given', () => {
+    expect(missingSummary(['incompleteLine'])).toBe('Add an amount, or remove this line.');
+  });
+
+  it('a missing name takes priority over naming the incomplete line', () => {
+    expect(missingSummary(['name', 'incompleteLine'], 1)).toBe(
       'Add a name and at least one ingredient with an amount to save.',
     );
   });
