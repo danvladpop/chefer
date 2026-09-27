@@ -22,9 +22,9 @@ jest.mock('expo-image', () => {
     // `onLoad`/`onError` aren't real View props — this is a test-only stand-in
     // so `fireEvent(el, 'load' | 'error')` can drive them directly.
     Image: (props: { testID?: string; onLoad?: () => void; onError?: () => void }) => (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       <RN.View
         testID={props.testID}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {...({ onLoad: props.onLoad, onError: props.onError } as any)}
       />
     ),
