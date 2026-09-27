@@ -7,6 +7,10 @@ import {
   UserNotFoundError,
 } from '../../domain/user/user.errors.js';
 import type { IUserRepository } from '../../infrastructure/prisma/prisma-user.repository.js';
+import { consentService } from '../privacy/consent.service.js';
+
+/** 'web' | 'mobile' | 'migration' — see ConsentService.record. */
+export type ConsentSource = 'web' | 'mobile' | 'migration';
 
 // ─── Input Types ──────────────────────────────────────────────────────────────
 
@@ -207,8 +211,18 @@ export class UserService {
    * Grants (records now) or revokes (clears) the caller's consent to send
    * their data to the third-party AI provider (App Store 5.1.2(i)). Granting
    * again keeps the original timestamp, so a double tap is a no-op.
+   *
+   * `source` defaults to 'web': the router call sites (`user.router.ts`,
+   * outside this lane's owned files — see the L-DATA handoff request) don't
+   * yet pass `ctx.isMobileClient` through. Until that lands, mobile grants
+   * are logged as 'web' in the consent log (the AI-consent state itself is
+   * unaffected either way).
    */
-  async setAiDataConsent(id: string, granted: boolean): Promise<{ aiDataConsentAt: Date | null }> {
+  async setAiDataConsent(
+    id: string,
+    granted: boolean,
+    source: ConsentSource = 'web',
+  ): Promise<{ aiDataConsentAt: Date | null }> {
     const existing = await this.userRepository.findById(id);
     if (!existing) {
       throw new TRPCError({ code: 'NOT_FOUND', message: `User not found: ${id}` });
@@ -221,6 +235,9 @@ export class UserService {
     }
     try {
       const updated = await this.userRepository.setAiDataConsent(id, granted ? new Date() : null);
+      // §2.13: every AI consent write is logged, so revoking never erases
+      // the record the way clearing aiDataConsentAt alone would.
+      await consentService.record({ userId: id, kind: 'AI', granted, source });
       return { aiDataConsentAt: updated.aiDataConsentAt };
     } catch (error) {
       this.handleError(error);

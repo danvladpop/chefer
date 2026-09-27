@@ -19,7 +19,7 @@ export const notificationsRouter = router({
   setEmailPreferences: protectedProcedure
     .input(z.object({ weekReady: z.boolean().optional(), weeklyRecap: z.boolean().optional() }))
     .mutation(({ ctx, input }) => {
-      return emailPreferencesService.set(ctx.user.id, input);
+      return emailPreferencesService.set(ctx.user.id, input, ctx.isMobileClient ? 'mobile' : 'web');
     }),
 
   /** Re-sends the confirmation link (Preferences: "Send confirmation link"). */
