@@ -30,4 +30,22 @@ describe('copy modules never carry a forbidden phrase', () => {
     expect(containsForbiddenPhrase('You missed 2 days this week.')).toBe('missed');
     expect(containsForbiddenPhrase('Checked for tree nuts (Luca).')).toBeNull();
   });
+
+  // UX-22 (T-22.2/T-22.3): the mandatory disclaimer text DISCLAIMS medical
+  // advice ("not medical advice", "doesn't give medical advice") — the
+  // opposite of the CLAIM the rule exists to catch — so it must be exempt,
+  // while an actual claim anywhere else in the same string still isn't.
+  it('the disclaimer wording itself ("not medical advice") is allowed', () => {
+    expect(containsForbiddenPhrase('Not medical advice — check with your GP.')).toBeNull();
+    expect(
+      containsForbiddenPhrase(
+        "Chefer offers general healthy-eating and training guidance. It isn't a medical device and doesn't give medical advice.",
+      ),
+    ).toBeNull();
+    // The allowance is exact and narrow, not a general negation heuristic —
+    // an unrelated forbidden phrase in the same string is still caught.
+    expect(containsForbiddenPhrase('Not medical advice, but this diet cures everything.')).toBe(
+      'cures',
+    );
+  });
 });

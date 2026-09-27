@@ -15,8 +15,15 @@ appId: dev.chefer.app.dev
     visible:
       id: 'chat-title'
     timeout: 15000
+# UX-22 (T-22.2, AC2/AC5): the disclaimer subtitle is always visible under
+# the title, and the empty thread shows the chef-not-a-doctor line — neither
+# needs a message sent, so both are covered without touching the AI quota.
+- assertVisible:
+    id: 'chat-header-subtitle'
 - assertVisible:
     id: 'chat-empty'
+- assertVisible:
+    id: 'chat-empty-disclaimer'
 - assertVisible:
     id: 'chat-input'
 - tapOn: 'Back'

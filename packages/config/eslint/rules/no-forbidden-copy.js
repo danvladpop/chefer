@@ -44,6 +44,24 @@ export const FORBIDDEN_PHRASES = [
   '0-week streak',
 ];
 
+/**
+ * Exact, negated phrasings that are the OPPOSITE of a medical-advice claim —
+ * the mandatory disclaimer wording itself (UX-22 AC4, `terms/page.tsx`'s
+ * "Health and nutrition: not medical advice" heading). Stripped out before
+ * the forbidden-phrase scan runs, so the disclaimer that DISCLAIMS medical
+ * advice doesn't trip the rule meant to catch a CLAIM of it. Keep this list
+ * exact and narrow — it is not a general negation heuristic, so "medical
+ * advice" anywhere else in the same string is still caught.
+ */
+const ALLOWED_NEGATED_PHRASES = [
+  'not medical advice',
+  'not a medical advice',
+  "isn't medical advice",
+  'is not medical advice',
+  "doesn't give medical advice",
+  'does not give medical advice',
+];
+
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -53,11 +71,19 @@ const PHRASE_MATCHERS = FORBIDDEN_PHRASES.map((phrase) => ({
   regex: new RegExp(`\\b${escapeRegExp(phrase)}\\b`, 'i'),
 }));
 
+const ALLOWED_NEGATED_REGEXES = ALLOWED_NEGATED_PHRASES.map(
+  (phrase) => new RegExp(`\\b${escapeRegExp(phrase)}\\b`, 'gi'),
+);
+
 /** Returns the first forbidden phrase found in `text`, or null. */
 export function containsForbiddenPhrase(text) {
   if (typeof text !== 'string') return null;
+  let scanned = text;
+  for (const regex of ALLOWED_NEGATED_REGEXES) {
+    scanned = scanned.replace(regex, '');
+  }
   for (const { phrase, regex } of PHRASE_MATCHERS) {
-    if (regex.test(text)) return phrase;
+    if (regex.test(scanned)) return phrase;
   }
   return null;
 }
