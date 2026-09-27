@@ -34,3 +34,13 @@ export function defaultCookServings(
 ): number {
   return Math.round((portionSum ?? baseServings) * planPortion * 100) / 100;
 }
+
+/**
+ * bug B-21: the "Enjoy your {meal}!" finish screen used to fall back to
+ * `guessMealType()` (the CLOCK) whenever cook mode was opened with no
+ * `meal` param — so cooking dinner at 6 pm could read "Enjoy your lunch!".
+ * With no real meal name, the generic "Enjoy!" is honest instead of a guess.
+ */
+export function finishMealCopy(meal?: string | null): string {
+  return meal ? `Enjoy your ${meal}!` : 'Enjoy!';
+}

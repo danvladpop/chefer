@@ -216,7 +216,7 @@ export {
   type LoggedMealEntryLike,
 } from './tracker';
 
-export { defaultCookServings, guessMealType, parseStepDuration } from './cook-mode';
+export { defaultCookServings, finishMealCopy, guessMealType, parseStepDuration } from './cook-mode';
 export { buildPickerSections, type PickerSection } from './recipe-picker';
 export * from './gym';
 export {
@@ -417,3 +417,18 @@ export {
 export { SAFETY_COPY, type SafetyCopyKey } from './safety-copy';
 export { WELLNESS_COPY, type WellnessCopyKey } from './wellness-copy';
 export { PREMIUM_PITCH_COPY, type PremiumPitchCopyKey } from './premium-pitch';
+export { tagConflicts, type RecipeTagConflict } from './recipe-tags';
+export {
+  formatFractionalQuantity,
+  formatScaledQuantity,
+  formatServingsPair,
+  isUnscalableUnit,
+} from './scaled-quantity';
+export {
+  parseQuantity,
+  recipeMissingFields,
+  missingSummary,
+  type RecipeFormIngredientLike,
+  type RecipeFormMinimum,
+  type RecipeFormMissingField,
+} from './recipe-form';

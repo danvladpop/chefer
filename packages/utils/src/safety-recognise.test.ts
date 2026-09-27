@@ -23,18 +23,28 @@ describe('recogniseSafetyTerm', () => {
   });
 
   it('maps a condition to its implied diet', () => {
+    // T-01.9 rev 2: coeliac implies the coeliac-STRENGTH gluten-free diet
+    // (which also excludes label-dependent ingredients), not the plain one.
     expect(recogniseSafetyTerm('coeliac')).toEqual({
       kind: 'condition',
       id: 'coeliac',
       label: 'Coeliac',
-      impliesDietId: 'gluten-free',
+      impliesDietId: 'gluten-free-coeliac',
     });
   });
 
-  it('keeps unrecognised free text, flagged rather than dropped (UX-01 b)', () => {
+  it('T-01.1 (bug B-04): a dislike CATEGORY like "green vegetables" is now recognised, not dropped', () => {
     expect(recogniseSafetyTerm('green vegetables')).toEqual({
+      kind: 'dislike',
+      id: 'leafy-greens',
+      label: 'Leafy greens',
+    });
+  });
+
+  it('keeps a genuinely unrecognised free-text term flagged rather than dropped (UX-01 b)', () => {
+    expect(recogniseSafetyTerm('a weird home remedy')).toEqual({
       kind: 'unrecognised',
-      term: 'green vegetables',
+      term: 'a weird home remedy',
     });
   });
 });
