@@ -615,13 +615,9 @@ export default function MealPlanScreen() {
                         testID="plan-day-add"
                         accessibilityRole="button"
                         accessibilityLabel={`Plan ${DAY_LABELS[selectedDay]} too`}
-                        disabled={planDayMutation.isPending || !plan}
+                        disabled={planDayMutation.isPending}
                         onPress={() =>
-                          plan &&
-                          planDayMutation.mutate({
-                            planId: plan.planId,
-                            dayOfWeek: selectedDay,
-                          })
+                          planDayMutation.mutate({ planId: plan.planId, dayOfWeek: selectedDay })
                         }
                         className="mt-2 min-h-11 flex-row items-center justify-center px-2"
                       >
