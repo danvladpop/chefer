@@ -24,11 +24,13 @@ const ITEMS: {
   { href: '/my-weeks', label: 'My weeks', icon: 'repeat-outline', testID: 'more-my-weeks' },
   { href: '/household', label: 'Household', icon: 'people-outline', testID: 'more-household' },
   { href: '/profile', label: 'Profile', icon: 'person-outline', testID: 'more-profile' },
+  // T-00.9: "Preferences" renamed to "Settings" and points to the new hub —
+  // the individual preference cards are still reachable from there.
   {
-    href: '/preferences',
-    label: 'Preferences',
+    href: '/settings',
+    label: 'Settings',
     icon: 'settings-outline',
-    testID: 'more-preferences',
+    testID: 'more-settings',
   },
 ];
 

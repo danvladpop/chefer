@@ -1,12 +1,13 @@
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import type { GymBootstrap } from '@chefer/types';
 import { SegmentedControl } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { HeaderAvatar } from '../../../components/header-avatar';
 import { trpc } from '../../../lib/trpc';
-import { getMode, setMode, useMode, type AppMode } from '../mode-store';
+import { getMode, setMode, type AppMode } from '../mode-store';
 import { gymBootstrapQueryKey, gymBootstrapQueryOptions } from '../use-gym-bootstrap';
 
 const OPTIONS = [
@@ -17,6 +18,16 @@ const OPTIONS = [
 /** Wait at most this long for a first bootstrap before giving up on the setup check. */
 const SETUP_CHECK_TIMEOUT_MS = 4000;
 
+// Gym tab-group root routes (no `/gym` prefix — see app/(gym)/_layout.tsx).
+// Every deeper gym screen lives under `/gym/*` (setup, settings, exercise,
+// session, summary…), which the prefix check below already covers.
+const GYM_ROOT_ROUTES = new Set(['/today', '/routine', '/exercises', '/stats']);
+
+/** Bug B-14: the pill must reflect the route you're actually looking at, not the last-picked (and possibly stale) persisted mode. */
+function routeMode(pathname: string): AppMode {
+  return pathname.startsWith('/gym') || GYM_ROOT_ROUTES.has(pathname) ? 'gym' : 'food';
+}
+
 /**
  * Food | Gym segmented control (gym_plan.md D3) for the header of every
  * tab-root screen in both groups. Switching to Gym without a gym profile —
@@ -24,7 +35,8 @@ const SETUP_CHECK_TIMEOUT_MS = 4000;
  * Setup on top of Today, so backing out of setup lands on Today.
  */
 export function ModeSwitch({ className }: { className?: string }) {
-  const mode = useMode();
+  const pathname = usePathname();
+  const mode = routeMode(pathname);
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
 
@@ -63,7 +75,13 @@ export function ModeSwitch({ className }: { className?: string }) {
     });
   };
 
-  // The header row of every tab root: compact switch left, profile right.
+  // T-00.9 (UX-36 (1)): on a Gym route the gear opens the gym settings
+  // stack screen; on a Food root it opens the new Settings hub.
+  const openSettings = () => {
+    router.push(mode === 'gym' ? '/gym/settings' : '/settings');
+  };
+
+  // The header row of every tab root: compact switch left, gear + profile right.
   return (
     <View className={cn('flex-row items-center justify-between', className)}>
       <SegmentedControl
@@ -75,7 +93,18 @@ export function ModeSwitch({ className }: { className?: string }) {
         onChange={onChange}
         className="w-36"
       />
-      <HeaderAvatar />
+      <View className="flex-row items-center">
+        <Pressable
+          testID="mode-switch-settings"
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+          onPress={openSettings}
+          className="h-11 w-11 items-center justify-center"
+        >
+          <Ionicons name="settings-outline" size={22} color="#6b7280" />
+        </Pressable>
+        <HeaderAvatar />
+      </View>
     </View>
   );
 }
