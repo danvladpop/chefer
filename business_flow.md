@@ -621,8 +621,11 @@ Recipe creation (revamped form)
   |    private ingredients (manual macros, uploaded or AI-generated image)
   +- ingredients.computeNutrition auto-fills per-serving nutrition from
   |    ingredient quantities (unit conversion x per-100g macros)
-  +- recipe photo: device upload (POST /api/uploads/image) or deterministic
-  |    AI image (recipe.aiImageUrl)
+  +- recipe photo: device upload (POST /api/uploads/image, <=10 MB since
+  |    T-BUG-O1/Q-22) or deterministic AI image (recipe.aiImageUrl); a failed
+  |    upload always shows one of the four UX-40 sentences (never a status
+  |    code or "[object Object]") — see §15's "Error states" note and
+  |    infrastructure.md §4.1.1
 
 Synced check-off (P1-5)
   +- shoppingList.getForWeek returns checkedKeys; ticking an item calls
@@ -1077,6 +1080,19 @@ POST /api/scan-meal (session cookie, raw image body — same transport as upload
   │    → analytics meal_scanned { confirmed: true }
   └─ discard → nothing logged; meal_scanned { confirmed: false }
 ```
+
+**Error states (T-BUG-O1, O-18).** A failed scan never shows a status code or
+the literal text `[object Object]`. `scanMealPhoto` (mobile
+`src/lib/media-client.ts`, web `features/tracker/lib/scan-client.ts`) checks
+the photo's size against the 5 MB limit before sending, and maps any failure —
+client-side pre-check or a server response — to exactly one of four sentences:
+**too big** ("That photo is too big. Choose another, or use a screenshot of
+it.") for a 413 or an oversize body, **no connection** ("No connection. Try
+again when you're back online.") for a network failure, **signed out** ("Sign
+in again to add photos.") for a 401, and **something went wrong** ("Something
+went wrong on our side. Try again in a moment.") for anything else — the
+premium-gate 403 (`upgradeRequired`) stays a separate path, unaffected. See
+`infrastructure.md` §4.1.1 for the server-side 413 contract.
 
 Custom entries render on the tracker as their own rows (name + "estimated" /
 "quick add" chip, deletable via `tracker.deleteCustomMeal`) and count toward
