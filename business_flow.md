@@ -53,29 +53,63 @@ Browser
 
 > **Status:** Implemented (self-service at `/register`).
 
+**Mobile first screen (UX-25, T-25.1).** `(auth)/index.tsx` no longer redirects
+straight to Sign in: it checks `hasSignedInBefore` (`auth-store.ts`, a
+SecureStore flag set on the first successful sign-in/registration and never
+cleared by sign-out). A device that has never signed in lands on the new
+`(auth)/welcome.tsx` (mark, "Train and eat to one plan", three free-tier
+feature bullets, `Create free account` / `I already have an account`);
+everyone else goes straight to `login`, whose title/subtitle are "Welcome
+back" only once `hasSignedInBefore` — otherwise "Sign in" with a full-width
+`Create free account` button (CI-09: a fresh install used to land on "Welcome
+back / Sign in" with no logo or value statement). Web has no separate first
+screen; the landing page (`/`, T-25.2) plays that role and now leads with the
+free workout log too, not meal planning alone (CI-16/CI-25).
+
 ```
 1. User fills in RegisterForm at /(auth)/register
    └── email, password, firstName?, lastName? (react-hook-form + Zod)
    └── the client adds region? — detectRegion() from @chefer/utils reads the
        browser (navigator.languages) / device (Intl, no native dependency)
        locale, e.g. "en-US" → "US"
+   └── UX-39/UX-26 (T-39.1, T-26.5, wave 1): two REAL checkboxes replace the
+       old static disclaimer paragraph — "I agree to the Terms and the
+       Privacy Policy" (each a link; mobile opens them in-app at
+       legal/[doc].tsx via react-native-webview, keeping the form's
+       in-progress values in an ephemeral register-draft.ts cache; web opens
+       /terms /privacy in a new tab) and "I'm 16 or older" (P0-6 — minimum
+       age 16, Romania's age of digital consent). The submit button stays
+       enabled either way; an unticked box shows an inline error instead.
+       acceptedTermsVersion is LEGAL_VERSIONS.terms (@chefer/types).
 2. auth.register (public tRPC mutation, rate-limited 10/15 min per IP)
    └── AuthService.register
+        ├── clientApiLevel ≥ 1 (both current web + mobile builds) requires
+        │    acceptedTerms + acceptedTermsVersion and ageConfirmed — BAD_REQUEST
+        │    otherwise. clientApiLevel 0 (an installed binary from before this
+        │    wave) sends none of these fields and registers unchanged — the
+        │    server backstop, not the primary control (the UI is)
         ├── reject with CONFLICT when the email already has an account
         ├── bcrypt.hash(password, 12)
         ├── prisma.user.create (role USER, planTier FREE)
+        │    ├── weeklyEmailReady: false, weeklyEmailRecap: false written
+        │    │    EXPLICITLY (T-39.3, ⚖ D-13) — every new account starts with
+        │    │    both weekly digests off; existing accounts are never
+        │    │    touched by this path
+        │    ├── termsAcceptedVersion set when acceptedTermsVersion was sent
         │    └── with a region: nested ChefProfile { preferredUnits, deliveryCurrency }
         │        from defaultsForRegion (P2-6) — US/LR/MM → IMPERIAL, else METRIC;
         │        US → USD, GB → GBP, RO → RON, eurozone/else → EUR. The row has
         │        no goal, so preferences.hasProfile stays false and onboarding runs.
-        └── createSession → chefer_session cookie
-            (HttpOnly, SameSite=Strict, Secure in prod, 30 days)
+        ├── createSession → chefer_session cookie
+        │    (HttpOnly, SameSite=Strict, Secure in prod, 30 days)
+        └── T-39.2: every consent field actually sent is logged through
+             ConsentService.record — TERMS, PRIVACY (both stamped with
+             acceptedTermsVersion), AGE, and (same signup) the
+             EMAIL_WEEK_READY/EMAIL_RECAP/AUTO_PLAN defaults, all `granted:
+             false`. Best-effort — a logging failure never turns a
+             successful registration into an error response.
    └── the router then emails the address-confirmation link in the
        background (P2-5, §23) — never blocks or fails the signup
-   Consent line under the button (web + mobile): "By creating an account you
-   confirm you are 16 or older and agree to the Terms. The Privacy Policy
-   explains how we use your data." (P0-6 — minimum age 16, Romania's age of
-   digital consent; the privacy policy is information, not something agreed to)
 3. Client redirects to /onboarding
 4. Onboarding step 0 — "What brings you here?" (backlog P2-3, F-PM-6; web and
    mobile share `onboardingSteps` from @chefer/utils). Asked while
@@ -937,9 +971,20 @@ advice about health conditions" rule as the review — with an added line
 telling the model to name a GP or dietitian on a medical topic (blood sugar,
 blood pressure, pregnancy, medication) instead of answering. Both prompts
 share one string so they can't drift apart; a snapshot test
-(`prompts.chat-guardrail.test.ts`) locks the wording in. The fuller UX (a
-`healthTopic`/`safetyTopic` stream flag and footer disclaimers on the
-relevant replies) is wave 1.
+(`prompts.chat-guardrail.test.ts`) locks the wording in.
+
+**Header flags + footer disclaimers (UX-22, T-22.2, wave 1 L-ENTRY).** The
+chat header always shows the subtitle `AI · answers can be wrong`, and the
+empty thread shows a chef-not-a-doctor line (`WELLNESS_COPY` in
+`@chefer/utils`, both shared with the future goal/metrics disclaimer,
+T-22.3). `chat.router.ts` classifies the LAST user message with
+`isHealthTopic(text)` / `isSafetyTopic(text)` (`health-topic.ts`, pure EN+RO
+keyword match — a belt on top of the prompt guardrail above, not the primary
+control) and, before the stream starts, sets `X-Chat-Health-Topic: 1` /
+`X-Chat-Safety-Topic: 1` (the plain-text stream has no "final event" to carry
+a flag on otherwise). Both clients read the header once the response arrives
+and render a fixed footer under that reply: `Not medical advice — check with
+your GP.` or `AI can be wrong about allergens — always check the label.`
 
 ```
 POST /api/chat (session cookie)
@@ -965,6 +1010,17 @@ POST /api/chat (session cookie)
        │         removable on the Shopping List page)
        └─ mock: echoes the same context and exercises the same tools
 ```
+
+**One local-day contract (§2.12, T-21.1, bug B-06).** `logMeal` ("I ate
+this") and the context summary's "today" both now reckon the day from the
+user's own `ChefProfile.timeZone` (`localDateInZone`/`localDayIndexInZone`,
+private to `chat.service.ts`), not the API server's clock — a message sent
+just after midnight UTC used to log to the WRONG calendar day for anyone west
+of Greenwich. Accounts that have never set a time zone fall back to UTC
+(unchanged behaviour). `scripts/check-utc-days.mjs` (run in CI, the
+`utc-day-guard` job) greps `apps/api/src/application/**` for the old pattern
+and fails on a new occurrence outside its allowlist — `tracker.service.ts`'s
+equivalent fix (bug B-33) is still open, a different lane's work.
 
 Routing: Caddy sends `/api/chat` to the API in production; a Next.js rewrite
 proxies it in dev. `apps/web` no longer touches Prisma anywhere (Architecture
@@ -1048,6 +1104,11 @@ the adjusted target must shape next week's budget)
   (audit F-TRK-4-1). Reads ignore
   future-dated rows, and the coach's EWMA trend drops jumps over 3 kg/day,
   so a single typo can't swing the weekly adjustment (audit F-DASH-3-1).
+  **T-21.1 (§2.12) bug fix:** the web page parsed each day's `YYYY-MM-DD`
+  with `date-fns` `parseISO`, which reads a date-only string as UTC
+  midnight — formatting it back in a browser west of Greenwich showed the
+  day before. It now parses as a local midnight (`new Date(\`${d}T00:00:00\`)`),
+matching mobile's `progress.tsx` `shortDate`, which already did this.
 - Chat tool `getMyReview`: the model can quote the latest review; free users
   get the teaser line + an upgrade suggestion.
 
