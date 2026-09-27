@@ -1,9 +1,10 @@
 import { TRPCError } from '@trpc/server';
 import bcrypt from 'bcryptjs';
 import type { Response } from 'express';
-import { prisma } from '@chefer/database';
+import { ConsentKind, prisma } from '@chefer/database';
 import type { AuthResult, MobileSession } from '@chefer/types';
 import { defaultsForRegion } from '@chefer/utils';
+import { consentService } from '../privacy/consent.service.js';
 
 /** A valid bcrypt hash (cost 12) of a random string: login's timing decoy. */
 const DUMMY_PASSWORD_HASH = '$2b$12$qZC9DEJlYpJdBOlrTJu.OOnTjzpY1TBuTh.s6KARjC.Sn6ECa.RAq';
@@ -22,6 +23,17 @@ export interface RegisterInput {
   lastName?: string | undefined;
   /** Device region, e.g. "US" — seeds units + currency (P2-6). */
   region?: string | undefined;
+  /**
+   * Explicit sign-up consent (T-39.1, T-26.5). All optional at the schema
+   * level so a client below `clientApiLevel` 1 — an installed binary that
+   * predates this wave — still registers unchanged (CLAUDE.md Platform
+   * Parity: API changes stay additive). `AuthService.register` is what
+   * requires them once the caller declares level ≥ 1.
+   */
+  acceptedTerms?: boolean | undefined;
+  ageConfirmed?: boolean | undefined;
+  /** The `LEGAL_VERSIONS` (`@chefer/types`) version string the box refers to. */
+  acceptedTermsVersion?: string | undefined;
 }
 
 export interface LoginInput {
@@ -34,11 +46,40 @@ export interface LoginInput {
 export interface AuthOptions {
   /** Include the session token in the response body (mobile clients only). */
   includeSession?: boolean;
+  /**
+   * `ctx.clientApiLevel` (register only) — level ≥ 1 must send explicit
+   * consent; level 0 (old installed binaries) registers as it always has.
+   */
+  clientApiLevel?: number;
+  /** `ctx.isMobileClient` (register only) — the consent log's `source`. */
+  consentSource?: 'web' | 'mobile';
 }
 
 export class AuthService {
   async register(input: RegisterInput, res: Response, options?: AuthOptions): Promise<AuthResult> {
-    const { email, password, firstName, lastName, region } = input;
+    const { email, password, firstName, lastName, region, acceptedTerms, ageConfirmed } = input;
+    const acceptedTermsVersion = input.acceptedTermsVersion;
+
+    // T-39.1 / T-26.5: a level ≥ 1 client (this wave's mobile + web builds,
+    // §2.8) must tick both boxes in its UI before it ever reaches here — this
+    // is the server backstop, not the primary control. A level 0 client (an
+    // installed binary from before this wave) sends neither field and
+    // registers exactly as it always has (AC1 compat).
+    const clientApiLevel = options?.clientApiLevel ?? 0;
+    if (clientApiLevel >= 1) {
+      if (!acceptedTerms || !acceptedTermsVersion) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'You must agree to the Terms and the Privacy Policy.',
+        });
+      }
+      if (!ageConfirmed) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'You must confirm you are 16 or older.',
+        });
+      }
+    }
 
     const existing = await prisma.user.findUnique({
       where: { email: email.toLowerCase().trim() },
@@ -61,6 +102,13 @@ export class AuthService {
         firstName: firstName ?? null,
         lastName: lastName ?? null,
         name,
+        // S15, rev 2 (T-39.3): every NEW account starts with both weekly
+        // digests off — written explicitly here (not left to the column
+        // default) so registration is the one place this default is visible
+        // in code. Existing accounts are never touched by this path.
+        weeklyEmailReady: false,
+        weeklyEmailRecap: false,
+        ...(acceptedTermsVersion && { termsAcceptedVersion: acceptedTermsVersion }),
         // Location defaults (backlog P2-6): a US signup starts imperial + USD,
         // a UK one in GBP, and so on. Only when the client sent a region —
         // otherwise the schema defaults (METRIC, EUR) apply as before. The
@@ -74,6 +122,17 @@ export class AuthService {
     });
 
     const session = await this.createSession(user.id, res);
+
+    // T-39.2 consent log — best effort: a logging failure must never turn a
+    // successful registration into an error response.
+    await this.recordRegistrationConsent(user.id, {
+      acceptedTerms,
+      ageConfirmed,
+      acceptedTermsVersion,
+      source: options?.consentSource ?? 'web',
+    }).catch((err: unknown) => {
+      console.error('Failed to record registration consent:', err);
+    });
 
     return {
       id: user.id,
@@ -128,6 +187,65 @@ export class AuthService {
   }
 
   // ─── Private ───────────────────────────────────────────────────────────────
+
+  /**
+   * T-39.2: every consent write goes through `ConsentService.record` so the
+   * log is complete. A level 0 client's registration logs nothing here (it
+   * sent no explicit consent to record) — the pre-existing static disclaimer
+   * text is not claimed as an explicit acceptance event.
+   */
+  private async recordRegistrationConsent(
+    userId: string,
+    input: {
+      acceptedTerms: boolean | undefined;
+      ageConfirmed: boolean | undefined;
+      acceptedTermsVersion: string | undefined;
+      source: 'web' | 'mobile';
+    },
+  ): Promise<void> {
+    const { acceptedTerms, ageConfirmed, acceptedTermsVersion, source } = input;
+    const writes: Promise<unknown>[] = [];
+
+    if (acceptedTerms && acceptedTermsVersion) {
+      writes.push(
+        consentService.record({
+          userId,
+          kind: ConsentKind.TERMS,
+          granted: true,
+          source,
+          documentVersion: acceptedTermsVersion,
+        }),
+        consentService.record({
+          userId,
+          kind: ConsentKind.PRIVACY,
+          granted: true,
+          source,
+          documentVersion: acceptedTermsVersion,
+        }),
+      );
+    }
+    if (ageConfirmed) {
+      writes.push(consentService.record({ userId, kind: ConsentKind.AGE, granted: true, source }));
+    }
+    // T-39.3 (⚖ D-13): the email/auto-plan defaults a brand-new account
+    // starts with, logged so the choice is provable even though nobody was
+    // asked for it — only for accounts that actually went through this
+    // explicit-consent path (level ≥ 1); a level 0 registration logs nothing.
+    if (acceptedTerms) {
+      writes.push(
+        consentService.record({
+          userId,
+          kind: ConsentKind.EMAIL_WEEK_READY,
+          granted: false,
+          source,
+        }),
+        consentService.record({ userId, kind: ConsentKind.EMAIL_RECAP, granted: false, source }),
+        consentService.record({ userId, kind: ConsentKind.AUTO_PLAN, granted: false, source }),
+      );
+    }
+
+    await Promise.all(writes);
+  }
 
   private async createSession(userId: string, res: Response): Promise<MobileSession> {
     const sessionToken = crypto.randomUUID();

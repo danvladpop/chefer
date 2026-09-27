@@ -17,6 +17,10 @@ vi.mock('@chefer/database', async (importOriginal) => {
   };
 });
 
+vi.mock('../privacy/consent.service.js', () => ({
+  consentService: { record: vi.fn().mockResolvedValue({}) },
+}));
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const PASSWORD = 'User@123!';
@@ -134,5 +138,118 @@ describe('AuthService.register', () => {
     await service.register({ email: dbUser.email, password: PASSWORD }, mockRes());
     const call = vi.mocked(prisma.user.create).mock.calls.at(-1)![0];
     expect(call.data.chefProfile).toBeUndefined();
+  });
+
+  // ─── T-39.1 / T-26.5 / T-39.3 explicit consent ────────────────────────────────
+
+  it('bug B-… guard: a level 0 client (installed binary) registers without any consent field and nothing is logged', async () => {
+    const { consentService } = await import('../privacy/consent.service.js');
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.user.create).mockResolvedValue(dbUser as never);
+
+    const result = await service.register({ email: dbUser.email, password: PASSWORD }, mockRes(), {
+      clientApiLevel: 0,
+    });
+
+    expect(result.id).toBe('u1');
+    expect(consentService.record).not.toHaveBeenCalled();
+  });
+
+  it('a level ≥ 1 client is rejected without acceptedTerms + acceptedTermsVersion', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+
+    await expect(
+      service.register({ email: dbUser.email, password: PASSWORD }, mockRes(), {
+        clientApiLevel: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
+  it('a level ≥ 1 client is rejected without ageConfirmed even with terms accepted', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+
+    await expect(
+      service.register(
+        {
+          email: dbUser.email,
+          password: PASSWORD,
+          acceptedTerms: true,
+          acceptedTermsVersion: '2026-09-26',
+        },
+        mockRes(),
+        { clientApiLevel: 1 },
+      ),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
+  it('records TERMS + PRIVACY + AGE and the email/auto-plan defaults for a fully-consented level 1 signup (AC1, AC2, AC3)', async () => {
+    const { consentService } = await import('../privacy/consent.service.js');
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.user.create).mockResolvedValue(dbUser as never);
+
+    await service.register(
+      {
+        email: dbUser.email,
+        password: PASSWORD,
+        acceptedTerms: true,
+        ageConfirmed: true,
+        acceptedTermsVersion: '2026-09-26',
+      },
+      mockRes(),
+      { clientApiLevel: 1, consentSource: 'mobile' },
+    );
+
+    // New accounts: digests + auto-plan off, written explicitly (T-39.3).
+    const createCall = vi.mocked(prisma.user.create).mock.calls.at(-1)![0];
+    expect(createCall.data.weeklyEmailReady).toBe(false);
+    expect(createCall.data.weeklyEmailRecap).toBe(false);
+    expect(createCall.data.termsAcceptedVersion).toBe('2026-09-26');
+
+    const kinds = vi.mocked(consentService.record).mock.calls.map((c) => c[0].kind);
+    expect(kinds).toEqual(
+      expect.arrayContaining([
+        'TERMS',
+        'PRIVACY',
+        'AGE',
+        'EMAIL_WEEK_READY',
+        'EMAIL_RECAP',
+        'AUTO_PLAN',
+      ]),
+    );
+    for (const call of vi.mocked(consentService.record).mock.calls) {
+      expect(call[0].source).toBe('mobile');
+    }
+    const emailDefaults = vi
+      .mocked(consentService.record)
+      .mock.calls.filter((c) =>
+        ['EMAIL_WEEK_READY', 'EMAIL_RECAP', 'AUTO_PLAN'].includes(c[0].kind),
+      );
+    expect(emailDefaults).toHaveLength(3);
+    for (const call of emailDefaults) {
+      expect(call[0].granted).toBe(false);
+    }
+  });
+
+  it('a registration failure never happens because consent logging failed', async () => {
+    const { consentService } = await import('../privacy/consent.service.js');
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.user.create).mockResolvedValue(dbUser as never);
+    vi.mocked(consentService.record).mockRejectedValueOnce(new Error('db hiccup'));
+
+    const result = await service.register(
+      {
+        email: dbUser.email,
+        password: PASSWORD,
+        acceptedTerms: true,
+        ageConfirmed: true,
+        acceptedTermsVersion: '2026-09-26',
+      },
+      mockRes(),
+      { clientApiLevel: 1 },
+    );
+
+    expect(result.id).toBe('u1');
   });
 });

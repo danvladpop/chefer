@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { addDaysLocal, startSession, workoutReducer } from '@chefer/utils';
-import { makeContractClient, uniqueEmail } from './client';
+import { CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './client';
 
 // Comeback + deload offers end to end (gym_plan.md §7 Wave 4 "G4-A" acceptance:
 // "Verify that the comeback offer, and a deload offer after startDeload, work
@@ -14,6 +14,7 @@ async function registerAndSetup() {
     email: uniqueEmail('gym-offers'),
     password: 'Contract@123!',
     firstName: 'Lifter',
+    ...CONTRACT_CONSENT,
   });
   if (!user.session) throw new Error('mobile register response is missing the session credential');
   setToken(user.session.token);

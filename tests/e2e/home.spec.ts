@@ -5,13 +5,18 @@ test.describe('Home Page', () => {
     await page.goto('/');
   });
 
+  // UX-25 (T-25.2, "only what works on the free tier" rule): the hero used to
+  // say only "personal chef" (meal planning) — CI-16/CI-25 evidence, "meal
+  // planning? My friend said it does workouts." It now leads with the free
+  // workout log too.
   test('renders the hero section with correct heading', async ({ page }) => {
     const heading = page.getByRole('heading', { level: 1 });
     await expect(heading).toBeVisible();
-    await expect(heading).toContainText('personal chef');
+    await expect(heading).toContainText('Train and eat');
   });
 
   test('renders all feature cards', async ({ page }) => {
+    await expect(page.getByText('A workout log that tells you what to lift next')).toBeVisible();
     await expect(page.getByText('A week of meals in seconds')).toBeVisible();
     await expect(page.getByText('Allergies respected, always')).toBeVisible();
     await expect(page.getByText('Shopping list with prices')).toBeVisible();
@@ -119,6 +124,39 @@ test.describe('Login Page', () => {
     await expect(passwordInput).toHaveAttribute('type', 'text');
     await toggleButton.click();
     await expect(passwordInput).toHaveAttribute('type', 'password');
+  });
+});
+
+test.describe('Register Page — explicit consent (T-39.1 / T-26.5)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/register');
+  });
+
+  test('both consent boxes are real, unchecked checkboxes', async ({ page }) => {
+    const terms = page.getByRole('checkbox', { name: /terms/i });
+    const age = page.getByRole('checkbox', { name: /16 or older/i });
+    await expect(terms).toBeVisible();
+    await expect(terms).not.toBeChecked();
+    await expect(age).toBeVisible();
+    await expect(age).not.toBeChecked();
+  });
+
+  test('submitting with either box unchecked shows an inline error, not a submission', async ({
+    page,
+  }) => {
+    await page.getByLabel(/first name/i).fill('Ada');
+    await page.getByLabel(/last name/i).fill('Lovelace');
+    await page.getByLabel(/email address/i).fill(`e2e-${Date.now()}@example.com`);
+    await page.getByLabel('Password', { exact: true }).fill('Sup3rSecret!');
+    await page.getByLabel(/confirm password/i).fill('Sup3rSecret!');
+    // Neither checkbox ticked — the button stays enabled (03 §UX-26 AC), the
+    // inline error is what blocks it, not a disabled submit button.
+    await page.getByRole('button', { name: /create account/i }).click();
+
+    await expect(page.locator('#acceptedTerms-error')).toContainText(/agree to the terms/i);
+    await expect(page.locator('#ageConfirmed-error')).toContainText(/16 or older/i);
+    // Still on the register page — no navigation happened.
+    await expect(page).toHaveURL(/\/register/);
   });
 });
 
