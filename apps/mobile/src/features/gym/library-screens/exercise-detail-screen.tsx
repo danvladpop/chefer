@@ -152,7 +152,14 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
           ) : null}
         </View>
 
-        <PhotoCrossfade images={images} testID="exercise-detail-photos" />
+        <PhotoCrossfade
+          images={images}
+          equipment={exercise.equipment}
+          primaryMuscleLabel={
+            exercise.primaryMuscles[0] ? MUSCLE_LABELS[exercise.primaryMuscles[0]] : null
+          }
+          testID="exercise-detail-photos"
+        />
 
         <Button
           testID="exercise-detail-watch"
