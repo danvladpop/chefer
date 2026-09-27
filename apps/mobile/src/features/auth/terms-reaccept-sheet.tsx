@@ -9,14 +9,24 @@ import { trpc } from '../../lib/trpc';
 // Terms/Privacy acceptance predates a document version bump. Reads the
 // consent log (already-shipped `privacy.getConsentHistory`, T-39.2) rather
 // than a field on the session's `UserProfile` — that type is owned by
-// another lane this wave.
+// another lane this wave. Mounted in `app/_layout.tsx` next to `<AiConsentHost />`.
 //
-// NOT YET MOUNTED — see the handoff note in the wave-1 report: it needs to be
-// rendered once from the signed-in part of `app/_layout.tsx` (outside this
-// lane's ownership), e.g. next to `<AiConsentHost />`.
-
+// Re-accept rule, deliberately: a MISSING TERMS record is NOT "stale" — it
+// means this account predates versioned consent entirely (every account
+// registered before this wave, at clientApiLevel 0/1). This is the FIRST
+// wave with a versioned document, so treating "missing" as stale would pop
+// this sheet for the entire existing user base the moment the update ships,
+// which is not what the design calls for (03 §UX-39 only describes a
+// one-time notice for the SEPARATE email-defaults change, not a mass
+// re-consent prompt). The sheet only fires for an account that already went
+// through the new consent flow (a real TERMS row exists) and the document
+// version has since moved past what it recorded — the genuine "re-accept
+// after a bump" case the design describes. Backfilling a baseline consent
+// record for the pre-existing population, if that's ever wanted, is a
+// separate decision for `ConsentBackfillService` (a different lane), not
+// this sheet.
 function isStale(latestVersion: string | null): boolean {
-  if (!latestVersion) return true;
+  if (!latestVersion) return false;
   return latestVersion < LEGAL_VERSIONS.terms;
 }
 

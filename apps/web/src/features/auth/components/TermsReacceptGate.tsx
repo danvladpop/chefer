@@ -9,14 +9,22 @@ import { LEGAL_VERSIONS } from '@chefer/types';
 // the consent log (already-shipped `privacy.getConsentHistory`, T-39.2)
 // rather than a field on `ctx.user`/`UserProfile` — that type is owned by
 // another lane this wave, so this stays a read of the existing endpoint.
+// Mounted once in `apps/web/src/app/(dashboard)/layout.tsx`, which is
+// already the signed-in shell (Architecture Rule / §9 session gating).
 //
-// NOT YET MOUNTED — see the handoff note in the wave-1 report: it needs one
-// line in `apps/web/src/app/(dashboard)/layout.tsx` (a file outside this
-// lane's ownership), e.g. `<TermsReacceptGate />` rendered once for the
-// whole authenticated shell.
-
+// Re-accept rule, deliberately: a MISSING TERMS record is NOT "stale" — it
+// means this account predates versioned consent entirely (every account
+// registered before this wave). This is the FIRST wave with a versioned
+// document, so treating "missing" as stale would pop this for the entire
+// existing user base the moment the update ships, which the design doesn't
+// call for (03 §UX-39 only describes a one-time notice for the SEPARATE
+// email-defaults change). This only fires for an account that already went
+// through the new consent flow (a real TERMS row exists) and the document
+// version has since moved past what it recorded. Backfilling a baseline
+// consent record for the pre-existing population, if ever wanted, is a
+// separate decision for `ConsentBackfillService` (a different lane).
 function isStale(latestVersion: string | null): boolean {
-  if (!latestVersion) return true;
+  if (!latestVersion) return false;
   // Version strings are `YYYY-MM-DD` — string comparison already orders
   // them correctly.
   return latestVersion < LEGAL_VERSIONS.terms;

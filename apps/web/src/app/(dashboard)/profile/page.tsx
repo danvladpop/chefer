@@ -9,6 +9,7 @@ import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
 import { ChevronRight, Users } from 'lucide-react';
 import { PLAN_FEATURES } from '@chefer/types';
+import { WELLNESS_COPY } from '@chefer/utils';
 
 // ─── Usage bar ────────────────────────────────────────────────────────────────
 
@@ -319,6 +320,11 @@ export default function ProfilePage() {
         >
           Support
         </Link>
+      </p>
+
+      {/* T-22.3: the medical/legal disclaimer, always visible on Profile. */}
+      <p data-testid="profile-about-disclaimer" className="mt-3 text-center text-xs text-gray-400">
+        {WELLNESS_COPY.aboutMedicalDisclaimer}
       </p>
     </div>
   );
