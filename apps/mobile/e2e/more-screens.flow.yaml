@@ -19,6 +19,21 @@ appId: dev.chefer.app.dev
     timeout: 15000
 - assertVisible:
     id: 'profile-user-card'
+
+# Privacy & data (T-39.4): AI & your data, Usage analytics, Consent history,
+# a Gym settings row and Download my data / Delete account, in one section.
+- scrollUntilVisible:
+    element:
+      id: 'profile-privacy-section'
+    direction: DOWN
+- assertVisible:
+    id: 'profile-analytics-consent'
+- assertVisible:
+    id: 'profile-consent-history'
+- assertVisible:
+    id: 'profile-gym-settings'
+- assertVisible:
+    id: 'profile-your-data'
 - tapOn: 'Back'
 
 - tapOn:
