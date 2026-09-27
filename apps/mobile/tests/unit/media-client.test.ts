@@ -32,7 +32,7 @@ describe('T-BUG-O1 uploadErrorFrom', () => {
     expect(uploadErrorFrom(401, { error: 'Unauthorized' }, 0).message).toBe(
       'Sign in again to add photos.',
     );
-    expect(uploadErrorFrom(500, { error: 'Empty upload body' }, 0).message).toBe(
+    expect(uploadErrorFrom(400, { error: 'Empty upload body' }, 0).message).toBe(
       'Something went wrong on our side. Try again in a moment.',
     );
   });
@@ -69,11 +69,20 @@ describe('T-BUG-O1 uploadErrorFrom', () => {
     expect(uploadErrorFrom(null, null, UPLOAD_MAX_BYTES + 1).message).toBe(PHOTO_TOO_BIG_MESSAGE);
   });
 
-  it('falls back to the generic sentence for any other status', () => {
+  it('keeps a server-written sentence (daily cap, scan quota, AI outage)', () => {
     expect(uploadErrorFrom(429, { error: 'Daily upload limit reached' }, 0).message).toBe(
+      'Daily upload limit reached',
+    );
+    expect(uploadErrorFrom(503, { error: 'Photo scanning is busy right now.' }, 0).message).toBe(
+      'Photo scanning is busy right now.',
+    );
+  });
+
+  it('falls back to the generic sentence for transport checks and bodiless errors', () => {
+    expect(uploadErrorFrom(415, { error: 'Unsupported image type' }, 0).message).toBe(
       'Something went wrong on our side. Try again in a moment.',
     );
-    expect(uploadErrorFrom(415, { error: 'Unsupported image type' }, 0).message).toBe(
+    expect(uploadErrorFrom(502, null, 0).message).toBe(
       'Something went wrong on our side. Try again in a moment.',
     );
   });

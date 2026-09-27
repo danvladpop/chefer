@@ -22,7 +22,7 @@ import { DENSE_MAX_FONT_SCALE } from './text';
 // changing) leaves that row's value stuck at a near-zero scale forever, even
 // though identical neighbouring rows render normally. The fix removes the
 // auto-shrink mechanism entirely: the font size is a pure function of the
-// string, verified in the simulator to fit a 375pt-wide row (the narrowest
+// string, sized to fit a 375pt-wide row (the narrowest
 // layout this stepper currently ships in) for the longest values it renders
 // today, e.g. "102.5" (kg with a decimal) and "1:30" (a mm:ss rest/tempo
 // value).

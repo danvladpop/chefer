@@ -37,6 +37,12 @@ function uploadErrorFrom(status: number | null, body: unknown): Error {
   if (status === null) {
     return new Error(NO_CONNECTION_MESSAGE);
   }
+  // A string `error` from the route's own checks is already copy written for
+  // users (the daily upload cap) — keep it. 400/415 are transport checks worded for
+  // developers, and the global handler's object shape never gets here.
+  if (typeof errorField === 'string' && errorField && status !== 400 && status !== 415) {
+    return new Error(errorField);
+  }
   return new Error(SOMETHING_WRONG_MESSAGE);
 }
 
