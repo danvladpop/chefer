@@ -223,7 +223,7 @@ describe('deleteAccount', () => {
       });
       vi.mocked(prisma.$transaction).mockImplementation(async (ops: unknown) => {
         callOrder.push('transaction');
-        return Promise.all(ops as never[]);
+        return Promise.all(ops as Promise<unknown>[]);
       });
 
       await deleteAccount('u1');
