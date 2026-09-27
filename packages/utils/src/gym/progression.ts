@@ -6,6 +6,7 @@ import type {
   EquipmentProfile,
   ExerciseSlot,
   Exposure,
+  ExposureSet,
   ProgressionOverride,
   ProgressionState,
   ReasonCode,
@@ -38,7 +39,7 @@ import { daysBetweenLocal } from './weeks';
 export { explain, explainInputs } from './reasons';
 
 /** Bump whenever any output changes (stored with every suggestion). */
-export const ENGINE_VERSION = 1;
+export const ENGINE_VERSION = 2;
 
 /** Most working sets BW_ADD_SET will grow an exercise to (research §1.3). */
 export const MAX_BODYWEIGHT_SETS = 5;
@@ -50,6 +51,8 @@ const CALIBRATION_MAX_EXPOSURES = 3;
 const BIG_JUMP_PCT = 0.075;
 /** Timed exercises add this many seconds per set on ADD_REPS. */
 const TIMED_STEP_SEC = 5;
+/** A leading working set below this share of the session's top weight can be a ramp-up set. */
+const RAMP_MAX_FRACTION = 0.9;
 
 type Inputs = Suggestion['inputs'];
 
@@ -106,6 +109,46 @@ function slotInputs(slot: ExerciseSlot): Inputs {
 
 function canCalibrate(slot: ExerciseSlot): boolean {
   return slot.exercise.loadType === 'WEIGHTED' && !slot.exercise.isTimed && !isAssisted(slot);
+}
+
+/**
+ * How many leading working sets were a ramp-up to the top weight rather than
+ * work at it (research §1.5 "working weight"). A ramp set is strictly lighter
+ * than the set after it AND below RAMP_MAX_FRACTION of the session's top
+ * weight, so straight sets (60, 60, 60), a small bump (60, 60, 62.5) and
+ * straight sets followed by a heavier test set (60, 60, 60, 70) are all
+ * unaffected. Only external-load models: bodyweight, belt and assistance
+ * weights are not a ramp axis.
+ */
+export function rampSetCount(sets: readonly ExposureSet[], slot: ExerciseSlot): number {
+  const model = loadModel(slot);
+  if (model !== 'PLATES' && model !== 'LIST' && model !== 'STACK') {
+    return 0;
+  }
+  const top = Math.max(0, ...sets.map((s) => s.weightKg));
+  let n = 0;
+  while (
+    n < sets.length - 1 &&
+    (sets[n]?.weightKg ?? 0) < (sets[n + 1]?.weightKg ?? 0) &&
+    (sets[n]?.weightKg ?? 0) < top * RAMP_MAX_FRACTION
+  ) {
+    n += 1;
+  }
+  return n;
+}
+
+/**
+ * Reps the decision rules judge. When fewer load sets than planned were done
+ * (a ramp replaced some, or a partial calibration exposure), the missing sets
+ * count as not yet at the top of the range, so one good top set can hold or
+ * add reps but never trigger a double-progression load increase on its own.
+ */
+function judgedReps(reps: number[], exposure: Exposure): number[] {
+  if (reps.length === 0 || reps.length >= exposure.sets) {
+    return reps;
+  }
+  const pad = Math.max(exposure.repMin, Math.min(lastOr(reps, 0), exposure.repMax - 1));
+  return [...reps, ...all(exposure.sets - reps.length, pad)];
 }
 
 /** Can more working sets replace load progression (bodyweight / assistance exhausted)? */
@@ -572,12 +615,15 @@ export function applyExposure(input: {
   }
 
   const working = exposure.loggedSets.filter((s) => !s.isWarmup && s.completed);
-  const reps = working.map((s) => s.reps);
+  // Ramp-up sets logged as working sets (40 → 60 → 70) count toward "sets
+  // done" but not toward the load decision; W stays the lightest of the rest.
+  const loadSets = working.slice(rampSetCount(working, slot));
+  const reps = loadSets.map((s) => s.reps);
   const rir = exposure.lastSetRir;
   const W =
-    working.length > 0
+    loadSets.length > 0
       ? roundToAchievable(
-          working.map((s) => s.weightKg).reduce((a, b) => easierOf(a, b, slot)),
+          loadSets.map((s) => s.weightKg).reduce((a, b) => easierOf(a, b, slot)),
           slot,
           profile,
           'nearest',
@@ -601,8 +647,11 @@ export function applyExposure(input: {
     breakApplied = true;
   }
 
-  // 1. Skipped sets → same targets, counters untouched.
-  if (W === null || working.length < exposure.sets) {
+  // 1. Skipped sets → same targets, counters untouched. Except while
+  // calibrating at a weight other than the prescribed guess: what was lifted
+  // is better evidence than the guess, so it is judged like a full exposure.
+  const judgePartial = calibrating && W !== null && !sameKg(W, state.next.weightKg);
+  if (W === null || (working.length < exposure.sets && !judgePartial)) {
     const keepW = breakApplied && W !== null ? W : state.next.weightKg;
     const next = makeSuggestion(
       'hold',
@@ -631,7 +680,7 @@ export function applyExposure(input: {
     };
   }
 
-  const totalAtW = working
+  const totalAtW = loadSets
     .filter((s) => sameKg(roundToAchievable(s.weightKg, slot, profile, 'nearest'), W))
     .reduce((sum, s) => sum + s.reps, 0);
   const baseline = baselineKg(state);
@@ -646,7 +695,7 @@ export function applyExposure(input: {
     experience,
     state,
     W,
-    reps,
+    reps: judgedReps(reps, exposure),
     rir,
     repMin: exposure.repMin,
     repMax: exposure.repMax,

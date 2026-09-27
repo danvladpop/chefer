@@ -5,6 +5,7 @@ import {
   type Suggestion,
   type WorkoutSessionDoc,
 } from '@chefer/types';
+import { ENGINE_VERSION } from './progression';
 import { plannedSets, startSession, workoutReducer, type WorkoutAction } from './workout-reducer';
 
 let n = 0;
@@ -96,7 +97,7 @@ describe('startSession', () => {
       startedAt: T0,
       finishedAt: null,
       clientUpdatedAt: T0,
-      engineVersion: 1,
+      engineVersion: ENGINE_VERSION,
       routineId: 'r1',
       routineDayId: 'd1',
     });
