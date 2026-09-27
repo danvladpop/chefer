@@ -48,6 +48,31 @@ export function planShapeSummary(shape: PlanShape): string {
   return parts.join(' · ');
 }
 
+const MEAL_WORD_PLURAL: Readonly<Record<PlanSlot, string>> = {
+  breakfast: 'breakfasts',
+  lunch: 'lunches',
+  dinner: 'dinners',
+  snack: 'snacks',
+};
+
+/**
+ * The empty-week/settings-sheet button label that names the job (UX-07 AC3):
+ * `Plan {n} {meal words}` for a single-meal shape (e.g. "Plan 4 dinners"),
+ * `Plan my week` for the legacy default (every meal, every day) and any
+ * other combination we don't have a tighter phrase for yet.
+ */
+export function planButtonLabel(shape: Pick<PlanShape, 'slots' | 'days'>): string {
+  const slots = resolvePlanSlots(shape.slots);
+  const days = resolvePlanDays(shape.days);
+  if (slots.length === 1) {
+    const slot = slots[0];
+    if (slot) {
+      return `Plan ${days.length} ${MEAL_WORD_PLURAL[slot]}`;
+    }
+  }
+  return 'Plan my week';
+}
+
 function daysLabel(days: readonly number[]): string {
   const sorted = [...days].sort((a, b) => a - b);
   if (sorted.length === 7) return 'every day';

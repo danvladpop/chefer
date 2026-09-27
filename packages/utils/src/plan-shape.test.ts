@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isValidPlanShape,
+  planButtonLabel,
   planShapeSummary,
   resolvePlanDays,
   resolvePlanSlots,
@@ -67,5 +68,25 @@ describe('planShapeSummary', () => {
         cookingFor: 2,
       }),
     ).toBe('Dinner · Mon–Fri · 30 min or less · cooking for 2');
+  });
+});
+
+describe('planButtonLabel (UX-07 AC3)', () => {
+  it('names a single-meal shape by count and meal word', () => {
+    expect(planButtonLabel({ slots: ['dinner'], days: [0, 1, 2, 3] })).toBe('Plan 4 dinners');
+    expect(planButtonLabel({ slots: ['breakfast'], days: [0] })).toBe('Plan 1 breakfasts');
+  });
+
+  it('falls back to "Plan my week" for the legacy (every meal) default', () => {
+    expect(planButtonLabel({ slots: [], days: [] })).toBe('Plan my week');
+    expect(
+      planButtonLabel({ slots: ['breakfast', 'lunch', 'dinner'], days: [0, 1, 2, 3, 4, 5, 6] }),
+    ).toBe('Plan my week');
+  });
+
+  it('falls back to "Plan my week" for a multi-meal, non-legacy shape', () => {
+    expect(planButtonLabel({ slots: ['breakfast', 'dinner'], days: [0, 1, 2] })).toBe(
+      'Plan my week',
+    );
   });
 });

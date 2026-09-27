@@ -404,6 +404,7 @@ export {
 } from './explain-targets';
 export {
   isValidPlanShape,
+  planButtonLabel,
   planShapeSummary,
   resolvePlanDays,
   resolvePlanSlots,
