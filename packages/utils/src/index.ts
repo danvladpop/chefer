@@ -217,7 +217,13 @@ export {
 } from './tracker';
 
 export { defaultCookServings, guessMealType, parseStepDuration } from './cook-mode';
-export { buildPickerSections, type PickerSection } from './recipe-picker';
+export {
+  buildPickerSections,
+  filterReplaceCandidates,
+  type FilterReplaceCandidatesOptions,
+  type PickerSection,
+  type ReplaceCandidateLike,
+} from './recipe-picker';
 export * from './gym';
 export {
   BODY_WEIGHT_KG_MIN,
@@ -374,7 +380,7 @@ export {
   type GlossaryDefinition,
   type GlossaryTermId,
 } from './glossary';
-export { defaultWeekOffset } from './week-default';
+export { defaultWeekOffset, getWeekStartDate } from './week-default';
 export { defaultMealSlot } from './meal-slot';
 export {
   canShowNudge,
