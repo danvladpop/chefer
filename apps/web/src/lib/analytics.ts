@@ -1,4 +1,5 @@
 import posthog from 'posthog-js';
+import type { EventMap } from '@chefer/types';
 
 // ─── PostHog product analytics ────────────────────────────────────────────────
 // The project token is write-only ("Safe to use in public apps" — PostHog's
@@ -117,7 +118,18 @@ export function resetAnalytics(): void {
   if (enabled) posthog.reset();
 }
 
-/** Funnel events (upgrade prompts etc. — see launch plan PW-3). */
+/**
+ * Funnel events (upgrade prompts etc. — see launch plan PW-3). Overloaded
+ * (T-12.1): a call using one of the shared, health-data-guarded `EventMap`
+ * keys is checked against that event's exact property shape; any other
+ * event name (the many funnel events shipped before this map existed) keeps
+ * the old, permissive `Record<string, unknown>` typing so this migration
+ * doesn't force every existing call site to change in the same PR. Migrate
+ * a call site onto `EventMap` by adding its event to
+ * `packages/types/src/analytics-events.ts` — no change needed here.
+ */
+export function capture<E extends keyof EventMap>(event: E, properties?: EventMap[E]): void;
+export function capture(event: string, properties?: Record<string, unknown>): void;
 export function capture(event: string, properties?: Record<string, unknown>): void {
   if (enabled) posthog.capture(event, properties);
 }
