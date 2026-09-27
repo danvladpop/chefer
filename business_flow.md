@@ -1717,13 +1717,15 @@ Finish → confirm if working sets are unticked → finish() → summary
   Summary "Next time" reads the optimistically folded cached progressions, phrased as
   "next time" not "today" (T-05.1 AC2); Adjust → gym.progression.setOverride (online only)
 Android back / ⌄ → minimise (the session stays resumable from Today); Discard is confirmed
-Remove any set (logged or not, mobile) → long-press its row or its ⋯ → removed immediately,
-  no confirm dialog: a snackbar offers `Undo` for 8 s, restoring the set at its position with
-  its values and tick (`restoreSet`, UX-05 A1/T-05.A1.2, PAT-16). Web: tap its number (menu),
-  Undo not yet wired there. Warm-ups and working sets alike; positions stay contiguous.
-  The exercise ⋯ menu's "Remove last set" removes the last unlogged set, or the last set once
-  every set is logged. **Not yet shipped:** swipe-to-remove (the menu path covers every
-  acceptance criterion on its own; see `mobile_parity_backlog.md`).
+Remove any set (logged or not) → mobile: long-press its row, its ⋯, or swipe the row left
+  (`SwipeToRemove`, PAT-16, Δ2.6 — PanResponder + Reanimated, no native gesture-handler dep;
+  claims the gesture only on clear horizontal intent so it never fights the workout
+  `ScrollView`, and is always paired with the ⋯/long-press path, which alone satisfies every
+  acceptance criterion). Web: tap its set number (menu) → "Remove set". Every path removes the
+  set immediately, no confirm dialog: a snackbar/toast offers `Undo` for 8 s, restoring the set
+  at its position with its values and tick (`restoreSet`, UX-05 A1/T-05.A1.2). Warm-ups and
+  working sets alike; positions stay contiguous. The exercise ⋯ menu's "Remove last set" removes
+  the last unlogged set, or the last set once every set is logged.
 ```
 
 ### Progression: the working weight and "next time" (T-05.1, B-07/B-08)

@@ -506,6 +506,16 @@ describe('WorkoutScreen — remove a set', () => {
     expect(restored?.completedAt).toBe(before?.completedAt);
   });
 
+  it('every set row is wrapped for swipe-to-remove (T-05.A1.2, Δ2.6)', async () => {
+    await renderWorkout(activeDoc());
+    // The gesture thresholds themselves (claim / remove) are pure functions
+    // tested directly in gym-swipe-to-remove.test.ts — PanResponder's native
+    // touch-responder lifecycle can't be driven end-to-end here. This just
+    // confirms the row is actually wrapped, alongside the always-present ⋯
+    // path exercised by the tests around this one.
+    expect(screen.getByTestId('exercise-0-set-2-swipe')).toBeTruthy();
+  });
+
   it('warm-ups can be removed too, immediately', async () => {
     const user = userEvent.setup();
     await renderWorkout(activeDoc());

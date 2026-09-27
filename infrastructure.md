@@ -746,9 +746,16 @@ loading then MO-13 fade, one silent retry, the icon `Placeholder` — also expor
 exercise, a custom exercise, or one the photo audit hides. Wired into `photo-crossfade.tsx`
 (exercise detail hero) so far; the other four surfaces the amendment lists (exercises-tab, the swap
 picker, the workout card header, the technique sheet) still use their old image code — see
-`mobile_parity_backlog.md`). **Not yet built:** `apps/mobile/src/components/swipe-to-remove.tsx`
-(PAT-16 JS swipe) and `src/features/gym/library/{collapsible-chip-filters,use-keyboard-visible}.tsx`
-(UX-05 A3 keyboard collapse) — the menu-based remove-with-Undo path (below) ships without them.
+`mobile_parity_backlog.md`); `apps/mobile/src/components/swipe-to-remove.tsx` (**PAT-16, Δ2.6,
+T-05.A1.2**) — `<SwipeToRemove onRemove testID?>`, RN core `PanResponder` driving a Reanimated
+shared value (no `react-native-gesture-handler`, so no native rebuild). Claims the gesture only once
+`shouldClaimSwipe(dx, dy)` sees clear horizontal intent (`|dx| > 12` and `|dx| > 2×|dy|`), so the
+enclosing `ScrollView`'s vertical scroll is never fought; `shouldRemove(dx, rowWidth, vx)` decides a
+release (35% of the row's width, or a fast flick) fires the same `onRemove` the `⋯`/long-press path
+already calls — always progressive enhancement, never the only way to remove a set. Reduced motion
+skips the fly-away tween and calls `onRemove` immediately. Wired onto the gym workout set row
+(`apps/mobile/src/features/gym/workout/set-row.tsx`). `src/features/gym/library/{collapsible-chip-filters,use-keyboard-visible}.tsx`
+(UX-05 A3 keyboard collapse) are also now built (A3.1, library sub-lane).
 
 Tests: Jest + RNTL in `apps/mobile/tests/unit/` (`ui-*.test.tsx` for the kit, plus
 `glossary-term.test.tsx`, `premium-shells.test.tsx`, `safety-shells.test.tsx`).
