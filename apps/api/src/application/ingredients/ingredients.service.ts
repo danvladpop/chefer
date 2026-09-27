@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { prisma } from '@chefer/database';
+import { ingredientPriceRepository, prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
@@ -23,6 +23,13 @@ export interface IngredientSearchResult {
   imageUrl: string;
   hasMacros: boolean;
   isCustom: boolean;
+  /**
+   * Per-100g macros (T-19.1: the Log sheet's grams row needs these to show a
+   * live kcal as the user picks 50/100/150/200 g). Null when the catalog row
+   * has no macro data yet (`hasMacros: false`) — additive, older clients
+   * ignore it.
+   */
+  per100g: { calories: number; protein: number; carbs: number; fat: number } | null;
 }
 
 export interface IngredientListItem {
@@ -98,20 +105,15 @@ function ingredientAiImageUrl(name: string): string {
 export class IngredientsService {
   /**
    * Searches the ingredient catalog: global vocabulary + the user's private
-   * custom ingredients. Substring match, custom entries first.
+   * custom ingredients. Substring match, custom entries first. Goes through
+   * `ingredientPriceRepository` (T-BUG-X7 — this used to query `prisma`
+   * directly, skipping the repository layer, CLAUDE.md rule 2).
    */
   async search(userId: string, query: string, limit = 12): Promise<IngredientSearchResult[]> {
     const q = normalizeIngredientName(query);
     if (q.length < 2) return [];
 
-    const rows = await prisma.ingredientPrice.findMany({
-      where: {
-        ingredientName: { contains: q, mode: 'insensitive' },
-        OR: [{ creatorId: null }, { creatorId: userId }],
-      },
-      orderBy: [{ ingredientName: 'asc' }],
-      take: limit * 2, // room to sort custom/prefix matches first
-    });
+    const rows = await ingredientPriceRepository.searchCatalog(q, userId, limit * 2);
 
     const scored = rows
       .map((r) => ({
@@ -128,6 +130,15 @@ export class IngredientsService {
         imageUrl: row.imageUrl ?? (await resolveIngredientImage(row.ingredientName)),
         hasMacros: row.caloriesPer100g != null,
         isCustom: row.creatorId === userId,
+        per100g:
+          row.caloriesPer100g != null
+            ? {
+                calories: row.caloriesPer100g,
+                protein: row.proteinPer100g ?? 0,
+                carbs: row.carbsPer100g ?? 0,
+                fat: row.fatPer100g ?? 0,
+              }
+            : null,
       })),
     );
   }
@@ -330,6 +341,12 @@ export class IngredientsService {
       imageUrl: row.imageUrl ?? (await resolveIngredientImage(row.ingredientName)),
       hasMacros: true,
       isCustom: true,
+      per100g: {
+        calories: row.caloriesPer100g ?? input.caloriesPer100g,
+        protein: row.proteinPer100g ?? input.proteinPer100g,
+        carbs: row.carbsPer100g ?? input.carbsPer100g,
+        fat: row.fatPer100g ?? input.fatPer100g,
+      },
     };
   }
 
