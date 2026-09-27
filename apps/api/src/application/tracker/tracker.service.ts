@@ -10,13 +10,21 @@ import type { NutritionTargets, TrainingDayNutrition, UserProfile } from '@chefe
 import { slotPortion } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
 import { rebalanceWeek, type RebalanceResult } from '../meal-plan/rebalance.js';
-import { resolveDailyTargets } from '../preferences/preferences.service.js';
+import { resolveDailyTargets, resolveTargets } from '../preferences/preferences.service.js';
 import { findRecipeVisibleTo } from '../recipe/recipe-access.js';
 import {
   trainingDayFields,
   trainingNutritionService,
 } from '../training-nutrition/training-nutrition.service.js';
-import { isRecipeEntry, mergeLoggedMeals } from './merge-log.js';
+import {
+  aggregateRecents,
+  ensureEntryIds,
+  isRecipeEntry,
+  mergeLoggedMeals,
+  needsEntryIdBackfill,
+  newEntryId,
+  type RecentLogDay,
+} from './merge-log.js';
 
 export type { LoggedMealEntry };
 
@@ -100,6 +108,26 @@ export interface DaySummary {
   totalFat: number;
   hasLog: boolean;
 }
+
+/** One row of `tracker.recents` (T-19.1) — a distinct thing the user has logged. */
+export interface RecentTrackerEntry {
+  key: string;
+  recipeId?: string;
+  name: string;
+  imageUrl: string | null;
+  mealType: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  estimatedBy?: 'vision' | 'manual';
+  portionMultiplier?: number;
+  count: number;
+  lastLoggedAt: string;
+}
+
+/** How many days back `recents` scans for distinct entries. */
+const RECENTS_WINDOW_DAYS = 60;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -192,8 +220,41 @@ export const trackerService = {
       }
     }
 
+    // Backfill any entry logged before entryId existed (bug B-34, T-19.2) —
+    // best-effort: a failed backfill must never fail the day read, and the
+    // client still gets in-memory ids for this response either way.
+    let loggedMeals = (log?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
+    if (log && needsEntryIdBackfill(loggedMeals)) {
+      try {
+        const backfilled = await dailyLogRepository.mutateDay(userId, date, (current) =>
+          ensureEntryIds(current),
+        );
+        loggedMeals = backfilled.loggedMeals as unknown as LoggedMealEntry[];
+      } catch (err) {
+        console.error('[tracker] entryId backfill failed (read unaffected):', err);
+        loggedMeals = ensureEntryIds(loggedMeals);
+      }
+    }
+
+    // "Never change your targets silently" (§2.11, T-11.1): every read of the
+    // resolved targets detects and records a change since the last snapshot.
+    // Best-effort — a broken detection must never fail the day read. Lazy
+    // import (same convention as preferences.service.ts's gym module): most
+    // callers of getDay never need the targets/flags graph loaded.
+    try {
+      const { targetsService } = await import('../targets/targets.service.js');
+      const { lifterBodyweightKg } = await trainingNutritionService.loadLifter(userId, profile);
+      await targetsService.detectAndRecordChange(
+        userId,
+        profile,
+        resolveTargets(profile, lifterBodyweightKg),
+      );
+    } catch (err) {
+      console.error('[tracker] target change detection failed (read unaffected):', err);
+    }
+
     const plannedIds = new Set(plannedMeals.map((m) => m.recipeId));
-    const offPlanEntries = ((log?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [])
+    const offPlanEntries = loggedMeals
       .filter(isRecipeEntry)
       .filter((m) => !plannedIds.has(m.recipeId));
     const offPlanNames =
@@ -220,7 +281,7 @@ export const trackerService = {
       offPlanLogged,
       log: log
         ? {
-            loggedMeals: log.loggedMeals as unknown as LoggedMealEntry[],
+            loggedMeals,
             totalKcal: log.totalKcal,
             totalProtein: log.totalProtein,
             totalCarbs: log.totalCarbs,
@@ -347,6 +408,133 @@ export const trackerService = {
   },
 
   /**
+   * Edits one custom entry by its stable `entryId` (bug B-34, T-19.2) — the
+   * Edit entry sheet. Only custom entries (quick-adds, photo scans) can be
+   * edited here; a planned-recipe entry is edited by re-ticking it with a
+   * different portion. NOT_FOUND covers a stale id (already deleted) or one
+   * that names a recipe entry.
+   */
+  async updateCustomMeal(
+    userId: string,
+    dateStr: string,
+    entryId: string,
+    updates: {
+      name?: string | undefined;
+      estimatedBy?: 'vision' | 'manual' | undefined;
+      mealType?: string | undefined;
+      kcal: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+    },
+  ): Promise<DailyLog> {
+    return dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) => {
+      const index = stored.findIndex((m) => m.entryId === entryId && m.custom);
+      if (index === -1) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Custom entry not found.' });
+      }
+      const existing = stored[index]!;
+      const next: LoggedMealEntry = {
+        ...existing,
+        mealType: updates.mealType ?? existing.mealType,
+        custom: {
+          name: updates.name ?? existing.custom!.name,
+          estimatedBy: updates.estimatedBy ?? existing.custom!.estimatedBy,
+        },
+        kcal: updates.kcal,
+        protein: updates.protein,
+        carbs: updates.carbs,
+        fat: updates.fat,
+      };
+      return stored.map((m, i) => (i === index ? next : m));
+    });
+  },
+
+  /**
+   * Re-adds a custom entry exactly as it was (bug B-34, T-19.2) — the bin's
+   * `Undo` snackbar (8s), which sends back the deleted entry's own snapshot.
+   * Idempotent on `entry.entryId`: a double-tapped Undo (or a race with
+   * another tab) never duplicates the row.
+   */
+  async restoreCustomMeal(
+    userId: string,
+    dateStr: string,
+    entry: LoggedMealEntry,
+  ): Promise<DailyLog> {
+    return dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) => {
+      if (entry.entryId && stored.some((m) => m.entryId === entry.entryId)) return stored;
+      return [...stored, entry.entryId ? entry : { ...entry, entryId: newEntryId() }];
+    });
+  },
+
+  /**
+   * Copies every logged entry from `fromDateStr` onto `toDateStr` (T-19.3,
+   * "Copy {yesterday} to today"). Each copy gets its OWN `entryId` (so Undo
+   * can delete exactly the copies, not the originals) and drops `slotIndex` —
+   * the target day's plan slots are a different day and may not even have
+   * that slot.
+   */
+  async copyDay(
+    user: UserProfile,
+    fromDateStr: string,
+    toDateStr: string,
+  ): Promise<{ log: DailyLog; copiedEntryIds: string[]; rebalance: RebalanceResult | null }> {
+    const fromLog = await dailyLogRepository.findByDate(user.id, dayDate(fromDateStr));
+    const sourceEntries = (fromLog?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
+    const copies: LoggedMealEntry[] = sourceEntries.map((m) => {
+      const { slotIndex: _slotIndex, entryId: _entryId, ...rest } = m;
+      return { ...rest, entryId: newEntryId() };
+    });
+    const log = await dailyLogRepository.mutateDay(user.id, dayDate(toDateStr), (stored) => [
+      ...stored,
+      ...copies,
+    ]);
+    const rebalance = await this.maybeRebalance(user);
+    return { log, copiedEntryIds: copies.map((c) => c.entryId!), rebalance };
+  },
+
+  /**
+   * Last `RECENTS_WINDOW_DAYS` days' distinct logged entries, most frequent
+   * first (T-19.1) — the search-first Log sheet's "Recent" group. Distinct by
+   * recipe or by (normalized) custom name; a deleted entry simply isn't in
+   * the scanned days any more, so it never needs separate filtering.
+   */
+  async recents(userId: string, limit = 15): Promise<RecentTrackerEntry[]> {
+    const logs = await dailyLogRepository.findLastN(userId, RECENTS_WINDOW_DAYS);
+    const days: RecentLogDay[] = logs.map((l) => ({
+      dateStr: l.date.toISOString().split('T')[0]!,
+      entries: (l.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [],
+    }));
+    const aggregates = aggregateRecents(days, limit);
+
+    const recipeIds = [
+      ...new Set(aggregates.map((a) => a.recipeId).filter((id): id is string => !!id)),
+    ];
+    const recipes =
+      recipeIds.length > 0 ? await mealPlanRepository.findRecipesByIds(recipeIds) : [];
+    const recipeMap = new Map(recipes.map((r) => [r.id, r]));
+
+    return aggregates.map((a) => {
+      const recipe = a.recipeId ? recipeMap.get(a.recipeId) : undefined;
+      return {
+        key: a.key,
+        ...(a.recipeId && { recipeId: a.recipeId }),
+        name: recipe?.name ?? a.customName ?? 'Logged meal',
+        imageUrl: recipe?.imageUrl ?? null,
+        mealType: a.mealType,
+        kcal: a.kcal,
+        protein: a.protein,
+        carbs: a.carbs,
+        fat: a.fat,
+        ...(a.estimatedBy && { estimatedBy: a.estimatedBy }),
+        ...(a.portionMultiplier !== undefined && { portionMultiplier: a.portionMultiplier }),
+        count: a.count,
+        lastLoggedAt: a.lastLoggedAt,
+      };
+    });
+  },
+
+  /**
    * F4 rebalance hook — runs after any log write. Premium-only (gated by the
    * photoLogging matrix key: free tier logs honestly but the chef doesn't
    * re-plan the week). Failures are swallowed: a broken rebalance must never
@@ -368,20 +556,29 @@ export const trackerService = {
    * Daily totals for the trailing `dayCount` days (today inclusive), zero-
    * filled for unlogged days. weeklySummary/monthlySummary used to be
    * byte-identical copies of this differing only in N.
+   *
+   * `localDate` (§2.12, T-21.1, bug B-33) anchors the window on the CLIENT's
+   * local "today" instead of the server's UTC one — a user whose local day
+   * has already turned over (or hasn't yet, relative to UTC) used to see a
+   * week/month window shifted by a day. The query itself asks for one extra
+   * day as a buffer for that same skew; optional and back-compat: omitting it
+   * keeps the old server-UTC-anchored behaviour exactly.
    */
   async summary(
     userId: string,
     dayCount: number,
+    localDate?: string,
   ): Promise<{ days: DaySummary[]; dailyCalorieTarget: number }> {
     const [logs, profile] = await Promise.all([
-      dailyLogRepository.findLastN(userId, dayCount),
+      dailyLogRepository.findLastN(userId, localDate ? dayCount + 1 : dayCount),
       chefProfileRepository.findByUserId(userId),
     ]);
     const dailyCalorieTarget = resolveDailyTargets(profile).dailyCalorieTarget;
 
+    const anchor = localDate ? new Date(`${localDate}T00:00:00Z`) : new Date();
     const days: DaySummary[] = [];
     for (let i = dayCount - 1; i >= 0; i--) {
-      const d = new Date();
+      const d = new Date(anchor);
       d.setUTCDate(d.getUTCDate() - i);
       d.setUTCHours(0, 0, 0, 0);
       const dateStr = d.toISOString().split('T')[0]!;
@@ -402,14 +599,18 @@ export const trackerService = {
     return { days, dailyCalorieTarget };
   },
 
-  async weeklySummary(userId: string): Promise<{ days: DaySummary[]; dailyCalorieTarget: number }> {
-    return this.summary(userId, 7);
+  async weeklySummary(
+    userId: string,
+    localDate?: string,
+  ): Promise<{ days: DaySummary[]; dailyCalorieTarget: number }> {
+    return this.summary(userId, 7, localDate);
   },
 
   async monthlySummary(
     userId: string,
+    localDate?: string,
   ): Promise<{ days: DaySummary[]; dailyCalorieTarget: number }> {
-    return this.summary(userId, 28);
+    return this.summary(userId, 28, localDate);
   },
 
   async logWeight(userId: string, weightKg: number, dateStr?: string) {
