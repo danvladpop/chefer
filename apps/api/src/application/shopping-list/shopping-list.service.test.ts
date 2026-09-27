@@ -170,13 +170,34 @@ describe('ShoppingListService — F3 pantry subtraction', () => {
     expect(list.estimatedTotalEur).toBe(9);
   });
 
-  it('a pantry amount smaller than the line does not cover it (F-PAN-1-2)', async () => {
+  it('bug B-24 (T-BUG-24): a pantry amount smaller than the line is a PARTIAL match, not "not covered"', async () => {
     planWithRecipes();
+    // 600 g needed, 200 g on hand → the line stays at the remaining 400 g,
+    // and its estimate is reduced proportionally (€3 → €2).
     vi.mocked(pantryItemRepository.findByUser).mockResolvedValue([
       { ...pantryRow('tomato'), quantity: 200 },
     ] as never);
     const list = await service.getForWeek(premiumUser, 0);
-    expect(list.items.find((i) => i.ingredientName === 'Tomato')!.pantryCovered).toBeUndefined();
+    const tomato = list.items.find((i) => i.ingredientName === 'Tomato')!;
+    expect(tomato.pantryCovered).toBeUndefined();
+    expect(tomato.haveQuantity).toBe(200);
+    expect(tomato.quantity).toBe('400');
+    expect(tomato.estimatedPriceEur).toBe(2);
+    // Not fully covered, so it's not in `pantry.savedEur` and stays in the total.
+    expect(list.pantry.savedEur).toBe(0);
+    expect(list.estimatedTotalEur).toBe(8); // 2 (reduced tomato) + 6 (beef)
+  });
+
+  it('bug B-24: a free account gets the ghost total only — items stay untouched (§6.4)', async () => {
+    planWithRecipes();
+    vi.mocked(pantryItemRepository.findByUser).mockResolvedValue([
+      { ...pantryRow('tomato'), quantity: 200 },
+    ] as never);
+    const list = await service.getForWeek(freeUser, 0);
+    const tomato = list.items.find((i) => i.ingredientName === 'Tomato')!;
+    expect(tomato.haveQuantity).toBeUndefined();
+    expect(tomato.quantity).toBe('600');
+    expect(list.estimatedTotalEur).toBe(9);
   });
 
   it('empty pantry: zeros, and the list is exactly the pre-F3 shape', async () => {

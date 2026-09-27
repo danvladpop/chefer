@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   aggregateIngredientLines,
   canonicalIngredientName,
+  coveredQuantity,
   isSkippedLine,
   type IngredientLine,
 } from './aggregate.js';
@@ -115,5 +116,20 @@ describe('aggregateIngredientLines (audit F-SHOP-1-1 real list)', () => {
     expect(out).toEqual([
       expect.objectContaining({ name: 'Canned chickpeas', quantity: 400, unit: 'g' }),
     ]);
+  });
+});
+
+describe('coveredQuantity (bug B-24, T-BUG-24)', () => {
+  it("converts `have` into `need`'s unit within the same family", () => {
+    expect(coveredQuantity({ quantity: 0.5, unit: 'kg' }, { quantity: 800, unit: 'g' })).toBe(500);
+    expect(coveredQuantity({ quantity: 100, unit: 'g' }, { quantity: 250, unit: 'g' })).toBe(100);
+  });
+
+  it('returns null for a different unit family (mass vs a bare count)', () => {
+    expect(coveredQuantity({ quantity: 200, unit: 'g' }, { quantity: 6, unit: 'pcs' })).toBeNull();
+  });
+
+  it('returns null for an unknown ("some") or zero amount', () => {
+    expect(coveredQuantity({ quantity: 0, unit: 'g' }, { quantity: 250, unit: 'g' })).toBeNull();
   });
 });
