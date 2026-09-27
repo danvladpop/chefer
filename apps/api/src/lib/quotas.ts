@@ -84,21 +84,31 @@ async function reserve(
 }
 
 /**
- * Reserves one plan generation. Counted from MEAL_PLAN usage rows written by
- * this reservation — not from meal_plans rows, which also include
- * carry-forward copies and templates (a free user was blocked after two real
- * generations — audit F-PLAN-5-1). The free curated path is capped too.
+ * Reserves one plan generation. Counted from usage rows written by this
+ * reservation — not from meal_plans rows, which also include carry-forward
+ * copies and templates (a free user was blocked after two real generations —
+ * audit F-PLAN-5-1). The free curated path is capped too.
+ *
+ * §T-10.8 (bug B-49, rev 2): a PREMIUM (AI) generation still logs
+ * `AiCallType.MEAL_PLAN` — real AI usage. A FREE curated generation logs the
+ * additive `AiCallType.CURATED_PLAN` instead: the free daily cap still works
+ * exactly the same way (same limit number, same reservation mechanics), but
+ * `profile.getAiUsage`'s "AI usage" total (which sums the AI call types) no
+ * longer counts a free, zero-AI generation as if it were AI.
  */
-export async function reservePlanGeneration(user: UserProfile): Promise<QuotaReservation> {
+export async function reservePlanGeneration(
+  user: UserProfile,
+  premium = isPremiumUser(user),
+): Promise<QuotaReservation> {
   const limit = getLimit(user, 'planGenerationsPerDay');
   return reserve(
     user.id,
-    AiCallType.MEAL_PLAN,
+    premium ? AiCallType.MEAL_PLAN : AiCallType.CURATED_PLAN,
     limit,
     () =>
       new TRPCError({
         code: 'TOO_MANY_REQUESTS',
-        message: isPremiumUser(user)
+        message: premium
           ? `You've hit today's limit of ${limit} plan generations. It resets at midnight UTC.`
           : `You've used today's ${limit} free plan generations. Upgrade for ${PLAN_FEATURES.planGenerationsPerDay.premium} per day.`,
       }),
