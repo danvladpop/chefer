@@ -523,7 +523,11 @@ Workout logging never needs a connection:
   successful `gym.*` tRPC queries are persisted (`maxAge` 30 days, `buster`
   `${ENGINE_VERSION}:1`); gym queries use `networkMode: 'offlineFirst'` and
   `gcTime: Infinity` (30 days in ms overflows the 32-bit timer). NetInfo feeds
-  `onlineManager` and AppState feeds `focusManager` (`connectivity.ts`).
+  `onlineManager` and AppState feeds `focusManager` (`connectivity.ts`;
+  `deriveOnline()` reads `isInternetReachable`, not `isConnected` — bug B-29,
+  T-BUG-29: the link-layer signal could flap false for a moment with no real
+  loss of internet, flashing "Editing routines needs a connection" while
+  actually online).
 - `use-gym-bootstrap.ts` — `useGymBootstrap()` uses an input-free query key
   (the device's `today` is sent as input, not keyed, so the cache survives
   midnight), merges `librarySince` deltas into the cached library, and re-folds
