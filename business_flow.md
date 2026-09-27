@@ -1953,3 +1953,119 @@ logout → resetAnalytics() → posthog.reset()
 
 The choice is stored per account in this browser only (another browser or a
 new device starts OFF). The card links to `/privacy#analytics`.
+
+## 27. Safety filter & reporting flow (UX-01, T-01.1/T-01.2)
+
+> One matcher, one merge, one service. Every surface that shows or picks a
+> recipe answers "is this safe for the table" the same way — see
+> `infrastructure.md` §7 "SafetyService" for the code, and §7's
+> "CuratedRecipes" for the taxonomy-driven matcher itself.
+
+```
+DietaryPreferences (owner) + HouseholdMember[] (P2-3)
+  │
+  └─► SafetyService.loadContext(userId)
+        ├─ mergeHouseholdSafety: allergies ∪ dietaryRestrictions ∪ dislikedIngredients
+        │     (ALL THREE now a HARD union across owner + every member — owner
+        │      decision 2026-09-27; dislikes used to be owner-only)
+        ├─ hiddenRecipeIds ← safetyReportRepository.findRecipeIdsByUser(userId)
+        │     (UX-01 d: a reported recipe is gone for THIS user, everywhere,
+        │      the moment safety.report lands — never for anyone else)
+        └─ table ← every stored term run through recogniseSafetyTerm()
+              (taxonomy synonym map — "nuts", "no eggs", "green vegetables"
+              all resolve to their canonical category; unrecognised text is
+              kept as a `notes` entry, never silently dropped — C5e)
+
+Every surface calls the SAME SafetyContext:
+  recipe.list({forTable:true}) / recipe.discover ──► SafetyService.filter()
+  pantry.whatCanIMake ──────────────────────────────► SafetyService.filter()
+  recipe.importPreview / recipe.importSave (BOTH variants) ─► filter + fail-closed reject on `adapted`
+  mealPlan rebalance (rebalanceWeek) ────────────────► SafetyService.loadContext().prefs
+  curated plan generation, AI swap fallback ─────────► safeCuratedPools() / findSafetyIssues() (unchanged path)
+
+  NOT yet wired (handoff, outside L-SAFE's file ownership this wave):
+  ChatService.buildContextSummary — still reads the OWNER's DietaryPreferences
+  only, not the household union (T-BUG-X1's chat half)
+
+Reporting a recipe (T-01.5):
+  recipe detail (future report entry point, UI cut this PR) ──► safety.report
+        { recipeId, surface, reason, note? }
+    └─► SafetyReport row written (rulesSnapshot = the table's SafetyPrefs NOW)
+    └─► next SafetyService.loadContext() includes it in hiddenRecipeIds
+    └─► recipe.list({forTable:true}) / discover / whatCanIMake never show it again for this user
+```
+
+**Dislikes: hard everywhere `SafetyService.filter` runs with its default
+`opts.dislikes: 'hide'`** (generation, the Replace picker's default list,
+`whatCanIMake`); **soft** ("mark") on `recipe.discover` — UX-01's rule that a
+SEARCH surface should chip a dislike rather than hide it, while generation
+never serves a disliked dish at all. The regression suite
+(`safety.regression.test.ts`) prints a per-profile pool-size report so a
+content gap (e.g. "vegan + coeliac") is caught in CI, not by a user hitting
+the "pick recipes yourself" fallback (`MIN_SAFE_POOL_SIZE`, unchanged from P1-2).
+
+**Hidden gluten (bug B-47, T-01.9 rev 2):** `check()` returns `labelCaveats`
+for a plain "gluten-free" restriction when a recipe has a label-dependent
+ingredient (stock, curry powder, soy sauce, baking powder, oats, chocolate,
+sausages) — shown as "Check the label", never a silent pass. A coeliac-
+strength restriction (`gluten-free-coeliac`, what the `coeliac` CONDITION
+implies) excludes those ingredients outright instead, as does any plain
+gluten-free profile once `DietaryPreferences.excludeLabelDependent` is on.
+
+**UI status (this PR):** the SERVER half (matcher, `SafetyService`,
+`safety.getTable`/`report`/`confirmReview`) is complete and tested. The
+CLIENT surfaces — `WhatWeCheckSheet`, `CheckedForLine`/chip, the report sheet,
+the legacy-review migration card, the full `SafetyPicker` rebuild — are cut
+from this PR; see the PR description for the exact list and rationale.
+
+## 31. Manual recipe create and edit (UX-40 slice 1, T-40.1–T-40.6, T-BUG-O3)
+
+> The D-19 minimum, the pickers, photo states and the O-15 ("edit doesn't
+> work") fix. Slice 2 (ingredient search, computed nutrition, swipe) is a
+> mobile_parity_backlog.md row for W2 L-RECIPE.
+
+```
+D-19 minimum — recipe.create / recipe.update (additive widening, T-40.3):
+  name (required) + ≥ 1 ingredient line with a name AND an amount > 0
+  description / instructions / cuisineType default to '' / [] / ''
+       (an empty cuisineType is stored as "International")
+  servings defaults to 1; nutritionInfo defaults to all-zero + optional `source`
+  Old clients: unaffected — nothing already required got a new `.min(1)`.
+
+Diet tags (bug B-01, T-01.6):
+  mobile/web form ── ticks Diet tags (ChipGroup) ──► payload.dietaryTags
+  recipe.update:
+    x-chefer-client: mobile AND clientApiLevel === 0 AND dietaryTags === []
+        └─► KEEP the stored tags (old binaries hard-code [])
+    otherwise ──► trust the payload, including an intentional []
+  tagConflicts(ingredients, tags) ──► amber "Chicken breast doesn't look
+        vegetarian" hint while editing (client-side only, not the safety matcher)
+
+O-15 "Edit created recipe is not working properly" — all 7 candidates fixed:
+  C1 stale prefill  → getMyRecipe refetchOnMount:'always'; prefill gated on
+                       isFetchedAfterMount && !isFetching; update invalidates
+                       recipe.getMyRecipe + mealPlan.getRecipe + recipe.list
+  C2 tags wiped     → T-01.6 above
+  C3 "½" → 0        → parseQuantity() (fractions, mixed numbers, comma decimals)
+  C4 save "dead"    → KeyboardAwareScrollView keyboardShouldPersistTaps="handled";
+                       Save is never `disabled` — a blocked tap shows why underneath
+  C5 blank form     → ErrorState "Couldn't load your recipe" + Try again on a load error
+  C6 fiber → 0      → the STORED fiber is sent back on every edit (create still 0, D-18)
+  C7 raw server msg → friendlySaveError() — a long/Zod-shaped message becomes
+                       "Couldn't save your recipe — please try again."
+
+D-18 fiber: no input, no default display, on either platform — the field is
+  still SENT (0 on create, the stored value on edit) so nothing already saved
+  is destroyed, and web's separately-computed nutrition still has it.
+
+Photo field: pick → (T-BUG-O1.2 placeholder: preparePhoto(asset) once
+  feat/device-photo-resize lands) → upload, three separate named calls so
+  that PR's version merges in with a trivial conflict.
+```
+
+**UI status (this PR):** the fixes above are real, targeted edits to the
+EXISTING `apps/mobile/app/recipe-form.tsx` (plus the matching web edit-page
+half of C1). The full T-40.4/40.5 sectioned rebuild (new
+`src/features/recipes/form/**` components, `SelectField`/`FormField` kit
+pickers, fraction chips, swipe+Undo rows, offline/discard states) is cut from
+this PR — see the PR description.
