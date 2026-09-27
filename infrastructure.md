@@ -203,12 +203,14 @@ type, 400 empty body, 429 daily upload cap).
 
 Clients (`apps/mobile/src/lib/media-client.ts`'s `uploadErrorFrom`,
 `apps/web/src/lib/upload-image.ts`, `apps/web/src/features/tracker/lib/scan-client.ts`)
-read both error shapes and always map a failure to one of four sentences (UX-40,
-`business_flow.md` §15/§16) instead of surfacing the raw field — too big (413
-or a body over the limit) · no connection (network failure) · signed out (401)
-· something went wrong (anything else) — and pre-check the body size
-client-side before sending, so an oversize photo never makes a network call at
-all.
+read both error shapes and never surface an object or a status code (UX-40,
+`business_flow.md` §9 recipe creation, §15): too big (413 or a body over the
+limit) · no connection (network failure) · signed out (401) · the route's own
+`{ error: string }` sentence when it wrote one for users (429 daily cap/scan
+quota, 503 AI outage, 500 unreadable photo) · otherwise something went wrong
+(the global handler's object shape, 400/415 transport checks, no body). They
+also pre-check the body size client-side, so an oversize photo never makes a
+network call at all.
 
 #### Middleware Chain (every request)
 

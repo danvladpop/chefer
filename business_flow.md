@@ -1085,13 +1085,14 @@ POST /api/scan-meal (session cookie, raw image body — same transport as upload
 the literal text `[object Object]`. `scanMealPhoto` (mobile
 `src/lib/media-client.ts`, web `features/tracker/lib/scan-client.ts`) checks
 the photo's size against the 5 MB limit before sending, and maps any failure —
-client-side pre-check or a server response — to exactly one of four sentences:
-**too big** ("That photo is too big. Choose another, or use a screenshot of
-it.") for a 413 or an oversize body, **no connection** ("No connection. Try
-again when you're back online.") for a network failure, **signed out** ("Sign
-in again to add photos.") for a 401, and **something went wrong** ("Something
-went wrong on our side. Try again in a moment.") for anything else — the
-premium-gate 403 (`upgradeRequired`) stays a separate path, unaffected. See
+client-side pre-check or a server response — to a sentence: **too big** ("That
+photo is too big. Choose another, or use a screenshot of it.") for a 413 or an
+oversize body, **no connection** ("No connection. Try again when you're back
+online.") for a network failure, **signed out** ("Sign in again to add
+photos.") for a 401, the route's own sentence when it wrote one (429 scan
+quota, 503 AI outage, 500 unreadable photo), and **something went wrong**
+("Something went wrong on our side. Try again in a moment.") for anything else
+— the premium-gate 403 (`upgradeRequired`) stays a separate path, unaffected. See
 `infrastructure.md` §4.1.1 for the server-side 413 contract.
 
 Custom entries render on the tracker as their own rows (name + "estimated" /
