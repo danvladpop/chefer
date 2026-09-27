@@ -3,6 +3,14 @@ import js from '@eslint/js';
 import prettierConfig from 'eslint-config-prettier';
 import importPlugin from 'eslint-plugin-import';
 import tseslint from 'typescript-eslint';
+import { noForbiddenCopy } from './rules/no-forbidden-copy.js';
+
+/** @type {import('eslint').ESLint.Plugin} */
+const cheferPlugin = {
+  rules: {
+    'no-forbidden-copy': noForbiddenCopy,
+  },
+};
 
 /** @type {import('typescript-eslint').ConfigArray} */
 export const base = tseslint.config(
@@ -74,6 +82,25 @@ export const base = tseslint.config(
       'prefer-const': 'error',
       'no-var': 'error',
       curly: ['error', 'all'],
+    },
+  },
+  {
+    // Chefer copy-safety guard (technical-plan.md §2.10, T-00.6): the
+    // stage-3 copy modules and the safety feature folder never carry a
+    // safety/medical guarantee or shame-based streak wording. Scoped by
+    // `files` so it never touches unrelated strings elsewhere in the repo.
+    files: [
+      '**/safety-copy.ts',
+      '**/wellness-copy.ts',
+      '**/premium-pitch.ts',
+      '**/features/safety/**/*.{ts,tsx}',
+      '**/features/*/copy.ts',
+    ],
+    plugins: {
+      chefer: cheferPlugin,
+    },
+    rules: {
+      'chefer/no-forbidden-copy': 'error',
     },
   },
   prettierConfig,

@@ -20,6 +20,7 @@
    - [@chefer/tsconfig](#55-chefertsconfig)
    - [@chefer/eslint-config](#56-cheferesponse-config)
    - [@chefer/tokens](#57-chefertokens)
+   - [@chefer/ui-mobile](#58-cheferui-mobile)
 6. [Database Schema](#6-database-schema)
 7. [API Layer](#7-api-layer)
 8. [tRPC Procedure Map](#8-trpc-procedure-map)
@@ -135,6 +136,13 @@ Running `pnpm dev` at the root starts all persistent `dev` tasks concurrently.
 
 - **Prettier** — single quotes, semicolons, import ordering (via `@trivago/prettier-plugin-sort-imports`)
 - **ESLint 9 flat config** — TypeScript strict rules, import order, unicorn plugin
+- **`chefer/no-forbidden-copy`** (T-00.6, `packages/config/eslint/rules/no-forbidden-copy.js`, wired
+  into `base.js`) — scans string literals for safety/medical-guarantee wording (`safe`,
+  `allergen-free`, `guaranteed`, `cure`/`treat`/`prevent`…) and shame-based streak copy (`missed`,
+  `0-week streak`), scoped to `**/safety-copy.ts`, `**/wellness-copy.ts`, `**/premium-pitch.ts`,
+  `**/features/safety/**` and `**/features/*/copy.ts` — never elsewhere in the repo. Belt-and-braces:
+  `packages/utils/src/copy-lint.test.ts` (Vitest) walks the same modules' exported string _values_
+  with the same phrase list, since a runtime-built template literal can dodge the AST rule.
 - **Husky pre-commit** — runs lint-staged (lint + format check on changed files)
 - **commitlint** — enforces conventional commit messages (`feat:`, `fix:`, `docs:`, etc.)
 
@@ -646,6 +654,43 @@ role `borderRadius`, plus `future.hoverOnlyWhenSupported`) with the `--elevation
 `globals.css` (a unit test keeps them equal to `elevation.ts`); and `@chefer/ui`'s web motion kit
 (§5.4). The package's `exports` carry a `default` condition so Tailwind's `jiti` loader can
 `require` it.
+
+### 5.8 `@chefer/ui-mobile`
+
+React Native component library (NativeWind) for `apps/mobile`. Peer deps: `react`, `react-native`,
+`react-native-reanimated`, `react-native-safe-area-context`, `react-native-svg`,
+`react-native-worklets`, `nativewind`, `expo-haptics`. Raw-TS `exports` (no build step) — Jest maps
+`@chefer/ui-mobile` straight to `src/index.ts` (see `apps/mobile/jest.config.js`).
+
+**Components** (kit primitives; pattern IDs from
+`docs/persona-study-2026-09/synthesis/03-ux-design-spec.md` §2, wave 0 / T-00.n):
+
+| Component                                                                                                                                                                                              | Variants / Notes                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Sheet`                                                                                                                                                                                                | Modal bottom sheet — grabber, title/eyebrow, 44pt close, sticky footer slot. `eyebrow`/`testID` are `string \| undefined` (not just optional) so components that forward them satisfy `exactOptionalPropertyTypes`                                                                                       |
+| `ExplainSheet`                                                                                                                                                                                         | **PAT-1** — `Sheet` + a `sentence` (names the user's own inputs), `rows` (`{ label, value }[]`), optional `footnote` and a footer `action` that changes an input, never upsells. The gym `WhySheet` (workout-sheets.tsx) renders through it (D2 protected)                                               |
+| `Snackbar`                                                                                                                                                                                             | **PAT-4** — `useSnackbar().show({ message, actionLabel?, onAction?, durationMs?, tone? })` + `<Snackbar />` (mounted once in `apps/mobile/app/_layout.tsx`, above the tab bar). One at a time; announces for accessibility; doubles its duration under a screen reader; `tone: 'success'` fires a haptic |
+| `ConfirmSheet`                                                                                                                                                                                         | Yes/no sheet; **PAT-5** `options` slot — `{ label, detail?, value, onChange }[]` switches between the body and the buttons ("keep my changes")                                                                                                                                                           |
+| `TimePicker`                                                                                                                                                                                           | **PAT-10** — quick picks, a 6-column hour grid (44pt cells, `Earlier` reveals 0–4am), a minute `SegmentedControl`. Two taps reach any quarter hour. `resolveUse24h()` reads `Intl…hourCycle`; JS-only, OTA-safe                                                                                          |
+| `ChipGroup`                                                                                                                                                                                            | Gains `disabledValues` (never-selectable) and `hints` (a caption per value, also the chip's `accessibilityHint`) — e.g. a Premium-gated option                                                                                                                                                           |
+| `ChangeNoticeCard`                                                                                                                                                                                     | **PAT-14**, props-only shell — eyebrow (default `CHANGED`), title, `rows` (`{ label, before, after }[]`), reason, primary/secondary buttons, optional `why` link. `accessibilityRole="alert"`                                                                                                            |
+| `Button`/`Card`/`Badge`/`Input`/`PasswordInput`/`EmptyState`/`ErrorState`/`ProgressBar`/`ProgressRing`/`SegmentedControl`/`Stepper`/`ValueStepper`/`Text`/`NumericReturnBar`/`KeyboardAwareScrollView` | Pre-existing kit primitives — see the component source for each's own notes                                                                                                                                                                                                                              |
+
+**Motion** (`src/motion/`, motion-system.md): `duration`/`springs`/`timing()` from `@chefer/tokens`,
+`PressableScale` (MO-01), `haptics.*`, `useReducedMotion()`, `CountUp`, progress helpers. ui-mobile
+has **no icon dependency** — pass an `Ionicons` (or other) node in; app-level features (e.g.
+`apps/mobile/src/features/safety/*`, `.../premium/*`) import `@expo/vector-icons` directly.
+
+**App-level pattern components** (not in the kit — feature folders, still part of the wave-0
+pattern set): `apps/mobile/src/components/glossary-term.tsx` (**PAT-7** `GlossaryTerm` — inline
+dotted-underline term that opens an `ExplainSheet`; presentational only, no `glossary.ts` import —
+term/definition come in as props until that shared table lands); `apps/mobile/src/features/premium/`
+`locked-feature-card.tsx` + `premium-sheet.tsx` (**PAT-3** UI shells — no wiring to real copy, the
+nudge cap or the upgrade mutation); `apps/mobile/src/features/safety/filtered-for-line.tsx` +
+`label-caveat.tsx` (**PAT-2** rows — "Filtered for … · n hidden", the compact/full label caveat).
+
+Tests: Jest + RNTL in `apps/mobile/tests/unit/` (`ui-*.test.tsx` for the kit, plus
+`glossary-term.test.tsx`, `premium-shells.test.tsx`, `safety-shells.test.tsx`).
 
 ---
 
