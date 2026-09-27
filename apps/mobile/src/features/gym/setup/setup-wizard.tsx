@@ -25,6 +25,7 @@ import {
 } from '@chefer/ui-mobile';
 import { cn, unitLabel, unitToKg, VOLUME_GROUP_LABELS, weightUnitForSystem } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { ExerciseNameLink } from '../components/exercise-name-link';
 import { ensureGymReminderPermission } from '../reminders/permission';
 import { gymBootstrapQueryKey } from '../use-gym-bootstrap';
 import { defaultUnitFromLocale } from './locale-unit';
@@ -481,9 +482,14 @@ export function SetupWizard() {
                       </View>
                       {day.exercises.map((ex) => (
                         <View key={ex.exerciseId} className="flex-row items-center justify-between">
-                          <Text numberOfLines={1} className="min-w-0 flex-1 pr-2 text-sm">
-                            {ex.name}
-                          </Text>
+                          <ExerciseNameLink
+                            testID={`gym-setup-preview-exercise-${ex.exerciseId}`}
+                            exerciseId={ex.exerciseId}
+                            name={ex.name}
+                            numberOfLines={1}
+                            className="flex-1 pr-2"
+                            textClassName="text-sm"
+                          />
                           <Text variant="muted" className="text-xs">
                             {ex.sets} ×{' '}
                             {ex.repMin === ex.repMax ? ex.repMin : `${ex.repMin}-${ex.repMax}`}

@@ -175,6 +175,16 @@ describe('SummaryScreen', () => {
     expect(screen.getByTestId('summary-pr-bench')).toBeOnTheScreen();
   });
 
+  it('T-05.5: an exercise name is a real link — tapping it opens its exercise detail page', async () => {
+    const user = userEvent.setup();
+    const doc = finishedDoc();
+    rememberFinished(doc);
+    await renderSummary(doc.id, bootstrapAfterFinish(doc));
+
+    await user.press(screen.getByTestId('summary-next-0-name'));
+    expect(router.push).toHaveBeenCalledWith('/gym/exercise/bench');
+  });
+
   it('Adjust is disabled offline with an explanation', async () => {
     onlineManager.setOnline(false);
     const doc = finishedDoc();

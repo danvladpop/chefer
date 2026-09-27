@@ -17,6 +17,7 @@ import {
 } from '@chefer/ui-mobile';
 import { cn, formatLoad, localDateStr, postWorkoutProteinG } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { ExerciseNameLink } from '../components/exercise-name-link';
 import { gymBootstrapQueryKey, useGymBootstrap } from '../use-gym-bootstrap';
 import { getFinished } from './finished-store';
 import {
@@ -161,7 +162,12 @@ export function SummaryScreen({ id }: { id: string }) {
                 >
                   <Text className="text-lg">🏆</Text>
                   <View className="min-w-0 flex-1">
-                    <Text className="font-semibold">{meta.name}</Text>
+                    <ExerciseNameLink
+                      testID={`summary-pr-${pr.exerciseId}-name`}
+                      exerciseId={pr.exerciseId}
+                      name={meta.name}
+                      textClassName="font-semibold"
+                    />
                     <Text variant="muted">
                       {PR_KIND_LABEL[pr.kind]} · {formatLoad(pr.weightKg, unit, meta.loadType)} ×{' '}
                       {pr.reps}
@@ -214,9 +220,13 @@ export function SummaryScreen({ id }: { id: string }) {
                     </Text>
                   </View>
                   <View className="min-w-0 flex-1">
-                    <Text numberOfLines={1} className="font-semibold">
-                      {meta.name}
-                    </Text>
+                    <ExerciseNameLink
+                      testID={`summary-next-${i}-name`}
+                      exerciseId={row.exerciseId}
+                      name={meta.name}
+                      numberOfLines={1}
+                      textClassName="font-semibold"
+                    />
                     <Text testID={`summary-next-${i}-target`} variant="muted">
                       {formatLoad(s.weightKg, unit, meta.loadType)} × {s.reps.join(' / ')}
                       {meta.isTimed ? ' s' : ''}

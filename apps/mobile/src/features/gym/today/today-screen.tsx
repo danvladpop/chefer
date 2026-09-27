@@ -21,6 +21,7 @@ import {
   type ProgressionEntry,
 } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { ExerciseNameLink } from '../components/exercise-name-link';
 import { ModeSwitch } from '../components/mode-switch';
 import { localDate } from '../offline/ids';
 import { useOutboxStatus } from '../offline/outbox';
@@ -328,9 +329,14 @@ export function TodayScreen() {
                               </RNText>
                             </View>
                           ) : null}
-                          <Text numberOfLines={1} className="min-w-0 flex-1 text-sm">
-                            {libraryLookup(bootstrap)(ex.exerciseId)?.name ?? ex.exerciseId}
-                          </Text>
+                          <ExerciseNameLink
+                            testID={`gym-today-next-up-${ex.routineExerciseId}-name`}
+                            exerciseId={ex.exerciseId}
+                            name={libraryLookup(bootstrap)(ex.exerciseId)?.name ?? ex.exerciseId}
+                            numberOfLines={1}
+                            className="flex-1"
+                            textClassName="text-sm"
+                          />
                         </View>
                         <Text variant="muted" className="text-xs">
                           {formatTarget(ex, bootstrap, profile.unit)}

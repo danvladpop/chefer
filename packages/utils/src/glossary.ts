@@ -42,6 +42,30 @@ export const GLOSSARY: Readonly<Record<string, GlossaryDefinition>> = {
     term: 'Training day',
     definition: 'A day with a scheduled or completed workout — your targets can adjust for it.',
   },
+  // T-05.5 additions (gym vocabulary that shows up in workout copy).
+  amrap: {
+    term: 'AMRAP',
+    definition: 'As many reps as possible — do reps to a hard stop instead of a fixed count.',
+  },
+  workingSet: {
+    term: 'Working set',
+    definition:
+      "A set that counts toward your target — as opposed to a warm-up set, which just prepares the muscle and doesn't count toward progress.",
+  },
+  warmUpSet: {
+    term: 'Warm-up set',
+    definition:
+      'A lighter set before your working sets, to prepare the muscle and joints. It never counts toward your target or your progress.',
+  },
+  tempo: {
+    term: 'Tempo',
+    definition: 'How fast you move through a rep — a slower lowering phase adds extra work.',
+  },
+  calibrating: {
+    term: 'Calibrating',
+    definition:
+      "We're still learning your working weight for this exercise from how your last few sets felt, before we start nudging it up on our own.",
+  },
 } as const;
 
 export type GlossaryTermId = keyof typeof GLOSSARY;

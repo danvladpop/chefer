@@ -1719,6 +1719,19 @@ streaks, no red "missed" markers.
   so "+ Add weight" loads a held plate; searchable by "hyper", "back ext" and
   "roman chair"; `hinge` swap group) — additive catalog rows only, synced in
   by the existing boot upsert (§ ensureExerciseLibrary, infrastructure.md).
+- **Tappable exercise names (T-05.5, mobile):** an exercise name is a real
+  link to `/gym/exercise/[id]` (`ExerciseNameLink`,
+  `apps/mobile/src/features/gym/components/exercise-name-link.tsx`) in Gym
+  Today's "Next up" card, the setup wizard's program preview, and the
+  post-workout summary's PR list and "Next time" rows — so a name the user
+  doesn't recognise is never a dead end. Not yet done: the routine editor's
+  exercise row (owned by the gym-log sub-lane — its whole row already means
+  "expand"; the name needs its own tap target split out first) and web
+  parity (`mobile_parity_backlog.md` reverse row); the glossary
+  (`packages/utils/src/glossary.ts`) gained gym terms (`amrap`,
+  `workingSet`, `warmUpSet`, `tempo`, `calibrating`) but nothing in a gym
+  screen renders a `GlossaryTerm` for them yet, and "first-sight" long-form
+  copy tracking in the gym offline KV is unbuilt.
 
 ## 22. Gym Setup & Workout Sync Flow (API)
 
