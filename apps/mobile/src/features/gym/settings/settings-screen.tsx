@@ -3,7 +3,7 @@ import { Keyboard, Platform, Pressable, View, type TextInput } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import type { GymBootstrap, WeightUnit } from '@chefer/types';
+import type { DayKind, GymBootstrap, WeightUnit } from '@chefer/types';
 import {
   Button,
   Card,
@@ -31,7 +31,22 @@ import { GymExportRow } from '../export/export-row';
 import { localDate } from '../offline/ids';
 import { outbox, useOutboxStatus } from '../offline/outbox';
 import { ensureGymReminderPermission } from '../reminders/permission';
+import { WEEKDAY_SHORT_LABELS, weekdayLabel } from '../routine/weekday';
 import { gymBootstrapQueryKey, useGymBootstrap } from '../use-gym-bootstrap';
+
+// T-06.9: the weekday-kind row's picker options (`lift` is routine-derived,
+// never user-settable — see `training-days.service.ts`).
+const DAY_KIND_OPTIONS: { value: Exclude<DayKind, 'lift'>; label: string; testID: string }[] = [
+  { value: 'run', label: 'Run', testID: 'run' },
+  { value: 'long_run', label: 'Long run', testID: 'long-run' },
+  { value: 'rest', label: 'Rest', testID: 'rest' },
+];
+const DAY_KIND_SHORT: Record<DayKind, string> = {
+  lift: 'Lift',
+  run: 'Run',
+  long_run: 'Long',
+  rest: 'Rest',
+};
 
 // Gym settings (gym_plan.md §1.3 "Settings"). Every control saves immediately
 // through gym.profile.save — no separate "Save changes" step, matching a
@@ -160,6 +175,7 @@ export function GymSettingsScreen() {
     null,
   );
   const [confirmingDiscardId, setConfirmingDiscardId] = useState<string | null>(null);
+  const [kindSheetWeekday, setKindSheetWeekday] = useState<number | null>(null);
   // Hooks run unconditionally (before the "no profile yet" early return), so
   // these read the reminder time via optional chaining rather than after a
   // `bootstrap.profile` guard.
@@ -189,6 +205,11 @@ export function GymSettingsScreen() {
   const pauseEndMutation = trpc.gym.pause.end.useMutation({
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey }),
   });
+  // T-06.9: weekday kinds (lift days come from the routine, never from here).
+  const dayKindsQuery = trpc.training.getDayKinds.useQuery();
+  const setDayKindsMutation = trpc.training.setDayKinds.useMutation({
+    onSuccess: (data) => utils.training.getDayKinds.setData(undefined, data),
+  });
 
   if (!bootstrap?.profile) {
     return (
@@ -215,6 +236,14 @@ export function GymSettingsScreen() {
     (w) => w.weekStart === weekStartOf(today) && w.status === 'paused',
   );
   const activePause = bootstrap.activePause;
+  // T-06.9: a weekday with a planned routine day is always `lift`, read-only
+  // here — the routine editor is the only place that changes it.
+  const liftWeekdays = new Set(
+    (bootstrap.activeRoutine?.days ?? [])
+      .map((d) => d.plannedWeekday)
+      .filter((w): w is number => w !== null),
+  );
+  const dayKinds = dayKindsQuery.data ?? {};
 
   const saveReminder = (enabled: boolean, hour: number, minute: number) => {
     // Ask for notification permission right here — a direct user action on
@@ -369,8 +398,38 @@ export function GymSettingsScreen() {
         </View>
 
         <View className="gap-2">
-          <SectionTitle>Reminder</SectionTitle>
+          <SectionTitle>Training days & reminders</SectionTitle>
           <Card className="gap-3">
+            <View className="gap-1.5">
+              <Text variant="label">Weekday kind</Text>
+              <View className="flex-row justify-between" testID="gym-settings-day-kinds">
+                {WEEKDAY_SHORT_LABELS.map((label, weekday) => {
+                  const isLift = liftWeekdays.has(weekday);
+                  const kind: DayKind | null = isLift
+                    ? 'lift'
+                    : (dayKinds[String(weekday)] ?? null);
+                  return (
+                    <Pressable
+                      key={weekday}
+                      testID={`gym-settings-day-kind-${weekday}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${weekdayLabel(weekday)}: ${kind ? DAY_KIND_SHORT[kind] : 'not set'}`}
+                      disabled={isLift}
+                      onPress={() => setKindSheetWeekday(weekday)}
+                      className="min-h-11 min-w-11 items-center justify-center gap-0.5 rounded-lg px-1 disabled:opacity-60"
+                    >
+                      <Text className="text-xs font-semibold">{label}</Text>
+                      <Text variant="muted" className="text-[10px]">
+                        {kind ? DAY_KIND_SHORT[kind] : '—'}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text variant="muted" className="text-xs">
+                Lift days come from your routine. Mark the rest as a run, a long run or rest.
+              </Text>
+            </View>
             <ChipGroup
               testID="gym-settings-reminder-toggle"
               options={[
@@ -557,6 +616,41 @@ export function GymSettingsScreen() {
             onChange={(v) => setPauseReason(v[0] ?? null)}
           />
         </View>
+      </Sheet>
+
+      <Sheet
+        visible={kindSheetWeekday !== null}
+        onClose={() => setKindSheetWeekday(null)}
+        title={kindSheetWeekday !== null ? weekdayLabel(kindSheetWeekday) : ''}
+        testID="gym-settings-day-kind-sheet"
+      >
+        {DAY_KIND_OPTIONS.map((opt) => (
+          <Pressable
+            key={opt.value}
+            testID={`gym-settings-day-kind-sheet-${opt.testID}`}
+            accessibilityRole="button"
+            onPress={() => {
+              if (kindSheetWeekday === null) return;
+              setDayKindsMutation.mutate({ days: { [String(kindSheetWeekday)]: opt.value } });
+              setKindSheetWeekday(null);
+            }}
+            className="min-h-11 justify-center border-b border-border py-3"
+          >
+            <Text className="font-medium">{opt.label}</Text>
+          </Pressable>
+        ))}
+        <Pressable
+          testID="gym-settings-day-kind-sheet-clear"
+          accessibilityRole="button"
+          onPress={() => {
+            if (kindSheetWeekday === null) return;
+            setDayKindsMutation.mutate({ days: { [String(kindSheetWeekday)]: null } });
+            setKindSheetWeekday(null);
+          }}
+          className="min-h-11 justify-center py-3"
+        >
+          <Text className="font-medium text-muted-foreground">Clear</Text>
+        </Pressable>
       </Sheet>
     </Screen>
   );

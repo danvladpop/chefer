@@ -1643,6 +1643,28 @@ each starting at 1 — `Warm-up 1`, `Warm-up 2`, `Set 1`, `Set 2` — the same
 convention `setLabelOf()` already uses in the live logger
 (`workout/workout-model.ts`).
 
+### Weekday kinds (T-06.9) and gym settings reachability (bug B-19, T-36.1)
+
+`ChefProfile.trainingDayKinds` (`{"5": "long_run"}`, 0 = Monday) records what
+kind of training day each weekday is: `lift` (derived from the active
+routine's `plannedWeekday`s — never stored, never user-settable), or
+user-chosen `run` / `long_run` / `rest`. `training.getDayKinds` /
+`training.setDayKinds` (`apps/api/src/application/training-days/
+training-days.service.ts`, replacing the wave-0 `application/training/`
+stub) back a weekday-kind row in gym settings' "Training days & reminders"
+section: 7 cells, lift days shown disabled with a `Lift` label, the rest
+tappable to open a sheet (`Run` / `Long run` / `Rest` / `Clear`). Onboarding
+(T-03.9) calls the same two procedures, so the two surfaces can never
+disagree. The kind-led nutrition bump math itself (T-06.10, e.g. carb-led
+refuelling on a run day) is a separate, later L-PLAN2 task — this wave only
+wires the read/write and the settings row.
+
+Bug B-19 ("Gym settings unreachable except via the sync-outbox banner") was
+already fixed by an earlier task (T-00.9): every gym tab root
+(`ModeSwitch`'s gear) and the general Settings hub's "Training" group both
+open `/gym/settings`, which already has a real header (back button + title).
+This wave's remaining reachability work is the weekday-kind row above.
+
 - The routine is a **rotation, not a calendar**: "next up" is the next day in
   sequence; missed days roll forward and are never marked failed.
 - Outbox entries are removed only on an `applied`/`stale` ack; a `rejected`

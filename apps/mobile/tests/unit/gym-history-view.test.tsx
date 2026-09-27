@@ -57,6 +57,7 @@ beforeEach(() => {
   trpc.useUtils.mockReturnValue({
     client: { gym: { bootstrap: { query: jest.fn() } } },
     preferences: { get: { invalidate: jest.fn() } },
+    training: { getDayKinds: { setData: jest.fn() } },
     gym: { session: { list: { fetch: fetchMock } } },
   });
   jest.spyOn(onlineManager, 'isOnline').mockReturnValue(true);
