@@ -60,7 +60,7 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
     const options: ImagePicker.ImagePickerOptions = {
       mediaTypes: 'images',
       base64: true,
-      quality: 0.7,
+      quality: 0.5, // T-BUG-O1 (O-18, Q-22): was 0.7 — keeps meal photos comfortably under the 5 MB scan limit
     };
     const result =
       source === 'camera'
