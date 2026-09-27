@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MealType, RecipeData } from '../../lib/ai/types.js';
-import { planCuratedWeek } from './curated-planner.js';
+import { planCuratedWeek, type CuratedShapeOptions } from './curated-planner.js';
 
 let n = 0;
 const recipe = (calories: number, protein = 20): RecipeData => ({
@@ -17,6 +17,13 @@ const recipe = (calories: number, protein = 20): RecipeData => ({
   servings: 1,
   imageUrl: null,
 });
+
+const timedRecipe = (
+  calories: number,
+  prepTimeMins: number,
+  cookTimeMins: number,
+  protein = 20,
+): RecipeData => ({ ...recipe(calories, protein), prepTimeMins, cookTimeMins });
 
 function pools(): Record<MealType, RecipeData[]> {
   return {
@@ -179,5 +186,133 @@ describe('planCuratedWeek — training days (audit P2-4)', () => {
     )[0]!;
     expect(monday.protein).toBeGreaterThan(90);
     expect(Math.abs(monday.kcal - 1800) / 1800).toBeLessThanOrEqual(0.1);
+  });
+});
+
+describe('planCuratedWeek — shape (§2.3, T-07.2)', () => {
+  const targets = { calories: 2000, proteinG: 120, goal: 'MAINTAIN' };
+
+  it('AC7: no shape reproduces the legacy week (3 meals, every day, no cap)', () => {
+    const week = planCuratedWeek(pools(), targets, seeded());
+    expect(week.every((d) => d.planned)).toBe(true);
+    expect(week.every((d) => d.meals.some((m) => m.type === 'breakfast'))).toBe(true);
+    expect(week.every((d) => d.meals.some((m) => m.type === 'lunch'))).toBe(true);
+    expect(week.every((d) => d.meals.some((m) => m.type === 'dinner'))).toBe(true);
+  });
+
+  it('AC1: only the chosen slots and days are planned; the rest is unplanned', () => {
+    const shape: CuratedShapeOptions = { slots: ['dinner'], days: [0, 1, 2, 3] };
+    const p = pools();
+    p.dinner = [1, 2, 3, 4, 5, 6, 7].map(() => timedRecipe(600, 5, 5, 35));
+    const week = planCuratedWeek(p, targets, seeded(), shape);
+    const planned = week.filter((d) => d.planned);
+    expect(planned).toHaveLength(4);
+    expect(planned.every((d) => d.dayOfWeek <= 3)).toBe(true);
+    expect(planned.every((d) => d.meals.length === 1 && d.meals[0]!.type === 'dinner')).toBe(true);
+    const unplanned = week.filter((d) => !d.planned);
+    expect(unplanned).toHaveLength(3);
+    expect(unplanned.every((d) => d.meals.length === 0 && d.kcal === 0)).toBe(true);
+  });
+
+  it('honours a time cap: every chosen meal is at or under it, or flagged unfilled', () => {
+    const p: Record<MealType, RecipeData[]> = {
+      breakfast: [],
+      lunch: [],
+      dinner: [1, 2, 3, 4, 5].map(() => timedRecipe(600, 10, 20, 30)), // 30 min, fits ≤30
+      snack: [],
+    };
+    const shape: CuratedShapeOptions = { slots: ['dinner'], days: [0, 1, 2], timeCapMins: 30 };
+    const week = planCuratedWeek(p, targets, seeded(), shape);
+    for (const day of week.filter((d) => d.planned)) {
+      for (const meal of day.meals) {
+        const mins = meal.recipe.prepTimeMins + meal.recipe.cookTimeMins;
+        expect(mins).toBeLessThanOrEqual(30);
+      }
+    }
+  });
+
+  it('reports `unfilled: time` when nothing in the pool fits the cap', () => {
+    const p: Record<MealType, RecipeData[]> = {
+      breakfast: [],
+      lunch: [],
+      dinner: [1, 2, 3].map(() => timedRecipe(600, 20, 20, 30)), // 40 min, over a 15 cap
+      snack: [],
+    };
+    const shape: CuratedShapeOptions = { slots: ['dinner'], days: [0], timeCapMins: 15 };
+    const week = planCuratedWeek(p, targets, seeded(), shape);
+    const monday = week[0]!;
+    expect(monday.planned).toBe(true);
+    expect(monday.meals).toHaveLength(0);
+    expect(monday.unfilled).toEqual([{ slot: 'dinner', reason: 'time' }]);
+  });
+
+  it('owner feedback Q-35: an unknown-time (0+0) recipe fits any cap but ranks after known-fast ones', () => {
+    const fast = timedRecipe(600, 5, 5, 30); // 10 min, known
+    const unknown = timedRecipe(600, 0, 0, 30); // unknown time
+    const p: Record<MealType, RecipeData[]> = {
+      breakfast: [],
+      lunch: [],
+      dinner: [unknown, fast],
+      snack: [],
+    };
+    const shape: CuratedShapeOptions = { slots: ['dinner'], days: [0], timeCapMins: 15 };
+    const week = planCuratedWeek(p, targets, seeded(), shape);
+    const monday = week[0]!;
+    // Both fit the cap (the unknown one always does) — no `unfilled`, and the
+    // engine had a real choice (proving the unknown recipe was not excluded).
+    expect(monday.unfilled).toBeUndefined();
+    expect(monday.meals).toHaveLength(1);
+  });
+
+  it('weekendNoLimit exempts Saturday/Sunday from the cap', () => {
+    const p: Record<MealType, RecipeData[]> = {
+      breakfast: [],
+      lunch: [],
+      dinner: [1, 2, 3].map(() => timedRecipe(600, 30, 30, 30)), // 60 min
+      snack: [],
+    };
+    const shape: CuratedShapeOptions = {
+      slots: ['dinner'],
+      days: [0, 5, 6],
+      timeCapMins: 15,
+      weekendNoLimit: true,
+    };
+    const week = planCuratedWeek(p, targets, seeded(), shape);
+    const monday = week.find((d) => d.dayOfWeek === 0)!;
+    const saturday = week.find((d) => d.dayOfWeek === 5)!;
+    const sunday = week.find((d) => d.dayOfWeek === 6)!;
+    expect(monday.unfilled).toEqual([{ slot: 'dinner', reason: 'time' }]);
+    expect(saturday.meals).toHaveLength(1);
+    expect(sunday.meals).toHaveLength(1);
+  });
+
+  it('"cooking for 2" sets every planned slot to portion 2', () => {
+    const shape: CuratedShapeOptions = { slots: ['breakfast', 'lunch', 'dinner'], cookingFor: 2 };
+    const week = planCuratedWeek(pools(), targets, seeded(), shape);
+    for (const day of week) {
+      for (const meal of day.meals) expect(meal.portion).toBe(2);
+    }
+  });
+
+  it('"just me" (cookingFor 1 or absent) keeps the calorie-driven portion', () => {
+    const shape: CuratedShapeOptions = { slots: ['breakfast', 'lunch', 'dinner'], cookingFor: 1 };
+    const week = planCuratedWeek(pools(), targets, seeded(), shape);
+    // The same fixture pool at this target already lands close to 1x
+    // (see the "keeps portions at 1x" test above) — cookingFor: 1 must not
+    // force every slot to 2x the way cookingFor: 2 does.
+    expect(week.some((d) => d.meals.some((m) => m.portion !== 2))).toBe(true);
+  });
+
+  it('an explicit shape without Snacks never adds an opportunistic snack', () => {
+    const shape: CuratedShapeOptions = { slots: ['breakfast', 'lunch', 'dinner'] };
+    // A target far above what 3 mains can reach — the legacy path would add
+    // snacks here (see the very first test above).
+    const week = planCuratedWeek(
+      pools(),
+      { calories: 3200, proteinG: 175, goal: 'GAIN_MUSCLE' },
+      seeded(),
+      shape,
+    );
+    expect(week.every((d) => d.meals.every((m) => m.type !== 'snack'))).toBe(true);
   });
 });
