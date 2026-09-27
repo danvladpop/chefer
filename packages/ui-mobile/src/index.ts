@@ -1,7 +1,11 @@
 export { Badge, type BadgeProps } from './components/badge';
 export { Button, type ButtonProps } from './components/button';
 export { Card, CardTitle, type CardProps } from './components/card';
-export { ConfirmSheet, type ConfirmSheetProps } from './components/confirm-sheet';
+export {
+  ConfirmSheet,
+  type ConfirmSheetOption,
+  type ConfirmSheetProps,
+} from './components/confirm-sheet';
 export { ExplainSheet, type ExplainSheetProps } from './components/explain-sheet';
 export {
   Chip,
