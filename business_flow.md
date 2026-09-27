@@ -468,6 +468,69 @@ mealPlan.generate { weekOffset }
            streaming DONE events to the client over SSE
 ```
 
+### "How you cook" plan shape (§2.3, T-07.1/T-07.2, persona-study wave 1)
+
+Which meals to plan, which days, an optional prep+cook time cap (with a
+weekend exemption) and "cooking for 1 or 2" — set once via
+`mealPlan.getShape`/`setShape` (persisted on `DietaryPreferences`; `[]`
+stored is the legacy sentinel, so a user who never opens the settings form
+keeps today's week: breakfast/lunch/dinner, every day, no cap). Both
+`mealPlan.generate` calls read it, merged with an optional one-off `shape`
+override for that call only (never persisted) — the "Plan this day" action
+sends `{ days: [d] }`, for example.
+
+```
+FREE generation now honours the shape:
+  ├─ only the chosen meal types are planned each chosen day
+  ├─ a day outside the chosen days is returned unplanned
+  │    (`meals: []`, `planned: false`) rather than filled
+  ├─ a time cap filters each meal type's candidates; a recipe whose
+  │    prepTimeMins + cookTimeMins is 0 ("unknown") fits any cap but
+  │    ranks after known-fast recipes (owner feedback Q-35)
+  ├─ "cooking for 2" sets every planned slot's portion to 2 directly
+  │    (a flat multiplier — separate from the calorie-driven P1-1
+  │    portion, and from premium household scaling)
+  ├─ an explicit shape with Snacks off never adds an opportunistic
+  │    snack (the legacy/no-shape path still tops up automatically)
+  ├─ a day that can't fill a wanted slot reports
+  │    `unfilled: [{ slot, reason: 'time'|'pool' }]` — present only
+  │    on the response that generated the plan (no schema column
+  │    yet to persist it for a later read)
+  └─ pool exhaustion (PRECONDITION_FAILED) is checked only against
+       the meal types the shape actually wants — a "dinners only"
+       shape is no longer blocked by an empty breakfast pool
+
+PREMIUM generation: an explicit `shape` override narrows the AI week to
+  the requested days/slots post-hoc; without an override, premium
+  generation is unchanged this wave (it does not yet read the stored
+  shape automatically — a follow-up).
+```
+
+**Your picks survive regeneration (T-07.4).** A meal chosen via `replaceRecipe`
+is marked `pinned` ("Your pick") and keeps its portion (bug T-BUG-X2/T-08.5:
+it used to always reset to 1×). `mealPlan.setSlotPinned` toggles the pin
+without touching the recipe. `generate({ keepPinned: true })` re-applies the
+replaced plan's pinned slots onto the new week when the day/slot type still
+exists and the dish still passes the safety filter, and reports how many
+couldn't be kept as `droppedPinned`.
+
+**Regenerate Undo (T-08.3).** Both generation paths return `previousPlanId`
+(the same-week plan the call replaced) so a client can offer `Undo` via the
+existing `mealPlan.restore({ planId: previousPlanId })`. A PREMIUM
+regeneration additionally returns `premiumChanges { lines[], targetHits,
+missDays }` — kind-aware summary lines plus an honest day-on-target count
+(T-10.7, "What Premium changed").
+
+**Swap/Replace Undo (T-08.5/T-08.6).** `replaceRecipe` and `swapRecipe`
+(both tiers) return `previousRecipeId` so a client can undo by calling the
+same mutation back to that id. This wave's AI-swap default is commit +
+Undo — no separate preview procedure.
+
+**Honest AI-usage counters (T-10.8, bug B-49).** A FREE (curated) generation's
+daily-cap reservation now logs `AiCallType.CURATED_PLAN` instead of
+`MEAL_PLAN` — the cap still works the same way, but a curated week no longer
+counts toward "AI usage" totals.
+
 ### Weekly auto-generation (PW-5; free curated weeks since P2-5)
 
 ```
@@ -531,7 +594,7 @@ recipe) and adds Restore there; on both mobile screens Restore asks first
 
 ### Meal swap
 
-`mealPlan.swapRecipe` — premium: AI-generated alternative; free: random curated recipe of the same meal type (excluding the current one). A free swap of a portioned slot (P1-1) sizes the new dish to the old slot's calories; any other swap or replacement resets the slot to 1×. A curated free day can hold two snacks: every per-slot action (swap, replace, rebalance and its undo) names the slot by its index in the day, so the second snack is swapped on its own. Today's next-meal card, Later today and the read-only history grid show both snacks.
+`mealPlan.swapRecipe` — premium: AI-generated alternative; free: random curated recipe of the same meal type (excluding the current one). A free swap of a portioned slot (P1-1) sizes the new dish to the old slot's calories; an AI swap resets the slot to 1× (`replaceRecipe` below keeps the current portion — T-08.5/T-BUG-X2). A curated free day can hold two snacks: every per-slot action (swap, replace, rebalance and its undo) names the slot by its index in the day, so the second snack is swapped on its own. Today's next-meal card, Later today and the read-only history grid show both snacks. **Undo (T-08.5/T-08.6):** the response gains `previousRecipeId?` — the client can undo by calling the same mutation back to that id; this wave's AI-swap default is commit + Undo, no separate preview procedure.
 
 ### Week templates — "My weeks" (4-week rotation)
 
@@ -543,7 +606,7 @@ Plans continue week to week until changed: `mealPlan.getForWeek` for the current
 
 ### Meal replace (picker)
 
-`mealPlan.replaceRecipe` — any tier, no quota: sets a meal slot to a specific recipe the user chose. On mobile this is the primary per-meal action: the Plan tab's replace button opens a bottom-sheet picker (own + favourited recipes first, searchable) with an AI-regen footer (premium, calls `swapRecipe`). Web exposes `replaceRecipe` only via the tracker rebalance banner so far — meal-plan picker port pending (see `mobile_parity_backlog.md`).
+`mealPlan.replaceRecipe` — any tier, no quota: sets a meal slot to a specific recipe the user chose. On mobile this is the primary per-meal action: the Plan tab's replace button opens a bottom-sheet picker (own + favourited recipes first, searchable) with an AI-regen footer (premium, calls `swapRecipe`). Web exposes `replaceRecipe` only via the tracker rebalance banner so far — meal-plan picker port pending (see `mobile_parity_backlog.md`). **Your pick survives regeneration (T-07.4):** the slot keeps its current portion (bug T-BUG-X2/T-08.5 — it used to always drop to 1×) and is marked `pinned` ("Your pick"); `mealPlan.setSlotPinned` toggles the pin without touching the recipe, and `generate({ keepPinned: true })` re-applies pinned slots onto a freshly generated week when they still pass the safety filter (`droppedPinned` reports how many didn't). The response also gains `previousRecipeId?` for `Undo`.
 
 **Safety on Replace (B-34/B-46, T-00.11).** The picker is a search over `recipe.list`, not the safety-filtered curated pool, so before this hotfix a user could Replace into a recipe that conflicted with their (or their household's) allergies or dietary restrictions with no check at all:
 
@@ -1427,10 +1490,20 @@ mealPlan.generate
 
 LIST SUBTRACTION (premium)
 shoppingList.getForWeek / regenerate
-  ├─ pantry-covered derived/AI items get `pantryCovered` ("Have it" chip),
-  │    are EXCLUDED from estimatedTotalEur; custom items never subtracted
-  ├─ header savings counter: pantry.savedEur = Σ estimated prices of covered
-  │    items ("saved ~€X this week")
+  ├─ a FULLY-covered derived/AI item gets `pantryCovered` ("Have it" chip),
+  │    is EXCLUDED from estimatedTotalEur; custom items never subtracted
+  ├─ bug B-24 (T-BUG-24, persona-study wave 1): a pantry row that covers
+  │    SOME but not all of a line is now a PARTIAL match — previously
+  │    treated as "not covered" (the whole line stayed, unexplained).
+  │    The item stays on the list at its remaining (need − have) quantity,
+  │    its estimatedPriceEur scales proportionally, and it gains
+  │    `haveQuantity?` so the UI can say "You have {have} of {need} · Buy
+  │    {n}" (`buildPantryCoverageMatcher` in pantry-match.ts, additive
+  │    alongside the full-coverage `buildPantryMatcher` other callers still
+  │    use). Free accounts still see untouched numbers.
+  ├─ header savings counter: pantry.savedEur = Σ estimated prices of FULLY
+  │    covered items only ("saved ~€X this week") — a partial match is not
+  │    counted as savings
   ├─ one-tap re-add = pantry.markOutOfStock { ingredientName } — clears the
   │    pantry rows, item returns to the buy list
   └─ coach seam: PantryService.computeWeekPantrySavings(userId, weekStart)
