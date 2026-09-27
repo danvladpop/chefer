@@ -19,6 +19,7 @@ jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 jest.mock('expo-router', () => ({
   router: { replace: jest.fn(), push: jest.fn(), back: jest.fn(), canGoBack: () => false },
   usePathname: () => '/stats',
+  useLocalSearchParams: () => ({}),
 }));
 
 function session(overrides: Partial<SessionSummaryDto> & { id: string }): SessionSummaryDto {
@@ -170,6 +171,25 @@ describe('Stats empty states', () => {
     expect(more).toBeTruthy();
     expect(screen.queryByText(/§/)).toBeNull();
     expect(screen.queryByText(/research/i)).toBeNull();
+  });
+
+  it('T-36.5: the History segment lists sessions and hides the overview views', async () => {
+    const user = userEvent.setup();
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ library: [bench], recentSessions: SESSIONS }),
+    );
+    await renderWithGym(<StatsTab />, queryClient);
+
+    expect(screen.getByTestId('gym-stats-scroll')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('gym-stats-segment-history'));
+
+    expect(screen.queryByTestId('gym-stats-scroll')).not.toBeOnTheScreen();
+    expect(await screen.findByTestId('gym-history')).toBeOnTheScreen();
+
+    await user.press(screen.getByTestId('gym-stats-segment-overview'));
+    expect(await screen.findByTestId('gym-stats-scroll')).toBeOnTheScreen();
   });
 
   it('PR timeline: "No PRs yet" for a user with no personal records', async () => {

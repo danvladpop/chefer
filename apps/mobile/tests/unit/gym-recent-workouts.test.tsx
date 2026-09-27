@@ -229,6 +229,6 @@ describe('RecentWorkouts', () => {
     );
 
     await user.press(screen.getByTestId('gym-today-recent-all-history'));
-    expect(router.push).toHaveBeenCalledWith('/stats');
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/stats', params: { tab: 'history' } });
   });
 });

@@ -163,7 +163,7 @@ export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: Recen
         <Pressable
           testID={`${testID}-all-history`}
           accessibilityRole="button"
-          onPress={() => router.push('/stats')}
+          onPress={() => router.push({ pathname: '/stats', params: { tab: 'history' } })}
           className="min-h-11 justify-center"
         >
           <Text className="text-sm font-medium text-primary">All history ›</Text>

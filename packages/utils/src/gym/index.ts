@@ -25,3 +25,5 @@ export * from './short-version';
 // Resume card summary (T-36.A1.1) and Recent-workouts grouping (T-36.A2.1).
 export * from './resume';
 export * from './recent';
+// Stats › History week-grouping (T-36.5).
+export * from './history';

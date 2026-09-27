@@ -1624,6 +1624,25 @@ connection) spun forever. `useTimedRefresh()`
 spinner always drops after 10 s, whether or not the refetch itself ever
 settles.
 
+### Stats › History and set numbering (bug B-41, T-36.5)
+
+Stats gains a `History` segment (a `Chip` toggle next to the 5 default
+views): every completed session, grouped by ISO week
+(`groupSessionsByWeek()`, `packages/utils/src/gym/history.ts`) newest first,
+with the same cache-then-cursor `Load more` as Gym Today's `Recent`
+(`bootstrap.recentSessions` first, `gym.session.list`'s cursor once that's
+exhausted). Gym Today's `Recent` section's `All history` link opens straight
+into it via `router.push({ pathname: '/stats', params: { tab: 'history' } })`
+— `stats-tab.tsx` reads it with `useLocalSearchParams` to pick the initial
+segment.
+
+**Bug B-41** (session detail numbered sets by their position in the WHOLE
+list, so a working set after 2 warm-ups read "Set 3"): `session-detail-
+screen.tsx` now numbers warm-ups and working sets with their own counters
+each starting at 1 — `Warm-up 1`, `Warm-up 2`, `Set 1`, `Set 2` — the same
+convention `setLabelOf()` already uses in the live logger
+(`workout/workout-model.ts`).
+
 - The routine is a **rotation, not a calendar**: "next up" is the next day in
   sequence; missed days roll forward and are never marked failed.
 - Outbox entries are removed only on an `applied`/`stale` ack; a `rejected`

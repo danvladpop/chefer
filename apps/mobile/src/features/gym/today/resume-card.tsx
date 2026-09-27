@@ -2,7 +2,7 @@ import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import type { GymBootstrap, WorkoutSessionDoc } from '@chefer/types';
 import { Button, Card, ProgressBar, Text } from '@chefer/ui-mobile';
-import { resumeSummary, type ResumeSummary } from '@chefer/utils';
+import { resumeSummary, weekdayDateLabel, type ResumeSummary } from '@chefer/utils';
 import { localDate } from '../offline/ids';
 import { libraryLookup } from '../use-gym-bootstrap';
 import { ElapsedTime } from '../workout/rest-timer-bar';
@@ -13,16 +13,6 @@ import { formatClock, supersetsOf } from '../workout/workout-model';
 // the same pure function the logger derives its own header from — so the
 // card and the logger can never disagree (AC9). ≤ 4 text lines at 1.0× on a
 // 375 pt screen (AC11): eyebrow+time, name, progress bar + counts, focus.
-
-const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-/** "Thu 24 Sep" for the backfill eyebrow — never a relative "Today"/"Yesterday" (that's for Recent). */
-function weekdayDateLabel(localDateStr: string): string {
-  const d = new Date(`${localDateStr}T00:00:00.000Z`);
-  const weekday = WEEKDAY_NAMES[(d.getUTCDay() + 6) % 7];
-  const month = d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
-  return `${weekday} ${d.getUTCDate()} ${month}`.toUpperCase();
-}
 
 /** Local calendar-day label for a "Keeps until" instant: "today" / "tomorrow" / a weekday. */
 function keepsUntilDayLabel(keepsUntilIso: string): string {
@@ -99,7 +89,7 @@ export function ResumeCard({
     summary.state === 'paused'
       ? 'WORKOUT PAUSED'
       : summary.state === 'backfill'
-        ? `LOGGING ${weekdayDateLabel(session.localDate)}`
+        ? `LOGGING ${weekdayDateLabel(session.localDate).toUpperCase()}`
         : 'WORKOUT IN PROGRESS';
 
   const focus = focusLine(summary, summary.state === 'paused' ? 'Next' : 'Now');
