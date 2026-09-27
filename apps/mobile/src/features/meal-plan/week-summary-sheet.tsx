@@ -1,7 +1,7 @@
 import { Pressable, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { DisplayCurrency } from '@chefer/types';
-import { Button, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, DENSE_MAX_FONT_SCALE, Sheet, Text } from '@chefer/ui-mobile';
 import { cn, formatMoney } from '@chefer/utils';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
 
@@ -125,11 +125,16 @@ export function WeekSummarySheet({
             )}
           >
             <View className="flex-row items-center gap-2">
+              {/* T-21.13 (bug CI-43): the 3-letter day label is capped at
+                  DENSE_MAX_FONT_SCALE so it never wraps or overflows its
+                  fixed-width column at large accessibility text sizes,
+                  while the rest of the sheet scales normally. */}
               <Text
                 className={cn(
                   'w-10 text-xs font-semibold uppercase',
                   d.isToday ? 'text-primary' : 'text-gray-600',
                 )}
+                maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
               >
                 {d.label}
               </Text>
