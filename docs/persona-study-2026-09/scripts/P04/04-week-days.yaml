@@ -1,0 +1,26 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '9%,23%'
+- waitForAnimationToEnd
+- takeScreenshot: P04-043-nextweek-mon
+- tapOn:
+    point: '23%,23%'
+- waitForAnimationToEnd
+- takeScreenshot: P04-044-nextweek-tue
+- tapOn:
+    point: '36%,23%'
+- waitForAnimationToEnd
+- takeScreenshot: P04-045-nextweek-wed
+- tapOn:
+    point: '50%,23%'
+- waitForAnimationToEnd
+- takeScreenshot: P04-046-nextweek-thu
+- tapOn:
+    point: '64%,23%'
+- waitForAnimationToEnd
+- takeScreenshot: P04-047-nextweek-fri
+- tapOn:
+    point: '77%,23%'
+- waitForAnimationToEnd
+- takeScreenshot: P04-048-nextweek-sat

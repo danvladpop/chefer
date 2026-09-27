@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,64%'
+- takeScreenshot: 090-s2-aubergine-top
+- swipe:
+    start: '50%,75%'
+    end: '50%,20%'
+- takeScreenshot: 091-s2-aubergine-ingr

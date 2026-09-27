@@ -1,0 +1,36 @@
+appId: dev.chefer.app.dev
+---
+- swipe:
+    start: '2%,50%'
+    end: '80%,50%'
+- tapOn:
+    point: '91%,24%'
+- tapOn:
+    point: '50%,65%'
+- takeScreenshot: 033-paella-top
+- swipe:
+    start: '50%,70%'
+    end: '50%,20%'
+- takeScreenshot: 034-paella-ingr
+- swipe:
+    start: '2%,50%'
+    end: '80%,50%'
+- tapOn:
+    point: '50%,24%'
+- tapOn:
+    point: '50%,52%'
+- takeScreenshot: 035-peppers-top
+- swipe:
+    start: '50%,70%'
+    end: '50%,20%'
+- takeScreenshot: 036-peppers-ingr
+- swipe:
+    start: '2%,50%'
+    end: '80%,50%'
+- tapOn:
+    point: '50%,38%'
+- takeScreenshot: 037-chia-top
+- swipe:
+    start: '50%,70%'
+    end: '50%,20%'
+- takeScreenshot: 038-chia-ingr

@@ -1,0 +1,23 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '20%,47%'
+- takeScreenshot: 090-s2-pantry-g
+- tapOn:
+    point: '91%,47%'
+- takeScreenshot: 091-s2-pantry-added
+- tapOn:
+    point: '42%,41%'
+- inputText: 'spinach'
+- tapOn:
+    point: '63%,47%'
+- tapOn:
+    point: '91%,47%'
+- tapOn:
+    point: '42%,41%'
+- inputText: 'chopped tomatoes'
+- tapOn:
+    point: '77%,47%'
+- tapOn:
+    point: '91%,47%'
+- takeScreenshot: 092-s2-pantry-three

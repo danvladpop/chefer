@@ -1,0 +1,6 @@
+appId: dev.chefer.app.dev
+---
+- inputText: 'no eggs'
+- tapOn:
+    point: '91%,22%'
+- hideKeyboard

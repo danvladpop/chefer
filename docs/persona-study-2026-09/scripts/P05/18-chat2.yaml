@@ -1,0 +1,16 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '90%,95%'
+- tapOn:
+    point: '50%,22%'
+- tapOn:
+    point: '43%,91%'
+- inputText: "What can I cook tonight in 15 minutes with what's in my kitchen?"
+- tapOn:
+    point: '91%,56%'
+- extendedWaitUntil:
+    visible: '.*Mock.*'
+    timeout: 20000
+    optional: true
+- takeScreenshot: 094-s2-chat2

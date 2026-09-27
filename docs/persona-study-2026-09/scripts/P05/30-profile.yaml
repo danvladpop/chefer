@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '9%,9%'
+- tapOn:
+    point: '50%,42%'
+- takeScreenshot: 129-sw-profile
+- scroll
+- takeScreenshot: 130-sw-profile-2

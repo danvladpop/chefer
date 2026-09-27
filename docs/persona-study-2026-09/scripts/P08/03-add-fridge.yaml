@@ -1,0 +1,44 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '45%,39%'
+- inputText: '6 eggs'
+- tapOn:
+    point: '91%,39%'
+- tapOn:
+    point: '91%,39%'
+- tapOn:
+    point: '45%,39%'
+- inputText: '2 courgettes'
+- tapOn:
+    point: '91%,39%'
+- tapOn:
+    point: '91%,39%'
+- tapOn:
+    point: '45%,39%'
+- inputText: '500 g minced pork'
+- tapOn:
+    point: '91%,39%'
+- tapOn:
+    point: '91%,39%'
+- tapOn:
+    point: '45%,39%'
+- inputText: '1 yoghurt'
+- tapOn:
+    point: '91%,39%'
+- tapOn:
+    point: '91%,39%'
+- tapOn:
+    point: '45%,39%'
+- inputText: '4 carrots'
+- tapOn:
+    point: '91%,39%'
+- tapOn:
+    point: '91%,39%'
+- tapOn:
+    point: '45%,39%'
+- inputText: '300 g telemea'
+- tapOn:
+    point: '91%,39%'
+- tapOn:
+    point: '91%,39%'

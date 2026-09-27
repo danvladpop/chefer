@@ -1,0 +1,8 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,23%'
+- tapOn:
+    point: '50%,35%'
+- inputText: 'Classic pancakes. 200 g wheat flour, 2 eggs, 300 ml milk, 1 tbsp honey, butter for frying. Whisk everything, rest 10 min, fry in butter.'
+- takeScreenshot: 124-sw-import-text

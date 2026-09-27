@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,61%'
+- inputText: 'Cheese and pickle sandwich and crisps'
+- tapOn:
+    point: '40%,43%'
+- inputText: '550'
+- takeScreenshot: 093-s2-qa2-filled

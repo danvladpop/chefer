@@ -1,0 +1,18 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '74%,91%'
+- tapOn:
+    point: '74%,91%'
+- tapOn:
+    point: '74%,91%'
+- tapOn:
+    point: '74%,91%'
+- tapOn:
+    point: '74%,91%'
+- waitForAnimationToEnd
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/114-s2-cook-last
+- tapOn:
+    point: '74%,91%'
+- waitForAnimationToEnd
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/115-s2-cook-done

@@ -1,0 +1,10 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,48%'
+- waitForAnimationToEnd
+- tapOn:
+    point: '50%,22%'
+- tapOn:
+    point: '92%,46%'
+- waitForAnimationToEnd

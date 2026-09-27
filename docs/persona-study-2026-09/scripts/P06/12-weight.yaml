@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '44%,71%'
+- inputText: '101.6'
+- takeScreenshot: 077-weight-typed
+- tapOn:
+    point: '88%,71%'
+- takeScreenshot: 078-weight-plus

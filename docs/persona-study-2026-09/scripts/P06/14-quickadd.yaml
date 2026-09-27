@@ -1,0 +1,13 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,61%'
+- inputText: 'Cheese and pickle sandwich and crisps'
+- takeScreenshot: 083-qa-name
+- hideKeyboard
+- tapOn:
+    point: '38%,70%'
+- takeScreenshot: 084-qa-lunch
+- tapOn:
+    point: '50%,94%'
+- takeScreenshot: 085-qa-log-nokcal

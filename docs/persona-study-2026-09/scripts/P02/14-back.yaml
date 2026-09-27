@@ -1,0 +1,7 @@
+appId: dev.chefer.app.dev
+---
+- repeat:
+    times: 4
+    commands:
+      - tapOn:
+          point: '8%,10%'

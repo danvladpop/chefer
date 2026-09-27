@@ -1,0 +1,12 @@
+appId: dev.chefer.app.dev
+---
+- eraseText: 20
+- inputText: 'p03.jake@study.chefer.dev'
+- tapOn:
+    point: '50%,32%'
+- inputText: 'Study@12345!'
+- tapOn: 'Confirm password'
+- tapOn:
+    point: '40%,41%'
+- inputText: 'Study@12345!'
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P03/003-register-filled

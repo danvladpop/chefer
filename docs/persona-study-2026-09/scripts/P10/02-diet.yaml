@@ -1,0 +1,7 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '43%,23%'
+- inputText: 'vegan'
+- tapOn:
+    point: '91%,23%'

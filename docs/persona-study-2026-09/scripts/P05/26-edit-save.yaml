@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- scrollUntilVisible:
+    element:
+      text: 'Save changes'
+    direction: DOWN
+- takeScreenshot: 112-s2-edit-save-visible
+- tapOn: 'Save changes'
+- takeScreenshot: 113-s2-edit-saved

@@ -1,0 +1,23 @@
+appId: dev.chefer.app.dev
+---
+- swipe:
+    start: '50%,80%'
+    end: '50%,20%'
+- swipe:
+    start: '50%,80%'
+    end: '50%,20%'
+- takeScreenshot: P04-108-sw-prefs-2
+- swipe:
+    start: '50%,80%'
+    end: '50%,20%'
+- swipe:
+    start: '50%,80%'
+    end: '50%,20%'
+- takeScreenshot: P04-109-sw-prefs-3
+- swipe:
+    start: '50%,80%'
+    end: '50%,20%'
+- swipe:
+    start: '50%,80%'
+    end: '50%,20%'
+- takeScreenshot: P04-110-sw-prefs-4

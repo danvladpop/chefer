@@ -1,0 +1,15 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '42%,41%'
+- inputText: 'paneer'
+- tapOn:
+    point: '89%,41%'
+- inputText: '225'
+- hideKeyboard
+- tapOn:
+    point: '20%,47%'
+- takeScreenshot: 089-s2-pantry-typing
+- tapOn:
+    point: '91%,47%'
+- takeScreenshot: 090-s2-pantry-added

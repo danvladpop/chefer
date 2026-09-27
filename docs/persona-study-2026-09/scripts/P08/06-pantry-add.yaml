@@ -1,0 +1,15 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '40%,53%'
+- inputText: 'rice'
+- tapOn:
+    point: '89%,53%'
+- inputText: '1'
+- tapOn:
+    point: '30%,59%'
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/091-pantry-add-filled
+- tapOn:
+    point: '91%,59%'
+- waitForAnimationToEnd
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/092-pantry-added

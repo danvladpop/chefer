@@ -1,0 +1,10 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '40%,93%'
+- inputText: 'I had a cheese and pickle sandwich and a packet of crisps for lunch'
+- tapOn:
+    point: '92%,61%'
+- waitForAnimationToEnd:
+    timeout: 8000
+- takeScreenshot: 088-s2-chat-reply

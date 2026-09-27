@@ -1,0 +1,10 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,38%'
+- inputText: '168'
+- tapOn:
+    point: '82%,38%'
+- inputText: '63'
+- tapOn:
+    point: '50%,43%'

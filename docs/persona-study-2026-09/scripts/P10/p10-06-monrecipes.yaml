@@ -1,0 +1,26 @@
+appId: dev.chefer.app.dev
+---
+- swipe:
+    start: '2%,50%'
+    end: '80%,50%'
+- tapOn:
+    point: '50%,51%'
+- takeScreenshot: 028-quinoa-top
+- swipe:
+    start: '50%,70%'
+    end: '50%,20%'
+- takeScreenshot: 029-quinoa-ingr
+- swipe:
+    start: '2%,50%'
+    end: '80%,50%'
+- tapOn:
+    point: '50%,64%'
+- takeScreenshot: 030-lentil-top
+- swipe:
+    start: '50%,70%'
+    end: '50%,20%'
+- takeScreenshot: 031-lentil-ingr
+- swipe:
+    start: '50%,70%'
+    end: '50%,40%'
+- takeScreenshot: 032-lentil-ingr2

@@ -1,0 +1,15 @@
+appId: dev.chefer.app.dev
+---
+- hideKeyboard
+- tapOn:
+    point: '9%,9%'
+- tapOn:
+    point: '70%,95%'
+- tapOn:
+    point: '44%,23%'
+- tapOn:
+    point: '88%,38%'
+- takeScreenshot: 095-s2-fav-tap
+- tapOn:
+    point: '24%,23%'
+- takeScreenshot: 096-s2-saved-tab

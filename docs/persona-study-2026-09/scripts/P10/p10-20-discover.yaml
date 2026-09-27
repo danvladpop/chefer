@@ -1,0 +1,18 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '62%,24%'
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 120-sw-discover
+- tapOn:
+    point: '50%,31%'
+- inputText: 'pasta'
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 121-sw-discover-pasta
+- eraseText: 10
+- inputText: 'bread'
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 122-sw-discover-bread

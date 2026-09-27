@@ -1,0 +1,10 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '89%,71%'
+- tapOn:
+    point: '24%,23%'
+- takeScreenshot: 101-s2-saved-two
+- tapOn:
+    point: '9%,23%'
+- takeScreenshot: 102-s2-all-after-fav

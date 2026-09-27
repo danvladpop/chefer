@@ -1,0 +1,6 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,40%'
+- inputText: 'Mihai'
+- hideKeyboard

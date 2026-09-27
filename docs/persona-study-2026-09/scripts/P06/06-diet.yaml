@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '40%,23%'
+- inputText: 'pre-diabetes'
+- takeScreenshot: 016-diet-typed
+- tapOn:
+    point: '92%,23%'
+- takeScreenshot: 017-diet-added

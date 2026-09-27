@@ -1,0 +1,20 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,36%'
+- inputText: 'Maria'
+- tapOn:
+    point: '50%,45%'
+- inputText: 'p02.maria@study.chefer.dev'
+- tapOn:
+    point: '40%,54%'
+- inputText: 'Study@12345!'
+- tapOn:
+    point: '40%,62%'
+- inputText: 'Study@12345!'
+- hideKeyboard
+- takeScreenshot: /Users/danpop/work/git-projects/chefer/docs/persona-study-2026-09/screenshots/P02/004-register-filled
+- tapOn: 'Create account'
+- waitForAnimationToEnd:
+    timeout: 8000
+- takeScreenshot: /Users/danpop/work/git-projects/chefer/docs/persona-study-2026-09/screenshots/P02/005-after-register

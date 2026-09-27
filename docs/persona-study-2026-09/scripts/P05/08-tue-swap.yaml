@@ -1,0 +1,10 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '23%,22%'
+- tapOn:
+    point: '91%,68%'
+- takeScreenshot: 056-tue-swap-sheet
+- tapOn:
+    point: '50%,37%'
+- takeScreenshot: 057-tue-swapped

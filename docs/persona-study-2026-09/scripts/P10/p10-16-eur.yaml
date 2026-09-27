@@ -1,0 +1,19 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '14%,53%'
+- tapOn:
+    point: '50%,64%'
+- takeScreenshot: 097-s2-eur-saved
+- swipe:
+    start: '50%,30%'
+    end: '50%,70%'
+- takeScreenshot: 098-s2-prefs-up1
+- swipe:
+    start: '50%,30%'
+    end: '50%,70%'
+- takeScreenshot: 099-s2-prefs-up2
+- swipe:
+    start: '50%,30%'
+    end: '50%,70%'
+- takeScreenshot: 100-s2-prefs-up3

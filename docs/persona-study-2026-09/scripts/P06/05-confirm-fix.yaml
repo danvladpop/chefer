@@ -1,0 +1,8 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '70%,61%'
+- eraseText: 20
+- inputText: 'Study@12345!'
+- hideKeyboard
+- takeScreenshot: 011-confirm-fixed

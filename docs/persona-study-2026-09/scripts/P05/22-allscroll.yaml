@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- scrollUntilVisible:
+    element:
+      text: '.*imported via.*'
+    direction: DOWN
+    timeout: 40000
+    optional: true
+- takeScreenshot: 103-s2-all-scrolled

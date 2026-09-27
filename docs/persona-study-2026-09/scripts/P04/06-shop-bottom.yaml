@@ -1,0 +1,19 @@
+appId: dev.chefer.app.dev
+---
+- swipe:
+    start: '50%,80%'
+    end: '50%,15%'
+- swipe:
+    start: '50%,80%'
+    end: '50%,15%'
+- swipe:
+    start: '50%,80%'
+    end: '50%,15%'
+- takeScreenshot: P04-073-shop-scroll
+- swipe:
+    start: '50%,80%'
+    end: '50%,15%'
+- swipe:
+    start: '50%,80%'
+    end: '50%,15%'
+- takeScreenshot: P04-074-shop-bottom

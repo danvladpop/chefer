@@ -1,0 +1,6 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '40%,52%'
+- eraseText: 40
+- inputText: 'Study@12345!'

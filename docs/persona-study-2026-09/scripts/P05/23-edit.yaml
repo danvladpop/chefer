@@ -1,0 +1,21 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,19%'
+- eraseText: 60
+- inputText: 'Chickpea, tomato and spinach curry'
+- tapOn:
+    point: '30%,42%'
+- eraseText: 3
+- inputText: '2'
+- tapOn:
+    point: '58%,70%'
+- eraseText: 20
+- inputText: 'tinned chopped tomatoes'
+- tapOn:
+    point: '60%,47%'
+- takeScreenshot: 108-s2-edit-filled
+- scroll
+- scroll
+- scroll
+- takeScreenshot: 109-s2-edit-bottom

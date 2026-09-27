@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '27%,28%'
+- tapOn:
+    point: '88%,28%'
+- tapOn:
+    point: '49%,40%'
+- takeScreenshot: 061-gym-days-set

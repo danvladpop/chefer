@@ -1,0 +1,8 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '44%,39%'
+- inputText: 'mushrooms'
+- tapOn:
+    point: '92%,39%'
+- hideKeyboard

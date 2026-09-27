@@ -1,0 +1,7 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,52%'
+- inputText: 'p06.tom@study.chefer.dev'
+- hideKeyboard
+- takeScreenshot: 128-sw-forgot-typed

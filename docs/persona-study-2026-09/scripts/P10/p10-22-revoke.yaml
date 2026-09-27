@@ -1,0 +1,10 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '86%,88%'
+- tapOn:
+    point: '90%,94%'
+- tapOn: 'Profile'
+- scrollUntilVisible:
+    element: 'Allow AI features to process my data'
+- takeScreenshot: 127-sw-profile-ai-on

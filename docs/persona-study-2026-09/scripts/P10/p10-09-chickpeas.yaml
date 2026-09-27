@@ -1,0 +1,14 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '23%,24%'
+- swipe:
+    start: '50%,70%'
+    end: '50%,30%'
+- tapOn:
+    point: '50%,73%'
+- takeScreenshot: 042-chickpeas-top
+- swipe:
+    start: '50%,70%'
+    end: '50%,20%'
+- takeScreenshot: 043-chickpeas-ingr

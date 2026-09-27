@@ -1,0 +1,14 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,45%'
+- inputText: 'p06.tom@study.chefer.dev'
+- tapOn:
+    point: '40%,54%'
+- inputText: 'Study@12345!'
+- hideKeyboard
+- tapOn:
+    point: '50%,66%'
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 130-sw-login-back

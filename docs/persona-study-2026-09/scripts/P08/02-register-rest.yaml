@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,43%'
+- inputText: 'p08.daniela@study.chefer.dev'
+- tapOn:
+    point: '40%,53%'
+- inputText: 'Study@12345!'
+- hideKeyboard

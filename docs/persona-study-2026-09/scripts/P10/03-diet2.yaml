@@ -1,0 +1,12 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '43%,23%'
+- inputText: 'gluten-free'
+- tapOn:
+    point: '91%,23%'
+- tapOn:
+    point: '43%,37%'
+- inputText: 'gluten'
+- tapOn:
+    point: '91%,37%'

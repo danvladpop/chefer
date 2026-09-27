@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '41%,36%'
+- tapOn:
+    point: '85%,36%'
+- takeScreenshot: 082-s2-spinach-dinner-30
+- scroll
+- takeScreenshot: 083-s2-spinach-dinner-30b

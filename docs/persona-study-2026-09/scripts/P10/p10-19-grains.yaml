@@ -1,0 +1,16 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,78%'
+- swipe:
+    start: '50%,80%'
+    end: '50%,30%'
+- takeScreenshot: 116-sw-shop-grains
+- swipe:
+    start: '50%,80%'
+    end: '50%,30%'
+- takeScreenshot: 117-sw-shop-grains2
+- swipe:
+    start: '50%,80%'
+    end: '50%,30%'
+- takeScreenshot: 118-sw-shop-grains3

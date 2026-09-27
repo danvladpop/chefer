@@ -1,0 +1,12 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,26%'
+- inputText: 'pasta'
+- takeScreenshot: 085-s2-search-pasta
+- eraseText: 10
+- inputText: 'bread'
+- takeScreenshot: 086-s2-search-bread
+- eraseText: 10
+- inputText: 'tofu'
+- takeScreenshot: 087-s2-search-tofu

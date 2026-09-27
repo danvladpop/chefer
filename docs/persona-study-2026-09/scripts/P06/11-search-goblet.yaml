@@ -1,0 +1,7 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,21%'
+- inputText: 'goblet'
+- hideKeyboard
+- takeScreenshot: 071-search-goblet

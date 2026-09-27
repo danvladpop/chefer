@@ -1,0 +1,10 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '75%,12%'
+- eraseText: 80
+- inputText: 'Tom'
+- tapOn:
+    point: '50%,20%'
+- inputText: 'p06.tom@study.chefer.dev'
+- takeScreenshot: 006-email-typed

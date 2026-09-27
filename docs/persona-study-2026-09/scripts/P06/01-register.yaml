@@ -1,0 +1,19 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,35%'
+- inputText: 'Tom'
+- tapOn:
+    point: '50%,44%'
+- inputText: 'p06.tom@study.chefer.dev'
+- tapOn:
+    point: '40%,53%'
+- inputText: 'Study@12345!'
+- tapOn:
+    point: '50%,62%'
+- inputText: 'Study@12354!'
+- hideKeyboard
+- takeScreenshot: 003-register-filled-typo
+- tapOn:
+    point: '50%,68%'
+- takeScreenshot: 004-mismatch

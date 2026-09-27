@@ -1,0 +1,15 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '49%,42%'
+- eraseText: 40
+- inputText: '2'
+- tapOn:
+    point: '60%,15%'
+- tapOn:
+    point: '70%,70%'
+- eraseText: 20
+- inputText: 'tinned chopped tomatoes'
+- tapOn:
+    point: '60%,15%'
+- takeScreenshot: 111-s2-edit-fixed

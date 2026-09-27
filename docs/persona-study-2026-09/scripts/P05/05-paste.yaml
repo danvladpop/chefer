@@ -1,0 +1,6 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,35%'
+- inputText: 'Matar paneer (15 min, serves 2). Ingredients: 225g paneer cubed, 200g frozen peas, 1 onion chopped, 2 garlic cloves, 1 tbsp grated ginger, 400g tin chopped tomatoes, 1 tsp garam masala, 1 tsp cumin seeds, 100ml single cream, handful coriander. Method: 1. Fry cumin and onion 5 min. 2. Add garlic, ginger, garam masala 1 min. 3. Add tomatoes, simmer 5 min. 4. Add paneer, peas and cream, cook 4 min. Top with coriander.'
+- hideKeyboard

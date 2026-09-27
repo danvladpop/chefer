@@ -1,0 +1,11 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '40%,82%'
+- takeScreenshot: 115-s2-edited-detail
+- tapOn:
+    point: '26%,49%'
+- takeScreenshot: 116-s2-cook-step1
+- tapOn:
+    point: '75%,92%'
+- takeScreenshot: 117-s2-cook-step2

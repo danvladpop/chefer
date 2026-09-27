@@ -1,0 +1,11 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '43%,92%'
+- inputText: "I'm coeliac. Is the vegetable stock in the Vegetable Paella safe? And where does the 2,284 kcal target come from?"
+- takeScreenshot: 077-chat-typed
+- tapOn:
+    point: '91%,92%'
+- waitForAnimationToEnd:
+    timeout: 8000
+- takeScreenshot: 078-chat-answer

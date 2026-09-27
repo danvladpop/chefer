@@ -1,0 +1,11 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    text: '^Open$'
+    optional: true
+- tapOn:
+    text: '^Continue$'
+    optional: true
+- tapOn:
+    text: '^Close$'
+    optional: true

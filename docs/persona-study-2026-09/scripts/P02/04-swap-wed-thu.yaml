@@ -1,0 +1,16 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '36%,22%'
+- tapOn:
+    point: '92%,46%'
+- waitForAnimationToEnd
+- tapOn: 'Grilled Chicken and Quinoa Bowl'
+- waitForAnimationToEnd
+- tapOn:
+    point: '50%,22%'
+- tapOn:
+    point: '92%,46%'
+- waitForAnimationToEnd
+- tapOn: 'Grilled Chicken and Quinoa Bowl'
+- waitForAnimationToEnd

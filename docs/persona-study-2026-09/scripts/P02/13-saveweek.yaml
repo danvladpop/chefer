@@ -1,0 +1,8 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '43%,27%'
+- inputText: 'Prep week'
+- tapOn:
+    point: '87%,27%'
+- waitForAnimationToEnd

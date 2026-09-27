@@ -1,0 +1,26 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '23%,23%'
+- waitForAnimationToEnd
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/083-ai-day
+- tapOn:
+    point: '36%,23%'
+- waitForAnimationToEnd
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/084-ai-day
+- tapOn:
+    point: '50%,23%'
+- waitForAnimationToEnd
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/085-ai-day
+- tapOn:
+    point: '64%,23%'
+- waitForAnimationToEnd
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/086-ai-day
+- tapOn:
+    point: '77%,23%'
+- waitForAnimationToEnd
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/087-ai-day
+- tapOn:
+    point: '91%,23%'
+- waitForAnimationToEnd
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/088-ai-day

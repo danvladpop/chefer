@@ -1,0 +1,7 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '40%,53%'
+- inputText: 'Study@12345!'
+- hideKeyboard
+- takeScreenshot: 131-sw-login-pw

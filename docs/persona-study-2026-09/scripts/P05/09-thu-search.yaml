@@ -1,0 +1,13 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,22%'
+- tapOn:
+    point: '91%,68%'
+- tapOn:
+    point: '50%,26%'
+- inputText: 'quick'
+- takeScreenshot: 058-thu-search-quick
+- eraseText: 10
+- inputText: 'paneer'
+- takeScreenshot: 059-thu-search-paneer

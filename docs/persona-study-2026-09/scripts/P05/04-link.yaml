@@ -1,0 +1,8 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,29%'
+- inputText: 'https://www.bbcgoodfood.com/recipes/chickpea-tomato-spinach-curry'
+- hideKeyboard
+- tapOn:
+    point: '50%,36%'

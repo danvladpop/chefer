@@ -1,0 +1,11 @@
+appId: dev.chefer.app.dev
+---
+- swipe:
+    start: '85%,36%'
+    end: '15%,36%'
+- takeScreenshot: 080-s2-chips-swiped
+- tapOn:
+    point: '50%,30%'
+- inputText: 'spinach'
+- hideKeyboard
+- takeScreenshot: 081-s2-search-spinach

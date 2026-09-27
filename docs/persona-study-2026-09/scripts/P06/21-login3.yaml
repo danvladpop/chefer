@@ -1,0 +1,7 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '30%,54%'
+- takeScreenshot: 132-sw-login-focus
+- inputText: 'Study@12345!'
+- takeScreenshot: 133-sw-login-typed

@@ -1,0 +1,12 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '40%,93%'
+- inputText: "My doctor says I am pre-diabetic and need to lose 10 kg. Is today's food OK for my blood sugar? Why these meals?"
+- takeScreenshot: 048-chat-typed
+- tapOn:
+    point: '92%,93%'
+- takeScreenshot: 049-chat-sent
+- waitForAnimationToEnd:
+    timeout: 8000
+- takeScreenshot: 050-chat-answer

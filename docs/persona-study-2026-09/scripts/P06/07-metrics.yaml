@@ -1,0 +1,15 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '26%,32%'
+- tapOn:
+    point: '18%,42%'
+- inputText: '52'
+- takeScreenshot: 021-age-kbd
+- tapOn:
+    point: '50%,42%'
+- inputText: '180'
+- tapOn:
+    point: '81%,42%'
+- inputText: '102'
+- takeScreenshot: 022-metrics-kbd

@@ -1,0 +1,11 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,94%'
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 113-sw-shop
+- swipe:
+    start: '50%,75%'
+    end: '50%,30%'
+- takeScreenshot: 114-sw-shop-2

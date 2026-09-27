@@ -1,0 +1,28 @@
+appId: dev.chefer.app.dev
+---
+- swipe:
+    start: '50%,70%'
+    end: '50%,40%'
+- takeScreenshot: 068-ai-mon-bottom
+- tapOn:
+    point: '23%,24%'
+- takeScreenshot: 069-ai-tue
+- swipe:
+    start: '50%,70%'
+    end: '50%,40%'
+- takeScreenshot: 070-ai-tue-bottom
+- tapOn:
+    point: '36%,24%'
+- takeScreenshot: 071-ai-wed
+- tapOn:
+    point: '50%,24%'
+- takeScreenshot: 072-ai-thu
+- tapOn:
+    point: '64%,24%'
+- takeScreenshot: 073-ai-fri
+- tapOn:
+    point: '77%,24%'
+- takeScreenshot: 074-ai-sat
+- tapOn:
+    point: '91%,24%'
+- takeScreenshot: 075-ai-sun

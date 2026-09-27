@@ -1,0 +1,23 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '9%,22%'
+- takeScreenshot: 069-regen-mon
+- tapOn:
+    point: '23%,22%'
+- takeScreenshot: 070-regen-tue
+- tapOn:
+    point: '36%,22%'
+- takeScreenshot: 071-regen-wed
+- tapOn:
+    point: '50%,22%'
+- takeScreenshot: 072-regen-thu
+- tapOn:
+    point: '63%,22%'
+- takeScreenshot: 073-regen-fri
+- tapOn:
+    point: '77%,22%'
+- takeScreenshot: 074-regen-sat
+- tapOn:
+    point: '91%,22%'
+- takeScreenshot: 075-regen-sun

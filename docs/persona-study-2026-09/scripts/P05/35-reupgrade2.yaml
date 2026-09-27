@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- tapOn: 'Not Now'
+- tapOn:
+    point: '90%,95%'
+- tapOn:
+    point: '50%,42%'
+- tapOn: 'Upgrade — free for now'
+- takeScreenshot: 138-sw-reupgraded

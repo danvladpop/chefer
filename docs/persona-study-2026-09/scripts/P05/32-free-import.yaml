@@ -1,0 +1,14 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '9%,9%'
+- tapOn:
+    point: '70%,95%'
+- tapOn:
+    point: '64%,17%'
+- takeScreenshot: 134-sw-free-import-after-downgrade
+- tapOn:
+    point: '9%,9%'
+- tapOn:
+    point: '30%,95%'
+- takeScreenshot: 135-sw-free-plan

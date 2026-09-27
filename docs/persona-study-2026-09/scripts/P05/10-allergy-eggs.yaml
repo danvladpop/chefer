@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '43%,47%'
+- inputText: 'eggs'
+- tapOn:
+    point: '87%,47%'
+- hideKeyboard
+- takeScreenshot: 064-eggs-allergy

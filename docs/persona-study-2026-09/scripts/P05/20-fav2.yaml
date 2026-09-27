@@ -1,0 +1,13 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '40%,16%'
+- tapOn:
+    point: '44%,23%'
+- takeScreenshot: 097-s2-mine-cleared
+- tapOn:
+    point: '88%,38%'
+- takeScreenshot: 098-s2-mine-fav
+- tapOn:
+    point: '24%,23%'
+- takeScreenshot: 099-s2-saved-one

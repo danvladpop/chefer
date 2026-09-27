@@ -1,0 +1,13 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '45%,66%'
+- tapOn:
+    point: '45%,75%'
+- tapOn:
+    point: '62%,75%'
+- takeScreenshot: P04-126-sw-rate-filled
+- tapOn:
+    point: '50%,89%'
+- waitForAnimationToEnd
+- takeScreenshot: P04-127-sw-rate-saved

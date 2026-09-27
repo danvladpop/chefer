@@ -1,0 +1,9 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '92%,65%'
+- takeScreenshot: P04-094-s2-tick1
+- tapOn:
+    point: '92%,72%'
+- waitForAnimationToEnd
+- takeScreenshot: P04-095-s2-tick2

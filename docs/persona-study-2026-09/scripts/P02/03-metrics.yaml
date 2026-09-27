@@ -1,0 +1,18 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '74%,29%'
+- tapOn:
+    point: '18%,38%'
+- inputText: '30'
+- hideKeyboard
+- tapOn:
+    point: '50%,38%'
+- inputText: '168'
+- hideKeyboard
+- tapOn:
+    point: '82%,38%'
+- inputText: '63'
+- hideKeyboard
+- tapOn:
+    point: '50%,62%'

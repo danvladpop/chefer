@@ -1,0 +1,21 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,67%'
+- tapOn:
+    point: '50%,60%'
+- takeScreenshot: 115-sw-shop-dairy-protein
+- tapOn:
+    point: '50%,75%'
+- swipe:
+    start: '50%,80%'
+    end: '50%,25%'
+- takeScreenshot: 116-sw-shop-grains
+- swipe:
+    start: '50%,80%'
+    end: '50%,25%'
+- takeScreenshot: 117-sw-shop-grains2
+- swipe:
+    start: '50%,80%'
+    end: '50%,25%'
+- takeScreenshot: 118-sw-shop-grains3

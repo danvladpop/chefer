@@ -1,0 +1,8 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '43%,91%'
+- inputText: 'I have paneer, spinach, a tin of tomatoes, frozen peas and rice. What can I make in 15 minutes for 2 tonight?'
+- tapOn:
+    point: '91%,91%'
+- takeScreenshot: 085-s2-chat-sent

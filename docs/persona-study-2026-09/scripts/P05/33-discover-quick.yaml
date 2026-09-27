@@ -1,0 +1,14 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '70%,95%'
+- tapOn:
+    point: '64%,23%'
+- tapOn:
+    point: '50%,30%'
+- eraseText: 20
+- tapOn:
+    point: '40%,16%'
+- takeScreenshot: 136-sw-discover-filters
+- scroll
+- takeScreenshot: 137-sw-discover-filters-2

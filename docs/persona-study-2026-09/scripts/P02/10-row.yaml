@@ -1,0 +1,11 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '39%,41%'
+- takeScreenshot: row-plus
+- tapOn:
+    point: '90%,41%'
+- tapOn:
+    point: '90%,50%'
+- tapOn:
+    point: '90%,59%'

@@ -1,0 +1,19 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,30%'
+- swipe:
+    start: '50%,30%'
+    end: '50%,85%'
+- takeScreenshot: P04-078-chat-up1
+- swipe:
+    start: '50%,30%'
+    end: '50%,85%'
+- takeScreenshot: P04-079-chat-up2
+- swipe:
+    start: '50%,30%'
+    end: '50%,85%'
+- swipe:
+    start: '50%,30%'
+    end: '50%,85%'
+- takeScreenshot: P04-080-chat-up3

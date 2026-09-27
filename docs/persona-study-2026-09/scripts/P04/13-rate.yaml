@@ -1,0 +1,21 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '30%,95%'
+- waitForAnimationToEnd
+- tapOn:
+    point: '77%,23%'
+- waitForAnimationToEnd
+- tapOn:
+    point: '50%,65%'
+- waitForAnimationToEnd
+- swipe:
+    start: '50%,85%'
+    end: '50%,10%'
+- swipe:
+    start: '50%,85%'
+    end: '50%,10%'
+- swipe:
+    start: '50%,85%'
+    end: '50%,10%'
+- takeScreenshot: P04-125-sw-rate

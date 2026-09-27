@@ -1,0 +1,18 @@
+appId: dev.chefer.app.dev
+---
+- swipe:
+    start: '50%,30%'
+    end: '50%,90%'
+- swipe:
+    start: '50%,30%'
+    end: '50%,90%'
+- swipe:
+    start: '50%,30%'
+    end: '50%,90%'
+- tapOn:
+    point: '45%,42%'
+- eraseText: 30
+- inputText: '2'
+- tapOn:
+    point: '60%,15%'
+- takeScreenshot: 110-s2-edit-servings

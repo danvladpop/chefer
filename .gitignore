@@ -91,3 +91,6 @@ tests/.auth/
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Persona-study evidence screenshots (~500 MB per run) — kept local, not in git
+docs/persona-study-*/screenshots/

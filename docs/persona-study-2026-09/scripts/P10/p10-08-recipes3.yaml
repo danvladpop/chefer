@@ -1,0 +1,28 @@
+appId: dev.chefer.app.dev
+---
+- swipe:
+    start: '2%,50%'
+    end: '80%,50%'
+- tapOn:
+    point: '91%,24%'
+- tapOn:
+    point: '50%,38%'
+- swipe:
+    start: '50%,70%'
+    end: '50%,20%'
+- takeScreenshot: 039-buckwheat-ingr
+- swipe:
+    start: '2%,50%'
+    end: '80%,50%'
+- tapOn:
+    point: '23%,24%'
+- swipe:
+    start: '50%,70%'
+    end: '50%,30%'
+- takeScreenshot: 040-tue-bottom
+- tapOn:
+    point: '36%,24%'
+- swipe:
+    start: '50%,70%'
+    end: '50%,30%'
+- takeScreenshot: 041-wed-bottom

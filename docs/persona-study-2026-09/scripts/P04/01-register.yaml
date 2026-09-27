@@ -1,0 +1,16 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,34%'
+- inputText: 'Elena'
+- tapOn:
+    point: '50%,43%'
+- inputText: 'p04.elena@study.chefer.dev'
+- tapOn:
+    point: '40%,53%'
+- inputText: 'Study@12345!'
+- tapOn:
+    point: '50%,62%'
+- inputText: 'Study@12345!'
+- hideKeyboard
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P04/003-register-filled

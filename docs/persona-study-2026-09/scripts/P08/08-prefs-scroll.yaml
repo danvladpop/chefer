@@ -1,0 +1,23 @@
+appId: dev.chefer.app.dev
+---
+- swipe:
+    start: '50%,80%'
+    end: '50%,15%'
+- swipe:
+    start: '50%,80%'
+    end: '50%,15%'
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/122-sw-prefs-2
+- swipe:
+    start: '50%,80%'
+    end: '50%,15%'
+- swipe:
+    start: '50%,80%'
+    end: '50%,15%'
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/123-sw-prefs-3
+- swipe:
+    start: '50%,80%'
+    end: '50%,15%'
+- swipe:
+    start: '50%,80%'
+    end: '50%,15%'
+- takeScreenshot: docs/persona-study-2026-09/screenshots/P08/124-sw-prefs-4

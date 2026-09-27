@@ -1,0 +1,10 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '50%,65%'
+- inputText: 'I am pre-diabetic. I would like the app to tell me what to eat for my blood sugar and why.'
+- takeScreenshot: 121-sw-feedback-typed
+- hideKeyboard
+- tapOn:
+    point: '50%,75%'
+- takeScreenshot: 122-sw-feedback-sent

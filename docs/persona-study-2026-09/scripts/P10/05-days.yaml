@@ -1,0 +1,20 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '9%,24%'
+- takeScreenshot: 019-plan-mon
+- tapOn:
+    point: '23%,24%'
+- takeScreenshot: 020-plan-tue
+- tapOn:
+    point: '36%,24%'
+- takeScreenshot: 021-plan-wed
+- tapOn:
+    point: '50%,24%'
+- takeScreenshot: 022-plan-thu
+- tapOn:
+    point: '64%,24%'
+- takeScreenshot: 023-plan-fri
+- tapOn:
+    point: '77%,24%'
+- takeScreenshot: 024-plan-sat

@@ -1,0 +1,17 @@
+appId: dev.chefer.app.dev
+---
+- tapOn:
+    point: '9%,9%'
+- tapOn:
+    point: '50%,22%'
+- takeScreenshot: 132-sw-free-chat
+- tapOn:
+    point: '43%,91%'
+- inputText: 'Quick vegetarian dinner idea without eggs?'
+- tapOn:
+    point: '91%,56%'
+- extendedWaitUntil:
+    visible: '.*(Mock|Premium|premium|upgrade).*'
+    timeout: 15000
+    optional: true
+- takeScreenshot: 133-sw-free-chat-reply
