@@ -265,7 +265,19 @@ export default function ImportRecipeScreen() {
               <TextInput
                 testID="import-url"
                 value={url}
-                onChangeText={setUrl}
+                onChangeText={(v) => {
+                  // bug B-17: pasting a video link into the plain Link tab
+                  // used to run it through the wrong (page-text) extractor.
+                  // Detect a supported video URL and switch to the video
+                  // flow, keeping what was typed.
+                  if (isSupportedVideoUrl(v)) {
+                    setTab('video');
+                    setVideoUrl(v);
+                    setUrl('');
+                    return;
+                  }
+                  setUrl(v);
+                }}
                 autoCapitalize="none"
                 keyboardType="url"
                 placeholder="https://example.com/best-lasagna"

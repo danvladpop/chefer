@@ -7,8 +7,9 @@ import { Button, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile
 import {
   cn,
   defaultCookServings,
+  finishMealCopy,
   formatPortion,
-  formatQuantity,
+  formatScaledQuantity,
   guessMealType,
   localDateStr,
   parseStepDuration,
@@ -107,6 +108,11 @@ export default function CookModeScreen() {
     meal?: string;
     portion?: string;
   }>();
+  // Tracker logging still needs a real slot (breakfast/lunch/…) even when
+  // cook mode was opened with no `meal` param — the clock guess is fine
+  // THERE. bug B-21: the finish-screen COPY is different — it must never
+  // claim a meal it doesn't actually know, so it uses `meal` directly via
+  // `finishMealCopy` below instead of this guessed value.
   const mealType = meal ?? guessMealType();
   // P1-1: cooking a portioned plan slot shows its quantities and logs it.
   const planPortion = slotPortion(parseFloat(portion ?? ''));
@@ -291,7 +297,7 @@ export default function CookModeScreen() {
                     isChecked ? 'text-gray-400 line-through' : 'text-gray-800',
                   )}
                 >
-                  {formatQuantity(ing.quantity * scale, ing.unit, unitSystem)} {ing.name}
+                  {formatScaledQuantity(ing.quantity, ing.unit, scale, unitSystem)} {ing.name}
                 </Text>
               </Pressable>
             );
@@ -308,7 +314,7 @@ export default function CookModeScreen() {
         >
           <Text className="text-5xl">🎉</Text>
           <Text testID="cook-finished" variant="title" className="text-center">
-            Enjoy your {mealType}!
+            {finishMealCopy(meal)}
           </Text>
           <Text variant="muted" className="text-center text-sm">
             Log it to today&apos;s tracker so your nutrition stays honest.

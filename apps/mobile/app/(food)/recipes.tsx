@@ -68,6 +68,16 @@ export default function RecipesScreen() {
     debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
   };
 
+  // bug B-12: a search typed on one tab silently kept filtering the next
+  // tab — "All" could show 0 results because Discover's old search term was
+  // still applied. Switching tabs always starts that tab's own search.
+  const changeTab = (next: Tab) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setTab(next);
+    setSearch('');
+    setDebouncedSearch('');
+  };
+
   const listInput = {
     search: debouncedSearch || undefined,
     savedOnly: tab === 'saved',
@@ -152,7 +162,7 @@ export default function RecipesScreen() {
               key={key}
               testID={`recipes-tab-${key}`}
               accessibilityRole="button"
-              onPress={() => setTab(key)}
+              onPress={() => changeTab(key)}
               className={cn(
                 'min-h-11 justify-center px-3',
                 tab === key && 'border-b-2 border-primary',
@@ -218,7 +228,11 @@ export default function RecipesScreen() {
           onRetry={() => void refetch()}
         />
       ) : !recipes || recipes.length === 0 ? (
-        <EmptyState tab={tab} onDiscover={() => setTab('discover')} />
+        <EmptyState
+          tab={tab}
+          searching={debouncedSearch.trim().length > 0}
+          onDiscover={() => changeTab('discover')}
+        />
       ) : (
         <FlatList
           data={recipes}
@@ -319,7 +333,38 @@ export default function RecipesScreen() {
   );
 }
 
-function EmptyState({ tab, onDiscover }: { tab: Tab; onDiscover: () => void }) {
+/**
+ * bug B-12: a no-match SEARCH used to show the same first-run empty state
+ * as a genuinely empty tab ("No custom recipes yet" on a search with zero
+ * hits reads as "you have no recipes", not "nothing matched"). `searching`
+ * switches every tab to a shared no-match message when a search is active.
+ * The "arrives on mobile soon" line is also gone — recipe creation (T-40)
+ * has shipped on mobile since this PR.
+ */
+function EmptyState({
+  tab,
+  searching,
+  onDiscover,
+}: {
+  tab: Tab;
+  searching: boolean;
+  onDiscover: () => void;
+}) {
+  if (searching) {
+    return (
+      <View
+        testID="recipes-empty"
+        className="mx-4 items-center rounded-2xl border border-dashed border-border bg-gray-50 py-16"
+      >
+        <Ionicons name="search-outline" size={40} color="#d1d5db" />
+        <Text className="mt-3 font-medium text-gray-700">No matches</Text>
+        <Text variant="muted" className="mt-1 px-6 text-center text-sm">
+          Try another word{tab === 'discover' ? ', or clear the filters.' : '.'}
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View
       testID="recipes-empty"
@@ -330,7 +375,7 @@ function EmptyState({ tab, onDiscover }: { tab: Tab; onDiscover: () => void }) {
           <Ionicons name="compass-outline" size={40} color="#d1d5db" />
           <Text className="mt-3 font-medium text-gray-700">No dishes match</Text>
           <Text variant="muted" className="mt-1 px-6 text-center text-sm">
-            Try another word, or clear the filters.
+            Try clearing the filters.
           </Text>
         </>
       ) : tab === 'saved' ? (
@@ -345,9 +390,12 @@ function EmptyState({ tab, onDiscover }: { tab: Tab; onDiscover: () => void }) {
         <>
           <Text className="text-4xl">✎</Text>
           <Text className="mt-3 font-medium text-gray-700">No custom recipes yet</Text>
-          <Text variant="muted" className="mt-1 px-6 text-center text-sm">
-            Recipe creation arrives on mobile soon — use the web app meanwhile.
+          <Text variant="muted" className="mb-4 mt-1 px-6 text-center text-sm">
+            Create your own recipe, or import one from a link, photo or video.
           </Text>
+          <Button testID="recipes-empty-create" onPress={() => router.push('/recipe-form')}>
+            Create a recipe
+          </Button>
         </>
       ) : (
         <>

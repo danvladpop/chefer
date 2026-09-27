@@ -6,8 +6,9 @@ import { Button, Card, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-
 import {
   cn,
   defaultCookServings,
+  formatFractionalQuantity,
   formatPortion,
-  formatQuantity,
+  formatScaledQuantity,
   scaleNutrition,
   slotPortion,
 } from '@chefer/utils';
@@ -218,7 +219,12 @@ export default function RecipeDetailScreen() {
                 >
                   <Text className="text-lg text-gray-600">−</Text>
                 </Pressable>
-                <Text className="w-8 text-center text-sm font-medium">{selectedServings}</Text>
+                <Text
+                  testID="recipe-servings-count"
+                  className="w-8 text-center text-sm font-medium"
+                >
+                  {formatFractionalQuantity(selectedServings)}
+                </Text>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Increase servings"
@@ -233,7 +239,7 @@ export default function RecipeDetailScreen() {
               {recipe.ingredients.map((ing, i) => (
                 <View key={i} className="flex-row items-baseline gap-2">
                   <Text className="shrink-0 text-sm font-medium text-gray-900">
-                    {formatQuantity(ing.quantity * scale, ing.unit, unitSystem)}
+                    {formatScaledQuantity(ing.quantity, ing.unit, scale, unitSystem)}
                   </Text>
                   <Text className="min-w-0 flex-1 text-sm text-gray-600">{ing.name}</Text>
                 </View>
@@ -260,12 +266,16 @@ export default function RecipeDetailScreen() {
             </View>
           </Card>
 
-          {/* Nutrition facts */}
-          <Card>
+          {/* Nutrition facts. bug B-22: the label used to read "per {recipe.
+              servings} servings" while sitting right under a stepper that
+              changes the SELECTED servings — easy to misread as already
+              scaled. The label is fixed; a separate line states the total
+              for what's actually selected. */}
+          <Card testID="recipe-nutrition-facts">
             <Text variant="heading" className="mb-2">
               Nutrition Facts{' '}
               <Text variant="muted" className="text-xs">
-                per {recipe.servings} serving{recipe.servings === 1 ? '' : 's'}
+                per serving
               </Text>
             </Text>
             <View className="flex-row flex-wrap">
@@ -283,6 +293,12 @@ export default function RecipeDetailScreen() {
                 </View>
               ))}
             </View>
+            {selectedServings !== recipe.servings && (
+              <Text testID="recipe-nutrition-scaled" variant="muted" className="mt-2 text-xs">
+                Scaled for {formatFractionalQuantity(selectedServings)} servings:{' '}
+                {Math.round(n.calories * selectedServings)} kcal total
+              </Text>
+            )}
           </Card>
 
           {/* Star rating — shown when opened from a meal-plan day */}
