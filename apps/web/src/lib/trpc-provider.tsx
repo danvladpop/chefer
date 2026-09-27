@@ -51,6 +51,10 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
           headers() {
             return {
               'x-trpc-source': 'nextjs-react',
+              // §2.8/T-00.8: declares this client understands the
+              // health-consent error and reads `profile.flags`. Nothing on
+              // the server requires it yet.
+              'x-chefer-api-level': '1',
             };
           },
         }),

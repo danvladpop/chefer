@@ -315,7 +315,11 @@ Express Server (apps/api, port 3001)
   └─ tRPC adapter
         │
         ├─ createContext()
-        │     └─ Resolve ctx.user from cookie/header
+        │     ├─ Resolve ctx.user from cookie/header
+        │     └─ Resolve ctx.clientApiLevel from x-chefer-api-level (§2.8, T-00.8;
+        │        absent = 0). Not enforced yet — HEALTH_CONSENT_ENFORCE stays "off"
+        │        until wave 1 (T-26.1). profile.flags (public) exposes FEATURE_FLAGS
+        │        separately, read once by clients and cached like profile.aiProviders
         │
         ├─ timingMiddleware (logs duration in dev)
         │

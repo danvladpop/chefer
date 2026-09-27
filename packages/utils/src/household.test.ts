@@ -91,6 +91,48 @@ describe('onboardingSteps', () => {
       'cuisine',
     ]);
   });
+
+  describe('v2 (jobs-based routing, T-00.7)', () => {
+    it('an empty jobs array keeps v1 behaviour exactly', () => {
+      expect(
+        onboardingSteps({ intent: 'HOUSEHOLD', askIntent: true, isPremium: false, jobs: [] }),
+      ).toEqual(onboardingSteps({ intent: 'HOUSEHOLD', askIntent: true, isPremium: false }));
+    });
+
+    it('stops after the question for TRAIN-only jobs', () => {
+      expect(
+        onboardingSteps({ intent: null, askIntent: true, isPremium: false, jobs: ['TRAIN'] }),
+      ).toEqual(['intent']);
+    });
+
+    it('adds the table step for HOUSEHOLD jobs', () => {
+      expect(
+        onboardingSteps({
+          intent: null,
+          askIntent: false,
+          isPremium: false,
+          jobs: ['HOUSEHOLD'],
+        }),
+      ).toEqual(['table', 'diet', 'goal', 'metrics']);
+    });
+
+    it('adds the targets step for a TRACK job', () => {
+      expect(
+        onboardingSteps({ intent: null, askIntent: false, isPremium: false, jobs: ['TRACK'] }),
+      ).toEqual(['diet', 'goal', 'metrics', 'targets']);
+    });
+
+    it('combines HOUSEHOLD + TRACK', () => {
+      expect(
+        onboardingSteps({
+          intent: null,
+          askIntent: false,
+          isPremium: true,
+          jobs: ['HOUSEHOLD', 'TRACK'],
+        }),
+      ).toEqual(['table', 'goal', 'metrics', 'diet', 'cuisine', 'targets']);
+    });
+  });
 });
 
 describe('householdGhostSample', () => {

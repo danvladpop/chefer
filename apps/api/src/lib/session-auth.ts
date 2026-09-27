@@ -109,3 +109,15 @@ export async function resolveRequestAuth(req: Request): Promise<RequestAuth> {
 export function isMobileClient(req: Request): boolean {
   return req.headers['x-chefer-client'] === 'mobile';
 }
+
+/**
+ * `x-chefer-api-level` (§2.8, T-00.8): the client's declared capability
+ * level. Absent, non-numeric or negative all read as 0 ("old client") —
+ * never throws, so a malformed header never breaks a request.
+ */
+export function clientApiLevel(req: Request): number {
+  const raw = req.headers['x-chefer-api-level'];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const parsed = value ? Number.parseInt(value, 10) : 0;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}

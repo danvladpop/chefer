@@ -8,6 +8,12 @@ export * from './ai-consent';
 export * from './account-deletion';
 export * from './support';
 export * from './video-import';
+export * from './safety-taxonomy';
+export * from './safety';
+export * from './plan-shape';
+export * from './feature-flags';
+export * from './analytics-events';
+export * from './targets';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

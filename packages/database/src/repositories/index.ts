@@ -165,3 +165,26 @@ export {
   type WeeklyEmailPreferences,
   type WeekLogRow,
 } from './weekly-email.repository';
+
+// ─── Wave-0 schema contracts (T-00.10) ─────────────────────────────────────────
+
+export {
+  SafetyReportRepository,
+  safetyReportRepository,
+  type ISafetyReportRepository,
+  type CreateSafetyReportData,
+} from './safety-report.repository';
+
+export {
+  TargetChangeRepository,
+  targetChangeRepository,
+  type ITargetChangeRepository,
+  type CreateTargetChangeData,
+} from './target-change.repository';
+
+export {
+  ConsentEventRepository,
+  consentEventRepository,
+  type IConsentEventRepository,
+  type RecordConsentEventData,
+} from './consent-event.repository';

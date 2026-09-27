@@ -11,10 +11,14 @@ import { mealPlanRouter } from './meal-plan.router.js';
 import { notificationsRouter } from './notifications.router.js';
 import { pantryRouter } from './pantry.router.js';
 import { preferencesRouter } from './preferences.router.js';
+import { privacyRouter } from './privacy.router.js';
 import { profileRouter } from './profile.router.js';
 import { recipeRouter } from './recipe.router.js';
+import { safetyRouter } from './safety.router.js';
 import { shoppingListRouter } from './shopping-list.router.js';
+import { targetsRouter } from './targets.router.js';
 import { trackerRouter } from './tracker.router.js';
+import { trainingRouter } from './training.router.js';
 import { userRouter } from './user.router.js';
 
 export const appRouter = router({
@@ -29,12 +33,18 @@ export const appRouter = router({
   notifications: notificationsRouter,
   pantry: pantryRouter,
   preferences: preferencesRouter,
+  // Wave-0 stubs (T-00.10) — router + service wired now so no lane edits
+  // this file later; real procedures land wave 1.
+  privacy: privacyRouter,
   profile: profileRouter,
   // Import procedures (F5) merge into the recipe namespace:
   // recipe.importPreview / recipe.importSave live in import.router.ts.
   recipe: mergeRouters(recipeRouter, importRouter),
+  safety: safetyRouter,
   shoppingList: shoppingListRouter,
+  targets: targetsRouter,
   tracker: trackerRouter,
+  training: trainingRouter,
   user: userRouter,
 });
 

@@ -10,6 +10,24 @@ export const ONBOARDING_INTENTS = ['EAT_BETTER', 'HOUSEHOLD', 'TRAIN'] as const;
 export const onboardingIntentSchema = z.enum(ONBOARDING_INTENTS);
 export type OnboardingIntent = z.infer<typeof onboardingIntentSchema>;
 
+// ─── Jobs (§2.4, T-03.1, rev 2) ────────────────────────────────────────────────
+// `ChefProfile.onboardingJobs` — what the user is here to do. Replaces the
+// single `onboardingIntent` for new clients; `effectiveJobs()` in
+// `@chefer/utils` maps a legacy intent onto this set on read, so old clients
+// (which only ever wrote an intent) still get a sensible jobs list.
+// `TRACK` ("Track what I eat") keeps the ring home on Today (D20) and adds
+// the "Your targets" onboarding step.
+export const ONBOARDING_JOBS = [
+  'TRAIN',
+  'PLAN_MEALS',
+  'HOUSEHOLD',
+  'USE_WHAT_I_HAVE',
+  'SAVED_RECIPES',
+  'TRACK',
+] as const;
+export const onboardingJobSchema = z.enum(ONBOARDING_JOBS);
+export type OnboardingJob = z.infer<typeof onboardingJobSchema>;
+
 /** preferences.setIntent — free for every tier. */
 export const setOnboardingIntentInputSchema = z.object({ intent: onboardingIntentSchema });
 export type SetOnboardingIntentInput = z.infer<typeof setOnboardingIntentInputSchema>;

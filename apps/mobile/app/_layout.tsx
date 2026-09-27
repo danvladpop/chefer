@@ -80,6 +80,7 @@ export default function RootLayout() {
                 <Stack.Screen name="pantry" />
                 <Stack.Screen name="profile" />
                 <Stack.Screen name="preferences" />
+                <Stack.Screen name="settings/index" />
                 <Stack.Screen name="chat" />
                 <Stack.Screen name="history/index" />
                 <Stack.Screen name="history/[planId]" />
