@@ -88,7 +88,7 @@ describe('mealPlan.replaceRecipe — safety rejection (B-34/B-46, T-00.11)', () 
         ...originalPrefs,
         allergies: [...originalPrefs.allergies, 'egg'],
       });
-      const unsafeRecipe = await client.recipe.create.mutate({
+      const unsafeRecipe: { id: string } = await client.recipe.create.mutate({
         name: 'Contract Test Egg Scramble',
         description: 'Throwaway recipe for the T-00.11 safety contract test.',
         ingredients: [{ name: 'egg', quantity: 2, unit: 'pcs' }],
@@ -108,7 +108,7 @@ describe('mealPlan.replaceRecipe — safety rejection (B-34/B-46, T-00.11)', () 
           mealType: meal.type,
           recipeId: unsafeRecipe.id,
         }),
-      ).rejects.toMatchObject({ message: expect.stringContaining('UNSAFE_FOR_TABLE') });
+      ).rejects.toThrow(/UNSAFE_FOR_TABLE/);
 
       // acknowledgeConflict succeeds because it's the caller's own MANUAL recipe.
       await client.mealPlan.replaceRecipe.mutate({
