@@ -53,7 +53,7 @@ export function SelectField<T extends string = string>({
   const selected = options.find((o) => o.value === value);
   // A legacy value that isn't in the canonical list (an old free-text unit
   // or cuisine) still displays — never silently changed or blanked.
-  const displayLabel = selected?.label ?? (value ? value : null);
+  const displayLabel = selected?.label ?? value ?? null;
   const isSearchable = searchable ?? options.length > 12;
 
   const a11yLabel = `${label}, ${displayLabel ?? 'not set'}${required ? ', required' : ''}`;
