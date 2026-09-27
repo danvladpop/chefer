@@ -10,7 +10,16 @@ import {
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type { GymBootstrap, GymOffer, NextWorkoutDto } from '@chefer/types';
-import { Button, Card, EmptyState, ProgressRing, Screen, Sheet, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  EmptyState,
+  ProgressRing,
+  Screen,
+  Sheet,
+  Text,
+  useSnackbar,
+} from '@chefer/ui-mobile';
 import {
   buildNextWorkout,
   cn,
@@ -86,6 +95,7 @@ export function TodayScreen() {
   const activeWorkout = useActiveWorkout();
   const pausedAt = useActiveSessionPausedAt();
   const outboxStatus = useOutboxStatus();
+  const snackbar = useSnackbar();
   const [dayPickerVisible, setDayPickerVisible] = useState(false);
   // Bug B-26: the pull-to-refresh spinner always drops after 10 s, even if
   // the refetch itself never settles (host load, a flaky connection).
@@ -98,6 +108,9 @@ export function TodayScreen() {
   });
   const dismissOfferMutation = trpc.gym.progression.dismissOffer.useMutation();
   const startDeloadMutation = trpc.gym.progression.startDeload.useMutation({
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey }),
+  });
+  const pauseEndMutation = trpc.gym.pause.end.useMutation({
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey }),
   });
 
@@ -133,16 +146,33 @@ export function TodayScreen() {
     startPlanned(workout);
   };
 
+  // Bug B-45: "Skip this day" used to swap the workout with no feedback or
+  // way back. A snackbar names both days and offers Undo (setNextDay back to
+  // the skipped day) — disabled offline, same as Skip itself.
   const handleSkip = () => {
     if (!bootstrap?.activeRoutine) return;
+    const routineId = bootstrap.activeRoutine.id;
     const days = [...bootstrap.activeRoutine.days].sort((a, b) => a.position - b.position);
-    const idx = bootstrap.nextWorkout
-      ? days.findIndex((d) => d.id === bootstrap.nextWorkout?.dayId)
-      : -1;
+    const skippedId = bootstrap.nextWorkout?.dayId ?? null;
+    const idx = skippedId ? days.findIndex((d) => d.id === skippedId) : -1;
     const after = days[(idx + 1) % days.length] ?? days[0];
-    if (after) {
-      setNextDayMutation.mutate({ routineId: bootstrap.activeRoutine.id, dayId: after.id });
-    }
+    const skipped = days.find((d) => d.id === skippedId);
+    if (!after) return;
+    setNextDayMutation.mutate(
+      { routineId, dayId: after.id },
+      {
+        onSuccess: () => {
+          snackbar.show({
+            message: `Skipped ${skipped?.name ?? 'this day'} · Next: ${after.name}`,
+            actionLabel: 'Undo',
+            onAction: () => {
+              if (!skippedId || !onlineManager.isOnline()) return;
+              setNextDayMutation.mutate({ routineId, dayId: skippedId });
+            },
+          });
+        },
+      },
+    );
   };
 
   const handleDismissOffer = (offer: GymOffer) => {
@@ -284,7 +314,22 @@ export function TodayScreen() {
           </View>
         </Card>
 
-        {status.kind === 'done' && doneCard ? (
+        {bootstrap.activePause ? (
+          <Card testID="gym-today-paused" className="gap-2">
+            <Text className="font-semibold">Training paused</Text>
+            <Text variant="muted" className="text-sm">
+              {`Resumes ${bootstrap.activePause.endDate}${bootstrap.activePause.reason ? ` · ${bootstrap.activePause.reason}` : ''}`}
+            </Text>
+            <Button
+              testID="gym-today-end-pause"
+              variant="outline"
+              loading={pauseEndMutation.isPending}
+              onPress={() => pauseEndMutation.mutate({ id: bootstrap.activePause?.id ?? '' })}
+            >
+              End pause
+            </Button>
+          </Card>
+        ) : status.kind === 'done' && doneCard ? (
           <Card testID="gym-today-done" className="gap-2">
             <Text className="font-semibold">✓ Done today</Text>
             <Text variant="muted" className="text-sm">

@@ -1676,6 +1676,21 @@ streak`, no zero guard, three separate copies of the same bug). Mobile's
 `today-helpers.ts` `formatStreakLine()` layers the flex-week suffix on top of
 it; the web call sites call it directly.
 
+### Skip with Undo, and a paused state on Gym Today (bug B-45, T-36.4)
+
+`Skip this day` used to swap the next workout with no confirmation, feedback
+or way back (B-45). It now shows a `Snackbar` (`@chefer/ui-mobile`, PAT-4)
+naming both days — `Skipped {dayName} · Next: {dayName}` — with an `Undo`
+action that calls `gym.routine.setNextDay` back to the skipped day (a no-op
+offline, same gate as Skip itself).
+
+Gym Today also reads `bootstrap.activePause` (already computed server-side —
+"the pause covering today") to show a `Training paused` card in place of the
+next-up/done/rest card, with the resume date, the reason if one was given,
+and an `End pause` button (`gym.pause.end`) — previously only the settings
+screen surfaced an active pause; Gym Today itself showed the normal
+next-up flow underneath it.
+
 - The routine is a **rotation, not a calendar**: "next up" is the next day in
   sequence; missed days roll forward and are never marked failed.
 - Outbox entries are removed only on an `applied`/`stale` ack; a `rejected`

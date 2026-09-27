@@ -2,6 +2,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { GymOffer, NextWorkoutDto, RoutineDto, SessionSummaryDto } from '@chefer/types';
+import { resetSnackbarForTests, Snackbar } from '@chefer/ui-mobile';
 import { addDaysLocal, weekdayOf } from '@chefer/utils';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
 import { localDate } from '../../src/features/gym/offline/ids';
@@ -113,6 +114,7 @@ function renderToday(queryClient: QueryClient) {
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
       <QueryClientProvider client={queryClient}>
         <TodayScreen />
+        <Snackbar />
       </QueryClientProvider>
     </SafeAreaProvider>,
   );
@@ -127,10 +129,12 @@ beforeEach(() => {
   setKvBackendForTests(createMemoryKvBackend());
   activeSessionStore.clear();
   resetGymOwnerForTests();
+  resetSnackbarForTests();
   outbox.reload();
   trpc.gym.routine.setNextDay.useMutation.mockReturnValue(mutationResult());
   trpc.gym.progression.dismissOffer.useMutation.mockReturnValue(mutationResult());
   trpc.gym.progression.startDeload.useMutation.mockReturnValue(mutationResult());
+  trpc.gym.pause.end.useMutation.mockReturnValue(mutationResult());
 });
 
 describe('TodayScreen', () => {
@@ -279,6 +283,88 @@ describe('TodayScreen', () => {
 
     expect(router.push).toHaveBeenCalledWith('/gym/workout');
     jest.restoreAllMocks();
+  });
+
+  describe('Skip this day (bug B-45)', () => {
+    it('shows a snackbar naming both days, and Undo reverts to the skipped day', async () => {
+      const user = userEvent.setup();
+      const mutate = jest.fn(
+        (_input: { routineId: string; dayId: string }, opts?: { onSuccess?: () => void }) => {
+          opts?.onSuccess?.();
+        },
+      );
+      trpc.gym.routine.setNextDay.useMutation.mockReturnValue(mutationResult({ mutate }));
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+      );
+      await renderToday(queryClient);
+
+      await user.press(screen.getByTestId('gym-today-skip'));
+      expect(mutate).toHaveBeenCalledWith({ routineId: 'r1', dayId: 'd2' }, expect.anything());
+      expect(screen.getByTestId('snackbar-message')).toHaveTextContent(
+        'Skipped Upper A · Next: Lower A',
+      );
+
+      await user.press(screen.getByTestId('snackbar-action'));
+      expect(mutate).toHaveBeenLastCalledWith({ routineId: 'r1', dayId: 'd1' });
+    });
+
+    it("Undo is a no-op offline (the day can't be un-skipped without a connection)", async () => {
+      const user = userEvent.setup();
+      const mutate = jest.fn(
+        (_input: { routineId: string; dayId: string }, opts?: { onSuccess?: () => void }) => {
+          opts?.onSuccess?.();
+        },
+      );
+      trpc.gym.routine.setNextDay.useMutation.mockReturnValue(mutationResult({ mutate }));
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+      );
+      await renderToday(queryClient);
+
+      await user.press(screen.getByTestId('gym-today-skip'));
+      mutate.mockClear();
+      jest.spyOn(onlineManager, 'isOnline').mockReturnValue(false);
+
+      await user.press(screen.getByTestId('snackbar-action'));
+      expect(mutate).not.toHaveBeenCalled();
+      jest.restoreAllMocks();
+    });
+  });
+
+  describe('paused state (T-36.4)', () => {
+    it('shows a paused card instead of the next-up card, and End pause resumes training', async () => {
+      const user = userEvent.setup();
+      const mutate = jest.fn();
+      trpc.gym.pause.end.useMutation.mockReturnValue(mutationResult({ mutate }));
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: ROUTINE,
+          nextWorkout: NEXT_WORKOUT,
+          activePause: {
+            id: 'pause-1',
+            startDate: '2026-09-20',
+            endDate: '2026-10-04',
+            reason: 'vacation',
+          },
+        }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByTestId('gym-today-paused')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-paused')).toHaveTextContent(/2026-10-04/);
+      expect(screen.getByTestId('gym-today-paused')).toHaveTextContent(/vacation/);
+      expect(screen.queryByTestId('gym-today-next-up')).not.toBeOnTheScreen();
+
+      await user.press(screen.getByTestId('gym-today-end-pause'));
+      expect(mutate).toHaveBeenCalledWith({ id: 'pause-1' });
+    });
   });
 
   describe('Log a past workout (gym_plan.md §1.4 "Repair")', () => {
