@@ -4,11 +4,19 @@
 appId: dev.chefer.app.dev
 ---
 # iOS: relaunching resumes the already-connected dev client.
+# The dev-client Tools bubble (expo-dev-menu FAB) sits top-right in its own
+# window and swallows every touch in its 72x94pt frame + 10pt — on a 402pt
+# phone that is x≥315, y≤166, which covers the centre of Today's "See full
+# day" and any header action up there. Hide it via the launch-argument
+# UserDefaults domain: this launch only, the developer's own toggle is left
+# alone. (Maestro forwards the key verbatim, so it needs the leading dash.)
 - runFlow:
     when:
       platform: iOS
     commands:
-      - launchApp
+      - launchApp:
+          arguments:
+            '-EXDevMenuShowFloatingActionButton': 'NO'
 # Android: launchApp lands on the dev launcher and a follow-up link races the
 # running launcher — cold-start via the deep link instead (localhost works
 # through adb reverse tcp:8083).

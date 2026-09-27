@@ -636,8 +636,14 @@ full ladder before declaring a task done.
     localhost work); tapping Continue opens the dev menu on BOTH platforms (close: xmark
     on iOS, hardware `back` on Android); `hideKeyboard` THROWS on iOS — always guard it
     `platform: Android`; Android's keyboard covers submit buttons (the guard fixes it);
-    the dev-build floating Tools bubble overlaps top-right buttons on Android — flows
-    avoid tapping those (production has no FAB); Android tab labels are bare ("Plan")
+    the dev-build floating Tools bubble (expo-dev-menu FAB, production has none) swallows
+    taps in its own window — on iOS its hit area is 72x94pt + 10pt at top-right (x≥315,
+    y≤166 on a 402pt phone), which ate Maestro's centre tap on Today's "See full day"
+    (2026-09-27), so `e2e/common/launch.yaml` launches iOS with the
+    `-EXDevMenuShowFloatingActionButton NO` argument (this launch only; Maestro forwards
+    the key verbatim, hence the dash in the YAML key); Android's launch goes through a deep
+    link that takes no arguments, so Android flows still avoid tapping top-right buttons
+    under the bubble; Android tab labels are bare ("Plan")
     vs iOS ("Plan, tab, 2 of 5") — match `'Plan(, tab.*)?'`. **Android suite: 7/7
     verified** on Pixel_8 (first `expo run:android` gradle build worked untouched).
     **Maestro's iOS xctest driver (Xcode 26.3) wedges on marathon multi-flow sessions**
