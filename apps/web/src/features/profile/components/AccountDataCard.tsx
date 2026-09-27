@@ -4,16 +4,23 @@ import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Download, Trash2 } from 'lucide-react';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
-import { Button, Sheet } from '@chefer/ui';
+import { Button, Sheet, Toast } from '@chefer/ui';
 
 // ─── Your data ────────────────────────────────────────────────────────────────
 // Self-service export and account deletion (audit P0-6, F-PROF-1-1). The
 // privacy policy used to point users at a feedback box no admin could read.
+// T-39.5 (bug B-53): the export is named `chefer-export-YYYY-MM-DD.json`
+// (was `chefer-data-...`) and confirms with a snackbar, matching the mobile copy.
+
+function exportFilename(): string {
+  return `chefer-export-${new Date().toISOString().slice(0, 10)}.json`;
+}
 
 export function AccountDataCard() {
   const utils = trpc.useUtils();
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [exportReady, setExportReady] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   async function downloadData() {
@@ -25,9 +32,10 @@ export function AccountDataCard() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `chefer-data-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = exportFilename();
       a.click();
       URL.revokeObjectURL(url);
+      setExportReady(true);
     } catch {
       setExportError("Couldn't prepare your data. Please try again.");
     } finally {
@@ -59,6 +67,9 @@ export function AccountDataCard() {
         <p role="alert" className="mt-2 text-sm text-red-700">
           {exportError}
         </p>
+      )}
+      {exportReady && (
+        <Toast message="Your export is ready." onClose={() => setExportReady(false)} />
       )}
       <DeleteAccountSheet open={deleteOpen} onClose={() => setDeleteOpen(false)} />
     </div>
