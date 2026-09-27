@@ -98,7 +98,7 @@ export default function RecipeFormScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       base64: true,
-      quality: 0.8,
+      quality: 0.5, // T-BUG-O1 (O-18, Q-22): was 0.8 — an iPhone camera photo re-encoded at 0.8 routinely exceeded the old 5 MB upload limit
     });
     const asset = !result.canceled ? result.assets.at(0) : null;
     if (!asset?.base64) {

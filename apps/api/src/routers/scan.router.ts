@@ -13,9 +13,22 @@ import { resolveRequestAuth } from '../lib/session-auth.js';
 // quota/metering layer without apps/web touching Prisma; Caddy routes
 // /api/scan-meal here in production, a Next rewrite proxies it in dev.
 
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_BYTES = 5 * 1024 * 1024; // 5 MB — unchanged by T-BUG-O1 (uploads went to 10 MB, scan stays 5 MB)
 
 const SUPPORTED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic']);
+
+// Same sentence the mobile/web clients fall back to for a 413 (UX-40 photo
+// states) — sent as a plain string so an installed binary that still does
+// `new Error(data.error)` shows real copy instead of "[object Object]".
+const PHOTO_TOO_BIG_MESSAGE = 'That photo is too big. Choose another, or use a screenshot of it.';
+
+function isPayloadTooLargeError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    ('type' in err ? (err as { type?: unknown }).type === 'entity.too.large' : false)
+  );
+}
 
 export const scanRouter: Router = Router();
 
@@ -72,3 +85,14 @@ scanRouter.post(
     }
   }),
 );
+
+// T-BUG-O1 (O-18): same fix as uploads.router.ts — an oversize body's
+// PayloadTooLargeError bypasses asyncHandler entirely and previously fell
+// through to the global 500 handler's `{ error: { code, message } }` shape.
+scanRouter.use((err: unknown, _req: Request, res: Response, next: (err?: unknown) => void) => {
+  if (isPayloadTooLargeError(err)) {
+    res.status(413).json({ error: PHOTO_TOO_BIG_MESSAGE });
+    return;
+  }
+  next(err);
+});

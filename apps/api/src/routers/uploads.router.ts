@@ -13,11 +13,28 @@ import { resolveRequestAuth } from '../lib/session-auth.js';
 // client PUTs/POSTs the file bytes with its image/* content-type. Files land
 // in apps/api/uploads/ and are served statically at /uploads/* (see index.ts).
 
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
-// Per-user daily cap: without one, disk could be filled at 5 MB a request
-// (audit F-X-4-7). Generous for real use (recipe photos, avatars).
+// T-BUG-O1 (O-18, Q-22): 5 MB was tight enough that an unresized camera
+// photo routinely tripped it; raised to 10 MB. Keep in sync with the
+// mobile/web clients' own pre-send size check (UPLOAD_MAX_BYTES in
+// apps/mobile/src/lib/media-client.ts, apps/web/src/lib/upload-image.ts).
+const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+// Per-user daily cap: without one, disk could be filled at MAX_BYTES a
+// request (audit F-X-4-7). Generous for real use (recipe photos, avatars).
 const MAX_UPLOADS_PER_DAY = 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Same sentence the mobile/web clients fall back to for a 413 (UX-40 photo
+// states) — sent as a plain string so an installed binary that still does
+// `new Error(data.error)` shows real copy instead of "[object Object]".
+const PHOTO_TOO_BIG_MESSAGE = 'That photo is too big. Choose another, or use a screenshot of it.';
+
+function isPayloadTooLargeError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    ('type' in err ? (err as { type?: unknown }).type === 'entity.too.large' : false)
+  );
+}
 
 const EXT_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -79,3 +96,17 @@ uploadsRouter.post(
     res.status(201).json({ url });
   }),
 );
+
+// T-BUG-O1 (O-18): express.raw's PayloadTooLargeError is thrown before the
+// handler above runs, so it never hits asyncHandler and previously fell
+// through to the global 500 handler's `{ error: { code, message } }` shape —
+// the mobile client stringified that into the literal text "[object
+// Object]". Router-level error middleware answers it as a plain-string 413
+// instead; every other error still falls through to the global handler.
+uploadsRouter.use((err: unknown, _req: Request, res: Response, next: (err?: unknown) => void) => {
+  if (isPayloadTooLargeError(err)) {
+    res.status(413).json({ error: PHOTO_TOO_BIG_MESSAGE });
+    return;
+  }
+  next(err);
+});

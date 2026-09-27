@@ -170,16 +170,47 @@ src/
 
 #### HTTP Endpoints
 
-| Method | Path                        | Description                                                                                                                                         |
-| ------ | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/health`                   | Returns server status, env, version                                                                                                                 |
-| GET    | `/health/ready`             | Checks live DB connectivity                                                                                                                         |
-| GET    | `/api/recipe-images/stream` | SSE stream of recipe image status updates                                                                                                           |
-| POST   | `/api/uploads/image`        | Session-authenticated raw-body image upload (≤ 5 MB)                                                                                                |
-| GET    | `/uploads/*`                | Statically served uploaded images                                                                                                                   |
-| POST   | `/api/chat`                 | AI chef chat (P1-4) — session-authenticated, streams plain text; tool-capable (swapMeal, scaleRecipe)                                               |
-| POST   | `/api/scan-meal`            | Meal photo scan (F4) — session-authenticated raw-body image (≤ 5 MB) → vision macro estimate; premium-gated (403 `upgradeRequired`) + metered (429) |
-| \*     | `/trpc/*`                   | tRPC batch endpoint (all API calls)                                                                                                                 |
+| Method | Path                        | Description                                                                                                                                                                            |
+| ------ | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/health`                   | Returns server status, env, version                                                                                                                                                    |
+| GET    | `/health/ready`             | Checks live DB connectivity                                                                                                                                                            |
+| GET    | `/api/recipe-images/stream` | SSE stream of recipe image status updates                                                                                                                                              |
+| POST   | `/api/uploads/image`        | Session-authenticated raw-body image upload (≤ 10 MB — raised from 5 MB by T-BUG-O1/O-18/Q-22; see §4.1.1)                                                                             |
+| GET    | `/uploads/*`                | Statically served uploaded images                                                                                                                                                      |
+| POST   | `/api/chat`                 | AI chef chat (P1-4) — session-authenticated, streams plain text; tool-capable (swapMeal, scaleRecipe)                                                                                  |
+| POST   | `/api/scan-meal`            | Meal photo scan (F4) — session-authenticated raw-body image (≤ 5 MB, unchanged by T-BUG-O1; see §4.1.1) → vision macro estimate; premium-gated (403 `upgradeRequired`) + metered (429) |
+| \*     | `/trpc/*`                   | tRPC batch endpoint (all API calls)                                                                                                                                                    |
+
+#### 4.1.1 Upload/scan size limits and the 413 contract (T-BUG-O1, O-18)
+
+`/api/uploads/image` (`uploads.router.ts`) and `/api/scan-meal` (`scan.router.ts`)
+both parse the request with `express.raw({ type: 'image/*', limit })` — no
+multipart, the client sends the file's raw bytes with its `image/*`
+content-type. Limits: uploads **10 MB** (raised from 5 MB by Q-22 — an
+unresized camera photo routinely exceeded 5 MB), scan stays **5 MB**.
+
+An oversize body makes `express.raw` throw a `PayloadTooLargeError` (`err.type
+=== 'entity.too.large'`) **before** the route handler (and therefore
+`asyncHandler`) ever runs. Both routers now register their own router-level
+error middleware for this: it answers with **413** and a plain-string body —
+`{ error: "That photo is too big. Choose another, or use a screenshot of it." }`
+— the same sentence the mobile/web clients fall back to. Without it, the error
+fell through to the global handler's `{ error: { code, message } }` shape
+(§9), which the mobile client used to stringify into the literal text
+`"[object Object]"` (O-18). Every other router error keeps the existing
+`{ error: string }` shape (401 unauthenticated, 415 unsupported/invalid image
+type, 400 empty body, 429 daily upload cap).
+
+Clients (`apps/mobile/src/lib/media-client.ts`'s `uploadErrorFrom`,
+`apps/web/src/lib/upload-image.ts`, `apps/web/src/features/tracker/lib/scan-client.ts`)
+read both error shapes and never surface an object or a status code (UX-40,
+`business_flow.md` §9 recipe creation, §15): too big (413 or a body over the
+limit) · no connection (network failure) · signed out (401) · the route's own
+`{ error: string }` sentence when it wrote one for users (429 daily cap/scan
+quota, 503 AI outage, 500 unreadable photo) · otherwise something went wrong
+(the global handler's object shape, 400/415 transport checks, no body). They
+also pre-check the body size client-side, so an oversize photo never makes a
+network call at all.
 
 #### Middleware Chain (every request)
 
