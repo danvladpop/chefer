@@ -1571,12 +1571,30 @@ Finish → confirm if working sets are unticked → finish() → summary
   finishing with no connection shows the summary, not the browser's error page (F-GYM-5-1)
   Live PR badges and the summary's PRs compare against recent sessions AND the bootstrap's
   `olderBests` (all-time), so an old best is never re-celebrated (F-GYM-6-1)
-  Summary "Next time" reads the optimistically folded cached progressions;
-  Adjust → gym.progression.setOverride (online only)
+  Summary "Next time" reads the optimistically folded cached progressions, phrased as
+  "next time" not "today" (T-05.1 AC2); Adjust → gym.progression.setOverride (online only)
 Android back / ⌄ → minimise (the session stays resumable from Today); Discard is confirmed
-Remove one set → long-press its row (mobile, ConfirmSheet) / tap its number (web menu);
-  warm-ups and working sets alike, positions stay contiguous
+Remove any set (logged or not, mobile) → long-press its row or its ⋯ → removed immediately,
+  no confirm dialog: a snackbar offers `Undo` for 8 s, restoring the set at its position with
+  its values and tick (`restoreSet`, UX-05 A1/T-05.A1.2, PAT-16). Web: tap its number (menu),
+  Undo not yet wired there. Warm-ups and working sets alike; positions stay contiguous.
+  The exercise ⋯ menu's "Remove last set" removes the last unlogged set, or the last set once
+  every set is logged. **Not yet shipped:** swipe-to-remove (the menu path covers every
+  acceptance criterion on its own; see `mobile_parity_backlog.md`).
 ```
+
+### Progression: the working weight and "next time" (T-05.1, B-07/B-08)
+
+The engine's working weight `W` for a session is the **heaviest** completed working set, never
+the lightest — a deliberate back-off/drop set logged after the top set (lighter by more than one
+load step) is excluded from `W` and from the reps the miss/stall rules judge (`ENGINE_VERSION`
+2 → 3). A set logged heavier than the day's prescription, even on an otherwise incomplete
+exposure, is better evidence than the plan: the next target starts from what was actually lifted,
+not from "same targets" (the `INCOMPLETE` reason code now branches on `liftedHeavier`). A timed
+exercise with a degenerate range (no real duration was ever set, e.g. a misconfigured custom
+exercise) gets no load guess and no invented "Aim for 1 s" — a normal-range timed exercise
+(Farmer's Carry, a weighted plank once a load has been logged) is unaffected (T-05.A2.1, O-02;
+the fuller cardio shape is W2/W5's `T-42.x`).
 
 ### Supersets (G4-B)
 
