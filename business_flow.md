@@ -1665,6 +1665,17 @@ already fixed by an earlier task (T-00.9): every gym tab root
 open `/gym/settings`, which already has a real header (back button + title).
 This wave's remaining reachability work is the weekday-kind row above.
 
+### Never "0-week streak" (T-36.4)
+
+`streakWeeksLabel(current)` (`packages/utils/src/gym/weeks.ts`) is the one
+place a streak count becomes copy: a streak of 0 reads `Your streak starts
+when you hit this week's goal.` instead of the demoralising "0-week streak"
+that mobile's Gym Today, and web's today-view, workout summary and
+`ConsistencyGrid` all used to render verbatim (`${streak.current}-week
+streak`, no zero guard, three separate copies of the same bug). Mobile's
+`today-helpers.ts` `formatStreakLine()` layers the flex-week suffix on top of
+it; the web call sites call it directly.
+
 - The routine is a **rotation, not a calendar**: "next up" is the next day in
   sequence; missed days roll forward and are never marked failed.
 - Outbox entries are removed only on an `applied`/`stale` ack; a `rejected`

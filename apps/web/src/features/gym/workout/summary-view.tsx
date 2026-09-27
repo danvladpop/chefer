@@ -33,6 +33,7 @@ import {
   repBucket,
   stepDown,
   stepUp,
+  streakWeeksLabel,
 } from '@chefer/utils';
 import { captureGymEvent } from '../analytics';
 import { KIND_ARROW, KIND_TONE, prescriptionText, repsText } from '../shared/format';
@@ -135,7 +136,7 @@ export function SummaryView({ id }: { id: string }) {
               </p>
               <p className="flex items-center gap-1 text-xs text-gray-500">
                 <Flame className="h-3.5 w-3.5 shrink-0 text-[#944a00]" aria-hidden="true" />
-                {data.streak.current}-week streak
+                {streakWeeksLabel(data.streak.current)}
               </p>
             </div>
           </GymCard>

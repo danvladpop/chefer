@@ -61,6 +61,19 @@ export function weekdayDateLabel(localDate: string): string {
   return `${weekday} ${d.getUTCDate()} ${month}`;
 }
 
+/**
+ * "7-week streak" — or, for a streak of 0, `Your streak starts when you hit
+ * this week's goal.` instead of the demoralising "0-week streak" (T-36.4;
+ * shared by mobile `today-helpers.ts`'s `formatStreakLine` — which also
+ * layers a flex-week suffix on top — and web's today-view/summary-view/
+ * ConsistencyGrid, which all had the same bare `{streak.current}-week
+ * streak` bug).
+ */
+export function streakWeeksLabel(current: number): string {
+  if (current === 0) return "Your streak starts when you hit this week's goal.";
+  return current === 1 ? '1-week streak' : `${current}-week streak`;
+}
+
 /** Goal in force for a week: the latest entry whose fromWeek ≤ weekStart (earliest entry before any). */
 export function goalForWeek(goalHistory: GoalHistoryEntry[], weekStart: string): number {
   const sorted = [...goalHistory].sort((a, b) => a.fromWeek.localeCompare(b.fromWeek));
