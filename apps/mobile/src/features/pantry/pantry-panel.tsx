@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { DisplayCurrency } from '@chefer/types';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Button, Card, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { trpc } from '../../lib/trpc';
@@ -53,6 +53,11 @@ export function PantryPanel({
   const [quantity, setQuantity] = useState('');
   const [unit, setUnit] = useState('pcs');
   const [checkOpen, setCheckOpen] = useState(false);
+  // T-21.5 (CI-14, PAT-11): a no-op unless an ancestor KeyboardAwareScrollView
+  // provides it (the Shop tab does; a bare host doesn't need to).
+  const nameInputRef = useRef<TextInput>(null);
+  const quantityInputRef = useRef<TextInput>(null);
+  const scrollFieldIntoView = useScrollFieldIntoView();
 
   const invalidate = () => {
     void utils.pantry.list.invalidate();
@@ -130,9 +135,11 @@ export function PantryPanel({
         <View className="gap-2">
           <View className="flex-row gap-2">
             <TextInput
+              ref={nameInputRef}
               testID="pantry-add-name"
               value={name}
               onChangeText={setName}
+              onFocus={() => scrollFieldIntoView(nameInputRef.current)}
               onSubmitEditing={handleAdd}
               placeholder="Add something you have… e.g. rice"
               placeholderTextColor="#9ca3af"
@@ -140,9 +147,11 @@ export function PantryPanel({
               className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
             />
             <TextInput
+              ref={quantityInputRef}
               testID="pantry-add-qty"
               value={quantity}
               onChangeText={setQuantity}
+              onFocus={() => scrollFieldIntoView(quantityInputRef.current)}
               keyboardType="decimal-pad"
               placeholder="Qty"
               placeholderTextColor="#9ca3af"

@@ -1,8 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams } from 'expo-router';
-import { Button, Card, ErrorState, Screen, SegmentedControl, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  ErrorState,
+  KeyboardAwareScrollView,
+  Screen,
+  SegmentedControl,
+  Text,
+  useScrollFieldIntoView,
+} from '@chefer/ui-mobile';
 import {
   cn,
   formatMoney,
@@ -175,6 +184,10 @@ export default function ShoppingListScreen() {
     });
   };
 
+  // T-21.5 (CI-14, PAT-11): keeps "Add item" clear of the keyboard.
+  const addItemInputRef = useRef<TextInput>(null);
+  const scrollFieldIntoView = useScrollFieldIntoView();
+
   const handleAddItem = () => {
     const parsed = parseCustomItemInput(newItemText);
     if (!parsed.name || !weekList?.planId || addItemMutation.isPending) {
@@ -240,7 +253,10 @@ export default function ShoppingListScreen() {
 
   return (
     <Screen className="px-0">
-      <ScrollView contentContainerClassName="gap-4 px-4 py-4">
+      {/* T-21.5 (CI-14, PAT-11): keeps "Add item" clear of the keyboard;
+          `keyboardShouldPersistTaps="handled"` is already the component's
+          default. */}
+      <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 py-4">
         <ModeSwitch />
         {segments}
         {/* Header + week navigator */}
@@ -383,9 +399,11 @@ export default function ShoppingListScreen() {
             {/* Add your own item */}
             <View className="flex-row gap-2">
               <TextInput
+                ref={addItemInputRef}
                 testID="add-item-input"
                 value={newItemText}
                 onChangeText={setNewItemText}
+                onFocus={() => scrollFieldIntoView(addItemInputRef.current)}
                 onSubmitEditing={handleAddItem}
                 placeholder="Add item… e.g. 2 kg flour"
                 placeholderTextColor="#9ca3af"
@@ -546,7 +564,7 @@ export default function ShoppingListScreen() {
             })}
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }
