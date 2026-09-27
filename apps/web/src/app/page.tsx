@@ -4,19 +4,30 @@ import { redirect } from 'next/navigation';
 import { getSessionUser } from '@/features/auth/lib/session';
 
 export const metadata: Metadata = {
-  title: 'Chefer — Your AI-Powered Meal Planner',
+  title: 'Chefer — Gym Log & Meal Planner',
   description:
-    'A personal AI chef: weekly meal plans built around your goals, allergies and budget — with priced shopping lists, photo meal logging, recipe import and adaptive coaching. Free for now.',
+    'A free workout log that tells you what to lift next, plus a week of meal plans built around your goals, allergies and budget — with priced shopping lists, photo meal logging, recipe import and adaptive coaching. Free for now.',
 };
 
 // ─── Landing page ─────────────────────────────────────────────────────────────
 // Re-skinned to the in-app brand (serif headings, cream/brown warmth) and
 // expanded to tell the real story — the old page was generic SaaS blue and
 // mentioned none of the five premium features (review L-1/L-2/L-3).
+//
+// UX-25 (T-25.2, "only what works on the free tier" rule): the hero used to
+// say only "meal planner" — CI-16/CI-25 evidence: "meal planning? My friend
+// said it does workouts." It now leads with both free flows, matching the
+// mobile Welcome screen (T-25.1) copy.
 
 const BRAND = '#944a00';
 
 const FREE_FEATURES = [
+  {
+    icon: '🏋️',
+    title: 'A workout log that tells you what to lift next',
+    description:
+      'Pick a routine from a few questions, log sets in one tap with pre-filled weights, and get a "Next time" target that explains itself. Free, no daily streak required.',
+  },
   {
     icon: '🗓️',
     title: 'A week of meals in seconds',
@@ -142,14 +153,14 @@ export default async function HomePage() {
             </div>
 
             <h1 className="mb-5 font-serif text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-              Your personal chef,
+              Train and eat
               <br />
-              <span style={{ color: BRAND }}>powered by AI</span>
+              <span style={{ color: BRAND }}>to one plan</span>
             </h1>
 
             <p className="mx-auto mb-10 max-w-xl text-base text-gray-600 sm:text-lg">
-              A week of meals built around your goals, allergies and budget — with the shopping list
-              priced and ready. No spreadsheet, no nutritionist, no guesswork.
+              A free workout log that tells you what to lift next, and a week of meals built around
+              your goals, allergies and budget — with the shopping list priced and ready.
             </p>
 
             <div className="flex w-full flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
@@ -211,7 +222,7 @@ export default async function HomePage() {
           <div className="mx-auto max-w-5xl">
             <div className="mb-12 text-center">
               <h2 className="mb-3 font-serif text-3xl font-semibold tracking-tight">
-                Everything you need to eat well
+                Everything you need to train and eat well
               </h2>
               <p className="text-gray-600">Free. Not a trial — the free tier stays free.</p>
             </div>
