@@ -173,6 +173,17 @@ const envSchema = z.object({
 
   // Unsplash (optional — ingredient images fall back to category images without this)
   UNSPLASH_ACCESS_KEY: z.string().optional(),
+
+  // Grocery store search (lib/grocery-ai): mock is enabled by default so
+  // local dev never calls the real store-search AI. T-BUG-X6: this used to
+  // be a direct `process.env['GROCERY_AI_MOCK_ENABLED']` read in
+  // lib/grocery-ai/index.ts (the one exception to "env vars go through
+  // env.ts") — preserved semantics: only the literal "false" disables the
+  // mock, same as before.
+  GROCERY_AI_MOCK_ENABLED: z
+    .string()
+    .default('true')
+    .transform((val) => val !== 'false'),
 });
 
 type EnvSchema = z.infer<typeof envSchema>;
