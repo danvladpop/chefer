@@ -8,10 +8,27 @@ appId: dev.chefer.app.dev
     visible:
       id: 'home-title'
     timeout: 30000
-- assertVisible:
-    id: 'nutrition-summary'
-- assertVisible:
-    id: 'nutrition-status'
+# B-31 interim (T-00.12, UX-04 AC4): the ring, weight card and profile nudge
+# render only when the account has a goal or tracks (≥ 3 of the last 7 days).
+# The seeded alice has neither, but a dev DB may have given her a goal — check
+# whichever branch applies instead of assuming one.
+- runFlow:
+    when:
+      visible:
+        id: 'nutrition-summary'
+    commands:
+      - assertVisible:
+          id: 'nutrition-status'
+- runFlow:
+    when:
+      notVisible:
+        id: 'nutrition-summary'
+    commands:
+      - assertNotVisible:
+          id: 'calorie-ring'
+      - assertNotVisible:
+          id: 'profile-nudge'
+# Quick add stays available to everyone.
 - assertVisible:
     id: 'today-quick-add'
 
