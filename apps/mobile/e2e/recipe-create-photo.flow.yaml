@@ -1,8 +1,9 @@
-# T-BUG-O1 (O-18, UX-21 AC 11): attaching a photo to a new recipe must never
-# show "[object Object]" or a bare status code. A photo still over the 10 MB
-# uploads limit after the picker's quality-0.5 re-encode shows the UX-40
-# too-big sentence; a > 5 MB photo (a 500 before W0-D) and a screenshot-sized
-# one upload normally.
+# T-BUG-O1 / T-BUG-O1.2 (O-18, UX-21 AC 11): attaching a photo to a new recipe
+# never shows "[object Object]" or a bare status code, and every photo size
+# uploads — the app shrinks it on the device (long edge ≤ 2048 px, JPEG 0.8)
+# first. A 36 MP photo (the too-big sentence before T-BUG-O1.2), a > 5 MB one
+# (a 500 before W0-D) and a screenshot all end with the photo attached. The
+# too-big sentence itself is covered by the unit, contract and web tests.
 #
 # Fixtures (e2e/fixtures/, git-ignored): run
 # `e2e/fixtures/make-photo-fixtures.sh` before EVERY run of this flow on its
@@ -36,17 +37,19 @@ appId: dev.chefer.app.dev
       id: 'recipe-form-title'
     timeout: 15000
 
-# ── Too big even after re-encoding: the sentence, never [object Object] or a code ──
+# ── 36 MP, ~20 MB: shrunk on the device, uploads ──
 - addMedia:
     - 'fixtures/oversize-photo.jpg'
 - runFlow: common/pick-latest-photo.yaml
 # The result renders under the button, which can sit below the fold (Android).
 - scrollUntilVisible:
-    element: 'That photo is too big. Choose another, or use a screenshot of it.'
+    element: 'Remove photo'
     direction: DOWN
-    timeout: 30000
+    timeout: 60000
+- assertNotVisible: 'That photo is too big.*'
 - assertNotVisible: '.*\[object Object\].*'
 - assertNotVisible: '.*\b(413|500)\b.*'
+- tapOn: 'Remove photo'
 
 # ── Over the old 5 MB limit: uploads ──
 - addMedia:

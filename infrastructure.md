@@ -212,6 +212,16 @@ quota, 503 AI outage, 500 unreadable photo) · otherwise something went wrong
 also pre-check the body size client-side, so an oversize photo never makes a
 network call at all.
 
+**On-device resize (T-BUG-O1.2, mobile).** Before the size check, the mobile app
+shrinks every picked photo with `expo-image-manipulator`: long edge ≤ 2048 px,
+JPEG 0.8 (`apps/mobile/src/lib/prepare-photo.ts`) — a 12–48 MP camera photo
+lands at ~0.5–2 MB, so the limits above are a backstop, not a normal outcome.
+The module is native: binaries without it (runtime fingerprints before this
+change) keep the older path — picker re-encode at quality 0.5 + the pre-check —
+because `canResizeOnDevice()` looks the module up with
+`requireOptionalNativeModule` before the picker opens and only then `require`s
+it. The web app still uploads the file as picked.
+
 #### Middleware Chain (every request)
 
 1. `helmet` — security headers (CORP relaxed to `cross-origin` so `/uploads` images render on the web origin)
@@ -397,8 +407,9 @@ API, Maestro E2E in `e2e/`).
 
 - **Stack:** expo-router (file-based, deep-link scheme `chefer://`; the dev
   variant uses `chefer-dev://`), expo-dev-client, expo-updates (EAS Update),
-  expo-secure-store (session token), tRPC + TanStack Query + superjson at the
-  same versions as web
+  expo-secure-store (session token), expo-image-picker + expo-image-manipulator
+  (photos are shrunk on the device before upload/scan — `src/lib/prepare-photo.ts`,
+  T-BUG-O1.2), tRPC + TanStack Query + superjson at the same versions as web
 - **Monorepo:** `metro.config.js` watches the workspace root so `@chefer/types`,
   `@chefer/utils`, `@chefer/tokens` and `@chefer/ui-mobile` (raw-TS exports) resolve
   (Jest maps them to source in `jest.config.js`); `@chefer/ui` and
