@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { setDisplayPreferencesInputSchema, setOnboardingIntentInputSchema } from '@chefer/types';
 import {
@@ -42,6 +43,35 @@ const safetySchema = z.object({
   dislikedIngredients: z.array(z.string().max(60)).max(30),
 });
 
+// T-BUG-X4 (was 43): `setup`'s safety arrays were uncapped, unlike the same
+// fields on `updateSafety` (20/20/30 above). The cap is enforced only for
+// clients that say `x-chefer-api-level >= 1` — an older client (level 0,
+// §2.8) is silently truncated instead of rejected, so an installed binary
+// that happens to send more than 20/30 entries keeps working.
+const SAFETY_ARRAY_CAPS = {
+  dietaryRestrictions: 20,
+  allergies: 20,
+  dislikedIngredients: 30,
+} as const;
+
+function capSetupSafetyArrays<T extends Record<keyof typeof SAFETY_ARRAY_CAPS, string[]>>(
+  input: T,
+  clientApiLevel: number,
+): T {
+  for (const key of Object.keys(SAFETY_ARRAY_CAPS) as (keyof typeof SAFETY_ARRAY_CAPS)[]) {
+    const cap = SAFETY_ARRAY_CAPS[key];
+    if (input[key].length <= cap) continue;
+    if (clientApiLevel >= 1) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `${key} can have at most ${cap} entries.`,
+      });
+    }
+    input[key] = input[key].slice(0, cap);
+  }
+  return input;
+}
+
 const targetsSchema = setupSchema
   .omit({ dietaryRestrictions: true, allergies: true, dislikedIngredients: true })
   .partial()
@@ -68,7 +98,8 @@ export const preferencesRouter = router({
   // users use the curated plans and are prompted to upgrade. Reads stay open
   // so the locked UI can still render existing state.
   setup: premiumProcedure.input(setupSchema).mutation(async ({ input, ctx }) => {
-    await preferencesService.setup(ctx.user.id, input);
+    const capped = capSetupSafetyArrays(input, ctx.clientApiLevel);
+    await preferencesService.setup(ctx.user.id, capped);
     return { success: true as const };
   }),
 
@@ -111,7 +142,11 @@ export const preferencesRouter = router({
   setAutoPlanWeekly: protectedProcedure
     .input(z.object({ enabled: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
-      return preferencesService.setAutoPlanWeekly(ctx.user.id, input.enabled);
+      return preferencesService.setAutoPlanWeekly(
+        ctx.user.id,
+        input.enabled,
+        ctx.isMobileClient ? 'mobile' : 'web',
+      );
     }),
 
   /**

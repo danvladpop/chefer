@@ -252,7 +252,7 @@ export class TargetsService {
     return targetChangeRepository.findUnresolvedByUser(userId);
   }
 
-  /** @deprecated kept for the wave-0 `targets.myUnresolvedChanges` alias. */
+  /** Back-compat name for the wave-0 `targets.myUnresolvedChanges` alias — not deprecated, still routed. */
   async listMyUnresolvedChanges(userId: string): Promise<TargetChange[]> {
     return this.changes(userId);
   }
@@ -270,7 +270,7 @@ export class TargetsService {
     input: { id: string; keep: boolean },
   ): Promise<{ resolved: true }> {
     const change = await targetChangeRepository.findById(input.id);
-    if (!change || change.userId !== userId) {
+    if (change?.userId !== userId) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Target change not found.' });
     }
     if (change.resolvedAt) {
@@ -324,7 +324,7 @@ export class TargetsService {
    */
   private async applyCoachProposal(userId: string): Promise<void> {
     const review = await chefReviewRepository.findLatest(userId);
-    if (!review || review.proposedAdjustmentKcal == null || review.proposalResolvedAt) return;
+    if (review?.proposedAdjustmentKcal == null || review.proposalResolvedAt) return;
     const profile = await chefProfileRepository.findByUserId(userId);
     await chefProfileRepository.upsert(userId, {
       targetAdjustmentKcal: (profile?.targetAdjustmentKcal ?? 0) + review.proposedAdjustmentKcal,

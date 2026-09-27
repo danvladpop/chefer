@@ -20,6 +20,7 @@ import type {
 } from '@chefer/types';
 import { lifterProteinGPerKg, toDisplayCurrency, withLifterProteinDetailed } from '@chefer/utils';
 import { derivedServingSize, householdService } from '../household/household.service.js';
+import { consentService } from '../privacy/consent.service.js';
 
 // ─── Activity multipliers (Mifflin-St Jeor) ──────────────────────────────────
 
@@ -388,6 +389,8 @@ export interface GymUnitSync {
 
 export interface DisplayPreferencesDto {
   preferredUnits: 'METRIC' | 'IMPERIAL';
+  /** IANA time zone name (§2.12, T-21.1), or null when never set. Additive. */
+  timeZone: string | null;
   currency: DisplayCurrency;
 }
 
@@ -449,10 +452,12 @@ export class PreferencesService {
   }
 
   /**
-   * Unit system + currency — free for every tier (audit F-DASH-3-2: units
-   * used to save only through the premium updateTargets, so free users could
-   * not change them at all). A unit change also moves the gym profile's
-   * KG/LB unit so Food and Gym never disagree.
+   * Unit system + currency + time zone — free for every tier (audit
+   * F-DASH-3-2: units used to save only through the premium updateTargets, so
+   * free users could not change them at all). A unit change also moves the
+   * gym profile's KG/LB unit so Food and Gym never disagree. `timeZone`
+   * (§2.12, T-21.1) is the IANA name server-initiated work (the weekly
+   * worker, the quiet-days nudge text) reads for "what day is it for them".
    */
   async setDisplayPreferences(
     userId: string,
@@ -461,6 +466,7 @@ export class PreferencesService {
     const data: UpsertChefProfileData = {};
     if (input.preferredUnits !== undefined) data.preferredUnits = input.preferredUnits;
     if (input.currency !== undefined) data.deliveryCurrency = input.currency;
+    if (input.timeZone !== undefined) data.timeZone = input.timeZone;
     const profile = await this.chefProfileRepo.upsert(userId, data);
     if (input.preferredUnits !== undefined) {
       await this.syncGymUnit(userId, input.preferredUnits);
@@ -468,6 +474,7 @@ export class PreferencesService {
     return {
       preferredUnits: profile.preferredUnits,
       currency: toDisplayCurrency(profile.deliveryCurrency),
+      timeZone: profile.timeZone ?? null,
     };
   }
 
@@ -504,8 +511,19 @@ export class PreferencesService {
     };
   }
 
-  async setAutoPlanWeekly(userId: string, enabled: boolean): Promise<{ autoPlanWeekly: boolean }> {
+  /**
+   * §2.13, T-39.2: every consent event goes through `ConsentService.record`
+   * (L-DATA's stable API, merged onto this branch) so `AUTO_PLAN` is never
+   * missing from the append-only log. Logged AFTER the profile write
+   * succeeds — a failed toggle must not leave a phantom consent event.
+   */
+  async setAutoPlanWeekly(
+    userId: string,
+    enabled: boolean,
+    source: 'web' | 'mobile' = 'web',
+  ): Promise<{ autoPlanWeekly: boolean }> {
     const profile = await this.chefProfileRepo.upsert(userId, { autoPlanWeekly: enabled });
+    await consentService.record({ userId, kind: 'AUTO_PLAN', granted: enabled, source });
     return { autoPlanWeekly: profile.autoPlanWeekly };
   }
 

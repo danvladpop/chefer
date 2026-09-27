@@ -14,7 +14,7 @@ import { lifterProteinGPerKg } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { computeBmrTdee, resolveDailyTargets } from '../preferences/preferences.service.js';
-import { targetsService, TargetsService } from '../targets/targets.service.js';
+import { targetsService, type TargetsService } from '../targets/targets.service.js';
 import {
   trainingNutritionService,
   type TrainingNutritionService,

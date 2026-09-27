@@ -513,7 +513,7 @@ describe('PreferencesService.setDisplayPreferences', () => {
       preferredUnits: 'IMPERIAL',
       deliveryCurrency: 'USD',
     });
-    expect(result).toEqual({ preferredUnits: 'IMPERIAL', currency: 'USD' });
+    expect(result).toEqual({ preferredUnits: 'IMPERIAL', currency: 'USD', timeZone: null });
   });
 
   it('moves the gym unit when the unit system changes', async () => {
@@ -534,7 +534,7 @@ describe('PreferencesService.setDisplayPreferences', () => {
     const { service } = build(vi.fn().mockRejectedValue(new Error('db down')));
     await expect(
       service.setDisplayPreferences('user1', { preferredUnits: 'METRIC' }),
-    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR' });
+    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR', timeZone: null });
     error.mockRestore();
   });
 
@@ -549,7 +549,7 @@ describe('PreferencesService.setDisplayPreferences', () => {
     const service = new PreferencesService(chefProfileRepo, makeDietaryPreferencesRepo());
     await expect(
       service.setDisplayPreferences('user1', { preferredUnits: 'METRIC' }),
-    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR' });
+    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR', timeZone: null });
   });
 
   it('syncs the gym when old apps change units through update()', async () => {

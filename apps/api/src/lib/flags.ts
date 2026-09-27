@@ -7,8 +7,14 @@ import { env } from './env.js';
 // is an env change + API restart, no deploy (§2.9).
 
 function parseFeatureFlags(raw: string): FeatureFlags {
+  // Defensive: `env.FEATURE_FLAGS` is a required, defaulted string in
+  // lib/env.ts, but a test file that mocks `../lib/env.js` with a partial
+  // object (omitting FEATURE_FLAGS) would otherwise crash any module that
+  // imports this one transitively (§2.9, T-35.4 exposed this importing
+  // targets.service.ts from coach.service.ts) — never throw over a missing
+  // flags string, just treat it as "no flags enabled".
   const enabled = new Set(
-    raw
+    (raw ?? '')
       .split(',')
       .map((key) => key.trim())
       .filter((key) => key.length > 0),
