@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { EXERCISE_BY_ID, EXERCISE_CATALOG } from './exercise-catalog';
+import { EXERCISE_BY_ID, EXERCISE_CATALOG, HIDDEN_EXERCISE_IMAGE_IDS } from './exercise-catalog';
 import { EXERCISE_CONTENT } from './exercise-content';
 import { workoutSessionDocSchema, type WorkoutSessionDoc } from './schemas';
 import { EQUIPMENT_ACCESS_SETS, EQUIPMENT_SWAPS, PROGRAM_TEMPLATES } from './templates';
@@ -104,7 +104,9 @@ describe('home variants (audit F-GYM-2-1)', () => {
   ];
 
   it('are all in the catalog with full coaching content', () => {
-    expect(EXERCISE_CATALOG).toHaveLength(77);
+    // 77 + 2 library-staple additions (T-05.10, UX-05 A5): incline-barbell-
+    // bench-press and back-extension.
+    expect(EXERCISE_CATALOG).toHaveLength(79);
     for (const id of HOME_VARIANTS) {
       const e = EXERCISE_BY_ID.get(id);
       expect(e, id).toBeDefined();
@@ -182,6 +184,49 @@ describe('home variants (audit F-GYM-2-1)', () => {
         owner.set(label, e.id);
       }
     }
+  });
+});
+
+describe('library staples (T-05.10, UX-05 A5, AC27-29)', () => {
+  // Mirrors the substring-over-name-or-aliases search every client uses
+  // (mobile: filterExercises in apps/mobile/src/features/gym/library/
+  // exercise-picker.tsx; web: its ExercisePickerSheet/ExerciseCard
+  // equivalent) without importing app code from this package.
+  function searchable(term: string): string[] {
+    const q = term.toLowerCase();
+    return EXERCISE_CATALOG.filter(
+      (e) => e.name.toLowerCase().includes(q) || e.aliases.some((a) => a.toLowerCase().includes(q)),
+    ).map((e) => e.id);
+  }
+
+  it('finds Back Extension by "hyper", "back ext" and "roman chair"', () => {
+    for (const term of ['hyper', 'back ext', 'roman chair']) {
+      expect(searchable(term), term).toContain('back-extension');
+    }
+  });
+
+  it('finds Incline Barbell Bench Press by "incline bench"', () => {
+    expect(searchable('incline bench')).toContain('incline-barbell-bench-press');
+  });
+
+  it('Back Extension is BODYWEIGHT_PLUS so "+ Add weight" can load a held plate (Q-28)', () => {
+    expect(EXERCISE_BY_ID.get('back-extension')?.loadType).toBe('BODYWEIGHT_PLUS');
+  });
+
+  it('HIDDEN_EXERCISE_IMAGE_IDS only names real catalog slugs that actually have a vendored photo', () => {
+    for (const id of HIDDEN_EXERCISE_IMAGE_IDS) {
+      const e = EXERCISE_BY_ID.get(id);
+      expect(e, id).toBeDefined();
+      expect(e?.freeExerciseDbId, id).not.toBeNull();
+    }
+  });
+
+  it('Incline Barbell Bench Press shares the incline-press swap group, sorted before the dumbbell version', () => {
+    const barbell = EXERCISE_BY_ID.get('incline-barbell-bench-press');
+    const dumbbell = EXERCISE_BY_ID.get('incline-dumbbell-press');
+    expect(barbell?.swapGroup).toBe('incline-press');
+    expect(dumbbell?.swapGroup).toBe('incline-press');
+    expect(barbell?.name.localeCompare(dumbbell?.name ?? '')).toBeLessThan(0);
   });
 });
 
