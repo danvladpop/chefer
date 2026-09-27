@@ -13,6 +13,10 @@ vi.mock('@chefer/database', async (importOriginal) => ({
   favouriteRecipeRepository: { findByUserId: vi.fn().mockResolvedValue([]) },
   mealRatingRepository: { findSignalsForUser: vi.fn().mockResolvedValue([]) },
   dailyLogRepository: { findByDate: vi.fn().mockResolvedValue(null), findLastN: vi.fn() },
+  // A set goal makes the summary compute targets, which reads the gym profile
+  // and latest weight — mocked so the test never touches a real database (CI).
+  gymProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
+  weightEntryRepository: { findLatest: vi.fn().mockResolvedValue(null) },
   MealPlanOrigin: { WEEKLY_AUTO: 'WEEKLY_AUTO' },
 }));
 
