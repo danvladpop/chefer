@@ -531,6 +531,43 @@ daily-cap reservation now logs `AiCallType.CURATED_PLAN` instead of
 `MEAL_PLAN` — the cap still works the same way, but a curated week no longer
 counts toward "AI usage" totals.
 
+**Mobile UI for the above (T-07.3/T-07.5, T-08.1–T-08.6, T-08.10, T-10.4 —
+persona-study wave 1, `feat/ux-now/plan-mobile`).** `app/(food)/meal-plan.tsx`
+
+- new `src/features/meal-plan/how-you-cook-form.tsx` /
+  `plan-settings-sheet.tsx` now surface all of the above:
+
+* **Default week (bug B-13/CI-13).** Plan and Shop both default to next
+  week from Friday 15:00 to Sunday 23:59 local, otherwise this week
+  (`defaultWeekOffset`, `@chefer/utils/week-default.ts`) — a dismissible
+  line explains the weekend default. Both screens' Monday-of-week math is
+  the same shared `getWeekStartDate`, replacing two independent copies.
+* **Plan settings.** The empty week names the shape (`planShapeSummary`/
+  `planButtonLabel`) and a header "Plan settings" button opens the shared
+  `HowYouCookForm` (also used by the settings sheet); saving with an
+  existing plan for the week routes into the regenerate confirm below,
+  never regenerating silently.
+* **Regenerate is visible, asks first, and is undoable.** A `Regenerate`
+  button sits under the day chips; it opens a `ConfirmSheet` with a "Keep
+  the N meals you chose" switch (shown only when pinned picks exist), and
+  the success snackbar offers `Undo` → `mealPlan.restore(previousPlanId)`.
+* **Pin/unpin.** A bookmark toggle next to each meal's Replace action calls
+  `mealPlan.setSlotPinned`; a pinned slot shows a "Your pick" badge
+  (`plan-meal-card.tsx`).
+* **Undoable Replace/AI swap.** Both show a "Swapped to X" snackbar with
+  `Undo` back to `previousRecipeId`.
+* **Replace picker filter (bug B-50).** `recipe-picker-sheet.tsx` narrows
+  candidates with `filterReplaceCandidates` (`@chefer/utils/recipe-
+picker.ts`) — a pure stand-in for the server-side, safety-aware
+  `recipe-access.ts` version another lane is shipping (same signature;
+  swapped in at integration) — so the meal being replaced is never
+  re-offered and the list is filtered to the slot's type.
+* **Pool-exhaustion cause (T-10.4).** Reads `error.data.poolExhausted`
+  defensively (not wired through `trpc.ts` on this branch yet), falling
+  back to today's generic message.
+* **Web parity:** none of the above has landed on web yet — see
+  `mobile_parity_backlog.md` (2026-09-28 rows).
+
 ### Weekly auto-generation (PW-5; free curated weeks since P2-5)
 
 ```
@@ -648,6 +685,15 @@ whole week — ~97 items / ~€169 for one person (audit F-PM-3).
 The planner's "≈ €X this week" chip (plan-cost.ts) prices the SAME aggregated
 lines, so it equals the list total unless the list adds custom items or
 subtracts pantry stock (F-SHOP-1-3).
+
+**No single precise number (UX-08 §7, bug B-33, persona-study wave 1,
+mobile.)** Mobile's Plan and Shop totals now render as a rounded range
+(`formatPriceRange`/`priceRange`, `@chefer/utils/price-range.ts`, ±15% of the
+EUR point estimate — tuned in one place, pending V5) instead of a single
+number, and the pantry "Saved ~X this week" chip on Shop is removed until
+savings can be itemised (`PantryGhostBanner`'s free-tier teaser is unrelated
+and stays). Web still shows a single-number total and the savings chip — see
+`mobile_parity_backlog.md` (2026-09-28).
 
 Pantry coverage (F-PAN-1-1/1-2): a line the user has ticked this week is
 never "have it" (ticking seeds the pantry, which used to flip the same line
