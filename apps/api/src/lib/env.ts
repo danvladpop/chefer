@@ -198,6 +198,12 @@ const envSchema = z.object({
     .string()
     .default('true')
     .transform((val) => val !== 'false'),
+
+  // PostHog admin API (T-12.5): deletes a person's linked analytics events on
+  // account deletion. Both optional — absent = skip + log (most deployments,
+  // and any account that never linked, never need this).
+  POSTHOG_PERSONAL_API_KEY: z.preprocess(emptyAsUnset, z.string().optional()),
+  POSTHOG_PROJECT_ID: z.preprocess(emptyAsUnset, z.string().optional()),
 });
 
 type EnvSchema = z.infer<typeof envSchema>;

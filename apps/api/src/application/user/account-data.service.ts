@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { consentEventRepository, prisma } from '@chefer/database';
+import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
 
@@ -154,12 +155,16 @@ export async function deleteAccount(userId: string): Promise<void> {
   if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
   const plans = await prisma.mealPlan.findMany({ where: { userId }, select: { id: true } });
   const planIds = plans.map((p) => p.id);
-  const [ownRecipes, ownIngredients] = await Promise.all([
+  const [ownRecipes, ownIngredients, linkedAnalytics] = await Promise.all([
     prisma.recipe.findMany({
       where: { creatorId: userId, source: 'MANUAL' },
       select: { imageUrl: true },
     }),
     prisma.ingredientPrice.findMany({ where: { creatorId: userId }, select: { imageUrl: true } }),
+    // T-12.5: read BEFORE the transaction — the ConsentEvent row cascades
+    // away with the user row, so this is the last chance to know whether
+    // this account ever linked analytics to itself.
+    consentEventRepository.findLatestByKind(userId, 'ANALYTICS_LINKED'),
   ]);
 
   await prisma.$transaction([
@@ -180,4 +185,11 @@ export async function deleteAccount(userId: string): Promise<void> {
     ...ownRecipes.map((r) => r.imageUrl),
     ...ownIngredients.map((i) => i.imageUrl),
   ]);
+
+  // T-12.5: best-effort, after the commit — never blocks or reverts the
+  // account deletion itself. A no-op (logged) when never linked, or when
+  // POSTHOG_PERSONAL_API_KEY/POSTHOG_PROJECT_ID aren't configured.
+  if (linkedAnalytics?.granted) {
+    await posthogAdmin.deletePerson(userId);
+  }
 }

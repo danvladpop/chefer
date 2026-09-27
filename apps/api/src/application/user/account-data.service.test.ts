@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { consentEventRepository, prisma } from '@chefer/database';
+import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
 import { deleteAccount, exportAccountData } from './account-data.service.js';
@@ -19,7 +20,10 @@ vi.mock('@chefer/database', async (importOriginal) => {
   const emptyFindMany = () => vi.fn(async () => []);
   return {
     ...mod,
-    consentEventRepository: { findAllByUser: vi.fn(async () => []) },
+    consentEventRepository: {
+      findAllByUser: vi.fn(async () => []),
+      findLatestByKind: vi.fn(async () => null),
+    },
     prisma: {
       user: { findUnique: vi.fn(), delete: vi.fn(op('user.delete')) },
       mealPlan: { findMany: vi.fn(async () => []) },
@@ -70,6 +74,10 @@ vi.mock('../notifications/email-preferences.service.js', () => ({
   emailPreferencesService: { get: vi.fn() },
 }));
 
+vi.mock('../../infrastructure/analytics/posthog-admin.js', () => ({
+  posthogAdmin: { deletePerson: vi.fn(async () => undefined) },
+}));
+
 type Op = { op: string; args: { where: Record<string, unknown> } };
 
 beforeEach(() => {
@@ -79,6 +87,8 @@ beforeEach(() => {
   vi.mocked(prisma.$transaction)
     .mockReset()
     .mockResolvedValue([] as never);
+  vi.mocked(consentEventRepository.findLatestByKind).mockReset().mockResolvedValue(null);
+  vi.mocked(posthogAdmin.deletePerson).mockClear();
 });
 
 function transactionOps(): Op[] {
@@ -162,6 +172,64 @@ describe('deleteAccount', () => {
       null,
       'https://x.dev/uploads/i1.png',
     ]);
+  });
+
+  describe('T-12.5: deletion of linked analytics events', () => {
+    it('deletes the PostHog person when the account ever linked analytics', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: 'a@test.dev' } as never);
+      vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+      vi.mocked(consentEventRepository.findLatestByKind).mockResolvedValue({
+        granted: true,
+      } as never);
+
+      await deleteAccount('u1');
+
+      expect(consentEventRepository.findLatestByKind).toHaveBeenCalledWith(
+        'u1',
+        'ANALYTICS_LINKED',
+      );
+      expect(posthogAdmin.deletePerson).toHaveBeenCalledWith('u1');
+    });
+
+    it('skips the PostHog call when the account never linked', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: 'a@test.dev' } as never);
+      vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+      vi.mocked(consentEventRepository.findLatestByKind).mockResolvedValue(null);
+
+      await deleteAccount('u1');
+
+      expect(posthogAdmin.deletePerson).not.toHaveBeenCalled();
+    });
+
+    it('skips the PostHog call when linking was later revoked', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: 'a@test.dev' } as never);
+      vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+      vi.mocked(consentEventRepository.findLatestByKind).mockResolvedValue({
+        granted: false,
+      } as never);
+
+      await deleteAccount('u1');
+
+      expect(posthogAdmin.deletePerson).not.toHaveBeenCalled();
+    });
+
+    it('reads the consent state BEFORE the transaction (the row cascades away with the user)', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: 'a@test.dev' } as never);
+      vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+      const callOrder: string[] = [];
+      vi.mocked(consentEventRepository.findLatestByKind).mockImplementation(async () => {
+        callOrder.push('read-consent');
+        return { granted: true } as never;
+      });
+      vi.mocked(prisma.$transaction).mockImplementation(async (ops: unknown) => {
+        callOrder.push('transaction');
+        return Promise.all(ops as never[]);
+      });
+
+      await deleteAccount('u1');
+
+      expect(callOrder).toEqual(['read-consent', 'transaction']);
+    });
   });
 });
 

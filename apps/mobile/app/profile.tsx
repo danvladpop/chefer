@@ -62,7 +62,11 @@ function HouseholdRow() {
       </View>
       <View className="min-w-0 flex-1">
         <Text className="font-semibold text-gray-900">Your household</Text>
-        <Text numberOfLines={1} variant="muted" className="text-sm">
+        {/* T-21.13: no numberOfLines cap — a household of several names (or
+            the same names at a large Dynamic Type size) needs more than one
+            line; the row's min-h-11 is a floor, not a fixed height, so it
+            grows to fit instead of clipping the names. */}
+        <Text variant="muted" className="text-sm">
           {summary}
         </Text>
       </View>
