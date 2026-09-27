@@ -196,6 +196,46 @@ describe('routineDraftReducer — exercises', () => {
     expect(d.days[0]?.exercises.map((e) => e.key)).toEqual(['e2']);
   });
 
+  // UX-05 A4 (T-05.3): Remove has no confirm dialog — a snackbar `Undo`
+  // restores the exact row (values, position), mirroring the workout
+  // reducer's `restoreSet`.
+  it('restoreExercise undoes a removeExercise at the same position', () => {
+    let d = routineDraftReducer(draft(), {
+      type: 'addExercise',
+      dayKey: 'd1',
+      newExerciseKey: 'e2',
+      exercise: isolationCurl,
+    });
+    const before = d.days[0]?.exercises.find((e) => e.key === 'e1');
+    expect(before).toBeDefined();
+
+    d = routineDraftReducer(d, { type: 'removeExercise', dayKey: 'd1', exerciseKey: 'e1' });
+    expect(d.days[0]?.exercises.map((e) => e.key)).toEqual(['e2']);
+
+    d = routineDraftReducer(d, {
+      type: 'restoreExercise',
+      dayKey: 'd1',
+      index: 0,
+      exercise: before as NonNullable<typeof before>,
+    });
+    expect(d.days[0]?.exercises.map((e) => e.key)).toEqual(['e1', 'e2']);
+    expect(d.days[0]?.exercises[0]).toEqual(before);
+  });
+
+  it('restoreExercise is a no-op if the key already exists (a stale/duplicate Undo tap)', () => {
+    const d0 = draft();
+    const existing = d0.days[0]?.exercises[0] as NonNullable<
+      RoutineDraft['days'][number]['exercises'][number]
+    >;
+    const d = routineDraftReducer(d0, {
+      type: 'restoreExercise',
+      dayKey: 'd1',
+      index: 0,
+      exercise: existing,
+    });
+    expect(d).toEqual(d0);
+  });
+
   it('clamps sets to [1,10]', () => {
     let d = routineDraftReducer(draft(), {
       type: 'setSets',

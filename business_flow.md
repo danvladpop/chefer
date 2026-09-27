@@ -1867,16 +1867,38 @@ streaks, no red "missed" markers.
 - **Tappable exercise names (T-05.5, mobile):** an exercise name is a real
   link to `/gym/exercise/[id]` (`ExerciseNameLink`,
   `apps/mobile/src/features/gym/components/exercise-name-link.tsx`) in Gym
-  Today's "Next up" card, the setup wizard's program preview, and the
-  post-workout summary's PR list and "Next time" rows — so a name the user
-  doesn't recognise is never a dead end. Not yet done: the routine editor's
-  exercise row (owned by the gym-log sub-lane — its whole row already means
-  "expand"; the name needs its own tap target split out first) and web
-  parity (`mobile_parity_backlog.md` reverse row); the glossary
+  Today's "Next up" card, the setup wizard's program preview, the
+  post-workout summary's PR list and "Next time" rows, and now the routine
+  editor's exercise cards (`day-editor.tsx`'s `ExerciseRow`, T-05.5 follow-up
+  — its name is its own tap target, a sibling of the expand/collapse
+  Pressable, never nested inside it) — so a name the user doesn't recognise
+  is never a dead end. Not yet done: web parity for the tappable link itself
+  (`mobile_parity_backlog.md` reverse row — the web routine editor's compact
+  card, below, shows the full name but not yet as a link); the glossary
   (`packages/utils/src/glossary.ts`) gained gym terms (`amrap`,
   `workingSet`, `warmUpSet`, `tempo`, `calibrating`) but nothing in a gym
   screen renders a `GlossaryTerm` for them yet, and "first-sight" long-form
   copy tracking in the gym offline KV is unbuilt.
+- **Routine-editor card, redesigned (T-05.3, UX-05 A4, O-23):** exercise
+  cards are compact by default (`{n} sets · {min}–{max} reps · {rest} s
+rest`) and expand **one at a time** (opening another collapses the first).
+  The expanded card is a labelled two-column grid (`Sets`/`Rest between
+sets`, `Reps from`/`to`, the grouped `ValueStepper`) with `Target effort
+(RIR)` and `Superset with next` tucked under `More ▸`. Move up/down, Swap
+  and Remove live in a per-row `⋯` sheet; the expanded card also shows
+  `Swap exercise`/`Remove` as text buttons. Removing a row is immediate (no
+  confirm — the routine only changes on Save) with an 8s Undo snackbar
+  (`restoreExercise`, mirroring the workout reducer's `restoreSet`); a newly
+  added exercise opens expanded. The day footer is a full-width `+ Add
+exercise` (never wraps) plus the live `~{n} min` (`estimateDurationMin`)
+  and the day's own `⋯` (`Duplicate day`, `Delete day`). Mobile:
+  `apps/mobile/src/features/gym/routine/day-editor.tsx`,
+  `reducer.ts`'s new `restoreExercise` action. Web (phone widths only —
+  `DesktopEditorBoard.tsx`'s dense always-open grid is unchanged):
+  `features/gym/routine/components/{PhoneEditorList,ExerciseFieldsForm}.tsx`
+  gain a `compact`/`expanded` mode with the same hierarchy, minus the `⋯`
+  sheet (Swap/Remove are already accessible as text buttons once expanded;
+  Move stays the existing up/down buttons).
 
 ## 22. Gym Setup & Workout Sync Flow (API)
 
