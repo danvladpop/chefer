@@ -55,6 +55,12 @@ export {
   type TextProps,
 } from './components/text';
 export {
+  resolveUse24h,
+  TimePicker,
+  type TimeOfDay,
+  type TimePickerProps,
+} from './components/time-picker';
+export {
   useFieldChain,
   type FieldChainBinding,
   type UseFieldChainResult,
