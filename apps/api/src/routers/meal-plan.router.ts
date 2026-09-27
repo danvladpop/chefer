@@ -118,6 +118,13 @@ export const mealPlanRouter = router({
         mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
         slotIndex: slotIndexSchema,
         recipeId: z.string().min(1),
+        /**
+         * T-00.11 (B-34/B-46): confirms the pick despite an UNSAFE_FOR_TABLE
+         * rejection — the service only honours it for the user's own manual
+         * recipe. Optional and additive; old clients that omit it get
+         * today's rejection with no bypass.
+         */
+        acknowledgeConflict: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -128,6 +135,7 @@ export const mealPlanRouter = router({
         input.mealType,
         input.recipeId,
         input.slotIndex,
+        input.acknowledgeConflict,
       );
     }),
 
