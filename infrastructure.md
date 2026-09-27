@@ -457,7 +457,7 @@ API, Maestro E2E in `e2e/`).
 | `import-recipe`          | F5 import: URL/text preview + premium save                                                                                                                                                                                                                                        | Import sheet                         |
 | `recipe-form`            | Manual recipe create/edit                                                                                                                                                                                                                                                         | `/recipes/new`, `/recipes/[id]/edit` |
 | `household`              | F2 household members — every tier adds (name, portion, kid, allergies, restrictions, dislikes) and removes with a confirm (P2-3); shared `HouseholdEditor` also renders the onboarding table step                                                                                 | preferences `#household`             |
-| `(gym)/today`            | Gym Today: next up, week strip/ring, streak, offers, resume (G2-B)                                                                                                                                                                                                                | — (G5)                               |
+| `(gym)/today`            | Gym Today: next up, week strip/ring, streak, offers, Resume card, `Recent` (T-36.A1.1/A2.1, G2-B)                                                                                                                                                                                 | — (G5)                               |
 | `(gym)/routine`          | Active routine + weekly balance (placeholder, G2-C)                                                                                                                                                                                                                               | — (G5)                               |
 | `(gym)/exercises`        | Exercise library (placeholder, G2-D)                                                                                                                                                                                                                                              | — (G5)                               |
 | `(gym)/stats`            | Strength / volume / consistency stats (placeholder, G2-D)                                                                                                                                                                                                                         | — (G5)                               |
@@ -500,7 +500,11 @@ Workout logging never needs a connection:
 - `active-session-store.ts` — the in-progress `WorkoutSessionDoc`, written with
   `setItemSync` on every reducer action (crash-safe; unreadable payloads are
   quarantined, never deleted). `use-active-workout.ts` wraps the shared engine
-  reducer: `start` / `dispatch` / `finish` / `discard`, resume on launch.
+  reducer: `start` / `dispatch` / `finish` / `discard`, resume on launch. The
+  record also carries `pausedAt: string | null` (T-36.A1.1, device-only,
+  never uploaded): preserved across every `set()` call (a dispatch never
+  clears a pause) and changed only by `setPausedAt()` — the "Save for later"
+  hook point for T-36.3. `useActiveSessionPausedAt()` subscribes to it.
 - `outbox.ts` — persisted queue of finished/discarded docs sent to
   `gym.session.upsertMany` in batches of ≤ 20. An entry leaves ONLY on an
   `applied`/`stale` ack (or an explicit user discard of a parked entry);

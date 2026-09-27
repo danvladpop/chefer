@@ -1548,6 +1548,40 @@ Today: gym.bootstrap (persisted on the phone) → "Next up: <day>" with targets
       → invalidate gym.bootstrap
 ```
 
+### Resume card and Recent (UX-36 A1/A2, T-36.A1.1/T-36.A2.1)
+
+Gym Today's old one-line "Resume workout" banner and single "Last workout" row
+are replaced by two components built on the same pure summaries the logger
+itself uses, so they can never disagree with what the workout screen shows:
+
+- **Resume card** (`today/resume-card.tsx`, `resumeSummary()` in
+  `packages/utils/src/gym/resume.ts`): while a session is active, shows the
+  live elapsed time (ticking `mm:ss`/`h:mm:ss`), `{e} of {E} exercises · {s} of
+{S} sets` on a `ProgressBar`, and `Now: {exercise} · set {k} of {n}` — the
+  same `workoutFocus()` the workout screen's "current" exercise uses. A
+  backfilled ("Log a past workout") session — detected as `session.localDate
+!== today` (no schema field needed) — shows `LOGGING {weekday d Mon}`
+  instead and never ticks. Once every working set is logged the card reads
+  `All sets logged · Finish when you're ready.` and the button becomes
+  `Finish workout`. "Save for later" (T-36.3) sets a device-only `pausedAt` on
+  the active-session record (`offline/active-session-store.ts`); while paused
+  the card shows the static `{n} min in`, `Next:` instead of `Now:`, `Finish
+with {s} sets`, and `Keeps until {time} tomorrow`. The Resume/Finish button
+  always opens the workout screen, which owns the actual finish flow.
+- **Recent** (`today/recent-workouts.tsx`, `groupRecentSessions()` in
+  `packages/utils/src/gym/recent.ts`): the 3 most recent **completed**
+  sessions grouped under day headers (`Today` / `Yesterday` / `{weekday d
+Mon}`, never an ISO date), with a start time shown only when two sessions
+  share a day, and a PR badge (`collectPrs` against `bootstrap.recentSessions`
+  - `olderBests`). `Show more` first pages through the cached
+    `bootstrap.recentSessions` (offline-safe), then falls back to the online
+    cursor (`gym.session.list`) once the cache (12 weeks) is exhausted, up to 13
+    rows inline; beyond that only `All history` (→ Stats) remains. Hidden
+    entirely when there are no completed sessions.
+
+Web parity: not yet built this wave — see `mobile_parity_backlog.md` (planned
+for W2 alongside the web today-view rework).
+
 - The routine is a **rotation, not a calendar**: "next up" is the next day in
   sequence; missed days roll forward and are never marked failed.
 - Outbox entries are removed only on an `applied`/`stale` ack; a `rejected`

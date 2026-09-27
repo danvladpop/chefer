@@ -23,12 +23,15 @@ import {
 import { trpc } from '../../../lib/trpc';
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { ModeSwitch } from '../components/mode-switch';
+import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate } from '../offline/ids';
 import { useOutboxStatus } from '../offline/outbox';
 import { useGymReminders } from '../reminders/use-gym-reminders';
 import { useActiveWorkout } from '../use-active-workout';
 import { gymBootstrapQueryKey, libraryLookup, useGymBootstrap } from '../use-gym-bootstrap';
 import { LogPastWorkoutAction } from './log-past-workout';
+import { RecentWorkouts } from './recent-workouts';
+import { ResumeCard } from './resume-card';
 import {
   computeWeekStrip,
   formatStreakLine,
@@ -77,6 +80,7 @@ export function TodayScreen() {
   const bootstrapQuery = useGymBootstrap();
   const bootstrap = bootstrapQuery.data;
   const activeWorkout = useActiveWorkout();
+  const pausedAt = useActiveSessionPausedAt();
   const outboxStatus = useOutboxStatus();
   const [dayPickerVisible, setDayPickerVisible] = useState(false);
 
@@ -218,7 +222,6 @@ export function TodayScreen() {
   const goalMet = streak.thisWeekGoal > 0 && streak.thisWeekSessions >= streak.thisWeekGoal;
   const ringProgress = streak.thisWeekGoal > 0 ? streak.thisWeekSessions / streak.thisWeekGoal : 0;
   const offer = pickOffer(bootstrap.offers);
-  const lastSession = bootstrap.recentSessions[0];
   const showOutbox = outboxStatus.pending > 0 || outboxStatus.parked.length > 0;
   const sortedDays = [...activeRoutine.days].sort((a, b) => a.position - b.position);
 
@@ -235,20 +238,8 @@ export function TodayScreen() {
       >
         {header}
 
-        {activeWorkout.isActive && (
-          <Card testID="gym-today-resume" className="border-primary/30 bg-accent">
-            <Text className="font-semibold text-primary">Resume workout</Text>
-            <Text variant="muted" className="mt-0.5 text-sm">
-              {activeWorkout.session?.name}
-            </Text>
-            <Button
-              testID="gym-today-resume-button"
-              className="mt-3"
-              onPress={() => router.push('/gym/workout')}
-            >
-              Resume
-            </Button>
-          </Card>
+        {activeWorkout.isActive && activeWorkout.session && (
+          <ResumeCard bootstrap={bootstrap} session={activeWorkout.session} pausedAt={pausedAt} />
         )}
 
         <Card className="gap-3">
@@ -428,24 +419,7 @@ export function TodayScreen() {
 
         <LogPastWorkoutAction bootstrap={bootstrap} />
 
-        {lastSession && (
-          <Pressable
-            testID="gym-today-last-session"
-            accessibilityRole="button"
-            onPress={() =>
-              router.push({ pathname: '/gym/session/[id]', params: { id: lastSession.id } })
-            }
-            className="min-h-11 flex-row items-center justify-between rounded-lg border border-border px-4 py-3"
-          >
-            <View className="min-w-0 flex-1">
-              <Text className="text-sm font-medium">{lastSession.name}</Text>
-              <Text variant="muted" className="text-xs">
-                {lastSession.localDate}
-              </Text>
-            </View>
-            <Text className="text-primary">→</Text>
-          </Pressable>
-        )}
+        <RecentWorkouts bootstrap={bootstrap} />
 
         {showOutbox && (
           <Pressable

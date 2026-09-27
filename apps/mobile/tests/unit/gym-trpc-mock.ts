@@ -1,3 +1,5 @@
+import type { SessionSummaryDto } from '@chefer/types';
+
 // Shared fake for `src/lib/trpc`, used by gym screen tests (setup/today/
 // settings/dashboard card) that call real tRPC hooks. Each leaf hook is a
 // jest.fn() the test configures per scenario with `.mockReturnValue(...)`.
@@ -44,6 +46,23 @@ export function createTrpcGymMock() {
       useUtils: jest.fn(() => ({
         client: { gym: { bootstrap: { query: jest.fn() } } },
         preferences: { get: { invalidate: jest.fn() } },
+        // Recent workouts "Show more" online tier (T-36.A2.1): an imperative
+        // fetch, not a hook — tests override the resolved value per scenario.
+        gym: {
+          session: {
+            list: {
+              fetch: jest.fn(
+                (_input: {
+                  cursor?: string;
+                  limit: number;
+                }): Promise<{
+                  items: SessionSummaryDto[];
+                  nextCursor: string | null;
+                }> => Promise.resolve({ items: [], nextCursor: null }),
+              ),
+            },
+          },
+        },
       })),
     },
   };
