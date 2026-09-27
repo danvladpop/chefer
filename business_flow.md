@@ -526,6 +526,14 @@ signal as `generate` (T-10.4) if the curated pool can't cover the day's
 shape. Mobile's "Plan this day" link (below) now calls it directly instead of
 opening Plan settings; web's own unplanned-day line (T-07.6, below) does too.
 
+`DayPlanDto.planned` used to be reliable only on `generate`'s own response —
+a plain reload always omitted it, so the "Plan this day" CTA only ever
+appeared right after generating, never after a refresh. `assemblePlanDto`
+(the one read path behind `getActive`/`getForWeek`/`getById`) now recomputes
+it from the user's CURRENT stored shape on every read: an empty day
+(`meals: []`) outside today's chosen days is `planned: false`, and a day that
+already has meals is never relabelled even once the shape later excludes it.
+
 **Your picks survive regeneration (T-07.4).** A meal chosen via `replaceRecipe`
 is marked `pinned` ("Your pick") and keeps its portion (bug T-BUG-X2/T-08.5:
 it used to always reset to 1×). `mealPlan.setSlotPinned` toggles the pin

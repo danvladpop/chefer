@@ -22,6 +22,7 @@ import {
   householdPortionSum,
   PLAN_PORTION_STEPS,
   proteinGapG,
+  resolvePlanDays,
   resolvePlanSlots,
   slotPortion,
   trainingDayBonus,
@@ -1089,12 +1090,21 @@ export class MealPlanService {
   ): Promise<WeekPlanDto> {
     const allMeals = plan.days.flatMap((d) => d.meals as PlanMealSlotJson[]);
     const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
-    const [recipeRows, safety, targets] = await Promise.all([
+    const [recipeRows, safety, targets, shape] = await Promise.all([
       this.repo.findRecipesByIds(uniqueIds),
       userId ? this.loadMergedSafety(userId) : Promise.resolve(null),
       userId ? this.loadTargets(userId) : Promise.resolve(null),
+      // wave-1 T-07.6: `planned` used to be reliable only on `generate`'s own
+      // response (no shape snapshot was kept per-read) — a plain reload of
+      // an unplanned day fell back to a generic "no meals" line with no
+      // "Plan this day" CTA. Recomputed from the CURRENT stored shape on
+      // every read instead: a day with `meals: []` outside today's chosen
+      // days is `planned: false` (a day that already has `meals` is never
+      // relabelled, regardless of the shape changing later — see below).
+      userId ? planShapeService.getShape(userId) : Promise.resolve(null),
     ]);
     const recipeMap = new Map<string, Recipe>(recipeRows.map((r) => [r.id, r]));
+    const plannedDays = shape ? resolvePlanDays(shape.days) : null;
 
     const days: DayPlanDto[] = plan.days.map((d) => {
       let protein = 0;
@@ -1118,7 +1128,16 @@ export class MealPlanService {
       });
       // P1-1: an honest per-day protein hint, judged on portioned totals.
       const gap = meals.length > 0 ? proteinGapG(protein, targets?.proteinG) : null;
-      return { dayOfWeek: d.dayOfWeek, meals, ...(gap !== null && { proteinGapG: gap }) };
+      // An empty day is only ever mislabelled toward `planned: true` (the
+      // safe direction — never hides a "Plan this day" CTA a day actually
+      // deserves; never claims a day WITH meals isn't planned).
+      const planned = meals.length > 0 || !plannedDays ? true : plannedDays.includes(d.dayOfWeek);
+      return {
+        dayOfWeek: d.dayOfWeek,
+        meals,
+        ...(gap !== null && { proteinGapG: gap }),
+        ...(!planned && { planned }),
+      };
     });
 
     const shopFrom = firstShoppingDay(plan.weekStartDate, plan.createdAt);

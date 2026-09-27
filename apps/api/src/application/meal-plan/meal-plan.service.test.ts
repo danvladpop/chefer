@@ -1884,3 +1884,84 @@ describe('MealPlanService.planDay (wave-1 L-PLAN, UX-07 "Plan this day")', () =>
     });
   });
 });
+
+describe('MealPlanService — reliable `planned` on every read (wave-1 T-07.6)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+  });
+
+  it('marks an empty day outside the CURRENT stored shape as planned: false, even on a later read', async () => {
+    // Before this test's fix, `planned` was reliable only on generate's own
+    // response — a plain reload (getForWeek/getById) always omitted it, so
+    // "Plan this day" only ever appeared right after generating.
+    const repo = makeRepo();
+    repo.findForWeek.mockResolvedValue({
+      id: 'plan1',
+      weekStartDate: new Date('2026-08-17'),
+      days: [
+        { dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'd1' }] },
+        { dayOfWeek: 3, meals: [] },
+      ],
+    });
+    repo.findRecipesByIds.mockResolvedValue([{ ...AI_RECIPE, id: 'd1' }]);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      planSlots: ['dinner'],
+      planDays: [0],
+      timeCapMins: null,
+      weekendNoLimit: false,
+      cookingFor: null,
+      leftovers: false,
+    } as never);
+    const service = new MealPlanService(repo);
+
+    const plan = await service.getForWeek('user1', 0);
+
+    expect(plan?.days.find((d) => d.dayOfWeek === 0)?.planned).toBeUndefined();
+    expect(plan?.days.find((d) => d.dayOfWeek === 3)?.planned).toBe(false);
+  });
+
+  it('never relabels a day that already HAS meals, even once the shape excludes it', async () => {
+    const repo = makeRepo();
+    repo.findForWeek.mockResolvedValue({
+      id: 'plan1',
+      weekStartDate: new Date('2026-08-17'),
+      days: [{ dayOfWeek: 3, meals: [{ type: 'dinner', recipeId: 'd1' }] }],
+    });
+    repo.findRecipesByIds.mockResolvedValue([{ ...AI_RECIPE, id: 'd1' }]);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      planSlots: ['dinner'],
+      planDays: [0], // day 3 no longer in the shape
+      timeCapMins: null,
+      weekendNoLimit: false,
+      cookingFor: null,
+      leftovers: false,
+    } as never);
+    const service = new MealPlanService(repo);
+
+    const plan = await service.getForWeek('user1', 0);
+    const day3 = plan?.days.find((d) => d.dayOfWeek === 3);
+
+    expect(day3?.planned).toBeUndefined();
+    expect(day3?.meals).toHaveLength(1);
+  });
+
+  it('a legacy shape (never set) keeps every empty day `planned` absent, matching today’s behaviour', async () => {
+    const repo = makeRepo();
+    // clearAllMocks (in this describe's beforeEach) keeps a mock's LAST
+    // implementation, not just its default — reset the previous tests'
+    // stored shape explicitly so this one gets the true "never set" case.
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(undefined as never);
+    repo.findForWeek.mockResolvedValue({
+      id: 'plan1',
+      weekStartDate: new Date('2026-08-17'),
+      days: [{ dayOfWeek: 3, meals: [] }],
+    });
+    const service = new MealPlanService(repo);
+
+    const plan = await service.getForWeek('user1', 0);
+
+    expect(plan?.days.find((d) => d.dayOfWeek === 3)?.planned).toBeUndefined();
+  });
+});

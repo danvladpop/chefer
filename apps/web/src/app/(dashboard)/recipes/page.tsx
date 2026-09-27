@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ImportRecipeSheet } from '@/features/recipes/components/ImportRecipeSheet';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { trpc } from '@/lib/trpc';
@@ -61,6 +61,20 @@ export default function RecipesPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [mealFilter, setMealFilter] = useState<MealFilter | null>(null);
   const [quickOnly, setQuickOnly] = useState(false);
+
+  // bug B-09: the post-upgrade activation sheet's "Cheferize a favourite
+  // recipe" step used to just link here and stop — the user still had to
+  // find and click "Import a recipe" themselves. `?import=1` opens the
+  // sheet on arrival, fires once, then strips the param (same pattern as
+  // meal-plan/page.tsx's `?generate=1`).
+  const importAutoOpenFired = useRef(false);
+  useEffect(() => {
+    if (importAutoOpenFired.current || searchParams.get('import') !== '1') return;
+    importAutoOpenFired.current = true;
+    setImportOpen(true);
+    router.replace('/recipes', { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once trigger on arrival
+  }, [searchParams]);
 
   // Debounce search
   const handleSearch = (value: string) => {

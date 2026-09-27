@@ -596,9 +596,10 @@ export default function MealPlanScreen() {
 
             {meals.length === 0 ? (
               // T-07.3 (UX-07 §2): a day outside the chosen shape says so and
-              // offers to add it — `planned` is present only right after a
-              // generate response (server contract), so a plain re-open of
-              // an already-unfilled day falls back to the generic line.
+              // offers to add it via `planDay`. `planned` used to be reliable
+              // only right after a generate response; the server now
+              // recomputes it from the CURRENT stored shape on every read
+              // (wave-1 T-07.6), so this also holds after a plain re-open.
               <Card className="items-center py-8">
                 {day?.planned === false ? (
                   <>
