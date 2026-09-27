@@ -2,6 +2,19 @@
 // Shapes shared by the API (dashboard summary) and both clients. The pure
 // maths lives in @chefer/utils (training-nutrition.ts).
 
+import { z } from 'zod';
+
+// ─── Weekday kinds (§2.6, UX-06, rev 2) ────────────────────────────────────────
+// Each weekday is one of these. `lift` comes from the active routine; `run` /
+// `long_run` / `rest` are set by the user (`training.setDayKinds`, wave 1
+// T-06.1) and stored on `ChefProfile.trainingDayKinds Json` (`{ "5": "long_run" }`).
+export const dayKindSchema = z.enum(['lift', 'run', 'long_run', 'rest']);
+export type DayKind = z.infer<typeof dayKindSchema>;
+
+/** `ChefProfile.trainingDayKinds` — weekday (0 = Monday, matches `planDays`) → kind. */
+export const trainingDayKindsSchema = z.record(z.string(), dayKindSchema);
+export type TrainingDayKinds = z.infer<typeof trainingDayKindsSchema>;
+
 /** Why today counts as a training day: a finished workout wins over the schedule. */
 export type TrainingDayReason = 'COMPLETED' | 'SCHEDULED';
 

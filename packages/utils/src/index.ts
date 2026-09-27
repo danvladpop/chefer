@@ -366,3 +366,50 @@ export {
   type VideoDraftFormValues,
   type VideoDraftLike,
 } from './video-import';
+
+// ─── Wave-0 shared contracts (T-00.5, T-00.7) ─────────────────────────────────
+export {
+  glossaryDefinition,
+  GLOSSARY,
+  type GlossaryDefinition,
+  type GlossaryTermId,
+} from './glossary';
+export { defaultWeekOffset } from './week-default';
+export { defaultMealSlot } from './meal-slot';
+export {
+  canShowNudge,
+  INITIAL_NUDGE_CAP_STATE,
+  markNudgeDismissed,
+  markNudgeShown,
+  NUDGE_DISMISS_COOLDOWN_MS,
+  type NudgeCapState,
+} from './nudge-cap';
+export { effectiveJobs, TRACK_INFERENCE_MIN_DAYS, type EffectiveJobsInput } from './effective-jobs';
+export { priceRange, formatPriceRange, PRICE_RANGE_BAND, type PriceRange } from './price-range';
+export { pickProteinSnacks, PROTEIN_SNACKS, type ProteinSnack } from './protein-snacks';
+export { homeCardOrder, HOME_CARD_IDS, type HomeCardId } from './home-cards';
+export { landingFor, type LandingInput, type LandingSurface } from './landing';
+export {
+  explainCarbsFatSentence,
+  explainKcalSentence,
+  explainProteinSentence,
+  missingMetricsSentence,
+  ownTargetSentence,
+} from './explain-targets';
+export {
+  isValidPlanShape,
+  planShapeSummary,
+  resolvePlanDays,
+  resolvePlanSlots,
+} from './plan-shape';
+export { recogniseSafetyTerm, type SafetyRecogniseOutcome } from './safety-recognise';
+export {
+  formatDinnersForSharing,
+  formatListForSharing,
+  shareListFooter,
+  SHARE_LIST_FOOTER_TEMPLATE,
+  type ShareDinner,
+  type ShareListItem,
+  type ShareListOptions,
+  type ShareListScope,
+} from './share-list';
