@@ -2020,9 +2020,10 @@ from this PR; see the PR description for the exact list and rationale.
 
 ## 31. Manual recipe create and edit (UX-40 slice 1, T-40.1–T-40.6, T-BUG-O3)
 
-> The D-19 minimum, the pickers, photo states and the O-15 ("edit doesn't
-> work") fix. Slice 2 (ingredient search, computed nutrition, swipe) is a
-> mobile_parity_backlog.md row for W2 L-RECIPE.
+> The D-19 minimum, the pickers, photo states, the sectioned mobile rebuild
+> and the O-15 ("edit doesn't work") fix, on both platforms. Slice 2
+> (ingredient search, computed nutrition, swipe-to-remove) is a
+> `mobile_parity_backlog.md` row for W2 L-RECIPE.
 
 ```
 D-19 minimum — recipe.create / recipe.update (additive widening, T-40.3):
@@ -2031,6 +2032,9 @@ D-19 minimum — recipe.create / recipe.update (additive widening, T-40.3):
        (an empty cuisineType is stored as "International")
   servings defaults to 1; nutritionInfo defaults to all-zero + optional `source`
   Old clients: unaffected — nothing already required got a new `.min(1)`.
+  Web (T-40.6): validateRecipeCore + both pages' own checks relaxed to the
+  same minimum — cuisine, description, steps, times and nutrition (computed
+  or manual) are all optional now, closing the parity gap ("36 boxes").
 
 Diet tags (bug B-01, T-01.6):
   mobile/web form ── ticks Diet tags (ChipGroup) ──► payload.dietaryTags
@@ -2041,31 +2045,66 @@ Diet tags (bug B-01, T-01.6):
   tagConflicts(ingredients, tags) ──► amber "Chicken breast doesn't look
         vegetarian" hint while editing (client-side only, not the safety matcher)
 
-O-15 "Edit created recipe is not working properly" — all 7 candidates fixed:
+O-15 "Edit created recipe is not working properly" — all 7 candidates fixed
+  on both platforms, and kept working through the mobile sectioned rebuild:
   C1 stale prefill  → getMyRecipe refetchOnMount:'always'; prefill gated on
                        isFetchedAfterMount && !isFetching; update invalidates
                        recipe.getMyRecipe + mealPlan.getRecipe + recipe.list
   C2 tags wiped     → T-01.6 above
   C3 "½" → 0        → parseQuantity() (fractions, mixed numbers, comma decimals)
   C4 save "dead"    → KeyboardAwareScrollView keyboardShouldPersistTaps="handled";
-                       Save is never `disabled` — a blocked tap shows why underneath
+                       the footer button is NEVER disabled (PAT-17) — a blocked
+                       tap scrolls to + focuses the first problem instead
   C5 blank form     → ErrorState "Couldn't load your recipe" + Try again on a load error
   C6 fiber → 0      → the STORED fiber is sent back on every edit (create still 0, D-18)
   C7 raw server msg → friendlySaveError() — a long/Zod-shaped message becomes
-                       "Couldn't save your recipe — please try again."
+                       "Couldn't save your recipe. Nothing you typed is lost."
 
-D-18 fiber: no input, no default display, on either platform — the field is
-  still SENT (0 on create, the stored value on edit) so nothing already saved
-  is destroyed, and web's separately-computed nutrition still has it.
+D-18 fiber: no input, no default display, on either platform (mobile form,
+  mobile recipe detail's macro row, web's new/edit forms, web's detail page
+  MacroChip). The field is still SENT (0 on create, the stored value on
+  edit) so nothing already saved is destroyed, and web's separately-computed
+  nutrition still has it under the hood.
 
-Photo field: pick → (T-BUG-O1.2 placeholder: preparePhoto(asset) once
-  feat/device-photo-resize lands) → upload, three separate named calls so
-  that PR's version merges in with a trivial conflict.
+Photo field (T-40.5, apps/mobile/src/features/recipes/form/photo-field.tsx):
+  empty ──pick──► local preview (dimmed) + uploading ──► done (Change/Remove)
+                                                      └─► failed: one of four
+       server-written sentences (never a code or [object Object]), Try again
+       re-sends the SAME bytes, Choose another re-picks. Saves without a photo
+       either way. pick → (T-BUG-O1.2 placeholder: preparePhoto(asset) once
+  feat/device-photo-resize lands) → upload stay three separately named calls.
+
+AC4 refinement (packages/utils/src/recipe-form.ts): a named ingredient line
+  with no amount ("salt", blank qty) always blocks saving with "Finish the
+  ingredient on line {n}." — even when another line is already complete.
+  recipeMissingFields()'s 'incompleteLine' flag is independent of the
+  generic 'ingredient' flag (which only fires when NO line has a name at
+  all); firstIncompleteIngredientLineIndex() finds which row to focus.
 ```
 
-**UI status (this PR):** the fixes above are real, targeted edits to the
-EXISTING `apps/mobile/app/recipe-form.tsx` (plus the matching web edit-page
-half of C1). The full T-40.4/40.5 sectioned rebuild (new
-`src/features/recipes/form/**` components, `SelectField`/`FormField` kit
-pickers, fraction chips, swipe+Undo rows, offline/discard states) is cut from
-this PR — see the PR description.
+**Mobile — sectioned rebuild (T-40.4/T-40.5).** `app/recipe-form.tsx` is a
+thin screen over `apps/mobile/src/features/recipes/form/**`:
+`ingredient-line.tsx` (qty `NumericReturnBar` + fraction chip row `¼ ½ ¾ 1 1½
+2` while focused, unit `SelectField` 88pt over `RECIPE_UNIT_GROUPS`, name),
+`step-line.tsx`, `photo-field.tsx`, `nutrition-fields.tsx` (four fields, no
+fiber, a 4/4/9 ±25% amber sanity line), `form-footer.tsx` (PAT-17: sticky,
+never disabled, offline reads "Needs a connection"), `row-menu.tsx` (PAT-16
+menu path — `⋯` → `Sheet` → Remove/Move, paired with a snackbar Undo;
+swipe-to-remove is slice 2, once L-GYM's kit component lands), `copy.ts`,
+`use-is-online.ts`. Cuisine is a `SelectField` over `CUISINE_PRESETS`
+(`@chefer/types`) with `Other…`. `More details` (description, prep, cook —
+all optional, blank by default) is collapsed unless prefilled with a value.
+Servings is a `Stepper` (1–20, default 1). Leaving with unsaved changes
+(header back, Android back, iOS swipe-back — one `navigation.addListener
+('beforeRemove', …)` covers all three) opens a `ConfirmSheet` "Discard your
+changes?". An edit load error shows `ErrorState`; loading shows a PAT-8
+skeleton, not a spinner.
+
+**Recipe detail (`app/recipe/[id].tsx`):** a 0 prep/cook/total time is
+hidden, not shown as "0m"; no nutrition added shows "Nutrition not added"
+instead of "0 kcal" (and hides the Energy stat and the macro row); no steps
+shows "No steps yet" instead of an empty Instructions card.
+
+**Kit (T-40.2):** `SelectField`/`SelectSheet` (PAT-15) and `FormField`
+(PAT-17) in `packages/ui-mobile` — see infrastructure.md §5.8. No icon-font
+dependency (plain glyphs), consistent with the rest of the kit.
