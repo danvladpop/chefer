@@ -173,6 +173,31 @@ const envSchema = z.object({
 
   // Unsplash (optional — ingredient images fall back to category images without this)
   UNSPLASH_ACCESS_KEY: z.string().optional(),
+
+  // Feature flags (§2.9, T-00.8) — comma list of enabled keys, e.g.
+  // "trainingBumpFree,ownTargetsFree". Unknown/misspelled keys are dropped
+  // (never crash startup over a typo); a missing key means OFF. Parsed set
+  // lives in lib/flags.ts.
+  FEATURE_FLAGS: z.string().default(''),
+
+  // Health-data consent enforcement (§2.8, T-26.1). `off` records nothing;
+  // `declared` rejects un-consented health writes only from clients that
+  // declare `x-chefer-api-level >= 1`; `all` rejects from every client. Old
+  // binaries (no header) are NEVER rejected under `declared`. Every wave-0
+  // deploy stays `off` — flipping modes is a later, explicit rollout step
+  // (§2.8 "rollout").
+  HEALTH_CONSENT_ENFORCE: z.enum(['off', 'declared', 'all']).default('off'),
+
+  // Grocery store search (lib/grocery-ai): mock is enabled by default so
+  // local dev never calls the real store-search AI. T-BUG-X6: this used to
+  // be a direct `process.env['GROCERY_AI_MOCK_ENABLED']` read in
+  // lib/grocery-ai/index.ts (the one exception to "env vars go through
+  // env.ts") — preserved semantics: only the literal "false" disables the
+  // mock, same as before.
+  GROCERY_AI_MOCK_ENABLED: z
+    .string()
+    .default('true')
+    .transform((val) => val !== 'false'),
 });
 
 type EnvSchema = z.infer<typeof envSchema>;

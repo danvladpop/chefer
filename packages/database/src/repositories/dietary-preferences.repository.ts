@@ -10,6 +10,16 @@ export interface UpsertDietaryPreferencesData {
   dislikedIngredients?: string[];
   mealsPerDay?: number;
   servingSize?: number;
+  // §2.3, T-07.1 (S1) — plan shape. [] = legacy (see @chefer/utils plan-shape.ts).
+  planSlots?: string[];
+  planDays?: number[];
+  timeCapMins?: number | null;
+  weekendNoLimit?: boolean;
+  cookingFor?: number | null;
+  leftovers?: boolean;
+  // §2.1, T-01.3/T-01.9 (S2, rev 2)
+  safetyReviewedAt?: Date | null;
+  excludeLabelDependent?: boolean;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────

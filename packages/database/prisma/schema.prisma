@@ -57,6 +57,13 @@ enum Goal {
   MAINTAIN
   GAIN_MUSCLE
   EAT_HEALTHIER
+  // §2.11, T-11.1 (rev 2). Additive — no old value removed/renamed. Old
+  // clients that render a fixed GOALS list never receive these directly:
+  // for requests without x-chefer-api-level >= 1, the API serialises
+  // RECOMP/PERFORMANCE as MAINTAIN in chefProfile.goal (the true value is
+  // in the new goalV2 the API layer adds).
+  RECOMP
+  PERFORMANCE
 }
 
 enum RecipeSource {
@@ -86,6 +93,49 @@ enum OnboardingIntent {
   TRAIN
 }
 
+// §2.4, T-03.1 (rev 2 adds TRACK). Superset of OnboardingIntent — replaces
+// it for new clients; effectiveJobs() (@chefer/utils) maps a legacy intent
+// onto this set on read, so nothing needs a backfill.
+enum OnboardingJob {
+  TRAIN
+  PLAN_MEALS
+  HOUSEHOLD
+  USE_WHAT_I_HAVE
+  SAVED_RECIPES
+  TRACK
+}
+
+// §2.11, T-35.1/T-11.1 (rev 2). Whether a user's daily targets are the
+// system's SUGGESTED numbers or their own OWN override.
+enum TargetMode {
+  SUGGESTED
+  OWN
+}
+
+// §2.11, T-11.1 (rev 2). A TargetChange row's kind: CHANGED = the effective
+// numbers already moved (applies at once, reversible via acknowledgeChange);
+// SUGGESTED = a proposal awaiting acceptance (e.g. the coach's review).
+enum TargetChangeKind {
+  CHANGED
+  SUGGESTED
+}
+
+// §2.13, T-39.1-39.5 (rev 2). Every consent Chefer records, in one
+// append-only log — the source of truth the User.*ConsentAt cache columns
+// are read back from.
+enum ConsentKind {
+  TERMS
+  PRIVACY
+  AGE
+  AI
+  ANALYTICS_ANON
+  ANALYTICS_LINKED
+  EMAIL_WEEK_READY
+  EMAIL_RECAP
+  AUTO_PLAN
+  HEALTH
+}
+
 enum AiCallType {
   MEAL_PLAN
   RECIPE_SWAP
@@ -95,34 +145,54 @@ enum AiCallType {
   CHAT
   SCAN
   RECIPE_IMPORT
+  // S17, rev 2: curated-plan imports, counted as "used" only when saved
+  // (display only — see Q-18 in the technical plan).
+  CURATED_PLAN
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
-  id               String    @id @default(cuid())
-  email            String    @unique
-  emailVerified    DateTime?
-  name             String?
-  firstName        String?
-  lastName         String?
-  image            String?
-  role             UserRole  @default(USER)
-  planTier         PlanTier  @default(FREE)
-  passwordHash     String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                       String    @id @default(cuid())
+  email                    String    @unique
+  emailVerified            DateTime?
+  name                     String?
+  firstName                String?
+  lastName                 String?
+  image                    String?
+  role                     UserRole  @default(USER)
+  planTier                 PlanTier  @default(FREE)
+  passwordHash             String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
   // Weekly emails (audit P2-5, F-PM-14): Monday "your week is ready" and the
   // Sunday recap. Opt-out, per email — the signed unsubscribe link or the
   // Preferences toggles flip them. Only sent to a confirmed address.
-  weeklyEmailReady Boolean   @default(true)
-  weeklyEmailRecap Boolean   @default(true)
+  // S15, rev 2: default flipped to false for NEW rows only (`db push` only
+  // changes the column default — existing accounts keep their value, T-39.3).
+  // Registration writes the three email/auto-plan defaults explicitly and
+  // logs them (ConsentService); existing accounts get a one-time card
+  // tracked by emailDefaultsNoticeAt below.
+  weeklyEmailReady         Boolean   @default(false)
+  weeklyEmailRecap         Boolean   @default(false)
   // AI data consent (App Store 5.1.2(i)): when the user allowed Chefer to send
   // their data to the third-party AI provider. Null = not asked yet / revoked;
   // clients show the consent sheet before the first AI action. User-initiated
   // procedures are gated client-side only; background AI jobs (weekly
   // auto-plan, coach review wording) skip users without consent.
-  aiDataConsentAt  DateTime?
+  aiDataConsentAt          DateTime?
+  // Health-data consent (§2.8, T-26.1) — a cache of the latest HEALTH
+  // ConsentEvent, read by the (wave-1) consent middleware without a join.
+  // Null = not given / withdrawn. The withdrawal event itself is the audit
+  // trail (rev 2 drops a separate healthDataWithdrawnAt column).
+  healthDataConsentAt      DateTime?
+  healthDataConsentVersion String?
+  // S15, rev 2: one-time notice for existing accounts whose email defaults
+  // silently became explicit values (never re-shown once set).
+  emailDefaultsNoticeAt    DateTime?
+  // S15, rev 2: cache of the terms/privacy version last accepted (the log
+  // entry is the source of truth, ConsentEvent kind TERMS).
+  termsAcceptedVersion     String?
 
   // Relations
   accounts             Account[]
@@ -149,6 +219,10 @@ model User {
   exerciseProgressions ExerciseProgression[]
   trainingPauses       TrainingPause[]
   emailSends           EmailSend[]
+  // S3, S12, S14 (wave 0, T-00.10)
+  safetyReports        SafetyReport[]
+  targetChanges        TargetChange[]
+  consentEvents        ConsentEvent[]
 
   @@index([email])
   @@map("users")
@@ -203,30 +277,64 @@ model UserProfile {
 }
 
 model ChefProfile {
-  id                   String            @id @default(cuid())
-  userId               String            @unique
-  displayName          String?
-  biologicalSex        BiologicalSex?
-  age                  Int?
-  heightCm             Float?
-  weightKg             Float?
-  activityLevel        ActivityLevel?
-  goal                 Goal?
-  dailyCalorieTarget   Int?
-  weeklyBudgetEur      Float?
-  deliveryAddress      String?
-  deliveryCurrency     String?           @default("EUR")
-  preferredUnits       UnitSystem        @default(METRIC)
+  id                     String            @id @default(cuid())
+  userId                 String            @unique
+  displayName            String?
+  biologicalSex          BiologicalSex?
+  age                    Int?
+  heightCm               Float?
+  weightKg               Float?
+  activityLevel          ActivityLevel?
+  goal                   Goal?
+  dailyCalorieTarget     Int?
+  weeklyBudgetEur        Float?
+  deliveryAddress        String?
+  deliveryCurrency       String?           @default("EUR")
+  preferredUnits         UnitSystem        @default(METRIC)
   // Adaptive Chef (F1): cumulative calorie dial applied by weekly reviews on
   // top of the computed TDEE target. resolveDailyTargets adds it AFTER the
   // goal adjustment; the protein cap runs last.
-  targetAdjustmentKcal Int               @default(0)
+  targetAdjustmentKcal   Int               @default(0)
   // Premium Sunday auto-planning opt-out (audit F-PLAN-4-3). When off, the
   // WeeklyPlanWorker leaves the user's next week alone.
-  autoPlanWeekly       Boolean           @default(true)
+  // S16, rev 2: default flipped to false for NEW rows only (T-39.3) —
+  // existing rows keep their value under `db push`.
+  autoPlanWeekly         Boolean           @default(false)
   // Onboarding audience (backlog P2-3). Null = never answered (older users).
-  onboardingIntent     OnboardingIntent?
-  updatedAt            DateTime          @updatedAt
+  onboardingIntent       OnboardingIntent?
+  // S4, rev 2 (§2.4, T-03.1/T-04.1/T-06.9/T-21.1): the jobs the user is here
+  // to do — superset of onboardingIntent for new clients. [] = never
+  // answered; effectiveJobs() maps the legacy intent on read, no backfill.
+  onboardingJobs         OnboardingJob[]   @default([])
+  // The onboarding answer for which weekdays the user trains — used only
+  // until an active routine has planned weekdays of its own.
+  trainingWeekdays       Int[]             @default([])
+  // Null = derive from goal (bug B-31); explicit true/false overrides it.
+  showNutritionOnToday   Boolean?
+  // §2.6, rev 2 (UX-06): weekday -> 'lift' | 'run' | 'long_run' | 'rest'
+  // (dayKindSchema, @chefer/types). `lift` days come from the routine; the
+  // others are set by training.setDayKinds (wave 1).
+  trainingDayKinds       Json              @default("{}")
+  // IANA time zone (§2.12, T-21.1), for server-initiated work (the weekly
+  // worker, the quiet-days nudge text) — set once by setDisplayPreferences.
+  timeZone               String?
+  // §2.11, rev 2 (T-35.1, T-11.1): own-target override.
+  targetMode             TargetMode        @default(SUGGESTED)
+  customKcal             Int?
+  customProteinG         Int?
+  customCarbsG           Int?
+  customFatG             Int?
+  customTrainingKcal     Int?
+  customTrainingProteinG Int?
+  addTrainingBonus       Boolean           @default(true)
+  // The last { effective, suggested, inputs } the user saw — read-detection
+  // for "never change targets silently" (§2.11). The first read after
+  // deploy writes a baseline with no notice.
+  targetSnapshot         Json?
+  // S10 (T-10.4): only used if D-7 = yes. Unused this wave — no code reads
+  // it yet; the field lands now because no later wave touches schema.prisma.
+  freeScaledWeekStart    DateTime?
+  updatedAt              DateTime          @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -234,19 +342,33 @@ model ChefProfile {
 }
 
 model DietaryPreferences {
-  id                  String   @id @default(cuid())
-  userId              String   @unique
-  cuisinePreferences  String[]
-  dietaryRestrictions String[]
-  allergies           String[]
-  dislikedIngredients String[]
-  mealsPerDay         Int      @default(3)
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  cuisinePreferences    String[]
+  dietaryRestrictions   String[]
+  allergies             String[]
+  dislikedIngredients   String[]
+  mealsPerDay           Int       @default(3)
   // Legacy "cooking for N" (backlog P2-3, audit F-PM-8): the household is the
   // one people model now. A value > 1 is converted into placeholder members
   // once (HouseholdService.migrateLegacyServingSize) and reset to 1; reads
   // derive it from the household for app builds already in the stores.
-  servingSize         Int      @default(1)
-  updatedAt           DateTime @updatedAt
+  servingSize           Int       @default(1)
+  // §2.3, T-07.1 (S1): plan shape, next to mealsPerDay which it supersedes
+  // for new clients. [] = legacy (breakfast/lunch/dinner, every day, no cap)
+  // — an existing user who never opens the form gets the same week.
+  planSlots             String[]  @default([])
+  planDays              Int[]     @default([])
+  timeCapMins           Int?
+  weekendNoLimit        Boolean   @default(false)
+  cookingFor            Int?
+  // Persists "cook once, eat twice" (bug B-27).
+  leftovers             Boolean   @default(false)
+  // §2.1, T-01.3/T-01.9 (S2, rev 2): null + any stored term that isn't a
+  // canonical taxonomy label => tableSafety.needsReview.
+  safetyReviewedAt      DateTime?
+  excludeLabelDependent Boolean   @default(false)
+  updatedAt             DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -380,22 +502,86 @@ model DailyLog {
 // Sunday review pass BEFORE plan generation. adjustmentKcal is the delta this
 // review applied; the cumulative dial lives in ChefProfile.targetAdjustmentKcal.
 model ChefReview {
-  id             String   @id @default(cuid())
-  userId         String
-  weekStart      DateTime // UTC midnight of the reviewed week's Monday
-  adherencePct   Int
-  avgDailyKcal   Int
-  weightTrendKg  Float? // EWMA delta over the window; null until enough data
-  adjustmentKcal Int
-  savedEur       Float? // pantry savings surfaced in the review (F3 seam)
-  reviewText     String
-  createdAt      DateTime @default(now())
+  id                     String    @id @default(cuid())
+  userId                 String
+  weekStart              DateTime // UTC midnight of the reviewed week's Monday
+  adherencePct           Int
+  avgDailyKcal           Int
+  weightTrendKg          Float? // EWMA delta over the window; null until enough data
+  adjustmentKcal         Int
+  savedEur               Float? // pantry savings surfaced in the review (F3 seam)
+  reviewText             String
+  createdAt              DateTime  @default(now())
+  // §2.11, T-35.4 (S13, rev 2): the coach proposes, never overwrites —
+  // adjustmentKcal keeps meaning "applied" (0 until accepted); the proposal
+  // surfaces as a SUGGESTED TargetChange until acknowledged.
+  proposedAdjustmentKcal Int?
+  proposalResolvedAt     DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, weekStart])
   @@index([userId])
   @@map("chef_reviews")
+}
+
+// §2.1, T-01.5 (S3, wave 0 T-00.10). A "report this recipe" flag — part of
+// the safety table itself: SafetyService.loadTable includes the user's
+// reported recipe ids and filter() removes them (UX-01 d). Included in
+// exportData; the cascade on user covers deleteAccount.
+model SafetyReport {
+  id            String   @id @default(cuid())
+  userId        String
+  recipeId      String
+  surface       String // where it was reported from, e.g. "recipe_detail", "cook_mode"
+  reason        String
+  note          String? // <= 500 chars, validated at the zod layer
+  rulesSnapshot Json // the table-safety rules in force when reported
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([recipeId])
+  @@map("safety_reports")
+}
+
+// §2.11, T-11.1 (S12, rev 2). "Never change your targets silently" made
+// provable: every detected change or proposal is one row here. Auto-resolves
+// after 14 days (lazy, on read) when never acknowledged. Included in exportData.
+model TargetChange {
+  id         String           @id @default(cuid())
+  userId     String
+  kind       TargetChangeKind
+  reason     String
+  fields     Json // { field, before, after }[]
+  createdAt  DateTime         @default(now())
+  resolvedAt DateTime?
+  resolution String? // "USE_NEW" | "KEEP_OLD" | "AUTO"
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, resolvedAt])
+  @@map("target_changes")
+}
+
+// §2.13, T-39.1-39.5 (S14, rev 2). Append-only consent log — the source of
+// truth every `User.*ConsentAt` cache column is refreshed from, in the same
+// transaction as the write. Never updated.
+model ConsentEvent {
+  id              String      @id @default(cuid())
+  userId          String
+  kind            ConsentKind
+  granted         Boolean
+  providers       String[]    @default([])
+  documentVersion String?
+  source          String // "web" | "mobile" | "migration"
+  createdAt       DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("consent_events")
 }
 
 // Feed the Whole Table (F2): extra eaters merged into generation. Safety
@@ -543,6 +729,9 @@ model AiCallLog {
   userId    String
   callType  AiCallType
   createdAt DateTime   @default(now())
+  // S17, rev 2 (T-39.5, T-10.8): null for historic rows.
+  provider  String?
+  saved     Boolean?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -704,27 +893,36 @@ model Exercise {
 }
 
 model GymProfile {
-  userId           String             @id
-  experience       TrainingExperience
-  equipmentAccess  GymEquipmentAccess @default(FULL_GYM)
-  unit             WeightUnit         @default(KG)
-  weeklyGoal       Int
+  userId            String             @id
+  experience        TrainingExperience
+  equipmentAccess   GymEquipmentAccess @default(FULL_GYM)
+  unit              WeightUnit         @default(KG)
+  weeklyGoal        Int
   /// [{ fromWeek: "YYYY-MM-DD" (Monday), goal: number }] — weeks are judged by the goal in force.
-  goalHistory      Json               @default("[]")
-  barWeightKg      Float              @default(20)
-  platePairsKg     Float[]
-  dumbbellsKg      Float[]
-  machineStepKg    Float              @default(5)
-  cableStepKg      Float              @default(2.5)
-  hasDipBelt       Boolean            @default(false)
-  microPlates      Boolean            @default(false)
-  reminderEnabled  Boolean            @default(false)
-  reminderTime     String? // "18:30" device-local
+  goalHistory       Json               @default("[]")
+  barWeightKg       Float              @default(20)
+  platePairsKg      Float[]
+  dumbbellsKg       Float[]
+  machineStepKg     Float              @default(5)
+  cableStepKg       Float              @default(2.5)
+  hasDipBelt        Boolean            @default(false)
+  microPlates       Boolean            @default(false)
+  reminderEnabled   Boolean            @default(false)
+  reminderTime      String? // "18:30" device-local
   /// Deload / stall / recap offer bookkeeping (dismissals, active deload window).
-  offerState       Json               @default("{}")
-  setupCompletedAt DateTime?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  offerState        Json               @default("{}")
+  setupCompletedAt  DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  // S6, rev 2 (T-05.3, T-36.2, T-36.3, T-36.6)
+  hasWeightedVest   Boolean            @default(false)
+  /// Null = never (quiet-days nudge off); new setups write 5.
+  quietNudgeDays    Int?
+  sessionLengthMins Int?
+  /// Per-weekday "HH:MM" overrides; {} = use the single reminderTime for every day.
+  reminderTimes     Json               @default("{}")
+  /// { exerciseId, fromSessionId, routineDayId }[] (CarryOverItem, @chefer/utils gym/carry-over.ts)
+  carryOver         Json               @default("[]")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

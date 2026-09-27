@@ -1,4 +1,4 @@
-import type { OnboardingIntent } from '@chefer/types';
+import type { OnboardingIntent, OnboardingJob } from '@chefer/types';
 
 // ─── Household maths + audience routing (backlog P2-3) ────────────────────────
 // Pure helpers shared by the API, web and mobile so every surface agrees on
@@ -31,7 +31,15 @@ export function perPortionCost(
 
 // ─── Onboarding routing ───────────────────────────────────────────────────────
 
-export type OnboardingStepKey = 'intent' | 'table' | 'diet' | 'goal' | 'metrics' | 'cuisine';
+export type OnboardingStepKey =
+  | 'intent'
+  | 'table'
+  | 'diet'
+  | 'goal'
+  | 'metrics'
+  | 'cuisine'
+  // Rev 2 (T-00.7): a TRACK job adds the "Your targets" step (§2.4).
+  | 'targets';
 
 /**
  * The onboarding steps for one audience (PM review §5, F-PM-6):
@@ -40,24 +48,43 @@ export type OnboardingStepKey = 'intent' | 'table' | 'diet' | 'goal' | 'metrics'
  * - HOUSEHOLD adds "Who's at your table?" before the food steps,
  * - everyone else keeps the tier's food flow (free: diet → goal → metrics;
  *   premium: goal → metrics → diet → cuisine).
+ *
+ * v2 (rev 2, T-00.7): pass `jobs` (the effective jobs list, `@chefer/utils`
+ * `effectiveJobs()`) to route by jobs instead of the single legacy intent —
+ * a TRACK job adds the "targets" step. Omitting `jobs` (or passing `[]`)
+ * keeps the exact v1 behaviour above, so every existing call site keeps
+ * working unchanged.
  */
 export function onboardingSteps({
   intent,
   askIntent,
   isPremium,
+  jobs,
 }: {
   intent: OnboardingIntent | null;
   /** Show the question (false when the saved profile already has an intent). */
   askIntent: boolean;
   isPremium: boolean;
+  /** v2 only: the effective jobs list. Omitted/empty = v1 intent-based routing. */
+  jobs?: readonly OnboardingJob[];
 }): OnboardingStepKey[] {
   const head: OnboardingStepKey[] = askIntent ? ['intent'] : [];
-  if (intent === 'TRAIN' && askIntent) return head;
   const food: OnboardingStepKey[] = isPremium
     ? ['goal', 'metrics', 'diet', 'cuisine']
     : ['diet', 'goal', 'metrics'];
-  const table: OnboardingStepKey[] = intent === 'HOUSEHOLD' ? ['table'] : [];
-  return [...head, ...table, ...food];
+
+  if (!jobs || jobs.length === 0) {
+    if (intent === 'TRAIN' && askIntent) return head;
+    const table: OnboardingStepKey[] = intent === 'HOUSEHOLD' ? ['table'] : [];
+    return [...head, ...table, ...food];
+  }
+
+  const trainOnly = jobs.length === 1 && jobs[0] === 'TRAIN';
+  if (trainOnly && askIntent) return head;
+
+  const table: OnboardingStepKey[] = jobs.includes('HOUSEHOLD') ? ['table'] : [];
+  const targets: OnboardingStepKey[] = jobs.includes('TRACK') ? ['targets'] : [];
+  return [...head, ...table, ...food, ...targets];
 }
 
 // ─── Ghost samples (free household teaser, audit F-PM-12) ─────────────────────

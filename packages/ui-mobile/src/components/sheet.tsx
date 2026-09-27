@@ -28,7 +28,7 @@ export interface SheetProps {
   onClose: () => void;
   title: string;
   /** Small uppercase line above the title. */
-  eyebrow?: string;
+  eyebrow?: string | undefined;
   children: React.ReactNode;
   /** Pinned under the scrolling body (primary actions). */
   footer?: React.ReactNode;
@@ -38,7 +38,7 @@ export interface SheetProps {
   maxHeight?: `${number}%`;
   className?: string;
   /** The title gets `${testID}-title`, the close button `${testID}-close`. */
-  testID?: string;
+  testID?: string | undefined;
   /**
    * Called once the sheet is fully gone (exit played, Modal dismissed). Use
    * it to present something native next (camera, another Modal): iOS refuses

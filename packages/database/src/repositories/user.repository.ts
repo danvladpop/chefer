@@ -35,6 +35,15 @@ export interface UpdateUserData {
   role?: UserRole;
   image?: string;
   emailVerified?: Date;
+  weeklyEmailReady?: boolean;
+  weeklyEmailRecap?: boolean;
+  aiDataConsentAt?: Date | null;
+  // §2.8, T-26.1 (S5, rev 2) — a cache of the latest HEALTH ConsentEvent.
+  healthDataConsentAt?: Date | null;
+  healthDataConsentVersion?: string | null;
+  // §2.13, T-39.1-39.3 (S15, rev 2)
+  emailDefaultsNoticeAt?: Date | null;
+  termsAcceptedVersion?: string | null;
 }
 
 export class UserRepository implements IUserRepository {

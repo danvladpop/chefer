@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChefReviewBanner } from '@/features/coach/components/ChefReviewBanner';
 import { WeightCard } from '@/features/coach/components/WeightCard';
 import { NextMealCard } from '@/features/dashboard/components/next-meal-card';
@@ -11,6 +11,7 @@ import { TodaysWorkoutCard } from '@/features/gym/shared/todays-workout-card';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
 import { useIsPremium } from '@/hooks/useIsPremium';
+import { capture } from '@/lib/analytics';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
@@ -62,6 +63,17 @@ export default function DashboardPage() {
     void utils.tracker.weeklySummary.invalidate();
   };
 
+  // B-13 (T-00.15): Today has no week selector, so the server's fix (reading
+  // findForWeek, never findActiveWithDays) is the whole guarantee here —
+  // weekMatches is always true by construction. Kept as its own event (not
+  // hardcoded downstream) so the wave-1 analytics dictionary reads the same
+  // shape from every surface.
+  useEffect(() => {
+    if (!data) return;
+    capture('plan_shown', { surface: 'today', weekMatches: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per load
+  }, [data?.today.date]);
+
   if (isLoading) return <DashboardSkeleton />;
 
   const d = data;
@@ -79,6 +91,11 @@ export default function DashboardPage() {
   }
 
   const hasPlan = d.weekPlan.length > 0;
+  // B-31 interim (T-00.12): the ring, weight card, profile nudge and
+  // Snap-to-log all assume a goal — meaningless for someone who only wants
+  // to log what they ate. `dashboard.summary` derives this from
+  // chefProfile.goal OR the user already tracking (≥ 3 of the last 7 days).
+  const showNutritionCards = d.showNutritionCards;
 
   // After the last meal window of the day the API sends tomorrow's first meal
   // instead — the spotlight stays populated, just badged "Tomorrow".
@@ -131,7 +148,9 @@ export default function DashboardPage() {
             for free) — renders nothing until a review exists and is fresh. */}
         <ChefReviewBanner />
 
-        {showProfileNudge && (
+        {/* B-31 interim (T-00.12): hidden with the other goal-assuming cards
+            below until the user has a goal or already tracks. */}
+        {showNutritionCards && showProfileNudge && (
           <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#944a00]/20 bg-[#fff3e8] p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-[#944a00]">Complete your profile</p>
@@ -171,13 +190,18 @@ export default function DashboardPage() {
 
         {/* What you ate vs target — inline here below xl, in the right rail
             above it. The ring reads the dashboard summary's nutrition fields,
-            so target changes made server-side flow straight through. */}
-        <NutritionSummary nutrition={d.nutrition} className="xl:hidden" />
+            so target changes made server-side flow straight through. B-31
+            interim (T-00.12): hidden for a goal-less, non-tracking user. */}
+        {showNutritionCards && <NutritionSummary nutrition={d.nutrition} className="xl:hidden" />}
 
-        {/* Off-plan logging: free quick add + premium scan (demo for free). */}
+        {/* Off-plan logging: free quick add + premium scan (demo for free).
+            Quick add stays available to everyone; scan is nutrition-tracking
+            gear (B-31 interim). */}
         <div className="flex flex-wrap gap-2" data-testid="today-quick-log">
           <QuickAddSheet date={localDateStr()} onLogged={onLogged} />
-          <ScanMealButton date={localDateStr()} isPremium={isPremium} onLogged={onLogged} />
+          {showNutritionCards && (
+            <ScanMealButton date={localDateStr()} isPremium={isPremium} onLogged={onLogged} />
+          )}
         </div>
 
         {/* Next meal spotlight — advances past meals already logged today */}
@@ -405,8 +429,9 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* F1: weight quick-entry + 30-day sparkline (free — feeds coaching) */}
-        <WeightCard />
+        {/* F1: weight quick-entry + 30-day sparkline (free — feeds coaching).
+            B-31 interim (T-00.12): weight tracking assumes a goal. */}
+        {showNutritionCards && <WeightCard />}
 
         {/* Gym (D11): next workout / done + week ring; opens Gym mode */}
         <TodaysWorkoutCard />
@@ -470,10 +495,14 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Right rail — xl+ only. Below that the same panel renders inline
-             in the main column above. ─────────────────────────────────────── */}
-      <div className="hidden w-72 shrink-0 flex-col gap-4 xl:flex">
-        <NutritionSummary nutrition={d.nutrition} className="sticky top-6" />
-      </div>
+             in the main column above. B-31 interim (T-00.12): the rail holds
+             only the nutrition panel, so it is omitted entirely when that is
+             hidden — otherwise goal-less users get an empty 288px column. ── */}
+      {showNutritionCards && (
+        <div className="hidden w-72 shrink-0 flex-col gap-4 xl:flex">
+          <NutritionSummary nutrition={d.nutrition} className="sticky top-6" />
+        </div>
+      )}
     </div>
   );
 }

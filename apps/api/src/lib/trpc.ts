@@ -17,6 +17,13 @@ export interface Context {
   sessionToken: string | null;
   /** Request carried `x-chefer-client: mobile` — auth responses may include the session token. */
   isMobileClient: boolean;
+  /**
+   * `x-chefer-api-level` (§2.8, T-00.8) — absent/unparseable = 0 ("old
+   * client"). Level 1 = "understands the health-consent error and shows the
+   * sheet". Nothing requires it yet (HEALTH_CONSENT_ENFORCE stays `off` in
+   * wave 0); it exists so future breaking-change work has a versioning hook.
+   */
+  clientApiLevel: number;
   res: Response;
 }
 

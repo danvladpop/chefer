@@ -1,5 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import {
+  dietaryPreferencesRepository,
+  householdMemberRepository,
   mealPlanRepository,
   pantryItemRepository,
   prisma,
@@ -9,12 +11,18 @@ import {
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { slotPortion } from '@chefer/utils';
-import { CURATED_POOL_BY_TYPE } from '../../lib/curated-recipes/index.js';
+import type { Ingredient } from '../../lib/ai/index.js';
+import {
+  CURATED_POOL_BY_TYPE,
+  hasSafetyPrefs,
+  isRecipeSafe,
+} from '../../lib/curated-recipes/index.js';
 import { hasFeature } from '../../lib/entitlements.js';
 import {
   estimateItemPriceEur,
   normalizeIngredientName,
 } from '../../lib/ingredient-prices/index.js';
+import { mergeHouseholdSafety } from '../household/household.service.js';
 import { buildPantryMatcher, rankRecipesByPantry } from './pantry-match.js';
 import { isStapleIngredient } from './staples.js';
 
@@ -194,10 +202,27 @@ export class PantryService {
       return `The user has ${pantry.length} item(s) in their kitchen, but pantry-aware cooking suggestions are a premium feature — suggest upgrading so plans and suggestions cook from what they already have.`;
     }
 
+    // B-34/B-46: never suggest a dish the household can't eat — this used to
+    // rank the raw curated pool + active plan, allergens and all.
+    const [dietaryPrefs, members] = await Promise.all([
+      dietaryPreferencesRepository.findByUserId(user.id),
+      householdMemberRepository.findByUserId(user.id),
+    ]);
+    const safety = mergeHouseholdSafety(
+      {
+        allergies: dietaryPrefs?.allergies ?? [],
+        dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
+        dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
+      },
+      members,
+    );
+
+    const hasPrefs = hasSafetyPrefs(safety);
     const pantryNames = pantry.map((p) => p.ingredientName);
     const candidates = new Map<string, { name: string; ingredients: { name: string }[] }>();
     for (const pool of Object.values(CURATED_POOL_BY_TYPE)) {
       for (const recipe of pool) {
+        if (hasPrefs && !isRecipeSafe(recipe, safety)) continue;
         candidates.set(recipe.name, { name: recipe.name, ingredients: recipe.ingredients });
       }
     }
@@ -211,10 +236,23 @@ export class PantryService {
       ];
       const recipes = await this.planRepo.findRecipesByIds(ids);
       for (const recipe of recipes) {
-        candidates.set(recipe.name, {
-          name: recipe.name,
-          ingredients: recipe.ingredients as unknown as { name: string }[],
-        });
+        const name = recipe.name;
+        const ingredients = recipe.ingredients as unknown as Ingredient[];
+        if (
+          hasPrefs &&
+          !isRecipeSafe(
+            {
+              name,
+              ingredients,
+              instructions: recipe.instructions,
+              dietaryTags: recipe.dietaryTags,
+            },
+            safety,
+          )
+        ) {
+          continue;
+        }
+        candidates.set(name, { name, ingredients });
       }
     }
 

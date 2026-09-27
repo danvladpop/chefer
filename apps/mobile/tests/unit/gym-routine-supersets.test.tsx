@@ -18,6 +18,7 @@ jest.mock('../../src/lib/trpc', () => {
 });
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) },
+  usePathname: () => '/routine',
 }));
 
 const { trpc } = jest.requireMock<ReturnType<typeof createTrpcGymMock>>('../../src/lib/trpc');

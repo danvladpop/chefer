@@ -1,7 +1,17 @@
 export { Badge, type BadgeProps } from './components/badge';
 export { Button, type ButtonProps } from './components/button';
 export { Card, CardTitle, type CardProps } from './components/card';
-export { ConfirmSheet, type ConfirmSheetProps } from './components/confirm-sheet';
+export {
+  ChangeNoticeCard,
+  type ChangeNoticeCardProps,
+  type ChangeNoticeRow,
+} from './components/change-notice-card';
+export {
+  ConfirmSheet,
+  type ConfirmSheetOption,
+  type ConfirmSheetProps,
+} from './components/confirm-sheet';
+export { ExplainSheet, type ExplainSheetProps } from './components/explain-sheet';
 export {
   Chip,
   ChipGroup,
@@ -31,6 +41,13 @@ export {
 } from './components/segmented-control';
 export { Sheet, type SheetProps } from './components/sheet';
 export {
+  Snackbar,
+  resetSnackbarForTests,
+  useSnackbar,
+  type SnackbarOptions,
+  type SnackbarProps,
+} from './components/snackbar';
+export {
   Stepper,
   STEPPER_REPEAT_DELAY_MS,
   STEPPER_REPEAT_INTERVAL_MS,
@@ -42,6 +59,12 @@ export {
   Text,
   type TextProps,
 } from './components/text';
+export {
+  resolveUse24h,
+  TimePicker,
+  type TimeOfDay,
+  type TimePickerProps,
+} from './components/time-picker';
 export {
   useFieldChain,
   type FieldChainBinding,

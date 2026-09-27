@@ -107,6 +107,19 @@ export {
   type WeeklyEmailRecipient,
   type WeeklyEmailPreferences,
   type WeekLogRow,
+  // Wave-0 schema contracts (T-00.10)
+  SafetyReportRepository,
+  safetyReportRepository,
+  type ISafetyReportRepository,
+  type CreateSafetyReportData,
+  TargetChangeRepository,
+  targetChangeRepository,
+  type ITargetChangeRepository,
+  type CreateTargetChangeData,
+  ConsentEventRepository,
+  consentEventRepository,
+  type IConsentEventRepository,
+  type RecordConsentEventData,
 } from './repositories/index';
 
 // Re-export Prisma types for convenience
@@ -143,6 +156,10 @@ export type {
   ExerciseProgression,
   TrainingPause,
   EmailSend,
+  // Wave-0 schema contracts (T-00.10)
+  SafetyReport,
+  TargetChange,
+  ConsentEvent,
 } from '@prisma/client';
 export {
   AiCallType,
@@ -153,4 +170,9 @@ export {
   MealPlanStatus,
   MealPlanOrigin,
   ImageStatus,
+  OnboardingIntent,
+  OnboardingJob,
+  TargetMode,
+  TargetChangeKind,
+  ConsentKind,
 } from '@prisma/client';

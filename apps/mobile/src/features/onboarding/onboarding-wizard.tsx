@@ -13,12 +13,13 @@ import { CuisineStep, type CuisineStepValue } from '../preferences/components/cu
 import { GoalStep } from '../preferences/components/goal-step';
 import { MetricsStep } from '../preferences/components/metrics-step';
 import { SafetyStep } from '../preferences/components/safety-step';
-import type {
-  ActivityLevel,
-  BiologicalSex,
-  Goal,
-  MetricsValue,
-  SafetyValue,
+import {
+  GOALS,
+  type ActivityLevel,
+  type BiologicalSex,
+  type Goal,
+  type MetricsValue,
+  type SafetyValue,
 } from '../preferences/types';
 import { IntentStep } from './intent-step';
 
@@ -53,11 +54,27 @@ function stepTitle(key: OnboardingStepKey, isPremium: boolean): string {
       return 'Body metrics';
     case 'cuisine':
       return 'Cuisine & cadence';
+    // Rev 2 (T-00.7): v2 jobs-based routing adds a "targets" step for TRACK
+    // users. Not wired here yet (this wizard still calls onboardingSteps
+    // v1) — the case exists only to keep this switch exhaustive against the
+    // shared OnboardingStepKey type.
+    case 'targets':
+      return 'Your targets';
   }
 }
 
 function parseIntent(raw: unknown): OnboardingIntent | null {
   return ONBOARDING_INTENTS.find((i) => i === raw) ?? null;
+}
+
+// §2.11 (rev 2, T-35.1) adds Goal.RECOMP/PERFORMANCE server-side. The real
+// compat mapping (serialising them as MAINTAIN for old clients) is wave 1 —
+// this screen still renders the fixed 4-goal GOALS list (types.ts), so a
+// value outside it is treated as "no goal set" rather than widening the
+// type here. Remove this narrowing once the server sends goalV2 + the
+// mapped legacy `goal` (§2.11 compat note).
+function knownGoal(goal: string | null | undefined): Goal | null {
+  return GOALS.find((g) => g.value === goal)?.value ?? null;
 }
 
 interface CompleteMetrics {
@@ -138,7 +155,7 @@ export function OnboardingWizard() {
     const profile = saved.chefProfile;
     const diet = saved.dietaryPreferences;
     if (profile) {
-      setGoal(profile.goal ?? null);
+      setGoal(knownGoal(profile.goal));
       setMetrics({
         biologicalSex: profile.biologicalSex ?? null,
         age: profile.age ?? null,

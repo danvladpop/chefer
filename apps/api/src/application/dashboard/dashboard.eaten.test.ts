@@ -8,7 +8,7 @@ vi.mock('@chefer/database', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/database')>()),
   chefProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
   mealPlanRepository: {
-    findActiveWithDays: vi.fn().mockResolvedValue(null),
+    findForWeek: vi.fn().mockResolvedValue(null),
     findRecipesByIds: vi.fn().mockResolvedValue([]),
   },
   favouriteRecipeRepository: { findByUserId: vi.fn().mockResolvedValue([]) },
@@ -20,6 +20,7 @@ vi.mock('@chefer/database', async (importOriginal) => ({
       totalCarbs: 640.2,
       totalFat: 280.6,
     }),
+    findLastN: vi.fn().mockResolvedValue([]),
   },
   MealPlanOrigin: { WEEKLY_AUTO: 'WEEKLY_AUTO' },
 }));

@@ -32,6 +32,7 @@ const caller = trackerRouter.createCaller({
   ipAddress: '127.0.0.1',
   sessionToken: null,
   isMobileClient: false,
+  clientApiLevel: 0,
   res: {} as Response,
 });
 

@@ -315,7 +315,11 @@ Express Server (apps/api, port 3001)
   └─ tRPC adapter
         │
         ├─ createContext()
-        │     └─ Resolve ctx.user from cookie/header
+        │     ├─ Resolve ctx.user from cookie/header
+        │     └─ Resolve ctx.clientApiLevel from x-chefer-api-level (§2.8, T-00.8;
+        │        absent = 0). Not enforced yet — HEALTH_CONSENT_ENFORCE stays "off"
+        │        until wave 1 (T-26.1). profile.flags (public) exposes FEATURE_FLAGS
+        │        separately, read once by clients and cached like profile.aiProviders
         │
         ├─ timingMiddleware (logs duration in dev)
         │
@@ -541,6 +545,12 @@ Plans continue week to week until changed: `mealPlan.getForWeek` for the current
 
 `mealPlan.replaceRecipe` — any tier, no quota: sets a meal slot to a specific recipe the user chose. On mobile this is the primary per-meal action: the Plan tab's replace button opens a bottom-sheet picker (own + favourited recipes first, searchable) with an AI-regen footer (premium, calls `swapRecipe`). Web exposes `replaceRecipe` only via the tracker rebalance banner so far — meal-plan picker port pending (see `mobile_parity_backlog.md`).
 
+**Safety on Replace (B-34/B-46, T-00.11).** The picker is a search over `recipe.list`, not the safety-filtered curated pool, so before this hotfix a user could Replace into a recipe that conflicted with their (or their household's) allergies or dietary restrictions with no check at all:
+
+- `recipe.list({ forTable: true })` drops rows that fail the merged household safety check (`isRecipeSafe` — same matcher as `safeCuratedPools`/`filterSafeRecipes`) before the client ever sees them. Both pickers' broader/curated query passes it; each picker's "my recipes" query does not, on purpose — a user's own recipe can still be picked even if it now conflicts (e.g. an allergy added after the recipe was written), so the acknowledge path below has something to act on.
+- `replaceRecipe` itself re-checks the picked recipe regardless of which query it came from, and rejects an unsafe one with `FORBIDDEN` (`UNSAFE_FOR_TABLE: …` naming the conflicting allergen/restriction) unless the caller sends `acknowledgeConflict: true` **and** the recipe is the user's own `MANUAL` recipe (never for curated/AI or someone else's). Both the mobile picker and the web `ReplaceMealSheet` show the rejection and, only for the user's own recipe, an inline "Use anyway" that retries with `acknowledgeConflict: true`.
+- The chat tool `whatCanIMake` (pantry, F3) had the same gap — it ranked the curated pool and the active plan's recipes by pantry coverage with no safety filter, so a perfectly pantry-matched but unsafe dish could top the answer. It now filters both sources through the same merged safety check before ranking.
+
 ### Shopping list & ingredient price vocabulary
 
 **Shopping state survives plan changes** (audit F-SHOP-2-1, F-PLAN-6-1): check-offs and custom items are stored per plan, so `MealPlanRepository.createPlan` copies them from the same-week plan it replaces (regenerate, follow a template) onto the new plan. History **Restore** re-creates the old plan as the newest row for its week, archiving only that week, and brings that plan's own ticks and custom items back.
@@ -721,6 +731,14 @@ Today
 
 The web hero card (`/dashboard`) renders `nextMeal`, else `tomorrowFirstMeal`
 (badged "Tomorrow", CTA "View recipe"), else the "all caught up" empty state.
+
+### One "this week" everywhere (B-13, T-00.15)
+
+Plan/Shop/Today used to answer "what's my plan" four different ways: `mealPlan.getForWeek` (offset 0), `mealPlan.getActive`, `shoppingList.getForWeek` (offset 0) and `dashboard.summary` all fell back to `mealPlanRepository.findActiveWithDays` — the newest **ACTIVE** plan, from **any** week — whenever there was no plan row for the requested week. Because `archiveOldPlans` archives every other ACTIVE plan when a new one is created, "the active plan" is really "whichever week was generated most recently" — a Sunday planner who generates next week's plan first sees THAT plan on Today, Plan and Shop for the current week too, until the current week gets its own plan. All four now read the new `mealPlanRepository.findForWeek(userId, weekStart)`, which only ever matches the requested calendar week, and never fall back to "any active plan"; the existing carry-forward (continuing last week's plan into an empty current/next week, §9) is the only other source. Regression: "Sunday: only next week planned → this week is empty on Plan, Shop and Today." Each surface fires `plan_shown { surface, weekMatches }` (client-side; a no-op until the analytics transport lands in wave 1).
+
+### B-31 interim: nutrition cards need a reason to exist (T-00.12)
+
+`dashboard.summary.showNutritionCards` is `true` when `chefProfile.goal` is set **or** the user already tracks (logged on ≥ 3 of the last 7 days, rev 2 — a tracker keeps the ring even goal-less). A goal-less, non-tracking user gets `false`, and both clients hide `NutritionSummary` (the ring), `WeightCard`, the "Complete your profile" nudge and Snap-to-log — a ring and a weight chart against a target nobody set was meaningless, and the profile nudge and Snap-to-log both assume the same thing. Quick add stays available to everyone (it needs no goal). No schema field yet — the flag is derived fresh on every call; wave 1 persists the equivalent choice in `ChefProfile.showNutritionOnToday`.
 
 ### Cookbook, Shop, My weeks (P2-8)
 
@@ -904,6 +922,20 @@ The AI chef chat (P1-4) is a real assistant over the user's data, not canned
 responses. The widget (`ChatWidget.tsx`, every dashboard page) posts the
 message history to `POST /api/chat` on the API and renders the plain-text
 stream.
+
+**Guardrail (T-00.14, UX-22 AC3, Art. 50 floor).** `CHAT_SYSTEM_PROMPT`
+(`apps/api/src/lib/ai/prompts.ts`) used to invite "nutritional advice" and
+carried no medical-topic guardrail at all, unlike the weekly coach review
+(§14), which already had one. The invitation now says "cooking techniques,
+and meal planning questions" (no "nutritional advice"), and the prompt
+carries the same "chef, not a doctor: no medical claims, no diagnoses, no
+advice about health conditions" rule as the review — with an added line
+telling the model to name a GP or dietitian on a medical topic (blood sugar,
+blood pressure, pregnancy, medication) instead of answering. Both prompts
+share one string so they can't drift apart; a snapshot test
+(`prompts.chat-guardrail.test.ts`) locks the wording in. The fuller UX (a
+`healthTopic`/`safetyTopic` stream flag and footer disclaimers on the
+relevant replies) is wave 1.
 
 ```
 POST /api/chat (session cookie)

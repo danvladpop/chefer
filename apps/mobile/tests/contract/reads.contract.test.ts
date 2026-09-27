@@ -37,6 +37,35 @@ describe('protected reads via Bearer', () => {
     expect(page).toBeTruthy();
   });
 
+  it('recipe.list({ forTable: true }) drops rows unsafe for the allergy just set (B-34/B-46, T-00.11)', async () => {
+    const before = await client.preferences.get.query();
+    const originalPrefs = {
+      dietaryRestrictions: before.dietaryPreferences?.dietaryRestrictions ?? [],
+      allergies: before.dietaryPreferences?.allergies ?? [],
+      dislikedIngredients: before.dietaryPreferences?.dislikedIngredients ?? [],
+    };
+    try {
+      const unfiltered = await client.recipe.list.query({ limit: 50 });
+      const eggRecipe = unfiltered.find((r) =>
+        (r.ingredients as { name: string }[]).some((i) => /\begg\b/i.test(i.name)),
+      );
+      if (!eggRecipe) {
+        console.warn(
+          '[reads.contract] no egg recipe in the catalog — forTable filter not exercised',
+        );
+        return;
+      }
+      await client.preferences.updateSafety.mutate({
+        ...originalPrefs,
+        allergies: [...originalPrefs.allergies, 'egg'],
+      });
+      const filtered = await client.recipe.list.query({ limit: 50, forTable: true });
+      expect(filtered.some((r) => r.id === eggRecipe.id)).toBe(false);
+    } finally {
+      await client.preferences.updateSafety.mutate(originalPrefs);
+    }
+  });
+
   it('recipe detail queries respond for a listed recipe (M2-3)', async () => {
     const page = await client.recipe.list.query({ limit: 1 });
     const first = page.at(0);

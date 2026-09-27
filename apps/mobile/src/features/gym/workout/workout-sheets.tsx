@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Linking, Pressable, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import type { ExerciseDto, SessionExerciseDoc, WeightUnit } from '@chefer/types';
-import { Button, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, ExplainSheet, Sheet, Text } from '@chefer/ui-mobile';
 import { cn, explain, explainInputs, formatLoad } from '@chefer/utils';
 import { exerciseImageUrl } from '../library/exercise-image';
 import type { ExerciseHistoryEntry } from './workout-model';
@@ -109,35 +109,20 @@ export function WhySheet({
   name: string;
   unit: WeightUnit;
 }) {
-  const rows = exercise ? explainInputs(exercise.prescription, unit) : [];
+  // D2 protected (gym-why-sheet.test.tsx pins the exact copy/testIDs): this
+  // is the gym instance of the kit ExplainSheet (PAT-1, T-00.1) — same
+  // sentence, rows and footnote as before the refactor, unchanged.
   return (
-    <Sheet
+    <ExplainSheet
       visible={visible}
       onClose={onClose}
       title={name}
       eyebrow="Why this target"
       testID="why-sheet"
-    >
-      {exercise ? (
-        <Text testID="why-sheet-sentence" className="text-base">
-          {explain(exercise.prescription, unit)}
-        </Text>
-      ) : null}
-      <View className="gap-2">
-        {rows.map((row) => (
-          <View
-            key={row.label}
-            className="flex-row justify-between gap-3 border-b border-border py-2"
-          >
-            <Text variant="muted">{row.label}</Text>
-            <Text className="min-w-0 flex-1 text-right text-sm font-medium">{row.value}</Text>
-          </View>
-        ))}
-      </View>
-      <Text variant="muted" className="text-xs">
-        Change any number freely: the next suggestion uses what you actually lift.
-      </Text>
-    </Sheet>
+      sentence={exercise ? explain(exercise.prescription, unit) : undefined}
+      rows={exercise ? explainInputs(exercise.prescription, unit) : []}
+      footnote="Change any number freely: the next suggestion uses what you actually lift."
+    />
   );
 }
 

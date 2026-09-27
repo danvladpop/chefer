@@ -1,3 +1,7 @@
+// Aliased with a `mock`-prefixed name: babel-plugin-jest-hoist only allows a
+// jest.mock() factory to close over out-of-scope identifiers named
+// `mock*`, so these can be used below without an inline require().
+import { useEffect as mockUseEffect, useState as mockUseState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { httpBatchLink } from '@trpc/client';
@@ -9,12 +13,40 @@ import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { trpc } from '../../src/lib/trpc';
 import { makeBootstrap } from './gym-fixtures';
 
-jest.mock('expo-router', () => ({
-  router: { replace: jest.fn(), push: jest.fn() },
-}));
+// The pill is route-derived (bug B-14) — `usePathname` is faked as a tiny
+// reactive store (like the real expo-router hook) that tracks the last path
+// `router.replace`/`push` was called with, so pressing a segment actually
+// re-renders the pill instead of leaving a static stub in place.
+jest.mock('expo-router', () => {
+  let currentPath = '/';
+  const listeners = new Set<() => void>();
+  function setPath(path: string) {
+    currentPath = path;
+    listeners.forEach((listener) => listener());
+  }
+  return {
+    router: {
+      replace: jest.fn((href: string) => setPath(href)),
+      push: jest.fn((href: string) => setPath(href)),
+    },
+    usePathname: () => {
+      const [path, setLocalPath] = mockUseState(currentPath);
+      mockUseEffect(() => {
+        const listener = () => setLocalPath(currentPath);
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      }, []);
+      return path;
+    },
+    __setPathname: setPath,
+  };
+});
 
-const { router } = jest.requireMock<{
+const { router, __setPathname } = jest.requireMock<{
   router: { replace: jest.Mock; push: jest.Mock };
+  __setPathname: (path: string) => void;
 }>('expo-router');
 
 function renderSwitch(queryClient: QueryClient) {
@@ -40,6 +72,7 @@ beforeEach(() => {
   resetModeForTests();
   router.replace.mockClear();
   router.push.mockClear();
+  __setPathname('/');
 });
 
 describe('ModeSwitch', () => {
@@ -72,10 +105,60 @@ describe('ModeSwitch', () => {
   it('switches back to the food dashboard', async () => {
     const user = userEvent.setup();
     setMode('gym');
+    // The pill is route-derived (bug B-14): pressing an already-selected
+    // segment is a no-op (SegmentedControl), so this starts on a Gym route.
+    __setPathname('/today');
     await renderSwitch(makeClient());
 
     await user.press(screen.getByTestId('mode-switch-food'));
     expect(getMode()).toBe('food');
     expect(router.replace).toHaveBeenCalledWith('/(food)');
+  });
+
+  describe('bug B-14: the pill reflects the route, not the persisted mode', () => {
+    it('shows Gym selected on a Gym tab-root route even when the persisted mode is food', async () => {
+      setMode('food');
+      __setPathname('/routine');
+      await renderSwitch(makeClient());
+
+      expect(screen.getByTestId('mode-switch-gym')).toBeSelected();
+      expect(screen.getByTestId('mode-switch-food')).not.toBeSelected();
+    });
+
+    it('shows Gym selected under a deep /gym/* stack route', async () => {
+      setMode('food');
+      __setPathname('/gym/settings');
+      await renderSwitch(makeClient());
+
+      expect(screen.getByTestId('mode-switch-gym')).toBeSelected();
+    });
+
+    it('shows Food selected on a Food route even when the persisted mode is gym', async () => {
+      setMode('gym');
+      __setPathname('/meal-plan');
+      await renderSwitch(makeClient());
+
+      expect(screen.getByTestId('mode-switch-food')).toBeSelected();
+    });
+  });
+
+  describe('settings gear (T-00.9, UX-36 (1))', () => {
+    it('opens gym/settings from a Gym route', async () => {
+      const user = userEvent.setup();
+      __setPathname('/today');
+      await renderSwitch(makeClient());
+
+      await user.press(screen.getByTestId('mode-switch-settings'));
+      expect(router.push).toHaveBeenCalledWith('/gym/settings');
+    });
+
+    it('opens the Settings hub from a Food route', async () => {
+      const user = userEvent.setup();
+      __setPathname('/');
+      await renderSwitch(makeClient());
+
+      await user.press(screen.getByTestId('mode-switch-settings'));
+      expect(router.push).toHaveBeenCalledWith('/settings');
+    });
   });
 });

@@ -287,7 +287,10 @@ export default function PreferencesScreen() {
             )}
           </Card>
 
-          {/* Weekly budget — premium, saved via updateTargets (stored in EUR) */}
+          {/* Weekly budget — premium, saved via updateTargets (stored in EUR).
+              B-10 (T-00.13): on free, the field is READ-ONLY — it used to
+              stay editable while the Save button was hidden, so anything
+              typed there was silently dropped on navigation. */}
           <Card className="gap-4">
             <Text variant="heading">Weekly budget</Text>
             <View className="gap-2">
@@ -297,17 +300,24 @@ export default function PreferencesScreen() {
               <TextInput
                 testID="prefs-budget"
                 value={budget}
-                onChangeText={setBudget}
+                onChangeText={isPremium === true ? setBudget : undefined}
+                editable={isPremium === true}
                 keyboardType="decimal-pad"
                 placeholder="e.g. 60"
                 placeholderTextColor="#9ca3af"
-                className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+                className={cn(
+                  'h-11 rounded-md border border-input bg-background px-3 text-base text-foreground',
+                  isPremium === false && 'bg-gray-100 text-gray-400',
+                )}
               />
             </View>
             {isPremium === false ? (
-              <Text variant="muted" className="text-xs">
-                Budget planning is premium — upgrade from your Profile.
-              </Text>
+              <View className="flex-row items-center gap-1.5">
+                <Ionicons name="lock-closed" size={14} color="#9ca3af" />
+                <Text variant="muted" className="text-xs">
+                  Saving a weekly budget is part of Premium.
+                </Text>
+              </View>
             ) : (
               <Button
                 testID="prefs-save-extras"

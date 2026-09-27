@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { UserProfile } from '@chefer/types';
-import { isMobileClient, resolveRequestAuth } from '../../../lib/session-auth.js';
+import { clientApiLevel, isMobileClient, resolveRequestAuth } from '../../../lib/session-auth.js';
 import type { Context } from '../../../lib/trpc.js';
 
 declare module 'express' {
@@ -30,6 +30,7 @@ export async function createContext(req: Request, res: Response): Promise<Contex
     ipAddress,
     sessionToken,
     isMobileClient: isMobileClient(req),
+    clientApiLevel: clientApiLevel(req),
     res,
   };
 }
