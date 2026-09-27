@@ -22,3 +22,6 @@ export * from './supersets';
 // Carry-over + short-version types (T-00.7 scaffold for T-36.3/T-36.6).
 export * from './carry-over';
 export * from './short-version';
+// Resume card summary (T-36.A1.1) and Recent-workouts grouping (T-36.A2.1).
+export * from './resume';
+export * from './recent';
