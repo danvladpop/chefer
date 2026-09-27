@@ -116,6 +116,8 @@ Increment rules, in words:
 ### 1.4 Definitions used below
 
 - `W`: the working weight the user actually used. If they changed the weight across working sets, take the **lowest weight used across all working sets** (conservative), and adopt it as their new baseline.
+  - **Ramp-up sets are not working sets for the load decision** (engine v2, 2026-09-27). Lifters often log their ramp as working sets (40 → 60 → 70 × 9 → 60 × 7). Taking the lowest weight then collapses `W` to the first ramp set, and misses at the top weight are charged against it. So a leading working set that is strictly lighter than the next set **and** below 90% of the session's top weight counts as a ramp set. Ramp sets still count toward "sets done" and volume. `W`, `allTop`, `allFloor` and `totalReps` use the remaining sets. Straight sets, small bumps (60, 60, 62.5) and straight sets followed by a heavier test set (60, 60, 60, 70) are unaffected. This applies only to external-load equipment (plates, dumbbells, stacks), not to bodyweight, belt or assistance.
+  - When a ramp (or a partial calibration exposure, §1.7) leaves fewer judged sets than planned, the missing sets count as just below the top of the range. One good top set can then hold or add reps, but it never triggers a load increase on its own.
 - `allTop`: every working set has `reps ≥ repMax`.
 - `allFloor`: every working set has `reps ≥ repMin`.
 - `totalReps`: sum of reps across working sets done at `W`.
@@ -132,8 +134,9 @@ function nextPrescription(slot, state, log, profile, now): Suggestion {
 
   // 0. Special sessions
   if (log.wasDeload) return resumePreDeload(state); // REASON: DELOAD_DONE
-  if (reps.length < slot.sets)
-    // sets skipped
+  if (reps.length < slot.sets && !(state.calibrating && W !== state.next.weight))
+    // sets skipped (while calibrating, sets done at a weight other than the
+    // guess are real evidence and are judged instead — engine v2)
     return hold(state, 'INCOMPLETE'); // missStreak and stallCount unchanged
 
   if (state.calibrating) return calibrate(slot, state, log, profile); // §1.7

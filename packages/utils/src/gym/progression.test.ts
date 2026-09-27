@@ -17,6 +17,7 @@ import {
   lastPerformedKg,
   prescribe,
   progressionKey,
+  rampSetCount,
   repBucket,
   sortExposures,
   startingGuessKg,
@@ -658,5 +659,96 @@ describe('foldHistory', () => {
     expect(s.next.reps).toEqual([12, 11, 11]);
     const none = foldHistory({ slot: bench, exposures: [], profile: P, experience: BEG });
     expect(none.calibrating).toBe(true);
+  });
+});
+
+describe('ramp-up sets logged as working sets (research §1.5 working weight)', () => {
+  const set = (weightKg: number, reps: number) => ({
+    weightKg,
+    reps,
+    isWarmup: false,
+    completed: true,
+  });
+  const run = (
+    slot: ExerciseSlot,
+    state: ProgressionState,
+    sets: ReturnType<typeof set>[],
+    rir: Rir | null,
+  ) =>
+    applyExposure({
+      slot,
+      state,
+      exposure: exposureOf(slot, '2026-09-27', 0, [], rir, { loggedSets: sets }),
+      profile: P,
+      experience: INT,
+    });
+
+  it('counts only the ascending prefix well below the top weight as ramp', () => {
+    const b = slotFor('barbell-bench-press', 3, 6, 8);
+    expect(rampSetCount([set(40, 10), set(60, 10), set(70, 9), set(60, 7)], b)).toBe(2);
+    expect(rampSetCount([set(60, 10), set(60, 10), set(60, 9)], b)).toBe(0);
+    expect(rampSetCount([set(60, 10), set(60, 10), set(62.5, 9)], b)).toBe(0);
+    expect(rampSetCount([set(60, 8), set(60, 8), set(60, 8), set(70, 6)], b)).toBe(0);
+    expect(rampSetCount([set(60, 8), set(65, 8), set(70, 8)], b)).toBe(1);
+    expect(rampSetCount([set(0, 10), set(10, 6)], pullUp)).toBe(0);
+  });
+
+  it('bench 40, 60, 70×9, 60×7 builds reps at 60 instead of dropping to the first ramp set', () => {
+    const b = slotFor('barbell-bench-press', 3, 6, 8);
+    const out = run(b, fresh(b, INT), [set(40, 10), set(60, 10), set(70, 9), set(60, 7)], 1);
+    expect(out.next.weightKg).toBe(60);
+    expect(out.next.reasonCode).toBe('ADD_REPS');
+    expect(out.next.reps).toEqual([8, 8, 8]);
+    expect(out.next.inputs['lastWeightKg']).toBe(60);
+  });
+
+  it('seated row 40, 50, 55, 50 calibrates up from 50, not 40', () => {
+    const row = slotFor('seated-cable-row', 3, 8, 12);
+    const out = run(row, fresh(row, INT), [set(40, 10), set(50, 10), set(55, 8), set(50, 8)], 2);
+    expect(out.next.inputs['lastWeightKg']).toBe(50);
+    expect(out.next.reasonCode).toBe('CALIBRATING_UP');
+    expect(out.next.weightKg).toBeGreaterThan(50);
+  });
+
+  it('a failed set at the top weight no longer drags the ramp weight down', () => {
+    const inc = slotFor('incline-dumbbell-press', 3, 8, 12);
+    const out = run(inc, fresh(inc, INT), [set(18, 10), set(22.5, 10), set(22.5, 5)], 0);
+    expect(out.next.inputs['lastWeightKg']).toBe(22.5);
+    expect(out.next.reasonCode).toBe('CALIBRATING_DOWN');
+    expect(out.next.weightKg).toBeGreaterThanOrEqual(18);
+  });
+
+  it('one top set at the top of the range after a ramp holds instead of adding load', () => {
+    const out = run(squat, known(squat, 80), [set(40, 8), set(60, 8), set(80, 8)], 1);
+    expect(out.next.kind).toBe('hold');
+    expect(out.next.weightKg).toBe(80);
+  });
+
+  it('straight sets with a heavier test set keep the conservative lightest weight', () => {
+    const out = run(
+      bench,
+      known(bench, 60),
+      [set(60, 12), set(60, 12), set(60, 12), set(70, 8)],
+      1,
+    );
+    expect(out.next.inputs['lastWeightKg']).toBe(60);
+  });
+
+  it('a partial exposure while calibrating at a new weight is judged, not ignored', () => {
+    const fly = slotFor('cable-fly', 3, 12, 15);
+    const s = fresh(fly, INT);
+    expect(s.calibrating).toBe(true);
+    const out = run(fly, s, [set(20, 12), set(20, 8)], 1);
+    expect(out.next.reasonCode).not.toBe('INCOMPLETE');
+    expect(out.next.inputs['lastWeightKg']).toBe(20);
+    expect(out.next.weightKg).toBeGreaterThan(s.next.weightKg);
+  });
+
+  it('a partial exposure at the prescribed weight is still INCOMPLETE', () => {
+    const fly = slotFor('cable-fly', 3, 12, 15);
+    const s = fresh(fly, INT);
+    const out = run(fly, s, [set(s.next.weightKg, 12)], 1);
+    expect(out.next.reasonCode).toBe('INCOMPLETE');
+    expect(out.next.weightKg).toBe(s.next.weightKg);
   });
 });

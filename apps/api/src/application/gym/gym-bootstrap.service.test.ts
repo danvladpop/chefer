@@ -8,6 +8,7 @@ import type {
 import type { NextWorkoutDto, ProgressionDto, SessionSummaryDto } from '@chefer/types';
 import {
   buildNextWorkout,
+  ENGINE_VERSION,
   shouldOfferDeload,
   summarizeWeeks,
   toSessionSummary,
@@ -162,7 +163,7 @@ describe('GymBootstrapService.get', () => {
     expect(b.library.map((e) => e.id)).toEqual(['bench', 'squat']);
     expect(b.libraryCursor).toBe('2026-09-20T00:00:00.000Z');
     expect(b.bodyweightKg).toBe(81.4);
-    expect(b.engineVersion).toBe(1);
+    expect(b.engineVersion).toBe(ENGINE_VERSION);
     expect(b.activePause).toBeNull();
     expect(Date.parse(b.serverTime)).not.toBeNaN();
   });

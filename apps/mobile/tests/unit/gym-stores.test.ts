@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import type { GymBootstrap } from '@chefer/types';
+import { ENGINE_VERSION } from '@chefer/utils';
 import {
   getMode,
   resetModeForTests,
@@ -111,7 +112,7 @@ describe('query persistence filter', () => {
     expect(shouldPersistQuery({ queryKey: gymBootstrapQueryKey, state: { status: 'error' } })).toBe(
       false,
     );
-    expect(GYM_CACHE_BUSTER).toBe('1:1');
+    expect(GYM_CACHE_BUSTER).toBe(`${ENGINE_VERSION}:1`);
   });
 
   it('uses an input-free bootstrap key (a date in the key would miss the cache every morning)', () => {

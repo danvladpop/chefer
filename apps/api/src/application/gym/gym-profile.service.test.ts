@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IGymProfileRepository } from '@chefer/database';
 import { TEMPLATE_BY_KEY, type CompleteSetupInput } from '@chefer/types';
 import {
+  ENGINE_VERSION,
   estimateDurationMin,
   initialState,
   instantiateTemplate,
@@ -140,7 +141,7 @@ describe('GymProfileService.completeSetup', () => {
     expect(new Set(data.progressions.map((p) => `${p.exerciseId}|${p.repBucket}`))).toEqual(
       expectedKeys,
     );
-    expect(data.progressions.every((p) => p.engineVersion === 1)).toBe(true);
+    expect(data.progressions.every((p) => p.engineVersion === ENGINE_VERSION)).toBe(true);
 
     // Profile: goal from the template, goal history from this week, reminder on.
     expect(data.profile).toMatchObject({
