@@ -69,6 +69,16 @@ export default defineConfig({
       dependencies: ['setup'],
     },
 
+    // wave-1 L-PLAN (T-08.9): Plan/Shop default week, regenerate→undo,
+    // replace→undo. Desktop-only for now — the mobile-first day view is
+    // already covered by mobile-overflow.spec.ts's route sweep.
+    {
+      name: 'plan',
+      testMatch: /(meal-plan|shopping-list)(-[a-z]+)?\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], storageState: AUTH_FILE },
+      dependencies: ['setup'],
+    },
+
     // ── Public pages ─────────────────────────────────────────────────────────
     // No auth needed. Kept separate so a stale public spec cannot mask a
     // failure in the responsive suites above.

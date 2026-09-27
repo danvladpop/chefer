@@ -597,9 +597,51 @@ picker.ts`) — a pure stand-in for the server-side, safety-aware
   day" link now calls `mealPlan.planDay({ planId, dayOfWeek })` directly
   (it used to open Plan settings) and shows a "{Day} planned." success
   snackbar — `setData`, not refetch, same as Regenerate.
-* **Web parity:** see the web section below (T-07.6/T-08.9, wave-1
-  `feat/ux-now/plan-web`) and `mobile_parity_backlog.md` for anything still
-  mobile-only.
+* **Web parity:** landed wave-1 `feat/ux-now/plan-web` (T-07.6/T-08.9) —
+  see below.
+
+**Web UI for the above (T-07.6/T-08.9 — persona-study wave 1,
+`feat/ux-now/plan-web`).** `app/(dashboard)/meal-plan/page.tsx` and
+`app/(dashboard)/shopping-list/page.tsx`:
+
+- **Default week (bug B-13).** Both pages default via the shared
+  `defaultWeekOffset`/`getWeekStartDate` (`@chefer/utils`), not always
+  `weekOffset = 0`; Plan's week nav now always writes `?week=` explicitly
+  (deleting it on 0 used to make the next render recompute the default and
+  jump back to next week instead of staying on "this week").
+- **Plan settings.** New `PlanSettingsSheet.tsx` (reuses `plan-shape.ts`) —
+  which meals/days, time cap + weekend exemption, cooking for 1/2, premium
+  leftovers option, live summary; a header "Plan settings" button opens it
+  and saving with an existing plan for the week routes into the regenerate
+  confirm below, never regenerating silently. The empty-week CTA names the
+  job via `planButtonLabel` ("Plan 4 dinners" vs "Plan my week").
+- **Plan this day.** An unplanned day (`planned: false`, in both the
+  mobile-first day view and the desktop week grid) says why and offers
+  "Plan this day" via `mealPlan.planDay`.
+- **Regenerate is visible, asks first, and is undoable.** Once a plan
+  exists, the nav bar's Regenerate opens a confirm `Sheet` with a "Keep the
+  N meals you chose" switch (only when picks exist); the success Toast
+  offers `Undo` → `mealPlan.restore(previousPlanId)`. An empty week's own
+  CTA still generates directly (nothing to lose).
+- **Pin/unpin.** A bookmark toggle on `MealCard` (row and grid variants)
+  calls `mealPlan.setSlotPinned`; a pinned slot shows "Your pick".
+- **Undoable Replace/AI swap.** Both show a "Swapped to X" Toast with
+  `Undo` back to `previousRecipeId` (`ReplaceMealSheet`'s new `onChanged`
+  callback).
+- **Replace picker filter (bug B-50).** `ReplaceMealSheet.tsx` narrows
+  candidates with `filterReplaceCandidates` (`@chefer/utils`) the same way
+  mobile's picker does — T-08.10: switch to `recipe-access.ts`'s
+  server-side version at integration.
+- **Pool-exhaustion cause (T-10.4).** Reads `error.data.poolExhausted`
+  defensively, same as mobile.
+- **Price ranges, no savings chip.** The Plan week-cost badge and Shop's
+  "Est. total" both show `formatPriceRange`, not a point number; Shop's
+  "Saved ~X this week" chip is removed (bug B-33, until savings can be
+  itemised).
+- **Partial pantry coverage (bug B-24) — web ONLY so far.** A pantry row
+  with less than a line's needed amount shows "You have {haveQuantity} of
+  {need} · Buy {remaining}" per item; mobile's Shop screen doesn't have this
+  yet (`mobile_parity_backlog.md`, 2026-09-28).
 
 ### Weekly auto-generation (PW-5; free curated weeks since P2-5)
 
