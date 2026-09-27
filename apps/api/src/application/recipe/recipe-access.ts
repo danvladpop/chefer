@@ -35,3 +35,47 @@ export async function findRecipeVisibleTo(
   if (isRecipeOpenTo(recipe, userId)) return recipe;
   return (await repo.isRecipeInUserPlans(userId, recipeId)) ? recipe : null;
 }
+
+// ─── Replace picker candidates (T-08.10, bug B-50) ─────────────────────────────
+// Server half: dedupe by id and drop the meal being replaced; the picker
+// list is already safety-filtered upstream by `RecipeService.list({
+// forTable: true })` (T-01.2). L-PLAN's `meal-plan.router.ts` calls this
+// with the rows `recipe.list({ forTable: true })` returns, the slot's meal
+// type (when the picker should offer only that slot's kind — B-50's "no
+// slot filter") and the id of the recipe currently occupying the slot
+// (never re-offer the meal you're replacing).
+
+export interface ReplaceCandidateLike {
+  id: string;
+  /** Present on recipes that carry a meal-type hint (curated pool rows). Absent ones always pass the slot filter. */
+  mealType?: string | null | undefined;
+}
+
+export interface FilterReplaceCandidatesOptions {
+  /** Only offer candidates for this slot's meal type; omit to skip the filter. */
+  slotType?: string | undefined;
+  /** The recipe currently in the slot — never re-offered as its own replacement. */
+  excludeRecipeId?: string | undefined;
+}
+
+/**
+ * Dedupes a Replace-picker candidate list by id, drops the recipe currently
+ * occupying the slot, and (when `slotType` is given) keeps only candidates
+ * whose own `mealType` matches it or that don't carry one at all (a manual/
+ * imported recipe has no fixed meal type, so it's never wrongly excluded).
+ */
+export function filterReplaceCandidates<T extends ReplaceCandidateLike>(
+  candidates: readonly T[],
+  opts: FilterReplaceCandidatesOptions = {},
+): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const candidate of candidates) {
+    if (opts.excludeRecipeId && candidate.id === opts.excludeRecipeId) continue;
+    if (seen.has(candidate.id)) continue;
+    if (opts.slotType && candidate.mealType && candidate.mealType !== opts.slotType) continue;
+    seen.add(candidate.id);
+    result.push(candidate);
+  }
+  return result;
+}

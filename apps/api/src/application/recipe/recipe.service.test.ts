@@ -4,13 +4,20 @@ import { RecipeService } from './recipe.service.js';
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
-const { findAllRecipesForUser, findSavedRecipeIds, findByUserId, findHouseholdByUserId } =
-  vi.hoisted(() => ({
-    findAllRecipesForUser: vi.fn(),
-    findSavedRecipeIds: vi.fn().mockResolvedValue([]),
-    findByUserId: vi.fn().mockResolvedValue(null),
-    findHouseholdByUserId: vi.fn().mockResolvedValue([]),
-  }));
+const {
+  findAllRecipesForUser,
+  findSavedRecipeIds,
+  findByUserId,
+  findHouseholdByUserId,
+  findRecipeIdsByUser,
+} = vi.hoisted(() => ({
+  findAllRecipesForUser: vi.fn(),
+  findSavedRecipeIds: vi.fn().mockResolvedValue([]),
+  findByUserId: vi.fn().mockResolvedValue(null),
+  findHouseholdByUserId: vi.fn().mockResolvedValue([]),
+  // T-01.2: SafetyService.loadContext also reads reported-recipe ids.
+  findRecipeIdsByUser: vi.fn().mockResolvedValue([]),
+}));
 
 vi.mock('@chefer/database', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@chefer/database')>();
@@ -22,6 +29,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
     },
     dietaryPreferencesRepository: { findByUserId },
     householdMemberRepository: { findByUserId: findHouseholdByUserId },
+    safetyReportRepository: { findRecipeIdsByUser, create: vi.fn(), findAllByUser: vi.fn() },
   };
 });
 

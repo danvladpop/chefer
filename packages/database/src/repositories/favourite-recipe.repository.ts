@@ -183,33 +183,65 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
       return favourites.map((f: { recipe: Recipe }) => f.recipe);
     }
 
-    // All recipes referenced in any of the user's meal plans
-    const plans = await prisma.mealPlan.findMany({
-      where: { userId },
-      include: { days: true },
-    });
+    // bug B-11: "All" = plan recipes ∪ own MANUAL recipes ∪ favourites,
+    // de-duplicated. This used to be plan recipes ONLY, from an UNBOUNDED
+    // scan of every plan the user ever generated — a recipe created or
+    // imported but never placed in a plan, or favourited from Discover,
+    // never showed up in "All" at all. Each source is now one bounded query.
+    const searchFilter = search ? { name: { contains: search, mode: 'insensitive' as const } } : {};
+    const [recentPlans, ownRecipes, favourites] = await Promise.all([
+      // Bounded: the last 12 weeks of plans is generous and avoids scanning
+      // a long-lived account's entire history on every "All" tab open.
+      prisma.mealPlan.findMany({
+        where: { userId },
+        orderBy: { weekStartDate: 'desc' },
+        take: 12,
+        select: { days: { select: { meals: true } } },
+      }),
+      prisma.recipe.findMany({
+        where: { creatorId: userId, source: RecipeSource.MANUAL, ...searchFilter },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      }),
+      prisma.favouriteRecipe.findMany({
+        where: {
+          userId,
+          recipe: {
+            OR: [{ source: { not: RecipeSource.MANUAL } }, { creatorId: userId }],
+            ...searchFilter,
+          },
+        },
+        include: { recipe: true as const },
+        orderBy: { savedAt: 'desc' as const },
+        take: 200,
+      }),
+    ]);
 
-    const recipeIds = new Set<string>();
-    for (const plan of plans) {
+    const planRecipeIds = new Set<string>();
+    for (const plan of recentPlans) {
       for (const day of plan.days) {
         const meals = day.meals as { type: string; recipeId: string }[];
-        for (const m of meals) {
-          recipeIds.add(m.recipeId);
-        }
+        for (const m of meals) planRecipeIds.add(m.recipeId);
       }
     }
+    const planRecipes =
+      planRecipeIds.size > 0
+        ? await prisma.recipe.findMany({
+            where: { id: { in: [...planRecipeIds] }, ...searchFilter },
+            take: 200,
+          })
+        : [];
 
-    if (recipeIds.size === 0) return [];
-
-    return prisma.recipe.findMany({
-      where: {
-        id: { in: [...recipeIds] },
-        ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
+    const merged = new Map<string, Recipe>();
+    for (const recipe of [...planRecipes, ...ownRecipes, ...favourites.map((f) => f.recipe)]) {
+      if (!merged.has(recipe.id)) merged.set(recipe.id, recipe);
+    }
+    let all = [...merged.values()].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    if (cursor) {
+      const cursorIndex = all.findIndex((r) => r.id === cursor);
+      all = cursorIndex >= 0 ? all.slice(cursorIndex + 1) : all;
+    }
+    return all.slice(0, limit);
   }
 
   /**
