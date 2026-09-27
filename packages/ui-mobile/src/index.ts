@@ -2,6 +2,11 @@ export { Badge, type BadgeProps } from './components/badge';
 export { Button, type ButtonProps } from './components/button';
 export { Card, CardTitle, type CardProps } from './components/card';
 export {
+  ChangeNoticeCard,
+  type ChangeNoticeCardProps,
+  type ChangeNoticeRow,
+} from './components/change-notice-card';
+export {
   ConfirmSheet,
   type ConfirmSheetOption,
   type ConfirmSheetProps,
