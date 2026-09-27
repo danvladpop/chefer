@@ -6,8 +6,7 @@ import { PLAN_FEATURES } from '@chefer/types';
 import { Button, Card, PressableScale, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { PostUpgradeSheet } from '../src/features/premium/post-upgrade-sheet';
-import { AccountDataCard } from '../src/features/profile/account-data-card';
-import { AiConsentCard } from '../src/features/profile/ai-consent-card';
+import { PrivacySection } from '../src/features/privacy/privacy-section';
 import { trpc } from '../src/lib/trpc';
 
 // Profile — port of apps/web (dashboard)/profile/page.tsx (M2-8). Same
@@ -230,9 +229,9 @@ export default function ProfileScreen() {
             })()}
           </Card>
         ) : null}
-        <AiConsentCard />
-        {/* Destructive last (App Store 5.1.1(v)): Your data → Delete account. */}
-        <AccountDataCard />
+        {/* T-39.4: AI & your data, Usage analytics, Consent history, Gym
+            settings, Download my data / Delete account — all in one section. */}
+        <PrivacySection />
       </ScrollView>
       <PostUpgradeSheet
         visible={activationOpen}

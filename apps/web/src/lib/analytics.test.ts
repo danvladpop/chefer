@@ -96,4 +96,46 @@ describe('analytics consent model', () => {
     analytics.resetAnalytics();
     expect(posthog.get_distinct_id()).not.toBe('user-1');
   });
+
+  // ─── T-12.3: "Send anonymous usage counts" ─────────────────────────────────
+
+  it('defaults to granted, per account', () => {
+    expect(analytics.getAnonymousAnalyticsConsent('user-1')).toBe('granted');
+    analytics.setAnonymousAnalyticsConsent('user-1', 'denied');
+    expect(analytics.getAnonymousAnalyticsConsent('user-1')).toBe('denied');
+    expect(analytics.getAnonymousAnalyticsConsent('user-2')).toBe('granted');
+  });
+
+  it('turning anonymous counting off means capture() sends nothing at all', async () => {
+    analytics.identifyUser('user-1', 'FREE');
+    analytics.setAnonymousAnalyticsConsent('user-1', 'denied');
+
+    fetchMock.mockClear();
+    analytics.capture('landing_viewed');
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('turning anonymous off also turns linking off', () => {
+    analytics.identifyUser('user-1', 'FREE');
+    analytics.setAnalyticsConsent('user-1', 'granted');
+    expect(posthog.get_distinct_id()).toBe('user-1');
+
+    analytics.setAnonymousAnalyticsConsent('user-1', 'denied');
+
+    expect(analytics.getAnalyticsConsent('user-1')).toBe('denied');
+    expect(posthog.get_distinct_id()).not.toBe('user-1');
+  });
+
+  it('a stored anonymous-off choice applies as soon as the session resolves', async () => {
+    analytics.setAnonymousAnalyticsConsent('user-1', 'denied');
+    analytics.identifyUser('user-1', 'FREE');
+
+    fetchMock.mockClear();
+    analytics.capture('landing_viewed');
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
