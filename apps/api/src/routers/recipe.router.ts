@@ -1,8 +1,32 @@
 import { z } from 'zod';
+import { recipeNutritionSourceSchema } from '@chefer/types';
 import { recipeService } from '../application/recipe/recipe.service.js';
 import { buildPollinationsUrl } from '../lib/image-gen/pollinations.js';
 import { buildRecipeImagePrompt } from '../lib/image-gen/prompt.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
+
+// T-40.3 (D-19): the recipe minimum is a name + at least one ingredient line
+// with a name and an amount > 0 — description/instructions/cuisineType are
+// no longer required, servings defaults to 1. This is a WIDENING: old
+// clients keep sending everything they send today and keep working
+// (`min(1)` never gets ADDED to a previously-optional field, and none of
+// these previously-required fields becomes stricter).
+const recipeIngredientSchema = z.object({
+  name: z.string().min(1),
+  quantity: z.number().positive(),
+  unit: z.string().min(1),
+});
+const recipeNutritionInfoSchema = z.object({
+  calories: z.number().int().min(0),
+  protein: z.number().min(0),
+  carbs: z.number().min(0),
+  fat: z.number().min(0),
+  // D-18: fiber is still STORED (an old client keeps sending it on create,
+  // and an edit must keep sending the stored value back) but the manual
+  // form never shows a fiber input on either platform any more.
+  fiber: z.number().min(0).default(0),
+  source: recipeNutritionSourceSchema.optional(),
+});
 
 export const recipeRouter = router({
   /**
@@ -80,27 +104,25 @@ export const recipeRouter = router({
     .input(
       z.object({
         name: z.string().min(1).max(120),
-        description: z.string().min(1).max(500),
-        ingredients: z.array(
-          z.object({
-            name: z.string().min(1),
-            quantity: z.number().positive(),
-            unit: z.string().min(1),
-          }),
-        ),
-        instructions: z.array(z.string().min(1)).min(1),
-        nutritionInfo: z.object({
-          calories: z.number().int().min(0),
-          protein: z.number().min(0),
-          carbs: z.number().min(0),
-          fat: z.number().min(0),
-          fiber: z.number().min(0).default(0),
+        // T-40.3 (D-19): description/cuisineType default to empty — a name +
+        // one ingredient line with an amount is the whole minimum.
+        description: z.string().max(500).default(''),
+        // D-19: at least one ingredient LINE with a name and an amount > 0.
+        ingredients: z.array(recipeIngredientSchema).min(1),
+        // T-40.4: steps are optional now (a recipe can be "no steps yet").
+        instructions: z.array(z.string().min(1).max(500)).default([]),
+        nutritionInfo: recipeNutritionInfoSchema.default({
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0,
         }),
-        cuisineType: z.string().min(1).max(60),
+        cuisineType: z.string().max(60).default(''),
         dietaryTags: z.array(z.string()).default([]),
-        prepTimeMins: z.number().int().min(0),
-        cookTimeMins: z.number().int().min(0),
-        servings: z.number().int().min(1),
+        prepTimeMins: z.number().int().min(0).default(0),
+        cookTimeMins: z.number().int().min(0).default(0),
+        servings: z.number().int().min(1).default(1),
         imageUrl: z.string().url().optional().or(z.literal('')),
       }),
     )
@@ -120,34 +142,41 @@ export const recipeRouter = router({
       z.object({
         recipeId: z.string().min(1),
         name: z.string().min(1).max(120),
-        description: z.string().min(1).max(500),
-        ingredients: z.array(
-          z.object({
-            name: z.string().min(1),
-            quantity: z.number().positive(),
-            unit: z.string().min(1),
-          }),
-        ),
-        instructions: z.array(z.string().min(1)).min(1),
-        nutritionInfo: z.object({
-          calories: z.number().int().min(0),
-          protein: z.number().min(0),
-          carbs: z.number().min(0),
-          fat: z.number().min(0),
-          fiber: z.number().min(0).default(0),
+        description: z.string().max(500).default(''),
+        ingredients: z.array(recipeIngredientSchema).min(1),
+        instructions: z.array(z.string().min(1).max(500)).default([]),
+        nutritionInfo: recipeNutritionInfoSchema.default({
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0,
         }),
-        cuisineType: z.string().min(1).max(60),
+        cuisineType: z.string().max(60).default(''),
+        // T-01.6 (bug B-01): `[]` is included on every input so it's always
+        // present; the level-0-mobile-empty-tags guard below decides whether
+        // to actually apply it.
         dietaryTags: z.array(z.string()).default([]),
-        prepTimeMins: z.number().int().min(0),
-        cookTimeMins: z.number().int().min(0),
-        servings: z.number().int().min(1),
+        prepTimeMins: z.number().int().min(0).default(0),
+        cookTimeMins: z.number().int().min(0).default(0),
+        servings: z.number().int().min(1).default(1),
         imageUrl: z.string().url().optional().or(z.literal('')),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { recipeId, imageUrl, ...data } = input;
+      const { recipeId, imageUrl, dietaryTags, ...data } = input;
+      // T-01.6 (bug B-01): a level-0 mobile client (`x-chefer-client:
+      // mobile`, no `x-chefer-api-level`) hard-codes `dietaryTags: []` on
+      // every save — that used to silently strip a saved recipe's tags. A
+      // level-0 mobile update with an EMPTY tags array keeps whatever tags
+      // are already stored instead of overwriting them; every other client
+      // (web, or a mobile build that sends a real api-level) is trusted to
+      // mean it when it sends `[]`.
+      const isLevel0MobileEmptyTags =
+        ctx.isMobileClient && ctx.clientApiLevel === 0 && dietaryTags.length === 0;
       return recipeService.update(ctx.user.id, recipeId, {
         ...data,
+        ...(isLevel0MobileEmptyTags ? {} : { dietaryTags }),
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- '' from a cleared form field must also become null
         imageUrl: imageUrl || null,
       });
