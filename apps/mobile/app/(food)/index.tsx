@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -60,6 +60,17 @@ export default function HomeScreen() {
   const showProfileNudge = isPremium === true && hasProfile === false;
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
+  // B-13 (T-00.15): Today has no week selector, so the server's fix (reading
+  // findForWeek, never findActiveWithDays) is the whole guarantee here —
+  // weekMatches is always true by construction. No mobile analytics SDK yet
+  // (see src/features/gym/analytics.ts) — dev-only stub, wired to the real
+  // transport in wave 1.
+  useEffect(() => {
+    if (!d) return;
+    if (__DEV__)
+      console.warn('[analytics stub] plan_shown', { surface: 'today', weekMatches: true });
+  }, [d]);
+
   if (isLoading) {
     return (
       <Screen>
@@ -93,6 +104,11 @@ export default function HomeScreen() {
   const hasPlan = d.weekPlan.length > 0;
   const heroMeal = d.nextMeal ?? d.tomorrowFirstMeal;
   const heroIsTomorrow = !d.nextMeal && d.tomorrowFirstMeal !== null;
+  // B-31 interim (T-00.12): the ring, weight card, profile nudge and
+  // Snap-to-log all assume a goal — meaningless for someone who only wants
+  // to log what they ate. `dashboard.summary` derives this from
+  // chefProfile.goal OR the user already tracking (≥ 3 of the last 7 days).
+  const showNutritionCards = d.showNutritionCards;
 
   return (
     <Screen className="px-0">
@@ -144,8 +160,10 @@ export default function HomeScreen() {
         {/* F1 Adaptive Chef: weekly review (full for premium, teaser for free) */}
         <ChefReviewBanner />
 
-        {/* Profile completion nudge (premium without a profile) */}
-        {showProfileNudge && (
+        {/* Profile completion nudge (premium without a profile) — B-31
+            interim: hidden with the other goal-assuming cards below until
+            the user has a goal or already tracks (T-00.12). */}
+        {showNutritionCards && showProfileNudge && (
           <Link href="/onboarding" asChild>
             <Pressable accessibilityRole="button" testID="profile-nudge">
               <Card className="border-primary/20 bg-accent">
@@ -160,17 +178,23 @@ export default function HomeScreen() {
         )}
 
         {/* What you ate vs target — driven by dashboard.summary's nutrition
-            fields, so server-side target changes flow straight through. */}
-        <NutritionSummary nutrition={d.nutrition} />
+            fields, so server-side target changes flow straight through.
+            B-31 interim (T-00.12): hidden for a goal-less, non-tracking
+            user — a ring/target against nothing set is meaningless. */}
+        {showNutritionCards && <NutritionSummary nutrition={d.nutrition} />}
 
-        {/* Off-plan logging: free quick add + premium Snap-to-log */}
+        {/* Off-plan logging: free quick add + premium Snap-to-log. Quick add
+            stays available to everyone; Snap-to-log is nutrition-tracking
+            gear (B-31 interim). */}
         <Button testID="today-quick-add" variant="outline" onPress={() => setQuickAddOpen(true)}>
           <View className="flex-row items-center gap-1.5">
             <Ionicons name="add" size={18} color="#944a00" />
             <Text className="text-sm font-medium text-primary">Quick add</Text>
           </View>
         </Button>
-        <ScanMealCard date={localDateStr()} onLogged={() => void refetch()} />
+        {showNutritionCards && (
+          <ScanMealCard date={localDateStr()} onLogged={() => void refetch()} />
+        )}
 
         {heroMeal ? (
           <HeroMealCard meal={heroMeal} isTomorrow={heroIsTomorrow} />
@@ -218,7 +242,8 @@ export default function HomeScreen() {
 
         <WeekOutlook weekPlan={d.weekPlan} />
 
-        <WeightCard />
+        {/* B-31 interim (T-00.12): weight tracking assumes a goal. */}
+        {showNutritionCards && <WeightCard />}
 
         <TodaysWorkoutCard />
 

@@ -132,6 +132,18 @@ export default function MealPlanPage() {
   // simply couldn't fetch (audit F-X-3-1, F-PLAN-1-4).
   const loadFailed = isError && !plan;
 
+  // B-13 (T-00.15): confirms the server sent the WEEK actually asked for —
+  // a monitoring signal for the "next week shown as this week" bug class,
+  // not just this one fix. No-op until the analytics transport lands
+  // (wave 1); `capture` already drops events until then (see lib/analytics).
+  useEffect(() => {
+    if (isLoading) return;
+    const expected = getMondayOfWeekClient(weekOffset).toDateString();
+    const weekMatches = !plan || new Date(plan.weekStartDate).toDateString() === expected;
+    capture('plan_shown', { surface: 'plan', weekMatches });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per load, not on every render
+  }, [plan?.planId, plan?.weekStartDate, isLoading, weekOffset]);
+
   // Week cost + budget (P2-4). Every tier sees the cost; the budget is a
   // premium preference and simply comes back null for free users.
   const { data: prefs } = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });

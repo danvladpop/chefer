@@ -3,7 +3,7 @@ import { cva } from 'class-variance-authority';
 import { cn } from '@chefer/utils';
 import { haptics } from '../motion/haptics';
 import { PressableScale } from '../motion/pressable-scale';
-import { DENSE_MAX_FONT_SCALE } from './text';
+import { DENSE_MAX_FONT_SCALE, Text as HintText } from './text';
 
 const chipVariants = cva('min-h-11 flex-row items-center justify-center rounded-full border px-4', {
   variants: {
@@ -28,8 +28,12 @@ const chipTextVariants = cva('text-sm font-medium', {
 export interface ChipProps {
   label: string;
   selected?: boolean;
-  onPress?: () => void;
+  onPress?: (() => void) | undefined;
   disabled?: boolean;
+  /** Read after the label by a screen reader, e.g. why a disabled chip is
+   * disabled ("Part of Premium"). Purely auditory — pair it with a visible
+   * caption (ChipGroup's `hints`) for sighted users. */
+  accessibilityHint?: string | undefined;
   className?: string;
   testID?: string | undefined;
 }
@@ -43,6 +47,7 @@ export function Chip({
   selected = false,
   onPress,
   disabled = false,
+  accessibilityHint,
   className,
   testID,
 }: ChipProps) {
@@ -51,6 +56,7 @@ export function Chip({
       testID={testID}
       accessibilityRole="button"
       accessibilityState={{ selected, disabled }}
+      accessibilityHint={accessibilityHint}
       disabled={disabled}
       onPress={
         onPress
@@ -84,6 +90,12 @@ export interface ChipGroupProps<T extends string | number> {
   multiple?: boolean;
   /** Single choice only: tapping the selected chip clears it. */
   allowEmpty?: boolean;
+  /** Values rendered disabled — never selectable (e.g. gated behind
+   * Premium; pair with a `hints` entry and the PAT-3 taste link). */
+  disabledValues?: readonly T[];
+  /** Short caption under a chip (visible + read as its accessibility hint),
+   * keyed by value — typically why a disabled option is disabled. */
+  hints?: Partial<Record<T, string>>;
   className?: string;
   testID?: string;
 }
@@ -95,6 +107,8 @@ export function ChipGroup<T extends string | number>({
   onChange,
   multiple = false,
   allowEmpty = false,
+  disabledValues,
+  hints,
   className,
   testID,
 }: ChipGroupProps<T>) {
@@ -115,15 +129,31 @@ export function ChipGroup<T extends string | number>({
 
   return (
     <View testID={testID} className={cn('flex-row flex-wrap gap-2', className)}>
-      {options.map((option) => (
-        <Chip
-          key={String(option.value)}
-          testID={option.testID}
-          label={option.label}
-          selected={value.includes(option.value)}
-          onPress={() => toggle(option.value)}
-        />
-      ))}
+      {options.map((option) => {
+        const disabled = disabledValues?.includes(option.value) ?? false;
+        const hint = hints?.[option.value];
+        return (
+          <View key={String(option.value)} className="items-center gap-1">
+            <Chip
+              testID={option.testID}
+              label={option.label}
+              selected={value.includes(option.value)}
+              disabled={disabled}
+              accessibilityHint={hint}
+              onPress={disabled ? undefined : () => toggle(option.value)}
+            />
+            {hint ? (
+              <HintText
+                testID={option.testID ? `${option.testID}-hint` : undefined}
+                variant="muted"
+                className="text-center text-xs"
+              >
+                {hint}
+              </HintText>
+            ) : null}
+          </View>
+        );
+      })}
     </View>
   );
 }

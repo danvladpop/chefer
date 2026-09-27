@@ -20,6 +20,7 @@ export {
   findSafetyIssues,
   hasSafetyPrefs,
   isRecipeSafe,
+  type SafetyCheckable,
   type SafetyPrefs,
 } from './safety.js';
 

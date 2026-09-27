@@ -18,7 +18,13 @@ interface RecipePickerSheetProps {
   /** True while the replace/AI mutation runs; rows and footer lock. */
   busy: boolean;
   error: string | null;
-  onSelect: (recipeId: string) => void;
+  /**
+   * T-00.11 (B-34/B-46): set when the last `onSelect` was rejected with
+   * UNSAFE_FOR_TABLE — lets the sheet offer "Use anyway" for the user's own
+   * recipe (the only case replaceRecipe honours `acknowledgeConflict`).
+   */
+  unsafeError?: boolean;
+  onSelect: (recipeId: string, acknowledgeConflict?: boolean) => void;
   onAiSwap?: () => void;
   onClose: () => void;
 }
@@ -28,6 +34,7 @@ export function RecipePickerSheet({
   mealName,
   busy,
   error,
+  unsafeError = false,
   onSelect,
   onAiSwap,
   onClose,
@@ -40,6 +47,8 @@ export function RecipePickerSheet({
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The recipe the sheet last attempted — "Use anyway" retries this one id.
+  const [lastAttemptedId, setLastAttemptedId] = useState<string | null>(null);
 
   // The sheet stays mounted between opens — start each open with a clean search.
   useEffect(() => {
@@ -61,17 +70,26 @@ export function RecipePickerSheet({
   };
 
   const searchInput = debouncedSearch || undefined;
+  // Own recipes stay fully listed even when unsafe — that's the only case
+  // replaceRecipe's acknowledgeConflict can apply to, so the user must still
+  // be able to pick one and see the "Use anyway" offer (T-00.11). The
+  // broader/curated list is safety-filtered: never suggest someone else's
+  // unsafe dish.
   const mineQuery = trpc.recipe.list.useQuery(
     { search: searchInput, myRecipesOnly: true, limit: 20 },
     { enabled: visible },
   );
   const allQuery = trpc.recipe.list.useQuery(
-    { search: searchInput, limit: 30 },
+    { search: searchInput, limit: 30, forTable: true },
     { enabled: visible },
   );
 
   const sections = buildPickerSections(mineQuery.data, allQuery.data);
   const isLoading = mineQuery.isLoading || allQuery.isLoading;
+  const isOwnAttempt = Boolean(
+    lastAttemptedId && mineQuery.data?.some((r) => r.id === lastAttemptedId),
+  );
+  const canAcknowledge = unsafeError && isOwnAttempt && lastAttemptedId !== null;
 
   return (
     <Sheet
@@ -104,7 +122,18 @@ export function RecipePickerSheet({
 
       {error && (
         <View className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-          <Text className="text-xs text-red-600">{error}</Text>
+          <Text className="text-xs text-red-600">{error.replace(/^UNSAFE_FOR_TABLE:\s*/, '')}</Text>
+          {canAcknowledge && (
+            <Pressable
+              testID="picker-use-anyway"
+              accessibilityRole="button"
+              disabled={busy}
+              onPress={() => lastAttemptedId && onSelect(lastAttemptedId, true)}
+              className="mt-1.5 self-start"
+            >
+              <Text className="text-xs font-semibold text-red-700 underline">Use anyway</Text>
+            </Pressable>
+          )}
         </View>
       )}
 
@@ -138,7 +167,10 @@ export function RecipePickerSheet({
                 accessibilityRole="button"
                 accessibilityLabel={`Use ${recipe.name}`}
                 disabled={busy}
-                onPress={() => onSelect(recipe.id)}
+                onPress={() => {
+                  setLastAttemptedId(recipe.id);
+                  onSelect(recipe.id);
+                }}
                 className="mb-2 flex-row items-center gap-3 rounded-xl border border-border bg-background p-2"
               >
                 <Image

@@ -413,3 +413,7 @@ export {
   type ShareListOptions,
   type ShareListScope,
 } from './share-list';
+
+export { SAFETY_COPY, type SafetyCopyKey } from './safety-copy';
+export { WELLNESS_COPY, type WellnessCopyKey } from './wellness-copy';
+export { PREMIUM_PITCH_COPY, type PremiumPitchCopyKey } from './premium-pitch';

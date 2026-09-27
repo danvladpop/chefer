@@ -126,6 +126,19 @@ export default function ShoppingListPage() {
     refetch: refetchList,
   } = trpc.shoppingList.getForWeek.useQuery({ weekOffset }, { staleTime: 60_000 });
 
+  // B-13 (T-00.15): confirms the server sent the WEEK actually asked for —
+  // a monitoring signal for the "next week shown as this week" bug class,
+  // not just this one fix. No-op until the analytics transport lands
+  // (wave 1); `capture` already drops events until then (see lib/analytics).
+  useEffect(() => {
+    if (listLoading) return;
+    const weekMatches =
+      !weekList?.hasPlan ||
+      new Date(weekList.weekStartDate).toDateString() === weekStart.toDateString();
+    capture('plan_shown', { surface: 'shop', weekMatches });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per load, not on every render
+  }, [weekList?.planId, weekList?.weekStartDate, listLoading, weekOffset]);
+
   const utils = trpc.useUtils();
 
   // AI-regenerate mutation — updates the getForWeek cache inline on success

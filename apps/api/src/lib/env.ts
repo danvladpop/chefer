@@ -187,6 +187,17 @@ const envSchema = z.object({
   // deploy stays `off` — flipping modes is a later, explicit rollout step
   // (§2.8 "rollout").
   HEALTH_CONSENT_ENFORCE: z.enum(['off', 'declared', 'all']).default('off'),
+
+  // Grocery store search (lib/grocery-ai): mock is enabled by default so
+  // local dev never calls the real store-search AI. T-BUG-X6: this used to
+  // be a direct `process.env['GROCERY_AI_MOCK_ENABLED']` read in
+  // lib/grocery-ai/index.ts (the one exception to "env vars go through
+  // env.ts") — preserved semantics: only the literal "false" disables the
+  // mock, same as before.
+  GROCERY_AI_MOCK_ENABLED: z
+    .string()
+    .default('true')
+    .transform((val) => val !== 'false'),
 });
 
 type EnvSchema = z.infer<typeof envSchema>;

@@ -8,12 +8,29 @@ import {
   type IMealRatingRepository,
   type Recipe,
 } from '@chefer/database';
-import { ensureCuratedRecipes, safeCuratedPools } from '../../lib/curated-recipes/index.js';
+import {
+  ensureCuratedRecipes,
+  hasSafetyPrefs,
+  isRecipeSafe,
+  safeCuratedPools,
+  type SafetyCheckable,
+  type SafetyPrefs,
+} from '../../lib/curated-recipes/index.js';
 import { mergeHouseholdSafety } from '../household/household.service.js';
 import { selectDiscoverRecipes, type DiscoverFilters, type DiscoverRecipeDto } from './discover.js';
 import { findRecipeVisibleTo } from './recipe-access.js';
 
 type UpdateManualRecipeData = Partial<CreateManualRecipeData>;
+
+/** A Prisma `Recipe` row is safety-checkable once its JSON `ingredients` is cast. */
+function toSafetyCheckable(recipe: Recipe): SafetyCheckable {
+  return {
+    name: recipe.name,
+    ingredients: recipe.ingredients as unknown as SafetyCheckable['ingredients'],
+    instructions: recipe.instructions,
+    dietaryTags: recipe.dietaryTags,
+  };
+}
 
 /** NOT_FOUND unless the user may see the recipe — same answer for missing and private. */
 async function assertRecipeVisible(userId: string, recipeId: string): Promise<void> {
@@ -33,14 +50,30 @@ export class RecipeService {
       myRecipesOnly?: boolean | undefined;
       cursor?: string | undefined;
       limit?: number | undefined;
+      /**
+       * B-34/B-46 (T-00.11): drop rows unsafe for the user's/household's
+       * allergies and dietary restrictions — the meal-plan Replace picker
+       * must never surface (or let the user pick) a recipe it can't eat.
+       * Optional and off by default so older list callers are unaffected.
+       */
+      forTable?: boolean | undefined;
     },
   ): Promise<(Recipe & { isFavourite: boolean })[]> {
+    const { forTable, ...listOpts } = opts;
     const [recipes, savedIds] = await Promise.all([
-      favouriteRecipeRepository.findAllRecipesForUser(userId, opts),
+      favouriteRecipeRepository.findAllRecipesForUser(userId, listOpts),
       favouriteRecipeRepository.findSavedRecipeIds(userId),
     ]);
     const saved = new Set(savedIds);
-    return recipes.map((recipe) => ({ ...recipe, isFavourite: saved.has(recipe.id) }));
+    const withFavourite = recipes.map((recipe) => ({
+      ...recipe,
+      isFavourite: saved.has(recipe.id),
+    }));
+    if (!forTable) return withFavourite;
+
+    const safety = await this.loadMergedSafety(userId);
+    if (!hasSafetyPrefs(safety)) return withFavourite;
+    return withFavourite.filter((recipe) => isRecipeSafe(toSafetyCheckable(recipe), safety));
   }
 
   async create(userId: string, data: CreateManualRecipeData): Promise<Recipe> {
@@ -141,13 +174,21 @@ export class RecipeService {
    * first so each result opens, saves and cooks like any other recipe.
    */
   async discover(userId: string, filters: DiscoverFilters): Promise<DiscoverRecipeDto[]> {
-    const [dietaryPrefs, members, savedIds] = await Promise.all([
-      dietaryPreferencesRepository.findByUserId(userId),
-      householdMemberRepository.findByUserId(userId),
+    const [safety, savedIds] = await Promise.all([
+      this.loadMergedSafety(userId),
       favouriteRecipeRepository.findSavedRecipeIds(userId),
       ensureCuratedRecipes(),
     ]);
-    const safety = mergeHouseholdSafety(
+    return selectDiscoverRecipes(safeCuratedPools(safety), filters, new Set(savedIds));
+  }
+
+  /** The owner's + household's hard allergy/restriction union (safety is free everywhere). */
+  private async loadMergedSafety(userId: string): Promise<SafetyPrefs> {
+    const [dietaryPrefs, members] = await Promise.all([
+      dietaryPreferencesRepository.findByUserId(userId),
+      householdMemberRepository.findByUserId(userId),
+    ]);
+    return mergeHouseholdSafety(
       {
         allergies: dietaryPrefs?.allergies ?? [],
         dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
@@ -155,7 +196,6 @@ export class RecipeService {
       },
       members,
     );
-    return selectDiscoverRecipes(safeCuratedPools(safety), filters, new Set(savedIds));
   }
 }
 
