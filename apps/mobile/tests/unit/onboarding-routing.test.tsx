@@ -35,7 +35,7 @@ jest.mock('expo-router', () => {
 jest.mock('../../src/lib/auth-store', () => ({
   setToken: jest.fn(() => Promise.resolve(undefined)),
   getToken: jest.fn(() => null),
-  subscribe: jest.fn(() => () => {}),
+  subscribe: jest.fn(() => () => undefined),
   loadToken: jest.fn(() => Promise.resolve(null)),
   hasSignedInBefore: jest.fn(() => true),
   loadHasSignedInBefore: jest.fn(() => Promise.resolve(true)),

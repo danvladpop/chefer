@@ -42,7 +42,7 @@ jest.mock('@chefer/utils', () => ({
 jest.mock('../../src/lib/auth-store', () => ({
   setToken: jest.fn(() => Promise.resolve(undefined)),
   getToken: jest.fn(() => null),
-  subscribe: jest.fn(() => () => {}),
+  subscribe: jest.fn(() => () => undefined),
   loadToken: jest.fn(() => Promise.resolve(null)),
   // T-25.1: `useSession()` (used by login.tsx) also reads these — default to
   // "has signed in before" so Login's title/CTA match its pre-T-25.1
