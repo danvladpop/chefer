@@ -106,3 +106,43 @@ appId: dev.chefer.app.dev
     visible:
       id: 'recipes-title'
     timeout: 10000
+
+# T-40.4 (UX-40 slice 1, iOS only — see the comment above): the D-19
+# minimum, PAT-17's "never silently disabled" blocked tap, and a fraction
+# chip. `rf-save` while incomplete never submits — the missing summary
+# says why instead of the button just sitting there disabled.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: 'recipes-new'
+      - extendedWaitUntil:
+          visible:
+            id: 'recipe-form-title'
+          timeout: 15000
+      - tapOn:
+          id: 'rf-save'
+      - assertVisible: 'Add a name.'
+      - tapOn:
+          id: 'rf-name-input'
+      - inputText: 'Maestro test recipe'
+      # Fraction chips (AC6): the row only shows while the quantity field
+      # has focus.
+      - tapOn:
+          id: 'rf-ingredient-qty-0'
+      - assertVisible:
+          id: 'rf-fraction-0-½'
+      - tapOn:
+          id: 'rf-fraction-0-½'
+      - tapOn:
+          id: 'rf-ingredient-name-0'
+      - inputText: 'flour'
+      - hideKeyboard
+      - tapOn:
+          id: 'rf-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'recipes-title'
+          timeout: 15000
+      - assertVisible: 'Saved to your Cookbook'

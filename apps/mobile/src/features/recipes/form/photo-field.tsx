@@ -173,7 +173,10 @@ export function PhotoField({ imageUrl, onChange, disabled = false }: PhotoFieldP
 
   return (
     <Button
-      testID="rf-photo-add"
+      // Keep as "rf-photo" (not "rf-photo-add"): e2e/common/pick-latest-photo.yaml
+      // (shared by recipes.flow.yaml and recipe-create-photo.flow.yaml) taps
+      // this id to open the picker.
+      testID="rf-photo"
       variant="outline"
       disabled={disabled}
       onPress={() => void pickAndUpload()}
