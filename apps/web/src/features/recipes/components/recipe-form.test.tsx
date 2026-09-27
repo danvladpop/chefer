@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import EditRecipePage from '@/app/(dashboard)/recipes/[id]/edit/page';
 import NewRecipePage from '@/app/(dashboard)/recipes/new/page';
+import { uploadImage } from '@/lib/upload-image';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -173,6 +174,32 @@ describe('NewRecipePage accessibility', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thai' }));
     expect(screen.queryByText(/pick a cuisine/i)).toBeNull();
     expect(screen.getByRole('button', { name: 'Thai' }).getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('NewRecipePage photo upload (T-BUG-O1)', () => {
+  // O-18: `uploadImage` used to throw `new Error(data.error)` where `error`
+  // could be `{ code, message }`, which rendered as the literal text
+  // "[object Object]". uploadImage itself now maps every failure to one of
+  // UX-40's four sentences (apps/web/src/lib/upload-image.test.ts covers
+  // that mapping) — this checks the page surfaces whatever sentence it
+  // throws, verbatim, in the alert.
+  it('shows the too-big sentence when the upload rejects with it, never a status code or [object Object]', async () => {
+    vi.mocked(uploadImage).mockRejectedValueOnce(
+      new Error('That photo is too big. Choose another, or use a screenshot of it.'),
+    );
+    render(<NewRecipePage />);
+
+    const file = new File(['x'], 'photo.jpg', { type: 'image/jpeg' });
+    const input = screen.getByLabelText(/upload from device/i);
+    fireEvent.change(input, { target: { files: [file] } });
+
+    const alert = await screen.findByText(
+      'That photo is too big. Choose another, or use a screenshot of it.',
+    );
+    expect(alert.getAttribute('role')).toBe('alert');
+    expect(alert.textContent).not.toContain('[object Object]');
+    expect(alert.textContent).not.toMatch(/^\d{3}$|\(\d{3}\)/);
   });
 });
 
