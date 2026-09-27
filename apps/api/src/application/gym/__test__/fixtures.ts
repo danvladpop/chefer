@@ -70,6 +70,11 @@ export function profileRow(over: Partial<GymProfile> = {}): GymProfile {
     setupCompletedAt: T0,
     createdAt: T0,
     updatedAt: T0,
+    hasWeightedVest: false,
+    quietNudgeDays: null,
+    sessionLengthMins: null,
+    reminderTimes: {},
+    carryOver: [],
     ...over,
   };
 }

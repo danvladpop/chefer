@@ -24,6 +24,30 @@ export interface UpsertChefProfileData {
   autoPlanWeekly?: boolean;
   /** Onboarding audience (backlog P2-3). */
   onboardingIntent?: 'EAT_BETTER' | 'HOUSEHOLD' | 'TRAIN' | null;
+  // §2.4, T-03.1/T-04.1/T-06.9/T-21.1 (S4, rev 2)
+  onboardingJobs?: (
+    | 'TRAIN'
+    | 'PLAN_MEALS'
+    | 'HOUSEHOLD'
+    | 'USE_WHAT_I_HAVE'
+    | 'SAVED_RECIPES'
+    | 'TRACK'
+  )[];
+  trainingWeekdays?: number[];
+  showNutritionOnToday?: boolean | null;
+  /** Weekday -> DayKind ('lift' | 'run' | 'long_run' | 'rest'), e.g. `{ "5": "long_run" }`. */
+  trainingDayKinds?: Prisma.InputJsonValue;
+  timeZone?: string | null;
+  // §2.11, T-35.1/T-11.1 (S11, rev 2)
+  targetMode?: 'SUGGESTED' | 'OWN';
+  customKcal?: number | null;
+  customProteinG?: number | null;
+  customCarbsG?: number | null;
+  customFatG?: number | null;
+  customTrainingKcal?: number | null;
+  customTrainingProteinG?: number | null;
+  addTrainingBonus?: boolean;
+  targetSnapshot?: Prisma.InputJsonValue | typeof Prisma.JsonNull;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────

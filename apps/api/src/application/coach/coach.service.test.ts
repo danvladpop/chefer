@@ -100,6 +100,7 @@ function makeReviewRepo(overrides: Partial<IChefReviewRepository> = {}): IChefRe
       .mockImplementation((data: Record<string, unknown>) =>
         Promise.resolve({ id: 'r1', createdAt: SUNDAY, savedEur: null, ...data }),
       ),
+    resolveProposal: vi.fn().mockResolvedValue(null),
     ...overrides,
   };
 }
