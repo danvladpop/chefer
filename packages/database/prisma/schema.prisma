@@ -331,6 +331,9 @@ model ChefProfile {
   // for "never change targets silently" (§2.11). The first read after
   // deploy writes a baseline with no notice.
   targetSnapshot         Json?
+  // S10 (T-10.4): only used if D-7 = yes. Unused this wave — no code reads
+  // it yet; the field lands now because no later wave touches schema.prisma.
+  freeScaledWeekStart    DateTime?
   updatedAt              DateTime          @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

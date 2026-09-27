@@ -24,6 +24,12 @@ export class ConsentBackfillService {
       skip += rows.length;
 
       for (const user of rows) {
+        // The query filters aiDataConsentAt: { not: null }, but the field
+        // itself is nullable — skip defensively instead of asserting.
+        if (!user.aiDataConsentAt) {
+          skipped += 1;
+          continue;
+        }
         const already = await consentEventRepository.existsForUserKindSource(
           user.id,
           ConsentKind.AI,
@@ -38,6 +44,9 @@ export class ConsentBackfillService {
           kind: ConsentKind.AI,
           granted: true,
           source: 'migration',
+          // The log must say WHEN consent was given, not when this boot job
+          // happened to run.
+          createdAt: user.aiDataConsentAt,
         });
         users += 1;
       }

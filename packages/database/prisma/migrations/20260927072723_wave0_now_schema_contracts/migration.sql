@@ -137,3 +137,7 @@ ALTER TABLE "target_changes" ADD CONSTRAINT "target_changes_userId_fkey" FOREIGN
 -- AddForeignKey
 ALTER TABLE "consent_events" ADD CONSTRAINT "consent_events_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+
+-- S10 (T-10.4, review follow-up): unused until D-7 flag; no code reads it.
+-- AlterTable
+ALTER TABLE "chef_profiles" ADD COLUMN "freeScaledWeekStart" TIMESTAMP(3);

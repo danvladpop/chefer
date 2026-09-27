@@ -14,6 +14,13 @@ export interface RecordConsentEventData {
   documentVersion?: string | null;
   /** 'web' | 'mobile' | 'migration'. */
   source: string;
+  /**
+   * When consent was actually given/withdrawn. Defaults to now — pass this
+   * explicitly for a backfill (e.g. `source: 'migration'`), where the event
+   * must record the ORIGINAL timestamp (e.g. `User.aiDataConsentAt`), not
+   * the moment the backfill job happened to run.
+   */
+  createdAt?: Date;
 }
 
 export interface IConsentEventRepository {
@@ -26,7 +33,10 @@ export interface IConsentEventRepository {
 
 export class ConsentEventRepository implements IConsentEventRepository {
   async record(data: RecordConsentEventData): Promise<ConsentEvent> {
-    return prisma.consentEvent.create({ data: { ...data, providers: data.providers ?? [] } });
+    const { createdAt, ...rest } = data;
+    return prisma.consentEvent.create({
+      data: { ...rest, providers: data.providers ?? [], ...(createdAt && { createdAt }) },
+    });
   }
 
   async findLatestByKind(userId: string, kind: ConsentKind): Promise<ConsentEvent | null> {
