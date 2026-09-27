@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams } from 'expo-router';
@@ -81,6 +81,20 @@ export default function ShoppingListScreen() {
     isError,
     refetch: refetchList,
   } = trpc.shoppingList.getForWeek.useQuery({ weekOffset }, { staleTime: 60_000 });
+
+  // B-13 (T-00.15): confirms the server sent the WEEK actually asked for —
+  // a monitoring signal for the "next week shown as this week" bug class,
+  // not just this one fix. No mobile analytics SDK yet (see
+  // src/features/gym/analytics.ts) — dev-only stub, wired to the real
+  // transport in wave 1.
+  useEffect(() => {
+    if (isLoading) return;
+    const weekMatches =
+      !weekList?.hasPlan ||
+      new Date(weekList.weekStartDate).toDateString() === weekStart.toDateString();
+    if (__DEV__) console.warn('[analytics stub] plan_shown', { surface: 'shop', weekMatches });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per load, not on every render
+  }, [weekList?.planId, weekList?.weekStartDate, isLoading, weekOffset]);
 
   // Optimistic per-key toggle (P1-5) — same cache surgery as web: flip
   // immediately, per-key server semantics merge concurrent devices.
