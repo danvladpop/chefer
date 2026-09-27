@@ -7,7 +7,8 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
 import { getApiBaseUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
-import { base64ToBytes, uploadImage } from '../src/lib/media-client';
+import { uploadImage } from '../src/lib/media-client';
+import { photoPickerOptions, preparePhoto } from '../src/lib/prepare-photo';
 import { trpc } from '../src/lib/trpc';
 
 // Manual recipe create/edit — port of web /recipes/new and /recipes/[id]/edit
@@ -92,25 +93,25 @@ export default function RecipeFormScreen() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // M3-3: pick a photo → raw-body upload to /api/uploads/image → URL.
+  // M3-3: pick a photo → shrink on the device (T-BUG-O1.2) → raw-body upload
+  // to /api/uploads/image → URL.
   const pickPhoto = async () => {
     setUploadError(null);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      base64: true,
-      quality: 0.5, // T-BUG-O1 (O-18, Q-22): was 0.8 — an iPhone camera photo re-encoded at 0.8 routinely exceeded the old 5 MB upload limit
-    });
+    const result = await ImagePicker.launchImageLibraryAsync(photoPickerOptions());
     const asset = !result.canceled ? result.assets.at(0) : null;
-    if (!asset?.base64) {
+    if (!asset) {
       return;
     }
     setUploading(true);
     try {
-      const mime = asset.mimeType === 'image/png' ? 'image/png' : 'image/jpeg';
+      const photo = await preparePhoto(asset);
+      if (!photo) {
+        return;
+      }
       const url = await uploadImage(
         { fetchImpl: expoFetch, apiBaseUrl: getApiBaseUrl(), getToken },
-        base64ToBytes(asset.base64),
-        mime,
+        photo.bytes,
+        photo.mime === 'image/png' ? 'image/png' : 'image/jpeg',
       );
       setImageUrl(url);
     } catch (err) {

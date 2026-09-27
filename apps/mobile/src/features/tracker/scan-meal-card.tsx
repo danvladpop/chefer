@@ -9,12 +9,11 @@ import { useEntitlement } from '../../hooks/use-entitlement';
 import { getApiBaseUrl } from '../../lib/api-url';
 import { getToken } from '../../lib/auth-store';
 import {
-  base64ToBytes,
   scanMealPhoto,
   ScanUpgradeRequiredError,
-  type ImageMime,
   type MealPhotoEstimate,
 } from '../../lib/media-client';
+import { photoPickerOptions, preparePhoto } from '../../lib/prepare-photo';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { recordRebalance } from './rebalance-store';
@@ -57,11 +56,8 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
   const pickNow = async (source: 'camera' | 'library') => {
     setError(null);
     setUpgradeNeeded(false);
-    const options: ImagePicker.ImagePickerOptions = {
-      mediaTypes: 'images',
-      base64: true,
-      quality: 0.5, // T-BUG-O1 (O-18, Q-22): was 0.7 — keeps meal photos comfortably under the 5 MB scan limit
-    };
+    // T-BUG-O1.2: the photo is shrunk on the device before the scan.
+    const options = photoPickerOptions();
     const result =
       source === 'camera'
         ? await (async () => {
@@ -75,16 +71,19 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
         : await ImagePicker.launchImageLibraryAsync(options);
 
     const asset = result && !result.canceled ? result.assets.at(0) : null;
-    if (!asset?.base64) {
+    if (!asset) {
       return;
     }
     setScanning(true);
     try {
-      const mime = (asset.mimeType ?? 'image/jpeg') as ImageMime;
+      const photo = await preparePhoto(asset);
+      if (!photo) {
+        return;
+      }
       const est = await scanMealPhoto(
         { fetchImpl: expoFetch, apiBaseUrl: getApiBaseUrl(), getToken },
-        base64ToBytes(asset.base64),
-        mime,
+        photo.bytes,
+        photo.mime,
       );
       setEstimate(est);
     } catch (err) {

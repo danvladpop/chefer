@@ -11,7 +11,8 @@
 # sizes that matter are AFTER a q50 re-encode. The script checks them with
 # sips (= iOS ImageIO); Android's encoder lands ~40% smaller (measured: 12.4 MB
 # on iOS → 7.5 MB on Android), so the bounds leave room for both:
-#   oversize-photo.jpg    > 18 MB (iOS), ~12 MB (Android) → the too-big sentence
+#   oversize-photo.jpg    > 18 MB (iOS), ~12 MB (Android) → too big without the
+#                         on-device resize (T-BUG-O1.2), uploads with it
 #   large-photo.jpg       8.5–10 MB (iOS), ~5.7 MB (Android) → uploads
 #                         (over the old 5 MB limit that 500'd before W0-D)
 #   screenshot-photo.jpg  < 1 MB, 1170x2532 → uploads

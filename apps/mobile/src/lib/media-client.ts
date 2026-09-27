@@ -36,7 +36,7 @@ export const PHOTO_TOO_BIG_MESSAGE =
   'That photo is too big. Choose another, or use a screenshot of it.';
 const NO_CONNECTION_MESSAGE = 'No connection. Try again when you’re back online.';
 const SIGNED_OUT_MESSAGE = 'Sign in again to add photos.';
-const SOMETHING_WRONG_MESSAGE = 'Something went wrong on our side. Try again in a moment.';
+export const SOMETHING_WRONG_MESSAGE = 'Something went wrong on our side. Try again in a moment.';
 
 type ApiErrorBody = { error?: string | { code?: string; message?: string } } | null | undefined;
 

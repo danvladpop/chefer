@@ -622,7 +622,8 @@ Recipe creation (revamped form)
   +- ingredients.computeNutrition auto-fills per-serving nutrition from
   |    ingredient quantities (unit conversion x per-100g macros)
   +- recipe photo: device upload (POST /api/uploads/image, <=10 MB since
-  |    T-BUG-O1/Q-22) or deterministic AI image (recipe.aiImageUrl); a failed
+  |    T-BUG-O1/Q-22; the mobile app first shrinks the photo to <= 2048 px,
+  |    JPEG 0.8 — T-BUG-O1.2) or deterministic AI image (recipe.aiImageUrl); a failed
   |    upload always shows one of the four UX-40 sentences (never a status
   |    code or "[object Object]") — see §15's "Error states" note and
   |    infrastructure.md §4.1.1
@@ -1084,7 +1085,8 @@ POST /api/scan-meal (session cookie, raw image body — same transport as upload
 **Error states (T-BUG-O1, O-18).** A failed scan never shows a status code or
 the literal text `[object Object]`. `scanMealPhoto` (mobile
 `src/lib/media-client.ts`, web `features/tracker/lib/scan-client.ts`) checks
-the photo's size against the 5 MB limit before sending, and maps any failure —
+the photo's size against the 5 MB limit before sending (on mobile, after
+shrinking it to <= 2048 px / JPEG 0.8 — T-BUG-O1.2), and maps any failure —
 client-side pre-check or a server response — to a sentence: **too big** ("That
 photo is too big. Choose another, or use a screenshot of it.") for a 413 or an
 oversize body, **no connection** ("No connection. Try again when you're back
