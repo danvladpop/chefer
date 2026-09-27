@@ -48,8 +48,11 @@ export function StatsTab() {
           {moreOpen ? (
             <Card testID="gym-stats-more">
               <Text variant="muted">
-                That&apos;s everything for now — the 5 views above cover what research says actually
-                helps (research §6.1/§6.2). More views land here as they&apos;re added.
+                {/* T-BUG-42 (B-42, audit 21.17): this used to cite our own planning doc
+                    ("research §6.1/§6.2") — internal spec language a user has no way
+                    to look up. Say what it means instead. */}
+                That&apos;s everything for now — the 5 views above are the ones that actually help
+                you train better. More views land here as they&apos;re added.
               </Text>
             </Card>
           ) : null}
