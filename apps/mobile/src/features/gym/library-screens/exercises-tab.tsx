@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, ScrollView, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { FlatList, Pressable, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { MUSCLE_LABELS, type VolumeGroup } from '@chefer/types';
+import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS, type VolumeGroup } from '@chefer/types';
 import { Button, Chip, ChipGroup, EmptyState, Input, Screen, Text } from '@chefer/ui-mobile';
+import { ExerciseImage } from '../components/exercise-image';
 import { ModeSwitch } from '../components/mode-switch';
+import { CollapsibleChipFilters } from '../library/collapsible-chip-filters';
 import { exerciseImageUrl } from '../library/exercise-image';
+import { useKeyboardVisible } from '../library/use-keyboard-visible';
 import { useGymBootstrap } from '../use-gym-bootstrap';
 import { EQUIPMENT_FILTERS, filterExercisesForTab, MUSCLE_GROUP_FILTERS } from './exercise-filters';
 
@@ -22,6 +24,7 @@ export function ExercisesTab() {
   const [group, setGroup] = useState<VolumeGroup | null>(null);
   const [equipment, setEquipment] = useState<string | null>(null);
   const [mineOnly, setMineOnly] = useState(false);
+  const keyboardVisible = useKeyboardVisible();
 
   const library = useMemo(() => bootstrap?.library ?? [], [bootstrap]);
 
@@ -68,54 +71,64 @@ export function ExercisesTab() {
             + Custom
           </Button>
         </View>
-        <Input
-          testID="exercises-search"
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search exercises"
-          autoCorrect={false}
-          accessibilityLabel="Search exercises"
+        <View className="relative justify-center">
+          <Input
+            testID="exercises-search"
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search exercises"
+            placeholderTextColor="#4b5563"
+            autoCorrect={false}
+            accessibilityLabel="Search exercises"
+            className={query ? 'pr-11' : undefined}
+          />
+          {query ? (
+            <Pressable
+              testID="exercises-search-clear"
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              onPress={() => setQuery('')}
+              className="absolute right-1 h-11 w-11 items-center justify-center"
+            >
+              <Text className="text-lg text-muted-foreground">✕</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {/* T-05.A3.1 (AC19-22): two rows normally — 24 wrapping chips pushed
+            the results below the keyboard (found by e2e/gym-library,
+            2026-09-25) — collapsed to one strip while the keyboard is up, so
+            >= 5 results stay visible. */}
+        <CollapsibleChipFilters
+          testID="exercises-filters"
+          collapsed={keyboardVisible}
+          rows={[
+            <ChipGroup
+              key="group"
+              testID="exercises-group-filters"
+              options={MUSCLE_GROUP_FILTERS}
+              value={group ? [group] : []}
+              onChange={(v) => setGroup(v[0] ?? null)}
+              allowEmpty
+              className="flex-nowrap"
+            />,
+            <Chip
+              key="mine"
+              testID="exercises-mine-filter"
+              label="Mine"
+              selected={mineOnly}
+              onPress={() => setMineOnly((v) => !v)}
+            />,
+            <ChipGroup
+              key="equipment"
+              testID="exercises-equipment-filters"
+              options={EQUIPMENT_FILTERS}
+              value={equipment ? [equipment] : []}
+              onChange={(v) => setEquipment(v[0] ?? null)}
+              allowEmpty
+              className="flex-nowrap"
+            />,
+          ]}
         />
-        {/* One swipeable row each — 24 wrapping chips pushed the results
-            below the keyboard (found by e2e/gym-library, 2026-09-25). */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          className="-mx-4"
-          contentContainerClassName="px-4"
-        >
-          <ChipGroup
-            testID="exercises-group-filters"
-            options={MUSCLE_GROUP_FILTERS}
-            value={group ? [group] : []}
-            onChange={(v) => setGroup(v[0] ?? null)}
-            allowEmpty
-            className="flex-nowrap"
-          />
-        </ScrollView>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          className="-mx-4"
-          contentContainerClassName="gap-2 px-4"
-        >
-          <Chip
-            testID="exercises-mine-filter"
-            label="Mine"
-            selected={mineOnly}
-            onPress={() => setMineOnly((v) => !v)}
-          />
-          <ChipGroup
-            testID="exercises-equipment-filters"
-            options={EQUIPMENT_FILTERS}
-            value={equipment ? [equipment] : []}
-            onChange={(v) => setEquipment(v[0] ?? null)}
-            allowEmpty
-            className="flex-nowrap"
-          />
-        </ScrollView>
       </View>
 
       <FlatList
@@ -135,22 +148,17 @@ export function ExercisesTab() {
               onPress={() => router.push(`/gym/exercise/${item.id}`)}
               className="min-h-14 flex-row items-center gap-3 border-b border-border px-4 py-2 active:bg-muted"
             >
-              {uri ? (
-                <Image
-                  source={{ uri }}
-                  style={{ width: 48, height: 48, borderRadius: 8 }}
-                  contentFit="cover"
-                  cachePolicy="disk"
+              <View className="w-16 shrink-0">
+                <ExerciseImage
+                  uri={uri}
+                  equipment={item.equipment}
+                  name={item.name}
+                  size="thumb"
+                  hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(item.id)}
+                  analyticsExerciseId={item.ownerId ? 'custom' : item.id}
+                  testID={`exercises-item-${item.id}-image`}
                 />
-              ) : (
-                // No public-domain photo (some home moves, custom exercises).
-                <View
-                  testID={`exercises-item-${item.id}-placeholder`}
-                  className="h-12 w-12 items-center justify-center rounded-lg bg-muted"
-                >
-                  <Ionicons name="barbell-outline" size={22} color="#9ca3af" />
-                </View>
-              )}
+              </View>
               <View className="min-w-0 flex-1">
                 <Text className="font-medium" numberOfLines={1}>
                   {item.name}

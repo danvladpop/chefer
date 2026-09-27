@@ -1411,14 +1411,26 @@ routine); `mappers.ts` owns row ↔ DTO mapping (all dates ISO strings).
 `apps/api/src/lib/exercise-library/ensure.ts`. Upserts every `EXERCISE_CATALOG` entry by slug,
 once per process (shared promise; a failed pass is retried by the next caller). Called at API boot
 (`index.ts`, after `listen`) and lazily by the library/routine/profile/bootstrap services. Photo
-keys `<slug>-0.webp` / `<slug>-1.webp` are set only for entries with a `freeExerciseDbId` whose file
-exists under `apps/api/static/exercises/`, served by Express at `/static/exercises` (7-day cache)
-and proxied by Caddy. `ExerciseDto.images` are API-relative paths; clients prefix the API origin.
+keys `<slug>-0.3x2.webp` / `<slug>-1.3x2.webp` (T-05.11: an exact 600×400 cover crop, renamed from
+the old un-cropped `<slug>-N.webp` so the rename itself bumps `contentVersion` — see
+`changedFields` — forcing installed clients' `librarySince` fetch and any URL-keyed cache to pick up
+the new crop) are set only for entries with a `freeExerciseDbId` whose file exists under
+`apps/api/static/exercises/`, served by Express at `/static/exercises` (7-day cache) and proxied by
+Caddy. `ExerciseDto.images` are API-relative paths; clients prefix the API origin.
 New catalog entries reach prod on the next deploy through this same boot upsert (idempotent: a
 second pass creates/updates nothing). Their photos must be vendored first with
-`scripts/gym/vendor-exercise-photos.ts` (free-exercise-db → WebP, skips existing files); the
-`ensure.test.ts` "vendored photos" test fails if a catalog id has no files. The catalog has 77
-entries (22 dumbbell/bodyweight home variants added for audit F-GYM-2-1).
+`scripts/gym/vendor-exercise-photos.ts` (free-exercise-db → cover-cropped 600×400 → WebP, skips
+existing files); the `ensure.test.ts` "vendored photos" test fails if a catalog id has no files, and
+a second test reads every file's WebP header (`webp-dimensions.ts`) to assert it is exactly
+600×400. `scripts/gym/exercise-photo-contact-sheet.ts` renders an HTML grid of every vendored photo
+for a visual audit; a hit goes in `HIDDEN_EXERCISE_IMAGE_IDS`
+(`packages/types/src/gym/exercise-catalog.ts`) and `apps/api/static/exercises/README.md` — `plank`
+is the one confirmed so far (free-exercise-db's photo is a lunge stretch, not a plank).
+`ExerciseImage` (mobile, `apps/mobile/src/features/gym/components/exercise-image.tsx`) and its web
+twin (`apps/web/src/features/gym/library/ExerciseImage.tsx`) show the icon placeholder for a hidden
+slug even though the (wrong) file is still served. The catalog has 79 entries (22 dumbbell/
+bodyweight home variants added for audit F-GYM-2-1; `incline-barbell-bench-press` and
+`back-extension` added for T-05.10, library staples).
 
 ### FeedbackService (application layer)
 

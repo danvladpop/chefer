@@ -1689,6 +1689,37 @@ streaks, no red "missed" markers.
   `nextWorkout.isDeload` and prescribes deload targets (half the sets,
   ~90% load, reps at the floor) on the very next bootstrap read.
 
+### Exercise library: photos, search and the swap sheet (T-05.11, T-05.A3.1, T-05.10)
+
+- **Photos, everywhere (T-05.11, UX-05 A6):** one shared `ExerciseImage`
+  (mobile: `apps/mobile/src/features/gym/components/exercise-image.tsx`; web
+  twin: `apps/web/src/features/gym/library/ExerciseImage.tsx`) renders every
+  exercise thumbnail and hero photo at a true 3:2 — never the square crop
+  that used to cut off a third of the frame. No photo, a custom exercise, or
+  a slug in `HIDDEN_EXERCISE_IMAGE_IDS` (a wrong-photo audit hit —
+  `packages/types/src/gym/exercise-catalog.ts`) shows a designed icon
+  placeholder (by equipment) instead of a blank tile or a letter. A load
+  failure retries once silently, then falls back to the placeholder and
+  fires `exercise_image_failed` (analytics id: the slug, or `'custom'`).
+  Surfaces: Exercises tab/list, swap sheet, workout exercise card, technique
+  sheet, detail hero (mobile: `PhotoCrossfade`; web: its own twin, same
+  contract).
+- **Swap sheet / Exercises tab keyboard collapse (T-05.A3.1, mobile):** both
+  screens' filter chips normally wrap or stack onto several rows; while the
+  keyboard is up (`use-keyboard-visible.ts`) `CollapsibleChipFilters`
+  (`apps/mobile/src/features/gym/library/collapsible-chip-filters.tsx`)
+  collapses them into one horizontal strip (MO-05 + a FLIP re-layout, `base`
+  timing, instant under reduced motion) so at least 5 results stay visible
+  above the keyboard. Search inputs carry a real accessible label, a 4.5:1
+  placeholder (`#4b5563`, not the default gray-400) and a clear (✕) button
+  once there's a query.
+- **Library staples (T-05.10, UX-05 A5):** `incline-barbell-bench-press`
+  (searchable by "incline bench"; shares the `incline-press` swap group,
+  sorted before the dumbbell version) and `back-extension` (`BODYWEIGHT_PLUS`
+  so "+ Add weight" loads a held plate; searchable by "hyper", "back ext" and
+  "roman chair"; `hinge` swap group) — additive catalog rows only, synced in
+  by the existing boot upsert (§ ensureExerciseLibrary, infrastructure.md).
+
 ## 22. Gym Setup & Workout Sync Flow (API)
 
 Server side of gym_plan.md §4/§5.2 (services in `apps/api/src/application/gym/`). Every

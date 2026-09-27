@@ -12,7 +12,7 @@ import { useHasMounted } from '@/hooks/useHasMounted';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
 import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
-import { MUSCLE_LABELS } from '@chefer/types';
+import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS } from '@chefer/types';
 import { formatLoad } from '@chefer/utils';
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -148,7 +148,16 @@ export default function GymExerciseDetailPage() {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Media */}
         <div className="space-y-4">
-          <PhotoCrossfade images={imageUrls} alt={exercise.name} />
+          <PhotoCrossfade
+            images={imageUrls}
+            alt={exercise.name}
+            equipment={exercise.equipment}
+            primaryMuscleLabel={
+              exercise.primaryMuscles[0] ? MUSCLE_LABELS[exercise.primaryMuscles[0]] : null
+            }
+            hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(exercise.id)}
+            analyticsExerciseId={exercise.ownerId ? 'custom' : exercise.id}
+          />
           {exercise.videoId && (
             <VideoEmbed
               videoId={exercise.videoId}

@@ -46,7 +46,13 @@ export function imageKeysFor(
   fileExists: (file: string) => boolean = (f) => existsSync(path.join(EXERCISE_STATIC_DIR, f)),
 ): string[] {
   if (!entry.freeExerciseDbId) return [];
-  return [`${entry.id}-0.webp`, `${entry.id}-1.webp`].filter(fileExists);
+  // T-05.11: `.3x2` is a real 600×400 cover crop, not the client-side square
+  // crop the plain `-0.webp` names used to get. The suffix is also what
+  // forces a rename (not an in-place overwrite) when photos are re-vendored,
+  // which bumps contentVersion (see changedFields) so already-installed
+  // clients' librarySince fetch — and any disk/CDN cache keyed by URL —
+  // picks up a new crop instead of serving a stale one under the old key.
+  return [`${entry.id}-0.3x2.webp`, `${entry.id}-1.3x2.webp`].filter(fileExists);
 }
 
 export function catalogToWriteData(

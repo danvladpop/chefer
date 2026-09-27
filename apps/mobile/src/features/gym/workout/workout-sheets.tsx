@@ -1,9 +1,14 @@
 import { useState } from 'react';
 import { Linking, Pressable, TextInput, View } from 'react-native';
-import { Image } from 'expo-image';
-import type { ExerciseDto, SessionExerciseDoc, WeightUnit } from '@chefer/types';
+import {
+  HIDDEN_EXERCISE_IMAGE_IDS,
+  type ExerciseDto,
+  type SessionExerciseDoc,
+  type WeightUnit,
+} from '@chefer/types';
 import { Button, ExplainSheet, Sheet, Text } from '@chefer/ui-mobile';
 import { cn, explain, explainInputs, formatLoad } from '@chefer/utils';
+import { ExerciseImage } from '../components/exercise-image';
 import { exerciseImageUrl } from '../library/exercise-image';
 import type { ExerciseHistoryEntry } from './workout-model';
 
@@ -38,18 +43,34 @@ export function TechniqueSheet({
       eyebrow="Technique"
       testID="technique-sheet"
     >
-      {images.length > 0 ? (
+      {exercise ? (
         <View className="flex-row gap-2">
-          {images.map((uri) => (
-            <Image
-              key={uri}
-              source={{ uri }}
-              style={{ flex: 1, aspectRatio: 1, borderRadius: 12 }}
-              contentFit="cover"
-              cachePolicy="disk"
-              accessibilityIgnoresInvertColors
-            />
-          ))}
+          {images.length > 0 ? (
+            images.map((uri, i) => (
+              <View key={uri} className="flex-1 overflow-hidden rounded-xl">
+                <ExerciseImage
+                  uri={uri}
+                  equipment={exercise.equipment}
+                  name={exercise.name}
+                  size="hero"
+                  hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(exercise.id)}
+                  analyticsExerciseId={exercise.ownerId ? 'custom' : exercise.id}
+                  testID={`technique-sheet-image-${i}`}
+                />
+              </View>
+            ))
+          ) : (
+            <View className="flex-1 overflow-hidden rounded-xl">
+              <ExerciseImage
+                uri={null}
+                equipment={exercise.equipment}
+                name={exercise.name}
+                size="hero"
+                analyticsExerciseId={exercise.ownerId ? 'custom' : exercise.id}
+                testID="technique-sheet-image-0"
+              />
+            </View>
+          )}
         </View>
       ) : null}
       {exercise?.videoId ? (

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { MUSCLE_LABELS } from '@chefer/types';
+import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS } from '@chefer/types';
 import {
   Badge,
   Button,
@@ -158,6 +158,7 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
           primaryMuscleLabel={
             exercise.primaryMuscles[0] ? MUSCLE_LABELS[exercise.primaryMuscles[0]] : null
           }
+          hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(exercise.id)}
           testID="exercise-detail-photos"
         />
 
