@@ -73,11 +73,20 @@ export default function EditRecipePage() {
   const stepId = (i: number) => `${uid}-step-${i}`;
   const nutritionId = (key: keyof NutritionInfo) => `${uid}-nutrition-${key}`;
 
+  const utils = trpc.useUtils();
+
+  // T-BUG-O3 C1 (O-15): refetch on every mount and prefill only once that
+  // fetch has landed — the old `hydrated`-only guard kept prefilling from a
+  // stale cached copy when Edit was reopened right after a save, so a
+  // second save reverted the first edit.
   const {
     data: recipe,
     isLoading,
     error: loadError,
-  } = trpc.recipe.getMyRecipe.useQuery({ recipeId }, { retry: false });
+    isFetchedAfterMount,
+    isFetching,
+    refetch: refetchRecipe,
+  } = trpc.recipe.getMyRecipe.useQuery({ recipeId }, { retry: false, refetchOnMount: 'always' });
 
   // Form state
   const [name, setName] = useState('');
@@ -104,7 +113,7 @@ export default function EditRecipePage() {
 
   // Pre-fill form when recipe loads
   useEffect(() => {
-    if (!recipe || hydrated) return;
+    if (!recipe || hydrated || !isFetchedAfterMount || isFetching) return;
     setName(recipe.name);
     setDescription(recipe.description);
     setCuisineType(recipe.cuisineType);
@@ -145,10 +154,15 @@ export default function EditRecipePage() {
       fiber: String(n.fiber ?? 0),
     });
     setHydrated(true);
-  }, [recipe, hydrated]);
+  }, [recipe, hydrated, isFetchedAfterMount, isFetching]);
 
   const updateMutation = trpc.recipe.update.useMutation({
     onSuccess: () => {
+      // T-BUG-O3 C1: invalidate every query this recipe could be read
+      // through — a stale cache in any of these reverted the previous edit.
+      void utils.recipe.getMyRecipe.invalidate({ recipeId });
+      void utils.recipe.list.invalidate();
+      void utils.mealPlan.getRecipe.invalidate({ recipeId });
       router.push('/recipes?tab=my');
     },
   });
@@ -285,12 +299,21 @@ export default function EditRecipePage() {
         <p className="text-gray-500">
           Recipe not found or you don&apos;t have permission to edit it.
         </p>
-        <Link
-          href="/recipes?tab=my"
-          className="mt-4 inline-flex min-h-11 items-center text-sm text-[#944a00] hover:underline"
-        >
-          ← Back to My Recipes
-        </Link>
+        <div className="mt-4 flex items-center justify-center gap-4">
+          <button
+            type="button"
+            onClick={() => void refetchRecipe()}
+            className="inline-flex min-h-11 items-center text-sm text-[#944a00] hover:underline"
+          >
+            Try again
+          </button>
+          <Link
+            href="/recipes?tab=my"
+            className="inline-flex min-h-11 items-center text-sm text-[#944a00] hover:underline"
+          >
+            ← Back to My Recipes
+          </Link>
+        </div>
       </div>
     );
   }

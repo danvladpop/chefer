@@ -55,12 +55,25 @@ vi.mock('@/lib/trpc', () => ({
         useMutation: () => ({ mutate: createMutate, isPending: false, error: null }),
       },
       getMyRecipe: {
-        useQuery: () => ({ data: RECIPE, isLoading: false, error: null }),
+        useQuery: () => ({
+          data: RECIPE,
+          isLoading: false,
+          error: null,
+          isFetchedAfterMount: true,
+          isFetching: false,
+          refetch: vi.fn(),
+        }),
       },
       update: {
         useMutation: () => ({ mutate: updateMutate, isPending: false, error: null }),
       },
     },
+    // T-BUG-O3 C1: EditRecipePage invalidates recipe.getMyRecipe/list +
+    // mealPlan.getRecipe on a successful update.
+    useUtils: () => ({
+      recipe: { getMyRecipe: { invalidate: vi.fn() }, list: { invalidate: vi.fn() } },
+      mealPlan: { getRecipe: { invalidate: vi.fn() } },
+    }),
   },
 }));
 
