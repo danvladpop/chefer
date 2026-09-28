@@ -57,6 +57,18 @@ describe('isExpectedFailure (dogfood #7 — no LogBox toast for offline)', () =>
     });
     expect(isExpectedFailure([{ result: unrelated }])).toBe(false);
   });
+
+  it('a signed-out UNAUTHORIZED is expected even though its message never says so', () => {
+    const signedOut = Object.assign(new Error('You must be logged in to perform this action'), {
+      data: { code: 'UNAUTHORIZED', path: 'privacy.getConsentHistory' },
+    });
+    expect(isExpectedFailure(['<< query', { result: signedOut }])).toBe(true);
+
+    const forbidden = Object.assign(new Error('Not allowed'), {
+      data: { code: 'FORBIDDEN', path: 'user.me' },
+    });
+    expect(isExpectedFailure([{ result: forbidden }])).toBe(false);
+  });
 });
 
 describe('redactSecrets (F-M-AUTH-2-2 — no plaintext passwords in dev logs)', () => {

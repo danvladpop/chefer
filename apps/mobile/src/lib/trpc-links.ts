@@ -57,17 +57,29 @@ function isExpectedImportFailure(result: unknown): boolean {
   );
 }
 
+// A signed-out or expired session is expected, not a bug: the server's
+// UNAUTHORIZED message ("You must be logged in…") doesn't contain the code,
+// so it is read from `data.code`. Logged as an error it raised a red LogBox
+// whose badge covered the tab bar in dev builds.
+function isUnauthorized(result: unknown): boolean {
+  if (!(result instanceof Error)) return false;
+  return (result as { data?: { code?: unknown } }).data?.code === 'UNAUTHORIZED';
+}
+
+function isExpectedError(error: Error): boolean {
+  return (
+    EXPECTED_FAILURE.test(error.message) || isExpectedImportFailure(error) || isUnauthorized(error)
+  );
+}
+
 export function isExpectedFailure(args: unknown[]): boolean {
   return args.some((arg) => {
     if (arg instanceof Error) {
-      return EXPECTED_FAILURE.test(arg.message) || isExpectedImportFailure(arg);
+      return isExpectedError(arg);
     }
     if (arg && typeof arg === 'object' && 'result' in arg) {
       const { result } = arg;
-      return (
-        result instanceof Error &&
-        (EXPECTED_FAILURE.test(result.message) || isExpectedImportFailure(result))
-      );
+      return result instanceof Error && isExpectedError(result);
     }
     return typeof arg === 'string' && EXPECTED_FAILURE.test(arg);
   });
