@@ -13,6 +13,11 @@ import {
 import { profileRow, progressionState, routineRow } from './__test__/fixtures.js';
 import { defaultInventory, GymProfileService } from './gym-profile.service.js';
 
+// GymProfileService transitively imports client-level.ts → lib/flags.ts →
+// lib/env.ts, which validates the full env schema at import time — mock it
+// (the targets.service.test.ts pattern) so this file needs no real env vars.
+vi.mock('../../lib/flags.js', () => ({ isFlagEnabled: () => false }));
+
 vi.mock('@chefer/utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/utils')>()),
   initialState: vi.fn(),

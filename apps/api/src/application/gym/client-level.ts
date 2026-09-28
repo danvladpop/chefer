@@ -1,4 +1,5 @@
 import { ExerciseTrackingType } from '@chefer/types';
+import { isFlagEnabled } from '../../lib/flags.js';
 
 // ─── Gym client API levels (Δ2.1, T-42.0) ─────────────────────────────────────
 // `ctx.clientApiLevel` (apps/api/src/lib/trpc.ts, parsed by
@@ -57,6 +58,20 @@ export function renderableTrackingTypes(level: number): ExerciseTrackingType[] {
     types.push(ExerciseTrackingType.INTERVALS);
   }
   return types;
+}
+
+/**
+ * The level actually used for gating (2026-09-28 follow-up): `cardioLogging`
+ * is a server flag (default OFF, Q-24) independent of what a bundle sends —
+ * a mobile build that ships level 3 (T-42.3) must still see zero cardio rows
+ * until the owner flips the flag on. Every router passes `ctx.clientApiLevel`
+ * through this before it reaches a gym service, so `renderableTrackingTypes`
+ * itself never needs to know about flags. Off ⇒ capped at 2 (no
+ * DURATION_DISTANCE/DISTANCE/INTERVALS regardless of what the client
+ * claims); on ⇒ the client's own level, unchanged.
+ */
+export function effectiveLevel(level: number): number {
+  return isFlagEnabled('cardioLogging') ? level : Math.min(level, 2);
 }
 
 /** Whether `trackingType` may be sent to a client at `level` (Δ2.1). */

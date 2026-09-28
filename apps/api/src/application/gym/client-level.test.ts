@@ -4,8 +4,21 @@
 // client at a given `x-chefer-api-level` may be sent. AC 10 (a level-0/1/2
 // bootstrap contains no cardio-typed exercise it cannot render) rests on
 // this table.
-import { describe, expect, it } from 'vitest';
-import { isTrackingTypeRenderable, renderableTrackingTypes } from './client-level.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  effectiveLevel,
+  isTrackingTypeRenderable,
+  renderableTrackingTypes,
+} from './client-level.js';
+
+let flagsEnabled: Record<string, boolean> = {};
+vi.mock('../../lib/flags.js', () => ({
+  isFlagEnabled: (key: string) => flagsEnabled[key] === true,
+}));
+
+beforeEach(() => {
+  flagsEnabled = {};
+});
 
 describe('renderableTrackingTypes', () => {
   it.each([0, 1, 2])('level %i renders only strength types + DURATION', (level) => {
@@ -41,6 +54,34 @@ describe('renderableTrackingTypes', () => {
   it('the live App Store build (1.0.0 (5), sends level 2) never renders cardio', () => {
     expect(renderableTrackingTypes(2)).not.toContain('DURATION_DISTANCE');
     expect(renderableTrackingTypes(2)).not.toContain('DISTANCE');
+  });
+});
+
+describe('effectiveLevel (cardioLogging gate, 2026-09-28 follow-up)', () => {
+  it('cardioLogging off: caps at 2 regardless of what the client sends', () => {
+    flagsEnabled = {};
+    expect(effectiveLevel(0)).toBe(0);
+    expect(effectiveLevel(2)).toBe(2);
+    expect(effectiveLevel(3)).toBe(2);
+    expect(effectiveLevel(4)).toBe(2);
+  });
+
+  it('cardioLogging on: passes the client level through unchanged', () => {
+    flagsEnabled = { cardioLogging: true };
+    expect(effectiveLevel(0)).toBe(0);
+    expect(effectiveLevel(2)).toBe(2);
+    expect(effectiveLevel(3)).toBe(3);
+    expect(effectiveLevel(4)).toBe(4);
+  });
+
+  it('cardioLogging off: a level-3 client (T-42.3 OTA) still renders no cardio', () => {
+    flagsEnabled = {};
+    expect(renderableTrackingTypes(effectiveLevel(3))).not.toContain('DURATION_DISTANCE');
+  });
+
+  it('cardioLogging on: a level-3 client renders cardio', () => {
+    flagsEnabled = { cardioLogging: true };
+    expect(renderableTrackingTypes(effectiveLevel(3))).toContain('DURATION_DISTANCE');
   });
 });
 

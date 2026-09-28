@@ -18,6 +18,11 @@ import {
 } from './__test__/fixtures.js';
 import { WorkoutSessionService } from './workout-session.service.js';
 
+// WorkoutSessionService transitively imports client-level.ts → lib/flags.ts
+// → lib/env.ts, which validates the full env schema at import time — mock
+// it (the targets.service.test.ts pattern) so this file needs no real env vars.
+vi.mock('../../lib/flags.js', () => ({ isFlagEnabled: () => false }));
+
 // The service reports sync rejections via logger + Sentry. The real logger
 // validates env at import (JWT_SECRET etc.), which a clean CI env lacks.
 vi.mock('../../lib/logger.js', () => ({

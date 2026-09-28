@@ -3,6 +3,7 @@
 // PLAN_FEATURES.gymTraining is free on every tier (D9).
 import { z } from 'zod';
 import { localDateSchema } from '@chefer/types';
+import { effectiveLevel } from '../../application/gym/client-level.js';
 import { gymBootstrapService } from '../../application/gym/gym-bootstrap.service.js';
 import { protectedProcedure, router } from '../../lib/trpc.js';
 import { gymExportRouter } from './export.router.js';
@@ -33,7 +34,7 @@ export const gymRouter = router({
           librarySince: input?.librarySince,
           today: input?.today,
         },
-        ctx.clientApiLevel,
+        effectiveLevel(ctx.clientApiLevel),
       ),
     ),
   library: gymLibraryRouter,

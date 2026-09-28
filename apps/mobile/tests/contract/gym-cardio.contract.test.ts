@@ -15,6 +15,15 @@ import { API_URL, CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './cl
 // level 2 for an unrelated fix (sign-up consent checkboxes, T-39.1/T-26.5),
 // so the CURRENTLY LIVE App Store build (1.0.0 (5)) already sends level 2 —
 // it must never see cardio. Levels 0/1/2 all render strength-only.
+//
+// Further follow-up (2026-09-28): a level-3 client alone isn't enough —
+// `cardioLogging` (server flag, default OFF, Q-24) must also be on, since a
+// mobile build that ships level 3 (T-42.3) sends it unconditionally,
+// independent of whether the owner has flipped the flag. `effectiveLevel()`
+// (client-level.ts) caps at 2 while the flag is off. This suite reads the
+// lane API's actual flag state once (`profile.flags`, a public query) so it
+// passes whichever way that lane happens to have it configured, rather than
+// assuming either state.
 
 const NOW = Date.now();
 const iso = (offsetMin: number) => new Date(NOW + offsetMin * 60_000).toISOString();
@@ -136,6 +145,8 @@ function mixedDoc(): WorkoutSessionDoc {
 
 describe('gym cardio: client-level filtering (T-42.2, Δ2.1)', () => {
   let token: string;
+  /** Whatever this lane's API actually has cardioLogging set to. */
+  let cardioOn: boolean;
 
   beforeAll(async () => {
     const { client, setToken } = makeContractClient();
@@ -149,6 +160,7 @@ describe('gym cardio: client-level filtering (T-42.2, Δ2.1)', () => {
       throw new Error('mobile register response is missing the session credential');
     setToken(user.session.token);
     token = user.session.token;
+    cardioOn = (await client.profile.flags.query()).cardioLogging;
   });
 
   it('AC10: a level-0/1/2 bootstrap/library contain no cardio-typed row (2 = the live App Store build)', async () => {
@@ -167,13 +179,17 @@ describe('gym cardio: client-level filtering (T-42.2, Δ2.1)', () => {
     }
   });
 
-  it('a level-3 bootstrap/library DO include the cardio catalogue rows', async () => {
+  it('a level-3 bootstrap/library include the cardio catalogue rows only when cardioLogging is on', async () => {
     const c = leveledClient(3, token);
     const boot = await c.gym.bootstrap.query({ today: localDate });
-    expect(boot.library.some((e) => e.id === BIKE_ID)).toBe(true);
+    expect(boot.library.some((e) => e.id === BIKE_ID)).toBe(cardioOn);
     const list = await c.gym.library.list.query();
     const bike = list.find((e) => e.id === BIKE_ID);
-    expect(bike?.trackingType).toBe('DURATION_DISTANCE');
+    if (cardioOn) {
+      expect(bike?.trackingType).toBe('DURATION_DISTANCE');
+    } else {
+      expect(bike).toBeUndefined();
+    }
   });
 
   it('a mixed session (bench + bike) uploads at any level, but a level-0/1/2 read drops the cardio exercise while keeping the session', async () => {
@@ -182,7 +198,9 @@ describe('gym cardio: client-level filtering (T-42.2, Δ2.1)', () => {
     const res = await writer.gym.session.upsertMany.mutate({ docs: [doc] });
     expect(res.results).toEqual([{ id: doc.id, status: 'applied' }]);
 
-    for (const level of [0, 1, 2]) {
+    // With cardioLogging off, level 3 behaves like level 2 (no cardio) too.
+    const neverCardioLevels = cardioOn ? [0, 1, 2] : [0, 1, 2, 3];
+    for (const level of neverCardioLevels) {
       const c = leveledClient(level, token);
       const got = await c.gym.session.get.query({ id: doc.id });
       // The session itself is never dropped — only the cardio exercise inside it.
@@ -196,20 +214,27 @@ describe('gym cardio: client-level filtering (T-42.2, Δ2.1)', () => {
     }
   });
 
-  it('AC6/level 3: session.get round-trips the cardio set fields exactly', async () => {
+  it('AC6/level 3: session.get round-trips the cardio set fields exactly, when cardioLogging is on', async () => {
     const writer = leveledClient(3, token);
     const doc = mixedDoc();
     await writer.gym.session.upsertMany.mutate({ docs: [doc] });
 
     const got = await writer.gym.session.get.query({ id: doc.id });
     const bike = got.exercises.find((e) => e.exerciseId === BIKE_ID);
-    expect(bike?.sets[0]).toMatchObject({
-      durationSec: 1200,
-      distanceM: 8000,
-      intensityRpe: 6,
-      weightKg: 0,
-      reps: 0,
-    });
+    if (cardioOn) {
+      expect(bike?.sets[0]).toMatchObject({
+        durationSec: 1200,
+        distanceM: 8000,
+        intensityRpe: 6,
+        weightKg: 0,
+        reps: 0,
+      });
+    } else {
+      // The flag caps level 3 at 2 for reads — the write still landed (the
+      // exercise just isn't handed back until the flag is on), so the
+      // round-trip itself is unverifiable from this lane right now.
+      expect(bike).toBeUndefined();
+    }
   });
 
   it('progression.recompute skips the cardio exercise — no progression row is ever created for it', async () => {

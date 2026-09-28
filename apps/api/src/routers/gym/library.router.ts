@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { customExerciseInputSchema } from '@chefer/types';
+import { effectiveLevel } from '../../application/gym/client-level.js';
 import { exerciseLibraryService } from '../../application/gym/exercise-library.service.js';
 import { assertWithinRateLimit } from '../../lib/rate-limit.js';
 import { protectedProcedure, router } from '../../lib/trpc.js';
@@ -10,7 +11,11 @@ export const gymLibraryRouter = router({
   list: protectedProcedure
     .input(z.object({ updatedSince: z.string().datetime({ offset: true }).optional() }).optional())
     .query(({ ctx, input }) =>
-      exerciseLibraryService.list(ctx.user.id, input?.updatedSince, ctx.clientApiLevel),
+      exerciseLibraryService.list(
+        ctx.user.id,
+        input?.updatedSince,
+        effectiveLevel(ctx.clientApiLevel),
+      ),
     ),
   get: protectedProcedure
     .input(z.object({ id: z.string().min(1).max(100) }))
