@@ -37,6 +37,7 @@ export function Field({
   label,
   error,
   group = false,
+  required = false,
   children,
 }: {
   /** Id of the labelled control (or the group, when `group`). */
@@ -45,12 +46,30 @@ export function Field({
   error?: string | undefined;
   /** Chip rows and other multi-control fields: label a `role="group"` instead of one input. */
   group?: boolean;
+  /** PAT-17: appends " *" to the label (the field's accessible name reads "{label}, required"). */
+  required?: boolean;
   children: ReactNode;
 }) {
   const errorText = error && (
     <p id={errorIdFor(id)} className="mt-1 text-xs text-red-600">
       {error}
     </p>
+  );
+  // The `*` stays part of the label's own text content (never `aria-label`
+  // on the `<label>` itself — that would rename the label element rather
+  // than the control it's `for`, and breaks `getByLabelText`/AT lookups
+  // that resolve the control's name through the label's rendered content).
+  // `aria-required` on the control itself is how "required" actually reaches
+  // assistive tech; callers set that on the input alongside `required`.
+  const labelContent = (
+    <>
+      {label}
+      {required ? (
+        <span aria-hidden="true" className="text-[#944a00]">
+          {' *'}
+        </span>
+      ) : null}
+    </>
   );
 
   if (group) {
@@ -63,7 +82,7 @@ export function Field({
         aria-describedby={error ? errorIdFor(id) : undefined}
       >
         <span id={labelId} className="mb-1 block text-xs font-medium text-gray-600">
-          {label}
+          {labelContent}
         </span>
         {children}
         {errorText}
@@ -74,12 +93,17 @@ export function Field({
   return (
     <div className="min-w-0">
       <label htmlFor={id} className="mb-1 block text-xs font-medium text-gray-600">
-        {label}
+        {labelContent}
       </label>
       {children}
       {errorText}
     </div>
   );
+}
+
+/** PAT-17: shown once under the title on any form with a required field. */
+export function RequiredLegend() {
+  return <p className="mb-4 text-xs text-gray-500">* Required</p>;
 }
 
 /**

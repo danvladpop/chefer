@@ -9,6 +9,7 @@ import {
   Field,
   FormErrorSummary,
   inputCls,
+  RequiredLegend,
   Section,
 } from '@/features/recipes/components/recipe-form-fields';
 import {
@@ -22,23 +23,9 @@ import {
 import { trpc } from '@/lib/trpc';
 import { uploadImage } from '@/lib/upload-image';
 import { ArrowLeft, Plus, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { CUISINE_PRESETS } from '@chefer/types';
 
-// ─── Presets ──────────────────────────────────────────────────────────────────
-
-const CUISINE_PRESETS = [
-  'Italian',
-  'Mediterranean',
-  'Mexican',
-  'Asian',
-  'Thai',
-  'Japanese',
-  'Chinese',
-  'Indian',
-  'French',
-  'American',
-  'Middle Eastern',
-  'Romanian',
-];
+// ─── Presets (T-40.6: CUISINE_PRESETS moved to @chefer/types, shared with mobile) ──
 
 const DIETARY_TAG_PRESETS = [
   'vegan',
@@ -118,14 +105,15 @@ export default function NewRecipePage() {
   const [customModalFor, setCustomModalFor] = useState<{ row: number; query: string } | null>(null);
   const [instructions, setInstructions] = useState<string[]>(['']);
 
-  // Nutrition: auto-computed with manual fallback
+  // Nutrition: auto-computed with manual fallback. No fiber field (D-18) —
+  // a manual entry always sends fiber: 0; the computed path still computes
+  // and sends it under the hood (web's computed nutrition is protected).
   const [manualNutrition, setManualNutrition] = useState(false);
   const [manual, setManual] = useState({
     calories: '',
     protein: '',
     carbs: '',
     fat: '',
-    fiber: '',
   });
 
   const { errors, clear: clearError, report: reportErrors } = useRecipeFormErrors();
@@ -163,7 +151,7 @@ export default function NewRecipePage() {
         protein: Number(manual.protein) || 0,
         carbs: Number(manual.carbs) || 0,
         fat: Number(manual.fat) || 0,
-        fiber: Number(manual.fiber) || 0,
+        fiber: 0,
       }
     : (computed?.perServing ?? { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
 
@@ -237,6 +225,10 @@ export default function NewRecipePage() {
   };
 
   // ── Validation & submit ────────────────────────────────────────────────────
+  // T-40.6 (D-19): the whole minimum is a name and >= 1 ingredient line with
+  // an amount. Cuisine and nutrition (computed or manual) are both optional —
+  // they used to be hard-blocked here, which is exactly UX-40's "36 boxes"
+  // complaint on web's side of the parity gap.
   const validate = (): boolean => {
     const errs: RecipeFormErrors = validateRecipeCore({
       name,
@@ -246,16 +238,10 @@ export default function NewRecipePage() {
       servings,
       instructions,
     });
-    if (!cuisineType) errs.cuisineType = 'Pick a cuisine or enter your own.';
     if (validRows.length === 0) errs.ingredients = 'Add at least one ingredient.';
-    if (nutrition.calories <= 0)
-      errs.calories = manualNutrition
-        ? 'Enter calories.'
-        : 'Nutrition could not be computed — check your ingredients or enter it manually.';
 
     // Where focus lands for each error: the first incomplete ingredient row's
-    // missing field, the first step, the calories input (or the "enter
-    // manually" switch when nutrition is auto-computed).
+    // missing field.
     const badRow = Math.max(
       0,
       ingredients.findIndex((r) => !isValidRow(r)),
@@ -263,7 +249,6 @@ export default function NewRecipePage() {
     const targets: RecipeFormFocusTargets = {
       name: ids.name,
       description: ids.description,
-      cuisineType: useCustomCuisine ? ids.cuisineCustom : ids.cuisineFirstChip,
       prepTimeMins: ids.prepTimeMins,
       cookTimeMins: ids.cookTimeMins,
       servings: ids.servings,
@@ -271,7 +256,6 @@ export default function NewRecipePage() {
         ? ingredientQtyId(badRow)
         : ingredientNameId(badRow),
       instructions: stepId(0),
-      calories: manualNutrition ? nutritionId('calories') : ids.enterManual,
     };
     return reportErrors(errs, targets);
   };
@@ -321,13 +305,14 @@ export default function NewRecipePage() {
           <h1 className="font-serif text-2xl font-bold text-gray-900">Create Recipe</h1>
         </div>
       </div>
+      <RequiredLegend />
 
       {/* noValidate: our own validation owns the messages — the browser's
           tooltip fought it (and pointed at fields under the sticky header). */}
       <form onSubmit={handleSubmit} noValidate className="space-y-8">
         {/* ── Basic Info ─────────────────────────────────────────────── */}
         <Section title="Basic Info">
-          <Field id={ids.name} label="Recipe Name" error={errors.name}>
+          <Field id={ids.name} label="Recipe Name" required error={errors.name}>
             <input
               id={ids.name}
               type="text"
@@ -337,6 +322,7 @@ export default function NewRecipePage() {
                 clearError('name');
               }}
               placeholder="e.g. Grandma's Pasta Sauce"
+              aria-required="true"
               {...fieldErrorProps(ids.name, errors.name)}
               className={inputCls(!!errors.name)}
             />
@@ -574,7 +560,7 @@ export default function NewRecipePage() {
 
         {/* ── Ingredients ────────────────────────────────────────────── */}
         <Section
-          title="Ingredients"
+          title="Ingredients *"
           error={errors.ingredients}
           errorId={errorIdFor(ids.ingredients)}
         >
@@ -709,12 +695,11 @@ export default function NewRecipePage() {
         >
           {!manualNutrition ? (
             <div className="rounded-xl border bg-gray-50 p-4">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <Stat label="Calories" value={`${Math.round(nutrition.calories)} kcal`} />
                 <Stat label="Protein" value={`${nutrition.protein} g`} />
                 <Stat label="Carbs" value={`${nutrition.carbs} g`} />
                 <Stat label="Fat" value={`${nutrition.fat} g`} />
-                <Stat label="Fiber" value={`${nutrition.fiber} g`} />
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-x-2 text-xs text-gray-500">
                 <span className="min-w-0">
@@ -742,14 +727,13 @@ export default function NewRecipePage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 {(
                   [
                     ['calories', 'Calories (kcal)'],
                     ['protein', 'Protein (g)'],
                     ['carbs', 'Carbs (g)'],
                     ['fat', 'Fat (g)'],
-                    ['fiber', 'Fiber (g)'],
                   ] as const
                 ).map(([key, label]) => (
                   <Field key={key} id={nutritionId(key)} label={label}>

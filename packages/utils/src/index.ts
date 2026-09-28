@@ -218,7 +218,7 @@ export {
   type LoggedMealEntryLike,
 } from './tracker';
 
-export { defaultCookServings, guessMealType, parseStepDuration } from './cook-mode';
+export { defaultCookServings, finishMealCopy, guessMealType, parseStepDuration } from './cook-mode';
 export {
   buildPickerSections,
   filterReplaceCandidates,
@@ -423,6 +423,16 @@ export {
 } from './plan-shape';
 export { recogniseSafetyTerm, type SafetyRecogniseOutcome } from './safety-recognise';
 export {
+  classifySafetyValue,
+  serialiseSafetyPickerValue,
+  BASE_DIET_IDS,
+  DIET_MODIFIER_IDS,
+  type SafetyPickerValue,
+  type ClassifiedSafetyValue,
+  type BaseDietId,
+  type DietModifierId,
+} from './safety-classify';
+export {
   formatDinnersForSharing,
   formatListForSharing,
   shareListFooter,
@@ -433,6 +443,50 @@ export {
   type ShareListScope,
 } from './share-list';
 
-export { SAFETY_COPY, type SafetyCopyKey } from './safety-copy';
+export {
+  SAFETY_COPY,
+  type SafetyCopyKey,
+  type CheckedRuleLike,
+  checkedForLineText,
+  checkedForChipText,
+  checkedForChipA11yLabel,
+  cantCheckLine,
+  filteredForLineText,
+  pickerFooterText,
+  checkedForListHeaderText,
+  tableSummaryLine,
+  conflictConfirmTitle,
+  conflictConfirmBody,
+  checkLabelChipText,
+  labelCaveatLineText,
+  labelCaveatCompactText,
+  reportSentSnackbarText,
+  recognisedAddedText,
+  recognisedDietSetText,
+  recognisedModifierAddedText,
+  recognisedDislikeAddedText,
+  unrecognisedNoticeText,
+  conditionNoticeText,
+  migrationMappingText,
+  migrationMappingUncheckedText,
+  memberSummaryLine,
+  allergiesAndDietForText,
+} from './safety-copy';
 export { WELLNESS_COPY, type WellnessCopyKey } from './wellness-copy';
 export { PREMIUM_PITCH_COPY, type PremiumPitchCopyKey } from './premium-pitch';
+export { tagConflicts, type RecipeTagConflict } from './recipe-tags';
+export {
+  formatFractionalQuantity,
+  formatScaledQuantity,
+  formatServingsPair,
+  isUnscalableUnit,
+} from './scaled-quantity';
+export {
+  parseQuantity,
+  recipeMissingFields,
+  firstIncompleteIngredientLineIndex,
+  missingSummary,
+  type RecipeFormIngredientLike,
+  type RecipeFormMinimum,
+  type RecipeFormMissingField,
+} from './recipe-form';

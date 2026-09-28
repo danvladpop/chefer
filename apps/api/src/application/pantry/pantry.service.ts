@@ -1,7 +1,5 @@
 import { TRPCError } from '@trpc/server';
 import {
-  dietaryPreferencesRepository,
-  householdMemberRepository,
   mealPlanRepository,
   pantryItemRepository,
   prisma,
@@ -12,17 +10,13 @@ import {
 import type { UserProfile } from '@chefer/types';
 import { slotPortion } from '@chefer/utils';
 import type { Ingredient } from '../../lib/ai/index.js';
-import {
-  CURATED_POOL_BY_TYPE,
-  hasSafetyPrefs,
-  isRecipeSafe,
-} from '../../lib/curated-recipes/index.js';
+import { CURATED_POOL_BY_TYPE } from '../../lib/curated-recipes/index.js';
 import { hasFeature } from '../../lib/entitlements.js';
 import {
   estimateItemPriceEur,
   normalizeIngredientName,
 } from '../../lib/ingredient-prices/index.js';
-import { mergeHouseholdSafety } from '../household/household.service.js';
+import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import { buildPantryMatcher, rankRecipesByPantry } from './pantry-match.js';
 import { isStapleIngredient } from './staples.js';
 
@@ -69,6 +63,7 @@ export class PantryService {
   constructor(
     private readonly repo: IPantryItemRepository = pantryItemRepository,
     private readonly planRepo: IMealPlanRepository = mealPlanRepository,
+    private readonly safety: SafetyService = safetyService,
   ) {}
 
   /** All items, oldest first (the use-first order the provider serves). */
@@ -202,29 +197,24 @@ export class PantryService {
       return `The user has ${pantry.length} item(s) in their kitchen, but pantry-aware cooking suggestions are a premium feature — suggest upgrading so plans and suggestions cook from what they already have.`;
     }
 
-    // B-34/B-46: never suggest a dish the household can't eat — this used to
-    // rank the raw curated pool + active plan, allergens and all.
-    const [dietaryPrefs, members] = await Promise.all([
-      dietaryPreferencesRepository.findByUserId(user.id),
-      householdMemberRepository.findByUserId(user.id),
-    ]);
-    const safety = mergeHouseholdSafety(
-      {
-        allergies: dietaryPrefs?.allergies ?? [],
-        dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
-        dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
-      },
-      members,
-    );
+    // B-34/B-46/T-01.2: never suggest a dish the household can't eat — one
+    // SafetyService context instead of a duplicated merge+matcher call, so
+    // this stays in sync with every other safety-aware surface.
+    const ctx = await this.safety.loadContext(user.id);
 
-    const hasPrefs = hasSafetyPrefs(safety);
     const pantryNames = pantry.map((p) => p.ingredientName);
+    const curatedCandidates = Object.values(CURATED_POOL_BY_TYPE)
+      .flat()
+      .map((recipe) => ({
+        id: recipe.id,
+        name: recipe.name,
+        ingredients: recipe.ingredients,
+        instructions: recipe.instructions,
+        dietaryTags: recipe.dietaryTags,
+      }));
     const candidates = new Map<string, { name: string; ingredients: { name: string }[] }>();
-    for (const pool of Object.values(CURATED_POOL_BY_TYPE)) {
-      for (const recipe of pool) {
-        if (hasPrefs && !isRecipeSafe(recipe, safety)) continue;
-        candidates.set(recipe.name, { name: recipe.name, ingredients: recipe.ingredients });
-      }
+    for (const recipe of this.safety.filter(curatedCandidates, ctx)) {
+      candidates.set(recipe.name, { name: recipe.name, ingredients: recipe.ingredients });
     }
     const activePlan = await this.planRepo.findActiveWithDays(user.id);
     if (activePlan) {
@@ -235,24 +225,15 @@ export class PantryService {
         ),
       ];
       const recipes = await this.planRepo.findRecipesByIds(ids);
-      for (const recipe of recipes) {
-        const name = recipe.name;
-        const ingredients = recipe.ingredients as unknown as Ingredient[];
-        if (
-          hasPrefs &&
-          !isRecipeSafe(
-            {
-              name,
-              ingredients,
-              instructions: recipe.instructions,
-              dietaryTags: recipe.dietaryTags,
-            },
-            safety,
-          )
-        ) {
-          continue;
-        }
-        candidates.set(name, { name, ingredients });
+      const planCandidates = recipes.map((recipe) => ({
+        id: recipe.id,
+        name: recipe.name,
+        ingredients: recipe.ingredients as unknown as Ingredient[],
+        instructions: recipe.instructions,
+        dietaryTags: recipe.dietaryTags,
+      }));
+      for (const recipe of this.safety.filter(planCandidates, ctx)) {
+        candidates.set(recipe.name, { name: recipe.name, ingredients: recipe.ingredients });
       }
     }
 

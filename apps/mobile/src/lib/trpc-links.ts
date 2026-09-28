@@ -36,12 +36,38 @@ export function buildAuthHeaders(getToken: () => string | null): Record<string, 
 const EXPECTED_FAILURE =
   /fetch failed|Network request failed|Could not connect|Failed to connect|timed out|UNAUTHORIZED/i;
 
+// bug B-17: a bad import URL / a page over the size cap / "no recipe found"
+// are all EXPECTED user-input outcomes on these two procedures (the form
+// shows its own inline error) — they used to raise the same red LogBox as a
+// real bug. `BAD_REQUEST` and `PRECONDITION_FAILED` (the "page too large"
+// case included) from `recipe.importPreview` / `recipe.importVideoPreview`
+// are logged quietly instead. tRPC's default error shape carries `path` and
+// `code` on `TRPCClientError.data` — that's what's checked, not the
+// logger's already-formatted display string.
+const EXPECTED_IMPORT_PATHS = new Set(['recipe.importPreview', 'recipe.importVideoPreview']);
+const EXPECTED_IMPORT_CODES = new Set(['BAD_REQUEST', 'PRECONDITION_FAILED']);
+
+function isExpectedImportFailure(result: unknown): boolean {
+  if (!(result instanceof Error)) return false;
+  const data = (result as { data?: { code?: unknown; path?: unknown } }).data;
+  const path = typeof data?.path === 'string' ? data.path : undefined;
+  const code = typeof data?.code === 'string' ? data.code : undefined;
+  return Boolean(
+    path && EXPECTED_IMPORT_PATHS.has(path) && code && EXPECTED_IMPORT_CODES.has(code),
+  );
+}
+
 export function isExpectedFailure(args: unknown[]): boolean {
   return args.some((arg) => {
-    if (arg instanceof Error) return EXPECTED_FAILURE.test(arg.message);
+    if (arg instanceof Error) {
+      return EXPECTED_FAILURE.test(arg.message) || isExpectedImportFailure(arg);
+    }
     if (arg && typeof arg === 'object' && 'result' in arg) {
       const { result } = arg;
-      return result instanceof Error && EXPECTED_FAILURE.test(result.message);
+      return (
+        result instanceof Error &&
+        (EXPECTED_FAILURE.test(result.message) || isExpectedImportFailure(result))
+      );
     }
     return typeof arg === 'string' && EXPECTED_FAILURE.test(arg);
   });

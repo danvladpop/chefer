@@ -61,6 +61,17 @@ export function createTrpcPreferencesMock() {
           })),
         },
       },
+      // T-01.3 migration card — default: nothing to review.
+      safety: {
+        getTable: {
+          useQuery: jest.fn<unknown, unknown[]>(() => ({
+            data: { people: [], hasRules: false, needsReview: false },
+          })),
+        },
+        confirmReview: {
+          useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false })),
+        },
+      },
       // Weekly updates card (P2-5) — defaults: confirmed, both emails on.
       notifications: {
         getEmailPreferences: {

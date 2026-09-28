@@ -2309,42 +2309,134 @@ Transparency prompt, anywhere (AC7).
 
 ---
 
-## 27. Terms Acceptance & Email Defaults Flow (T-39.1/T-39.3)
+## 27. Safety filter & reporting flow (UX-01/UX-02, T-01.1–T-01.7, T-02.2/T-02.3/T-02.5, T-22.1)
 
-> **Status:** Terms acceptance at sign-up (`auth.register`'s
-> `acceptedTermsVersion`/`ageConfirmed`) is reserved — owned by L-ENTRY, not
-> written by this lane. The email-defaults one-time notice (below) IS this
-> lane's (L-DATA, 2026-09-28).
-
-### Email-defaults notice (existing accounts)
+> One matcher, one merge, one service. Every surface that shows or picks a
+> recipe answers "is this safe for the table" the same way — see
+> `infrastructure.md` §7 "SafetyService" for the code, and §7's
+> "CuratedRecipes" for the taxonomy-driven matcher itself.
 
 ```
-Preferences (mobile) / Settings › Emails (web) load
+DietaryPreferences (owner) + HouseholdMember[] (P2-3)
   │
-  └─ user.me().emailDefaultsNoticeAt === null
-     AND (weekReady === true OR weeklyRecap === true)   ← "yours are still on"
-     would be the wrong sentence for an account that already starts off
-        │
-        └─ shows once: "We've changed how emails work: they're now off
-           unless you turn them on. Yours are still on."
-             ├─ "Keep them on"  → user.dismissEmailDefaultsNotice
-             └─ "Turn them off" → notifications.setEmailPreferences
-                                  { weekReady: false, weeklyRecap: false }
-                                  (logs EMAIL_WEEK_READY/EMAIL_RECAP
-                                  ConsentEvents, §28)
-                                  + user.dismissEmailDefaultsNotice
+  └─► SafetyService.loadContext(userId)
+        ├─ mergeHouseholdSafety: allergies ∪ dietaryRestrictions ∪ dislikedIngredients
+        │     (ALL THREE now a HARD union across owner + every member — owner
+        │      decision 2026-09-27; dislikes used to be owner-only)
+        ├─ hiddenRecipeIds ← safetyReportRepository.findRecipeIdsByUser(userId)
+        │     (UX-01 d: a reported recipe is gone for THIS user, everywhere,
+        │      the moment safety.report lands — never for anyone else)
+        └─ table ← every stored term run through recogniseSafetyTerm()
+              (taxonomy synonym map — "nuts", "no eggs", "green vegetables"
+              all resolve to their canonical category; unrecognised text is
+              kept as a `notes` entry, never silently dropped — C5e)
 
-user.dismissEmailDefaultsNotice: sets User.emailDefaultsNoticeAt = now,
-  idempotent (a second call keeps the original timestamp — a race between
-  two devices dismissing at once never overwrites an earlier value)
+Every surface calls the SAME SafetyContext:
+  recipe.list({forTable:true}) / recipe.discover ──► SafetyService.filter()
+  pantry.whatCanIMake ──────────────────────────────► SafetyService.filter()
+  recipe.importPreview / recipe.importSave (BOTH variants) ─► filter + fail-closed reject on `adapted`
+  mealPlan rebalance (rebalanceWeek) ────────────────► SafetyService.loadContext().prefs
+  curated plan generation, AI swap fallback ─────────► safeCuratedPools() / findSafetyIssues() (unchanged path)
+
+  NOT yet wired (handoff, outside L-SAFE's file ownership this wave):
+  ChatService.buildContextSummary — still reads the OWNER's DietaryPreferences
+  only, not the household union (T-BUG-X1's chat half)
+
+Reporting a recipe (T-01.5):
+  recipe detail overflow (mobile) / Report button (web) ──► safety.report
+        { recipeId, surface, reason, note? }
+    └─► SafetyReport row written (rulesSnapshot = the table's SafetyPrefs NOW)
+    └─► next SafetyService.loadContext() includes it in hiddenRecipeIds
+    └─► recipe.list({forTable:true}) / discover / whatCanIMake never show it again for this user
 ```
 
-A brand-new account created after the S15 default change already starts
-both digests off (`@default(false)` for new rows), so it never sees this —
-the condition above only fires for an account whose values predate the
-change and are still on. L-ENTRY's registration flow (§27 above) is
-expected to set `emailDefaultsNoticeAt` explicitly for accounts created
-through it, so a new sign-up never sees the notice either way.
+**Dislikes: hard everywhere `SafetyService.filter` runs with its default
+`opts.dislikes: 'hide'`** (generation, the Replace picker's default list,
+`whatCanIMake`); **soft** ("mark") on `recipe.discover` — UX-01's rule that a
+SEARCH surface should chip a dislike rather than hide it, while generation
+never serves a disliked dish at all. The regression suite
+(`safety.regression.test.ts`) prints a per-profile pool-size report so a
+content gap (e.g. "vegan + coeliac") is caught in CI, not by a user hitting
+the "pick recipes yourself" fallback (`MIN_SAFE_POOL_SIZE`, unchanged from P1-2).
+
+**Hidden gluten (bug B-47, T-01.9 rev 2):** `check()` returns `labelCaveats`
+for a plain "gluten-free" restriction when a recipe has a label-dependent
+ingredient (stock, curry powder, soy sauce, baking powder, oats, chocolate,
+sausages) — shown as "Check the label", never a silent pass. A coeliac-
+strength restriction (`gluten-free-coeliac`, what the `coeliac` CONDITION
+implies) excludes those ingredients outright instead, as does any plain
+gluten-free profile once `DietaryPreferences.excludeLabelDependent` is on.
+
+**UI status:** both the server half (matcher, `SafetyService`,
+`safety.getTable`/`report`/`confirmReview`) and the client surfaces below are
+now built on both platforms (mobile `apps/mobile/src/features/safety/**`, web
+`apps/web/src/features/safety/components/**`), sharing one copy module
+(`@chefer/utils` `safety-copy.ts`) and one picker-state helper
+(`safety-classify.ts`, `classifySafetyValue`/`serialiseSafetyPickerValue`).
+
+**Detail-surface Checked line (T-02.3).** `mealPlan.getRecipe` (another
+lane's file) is not touched — the Checked line and the coeliac label caveat
+are a separate, additive query instead:
+
+```
+recipe.getSafetyChecks({ recipeId })
+  └─► RecipeService.getSafetyChecks(userId, recipeId)
+        ├─ findRecipeVisibleTo (recipe-access.ts) — NOT_FOUND if the user can't see it
+        ├─ SafetyService.loadContext(userId) → table
+        └─ table.hasRules ? SafetyService.check(recipe, table) : { safetyChecks: null }
+              (also null when checked/unchecked/conflicts are ALL empty —
+              nothing to show, AC1)
+```
+
+`app/recipe/[id].tsx` (mobile) and `recipes/[id]/page.tsx` (web) render
+`CheckedForLine` from this query under the tag chips — but only when the
+EXISTING `recipe.allergenWarnings` conflict banner isn't already showing
+(AC3: the two are never both on screen). Cook mode (`app/cook/[id].tsx`)
+renders the same line at the top of the ingredient list. A recipe's
+`labelCaveats` render as a `LabelCaveat` line under Checked (AC8, coeliac's
+"Check the label: certified GF …").
+
+**Filtered lists say so (T-02.5).** `recipe.discover` keeps returning a plain
+array (old clients unaffected); a separate `recipe.discoverHiddenCount(filters)`
+diffs the safety-filtered pool against the unfiltered one and returns
+`{ hiddenCount, filteredFor }` for the `FilteredForLine` Discover renders on
+both platforms (AC7), opening the same `WhatWeCheckSheet`.
+
+**SafetyPicker (T-01.7).** The onboarding diet step, Settings › Allergies &
+diets, and the household member editor all render the same structured entry
+(mobile `safety-picker.tsx`, web `StepDiet` — same component name kept so
+every caller's props are unchanged): Allergies/Diet/Won't-eat `ChipGroup`s
+over `SAFETY_TAXONOMY`, a live read-back panel, and a "Something else" field
+wired to the recogniser's five outcomes (allergy/dislike chip, diet base,
+diet modifier — including the AC2 "no eggs" base-diet disambiguation —
+UX-22's condition notice, coeliac's automatic `gluten-free-coeliac` mapping,
+and the unrecognised term's Keep-as-a-note/Remove flow). A household editor
+always shows a "You" card first (UX-01) and a table read-back summary line
+once `safety.getTable().hasRules`.
+
+**Legacy migration card (T-01.3).** Mounted in Settings › Allergies & diets
+on both platforms (`MigrationCard` / `SafetyReviewCard`); the Food Today
+mount point is a wave-2 (L-HOME) handoff. Shown while
+`safety.getTable().needsReview` is true: every stored term is mapped through
+`recogniseSafetyTerm` client-side for display; "Looks right" calls
+`safety.confirmReview` directly, "Change" opens the SafetyPicker pre-applied
+(the same stored values) and saves through `preferences.updateSafety` before
+confirming in the same flow (AC9).
+
+**Report a safety problem (T-01.5, AC10).** A 44pt header overflow on recipe
+detail (mobile) / a "Report" button in the action row (web) opens
+`ReportSafetySheet`: a reason `ChipGroup` + optional note, `safety.report`
+hides the recipe from the reporter's plans/swaps immediately and both
+`recipe.list` and `mealPlan` caches are invalidated so it disappears at once.
+
+**Not yet wired this wave (handoffs):** `ChatService.buildContextSummary`
+still reads only the owner's `DietaryPreferences` (T-BUG-X1's chat half —
+`application/chat/**` is L-ENTRY's file, outside this lane's ownership); the
+Replace picker, plan meal-card long-press report entry and shopping-list
+`Check label` chip are L-SAFE2's wave-2 tasks (T-01.8); the import
+preview/Cheferize draft still shows only the pre-existing conflict banner
+(`ImportSafety.ok/issues`), not a positive Checked line — a UX-02 nicety not
+built this wave.
 
 ---
 
@@ -2352,7 +2444,7 @@ through it, so a new sign-up never sees the notice either way.
 
 > **Status:** Implemented 2026-09-28 (L-DATA). Every consent write in
 > Chefer — AI, the two analytics switches, the two weekly-email switches,
-> Terms/Privacy/age (§27), health (wave 3) — goes through one service, so
+> Terms/Privacy/age (§32), health (wave 3) — goes through one service, so
 > the log is complete and the export can show it.
 
 ```
@@ -2368,7 +2460,7 @@ Callers (this wave):
   privacy.acceptTerms                            → kind TERMS + PRIVACY (+ AGE) — the
                                                      re-accept-after-a-version-bump path
 Callers (other wave-1 branches, same stable signature):
-  auth.register (L-ENTRY)                        → kind TERMS / PRIVACY / AGE, at sign-up (§27)
+  auth.register (L-ENTRY)                        → kind TERMS / PRIVACY / AGE, at sign-up (§32)
   preferences.setAutoPlanWeekly (L-TRACK)         → kind AUTO_PLAN
 
 Profile → Privacy & data → "Consent history" (mobile: consent-history.tsx;
@@ -2378,7 +2470,7 @@ newest first, in plain language ("AI features allowed (Groq, Cloudflare)",
 "Usage analytics: anonymous on", "Weekly email (Monday): off", …).
 ```
 
-`user.dismissEmailDefaultsNotice` (§27) is NOT a `ConsentEvent` writer — it
+`user.dismissEmailDefaultsNotice` (§32) is NOT a `ConsentEvent` writer — it
 only marks the one-time notice shown (`User.emailDefaultsNoticeAt`). The
 actual consent change it can trigger ("Turn them off") goes through
 `notifications.setEmailPreferences` above, which IS logged.
@@ -2633,3 +2725,135 @@ computes a lifter's training-day bump, shared by the dashboard and the
 tracker — never reads them. Building `TargetsCard`'s "Different on training
 days" fields now would ship a control with zero effect. Needs a resolver
 change before the UI can honestly ship (handoff, see `mobile_parity_backlog.md`).
+
+---
+
+## 31. Manual recipe create and edit (UX-40 slice 1, T-40.1–T-40.6, T-BUG-O3)
+
+> The D-19 minimum, the pickers, photo states, the sectioned mobile rebuild
+> and the O-15 ("edit doesn't work") fix, on both platforms. Slice 2
+> (ingredient search, computed nutrition, swipe-to-remove) is a
+> `mobile_parity_backlog.md` row for W2 L-RECIPE.
+
+```
+D-19 minimum — recipe.create / recipe.update (additive widening, T-40.3):
+  name (required) + ≥ 1 ingredient line with a name AND an amount > 0
+  description / instructions / cuisineType default to '' / [] / ''
+       (an empty cuisineType is stored as "International")
+  servings defaults to 1; nutritionInfo defaults to all-zero + optional `source`
+  Old clients: unaffected — nothing already required got a new `.min(1)`.
+  Web (T-40.6): validateRecipeCore + both pages' own checks relaxed to the
+  same minimum — cuisine, description, steps, times and nutrition (computed
+  or manual) are all optional now, closing the parity gap ("36 boxes").
+
+Diet tags (bug B-01, T-01.6):
+  mobile/web form ── ticks Diet tags (ChipGroup) ──► payload.dietaryTags
+  recipe.update:
+    x-chefer-client: mobile AND clientApiLevel === 0 AND dietaryTags === []
+        └─► KEEP the stored tags (old binaries hard-code [])
+    otherwise ──► trust the payload, including an intentional []
+  tagConflicts(ingredients, tags) ──► amber "Chicken breast doesn't look
+        vegetarian" hint while editing (client-side only, not the safety matcher)
+
+O-15 "Edit created recipe is not working properly" — all 7 candidates fixed
+  on both platforms, and kept working through the mobile sectioned rebuild:
+  C1 stale prefill  → getMyRecipe refetchOnMount:'always'; prefill gated on
+                       isFetchedAfterMount && !isFetching; update invalidates
+                       recipe.getMyRecipe + mealPlan.getRecipe + recipe.list
+  C2 tags wiped     → T-01.6 above
+  C3 "½" → 0        → parseQuantity() (fractions, mixed numbers, comma decimals)
+  C4 save "dead"    → KeyboardAwareScrollView keyboardShouldPersistTaps="handled";
+                       the footer button is NEVER disabled (PAT-17) — a blocked
+                       tap scrolls to + focuses the first problem instead
+  C5 blank form     → ErrorState "Couldn't load your recipe" + Try again on a load error
+  C6 fiber → 0      → the STORED fiber is sent back on every edit (create still 0, D-18)
+  C7 raw server msg → friendlySaveError() — a long/Zod-shaped message becomes
+                       "Couldn't save your recipe. Nothing you typed is lost."
+
+D-18 fiber: no input, no default display, on either platform (mobile form,
+  mobile recipe detail's macro row, web's new/edit forms, web's detail page
+  MacroChip). The field is still SENT (0 on create, the stored value on
+  edit) so nothing already saved is destroyed, and web's separately-computed
+  nutrition still has it under the hood.
+
+Photo field (T-40.5, apps/mobile/src/features/recipes/form/photo-field.tsx):
+  empty ──pick──► local preview (dimmed) + uploading ──► done (Change/Remove)
+                                                      └─► failed: one of four
+       server-written sentences (never a code or [object Object]), Try again
+       re-sends the SAME bytes, Choose another re-picks. Saves without a photo
+       either way. pick → (T-BUG-O1.2 placeholder: preparePhoto(asset) once
+  feat/device-photo-resize lands) → upload stay three separately named calls.
+
+AC4 refinement (packages/utils/src/recipe-form.ts): a named ingredient line
+  with no amount ("salt", blank qty) always blocks saving with "Finish the
+  ingredient on line {n}." — even when another line is already complete.
+  recipeMissingFields()'s 'incompleteLine' flag is independent of the
+  generic 'ingredient' flag (which only fires when NO line has a name at
+  all); firstIncompleteIngredientLineIndex() finds which row to focus.
+```
+
+**Mobile — sectioned rebuild (T-40.4/T-40.5).** `app/recipe-form.tsx` is a
+thin screen over `apps/mobile/src/features/recipes/form/**`:
+`ingredient-line.tsx` (qty `NumericReturnBar` + fraction chip row `¼ ½ ¾ 1 1½
+2` while focused, unit `SelectField` 88pt over `RECIPE_UNIT_GROUPS`, name),
+`step-line.tsx`, `photo-field.tsx`, `nutrition-fields.tsx` (four fields, no
+fiber, a 4/4/9 ±25% amber sanity line), `form-footer.tsx` (PAT-17: sticky,
+never disabled, offline reads "Needs a connection"), `row-menu.tsx` (PAT-16
+menu path — `⋯` → `Sheet` → Remove/Move, paired with a snackbar Undo;
+swipe-to-remove is slice 2, once L-GYM's kit component lands), `copy.ts`,
+`use-is-online.ts`. Cuisine is a `SelectField` over `CUISINE_PRESETS`
+(`@chefer/types`) with `Other…`. `More details` (description, prep, cook —
+all optional, blank by default) is collapsed unless prefilled with a value.
+Servings is a `Stepper` (1–20, default 1). Leaving with unsaved changes
+(header back, Android back, iOS swipe-back — one `navigation.addListener
+('beforeRemove', …)` covers all three) opens a `ConfirmSheet` "Discard your
+changes?". An edit load error shows `ErrorState`; loading shows a PAT-8
+skeleton, not a spinner.
+
+**Recipe detail (`app/recipe/[id].tsx`):** a 0 prep/cook/total time is
+hidden, not shown as "0m"; no nutrition added shows "Nutrition not added"
+instead of "0 kcal" (and hides the Energy stat and the macro row); no steps
+shows "No steps yet" instead of an empty Instructions card.
+
+**Kit (T-40.2):** `SelectField`/`SelectSheet` (PAT-15) and `FormField`
+(PAT-17) in `packages/ui-mobile` — see infrastructure.md §5.8. No icon-font
+dependency (plain glyphs), consistent with the rest of the kit.
+
+---
+
+## 32. Terms Acceptance & Email Defaults Flow (T-39.1/T-39.3)
+
+> **Status:** Terms acceptance at sign-up (`auth.register`'s
+> `acceptedTermsVersion`/`ageConfirmed`) is reserved — owned by L-ENTRY, not
+> written by this lane. The email-defaults one-time notice (below) IS this
+> lane's (L-DATA, 2026-09-28).
+
+### Email-defaults notice (existing accounts)
+
+```
+Preferences (mobile) / Settings › Emails (web) load
+  │
+  └─ user.me().emailDefaultsNoticeAt === null
+     AND (weekReady === true OR weeklyRecap === true)   ← "yours are still on"
+     would be the wrong sentence for an account that already starts off
+        │
+        └─ shows once: "We've changed how emails work: they're now off
+           unless you turn them on. Yours are still on."
+             ├─ "Keep them on"  → user.dismissEmailDefaultsNotice
+             └─ "Turn them off" → notifications.setEmailPreferences
+                                  { weekReady: false, weeklyRecap: false }
+                                  (logs EMAIL_WEEK_READY/EMAIL_RECAP
+                                  ConsentEvents, §28)
+                                  + user.dismissEmailDefaultsNotice
+
+user.dismissEmailDefaultsNotice: sets User.emailDefaultsNoticeAt = now,
+  idempotent (a second call keeps the original timestamp — a race between
+  two devices dismissing at once never overwrites an earlier value)
+```
+
+A brand-new account created after the S15 default change already starts
+both digests off (`@default(false)` for new rows), so it never sees this —
+the condition above only fires for an account whose values predate the
+change and are still on. L-ENTRY's registration flow (§27 above) is
+expected to set `emailDefaultsNoticeAt` explicitly for accounts created
+through it, so a new sign-up never sees the notice either way.

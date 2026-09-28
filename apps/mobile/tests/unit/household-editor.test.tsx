@@ -1,16 +1,35 @@
+import type { ReactElement } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { HouseholdEditor } from '../../src/features/household/household-editor';
 
 // Backlog P2-3: members (and their allergies + restrictions) are free on
 // every tier; removing one asks first (F-ONB-3-2); scaling is the premium
-// upsell.
+// upsell. T-01.7: allergies/diet/dislikes are now set through the shared
+// SafetyPicker in a Sheet ("Allergies & diet for {name}"), not free-text
+// inputs — Sheet needs a SafeAreaProvider ancestor in tests.
+
+const SAFE_AREA_METRICS = {
+  frame: { x: 0, y: 0, width: 390, height: 844 },
+  insets: { top: 47, left: 0, right: 0, bottom: 34 },
+};
+
+function renderEditor(ui: ReactElement) {
+  return render(<SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>{ui}</SafeAreaProvider>);
+}
 
 const mockAdd = jest.fn();
 const mockUpdate = jest.fn();
 const mockRemove = jest.fn();
+const mockUpdateSafety = jest.fn();
 const mockPush = jest.fn();
 let mockMembers: Record<string, unknown>[] = [];
 let mockIsPremium: boolean | undefined = false;
+let mockTable: { people: unknown[]; hasRules: boolean; needsReview: boolean } = {
+  people: [],
+  hasRules: false,
+  needsReview: false,
+};
 
 jest.mock('../../src/hooks/use-is-premium', () => ({
   useIsPremium: () => mockIsPremium,
@@ -33,6 +52,7 @@ jest.mock('../../src/lib/trpc', () => {
         preferences: { get: { invalidate } },
         mealPlan: { invalidate },
         shoppingList: { getForWeek: { invalidate } },
+        safety: { getTable: { invalidate } },
       }),
       preferences: {
         get: {
@@ -40,6 +60,12 @@ jest.mock('../../src/lib/trpc', () => {
             data: { dietaryPreferences: { allergies: ['Shellfish'], dietaryRestrictions: [] } },
           }),
         },
+        updateSafety: {
+          useMutation: () => ({ mutate: mockUpdateSafety, isPending: false }),
+        },
+      },
+      safety: {
+        getTable: { useQuery: () => ({ data: mockTable }) },
       },
       household: {
         list: { useQuery: () => ({ data: mockMembers, isLoading: false }) },
@@ -60,7 +86,7 @@ const sam = {
   name: 'Sam',
   portionFactor: 0.5,
   isKid: true,
-  allergies: ['peanuts'],
+  allergies: ['Peanuts'],
   dietaryRestrictions: [],
   dislikedIngredients: [],
 };
@@ -69,24 +95,31 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockMembers = [];
   mockIsPremium = false;
+  mockTable = { people: [], hasRules: false, needsReview: false };
 });
 
 describe('HouseholdEditor', () => {
-  it('a FREE user adds a kid with allergies and restrictions', async () => {
+  it('a FREE user adds a kid with allergies and a diet, set through the SafetyPicker sheet', async () => {
     const user = userEvent.setup();
-    await render(<HouseholdEditor />);
+    await renderEditor(<HouseholdEditor />);
 
     await user.press(screen.getByTestId('household-preset-kid'));
     await user.type(screen.getByTestId('household-name'), 'Sam');
-    await user.type(screen.getByTestId('household-allergies'), 'peanuts, sesame');
-    await user.type(screen.getByTestId('household-restrictions'), 'Vegetarian');
+    await user.press(screen.getByTestId('household-safety-open'));
+    await user.press(screen.getByText('Peanuts'));
+    await user.press(screen.getByText('Vegetarian'));
+    await user.press(screen.getByTestId('household-member-safety-done'));
+    expect(screen.getByTestId('household-safety-summary')).toHaveTextContent(
+      /allergic: Peanuts.*Vegetarian/,
+    );
+
     await user.press(screen.getByTestId('household-add'));
 
     expect(mockAdd).toHaveBeenCalledWith({
       name: 'Sam',
       portionFactor: 0.5,
       isKid: true,
-      allergies: ['peanuts', 'sesame'],
+      allergies: ['Peanuts'],
       dietaryRestrictions: ['Vegetarian'],
       dislikedIngredients: [],
     });
@@ -95,7 +128,7 @@ describe('HouseholdEditor', () => {
   it('removing a member asks for confirmation first', async () => {
     mockMembers = [sam];
     const user = userEvent.setup();
-    await render(<HouseholdEditor />);
+    await renderEditor(<HouseholdEditor />);
 
     await user.press(screen.getByTestId('household-remove-m1'));
     expect(mockRemove).not.toHaveBeenCalled();
@@ -107,28 +140,27 @@ describe('HouseholdEditor', () => {
 
   it('free tables see that scaling is premium; premium does not', async () => {
     mockMembers = [sam];
-    await render(<HouseholdEditor />);
+    await renderEditor(<HouseholdEditor />);
     expect(screen.getByTestId('household-upsell')).toBeOnTheScreen();
     expect(screen.getByText(/sized for one portion/)).toBeOnTheScreen();
 
     mockIsPremium = true;
-    await render(<HouseholdEditor />);
+    await renderEditor(<HouseholdEditor />);
     expect(screen.queryByTestId('household-upsell')).toBeNull();
   });
 
-  it('any tier edits an existing member in place (F-PM-12)', async () => {
+  it('any tier edits an existing member in place, pre-filling the SafetyPicker (F-PM-12)', async () => {
     mockMembers = [sam];
     const user = userEvent.setup();
-    await render(<HouseholdEditor />);
+    await renderEditor(<HouseholdEditor />);
 
     await user.press(screen.getByTestId('household-edit-m1'));
     expect(screen.getByTestId('household-form-title')).toHaveTextContent('Edit Sam');
-    expect(screen.getByTestId('household-allergies').props.value).toBe('peanuts');
+    expect(screen.getByTestId('household-safety-summary')).toHaveTextContent(/allergic: Peanuts/);
 
     await user.clear(screen.getByTestId('household-name'));
     await user.type(screen.getByTestId('household-name'), 'Samuel');
     await user.press(screen.getByTestId('household-portion-0.75'));
-    await user.type(screen.getByTestId('household-restrictions'), 'Vegetarian');
     await user.press(screen.getByTestId('household-add'));
 
     expect(mockUpdate).toHaveBeenCalledWith({
@@ -136,8 +168,8 @@ describe('HouseholdEditor', () => {
       name: 'Samuel',
       portionFactor: 0.75,
       isKid: true,
-      allergies: ['peanuts'],
-      dietaryRestrictions: ['Vegetarian'],
+      allergies: ['Peanuts'],
+      dietaryRestrictions: [],
       dislikedIngredients: [],
     });
     expect(mockAdd).not.toHaveBeenCalled();
@@ -146,7 +178,7 @@ describe('HouseholdEditor', () => {
   it('cancelling an edit returns the form to "Add someone"', async () => {
     mockMembers = [sam];
     const user = userEvent.setup();
-    await render(<HouseholdEditor />);
+    await renderEditor(<HouseholdEditor />);
     await user.press(screen.getByTestId('household-edit-m1'));
     await user.press(screen.getByTestId('household-edit-cancel'));
     expect(screen.getByTestId('household-form-title')).toHaveTextContent('Add someone');
@@ -155,7 +187,7 @@ describe('HouseholdEditor', () => {
 
   it('the free ghost reflects the chip tapped: the kid chip shows Sam, ½ portion, peanuts', async () => {
     const user = userEvent.setup();
-    await render(<HouseholdEditor />);
+    await renderEditor(<HouseholdEditor />);
     expect(screen.queryByTestId('household-ghost-sample')).toBeNull();
 
     await user.press(screen.getByTestId('household-preset-kid'));
@@ -180,15 +212,42 @@ describe('HouseholdEditor', () => {
   it('premium tables get no ghost', async () => {
     mockIsPremium = true;
     const user = userEvent.setup();
-    await render(<HouseholdEditor />);
+    await renderEditor(<HouseholdEditor />);
     await user.press(screen.getByTestId('household-preset-kid'));
     expect(screen.queryByTestId('household-ghost-sample')).toBeNull();
   });
 
-  it('the onboarding variant skips the empty card and the upsell', async () => {
-    await render(<HouseholdEditor variant="onboarding" />);
+  it('the onboarding variant skips the empty card, the upsell and the You card', async () => {
+    await renderEditor(<HouseholdEditor variant="onboarding" />);
     expect(screen.queryByTestId('household-empty')).toBeNull();
     expect(screen.queryByTestId('household-upsell')).toBeNull();
+    expect(screen.queryByTestId('household-you-card')).toBeNull();
     expect(screen.getByTestId('household-add')).toBeOnTheScreen();
+  });
+
+  it('a "You" card is always first on the screen variant (UX-01)', async () => {
+    await renderEditor(<HouseholdEditor />);
+    expect(screen.getByTestId('household-you-card')).toBeOnTheScreen();
+  });
+
+  it('shows the table read-back summary once the table has rules (CI-41)', async () => {
+    mockMembers = [sam];
+    mockTable = {
+      people: [
+        { who: 'you', isOwner: true, items: [], notes: [] },
+        {
+          who: 'Sam',
+          isOwner: false,
+          items: [{ id: 'peanuts', label: 'Peanuts', kind: 'allergy' }],
+          notes: [],
+        },
+      ],
+      hasRules: true,
+      needsReview: false,
+    };
+    await renderEditor(<HouseholdEditor />);
+    expect(screen.getByTestId('household-table-summary')).toHaveTextContent(
+      '2 at the table · we’ll check for Peanuts (Sam)',
+    );
   });
 });

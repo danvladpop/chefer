@@ -1,35 +1,26 @@
 import { TRPCError } from '@trpc/server';
 import {
-  dietaryPreferencesRepository,
   favouriteRecipeRepository,
-  householdMemberRepository,
   mealRatingRepository,
   type CreateManualRecipeData,
   type IMealRatingRepository,
   type Recipe,
 } from '@chefer/database';
-import {
-  ensureCuratedRecipes,
-  hasSafetyPrefs,
-  isRecipeSafe,
-  safeCuratedPools,
-  type SafetyCheckable,
-  type SafetyPrefs,
-} from '../../lib/curated-recipes/index.js';
-import { mergeHouseholdSafety } from '../household/household.service.js';
+import type { SafetyChecks } from '@chefer/types';
+import { ensureCuratedRecipes, safeCuratedPools } from '../../lib/curated-recipes/index.js';
+import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
+import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import { selectDiscoverRecipes, type DiscoverFilters, type DiscoverRecipeDto } from './discover.js';
 import { findRecipeVisibleTo } from './recipe-access.js';
 
 type UpdateManualRecipeData = Partial<CreateManualRecipeData>;
 
-/** A Prisma `Recipe` row is safety-checkable once its JSON `ingredients` is cast. */
-function toSafetyCheckable(recipe: Recipe): SafetyCheckable {
-  return {
-    name: recipe.name,
-    ingredients: recipe.ingredients as unknown as SafetyCheckable['ingredients'],
-    instructions: recipe.instructions,
-    dietaryTags: recipe.dietaryTags,
-  };
+/** T-40.3 (D-19): an empty cuisine (the widened minimum omits it) is stored as "International". */
+function normaliseCuisine<T extends { cuisineType?: string }>(data: T): T {
+  if (data.cuisineType?.trim() === '') {
+    return { ...data, cuisineType: 'International' };
+  }
+  return data;
 }
 
 /** NOT_FOUND unless the user may see the recipe — same answer for missing and private. */
@@ -40,7 +31,10 @@ async function assertRecipeVisible(userId: string, recipeId: string): Promise<vo
 }
 
 export class RecipeService {
-  constructor(private readonly ratingRepo: IMealRatingRepository = mealRatingRepository) {}
+  constructor(
+    private readonly ratingRepo: IMealRatingRepository = mealRatingRepository,
+    private readonly safety: SafetyService = safetyService,
+  ) {}
 
   async list(
     userId: string,
@@ -71,13 +65,15 @@ export class RecipeService {
     }));
     if (!forTable) return withFavourite;
 
-    const safety = await this.loadMergedSafety(userId);
-    if (!hasSafetyPrefs(safety)) return withFavourite;
-    return withFavourite.filter((recipe) => isRecipeSafe(toSafetyCheckable(recipe), safety));
+    // T-01.2/T-08.10: the Replace picker (and any other `forTable` list)
+    // goes through the ONE SafetyService filter — reported recipes excluded,
+    // dislikes hard, taxonomy-recognised legacy terms included.
+    const ctx = await this.safety.loadContext(userId);
+    return this.safety.filter(withFavourite, ctx);
   }
 
   async create(userId: string, data: CreateManualRecipeData): Promise<Recipe> {
-    return favouriteRecipeRepository.createManualRecipe(userId, data);
+    return favouriteRecipeRepository.createManualRecipe(userId, normaliseCuisine(data));
   }
 
   async getMyRecipe(userId: string, recipeId: string): Promise<Recipe> {
@@ -96,7 +92,7 @@ export class RecipeService {
         message: 'Recipe not found or you do not have permission to edit it.',
       });
     }
-    return favouriteRecipeRepository.updateManualRecipe(userId, recipeId, data);
+    return favouriteRecipeRepository.updateManualRecipe(userId, recipeId, normaliseCuisine(data));
   }
 
   async toggleFavourite(userId: string, recipeId: string): Promise<{ isSaved: boolean }> {
@@ -174,28 +170,69 @@ export class RecipeService {
    * first so each result opens, saves and cooks like any other recipe.
    */
   async discover(userId: string, filters: DiscoverFilters): Promise<DiscoverRecipeDto[]> {
-    const [safety, savedIds] = await Promise.all([
-      this.loadMergedSafety(userId),
+    const [ctx, savedIds] = await Promise.all([
+      this.safety.loadContext(userId),
       favouriteRecipeRepository.findSavedRecipeIds(userId),
       ensureCuratedRecipes(),
     ]);
-    return selectDiscoverRecipes(safeCuratedPools(safety), filters, new Set(savedIds));
+    // UX-01 (T-01.2): dislikes are soft (a DislikeChip) in search/Discover —
+    // only allergies and diet restrictions hard-exclude here; reported
+    // recipes are still removed either way.
+    const searchPrefs = { ...ctx.prefs, dislikedIngredients: [] };
+    const results = selectDiscoverRecipes(
+      safeCuratedPools(searchPrefs),
+      filters,
+      new Set(savedIds),
+    );
+    return results.filter((r) => !ctx.hiddenRecipeIds.includes(r.id));
   }
 
-  /** The owner's + household's hard allergy/restriction union (safety is free everywhere). */
-  private async loadMergedSafety(userId: string): Promise<SafetyPrefs> {
-    const [dietaryPrefs, members] = await Promise.all([
-      dietaryPreferencesRepository.findByUserId(userId),
-      householdMemberRepository.findByUserId(userId),
-    ]);
-    return mergeHouseholdSafety(
-      {
-        allergies: dietaryPrefs?.allergies ?? [],
-        dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
-        dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
-      },
-      members,
-    );
+  /**
+   * T-02.3: the detail-surface Checked line (recipe page, cook mode). A
+   * separate, additive query rather than a new field on `mealPlan.getRecipe`
+   * (`application/meal-plan/**` is another lane's file this wave) — the
+   * client fetches this alongside its existing recipe query. `null` when the
+   * table has no rules at all (T-02.2/T-02.3 AC1: the Checked element only
+   * ever renders when there is something to check).
+   */
+  async getSafetyChecks(
+    userId: string,
+    recipeId: string,
+  ): Promise<{ safetyChecks: SafetyChecks | null }> {
+    const recipe = await findRecipeVisibleTo(userId, recipeId);
+    if (!recipe) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+    const ctx = await this.safety.loadContext(userId);
+    if (!ctx.table.hasRules) return { safetyChecks: null };
+    const checks = this.safety.check(recipe as unknown as SafetyCheckable, ctx.table);
+    const nothingToShow =
+      checks.checked.length === 0 && checks.unchecked.length === 0 && checks.conflicts.length === 0;
+    if (nothingToShow) return { safetyChecks: null };
+    return { safetyChecks: checks };
+  }
+
+  /**
+   * T-02.5/T-01.4: the `FilteredForLine` count for Discover — how many
+   * curated results the safety filter removed, and which rule labels are
+   * active (allergies + diet; dislikes are soft here, T-01.2, so they never
+   * count as "hidden"). A separate query from `discover` itself so an old
+   * client that only calls `discover` keeps getting a plain array back.
+   */
+  async discoverHiddenCount(
+    userId: string,
+    filters: DiscoverFilters,
+  ): Promise<{ hiddenCount: number; filteredFor: string[] }> {
+    const [ctx] = await Promise.all([this.safety.loadContext(userId), ensureCuratedRecipes()]);
+    const searchPrefs = { ...ctx.prefs, dislikedIngredients: [] };
+    const unfiltered = selectDiscoverRecipes(safeCuratedPools(null), filters, new Set());
+    const filtered = selectDiscoverRecipes(safeCuratedPools(searchPrefs), filters, new Set());
+    const filteredIds = new Set(filtered.map((r) => r.id));
+    const hiddenCount = unfiltered.filter(
+      (r) => !filteredIds.has(r.id) || ctx.hiddenRecipeIds.includes(r.id),
+    ).length;
+    const filteredFor = [...ctx.prefs.allergies, ...ctx.prefs.dietaryRestrictions];
+    return { hiddenCount, filteredFor };
   }
 }
 

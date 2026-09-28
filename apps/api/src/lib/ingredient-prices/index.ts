@@ -83,25 +83,13 @@ function normalizeUnit(unit: string): NormalizedUnit {
   return { family: 'count', toBase: 1 };
 }
 
-/** Canonical unit options for recipe forms — keep in sync with UNIT_TABLE keys. */
-export const RECIPE_UNITS = [
-  'g',
-  'kg',
-  'ml',
-  'l',
-  'tsp',
-  'tbsp',
-  'cup',
-  'piece',
-  'small',
-  'medium',
-  'large',
-  'clove',
-  'slice',
-  'can',
-  'bunch',
-  'pinch',
-] as const;
+/**
+ * Canonical unit options for recipe forms — keep in sync with UNIT_TABLE
+ * keys. T-40.1 (L-SAFE): moved to `@chefer/types` (`packages/types/src/
+ * recipe-form.ts`) so both the recipe form and this module share one list;
+ * re-exported here so existing importers of this module are unaffected.
+ */
+export { RECIPE_UNITS } from '@chefer/types';
 
 export function normalizeIngredientName(name: string): string {
   return name.toLowerCase().trim().replace(/\s+/g, ' ');
