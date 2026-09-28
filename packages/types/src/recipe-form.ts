@@ -68,4 +68,13 @@ export interface RecipeFormIngredientLine {
   name: string;
   quantity: string;
   unit: string;
+  /**
+   * T-40.7 (UX-40 slice 2): true once this line's name was picked from
+   * `ingredients.search` (or created as a custom ingredient) in THIS
+   * editing session — the line then shows the small "counted in nutrition"
+   * icon. Free text (`Use "…" as typed`) and prefilled edit rows (the
+   * server doesn't store a link yet — lines still match by name until W5)
+   * leave this unset.
+   */
+  linked?: boolean;
 }

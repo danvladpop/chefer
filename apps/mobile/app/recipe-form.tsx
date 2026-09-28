@@ -2,7 +2,11 @@ import { forwardRef, useEffect, useRef, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
-import { CUISINE_PRESETS, type RecipeFormIngredientLine } from '@chefer/types';
+import {
+  CUISINE_PRESETS,
+  type RecipeFormIngredientLine,
+  type RecipeNutritionSource,
+} from '@chefer/types';
 import {
   Button,
   Card,
@@ -27,6 +31,8 @@ import {
   recipeMissingFields,
   tagConflicts,
 } from '@chefer/utils';
+import { ComputedNutritionCard } from '../src/features/ingredients/computed-nutrition-card';
+import { useComputedNutrition } from '../src/features/ingredients/use-computed-nutrition';
 import { recipeFormCopy } from '../src/features/recipes/form/copy';
 import { FormFooter } from '../src/features/recipes/form/form-footer';
 import { IngredientLine } from '../src/features/recipes/form/ingredient-line';
@@ -184,6 +190,11 @@ export default function RecipeFormScreen() {
     carbs: '',
     fat: '',
   });
+  // T-40.9 (UX-40 slice 2): 'computed' is the create default (the web
+  // model). Edit starts 'manual' unless the loaded recipe was explicitly
+  // saved as 'computed' — an old/manual save's numbers are never silently
+  // replaced by a fresh recompute on open.
+  const [nutritionMode, setNutritionMode] = useState<'computed' | 'manual'>('computed');
   // D-18: fiber has no input on either platform, but a stored value must
   // round-trip on edit (T-BUG-O3 C6) — kept out of band from the form UI.
   const [storedFiber, setStoredFiber] = useState(0);
@@ -192,7 +203,7 @@ export default function RecipeFormScreen() {
   const [discardVisible, setDiscardVisible] = useState(false);
 
   const nameInputRef = useRef<TextInput>(null);
-  const ingredientNameRefs = useRef<(TextInput | null)[]>([]);
+  const ingredientQtyRefs = useRef<(TextInput | null)[]>([]);
   const baselineRef = useRef<FormSnapshot | null>(null);
   const savedRef = useRef(false);
   const pendingNavAction = useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
@@ -254,6 +265,7 @@ export default function RecipeFormScreen() {
       carbs?: number;
       fat?: number;
       fiber?: number;
+      source?: string;
     };
     setNutrition({
       calories: n.calories ? String(n.calories) : '',
@@ -262,6 +274,7 @@ export default function RecipeFormScreen() {
       fat: n.fat ? String(n.fat) : '',
     });
     setStoredFiber(n.fiber ?? 0);
+    setNutritionMode(n.source === 'computed' ? 'computed' : 'manual');
     const ings = (existing.ingredients ?? []) as { name: string; quantity: number; unit: string }[];
     setIngredients(
       ings.length > 0
@@ -302,6 +315,14 @@ export default function RecipeFormScreen() {
     }));
   const validInstructions = instructions.map((s) => s.trim()).filter(Boolean);
 
+  // T-40.9: only fetches while nutritionMode is 'computed' — manual mode
+  // never calls ingredients.computeNutrition.
+  const computedNutrition = useComputedNutrition(
+    validIngredients,
+    servings,
+    nutritionMode === 'computed',
+  );
+
   const parsedIngredients = ingredients.map((i) => ({
     name: i.name,
     quantity: parseQuantity(i.quantity),
@@ -325,31 +346,51 @@ export default function RecipeFormScreen() {
         scrollFieldIntoView(nameInputRef.current);
         nameInputRef.current?.focus();
       } else if (incompleteIndex !== null) {
-        const field = ingredientNameRefs.current[incompleteIndex] ?? null;
+        const field = ingredientQtyRefs.current[incompleteIndex] ?? null;
         scrollFieldIntoView(field);
         field?.focus();
       } else {
-        const field = ingredientNameRefs.current[0] ?? null;
+        const field = ingredientQtyRefs.current[0] ?? null;
         scrollFieldIntoView(field);
         field?.focus();
       }
       return;
     }
+    // T-40.9: computed mode sends the live computed numbers (fiber and all —
+    // D-18's "still there under the hood"); manual sends the typed fields
+    // and the stored fiber (T-BUG-O3 C6). `source` records which one saved,
+    // 'none' when computed mode never actually matched anything.
+    const computedStats = computedNutrition.data?.perServing;
+    const nutritionSource: RecipeNutritionSource =
+      nutritionMode === 'manual'
+        ? 'manual'
+        : computedNutrition.data && computedNutrition.data.matchedCount > 0
+          ? 'computed'
+          : 'none';
+    const nutritionInfo =
+      nutritionMode === 'computed' && computedStats
+        ? {
+            calories: Math.round(computedStats.calories),
+            protein: computedStats.protein,
+            carbs: computedStats.carbs,
+            fat: computedStats.fat,
+            fiber: computedStats.fiber,
+            source: nutritionSource,
+          }
+        : {
+            calories: Math.round(parseQuantity(nutrition.calories)),
+            protein: parseQuantity(nutrition.protein),
+            carbs: parseQuantity(nutrition.carbs),
+            fat: parseQuantity(nutrition.fat),
+            fiber: storedFiber,
+            source: nutritionSource,
+          };
     const payload = {
       name: name.trim(),
       description: description.trim(),
       ingredients: validIngredients,
       instructions: validInstructions,
-      nutritionInfo: {
-        calories: Math.round(parseQuantity(nutrition.calories)),
-        protein: parseQuantity(nutrition.protein),
-        carbs: parseQuantity(nutrition.carbs),
-        fat: parseQuantity(nutrition.fat),
-        // T-BUG-O3 C6: send the stored fiber back on edit; create keeps 0
-        // (D-18a — no fiber input, but nothing already stored is destroyed).
-        fiber: storedFiber,
-        source: 'manual' as const,
-      },
+      nutritionInfo,
       cuisineType: (cuisineType ?? '').trim(),
       dietaryTags: dietTags,
       prepTimeMins: Math.round(parseQuantity(prepTime)),
@@ -543,7 +584,7 @@ export default function RecipeFormScreen() {
             <IngredientLine
               key={i}
               ref={(el) => {
-                ingredientNameRefs.current[i] = el;
+                ingredientQtyRefs.current[i] = el;
               }}
               index={i}
               line={row}
@@ -598,7 +639,10 @@ export default function RecipeFormScreen() {
           <PhotoField imageUrl={imageUrl} onChange={setImageUrl} disabled={offline} />
         </View>
 
-        {/* Nutrition per serving — optional (D-18: no fiber field) */}
+        {/* Nutrition per serving — optional (D-18: no fiber field). T-40.9:
+            computed by default from the ingredients above; Edit numbers
+            switches to the slice-1 manual fields, prefilled from what was
+            last computed. */}
         <View className="gap-2">
           <Text variant="heading">
             {recipeFormCopy.fields.nutrition}{' '}
@@ -606,10 +650,44 @@ export default function RecipeFormScreen() {
               {recipeFormCopy.fields.nutritionOptional}
             </Text>
           </Text>
-          <NutritionFields
-            values={nutrition}
-            onChange={(patch) => setNutrition((n) => ({ ...n, ...patch }))}
-          />
+          {nutritionMode === 'computed' ? (
+            <ComputedNutritionCard
+              computed={computedNutrition.data}
+              isComputing={computedNutrition.isComputing}
+              hasIngredients={computedNutrition.hasIngredients}
+              online={online}
+              onEditNumbers={() => {
+                const stats = computedNutrition.data?.perServing;
+                if (stats) {
+                  setNutrition({
+                    calories: String(stats.calories),
+                    protein: String(stats.protein),
+                    carbs: String(stats.carbs),
+                    fat: String(stats.fat),
+                  });
+                  setStoredFiber(stats.fiber);
+                }
+                setNutritionMode('manual');
+              }}
+            />
+          ) : (
+            <View className="gap-2">
+              <NutritionFields
+                values={nutrition}
+                onChange={(patch) => setNutrition((n) => ({ ...n, ...patch }))}
+              />
+              <Pressable
+                testID="rf-nutrition-use-calculated"
+                accessibilityRole="button"
+                onPress={() => setNutritionMode('computed')}
+                className="min-h-11 justify-center self-start"
+              >
+                <Text className="text-sm font-medium text-primary">
+                  {recipeFormCopy.nutrition.useCalculated}
+                </Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         {/* More details — collapsed by default; opens on edit when any field has a value (MO-05) */}
