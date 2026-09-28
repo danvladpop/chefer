@@ -29,7 +29,14 @@ jest.mock('../../src/lib/trpc', () => ({
     useUtils: () => ({
       tracker: { getDay: { invalidate: jest.fn() }, weeklySummary: { invalidate: jest.fn() } },
       dashboard: { summary: { invalidate: jest.fn() } },
+      targets: { changes: { invalidate: jest.fn() }, get: { invalidate: jest.fn() } },
     }),
+    // §2.11 — ChangeNoticeCard/TargetExplainSheet's queries, not under test here.
+    targets: {
+      changes: { useQuery: () => ({ data: [] }) },
+      get: { useQuery: () => ({ data: undefined }) },
+      acknowledgeChange: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
+    },
     tracker: {
       getDay: {
         useQuery: () => ({

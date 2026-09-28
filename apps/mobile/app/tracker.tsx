@@ -15,6 +15,8 @@ import {
 } from '@chefer/utils';
 import { MealTypeBadge } from '../src/features/dashboard/components/meal-type-badge';
 import { TrainingDayNote } from '../src/features/dashboard/components/training-day-note';
+import { ChangeNoticeCard } from '../src/features/nutrition/change-notice-card';
+import { TargetExplainSheet } from '../src/features/nutrition/target-explain-sheet';
 import { QuickAddSheet } from '../src/features/tracker/quick-add-sheet';
 import { RebalanceBanner } from '../src/features/tracker/rebalance-banner';
 import { recordRebalance } from '../src/features/tracker/rebalance-store';
@@ -94,7 +96,14 @@ export default function TrackerScreen() {
   >({});
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [explainOpen, setExplainOpen] = useState(false);
   const [initialised, setInitialised] = useState<string | null>(null);
+
+  // §2.11, T-11.2: the same resolved view targets.get exposes, for "Why this
+  // number" (AC3, tapping the totals card). A no-op fetch when the sheet
+  // never opens — enabled only once tapped keeps this off the tracker's
+  // critical path.
+  const { data: targetsView } = trpc.targets.get.useQuery(undefined, { enabled: explainOpen });
 
   // Pre-populate from the existing log, once per date (same rules as web:
   // custom entries have no recipeId and are preserved verbatim on save).
@@ -294,11 +303,26 @@ export default function TrackerScreen() {
           {/* Premium week rebalance triggered by a log on this screen */}
           <RebalanceBanner />
 
+          {/* Target change notice (§2.11, T-11.1/T-11.5) — never a silent change */}
+          <ChangeNoticeCard />
+
           {/* Totals vs targets */}
           <Card testID="tracker-totals">
-            <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
-              Logged {isToday ? 'Today' : 'This Day'}
-            </Text>
+            <View className="mb-3 flex-row items-center justify-between">
+              <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                Logged {isToday ? 'Today' : 'This Day'}
+              </Text>
+              {/* UX-11 AC3: tapping the day totals opens "Why this number". */}
+              <Pressable
+                testID="tracker-why-target"
+                accessibilityRole="button"
+                accessibilityLabel="Why this target"
+                onPress={() => setExplainOpen(true)}
+                className="h-11 w-11 items-center justify-center"
+              >
+                <Ionicons name="information-circle-outline" size={20} color="#9ca3af" />
+              </Pressable>
+            </View>
             {data?.trainingDay && <TrainingDayNote t={data.trainingDay} isToday={isToday} />}
             <View className="gap-3">
               <TargetBar
@@ -492,6 +516,12 @@ export default function TrackerScreen() {
         onClose={() => setQuickAddOpen(false)}
         date={dateStr}
         onLogged={() => void refetch()}
+      />
+
+      <TargetExplainSheet
+        visible={explainOpen}
+        onClose={() => setExplainOpen(false)}
+        view={targetsView}
       />
     </Screen>
   );
