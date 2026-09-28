@@ -52,7 +52,7 @@ export class RecipeService {
        */
       forTable?: boolean | undefined;
     },
-  ): Promise<(Recipe & { isFavourite: boolean })[]> {
+  ): Promise<(Recipe & { isFavourite: boolean; safetyChecks?: SafetyChecks })[]> {
     const { forTable, ...listOpts } = opts;
     const [recipes, savedIds] = await Promise.all([
       favouriteRecipeRepository.findAllRecipesForUser(userId, listOpts),
@@ -69,7 +69,38 @@ export class RecipeService {
     // goes through the ONE SafetyService filter — reported recipes excluded,
     // dislikes hard, taxonomy-recognised legacy terms included.
     const ctx = await this.safety.loadContext(userId);
-    return this.safety.filter(withFavourite, ctx);
+    const visible = this.safety.filter(withFavourite, ctx);
+    // T-02.1/T-02.4: picker rows get their Checked chip from the same
+    // payload the plan surfaces use — only attached when the table has
+    // rules (UX-02 AC1: no false "Checked" claim on a rule-less table).
+    if (!ctx.table.hasRules) return visible;
+    return visible.map((r) => ({
+      ...r,
+      safetyChecks: this.safety.check(r as unknown as SafetyCheckable, ctx.table),
+    }));
+  }
+
+  /**
+   * T-02.5 (rev 2): the Replace picker's `Filtered for …` count + active
+   * rule labels — mirrors `discoverHiddenCount` for `list({ forTable: true
+   * })`'s search results (AC7). A separate query so an old client that only
+   * calls `list` is unaffected.
+   */
+  async listHiddenCount(
+    userId: string,
+    opts: {
+      search?: string | undefined;
+      savedOnly?: boolean | undefined;
+      myRecipesOnly?: boolean | undefined;
+    },
+  ): Promise<{ hiddenCount: number; filteredFor: string[] }> {
+    const [ctx, recipes] = await Promise.all([
+      this.safety.loadContext(userId),
+      favouriteRecipeRepository.findAllRecipesForUser(userId, opts),
+    ]);
+    const visible = this.safety.filter(recipes, ctx);
+    const filteredFor = [...ctx.prefs.allergies, ...ctx.prefs.dietaryRestrictions];
+    return { hiddenCount: recipes.length - visible.length, filteredFor };
   }
 
   async create(userId: string, data: CreateManualRecipeData): Promise<Recipe> {
@@ -169,7 +200,10 @@ export class RecipeService {
    * meal-type, search and time filters. Every tier; no AI. Rows are upserted
    * first so each result opens, saves and cooks like any other recipe.
    */
-  async discover(userId: string, filters: DiscoverFilters): Promise<DiscoverRecipeDto[]> {
+  async discover(
+    userId: string,
+    filters: DiscoverFilters,
+  ): Promise<(DiscoverRecipeDto & { safetyChecks?: SafetyChecks })[]> {
     const [ctx, savedIds] = await Promise.all([
       this.safety.loadContext(userId),
       favouriteRecipeRepository.findSavedRecipeIds(userId),
@@ -184,7 +218,13 @@ export class RecipeService {
       filters,
       new Set(savedIds),
     );
-    return results.filter((r) => !ctx.hiddenRecipeIds.includes(r.id));
+    const visible = results.filter((r) => !ctx.hiddenRecipeIds.includes(r.id));
+    // T-02.1: Discover rows get the same Checked chip as every other surface.
+    if (!ctx.table.hasRules) return visible;
+    return visible.map((r) => ({
+      ...r,
+      safetyChecks: this.safety.check(r as unknown as SafetyCheckable, ctx.table),
+    }));
   }
 
   /**
