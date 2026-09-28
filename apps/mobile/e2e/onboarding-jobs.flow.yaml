@@ -141,6 +141,10 @@ appId: dev.chefer.app.dev
     visible:
       id: 'how-you-cook-currency'
     timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: 'how-you-cook-auto-plan'
+    direction: DOWN
 - assertVisible:
     id: 'how-you-cook-auto-plan'
 # Off by default — AC12.

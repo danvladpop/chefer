@@ -182,6 +182,24 @@ export function OnboardingWizard() {
   const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
   const generateMutation = trpc.mealPlan.generate.useMutation();
 
+  // Bug (UX-03): the ScrollView is one persistent instance across every
+  // step, so a step reached scrolled down (e.g. How you cook, which needs
+  // scrolling to reach the auto-plan toggle) carried that offset straight
+  // into the next step. The content visually snapped back on its own a
+  // beat later, but a tap delivered before that correction lands on
+  // whatever the stale offset put under it — on the goal step this meant
+  // the very first Continue tap after How you cook could miss "Lose
+  // Weight" entirely and silently leave `goal` at null, which then
+  // silently dropped the whole `targets` step for Train + a numeric goal
+  // (03 UX-03 flow table). Reset to the top on every step change instead.
+  // Keyed on `step` (not `stepKey`) so this hook can sit above the loading/
+  // error early returns below, where `steps`/`stepKey` aren't computed yet
+  // — hooks can't follow a conditional return.
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [step]);
+
   if (savedPrefs.isError && !savedPrefs.data) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
@@ -588,6 +606,7 @@ export function OnboardingWizard() {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         contentContainerClassName="gap-4 px-4 py-3 pb-8"
         keyboardShouldPersistTaps="handled"
       >
