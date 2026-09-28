@@ -14,6 +14,7 @@ const m = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('./household-section', () => ({ HouseholdSection: () => null }));
+vi.mock('@/features/safety/components/SafetyReviewCard', () => ({ SafetyReviewCard: () => null }));
 vi.mock('@/features/premium/components/UpgradeButton', () => ({ UpgradeCard: () => null }));
 vi.mock('@/lib/trpc', () => {
   const invalidate = () => Promise.resolve();

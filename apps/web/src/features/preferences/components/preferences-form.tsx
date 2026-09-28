@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { ActivityLevel, BiologicalSex, Goal } from '@/features/onboarding/types';
+import { SafetyReviewCard } from '@/features/safety/components/SafetyReviewCard';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import type { DisplayCurrency } from '@chefer/types';
@@ -177,6 +178,9 @@ export function PreferencesForm({
   return (
     <>
       <div className="space-y-6">
+        {/* T-01.3: one-time free-text migration card */}
+        <SafetyReviewCard />
+
         {/* Diet & restrictions — the safety section, free for every account.
             Rendered first so free users see their editable section on top. */}
         <SafetySection
