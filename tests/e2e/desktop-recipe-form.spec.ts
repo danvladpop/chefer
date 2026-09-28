@@ -5,6 +5,20 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * Mirrors the server's normalizeIngredientName + titleCase (apps/api/src/lib/
+ * ingredient-prices/index.ts and apps/api/src/application/ingredients/
+ * ingredients.service.ts): the catalog stores names lowercased, then
+ * reconstructs a display name by upper-casing each word's first letter (not
+ * after an apostrophe). A custom ingredient's name does NOT round-trip with
+ * its original casing — e.g. "E2E flour 123" is stored/displayed as
+ * "E2e Flour 123".
+ */
+function titleCaseIngredientName(name: string): string {
+  const normalized = name.toLowerCase().trim().replace(/\s+/g, ' ');
+  return normalized.replace(/(^|[\s-])\w/g, (c) => c.toUpperCase());
+}
+
 // ─── UX-40 slice 1 web parity (T-40.6) ─────────────────────────────────────────
 // D-19: a recipe saves with just a name and one ingredient line — cuisine,
 // description, steps, times and nutrition are all optional. D-18: no fiber
@@ -22,7 +36,13 @@ function escapeRegExp(text: string): string {
  * custom ingredient" is the only reliable way to commit a brand-new
  * ingredient name through the real UI.
  */
-async function addCustomIngredient(page: Page, row: number, name: string, kcal: number) {
+/** Returns the ingredient's saved (title-cased) display name. */
+async function addCustomIngredient(
+  page: Page,
+  row: number,
+  name: string,
+  kcal: number,
+): Promise<string> {
   const nameField = page.getByLabel(`Name for ingredient ${row}`);
   await nameField.fill(name);
   // The button reads `Create "{name}" as a custom ingredient` with curly
@@ -38,15 +58,23 @@ async function addCustomIngredient(page: Page, row: number, name: string, kcal: 
   await dialog.getByRole('button', { name: 'Create ingredient' }).click();
   await expect(dialog).toBeHidden();
 
-  // The row now shows the created ingredient as its name.
-  await expect(nameField).toHaveValue(name);
+  // The row now shows the created ingredient as its name — title-cased by
+  // the server, not the exact text that was typed.
+  const displayName = titleCaseIngredientName(name);
+  await expect(nameField).toHaveValue(displayName);
+  return displayName;
 }
 
-async function fillMinimumRecipe(page: Page, name: string, ingredientName: string) {
+async function fillMinimumRecipe(
+  page: Page,
+  name: string,
+  ingredientName: string,
+): Promise<string> {
   await gotoAndSettle(page, '/recipes/new');
   await page.getByLabel(/^Recipe Name/).fill(name);
-  await addCustomIngredient(page, 1, ingredientName, 50);
+  const savedIngredientName = await addCustomIngredient(page, 1, ingredientName, 50);
   await page.getByLabel('Quantity for ingredient 1').fill('200');
+  return savedIngredientName;
 }
 
 function recipeCard(page: Page, name: string) {
@@ -108,7 +136,7 @@ test.describe('Recipe form — edit round trip (AC9, T-BUG-O3 C1)', () => {
     page,
   }) => {
     const name = `E2E edit-unchanged ${Date.now()}`;
-    await fillMinimumRecipe(page, name, `E2E salt ${Date.now()}`);
+    const ingredientName = await fillMinimumRecipe(page, name, `E2E salt ${Date.now()}`);
     await page.getByRole('button', { name: 'Save Recipe' }).click();
     await page.waitForURL('**/recipes?tab=my**');
 
@@ -123,7 +151,7 @@ test.describe('Recipe form — edit round trip (AC9, T-BUG-O3 C1)', () => {
     await recipeCard(page, name).getByRole('link', { name: 'Edit recipe' }).click();
     await page.waitForURL('**/edit');
     await expect(page.getByLabel(/^Recipe Name/)).toHaveValue(name);
-    await expect(page.getByLabel('Name for ingredient 1')).toHaveValue(/E2E salt/);
+    await expect(page.getByLabel('Name for ingredient 1')).toHaveValue(ingredientName);
     await expect(page.getByLabel('Quantity for ingredient 1')).toHaveValue('200');
   });
 

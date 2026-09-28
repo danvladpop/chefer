@@ -1,5 +1,18 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { gotoAndSettle } from './helpers/layout';
+
+/**
+ * A real recipe card's link, not the "Create Recipe" header link — both
+ * match `a[href^="/recipes/"]` (the header link points at `/recipes/new`
+ * and sits before the card grid in DOM order), but only a card link wraps
+ * the recipe's `<h3>` name.
+ */
+function firstRecipeCardLink(page: Page) {
+  return page
+    .locator('a[href^="/recipes/"]')
+    .filter({ has: page.getByRole('heading', { level: 3 }) })
+    .first();
+}
 
 // ─── Safety filter (UX-01/UX-02, T-01.7/T-02.2/T-02.3/T-02.5/T-01.3/T-01.5) ────
 // Runs against the desktop project (real signed-in session, real API) — see
@@ -14,6 +27,18 @@ test.describe('Safety filter — web parity', () => {
     page,
   }) => {
     await gotoAndSettle(page, '/preferences');
+
+    // This account carries leftover Diet selections (Vegetarian base diet +
+    // Paleo modifier) from earlier seed/test activity — reset Diet to "No
+    // restriction" first. Without this, stacking Tree nuts on top of those
+    // two diet restrictions filters out every recipe in the catalog, and
+    // the Discover-dependent tests below (AC3, AC10) have nothing to open.
+    await page.getByRole('radio', { name: 'No restriction' }).click();
+    const paleo = page.getByRole('checkbox', { name: 'Paleo' });
+    if ((await paleo.getAttribute('aria-checked')) === 'true') {
+      await paleo.click();
+    }
+
     const treeNuts = page.getByRole('checkbox', { name: 'Tree nuts' });
     await treeNuts.click();
     await expect(treeNuts).toHaveAttribute('aria-checked', 'true');
@@ -39,7 +64,7 @@ test.describe('Safety filter — web parity', () => {
   }) => {
     await gotoAndSettle(page, '/recipes?tab=discover');
     // Discover already excludes tree-nut recipes — this card is safe.
-    await page.locator('a[href^="/recipes/"]').first().click();
+    await firstRecipeCardLink(page).click();
     await page.waitForURL('**/recipes/**');
 
     // The two states are mutually exclusive (AC3): a page with a real
@@ -57,7 +82,7 @@ test.describe('Safety filter — web parity', () => {
 
   test('reporting a recipe hides it and confirms (AC10)', async ({ page }) => {
     await gotoAndSettle(page, '/recipes?tab=discover');
-    await page.locator('a[href^="/recipes/"]').first().click();
+    await firstRecipeCardLink(page).click();
     await page.waitForURL('**/recipes/**');
 
     await page.getByRole('button', { name: 'Report a safety problem' }).click();
