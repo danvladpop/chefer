@@ -52,6 +52,9 @@ const envSchema = z.object({
   // Rate Limiting
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  // Per-IP register/login attempts per 15 min. Raised only for the contract
+  // suite (CI + local), which registers one throwaway account per file.
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
 
   // AI — mock is enabled by default so local dev never calls real LLM endpoints
   AI_MOCK_ENABLED: z

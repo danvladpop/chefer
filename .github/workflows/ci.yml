@@ -260,6 +260,7 @@ jobs:
       # The whole suite runs against one API from one IP; the default
       # 100 requests/min limiter returns 429s once the suite grows.
       RATE_LIMIT_MAX: '3000'
+      AUTH_RATE_LIMIT_MAX: '200'
     steps:
       - name: Checkout
         uses: actions/checkout@v4

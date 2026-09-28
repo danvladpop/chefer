@@ -3,6 +3,7 @@ import { regionCodeSchema } from '@chefer/types';
 import { authService } from '../application/auth/auth.service.js';
 import { passwordResetService } from '../application/auth/password-reset.service.js';
 import { emailPreferencesService } from '../application/notifications/email-preferences.service.js';
+import { env } from '../lib/env.js';
 import { assertWithinRateLimit } from '../lib/rate-limit.js';
 import { publicProcedure, router } from '../lib/trpc.js';
 
@@ -44,7 +45,7 @@ const loginSchema = z.object({
 // Per IP: bcrypt-backed credential checks must not be brute-forceable, and
 // register must not be a free account-farming endpoint.
 
-const AUTH_ATTEMPTS_MAX = 10;
+const AUTH_ATTEMPTS_MAX = env.AUTH_RATE_LIMIT_MAX;
 const AUTH_WINDOW_MS = 15 * 60 * 1000;
 
 // ─── Router ───────────────────────────────────────────────────────────────────
