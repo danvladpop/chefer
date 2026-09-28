@@ -1,5 +1,5 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import PreferencesScreen from '../../app/preferences';
 import type { createTrpcPreferencesMock } from './preferences-trpc-mock';
 import { mutationResult, queryResult } from './preferences-trpc-mock';
@@ -129,5 +129,55 @@ describe('Preferences — Units & currency (P2-6)', () => {
     await user.type(screen.getByTestId('prefs-budget'), '80');
 
     expect(screen.getByTestId('prefs-save-extras')).toHaveTextContent('Save budget');
+  });
+});
+
+describe('Show calories and macros on Today (T-04.5)', () => {
+  it('defaults on for a goal-having user and saves the explicit override', async () => {
+    withProfile('FREE');
+    trpc.preferences.get.useQuery.mockReturnValue(
+      queryResult({
+        data: {
+          chefProfile: {
+            preferredUnits: 'METRIC',
+            deliveryCurrency: 'USD',
+            weeklyBudgetEur: null,
+            goal: 'LOSE_WEIGHT',
+            showNutritionOnToday: null,
+          },
+          dietaryPreferences: null,
+        },
+      }),
+    );
+    const mutate = jest.fn();
+    trpc.preferences.setHomeDisplay.useMutation.mockReturnValue(
+      mutationResult({ mutate, isPending: false }),
+    );
+    await renderScreen();
+
+    const toggle = screen.getByTestId('prefs-home-display-switch');
+    expect(toggle.props.value).toBe(true);
+    await fireEvent(toggle, 'valueChange', false);
+    expect(mutate).toHaveBeenCalledWith({ showNutritionOnToday: false });
+  });
+
+  it('defaults off for a goal-less user', async () => {
+    withProfile('FREE');
+    trpc.preferences.get.useQuery.mockReturnValue(
+      queryResult({
+        data: {
+          chefProfile: {
+            preferredUnits: 'METRIC',
+            deliveryCurrency: 'USD',
+            weeklyBudgetEur: null,
+            goal: null,
+            showNutritionOnToday: null,
+          },
+          dietaryPreferences: null,
+        },
+      }),
+    );
+    await renderScreen();
+    expect(screen.getByTestId('prefs-home-display-switch').props.value).toBe(false);
   });
 });
