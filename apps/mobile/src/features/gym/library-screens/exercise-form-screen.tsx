@@ -24,6 +24,7 @@ import {
   useScrollFieldIntoView,
 } from '@chefer/ui-mobile';
 import { isTimedFor, trackingTypeOf } from '@chefer/utils';
+import { useFlags } from '../../../hooks/use-flags';
 import { trpc } from '../../../lib/trpc';
 import { useGymBootstrap } from '../use-gym-bootstrap';
 import { EQUIPMENT_FILTERS } from './exercise-filters';
@@ -100,6 +101,7 @@ const DEFAULT_STATE: FormState = {
 export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
   const isEdit = exerciseId !== undefined;
   const { data: bootstrap } = useGymBootstrap();
+  const { cardioLogging } = useFlags();
   const utils = trpc.useUtils();
 
   const existing = isEdit ? bootstrap?.library.find((e) => e.id === exerciseId) : undefined;
@@ -176,7 +178,10 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
       repMax: state.repMax,
       restSec: state.restSec,
       isTimed: isTimedFor(state.trackingType),
-      trackingType: state.trackingType,
+      // cardioLogging off: send the old isTimed-only shape (no trackingType)
+      // — the same input a pre-T-42.3 client sends; the server derives the
+      // same default from isTimed/loadType (trackingTypeOf).
+      ...(cardioLogging && { trackingType: state.trackingType }),
       cues: state.cues.map((c) => c.trim()).filter((c) => c.length > 0),
     };
     const result = customExerciseInputSchema.safeParse(input);
@@ -358,20 +363,39 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
           />
         </View>
 
-        <View>
-          <Text variant="label" className="mb-1">
-            How do you track it?
-          </Text>
+        {cardioLogging ? (
+          <View>
+            <Text variant="label" className="mb-1">
+              How do you track it?
+            </Text>
+            <ChipGroup
+              testID="exercise-form-tracking-type"
+              options={TRACKING_TYPE_OPTIONS}
+              value={[state.trackingType]}
+              onChange={(v) => {
+                const trackingType = v[0];
+                if (trackingType) setState((s) => ({ ...s, trackingType }));
+              }}
+            />
+          </View>
+        ) : (
+          // cardioLogging off: the pre-T-42.3 single "Timed exercise" chip —
+          // toggles between the only two trackingType values it ever sent
+          // (WEIGHT_REPS/DURATION); onSubmit omits trackingType entirely.
           <ChipGroup
-            testID="exercise-form-tracking-type"
-            options={TRACKING_TYPE_OPTIONS}
-            value={[state.trackingType]}
-            onChange={(v) => {
-              const trackingType = v[0];
-              if (trackingType) setState((s) => ({ ...s, trackingType }));
-            }}
+            testID="exercise-form-timed"
+            options={[{ value: 'timed', label: 'Timed exercise (seconds, not reps)' }]}
+            value={isTimedFor(state.trackingType) ? ['timed'] : []}
+            allowEmpty
+            onChange={(v) =>
+              setState((s) => ({
+                ...s,
+                trackingType:
+                  v.length > 0 ? ExerciseTrackingType.DURATION : ExerciseTrackingType.WEIGHT_REPS,
+              }))
+            }
           />
-        </View>
+        )}
 
         <View>
           <View className="mb-1 flex-row items-center justify-between">
