@@ -6,6 +6,7 @@ import { TrainingDayNote } from '@/features/dashboard/components/training-day-no
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import { ChangeNoticeCard } from '@/features/nutrition/components/ChangeNoticeCard';
 import { TargetExplainSheet } from '@/features/nutrition/components/TargetExplainSheet';
+import { EditEntrySheet } from '@/features/tracker/components/EditEntrySheet';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
 import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
@@ -13,13 +14,14 @@ import {
   customEntryChipLabel,
   customEntryRows,
   customEntryTotals,
+  type CustomEntryRow,
 } from '@/features/tracker/lib/tracker-utils';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { addDays, format } from 'date-fns';
-import { ChevronLeft, ChevronRight, Flame, Info, Save, Trash2 } from 'lucide-react';
-import { ErrorState } from '@chefer/ui';
+import { ChevronLeft, ChevronRight, Copy, Flame, Info, Trash2 } from 'lucide-react';
+import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import { formatPortion, localDateStr, matchLoggedToSlots, slotPortion } from '@chefer/utils';
 
 type PortionKey = number;
@@ -43,6 +45,13 @@ const keyOf = (meal: { slotIndex?: number }, i: number): string => String(meal.s
 
 // Local calendar day, not the UTC one (F-TRK-1-1).
 const toDateStr = (d: Date): string => localDateStr(d);
+
+/** "yesterday" when `from` is the calendar day before `to`, else a short date. */
+function relativeDayLabel(from: Date, to: Date): string {
+  const diffDays = Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
+  if (diffDays === 1) return 'yesterday';
+  return format(from, 'EEE d MMM');
+}
 
 const MEAL_COLOURS: Record<string, string> = {
   breakfast: 'bg-emerald-100 text-emerald-700',
@@ -72,8 +81,16 @@ export default function TrackerPage() {
   const [checkedMeals, setCheckedMeals] = useState<
     Record<string, { checked: boolean; portion: PortionKey }>
   >({});
-  const [savedSuccess, setSavedSuccess] = useState(false);
   const [initialised, setInitialised] = useState<string | null>(null); // tracks which dateStr we initialised for
+  const [toast, setToast] = useState<{
+    message: string;
+    action?: { label: string; onClick: () => void };
+  } | null>(null);
+  const [copyDayOpen, setCopyDayOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<CustomEntryRow | null>(null);
+
+  const showToast = (message: string, action?: { label: string; onClick: () => void }) =>
+    setToast({ message, ...(action && { action }) });
 
   // When data loads, pre-populate from existing log (only once per dateStr).
   // Entries without a recipeId are custom (Snap-to-Log quick-adds, F4) — they
@@ -106,73 +123,149 @@ export default function TrackerPage() {
 
   const isPremium = useIsPremium();
 
-  const upsertMutation = trpc.tracker.upsertDay.useMutation({
+  // ─── One-save model (bug B-23, T-19.4) — every tick/portion change saves
+  // immediately through logRecipe/unlogRecipe; there is no Save Day. ────────
+  const logRecipeMutation = trpc.tracker.logRecipe.useMutation({
     onSuccess: (result) => {
-      // F4: a save can trigger a week rebalance — hand the swaps off to the
-      // meal-plan banner (with undo) and fire the analytics event.
       handleRebalanceResult(result.rebalance);
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3000);
       void refetch();
     },
   });
-
-  const deleteCustomMutation = trpc.tracker.deleteCustomMeal.useMutation({
+  const unlogRecipeMutation = trpc.tracker.unlogRecipe.useMutation({
+    onSuccess: () => void refetch(),
+  });
+  const copyDayMutation = trpc.tracker.copyDay.useMutation();
+  const deleteEntriesMutation = trpc.tracker.deleteEntries.useMutation({
+    onSuccess: () => void refetch(),
+  });
+  const deleteCustomMutation = trpc.tracker.deleteCustomMeal.useMutation();
+  const restoreCustomMutation = trpc.tracker.restoreCustomMeal.useMutation({
     onSuccess: () => void refetch(),
   });
 
-  const toggleMeal = (k: string, planPortion: PortionKey) => {
-    setCheckedMeals((prev) => ({
-      ...prev,
-      [k]: { checked: !(prev[k]?.checked ?? false), portion: prev[k]?.portion ?? planPortion },
-    }));
-    setSavedSuccess(false);
+  const planned = (data?.plannedMeals ?? []).map((m, i) => ({ ...m, key: keyOf(m, i) }));
+  type PlannedRow = (typeof planned)[number];
+
+  const logSlot = (meal: PlannedRow, portionMultiplier: PortionKey) => {
+    logRecipeMutation.mutate({
+      date: dateStr,
+      recipeId: meal.recipeId,
+      mealType: meal.mealType,
+      portionMultiplier,
+      ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
+    });
   };
 
-  const setPortion = (k: string, portion: PortionKey) => {
-    setCheckedMeals((prev) => ({ ...prev, [k]: { ...prev[k], checked: true, portion } }));
-    setSavedSuccess(false);
+  const toggleMeal = (meal: PlannedRow) => {
+    const wasChecked = checkedMeals[meal.key]?.checked ?? false;
+    const portion = checkedMeals[meal.key]?.portion ?? planPortionOf(meal);
+    setCheckedMeals((prev) => ({ ...prev, [meal.key]: { checked: !wasChecked, portion } }));
+    if (!wasChecked) {
+      logSlot(meal, portion);
+      showToast(`Logged ${meal.mealType}`, {
+        label: 'Undo',
+        onClick: () =>
+          unlogRecipeMutation.mutate({
+            date: dateStr,
+            recipeId: meal.recipeId,
+            mealType: meal.mealType,
+            ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
+          }),
+      });
+    } else {
+      unlogRecipeMutation.mutate({
+        date: dateStr,
+        recipeId: meal.recipeId,
+        mealType: meal.mealType,
+        ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
+      });
+      showToast(`Removed ${meal.mealType}`, {
+        label: 'Undo',
+        onClick: () => logSlot(meal, portion),
+      });
+    }
   };
 
-  // Custom and off-plan entries are server-owned: upsertDay merges, so the
-  // save sends only the planned meals this page manages (F-PM-1, F-TRK-1-2).
+  const setPortion = (meal: PlannedRow, portion: PortionKey) => {
+    setCheckedMeals((prev) => ({ ...prev, [meal.key]: { checked: true, portion } }));
+    logSlot(meal, portion);
+  };
+
+  // Custom and off-plan entries are server-owned: each write is its own
+  // mutation (F-PM-1, F-TRK-1-2) — nothing here re-sends them.
   const offPlanLogged = data?.offPlanLogged ?? [];
-  // A day that already has planned meals logged can be saved with nothing
-  // ticked — that un-logs them (F-TRK-1-3).
-  const plannedIds = new Set(data?.plannedMeals.map((m) => m.recipeId) ?? []);
-  const hadPlannedLogged = (data?.log?.loggedMeals ?? []).some(
-    (m) => m.recipeId !== undefined && plannedIds.has(m.recipeId),
-  );
   // Rendered rows (F4): custom entries with their delete-target index into
   // the FULL loggedMeals array preserved.
   const customRows = customEntryRows(data?.log?.loggedMeals ?? []);
 
-  const handleSave = () => {
-    if (!data) return;
-    const plannedLogged = data.plannedMeals
-      .map((m, i) => ({ m, k: keyOf(m, i) }))
-      .filter(({ k }) => checkedMeals[k]?.checked)
-      .map(({ m, k }) => {
-        const portion = checkedMeals[k]?.portion ?? planPortionOf(m);
-        return {
-          recipeId: m.recipeId,
-          mealType: m.mealType,
-          ...(m.slotIndex !== undefined && { slotIndex: m.slotIndex }),
-          portionMultiplier: portion,
-          kcal: Math.round(m.kcal * portion),
-          protein: Math.round(m.protein * portion * 10) / 10,
-          carbs: Math.round(m.carbs * portion * 10) / 10,
-          fat: Math.round(m.fat * portion * 10) / 10,
-        };
-      });
-    if (plannedLogged.length === 0 && !hadPlannedLogged) return;
-    upsertMutation.mutate({ date: dateStr, loggedMeals: plannedLogged });
+  const deleteCustomEntry = (row: CustomEntryRow) => {
+    if (deleteCustomMutation.isPending) return;
+    const entryId = row.entryId;
+    deleteCustomMutation.mutate(
+      { date: dateStr, entryIndex: row.entryIndex },
+      {
+        onSuccess: () => {
+          void refetch();
+          showToast(
+            `Deleted ${row.name}`,
+            entryId
+              ? {
+                  label: 'Undo',
+                  onClick: () =>
+                    restoreCustomMutation.mutate({
+                      date: dateStr,
+                      entry: {
+                        entryId,
+                        custom: { name: row.name, estimatedBy: row.estimatedBy },
+                        mealType: row.mealType,
+                        portionMultiplier: 1,
+                        kcal: row.kcal,
+                        protein: row.protein,
+                        carbs: row.carbs,
+                        fat: row.fat,
+                      },
+                    }),
+                }
+              : undefined,
+          );
+        },
+      },
+    );
+  };
+
+  const copyFromDate = addDays(selectedDate, -1);
+  const copyFromDateStr = toDateStr(copyFromDate);
+  const copyLabel = relativeDayLabel(copyFromDate, selectedDate);
+
+  const confirmCopyDay = () => {
+    copyDayMutation.mutate(
+      { fromDate: copyFromDateStr, toDate: dateStr },
+      {
+        onSuccess: (result) => {
+          handleRebalanceResult(result.rebalance);
+          setCopyDayOpen(false);
+          void refetch();
+          showToast(
+            `Copied ${result.copiedEntryIds.length} entries`,
+            result.copiedEntryIds.length > 0
+              ? {
+                  label: 'Undo',
+                  onClick: () =>
+                    deleteEntriesMutation.mutate({
+                      date: dateStr,
+                      entryIds: result.copiedEntryIds,
+                    }),
+                }
+              : undefined,
+          );
+        },
+      },
+    );
   };
 
   const changeDate = (delta: number) => {
     setSelectedDate((d) => addDays(d, delta));
     setCheckedMeals({});
-    setSavedSuccess(false);
     setInitialised(null);
   };
 
@@ -222,11 +315,22 @@ export default function TrackerPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
       {/* Header */}
-      <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-          DAILY LOG
-        </p>
-        <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">Tracker</h1>
+      <div className="mb-6 flex items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+            DAILY LOG
+          </p>
+          <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">Tracker</h1>
+        </div>
+        <button
+          type="button"
+          data-testid="tracker-copy-day"
+          aria-label={`Copy ${copyLabel} to ${isToday ? 'today' : 'this day'}`}
+          onClick={() => setCopyDayOpen(true)}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-500 hover:bg-neutral-100"
+        >
+          <Copy className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Date selector */}
@@ -287,11 +391,26 @@ export default function TrackerPage() {
 
       {!isFuture && !isLoading && data && (
         <>
-          {/* Snap-to-Log (F4): photo scan (premium; demo for free) + free
-              quick-add — the honesty tools for off-plan food. */}
+          {/* Snap-to-Log (F4): photo scan (premium; demo for free) + the
+              search-first Log sheet — the honesty tools for off-plan food. */}
           <div className="mb-6 flex flex-wrap gap-2">
             <ScanMealButton date={dateStr} isPremium={isPremium} onLogged={() => void refetch()} />
-            <QuickAddSheet date={dateStr} onLogged={() => void refetch()} />
+            <QuickAddSheet
+              date={dateStr}
+              onLogged={() => void refetch()}
+              plannedMeals={data.plannedMeals.map((m, i) => ({
+                recipeId: m.recipeId,
+                recipeName: m.recipeName,
+                mealType: m.mealType,
+                imageUrl: m.imageUrl,
+                kcal: m.kcal,
+                protein: m.protein,
+                carbs: m.carbs,
+                fat: m.fat,
+                ...(m.portion !== undefined && { portion: m.portion }),
+                slotIndex: m.slotIndex ?? i,
+              }))}
+            />
           </div>
 
           {/* Target change notice (§2.11, T-11.1/T-11.5) — never a silent change */}
@@ -367,7 +486,7 @@ export default function TrackerPage() {
               {!data.hasActivePlan ? (
                 // T-19.6: a Track-only user may never generate a plan — this
                 // reads as an invitation to log, not a missing-plan error.
-                <p>No plan today — log what you eat with Snap to log or Quick add above.</p>
+                <p>No plan today — log from Recent or search below.</p>
               ) : (
                 <>
                   No meals planned for this day.{' '}
@@ -382,8 +501,8 @@ export default function TrackerPage() {
             </div>
           ) : (
             <div className="mb-6 space-y-3">
-              {data.plannedMeals.map((meal, i) => {
-                const k = keyOf(meal, i);
+              {planned.map((meal) => {
+                const k = meal.key;
                 const isChecked = checkedMeals[k]?.checked ?? false;
                 const portion = checkedMeals[k]?.portion ?? planPortionOf(meal);
                 const scaledKcal = Math.round(meal.kcal * portion);
@@ -421,7 +540,7 @@ export default function TrackerPage() {
                             action. Visual size holds; the hit area is 44px. */}
                         <button
                           type="button"
-                          onClick={() => toggleMeal(k, planPortionOf(meal))}
+                          onClick={() => toggleMeal(meal)}
                           aria-pressed={isChecked}
                           className="-m-2.5 flex h-11 w-11 shrink-0 items-center justify-center p-2.5"
                           aria-label={`${isChecked ? 'Uncheck' : 'Check'} ${meal.recipeName}`}
@@ -447,7 +566,7 @@ export default function TrackerPage() {
                             <button
                               key={p}
                               type="button"
-                              onClick={() => setPortion(k, p)}
+                              onClick={() => setPortion(meal, p)}
                               aria-pressed={portion === p && isChecked}
                               className={`min-h-11 flex-1 rounded-lg px-2 text-xs font-medium transition-all sm:flex-none sm:px-3 ${portion === p && isChecked ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
                             >
@@ -473,7 +592,7 @@ export default function TrackerPage() {
           {offPlanLogged.length > 0 && (
             <div className="mb-6" data-testid="tracker-off-plan">
               <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                Also logged today
+                Also eaten
               </p>
               <div className="space-y-3">
                 {offPlanLogged.map((m) => (
@@ -499,18 +618,21 @@ export default function TrackerPage() {
             </div>
           )}
 
-          {/* Custom entries (F4): photo scans + quick-adds. Saved server-side
-              the moment they're logged — no relation to the Save button. */}
+          {/* Custom entries (F4): photo scans + quick-adds. Tap to edit
+              (bug B-34, T-19.2); the bin deletes immediately with Undo. */}
           {customRows.length > 0 && (
             <div className="mb-6">
               <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                Also logged
+                Also eaten
               </p>
               <div className="space-y-3">
                 {customRows.map((row) => (
-                  <div
+                  <button
+                    type="button"
                     key={row.entryIndex}
-                    className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3"
+                    data-testid={`tracker-custom-${row.entryIndex}`}
+                    onClick={() => setEditingEntry(row)}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 text-left hover:bg-neutral-50"
                   >
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -533,49 +655,29 @@ export default function TrackerPage() {
                           : ''}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        deleteCustomMutation.mutate({ date: dateStr, entryIndex: row.entryIndex })
-                      }
-                      disabled={deleteCustomMutation.isPending}
+                    <span
+                      role="button"
+                      tabIndex={0}
                       aria-label={`Delete ${row.name}`}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteCustomEntry(row);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          deleteCustomEntry(row);
+                        }
+                      }}
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
                     >
                       <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                    </span>
+                  </button>
                 ))}
               </div>
             </div>
-          )}
-
-          {/* Save button — sticky just above the mobile tab bar so it stays
-              reachable without scrolling past every meal. */}
-          {data.plannedMeals.length > 0 && (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={
-                (loggedMeals.length === 0 && !hadPlannedLogged) ||
-                upsertMutation.isPending ||
-                savedSuccess
-              }
-              className="sticky bottom-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#944a00] py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-[#7a3d00] disabled:opacity-50 lg:static lg:shadow-none"
-            >
-              {upsertMutation.isPending ? (
-                'Saving…'
-              ) : savedSuccess ? (
-                '✓ Saved!'
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />{' '}
-                  {loggedMeals.length === 0
-                    ? 'Clear logged meals'
-                    : `Log ${loggedMeals.length} meal${loggedMeals.length !== 1 ? 's' : ''}`}
-                </>
-              )}
-            </button>
           )}
         </>
       )}
@@ -585,6 +687,54 @@ export default function TrackerPage() {
         onClose={() => setExplainOpen(false)}
         view={targetsView}
       />
+
+      <EditEntrySheet
+        open={editingEntry !== null}
+        onClose={() => setEditingEntry(null)}
+        date={dateStr}
+        entry={editingEntry}
+        onSaved={() => void refetch()}
+        onDeleted={() => setEditingEntry(null)}
+        showToast={showToast}
+      />
+
+      <Sheet
+        open={copyDayOpen}
+        onClose={() => setCopyDayOpen(false)}
+        title="Copy day"
+        description={`Copy everything logged ${copyLabel} to ${isToday ? 'today' : 'this day'}? You can undo it right after.`}
+        size="sm"
+        footer={
+          <div className="flex w-full gap-2 px-5 pb-2">
+            <button
+              type="button"
+              onClick={() => setCopyDayOpen(false)}
+              className="min-h-11 flex-1 rounded-xl border border-neutral-200 px-4 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              data-testid="tracker-copy-day-confirm"
+              onClick={confirmCopyDay}
+              disabled={copyDayMutation.isPending}
+              className="min-h-11 flex-1 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-50"
+            >
+              {copyDayMutation.isPending ? 'Copying…' : `Copy ${copyLabel}`}
+            </button>
+          </div>
+        }
+      >
+        <div />
+      </Sheet>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          onClose={() => setToast(null)}
+          {...(toast.action && { action: toast.action })}
+        />
+      )}
     </div>
   );
 }

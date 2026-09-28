@@ -3,13 +3,25 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import TrackerPage from './page';
 
-// Two identical snacks used to share one row key (recipeId:mealType), so
-// ticking one ticked both. Rows are keyed by plan slot now.
+// T-19.1–T-19.4 (UX-19): the search-first Log sheet, edit/undo and the
+// one-save model. Two identical snacks used to share one row key
+// (recipeId:mealType), so ticking one ticked both — rows are keyed by plan
+// slot now.
 
 const m = vi.hoisted(() => {
   const state: { day: unknown } = { day: undefined };
-  return { upsert: vi.fn(), state };
+  return {
+    logRecipe: vi.fn(),
+    unlogRecipe: vi.fn(),
+    copyDay: vi.fn(),
+    deleteEntries: vi.fn(),
+    deleteCustom: vi.fn(),
+    restoreCustom: vi.fn(),
+    state,
+  };
 });
+
+const rebalance = { rebalanced: false, swaps: [], projectedDeviation: 0, planId: 'p' };
 
 vi.mock('next/image', () => ({
   default: ({ alt }: { alt: string }) => <span role="img" aria-label={alt} />,
@@ -42,8 +54,63 @@ vi.mock('@/lib/trpc', () => ({
           refetch: vi.fn(),
         }),
       },
-      upsertDay: { useMutation: () => ({ mutate: m.upsert, isPending: false }) },
-      deleteCustomMeal: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+      logRecipe: {
+        useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({
+          mutate: (vars: unknown) => {
+            m.logRecipe(vars);
+            opts.onSuccess?.({ log: {}, rebalance }, vars);
+          },
+          isPending: false,
+        }),
+      },
+      unlogRecipe: {
+        useMutation: (opts: { onSuccess?: () => void }) => ({
+          mutate: (vars: unknown) => {
+            m.unlogRecipe(vars);
+            opts.onSuccess?.();
+          },
+          isPending: false,
+        }),
+      },
+      copyDay: {
+        useMutation: () => ({
+          mutate: (vars: unknown, callbacks?: { onSuccess?: (data: unknown) => void }) => {
+            m.copyDay(vars);
+            callbacks?.onSuccess?.({ log: {}, copiedEntryIds: ['c1', 'c2'], rebalance });
+          },
+          isPending: false,
+        }),
+      },
+      deleteEntries: {
+        useMutation: (opts: { onSuccess?: () => void }) => ({
+          mutate: (vars: unknown) => {
+            m.deleteEntries(vars);
+            opts.onSuccess?.();
+          },
+          isPending: false,
+        }),
+      },
+      deleteCustomMeal: {
+        useMutation: () => ({
+          mutate: (vars: unknown, callbacks?: { onSuccess?: () => void }) => {
+            m.deleteCustom(vars);
+            callbacks?.onSuccess?.();
+          },
+          isPending: false,
+        }),
+      },
+      restoreCustomMeal: {
+        useMutation: (opts: { onSuccess?: () => void }) => ({
+          mutate: (vars: unknown) => {
+            m.restoreCustom(vars);
+            opts.onSuccess?.();
+          },
+          isPending: false,
+        }),
+      },
+      updateCustomMeal: {
+        useMutation: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
+      },
     },
     // §2.11 — TargetExplainSheet's query (mocked away above; still called by
     // the page directly).
@@ -76,7 +143,7 @@ const logged = (slotIndex?: number) => ({
   fat: 5,
 });
 
-function day(loggedMeals: unknown[] | null) {
+function day(loggedMeals: unknown[] | null, extra: Record<string, unknown> = {}) {
   m.state.day = {
     date: '2026-09-26',
     plannedMeals: [snack(1), snack(3)],
@@ -85,6 +152,7 @@ function day(loggedMeals: unknown[] | null) {
       ? { loggedMeals, totalKcal: 0, totalProtein: 0, totalCarbs: 0, totalFat: 0 }
       : null,
     targets: { dailyCalorieTarget: 2000, proteinG: 125, carbsG: 225, fatG: 67 },
+    ...extra,
   };
 }
 
@@ -95,20 +163,110 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe('Tracker — one-save model (bug B-23, T-19.4)', () => {
+  it('there is no Save Day / Log meals button', () => {
+    day(null);
+    render(<TrackerPage />);
+    expect(screen.queryByText(/Log \d+ meals?/)).toBeNull();
+    expect(screen.queryByText('Clear logged meals')).toBeNull();
+  });
+
+  it('bug B-23: ticking a planned meal saves it immediately, through logRecipe', () => {
+    day(null);
+    render(<TrackerPage />);
+    const [firstSnack] = checks();
+    if (!firstSnack) throw new Error('expected a snack row');
+    fireEvent.click(firstSnack);
+    expect(m.logRecipe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipeId: 'yogurt', mealType: 'snack', slotIndex: 1 }),
+    );
+  });
+
+  it('bug B-23: unticking a logged meal removes it immediately, through unlogRecipe', () => {
+    day([logged(1)]);
+    render(<TrackerPage />);
+    const [firstSnack] = checks();
+    if (!firstSnack) throw new Error('expected a snack row');
+    fireEvent.click(firstSnack);
+    expect(m.unlogRecipe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipeId: 'yogurt', mealType: 'snack', slotIndex: 1 }),
+    );
+  });
+});
+
+describe('Tracker — copy a day (T-19.3)', () => {
+  it('confirms, then copies the previous day onto this one', () => {
+    day(null);
+    render(<TrackerPage />);
+    fireEvent.click(screen.getByTestId('tracker-copy-day'));
+    fireEvent.click(screen.getByTestId('tracker-copy-day-confirm'));
+    expect(m.copyDay).toHaveBeenCalledWith(
+      expect.objectContaining({ toDate: expect.any(String) as string }),
+    );
+    expect(screen.getByText('Copied 2 entries')).toBeTruthy();
+    fireEvent.click(screen.getByText('Undo'));
+    expect(m.deleteEntries).toHaveBeenCalledWith(
+      expect.objectContaining({ entryIds: ['c1', 'c2'] }),
+    );
+  });
+});
+
+describe('Tracker — edit/undo a custom entry (bug B-34, T-19.2)', () => {
+  const customEntry = {
+    entryId: 'e1',
+    custom: { name: 'Protein shake', estimatedBy: 'manual' },
+    mealType: 'snack',
+    portionMultiplier: 1,
+    kcal: 180,
+    protein: 30,
+    carbs: 5,
+    fat: 2,
+  };
+
+  it('tapping a custom entry opens Edit entry', () => {
+    day([customEntry], { plannedMeals: [], hasActivePlan: true });
+    render(<TrackerPage />);
+    fireEvent.click(screen.getByTestId('tracker-custom-0'));
+    expect(screen.getByTestId('edit-entry-name')).toHaveProperty('value', 'Protein shake');
+  });
+
+  it('the bin deletes immediately and offers Undo that restores it exactly (AC2)', () => {
+    day([customEntry], { plannedMeals: [], hasActivePlan: true });
+    render(<TrackerPage />);
+    fireEvent.click(screen.getByLabelText('Delete Protein shake'));
+    expect(m.deleteCustom).toHaveBeenCalledWith({
+      date: expect.any(String) as string,
+      entryIndex: 0,
+    });
+    expect(screen.getByText('Deleted Protein shake')).toBeTruthy();
+    fireEvent.click(screen.getByText('Undo'));
+    expect(m.restoreCustom).toHaveBeenCalledWith({
+      date: expect.any(String) as string,
+      entry: {
+        entryId: 'e1',
+        custom: { name: 'Protein shake', estimatedBy: 'manual' },
+        mealType: 'snack',
+        portionMultiplier: 1,
+        kcal: 180,
+        protein: 30,
+        carbs: 5,
+        fat: 2,
+      },
+    });
+  });
+});
+
 describe('Tracker — two identical snacks', () => {
-  it('ticking one snack leaves the other unticked and saves its slot', () => {
+  it('ticking one snack leaves the other unticked and saves only its slot', () => {
     day(null);
     render(<TrackerPage />);
     const [, secondSnack] = checks();
     if (!secondSnack) throw new Error('expected two snack rows');
     fireEvent.click(secondSnack);
     expect(checks().map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'true']);
-
-    fireEvent.click(screen.getByRole('button', { name: /Log 1 meal/ }));
-    expect(m.upsert).toHaveBeenCalledWith({
-      date: expect.any(String) as string,
-      loggedMeals: [expect.objectContaining({ recipeId: 'yogurt', slotIndex: 3 })],
-    });
+    expect(m.logRecipe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipeId: 'yogurt', slotIndex: 3 }),
+    );
   });
 
   it('a logged entry with a slotIndex ticks only its own row', () => {
@@ -138,7 +296,7 @@ describe('Tracker — no-plan empty state (T-19.6)', () => {
     };
     render(<TrackerPage />);
     expect(screen.getByTestId('tracker-empty-plan').textContent).toContain(
-      'No plan today — log what you eat with Snap to log or Quick add above.',
+      'No plan today — log from Recent or search below.',
     );
     expect(screen.queryByText('Go to Meal Planner →')).toBeNull();
   });
