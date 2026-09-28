@@ -93,7 +93,7 @@ export const GOAL_WORDING: Readonly<Record<string, string>> = {
 
 /** "losing weight" style sentence fragment for a goal, or a neutral fallback. */
 export function goalWording(goal: string | null | undefined): string {
-  return (goal && GOAL_WORDING[goal]) || 'your nutrition goal';
+  return (goal ? GOAL_WORDING[goal] : undefined) ?? 'your nutrition goal';
 }
 
 /** Protein on a training day (premium). */
