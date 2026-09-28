@@ -7,12 +7,17 @@ type Hoisted = {
   save: ReturnType<typeof vi.fn>;
   resend: ReturnType<typeof vi.fn>;
   resendState: { isSuccess: boolean; isPending: boolean; isError: boolean; data: unknown };
+  dismissNotice: ReturnType<typeof vi.fn>;
+  emailDefaultsNoticeAt: string | null;
 };
 const m = vi.hoisted(
   (): Hoisted => ({
     save: vi.fn(),
     resend: vi.fn(),
     resendState: { isSuccess: false, isPending: false, isError: false, data: undefined },
+    dismissNotice: vi.fn(),
+    // T-39.3: default "already seen" so it doesn't appear in unrelated tests.
+    emailDefaultsNoticeAt: '2026-01-01T00:00:00.000Z',
   }),
 );
 
@@ -26,6 +31,15 @@ vi.mock('@/lib/trpc', () => ({
         useMutation: () => ({ mutate: m.resend, error: null, ...m.resendState }),
       },
     },
+    user: {
+      me: {
+        useQuery: () => ({ data: { emailDefaultsNoticeAt: m.emailDefaultsNoticeAt } }),
+      },
+      dismissEmailDefaultsNotice: {
+        useMutation: () => ({ mutate: m.dismissNotice, isPending: false, isError: false }),
+      },
+    },
+    useUtils: () => ({ user: { me: { setData: vi.fn() } } }),
   },
 }));
 
@@ -40,6 +54,7 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   m.resendState = { isSuccess: false, isPending: false, isError: false, data: undefined };
+  m.emailDefaultsNoticeAt = '2026-01-01T00:00:00.000Z';
 });
 
 describe('WeeklyEmailToggles (P2-5)', () => {
@@ -75,5 +90,44 @@ describe('WeeklyEmailToggles (P2-5)', () => {
     };
     render(<WeeklyEmailToggles initial={{ ...PREFS, emailConfirmed: false }} />);
     expect(screen.getByRole('status').textContent).toContain('Check your inbox');
+  });
+
+  describe('email-defaults notice (T-39.3)', () => {
+    it('stays hidden once already seen (the default)', () => {
+      render(<WeeklyEmailToggles initial={PREFS} />);
+      expect(screen.queryByTestId('email-defaults-notice')).toBeNull();
+    });
+
+    it('stays hidden for a never-seen account whose digests are already off', () => {
+      m.emailDefaultsNoticeAt = null;
+      render(<WeeklyEmailToggles initial={{ ...PREFS, weekReady: false, weeklyRecap: false }} />);
+      expect(screen.queryByTestId('email-defaults-notice')).toBeNull();
+    });
+
+    it('shows for a never-seen account with at least one digest on', () => {
+      m.emailDefaultsNoticeAt = null;
+      render(<WeeklyEmailToggles initial={PREFS} />);
+      expect(screen.getByTestId('email-defaults-notice')).toBeTruthy();
+    });
+
+    it('"Keep them on" dismisses without touching the switches', () => {
+      m.emailDefaultsNoticeAt = null;
+      render(<WeeklyEmailToggles initial={PREFS} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Keep them on' }));
+      expect(m.dismissNotice).toHaveBeenCalled();
+      expect(m.save).not.toHaveBeenCalled();
+    });
+
+    it('"Turn them off" flips both switches off and dismisses', () => {
+      m.emailDefaultsNoticeAt = null;
+      render(<WeeklyEmailToggles initial={PREFS} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Turn them off' }));
+      expect(m.save).toHaveBeenCalledWith({ weekReady: false, weeklyRecap: false });
+      expect(m.dismissNotice).toHaveBeenCalled();
+      const monday = screen.getByRole('switch', { name: 'Monday: your week is ready' });
+      const sunday = screen.getByRole('switch', { name: 'Sunday: your week in review' });
+      expect(monday.getAttribute('aria-checked')).toBe('false');
+      expect(sunday.getAttribute('aria-checked')).toBe('false');
+    });
   });
 });

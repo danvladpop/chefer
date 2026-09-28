@@ -2008,10 +2008,40 @@ Transparency prompt, anywhere (AC7).
 
 ## 27. Terms Acceptance & Email Defaults Flow (T-39.1/T-39.3)
 
-> **Status:** Reserved — owned by L-ENTRY (registration, `auth.register`'s
-> `acceptedTermsVersion`/`ageConfirmed`, the email-defaults one-time notice
-> card). Not written by this lane; kept as a placeholder heading so §28's
-> cross-reference resolves once L-ENTRY lands it.
+> **Status:** Terms acceptance at sign-up (`auth.register`'s
+> `acceptedTermsVersion`/`ageConfirmed`) is reserved — owned by L-ENTRY, not
+> written by this lane. The email-defaults one-time notice (below) IS this
+> lane's (L-DATA, 2026-09-28).
+
+### Email-defaults notice (existing accounts)
+
+```
+Preferences (mobile) / Settings › Emails (web) load
+  │
+  └─ user.me().emailDefaultsNoticeAt === null
+     AND (weekReady === true OR weeklyRecap === true)   ← "yours are still on"
+     would be the wrong sentence for an account that already starts off
+        │
+        └─ shows once: "We've changed how emails work: they're now off
+           unless you turn them on. Yours are still on."
+             ├─ "Keep them on"  → user.dismissEmailDefaultsNotice
+             └─ "Turn them off" → notifications.setEmailPreferences
+                                  { weekReady: false, weeklyRecap: false }
+                                  (logs EMAIL_WEEK_READY/EMAIL_RECAP
+                                  ConsentEvents, §28)
+                                  + user.dismissEmailDefaultsNotice
+
+user.dismissEmailDefaultsNotice: sets User.emailDefaultsNoticeAt = now,
+  idempotent (a second call keeps the original timestamp — a race between
+  two devices dismissing at once never overwrites an earlier value)
+```
+
+A brand-new account created after the S15 default change already starts
+both digests off (`@default(false)` for new rows), so it never sees this —
+the condition above only fires for an account whose values predate the
+change and are still on. L-ENTRY's registration flow (§27 above) is
+expected to set `emailDefaultsNoticeAt` explicitly for accounts created
+through it, so a new sign-up never sees the notice either way.
 
 ---
 
@@ -2044,6 +2074,11 @@ mobile_parity_backlog.md) → privacy.getConsentHistory → every ConsentEvent,
 newest first, in plain language ("AI features allowed (Groq, Cloudflare)",
 "Usage analytics: anonymous on", "Weekly email (Monday): off", …).
 ```
+
+`user.dismissEmailDefaultsNotice` (§27) is NOT a `ConsentEvent` writer — it
+only marks the one-time notice shown (`User.emailDefaultsNoticeAt`). The
+actual consent change it can trigger ("Turn them off") goes through
+`notifications.setEmailPreferences` above, which IS logged.
 
 **Boot backfill** (`consent-backfill.service.ts`, unchanged from wave 0):
 every non-null `User.aiDataConsentAt` gets a `source: migration` AI

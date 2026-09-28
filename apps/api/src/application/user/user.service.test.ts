@@ -22,6 +22,7 @@ const baseUser = {
   passwordHash: null,
   emailVerified: null,
   aiDataConsentAt: null,
+  emailDefaultsNoticeAt: null,
   weeklyEmailReady: true,
   weeklyEmailRecap: true,
   createdAt: new Date('2026-01-01'),
@@ -36,6 +37,7 @@ function mockRepo(): { [K in keyof IUserRepository]: ReturnType<typeof vi.fn> } 
     update: vi.fn(),
     delete: vi.fn(),
     setAiDataConsent: vi.fn(),
+    markEmailDefaultsNoticeShown: vi.fn(),
     findManyWithCount: vi.fn(),
     count: vi.fn(),
   };
@@ -125,6 +127,40 @@ describe('UserService.setAiDataConsent', () => {
   });
 });
 
+describe('UserService.dismissEmailDefaultsNotice (T-39.3)', () => {
+  it('marks the notice shown for a user who has not seen it', async () => {
+    repo.findById.mockResolvedValue({ ...baseUser, emailDefaultsNoticeAt: null });
+    const shownAt = new Date('2026-09-28T10:00:00Z');
+    repo.markEmailDefaultsNoticeShown.mockResolvedValue({
+      ...baseUser,
+      emailDefaultsNoticeAt: shownAt,
+    });
+
+    const result = await service.dismissEmailDefaultsNotice('u1');
+
+    expect(repo.markEmailDefaultsNoticeShown).toHaveBeenCalledWith('u1');
+    expect(result.emailDefaultsNoticeAt).toEqual(shownAt);
+  });
+
+  it('is idempotent: a second dismiss keeps the original timestamp', async () => {
+    const shownAt = new Date('2026-09-28T10:00:00Z');
+    repo.findById.mockResolvedValue({ ...baseUser, emailDefaultsNoticeAt: shownAt });
+
+    const result = await service.dismissEmailDefaultsNotice('u1');
+
+    expect(repo.markEmailDefaultsNoticeShown).not.toHaveBeenCalled();
+    expect(result.emailDefaultsNoticeAt).toEqual(shownAt);
+  });
+
+  it('throws NOT_FOUND for an unknown user', async () => {
+    repo.findById.mockResolvedValue(null);
+
+    await expect(service.dismissEmailDefaultsNotice('nope')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+});
+
 describe('UserService.findById', () => {
   it('exposes aiDataConsentAt on the current-user DTO', async () => {
     const grantedAt = new Date('2026-09-01T10:00:00Z');
@@ -134,5 +170,22 @@ describe('UserService.findById', () => {
 
     expect(dto?.aiDataConsentAt).toEqual(grantedAt);
     expect(dto).not.toHaveProperty('passwordHash');
+  });
+
+  it('exposes emailDefaultsNoticeAt on the current-user DTO (T-39.3)', async () => {
+    const shownAt = new Date('2026-09-28T10:00:00Z');
+    repo.findById.mockResolvedValue({ ...baseUser, emailDefaultsNoticeAt: shownAt });
+
+    const dto = await service.findById('u1');
+
+    expect(dto?.emailDefaultsNoticeAt).toEqual(shownAt);
+  });
+
+  it('defaults emailDefaultsNoticeAt to null when unset', async () => {
+    repo.findById.mockResolvedValue({ ...baseUser, emailDefaultsNoticeAt: null });
+
+    const dto = await service.findById('u1');
+
+    expect(dto?.emailDefaultsNoticeAt).toBeNull();
   });
 });

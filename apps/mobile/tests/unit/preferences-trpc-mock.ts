@@ -9,6 +9,20 @@ export function createTrpcPreferencesMock() {
       auth: {
         me: { useQuery: jest.fn() },
       },
+      // T-39.3: default "already seen" so the email-defaults notice doesn't
+      // appear for tests that don't care about it.
+      user: {
+        me: {
+          useQuery: jest.fn<unknown, unknown[]>(() => ({
+            data: { emailDefaultsNoticeAt: '2026-01-01T00:00:00.000Z' },
+            isLoading: false,
+            isError: false,
+          })),
+        },
+        dismissEmailDefaultsNotice: {
+          useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false, isError: false })),
+        },
+      },
       preferences: {
         get: { useQuery: jest.fn() },
         setup: { useMutation: jest.fn() },
@@ -55,6 +69,7 @@ export function createTrpcPreferencesMock() {
         gym: { invalidate: jest.fn() },
         mealPlan: { invalidate: jest.fn() },
         dashboard: { invalidate: jest.fn() },
+        user: { me: { setData: jest.fn(), invalidate: jest.fn() } },
       })),
     },
   };
