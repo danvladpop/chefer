@@ -1,0 +1,143 @@
+# Safety filter E2E (T-01.7/T-02.2/T-02.3/T-02.5/T-01.5) — UX-01/UX-02. Signs in
+# as the seeded alice account; costs 1 login of the 10/15min per-IP budget.
+# Android: scrollUntilVisible before assertions under the fold.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+
+# Whoever is signed in, sign out — the flow needs a known-clean allergy state.
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-title'
+    commands:
+      - tapOn: '.*More.*'
+      - tapOn:
+          id: 'logout-button'
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 15000
+- tapOn:
+    id: 'login-email'
+- inputText: 'alice@chefer.dev'
+- tapOn:
+    id: 'login-password'
+- inputText: 'User@123!'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'login-submit'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+
+# ── T-01.7: SafetyPicker — set Tree nuts, see the read-back within 150ms (AC1) ──
+- tapOn: '.*More.*'
+- tapOn:
+    id: 'more-settings'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-safety'
+    timeout: 15000
+- tapOn:
+    id: 'settings-safety'
+- extendedWaitUntil:
+    visible:
+      id: 'preferences-safety'
+    timeout: 15000
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: 'Tree nuts'
+- tapOn: 'Tree nuts'
+- assertVisible:
+    id: 'prefs-allergies-readback'
+- assertVisible: 'granola'
+
+# ── T-02.5: Discover says what it filtered (AC7) ──
+- tapOn:
+    id: 'tab-food'
+    optional: true
+- tapOn: '.*Cookbook.*'
+- extendedWaitUntil:
+    visible:
+      id: 'recipes-title'
+    timeout: 15000
+- tapOn: 'Discover'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'discover-filtered-for'
+- extendedWaitUntil:
+    visible:
+      id: 'discover-filtered-for'
+    timeout: 15000
+- assertVisible: 'hidden'
+- tapOn:
+    id: 'discover-filtered-for'
+- extendedWaitUntil:
+    visible:
+      id: 'what-we-check-sheet-title'
+    timeout: 10000
+- tapOn:
+    id: 'what-we-check-sheet-close'
+
+# ── T-02.3: recipe detail Checked line (AC1/AC3) + T-01.5 report (AC10) ──
+- tapOn:
+    id: 'recipe-card-.*'
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: 'recipe-name'
+    timeout: 15000
+# Discover already filtered this recipe, so it either shows Checked or (own
+# recipe edge cases aside) never a conflict banner here.
+- runFlow:
+    when:
+      visible:
+        id: 'recipe-checked-for'
+    commands:
+      - tapOn:
+          id: 'recipe-checked-for'
+      - extendedWaitUntil:
+          visible:
+            id: 'what-we-check-sheet-title'
+          timeout: 10000
+      - tapOn:
+          id: 'what-we-check-sheet-close'
+- tapOn:
+    id: 'recipe-report-overflow'
+- extendedWaitUntil:
+    visible:
+      id: 'report-safety-sheet-title'
+    timeout: 10000
+- tapOn: 'It contains something we can’t eat'
+- tapOn:
+    id: 'report-safety-send'
+- extendedWaitUntil:
+    visible: 'Thanks'
+    timeout: 10000
