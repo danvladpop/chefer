@@ -22,22 +22,49 @@ appId: dev.chefer.app.dev
 
 # Privacy & data (T-39.4): AI & your data, Usage analytics, Consent history,
 # a Gym settings row and Download my data / Delete account, in one section.
+# The section itself is taller than one screen, so scrollUntilVisible on it
+# (or on any row deep inside it) can never reach 100% visibility — scroll to
+# the small heading first, then to each card individually (a card below the
+# fold on one device is not necessarily below the fold on another, so each
+# gets its own scrollUntilVisible rather than assuming one scroll reveals
+# the rest).
 - scrollUntilVisible:
     element:
-      id: 'profile-privacy-section'
+      id: 'profile-privacy-heading'
     direction: DOWN
-- assertVisible:
-    id: 'profile-analytics-consent'
-- assertVisible:
-    id: 'profile-consent-history'
-- assertVisible:
-    id: 'profile-gym-settings'
-- assertVisible:
-    id: 'profile-your-data'
+    visibilityPercentage: 50
+- scrollUntilVisible:
+    element:
+      id: 'profile-analytics-consent'
+    direction: DOWN
+    visibilityPercentage: 50
+- scrollUntilVisible:
+    element:
+      id: 'profile-consent-history'
+    direction: DOWN
+    visibilityPercentage: 50
+- scrollUntilVisible:
+    element:
+      id: 'profile-gym-settings'
+    direction: DOWN
+    visibilityPercentage: 50
+- scrollUntilVisible:
+    element:
+      id: 'profile-your-data'
+    direction: DOWN
+    visibilityPercentage: 50
 - tapOn: 'Back'
 
+# Preferences moved behind the Settings hub (T-00.9): More → "Settings" →
+# a row that opens /preferences — "more-preferences" no longer exists.
 - tapOn:
-    id: 'more-preferences'
+    id: 'more-settings'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-safety'
+    timeout: 15000
+- tapOn:
+    id: 'settings-safety'
 - extendedWaitUntil:
     visible:
       id: 'preferences-title'
@@ -45,6 +72,19 @@ appId: dev.chefer.app.dev
 - assertVisible:
     id: 'preferences-safety'
 - tapOn: 'Back'
+# The Settings hub has no header/back button of its own (Screen is a plain
+# SafeAreaView) — pop it with the OS back action (hardware back on Android,
+# the interactive-pop gesture on iOS; both are enabled by default on
+# expo-router's native-stack screens).
+- extendedWaitUntil:
+    visible:
+      id: 'settings-safety'
+    timeout: 15000
+- back
+- extendedWaitUntil:
+    visible:
+      id: 'more-my-weeks'
+    timeout: 15000
 
 # My weeks (P2-8: saved weeks + past weeks, History folded in)
 - tapOn:

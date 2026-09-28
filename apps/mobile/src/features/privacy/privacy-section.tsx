@@ -34,7 +34,10 @@ function GymSettingsRow() {
 export function PrivacySection() {
   return (
     <View testID="profile-privacy-section" className="gap-4">
-      <Text variant="title" className="text-lg">
+      {/* A dedicated testID on the (small) heading, not the whole section —
+          the section is taller than one screen, so scrollUntilVisible on
+          profile-privacy-section itself can never reach 100% visibility. */}
+      <Text testID="profile-privacy-heading" variant="title" className="text-lg">
         Privacy & data
       </Text>
       <AiConsentCard />
