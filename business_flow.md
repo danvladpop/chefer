@@ -2117,6 +2117,18 @@ tracker.copyDay({ fromDate, toDate })                         [T-19.3]
      (so the header's own Undo can delete exactly the copies, not the
      originals) and no slotIndex (the target day's plan slots differ)
 
+tracker.unlogRecipe({ date, recipeId, mealType, slotIndex? })  [T-19.4, B-23]
+  └─ the one-save model's untick: removes exactly the entry logRecipe would
+     have written for that slot (matchesRecipeSlot, shared identity rule with
+     logRecipe — same slotIndex, else same recipeId + mealType). A no-op, not
+     NOT_FOUND, when nothing matches (an already-unticked row).
+
+tracker.deleteEntries({ date, entryIds })                      [T-19.3]
+  └─ removes any entries (recipe or custom) named by stable id — undoes
+     copyDay (deletes exactly the returned `copiedEntryIds`) and any other
+     batch a client already holds ids for. Idempotent: an unmatched id is
+     silently ignored.
+
 tracker.weeklySummary / monthlySummary({ localDate? })   [§2.12, T-21.1, B-33]
   └─ optional localDate anchors the trailing-N-day window on the CLIENT's
      local day instead of the server's UTC one (a user whose local day has
@@ -2126,9 +2138,9 @@ tracker.weeklySummary / monthlySummary({ localDate? })   [§2.12, T-21.1, B-33]
 getDay.hasActivePlan                                          [T-19.6]
   └─ whether the user has an active meal plan at all, distinct from today
      just having nothing scheduled. The tracker's empty state reads as an
-     invitation to log ("No plan today — log what you eat with Quick add or
-     Snap to log") for a Track-only user who may never generate a plan,
-     instead of a plan-focused message that pushes them toward one.
+     invitation to log ("No plan today — log from Recent or search below.")
+     for a Track-only user who may never generate a plan, instead of a
+     plan-focused message that pushes them toward one.
 ```
 
 **Macro sanity check (bug B-39, T-19.5).** `checkMacroSanity` (`@chefer/utils`
@@ -2146,11 +2158,49 @@ so the Log sheet's grams row can show a live kcal as the user picks
 `ingredientPriceRepository.searchCatalog` instead of querying `prisma`
 directly.
 
-**Not yet built (handoff, same lane, follow-up session):** the search-first
-Log sheet UI itself (`quick-add-sheet.tsx` / web `QuickAddSheet.tsx` rewrite —
-Recent · This week's plan · Your recipes · Ingredients groups, grams row,
-recipe-portion row, `Estimate it` → Snap), the Edit-entry sheet, the
-Copy-day header action, and the one-save-model rewrite of the tracker screen
-(ticks save immediately via `tracker.logRecipe` with a snackbar + Undo,
-removing "Save Day" — T-19.4). The API surface above is complete and tested;
-these are pure client work on top of it.
+**Search-first Log sheet (T-19.1, both platforms).** `quick-add-sheet.tsx` /
+web `QuickAddSheet.tsx` open on a search field with **Recent** (one tap re-logs
+the same amount, AC1), **This week's plan** and **Your recipes** (portion
+chips ½ ¾ 1 1½ 2, log at a chosen portion), and **Ingredients (per 100 g)**
+(grams chips 50/100/150/200 + a live kcal preview from `ingredients.search`'s
+`per100g`). "Enter calories yourself" is the old calories-only form, kept as
+the fallback when nothing matches — gated by the macro sanity check above
+(`Fix` focuses the calories field, `Log anyway` bypasses it for that submit).
+Never a branded product or barcode (B-29, AC6): the Ingredients group is
+Chefer's own catalog only.
+
+**Edit any entry, undo any delete (bug B-34, T-19.2, both platforms).** Every
+custom entry (quick-add, photo scan) is tappable → `edit-entry-sheet.tsx` /
+web `EditEntrySheet.tsx` (name, meal, calories, macros — the sanity check
+applies here too), with `Save` and a destructive `Delete`. Deleting — from the
+sheet or the row's own bin icon — removes the row immediately with a
+snackbar/toast `Deleted {name}` + `Undo` that calls `restoreCustomMeal` with
+the exact snapshot held client-side (AC2). A planned-recipe row is still
+edited by re-ticking it with a different portion, matching the API's
+`updateCustomMeal` NOT_FOUND rule for a non-custom entryId.
+
+**One-save model (bug B-23, T-19.4, both platforms).** `app/tracker.tsx` /
+web `tracker/page.tsx` no longer have a `Save Day` button. Ticking a planned
+meal calls `tracker.logRecipe` immediately (portion chips already visible on
+the row) with a snackbar/toast `Logged {mealType}` + `Undo`; unticking calls
+the new `tracker.unlogRecipe` immediately, also with an `Undo`. A tick
+persists across a date change or an app kill because it was already written
+to the server the moment it happened (AC3) — the client no longer holds
+unsaved state to lose.
+
+**Copy a day (T-19.3, both platforms).** A header action (mobile: the ⧉ icon
+next to the title; web: the same icon by the page heading) opens a confirm
+sheet naming the previous day (`yesterday`, or a short date further back) and
+calls `tracker.copyDay`; the result's snackbar/toast `Copied {n} entries` +
+`Undo` calls the new `tracker.deleteEntries` with the returned
+`copiedEntryIds` — deleting exactly the copies, never the originals.
+
+**Known gap — training-day target pair has no UI (T-35.3 remainder).**
+`targets.get`/`targets.set` already read and write `customTrainingKcal`,
+`customTrainingProteinG` and `addTrainingBonus` (§29), but
+`TrainingNutritionService.targetsForDay` / `buildTrainingDayNutrition`
+(`@chefer/utils` `training-nutrition.ts`) — the function that actually
+computes a lifter's training-day bump, shared by the dashboard and the
+tracker — never reads them. Building `TargetsCard`'s "Different on training
+days" fields now would ship a control with zero effect. Needs a resolver
+change before the UI can honestly ship (handoff, see `mobile_parity_backlog.md`).
