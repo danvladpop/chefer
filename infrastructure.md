@@ -444,10 +444,10 @@ API, Maestro E2E in `e2e/`).
   smoke test), `typecheck`, `lint`
 - **App variants** (`APP_VARIANT`, read by `app.config.js`; M4-4):
 
-  | Variant                 | Name       | Bundle id / package  | Scheme       | Runs JS from                                                    |
-  | ----------------------- | ---------- | -------------------- | ------------ | --------------------------------------------------------------- |
-  | `development` (default) | Chefer Dev | `dev.chefer.app.dev` | `chefer-dev` | Metro on the Mac (:8083) + local API — dev client               |
-  | `production`            | Chefer     | `dev.chefer.app`     | `chefer`     | embedded bundle, then EAS Update channel `production`; prod API |
+  | Variant                 | Name       | Bundle id / package                               | Scheme       | Runs JS from                                                    |
+  | ----------------------- | ---------- | ------------------------------------------------- | ------------ | --------------------------------------------------------------- |
+  | `development` (default) | Chefer Dev | `dev.chefer.app.dev`                              | `chefer-dev` | Metro on the Mac (:8083) + local API — dev client               |
+  | `production`            | Chefer     | iOS `com.popdan.chefer`, Android `dev.chefer.app` | `chefer`     | embedded bundle, then EAS Update channel `production`; prod API |
 
   Distinct ids let both install side by side on one phone. Icons: plate-and-cutlery
   on brand brown `#944a00`; the dev variant's icons carry a green DEV band.
