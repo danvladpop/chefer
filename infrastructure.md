@@ -2447,7 +2447,8 @@ on every PR), `Build`,
 catches Metro/monorepo-resolution breakage without a simulator; Maestro E2E is
 local-only, see `mobile_native_plan.md` M4-2), `Mobile Contract` (PRs only — the mobile
 client's link stack against a real API + seeded Postgres, incl. `profile.flags` and a
-level-0 request still succeeding, T-00.8), and `E2E Tests` (PRs only — the
+level-0 request still succeeding, T-00.8; the job's API runs with `RATE_LIMIT_MAX=3000`
+so the whole suite from one IP isn't throttled by the default 100/min limiter), and `E2E Tests` (PRs only — the
 unauthenticated `public` Playwright project; the authenticated `mobile`/`desktop`
 projects need a seeded fixture dataset, planned with roadmap P0-8). The
 `Lint`/`Type Check`/`Unit Tests`/`Build` job names are polled by name from
