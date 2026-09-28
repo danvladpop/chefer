@@ -53,6 +53,16 @@ test.describe('Meal plan — Regenerate confirm + Undo (UX-08 §3, T-08.3)', () 
     ).toBeVisible();
 
     await page.getByTestId('regenerate-confirm-submit').click();
+    // A premium account that never granted AI data consent is asked first
+    // (App Store 5.1.2(i)); the local test API runs with AI_MOCK_ENABLED.
+    const allowAi = page.getByRole('button', { name: 'Allow', exact: true });
+    const askedForConsent = await allowAi
+      .waitFor({ state: 'visible', timeout: 3_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (askedForConsent) {
+      await allowAi.click();
+    }
     await expect(page.getByText('New week planned.', { exact: false })).toBeVisible({
       timeout: 30_000,
     });
