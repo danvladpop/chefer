@@ -36,13 +36,9 @@ const GOAL_LABELS: Record<string, string> = {
   MAINTAIN: 'maintain current weight (balanced macros)',
   GAIN_MUSCLE: 'gain muscle (caloric surplus, very high protein)',
   EAT_HEALTHIER: 'eat healthier (whole foods, micronutrient-rich, minimally processed)',
-  // §T-35.2 (rev 2): the Prisma `Goal` enum already carries these two values
-  // (schema.prisma, wave 0) but they are not yet in `@chefer/types`/`Goal` —
-  // L-TRACK lands that + the suggestion logic (maintenance kcal, 1.8–2.0 g/kg,
-  // PERFORMANCE's carb-by-kind guidance) later this wave. Keyed on the raw
-  // string here so the prompt is correct the moment `input.goal` can carry
-  // them; the orchestrator should confirm this still matches once the shared
-  // enum lands (see this PR's notes).
+  // §T-35.2 (rev 2): RECOMP / PERFORMANCE (Prisma `Goal` + `@chefer/types`).
+  // These are the AI's instructions; the user-facing phrasing of the same
+  // goals is `GOAL_WORDING` in `@chefer/utils` (training-nutrition.ts).
   RECOMP:
     'recomposition (maintenance calories, higher protein — about 1.8–2.0 g/kg — to build muscle while losing fat)',
   PERFORMANCE:
