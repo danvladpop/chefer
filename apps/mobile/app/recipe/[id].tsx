@@ -9,11 +9,16 @@ import {
   formatFractionalQuantity,
   formatPortion,
   formatScaledQuantity,
+  labelCaveatLineText,
   scaleNutrition,
   slotPortion,
 } from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { StarRating } from '../../src/features/recipes/star-rating';
+import { CheckedForLine } from '../../src/features/safety/checked-for-line';
+import { LabelCaveat } from '../../src/features/safety/label-caveat';
+import { ReportSafetySheet } from '../../src/features/safety/report-sheet';
+import { WhatWeCheckSheet } from '../../src/features/safety/what-we-check-sheet';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
@@ -37,6 +42,10 @@ export default function RecipeDetailScreen() {
 
   const { data: recipe, isLoading, isError } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
   const { data: savedData } = trpc.recipe.isSaved.useQuery({ recipeId: id });
+  // T-02.3: a separate, additive query (mealPlan.getRecipe is another lane's
+  // file this wave) — null when the table has nothing to check or report.
+  const { data: safetyData } = trpc.recipe.getSafetyChecks.useQuery({ recipeId: id });
+  const { data: table } = trpc.safety.getTable.useQuery();
 
   const utils = trpc.useUtils();
   const toggleFav = trpc.recipe.toggleFavourite.useMutation({
@@ -47,6 +56,8 @@ export default function RecipeDetailScreen() {
   });
 
   const [servings, setServings] = useState<number | null>(null);
+  const [whatWeCheckOpen, setWhatWeCheckOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const { portionSum } = useHousehold();
 
   if (isLoading) {
@@ -113,6 +124,17 @@ export default function RecipeDetailScreen() {
           >
             <Ionicons name="arrow-back" size={20} color="#1f2937" />
           </Pressable>
+          {/* UX-01 (d), T-01.5: report a safety problem — hides this recipe
+              from the reporter's plans, swaps and suggestions at once. */}
+          <Pressable
+            testID="recipe-report-overflow"
+            accessibilityRole="button"
+            accessibilityLabel="Report a safety problem"
+            onPress={() => setReportOpen(true)}
+            className="absolute right-3 top-3 h-11 w-11 items-center justify-center rounded-full bg-white/90"
+          >
+            <Ionicons name="ellipsis-horizontal" size={20} color="#1f2937" />
+          </Pressable>
         </View>
 
         <View className="gap-4 px-4 pt-4">
@@ -135,6 +157,24 @@ export default function RecipeDetailScreen() {
               {recipe.description}
             </Text>
             <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mt-2" />
+            {/* T-02.3 AC3: never both — the line only shows when the
+                existing conflict banner above isn't already showing one. */}
+            {(recipe.allergenWarnings?.length ?? 0) === 0 && safetyData?.safetyChecks ? (
+              <CheckedForLine
+                testID="recipe-checked-for"
+                checks={safetyData.safetyChecks}
+                onPress={() => setWhatWeCheckOpen(true)}
+              />
+            ) : null}
+            {safetyData?.safetyChecks?.labelCaveats &&
+            safetyData.safetyChecks.labelCaveats.length > 0 ? (
+              <LabelCaveat
+                testID="recipe-label-caveat"
+                text={labelCaveatLineText(
+                  safetyData.safetyChecks.labelCaveats.map((c) => c.ingredient),
+                )}
+              />
+            ) : null}
           </View>
 
           {/* Actions: cook is primary (web P1-3), save secondary */}
@@ -335,6 +375,21 @@ export default function RecipeDetailScreen() {
           {day !== undefined && <StarRating recipeId={id} />}
         </View>
       </KeyboardAwareScrollView>
+
+      {table ? (
+        <WhatWeCheckSheet
+          visible={whatWeCheckOpen}
+          onClose={() => setWhatWeCheckOpen(false)}
+          table={table}
+        />
+      ) : null}
+      <ReportSafetySheet
+        visible={reportOpen}
+        onClose={() => setReportOpen(false)}
+        recipeId={id}
+        recipeName={recipe.name}
+        surface="recipe_detail"
+      />
     </Screen>
   );
 }
