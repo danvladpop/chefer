@@ -67,7 +67,9 @@ test.describe('Gym: routine editor (phone, UX-05 A4)', () => {
     await dialog.locator('[data-testid^="template-option-"]').first().click();
     await page.waitForURL(/\/gym\/routine\/edit\?id=/);
 
-    const rows = page.locator('[data-testid="routine-exercise-row"]');
+    // The desktop board (hidden below lg) renders the same rows first in the
+    // DOM — only the phone list's visible rows count here.
+    const rows = page.locator('[data-testid="routine-exercise-row"]:visible');
     await expect(rows.first()).toBeVisible();
     // Compact by default: no steppers visible until the summary is tapped.
     await expect(rows.first().getByTestId('exercise-sets-input')).toHaveCount(0);
