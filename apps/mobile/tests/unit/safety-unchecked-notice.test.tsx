@@ -15,7 +15,7 @@ describe('UncheckedNotice (UX-01 "Something else" + UX-22 T-22.1)', () => {
     expect(onRemove).toHaveBeenCalledTimes(1);
   });
 
-  it('condition: nothing is saved, offers Choose a goal / OK, never reads as medical advice', async () => {
+  it('condition: nothing is saved, offers Choose a goal / OK, never makes a clinical claim', async () => {
     const onChooseGoal = jest.fn();
     const onDismiss = jest.fn();
     await render(
