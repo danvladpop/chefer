@@ -257,6 +257,9 @@ jobs:
       REFRESH_TOKEN_SECRET: ci-only-refresh-secret-0123456789abcdef012345
       AI_MOCK_ENABLED: 'true'
       EMAIL_MOCK_ENABLED: 'true'
+      # The whole suite runs against one API from one IP; the default
+      # 100 requests/min limiter returns 429s once the suite grows.
+      RATE_LIMIT_MAX: '3000'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
