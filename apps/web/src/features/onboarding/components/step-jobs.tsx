@@ -64,9 +64,14 @@ export const JOB_OPTIONS: {
 export function StepJobs({
   value,
   onChange,
+  /** Preferences reuses this card grid inside a page that already owns its
+   * one <h1> (T-04.7) — the onboarding wizard is the only caller that wants
+   * the heading rendered here. */
+  showHeading = true,
 }: {
   value: OnboardingJob[];
   onChange: (jobs: OnboardingJob[]) => void;
+  showHeading?: boolean;
 }) {
   function toggle(job: OnboardingJob) {
     onChange(value.includes(job) ? value.filter((j) => j !== job) : [...value, job]);
@@ -74,12 +79,14 @@ export function StepJobs({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1 text-center">
-        <h1 className="text-2xl font-bold tracking-tight">What should Chefer help with?</h1>
-        <p className="text-sm text-muted-foreground">
-          Pick all that fit. You can change this any time in Settings.
-        </p>
-      </div>
+      {showHeading && (
+        <div className="space-y-1 text-center">
+          <h1 className="text-2xl font-bold tracking-tight">What should Chefer help with?</h1>
+          <p className="text-sm text-muted-foreground">
+            Pick all that fit. You can change this any time in Settings.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-3">
         {JOB_OPTIONS.map(({ value: option, title, detail, icon: Icon }) => {
