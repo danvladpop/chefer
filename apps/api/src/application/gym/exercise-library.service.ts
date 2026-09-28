@@ -37,6 +37,20 @@ const INCREMENT_BY_EQUIPMENT: Record<ExerciseEquipment, number> = {
   BODYWEIGHT: 2.5,
   ASSISTED: 5,
   BAND: 2.5,
+  // S19 (T-42.0): cardio equipment (06 §5.3). incrementKg is meaningless for
+  // a cardio trackingType (no kg entry) — these are unused placeholders,
+  // kept here only so this exhaustive map still compiles after the additive
+  // enum extension.
+  TREADMILL: 2.5,
+  BIKE: 2.5,
+  ROWER: 2.5,
+  ELLIPTICAL: 2.5,
+  STAIR_CLIMBER: 2.5,
+  SKI_ERG: 2.5,
+  ASSAULT_BIKE: 2.5,
+  JUMP_ROPE: 2.5,
+  POOL: 2.5,
+  OUTDOOR: 2.5,
 };
 
 export function customToWriteData(input: CustomExerciseInput): ExerciseWriteData {

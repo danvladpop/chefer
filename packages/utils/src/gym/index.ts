@@ -27,3 +27,5 @@ export * from './resume';
 export * from './recent';
 // Stats › History week-grouping (T-36.5).
 export * from './history';
+// Tracking-type helpers (S18, T-42.0): cardio-as-first-class-type contracts.
+export * from './tracking';

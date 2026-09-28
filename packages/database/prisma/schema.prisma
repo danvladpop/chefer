@@ -873,6 +873,37 @@ enum ExerciseEquipment {
   KETTLEBELL
   BAND
   ASSISTED
+  // S19 (T-42.0, 06 §5.3) — cardio equipment. Never sent to a level < 2
+  // client (Δ2.1); the custom form only offers them on level-2 builds.
+  TREADMILL
+  BIKE
+  ROWER
+  ELLIPTICAL
+  STAIR_CLIMBER
+  SKI_ERG
+  ASSAULT_BIKE
+  JUMP_ROPE
+  POOL
+  OUTDOOR
+}
+
+// S18 (T-42.0, 06 §5.1) — cardio-as-first-class-type. All six land at once;
+// INTERVALS is unused until W5. Additive: old clients never receive a
+// non-WEIGHT_REPS/BODYWEIGHT_REPS/DURATION exercise (Δ2.1 renderableTrackingTypes).
+enum ExerciseTrackingType {
+  WEIGHT_REPS
+  BODYWEIGHT_REPS
+  DURATION
+  DURATION_DISTANCE
+  DISTANCE
+  INTERVALS
+}
+
+// S21 (T-42.0) — GymProfile.distanceUnit. Null = derived from `unit`
+// (Δ2.2: MI when unit = LB, else KM).
+enum DistanceUnit {
+  KM
+  MI
 }
 
 enum ExerciseLoadType {
@@ -927,6 +958,11 @@ model Exercise {
   perHand          Boolean           @default(false)
   isLowerBody      Boolean           @default(false)
   isTimed          Boolean           @default(false) // reps fields hold SECONDS (plank, carries)
+  // S18 (T-42.0): additive. `isTimed` stays and is still written (true for
+  // every time-based type) so a level-0/1 client keeps its seconds label.
+  // Boot backfill (Δ2.2): customs with isTimed → DURATION, loadType
+  // BODYWEIGHT → BODYWEIGHT_REPS.
+  trackingType     ExerciseTrackingType @default(WEIGHT_REPS)
   swapGroup        String?
   cues             String[]
   mistakes         String[]
@@ -954,6 +990,8 @@ model GymProfile {
   experience        TrainingExperience
   equipmentAccess   GymEquipmentAccess @default(FULL_GYM)
   unit              WeightUnit         @default(KG)
+  // S21 (T-42.0): null = derived from `unit` (MI when unit = LB, else KM).
+  distanceUnit      DistanceUnit?
   weeklyGoal        Int
   /// [{ fromWeek: "YYYY-MM-DD" (Monday), goal: number }] — weeks are judged by the goal in force.
   goalHistory       Json               @default("[]")
@@ -1098,6 +1136,17 @@ model SessionSet {
   reps              Int
   isWarmup          Boolean   @default(false)
   completedAt       DateTime? // null = planned, not ticked
+  // S20 (T-42.0, 06 §5.2) — cardio fields, all additive/nullable, null for
+  // every strength set. A cardio entry is ONE row with weightKg: 0, reps: 0,
+  // isWarmup: false; INTERVALS (W5) is one row per work/rest segment, with
+  // `position` as the segment index.
+  durationSec       Int? // DURATION, DURATION_DISTANCE, INTERVALS
+  distanceM         Float? // DURATION_DISTANCE, DISTANCE — canonical metres
+  intensityRpe      Int? // 1–10, any cardio type
+  resistanceLevel   Int? // machine dial (bike/elliptical)
+  inclinePct        Float? // treadmill/incline walk
+  caloriesKcal      Float? // computed estimate or synced, always labeled as an estimate
+  avgHeartRateBpm   Int? // reserved slot, never written from manual entry
 
   sessionExercise SessionExercise @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
 

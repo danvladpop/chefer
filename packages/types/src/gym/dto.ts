@@ -15,7 +15,13 @@ import type {
   WeekSummary,
 } from './engine';
 import type { GymOfferKind, WorkoutSessionDoc } from './schemas';
-import type { GymEquipmentAccess, Rir, TrainingExperience, WeightUnit } from './vocab';
+import type {
+  DistanceUnit,
+  GymEquipmentAccess,
+  Rir,
+  TrainingExperience,
+  WeightUnit,
+} from './vocab';
 
 export interface ExerciseDto extends ExerciseMeta {
   ownerId: string | null;
@@ -52,6 +58,13 @@ export interface GymProfileDto {
   reminderTimes: Record<string, string>;
   /** null = never (quiet-days nudge off). */
   quietNudgeDays: number | null;
+  /**
+   * S21 (T-42.0): null/absent = derived from `unit` (MI when unit = LB, else
+   * KM). Optional (not just nullable) so existing constructors of this DTO
+   * outside this lane's ownership (mappers, fixtures, web/mobile settings)
+   * keep compiling until they're updated to set it explicitly.
+   */
+  distanceUnit?: DistanceUnit | null;
 }
 
 export interface RoutineExerciseDto {
