@@ -7,10 +7,19 @@ import { useEntitlement } from '@/hooks/useEntitlement';
 import { useHousehold, type HouseholdMemberDto } from '@/hooks/useHousehold';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import { Baby, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react';
-import { HOUSEHOLD_PORTION_OPTIONS } from '@chefer/types';
+import { Baby, ChevronRight, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react';
+import { findSafetyTaxonomyEntry, HOUSEHOLD_PORTION_OPTIONS } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { householdGhostSample, householdPortionSum, type HouseholdGhostKind } from '@chefer/utils';
+import {
+  allergiesAndDietForText,
+  classifySafetyValue,
+  householdGhostSample,
+  householdPortionSum,
+  memberSummaryLine,
+  tableSummaryLine,
+  type HouseholdGhostKind,
+  type SafetyPickerValue,
+} from '@chefer/utils';
 
 // ─── "My household" (F2 Feed the Whole Table, backlog P2-3) ───────────────────
 // Every tier adds and edits members: their allergies and restrictions filter
@@ -368,6 +377,90 @@ function HouseholdGhost({
   );
 }
 
+// ─── "You" card (T-01.7, UX-01) — always first ─────────────────────────────────
+
+function labelFor(id: string): string {
+  return findSafetyTaxonomyEntry(id)?.label ?? id;
+}
+
+const EMPTY_SAFETY: SafetyPickerValue = {
+  allergies: [],
+  dietaryRestrictions: [],
+  dislikedIngredients: [],
+};
+
+function YouRow() {
+  const { data } = trpc.preferences.get.useQuery();
+  const utils = trpc.useUtils();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<SafetyPickerValue>(EMPTY_SAFETY);
+
+  const ownSafety: SafetyPickerValue = {
+    allergies: data?.dietaryPreferences?.allergies ?? [],
+    dietaryRestrictions: data?.dietaryPreferences?.dietaryRestrictions ?? [],
+    dislikedIngredients: data?.dietaryPreferences?.dislikedIngredients ?? [],
+  };
+  const classified = classifySafetyValue(ownSafety);
+  const dietParts = [
+    ...(classified.dietBaseId ? [classified.dietBaseId] : []),
+    ...classified.dietModifierIds,
+  ].map(labelFor);
+
+  const saveMutation = trpc.preferences.updateSafety.useMutation({
+    onSuccess: () => {
+      setOpen(false);
+      void utils.preferences.get.invalidate();
+      void utils.mealPlan.invalidate();
+    },
+  });
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(ownSafety);
+          setOpen(true);
+        }}
+        aria-label={allergiesAndDietForText('you')}
+        className="flex w-full items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-left"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-foreground">You</span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {memberSummaryLine({
+              portionLabel: '1',
+              allergies: classified.allergyIds.map(labelFor),
+              diet: dietParts.length > 0 ? dietParts.join(', ') : undefined,
+              dislikes: classified.dislikeIds.map(labelFor),
+            })}
+          </span>
+        </span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      </button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title={allergiesAndDietForText('you')}
+        size="lg"
+        footer={
+          <button
+            onClick={() => saveMutation.mutate(draft)}
+            disabled={saveMutation.isPending}
+            className="min-h-11 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+          >
+            {saveMutation.isPending ? 'Saving…' : 'Save changes'}
+          </button>
+        }
+      >
+        <div className="px-5 pb-4">
+          <StepDiet value={draft} onChange={setDraft} />
+        </div>
+      </Sheet>
+    </>
+  );
+}
+
 // ─── Section ──────────────────────────────────────────────────────────────────
 
 interface OwnerSafety {
@@ -393,6 +486,7 @@ export function HouseholdSection({
   const { members, memberCount, peopleCount, tablePortions, scalesForTable } = useHousehold();
   const { limit } = useEntitlement('householdMembers');
   const invalidate = useInvalidateHousehold();
+  const { data: table } = trpc.safety.getTable.useQuery();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<HouseholdMemberDto | null>(null);
   const [preset, setPreset] = useState<Partial<MemberFormState> | undefined>(undefined);
@@ -415,8 +509,17 @@ export function HouseholdSection({
     setEditorOpen(true);
   }
 
+  const tableSummary =
+    !onboarding && table?.hasRules
+      ? tableSummaryLine(
+          peopleCount,
+          table.people.flatMap((p) => p.items.map((item) => ({ label: item.label, who: p.who }))),
+        )
+      : null;
+
   const body = (
     <>
+      {!onboarding && <YouRow />}
       {showGhost ? (
         <HouseholdGhost
           ownerSafety={ownerSafety}
@@ -522,6 +625,9 @@ export function HouseholdSection({
               </span>
             )}
           </div>
+
+          {/* UX-02/CI-41: table read-back summary */}
+          {tableSummary && <p className="mt-2 text-xs text-muted-foreground">{tableSummary}</p>}
 
           {/* Free tables: safety applies, scaling is the premium part (P2-3) */}
           {!isPremium && !onboarding && memberCount > 0 && (
