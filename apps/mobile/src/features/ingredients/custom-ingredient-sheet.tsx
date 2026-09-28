@@ -101,6 +101,11 @@ export function CustomIngredientSheet({
       onExited={onExited}
       title={ingredientsCopy.custom.title}
       testID={testID}
+      // Orchestrator review fix: match recipe-picker-sheet.tsx's proven
+      // pattern — this content is short and fully static (no dynamic
+      // list), so it never needs to scroll; avoiding the kit Sheet's own
+      // ScrollView sidesteps the same collapse seen on ingredient-search-sheet.
+      scrollable={false}
       footer={
         <Button
           testID={`${testID}-save`}

@@ -138,4 +138,40 @@ describe('IngredientSearchSheet', () => {
       'No matches in the catalogue.',
     );
   });
+
+  // Regression guard (orchestrator review, Maestro on the iOS simulator):
+  // the sheet used to render as just its header, blank below the title —
+  // the kit Sheet's own ScrollView collapsed, and `autoFocus` on the input
+  // raced the sheet's entrance animation. RNTL doesn't run real Yoga
+  // layout, so it can't assert an actual pixel height; this locks in the
+  // two structural choices the fix depends on instead: exactly ONE
+  // ScrollView in the tree (ours, around the results — never a second one
+  // from the kit Sheet defaulting back to `scrollable: true` and wrapping
+  // everything, which is what collapsed on device), and no `autoFocus`.
+  it("renders only its own results ScrollView (not the kit Sheet's), and never autoFocuses the input", async () => {
+    mockResults = [
+      {
+        name: 'rolled oats',
+        displayName: 'Rolled Oats',
+        imageUrl: 'https://img/oats.png',
+        hasMacros: true,
+        isCustom: false,
+        per100g: { calories: 379, protein: 13, carbs: 67, fat: 7 },
+      },
+    ];
+    await renderSheet();
+    await typeQuery('oat');
+
+    expect(countScrollViews(screen.toJSON())).toBe(1);
+    expect(screen.getByTestId('search-sheet-input').props.autoFocus).not.toBe(true);
+  });
 });
+
+/** Counts `RCTScrollView` host nodes in an RNTL `toJSON()` tree. */
+function countScrollViews(node: unknown): number {
+  if (!node) return 0;
+  if (Array.isArray(node)) return node.reduce((sum: number, n) => sum + countScrollViews(n), 0);
+  const el = node as { type?: string; children?: unknown };
+  const here = el.type === 'RCTScrollView' ? 1 : 0;
+  return here + countScrollViews(el.children ?? null);
+}

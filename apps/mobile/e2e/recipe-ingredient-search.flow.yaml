@@ -75,13 +75,22 @@ appId: dev.chefer.app.dev
       platform: Android
     commands:
       - hideKeyboard
+# iOS: hideKeyboard throws — tap a non-input label instead (the form's
+# keyboardShouldPersistTaps="handled" dismisses on an unhandled tap), so the
+# keyboard stops covering the ingredient row.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: 'Servings'
+      - waitForAnimationToEnd
 
 # ── T-40.7: the name field opens the search sheet — type "oat", pick "Oats, rolled" ──
 - tapOn:
     id: 'rf-ingredient-name-0'
 - extendedWaitUntil:
     visible:
-      id: 'rf-ingredient-name-0-search-sheet'
+      id: 'rf-ingredient-name-0-search-sheet-title'
     timeout: 10000
 - tapOn:
     id: 'rf-ingredient-name-0-search-sheet-input'
@@ -98,7 +107,7 @@ appId: dev.chefer.app.dev
 - tapOn: '.*Oats, rolled.*'
 # The sheet closes once a row is picked.
 - assertNotVisible:
-    id: 'rf-ingredient-name-0-search-sheet'
+    id: 'rf-ingredient-name-0-search-sheet-title'
 # The line now shows the "nutrition known" icon — AC12's link.
 - assertVisible:
     id: 'rf-ingredient-name-0'

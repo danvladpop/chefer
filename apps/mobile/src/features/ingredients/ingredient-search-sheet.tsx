@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Image, Pressable, ScrollView, View, type TextInput } from 'react-native';
 import type { RecipeUnit } from '@chefer/types';
 import { Input, Sheet, Text } from '@chefer/ui-mobile';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
@@ -35,6 +35,27 @@ const MIN_QUERY_LENGTH = 2;
  * 250 ms debounce, results kept across keystrokes (`placeholderData`, no
  * flicker), private rows grouped first. Mirrors the web reference
  * (`apps/web/src/features/recipes/components/IngredientPicker.tsx`).
+ *
+ * Bug fix (orchestrator review, Maestro on the iOS simulator): the sheet
+ * used to render as just its header — blank below the title, no keyboard.
+ * Two compounding causes:
+ *  1. The kit `Sheet`'s default `scrollable` mode wraps children in its OWN
+ *     `ScrollView`, which sizes to content. Mixed with a long, dynamically
+ *     appearing results list that's the search input's ONLY sibling on
+ *     first open, that ScrollView could end up with nothing to measure
+ *     against and collapse. `recipe-picker-sheet.tsx` (a working reference)
+ *     avoids this by passing `scrollable={false}` and owning any inner
+ *     scrolling itself — same fix applied here, with the input and the
+ *     "Use as typed"/"Add as mine" actions pinned OUTSIDE the scrollable
+ *     region (the actions move into Sheet's `footer`, exactly like every
+ *     other Sheet with pinned actions in this codebase).
+ *  2. `autoFocus` on the search input fired on the very first render, the
+ *     SAME moment the Sheet's entrance animation and its own layout were
+ *     still settling — racing the keyboard-avoiding calculation before
+ *     anything had a measured height. `quick-add-sheet.tsx`'s working
+ *     `autoFocus` input is never the sheet's first-and-only child on open;
+ *     ours was. Fixed by focusing manually via `InteractionManager`, after
+ *     the sheet's opening interaction has finished.
  */
 export function IngredientSearchSheet({
   visible,
@@ -48,12 +69,33 @@ export function IngredientSearchSheet({
 }: IngredientSearchSheetProps) {
   const [query, setQuery] = useState(initialQuery);
   const [debounced, setDebounced] = useState('');
+  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (visible) setQuery(initialQuery);
     // Only re-seed when the sheet opens — not on every initialQuery change,
     // which would otherwise wipe out what the user is mid-typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    // Focus AFTER the sheet's own open animation/layout settle — see the
+    // bug-fix note above. A plain `autoFocus` on the input fires too early
+    // (the same render pass that starts the sheet's entrance animation) and
+    // can wedge the sheet's layout. Two rAFs: one to get past this commit,
+    // one to land after the frame that follows it — `InteractionManager` is
+    // deprecated, so this is the non-deprecated equivalent "next frame".
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      if (secondFrame) cancelAnimationFrame(secondFrame);
+    };
   }, [visible]);
 
   useEffect(() => {
@@ -90,81 +132,10 @@ export function IngredientSearchSheet({
       onExited={onExited}
       title={ingredientsCopy.search.title}
       testID={testID}
-    >
-      <View className="gap-3">
-        <Input
-          testID={`${testID}-input`}
-          accessibilityLabel={ingredientsCopy.search.title}
-          autoFocus
-          value={query}
-          onChangeText={setQuery}
-          placeholder={ingredientsCopy.search.placeholder}
-          returnKeyType="search"
-        />
-
-        {canSearch && (
-          <View className="gap-2">
-            {groups.map((group) => (
-              <View key={group.label} className="gap-1">
-                <Text
-                  accessibilityRole="header"
-                  className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
-                >
-                  {group.label}
-                </Text>
-                {group.rows.map((row) => (
-                  <Pressable
-                    key={row.name}
-                    testID={`${testID}-result-${row.name}`}
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      row.per100g
-                        ? `${row.displayName}, ${Math.round(row.per100g.calories)} kcal per 100 g`
-                        : `${row.displayName}, no nutrition data yet`
-                    }
-                    onPress={() => pick(row)}
-                    className="min-h-[52px] flex-row items-center gap-2.5 rounded-lg px-1 py-1.5 active:bg-accent"
-                  >
-                    <Image
-                      source={{ uri: row.imageUrl }}
-                      className="h-9 w-9 shrink-0 rounded-md"
-                      resizeMode="cover"
-                    />
-                    <View className="min-w-0 flex-1">
-                      <Text numberOfLines={1} className="text-sm font-medium text-foreground">
-                        {row.displayName}
-                      </Text>
-                      {row.per100g ? (
-                        <Text className="text-xs text-muted-foreground">
-                          {Math.round(row.per100g.calories)} kcal / 100 g
-                        </Text>
-                      ) : (
-                        <View className="mt-0.5 self-start rounded-full bg-muted px-1.5 py-0.5">
-                          <Text className="text-xs text-muted-foreground">
-                            {ingredientsCopy.search.noMacrosYet}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
-            ))}
-            {groups.length === 0 && !isFetching && (
-              <Text testID={`${testID}-empty`} variant="muted" className="px-1 text-xs">
-                {ingredientsCopy.search.noMatches}
-              </Text>
-            )}
-            {isFetching && groups.length === 0 && (
-              <Text variant="muted" className="px-1 text-xs">
-                {ingredientsCopy.search.searching}
-              </Text>
-            )}
-          </View>
-        )}
-
-        {trimmed.length > 0 && (
-          <View className="gap-1 border-t border-border pt-3">
+      scrollable={false}
+      footer={
+        trimmed.length > 0 ? (
+          <View className="gap-1">
             <Pressable
               testID={`${testID}-add-custom`}
               accessibilityRole="button"
@@ -186,6 +157,85 @@ export function IngredientSearchSheet({
               </Text>
             </Pressable>
           </View>
+        ) : undefined
+      }
+    >
+      <View className="gap-3">
+        <Input
+          ref={inputRef}
+          testID={`${testID}-input`}
+          accessibilityLabel={ingredientsCopy.search.title}
+          value={query}
+          onChangeText={setQuery}
+          placeholder={ingredientsCopy.search.placeholder}
+          returnKeyType="search"
+        />
+
+        {canSearch && (
+          <ScrollView
+            testID={`${testID}-results`}
+            keyboardShouldPersistTaps="handled"
+            className="grow-0"
+          >
+            <View className="gap-2">
+              {groups.map((group) => (
+                <View key={group.label} className="gap-1">
+                  <Text
+                    accessibilityRole="header"
+                    className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+                  >
+                    {group.label}
+                  </Text>
+                  {group.rows.map((row) => (
+                    <Pressable
+                      key={row.name}
+                      testID={`${testID}-result-${row.name}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        row.per100g
+                          ? `${row.displayName}, ${Math.round(row.per100g.calories)} kcal per 100 g`
+                          : `${row.displayName}, no nutrition data yet`
+                      }
+                      onPress={() => pick(row)}
+                      className="min-h-[52px] flex-row items-center gap-2.5 rounded-lg px-1 py-1.5 active:bg-accent"
+                    >
+                      <Image
+                        source={{ uri: row.imageUrl }}
+                        className="h-9 w-9 shrink-0 rounded-md"
+                        resizeMode="cover"
+                      />
+                      <View className="min-w-0 flex-1">
+                        <Text numberOfLines={1} className="text-sm font-medium text-foreground">
+                          {row.displayName}
+                        </Text>
+                        {row.per100g ? (
+                          <Text className="text-xs text-muted-foreground">
+                            {Math.round(row.per100g.calories)} kcal / 100 g
+                          </Text>
+                        ) : (
+                          <View className="mt-0.5 self-start rounded-full bg-muted px-1.5 py-0.5">
+                            <Text className="text-xs text-muted-foreground">
+                              {ingredientsCopy.search.noMacrosYet}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              ))}
+              {groups.length === 0 && !isFetching && (
+                <Text testID={`${testID}-empty`} variant="muted" className="px-1 text-xs">
+                  {ingredientsCopy.search.noMatches}
+                </Text>
+              )}
+              {isFetching && groups.length === 0 && (
+                <Text variant="muted" className="px-1 text-xs">
+                  {ingredientsCopy.search.searching}
+                </Text>
+              )}
+            </View>
+          </ScrollView>
         )}
       </View>
     </Sheet>
