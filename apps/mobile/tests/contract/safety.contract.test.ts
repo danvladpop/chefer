@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { makeContractClient, uniqueEmail } from './client';
+import { CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './client';
 
 // UX-01/T-01.2 — the ONE safety filter, exercised through the real API with
 // the same link stack the app ships (headers, transformer, batching). A
@@ -12,6 +12,7 @@ beforeAll(async () => {
   const user = await client.auth.register.mutate({
     email: uniqueEmail('safety-contract'),
     password: 'Contract@123!',
+    ...CONTRACT_CONSENT,
     firstName: 'Safety',
   });
   if (!user.session) throw new Error('mobile register response is missing the session credential');

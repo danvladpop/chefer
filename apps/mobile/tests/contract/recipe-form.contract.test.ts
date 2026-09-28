@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { makeContractClient, uniqueEmail } from './client';
+import { CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './client';
 
 // UX-40 slice 1 (T-40.3/T-40.4, D-19) against the REAL API through the app's
 // own link stack. Registers ONE throwaway user per run (auth rate limit:
@@ -20,6 +20,7 @@ beforeAll(async () => {
   const user = await client.auth.register.mutate({
     email: uniqueEmail('recipe-form'),
     password: 'Contract@123!',
+    ...CONTRACT_CONSENT,
     firstName: 'RecipeForm',
   });
   if (!user.session) {
