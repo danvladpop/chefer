@@ -15,6 +15,7 @@ import type {
   SafetyValue,
 } from '../src/features/preferences/types';
 import { WeeklyUpdatesCard } from '../src/features/preferences/weekly-updates-card';
+import { MigrationCard } from '../src/features/safety/migration-card';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc } from '../src/lib/trpc';
 
@@ -156,6 +157,9 @@ export default function PreferencesScreen() {
               </Text>
             </View>
           )}
+
+          {/* T-01.3: one-time free-text migration card */}
+          <MigrationCard />
 
           {/* Safety — free for every account (P1-2) */}
           <Card testID="preferences-safety" className="gap-4">
