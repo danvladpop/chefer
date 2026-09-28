@@ -34,19 +34,27 @@ vi.mock('@chefer/database', async (importOriginal) => {
         dailyCalorieTarget: 2500,
       }),
     },
-    dietaryPreferencesRepository: {
-      findByUserId: vi.fn().mockResolvedValue({
-        allergies: ['peanuts'],
-        dietaryRestrictions: ['Vegetarian'],
-        dislikedIngredients: [],
-      }),
-    },
     mealRatingRepository: { findSignalsForUser: vi.fn().mockResolvedValue([]) },
     // buildContextSummary reads today's log (959e5ee) — must be mocked or the
     // test reaches real Prisma and fails in CI's clean env (no DATABASE_URL).
     dailyLogRepository: { findByDate: vi.fn().mockResolvedValue(null) },
   };
 });
+
+// T-BUG-X1: the chat context reads the table's merged safety rules — the
+// owner's plus every household member's (here a member's sesame allergy).
+vi.mock('../safety/safety.service.js', () => ({
+  safetyService: {
+    loadContext: vi.fn().mockResolvedValue({
+      prefs: {
+        allergies: ['peanuts', 'sesame'],
+        dietaryRestrictions: ['Vegetarian'],
+        dislikedIngredients: [],
+        excludeLabelDependent: false,
+      },
+    }),
+  },
+}));
 
 vi.mock('../meal-plan/meal-plan.service.js', () => ({
   mealPlanService: {
@@ -202,6 +210,11 @@ describe('ChatService', () => {
     expect(summary).toContain('55g protein');
     expect(summary).toContain('peanuts');
     expect(summary).toContain('Vegetarian');
+  });
+
+  it("T-BUG-X1: the context names a household member's allergy, not just the owner's", async () => {
+    const summary = await service.buildContextSummary(user(), PLAN);
+    expect(summary).toContain('Allergies (never suggest): peanuts, sesame.');
   });
 
   it('chat() builds context, logs the CHAT call, and passes tools to the AI', async () => {

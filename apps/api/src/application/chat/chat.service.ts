@@ -1,9 +1,4 @@
-import {
-  chefProfileRepository,
-  dailyLogRepository,
-  dietaryPreferencesRepository,
-  mealRatingRepository,
-} from '@chefer/database';
+import { chefProfileRepository, dailyLogRepository, mealRatingRepository } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { isAiCapacityFailure } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
@@ -15,6 +10,7 @@ import { mealPlanService, type WeekPlanDto } from '../meal-plan/meal-plan.servic
 import { pantryService } from '../pantry/pantry.service.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { recipeImportService } from '../recipe-import/recipe-import.service.js';
+import { safetyService } from '../safety/safety.service.js';
 import { shoppingListService } from '../shopping-list/shopping-list.service.js';
 import { trackerService } from '../tracker/tracker.service.js';
 import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
@@ -90,8 +86,10 @@ export class ChatService {
     const timeZone = profile?.timeZone;
     const todayIdx = localDayIndexInZone(timeZone);
 
-    const [prefs, signals, todayLog] = await Promise.all([
-      dietaryPreferencesRepository.findByUserId(user.id),
+    // T-BUG-X1: the whole table's merged rules (owner + household members),
+    // the same ones every other surface filters by — not the owner's alone.
+    const [{ prefs }, signals, todayLog] = await Promise.all([
+      safetyService.loadContext(user.id),
       mealRatingRepository.findSignalsForUser(user.id, 10),
       dailyLogRepository.findByDate(user.id, localDayKey(timeZone)),
     ]);
@@ -104,11 +102,11 @@ export class ChatService {
       `Daily targets: ${targets.dailyCalorieTarget} kcal, ${targets.proteinG}g protein, ${targets.carbsG}g carbs, ${targets.fatG}g fat.`,
     );
 
-    if (prefs?.allergies.length)
+    if (prefs.allergies.length)
       lines.push(`Allergies (never suggest): ${prefs.allergies.join(', ')}.`);
-    if (prefs?.dietaryRestrictions.length)
+    if (prefs.dietaryRestrictions.length)
       lines.push(`Dietary restrictions: ${prefs.dietaryRestrictions.join(', ')}.`);
-    if (prefs?.dislikedIngredients.length)
+    if (prefs.dislikedIngredients.length)
       lines.push(`Dislikes: ${prefs.dislikedIngredients.join(', ')}.`);
 
     if (plan) {
