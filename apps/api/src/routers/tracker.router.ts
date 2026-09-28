@@ -134,6 +134,34 @@ export const trackerRouter = router({
       return trackerService.logCustomMeal(ctx.user, date, entry);
     }),
 
+  // The tracker's untick (T-19.4, one-save model): removes the planned-recipe
+  // entry `logRecipe` would have written for this slot. A no-op when nothing
+  // matches (already unticked) — additive, older clients keep using upsertDay.
+  unlogRecipe: protectedProcedure
+    .input(
+      z.object({
+        date: calendarDateSchema,
+        recipeId: z.string().min(1),
+        mealType: z.string().min(1).max(20),
+        slotIndex: z.number().int().min(0).max(20).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { date, ...target } = input;
+      return trackerService.unlogRecipe(ctx.user.id, date, target);
+    }),
+
+  // Removes any entries (recipe or custom) by stable id — undoes copyDay
+  // (deletes exactly the returned copies) and any other batch a client
+  // already holds ids for. Idempotent: an unmatched id is ignored.
+  deleteEntries: protectedProcedure
+    .input(
+      z.object({ date: calendarDateSchema, entryIds: z.array(z.string().min(1)).min(1).max(50) }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return trackerService.deleteEntries(ctx.user.id, input.date, input.entryIds);
+    }),
+
   // F4: delete one custom entry by its position in the day's loggedMeals.
   // Older clients (no entryId, T-19.2) keep using this — the server resolves
   // the index against the current array in one transaction.

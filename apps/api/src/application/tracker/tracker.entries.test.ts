@@ -270,6 +270,78 @@ describe('trackerService.recents (T-19.1)', () => {
   });
 });
 
+/** A stored planned-recipe entry fixture. */
+function recipeEntry(overrides: Partial<LoggedMealEntry> = {}): LoggedMealEntry {
+  return {
+    recipeId: 'curry',
+    mealType: 'dinner',
+    portionMultiplier: 1,
+    kcal: 500,
+    protein: 20,
+    carbs: 50,
+    fat: 15,
+    ...overrides,
+  };
+}
+
+describe('trackerService.unlogRecipe (T-19.4, one-save model)', () => {
+  it('bug B-23: removes exactly the slot logRecipe would have written (by slotIndex)', async () => {
+    const stored = [
+      recipeEntry({ slotIndex: 0 }),
+      recipeEntry({ slotIndex: 1, mealType: 'lunch' }),
+    ];
+    mockMutateDay(stored);
+    const log = await trackerService.unlogRecipe('u1', '2026-09-27', {
+      recipeId: 'curry',
+      mealType: 'dinner',
+      slotIndex: 0,
+    });
+    expect(log.loggedMeals as unknown as LoggedMealEntry[]).toHaveLength(1);
+    expect((log.loggedMeals as unknown as LoggedMealEntry[])[0]!.slotIndex).toBe(1);
+  });
+
+  it('falls back to recipeId + mealType when no slotIndex is given (cook mode)', async () => {
+    mockMutateDay([recipeEntry(), customEntry()]);
+    const log = await trackerService.unlogRecipe('u1', '2026-09-27', {
+      recipeId: 'curry',
+      mealType: 'dinner',
+    });
+    const remaining = log.loggedMeals as unknown as LoggedMealEntry[];
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]!.custom?.name).toBe('Toast');
+  });
+
+  it('is a no-op (not an error) when nothing matches — an already-unticked row', async () => {
+    mockMutateDay([customEntry()]);
+    const log = await trackerService.unlogRecipe('u1', '2026-09-27', {
+      recipeId: 'nope',
+      mealType: 'dinner',
+    });
+    expect(log.loggedMeals as unknown as LoggedMealEntry[]).toHaveLength(1);
+  });
+});
+
+describe('trackerService.deleteEntries (T-19.3 — undoes copyDay by id)', () => {
+  it('removes exactly the entries named, recipe or custom alike', async () => {
+    const stored = [
+      recipeEntry({ entryId: 'a' }),
+      customEntry({ entryId: 'b' }),
+      customEntry({ entryId: 'c', custom: { name: 'kept', estimatedBy: 'manual' } }),
+    ];
+    mockMutateDay(stored);
+    const log = await trackerService.deleteEntries('u1', '2026-09-27', ['a', 'b']);
+    const remaining = log.loggedMeals as unknown as LoggedMealEntry[];
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]!.entryId).toBe('c');
+  });
+
+  it('is idempotent — an id that matches nothing is silently ignored', async () => {
+    mockMutateDay([customEntry({ entryId: 'a' })]);
+    const log = await trackerService.deleteEntries('u1', '2026-09-27', ['does-not-exist']);
+    expect(log.loggedMeals as unknown as LoggedMealEntry[]).toHaveLength(1);
+  });
+});
+
 describe('trackerService.weeklySummary — local-day anchor (bug B-33, T-21.1)', () => {
   it('with no localDate, keeps the old server-UTC-anchored behaviour', async () => {
     vi.mocked(dailyLogRepository.findLastN).mockResolvedValue([]);

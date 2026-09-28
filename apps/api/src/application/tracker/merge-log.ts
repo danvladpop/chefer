@@ -7,6 +7,24 @@ export function isRecipeEntry(m: LoggedMealEntry): m is LoggedMealEntry & { reci
 }
 
 /**
+ * Same identity rule `logRecipe` uses to replace-not-duplicate: same recipe,
+ * and (when the target names a slot) the same slot, else the same meal type.
+ * Shared with `unlogRecipe` (T-19.4, one-save model) so ticking and
+ * unticking a plan row agree on which stored entry a row corresponds to.
+ */
+export function matchesRecipeSlot(
+  m: LoggedMealEntry,
+  target: { recipeId: string; mealType: string; slotIndex?: number | undefined },
+): boolean {
+  return (
+    m.recipeId === target.recipeId &&
+    (target.slotIndex !== undefined
+      ? m.slotIndex === target.slotIndex
+      : m.mealType === target.mealType)
+  );
+}
+
+/**
  * Assigns a stable `entryId` to every entry that doesn't have one yet (bug
  * B-34, T-19.2). Pure and idempotent: entries that already carry an id are
  * returned unchanged, so calling this on every read/write is safe and never

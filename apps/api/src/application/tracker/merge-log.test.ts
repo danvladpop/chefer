@@ -3,6 +3,7 @@ import type { LoggedMealEntry } from '@chefer/database';
 import {
   aggregateRecents,
   ensureEntryIds,
+  matchesRecipeSlot,
   mergeLoggedMeals,
   needsEntryIdBackfill,
 } from './merge-log.js';
@@ -141,5 +142,28 @@ describe('aggregateRecents', () => {
       fat: 0,
     };
     expect(aggregateRecents([{ dateStr: '2026-09-20', entries: [bare] }], 15)).toEqual([]);
+  });
+});
+
+describe('matchesRecipeSlot (T-19.4 — logRecipe/unlogRecipe agree on identity)', () => {
+  it('matches by slotIndex when the target names one, ignoring mealType', () => {
+    const stored = recipe('curry', 'dinner');
+    expect(
+      matchesRecipeSlot(
+        { ...stored, slotIndex: 2 },
+        { recipeId: 'curry', mealType: 'lunch', slotIndex: 2 },
+      ),
+    ).toBe(true);
+  });
+
+  it('falls back to recipeId + mealType without a slotIndex', () => {
+    const stored = recipe('curry', 'dinner');
+    expect(matchesRecipeSlot(stored, { recipeId: 'curry', mealType: 'dinner' })).toBe(true);
+    expect(matchesRecipeSlot(stored, { recipeId: 'curry', mealType: 'lunch' })).toBe(false);
+  });
+
+  it('never matches a different recipe', () => {
+    const stored = recipe('curry', 'dinner');
+    expect(matchesRecipeSlot(stored, { recipeId: 'oats', mealType: 'dinner' })).toBe(false);
   });
 });

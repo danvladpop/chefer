@@ -20,6 +20,7 @@ import {
   aggregateRecents,
   ensureEntryIds,
   isRecipeEntry,
+  matchesRecipeSlot,
   mergeLoggedMeals,
   needsEntryIdBackfill,
   newEntryId,
@@ -354,17 +355,45 @@ export const trackerService = {
       carbs: Math.round((n.carbs ?? 0) * p * 10) / 10,
       fat: Math.round((n.fat ?? 0) * p * 10) / 10,
     };
-    const sameEntry = (m: LoggedMealEntry) =>
-      m.recipeId === entry.recipeId &&
-      (entry.slotIndex !== undefined
-        ? m.slotIndex === entry.slotIndex
-        : m.mealType === entry.mealType);
+    const target = { recipeId: recipe.id, mealType: input.mealType, slotIndex: input.slotIndex };
     const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
-      ...stored.filter((m) => !sameEntry(m)),
+      ...stored.filter((m) => !matchesRecipeSlot(m, target)),
       entry,
     ]);
     const rebalance = await this.maybeRebalance(user);
     return { log, rebalance };
+  },
+
+  /**
+   * Removes one planned-recipe entry (T-19.4, one-save model) — the tracker's
+   * untick. The counterpart of `logRecipe`: same identity rule
+   * (`matchesRecipeSlot`), so ticking then unticking a row is a clean
+   * round-trip regardless of whether the row carries a `slotIndex`. A no-op
+   * (not NOT_FOUND) when nothing matches — unticking an already-unticked row
+   * (a race with another tab, or a retried request) must not error.
+   */
+  async unlogRecipe(
+    userId: string,
+    dateStr: string,
+    input: { recipeId: string; mealType: string; slotIndex?: number | undefined },
+  ): Promise<DailyLog> {
+    return dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) =>
+      stored.filter((m) => !matchesRecipeSlot(m, input)),
+    );
+  },
+
+  /**
+   * Removes any entries (recipe or custom) by their `entryId` — used to undo
+   * `copyDay` (deletes exactly the copies, via their fresh ids) and, more
+   * generally, anywhere a client already holds stable ids for a batch of
+   * entries. Idempotent: an id that doesn't match anything is silently
+   * ignored, so a double-tapped Undo is harmless.
+   */
+  async deleteEntries(userId: string, dateStr: string, entryIds: string[]): Promise<DailyLog> {
+    const ids = new Set(entryIds);
+    return dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) =>
+      stored.filter((m) => !m.entryId || !ids.has(m.entryId)),
+    );
   },
 
   /**
