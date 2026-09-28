@@ -25,6 +25,10 @@ export type WorkoutAction =
   | { type: 'setRir'; seId: string; rir: Rir | null; at: string }
   | { type: 'addSet'; seId: string; newSetId: string; at: string }
   | { type: 'removeSet'; seId: string; setId: string; at: string }
+  // PAT-16 (T-05.A1.2): undoes a `removeSet` by re-inserting the same set
+  // (same id, values and completedAt) at its original index. A no-op if a
+  // set with that id already exists (a stale/duplicate Undo tap).
+  | { type: 'restoreSet'; seId: string; set: SessionSetDoc; index: number; at: string }
   | {
       type: 'swapExercise';
       seId: string;
@@ -54,7 +58,10 @@ export type WorkoutAction =
     }
   | { type: 'moveExercise'; seId: string; direction: 'up' | 'down'; at: string }
   | { type: 'setNote'; seId: string | null; notes: string | null; at: string }
-  | { type: 'finish'; at: string }
+  // T-36.3: `carryOverExerciseIds` names the unstarted exercises to move to
+  // the next session (`Move them to your next session`, or the 24 h
+  // save-for-later auto-finish); omitted/[] behaves exactly as before.
+  | { type: 'finish'; at: string; carryOverExerciseIds?: string[] }
   | { type: 'discard'; at: string };
 
 /**
@@ -237,6 +244,17 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
             sets: reindex(sortedByPosition(se.sets).filter((s) => s.id !== action.setId)),
           })),
       );
+    case 'restoreSet':
+      return withExercises(
+        mapExercise(doc, action.seId, (se) => {
+          if (se.sets.some((s) => s.id === action.set.id)) {
+            return se; // already there: a stale/duplicate Undo tap is a no-op
+          }
+          const sets = sortedByPosition(se.sets);
+          const at = Math.max(0, Math.min(action.index, sets.length));
+          return { ...se, sets: reindex([...sets.slice(0, at), action.set, ...sets.slice(at)]) };
+        }),
+      );
     case 'swapExercise':
       return withExercises(
         mapExercise(doc, action.seId, (se) => ({
@@ -299,7 +317,13 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
       }
       return withExercises(mapExercise(doc, action.seId, (se) => ({ ...se, notes: action.notes })));
     case 'finish':
-      return stamp({ status: 'COMPLETED', finishedAt: action.at });
+      return stamp({
+        status: 'COMPLETED',
+        finishedAt: action.at,
+        ...(action.carryOverExerciseIds && action.carryOverExerciseIds.length > 0
+          ? { carryOverExerciseIds: action.carryOverExerciseIds }
+          : {}),
+      });
     case 'discard':
       return stamp({ status: 'DISCARDED' });
   }

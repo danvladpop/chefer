@@ -47,6 +47,19 @@ function doneRows(page: Page) {
   return page.locator('[data-testid="gym-set-row"][data-done="true"]').filter({ visible: true });
 }
 
+function allRows(page: Page) {
+  return page.locator('[data-testid="gym-set-row"]').filter({ visible: true });
+}
+
+/** The ⋯/set-number menu button of the first set that is not ticked yet. */
+function nextOpenMenu(page: Page) {
+  return page
+    .locator('[data-testid="gym-set-row"][data-done="false"]')
+    .filter({ visible: true })
+    .first()
+    .getByTestId('gym-set-menu');
+}
+
 for (const layout of [
   { name: 'phone', viewport: { width: 390, height: 844 } },
   { name: 'desktop', viewport: { width: 1440, height: 900 } },
@@ -68,6 +81,18 @@ for (const layout of [
       if (layout.name === 'desktop') {
         await expect(page.getByTestId('gym-exercise-navigator')).toBeVisible();
       }
+
+      // UX-05 A1 (T-05.A1.2 web parity, AC12/AC14): any set is removed with
+      // no confirm dialog, and Undo restores it in place.
+      const rowsBefore = await allRows(page).count();
+      await nextOpenMenu(page).click();
+      await expect(page.getByTestId('gym-set-menu-sheet')).toBeVisible();
+      await page.getByTestId('gym-remove-set').click();
+      await expect(allRows(page)).toHaveCount(rowsBefore - 1);
+      const undoToast = page.getByRole('status').filter({ hasText: 'Removed' });
+      await expect(undoToast).toBeVisible();
+      await undoToast.getByRole('button', { name: 'Undo' }).click();
+      await expect(allRows(page)).toHaveCount(rowsBefore);
 
       // One click logs the prefilled set and starts the rest timer.
       await nextOpenCheck(page).click();

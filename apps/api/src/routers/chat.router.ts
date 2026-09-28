@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { Router, type Request, type Response } from 'express';
+import { isHealthTopic, isSafetyTopic } from '@chefer/utils';
 import { chatService } from '../application/chat/chat.service.js';
 import { AI_OVER_CAPACITY_MESSAGE, isAiCapacityFailure } from '../lib/ai/friendly-error.js';
 import type { ChatMessage } from '../lib/ai/index.js';
@@ -52,6 +53,20 @@ chatRouter.post(
     if (messages.length === 0) {
       res.status(400).json({ error: 'No message provided.' });
       return;
+    }
+
+    // UX-22 (T-22.2, AC4): classify the LAST user message (pure keyword
+    // match, `@chefer/utils`) and set the flag headers before streaming —
+    // the plain-text stream has no "final event" to carry them on. The
+    // client renders the matching disclaimer footer under the reply that
+    // follows. Belt on top of the system-prompt guardrail, not the primary
+    // control (a false negative just skips one footer, never the guardrail).
+    const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
+    if (lastUserMessage && isHealthTopic(lastUserMessage.content)) {
+      res.setHeader('X-Chat-Health-Topic', '1');
+    }
+    if (lastUserMessage && isSafetyTopic(lastUserMessage.content)) {
+      res.setHeader('X-Chat-Safety-Topic', '1');
     }
 
     let stream: ReadableStream;

@@ -33,6 +33,7 @@ const weekly = jest.requireMock<{
 
 const saveMutate = jest.fn();
 const resendMutate = jest.fn();
+const dismissNoticeMutate = jest.fn();
 
 function withPrefs(overrides: Record<string, unknown> = {}) {
   trpc.notifications.getEmailPreferences.useQuery.mockReturnValue(
@@ -48,6 +49,11 @@ function withPrefs(overrides: Record<string, unknown> = {}) {
   );
 }
 
+/** T-39.3: `null` = never seen the email-defaults notice. */
+function withEmailDefaultsNoticeAt(emailDefaultsNoticeAt: string | null) {
+  trpc.user.me.useQuery.mockReturnValue(queryResult({ data: { emailDefaultsNoticeAt } }));
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   weekly.areWeeklyNotificationsOn.mockResolvedValue(false);
@@ -59,7 +65,11 @@ beforeEach(() => {
   trpc.notifications.resendConfirmation.useMutation.mockReturnValue(
     mutationResult({ mutate: resendMutate }),
   );
+  trpc.user.dismissEmailDefaultsNotice.useMutation.mockReturnValue(
+    mutationResult({ mutate: dismissNoticeMutate }),
+  );
   withPrefs();
+  withEmailDefaultsNoticeAt('2026-01-01T00:00:00.000Z'); // already seen, by default
 });
 
 describe('WeeklyUpdatesCard', () => {
@@ -113,5 +123,43 @@ describe('WeeklyUpdatesCard', () => {
     await render(<WeeklyUpdatesCard />);
     await fireEvent.press(screen.getByTestId('prefs-weekly-email-confirm'));
     expect(resendMutate).toHaveBeenCalled();
+  });
+
+  describe('email-defaults notice (T-39.3)', () => {
+    it('stays hidden once already seen (the default)', async () => {
+      await render(<WeeklyUpdatesCard />);
+      expect(screen.queryByTestId('prefs-email-defaults-notice')).toBeNull();
+    });
+
+    it('stays hidden for a never-seen account whose digests are already off', async () => {
+      withEmailDefaultsNoticeAt(null);
+      withPrefs({ weekReady: false, weeklyRecap: false });
+      await render(<WeeklyUpdatesCard />);
+      expect(screen.queryByTestId('prefs-email-defaults-notice')).toBeNull();
+    });
+
+    it('shows for a never-seen account with at least one digest on', async () => {
+      withEmailDefaultsNoticeAt(null);
+      await render(<WeeklyUpdatesCard />);
+      expect(screen.getByTestId('prefs-email-defaults-notice')).toBeTruthy();
+    });
+
+    it('"Keep them on" dismisses without touching the switches', async () => {
+      withEmailDefaultsNoticeAt(null);
+      await render(<WeeklyUpdatesCard />);
+      await fireEvent.press(screen.getByTestId('prefs-email-defaults-keep'));
+      expect(dismissNoticeMutate).toHaveBeenCalled();
+      expect(saveMutate).not.toHaveBeenCalled();
+    });
+
+    it('"Turn them off" flips both switches off and dismisses', async () => {
+      withEmailDefaultsNoticeAt(null);
+      await render(<WeeklyUpdatesCard />);
+      await fireEvent.press(screen.getByTestId('prefs-email-defaults-turn-off'));
+      expect(saveMutate).toHaveBeenCalledWith({ weekReady: false, weeklyRecap: false });
+      expect(dismissNoticeMutate).toHaveBeenCalled();
+      expect(screen.getByTestId('prefs-weekly-email-weekReady').props.value).toBe(false);
+      expect(screen.getByTestId('prefs-weekly-email-weeklyRecap').props.value).toBe(false);
+    });
   });
 });

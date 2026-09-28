@@ -1,6 +1,12 @@
 import { Pressable, TextInput, View } from 'react-native';
-import { Card, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import {
+  Card,
+  NumericReturnBar,
+  Text,
+  useFieldChain,
+  useScrollFieldIntoView,
+} from '@chefer/ui-mobile';
+import { cn, WELLNESS_COPY } from '@chefer/utils';
 import {
   ACTIVITY_OPTIONS,
   estimateCalories,
@@ -63,6 +69,9 @@ export interface MetricsStepProps {
   onWeightText: (raw: string) => void;
 }
 
+/** iOS accessory bar id shared by the three numeric fields below (T-21.5). */
+const NUMERIC_BAR_ID = 'metrics-step-numeric-bar';
+
 /**
  * Body metrics — port of apps/web/src/features/onboarding/components/step-metrics.tsx
  * (metric units only — no ft/in or lbs toggle on mobile v1).
@@ -80,6 +89,11 @@ export function MetricsStep({
   onWeightText,
 }: MetricsStepProps) {
   const preview = computeCaloriePreview(value, goal);
+  // T-21.5 (CI-14, PAT-11): Return/accessory-bar chains Age → Height →
+  // Weight, and each field scrolls clear of the keyboard on focus (a no-op
+  // outside a KeyboardAwareScrollView, so this is safe wherever it renders).
+  const chain = useFieldChain(3);
+  const scrollFieldIntoView = useScrollFieldIntoView();
 
   return (
     <View className="gap-5">
@@ -124,6 +138,8 @@ export function MetricsStep({
           <Text variant="label">Age</Text>
           <TextInput
             testID="metrics-age"
+            {...chain.bind(0, { onFocus: scrollFieldIntoView })}
+            inputAccessoryViewID={NUMERIC_BAR_ID}
             value={ageText}
             onChangeText={onAgeText}
             keyboardType="number-pad"
@@ -136,6 +152,8 @@ export function MetricsStep({
           <Text variant="label">Height (cm)</Text>
           <TextInput
             testID="metrics-height"
+            {...chain.bind(1, { onFocus: scrollFieldIntoView })}
+            inputAccessoryViewID={NUMERIC_BAR_ID}
             value={heightText}
             onChangeText={onHeightText}
             keyboardType="decimal-pad"
@@ -148,6 +166,8 @@ export function MetricsStep({
           <Text variant="label">Weight (kg)</Text>
           <TextInput
             testID="metrics-weight"
+            {...chain.bind(2, { onFocus: scrollFieldIntoView })}
+            inputAccessoryViewID={NUMERIC_BAR_ID}
             value={weightText}
             onChangeText={onWeightText}
             keyboardType="decimal-pad"
@@ -157,6 +177,13 @@ export function MetricsStep({
           />
         </View>
       </View>
+
+      <NumericReturnBar
+        nativeID={NUMERIC_BAR_ID}
+        testID="metrics-numeric-bar"
+        label={chain.isLastFocused ? 'Done' : 'Next'}
+        onPress={() => chain.focusNext()}
+      />
 
       {/* Activity level */}
       <View className="gap-1.5">
@@ -213,6 +240,12 @@ export function MetricsStep({
           </Text>
         )}
       </Card>
+
+      {/* T-22.3: a calculator, not a doctor — visible at 1.8x text (AC5), never
+          truncated. */}
+      <Text testID="metrics-disclaimer" variant="muted" className="text-xs">
+        {WELLNESS_COPY.goalMetricsDisclaimer}
+      </Text>
     </View>
   );
 }

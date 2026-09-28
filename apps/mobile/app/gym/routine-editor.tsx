@@ -6,7 +6,6 @@ import { TEMPLATE_BY_KEY, type RoutineDto } from '@chefer/types';
 import {
   Badge,
   Button,
-  ConfirmSheet,
   Input,
   KeyboardAwareScrollView,
   Screen,
@@ -74,7 +73,6 @@ export default function GymRoutineEditorScreen() {
   const [templateKey, setTemplateKey] = useState<string | null>(null);
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [conflict, setConflict] = useState<ConflictState | null>(null);
-  const [removing, setRemoving] = useState<{ dayKey: string; exerciseKey: string } | null>(null);
   const loadedRef = useRef(false);
   const nameRef = useRef<TextInput>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
@@ -160,14 +158,6 @@ export default function GymRoutineEditorScreen() {
     picker?.mode === 'swap'
       ? activePickerDay?.exercises.find((e) => e.key === picker.exerciseKey)
       : undefined;
-  const removingExercise = removing
-    ? draft.days
-        .find((d) => d.key === removing.dayKey)
-        ?.exercises.find((e) => e.key === removing.exerciseKey)
-    : undefined;
-  const removingName = removingExercise
-    ? (lookup(removingExercise.exerciseId)?.name ?? 'this exercise')
-    : 'this exercise';
   const preferSwapGroup = swapExercise
     ? (lookup(swapExercise.exerciseId)?.swapGroup ?? null)
     : null;
@@ -274,7 +264,6 @@ export default function GymRoutineEditorScreen() {
             onSwapExercise={(dayKey, exerciseKey) =>
               setPicker({ dayKey, mode: 'swap', exerciseKey })
             }
-            onRemoveExercise={(dayKey, exerciseKey) => setRemoving({ dayKey, exerciseKey })}
           />
         ))}
 
@@ -316,21 +305,6 @@ export default function GymRoutineEditorScreen() {
             });
           }
           setPicker(null);
-        }}
-      />
-
-      <ConfirmSheet
-        visible={removing !== null}
-        onClose={() => setRemoving(null)}
-        testID="gym-routine-editor-remove"
-        title={`Remove ${removingName}?`}
-        body="It leaves this day when you save. Its history stays."
-        confirmLabel="Remove"
-        cancelLabel="Keep it"
-        destructive
-        onConfirm={() => {
-          if (removing) dispatch({ type: 'removeExercise', ...removing });
-          setRemoving(null);
         }}
       />
 

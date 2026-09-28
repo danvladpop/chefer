@@ -1,17 +1,9 @@
-import {
-  chefProfileRepository,
-  dailyLogRepository,
-  dietaryPreferencesRepository,
-  mealPlanRepository,
-} from '@chefer/database';
+import { chefProfileRepository, dailyLogRepository, mealPlanRepository } from '@chefer/database';
 import { slotPortion } from '@chefer/utils';
 import type { MealType, RecipeData } from '../../lib/ai/types.js';
-import {
-  ensureCuratedRecipes,
-  safeCuratedPools,
-  type SafetyPrefs,
-} from '../../lib/curated-recipes/index.js';
+import { ensureCuratedRecipes, safeCuratedPools } from '../../lib/curated-recipes/index.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
+import { safetyService } from '../safety/safety.service.js';
 
 // ─── Week rebalance (F4 Snap-to-Log) ─────────────────────────────────────────
 // Wave-0 seam module (premium_plan.md §3.3): feat/snap owns the whole
@@ -219,9 +211,13 @@ export async function rebalanceWeek(userId: string, planId: string): Promise<Reb
   const todayIndex = getTodayDayIndex();
   if (todayIndex >= 6) return noop; // Sunday: no future days left this week
 
-  const [profile, dietaryPrefs, weekLogs] = await Promise.all([
+  const [profile, safetyCtx, weekLogs] = await Promise.all([
     chefProfileRepository.findByUserId(userId),
-    dietaryPreferencesRepository.findByUserId(userId),
+    // T-BUG-X1 (folded into T-01.2): this used to read only the OWNER's
+    // dietary prefs, so a rebalance swap could hand a household member's
+    // allergen to the table — now the same merged SafetyService context
+    // every other surface uses.
+    safetyService.loadContext(userId),
     // findLastN(days+1) reaches back exactly to Monday when today is index N.
     dailyLogRepository.findLastN(userId, todayIndex + 1),
   ]);
@@ -262,19 +258,16 @@ export async function rebalanceWeek(userId: string, planId: string): Promise<Reb
     ];
   });
 
-  const safety: SafetyPrefs = {
-    allergies: dietaryPrefs?.allergies ?? [],
-    dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
-    dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
-  };
-  const pools = safeCuratedPools(safety);
+  const pools = safeCuratedPools(safetyCtx.prefs);
   const candidatesByType: Record<string, RebalanceCandidate[]> = {};
   for (const [type, pool] of Object.entries(pools) as [MealType, RecipeData[]][]) {
-    candidatesByType[type] = pool.map((r) => ({
-      id: r.id,
-      name: r.name,
-      kcal: r.nutritionInfo.calories,
-    }));
+    candidatesByType[type] = pool
+      .filter((r) => !safetyCtx.hiddenRecipeIds.includes(r.id))
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        kcal: r.nutritionInfo.calories,
+      }));
   }
 
   const selection = selectRebalanceSwaps({

@@ -1,6 +1,6 @@
 'use client';
 
-import type { Dispatch } from 'react';
+import { useEffect, useRef, useState, type Dispatch } from 'react';
 import { ChevronDown, ChevronUp, Plus } from 'lucide-react';
 import { Button } from '@chefer/ui';
 import { isSupersetWithNext, supersetSlot, type ExerciseLookup } from '@chefer/utils';
@@ -30,6 +30,28 @@ export function PhoneEditorList({
   onOpenPicker,
   onSwap,
 }: PhoneEditorListProps) {
+  // UX-05 A4 (AC25): one exercise card expanded at a time, per day.
+  const [expanded, setExpanded] = useState<Record<string, string | null>>({});
+  const prevKeys = useRef<Record<string, string[]>>({});
+  useEffect(() => {
+    const next: Record<string, string | null> = { ...expanded };
+    let changed = false;
+    for (const day of draft.days) {
+      const keys = day.exercises.map((e) => e.key);
+      const before = prevKeys.current[day.key] ?? keys;
+      const added = keys.find((k) => !before.includes(k));
+      if (added) {
+        next[day.key] = added;
+        changed = true;
+      }
+      prevKeys.current[day.key] = keys;
+    }
+    if (changed) setExpanded(next);
+    // Only react to the exercise keys actually changing (a new/removed row),
+    // not every draft edit (which would fight the user's own toggle taps).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.days.map((d) => d.exercises.map((e) => e.key).join(',')).join('|')]);
+
   return (
     <div className="flex flex-col gap-4 lg:hidden">
       {draft.days.map((day, dayIndex) => (
@@ -79,6 +101,14 @@ export function PhoneEditorList({
                 <ExerciseFieldsForm
                   exercise={exercise}
                   lookup={lookup}
+                  compact
+                  expanded={expanded[day.key] === exercise.key}
+                  onToggleExpand={() =>
+                    setExpanded((prev) => ({
+                      ...prev,
+                      [day.key]: prev[day.key] === exercise.key ? null : exercise.key,
+                    }))
+                  }
                   superset={supersetSlot(day.exercises, exIndex)}
                   linkedToNext={isSupersetWithNext(day.exercises, exIndex)}
                   {...(exIndex < day.exercises.length - 1
@@ -183,10 +213,10 @@ export function PhoneEditorList({
             type="button"
             variant="outline"
             size="sm"
-            className="mt-3 min-h-11 w-full"
+            className="mt-3 min-h-11 w-full whitespace-nowrap"
             onClick={() => onOpenPicker(day.key)}
           >
-            <Plus className="h-4 w-4" /> Add exercise
+            <Plus className="h-4 w-4 shrink-0" /> Add exercise
           </Button>
         </div>
       ))}

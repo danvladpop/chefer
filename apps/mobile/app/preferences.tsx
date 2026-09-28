@@ -8,6 +8,7 @@ import { cn, currencySymbol, fromEur, toDisplayCurrency, toEur } from '@chefer/u
 import { AutoPlanToggle } from '../src/features/preferences/auto-plan-toggle';
 import { SafetyStep } from '../src/features/preferences/components/safety-step';
 import { GoalBodyCard, type GoalBodySavePayload } from '../src/features/preferences/goal-body-card';
+import { TargetsCard } from '../src/features/preferences/targets-card';
 import type {
   ActivityLevel,
   BiologicalSex,
@@ -15,6 +16,7 @@ import type {
   SafetyValue,
 } from '../src/features/preferences/types';
 import { WeeklyUpdatesCard } from '../src/features/preferences/weekly-updates-card';
+import { MigrationCard } from '../src/features/safety/migration-card';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc } from '../src/lib/trpc';
 
@@ -99,6 +101,40 @@ export default function PreferencesScreen() {
     },
   });
 
+  // Bug B-38: "Saved ✓" used to stick on every Preferences save button
+  // regardless of edits made after the save. Each snapshot below is captured
+  // the moment its mutation's `isSuccess` turns true, so a later edit is
+  // compared against exactly what was actually persisted. Gated on
+  // `safetyLoaded` too: the hydration effect above sets safety/units/
+  // currency/budget from the server on the SAME first commit, and without
+  // this gate the snapshot could be captured from the pre-hydration default
+  // state a beat too early.
+  const [savedSafety, setSavedSafety] = useState<SafetyValue | null>(null);
+  useEffect(() => {
+    if (safetyMutation.isSuccess && safetyLoaded) setSavedSafety(safety);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safetyMutation.isSuccess, safetyLoaded]);
+  const safetyDirty =
+    savedSafety !== null && JSON.stringify(savedSafety) !== JSON.stringify(safety);
+
+  const [savedDisplay, setSavedDisplay] = useState<{
+    units: 'METRIC' | 'IMPERIAL';
+    currency: DisplayCurrency;
+  } | null>(null);
+  useEffect(() => {
+    if (displayMutation.isSuccess && safetyLoaded) setSavedDisplay({ units, currency });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayMutation.isSuccess, safetyLoaded]);
+  const displayDirty =
+    savedDisplay !== null && (savedDisplay.units !== units || savedDisplay.currency !== currency);
+
+  const [savedBudget, setSavedBudget] = useState<string | null>(null);
+  useEffect(() => {
+    if (targetsMutation.isSuccess && safetyLoaded) setSavedBudget(budget);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetsMutation.isSuccess, safetyLoaded]);
+  const budgetDirty = savedBudget !== null && savedBudget !== budget;
+
   const saveSafety = () => safetyMutation.mutate(safety);
 
   const saveDisplay = () => displayMutation.mutate({ preferredUnits: units, currency });
@@ -157,6 +193,9 @@ export default function PreferencesScreen() {
             </View>
           )}
 
+          {/* T-01.3: one-time free-text migration card */}
+          <MigrationCard />
+
           {/* Safety — free for every account (P1-2) */}
           <Card testID="preferences-safety" className="gap-4">
             <Text variant="heading">Food safety</Text>
@@ -166,7 +205,7 @@ export default function PreferencesScreen() {
               loading={safetyMutation.isPending}
               onPress={saveSafety}
             >
-              {safetyMutation.isSuccess ? 'Saved ✓' : 'Save safety preferences'}
+              {safetyMutation.isSuccess && !safetyDirty ? 'Saved ✓' : 'Save safety preferences'}
             </Button>
             {safetyMutation.isError && (
               <Text className="text-xs text-red-600">{safetyMutation.error.message}</Text>
@@ -188,6 +227,10 @@ export default function PreferencesScreen() {
             isSaved={goalBodyMutation.isSuccess}
             errorMessage={goalBodyMutation.error?.message}
           />
+
+          {/* §2.11, T-35.3 — Suggested (computed) or My own (never moved
+              silently — gym setup, a weigh-in or a goal edit only propose). */}
+          <TargetsCard />
 
           {isPremium === true && (
             <Pressable
@@ -280,7 +323,7 @@ export default function PreferencesScreen() {
               loading={displayMutation.isPending}
               onPress={saveDisplay}
             >
-              {displayMutation.isSuccess ? 'Saved ✓' : 'Save units & currency'}
+              {displayMutation.isSuccess && !displayDirty ? 'Saved ✓' : 'Save units & currency'}
             </Button>
             {displayMutation.isError && (
               <Text className="text-xs text-red-600">{displayMutation.error.message}</Text>
@@ -325,7 +368,7 @@ export default function PreferencesScreen() {
                 loading={targetsMutation.isPending}
                 onPress={saveBudget}
               >
-                {targetsMutation.isSuccess ? 'Saved ✓' : 'Save budget'}
+                {targetsMutation.isSuccess && !budgetDirty ? 'Saved ✓' : 'Save budget'}
               </Button>
             )}
             {targetsMutation.isError && (

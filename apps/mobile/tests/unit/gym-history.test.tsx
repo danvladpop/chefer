@@ -58,11 +58,26 @@ describe('SessionDetailScreen', () => {
     expect(await screen.findByTestId('gym-session-detail')).toBeTruthy();
     expect(screen.getByText('Push Day')).toBeTruthy();
     expect(screen.getByText('Bench Press')).toBeTruthy();
-    expect(screen.getByText('Warm-up')).toBeTruthy();
-    expect(screen.getByText('Set 2')).toBeTruthy();
-    expect(screen.getByText('Set 3')).toBeTruthy();
     expect(screen.getByText(/not done/)).toBeTruthy();
     expect(screen.getByText('RIR: 2')).toBeTruthy();
+  });
+
+  it('bug B-41: working sets are numbered from 1, independent of preceding warm-ups', async () => {
+    const bootstrap = makeBootstrap({
+      library: [makeExercise('bench', 'Bench Press')],
+      recentSessions: [session],
+    });
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, bootstrap);
+    await renderWithGym(<SessionDetailScreen sessionId="session-1" />, queryClient);
+
+    await screen.findByTestId('gym-session-detail');
+    // Fixture: 1 warm-up, then 2 working sets — the buggy numbering used to
+    // read "Warm-up", "Set 2", "Set 3" (counting the warm-up's own position).
+    expect(screen.getByText('Warm-up 1')).toBeTruthy();
+    expect(screen.getByText('Set 1')).toBeTruthy();
+    expect(screen.getByText('Set 2')).toBeTruthy();
+    expect(screen.queryByText('Set 3')).toBeNull();
   });
 
   it('shows a not-found state offline for an unknown session', async () => {

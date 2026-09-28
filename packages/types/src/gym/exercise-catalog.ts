@@ -107,6 +107,23 @@ const STRUCTURE: Struct[] = [
     { ...PH, swapGroup: 'horizontal-press', aliases: ['DB Bench Press'] },
   ),
   ex(
+    // T-05.10 (library staples, UX-05 A5, AC27-29): the barbell incline press
+    // was a gap — only the dumbbell version existed. Sorted alphabetically
+    // before "Incline Dumbbell Press" within the shared 'incline-press' swap
+    // group, so it leads the "Similar" list when swapping out of either.
+    'incline-barbell-bench-press',
+    'Incline Barbell Bench Press',
+    C,
+    'incline-push',
+    'BARBELL',
+    ['chest'],
+    ['front-delts', 'triceps'],
+    [6, 10],
+    180,
+    2.5,
+    { swapGroup: 'incline-press', aliases: ['Incline Bench Press', 'Incline Bench'] },
+  ),
+  ex(
     'incline-dumbbell-press',
     'Incline Dumbbell Press',
     C,
@@ -780,6 +797,28 @@ const STRUCTURE: Struct[] = [
     { ...L, swapGroup: 'hinge' },
   ),
   ex(
+    // T-05.10 (library staples, UX-05 A5, AC27-29): BODYWEIGHT_PLUS so
+    // "+ Add weight" (Q-28) lets a held plate load it without a dip belt.
+    // swapGroup 'hinge' groups it with the RDL/deadlift family as the
+    // no-barbell posterior-chain accessory.
+    'back-extension',
+    'Back Extension',
+    I,
+    'hip-extension',
+    'BODYWEIGHT',
+    ['lower-back'],
+    ['glutes', 'hamstrings'],
+    [10, 15],
+    90,
+    2.5,
+    {
+      loadType: 'BODYWEIGHT_PLUS',
+      swapGroup: 'hinge',
+      heldLoad: true,
+      aliases: ['Hyperextension', 'Roman Chair', 'Hyperextension Bench'],
+    },
+  ),
+  ex(
     'hip-abduction-machine',
     'Hip Abduction Machine',
     I,
@@ -1109,3 +1148,19 @@ export const EXERCISE_CATALOG: readonly ExerciseCatalogEntry[] = STRUCTURE.map((
 export const EXERCISE_BY_ID: ReadonlyMap<string, ExerciseCatalogEntry> = new Map(
   EXERCISE_CATALOG.map((e) => [e.id, e]),
 );
+
+/**
+ * Catalog slugs whose vendored photo(s) show the wrong exercise (a
+ * free-exercise-db id near-miss) — audited via
+ * scripts/gym/exercise-photo-contact-sheet.ts. Both ExerciseImage (mobile)
+ * and its web twin show the icon placeholder instead of these, even though
+ * imageKeysFor still returns the files (T-05.11, UX-05 A6, D-22 a). Record
+ * an addition here in apps/api/static/exercises/README.md "Hidden photos"
+ * too.
+ */
+export const HIDDEN_EXERCISE_IMAGE_IDS: ReadonlySet<string> = new Set([
+  // free-exercise-db's "Plank" id (both frames) is actually a kneeling lunge
+  // stretch photo, not a plank — confirmed 2026-09-27 by a T-05.11 sample
+  // audit (apps/api/static/exercises/README.md "Hidden photos").
+  'plank',
+]);

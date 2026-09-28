@@ -191,6 +191,27 @@ export function isShortOf(
   return have.quantity < need.quantity;
 }
 
+/**
+ * `have` expressed in `need`'s unit, when the two are comparable (same unit,
+ * or the same mass/volume family) — `null` for "some"/0/incomparable amounts
+ * (bug B-24, T-BUG-24: lets a caller show a PARTIAL match, e.g. "You have
+ * 100 g of 250 g needed", instead of `isShortOf`'s all-or-nothing gate).
+ */
+export function coveredQuantity(
+  have: { quantity: number; unit: string },
+  need: { quantity: number; unit: string },
+): number | null {
+  if (!(have.quantity > 0) || !(need.quantity > 0)) return null;
+  const hu = normalizeUnit(have.unit);
+  const nu = normalizeUnit(need.unit);
+  const hf = unitFamily(hu);
+  const nf = unitFamily(nu);
+  if (hf && nf) {
+    return hf.family !== nf.family ? null : (have.quantity * hf.factor) / nf.factor;
+  }
+  return hu === nu ? have.quantity : null;
+}
+
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }

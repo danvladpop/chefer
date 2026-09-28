@@ -41,6 +41,8 @@ export interface IUserRepository {
   delete(id: string): Promise<User>;
   /** Records (a Date) or clears (null) the AI data consent — null must reach Prisma. */
   setAiDataConsent(id: string, at: Date | null): Promise<User>;
+  /** T-39.3: marks the one-time "emails changed" notice as shown (idempotent). */
+  markEmailDefaultsNoticeShown(id: string): Promise<User>;
   findManyWithCount(options?: FindManyWithCountOptions): Promise<{ users: User[]; total: number }>;
   count(where?: Prisma.UserWhereInput): Promise<number>;
 }
@@ -90,6 +92,10 @@ export class PrismaUserRepository implements IUserRepository {
 
   async setAiDataConsent(id: string, at: Date | null): Promise<User> {
     return prisma.user.update({ where: { id }, data: { aiDataConsentAt: at } });
+  }
+
+  async markEmailDefaultsNoticeShown(id: string): Promise<User> {
+    return prisma.user.update({ where: { id }, data: { emailDefaultsNoticeAt: new Date() } });
   }
 
   async findManyWithCount(

@@ -128,12 +128,12 @@ describe('mergeHouseholdSafety — the hard union', () => {
     expect(merged.dietaryRestrictions).toEqual(['Vegetarian', 'Vegan']);
   });
 
-  it("member dislikes stay soft — only the owner's dislikes survive into SafetyPrefs", () => {
+  it('T-01.2 (owner decision 2026-09-27): member dislikes are now a HARD union, like allergies/restrictions', () => {
     const merged = mergeHouseholdSafety(
       { allergies: [], dietaryRestrictions: [], dislikedIngredients: ['okra'] },
       [member({ dislikedIngredients: ['mushrooms'] })],
     );
-    expect(merged.dislikedIngredients).toEqual(['okra']);
+    expect(merged.dislikedIngredients).toEqual(['okra', 'mushrooms']);
   });
 
   it("a member's allergen excludes a recipe through filterSafeRecipes (unchanged)", () => {

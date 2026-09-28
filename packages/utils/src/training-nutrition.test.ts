@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adjustedProteinWeightKg,
   applyTrainingDayBonus,
   buildTrainingDayNutrition,
+  goalWording,
   hasTrainingDayBump,
   isLifter,
   lifterProteinGPerKg,
@@ -12,6 +14,7 @@ import {
   trainingDayLine,
   trainingWeekdays,
   withLifterProtein,
+  withLifterProteinDetailed,
 } from './training-nutrition';
 
 // Audit P2-4: training-aware nutrition, deterministic.
@@ -85,6 +88,67 @@ describe('lifter protein by goal', () => {
     expect(hasTrainingDayBump('LOSE_WEIGHT')).toBe(false);
     expect(hasTrainingDayBump('MAINTAIN')).toBe(false);
     expect(hasTrainingDayBump(null)).toBe(false);
+  });
+
+  // T-35.2 (rev 2): RECOMP and PERFORMANCE join the lifter g/kg table.
+  it('RECOMP gets 2.0 g/kg (like a cut), PERFORMANCE gets 1.8 g/kg (like a gain)', () => {
+    expect(lifterProteinGPerKg('RECOMP')).toBe(2.0);
+    expect(lifterProteinGPerKg('PERFORMANCE')).toBe(1.8);
+  });
+
+  it('neither RECOMP nor PERFORMANCE gets the GAIN_MUSCLE-only training-day bump', () => {
+    expect(hasTrainingDayBump('RECOMP')).toBe(false);
+    expect(hasTrainingDayBump('PERFORMANCE')).toBe(false);
+  });
+});
+
+describe('adjustedProteinWeightKg (§2.11, T-11.4 — BMI >= 30 adjusted weight)', () => {
+  it('uses the actual weight unchanged below a BMI of 30', () => {
+    // 80kg @ 180cm -> BMI ~24.7
+    expect(adjustedProteinWeightKg(80, 180)).toEqual({ weightKg: 80, adjusted: false });
+  });
+
+  it('caps the weight at a BMI-30 equivalent at or above the threshold', () => {
+    // 120kg @ 170cm -> BMI ~41.5, well above 30. Cap = 30 * 1.7^2 = 86.7kg
+    const result = adjustedProteinWeightKg(120, 170);
+    expect(result.adjusted).toBe(true);
+    expect(result.weightKg).toBeCloseTo(86.7, 1);
+    expect(result.weightKg).toBeLessThan(120);
+  });
+
+  it('is a no-op when height is unknown', () => {
+    expect(adjustedProteinWeightKg(120, null)).toEqual({ weightKg: 120, adjusted: false });
+  });
+});
+
+describe('withLifterProteinDetailed', () => {
+  it('reports usedAdjustedWeight and uses the capped weight for the protein math', () => {
+    const cut = { dailyCalorieTarget: 2100, proteinG: 176, carbsG: 184, fatG: 70 };
+    const { targets, usedAdjustedWeight } = withLifterProteinDetailed(cut, 120, 'LOSE_WEIGHT', 170);
+    expect(usedAdjustedWeight).toBe(true);
+    // 2.0 g/kg * 86.7kg (rounded from adjustedProteinWeightKg) ~= 173g, not 240g (2.0*120)
+    expect(targets.proteinG).toBeLessThan(180);
+    expect(targets.proteinG).toBeGreaterThan(160);
+  });
+
+  it('matches withLifterProtein when no height is given (backward compatible)', () => {
+    const t = withLifterProtein(BASE, 80);
+    const detailed = withLifterProteinDetailed(BASE, 80);
+    expect(detailed.targets).toEqual(t);
+    expect(detailed.usedAdjustedWeight).toBe(false);
+  });
+});
+
+describe('goalWording', () => {
+  it('gives a sentence fragment for every goal, including RECOMP/PERFORMANCE', () => {
+    expect(goalWording('LOSE_WEIGHT')).toBe('losing weight');
+    expect(goalWording('RECOMP')).toContain('recomposition');
+    expect(goalWording('PERFORMANCE')).toBe('training performance');
+  });
+
+  it('falls back to a neutral phrase for an unknown or missing goal', () => {
+    expect(goalWording(null)).toBe('your nutrition goal');
+    expect(goalWording('SOMETHING_ELSE')).toBe('your nutrition goal');
   });
 });
 

@@ -38,6 +38,37 @@ describe('isExpectedFailure (dogfood #7 — no LogBox toast for offline)', () =>
     expect(isExpectedFailure([{ result: new Error('INTERNAL_SERVER_ERROR: boom') }])).toBe(false);
     expect(isExpectedFailure(['<< mutation', { result: 'nope' }])).toBe(false);
   });
+
+  it('bug B-17: a BAD_REQUEST/PRECONDITION_FAILED from recipe.importPreview or importVideoPreview is expected', () => {
+    const importError = Object.assign(new Error('That page is too large to import (over 1 MB).'), {
+      data: { code: 'BAD_REQUEST', path: 'recipe.importPreview' },
+    });
+    expect(isExpectedFailure([{ result: importError }])).toBe(true);
+
+    const videoError = Object.assign(new Error("Couldn't find a recipe in that content."), {
+      data: { code: 'PRECONDITION_FAILED', path: 'recipe.importVideoPreview' },
+    });
+    expect(isExpectedFailure([{ result: videoError }])).toBe(true);
+
+    // The same code on an unrelated procedure stays loud (only the import
+    // preview paths get the quiet treatment).
+    const unrelated = Object.assign(new Error('bad'), {
+      data: { code: 'BAD_REQUEST', path: 'recipe.create' },
+    });
+    expect(isExpectedFailure([{ result: unrelated }])).toBe(false);
+  });
+
+  it('a signed-out UNAUTHORIZED is expected even though its message never says so', () => {
+    const signedOut = Object.assign(new Error('You must be logged in to perform this action'), {
+      data: { code: 'UNAUTHORIZED', path: 'privacy.getConsentHistory' },
+    });
+    expect(isExpectedFailure(['<< query', { result: signedOut }])).toBe(true);
+
+    const forbidden = Object.assign(new Error('Not allowed'), {
+      data: { code: 'FORBIDDEN', path: 'user.me' },
+    });
+    expect(isExpectedFailure([{ result: forbidden }])).toBe(false);
+  });
 });
 
 describe('redactSecrets (F-M-AUTH-2-2 — no plaintext passwords in dev logs)', () => {

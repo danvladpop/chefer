@@ -7,6 +7,10 @@ import {
   UserNotFoundError,
 } from '../../domain/user/user.errors.js';
 import type { IUserRepository } from '../../infrastructure/prisma/prisma-user.repository.js';
+import { consentService } from '../privacy/consent.service.js';
+
+/** 'web' | 'mobile' | 'migration' — see ConsentService.record. */
+export type ConsentSource = 'web' | 'mobile' | 'migration';
 
 // ─── Input Types ──────────────────────────────────────────────────────────────
 
@@ -50,6 +54,8 @@ export interface UserDto {
   emailVerified: Date | null;
   /** When the user allowed AI features to process their data (null = not yet / revoked). */
   aiDataConsentAt: Date | null;
+  /** T-39.3: when the one-time "emails changed" notice was shown (null = not yet). */
+  emailDefaultsNoticeAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -207,8 +213,16 @@ export class UserService {
    * Grants (records now) or revokes (clears) the caller's consent to send
    * their data to the third-party AI provider (App Store 5.1.2(i)). Granting
    * again keeps the original timestamp, so a double tap is a no-op.
+   *
+   * `source` (`ctx.isMobileClient ? 'mobile' : 'web'`, passed by
+   * `user.router.ts`) defaults to 'web' only for callers outside the tRPC
+   * router (e.g. direct tests).
    */
-  async setAiDataConsent(id: string, granted: boolean): Promise<{ aiDataConsentAt: Date | null }> {
+  async setAiDataConsent(
+    id: string,
+    granted: boolean,
+    source: ConsentSource = 'web',
+  ): Promise<{ aiDataConsentAt: Date | null }> {
     const existing = await this.userRepository.findById(id);
     if (!existing) {
       throw new TRPCError({ code: 'NOT_FOUND', message: `User not found: ${id}` });
@@ -221,7 +235,34 @@ export class UserService {
     }
     try {
       const updated = await this.userRepository.setAiDataConsent(id, granted ? new Date() : null);
+      // §2.13: every AI consent write is logged, so revoking never erases
+      // the record the way clearing aiDataConsentAt alone would.
+      await consentService.record({ userId: id, kind: 'AI', granted, source });
       return { aiDataConsentAt: updated.aiDataConsentAt };
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+
+  /**
+   * T-39.3: marks the one-time "we've changed how emails work" notice as
+   * shown. Idempotent — a second call is a no-op that returns the original
+   * timestamp, so a race between two devices dismissing at once never
+   * overwrites an earlier value with a later one.
+   */
+  async dismissEmailDefaultsNotice(id: string): Promise<{ emailDefaultsNoticeAt: Date }> {
+    const existing = await this.userRepository.findById(id);
+    if (!existing) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: `User not found: ${id}` });
+    }
+    if (existing.emailDefaultsNoticeAt) {
+      return { emailDefaultsNoticeAt: existing.emailDefaultsNoticeAt };
+    }
+    try {
+      const updated = await this.userRepository.markEmailDefaultsNoticeShown(id);
+      // updated.emailDefaultsNoticeAt is set by markEmailDefaultsNoticeShown
+      // (new Date()), so it is never null here.
+      return { emailDefaultsNoticeAt: updated.emailDefaultsNoticeAt ?? new Date() };
     } catch (error) {
       this.handleError(error);
     }
@@ -256,6 +297,7 @@ export class UserService {
     image: string | null;
     emailVerified: Date | null;
     aiDataConsentAt?: Date | null;
+    emailDefaultsNoticeAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
   }): UserDto {
@@ -270,6 +312,7 @@ export class UserService {
       image: user.image,
       emailVerified: user.emailVerified,
       aiDataConsentAt: user.aiDataConsentAt ?? null,
+      emailDefaultsNoticeAt: user.emailDefaultsNoticeAt ?? null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

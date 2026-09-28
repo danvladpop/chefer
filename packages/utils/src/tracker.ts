@@ -5,6 +5,9 @@
 
 /** Structural mirror of the API's LoggedMealEntry (daily-log.repository). */
 export interface LoggedMealEntryLike {
+  /** Stable id (T-19.2, B-34) — optional: an entry read before the lazy
+   * backfill (tracker.getDay) may not have one yet. */
+  entryId?: string | undefined;
   recipeId?: string | undefined;
   custom?: { name: string; estimatedBy: 'vision' | 'manual' } | undefined;
   mealType: string;
@@ -18,6 +21,10 @@ export interface LoggedMealEntryLike {
 export interface CustomEntryRow {
   /** Index in the day's FULL loggedMeals array — what deleteCustomMeal takes. */
   entryIndex: number;
+  /** Stable id (T-19.2, B-34) — what updateCustomMeal/restoreCustomMeal take.
+   * Practically always present (tracker.getDay backfills it), kept optional
+   * only to match the source type. */
+  entryId?: string | undefined;
   name: string;
   estimatedBy: 'vision' | 'manual';
   mealType: string;
@@ -38,6 +45,7 @@ export function customEntryRows(loggedMeals: LoggedMealEntryLike[]): CustomEntry
     return [
       {
         entryIndex,
+        entryId: entry.entryId,
         name: entry.custom.name,
         estimatedBy: entry.custom.estimatedBy,
         mealType: entry.mealType,

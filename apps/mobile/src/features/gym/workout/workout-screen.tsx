@@ -4,9 +4,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect } from 'expo-router';
 import type { ExerciseDto, Rir } from '@chefer/types';
-import { Button, ConfirmSheet, EmptyState, haptics, Screen, Text } from '@chefer/ui-mobile';
-import { sameKg, sessionSupersetKey, type SessionSupersetSlot } from '@chefer/utils';
+import {
+  Button,
+  ConfirmSheet,
+  EmptyState,
+  haptics,
+  Screen,
+  Text,
+  useSnackbar,
+} from '@chefer/ui-mobile';
+import {
+  sameKg,
+  sessionSupersetKey,
+  unstartedExercises,
+  type SessionSupersetSlot,
+} from '@chefer/utils';
 import { ExercisePicker } from '../library/exercise-picker';
+import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate, newId } from '../offline/ids';
 import { dispatchWorkout, getResumableSession, useActiveWorkout } from '../use-active-workout';
 import { useGymBootstrap } from '../use-gym-bootstrap';
@@ -49,8 +63,7 @@ type SheetState =
   | { kind: 'picker'; mode: 'swap' | 'add'; seId: string | null; scope: SwapScope }
   | { kind: 'finish' }
   | { kind: 'discard' }
-  | { kind: 'minimise' }
-  | { kind: 'removeSet'; seId: string; setId: string };
+  | { kind: 'minimise' };
 
 /** iOS can't present a Modal while another is still dismissing. */
 const SHEET_SWAP_DELAY_MS = 380;
@@ -76,14 +89,17 @@ function leaveWorkout(): void {
 }
 
 export function WorkoutScreen() {
-  const { session, finish, discard } = useActiveWorkout();
+  const { session, finish, discard, saveForLater, resume } = useActiveWorkout();
   const { data: bootstrap } = useGymBootstrap();
   const online = useIsOnline();
   const swapRoutine = useRoutineSwap();
+  const snackbar = useSnackbar();
   const [finishing, setFinishing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [moveUnstarted, setMoveUnstarted] = useState(true);
   const isActive = session !== null;
   const sessionId = session?.id ?? null;
+  const pausedAt = useActiveSessionPausedAt();
 
   // ── Keep the screen on while a workout runs ────────────────────────────────
   useEffect(() => {
@@ -93,6 +109,13 @@ export function WorkoutScreen() {
       deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => undefined);
     };
   }, [isActive]);
+
+  // Opening the workout screen on a "saved for later" session resumes it
+  // (UX-36 (3)) — the Resume card's job was only to get the user back here.
+  useEffect(() => {
+    if (pausedAt !== null) resume();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once, not on every pausedAt read
+  }, []);
 
   // ── Derived, memoised context ──────────────────────────────────────────────
   const unit = unitOf(bootstrap);
@@ -235,14 +258,51 @@ export function WorkoutScreen() {
           }
         }
       },
+      // T-05.7 (bug B-20): typed/stepped reps carry to later unticked sets
+      // that still matched the old value, exactly like weight above — a
+      // reps change on set 1 almost always means the rest too.
       onReps: (seId, setId, reps) => {
+        const se = getResumableSession()?.exercises.find((e) => e.id === seId);
+        const set = se?.sets.find((s) => s.id === setId);
+        if (!se || !set) return;
+        const old = set.reps;
         dispatchWorkout({ type: 'editSet', seId, setId, reps });
+        if (set.isWarmup) return;
+        for (const later of se.sets) {
+          if (
+            !later.isWarmup &&
+            later.position > set.position &&
+            later.completedAt === null &&
+            later.reps === old
+          ) {
+            dispatchWorkout({ type: 'editSet', seId, setId: later.id, reps });
+          }
+        }
       },
       onOpenWeight: (seId, setId) => openSheet({ kind: 'weight', seId, setId }),
       onOpenReps: (seId, setId) => openSheet({ kind: 'reps', seId, setId }),
-      onLongPress: (seId, setId) => openSheet({ kind: 'removeSet', seId, setId }),
+      // UX-05 A1 (T-05.A1.2, PAT-16): any set, logged or not, is removed with
+      // no confirm — the ⋯ and long-press both land here — and restored by
+      // Undo, in place, with its values and tick.
+      onLongPress: (seId, setId) => {
+        const se = getResumableSession()?.exercises.find((e) => e.id === seId);
+        const index = se?.sets.findIndex((s) => s.id === setId) ?? -1;
+        const set = se && index >= 0 ? se.sets[index] : undefined;
+        const label = se ? setLabelOf(se, setId) : null;
+        if (!se || !set) return;
+        dispatchWorkout({ type: 'removeSet', seId, setId });
+        haptics.warning();
+        snackbar.show({
+          message: `Removed ${label?.toLowerCase() ?? 'set'}`,
+          actionLabel: 'Undo',
+          durationMs: 8000,
+          onAction: () => {
+            dispatchWorkout({ type: 'restoreSet', seId, set, index });
+          },
+        });
+      },
     }),
-    [openSheet],
+    [openSheet, snackbar],
   );
 
   // ── Expansion + auto-scroll to the current exercise ────────────────────────
@@ -332,29 +392,50 @@ export function WorkoutScreen() {
   );
 
   // ── Finish / discard / minimise ────────────────────────────────────────────
-  const doFinish = useCallback(async () => {
-    closeSheet();
-    setFinishing(true);
-    try {
-      const doc = await finish();
-      if (doc) {
-        rememberFinished(doc);
-        router.replace({ pathname: '/gym/summary/[id]', params: { id: doc.id } });
-        return;
+  const doFinish = useCallback(
+    async (carryOverExerciseIds?: string[]) => {
+      closeSheet();
+      setFinishing(true);
+      try {
+        const doc = await finish(carryOverExerciseIds);
+        if (doc) {
+          rememberFinished(doc);
+          router.replace({ pathname: '/gym/summary/[id]', params: { id: doc.id } });
+          return;
+        }
+      } catch {
+        // The doc is enqueued before anything that can throw; fall through.
       }
-    } catch {
-      // The doc is enqueued before anything that can throw; fall through.
-    }
-    setFinishing(false);
-  }, [closeSheet, finish]);
+      setFinishing(false);
+    },
+    [closeSheet, finish],
+  );
+
+  // The names shown in the finish sheet's "N exercises not started" body and
+  // carried through to `finish()` when the switch stays on (UX-36 (3)).
+  const unstarted = useMemo(() => (session ? unstartedExercises(session) : []), [session]);
 
   const onFinishPress = useCallback(() => {
     const doc = getResumableSession();
     if (!doc) return;
     const { done, planned } = workoutProgress(doc);
-    if (done < planned || done === 0) openSheet({ kind: 'finish' });
-    else void doFinish();
+    if (done < planned || done === 0) {
+      setMoveUnstarted(true);
+      openSheet({ kind: 'finish' });
+    } else void doFinish();
   }, [doFinish, openSheet]);
+
+  const onFinishConfirm = useCallback(() => {
+    const ids =
+      moveUnstarted && session?.routineDayId ? unstarted.map((e) => e.exerciseId) : undefined;
+    void doFinish(ids);
+  }, [doFinish, moveUnstarted, session?.routineDayId, unstarted]);
+
+  const onSaveForLater = useCallback(() => {
+    closeSheet();
+    saveForLater();
+    leaveWorkout();
+  }, [closeSheet, saveForLater]);
 
   const onDiscardConfirm = useCallback(() => {
     closeSheet();
@@ -484,8 +565,6 @@ export function WorkoutScreen() {
         ? 'Changing your routine needs a connection. This swap applies to today only.'
         : null;
   const unticked = planned - done;
-  const removeSetLabel =
-    content?.kind === 'removeSet' && contentSe ? setLabelOf(contentSe, content.setId) : null;
 
   return (
     <Screen className="px-0" edges={['top', 'left', 'right']}>
@@ -595,6 +674,11 @@ export function WorkoutScreen() {
         >
           Finish workout
         </Button>
+        {/* UX-36 (3), T-36.3: bottom actions become Finish · Save for later ·
+            Discard — a cut-short workout is never just finish-or-bin (CI-49). */}
+        <Button testID="workout-save-for-later" variant="outline" onPress={onSaveForLater}>
+          Save for later
+        </Button>
         <Button
           testID="workout-discard"
           variant="ghost"
@@ -637,11 +721,13 @@ export function WorkoutScreen() {
           closeSheet();
         }}
         onRemoveSet={() => {
-          const target = contentSe
-            ? [...byPosition(contentSe.sets)]
-                .reverse()
-                .find((s) => s.completedAt === null && !s.isWarmup)
-            : undefined;
+          // "Remove last set" (renamed, T-05.A1.2): the last unlogged
+          // working set, or — once every set is logged — the last working
+          // set outright.
+          const working = contentSe
+            ? [...byPosition(contentSe.sets)].reverse().filter((s) => !s.isWarmup)
+            : [];
+          const target = working.find((s) => s.completedAt === null) ?? working[0];
           if (contentSe && target) {
             dispatchWorkout({ type: 'removeSet', seId: contentSe.id, setId: target.id });
           }
@@ -705,15 +791,38 @@ export function WorkoutScreen() {
         visible={active?.kind === 'finish'}
         onClose={closeSheet}
         testID="workout-finish-sheet"
-        title="Finish workout?"
-        body={
-          done === 0
-            ? 'You haven’t logged any sets yet. Only ticked sets count.'
-            : `${unticked} ${unticked === 1 ? 'set isn’t' : 'sets aren’t'} ticked. Only ticked sets count.`
+        title={
+          unstarted.length > 0 && session.routineDayId
+            ? `${unstarted.length} ${unstarted.length === 1 ? 'exercise' : 'exercises'} not started`
+            : 'Finish workout?'
         }
-        confirmLabel="Finish anyway"
+        body={
+          unstarted.length > 0 && session.routineDayId
+            ? unstarted.map((e) => lookup(e.exerciseId).name).join(', ')
+            : done === 0
+              ? 'You haven’t logged any sets yet. Only ticked sets count.'
+              : `${unticked} ${unticked === 1 ? 'set isn’t' : 'sets aren’t'} ticked. Only ticked sets count.`
+        }
+        // UX-36 (3): "Move them to your next session" (T-36.3) — only offered
+        // when whole exercises were never started AND it's a routine day
+        // (freestyle sessions have no "next session" to carry into).
+        options={
+          unstarted.length > 0 && session.routineDayId
+            ? [
+                {
+                  label: 'Move them to your next session',
+                  detail: 'Turn off to finish now and skip them this time.',
+                  value: moveUnstarted,
+                  onChange: setMoveUnstarted,
+                },
+              ]
+            : undefined
+        }
+        confirmLabel={
+          unstarted.length > 0 && session.routineDayId ? 'Finish workout' : 'Finish anyway'
+        }
         cancelLabel="Keep going"
-        onConfirm={() => void doFinish()}
+        onConfirm={onFinishConfirm}
       />
       <ConfirmSheet
         visible={active?.kind === 'discard'}
@@ -737,22 +846,6 @@ export function WorkoutScreen() {
         onConfirm={() => {
           closeSheet();
           leaveWorkout();
-        }}
-      />
-      <ConfirmSheet
-        visible={active?.kind === 'removeSet'}
-        onClose={closeSheet}
-        testID="workout-remove-set-sheet"
-        title={`Remove ${removeSetLabel?.toLowerCase() ?? 'this set'}?`}
-        body={`${contentMeta?.name ?? 'This exercise'} loses this set for today. Your routine doesn’t change.`}
-        confirmLabel="Remove set"
-        cancelLabel="Keep it"
-        destructive
-        onConfirm={() => {
-          if (content?.kind === 'removeSet') {
-            dispatchWorkout({ type: 'removeSet', seId: content.seId, setId: content.setId });
-          }
-          closeSheet();
         }}
       />
     </Screen>

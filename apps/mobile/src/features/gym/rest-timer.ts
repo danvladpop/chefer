@@ -127,7 +127,8 @@ let permissionAsked = false;
 
 /**
  * Asks for notification permission at most once per process, and only when
- * called — from a user action inside a workout, never on cold start.
+ * called — from a user action (the rationale sheet's "Allow" tap), never on
+ * cold start.
  */
 export async function ensureRestNotificationPermission(): Promise<boolean> {
   try {
@@ -142,6 +143,26 @@ export async function ensureRestNotificationPermission(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Whether the OS already granted (or already permanently denied) the permission. */
+export async function hasRestNotificationPermission(): Promise<boolean> {
+  try {
+    return (await Notifications.getPermissionsAsync()).granted;
+  } catch {
+    return false;
+  }
+}
+
+const RATIONALE_SHOWN_KEY = KV_KEYS.restPermissionRationaleShown;
+
+/** B-40: the rationale sheet is shown at most once, ever, on this device. */
+export function hasShownRestPermissionRationale(): boolean {
+  return kv.getString(RATIONALE_SHOWN_KEY) === '1';
+}
+
+export function markRestPermissionRationaleShown(): void {
+  kv.setString(RATIONALE_SHOWN_KEY, '1');
 }
 
 async function cancelScheduled(): Promise<void> {

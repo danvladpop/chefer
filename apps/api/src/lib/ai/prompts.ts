@@ -36,6 +36,13 @@ const GOAL_LABELS: Record<string, string> = {
   MAINTAIN: 'maintain current weight (balanced macros)',
   GAIN_MUSCLE: 'gain muscle (caloric surplus, very high protein)',
   EAT_HEALTHIER: 'eat healthier (whole foods, micronutrient-rich, minimally processed)',
+  // §T-35.2 (rev 2): RECOMP / PERFORMANCE (Prisma `Goal` + `@chefer/types`).
+  // These are the AI's instructions; the user-facing phrasing of the same
+  // goals is `GOAL_WORDING` in `@chefer/utils` (training-nutrition.ts).
+  RECOMP:
+    'recomposition (maintenance calories, higher protein — about 1.8–2.0 g/kg — to build muscle while losing fat)',
+  PERFORMANCE:
+    'fuel training performance (calories and carbs sized to support training load, high protein)',
 };
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -467,8 +474,10 @@ Hard rules:
 - Plain kitchen language only. NEVER mention BMR, TDEE, EWMA, algorithms,
   formulas or "the system".
 - ${CHEF_NOT_DOCTOR_RULE}
-- If their calorie budget changed, present it as YOUR decision as their chef
-  ("I've trimmed next week's budget by 100 kcal") — never as math.
+- §T-35.4 (rev 2): the chef SUGGESTS a calorie-budget change; it is no longer
+  applied automatically. Frame it as a recommendation the user can accept or
+  ignore ("I'd suggest trimming next week's budget by 100 kcal — want me to
+  make that change?") — never state it as already decided, and never as math.
 - If adherence was low, coach the logging habit warmly instead of the numbers.
 - If protein data is given, they lift: say in one line how their protein
   compared with their target, and if short, suggest a protein-forward dish.`;
@@ -486,9 +495,11 @@ export function buildReviewUserPrompt(input: CoachReviewInput): string {
         ]
       : []),
     `Goal: ${input.goal ?? 'MAINTAIN'}.`,
+    // §T-35.4 (rev 2): the coach stops auto-applying targets — this number is
+    // a SUGGESTED change the user still has to accept, not a done deal.
     input.adjustmentKcal !== 0
-      ? `Decision already made: next week's calorie budget changes by ${input.adjustmentKcal > 0 ? '+' : ''}${input.adjustmentKcal} kcal. State it as your call.`
-      : 'Decision already made: the calorie budget stays as it is.',
+      ? `Suggested (not yet applied): next week's calorie budget would change by ${input.adjustmentKcal > 0 ? '+' : ''}${input.adjustmentKcal} kcal. Propose it as your recommendation, not a decision already made.`
+      : 'No calorie-budget change is being suggested this week.',
   ];
   if (input.dishNames.length > 0) {
     lines.push(`Dishes on their plan this week: ${input.dishNames.slice(0, 10).join(', ')}.`);

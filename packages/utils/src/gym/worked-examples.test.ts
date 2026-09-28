@@ -123,7 +123,7 @@ describe('research §1.11 worked examples', () => {
     expect(rowMissedOnce.next.reasonCode).toBe('MISSED_ONCE');
     expect(rowMissedOnce.missStreak).toBe(1);
     expect(explain(rowMissedOnce.next, 'KG')).toBe(
-      'Tough day, so same weight. Get 8 on every set.',
+      'Tough day at 70 kg, so same weight. Get 8 on every set.',
     );
   });
 
@@ -277,5 +277,117 @@ describe('research §1.11 worked examples', () => {
     expect(after.next.reasonCode).toBe('DELOAD_DONE');
     expect(after.workingWeightKg).toBe(s.workingWeightKg);
     expect(explain(after.next, 'KG')).toBe('Deload done, so back to 62.5 kg where you left off.');
+  });
+});
+
+// T-05.1 amendment A1: bugs B-07 (a back-off set becoming next week's weight)
+// and B-08 (a heavier-than-prescribed skipped exposure being ignored). AC1.
+describe('UX-05 A1 — progression you can trust (B-07, B-08)', () => {
+  it('B-07: bench 90×6, 90×6, 90×5 + an 80×8 back-off → next ≥ 90 kg, "Tough day at 90 kg", never 80 kg', () => {
+    const bench90 = slotFor('barbell-bench-press', 3, 8, 12);
+    // The `apply` fixture applies one uniform weight to every set, so the
+    // mixed top-set/back-off exposure is built by hand here.
+    const withBackoff = applyExposure({
+      slot: bench90,
+      state: known(bench90, 90),
+      exposure: exposureOf(bench90, '2026-09-01', 0, [], null, {
+        loggedSets: [
+          { weightKg: 45, reps: 8, isWarmup: true, completed: true },
+          { weightKg: 90, reps: 6, isWarmup: false, completed: true },
+          { weightKg: 90, reps: 6, isWarmup: false, completed: true },
+          { weightKg: 90, reps: 5, isWarmup: false, completed: true },
+          { weightKg: 80, reps: 8, isWarmup: false, completed: true },
+        ],
+      }),
+      profile,
+      experience: 'INTERMEDIATE',
+    });
+    expect(withBackoff.next.weightKg).toBeGreaterThanOrEqual(90);
+    expect(withBackoff.next.reasonCode).toBe('MISSED_ONCE');
+    expect(explain(withBackoff.next, 'KG')).toBe(
+      'Tough day at 90 kg, so same weight. Get 8 on every set.',
+    );
+  });
+
+  it('B-08: deadlift 150×5 on 1 of 3 planned sets (prescribed 40×10) → next starts from 150 kg', () => {
+    const dl = slotFor('deadlift', 3, 8, 10);
+    const s = known(dl, 40);
+    const out = applyExposure({
+      slot: dl,
+      state: s,
+      exposure: exposureOf(dl, '2026-09-01', 0, [], null, {
+        sets: 3,
+        loggedSets: [{ weightKg: 150, reps: 5, isWarmup: false, completed: true }],
+      }),
+      profile,
+      experience: 'INTERMEDIATE',
+    });
+    expect(out.next.reasonCode).toBe('INCOMPLETE');
+    expect(out.next.weightKg).toBe(150);
+    expect(out.next.inputs['liftedHeavier']).toBe(true);
+    expect(explain(out.next, 'KG', 'next')).toBe(
+      'You lifted 150 kg × 5 on 1 of 3 sets, so next time starts from 150 kg.',
+    );
+  });
+
+  it('AC2: no summary ("next") sentence ever says "today"', () => {
+    const s = apply(bench, known(bench, 60), '2026-09-01', 60, [12, 12, 12], 2);
+    expect(explain(s.next, 'KG', 'next')).not.toMatch(/today/);
+    expect(explain(s.next, 'KG', 'today')).toMatch(/today/);
+  });
+});
+
+// T-05.A2.1: sane defaults for timed and custom exercises (O-02). AC17, AC18.
+describe('UX-05 A2 — timed/custom defaults (O-02)', () => {
+  it('AC17: a custom timed exercise with repMin 1 (a degenerate range) shows no load and no invented aim', () => {
+    const bikeMeta = {
+      id: 'custom-indoor-bike',
+      name: 'Indoor Bike',
+      category: 'COMPOUND' as const,
+      movementPattern: 'cycle',
+      equipment: 'MACHINE' as const,
+      loadType: 'WEIGHTED' as const,
+      primaryMuscles: [],
+      secondaryMuscles: [],
+      repMin: 1,
+      repMax: 1,
+      restSec: 60,
+      incrementKg: 5,
+      perHand: false,
+      isLowerBody: true,
+      isTimed: true,
+      swapGroup: null,
+    };
+    const slot = { exercise: bikeMeta, sets: 3, repMin: 1, repMax: 1, targetRir: 2, restSec: 60 };
+    const s = initialState({ slot, profile, experience: 'INTERMEDIATE' });
+    expect(s.next.weightKg).toBe(0);
+    expect(explain(s.next, 'KG')).toBe('New: log how long you went.');
+    expect(explain(s.next, 'KG')).not.toMatch(/Starting weight/);
+    expect(explain(s.next, 'KG')).not.toMatch(/Aim for 1 s/);
+  });
+
+  it('AC18: a timed exercise logged with a load keeps offering that load next time', () => {
+    const bikeMeta = {
+      id: 'custom-indoor-bike-2',
+      name: 'Indoor Bike',
+      category: 'COMPOUND' as const,
+      movementPattern: 'cycle',
+      equipment: 'MACHINE' as const,
+      loadType: 'WEIGHTED' as const,
+      primaryMuscles: [],
+      secondaryMuscles: [],
+      repMin: 1,
+      repMax: 1,
+      restSec: 60,
+      incrementKg: 5,
+      perHand: false,
+      isLowerBody: true,
+      isTimed: true,
+      swapGroup: null,
+    };
+    const slot = { exercise: bikeMeta, sets: 3, repMin: 1, repMax: 1, targetRir: 2, restSec: 60 };
+    const s = initialState({ slot, profile, experience: 'INTERMEDIATE', knownWeightKg: 15 });
+    expect(s.next.weightKg).toBe(15);
+    expect(explain(s.next, 'KG')).not.toBe('New: log how long you went.');
   });
 });

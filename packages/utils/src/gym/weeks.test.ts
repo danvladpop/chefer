@@ -9,6 +9,7 @@ import {
   daysBetweenLocal,
   goalForWeek,
   settleWeeks,
+  streakWeeksLabel,
   summarizeWeeks,
   weekdayOf,
   weekStartOf,
@@ -409,5 +410,19 @@ describe('deloadContinues', () => {
       false,
     );
     expect(deloadContinues([], 3)).toBe(true);
+  });
+});
+
+describe('streakWeeksLabel (T-36.4: never "0-week streak")', () => {
+  it('encourages rather than shaming at a streak of 0', () => {
+    expect(streakWeeksLabel(0)).toBe("Your streak starts when you hit this week's goal.");
+  });
+
+  it('uses the singular for exactly 1 week', () => {
+    expect(streakWeeksLabel(1)).toBe('1-week streak');
+  });
+
+  it('uses the plural count otherwise', () => {
+    expect(streakWeeksLabel(7)).toBe('7-week streak');
   });
 });

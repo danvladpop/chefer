@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Snackbar } from '@chefer/ui-mobile';
 import { AiConsentHost, AiConsentProvider } from '../src/features/ai-consent/ai-consent-provider';
+import { TermsReacceptSheet } from '../src/features/auth/terms-reaccept-sheet';
 import { useSession } from '../src/features/auth/use-session';
 import { installQueryConnectivity } from '../src/features/gym/offline/connectivity';
 import { GymSyncProvider } from '../src/features/gym/offline/gym-sync-provider';
@@ -13,6 +14,7 @@ import {
   createGymPersistOptions,
 } from '../src/features/gym/offline/query-persistence';
 import { useNotificationLinks } from '../src/features/notifications/use-notification-links';
+import { initAnalytics, track } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
 import { CURRENT_BUILD } from '../src/lib/current-build';
@@ -27,6 +29,11 @@ console.info(`[chefer] ${CURRENT_BUILD}`);
 
 // NetInfo → onlineManager, AppState → focusManager (gym offline layer, §5.2).
 installQueryConnectivity();
+
+// Usage analytics (T-12.2, §5.10): starts the JS transport's 30s flush timer
+// and background-flush listener. A no-op when no PostHog key is configured.
+initAnalytics();
+track('app_opened', {});
 
 // Catches render errors in every route; see root-error-boundary.tsx.
 export { RootErrorBoundary as ErrorBoundary } from '../src/components/root-error-boundary';
@@ -110,8 +117,14 @@ export default function RootLayout() {
               <Stack.Protected guard={token === null}>
                 <Stack.Screen name="(auth)" />
               </Stack.Protected>
+              {/* T-39.1: the in-app legal screen — unguarded, reachable both
+                  from Register (signed out) and Settings/More (signed in). */}
+              <Stack.Screen name="legal/[doc]" />
             </Stack>
             <AiConsentHost />
+            {/* T-39.1: re-accept sheet for an existing account whose stored
+                Terms/Privacy acceptance predates a document version bump. */}
+            <TermsReacceptSheet signedIn={token !== null} />
             {/* PAT-4 (T-00.2): one snackbar host for the whole app, mounted
               above the tab bar so it never sits under it. */}
             <Snackbar />

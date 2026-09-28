@@ -1,6 +1,7 @@
 'use client';
 
 import { Check } from 'lucide-react';
+import { WELLNESS_COPY } from '@chefer/utils';
 import type { Goal } from '../types';
 
 const GOALS: {
@@ -40,14 +41,35 @@ const GOALS: {
     description: 'Improve overall nutrition and eating habits',
     calorieEffect: 'Maintenance calories, better macros',
   },
+  {
+    value: 'RECOMP',
+    label: 'Recomposition',
+    icon: '🔄',
+    description: 'Lose fat and build muscle at the same time',
+    calorieEffect: 'Maintenance calories',
+  },
+  {
+    value: 'PERFORMANCE',
+    label: 'Performance',
+    icon: '🏃',
+    description: 'Fuel training and recovery, not a scale number',
+    calorieEffect: 'Maintenance calories',
+  },
 ];
 
 interface StepGoalProps {
   value: Goal | null;
   onChange: (goal: Goal) => void;
+  /**
+   * T-22.3: the goal/metrics disclaimer. Defaults to shown (the standalone
+   * onboarding wizard step has no metrics screen visible alongside it) —
+   * targets-section.tsx (Settings) turns it off here since its StepMetrics
+   * right below already carries the same line (shown once per screen).
+   */
+  showDisclaimer?: boolean;
 }
 
-export function StepGoal({ value, onChange }: StepGoalProps) {
+export function StepGoal({ value, onChange, showDisclaimer = true }: StepGoalProps) {
   return (
     <div className="space-y-8">
       <div className="text-center">
@@ -99,6 +121,13 @@ export function StepGoal({ value, onChange }: StepGoalProps) {
           );
         })}
       </div>
+
+      {/* T-22.3: a calculator, not a doctor — visible at 1.8x text (AC5), never truncated. */}
+      {showDisclaimer && (
+        <p className="text-center text-xs text-muted-foreground">
+          {WELLNESS_COPY.goalMetricsDisclaimer}
+        </p>
+      )}
     </div>
   );
 }

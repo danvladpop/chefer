@@ -1,0 +1,82 @@
+# Tracker E2E — UX-19 (T-19.1/T-19.2/T-19.4): search-first Log sheet, log
+# from Recent in ≤ 2 taps (AC1), edit any entry, delete + Undo (AC2, bug
+# B-34). Precondition: a signed-in session (common/connect.yaml handles it).
+#
+# Recent is seeded by this flow itself (manual "Enter calories yourself")
+# rather than assumed from fixture data, so it passes on a fresh DB too.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+
+# Open the tracker from Today ("See full day" — same entry point as
+# dashboard.flow.yaml).
+- tapOn:
+    id: 'today-full-day'
+- extendedWaitUntil:
+    visible:
+      id: 'tracker-title'
+    timeout: 15000
+
+# Seed Recent: log one item manually ("Enter calories yourself" fallback).
+- tapOn:
+    id: 'tracker-quick-add'
+- extendedWaitUntil:
+    visible:
+      id: 'log-sheet-title'
+    timeout: 10000
+- tapOn:
+    id: 'log-sheet-manual'
+- tapOn:
+    id: 'quick-add-name'
+- inputText: 'Maestro test snack'
+- tapOn:
+    id: 'quick-add-kcal'
+- inputText: '250'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'quick-add-submit'
+- extendedWaitUntil:
+    notVisible:
+      id: 'log-sheet-title'
+    timeout: 10000
+- assertVisible: 'Maestro test snack'
+
+# AC1: log the same thing again from Recent — opening the sheet (tap 1) plus
+# its "+" (tap 2) is the whole interaction; no search, no form.
+- tapOn:
+    id: 'tracker-quick-add'
+- extendedWaitUntil:
+    visible:
+      id: 'log-sheet-title'
+    timeout: 10000
+- assertVisible:
+    text: 'Recent'
+- tapOn:
+    id: 'log-sheet-recent-add-custom:maestro test snack'
+- extendedWaitUntil:
+    notVisible:
+      id: 'log-sheet-title'
+    timeout: 10000
+
+# Two "Maestro test snack" rows now sit under "Also eaten" — tapping either
+# exercises the same Edit entry / delete / Undo path (bug B-34, T-19.2).
+- scrollUntilVisible:
+    element:
+      text: 'Maestro test snack'
+    direction: DOWN
+- tapOn: 'Maestro test snack'
+- extendedWaitUntil:
+    visible:
+      id: 'edit-entry-sheet-title'
+    timeout: 10000
+- assertVisible:
+    id: 'edit-entry-name'
+- tapOn:
+    id: 'edit-entry-delete'
+- assertVisible: 'Undo'
+- tapOn: 'Undo'
+- assertVisible: 'Maestro test snack'

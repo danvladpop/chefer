@@ -56,19 +56,19 @@ appId: dev.chefer.app.dev
     - 'fixtures/large-photo.jpg'
 - runFlow: common/pick-latest-photo.yaml
 - scrollUntilVisible:
-    element: 'Remove photo'
+    element: 'Remove'
     direction: DOWN
     timeout: 60000
 - assertNotVisible: 'That photo is too big.*'
 - assertNotVisible: '.*\[object Object\].*'
-- tapOn: 'Remove photo'
+- tapOn: 'Remove'
 
 # ── Screenshot-sized: uploads ──
 - addMedia:
     - 'fixtures/screenshot-photo.jpg'
 - runFlow: common/pick-latest-photo.yaml
 - scrollUntilVisible:
-    element: 'Remove photo'
+    element: 'Remove'
     direction: DOWN
     timeout: 30000
 - assertNotVisible: '.*\[object Object\].*'

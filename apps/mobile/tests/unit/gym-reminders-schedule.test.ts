@@ -1,10 +1,13 @@
 import { weekdayOf } from '@chefer/utils';
 import {
+  computeAllGymReminders,
   computeGymReminders,
+  computeQuietNudge,
   localInstant,
   type GymReminderInput,
   type GymReminderRoutine,
   type LocalInstantFn,
+  type QuietNudgeInput,
 } from '../../src/features/gym/reminders/schedule';
 
 // Pure scheduler tests (gym_plan.md §6.5, research §4.2 #7). Every test
@@ -220,5 +223,80 @@ describe('computeGymReminders (DST-safe instant conversion)', () => {
     const at = localInstant('2026-09-25', '18:00');
     expect(() => new Date(at)).not.toThrow();
     expect(Number.isNaN(Date.parse(at))).toBe(false);
+  });
+});
+
+const NEXT_WORKOUT = { dayName: 'Upper A', estimatedMin: 45 };
+
+function quietInput(over: Partial<QuietNudgeInput> = {}): QuietNudgeInput {
+  return {
+    quietNudgeDays: 5,
+    lastSessionDate: '2026-09-20',
+    nextWorkout: NEXT_WORKOUT,
+    today: '2026-09-25',
+    now: '2026-09-25T00:00:00.000Z',
+    activePause: null,
+    toLocalInstant: fixedInstant,
+    ...over,
+  };
+}
+
+describe('computeQuietNudge (T-36.2, bug B-40)', () => {
+  it('fires N days after the last session, naming the next workout and its length', () => {
+    const nudge = computeQuietNudge(quietInput());
+    expect(nudge).toEqual({
+      at: '2026-09-25T10:00:00.000Z',
+      title: 'Fancy a short one today?',
+      body: 'Fancy a short one today? Your Upper A is ready — about 45 min.',
+      kind: 'quiet',
+    });
+  });
+
+  it('is off when quietNudgeDays is null, 0, or there is no baseline session yet', () => {
+    expect(computeQuietNudge(quietInput({ quietNudgeDays: null }))).toBeNull();
+    expect(computeQuietNudge(quietInput({ quietNudgeDays: 0 }))).toBeNull();
+    expect(computeQuietNudge(quietInput({ lastSessionDate: null }))).toBeNull();
+  });
+
+  it('never schedules during a pause covering the due date', () => {
+    expect(
+      computeQuietNudge(
+        quietInput({ activePause: { startDate: '2026-09-23', endDate: '2026-09-30' } }),
+      ),
+    ).toBeNull();
+  });
+
+  it('never fires late — a due date already in the past is dropped, not caught up on', () => {
+    expect(
+      computeQuietNudge(quietInput({ lastSessionDate: '2026-09-10', today: '2026-09-25' })),
+    ).toBeNull();
+  });
+
+  it('uses the configured reminder time when given one, else the 10:00 default', () => {
+    expect(computeQuietNudge(quietInput({ atTime: '19:30' }))?.at).toBe('2026-09-25T19:30:00.000Z');
+  });
+});
+
+describe('computeAllGymReminders', () => {
+  it('adds the quiet nudge alongside the planned reminders on a different day', () => {
+    const all = computeAllGymReminders({
+      ...baseInput({ activeRoutine: routine({ name: 'Upper A', date: '2026-10-05' }) }), // a Monday
+      quietNudgeDays: 5,
+      lastSessionDate: '2026-09-20',
+      nextWorkout: NEXT_WORKOUT,
+    });
+    expect(all.map((r) => r.kind)).toEqual(expect.arrayContaining(['planned', 'quiet']));
+  });
+
+  it('drops the quiet nudge rather than double up on a day that already has a reminder', () => {
+    const all = computeAllGymReminders({
+      ...baseInput({ activeRoutine: routine({ name: 'Upper A', date: '2026-09-25' }) }), // today, a Friday
+      quietNudgeDays: 5,
+      lastSessionDate: '2026-09-20', // due today too
+      nextWorkout: NEXT_WORKOUT,
+    });
+    expect(all.filter((r) => r.at.startsWith('2026-09-25')).map((r) => r.kind)).toEqual([
+      'planned',
+    ]);
   });
 });

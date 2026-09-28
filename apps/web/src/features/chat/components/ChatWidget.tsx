@@ -8,6 +8,7 @@ import { capture } from '@/lib/analytics';
 import { useChat } from '@ai-sdk/react';
 import { TextStreamChatTransport, type UIMessage } from 'ai';
 import { MessageCircle, Send, Sparkles, X } from 'lucide-react';
+import { WELLNESS_COPY } from '@chefer/utils';
 import { LockedChatPreview } from './LockedChatPreview';
 
 // Showcase what the chat can actually DO with the user's real plan (P1-4).
@@ -47,6 +48,17 @@ export function ChatWidget() {
   // the input for the shared upgrade surface (PW-2's 10th touchpoint,
   // source: chat-quota — it was a bare text reply until now).
   const [quotaExhausted, setQuotaExhausted] = useState(false);
+  // UX-22 (T-22.2, AC4): keyed by assistant message id — set once that
+  // reply finishes streaming (below, alongside the existing announcement
+  // effect). The fetch wrapper can't know the message's id yet when the
+  // headers arrive, so it stashes the flags here first.
+  const [topicFooters, setTopicFooters] = useState<
+    Record<string, { health: boolean; safety: boolean }>
+  >({});
+  const pendingTopicFlagsRef = useRef<{ health: boolean; safety: boolean }>({
+    health: false,
+    safety: false,
+  });
   const isPremium = useIsPremium();
   // Free tier: chat is premium-only — show the locked preview, no input.
   const locked = isPremium === false;
@@ -62,6 +74,10 @@ export function ChatWidget() {
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
         const res = await fetch(input, init);
         if (res.headers.get('X-Chat-Quota-Exhausted') === '1') setQuotaExhausted(true);
+        pendingTopicFlagsRef.current = {
+          health: res.headers.get('X-Chat-Health-Topic') === '1',
+          safety: res.headers.get('X-Chat-Safety-Topic') === '1',
+        };
         return res;
       },
     }),
@@ -86,7 +102,14 @@ export function ChatWidget() {
     if (!wasLoadingRef.current) return;
     wasLoadingRef.current = false;
     const last = messages[messages.length - 1];
-    if (last?.role === 'assistant') setAnnouncement(getMessageText(last));
+    if (last?.role === 'assistant') {
+      setAnnouncement(getMessageText(last));
+      const flags = pendingTopicFlagsRef.current;
+      if (flags.health || flags.safety) {
+        setTopicFooters((prev) => ({ ...prev, [last.id]: flags }));
+      }
+      pendingTopicFlagsRef.current = { health: false, safety: false };
+    }
   }, [isLoading, messages]);
 
   const close = useCallback(() => {
@@ -210,7 +233,10 @@ export function ChatWidget() {
               <h2 id={titleId} className="text-sm font-semibold text-white">
                 Ask Your Chef
               </h2>
-              <p className="text-xs text-white/80">AI-powered cooking assistant</p>
+              {/* UX-22 (T-22.2, AC2/AC5): always visible, no truncation. */}
+              <p data-testid="chat-header-subtitle" className="text-xs text-white/80">
+                {WELLNESS_COPY.chatHeaderSubtitle}
+              </p>
             </div>
             <button
               type="button"
@@ -240,33 +266,52 @@ export function ChatWidget() {
                     </button>
                   ))}
                 </div>
+                {/* UX-22 (T-22.2, AC2): the chef-not-a-doctor line on the empty thread. */}
+                <p data-testid="chat-empty-disclaimer" className="mt-3 text-xs text-neutral-500">
+                  {WELLNESS_COPY.chatEmptyStateDisclaimer}
+                </p>
               </div>
             )}
             {messages.map((m: UIMessage) => {
               const text = getMessageText(m);
               if (!text) return null;
+              const footer = topicFooters[m.id];
               return (
-                <div
-                  key={m.id}
-                  className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {m.role === 'assistant' && (
-                    <span
-                      className="mr-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#944a00] text-xs font-bold text-white"
-                      aria-hidden="true"
+                <div key={m.id} className="flex flex-col gap-1">
+                  <div className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {m.role === 'assistant' && (
+                      <span
+                        className="mr-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#944a00] text-xs font-bold text-white"
+                        aria-hidden="true"
+                      >
+                        C
+                      </span>
+                    )}
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                        m.role === 'user'
+                          ? 'bg-[#944a00] text-white'
+                          : 'bg-neutral-100 text-neutral-800'
+                      }`}
                     >
-                      C
-                    </span>
-                  )}
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-                      m.role === 'user'
-                        ? 'bg-[#944a00] text-white'
-                        : 'bg-neutral-100 text-neutral-800'
-                    }`}
-                  >
-                    {text}
+                      {text}
+                    </div>
                   </div>
+                  {/* UX-22 (T-22.2, AC4): belt-and-braces footer under a
+                      flagged reply — the guardrail lives in the prompt
+                      (T-00.14); this is the visible reminder, not the control. */}
+                  {footer && (
+                    <p
+                      data-testid={
+                        footer.health ? 'chat-health-topic-footer' : 'chat-safety-topic-footer'
+                      }
+                      className="ml-8 text-xs text-neutral-500"
+                    >
+                      {footer.health
+                        ? WELLNESS_COPY.chatHealthTopicFooter
+                        : WELLNESS_COPY.chatSafetyTopicFooter}
+                    </p>
+                  )}
                 </div>
               );
             })}

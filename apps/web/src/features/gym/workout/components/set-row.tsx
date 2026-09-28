@@ -9,6 +9,7 @@ import type {
   SessionSetDoc,
   WeightUnit,
 } from '@chefer/types';
+import { pressControl } from '@chefer/ui';
 import { cn, formatLoad, formatLoadNumber, stepDown, stepUp } from '@chefer/utils';
 import { Stepper } from '../../shared/stepper';
 import { loadSlotOf } from '../workout-model';
@@ -70,7 +71,7 @@ export const SetRow = memo(function SetRow({
   return (
     <div
       className={cn(
-        'grid grid-cols-[2.75rem_minmax(0,1fr)_3rem] items-center gap-x-1.5 gap-y-1 rounded-xl border px-1 py-1.5',
+        'grid grid-cols-[2.75rem_minmax(0,1fr)_3rem] items-center gap-x-2 gap-y-1 rounded-xl border px-1 py-1.5',
         done
           ? 'border-transparent bg-emerald-50/70'
           : set.isWarmup
@@ -98,8 +99,10 @@ export const SetRow = memo(function SetRow({
         <MoreHorizontal className="h-3 w-3 text-gray-300" aria-hidden="true" />
       </button>
 
-      {/* Weight over reps on phones; side by side once there is room. */}
-      <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row">
+      {/* Weight over reps on phones; side by side once there is room. UX-05 A1
+          (T-05.A1.2 web parity): 8 px between the two grouped controls,
+          matching mobile's grouped ValueStepper spacing. */}
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
         {hasLoad && slot ? (
           <Stepper
             label="weight"
@@ -139,7 +142,10 @@ export const SetRow = memo(function SetRow({
         aria-label={done ? `Undo set ${label}` : `Log set ${label}`}
         data-testid="gym-set-check"
         className={cn(
-          'flex h-12 w-12 items-center justify-center justify-self-end rounded-xl border-2 transition-colors',
+          // UX-05 A1 (T-05.A1.2 web parity): the ✓ is a circle, matching the
+          // mobile round 48 pt control (shape + fill, never colour alone).
+          'flex h-12 w-12 items-center justify-center justify-self-end rounded-full border-2',
+          pressControl,
           done
             ? 'border-emerald-600 bg-emerald-600 text-white'
             : 'border-gray-300 bg-white text-gray-400 hover:border-emerald-600 hover:text-emerald-600',

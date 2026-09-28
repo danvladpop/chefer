@@ -34,6 +34,7 @@ import {
   livePrs,
   loadSlotOf,
   prescriptionFor,
+  propagateEditActions,
   sessionProgress,
   setLabelOf,
   supersetsOf,
@@ -57,6 +58,8 @@ const PROFILE: GymProfileDto = {
   microPlates: false,
   reminderEnabled: false,
   reminderTime: null,
+  reminderTimes: {},
+  quietNudgeDays: null,
   setupCompletedAt: '2026-09-01T10:00:00.000Z',
 };
 
@@ -441,5 +444,58 @@ describe('removing a specific set', () => {
     expect(final.sets).toHaveLength(after.sets.length - 1);
     expect(final.sets.map((s) => s.position)).toEqual(final.sets.map((_, i) => i));
     expect(workoutSessionDocSchema.safeParse(doc).success).toBe(true);
+  });
+});
+
+// T-05.7 (bug B-20, web parity with the mobile logger): a weight or reps
+// edit carries to later unticked sets that still matched the old value.
+describe('propagateEditActions', () => {
+  it('carries a weight or reps edit to later unticked sets that matched', () => {
+    const doc = startWorkout({ kind: 'planned', workout: plannedWorkout() }, TODAY);
+    const bench = doc.exercises[0]!;
+    const sets = workingSets(bench);
+    const [first, second, third] = sets;
+    expect(first && second && third).toBeTruthy();
+
+    const weightActions = propagateEditActions(bench, first!, { weightKg: 65 });
+    expect(weightActions).toEqual([
+      { type: 'editSet', seId: bench.id, setId: second!.id, weightKg: 65 },
+      { type: 'editSet', seId: bench.id, setId: third!.id, weightKg: 65 },
+    ]);
+
+    const repsActions = propagateEditActions(bench, first!, { reps: 6 });
+    expect(repsActions.map((a) => a.setId)).toEqual([second!.id, third!.id]);
+  });
+
+  it('never touches a warm-up, an already-ticked set, or a set that already diverged', () => {
+    const doc = startWorkout({ kind: 'planned', workout: plannedWorkout() }, TODAY);
+    const bench = doc.exercises[0]!;
+    const sets = workingSets(bench);
+    const [first, second, third] = sets;
+    expect(first && second && third).toBeTruthy();
+
+    // Editing a warm-up itself never propagates.
+    const warm = bench.sets.find((s) => s.isWarmup);
+    if (warm) {
+      expect(propagateEditActions(bench, warm, { weightKg: 1 })).toEqual([]);
+    }
+
+    // A set that already diverged (different reps) is left alone.
+    const diverged = { ...second!, reps: second!.reps + 1 };
+    const withDivergence = {
+      ...bench,
+      sets: bench.sets.map((s) => (s.id === second!.id ? diverged : s)),
+    };
+    const actions = propagateEditActions(withDivergence, first!, { reps: 20 });
+    expect(actions.map((a) => a.setId)).toEqual([third!.id]);
+
+    // A ticked set is left alone.
+    const ticked = { ...second!, completedAt: '2026-09-24T09:00:00.000Z' };
+    const withTicked = {
+      ...bench,
+      sets: bench.sets.map((s) => (s.id === second!.id ? ticked : s)),
+    };
+    const actions2 = propagateEditActions(withTicked, first!, { weightKg: 65 });
+    expect(actions2.map((a) => a.setId)).toEqual([third!.id]);
   });
 });

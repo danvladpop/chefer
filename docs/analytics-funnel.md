@@ -17,6 +17,48 @@ cover opted-in users only; event counts and the per-event `tier`/`source`
 properties still cover everyone. See `infrastructure.md` §15.
 Capture is production-only (`NEXT_PUBLIC_POSTHOG_DEV=1` to test locally).
 
+### T-12.1–T-12.3: shared `EventMap`, mobile ships, a second consent switch
+
+- **`packages/types/src/analytics-events.ts`** is now the shared, health-data-guarded
+  `EventMap` (T-12.1): every property is a number, boolean, array, or a
+  string-literal union — never the general `string` type, so free-text
+  allergy/diet/condition/weight/food data cannot become an event property
+  (`EventMapIsGuarded`, proven by `analytics-events.test.ts`). Web's
+  `capture()` (`apps/web/src/lib/analytics.ts`) is now overloaded: an
+  `EventMap` key gets its exact shape checked; any other event name (every
+  funnel/gym event already listed on this page) keeps the old permissive
+  typing until it's migrated onto the map.
+- **Mobile sends analytics for the first time** (T-12.2): NEW
+  `apps/mobile/src/lib/{analytics,analytics-transport}.ts` — a pure-JS
+  transport over PostHog's public `/batch/` HTTP endpoint (no React Native
+  SDK, no native module, no runtime-fingerprint change), queued in memory and
+  flushed every 30s or on background. No `EXPO_PUBLIC_POSTHOG_KEY` = total
+  no-op. `src/features/gym/analytics.ts`'s `captureGymEvent` is a real
+  re-export through it now, not a `__DEV__` console no-op — every gym event
+  in the table below fires from the app once a key is configured.
+- **A second web+mobile switch** (T-12.3, Q-8 default: on): "Send anonymous
+  usage counts", next to the existing "Link usage to my account" (default
+  off). Turning the first off also turns the second off and stops every
+  analytics call, anonymous counts included. Both switches log through
+  `privacy.recordAnalyticsConsent` (`infrastructure.md` §7, §8) so the choice
+  is provable in Profile → Privacy & data → "Consent history", not just
+  enforced client-side.
+- **New events reserved in the map**, not yet wired by this lane (owned by
+  the wave-1 branch building the feature): gym `exercise_image_failed`,
+  `workout_set_removed`, `workout_set_restored`; plan `plan_configured`,
+  `regenerate_confirmed`, `regenerate_undone`, `swap_undone`,
+  `replace_undone`, `premium_changes_viewed`; safety
+  `safety_readback_viewed`, `safety_conflict_shown`, `safety_issue_reported`,
+  `safety_migration_resolved`; recipe form `recipe_form_opened`,
+  `recipe_form_blocked_tap`, `recipe_form_submitted`,
+  `recipe_form_abandoned`, `upload_failed`. Two names replace a looser
+  wave-0 shape with a richer one — `plan_generated { slotsCount, keptPicks }`
+  and `meal_logged { source, mealType }` — the old shapes below keep firing
+  through the permissive overload until L-PLAN/L-TRACK adopt the new one.
+- **This lane's own events** (T-12.4): `app_opened` (mobile launch),
+  `analytics_consent_changed { anonymous, linked }` (either switch flips),
+  `meal_logged { source, mealType }` (tracker, new shape above).
+
 ### Upgrade funnel (PW-2)
 
 | Event                  | Properties | Fired when                                       |
@@ -75,10 +117,12 @@ PostHog, until server-side capture is worth adding.
 
 Fired through the typed wrapper `apps/web/src/features/gym/analytics.ts`
 (`captureGymEvent`), which wraps the shared `capture` helper above so every
-event name and its properties are checked by the compiler. The mobile app has
-no analytics SDK yet — `apps/mobile/src/features/gym/analytics.ts` exposes
-the same typed API as a `__DEV__`-only console no-op, so call sites exist for
-when a mobile SDK lands.
+event name and its properties are checked by the compiler. As of T-12.2,
+`apps/mobile/src/features/gym/analytics.ts` exposes the same typed API and
+really fires (through `lib/analytics.ts`'s pure-JS transport), not a
+`__DEV__`-only console no-op — same names, same properties, own `GymEventMap`
+kept in step by hand (not yet unified with the shared `EventMap` above; see
+that file's header comment for why).
 
 | Event                   | Properties                                  | Fired when                                                                                                                                            |
 | ----------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |

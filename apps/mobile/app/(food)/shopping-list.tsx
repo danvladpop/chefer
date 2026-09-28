@@ -1,12 +1,24 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams } from 'expo-router';
-import { Button, Card, ErrorState, Screen, SegmentedControl, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  ErrorState,
+  KeyboardAwareScrollView,
+  Screen,
+  SegmentedControl,
+  Text,
+  useScrollFieldIntoView,
+} from '@chefer/ui-mobile';
 import {
   cn,
+  defaultWeekOffset,
   formatMoney,
+  formatPriceRange,
   formatQuantity,
+  getWeekStartDate,
   isConvertedCurrency,
   perPortionCost,
   shoppingWindowLabel,
@@ -16,6 +28,7 @@ import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { PantryCheckBanner } from '../../src/features/pantry/pantry-check-banner';
 import { PantryGhostBanner } from '../../src/features/pantry/pantry-ghost-banner';
 import { PantryPanel } from '../../src/features/pantry/pantry-panel';
+import { CategoryHeader } from '../../src/features/shopping-list/category-header';
 import { parseCustomItemInput } from '../../src/features/shopping-list/parse-custom-item';
 import { useCurrency } from '../../src/hooks/use-currency';
 import { useHousehold } from '../../src/hooks/use-household';
@@ -49,21 +62,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
-function getMondayOfWeek(offset: number): Date {
-  const now = new Date();
-  const day = now.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diffToMonday + offset * 7);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-}
-
 export default function ShoppingListScreen() {
   // Deep links (/shopping-list?view=kitchen) open the kitchen segment.
   const params = useLocalSearchParams<{ view?: string }>();
   const [view, setView] = useState<ShopView>(params.view === 'kitchen' ? 'kitchen' : 'list');
-  const [weekOffset, setWeekOffset] = useState(0);
+  // T-08.1 (UX-08 AC1): same default as Plan — next week Fri 15:00–Sun,
+  // else this week — so Plan and Shop always agree on which week opens.
+  const [weekOffset, setWeekOffset] = useState<number>(() => defaultWeekOffset(new Date()));
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [newItemText, setNewItemText] = useState('');
   const isPremium = useIsPremium();
@@ -73,7 +78,7 @@ export default function ShoppingListScreen() {
   const currency = useCurrency();
   const utils = trpc.useUtils();
 
-  const weekStart = getMondayOfWeek(weekOffset);
+  const weekStart = getWeekStartDate(weekOffset);
 
   const {
     data: weekList,
@@ -175,6 +180,10 @@ export default function ShoppingListScreen() {
     });
   };
 
+  // T-21.5 (CI-14, PAT-11): keeps "Add item" clear of the keyboard.
+  const addItemInputRef = useRef<TextInput>(null);
+  const scrollFieldIntoView = useScrollFieldIntoView();
+
   const handleAddItem = () => {
     const parsed = parseCustomItemInput(newItemText);
     if (!parsed.name || !weekList?.planId || addItemMutation.isPending) {
@@ -240,7 +249,10 @@ export default function ShoppingListScreen() {
 
   return (
     <Screen className="px-0">
-      <ScrollView contentContainerClassName="gap-4 px-4 py-4">
+      {/* T-21.5 (CI-14, PAT-11): keeps "Add item" clear of the keyboard;
+          `keyboardShouldPersistTaps="handled"` is already the component's
+          default. */}
+      <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 py-4">
         <ModeSwitch />
         {segments}
         {/* Header + week navigator */}
@@ -288,48 +300,42 @@ export default function ShoppingListScreen() {
           </View>
         </View>
 
-        {/* Cost badges */}
-        {(weekList?.estimatedTotalEur != null || (pantry?.entitled && pantry.savedEur > 0)) && (
+        {/* Cost badges (UX-08 §7/AC6: a range, never a single precise
+            number; §7/AC7: the pantry savings chip is gone — B-33 until
+            savings can be itemised). */}
+        {weekList?.estimatedTotalEur != null && (
           <View className="flex-row flex-wrap gap-2">
-            {weekList?.estimatedTotalEur != null && (
-              <View
-                className="rounded-full border border-border bg-gray-50 px-3 py-1"
-                accessibilityLabel={
-                  isConvertedCurrency(currency)
-                    ? `Estimated total about ${formatMoney(weekList.estimatedTotalEur, currency)}, converted from euros at an approximate rate`
-                    : undefined
-                }
-              >
-                <Text testID="shopping-total" className="text-xs font-medium text-gray-600">
-                  Est. total ~{formatMoney(weekList.estimatedTotalEur, currency)}
-                </Text>
-              </View>
-            )}
+            <View
+              className="rounded-full border border-border bg-gray-50 px-3 py-1"
+              accessibilityLabel={
+                isConvertedCurrency(currency)
+                  ? `Estimated total about ${formatMoney(weekList.estimatedTotalEur, currency)}, converted from euros at an approximate rate`
+                  : undefined
+              }
+            >
+              <Text testID="shopping-total" className="text-xs font-medium text-gray-600">
+                Est. total{' '}
+                {formatPriceRange(weekList.estimatedTotalEur, currency) ??
+                  `~${formatMoney(weekList.estimatedTotalEur, currency)}`}
+              </Text>
+            </View>
             {/* Who the quantities are for (P2-3, F-PM-5): a premium
                 household's list is scaled to the table. */}
-            {weekList?.portions != null && (
+            {weekList.portions != null && (
               <View className="rounded-full border border-primary/20 bg-accent px-3 py-1">
                 <Text testID="shopping-portions" className="text-xs font-medium text-primary">
                   For {weekList.portions} portions
-                  {weekList.estimatedTotalEur != null &&
-                    ` · ~${formatMoney(
-                      perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
-                      currency,
-                    )} each`}
+                  {` · ~${formatMoney(
+                    perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
+                    currency,
+                  )} each`}
                 </Text>
               </View>
             )}
-            {weekList?.hasPlan && weekList.portions == null && memberCount > 0 && (
+            {weekList.hasPlan && weekList.portions == null && memberCount > 0 && (
               <View className="rounded-full border border-border bg-gray-50 px-3 py-1">
                 <Text testID="shopping-one-portion" className="text-xs font-medium text-gray-600">
                   Sized for 1 portion
-                </Text>
-              </View>
-            )}
-            {pantry?.entitled && pantry.savedEur > 0 && (
-              <View className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
-                <Text className="text-xs font-medium text-emerald-700">
-                  Saved ~{formatMoney(pantry.savedEur, currency)} this week
                 </Text>
               </View>
             )}
@@ -383,9 +389,11 @@ export default function ShoppingListScreen() {
             {/* Add your own item */}
             <View className="flex-row gap-2">
               <TextInput
+                ref={addItemInputRef}
                 testID="add-item-input"
                 value={newItemText}
                 onChangeText={setNewItemText}
+                onFocus={() => scrollFieldIntoView(addItemInputRef.current)}
                 onSubmitEditing={handleAddItem}
                 placeholder="Add item… e.g. 2 kg flour"
                 placeholderTextColor="#9ca3af"
@@ -410,32 +418,14 @@ export default function ShoppingListScreen() {
               const catDone = catItems.filter((i) => checkedItems.includes(i.key)).length;
               return (
                 <View key={category}>
-                  <Pressable
+                  <CategoryHeader
                     testID={`category-${category}`}
-                    accessibilityRole="button"
+                    label={label}
+                    itemCount={catItems.length}
+                    doneCount={catDone}
+                    expanded={isExpanded}
                     onPress={() => toggleCategory(category)}
-                    className="mb-2 min-h-11 flex-row items-center justify-between px-1"
-                  >
-                    <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-                      {label}{' '}
-                      <Text className="text-xs font-normal normal-case text-gray-500">
-                        {catItems.length} item{catItems.length !== 1 ? 's' : ''}
-                        {catDone > 0 ? ` · ${catDone} done` : ''}
-                      </Text>
-                    </Text>
-                    <View className="flex-row items-center gap-2">
-                      {catDone === catItems.length && catItems.length > 0 && (
-                        <View className="rounded-full bg-emerald-100 px-2 py-0.5">
-                          <Text className="text-[12px] font-bold text-emerald-700">✓ all</Text>
-                        </View>
-                      )}
-                      <Ionicons
-                        name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                        size={16}
-                        color="#9ca3af"
-                      />
-                    </View>
-                  </Pressable>
+                  />
 
                   {isExpanded && (
                     <View className="gap-2">
@@ -546,7 +536,7 @@ export default function ShoppingListScreen() {
             })}
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

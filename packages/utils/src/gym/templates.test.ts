@@ -247,6 +247,69 @@ describe('recommendTemplate (research §3.5)', () => {
   });
 });
 
+// UX-05 B (T-05.2): "Do you already follow a split?" — a chosen split picks
+// the closest template of that family for the day count, instead of the
+// default day-count-driven recommendation.
+describe('recommendTemplate — split preference', () => {
+  it.each([
+    ['FULL_BODY', 2, 'fb2-beginner'],
+    ['FULL_BODY', 3, 'fb3-beginner'],
+    ['FULL_BODY', 6, 'fb3-beginner'], // closest full-body template is still 3 days
+    ['UPPER_LOWER', 3, 'ul3-beginner'],
+    ['UPPER_LOWER', 4, 'ul4-beginner'],
+    ['UPPER_LOWER', 5, 'ul4-beginner'],
+    ['PUSH_PULL_LEGS', 4, 'ppl6-beginner'], // PPL only ships as 6 days today
+    ['PUSH_PULL_LEGS', 6, 'ppl6-beginner'],
+  ] as const)('%s at %d days → %s', (split, days, key) => {
+    const r = recommendTemplate({
+      days,
+      experience: 'BEGINNER',
+      equipmentAccess: 'FULL_GYM',
+      split,
+    });
+    expect(r.key).toBe(key);
+    expect(r.alternatives).toHaveLength(3);
+    expect(r.alternatives).not.toContain(key);
+  });
+
+  it('says exactly when the split does not fit the day count', () => {
+    const exact = recommendTemplate({
+      days: 4,
+      experience: 'INTERMEDIATE',
+      equipmentAccess: 'FULL_GYM',
+      split: 'UPPER_LOWER',
+    });
+    expect(exact.reason).toMatch(/fits 4 days/);
+
+    const mismatched = recommendTemplate({
+      days: 5,
+      experience: 'INTERMEDIATE',
+      equipmentAccess: 'FULL_GYM',
+      split: 'PUSH_PULL_LEGS',
+    });
+    expect(mismatched.reason).toMatch(/closest Push\/Pull\/Legs split to 5 days/);
+  });
+
+  it('mentions equipment adaptation with a split chosen too', () => {
+    const r = recommendTemplate({
+      days: 3,
+      experience: 'BEGINNER',
+      equipmentAccess: 'DUMBBELLS',
+      split: 'FULL_BODY',
+    });
+    expect(r.reason).toMatch(/dumbbell versions/);
+  });
+
+  it('omitted split ("pick one for me") keeps the default day-count recommendation', () => {
+    const withoutSplit = recommendTemplate({
+      days: 4,
+      experience: 'BEGINNER',
+      equipmentAccess: 'FULL_GYM',
+    });
+    expect(withoutSplit.key).toBe('ul4-beginner');
+  });
+});
+
 describe('ul3 templates (dogfood feedback #1: 2 upper + 1 lower for 3 days)', () => {
   it('instantiates for FULL_GYM, DUMBBELLS and BODYWEIGHT with Upper A / Lower / Upper B on distinct weekdays', () => {
     for (const key of ['ul3-beginner', 'ul3-intermediate'] as const) {

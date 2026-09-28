@@ -20,6 +20,44 @@ export type ExerciseContent = Pick<
  * See docs/gym/exercise-library-research.md "QA table (G1-D)" for the full record.
  */
 export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
+  // T-05.10 (library staples, UX-05 A5, AC27-29). videoId left null — no
+  // video pick has been oEmbed-verified for these two yet (handoff: see
+  // apps/api/static/exercises/README.md "content gaps").
+  'incline-barbell-bench-press': {
+    cues: [
+      'Set the bench to 30-45 degrees, not steeper.',
+      'Unrack over your shoulders, then lower to the top of your chest.',
+      'Drive the bar back up and slightly toward your face.',
+    ],
+    mistakes: [
+      'Setting the incline too steep, turning it into a shoulder press.',
+      'Letting the bar drift toward your neck instead of your upper chest.',
+    ],
+    blurb:
+      'The barbell version of the incline press — heavier loading than dumbbells once the shoulder groove is comfortable.',
+    freeExerciseDbId: 'Barbell_Incline_Bench_Press_-_Medium_Grip',
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'back-extension': {
+    cues: [
+      'Hinge at the hips, not the lower back, on the way down.',
+      'Stop level with your body — don’t hyperextend past straight.',
+      'Squeeze your glutes to drive back up.',
+    ],
+    mistakes: [
+      'Rounding the lower back to chase extra range of motion.',
+      'Snapping upright with momentum instead of a controlled squeeze.',
+    ],
+    blurb:
+      'A no-barbell way to load the lower back, glutes and hamstrings together; hold a plate to keep progressing once bodyweight is easy.',
+    freeExerciseDbId: 'Hyperextensions_Back_Extensions',
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+    aliases: ['Hyperextension', 'Roman Chair', 'Hyperextension Bench'],
+  },
   'barbell-bench-press': {
     cues: [
       'Drag the bar down your body, not straight down.',

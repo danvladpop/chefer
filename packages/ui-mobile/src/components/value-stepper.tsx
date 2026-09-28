@@ -45,6 +45,13 @@ export interface ValueStepperProps {
   done?: boolean;
   testID: string;
   className?: string;
+  /**
+   * `plain` (default): the original no-gap tiles other callers still use.
+   * `grouped` (UX-05 A1, O-05/O-06): one filled 48 pt container with
+   * transparent −/+ buttons, so the eye reads one control, not three tiles.
+   * Callers space `grouped` instances 8 pt apart themselves (`set-row.tsx`).
+   */
+  variant?: 'plain' | 'grouped';
 }
 
 function ValueStepperImpl({
@@ -58,6 +65,7 @@ function ValueStepperImpl({
   done = false,
   testID,
   className,
+  variant = 'plain',
 }: ValueStepperProps) {
   // The repeat timer outlives renders — read fresh props through a ref.
   const latest = useRef({ value, next, onChange });
@@ -92,6 +100,7 @@ function ValueStepperImpl({
     }, STEPPER_REPEAT_INTERVAL_MS);
   };
 
+  const grouped = variant === 'grouped';
   const display = format(value);
   const button = (direction: 1 | -1) => (
     <PressableScale
@@ -103,9 +112,19 @@ function ValueStepperImpl({
       onLongPress={() => startRepeat(direction)}
       onPressOut={stop}
       hitSlop={{ top: 4, bottom: 4 }}
-      className="h-11 w-11 items-center justify-center rounded-md bg-muted active:opacity-70"
+      className={cn(
+        'h-11 w-11 items-center justify-center',
+        // Grouped: transparent, sits inside the shared container; pressed
+        // state is 5% darker (MO-01) instead of its own fill (UX-05 A1).
+        grouped ? 'active:bg-black/5' : 'rounded-md bg-muted active:opacity-70',
+      )}
     >
-      <Text className="text-xl font-semibold text-foreground">{direction === 1 ? '+' : '−'}</Text>
+      <Text
+        maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+        className="text-xl font-semibold text-foreground"
+      >
+        {direction === 1 ? '+' : '−'}
+      </Text>
     </PressableScale>
   );
 
@@ -114,7 +133,11 @@ function ValueStepperImpl({
       testID={testID}
       accessibilityLabel={name}
       accessibilityValue={{ text: `${display} ${caption}` }}
-      className={cn('min-w-0 flex-row items-center', className)}
+      className={cn(
+        'min-w-0 flex-row items-center',
+        grouped && 'h-12 rounded-lg bg-muted',
+        className,
+      )}
     >
       {button(-1)}
       <PressableScale
@@ -136,7 +159,12 @@ function ValueStepperImpl({
         >
           {display}
         </Text>
-        <Text className="text-[12px] text-muted-foreground">{caption}</Text>
+        <Text
+          maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+          className="text-[12px] text-muted-foreground"
+        >
+          {caption}
+        </Text>
       </PressableScale>
       {button(1)}
     </View>

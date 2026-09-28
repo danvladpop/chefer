@@ -1,18 +1,26 @@
 import { useState } from 'react';
-import { Share, TextInput, View } from 'react-native';
+import { TextInput, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
-import { Button, Card, PasswordInput, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, Card, PasswordInput, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import { clearToken } from '../../lib/auth-store';
+import { shareExportFile } from '../../lib/share-file';
 import { trpc } from '../../lib/trpc';
 
 // Mirrors apps/web/src/features/profile/components/AccountDataCard.tsx.
 // In-app export and account deletion (audit P0-6): both app stores require
 // deletion inside the app for apps that create accounts (F-M-PROF-1-1).
+// T-39.5 (bug B-53): a real, named export file (`chefer-export-YYYY-MM-DD.json`)
+// instead of an unnamed text blob in the share sheet.
+
+function exportFilename(): string {
+  return `chefer-export-${new Date().toISOString().slice(0, 10)}.json`;
+}
 
 export function AccountDataCard() {
   const utils = trpc.useUtils();
+  const { show } = useSnackbar();
   const [exporting, setExporting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -22,7 +30,8 @@ export function AccountDataCard() {
     setExportError(null);
     try {
       const data = await utils.user.exportData.fetch();
-      await Share.share({ title: 'My Chefer data', message: JSON.stringify(data, null, 2) });
+      await shareExportFile(exportFilename(), JSON.stringify(data, null, 2));
+      show({ message: 'Your export is ready.', tone: 'success' });
     } catch {
       setExportError("Couldn't prepare your data. Please try again.");
     } finally {

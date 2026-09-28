@@ -86,4 +86,48 @@ describe('Preferences — Units & currency (P2-6)', () => {
     await user.press(screen.getByTestId('prefs-save-extras'));
     expect(mutate).toHaveBeenCalledWith({ weeklyBudgetEur: 55.56 });
   });
+
+  // Bug B-38: "Saved ✓" used to stick regardless of unsaved changes.
+  it('bug B-38: reverts "Saved ✓" back to "Save units & currency" after a further edit', async () => {
+    withProfile('FREE');
+    trpc.preferences.setDisplayPreferences.useMutation.mockReturnValue(
+      mutationResult({ isSuccess: true }),
+    );
+    const user = userEvent.setup();
+    await renderScreen();
+
+    expect(screen.getByTestId('prefs-save-display')).toHaveTextContent('Saved ✓');
+
+    await user.press(screen.getByTestId('prefs-units-IMPERIAL'));
+
+    expect(screen.getByTestId('prefs-save-display')).toHaveTextContent('Save units & currency');
+  });
+
+  it('bug B-38: safety preferences also revert once an allergy is added', async () => {
+    withProfile('FREE');
+    trpc.preferences.updateSafety.useMutation.mockReturnValue(mutationResult({ isSuccess: true }));
+    const user = userEvent.setup();
+    await renderScreen();
+
+    expect(screen.getByTestId('prefs-save-safety')).toHaveTextContent('Saved ✓');
+
+    // The taxonomy SafetyPicker (T-01.7) replaced the free-text allergy field.
+    await user.press(screen.getByText('Tree nuts'));
+
+    expect(screen.getByTestId('prefs-save-safety')).toHaveTextContent('Save safety preferences');
+  });
+
+  it('bug B-38: budget also reverts once the typed amount changes', async () => {
+    withProfile('PREMIUM');
+    trpc.preferences.updateTargets.useMutation.mockReturnValue(mutationResult({ isSuccess: true }));
+    const user = userEvent.setup();
+    await renderScreen();
+
+    expect(screen.getByTestId('prefs-save-extras')).toHaveTextContent('Saved ✓');
+
+    await user.clear(screen.getByTestId('prefs-budget'));
+    await user.type(screen.getByTestId('prefs-budget'), '80');
+
+    expect(screen.getByTestId('prefs-save-extras')).toHaveTextContent('Save budget');
+  });
 });

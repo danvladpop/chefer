@@ -1,15 +1,305 @@
-import { safetyReportRepository, type SafetyReport } from '@chefer/database';
+import {
+  dietaryPreferencesRepository,
+  householdMemberRepository,
+  safetyReportRepository,
+  type IDietaryPreferencesRepository,
+  type IHouseholdMemberRepository,
+  type ISafetyReportRepository,
+  type Prisma,
+  type SafetyReport,
+} from '@chefer/database';
+import type {
+  SafetyCheckedItem,
+  SafetyChecks,
+  TableSafety,
+  TableSafetyPerson,
+} from '@chefer/types';
+import { recogniseSafetyTerm } from '@chefer/utils';
+import {
+  deriveDietTags,
+  deriveTagQualifiers,
+  findLabelCaveats,
+  hasSafetyPrefs,
+  isRecipeSafe,
+  type SafetyCheckable,
+  type SafetyPrefs,
+} from '../../lib/curated-recipes/safety.js';
+import { mergeHouseholdSafety } from '../household/household.service.js';
 
-// ─── Safety service (§2.1, T-00.10 stub) ───────────────────────────────────────
-// STUB — wave 0 only wires the layers (Router → Service → Repository) so no
-// lane edits `routers/index.ts` later. The real filter (`SafetyService.
-// loadTable/check/filter`, §2.1) is wave 1 (T-01.1-T-01.9); this class stays
-// a thin passthrough until then.
+// ─── Safety service (§2.1, T-01.1/T-01.2) ──────────────────────────────────────
+// The ONE place every surface asks "is this recipe safe for this table" —
+// UX-01's promise that the filter behaves identically wherever it appears.
+// `loadContext` reads the owner + household + reported recipes once;
+// `check`/`filter`/`decorate` are pure over that context so callers never
+// duplicate the merge/matcher logic (that duplication was exactly how
+// rebalance.ts, chat context and importSave's `original` variant fell out of
+// sync with the rest of the app — T-BUG-X1, T-BUG-X3).
+
+/**
+ * The minimum shape `filter`/`decorate` need — structurally compatible with
+ * both `SafetyCheckable` (curated `RecipeData`) and a raw Prisma `Recipe`
+ * row (whose `ingredients`/`nutritionInfo` are typed as JSON).
+ */
+export interface RecipeSafetyLike {
+  name: string;
+  ingredients: unknown;
+  instructions: string[];
+  dietaryTags: string[];
+}
+
+export interface SafetyContext {
+  /** The merged owner+household SafetyPrefs — what the matcher runs against. */
+  prefs: SafetyPrefs;
+  /** Recipe ids this user has reported (UX-01 d) — `filter()` removes them. */
+  hiddenRecipeIds: string[];
+  /** The read-back table (§2.2) — who's at the table and what's checked for them. */
+  table: TableSafety;
+}
+
+export interface SafetyReportInput {
+  recipeId: string;
+  surface: string;
+  reason: string;
+  note?: string | null | undefined;
+}
+
+/** Builds one TableSafetyPerson row, recognising every stored term via the taxonomy. */
+function classifyPerson(
+  who: string,
+  isOwner: boolean,
+  safety: Pick<SafetyPrefs, 'allergies' | 'dietaryRestrictions' | 'dislikedIngredients'>,
+): TableSafetyPerson {
+  const items: TableSafetyPerson['items'] = [];
+  const notes: string[] = [];
+  const seen = new Set<string>();
+
+  const add = (terms: string[], fallbackKind: 'allergy' | 'diet' | 'dislike') => {
+    for (const term of terms) {
+      const recognised = recogniseSafetyTerm(term);
+      if (recognised.kind === 'unrecognised') {
+        notes.push(term);
+        continue;
+      }
+      if (recognised.kind === 'condition') {
+        // Only coeliac has a safe automatic reading (→ the coeliac-strength
+        // gluten-free diet); every other condition is surfaced as a note so
+        // the UI can show UncheckedNotice's condition variant (T-22.1) —
+        // nothing else is ever saved from a condition.
+        if (recognised.impliesDietId) {
+          const key = `diet:${recognised.impliesDietId}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            items.push({ id: recognised.impliesDietId, label: recognised.label, kind: 'diet' });
+          }
+        } else {
+          notes.push(term);
+        }
+        continue;
+      }
+      const kind =
+        recognised.kind === 'allergy' || recognised.kind === 'dislike'
+          ? recognised.kind
+          : fallbackKind;
+      const key = `${kind}:${recognised.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({ id: recognised.id, label: recognised.label, kind });
+    }
+  };
+
+  add(safety.allergies, 'allergy');
+  add(safety.dietaryRestrictions, 'diet');
+  add(safety.dislikedIngredients, 'dislike');
+
+  return { who, isOwner, items, notes };
+}
 
 export class SafetyService {
+  constructor(
+    private readonly prefsRepo: IDietaryPreferencesRepository = dietaryPreferencesRepository,
+    private readonly householdRepo: IHouseholdMemberRepository = householdMemberRepository,
+    private readonly reportRepo: ISafetyReportRepository = safetyReportRepository,
+  ) {}
+
+  /**
+   * The one read every safety-aware surface starts from: owner + household
+   * merged (hard union, including dislikes — T-01.2), the reported-recipe
+   * ids to hide, and the read-back table.
+   */
+  async loadContext(userId: string): Promise<SafetyContext> {
+    const [dietaryPrefs, members, hiddenRecipeIds] = await Promise.all([
+      this.prefsRepo.findByUserId(userId),
+      this.householdRepo.findByUserId(userId),
+      this.reportRepo.findRecipeIdsByUser(userId),
+    ]);
+
+    const ownerSafety: SafetyPrefs = {
+      allergies: dietaryPrefs?.allergies ?? [],
+      dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
+      dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
+      excludeLabelDependent: dietaryPrefs?.excludeLabelDependent ?? false,
+    };
+    // excludeLabelDependent doesn't participate in unionTerms (not a term
+    // list) — carry the owner's setting through explicitly.
+    const prefs: SafetyPrefs = {
+      ...mergeHouseholdSafety(ownerSafety, members),
+      excludeLabelDependent: ownerSafety.excludeLabelDependent ?? false,
+    };
+
+    const people: TableSafetyPerson[] = [
+      classifyPerson('you', true, ownerSafety),
+      ...members.map((m) =>
+        classifyPerson(m.name, false, {
+          allergies: m.allergies,
+          dietaryRestrictions: m.dietaryRestrictions,
+          dislikedIngredients: m.dislikedIngredients ?? [],
+        }),
+      ),
+    ];
+
+    const hasUnrecognised = [...ownerSafety.allergies, ...ownerSafety.dietaryRestrictions].some(
+      (term) => recogniseSafetyTerm(term).kind === 'unrecognised',
+    );
+    const needsReview = hasUnrecognised && !dietaryPrefs?.safetyReviewedAt;
+
+    return {
+      prefs,
+      hiddenRecipeIds,
+      table: {
+        people,
+        hasRules: people.some((p) => p.items.length > 0),
+        needsReview,
+      },
+    };
+  }
+
+  /** Public read for `safety.getTable` — the client-facing slice of loadContext. */
+  async getTable(userId: string): Promise<TableSafety> {
+    return (await this.loadContext(userId)).table;
+  }
+
+  /**
+   * Which of the table's rules a recipe passes/fails (§2.2 payload). Every
+   * detail surface (recipe page, cook mode, household summary) renders from
+   * this same shape.
+   */
+  check(recipe: SafetyCheckable, table: TableSafety): SafetyChecks {
+    const checked: SafetyCheckedItem[] = [];
+    const conflicts = new Set<string>();
+    const unchecked = new Set<string>();
+
+    for (const person of table.people) {
+      for (const note of person.notes) unchecked.add(note);
+      for (const item of person.items) {
+        const prefs: SafetyPrefs = {
+          allergies: item.kind === 'allergy' ? [item.label] : [],
+          dietaryRestrictions: item.kind === 'diet' ? [item.label] : [],
+          dislikedIngredients: item.kind === 'dislike' ? [item.label] : [],
+        };
+        if (isRecipeSafe(recipe, prefs)) {
+          checked.push({ label: item.label, who: person.who });
+        } else {
+          conflicts.add(item.label);
+        }
+      }
+    }
+
+    const dietLabels = table.people.flatMap((p) =>
+      p.items.filter((i) => i.kind === 'diet').map((i) => i.label),
+    );
+    const labelCaveats = findLabelCaveats(recipe, { dietaryRestrictions: dietLabels });
+
+    return {
+      checked,
+      conflicts: [...conflicts],
+      unchecked: [...unchecked],
+      ...(labelCaveats.length > 0 ? { labelCaveats } : {}),
+    };
+  }
+
+  /**
+   * The pool, minus anything unsafe for the table and anything this user
+   * reported. `opts.dislikes: 'mark'` (search results, UX-01) keeps
+   * disliked-but-otherwise-safe recipes in the pool for the caller to chip
+   * instead of hard-excluding them — generation and the Replace picker's
+   * default list use the default `'hide'`.
+   *
+   * `T` only needs to be STRUCTURALLY checkable (a Prisma `Recipe` row's
+   * `ingredients`/`nutritionInfo` are typed as JSON, not the narrow
+   * `SafetyCheckable` shape) — callers with a raw DB row are cast once here
+   * instead of having to reshape every row themselves.
+   */
+  filter<T extends RecipeSafetyLike & { id: string }>(
+    pool: T[],
+    ctx: Pick<SafetyContext, 'prefs' | 'hiddenRecipeIds'>,
+    opts?: { dislikes?: 'hide' | 'mark' },
+  ): T[] {
+    const dislikesMode = opts?.dislikes ?? 'hide';
+    const prefs: SafetyPrefs =
+      dislikesMode === 'hide' ? ctx.prefs : { ...ctx.prefs, dislikedIngredients: [] };
+    // No allergies/restrictions/dislikes at all: skip the matcher entirely
+    // (a no-op filter, same as every safety-aware surface before T-01.2) —
+    // also means a caller's recipe rows don't need `instructions`/
+    // `dietaryTags` populated when there is nothing to check them against.
+    const checkSafety = hasSafetyPrefs(prefs);
+    return pool.filter((recipe) => {
+      if (ctx.hiddenRecipeIds.includes(recipe.id)) return false;
+      return !checkSafety || isRecipeSafe(recipe as unknown as SafetyCheckable, prefs);
+    });
+  }
+
+  /**
+   * T-01.10: attaches ingredient-derived diet tags (never trust the static
+   * `dietaryTags` for gluten-free/vegan/vegetarian/dairy-free) and their
+   * label-dependency qualifiers. L-PLAN's `meal-plan.service.ts` DTO mapping
+   * calls this in wave 2 (§7.3) — see the final report for the signature.
+   */
+  decorate<T extends RecipeSafetyLike>(
+    recipe: T,
+  ): T & { derivedTags: string[]; tagQualifiers?: Record<string, string> } {
+    const checkable = recipe as unknown as SafetyCheckable;
+    const derivedTags = deriveDietTags(checkable);
+    const tagQualifiers = deriveTagQualifiers(checkable);
+    return {
+      ...recipe,
+      derivedTags,
+      ...(Object.keys(tagQualifiers).length > 0 ? { tagQualifiers } : {}),
+    };
+  }
+
+  /**
+   * UX-01 (d): reports a recipe as unsafe/wrong for this user. Hides it for
+   * this user immediately (via `hiddenRecipeIds` on the next `loadContext`) —
+   * it is never removed for anyone else, and never auto-deleted.
+   */
+  async report(userId: string, input: SafetyReportInput): Promise<{ success: true }> {
+    const ctx = await this.loadContext(userId);
+    await this.reportRepo.create({
+      userId,
+      recipeId: input.recipeId,
+      surface: input.surface,
+      reason: input.reason,
+      note: input.note ?? null,
+      rulesSnapshot: ctx.prefs as unknown as Prisma.InputJsonValue,
+    });
+    return { success: true };
+  }
+
   /** Every recipe this user has reported, newest first — a passthrough read. */
   async listMyReports(userId: string): Promise<SafetyReport[]> {
-    return safetyReportRepository.findAllByUser(userId);
+    return this.reportRepo.findAllByUser(userId);
+  }
+
+  /**
+   * T-01.3 hook: marks the legacy free-text review as done (`Looks right` /
+   * after `Change` re-saves through the SafetyPicker). The migration-card UI
+   * itself is cut from this PR (see the final report) — this write is
+   * exercised directly by `safety.confirmReview` so a future PR only needs
+   * to add the card.
+   */
+  async confirmReview(userId: string): Promise<{ success: true }> {
+    await this.prefsRepo.upsert(userId, { safetyReviewedAt: new Date() });
+    return { success: true };
   }
 }
 

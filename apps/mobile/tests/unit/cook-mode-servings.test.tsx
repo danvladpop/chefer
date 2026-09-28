@@ -39,6 +39,10 @@ jest.mock('../../src/lib/trpc', () => ({
         }),
       },
     },
+    // T-02.3: the additive Checked-line query — no rules for this fixture.
+    recipe: {
+      getSafetyChecks: { useQuery: () => ({ data: { safetyChecks: null } }) },
+    },
     tracker: {
       logRecipe: { useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }) },
     },

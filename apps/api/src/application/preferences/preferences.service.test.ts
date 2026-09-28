@@ -6,6 +6,7 @@ import {
   mergeSafetyList,
   PreferencesService,
   resolveDailyTargets,
+  resolveTargets,
 } from './preferences.service.js';
 
 // ─── Mock @chefer/database so prisma.$transaction is controllable ─────────────
@@ -320,6 +321,99 @@ describe('resolveDailyTargets — targetAdjustmentKcal ordering', () => {
   });
 });
 
+// ─── resolveTargets — own overrides, RECOMP/PERFORMANCE, BMI adjustment ────────
+// §2.11, T-35.1/T-35.2/T-11.4.
+
+describe('resolveTargets', () => {
+  const METRICS = {
+    weightKg: 80,
+    heightCm: 180,
+    age: 30,
+    activityLevel: 'MODERATELY_ACTIVE',
+    biologicalSex: 'MALE',
+    goal: 'MAINTAIN',
+    dailyCalorieTarget: null,
+  };
+
+  it('a SUGGESTED-mode profile has effective === suggested, source "suggested"', () => {
+    const view = resolveTargets(METRICS);
+    expect(view.source).toBe('suggested');
+    expect(view.effective).toEqual(view.suggested);
+  });
+
+  it('an OWN-mode profile serves the custom numbers as effective, suggested unchanged (AC1)', () => {
+    const view = resolveTargets({
+      ...METRICS,
+      targetMode: 'OWN',
+      customKcal: 2500,
+      customProteinG: 190,
+      customCarbsG: 220,
+      customFatG: 80,
+    });
+    expect(view.source).toBe('own');
+    expect(view.effective).toEqual({
+      dailyCalorieTarget: 2500,
+      proteinG: 190,
+      carbsG: 220,
+      fatG: 80,
+    });
+    // suggested keeps computing the system's number — it just isn't shown.
+    expect(view.suggested.dailyCalorieTarget).not.toBe(2500);
+  });
+
+  it('an OWN profile with no custom numbers yet falls back to suggested per-field', () => {
+    const view = resolveTargets({ ...METRICS, targetMode: 'OWN' });
+    expect(view.effective).toEqual(view.suggested);
+  });
+
+  it('weight/goal changes never move an OWN effective target (AC2)', () => {
+    const owned = {
+      ...METRICS,
+      targetMode: 'OWN',
+      customKcal: 2500,
+      customProteinG: 190,
+      customCarbsG: 220,
+      customFatG: 80,
+    };
+    const a = resolveTargets(owned);
+    const b = resolveTargets({ ...owned, weightKg: 120, goal: 'GAIN_MUSCLE' });
+    expect(a.effective).toEqual(b.effective);
+  });
+
+  it('RECOMP and PERFORMANCE are maintenance-calorie goals (0 kcal adjustment)', () => {
+    const maintain = resolveTargets(METRICS);
+    const recomp = resolveTargets({ ...METRICS, goal: 'RECOMP' });
+    const performance = resolveTargets({ ...METRICS, goal: 'PERFORMANCE' });
+    expect(recomp.suggested.dailyCalorieTarget).toBe(maintain.suggested.dailyCalorieTarget);
+    expect(performance.suggested.dailyCalorieTarget).toBe(maintain.suggested.dailyCalorieTarget);
+  });
+
+  it('inputs carry a rate sentence for every goal, including the new two', () => {
+    expect(resolveTargets({ ...METRICS, goal: 'LOSE_WEIGHT' }).inputs.rate).toContain('deficit');
+    expect(resolveTargets({ ...METRICS, goal: 'RECOMP' }).inputs.rate).toBe('Maintenance calories');
+    expect(resolveTargets({ ...METRICS, goal: 'PERFORMANCE' }).inputs.rate).toBe(
+      'Maintenance calories',
+    );
+  });
+
+  it('a lifter bodyweight sets isLifter and proteinGPerKg on inputs', () => {
+    const view = resolveTargets(METRICS, 80);
+    expect(view.inputs.isLifter).toBe(true);
+    expect(view.inputs.proteinGPerKg).toBe(1.6); // MAINTAIN
+  });
+
+  it('a BMI >= 30 lifter gets usedAdjustedWeight on inputs (T-11.4)', () => {
+    // 120kg @ 170cm -> BMI ~41.5
+    const view = resolveTargets({ ...METRICS, heightCm: 170 }, 120);
+    expect(view.inputs.usedAdjustedWeight).toBe(true);
+  });
+
+  it('a non-obese lifter does not trigger the adjusted-weight rule', () => {
+    const view = resolveTargets(METRICS, 80); // BMI ~24.7 @ 180cm
+    expect(view.inputs.usedAdjustedWeight).toBe(false);
+  });
+});
+
 // ─── setup never shrinks safety (audit F-ONB-1-1) ─────────────────────────────
 
 describe('PreferencesService.setup — safety lists', () => {
@@ -419,7 +513,7 @@ describe('PreferencesService.setDisplayPreferences', () => {
       preferredUnits: 'IMPERIAL',
       deliveryCurrency: 'USD',
     });
-    expect(result).toEqual({ preferredUnits: 'IMPERIAL', currency: 'USD' });
+    expect(result).toEqual({ preferredUnits: 'IMPERIAL', currency: 'USD', timeZone: null });
   });
 
   it('moves the gym unit when the unit system changes', async () => {
@@ -440,7 +534,7 @@ describe('PreferencesService.setDisplayPreferences', () => {
     const { service } = build(vi.fn().mockRejectedValue(new Error('db down')));
     await expect(
       service.setDisplayPreferences('user1', { preferredUnits: 'METRIC' }),
-    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR' });
+    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR', timeZone: null });
     error.mockRestore();
   });
 
@@ -455,7 +549,7 @@ describe('PreferencesService.setDisplayPreferences', () => {
     const service = new PreferencesService(chefProfileRepo, makeDietaryPreferencesRepo());
     await expect(
       service.setDisplayPreferences('user1', { preferredUnits: 'METRIC' }),
-    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR' });
+    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR', timeZone: null });
   });
 
   it('syncs the gym when old apps change units through update()', async () => {

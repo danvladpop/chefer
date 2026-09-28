@@ -1,9 +1,11 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { LEGAL_VERSIONS } from '@chefer/types';
 import ForgotPasswordScreen from '../../app/(auth)/forgot-password';
 import LoginScreen from '../../app/(auth)/login';
 import RegisterScreen from '../../app/(auth)/register';
 import ResetPasswordScreen from '../../app/(auth)/reset-password';
+import { clearRegisterDraft } from '../../src/features/auth/register-draft';
 import type { createTrpcAuthMock } from './auth-trpc-mock';
 import { mutationResult } from './auth-trpc-mock';
 
@@ -39,6 +41,14 @@ jest.mock('@chefer/utils', () => ({
 }));
 jest.mock('../../src/lib/auth-store', () => ({
   setToken: jest.fn(() => Promise.resolve(undefined)),
+  getToken: jest.fn(() => null),
+  subscribe: jest.fn(() => () => undefined),
+  loadToken: jest.fn(() => Promise.resolve(null)),
+  // T-25.1: `useSession()` (used by login.tsx) also reads these — default to
+  // "has signed in before" so Login's title/CTA match its pre-T-25.1
+  // behaviour ("Welcome back") in every test that doesn't care about it.
+  hasSignedInBefore: jest.fn(() => true),
+  loadHasSignedInBefore: jest.fn(() => Promise.resolve(true)),
 }));
 
 const { trpc } = jest.requireMock<ReturnType<typeof createTrpcAuthMock>>('../../src/lib/trpc');
@@ -70,6 +80,11 @@ beforeEach(() => {
   jest.clearAllMocks();
   useLocalSearchParams.mockReturnValue({});
   for (const hook of Object.values(trpc.auth)) hook.useMutation.mockReturnValue(mutationResult());
+  // T-39.1: `register-draft.ts` is a deliberately module-scoped (not
+  // per-render) cache so the in-app legal screen round trip keeps the form's
+  // values — which means it also survives across tests in this file unless
+  // cleared, leaking one test's typed values into the next screen's mount.
+  clearRegisterDraft();
 });
 
 describe('Login', () => {
@@ -105,7 +120,34 @@ describe('Login', () => {
   });
 });
 
+/** T-39.1 / T-26.5: both consent boxes, required for a submission to reach the API. */
+async function checkConsentBoxes(user: ReturnType<typeof userEvent.setup>) {
+  await user.press(screen.getByTestId('register-accept-terms'));
+  await user.press(screen.getByTestId('register-age-confirm'));
+}
+
 describe('Register', () => {
+  it('requires both consent boxes before the API is ever called (T-39.1, T-26.5)', async () => {
+    const mutate = mockMutation(trpc.auth.register, { session: null });
+    const user = userEvent.setup();
+    await renderWithSafeArea(<RegisterScreen />);
+
+    await user.type(screen.getByTestId('register-email'), 'new@e2e.chefer.dev');
+    await user.type(screen.getByTestId('register-password'), 'Password123!');
+    await user.type(screen.getByTestId('register-confirm-password'), 'Password123!');
+    // Neither box ticked — submit stays enabled (03 §UX-26 AC), the inline
+    // errors are what block it.
+    await user.press(screen.getByTestId('register-submit'));
+
+    expect(await screen.findByTestId('register-accept-terms-error')).toHaveTextContent(
+      /agree to the terms/i,
+    );
+    expect(await screen.findByTestId('register-age-confirm-error')).toHaveTextContent(
+      /16 or older/i,
+    );
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
   it('blocks submit when the passwords differ', async () => {
     const mutate = mockMutation(trpc.auth.register, { session: null });
     const user = userEvent.setup();
@@ -135,11 +177,15 @@ describe('Register', () => {
     );
 
     await user.type(screen.getByTestId('register-confirm-password'), 'Password123!');
+    await checkConsentBoxes(user);
     await user.press(screen.getByTestId('register-submit'));
     await waitFor(() =>
       expect(mutate).toHaveBeenCalledWith({
         email: 'new@e2e.chefer.dev',
         password: 'Password123!',
+        acceptedTerms: true,
+        ageConfirmed: true,
+        acceptedTermsVersion: LEGAL_VERSIONS.terms,
       }),
     );
   });
@@ -153,11 +199,15 @@ describe('Register', () => {
     await user.type(screen.getByTestId('register-email'), 'new@e2e.chefer.dev');
     await user.type(screen.getByTestId('register-password'), 'Password123!');
     await user.type(screen.getByTestId('register-confirm-password'), 'Password123!');
+    await checkConsentBoxes(user);
     await user.press(screen.getByTestId('register-submit'));
     await waitFor(() =>
       expect(mutate).toHaveBeenCalledWith({
         email: 'new@e2e.chefer.dev',
         password: 'Password123!',
+        acceptedTerms: true,
+        ageConfirmed: true,
+        acceptedTermsVersion: LEGAL_VERSIONS.terms,
         region: 'US',
       }),
     );

@@ -24,12 +24,21 @@ export function createTrpcOnboardingMock() {
         update: { useMutation: jest.fn(() => mutationResult()) },
         remove: { useMutation: jest.fn(() => mutationResult()) },
       },
+      // T-01.7: the household editor's table read-back summary.
+      safety: {
+        getTable: {
+          useQuery: jest.fn(() =>
+            queryResult({ data: { people: [], hasRules: false, needsReview: false } }),
+          ),
+        },
+      },
       useUtils: jest.fn(() => ({
         preferences: { invalidate: jest.fn(), get: { invalidate: jest.fn() } },
         dashboard: { invalidate: jest.fn() },
         household: { list: { invalidate: jest.fn() } },
         mealPlan: { invalidate: jest.fn() },
         shoppingList: { getForWeek: { invalidate: jest.fn() } },
+        safety: { getTable: { invalidate: jest.fn() } },
       })),
     },
   };

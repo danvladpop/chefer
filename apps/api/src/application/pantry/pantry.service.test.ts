@@ -14,9 +14,15 @@ vi.mock('@chefer/database', async (importOriginal) => {
       ingredientPrice: { findMany: vi.fn().mockResolvedValue([]) },
     },
     // Default: no allergies/restrictions/household — whatCanIMake's B-34/B-46
-    // safety filter (T-00.11) is a no-op unless a test overrides these.
+    // safety filter (T-00.11/T-01.2) is a no-op unless a test overrides these.
     dietaryPreferencesRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
     householdMemberRepository: { findByUserId: vi.fn().mockResolvedValue([]) },
+    // SafetyService.loadContext also reads reported-recipe ids (T-01.2).
+    safetyReportRepository: {
+      findRecipeIdsByUser: vi.fn().mockResolvedValue([]),
+      create: vi.fn(),
+      findAllByUser: vi.fn(),
+    },
   };
 });
 

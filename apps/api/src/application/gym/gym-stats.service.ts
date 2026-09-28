@@ -89,7 +89,10 @@ export class GymStatsService {
     const summaries = await this.summaries(userId, { exerciseIds: [exerciseId] });
     let runningMax = -Infinity;
     const all: E1rmPointDto[] = sessionBests(summaries, exerciseId).map(({ session, best }) => {
-      const isPr = runningMax !== -Infinity && best.e1rmKg > runningMax;
+      // T-05.6 (UX-05 F): the first session's own e1RM is the running max
+      // too — it beats "nothing", so it counts as a PR (previously excluded
+      // by requiring a real prior runningMax to compare against).
+      const isPr = best.e1rmKg > runningMax;
       runningMax = Math.max(runningMax, best.e1rmKg);
       return {
         localDate: session.localDate,

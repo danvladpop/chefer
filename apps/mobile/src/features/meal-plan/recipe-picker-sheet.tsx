@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SectionList, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
-import { buildPickerSections } from '@chefer/utils';
+import { buildPickerSections, filterReplaceCandidates } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc } from '../../lib/trpc';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
@@ -15,6 +15,13 @@ interface RecipePickerSheetProps {
   visible: boolean;
   /** Name of the meal being replaced — shown in the header. */
   mealName: string;
+  /**
+   * T-08.10 (bug B-50): the recipe currently in the slot — never re-offered
+   * as its own replacement.
+   */
+  excludeRecipeId?: string | undefined;
+  /** Narrows the list to this meal type (rows without one still show). */
+  slotType?: string | undefined;
   /** True while the replace/AI mutation runs; rows and footer lock. */
   busy: boolean;
   error: string | null;
@@ -32,6 +39,8 @@ interface RecipePickerSheetProps {
 export function RecipePickerSheet({
   visible,
   mealName,
+  excludeRecipeId,
+  slotType,
   busy,
   error,
   unsafeError = false,
@@ -84,7 +93,11 @@ export function RecipePickerSheet({
     { enabled: visible },
   );
 
-  const sections = buildPickerSections(mineQuery.data, allQuery.data);
+  // (lane L-SAFE's server-side, safety-aware version — same signature).
+  const filterOpts = { excludeRecipeId, slotType };
+  const mineFiltered = mineQuery.data && filterReplaceCandidates(mineQuery.data, filterOpts);
+  const allFiltered = allQuery.data && filterReplaceCandidates(allQuery.data, filterOpts);
+  const sections = buildPickerSections(mineFiltered, allFiltered);
   const isLoading = mineQuery.isLoading || allQuery.isLoading;
   const isOwnAttempt = Boolean(
     lastAttemptedId && mineQuery.data?.some((r) => r.id === lastAttemptedId),

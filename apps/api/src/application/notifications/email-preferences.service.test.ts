@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IWeeklyEmailRepository } from '@chefer/database';
 import type { EmailMessage } from '../../lib/email/index';
 import { createUnsubscribeToken, createVerifyEmailToken } from '../../lib/email/tokens';
+import { consentService } from '../privacy/consent.service.js';
 import { EmailPreferencesService } from './email-preferences.service';
+
+vi.mock('../privacy/consent.service.js', () => ({
+  consentService: { record: vi.fn() },
+}));
 
 vi.mock('../../lib/env.js', () => ({
   env: {
@@ -47,6 +52,7 @@ describe('EmailPreferencesService', () => {
     repo = makeRepo();
     send = makeSend();
     service = new EmailPreferencesService(repo, { send });
+    vi.mocked(consentService.record).mockReset();
   });
 
   describe('unsubscribe (token round-trip, no login)', () => {
@@ -137,5 +143,27 @@ describe('EmailPreferencesService', () => {
     const updated = await service.set('u1', { weeklyRecap: false });
     expect(repo.setPreferences).toHaveBeenCalledWith('u1', { weeklyEmailRecap: false });
     expect(updated.weeklyRecap).toBe(false);
+  });
+
+  it('logs a consent event for every switch that changed (§2.13 "100% logged")', async () => {
+    await service.set('u1', { weekReady: false, weeklyRecap: true }, 'mobile');
+    expect(consentService.record).toHaveBeenCalledTimes(2);
+    expect(consentService.record).toHaveBeenCalledWith({
+      userId: 'u1',
+      kind: 'EMAIL_WEEK_READY',
+      granted: false,
+      source: 'mobile',
+    });
+    expect(consentService.record).toHaveBeenCalledWith({
+      userId: 'u1',
+      kind: 'EMAIL_RECAP',
+      granted: true,
+      source: 'mobile',
+    });
+  });
+
+  it('logs nothing when neither switch is in the input', async () => {
+    await service.set('u1', {});
+    expect(consentService.record).not.toHaveBeenCalled();
   });
 });

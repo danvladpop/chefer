@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fetch as expoFetch } from 'expo/fetch';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, defaultMealSlot } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { getApiBaseUrl } from '../../lib/api-url';
 import { getToken } from '../../lib/auth-store';
@@ -16,6 +16,7 @@ import {
 import { photoPickerOptions, preparePhoto } from '../../lib/prepare-photo';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
+import { invalidateDayQueries } from './invalidate';
 import { recordRebalance } from './rebalance-store';
 
 // Snap-to-Log (F4 / M3-2) — mobile counterpart of web's ScanMealButton.
@@ -35,11 +36,24 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
   const [error, setError] = useState<string | null>(null);
   const [upgradeNeeded, setUpgradeNeeded] = useState(false);
   const [estimate, setEstimate] = useState<MealPhotoEstimate | null>(null);
-  const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>('lunch');
+  // Bug B-36: this always defaulted to Lunch, even for a 7am or 9pm scan.
+  // Shared with Quick add so a log entered at any hour lands sensibly.
+  const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>(() =>
+    defaultMealSlot(new Date().getHours()),
+  );
+  // Bug B-37: camera permission denied used to leave the user staring at red
+  // error text with no way forward. `cameraDenied` renders a muted notice
+  // with a real way out instead.
+  const [cameraDenied, setCameraDenied] = useState(false);
 
+  const utils = trpc.useUtils();
   const logMutation = trpc.tracker.logCustomMeal.useMutation({
     onSuccess: (data) => {
       recordRebalance(data.rebalance);
+      // Bug B-44: Today used to lag the tracker by ~8s after a snap log —
+      // this mutation invalidated nothing, so the dashboard ring only caught
+      // up on its own stale-time refetch.
+      invalidateDayQueries(utils, date);
       setEstimate(null);
       onLogged();
     },
@@ -56,6 +70,7 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
   const pickNow = async (source: 'camera' | 'library') => {
     setError(null);
     setUpgradeNeeded(false);
+    setCameraDenied(false);
     // T-BUG-O1.2: the photo is shrunk on the device before the scan.
     const options = photoPickerOptions();
     const result =
@@ -63,7 +78,9 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
         ? await (async () => {
             const perm = await ImagePicker.requestCameraPermissionsAsync();
             if (!perm.granted) {
-              setError('Camera access is needed to scan a meal.');
+              // Bug B-37: a muted notice + a real way out (Settings, or fall
+              // back to a library photo — no new native module needed).
+              setCameraDenied(true);
               return null;
             }
             return ImagePicker.launchCameraAsync(options);
@@ -140,6 +157,32 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
               You&apos;ve used today&apos;s scans — premium raises the limit. Upgrade from your
               Profile.
             </Text>
+          )}
+          {cameraDenied && (
+            <View className="gap-2 rounded-lg bg-muted p-3">
+              <Text variant="muted" className="text-xs">
+                Chefer needs camera access to scan a meal. You can turn it on in Settings, or pick a
+                photo instead.
+              </Text>
+              <View className="flex-row gap-2">
+                <Button
+                  testID="scan-open-settings"
+                  variant="outline"
+                  className="flex-1"
+                  onPress={() => void Linking.openSettings()}
+                >
+                  Open Settings
+                </Button>
+                <Button
+                  testID="scan-choose-photo-instead"
+                  variant="outline"
+                  className="flex-1"
+                  onPress={() => pick('library')}
+                >
+                  Choose a photo instead
+                </Button>
+              </View>
+            </View>
           )}
           {error && <Text className="text-xs text-red-600">{error}</Text>}
         </>

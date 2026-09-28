@@ -46,6 +46,34 @@ export function weekStartOf(localDate: string): string {
   return addDaysLocal(localDate, -weekdayOf(localDate));
 }
 
+const WEEKDAY_SHORT_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/**
+ * "Thu 24 Sep" — a device-local date as a weekday + day + short month, never
+ * an ISO string. Used wherever a date must be shown but "Today"/"Yesterday"
+ * relative wording (`recent.ts`'s `dayHeading`) doesn't apply — the Resume
+ * card's backfill eyebrow, Stats › History week headers.
+ */
+export function weekdayDateLabel(localDate: string): string {
+  const d = new Date(`${localDate}T00:00:00.000Z`);
+  const weekday = WEEKDAY_SHORT_NAMES[weekdayOf(localDate)];
+  const month = d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+  return `${weekday} ${d.getUTCDate()} ${month}`;
+}
+
+/**
+ * "7-week streak" — or, for a streak of 0, `Your streak starts when you hit
+ * this week's goal.` instead of the demoralising "0-week streak" (T-36.4;
+ * shared by mobile `today-helpers.ts`'s `formatStreakLine` — which also
+ * layers a flex-week suffix on top — and web's today-view/summary-view/
+ * ConsistencyGrid, which all had the same bare `{streak.current}-week
+ * streak` bug).
+ */
+export function streakWeeksLabel(current: number): string {
+  if (current === 0) return "Your streak starts when you hit this week's goal.";
+  return current === 1 ? '1-week streak' : `${current}-week streak`;
+}
+
 /** Goal in force for a week: the latest entry whose fromWeek ≤ weekStart (earliest entry before any). */
 export function goalForWeek(goalHistory: GoalHistoryEntry[], weekStart: string): number {
   const sorted = [...goalHistory].sort((a, b) => a.fromWeek.localeCompare(b.fromWeek));

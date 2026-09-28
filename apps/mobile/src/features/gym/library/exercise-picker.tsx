@@ -1,9 +1,18 @@
 import { useMemo, useState } from 'react';
 import { FlatList, Pressable, TextInput, View } from 'react-native';
-import { Image } from 'expo-image';
-import { MUSCLE_LABELS, VOLUME_GROUPS, type ExerciseDto, type VolumeGroup } from '@chefer/types';
+import {
+  HIDDEN_EXERCISE_IMAGE_IDS,
+  MUSCLE_LABELS,
+  VOLUME_GROUPS,
+  type ExerciseDto,
+  type VolumeGroup,
+} from '@chefer/types';
 import { ChipGroup, Sheet, Text } from '@chefer/ui-mobile';
+import { cn } from '@chefer/utils';
+import { ExerciseImage } from '../components/exercise-image';
+import { CollapsibleChipFilters } from './collapsible-chip-filters';
 import { exerciseImageUrl } from './exercise-image';
+import { useKeyboardVisible } from './use-keyboard-visible';
 
 // Shared exercise picker (swap in the workout, add to a routine/session).
 // Reads the offline-cached library, so it works in a basement gym.
@@ -61,6 +70,7 @@ export function ExercisePicker({
 }: ExercisePickerProps) {
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<VolumeGroup | null>(null);
+  const keyboardVisible = useKeyboardVisible();
 
   const rows = useMemo(() => {
     const all = filterExercises(library, { query, group, excludeIds });
@@ -73,20 +83,49 @@ export function ExercisePicker({
   return (
     <Sheet visible={visible} onClose={onClose} title={title} scrollable={false} testID={testID}>
       <View className="gap-3 px-4 pb-2">
-        <TextInput
-          testID={`${testID}-search`}
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search exercises"
-          autoCorrect={false}
-          className="min-h-11 rounded-xl border border-border bg-background px-3 text-base"
-        />
-        <ChipGroup
-          testID={`${testID}-groups`}
-          options={GROUP_FILTERS}
-          value={group ? [group] : []}
-          onChange={(v) => setGroup(v[0] ?? null)}
-          allowEmpty
+        <View className="relative justify-center">
+          <TextInput
+            testID={`${testID}-search`}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search exercises"
+            placeholderTextColor="#4b5563"
+            autoCorrect={false}
+            accessibilityLabel="Search exercises"
+            className={cn(
+              'min-h-11 rounded-xl border border-border bg-background px-3 text-base',
+              query && 'pr-11',
+            )}
+          />
+          {query ? (
+            <Pressable
+              testID={`${testID}-search-clear`}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              onPress={() => setQuery('')}
+              className="absolute right-1 h-11 w-11 items-center justify-center"
+            >
+              <Text className="text-lg text-muted-foreground">✕</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {/* T-05.A3.1 (AC19-22): ChipGroup wraps onto multiple lines by
+            default — collapsed to one horizontal strip while the keyboard is
+            up so >= 5 results stay visible. */}
+        <CollapsibleChipFilters
+          testID={`${testID}-filters`}
+          collapsed={keyboardVisible}
+          rows={[
+            <ChipGroup
+              key="group"
+              testID={`${testID}-groups`}
+              options={GROUP_FILTERS}
+              value={group ? [group] : []}
+              onChange={(v) => setGroup(v[0] ?? null)}
+              allowEmpty
+              className={keyboardVisible ? 'flex-nowrap' : undefined}
+            />,
+          ]}
         />
       </View>
       <FlatList
@@ -104,16 +143,15 @@ export function ExercisePicker({
               onPress={() => onPick(item)}
               className="min-h-14 flex-row items-center gap-3 border-b border-border px-4 py-2 active:bg-muted"
             >
-              {uri ? (
-                <Image
-                  source={{ uri }}
-                  style={{ width: 44, height: 44, borderRadius: 8 }}
-                  contentFit="cover"
-                  cachePolicy="disk"
-                />
-              ) : (
-                <View className="h-11 w-11 rounded-lg bg-muted" />
-              )}
+              <ExerciseImage
+                uri={uri}
+                equipment={item.equipment}
+                name={item.name}
+                size="thumb"
+                hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(item.id)}
+                analyticsExerciseId={item.ownerId ? 'custom' : item.id}
+                testID={`${testID}-item-${item.id}-image`}
+              />
               <View className="min-w-0 flex-1">
                 <Text className="font-medium" numberOfLines={1}>
                   {item.name}

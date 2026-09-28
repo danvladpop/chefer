@@ -12,4 +12,8 @@ export const KV_KEYS = {
   queryCache: 'gym.query-cache',
   /** Dismissed weekly-balance hints per routine (research §2.3), G2-C. */
   routineHintsDismissed: 'gym.routine.hints-dismissed',
+  /** "Not this week" dismissals for a missed planned day (T-04.8), by week. */
+  missedDayDismissed: 'gym.today.missed-dismissed',
+  /** Rationale sheet for the rest-timer background permission shown once (T-36.2, B-40). */
+  restPermissionRationaleShown: 'gym.rest-timer.rationale-shown',
 } as const;

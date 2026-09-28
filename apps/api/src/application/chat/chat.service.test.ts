@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { mealPlanService } from '../meal-plan/meal-plan.service.js';
-import { ChatService } from './chat.service.js';
+import { ChatService, localDateInZone, localDayIndexInZone } from './chat.service.js';
 
 // ─── Module mocks (hoisted) ───────────────────────────────────────────────────
 
@@ -34,19 +34,27 @@ vi.mock('@chefer/database', async (importOriginal) => {
         dailyCalorieTarget: 2500,
       }),
     },
-    dietaryPreferencesRepository: {
-      findByUserId: vi.fn().mockResolvedValue({
-        allergies: ['peanuts'],
-        dietaryRestrictions: ['Vegetarian'],
-        dislikedIngredients: [],
-      }),
-    },
     mealRatingRepository: { findSignalsForUser: vi.fn().mockResolvedValue([]) },
     // buildContextSummary reads today's log (959e5ee) — must be mocked or the
     // test reaches real Prisma and fails in CI's clean env (no DATABASE_URL).
     dailyLogRepository: { findByDate: vi.fn().mockResolvedValue(null) },
   };
 });
+
+// T-BUG-X1: the chat context reads the table's merged safety rules — the
+// owner's plus every household member's (here a member's sesame allergy).
+vi.mock('../safety/safety.service.js', () => ({
+  safetyService: {
+    loadContext: vi.fn().mockResolvedValue({
+      prefs: {
+        allergies: ['peanuts', 'sesame'],
+        dietaryRestrictions: ['Vegetarian'],
+        dislikedIngredients: [],
+        excludeLabelDependent: false,
+      },
+    }),
+  },
+}));
 
 vi.mock('../meal-plan/meal-plan.service.js', () => ({
   mealPlanService: {
@@ -114,6 +122,13 @@ vi.mock('../training-nutrition/training-nutrition.service.js', () => ({
   },
 }));
 
+// T-21.1: logMeal's own local-day lookup.
+vi.mock('../tracker/tracker.service.js', () => ({
+  trackerService: {
+    logCustomMeal: vi.fn().mockResolvedValue({ log: {}, rebalance: null }),
+  },
+}));
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const user = (over: Partial<UserProfile> = {}): UserProfile => ({
@@ -143,8 +158,12 @@ const recipe = (name: string, protein: number) => ({
   imageStatus: 'DONE' as const,
 });
 
+// T-21.1: `buildContextSummary` now reckons "today" from the user's
+// `ChefProfile.timeZone`, falling back to UTC when it's unset (the fixture
+// user below has none) — mirror that here instead of the sandbox machine's
+// own local day, which can disagree with UTC.
 const todayIdx = (() => {
-  const jsDay = new Date().getDay();
+  const jsDay = new Date().getUTCDay();
   return jsDay === 0 ? 6 : jsDay - 1;
 })();
 
@@ -191,6 +210,11 @@ describe('ChatService', () => {
     expect(summary).toContain('55g protein');
     expect(summary).toContain('peanuts');
     expect(summary).toContain('Vegetarian');
+  });
+
+  it("T-BUG-X1: the context names a household member's allergy, not just the owner's", async () => {
+    const summary = await service.buildContextSummary(user(), PLAN);
+    expect(summary).toContain('Allergies (never suggest): peanuts, sesame.');
   });
 
   it('chat() builds context, logs the CHAT call, and passes tools to the AI', async () => {
@@ -391,5 +415,95 @@ describe('ChatService', () => {
 
     expect(pantryService.whatCanIMake).toHaveBeenCalledWith(premium);
     expect(result).toContain('Halloumi Couscous Bowl');
+  });
+
+  // ─── T-21.1: one local-day contract (bugs B-06, B-33) ─────────────────────────
+
+  describe('localDateInZone / localDayIndexInZone', () => {
+    it('reads the calendar date in the given IANA zone, not UTC', () => {
+      // 2026-01-01T02:00:00Z is still 2025-12-31 evening in Los Angeles.
+      const utcMidnight = new Date('2026-01-01T02:00:00.000Z');
+      expect(localDateInZone('America/Los_Angeles', utcMidnight)).toBe('2025-12-31');
+      expect(localDateInZone('UTC', utcMidnight)).toBe('2026-01-01');
+    });
+
+    it('falls back to UTC when no time zone is set (unchanged accounts)', () => {
+      const d = new Date('2026-03-15T10:00:00.000Z');
+      expect(localDateInZone(undefined, d)).toBe(localDateInZone('UTC', d));
+      expect(localDateInZone(null, d)).toBe('2026-03-15');
+    });
+
+    it('day index is 0=Monday…6=Sunday and follows the local calendar day across midnight', () => {
+      // 2026-09-28 is a Monday (UTC). Just after UTC midnight it's still
+      // Sunday evening on the US west coast.
+      const justAfterUtcMidnight = new Date('2026-09-28T04:00:00.000Z');
+      expect(localDayIndexInZone('UTC', justAfterUtcMidnight)).toBe(0); // Monday
+      expect(localDayIndexInZone('America/Los_Angeles', justAfterUtcMidnight)).toBe(6); // Sunday
+    });
+  });
+
+  describe("bug B-06/B-33: logMeal logs to the user's local day, not the server's", () => {
+    afterEach(async () => {
+      vi.useRealTimers();
+      // Restore the describe-block-wide default (no time zone) after a test
+      // overrides it — `clearAllMocks` in the outer `beforeEach` clears call
+      // history, not a `mockResolvedValue` set here.
+      const { chefProfileRepository } = await import('@chefer/database');
+      vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue({
+        weightKg: 80,
+        heightCm: 180,
+        age: 30,
+        activityLevel: 'MODERATELY_ACTIVE',
+        biologicalSex: 'MALE',
+        goal: 'MAINTAIN',
+        dailyCalorieTarget: 2500,
+      } as never);
+    });
+
+    it('a message just after UTC midnight logs to the still-Sunday evening in Los Angeles', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-28T04:00:00.000Z')); // Mon 04:00 UTC
+      vi.mocked(mealPlanService.getActive).mockResolvedValue(null);
+      const { chefProfileRepository } = await import('@chefer/database');
+      vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue({
+        timeZone: 'America/Los_Angeles',
+      } as never);
+      const { trackerService } = await import('../tracker/tracker.service.js');
+      const { aiService } = await import('../../lib/ai/index.js');
+
+      await service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]);
+      const context = vi.mocked(aiService.chat).mock.calls.at(-1)![1];
+
+      await context.tools!.logMeal({ name: 'Late snack', kcal: 200, mealType: 'snack' });
+
+      expect(trackerService.logCustomMeal).toHaveBeenCalledWith(
+        expect.anything(),
+        '2026-09-27', // still Sunday in Los Angeles
+        expect.objectContaining({ name: 'Late snack' }),
+      );
+    });
+
+    it('an account with no saved time zone logs to the UTC day (unchanged behaviour)', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-28T12:00:00.000Z'));
+      vi.mocked(mealPlanService.getActive).mockResolvedValue(null);
+      const { chefProfileRepository } = await import('@chefer/database');
+      vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue({
+        timeZone: null,
+      } as never);
+      const { trackerService } = await import('../tracker/tracker.service.js');
+      const { aiService } = await import('../../lib/ai/index.js');
+
+      await service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]);
+      const context = vi.mocked(aiService.chat).mock.calls.at(-1)![1];
+
+      await context.tools!.logMeal({ name: 'Lunch', kcal: 500, mealType: 'lunch' });
+
+      expect(trackerService.logCustomMeal).toHaveBeenCalledWith(
+        expect.anything(),
+        '2026-09-28',
+        expect.objectContaining({ name: 'Lunch' }),
+      );
+    });
   });
 });

@@ -7,12 +7,13 @@ import { useIsPremium } from '@/hooks/useIsPremium';
 import { trpc } from '@/lib/trpc';
 import { Heart, Wand2 } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
-import { buildPickerSections } from '@chefer/utils';
+import { buildPickerSections, filterReplaceCandidates } from '@chefer/utils';
 
 // Replace one meal slot — web port of the mobile RecipePickerSheet (parity
-// backlog 2026-09-23). Primary action: pick a specific recipe (any tier,
-// mealPlan.replaceRecipe has no quota); footer: AI regeneration (premium,
-// mealPlan.swapRecipe, quota enforced server-side).
+// backlog 2026-09-23; T-08.9/T-08.10 undo + filter parity). Primary action:
+// pick a specific recipe (any tier, mealPlan.replaceRecipe has no quota);
+// footer: AI regeneration (premium, mealPlan.swapRecipe, quota enforced
+// server-side).
 
 export interface ReplaceTarget {
   planId: string;
@@ -21,14 +22,29 @@ export interface ReplaceTarget {
   /** The slot's index in `day.meals` — a curated day can hold two snacks. */
   slotIndex?: number | undefined;
   mealName: string;
+  /**
+   * T-08.10 (bug B-50): the recipe currently in the slot — never re-offered
+   * as its own replacement.
+   */
+  recipeId: string;
+}
+
+export interface ReplaceMealResult {
+  target: ReplaceTarget;
+  recipeName: string;
+  /** T-08.5/T-08.6: present unless there was nothing to undo to. */
+  previousRecipeId?: string;
 }
 
 export function ReplaceMealSheet({
   target,
   onClose,
+  onChanged,
 }: {
   target: ReplaceTarget | null;
   onClose: () => void;
+  /** Fired after a successful replace/AI-swap — lets the caller offer Undo. */
+  onChanged?: (result: ReplaceMealResult) => void;
 }) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -75,23 +91,36 @@ export function ReplaceMealSheet({
     void utils.tracker.invalidate();
     void utils.shoppingList.invalidate();
   };
+  const notifyChanged = (target: ReplaceTarget, recipeName: string, previousRecipeId?: string) => {
+    onChanged?.({ target, recipeName, ...(previousRecipeId && { previousRecipeId }) });
+  };
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       invalidate();
       onClose();
+      if (target) notifyChanged(target, data.name, data.previousRecipeId);
     },
   });
   const requestAiConsent = useAiConsent();
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       invalidate();
       onClose();
+      if (target) notifyChanged(target, data.name, data.previousRecipeId);
     },
   });
 
   const busy = replaceMutation.isPending || swapMutation.isPending;
   const error = replaceMutation.error?.message ?? swapMutation.error?.message ?? null;
-  const sections = buildPickerSections(mineQuery.data, allQuery.data);
+  // T-08.10 (bug B-50): never re-offer the meal being replaced; narrow to
+  // the slot's type (rows without a `mealType` still pass).
+  const filterOpts = {
+    ...(target?.recipeId && { excludeRecipeId: target.recipeId }),
+    ...(target?.mealType && { slotType: target.mealType }),
+  };
+  const mineFiltered = mineQuery.data && filterReplaceCandidates(mineQuery.data, filterOpts);
+  const allFiltered = allQuery.data && filterReplaceCandidates(allQuery.data, filterOpts);
+  const sections = buildPickerSections(mineFiltered, allFiltered);
   const isLoading = mineQuery.isLoading || allQuery.isLoading;
   // T-00.11 (B-34/B-46): replaceRecipe rejects an unsafe recipe with
   // FORBIDDEN — offer "Use anyway" only for the user's own recipe, the only

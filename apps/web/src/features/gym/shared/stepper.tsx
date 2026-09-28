@@ -14,6 +14,8 @@ export function Stepper({
   onDecrement,
   onIncrement,
   onValueClick,
+  rawValue,
+  onValueChange,
   label,
   valueLabel,
   disabled = false,
@@ -26,6 +28,15 @@ export function Stepper({
   onDecrement: () => void;
   onIncrement: () => void;
   onValueClick?: () => void;
+  /**
+   * T-05.4 (CI-31, AC6): makes the value directly typeable instead of a
+   * read-only span/button — reaching 150 from 40 takes a few keystrokes
+   * instead of ~44 ± presses. Mutually exclusive with `onValueClick`
+   * (typed entry wins when both are given). `rawValue` is the number the
+   * input edits; `value`/`valueLabel` still drive the accessible label.
+   */
+  rawValue?: number;
+  onValueChange?: (value: number) => void;
   /** e.g. "weight" — used in the buttons' accessible names. */
   label: string;
   /** Accessible name for the value button. */
@@ -52,7 +63,21 @@ export function Stepper({
       >
         <Minus className="h-4 w-4" aria-hidden="true" />
       </RepeatButton>
-      {onValueClick ? (
+      {onValueChange ? (
+        <input
+          type="number"
+          inputMode="decimal"
+          value={rawValue ?? ''}
+          disabled={disabled}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (e.target.value !== '' && Number.isFinite(n)) onValueChange(n);
+          }}
+          aria-label={valueLabel ?? label}
+          data-testid={testId ? `${testId}-input` : undefined}
+          className="min-h-11 min-w-0 flex-1 border-0 bg-transparent px-1 text-center text-sm font-semibold tabular-nums text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#944a00]/30 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+      ) : onValueClick ? (
         <button
           type="button"
           onClick={onValueClick}

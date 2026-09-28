@@ -39,7 +39,12 @@ import { daysBetweenLocal } from './weeks';
 export { explain, explainInputs } from './reasons';
 
 /** Bump whenever any output changes (stored with every suggestion). */
-export const ENGINE_VERSION = 2;
+export const ENGINE_VERSION = 3;
+
+/** A timed exercise's aim never drops below this many seconds when invented (research §1.11, O-02). */
+const TIMED_MIN_AIM_SEC = 20;
+/** Below this range, inventing a floor aim would be worse than saying nothing (O-02). */
+const TIMED_NO_AIM_UNDER_SEC = 10;
 
 /** Most working sets BW_ADD_SET will grow an exercise to (research §1.3). */
 export const MAX_BODYWEIGHT_SETS = 5;
@@ -135,6 +140,43 @@ export function rampSetCount(sets: readonly ExposureSet[], slot: ExerciseSlot): 
     n += 1;
   }
   return n;
+}
+
+/**
+ * Sets after the top working weight that are lighter than it by more than one
+ * load step are back-off/drop sets (research O-07 / B-07, B-08): there is no
+ * set-type field, so the rule is positional + relative. A deliberate ascending
+ * or pyramid session (no set lighter than a one-step gap after the peak) is
+ * unaffected; property tests cover both shapes.
+ */
+export function excludeBackoffSets(
+  sets: readonly ExposureSet[],
+  slot: ExerciseSlot,
+  profile: EquipmentProfile,
+): ExposureSet[] {
+  if (sets.length === 0) {
+    return [];
+  }
+  const topRounded = roundToAchievable(
+    Math.max(...sets.map((s) => s.weightKg)),
+    slot,
+    profile,
+    'nearest',
+  );
+  const step = Math.max(0, topRounded - stepDown(topRounded, slot, profile));
+  let sawTop = false;
+  const kept: ExposureSet[] = [];
+  for (const s of sets) {
+    const rounded = roundToAchievable(s.weightKg, slot, profile, 'nearest');
+    if (sawTop && step > 0 && rounded < topRounded - step) {
+      continue; // back-off / drop set: excluded from the load decision
+    }
+    kept.push(s);
+    if (sameKg(rounded, topRounded)) {
+      sawTop = true;
+    }
+  }
+  return kept;
 }
 
 /**
@@ -251,14 +293,31 @@ export function initialState(input: {
   const { slot, profile, experience } = input;
   const known = input.knownWeightKg ?? null;
   const calibrating = known === null && canCalibrate(slot);
-  const weight = roundToAchievable(
-    known ?? startingGuessKg(slot, profile, experience),
-    slot,
-    profile,
-    'nearest',
-  );
+  const timed = slot.exercise.isTimed;
+  // A degenerate timed range (no real target was ever set — the O-02 "Indoor
+  // bike" bug: a custom exercise defaults to a 1 s range) gets no engine load
+  // guess and no invented aim, until the user has actually logged a load on
+  // it (a weighted plank, or a normal-range timed exercise such as Farmer's
+  // Carry, is unaffected — T-05.A2.1).
+  const timedDegenerate = timed && known === null && slot.repMax < TIMED_NO_AIM_UNDER_SEC;
+  const weight = timedDegenerate
+    ? 0
+    : roundToAchievable(
+        known ?? startingGuessKg(slot, profile, experience),
+        slot,
+        profile,
+        'nearest',
+      );
   // Calibration asks for the whole range so the first RIR tap is informative.
-  const target = calibrating ? slot.repMax : slot.repMin;
+  // A timed first-time aim never invents a number below TIMED_MIN_AIM_SEC,
+  // and a degenerate range invents nothing at all (O-02).
+  const target = calibrating
+    ? slot.repMax
+    : timed && known === null
+      ? timedDegenerate
+        ? slot.repMin
+        : Math.max(TIMED_MIN_AIM_SEC, slot.repMin)
+      : slot.repMin;
   const next = makeSuggestion(
     'start',
     weight,
@@ -271,6 +330,7 @@ export function initialState(input: {
       experience,
       lastWeightKg: null,
       baselineKg: null,
+      ...(timedDegenerate ? { timedFirstTime: true, timedNoAim: true } : {}),
     },
     0,
   );
@@ -616,14 +676,21 @@ export function applyExposure(input: {
 
   const working = exposure.loggedSets.filter((s) => !s.isWarmup && s.completed);
   // Ramp-up sets logged as working sets (40 → 60 → 70) count toward "sets
-  // done" but not toward the load decision; W stays the lightest of the rest.
-  const loadSets = working.slice(rampSetCount(working, slot));
+  // done" but not toward the load decision. Sets after the top working weight
+  // that are lighter by more than one load step are back-off/drop sets (no
+  // set-type field exists, so this is positional + relative, B-07/B-08); both
+  // are excluded before W (the working weight) is taken.
+  const afterRamp = working.slice(rampSetCount(working, slot));
+  const hadBackoffSets = excludeBackoffSets(afterRamp, slot, profile).length < afterRamp.length;
+  const loadSets = excludeBackoffSets(afterRamp, slot, profile);
   const reps = loadSets.map((s) => s.reps);
   const rir = exposure.lastSetRir;
+  // W is the heaviest completed working set, never the lightest (B-07): a
+  // deliberate back-off set must not become next week's prescribed weight.
   const W =
     loadSets.length > 0
       ? roundToAchievable(
-          loadSets.map((s) => s.weightKg).reduce((a, b) => easierOf(a, b, slot)),
+          loadSets.map((s) => s.weightKg).reduce((a, b) => harderOf(a, b, slot)),
           slot,
           profile,
           'nearest',
@@ -652,7 +719,12 @@ export function applyExposure(input: {
   // is better evidence than the guess, so it is judged like a full exposure.
   const judgePartial = calibrating && W !== null && !sameKg(W, state.next.weightKg);
   if (W === null || (working.length < exposure.sets && !judgePartial)) {
-    const keepW = breakApplied && W !== null ? W : state.next.weightKg;
+    // Skipped sets normally hold the prescribed weight, but a set the user
+    // actually lifted heavier than the prescription is better evidence than
+    // the plan (B-08): the next target starts from what was lifted.
+    const liftedHeavier = W !== null && isHarder(W, state.next.weightKg, slot);
+    const keepW = liftedHeavier ? W : breakApplied && W !== null ? W : state.next.weightKg;
+    const liftedReps = liftedHeavier ? lastOr(reps, 0) : null;
     const next = makeSuggestion(
       'hold',
       keepW,
@@ -665,6 +737,7 @@ export function applyExposure(input: {
         completedSets: working.length,
         plannedSets: exposure.sets,
         lastWeightKg: W ?? lastPerf,
+        ...(liftedHeavier ? { liftedHeavier: true, liftedReps } : {}),
       },
       0,
     );
@@ -774,6 +847,7 @@ export function applyExposure(input: {
       totalReps: totalAtW,
       progressed,
       hasDipBelt: profile.hasDipBelt,
+      ...(hadBackoffSets ? { hadBackoffSets: true } : {}),
       ...d.extra,
     },
     d.weightKg - W,

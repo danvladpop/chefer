@@ -1,19 +1,20 @@
 'use client';
 
-/* eslint-disable @next/next/no-img-element -- exercise photos are API-hosted WebPs */
 import { memo, useState } from 'react';
 import { ChevronDown, CircleSlash, MoreHorizontal, StickyNote } from 'lucide-react';
-import type {
-  EquipmentProfile,
-  ExerciseDto,
-  ExerciseMeta,
-  PrKind,
-  Rir,
-  SessionExerciseDoc,
-  SessionSetDoc,
-  WeightUnit,
+import {
+  HIDDEN_EXERCISE_IMAGE_IDS,
+  type EquipmentProfile,
+  type ExerciseDto,
+  type ExerciseMeta,
+  type PrKind,
+  type Rir,
+  type SessionExerciseDoc,
+  type SessionSetDoc,
+  type WeightUnit,
 } from '@chefer/types';
 import { cn, explain, explainInputs } from '@chefer/utils';
+import { ExerciseImage } from '../../library/ExerciseImage';
 import { KIND_ARROW, KIND_TONE, prescriptionText } from '../../shared/format';
 import { exerciseImageUrl } from '../../use-gym-bootstrap';
 import { allWorkingSetsDone, warmupSetsOf, workingSets } from '../workout-model';
@@ -116,13 +117,18 @@ export const ExerciseCard = memo(function ExerciseCard({
           aria-expanded={expanded}
           className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
         >
-          {img ? (
-            <img
-              src={img}
-              alt=""
-              loading="lazy"
-              className="h-11 w-11 shrink-0 rounded-lg bg-gray-100 object-cover"
-            />
+          {meta ? (
+            <div className="w-16 shrink-0">
+              <ExerciseImage
+                uri={img}
+                equipment={meta.equipment}
+                name={name}
+                size="thumb"
+                hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(dto?.id ?? se.exerciseId)}
+                analyticsExerciseId={dto?.ownerId ? 'custom' : (dto?.id ?? se.exerciseId)}
+                className="rounded-lg"
+              />
+            </div>
           ) : (
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-600">
               {index + 1}

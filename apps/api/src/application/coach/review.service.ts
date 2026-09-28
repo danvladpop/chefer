@@ -190,7 +190,13 @@ export interface ReviewTextInput {
   avgDailyKcal: number;
   targetKcal: number;
   weightTrendKg: number | null;
-  adjustmentKcal: number;
+  /**
+   * §2.11, T-35.4 (rev 2): the coach PROPOSES, it never overwrites — this is
+   * the amount it would adjust by, not an amount already applied. The copy
+   * below says "suggests", never "adjusted" (old clients' banners must stay
+   * true: nothing moves until `targets.acknowledgeChange` accepts it).
+   */
+  proposedAdjustmentKcal: number;
   goal: string | null;
   /** Dish names from the reviewed week's plan (for flavour, may be empty). */
   dishNames: string[];
@@ -235,8 +241,14 @@ export function reviewProteinLine(protein: ReviewProtein | null | undefined): st
  * doubles as the free-tier teaser, so it must stand alone.
  */
 export function buildTemplateReviewText(input: ReviewTextInput): string {
-  const { adherencePct, loggedDays, avgDailyKcal, targetKcal, weightTrendKg, adjustmentKcal } =
-    input;
+  const {
+    adherencePct,
+    loggedDays,
+    avgDailyKcal,
+    targetKcal,
+    weightTrendKg,
+    proposedAdjustmentKcal,
+  } = input;
 
   const lines: string[] = [];
   lines.push(
@@ -280,9 +292,9 @@ export function buildTemplateReviewText(input: ReviewTextInput): string {
     lines.push(
       "Before we touch the numbers, let's fix the logging habit — three more logged days next week and I can coach properly.",
     );
-  } else if (adjustmentKcal !== 0) {
+  } else if (proposedAdjustmentKcal !== 0) {
     lines.push(
-      `I've adjusted next week's calorie budget by ${adjustmentKcal > 0 ? '+' : ''}${adjustmentKcal} kcal — your new plan is built around it.`,
+      `I'd suggest moving next week's calorie budget by ${proposedAdjustmentKcal > 0 ? '+' : ''}${proposedAdjustmentKcal} kcal — accept it in Your targets and I'll build next week's plan around it.`,
     );
   } else {
     lines.push("Your targets still fit — I'm keeping next week's budget as it is.");

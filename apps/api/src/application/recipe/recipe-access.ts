@@ -35,3 +35,16 @@ export async function findRecipeVisibleTo(
   if (isRecipeOpenTo(recipe, userId)) return recipe;
   return (await repo.isRecipeInUserPlans(userId, recipeId)) ? recipe : null;
 }
+
+// ─── Replace picker candidates (T-08.10, bug B-50) ─────────────────────────────
+// T-08.10 (bug B-50): the Replace picker dedupes by id, drops the meal being
+// replaced and narrows to the slot's meal type. The candidate rows come from
+// `recipe.list({ forTable: true })`, already safety-filtered by
+// `RecipeService.list` (T-01.2). The filter itself is shared with the mobile
+// and web pickers, so it lives in `@chefer/utils` (`recipe-picker.ts`); the
+// API re-exports it rather than keeping a second copy.
+export {
+  filterReplaceCandidates,
+  type FilterReplaceCandidatesOptions,
+  type ReplaceCandidateLike,
+} from '@chefer/utils';

@@ -47,6 +47,11 @@ export interface GymProfileDto {
   reminderEnabled: boolean;
   reminderTime: string | null;
   setupCompletedAt: string | null;
+  // S6, rev 2 (T-36.2/T-36.3): additive — older clients ignore them.
+  /** Per-weekday "HH:MM" overrides; {} = use `reminderTime` every day. */
+  reminderTimes: Record<string, string>;
+  /** null = never (quiet-days nudge off). */
+  quietNudgeDays: number | null;
 }
 
 export interface RoutineExerciseDto {
@@ -121,6 +126,8 @@ export interface NextWorkoutExerciseDto {
   suggestion: Suggestion;
   warmups: WarmupSet[];
   lastTime: { localDate: string; sets: LastTimeSet[]; lastSetRir: Rir | null } | null;
+  /** T-36.3: prepended from `GymProfile.carryOver` — render under `From last time`. */
+  fromLastTime?: boolean;
 }
 
 export interface NextWorkoutDto {
@@ -162,6 +169,23 @@ export interface GymOffer {
   data?: Record<string, number | string | null>;
 }
 
+// ─── Carry-over (T-36.3, CI-49) ──────────────────────────────────────────────
+// `GymProfile.carryOver` and the session doc's `carryOverExerciseIds?` agree
+// on this shape. List logic (`@chefer/utils` `gym/carry-over.ts`) builds and
+// consumes it; `buildNextWorkout` (`gym/session.ts`) prepends it.
+
+/** One exercise carried from an unfinished session into the next workout. */
+export interface CarryOverItem {
+  exerciseId: string;
+  /** The session it was left unstarted in. */
+  fromSessionId: string;
+  /** The routine day it belongs to, so it re-attaches to the right slot. */
+  routineDayId: string;
+}
+
+/** `GymProfile.carryOver` — stored as JSON, `[]` when nothing is carried. */
+export type CarryOverList = CarryOverItem[];
+
 /** The pause covering `today` (device-local), if any — lets a client end it directly. */
 export interface ActivePauseDto {
   id: string;
@@ -186,6 +210,8 @@ export interface GymBootstrap {
   offers: GymOffer[];
   /** The pause covering `today`, or null — additive field, see gym_plan.md §1.4 / §9.2. */
   activePause: ActivePauseDto | null;
+  /** `GymProfile.carryOver` (T-36.3) — additive; already folded into `nextWorkout`. */
+  carryOver: CarryOverList;
   /** Latest known bodyweight (kg) from the nutrition weight log. */
   bodyweightKg: number | null;
   /**

@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { GymBootstrap, WorkoutSessionDoc } from '@chefer/types';
 import { EXERCISE_BY_ID } from '@chefer/types';
 import { applyFinishedSession, startSession, workoutReducer } from '@chefer/utils';
-import { makeContractClient, uniqueEmail } from './client';
+import { CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './client';
 
 // Integration check for the whole progression loop (gym_plan.md G1
 // integration): the SAME engine code runs on the phone (offline optimistic
@@ -21,6 +21,7 @@ beforeAll(async () => {
     email: uniqueEmail('gym-engine'),
     password: 'Contract@123!',
     firstName: 'Lifter',
+    ...CONTRACT_CONSENT,
   });
   if (!user.session) throw new Error('mobile register response is missing the session credential');
   setToken(user.session.token);

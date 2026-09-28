@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { GymBootstrap, NextWorkoutExerciseDto, WorkoutSessionDoc } from '@chefer/types';
 import { addDaysLocal, startSession, weekStartOf, workoutReducer } from '@chefer/utils';
-import { makeContractClient, uniqueEmail } from './client';
+import { CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './client';
 
 // Streak repair / "log a past workout" (gym_plan.md §1.4 "Repair", research
 // §4.2 #5): a backfilled session must (1) count toward the WEEK it actually
@@ -24,6 +24,7 @@ beforeAll(async () => {
     email: uniqueEmail('gym-backfill'),
     password: 'Contract@123!',
     firstName: 'Lifter',
+    ...CONTRACT_CONSENT,
   });
   if (!user.session) throw new Error('mobile register response is missing the session credential');
   setToken(user.session.token);

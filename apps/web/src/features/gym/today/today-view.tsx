@@ -19,7 +19,14 @@ import {
 } from 'lucide-react';
 import type { GymOffer, NextWorkoutDto, WeightUnit } from '@chefer/types';
 import { Button } from '@chefer/ui';
-import { cn, nextDayIdAfter, pickOffer, supersetSlot, type ExerciseLookup } from '@chefer/utils';
+import {
+  cn,
+  nextDayIdAfter,
+  pickOffer,
+  streakWeeksLabel,
+  supersetSlot,
+  type ExerciseLookup,
+} from '@chefer/utils';
 import { SupersetHeading } from '../routine/components/SupersetHeading';
 import { prescriptionText, shortDate } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
@@ -218,7 +225,7 @@ export function TodayView() {
                 <p className="flex items-center gap-1 text-xs text-gray-500">
                   <Flame className="h-3.5 w-3.5 shrink-0 text-[#944a00]" aria-hidden="true" />
                   <span className="min-w-0">
-                    {data.streak.current}-week streak
+                    {streakWeeksLabel(data.streak.current)}
                     {data.streak.flexTokens > 0 &&
                       ` · ${data.streak.flexTokens} flex week${data.streak.flexTokens === 1 ? '' : 's'} saved`}
                   </span>

@@ -1,11 +1,15 @@
 import { TRPCError } from '@trpc/server';
-import { prisma } from '@chefer/database';
+import { consentEventRepository, prisma } from '@chefer/database';
+import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
+import { emailPreferencesService } from '../notifications/email-preferences.service.js';
 
-// ─── Account data: export and self-deletion (audit P0-6) ─────────────────────
+// ─── Account data: export and self-deletion (audit P0-6, T-39.5) ─────────────
 // Users had no way to get their data or delete their account; the privacy
 // policy pointed at a feedback box no admin could read (F-PROF-1-1), and the
-// app stores require in-app deletion (F-M-PROF-1-1).
+// app stores require in-app deletion (F-M-PROF-1-1). T-39.5 (bug B-53): the
+// export was missing the consent log, email preferences, the AI call log and
+// shopping lists — added below, additive to the existing shape.
 
 /** Everything Chefer stores about one user, as plain JSON. */
 export async function exportAccountData(userId: string): Promise<Record<string, unknown>> {
@@ -30,6 +34,9 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     exerciseProgressions,
     trainingPauses,
     customExercises,
+    consentEvents,
+    emailPreferences,
+    aiCallLog,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -64,8 +71,26 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     prisma.exerciseProgression.findMany({ where }),
     prisma.trainingPause.findMany({ where }),
     prisma.exercise.findMany({ where: { ownerId: userId } }),
+    // §2.13 / T-39.5: the consent log is the source of truth — revoking never
+    // erases a past record, so the export shows the whole history.
+    consentEventRepository.findAllByUser(userId),
+    emailPreferencesService.get(userId).catch(() => null),
+    // What was sent, when, to which provider — never the model's output
+    // (the AI call log stores none).
+    prisma.aiCallLog.findMany({
+      where,
+      select: { callType: true, provider: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    }),
   ]);
   if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+
+  // Shopping lists have no userId column (keyed by planId, no FK) — resolve
+  // through this user's own meal plans.
+  const shoppingLists = await prisma.shoppingList.findMany({
+    where: { planId: { in: mealPlans.map((p) => p.id) } },
+  });
+
   return {
     exportedAt: new Date().toISOString(),
     user,
@@ -81,6 +106,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
       pantryItems,
       recipes,
       chefReviews,
+      shoppingLists,
     },
     gym: {
       gymProfile,
@@ -91,6 +117,11 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
       customExercises,
     },
     feedback,
+    privacy: {
+      consentHistory: consentEvents,
+      emailPreferences,
+      aiCallLog,
+    },
   };
 }
 
@@ -124,12 +155,16 @@ export async function deleteAccount(userId: string): Promise<void> {
   if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
   const plans = await prisma.mealPlan.findMany({ where: { userId }, select: { id: true } });
   const planIds = plans.map((p) => p.id);
-  const [ownRecipes, ownIngredients] = await Promise.all([
+  const [ownRecipes, ownIngredients, linkedAnalytics] = await Promise.all([
     prisma.recipe.findMany({
       where: { creatorId: userId, source: 'MANUAL' },
       select: { imageUrl: true },
     }),
     prisma.ingredientPrice.findMany({ where: { creatorId: userId }, select: { imageUrl: true } }),
+    // T-12.5: read BEFORE the transaction — the ConsentEvent row cascades
+    // away with the user row, so this is the last chance to know whether
+    // this account ever linked analytics to itself.
+    consentEventRepository.findLatestByKind(userId, 'ANALYTICS_LINKED'),
   ]);
 
   await prisma.$transaction([
@@ -150,4 +185,11 @@ export async function deleteAccount(userId: string): Promise<void> {
     ...ownRecipes.map((r) => r.imageUrl),
     ...ownIngredients.map((i) => i.imageUrl),
   ]);
+
+  // T-12.5: best-effort, after the commit — never blocks or reverts the
+  // account deletion itself. A no-op (logged) when never linked, or when
+  // POSTHOG_PERSONAL_API_KEY/POSTHOG_PROJECT_ID aren't configured.
+  if (linkedAnalytics?.granted) {
+    await posthogAdmin.deletePerson(userId);
+  }
 }

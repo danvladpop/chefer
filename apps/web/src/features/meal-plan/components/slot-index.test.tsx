@@ -109,8 +109,8 @@ function Planner() {
         planId="plan1"
         selectedDay={2}
         onSelectDay={() => undefined}
-        onReplaceMeal={(mealType, mealName, slotIndex) =>
-          setTarget({ planId: 'plan1', dayOfWeek: 2, mealType, slotIndex, mealName })
+        onReplaceMeal={(mealType, mealName, slotIndex, recipeId) =>
+          setTarget({ planId: 'plan1', dayOfWeek: 2, mealType, slotIndex, mealName, recipeId })
         }
       />
       <ReplaceMealSheet target={target} onClose={() => setTarget(null)} />

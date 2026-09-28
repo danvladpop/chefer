@@ -2,6 +2,7 @@
 // optimistic update after Finish): next-workout building, rotation, and
 // session → exposure mapping.
 import type {
+  CarryOverList,
   EquipmentProfile,
   ExerciseSlot,
   Exposure,
@@ -14,16 +15,19 @@ import type {
   ProgressionState,
   Rir,
   RoutineDto,
+  RoutineExerciseDto,
   SessionSummaryDto,
   TrainingProfileFacts,
   WorkoutSessionDoc,
 } from '@chefer/types';
+import { nextCarryOver } from './carry-over';
 import { deloadContinues } from './deload';
 import { durationMinutes } from './duration';
 import { applyExposure, initialState, prescribe, progressionKey, repBucket } from './progression';
+import { collectPrs } from './prs';
 import type { ExerciseLookup } from './volume';
 import { warmupSets } from './warmups';
-import { addDaysLocal, settleWeeks, weekStartOf, type WeekRow } from './weeks';
+import { addDaysLocal, settleWeeks, weekdayOf, weekStartOf, type WeekRow } from './weeks';
 
 export interface ProgressionEntry {
   state: ProgressionState;
@@ -62,6 +66,141 @@ export function nextDayIdAfter(routine: RoutineDto, completedDayId: string | nul
   return days[(idx + 1) % days.length]?.id ?? null;
 }
 
+export type TodayStatus =
+  /** Nothing done today, and the rotation's next day is due today (or has no fixed weekday) — show Start. */
+  | { kind: 'training' }
+  /** A session was already completed today: `nextWorkout` (the rotation's now-next day) is upcoming, not today's. */
+  | { kind: 'done'; dayName: string; weekday: number | null }
+  /** Nothing done today, but the rotation's next day is due a different weekday — offer it anyway. */
+  | { kind: 'rest'; dayName: string; weekday: number | null };
+
+/**
+ * Bug B-15 (T-05.9): `bootstrap.nextWorkout` is always "the rotation's next
+ * day", which advances the instant Finish runs — so right after finishing
+ * day A today, it already points at day B, and Gym Today would offer B with
+ * a Start button on the SAME day. This classifies today so the caller can
+ * show `Done today` (no Start) or `Rest day` (`Start {day} anyway`) instead
+ * of blindly rendering whatever `nextWorkout` says.
+ */
+export function todayStatus(input: {
+  bootstrap: Pick<GymBootstrap, 'recentSessions' | 'nextWorkout' | 'activeRoutine'>;
+  today: string;
+}): TodayStatus {
+  const { bootstrap, today } = input;
+  const doneToday = bootstrap.recentSessions.some(
+    (s) => s.status === 'COMPLETED' && s.localDate === today,
+  );
+  const next = bootstrap.nextWorkout;
+  const weekday =
+    (next && bootstrap.activeRoutine?.days.find((d) => d.id === next.dayId)?.plannedWeekday) ??
+    null;
+
+  if (doneToday) {
+    return { kind: 'done', dayName: next?.dayName ?? '', weekday };
+  }
+  if (!next || weekday === null || weekday === weekdayOf(today)) {
+    return { kind: 'training' };
+  }
+  return { kind: 'rest', dayName: next.dayName, weekday };
+}
+
+export interface MissedPlannedDay {
+  dayId: string;
+  dayName: string;
+  /** 0 = Monday … 6 = Sunday. */
+  weekday: number;
+}
+
+/**
+ * T-04.8 (UX-04 §7, rev 2): routine days pinned to a specific weekday
+ * (`plannedWeekday`) earlier THIS week that have no completed session yet —
+ * "Still time this week" on Gym Today. A day with no fixed weekday (a plain
+ * rotation) is never "missed": only a pinned day can be. `today` itself is
+ * never included (it isn't missed yet); on a Sunday every planned day of the
+ * week that's still undone shows up, since there's no "later this week" left.
+ */
+export function missedPlannedDays(input: {
+  activeRoutine: RoutineDto | null;
+  recentSessions: SessionSummaryDto[];
+  today: string;
+}): MissedPlannedDay[] {
+  const { activeRoutine, recentSessions, today } = input;
+  if (!activeRoutine) return [];
+  const weekStart = weekStartOf(today);
+  const todayWeekday = weekdayOf(today);
+  const doneThisWeekByDay = new Set(
+    recentSessions
+      .filter(
+        (s) =>
+          s.status === 'COMPLETED' &&
+          s.routineDayId !== null &&
+          s.localDate >= weekStart &&
+          s.localDate <= today,
+      )
+      .map((s) => s.routineDayId),
+  );
+  const isMissed = (
+    d: RoutineDto['days'][number],
+  ): d is RoutineDto['days'][number] & { plannedWeekday: number } =>
+    d.plannedWeekday !== null && d.plannedWeekday < todayWeekday && !doneThisWeekByDay.has(d.id);
+  return [...activeRoutine.days]
+    .filter(isMissed)
+    .sort((a, b) => a.plannedWeekday - b.plannedWeekday)
+    .map((d) => ({ dayId: d.id, dayName: d.name, weekday: d.plannedWeekday }));
+}
+
+export interface DoneTodayCard {
+  session: SessionSummaryDto;
+  durationMin: number;
+  workingSets: number;
+  /** How many exercises in this session set a PR (weight / reps / e1RM). */
+  prCount: number;
+  /** The rotation's now-next day (already advanced by Finish), for "Next session: …". */
+  next: { dayName: string; weekday: number | null } | null;
+}
+
+/**
+ * The `Done today` Gym Today card's data (T-05.9, bug B-15 companion): the
+ * session finished today plus its stats and what's next, or null when
+ * nothing was finished today (the caller falls back to `todayStatus`).
+ */
+export function doneTodayCard(input: {
+  bootstrap: Pick<GymBootstrap, 'recentSessions' | 'nextWorkout' | 'activeRoutine' | 'olderBests'>;
+  today: string;
+}): DoneTodayCard | null {
+  const { bootstrap, today } = input;
+  const session = bootstrap.recentSessions.find(
+    (s) => s.status === 'COMPLETED' && s.localDate === today,
+  );
+  if (!session) return null;
+
+  const durationMin = session.finishedAt
+    ? Math.max(
+        0,
+        Math.round(
+          (new Date(session.finishedAt).getTime() - new Date(session.startedAt).getTime()) / 60000,
+        ),
+      )
+    : 0;
+  const workingSets = session.exercises.reduce(
+    (n, ex) => n + ex.sets.filter((s) => !s.isWarmup && s.completed).length,
+    0,
+  );
+  const prCount = collectPrs(bootstrap.recentSessions, undefined, bootstrap.olderBests).filter(
+    (r) => r.sessionId === session.id,
+  ).length;
+  const next = bootstrap.nextWorkout
+    ? {
+        dayName: bootstrap.nextWorkout.dayName,
+        weekday:
+          bootstrap.activeRoutine?.days.find((d) => d.id === bootstrap.nextWorkout?.dayId)
+            ?.plannedWeekday ?? null,
+      }
+    : null;
+
+  return { session, durationMin, workingSets, prCount, next };
+}
+
 /** Newest first: localDate, then startedAt, then id. */
 function newestFirst(a: SessionSummaryDto, b: SessionSummaryDto): number {
   return (
@@ -91,7 +230,72 @@ function lastTimeFor(
   return null;
 }
 
-/** Prescriptions + warm-ups + last-time columns for one routine day. */
+interface BuildExerciseInput {
+  re: RoutineExerciseDto;
+  lookup: ExerciseLookup;
+  progressions: ReadonlyMap<string, ProgressionEntry>;
+  profile: EquipmentProfile;
+  facts: TrainingProfileFacts;
+  today: string;
+  recentSessions: SessionSummaryDto[];
+  isDeload: boolean;
+  isFirstForPattern: boolean;
+}
+
+/** One routine exercise's prescription + warm-ups + last-time column. */
+function buildExercise(input: BuildExerciseInput): NextWorkoutExerciseDto | null {
+  const { re, lookup, profile, facts } = input;
+  const meta = lookup(re.exerciseId);
+  if (!meta) return null;
+  const slot: ExerciseSlot = {
+    exercise: meta,
+    sets: re.sets,
+    repMin: re.repMin,
+    repMax: re.repMax,
+    targetRir: re.targetRir,
+    restSec: re.restSec,
+  };
+  const bucket = repBucket(re.repMin, re.repMax);
+  const entry = input.progressions.get(progressionKey(re.exerciseId, bucket));
+  const state = entry?.state ?? initialState({ slot, profile, experience: facts.experience });
+  const suggestion = prescribe({
+    slot,
+    state,
+    override: entry?.override ?? null,
+    profile,
+    facts,
+    today: input.today,
+    deload: input.isDeload,
+  });
+  return {
+    routineExerciseId: re.id,
+    exerciseId: re.exerciseId,
+    position: 0, // renumbered by the caller
+    sets: suggestion.sets,
+    repMin: re.repMin,
+    repMax: re.repMax,
+    targetRir: re.targetRir,
+    restSec: re.restSec,
+    supersetGroup: re.supersetGroup,
+    notes: re.notes,
+    repBucket: bucket,
+    suggestion,
+    warmups: warmupSets({
+      slot,
+      workingKg: suggestion.weightKg,
+      isFirstForPattern: input.isFirstForPattern,
+      profile,
+    }),
+    lastTime: lastTimeFor(re.exerciseId, input.recentSessions),
+  };
+}
+
+/**
+ * Prescriptions + warm-ups + last-time columns for one routine day, with any
+ * carried-over exercises (T-36.3, CI-49) prepended and tagged `fromLastTime`.
+ * A carry-over item whose routine day/exercise no longer exists (the routine
+ * was edited since) is silently dropped — self-healing, never an error.
+ */
 export function buildNextWorkout(input: {
   routine: RoutineDto;
   dayId: string;
@@ -103,6 +307,8 @@ export function buildNextWorkout(input: {
   today: string;
   recentSessions: SessionSummaryDto[];
   isDeload: boolean;
+  /** `GymProfile.carryOver` — additive; omit/`[]` behaves exactly as before. */
+  carryOver?: CarryOverList;
 }): NextWorkoutDto {
   const { routine, lookup, profile, facts } = input;
   const day = routine.days.find((d) => d.id === input.dayId);
@@ -110,55 +316,53 @@ export function buildNextWorkout(input: {
     throw new Error(`Routine ${routine.id} has no day ${input.dayId}`);
   }
   const seenPatterns = new Set<string>();
+  const dayExerciseIds = new Set(day.exercises.map((re) => re.exerciseId));
+  const buildOpts = {
+    lookup,
+    progressions: input.progressions,
+    profile,
+    facts,
+    today: input.today,
+    recentSessions: input.recentSessions,
+    isDeload: input.isDeload,
+  };
+
+  // Carry-over first, so their movement patterns count toward "first for
+  // pattern" warm-ups exactly like any other exercise would.
+  const carried: NextWorkoutExerciseDto[] = [];
+  const seenCarryIds = new Set<string>();
+  for (const item of input.carryOver ?? []) {
+    if (dayExerciseIds.has(item.exerciseId) || seenCarryIds.has(item.exerciseId)) continue;
+    const sourceDay = routine.days.find((d) => d.id === item.routineDayId);
+    const re = sourceDay?.exercises.find((e) => e.exerciseId === item.exerciseId);
+    if (!re) continue; // routine changed since — drop silently
+    const meta = lookup(item.exerciseId);
+    if (!meta) continue;
+    const isFirstForPattern = !seenPatterns.has(meta.movementPattern);
+    seenPatterns.add(meta.movementPattern);
+    const built = buildExercise({ ...buildOpts, re, isFirstForPattern });
+    if (!built) continue;
+    seenCarryIds.add(item.exerciseId);
+    carried.push({ ...built, fromLastTime: true });
+  }
+
   const exercises: NextWorkoutExerciseDto[] = [];
   for (const re of [...day.exercises].sort((a, b) => a.position - b.position)) {
     const meta = lookup(re.exerciseId);
     if (!meta) {
       continue;
     }
-    const slot: ExerciseSlot = {
-      exercise: meta,
-      sets: re.sets,
-      repMin: re.repMin,
-      repMax: re.repMax,
-      targetRir: re.targetRir,
-      restSec: re.restSec,
-    };
-    const bucket = repBucket(re.repMin, re.repMax);
-    const entry = input.progressions.get(progressionKey(re.exerciseId, bucket));
-    const state = entry?.state ?? initialState({ slot, profile, experience: facts.experience });
-    const suggestion = prescribe({
-      slot,
-      state,
-      override: entry?.override ?? null,
-      profile,
-      facts,
-      today: input.today,
-      deload: input.isDeload,
-    });
     const isFirstForPattern = !seenPatterns.has(meta.movementPattern);
     seenPatterns.add(meta.movementPattern);
-    exercises.push({
-      routineExerciseId: re.id,
-      exerciseId: re.exerciseId,
-      position: exercises.length,
-      sets: suggestion.sets,
-      repMin: re.repMin,
-      repMax: re.repMax,
-      targetRir: re.targetRir,
-      restSec: re.restSec,
-      supersetGroup: re.supersetGroup,
-      notes: re.notes,
-      repBucket: bucket,
-      suggestion,
-      warmups: warmupSets({ slot, workingKg: suggestion.weightKg, isFirstForPattern, profile }),
-      lastTime: lastTimeFor(re.exerciseId, input.recentSessions),
-    });
+    const built = buildExercise({ ...buildOpts, re, isFirstForPattern });
+    if (built) exercises.push(built);
   }
+
+  const allExercises = [...carried, ...exercises].map((e, i) => ({ ...e, position: i }));
   const estimatedMin = durationMinutes(
     {
       name: day.name,
-      exercises: exercises.map((e) => ({
+      exercises: allExercises.map((e) => ({
         exerciseId: e.exerciseId,
         sets: e.sets,
         repMin: e.repMin,
@@ -174,7 +378,7 @@ export function buildNextWorkout(input: {
     dayName: day.name,
     isDeload: input.isDeload,
     estimatedMin,
-    exercises,
+    exercises: allExercises,
   };
 }
 
@@ -376,6 +580,11 @@ export function applyFinishedSession(input: {
     activeRoutine = { ...routine, nextDayId: nextDayIdAfter(routine, doc.routineDayId) };
   }
 
+  // 3b. Carry-over (T-36.3): consume whatever this doc addressed, add
+  // whatever it newly carries over — mirrors the server's write exactly
+  // (workout-session.service.ts) so the offline fold never drifts from it.
+  const carryOver = alreadyCounted ? bootstrap.carryOver : nextCarryOver(bootstrap.carryOver, doc);
+
   // 4. Next workout.
   let nextWorkout = bootstrap.nextWorkout;
   if (activeRoutine?.nextDayId) {
@@ -398,6 +607,7 @@ export function applyFinishedSession(input: {
       today,
       recentSessions,
       isDeload,
+      carryOver,
     });
   }
 
@@ -417,5 +627,6 @@ export function applyFinishedSession(input: {
     recentSessions,
     weeks,
     streak,
+    carryOver,
   };
 }

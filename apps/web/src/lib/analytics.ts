@@ -1,4 +1,5 @@
 import posthog from 'posthog-js';
+import type { EventMap } from '@chefer/types';
 
 // ─── PostHog product analytics ────────────────────────────────────────────────
 // The project token is write-only ("Safe to use in public apps" — PostHog's
@@ -20,17 +21,25 @@ const enabled =
 //    analytics.test.ts checks this against the real SDK.
 // 2. Anonymous usage counts (signed out, or signed in without consent) rely on
 //    legitimate interest: no identify(), no person profile, no account ID.
+//    A signed-in user can turn this off too (T-12.3, Q-8 default: on) —
+//    ANONYMOUS_KEY_PREFIX + userId, "Send anonymous usage counts" in
+//    AnalyticsConsentCard. Off = capture() sends nothing at all.
 // 3. Linking events to the account (identify with user ID + plan tier) needs
 //    opt-in consent, because events such as weight_logged or workout_finished
 //    tied to a person can be health-related data. Default OFF. The choice is
 //    made in Profile → "Usage analytics" (AnalyticsConsentCard) and stored per
 //    account on this device under CONSENT_KEY_PREFIX + userId. That key only
-//    remembers the user's own choice: strictly necessary storage.
+//    remembers the user's own choice: strictly necessary storage. Every
+//    switch change is also logged server-side via
+//    `privacy.recordAnalyticsConsent` (T-39.2) — that call lives in the card,
+//    not here, since this module has no tRPC dependency.
 // Session replay, surveys and feature flags stay off: none is used, and each
 // would read or write browser storage.
 // The mobile app sends no analytics at all (no PostHog SDK in apps/mobile).
 
 const CONSENT_KEY_PREFIX = 'chefer.analytics-consent:';
+/** T-12.3: "Send anonymous usage counts" — separate from the linking switch above. */
+const ANONYMOUS_KEY_PREFIX = 'chefer.analytics-anonymous:';
 
 export type AnalyticsConsent = 'granted' | 'denied';
 
@@ -38,6 +47,8 @@ type SignedInUser = { id: string; planTier: string | undefined };
 
 let signedInUser: SignedInUser | null = null;
 let identified = false;
+/** Q-8 default: anonymous counting on until a signed-in user turns it off. */
+let anonymousDenied = false;
 
 /** The PostHog options, exported so the test can assert the storage-free setup. */
 export const POSTHOG_OPTIONS = {
@@ -104,9 +115,37 @@ function identifyIfConsented(): void {
   }
 }
 
+/** The account's "send anonymous usage counts" choice on this device. Default: granted (Q-8). */
+export function getAnonymousAnalyticsConsent(userId: string): AnalyticsConsent {
+  try {
+    return window.localStorage.getItem(ANONYMOUS_KEY_PREFIX + userId) === 'denied'
+      ? 'denied'
+      : 'granted';
+  } catch {
+    return 'granted';
+  }
+}
+
+/**
+ * Turning this off stops every analytics call at once (`capture()` below),
+ * including anonymous ones — it also implies "linked" is off, since a linked
+ * event is a superset of an anonymous one.
+ */
+export function setAnonymousAnalyticsConsent(userId: string, consent: AnalyticsConsent): void {
+  try {
+    window.localStorage.setItem(ANONYMOUS_KEY_PREFIX + userId, consent);
+  } catch {
+    // Storage blocked: the choice still applies to this page.
+  }
+  if (signedInUser?.id !== userId) return;
+  anonymousDenied = consent === 'denied';
+  if (anonymousDenied) setAnalyticsConsent(userId, 'denied');
+}
+
 /** Called when the session resolves. Links events to the account only with consent. */
 export function identifyUser(userId: string, planTier?: string): void {
   signedInUser = { id: userId, planTier };
+  anonymousDenied = getAnonymousAnalyticsConsent(userId) === 'denied';
   identifyIfConsented();
 }
 
@@ -114,10 +153,22 @@ export function identifyUser(userId: string, planTier?: string): void {
 export function resetAnalytics(): void {
   signedInUser = null;
   identified = false;
+  anonymousDenied = false; // the next (anonymous) visitor starts at the Q-8 default: on
   if (enabled) posthog.reset();
 }
 
-/** Funnel events (upgrade prompts etc. — see launch plan PW-3). */
+/**
+ * Funnel events (upgrade prompts etc. — see launch plan PW-3). Overloaded
+ * (T-12.1): a call using one of the shared, health-data-guarded `EventMap`
+ * keys is checked against that event's exact property shape; any other
+ * event name (the many funnel events shipped before this map existed) keeps
+ * the old, permissive `Record<string, unknown>` typing so this migration
+ * doesn't force every existing call site to change in the same PR. Migrate
+ * a call site onto `EventMap` by adding its event to
+ * `packages/types/src/analytics-events.ts` — no change needed here.
+ */
+export function capture<E extends keyof EventMap>(event: E, properties?: EventMap[E]): void;
+export function capture(event: string, properties?: Record<string, unknown>): void;
 export function capture(event: string, properties?: Record<string, unknown>): void {
-  if (enabled) posthog.capture(event, properties);
+  if (enabled && !anonymousDenied) posthog.capture(event, properties);
 }

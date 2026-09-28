@@ -69,5 +69,9 @@ appId: dev.chefer.app.dev
     visible:
       id: 'home-title'
     timeout: 15000
-- assertVisible:
-    id: 'week-outlook'
+# Below the fold on smaller phones once Today has more cards above it.
+- scrollUntilVisible:
+    element:
+      id: 'week-outlook'
+    direction: DOWN
+    visibilityPercentage: 50

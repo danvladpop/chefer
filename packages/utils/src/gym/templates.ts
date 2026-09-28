@@ -21,7 +21,10 @@ export function defaultTargetRir(meta: ExerciseMeta | undefined): number {
   return meta?.category === 'ISOLATION' ? 1 : 2;
 }
 
-function keyFor(prefix: 'fb2' | 'fb3' | 'ul4' | 'ppl6', experience: TrainingExperience): string {
+function keyFor(
+  prefix: 'fb2' | 'fb3' | 'ul3' | 'ul4' | 'ppl6',
+  experience: TrainingExperience,
+): string {
   return `${prefix}-${experience === 'BEGINNER' ? 'beginner' : 'intermediate'}`;
 }
 
@@ -31,13 +34,60 @@ const EQUIPMENT_NOTE: Record<RecommendInput['equipmentAccess'], string> = {
   BODYWEIGHT: ' Lifts are swapped for bodyweight versions you can do at home.',
 };
 
+// UX-05 B (T-05.2): "Do you already follow a split?" on setup step 2. Each
+// split's template family; the closest by day count wins. PPL only ships as
+// a 6-day template today — there is no 3/4-day PPL variant yet.
+const SPLIT_PREFIXES: Record<
+  NonNullable<RecommendInput['split']>,
+  readonly ('fb2' | 'fb3' | 'ul3' | 'ul4' | 'ppl6')[]
+> = {
+  FULL_BODY: ['fb2', 'fb3'],
+  UPPER_LOWER: ['ul3', 'ul4'],
+  PUSH_PULL_LEGS: ['ppl6'],
+};
+
+const SPLIT_LABEL: Record<NonNullable<RecommendInput['split']>, string> = {
+  FULL_BODY: 'full-body',
+  UPPER_LOWER: 'Upper/Lower',
+  PUSH_PULL_LEGS: 'Push/Pull/Legs',
+};
+
 export function recommendTemplate(input: RecommendInput): {
   key: string;
   reason: string;
   alternatives: string[];
 } {
-  const { days, experience } = input;
+  const { days, experience, split } = input;
   const beginner = experience === 'BEGINNER';
+
+  if (split) {
+    const candidates = SPLIT_PREFIXES[split].map((p) => keyFor(p, experience));
+    const [key] = [...candidates].sort(
+      (a, b) =>
+        Math.abs((TEMPLATE_BY_KEY.get(a)?.daysPerWeek ?? 0) - days) -
+          Math.abs((TEMPLATE_BY_KEY.get(b)?.daysPerWeek ?? 0) - days) ||
+        (TEMPLATE_BY_KEY.get(a)?.daysPerWeek ?? 0) - (TEMPLATE_BY_KEY.get(b)?.daysPerWeek ?? 0),
+    );
+    const template = key ? TEMPLATE_BY_KEY.get(key) : undefined;
+    if (key && template) {
+      const reason =
+        template.daysPerWeek === days
+          ? `${template.name} is the ${SPLIT_LABEL[split]} split that fits ${days} days a week.`
+          : `${template.name} is the closest ${SPLIT_LABEL[split]} split to ${days} days a week.`;
+      const alternatives = PROGRAM_TEMPLATES.filter(
+        (t) => t.experience === experience && t.key !== key,
+      )
+        .sort(
+          (a, b) =>
+            Math.abs(a.daysPerWeek - days) - Math.abs(b.daysPerWeek - days) ||
+            a.daysPerWeek - b.daysPerWeek,
+        )
+        .slice(0, 3)
+        .map((t) => t.key);
+      return { key, reason: reason + EQUIPMENT_NOTE[input.equipmentAccess], alternatives };
+    }
+  }
+
   let key: string;
   let reason: string;
   if (days <= 2) {

@@ -268,6 +268,22 @@ describe('GymBootstrapService.get', () => {
     expect(b3.activePause).toBeNull();
   });
 
+  it('T-36.3: passes GymProfile.carryOver into buildNextWorkout and the bootstrap', async () => {
+    const carryOver = [{ exerciseId: 'squat', fromSessionId: 's0', routineDayId: 'day-a' }];
+    const { service } = setup({ context: ctx({ profileRow: profileRow({ carryOver }) }) });
+
+    const b = await service.get(USER, { today: TODAY });
+
+    expect(buildNextWorkout).toHaveBeenCalledWith(expect.objectContaining({ carryOver }));
+    expect(b.carryOver).toEqual(carryOver);
+  });
+
+  it('carryOver is [] before setup (no profile row)', async () => {
+    const { service } = setup({ context: ctx({ profileRow: null, activeRoutine: null }) });
+    const b = await service.get(USER, { today: TODAY });
+    expect(b.carryOver).toEqual([]);
+  });
+
   it('falls back to the first day when the pointer is missing', async () => {
     const { service } = setup({
       context: ctx({ activeRoutine: toRoutineDto(routineRow({ nextDayId: null })) }),

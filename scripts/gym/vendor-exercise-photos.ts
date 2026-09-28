@@ -1,23 +1,34 @@
 /**
- * vendor-exercise-photos.ts (gym_plan.md G0-4 / §5.5)
+ * vendor-exercise-photos.ts (gym_plan.md G0-4 / §5.5, T-05.11 re-vendor)
  *
  * Downloads the start/end JPGs for every gym catalog exercise that has a
- * `freeExerciseDbId`, converts them to WebP at max 600px wide, and writes
- * them to apps/api/static/exercises/<slug>-{0,1}.webp so the API can serve
- * them offline-safe (not hot-linked from raw.githubusercontent.com at
- * runtime — see docs/gym/exercise-library-research.md Part 1).
+ * `freeExerciseDbId`, crops+resizes them to an exact 600×400 (3:2) cover crop,
+ * converts to WebP, and writes them to
+ * apps/api/static/exercises/<slug>-{0,1}.3x2.webp so the API can serve them
+ * offline-safe (not hot-linked from raw.githubusercontent.com at runtime —
+ * see docs/gym/exercise-library-research.md Part 1).
+ *
+ * The `.3x2` suffix is a deliberate rename from the original `<slug>-N.webp`
+ * files (UX-05 A6 / T-05.11): every photo used to be center-cropped to a
+ * square by the client, cutting off a third of the frame. Renaming (not
+ * overwriting) changes `imageKeys` for every affected exercise, which bumps
+ * `contentVersion` in the sync pass (see exercise-library/ensure.ts) so
+ * already-installed clients' `librarySince` incremental fetch — and any CDN/
+ * disk image cache keyed by URL — picks up the new crop instead of serving a
+ * stale square one under the same key.
  *
  * Source: https://github.com/yuhonas/free-exercise-db — The Unlicense
  * (public domain, no attribution required). See
  * apps/api/static/exercises/README.md for the license note.
  *
- * Requires `cwebp` on PATH (brew install webp), or set CWEBP_BIN to its
- * absolute path.
+ * Requires `cwebp` on PATH (brew install webp) and macOS `sips` (built in;
+ * used for the cover crop — this script is a local/dev-machine tool, not run
+ * in CI). Set CWEBP_BIN to an absolute path to override.
  *
  * Usage (from the repo root):
  *   cd apps/api && pnpm exec tsx ../../scripts/gym/vendor-exercise-photos.ts [--force]
  *
- * Idempotent: skips any <slug>-<frame>.webp that already exists, unless
+ * Idempotent: skips any <slug>-<frame>.3x2.webp that already exists, unless
  * --force is passed.
  */
 
@@ -35,6 +46,8 @@ const CWEBP_BIN = process.env['CWEBP_BIN'] ?? 'cwebp';
 const OUT_DIR = join(__dirname, '..', '..', 'apps', 'api', 'static', 'exercises');
 const BASE_URL = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises';
 const FRAMES = [0, 1] as const;
+const TARGET_W = 600;
+const TARGET_H = 400;
 
 async function downloadToFile(url: string, dest: string): Promise<void> {
   const res = await fetch(url);
@@ -45,10 +58,62 @@ async function downloadToFile(url: string, dest: string): Promise<void> {
   writeFileSync(dest, buf);
 }
 
-function convertToWebp(inputPath: string, outputPath: string): void {
-  execFileSync(CWEBP_BIN, ['-q', '78', '-resize', '600', '0', inputPath, '-o', outputPath], {
+function sipsGetDimensions(inputPath: string): { width: number; height: number } {
+  const out = execFileSync('sips', ['-g', 'pixelWidth', '-g', 'pixelHeight', inputPath], {
     stdio: 'pipe',
-  });
+  }).toString();
+  const width = Number(/pixelWidth:\s*(\d+)/.exec(out)?.[1]);
+  const height = Number(/pixelHeight:\s*(\d+)/.exec(out)?.[1]);
+  if (!width || !height) {
+    throw new Error(`sips could not read dimensions of ${inputPath}`);
+  }
+  return { width, height };
+}
+
+/**
+ * Scales the source up (never down below target) preserving aspect ratio so
+ * both dimensions are >= the target, then center-crops to exactly
+ * TARGET_W×TARGET_H — a "cover" crop, same idea as CSS object-fit: cover.
+ * Never stretches the source (unlike a naive resize-to-exact-size).
+ */
+function coverCropTo3x2(inputPath: string, outputJpgPath: string): void {
+  const { width, height } = sipsGetDimensions(inputPath);
+  const scale = Math.max(TARGET_W / width, TARGET_H / height);
+  const resizedW = Math.round(width * scale);
+  const resizedH = Math.round(height * scale);
+  const resizedPath = join(tmpdir(), `gym-photo-resized-${process.pid}-${Date.now()}.jpg`);
+  try {
+    execFileSync(
+      'sips',
+      [
+        '--resampleHeightWidth',
+        String(resizedH),
+        String(resizedW),
+        inputPath,
+        '--out',
+        resizedPath,
+      ],
+      { stdio: 'pipe' },
+    );
+    execFileSync(
+      'sips',
+      [
+        '--cropToHeightWidth',
+        String(TARGET_H),
+        String(TARGET_W),
+        resizedPath,
+        '--out',
+        outputJpgPath,
+      ],
+      { stdio: 'pipe' },
+    );
+  } finally {
+    if (existsSync(resizedPath)) unlinkSync(resizedPath);
+  }
+}
+
+function convertToWebp(inputPath: string, outputPath: string): void {
+  execFileSync(CWEBP_BIN, ['-q', '78', inputPath, '-o', outputPath], { stdio: 'pipe' });
 }
 
 async function main(): Promise<void> {
@@ -56,11 +121,11 @@ async function main(): Promise<void> {
 
   const entries = EXERCISE_CATALOG.filter((e) => e.freeExerciseDbId);
   console.log(
-    `Vendoring photos for ${entries.length}/${EXERCISE_CATALOG.length} catalog exercises` +
+    `Vendoring 600×400 photos for ${entries.length}/${EXERCISE_CATALOG.length} catalog exercises` +
       ` that have a freeExerciseDbId${FORCE ? ' (--force)' : ''}...\n`,
   );
 
-  let downloaded = 0;
+  let done = 0;
   let skipped = 0;
   let failed = 0;
   const failedSlugs: string[] = [];
@@ -70,25 +135,28 @@ async function main(): Promise<void> {
     if (!dbId) continue;
 
     for (const frame of FRAMES) {
-      const outPath = join(OUT_DIR, `${entry.id}-${frame}.webp`);
+      const outPath = join(OUT_DIR, `${entry.id}-${frame}.3x2.webp`);
       if (existsSync(outPath) && !FORCE) {
         skipped++;
         continue;
       }
 
-      const tmpPath = join(tmpdir(), `gym-photo-${entry.id}-${frame}-${process.pid}.jpg`);
+      const tmpJpg = join(tmpdir(), `gym-photo-${entry.id}-${frame}-${process.pid}.jpg`);
+      const tmpCropped = join(tmpdir(), `gym-photo-${entry.id}-${frame}-${process.pid}-crop.jpg`);
       const url = `${BASE_URL}/${dbId}/${frame}.jpg`;
       try {
-        await downloadToFile(url, tmpPath);
-        convertToWebp(tmpPath, outPath);
-        downloaded++;
-        console.log(`  ok  ${entry.id}-${frame}.webp`);
+        await downloadToFile(url, tmpJpg);
+        coverCropTo3x2(tmpJpg, tmpCropped);
+        convertToWebp(tmpCropped, outPath);
+        done++;
+        console.log(`  ok  ${entry.id}-${frame}.3x2.webp`);
       } catch (err) {
         failed++;
         failedSlugs.push(`${entry.id}-${frame}`);
         console.error(`  FAIL  ${entry.id}-${frame}: ${(err as Error).message}`);
       } finally {
-        if (existsSync(tmpPath)) unlinkSync(tmpPath);
+        if (existsSync(tmpJpg)) unlinkSync(tmpJpg);
+        if (existsSync(tmpCropped)) unlinkSync(tmpCropped);
       }
     }
   }
@@ -96,13 +164,13 @@ async function main(): Promise<void> {
   let totalBytes = 0;
   for (const entry of entries) {
     for (const frame of FRAMES) {
-      const outPath = join(OUT_DIR, `${entry.id}-${frame}.webp`);
+      const outPath = join(OUT_DIR, `${entry.id}-${frame}.3x2.webp`);
       if (existsSync(outPath)) totalBytes += statSync(outPath).size;
     }
   }
 
   console.log(
-    `\nDownloaded ${downloaded}, skipped ${skipped} (already existed), failed ${failed}.` +
+    `\nDone ${done}, skipped ${skipped} (already existed), failed ${failed}.` +
       `\nTotal size of apps/api/static/exercises: ${(totalBytes / 1024 / 1024).toFixed(2)} MB`,
   );
   if (failedSlugs.length) {

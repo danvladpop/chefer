@@ -9,6 +9,20 @@ export function createTrpcPreferencesMock() {
       auth: {
         me: { useQuery: jest.fn() },
       },
+      // T-39.3: default "already seen" so the email-defaults notice doesn't
+      // appear for tests that don't care about it.
+      user: {
+        me: {
+          useQuery: jest.fn<unknown, unknown[]>(() => ({
+            data: { emailDefaultsNoticeAt: '2026-01-01T00:00:00.000Z' },
+            isLoading: false,
+            isError: false,
+          })),
+        },
+        dismissEmailDefaultsNotice: {
+          useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false, isError: false })),
+        },
+      },
       preferences: {
         get: { useQuery: jest.fn() },
         setup: { useMutation: jest.fn() },
@@ -22,6 +36,40 @@ export function createTrpcPreferencesMock() {
         },
         setAutoPlanWeekly: {
           useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false, isError: false })),
+        },
+      },
+      // TargetsCard (§2.11, T-35.3) — default: suggested-mode, nothing loaded
+      // yet (isLoading true) so tests unrelated to it don't need to stub data.
+      targets: {
+        get: {
+          useQuery: jest.fn<unknown, unknown[]>(() => ({ data: undefined, isLoading: true })),
+        },
+        set: {
+          useMutation: jest.fn(() => ({
+            mutate: jest.fn(),
+            isPending: false,
+            isSuccess: false,
+            error: null,
+          })),
+        },
+        changes: { useQuery: jest.fn<unknown, unknown[]>(() => ({ data: [] })) },
+        acknowledgeChange: {
+          useMutation: jest.fn(() => ({
+            mutate: jest.fn(),
+            isPending: false,
+            variables: undefined,
+          })),
+        },
+      },
+      // T-01.3 migration card — default: nothing to review.
+      safety: {
+        getTable: {
+          useQuery: jest.fn<unknown, unknown[]>(() => ({
+            data: { people: [], hasRules: false, needsReview: false },
+          })),
+        },
+        confirmReview: {
+          useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false })),
         },
       },
       // Weekly updates card (P2-5) — defaults: confirmed, both emails on.
@@ -54,7 +102,10 @@ export function createTrpcPreferencesMock() {
         preferences: { get: { invalidate: jest.fn() }, invalidate: jest.fn() },
         gym: { invalidate: jest.fn() },
         mealPlan: { invalidate: jest.fn() },
-        dashboard: { invalidate: jest.fn() },
+        dashboard: { invalidate: jest.fn(), summary: { invalidate: jest.fn() } },
+        user: { me: { setData: jest.fn(), invalidate: jest.fn() } },
+        targets: { get: { invalidate: jest.fn() }, changes: { invalidate: jest.fn() } },
+        tracker: { getDay: { invalidate: jest.fn() } },
       })),
     },
   };

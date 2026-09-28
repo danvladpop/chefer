@@ -4,7 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { localDate, nowIso } from '../offline/ids';
 import { useGymBootstrap } from '../use-gym-bootstrap';
 import { hasGymReminderPermission } from './permission';
-import { computeGymReminders, type GymReminder } from './schedule';
+import { computeAllGymReminders, type GymReminder } from './schedule';
 
 // Reminder scheduling effect (gym_plan.md §6.5). Cancels and reschedules
 // every gym reminder notification whenever the bootstrap's reminder-relevant
@@ -79,6 +79,9 @@ export function useGymReminders(): void {
   const activeRoutine = bootstrap?.activeRoutine ?? null;
   const activePause = bootstrap?.activePause ?? null;
   const lastSessionDate = bootstrap ? lastCompletedDate(bootstrap.recentSessions) : null;
+  const nextWorkout = bootstrap?.nextWorkout
+    ? { dayName: bootstrap.nextWorkout.dayName, estimatedMin: bootstrap.nextWorkout.estimatedMin }
+    : null;
 
   // A stable signature of everything the schedule depends on, so an
   // unrelated bootstrap change (e.g. a synced set) never triggers a reschedule.
@@ -89,6 +92,10 @@ export function useGymReminders(): void {
         days: activeRoutine?.days.map((d) => [d.plannedWeekday, d.name]) ?? null,
         last: lastSessionDate,
         pause: activePause,
+        // T-36.2: the quiet-days nudge reschedules on the same triggers
+        // (finish/launch) and is independent of the planned-reminder toggle.
+        quietNudgeDays: profile.quietNudgeDays,
+        nextWorkout,
       })
     : null;
 
@@ -97,20 +104,24 @@ export function useGymReminders(): void {
     let cancelled = false;
 
     const run = async () => {
-      if (!profile.reminderEnabled || !profile.reminderTime) {
+      // Nothing this hook can ever schedule (both toggles off) — skip the
+      // permission check too, so a first-time visitor is never asked idly.
+      if (!profile.reminderEnabled && profile.quietNudgeDays === null) {
         await cancelAllGymReminders();
         return;
       }
       const granted = await hasGymReminderPermission();
       await cancelAllGymReminders();
       if (cancelled || !granted) return; // never prompt from here
-      const reminders = computeGymReminders({
+      const reminders = computeAllGymReminders({
         profile,
         activeRoutine,
         lastSessionDate,
         today: localDate(),
         now: nowIso(),
         activePause,
+        quietNudgeDays: profile.quietNudgeDays,
+        nextWorkout,
       });
       await scheduleGymReminders(reminders);
     };
