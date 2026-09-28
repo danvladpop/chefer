@@ -117,3 +117,51 @@ describe('recipe.getSafetyChecks — the detail-surface Checked line (T-02.3)', 
     expect(withConflict.safetyChecks?.checked).toEqual([]);
   });
 });
+
+describe('Plan/Replace/Shop surfaces (wave 2, L-SAFE2, T-02.1) — the same table, everywhere', () => {
+  it('mealPlan.generate/getForWeek, recipe.listHiddenCount and shoppingList.getForWeek all carry the same table', async () => {
+    // A dairy allergy: the free curated pool has plenty of dairy-free meals
+    // (MIN_SAFE_POOL_SIZE unaffected), so `generate` succeeds normally.
+    await client.preferences.updateSafety.mutate({
+      allergies: ['Dairy'],
+      dietaryRestrictions: [],
+      dislikedIngredients: [],
+    });
+
+    // §2.2: `generate`'s own response carries `tableSafety` + per-meal
+    // `safetyChecks` — free tier, curated pool (buildCuratedWeek's own DTO).
+    const generated = await client.mealPlan.generate.mutate({ weekOffset: 1 });
+    expect(generated.tableSafety?.hasRules).toBe(true);
+    expect(generated.tableSafety?.people.find((p) => p.who === 'you')?.items).toContainEqual(
+      expect.objectContaining({ label: 'Dairy', kind: 'allergy' }),
+    );
+    const anyMeal = generated.days.flatMap((d) => d.meals)[0];
+    // Every curated recipe the free pool serves is Dairy-safe by
+    // construction (the pool filter already excluded unsafe ones) — the
+    // read-back should say so instead of showing nothing.
+    expect(anyMeal?.recipe.safetyChecks?.checked).toContainEqual(
+      expect.objectContaining({ label: 'Dairy' }),
+    );
+    expect(anyMeal?.recipe.safetyChecks?.conflicts ?? []).toEqual([]);
+
+    // A later plain read (assemblePlanDto) recomputes the same thing fresh.
+    const read = await client.mealPlan.getForWeek.query({ weekOffset: 1 });
+    expect(read?.tableSafety?.hasRules).toBe(true);
+
+    // recipe.listHiddenCount (T-02.5 rev 2): the Replace picker's footer.
+    const hidden = await client.recipe.listHiddenCount.query({});
+    expect(hidden.filteredFor).toContain('Dairy');
+    expect(typeof hidden.hiddenCount).toBe('number');
+
+    // shoppingList.getForWeek: the same table, top-level.
+    const shopping = await client.shoppingList.getForWeek.query({ weekOffset: 1 });
+    expect(shopping.tableSafety?.hasRules).toBe(true);
+
+    // Clean slate for any test that runs after this one in the same file.
+    await client.preferences.updateSafety.mutate({
+      allergies: [],
+      dietaryRestrictions: [],
+      dislikedIngredients: [],
+    });
+  }, 30_000);
+});

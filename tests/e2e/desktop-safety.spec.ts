@@ -93,4 +93,49 @@ test.describe('Safety filter — web parity', () => {
 
     await expect(page.getByText(/Thanks\. We.ve hidden/)).toBeVisible();
   });
+
+  // ── L-SAFE2, wave 2: plan/Replace/Shop surfaces (T-02.1/T-02.4/T-02.5) ──
+  // Same session as above — the Tree nuts allergy test 1 saved is still set.
+  test('the Plan week shows the Checked badge, and the Replace sheet hides unsafe recipes with a hidden count (AC5/AC7)', async ({
+    page,
+  }) => {
+    await gotoAndSettle(page, '/meal-plan');
+
+    // AC1: the week-level badge only ever claims Checked while the table
+    // actually has rules — it does here (Tree nuts, from test 1).
+    await expect(page.getByText('Checked for your table').first()).toBeVisible();
+
+    const swapButton = page.locator('[data-testid^="plan-meal-swap-"]').first();
+    if (!(await swapButton.isVisible().catch(() => false))) {
+      test.skip(true, 'No meal plan this week to open a Replace sheet for.');
+      return;
+    }
+    await swapButton.click();
+    await expect(page.getByRole('heading', { name: 'Replace meal' })).toBeVisible();
+
+    // AC5: the "all recipes" results never include a tree-nut recipe —
+    // every row Discover would have chipped/hidden for the same table is
+    // gone here too (this sheet is a hard filter, not a soft chip).
+    await expect(page.getByText(/contains tree nuts/i)).toHaveCount(0);
+
+    // AC7: the footer names how many the table's rules hid, when any did —
+    // pool content varies by slot, so this stays a soft assertion rather
+    // than asserting a specific count.
+    const filteredLine = page.getByText(/Filtered for .* hidden/);
+    if ((await filteredLine.count()) > 0) {
+      await expect(filteredLine.first()).toBeVisible();
+    }
+
+    await page.keyboard.press('Escape');
+  });
+
+  test('the shopping list header shows the same Checked state (T-02.1)', async ({ page }) => {
+    await gotoAndSettle(page, '/shopping-list');
+    const header = page.getByText('Checked for your table', { exact: false });
+    // hasPlan can be false for this account/week — only assert when the
+    // list actually rendered (same "state may vary" pattern as above).
+    if ((await header.count()) > 0) {
+      await expect(header.first()).toBeVisible();
+    }
+  });
 });

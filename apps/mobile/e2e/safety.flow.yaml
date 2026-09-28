@@ -147,3 +147,64 @@ appId: dev.chefer.app.dev
 - extendedWaitUntil:
     visible: 'Thanks'
     timeout: 10000
+
+# ── T-02.4/T-02.5/T-01.5 (L-SAFE2, wave 2): Plan tab week card, Replace
+# picker's Filtered-for line, and the plan-card long-press report ──
+- tapOn: 'Plan(, tab.*)?'
+- extendedWaitUntil:
+    visible:
+      id: 'plan-week-label'
+    timeout: 15000
+- runFlow:
+    when:
+      notVisible:
+        id: 'plan-empty'
+    commands:
+      # Tree nuts was set above (T-01.7) — the table has rules, so the week
+      # card shows the exact copy string verbatim (AC1).
+      - assertVisible:
+          id: 'plan-week-safety'
+      - assertVisible: 'Checked for your table'
+      - tapOn:
+          id: 'plan-day-0'
+      # Replace picker: a tree-nut table hides some curated recipes for at
+      # least one slot — assert the Filtered-for line whenever this
+      # particular slot's search actually hid something (pool content varies
+      # by meal type/day, so this stays optional rather than flaking).
+      - tapOn:
+          id: 'plan-meal-swap-.*'
+          index: 0
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'picker-search'
+          commands:
+            - runFlow:
+                when:
+                  visible:
+                    id: 'picker-filtered-for'
+                commands:
+                  - assertVisible: 'hidden'
+            - tapOn:
+                id: 'picker-close'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'picker-search'
+                timeout: 5000
+      # T-01.5: long-press a plan meal card opens the SAME report sheet as
+      # the recipe-detail overflow action (onLongPress never also navigates
+      # to the recipe — onPress and onLongPress are mutually exclusive).
+      - longPressOn:
+          id: 'plan-meal-.*'
+          index: 0
+      - extendedWaitUntil:
+          visible:
+            id: 'report-safety-sheet-title'
+          timeout: 10000
+      - tapOn: 'Something else'
+      - tapOn:
+          id: 'report-safety-send'
+      - extendedWaitUntil:
+          visible: 'Thanks'
+          timeout: 10000
