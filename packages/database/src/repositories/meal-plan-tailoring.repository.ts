@@ -62,8 +62,15 @@ export interface IMealPlanTailoringRepository {
    * skipped. Null when nothing is due.
    */
   claimNextDue(now: Date, leaseMs: number): Promise<MealPlanTailoring | null>;
-  /** Writes progress and releases the lease. */
-  saveProgress(id: string, patch: TailoringProgressPatch): Promise<MealPlanTailoring>;
+  /**
+   * Writes progress and releases the lease — unless `keepLease` (an interim
+   * write mid-step, e.g. "now tailoring day 3", while the worker still holds it).
+   */
+  saveProgress(
+    id: string,
+    patch: TailoringProgressPatch,
+    options?: { keepLease?: boolean },
+  ): Promise<MealPlanTailoring>;
   /** Earliest nextRunAt among RUNNING jobs (the worker's next wake-up), or null. */
   nextDueAt(): Promise<Date | null>;
   /**
@@ -173,14 +180,18 @@ export class MealPlanTailoringRepository implements IMealPlanTailoringRepository
     return null;
   }
 
-  async saveProgress(id: string, patch: TailoringProgressPatch): Promise<MealPlanTailoring> {
+  async saveProgress(
+    id: string,
+    patch: TailoringProgressPatch,
+    options: { keepLease?: boolean } = {},
+  ): Promise<MealPlanTailoring> {
     const { snapshots, ...rest } = patch;
     return prisma.mealPlanTailoring.update({
       where: { id },
       data: {
         ...rest,
         ...(snapshots !== undefined && { snapshots: snapshots as Prisma.InputJsonValue }),
-        leaseUntil: null,
+        ...(!options.keepLease && { leaseUntil: null }),
       },
     });
   }

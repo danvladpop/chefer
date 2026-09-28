@@ -26,6 +26,7 @@ import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
 import { scanRouter } from './routers/scan.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
+import { planTailoringWorker } from './workers/plan-tailoring.worker.js';
 import { recipeImageWorker } from './workers/recipe-image.worker.js';
 import { weeklyEmailWorker } from './workers/weekly-email.worker.js';
 import { weeklyPlanWorker } from './workers/weekly-plan.worker.js';
@@ -239,6 +240,9 @@ const server = app.listen(env.PORT, env.HOST, () => {
   // Build/refresh the ingredient price vocabulary (weekly cadence)
   ingredientPriceWorker.start();
 
+  // Premium live tailoring: swaps AI days into instant curated weeks
+  planTailoringWorker.start();
+
   // Sunday pre-generation of next week's plan for premium users (PW-5)
   weeklyPlanWorker.start();
 
@@ -286,6 +290,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
   ingredientPriceWorker.stop();
   weeklyPlanWorker.stop();
   weeklyEmailWorker.stop();
+  await planTailoringWorker.stop();
   await recipeImageWorker.stop();
 
   server.close(() => {

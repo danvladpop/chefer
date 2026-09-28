@@ -80,7 +80,7 @@ export class MockAIService implements IAIService {
   }
 
   /** The fixture week with the §4.5 seam fields applied (no delay). */
-  private async planWithSeams(input: MealPlanInput): Promise<WeekPlanResponse> {
+  private planWithSeams(input: MealPlanInput): WeekPlanResponse {
     const household = input.householdContext;
     const useFirst = input.useFirstIngredients;
     // No seam fields → the frozen default, untouched (wave-1 behavior).
@@ -140,7 +140,7 @@ export class MockAIService implements IAIService {
    */
   async generateMealPlanDay(input: MealPlanInput, request: MealPlanDayRequest): Promise<DayPlan> {
     await delay(300 + this.extraDelayMs);
-    const week = await this.planWithSeams(input);
+    const week = this.planWithSeams(input);
     const day = week.days.find((d) => d.dayOfWeek === request.dayOfWeek) ??
       week.days[0] ?? { meals: [] };
     return { dayOfWeek: request.dayOfWeek, meals: structuredClone(day.meals) };

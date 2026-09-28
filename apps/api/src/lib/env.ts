@@ -59,6 +59,13 @@ const envSchema = z.object({
     .default('true')
     .transform((val) => val === 'true'),
   AI_MOCK_DELAY_MS: z.coerce.number().int().nonnegative().default(0),
+  // Premium generation: 'true' (default) returns a curated week instantly and
+  // the chef tailors it day by day in the background (PlanTailoringWorker);
+  // 'false' is the kill switch back to the blocking AI week.
+  AI_PLAN_TAILORING: z
+    .string()
+    .default('true')
+    .transform((val) => val !== 'false'),
   AI_PROVIDER: z.enum(['gemini', 'openai']).default('gemini'),
   // Provider keys + model names, shared with the eval harness (ai/env-schema.ts).
   ...aiProviderEnvShape,

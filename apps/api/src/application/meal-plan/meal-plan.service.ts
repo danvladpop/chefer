@@ -8,14 +8,17 @@ import {
   householdMemberRepository,
   MealPlanOrigin,
   mealPlanRepository,
+  mealPlanTailoringRepository,
   mealRatingRepository,
   prisma,
   type FavouriteRecipeWithRecipe,
   type IHouseholdMemberRepository,
   type IMealPlanRepository,
+  type IMealPlanTailoringRepository,
   type PlanMealSlotJson,
   type Recipe,
 } from '@chefer/database';
+import type { PlanTailoring } from '@chefer/types';
 import {
   applyTrainingDayBonus,
   hasTrainingDayBump,
@@ -32,6 +35,7 @@ import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type {
   Ingredient,
+  MealPlanInput,
   MealType,
   NutritionInfo,
   RecipeData,
@@ -46,6 +50,7 @@ import {
   type SafetyPrefs,
 } from '../../lib/curated-recipes/index.js';
 import { normalizeIngredientName } from '../../lib/ingredient-prices/index.js';
+import { notifyTailoringQueued } from '../../lib/plan-tailoring-signal.js';
 import { PoolExhaustedCause } from '../../lib/pool-exhausted.js';
 import type { MacroVocabularyRow } from '../../lib/recipe-import/macro-check.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
@@ -54,7 +59,7 @@ import {
   legacyServingSizePlaceholders,
   mergeHouseholdSafety,
 } from '../household/household.service.js';
-import { pairLeftovers } from '../pantry/leftovers.js';
+import { pairLeftovers, pairLeftoverSlots } from '../pantry/leftovers.js';
 import { computeUsedPantryItemsForUser, getUseFirstIngredients } from '../pantry/pantry-context.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { findRecipeVisibleTo, isRecipeOpenTo } from '../recipe/recipe-access.js';
@@ -67,6 +72,17 @@ import {
 import { planCuratedWeek, type CuratedShapeOptions } from './curated-planner.js';
 import { reconcileRecipeMacros } from './macro-reconcile.js';
 import { planShapeService } from './plan-shape.service.js';
+import {
+  lockedSlotIndexes,
+  mergeTailoredDay,
+  TAILORING_MAX_RESUMES,
+  TAILORING_RETRY_MIN_REMAINING_MS,
+  tailoringDayOrder,
+  toTailoringDto,
+  untailoredDays,
+  weekOffsetOf,
+  withDeadline,
+} from './plan-tailoring.js';
 import { withServerRecipeIds } from './recipe-ids.js';
 
 export { PoolExhaustedCause };
@@ -242,7 +258,54 @@ export interface WeekPlanDto {
     targetHits: number;
     missDays: number;
   };
+  /**
+   * Live tailoring (premium "instant week"): present while the chef is
+   * replacing this plan's curated days with AI days, and after it finished
+   * (DONE/PARTIAL/FAILED). Absent/null = no tailoring (free plans, older
+   * plans, a superseded job). Additive — clients that ignore it get the
+   * curated week at once and see tailored days on their next read.
+   */
+  tailoring?: PlanTailoring | null;
 }
+
+export type GenerateOptions = {
+  leftovers?: boolean;
+  /** The caller already reserved (and logged) this generation's quota. */
+  usageReserved?: boolean;
+  /** WEEKLY_AUTO when the Sunday worker generates (drives the Monday banner). */
+  origin?: MealPlanOrigin;
+  /**
+   * §T-07.2/T-07.3: a one-off override of the stored plan shape for this
+   * call only (e.g. `Plan this day` sends `{ days: [d] }`) — never
+   * persisted. Merged over the user's stored shape; omitted fields keep
+   * the stored value. Old clients that omit it get the stored shape (or
+   * the legacy default), exactly as before this feature existed (AC7).
+   */
+  shape?: Partial<CuratedShapeOptions>;
+  /**
+   * §T-07.4/T-08.3: preserve slots the user pinned (Replace, an own
+   * recipe, `Keep this meal`) that still pass the safety filter, instead
+   * of overwriting them. Default false (today's behaviour: a fresh
+   * generation replaces everything).
+   */
+  keepPinned?: boolean;
+  /**
+   * Premium only: return a complete curated week at once and let the chef
+   * tailor it day by day in the background (live tailoring) instead of
+   * blocking on the whole AI week. The router and the Sunday worker set it
+   * (AI_PLAN_TAILORING); omitted = the blocking AI week.
+   */
+  instant?: boolean;
+};
+
+/** One slot of a curated week while it is assembled (before it is stored). */
+type CuratedSlot = {
+  type: MealType;
+  recipe: RecipeData;
+  portion: number;
+  pinned: boolean;
+  leftoverOf?: string;
+};
 
 /** How a read shows the plan to this viewer (backlog P2-3). */
 export interface PlanViewOptions {
@@ -293,6 +356,7 @@ export class MealPlanService {
       TrainingNutritionService,
       'loadLifter' | 'trainingSchedule'
     > = trainingNutritionService,
+    private readonly tailoringRepo: IMealPlanTailoringRepository = mealPlanTailoringRepository,
   ) {}
 
   /**
@@ -310,32 +374,24 @@ export class MealPlanService {
     userId: string,
     weekOffset = 0,
     premium = false,
-    options: {
-      leftovers?: boolean;
-      /** The caller already reserved (and logged) this generation's quota. */
-      usageReserved?: boolean;
-      /** WEEKLY_AUTO when the Sunday worker generates (drives the Monday banner). */
-      origin?: MealPlanOrigin;
-      /**
-       * §T-07.2/T-07.3: a one-off override of the stored plan shape for this
-       * call only (e.g. `Plan this day` sends `{ days: [d] }`) — never
-       * persisted. Merged over the user's stored shape; omitted fields keep
-       * the stored value. Old clients that omit it get the stored shape (or
-       * the legacy default), exactly as before this feature existed (AC7).
-       */
-      shape?: Partial<CuratedShapeOptions>;
-      /**
-       * §T-07.4/T-08.3: preserve slots the user pinned (Replace, an own
-       * recipe, `Keep this meal`) that still pass the safety filter, instead
-       * of overwriting them. Default false (today's behaviour: a fresh
-       * generation replaces everything).
-       */
-      keepPinned?: boolean;
-    } = {},
+    options: GenerateOptions = {},
   ): Promise<WeekPlanDto> {
     if (!premium) {
       return this.generateCurated(userId, weekOffset, options);
     }
+    if (options.instant) {
+      return this.generateInstant(userId, weekOffset, options);
+    }
+    return this.generateBlocking(userId, weekOffset, options);
+  }
+
+  /**
+   * Everything a premium AI generation is built from — the prompt input, the
+   * live targets it is judged against and the household safety union. One
+   * implementation behind the blocking week and every live-tailored day, so
+   * a tailored day sees exactly what a whole AI week would have.
+   */
+  private async loadPremiumContext(userId: string, options: { leftovers?: boolean } = {}) {
     // 1. Load user preferences + learning signals (P1-1: pinned favourites
     // and recent ratings feed the generation) + household members (F2). A
     // legacy "cooking for N" becomes members first — the household is the
@@ -451,6 +507,50 @@ export class MealPlanService {
       }),
     };
 
+    const planSafety: SafetyPrefs = {
+      ...ownerSafety,
+      ...householdContext?.mergedSafety,
+    };
+    return {
+      aiInput,
+      liveTargets,
+      liveCalorieTarget,
+      trainingDays,
+      trainingBonus,
+      trainingDayTargets,
+      householdContext,
+      planSafety,
+      pinnedFavourites,
+      likedDishes,
+      dislikedDishes,
+    };
+  }
+
+  /**
+   * The original premium path: blocks until the AI has produced the whole
+   * week. Still used when live tailoring is switched off (AI_PLAN_TAILORING=
+   * false) and when the curated pool cannot cover the user's restrictions
+   * (the instant week needs it; only AI can build that week).
+   */
+  private async generateBlocking(
+    userId: string,
+    weekOffset: number,
+    options: GenerateOptions,
+  ): Promise<WeekPlanDto> {
+    const {
+      aiInput,
+      liveTargets,
+      liveCalorieTarget,
+      trainingDays,
+      trainingBonus,
+      trainingDayTargets,
+      householdContext,
+      planSafety,
+      pinnedFavourites,
+      likedDishes,
+      dislikedDishes,
+    } = await this.loadPremiumContext(userId, options);
+
     // 3. Call AI service
     let weekPlan;
     try {
@@ -505,10 +605,6 @@ export class MealPlanService {
     // generated dish is re-checked against the household's allergies and
     // restrictions, and a failing slot is replaced from the safe curated
     // pool (or dropped when nothing safe fits).
-    const planSafety: SafetyPrefs = {
-      ...ownerSafety,
-      ...householdContext?.mergedSafety,
-    };
     const safetyPass = await this.enforcePlanSafety(weekPlan, planSafety);
     weekPlan = safetyPass.plan;
 
@@ -616,6 +712,8 @@ export class MealPlanService {
 
     // 7. Persist the meal plan (archives only the plan for the same week)
     const weekStartDate = getMondayOfWeek(weekOffset);
+    // A newer generation supersedes any live tailoring of this week's plan.
+    await this.tailoringRepo.cancelRunningForWeek(userId, weekStartDate);
     const shopFrom = firstShoppingDay(weekStartDate, new Date());
     const plan = await this.repo.createPlan({
       userId,
@@ -709,6 +807,326 @@ export class MealPlanService {
     };
   }
 
+  /**
+   * Premium "instant week, then the chef tailors it live": a COMPLETE week
+   * from the curated pool right away — safety-filtered for the whole table,
+   * the same shape/keepPinned/week options, pinned favourites placed as the
+   * user's picks, leftovers paired — and a MealPlanTailoring job that
+   * replaces its days with AI days one at a time (PlanTailoringWorker),
+   * today first. The AI week used to block the request for minutes on the
+   * free provider tier (a real one took 408 s); this returns in about a
+   * second and never gets worse than the curated week.
+   *
+   * Tailoring is only queued with AI data consent (App Store 5.1.2(i)) —
+   * clients ask before generating; without it the week stays curated. A
+   * table the curated pool cannot cover falls back to the blocking AI week,
+   * the only thing that can build it.
+   */
+  private async generateInstant(
+    userId: string,
+    weekOffset: number,
+    options: GenerateOptions,
+  ): Promise<WeekPlanDto> {
+    await this.householdRepo
+      .migrateLegacyServingSize(userId, (n) => legacyServingSizePlaceholders(n))
+      .catch((err: unknown) => console.error('[meal-plan] servingSize migration failed', err));
+    const [pinnedCandidates, ratingSignals, members, gate] = await Promise.all([
+      favouriteRecipeRepository.findPinnedForNextPlan(userId),
+      mealRatingRepository.findSignalsForUser(userId),
+      this.householdRepo.findByUserId(userId),
+      this.tailoringRepo.findUserGate(userId),
+    ]);
+    const pinnedFavourites = await this.visiblePins(userId, pinnedCandidates);
+
+    let built: Awaited<ReturnType<MealPlanService['buildCuratedWeek']>>;
+    try {
+      built = await this.buildCuratedWeek(userId, weekOffset, options, {
+        pinnedFavourites,
+        leftovers: options.leftovers === true,
+        // Premium generation IS household scaling (P2-3).
+        costPortions: members.length > 0 ? householdPortionSum(members) : null,
+      });
+    } catch (err) {
+      if (err instanceof TRPCError && err.cause instanceof PoolExhaustedCause) {
+        console.info(
+          '[meal-plan] curated pool too small for this table — premium uses the blocking AI week',
+        );
+        return this.generateBlocking(userId, weekOffset, options);
+      }
+      throw err;
+    }
+
+    // A pin means "next plan" (P1-1) — it has one now.
+    if (pinnedFavourites.length > 0) {
+      await favouriteRecipeRepository.clearNextPlanFlags(userId);
+    }
+
+    const tailoring = gate?.aiDataConsentAt
+      ? await this.queueTailoring(userId, built, weekOffset, options)
+      : null;
+    // One user generation = one MEAL_PLAN log, as before: the router's quota
+    // reservation already logged it; the Sunday worker's path hasn't.
+    if (tailoring && !options.usageReserved) {
+      prisma.aiCallLog
+        .create({ data: { userId, callType: AiCallType.MEAL_PLAN } })
+        .catch((err) => console.error('[aiCallLog] Failed to log MEAL_PLAN call:', err));
+    }
+
+    const likedCount = ratingSignals.filter((r) => r.rating >= 4).length;
+    const dislikedCount = ratingSignals.filter((r) => r.rating <= 2).length;
+    return {
+      ...built.dto,
+      personalisation: {
+        pinnedDishNames: built.placedPinNames,
+        likedCount,
+        dislikedCount,
+        usedPantryItems: await computeUsedPantryItemsForUser(userId, built.days),
+      },
+      ...(tailoring && { tailoring }),
+    };
+  }
+
+  /** Creates the tailoring job for a fresh instant week and wakes the worker. */
+  private async queueTailoring(
+    userId: string,
+    built: {
+      planId: string;
+      storedDays: { dayOfWeek: number; meals: PlanMealSlotJson[] }[];
+      shape: CuratedShapeOptions;
+    },
+    weekOffset: number,
+    options: GenerateOptions,
+  ): Promise<PlanTailoring | null> {
+    const order = tailoringDayOrder(built.storedDays, weekOffset, getTodayDayIndex());
+    if (order.length === 0) return null;
+    const snapshots = Object.fromEntries(
+      order.map((d) => [String(d), built.storedDays.find((x) => x.dayOfWeek === d)?.meals ?? []]),
+    );
+    const row = await this.tailoringRepo.create({
+      planId: built.planId,
+      userId,
+      queuedDays: order,
+      snapshots,
+      // Ticks carried over from the replaced plan are the baseline; a NEW
+      // tick means the user started shopping for this week.
+      baselineCheckedKeys: await this.tailoringRepo.findCheckedKeys(built.planId),
+      slotTypes: [...resolvePlanSlots(built.shape.slots ?? [])],
+      leftovers: options.leftovers === true,
+    });
+    notifyTailoringQueued();
+    return toTailoringDto(row, 'ACTIVE', order);
+  }
+
+  /**
+   * Live tailoring, one day (called by PlanTailoringService): asks the AI for
+   * `dayOfWeek` with the same prompt input a whole AI week would get, runs
+   * the same checks — macro reconciliation, day-total validation with one
+   * corrective retry (budget permitting), server-minted ids, the household
+   * safety pass — persists the new recipes and returns the day's new slots.
+   * The caller writes them (compare-and-set) — this never touches the plan.
+   *
+   * Locked slots (the user's picks, a leftovers pair) are kept as they are.
+   * `{ skip: 'locked' }` when every slot is locked (nothing to tailor).
+   * Throws on AI failure, a blown budget, or a day with nothing usable.
+   */
+  async tailorDay(args: {
+    userId: string;
+    plan: { id: string; weekStartDate: Date; days: { dayOfWeek: number; meals: unknown }[] };
+    dayOfWeek: number;
+    slotTypes: readonly string[];
+    /** Epoch ms by which the day must be done. */
+    deadline: number;
+  }): Promise<{ meals: PlanMealSlotJson[] } | { skip: 'locked' }> {
+    const { userId, plan, dayOfWeek, slotTypes, deadline } = args;
+    const current = (plan.days.find((d) => d.dayOfWeek === dayOfWeek)?.meals ??
+      []) as PlanMealSlotJson[];
+    const locked = lockedSlotIndexes(plan.days, dayOfWeek);
+    if (current.length > 0 && locked.size >= current.length) return { skip: 'locked' };
+
+    const { aiInput, liveTargets, trainingDayTargets, planSafety } =
+      await this.loadPremiumContext(userId);
+    const dayTargets = trainingDayTargets.get(dayOfWeek) ?? liveTargets;
+
+    // The rest of the week (and this day's locked dishes) must not repeat.
+    const otherIds = plan.days.flatMap((d) =>
+      (d.meals as PlanMealSlotJson[])
+        .filter((_, i) => d.dayOfWeek !== dayOfWeek || locked.has(i))
+        .map((m) => m.recipeId),
+    );
+    const rows = await this.repo.findRecipesByIds([...new Set(otherIds)]);
+    const alreadyPlanned = [...new Set(rows.map((r) => r.name))];
+
+    const remaining = () => deadline - Date.now();
+    const ask = (input: MealPlanInput) =>
+      withDeadline(
+        aiService.generateMealPlanDay(input, {
+          dayOfWeek,
+          alreadyPlanned,
+          maxWaitMs: Math.max(0, Math.min(20_000, remaining() - 10_000)),
+        }),
+        remaining(),
+      );
+
+    let dayPlan = await this.reconcilePlanMacros({ days: [await ask(aiInput)] });
+    const firstScore = planOffTargetScore(dayPlan, dayTargets);
+    // Same day-total validation as the week (trust P-1, F-PLAN-1-2): one
+    // corrective retry, only when the budget still has room for it; keep
+    // the closer attempt. Not logged — the user asked once.
+    if (firstScore > 0 && remaining() >= TAILORING_RETRY_MIN_REMAINING_MS) {
+      try {
+        const retry = await this.reconcilePlanMacros({
+          days: [
+            await ask({
+              ...aiInput,
+              calorieCorrection: {
+                target: dayTargets.dailyCalorieTarget,
+                previousDayTotals: planDayKcalTotals(dayPlan),
+                previousDayMacros: planDayMacroTotals(dayPlan),
+              },
+            }),
+          ],
+        });
+        if (planOffTargetScore(retry, dayTargets) < firstScore) dayPlan = retry;
+      } catch (err) {
+        console.warn('[tailoring] corrective retry failed; keeping the first day:', err);
+      }
+    }
+
+    // Server-minted ids + the household safety pass, exactly as for a week.
+    const minted = withServerRecipeIds({ days: dayPlan.days.map((d) => ({ ...d, dayOfWeek })) });
+    const safetyPass = await this.enforcePlanSafety(minted, planSafety);
+    const aiDay = safetyPass.plan.days[0];
+    const aiMeals: PlanMealSlotJson[] = (aiDay?.meals ?? []).map((m) => ({
+      type: m.type,
+      recipeId: m.recipe.id,
+    }));
+    const merged = mergeTailoredDay(current, locked, aiMeals, slotTypes);
+    if (!merged) throw new Error(`tailoring: the AI day ${dayOfWeek} had no usable meals`);
+
+    // Persist the AI recipes that made it in (curated safety replacements
+    // already exist as shared rows). Images: reuse a known one by name,
+    // else PENDING for the image worker at this day's priority.
+    const used = new Set(merged.map((m) => m.recipeId));
+    const recipes = (aiDay?.meals ?? [])
+      .map((m) => m.recipe)
+      .filter((r) => used.has(r.id) && !safetyPass.curatedIds.has(r.id));
+    if (recipes.length > 0) {
+      const knownImages = await this.repo.findRecipeImagesByNames(recipes.map((r) => r.name));
+      const offset = weekOffsetOf(plan.weekStartDate, getMondayOfWeek(0));
+      let pending = false;
+      await this.repo.upsertRecipes(
+        recipes.map((r) => {
+          const imageUrl = r.imageUrl ?? knownImages.get(r.name.toLowerCase()) ?? null;
+          if (!imageUrl) pending = true;
+          return {
+            id: r.id,
+            name: r.name,
+            description: r.description,
+            ingredients: r.ingredients,
+            instructions: r.instructions,
+            nutritionInfo: r.nutritionInfo,
+            cuisineType: r.cuisineType,
+            dietaryTags: r.dietaryTags,
+            prepTimeMins: r.prepTimeMins,
+            cookTimeMins: r.cookTimeMins,
+            servings: r.servings,
+            imageUrl,
+            imageStatus: imageUrl ? ('DONE' as const) : ('PENDING' as const),
+            imagePriority: dayImagePriority(dayOfWeek, offset),
+            creatorId: userId,
+          };
+        }),
+      );
+      if (pending) recipeImageWorker.wake();
+    }
+    return { meals: merged };
+  }
+
+  /**
+   * "Tailor the rest" (PARTIAL/FAILED): re-queues ONLY the days the chef did
+   * not get to (the stopped queue + failed days, from today on) — never a
+   * day it already tailored or one the user changed. No new quota
+   * reservation: it finishes the generation the user already paid for, is
+   * premium-only, needs AI consent, and is capped per plan
+   * (TAILORING_MAX_RESUMES) so it cannot become a free generation loop.
+   */
+  async resumeTailoring(
+    userId: string,
+    planId: string,
+    premium: boolean,
+    view: PlanViewOptions = {},
+  ): Promise<WeekPlanDto> {
+    if (!premium) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Tailoring your week is a premium feature.',
+      });
+    }
+    const plan = await this.repo.findByIdForUser(userId, planId);
+    if (!plan || plan.isTemplate) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+    const row = await this.tailoringRepo.findByPlanId(planId);
+    if (plan.status !== 'ACTIVE' || !row || (row.status !== 'PARTIAL' && row.status !== 'FAILED')) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'There is nothing left to tailor in this plan.',
+      });
+    }
+    if (row.resumes >= TAILORING_MAX_RESUMES) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'Your chef has already tried this week a few times — regenerate for a fresh one.',
+      });
+    }
+    const gate = await this.tailoringRepo.findUserGate(userId);
+    if (!gate?.aiDataConsentAt) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'Allow AI personalisation to let your chef tailor your week.',
+      });
+    }
+    const weekOffset = weekOffsetOf(plan.weekStartDate, getMondayOfWeek(0));
+    const wanted = new Set(untailoredDays(row));
+    const order = tailoringDayOrder(plan.days, weekOffset, getTodayDayIndex()).filter((d) =>
+      wanted.has(d),
+    );
+    if (order.length === 0) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'There is nothing left to tailor in this plan.',
+      });
+    }
+    // The days as they are NOW are the new baseline — the user asked for
+    // them to be tailored, so earlier edits to them are no longer a reason
+    // to skip (pinned slots stay locked regardless).
+    const snapshots = {
+      ...(row.snapshots as Record<string, PlanMealSlotJson[]>),
+      ...Object.fromEntries(
+        order.map((d) => [
+          String(d),
+          (plan.days.find((x) => x.dayOfWeek === d)?.meals ?? []) as unknown as PlanMealSlotJson[],
+        ]),
+      ),
+    };
+    await this.tailoringRepo.saveProgress(row.id, {
+      status: 'RUNNING',
+      queuedDays: order,
+      failedDays: [],
+      currentDay: order[0] ?? null,
+      snapshots,
+      baselineCheckedKeys: await this.tailoringRepo.findCheckedKeys(planId),
+      strikes: 0,
+      resumes: row.resumes + 1,
+      totalDays: row.tailoredDays.length + row.keptDays.length + order.length,
+      nextRunAt: new Date(),
+      lastError: null,
+      finishedAt: null,
+    });
+    notifyTailoringQueued();
+    return this.assemblePlanDto(plan, userId, view);
+  }
+
   /** Drops pinned favourites the user may no longer see (recipe-access.ts). */
   private async visiblePins(
     userId: string,
@@ -730,10 +1148,13 @@ export class MealPlanService {
    * user's recent plans (falling back to dinner); pins of the same type are
    * spread across the week rather than stacked on consecutive days.
    */
-  private async placePinnedRecipes(
+  private async placePinnedRecipes<
+    S extends { type: string; recipe: RecipeData; pinned?: boolean },
+  >(
     userId: string,
-    weekPlan: { days: { dayOfWeek: number; meals: { type: string; recipe: RecipeData }[] }[] },
+    weekPlan: { days: { dayOfWeek: number; meals: S[] }[] },
     pinnedFavourites: FavouriteRecipeWithRecipe[],
+    hooks: { onPlaced?: (slot: S) => void } = {},
   ): Promise<string[]> {
     // recipeId → meal type from the most recent plan that contains it.
     const typeByRecipe = new Map<string, string>();
@@ -759,8 +1180,10 @@ export class MealPlanService {
         if (taken.has(`${dayOfWeek}:${mealType}`)) continue;
         const day = weekPlan.days.find((d) => d.dayOfWeek === dayOfWeek);
         const slot = day?.meals.find((m) => m.type === mealType);
-        if (!slot) continue;
+        // A slot the user already chose (kept pick) is theirs.
+        if (!slot || slot.pinned) continue;
         slot.recipe = rowToRecipeData(recipe);
+        hooks.onPlaced?.(slot);
         taken.add(`${dayOfWeek}:${mealType}`);
         placed.push(recipe.name);
         break;
@@ -784,6 +1207,37 @@ export class MealPlanService {
       keepPinned?: boolean;
     } = {},
   ): Promise<WeekPlanDto> {
+    return (await this.buildCuratedWeek(userId, weekOffset, options)).dto;
+  }
+
+  /**
+   * The curated week, persisted: the free tier's whole plan, and the premium
+   * instant week that live tailoring then improves day by day. `premium`
+   * adds what the premium generation always did on top of the recipe
+   * choice — pinned favourites placed verbatim (as `Your pick`), the
+   * leftovers pairing and a household-sized cost.
+   */
+  private async buildCuratedWeek(
+    userId: string,
+    weekOffset: number,
+    options: {
+      origin?: MealPlanOrigin;
+      shape?: Partial<CuratedShapeOptions>;
+      keepPinned?: boolean;
+    },
+    premium?: {
+      pinnedFavourites: FavouriteRecipeWithRecipe[];
+      leftovers: boolean;
+      costPortions: number | null;
+    },
+  ): Promise<{
+    dto: WeekPlanDto;
+    planId: string;
+    days: { dayOfWeek: number; meals: CuratedSlot[] }[];
+    storedDays: { dayOfWeek: number; meals: PlanMealSlotJson[] }[];
+    shape: CuratedShapeOptions;
+    placedPinNames: string[];
+  }> {
     await ensureCuratedRecipes();
 
     // F2: household members' allergies/restrictions are unioned with the
@@ -886,8 +1340,8 @@ export class MealPlanService {
     // type on its day; a day that no longer plans that type (or isn't
     // planned at all) can't host the override — it's dropped and counted.
     const consumed = new Set<string>();
-    const days = planned.map((day) => {
-      const meals = day.meals.map((meal) => {
+    let days = planned.map((day) => {
+      const meals = day.meals.map((meal): CuratedSlot => {
         const key = `${day.dayOfWeek}:${meal.type}`;
         const override = !consumed.has(key) ? overrides.get(key) : undefined;
         if (!override) return { ...meal, pinned: false };
@@ -903,28 +1357,51 @@ export class MealPlanService {
     });
     droppedPinned += [...overrides.keys()].filter((key) => !consumed.has(key)).length;
 
+    // Premium (instant week): pinned favourites land verbatim, as the user's
+    // pick (P1-1 — the AI week placed them the same way), then "cook once,
+    // eat twice" pairs dinners with next-day lunches. Both become locked
+    // slots that live tailoring never touches.
+    let placedPinNames: string[] = [];
+    if (premium && premium.pinnedFavourites.length > 0) {
+      placedPinNames = await this.placePinnedRecipes(userId, { days }, premium.pinnedFavourites, {
+        onPlaced: (slot) => {
+          slot.portion = 1;
+          slot.pinned = true;
+        },
+      });
+    }
+    if (premium?.leftovers) {
+      days = pairLeftoverSlots(days);
+    }
+
     const uniqueRecipeIds = [...new Set(days.flatMap((d) => d.meals.map((m) => m.recipe.id)))];
     const curatedShopFrom = firstShoppingDay(weekStartDate, new Date());
     // P1-1: each slot's portion is stored in the day JSON (1× is left out,
     // so untouched slots look exactly like before). Only planned days keep
     // meals — an unplanned day is stored as `meals: []` (§2.3, T-07.2).
-    const plan = await this.repo.createPlan({
-      userId,
-      weekStartDate,
-      days: days.map((d) => ({
-        dayOfWeek: d.dayOfWeek,
-        meals: d.meals.map((m) => ({
+    const storedDays = days.map((d) => ({
+      dayOfWeek: d.dayOfWeek,
+      meals: d.meals.map(
+        (m): PlanMealSlotJson => ({
           type: m.type,
           recipeId: m.recipe.id,
           ...(m.portion !== 1 && { portion: m.portion }),
           ...(m.pinned && { pinned: true }),
-        })),
-      })),
+          ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
+        }),
+      ),
+    }));
+    // A newer generation supersedes any live tailoring of this week's plan.
+    await this.tailoringRepo.cancelRunningForWeek(userId, weekStartDate);
+    const plan = await this.repo.createPlan({
+      userId,
+      weekStartDate,
+      days: storedDays,
       recipeIds: uniqueRecipeIds,
       origin: options.origin,
     });
 
-    return {
+    const dto: WeekPlanDto = {
       planId: plan.id,
       weekStartDate: plan.weekStartDate,
       calorieTarget: targets.dailyCalorieTarget,
@@ -937,15 +1414,21 @@ export class MealPlanService {
           recipe: toRecipeDto(m.recipe, { imageUrl: m.recipe.imageUrl, imageStatus: 'DONE' }),
           ...(m.portion !== 1 && { portion: m.portion }),
           ...(m.pinned && { pinned: true }),
+          ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
         })),
         ...(d.proteinGapG !== null && { proteinGapG: d.proteinGapG }),
         ...(d.unfilled && { unfilled: d.unfilled }),
       })),
-      estimatedCost: await estimatePlanCostEur(daysFrom(days, curatedShopFrom)),
+      estimatedCost: premium
+        ? await estimatePlanCostEur(daysFrom(days, curatedShopFrom), {
+            portions: premium.costPortions,
+          })
+        : await estimatePlanCostEur(daysFrom(days, curatedShopFrom)),
       ...(curatedShopFrom > 0 && { shoppingFromDay: curatedShopFrom }),
       ...(plan.previousPlanId && { previousPlanId: plan.previousPlanId }),
       ...(options.keepPinned && { droppedPinned }),
     };
+    return { dto, planId: plan.id, days, storedDays, shape, placedPinNames };
   }
 
   /**
@@ -1070,6 +1553,8 @@ export class MealPlanService {
       id: string;
       weekStartDate: Date;
       createdAt?: Date;
+      /** ACTIVE/ARCHIVED — decides whether live tailoring is shown/resumable. */
+      status?: string;
       days: { dayOfWeek: number; meals: unknown }[];
     },
     userId?: string,
@@ -1077,7 +1562,7 @@ export class MealPlanService {
   ): Promise<WeekPlanDto> {
     const allMeals = plan.days.flatMap((d) => d.meals as PlanMealSlotJson[]);
     const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
-    const [recipeRows, safety, targets, shape] = await Promise.all([
+    const [recipeRows, safety, targets, shape, tailoringRow] = await Promise.all([
       this.repo.findRecipesByIds(uniqueIds),
       userId ? this.loadMergedSafety(userId) : Promise.resolve(null),
       userId ? this.loadTargets(userId) : Promise.resolve(null),
@@ -1089,8 +1574,16 @@ export class MealPlanService {
       // days is `planned: false` (a day that already has `meals` is never
       // relabelled, regardless of the shape changing later — see below).
       userId ? planShapeService.getShape(userId) : Promise.resolve(null),
+      this.tailoringRepo.findByPlanId(plan.id),
     ]);
     const recipeMap = new Map<string, Recipe>(recipeRows.map((r) => [r.id, r]));
+    let tailoring: PlanTailoring | null = null;
+    if (tailoringRow) {
+      const weekOffset = weekOffsetOf(plan.weekStartDate, getMondayOfWeek(0));
+      const future = new Set(tailoringDayOrder(plan.days, weekOffset, getTodayDayIndex()));
+      const resumable = untailoredDays(tailoringRow).filter((d) => future.has(d));
+      tailoring = toTailoringDto(tailoringRow, plan.status, resumable);
+    }
     const plannedDays = shape ? resolvePlanDays(shape.days) : null;
 
     const days: DayPlanDto[] = plan.days.map((d) => {
@@ -1140,6 +1633,7 @@ export class MealPlanService {
         calorieTarget: targets.dailyCalorieTarget,
         proteinTarget: targets.proteinG,
       }),
+      ...(tailoring && { tailoring }),
     };
   }
 

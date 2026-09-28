@@ -64,3 +64,43 @@ export function pairLeftovers(
 
   return result;
 }
+
+/**
+ * The same pairing for a week of stored-style slots (the curated instant
+ * week, live tailoring): the next day's lunch becomes the dinner's recipe at
+ * the dinner's portion, labelled `leftoverOf`. Nothing is doubled in the
+ * recipe — both slots point at it, so the shopping list counts it twice
+ * ("cook twice the food") and each meal stays one portion. Slots the user
+ * chose (`pinned`) are never paired. Returns new day arrays.
+ */
+export function pairLeftoverSlots<
+  D extends {
+    dayOfWeek: number;
+    meals: { type: string; portion?: number; pinned?: boolean; leftoverOf?: string }[];
+  },
+>(days: D[], maxPairs: number = MAX_LEFTOVER_PAIRS): D[] {
+  const result = days.map((d) => ({ ...d, meals: [...d.meals] }));
+  const byDay = new Map(result.map((d) => [d.dayOfWeek, d]));
+  let paired = 0;
+  let dayIndex = 0;
+  while (dayIndex < 6 && paired < maxPairs) {
+    const today = byDay.get(dayIndex);
+    const tomorrow = byDay.get(dayIndex + 1);
+    const dinner = today?.meals.find((m) => m.type === 'dinner' && !m.pinned);
+    const lunchIdx = tomorrow?.meals.findIndex((m) => m.type === 'lunch' && !m.pinned) ?? -1;
+    if (dinner && tomorrow && lunchIdx >= 0) {
+      const leftover: D['meals'][number] = {
+        ...dinner,
+        type: 'lunch',
+        pinned: false,
+        leftoverOf: DAY_NAMES[dayIndex] ?? `day ${dayIndex}`,
+      };
+      tomorrow.meals[lunchIdx] = leftover;
+      paired += 1;
+      dayIndex += 2; // skip a day — not every lunch should be leftovers
+    } else {
+      dayIndex += 1;
+    }
+  }
+  return result;
+}

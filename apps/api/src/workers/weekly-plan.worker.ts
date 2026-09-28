@@ -2,6 +2,7 @@ import { MealPlanOrigin, mealPlanRepository, prisma, type Prisma } from '@chefer
 import { coachService } from '../application/coach/coach.service.js';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 import { isAiCapacityFailure } from '../lib/ai/friendly-error.js';
+import { env } from '../lib/env.js';
 
 // ─── Weekly auto-generation (PW-5) ────────────────────────────────────────────
 // The premium pitch in one sentence: it cooked for me while I slept. Every
@@ -165,15 +166,21 @@ export class WeeklyPlanWorker {
           continue;
         }
 
+        // Premium: the same instant path as the Plan button — a curated week
+        // now, tailored day by day by PlanTailoringWorker (consent already
+        // checked above). With tailoring switched off, the blocking AI week.
+        const instant = user.premium && env.AI_PLAN_TAILORING;
         await mealPlanService.generate(user.id, 1, user.premium, {
           origin: MealPlanOrigin.WEEKLY_AUTO,
+          ...(instant && { instant: true }),
         });
         generated += 1;
         console.log(
-          `[WeeklyPlanWorker] generated next week's ${user.premium ? 'AI' : 'curated'} plan for user ${user.id}`,
+          `[WeeklyPlanWorker] generated next week's ${user.premium ? (instant ? 'instant (tailoring)' : 'AI') : 'curated'} plan for user ${user.id}`,
         );
-        // Only the premium path is an AI call worth spacing out.
-        if (user.premium) await new Promise((r) => setTimeout(r, PER_USER_DELAY_MS));
+        // Only an inline AI week is worth spacing out (the tailoring worker
+        // paces its own calls).
+        if (user.premium && !instant) await new Promise((r) => setTimeout(r, PER_USER_DELAY_MS));
       } catch (err) {
         // One user's failure must not starve the rest of the sweep (a free
         // user's restrictions can exhaust the curated pool, for example).
