@@ -13,6 +13,8 @@ import { Link, router } from 'expo-router';
 import { Button, Chip, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { FilteredForLine } from '../../src/features/safety/filtered-for-line';
+import { WhatWeCheckSheet } from '../../src/features/safety/what-we-check-sheet';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
@@ -96,6 +98,19 @@ export default function RecipesScreen() {
   const active = tab === 'discover' ? discover : list;
   const recipes: CardRecipe[] | undefined = active.data;
   const { isLoading, isError, refetch } = active;
+
+  // T-02.5/T-01.4: Discover says what it filtered — a separate, additive
+  // query so the array `discover` itself returns is unaffected.
+  const discoverMeta = trpc.recipe.discoverHiddenCount.useQuery(
+    {
+      search: debouncedSearch || undefined,
+      mealType: mealFilter ?? undefined,
+      maxTotalMins: quickOnly ? QUICK_MINS : undefined,
+    },
+    { enabled: tab === 'discover', staleTime: 60_000 },
+  );
+  const { data: table } = trpc.safety.getTable.useQuery();
+  const [whatWeCheckOpen, setWhatWeCheckOpen] = useState(false);
 
   const utils = trpc.useUtils();
   const toggleFav = trpc.recipe.toggleFavourite.useMutation({
@@ -238,6 +253,16 @@ export default function RecipesScreen() {
           data={recipes}
           keyExtractor={(r) => r.id}
           contentContainerClassName="gap-4 px-4 py-3"
+          ListHeaderComponent={
+            tab === 'discover' && discoverMeta.data && discoverMeta.data.hiddenCount > 0 ? (
+              <FilteredForLine
+                testID="discover-filtered-for"
+                filters={discoverMeta.data.filteredFor.join(' + ')}
+                hiddenCount={discoverMeta.data.hiddenCount}
+                onPress={() => setWhatWeCheckOpen(true)}
+              />
+            ) : null
+          }
           renderItem={({ item: recipe }) => {
             const n = recipe.nutritionInfo as {
               calories: number;
@@ -329,6 +354,13 @@ export default function RecipesScreen() {
           }}
         />
       )}
+      {table ? (
+        <WhatWeCheckSheet
+          visible={whatWeCheckOpen}
+          onClose={() => setWhatWeCheckOpen(false)}
+          table={table}
+        />
+      ) : null}
     </Screen>
   );
 }
