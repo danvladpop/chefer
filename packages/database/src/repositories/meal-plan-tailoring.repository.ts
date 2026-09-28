@@ -96,9 +96,8 @@ export function stableSlotsJson(meals: PlanMealSlotJson[]): string {
   return JSON.stringify(
     meals.map((m) =>
       Object.fromEntries(
-        Object.entries(m)
-          .filter(([, v]) => v !== undefined)
-          .sort(([a], [b]) => a.localeCompare(b)),
+        // JSON.stringify drops undefined values itself.
+        Object.entries(m).sort(([a], [b]) => a.localeCompare(b)),
       ),
     ),
   );
@@ -190,7 +189,7 @@ export class MealPlanTailoringRepository implements IMealPlanTailoringRepository
       where: { id },
       data: {
         ...rest,
-        ...(snapshots !== undefined && { snapshots: snapshots as Prisma.InputJsonValue }),
+        ...(snapshots !== undefined && { snapshots: snapshots }),
         ...(!options.keepLease && { leaseUntil: null }),
       },
     });
@@ -224,7 +223,7 @@ export class MealPlanTailoringRepository implements IMealPlanTailoringRepository
         if (stableSlotsJson(current) !== stableSlotsJson(expected)) return false;
         await tx.mealPlanDay.update({
           where: { id: day.id },
-          data: { meals: meals as unknown as Prisma.InputJsonValue },
+          data: { meals: meals },
         });
         return true;
       },
