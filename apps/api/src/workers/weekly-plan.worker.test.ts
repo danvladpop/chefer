@@ -26,6 +26,10 @@ vi.mock('../application/meal-plan/meal-plan.service.js', () => ({
   },
 }));
 
+// Live tailoring on (the default); one test flips the kill switch.
+const envMock = vi.hoisted(() => ({ env: { AI_PLAN_TAILORING: true } }));
+vi.mock('../lib/env.js', () => envMock);
+
 vi.mock('../application/coach/coach.service.js', () => ({
   coachService: { runReviewSweep: vi.fn().mockResolvedValue({ reviewed: 0 }) },
 }));
@@ -40,6 +44,7 @@ describe('WeeklyPlanWorker', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    envMock.env.AI_PLAN_TAILORING = true;
     vi.mocked(prisma.user.findMany).mockResolvedValue([]);
     vi.mocked(prisma.user.count).mockResolvedValue(0);
     vi.mocked(mealPlanRepository.findByWeekStart).mockResolvedValue(null);
@@ -75,7 +80,10 @@ describe('WeeklyPlanWorker', () => {
 
     await worker.tick(SUNDAY);
 
-    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true, { origin: 'WEEKLY_AUTO' });
+    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true, {
+      origin: 'WEEKLY_AUTO',
+      instant: true,
+    });
   });
 
   it('only targets PREMIUM subscribers with a complete profile', async () => {
@@ -94,7 +102,10 @@ describe('WeeklyPlanWorker', () => {
 
     await worker.tick(SUNDAY);
 
-    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true, { origin: 'WEEKLY_AUTO' });
+    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true, {
+      origin: 'WEEKLY_AUTO',
+      instant: true,
+    });
   });
 
   it('is idempotent — a user who already has next week planned is skipped', async () => {
@@ -133,7 +144,10 @@ describe('WeeklyPlanWorker', () => {
 
     await worker.tick(SUNDAY);
 
-    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true, { origin: 'WEEKLY_AUTO' });
+    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true, {
+      origin: 'WEEKLY_AUTO',
+      instant: true,
+    });
   });
 
   it('keeps a carry-forward copy the user already shopped against', async () => {
@@ -185,6 +199,30 @@ describe('WeeklyPlanWorker', () => {
     expect(where.planTier).toBe('FREE');
     expect(where.OR).toEqual([{ chefProfile: null }, { chefProfile: { autoPlanWeekly: true } }]);
     expect(where.sessions).toEqual({ some: { expires: { gt: SUNDAY } } });
+  });
+
+  it('premium weeks take the instant path (curated now, tailored live) — no inline AI wait', async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([{ id: 'u1' }, { id: 'u2' }] as never);
+    const timeout = vi.mocked(setTimeout);
+
+    await worker.tick(SUNDAY);
+
+    expect(mealPlanService.generate).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(mealPlanService.generate).mock.calls[0]![3]).toEqual({
+      origin: 'WEEKLY_AUTO',
+      instant: true,
+    });
+    // The politeness delay was for inline AI weeks; the tailoring worker paces itself.
+    expect(timeout).not.toHaveBeenCalledWith(expect.any(Function), 5_000);
+  });
+
+  it('with AI_PLAN_TAILORING=false premium weeks block on the AI week as before', async () => {
+    envMock.env.AI_PLAN_TAILORING = false;
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([{ id: 'u1' }] as never);
+
+    await worker.tick(SUNDAY);
+
+    expect(mealPlanService.generate).toHaveBeenCalledWith('u1', 1, true, { origin: 'WEEKLY_AUTO' });
   });
 
   it('gives free users a curated week (premium=false), tagged WEEKLY_AUTO', async () => {

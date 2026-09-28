@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
-import { DayView } from '@/features/meal-plan/components/day-view';
+import { DayView, TailoringDayMark } from '@/features/meal-plan/components/day-view';
 import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
@@ -15,6 +15,8 @@ import {
   type ReplaceMealResult,
   type ReplaceTarget,
 } from '@/features/meal-plan/components/ReplaceMealSheet';
+import { TailoringBanner } from '@/features/meal-plan/components/TailoringBanner';
+import { useTailoringWatch } from '@/features/meal-plan/hooks/use-tailoring-watch';
 import { PantryUsageBanner } from '@/features/pantry/components/PantryUsageBanner';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
@@ -38,6 +40,7 @@ import {
   Wallet,
   Wand2,
 } from 'lucide-react';
+import { PLAN_TAILORING_POLL_MS } from '@chefer/types';
 import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
@@ -45,9 +48,12 @@ import {
   formatMoney,
   formatPriceRange,
   getWeekStartDate,
+  isTailoringRunning,
   perPortionCost,
   planButtonLabel,
   planShapeSummary,
+  tailoringDayLabel,
+  tailoringDayState,
   toDisplayCurrency,
 } from '@chefer/utils';
 import MealPlanLoading from './loading';
@@ -144,7 +150,17 @@ export default function MealPlanPage() {
     isError,
     isRefetching,
     refetch,
-  } = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { retry: false });
+  } = trpc.mealPlan.getForWeek.useQuery(
+    { weekOffset },
+    {
+      retry: false,
+      // Live tailoring (premium instant week): poll while the chef is still
+      // working — and only then. React Query pauses the interval while the
+      // tab is hidden (refetchIntervalInBackground defaults to false).
+      refetchInterval: (query) =>
+        isTailoringRunning(query.state.data?.tailoring) ? PLAN_TAILORING_POLL_MS : false,
+    },
+  );
   // A failed load is not an empty week: never offer "Generate" over a plan we
   // simply couldn't fetch (audit F-X-3-1, F-PLAN-1-4).
   const loadFailed = isError && !plan;
@@ -347,6 +363,24 @@ export default function MealPlanPage() {
   };
 
   const utils = trpc.useUtils();
+  // Live tailoring: which days the chef just replaced (brief highlight) and
+  // whether the user watched it run (the DONE confirmation). A replaced day
+  // changes the shopping list and today's totals too.
+  const { sawRunning, updatedDays } = useTailoringWatch(plan?.planId, plan?.tailoring, () => {
+    void utils.shoppingList.invalidate();
+    void utils.dashboard.invalidate();
+  });
+  const resumeTailoringMutation = trpc.mealPlan.resumeTailoring.useMutation({
+    onSuccess: () => void refetch(),
+    onError: (err) => setToast({ message: err.message }),
+  });
+  const resumeTailoring = () => {
+    if (!plan) return;
+    const planId = plan.planId;
+    requestAiConsent('meal-plan', () => resumeTailoringMutation.mutate({ planId }), {
+      usesAi: true,
+    });
+  };
   const pinMutation = trpc.mealPlan.setSlotPinned.useMutation({ onSuccess: () => void refetch() });
   // T-08.5/T-08.6 Undo: replaceRecipe back to `previousRecipeId` — used by
   // the swap/replace toast's Undo action (the sheet itself is closed by then).
@@ -564,6 +598,17 @@ export default function MealPlanPage() {
           />
         )}
 
+      {/* Live tailoring: the week is usable now; the chef finishes it day by day */}
+      {plan && !isPast && (
+        <TailoringBanner
+          className="mx-4 mb-2 sm:mx-6"
+          tailoring={plan.tailoring}
+          sawRunning={sawRunning}
+          onResume={isPremium && plan.tailoring?.canResume ? resumeTailoring : undefined}
+          resuming={resumeTailoringMutation.isPending}
+        />
+      )}
+
       {/* Learning signals used by the last generation (P1-1) */}
       {personalisation &&
         (personalisation.pinnedDishNames.length > 0 ||
@@ -739,6 +784,8 @@ export default function MealPlanPage() {
                 : undefined
             }
             planDayPending={planDayMutation.isPending && planningDay === selectedDay}
+            tailoring={plan.tailoring}
+            updatedDays={updatedDays}
             onTogglePin={
               !isPast
                 ? (mealType, slotIndex, pinned) =>
@@ -771,6 +818,9 @@ export default function MealPlanPage() {
           <div className="grid min-w-[900px] grid-cols-7 gap-3">
             {plan.days.map((day) => {
               const isToday = isCurrent && day.dayOfWeek === todayIndex;
+              const tailorState = tailoringDayState(plan.tailoring, day.dayOfWeek);
+              const tailorLabel = tailoringDayLabel(tailorState);
+              const justUpdated = updatedDays.has(day.dayOfWeek);
               return (
                 <div key={day.dayOfWeek} className="flex flex-col gap-2">
                   {/* Day header — fixed height so all headers are the same size */}
@@ -789,13 +839,20 @@ export default function MealPlanPage() {
                         Today
                       </span>
                     )}
+                    <TailoringDayMark state={tailorState} onDark={isToday} />
+                    {tailorLabel && <span className="sr-only">, {tailorLabel}</span>}
                   </div>
 
                   {/* Column highlight wrapper for today */}
                   <div
+                    // A day the chef just replaced fades its new meals in
+                    // (MO-13 crossfade: opacity only; the global
+                    // reduced-motion rule makes it instant).
+                    key={day.meals.map((m) => m.recipe.id).join(',')}
+                    data-testid={justUpdated ? `plan-day-updated-${day.dayOfWeek}` : undefined}
                     className={`flex flex-col gap-2 rounded-xl p-1 ${
                       isToday ? 'bg-[#944a00]/10 ring-2 ring-[#944a00]/40' : ''
-                    }`}
+                    } ${justUpdated ? 'animate-in fade-in-0 duration-deliberate ease-enter' : ''}`}
                   >
                     {/* T-07.6 (UX-07 §2): a day outside the chosen shape says
                         so and offers to add it via `planDay` — `planned` is

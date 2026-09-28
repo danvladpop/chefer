@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Switch, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
+import { PLAN_TAILORING_POLL_MS } from '@chefer/types';
 import {
   Button,
   Card,
   ConfirmSheet,
   DENSE_MAX_FONT_SCALE,
+  duration,
   ErrorState,
   Screen,
   Text,
+  useReducedMotion,
   useSnackbar,
 } from '@chefer/ui-mobile';
 import {
@@ -19,9 +23,13 @@ import {
   formatMoney,
   formatPriceRange,
   getWeekStartDate,
+  isTailoringRunning,
+  PLAN_TAILORING_COPY,
   planButtonLabel,
   planShapeSummary,
   sumPlanDay,
+  tailoringDayLabel,
+  tailoringDayState,
 } from '@chefer/utils';
 import { useAiConsent } from '../../src/features/ai-consent/ai-consent-provider';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
@@ -29,6 +37,8 @@ import { PlanDayTotals } from '../../src/features/meal-plan/plan-day-totals';
 import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
 import { PlanSettingsSheet } from '../../src/features/meal-plan/plan-settings-sheet';
 import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sheet';
+import { TailoringBanner, TailoringDayMark } from '../../src/features/meal-plan/tailoring-banner';
+import { useTailoringWatch } from '../../src/features/meal-plan/use-tailoring-watch';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { useCurrency } from '../../src/hooks/use-currency';
@@ -99,12 +109,25 @@ export default function MealPlanScreen() {
   const todayIndex = weekOffset === 0 ? getTodayDayIndex() : null;
   const isWeekendDefault = weekOffset === 1 && defaultWeekOffset(new Date()) === 1;
 
+  // Live tailoring (premium instant week): poll only while the chef is still
+  // working AND this tab is on screen; React Query also pauses it while the
+  // app is backgrounded (focusManager ← AppState, app/_layout.tsx).
+  const isFocused = useIsFocused();
   const {
     data: plan,
     isLoading,
     isError,
     refetch,
-  } = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { retry: false });
+  } = trpc.mealPlan.getForWeek.useQuery(
+    { weekOffset },
+    {
+      retry: false,
+      refetchInterval: (query) =>
+        isFocused && isTailoringRunning(query.state.data?.tailoring)
+          ? PLAN_TAILORING_POLL_MS
+          : false,
+    },
+  );
 
   // Everything derived from the plan lives on other (kept-mounted) tabs —
   // invalidate it all after any plan mutation so Home/Shop don't go stale.
@@ -116,6 +139,16 @@ export default function MealPlanScreen() {
   };
 
   const { show: showSnackbar } = useSnackbar();
+  const reducedMotion = useReducedMotion();
+
+  // Which days the chef just replaced (brief fade + note) and whether the
+  // user watched it run (the DONE confirmation). A replaced day changes the
+  // shopping list and Today too.
+  const { sawRunning, updatedDays } = useTailoringWatch(
+    plan?.planId,
+    plan?.tailoring,
+    invalidateDerived,
+  );
 
   // T-08.3: Undo restores the plan `generate` just replaced (exactly, same
   // recipes and portions) — a fresh copy of the old plan, not a flag flip
@@ -185,6 +218,22 @@ export default function MealPlanScreen() {
         }),
       { usesAi: aiConsentRequiredFor('meal-plan', isPremium) },
     );
+
+  // "Tailor the rest" (PARTIAL/FAILED): re-queues only the untailored days —
+  // no new plan-generation quota. Consent-gated like any premium AI call.
+  const resumeTailoringMutation = trpc.mealPlan.resumeTailoring.useMutation({
+    onSuccess: (data) => {
+      utils.mealPlan.getForWeek.setData({ weekOffset }, data);
+    },
+    onError: (err) => showSnackbar({ message: err.message }),
+  });
+  const resumeTailoring = () => {
+    if (!plan) return;
+    const planId = plan.planId;
+    requestAiConsent('meal-plan', () => resumeTailoringMutation.mutate({ planId }), {
+      usesAi: true,
+    });
+  };
 
   const pinnedCount = plan?.days.flatMap((d) => d.meals).filter((m) => m.pinned).length ?? 0;
   const plannedMealsCount = plan?.days.flatMap((d) => d.meals).length ?? 0;
@@ -501,17 +550,39 @@ export default function MealPlanScreen() {
             </View>
           )}
 
+          {/* Live tailoring: the week is usable now; the chef finishes it day by day */}
+          {!isPast && (
+            <TailoringBanner
+              tailoring={plan.tailoring}
+              sawRunning={sawRunning}
+              onResume={
+                isPremium === true && plan.tailoring?.canResume ? resumeTailoring : undefined
+              }
+              resuming={resumeTailoringMutation.isPending}
+            />
+          )}
+
           {/* Day chips */}
           <View className="flex-row justify-between px-4 pb-2">
             {DAY_LABELS.map((label, i) => {
               const isSelected = selectedDay === i;
               const isToday = todayIndex === i;
               const hasMeals = plan.days.some((d) => d.dayOfWeek === i && d.meals.length > 0);
+              const tailorState = tailoringDayState(plan.tailoring, i);
+              const tailorLabel = tailoringDayLabel(tailorState);
+              const marked =
+                tailorState === 'tailored' ||
+                tailorState === 'tailoring' ||
+                tailorState === 'waiting';
               return (
                 <Pressable
                   key={label}
                   testID={`plan-day-${i}`}
                   accessibilityRole="button"
+                  accessibilityLabel={`${label}${isToday ? ', today' : ''}${
+                    tailorLabel ? `, ${tailorLabel}` : ''
+                  }`}
+                  accessibilityState={{ selected: isSelected }}
                   onPress={() => setSelectedDay(i)}
                   className={cn(
                     'h-14 w-11 items-center justify-center gap-0.5 rounded-xl',
@@ -529,12 +600,20 @@ export default function MealPlanScreen() {
                   >
                     {label}
                   </Text>
-                  <View
-                    className={cn(
-                      'h-1.5 w-1.5 rounded-full',
-                      !hasMeals ? 'bg-transparent' : isSelected ? 'bg-white/70' : 'bg-primary',
+                  {/* Fixed-height slot: the dot and the tailoring marks swap
+                      without moving the chip's label. */}
+                  <View className="h-3 items-center justify-center">
+                    {marked ? (
+                      <TailoringDayMark state={tailorState} selected={isSelected} />
+                    ) : (
+                      <View
+                        className={cn(
+                          'h-1.5 w-1.5 rounded-full',
+                          !hasMeals ? 'bg-transparent' : isSelected ? 'bg-white/70' : 'bg-primary',
+                        )}
+                      />
                     )}
-                  />
+                  </View>
                 </Pressable>
               );
             })}
@@ -634,64 +713,85 @@ export default function MealPlanScreen() {
                 )}
               </Card>
             ) : (
-              meals.map((meal, slotIndex) => (
-                <PlanMealCard
-                  key={`${meal.type}-${slotIndex}`}
-                  testID={`plan-meal-${meal.type}`}
-                  day={selectedDay}
-                  meal={meal}
-                  trailing={
-                    // Replace this meal (all tiers) + toggle "Your pick"
-                    // (T-07.4/T-08.3: a pinned slot survives Regenerate).
-                    !isPast && (
-                      <View className="flex-row">
-                        <Pressable
-                          testID={`plan-meal-pin-${meal.type}`}
-                          accessibilityRole="button"
-                          accessibilityLabel={
-                            meal.pinned
-                              ? `Stop keeping ${meal.recipe.name}`
-                              : `Keep ${meal.recipe.name}`
-                          }
-                          disabled={pinMutation.isPending}
-                          onPress={() =>
-                            pinMutation.mutate({
-                              planId: plan.planId,
-                              dayOfWeek: selectedDay,
-                              mealType: meal.type,
-                              slotIndex,
-                              pinned: !meal.pinned,
-                            })
-                          }
-                          className="w-11 items-center justify-center border-l border-border"
-                        >
-                          <Ionicons
-                            name={meal.pinned ? 'bookmark' : 'bookmark-outline'}
-                            size={18}
-                            color="#944a00"
-                          />
-                        </Pressable>
-                        <Pressable
-                          testID={`plan-meal-swap-${meal.type}`}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Replace ${meal.recipe.name}`}
-                          onPress={() =>
-                            setPickerTarget({
-                              mealType: meal.type,
-                              slotIndex,
-                              mealName: meal.recipe.name,
-                              recipeId: meal.recipe.id,
-                            })
-                          }
-                          className="w-11 items-center justify-center border-l border-border"
-                        >
-                          <Ionicons name="swap-horizontal-outline" size={18} color="#944a00" />
-                        </Pressable>
-                      </View>
-                    )
-                  }
-                />
-              ))
+              // A day the chef just replaced fades its new meals in (MO-13,
+              // opacity only — instant under Reduce Motion); keyed on the
+              // day's recipes so the fade runs exactly when they change.
+              <Animated.View
+                key={meals.map((m) => m.recipe.id).join(',')}
+                entering={
+                  updatedDays.has(selectedDay)
+                    ? FadeIn.duration(reducedMotion ? 0 : duration.deliberate)
+                    : undefined
+                }
+                className="gap-3"
+              >
+                {updatedDays.has(selectedDay) && (
+                  <Text
+                    testID="plan-day-updated"
+                    className="text-xs font-semibold text-emerald-700"
+                  >
+                    {PLAN_TAILORING_COPY.dayUpdated}
+                  </Text>
+                )}
+                {meals.map((meal, slotIndex) => (
+                  <PlanMealCard
+                    key={`${meal.type}-${slotIndex}`}
+                    testID={`plan-meal-${meal.type}`}
+                    day={selectedDay}
+                    meal={meal}
+                    trailing={
+                      // Replace this meal (all tiers) + toggle "Your pick"
+                      // (T-07.4/T-08.3: a pinned slot survives Regenerate).
+                      !isPast && (
+                        <View className="flex-row">
+                          <Pressable
+                            testID={`plan-meal-pin-${meal.type}`}
+                            accessibilityRole="button"
+                            accessibilityLabel={
+                              meal.pinned
+                                ? `Stop keeping ${meal.recipe.name}`
+                                : `Keep ${meal.recipe.name}`
+                            }
+                            disabled={pinMutation.isPending}
+                            onPress={() =>
+                              pinMutation.mutate({
+                                planId: plan.planId,
+                                dayOfWeek: selectedDay,
+                                mealType: meal.type,
+                                slotIndex,
+                                pinned: !meal.pinned,
+                              })
+                            }
+                            className="w-11 items-center justify-center border-l border-border"
+                          >
+                            <Ionicons
+                              name={meal.pinned ? 'bookmark' : 'bookmark-outline'}
+                              size={18}
+                              color="#944a00"
+                            />
+                          </Pressable>
+                          <Pressable
+                            testID={`plan-meal-swap-${meal.type}`}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Replace ${meal.recipe.name}`}
+                            onPress={() =>
+                              setPickerTarget({
+                                mealType: meal.type,
+                                slotIndex,
+                                mealName: meal.recipe.name,
+                                recipeId: meal.recipe.id,
+                              })
+                            }
+                            className="w-11 items-center justify-center border-l border-border"
+                          >
+                            <Ionicons name="swap-horizontal-outline" size={18} color="#944a00" />
+                          </Pressable>
+                        </View>
+                      )
+                    }
+                  />
+                ))}
+              </Animated.View>
             )}
             {meals.length > 0 && (
               <PlanDayTotals

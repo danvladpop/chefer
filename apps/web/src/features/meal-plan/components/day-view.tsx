@@ -1,9 +1,16 @@
 'use client';
 
 import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
-import { UtensilsCrossed } from 'lucide-react';
+import { Check, UtensilsCrossed } from 'lucide-react';
+import type { PlanTailoring } from '@chefer/types';
 import { pressControl } from '@chefer/ui';
-import { cn } from '@chefer/utils';
+import {
+  cn,
+  PLAN_TAILORING_COPY,
+  tailoringDayLabel,
+  tailoringDayState,
+  type TailoringDayState,
+} from '@chefer/utils';
 import { DayRecapBar } from './DayRecapBar';
 import { MealCard } from './MealCard';
 
@@ -89,6 +96,58 @@ interface DayViewProps {
   planDayPending?: boolean;
   /** Live summary of the plan shape, e.g. "Breakfast, lunch, dinner · every day". */
   planShapeSummary?: string | undefined;
+  /** Live tailoring (premium instant week): per-day chip markers. */
+  tailoring?: PlanTailoring | null | undefined;
+  /** Days the chef replaced moments ago — their meals fade in. */
+  updatedDays?: ReadonlySet<number> | undefined;
+}
+
+/**
+ * A day's live-tailoring marker: ✓ tailored, a soft pulse while the chef is
+ * on it, a hollow ring while it waits its turn; nothing otherwise. The pulse
+ * is CSS, so the global reduced-motion rule stills it.
+ */
+export function TailoringDayMark({
+  state,
+  onDark = false,
+}: {
+  state: TailoringDayState;
+  onDark?: boolean;
+}) {
+  if (state === 'tailored') {
+    return (
+      <Check
+        aria-hidden="true"
+        data-testid="tailor-mark-tailored"
+        className={cn('h-3 w-3 shrink-0', onDark ? 'text-white' : 'text-emerald-600')}
+      />
+    );
+  }
+  if (state === 'tailoring') {
+    return (
+      <span
+        aria-hidden="true"
+        data-testid="tailor-mark-tailoring"
+        className={cn(
+          'h-2 w-2 shrink-0 animate-pulse rounded-full',
+          onDark ? 'bg-white' : 'bg-[#944a00]',
+        )}
+      />
+    );
+  }
+  if (state === 'waiting') {
+    return (
+      <span
+        aria-hidden="true"
+        data-testid="tailor-mark-waiting"
+        className={cn(
+          'h-2 w-2 shrink-0 rounded-full border',
+          onDark ? 'border-white/80' : 'border-[#944a00]/50',
+        )}
+      />
+    );
+  }
+  return null;
 }
 
 export function DayView({
@@ -107,6 +166,8 @@ export function DayView({
   onPlanDay,
   planDayPending = false,
   planShapeSummary,
+  tailoring,
+  updatedDays,
 }: DayViewProps) {
   const day = days.find((d) => d.dayOfWeek === selectedDay);
   const meals = day?.meals ?? [];
@@ -128,13 +189,20 @@ export function DayView({
           const isToday = index === todayIndex;
           const hasMeals = days.some((d) => d.dayOfWeek === index && d.meals.length > 0);
           const num = dayNumber(index);
+          const tailorState = tailoringDayState(tailoring, index);
+          const tailorLabel = tailoringDayLabel(tailorState);
+          const marked =
+            tailorState === 'tailored' || tailorState === 'tailoring' || tailorState === 'waiting';
 
           return (
             <button
               key={label}
               role="tab"
               aria-selected={isSelected}
-              aria-label={`${DAY_LONG[index]}${isToday ? ', today' : ''}`}
+              aria-label={`${DAY_LONG[index]}${isToday ? ', today' : ''}${
+                tailorLabel ? `, ${tailorLabel}` : ''
+              }`}
+              data-tailoring={tailorState}
               onClick={() => onSelectDay(index)}
               className={cn(
                 'flex w-[60px] shrink-0 snap-start flex-col items-center gap-0.5 rounded-xl py-2.5',
@@ -148,13 +216,21 @@ export function DayView({
             >
               <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
               {num !== null && <span className="text-sm font-bold leading-none">{num}</span>}
-              <span
-                aria-hidden="true"
-                className={cn(
-                  'mt-0.5 h-1.5 w-1.5 rounded-full',
-                  !hasMeals ? 'bg-transparent' : isSelected ? 'bg-white/70' : 'bg-[#944a00]',
+              {/* Fixed-height slot: the dot and the tailoring marks swap
+                  without moving the chip's content. */}
+              <span className="mt-0.5 flex h-3 items-center justify-center">
+                {marked ? (
+                  <TailoringDayMark state={tailorState} onDark={isSelected} />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      'h-1.5 w-1.5 rounded-full',
+                      !hasMeals ? 'bg-transparent' : isSelected ? 'bg-white/70' : 'bg-[#944a00]',
+                    )}
+                  />
                 )}
-              />
+              </span>
             </button>
           );
         })}
@@ -171,7 +247,18 @@ export function DayView({
           )}
         </h2>
         <span className="shrink-0 text-xs text-gray-500">
-          {meals.length} {meals.length === 1 ? 'meal' : 'meals'}
+          {updatedDays?.has(selectedDay) ? (
+            <span
+              data-testid="plan-day-updated"
+              className="font-semibold text-emerald-700 animate-in fade-in-0 duration-base"
+            >
+              {PLAN_TAILORING_COPY.dayUpdated}
+            </span>
+          ) : (
+            <>
+              {meals.length} {meals.length === 1 ? 'meal' : 'meals'}
+            </>
+          )}
         </span>
       </div>
 
@@ -205,7 +292,16 @@ export function DayView({
         </div>
       ) : (
         <>
-          <div className="flex flex-col gap-3">
+          <div
+            // New meals from the chef fade in (MO-13 crossfade — opacity
+            // only; instant under reduced motion via the global rule).
+            key={meals.map((m) => m.recipe.id).join(',')}
+            className={cn(
+              'flex flex-col gap-3',
+              updatedDays?.has(selectedDay) &&
+                'animate-in fade-in-0 duration-deliberate ease-enter',
+            )}
+          >
             {meals.map((slot, slotIndex) => {
               const override = imageOverrides[slot.recipe.id];
               return (

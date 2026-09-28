@@ -492,7 +492,11 @@ mealPlan.generate { weekOffset }
   │    ├─ no AI call, no chef profile required
   │    └─ recipes ship with preset images (imageStatus DONE) → instant board
   │
-  └─ PREMIUM user (or ADMIN)
+  └─ PREMIUM user (or ADMIN) — since 2026-09-28 the INSTANT path by default
+       (see "Instant week, then live tailoring" below); what follows is the
+       BLOCKING AI week, still used with AI_PLAN_TAILORING=false and when the
+       curated pool cannot cover the table's restrictions. Every step below
+       (inputs, validation, safety) is what each tailored DAY goes through too.
        ├─ load ChefProfile + DietaryPreferences (no profile → default targets,
        │    audit F-PM-2; generation errors render inline with Try again)
        ├─ load learning signals (P1-1): pinned favourites
@@ -532,6 +536,86 @@ mealPlan.generate { weekOffset }
                Only a content-policy refusal ends FAILED. On API start,
                FAILED recipes with no image are backfilled the same way.
 ```
+
+### Instant week, then live tailoring (premium, 2026-09-28)
+
+Production runs AI in free-only mode (Groq → Cloudflare fallback). A whole
+AI week blocked `mealPlan.generate` for minutes (one real generation took
+408 s) while the UI spun. Premium generation now returns in about a second
+and the chef improves the week in the background — the week is usable from
+the first moment and never gets worse than the curated one.
+
+```
+mealPlan.generate (premium, AI_PLAN_TAILORING on — the default)
+  ├─ quota: ONE reservation (reservePlanGeneration), as before
+  ├─ a newer generation cancels any RUNNING tailoring of this week's plan
+  ├─ INSTANT WEEK = the curated builder (same as free): household safety
+  │    filter, plan shape + one-off override, keepPinned, weekOffset;
+  │    premium extras on top: pinned favourites placed verbatim as the
+  │    user's picks (flags cleared), "cook once, eat twice" pairs dinner →
+  │    next-day lunch, cost sized for the household
+  │    └─ curated pool can't cover the table → the BLOCKING AI week instead
+  ├─ AI data consent on file? → queue MealPlanTailoring (else the week just
+  │    stays curated; clients ask for consent before a premium generate)
+  │      order: planned days from TODAY on (today first, then the following
+  │      days; past days untouched); next week: Monday first
+  │      snapshot of each queued day as stored + the shopping ticks now
+  └─ response: the full week + tailoring { status: RUNNING, tailoredDays: [],
+       totalDays, currentDay, queuedDays, keptDays, canResume }
+
+PlanTailoringWorker (DB-polled every 5 s, woken on queue; one day at a time
+across all users; claims a job with a 150 s lease — survives restarts)
+  per step, for the job's next day:
+  ├─ plan no longer ACTIVE (regenerated / restored / deleted) → CANCELLED
+  ├─ user no longer premium or AI consent withdrawn → stop
+  ├─ a NEW shopping tick since generation → stop (the list being shopped
+  │    must stay true)
+  ├─ day changed since generation (Replace, swap, pin, portions — any slot
+  │    edit) or one of its meals already logged → KEPT, no AI call
+  ├─ IAIService.generateMealPlanDay (the per-day prompt the chunked week
+  │    already used; "don't repeat" = the rest of the week), 60 s budget:
+  │    macro reconciliation → day-total validation + one corrective retry
+  │    if ≥ 15 s remain → server-minted ids → household safety pass
+  │    (unsafe dish → safe curated one) → merge: locked slots (the user's
+  │    picks, a leftovers dinner/lunch pair) stay, the AI fills the rest; a
+  │    main the AI left out keeps its curated slot
+  ├─ compare-and-set write: only if the day still equals its snapshot and
+  │    the plan is still ACTIVE (else KEPT) → recipes upserted, images
+  │    queued at the day's priority
+  ├─ capacity/quota error → keep the curated day, back off 30 s → 60 s and
+  │    retry the same day; any other failure or the budget blown → that
+  │    day stays curated (failed) and the chef moves on
+  └─ 3 consecutive failures, or queue empty:
+       DONE    nothing left undone (kept days count as done)
+       PARTIAL stopped early with ≥ 1 day tailored
+       FAILED  stopped before any day was tailored
+
+"Tailor the rest" — mealPlan.resumeTailoring { planId } (PARTIAL/FAILED):
+  re-queues ONLY untailored days (the stopped queue + failed days, from
+  today on) with fresh snapshots; premium, AI consent, plan still current,
+  capped at 3 per plan. No new quota reservation: it finishes the generation
+  the user already paid for; the cap keeps it from becoming a free loop.
+```
+
+**Leftovers decision.** Pairing is cross-day (Monday's dinner is Tuesday's
+lunch), which cannot be tailored one day at a time without breaking pairs
+or rewriting a day the job isn't on. So the pairing is made on the instant
+week and both halves of each pair are _locked_ like the user's picks: the
+chef tailors every other slot, and a pair can never break mid-week.
+
+**Clients (web + mobile).** The Plan screen polls `mealPlan.getForWeek`
+every 3 s (`PLAN_TAILORING_POLL_MS`) only while `tailoring.status` is
+RUNNING and the screen is visible/focused, and stops otherwise. It shows
+"Your chef is tailoring your week · N of M days" with a determinate
+progress bar, marks each day chip ✓ tailored / in progress / waiting (with
+screen-reader labels), fades a replaced day's meals in with "updated by
+your chef", confirms "Your week is tailored" briefly when it watched the
+job finish, and on PARTIAL/FAILED says "Tailored N of M days — the rest are
+from our recipe collection" with **Tailor the rest** (premium, consent-
+gated). Copy and state rules are shared (`@chefer/utils` plan-tailoring).
+Shipped mobile builds that ignore `tailoring` get the curated week
+instantly and see tailored days on their next refetch. Free users are
+unchanged (curated, no tailoring).
 
 ### "How you cook" plan shape (§2.3, T-07.1/T-07.2, persona-study wave 1)
 
@@ -723,8 +807,13 @@ WeeklyPlanWorker (hourly tick; acts Sundays ≥ 08:00 UTC)
   │    │   custom items) → replaced below
   │    └─ anything else (USER, TEMPLATE, WEEKLY_AUTO, edited/shopped copy) → skip
   ├─ follows a "My weeks" template → applyTemplateToWeek (origin TEMPLATE, no AI)
-  ├─ otherwise MealPlanService.generate(userId, 1, true, { origin: WEEKLY_AUTO })
-  │    └─ full premium path: ratings + pins + budget + safety (P1-1/P2-4)
+  ├─ otherwise MealPlanService.generate(userId, 1, true,
+  │      { origin: WEEKLY_AUTO, instant: true })  (instant only while
+  │      AI_PLAN_TAILORING is on)
+  │    └─ the same instant path as the Plan button: a curated week at once,
+  │       tailored Monday-first by PlanTailoringWorker with ratings + pins
+  │       + budget + safety per day (P1-1/P2-4); no inline AI wait, so no
+  │       per-user politeness delay
   └─ Monday: dashboard.summary.weekReady { preparedAt, ratedCount } — only
        for WEEKLY_AUTO plans → "Your week is ready — built from N dishes you rated"
 ```

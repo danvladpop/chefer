@@ -302,8 +302,26 @@ export interface ChatContext {
 
 // ─── Service Interface ────────────────────────────────────────────────────────
 
+/**
+ * One day of a week plan (live tailoring): which day, the dishes already in
+ * the rest of the week (not to repeat), and how long the provider may wait
+ * out rate limits before giving up (the caller has a per-day budget).
+ */
+export interface MealPlanDayRequest {
+  dayOfWeek: number;
+  alreadyPlanned: string[];
+  /** Upper bound for pacing / short-429 waits inside the call. Default 20 s. */
+  maxWaitMs?: number;
+}
+
 export interface IAIService {
   generateMealPlan(input: MealPlanInput): Promise<WeekPlanResponse>;
+  /**
+   * ONE day of the plan (premium live tailoring): same prompt rules as the
+   * week, narrowed to `request.dayOfWeek`. Additive alongside
+   * generateMealPlan, which the blocking path and the eval still call.
+   */
+  generateMealPlanDay(input: MealPlanInput, request: MealPlanDayRequest): Promise<DayPlan>;
   generateRecipeSwap(input: SwapInput): Promise<RecipeData>;
   generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse>;
   estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]>;

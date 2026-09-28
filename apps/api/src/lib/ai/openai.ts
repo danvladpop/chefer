@@ -53,6 +53,7 @@ import type {
   IAIService,
   IngredientPriceEstimate,
   MealPhotoEstimate,
+  MealPlanDayRequest,
   MealPlanInput,
   RecipeData,
   RecipeExtractionSource,
@@ -141,6 +142,8 @@ const BACKGROUND_OPS = new Set([
   'generateReviewText',
 ]);
 const CHUNK_LABEL = 'generateMealPlan.day';
+/** Default wait allowance inside one generateMealPlanDay call (live tailoring). */
+const DAY_MAX_WAIT_MS = 20_000;
 /**
  * Operations simple enough for a smaller model (AI_SECONDARY_FAST_MODEL /
  * CF_FAST_MODEL): flat JSON lookups and a short paragraph — no allergen
@@ -783,39 +786,8 @@ export class OpenAICompatibleAIService implements IAIService {
     };
 
     for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
-      // Pacing: sequential days, and before each one wait until the endpoint's
-      // per-minute token budget (last x-ratelimit-* headers) admits another
-      // day: its prompt (≈ the last one, plus the growing "already planned"
-      // list) + max_tokens. On a paid tier it always fits and never waits.
-      const admission = (this.lastPromptTokens ?? CHUNK_PROMPT_ESTIMATE) + 50 + MAX_TOKENS_PLAN_DAY;
-      const pace = this.rate.waitMsFor(admission);
-      if (pace > 0) await wait(pace);
-
-      const request = () =>
-        this.completeJson({
-          label: CHUNK_LABEL,
-          system: MEAL_PLAN_SYSTEM_PROMPT + MEAL_PLAN_DAY_CHUNK_RULES,
-          user: buildMealPlanDayChunkPrompt(input, dayOfWeek, planned),
-          shape: DAY_PLAN_SHAPE,
-          schema: dayPlanSchema,
-          jsonSchema: { name: 'day_plan', schema: DAY_PLAN_JSON_SCHEMA },
-          temperature: 0.7,
-          maxTokens: MAX_TOKENS_PLAN_DAY,
-        });
-
-      let day;
-      try {
-        day = await request();
-      } catch (err) {
-        // A short per-minute window (429 + Retry-After) is waited out once;
-        // anything longer (daily quota) propagates and the chain fails over.
-        const e = err as HttpError;
-        if (e.status !== 429 || e.retryAfterMs === undefined) throw err;
-        if (!(await wait(e.retryAfterMs + BACKGROUND_RETRY_JITTER_MS))) throw err;
-        day = await request();
-      }
-      // The model is told the day; the position is authoritative.
-      days.push({ ...day, dayOfWeek });
+      const day = await this.requestPlanDay(input, dayOfWeek, planned, wait);
+      days.push(day);
       planned.push(...day.meals.map((m) => m.recipe.name));
     }
 
@@ -830,6 +802,73 @@ export class OpenAICompatibleAIService implements IAIService {
       );
     }
     return week.data;
+  }
+
+  /**
+   * One plan day, paced and 429-tolerant exactly like a chunk of the week:
+   * before the call, wait until the per-minute token budget (last
+   * x-ratelimit-* headers) admits the day's prompt + max_tokens; a short
+   * 429 window is waited out once. `wait` returns false when the caller's
+   * budget forbids the sleep — then a 429 propagates and the chain fails
+   * over (a daily quota always does).
+   */
+  private async requestPlanDay(
+    input: MealPlanInput,
+    dayOfWeek: number,
+    planned: string[],
+    wait: (ms: number) => Promise<boolean>,
+  ): Promise<DayPlan> {
+    // Pacing: the prompt (≈ the last one, plus the "already planned" list)
+    // + max_tokens must fit the per-minute budget. On a paid tier it always
+    // fits and never waits.
+    const admission = (this.lastPromptTokens ?? CHUNK_PROMPT_ESTIMATE) + 50 + MAX_TOKENS_PLAN_DAY;
+    const pace = this.rate.waitMsFor(admission);
+    if (pace > 0) await wait(pace);
+
+    const request = () =>
+      this.completeJson({
+        label: CHUNK_LABEL,
+        system: MEAL_PLAN_SYSTEM_PROMPT + MEAL_PLAN_DAY_CHUNK_RULES,
+        user: buildMealPlanDayChunkPrompt(input, dayOfWeek, planned),
+        shape: DAY_PLAN_SHAPE,
+        schema: dayPlanSchema,
+        jsonSchema: { name: 'day_plan', schema: DAY_PLAN_JSON_SCHEMA },
+        temperature: 0.7,
+        maxTokens: MAX_TOKENS_PLAN_DAY,
+      });
+
+    let day;
+    try {
+      day = await request();
+    } catch (err) {
+      // A short per-minute window (429 + Retry-After) is waited out once;
+      // anything longer (daily quota) propagates and the chain fails over.
+      const e = err as HttpError;
+      if (e.status !== 429 || e.retryAfterMs === undefined) throw err;
+      if (!(await wait(e.retryAfterMs + BACKGROUND_RETRY_JITTER_MS))) throw err;
+      day = await request();
+    }
+    // The model is told the day; the position is authoritative.
+    return { ...day, dayOfWeek };
+  }
+
+  /**
+   * Live tailoring (premium): ONE day of the plan, independent of the
+   * configured mealPlanMode — a single day always fits the small-context
+   * budget. Waits (pacing, one short 429) stay under `maxWaitMs` so the
+   * tailoring worker's per-day budget holds.
+   */
+  async generateMealPlanDay(input: MealPlanInput, request: MealPlanDayRequest): Promise<DayPlan> {
+    let budget = request.maxWaitMs ?? DAY_MAX_WAIT_MS;
+    const wait = async (ms: number): Promise<boolean> => {
+      if (ms > CHUNK_MAX_SINGLE_WAIT_MS || ms > budget) return false;
+      budget -= ms;
+      await this.sleep(ms);
+      return true;
+    };
+    const day = await this.requestPlanDay(input, request.dayOfWeek, request.alreadyPlanned, wait);
+    for (const meal of day.meals) meal.recipe.imageUrl = null;
+    return day;
   }
 
   async generateRecipeSwap(input: SwapInput): Promise<RecipeData> {

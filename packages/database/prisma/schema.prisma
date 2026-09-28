@@ -444,12 +444,69 @@ model MealPlan {
   name          String?
   isFollowed    Boolean        @default(false)
 
-  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  days MealPlanDay[]
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  days      MealPlanDay[]
+  // Instant week, then live tailoring (premium): the background job that
+  // replaces this plan's curated days with AI days, one at a time.
+  tailoring MealPlanTailoring?
 
   @@index([userId])
   @@index([userId, isTemplate])
   @@map("meal_plans")
+}
+
+enum MealPlanTailoringStatus {
+  RUNNING // days still queued for the chef
+  DONE // every queued day was tailored (or kept because the user changed it)
+  PARTIAL // stopped early (capacity, failures, shopping started) — the rest stay curated
+  FAILED // stopped before any day could be tailored
+  CANCELLED // superseded by a newer generation, or the plan stopped being current
+}
+
+// Premium "instant week, then the chef tailors it live": generate returns a
+// complete curated week at once and queues this job; PlanTailoringWorker
+// claims it (lease), asks the AI for ONE day at a time (today first) and
+// swaps that day's meals in. The job is durable (DB-polled), so it survives
+// restarts; deleting the plan deletes it (cascade).
+model MealPlanTailoring {
+  id                  String                  @id @default(cuid())
+  planId              String                  @unique
+  userId              String
+  status              MealPlanTailoringStatus @default(RUNNING)
+  // Days the job set out to tailor (planned days from today on).
+  totalDays           Int
+  // Days still to do, in order (today first, then the following days).
+  queuedDays          Int[]
+  tailoredDays        Int[]
+  // Left alone because the user changed or logged them after generation.
+  keptDays            Int[]
+  // The AI could not produce a usable day — the curated day stays.
+  failedDays          Int[]
+  currentDay          Int?
+  // { "<dayOfWeek>": PlanMealSlotJson[] } as generated — a day that no longer matches was touched.
+  snapshots           Json
+  // Shopping-list ticks at queue time; a new tick means the user started shopping.
+  baselineCheckedKeys String[]
+  // Meal types a tailored day may contain (the plan shape at generation).
+  slotTypes           String[]
+  leftovers           Boolean                 @default(false)
+  // Consecutive failures (capacity errors back off and retry the same day).
+  strikes             Int                     @default(0)
+  // "Tailor the rest" re-queues (capped; no new quota reservation).
+  resumes             Int                     @default(0)
+  nextRunAt           DateTime                @default(now())
+  // Claim lease — a crashed worker's job is picked up again once it lapses.
+  leaseUntil          DateTime?
+  lastError           String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  finishedAt          DateTime?
+
+  plan MealPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextRunAt])
+  @@index([userId])
+  @@map("meal_plan_tailorings")
 }
 
 model MealPlanDay {

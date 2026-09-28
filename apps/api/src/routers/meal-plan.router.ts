@@ -3,6 +3,7 @@ import { planShapeSchema } from '@chefer/types';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 import { planShapeService } from '../application/meal-plan/plan-shape.service.js';
 import { hasFeature, isPremiumUser } from '../lib/entitlements.js';
+import { env } from '../lib/env.js';
 import { reserveAiSwap, reservePlanGeneration } from '../lib/quotas.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
 
@@ -53,6 +54,9 @@ export const mealPlanRouter = router({
         return await mealPlanService.generate(ctx.user.id, input.weekOffset, premium, {
           leftovers: premium && input.leftovers === true,
           usageReserved: true,
+          // Premium: the curated week at once, then the chef tailors it live
+          // (the response carries `tailoring`; poll getForWeek while RUNNING).
+          instant: premium && env.AI_PLAN_TAILORING,
           ...(input.shape && { shape: input.shape }),
           ...(input.keepPinned !== undefined && { keepPinned: input.keepPinned }),
         });
@@ -80,6 +84,23 @@ export const mealPlanRouter = router({
         await reservation.release();
         throw err;
       }
+    }),
+
+  /**
+   * "Tailor the rest": re-queues the days live tailoring did not get to
+   * (PARTIAL/FAILED) — only those days, premium only, capped per plan. No
+   * quota reservation: it completes the generation the user already paid
+   * for (see MealPlanService.resumeTailoring). Returns the plan.
+   */
+  resumeTailoring: protectedProcedure
+    .input(z.object({ planId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      return mealPlanService.resumeTailoring(
+        ctx.user.id,
+        input.planId,
+        isPremiumUser(ctx.user),
+        planView(ctx.user),
+      );
     }),
 
   /** §T-07.1: the user's "how you cook" plan shape (legacy default when unset). */

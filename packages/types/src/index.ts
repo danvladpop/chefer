@@ -12,6 +12,7 @@ export * from './safety-taxonomy';
 export * from './safety';
 export * from './recipe-form';
 export * from './plan-shape';
+export * from './plan-tailoring';
 export * from './feature-flags';
 export * from './analytics-events';
 export * from './targets';

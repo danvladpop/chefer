@@ -34,6 +34,17 @@ export {
 } from './meal-plan.repository';
 
 export {
+  MealPlanTailoringRepository,
+  mealPlanTailoringRepository,
+  stableSlotsJson,
+  type IMealPlanTailoringRepository,
+  type CreateTailoringData,
+  type TailoringProgressPatch,
+  type TailoringSnapshots,
+  type TailoringUserGate,
+} from './meal-plan-tailoring.repository';
+
+export {
   FavouriteRecipeRepository,
   favouriteRecipeRepository,
   type IFavouriteRecipeRepository,

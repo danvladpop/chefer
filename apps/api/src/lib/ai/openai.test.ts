@@ -382,6 +382,66 @@ describe('OpenAICompatibleAIService — chunked meal plan (research §5.4 step 3
   });
 });
 
+describe('OpenAICompatibleAIService — one plan day (live tailoring)', () => {
+  const day = (dayOfWeek: number) =>
+    completion({
+      dayOfWeek: 0, // mislabelled by the model — the requested day wins
+      meals: [
+        { type: 'breakfast', recipe: { ...recipe('Oats'), imageUrl: 'https://x/y.jpg' } },
+        { type: 'dinner', recipe: recipe(`Dinner ${dayOfWeek}`) },
+      ],
+    });
+
+  it('makes ONE strict-schema day call naming the day and the dishes to avoid', async () => {
+    fetchMock.mockResolvedValueOnce(day(4));
+    // Single-call mode configured — a day is always one call regardless.
+    const svc = new OpenAICompatibleAIService(BASE);
+
+    const result = await svc.generateMealPlanDay(PLAN_INPUT, {
+      dayOfWeek: 4,
+      alreadyPlanned: ['Miso Salmon'],
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.dayOfWeek).toBe(4);
+    expect(result.meals.every((m) => m.recipe.imageUrl === null)).toBe(true);
+    const req = body(fetchMock);
+    expect(req['max_tokens']).toBe(4000);
+    expect(req['response_format']).toMatchObject({ type: 'json_schema' });
+    const user = (req['messages'] as { content: string }[])[1]?.content ?? '';
+    expect(user).toContain('Generate ONLY day 4 (Friday)');
+    expect(user).toContain('Miso Salmon');
+  });
+
+  it("waits out a short 429 inside the caller's wait budget", async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    fetchMock.mockResolvedValueOnce(
+      new Response('rate limited', { status: 429, headers: { 'retry-after': '5' } }),
+    );
+    fetchMock.mockResolvedValueOnce(day(2));
+    const svc = new OpenAICompatibleAIService({ ...BASE, sleep });
+    const result = await svc.generateMealPlanDay(PLAN_INPUT, {
+      dayOfWeek: 2,
+      alreadyPlanned: [],
+      maxWaitMs: 10_000,
+    });
+    expect(result.dayOfWeek).toBe(2);
+    expect(sleep).toHaveBeenCalledWith(5250);
+  });
+
+  it('propagates a 429 longer than the wait budget so the chain fails over', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    fetchMock.mockResolvedValueOnce(
+      new Response('rate limited', { status: 429, headers: { 'retry-after': '30' } }),
+    );
+    const svc = new OpenAICompatibleAIService({ ...BASE, sleep });
+    await expect(
+      svc.generateMealPlanDay(PLAN_INPUT, { dayOfWeek: 2, alreadyPlanned: [], maxWaitMs: 5_000 }),
+    ).rejects.toMatchObject({ status: 429 });
+    expect(sleep).not.toHaveBeenCalled();
+  });
+});
+
 describe('OpenAICompatibleAIService — reasoning effort', () => {
   it('sends reasoning_effort with text-model calls only, never to the vision model', async () => {
     fetchMock.mockResolvedValueOnce(completion(recipe('Swap')));
