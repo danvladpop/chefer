@@ -147,7 +147,8 @@ test.describe('Register Page — explicit consent (T-39.1 / T-26.5)', () => {
     await page.getByLabel(/first name/i).fill('Ada');
     await page.getByLabel(/last name/i).fill('Lovelace');
     await page.getByLabel(/email address/i).fill(`e2e-${Date.now()}@example.com`);
-    await page.getByLabel('Password', { exact: true }).fill('Sup3rSecret!');
+    // The visible label reads "Password*"; the accessible name is "Password".
+    await page.getByRole('textbox', { name: 'Password', exact: true }).fill('Sup3rSecret!');
     await page.getByLabel(/confirm password/i).fill('Sup3rSecret!');
     // Neither checkbox ticked — the button stays enabled (03 §UX-26 AC), the
     // inline error is what blocks it, not a disabled submit button.
