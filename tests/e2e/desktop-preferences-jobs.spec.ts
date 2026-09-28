@@ -41,6 +41,15 @@ test.describe('Preferences — home-display toggle (T-04.5)', () => {
   });
 });
 
+const ALL_JOB_IDS = [
+  'TRAIN',
+  'PLAN_MEALS',
+  'HOUSEHOLD',
+  'USE_WHAT_I_HAVE',
+  'SAVED_RECIPES',
+  'TRACK',
+] as const;
+
 test.describe('Preferences — "What you use Chefer for" (T-03.5, UX-03)', () => {
   test('shows the job cards and saves a selection change', async ({ page }) => {
     await gotoAndSettle(page, '/preferences');
@@ -49,7 +58,22 @@ test.describe('Preferences — "What you use Chefer for" (T-03.5, UX-03)', () =>
     const trackCard = page.getByTestId('onboarding-job-TRACK');
     await expect(trackCard).toBeVisible();
 
-    const wasSelected = (await trackCard.getAttribute('aria-checked')) === 'true';
+    // Every existing account (prod accounts included — bug found via the
+    // integration Playwright run, 2026-09-29) can legitimately have zero
+    // saved jobs, so this test cannot assume the starting selection is
+    // non-empty. Capture the FULL original selection, not just TRACK's own
+    // state, since restoring it afterwards needs to know whether that
+    // selection was empty.
+    const originallySelected: string[] = [];
+    for (const job of ALL_JOB_IDS) {
+      if (
+        (await page.getByTestId(`onboarding-job-${job}`).getAttribute('aria-checked')) === 'true'
+      ) {
+        originallySelected.push(job);
+      }
+    }
+
+    const wasSelected = originallySelected.includes('TRACK');
     await trackCard.click();
     await expect(trackCard).toHaveAttribute('aria-checked', wasSelected ? 'false' : 'true');
 
@@ -66,28 +90,28 @@ test.describe('Preferences — "What you use Chefer for" (T-03.5, UX-03)', () =>
       wasSelected ? 'false' : 'true',
     );
 
-    // Restore the original selection.
-    await page.getByTestId('onboarding-job-TRACK').click();
-    const restoreResponse = page.waitForResponse(
-      (r) => r.url().includes('preferences.setJobs') && r.status() === 200,
-    );
-    await page.getByTestId('jobs-section-save').click();
-    await restoreResponse;
+    // Restore the original selection — but only when it had at least one
+    // job. Toggling TRACK back to its original (unselected) state when the
+    // account started with ZERO jobs selected would leave zero jobs
+    // selected again, and Save is intentionally disabled at zero (see the
+    // sibling test below) — there is no UI path back to "no jobs" once a
+    // real selection has been saved, on web or mobile, so this is not
+    // something the test can or should restore.
+    if (originallySelected.length > 0) {
+      await page.getByTestId('onboarding-job-TRACK').click();
+      const restoreResponse = page.waitForResponse(
+        (r) => r.url().includes('preferences.setJobs') && r.status() === 200,
+      );
+      await page.getByTestId('jobs-section-save').click();
+      await restoreResponse;
+    }
   });
 
   test('Save is disabled at zero jobs selected', async ({ page }) => {
     await gotoAndSettle(page, '/preferences');
 
     // Deselect every currently-selected job card.
-    const jobIds = [
-      'TRAIN',
-      'PLAN_MEALS',
-      'HOUSEHOLD',
-      'USE_WHAT_I_HAVE',
-      'SAVED_RECIPES',
-      'TRACK',
-    ] as const;
-    for (const job of jobIds) {
+    for (const job of ALL_JOB_IDS) {
       const card = page.getByTestId(`onboarding-job-${job}`);
       if ((await card.getAttribute('aria-checked')) === 'true') {
         await card.click();
