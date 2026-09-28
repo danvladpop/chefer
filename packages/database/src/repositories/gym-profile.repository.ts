@@ -1,4 +1,5 @@
 import type {
+  DistanceUnit,
   GymEquipmentAccess,
   GymProfile,
   Prisma,
@@ -41,6 +42,8 @@ export interface GymProfileWriteData {
   reminderTimes?: Prisma.InputJsonValue;
   /** CarryOverList (@chefer/utils gym/carry-over.ts), JSON. */
   carryOver?: Prisma.InputJsonValue;
+  /** S21 (T-42.0): null = derived from `unit` (MI when unit = LB, else KM). */
+  distanceUnit?: DistanceUnit | null;
 }
 
 export type GymProfileUpdateData = Partial<GymProfileWriteData>;

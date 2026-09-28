@@ -23,6 +23,19 @@ const EQUIPMENT_ICON: Record<ExerciseEquipment, keyof typeof Ionicons.glyphMap> 
   BAND: 'fitness-outline',
   ASSISTED: 'fitness-outline',
   BODYWEIGHT: 'body-outline',
+  // S19 (T-42.0, UX-42 Flow (1)): "an icon per equipment (bicycle-outline,
+  // walk-outline, boat-outline for the rower, water-outline for the pool,
+  // fitness-outline otherwise)".
+  BIKE: 'bicycle-outline',
+  ASSAULT_BIKE: 'bicycle-outline',
+  TREADMILL: 'walk-outline',
+  OUTDOOR: 'walk-outline',
+  ROWER: 'boat-outline',
+  POOL: 'water-outline',
+  ELLIPTICAL: 'fitness-outline',
+  STAIR_CLIMBER: 'fitness-outline',
+  SKI_ERG: 'fitness-outline',
+  JUMP_ROPE: 'fitness-outline',
 };
 
 const FADE_MS = 150;

@@ -21,6 +21,9 @@ function storedRow(e: ExerciseCatalogEntry, over: Partial<Exercise> = {}): Exerc
     id: e.id,
     ownerId: null,
     ...catalogToWriteData(e, []),
+    // S18 (T-42.0): ExerciseWriteData.trackingType is optional (existing
+    // callers keep compiling); the full Exercise row always has one.
+    trackingType: e.trackingType ?? 'WEIGHT_REPS',
     contentVersion: 3,
     archivedAt: null,
     createdAt: new Date(),
