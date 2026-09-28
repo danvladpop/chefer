@@ -22,6 +22,9 @@ export const featureFlagsSchema = z
     budgetFree: z.boolean(),
     /** D-6: structured recipe-link import, free tier. */
     structuredLinkImportFree: z.boolean(),
+    /** Q-24 (T-42.3, UX-42): cardio as a first-class exercise type. Off by
+     *  default; the owner flips it after checking the W2 minimal slice. */
+    cardioLogging: z.boolean(),
   })
   .partial();
 export type FeatureFlags = z.infer<typeof featureFlagsSchema>;

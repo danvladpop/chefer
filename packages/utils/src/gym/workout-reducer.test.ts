@@ -206,6 +206,50 @@ describe('workoutReducer', () => {
     expect(undone.exercises[0]?.sets[2]?.completedAt).toBeNull();
   });
 
+  it('T-42.3: completeSet/editSet carry the S20 cardio fields, omitted (not undefined) when unset', () => {
+    const doc = start();
+    const se = doc.exercises[0];
+    const set = se?.sets[0];
+    if (!se || !set) throw new Error('fixture');
+
+    const logged = workoutReducer(doc, {
+      type: 'completeSet',
+      seId: se.id,
+      setId: set.id,
+      weightKg: 0,
+      reps: 0,
+      durationSec: 1200,
+      distanceM: 5000,
+      intensityRpe: 6,
+      at: at(1),
+    });
+    const cardioSet = logged.exercises[0]?.sets[0];
+    expect(cardioSet).toMatchObject({ durationSec: 1200, distanceM: 5000, intensityRpe: 6 });
+
+    // A plain completeSet (no cardio fields) never gains the keys at all.
+    const strength = workoutReducer(doc, {
+      type: 'completeSet',
+      seId: se.id,
+      setId: set.id,
+      at: at(1),
+    });
+    expect('durationSec' in (strength.exercises[0]?.sets[0] ?? {})).toBe(false);
+
+    // editSet updates just one cardio field, leaves the others alone.
+    const edited = workoutReducer(logged, {
+      type: 'editSet',
+      seId: se.id,
+      setId: set.id,
+      durationSec: 900,
+      at: at(2),
+    });
+    expect(edited.exercises[0]?.sets[0]).toMatchObject({
+      durationSec: 900,
+      distanceM: 5000,
+      intensityRpe: 6,
+    });
+  });
+
   it('unknown ids are a no-op (same reference, no stamp)', () => {
     const doc = start();
     const se = doc.exercises[0];

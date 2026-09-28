@@ -23,11 +23,15 @@ jest.mock('../../src/lib/trpc', () => {
 });
 jest.mock('expo-router', () => ({
   router: { replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true), push: jest.fn() },
+  // T-03.4: no params by default (Train-only, AC2) — tests that need the
+  // onboarding hand-off override this per case.
+  useLocalSearchParams: jest.fn(() => ({})),
 }));
 
 const { trpc } = jest.requireMock<ReturnType<typeof createTrpcGymMock>>('../../src/lib/trpc');
-const { router } = jest.requireMock<{
+const { router, useLocalSearchParams } = jest.requireMock<{
   router: { replace: jest.Mock; back: jest.Mock; canGoBack: jest.Mock; push: jest.Mock };
+  useLocalSearchParams: jest.Mock;
 }>('expo-router');
 
 const RECOMMEND_RESULT = {
@@ -74,6 +78,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   trpc.gym.profile.recommend.useQuery.mockReturnValue(queryResult({ data: RECOMMEND_RESULT }));
   trpc.gym.profile.save.useMutation.mockReturnValue(mutationResult());
+  useLocalSearchParams.mockReturnValue({});
 });
 
 describe('SetupWizard', () => {
@@ -180,6 +185,68 @@ describe('SetupWizard', () => {
     await renderWizard();
     await user.press(screen.getByTestId('gym-setup-title-back'));
     expect(router.back).toHaveBeenCalled();
+  });
+
+  // T-03.4 (UX-03 AC3): onboarding hands off with `?from=onboarding&days=0,2,4`.
+  describe('from=onboarding&days=… (UX-03 AC3)', () => {
+    beforeEach(() => {
+      useLocalSearchParams.mockReturnValue({ from: 'onboarding', days: '0,2,4' });
+    });
+
+    it('opens at step 2 with the weekdays pre-ticked, skipping the count question', async () => {
+      const user = userEvent.setup();
+      await renderWizard();
+
+      // Step 1 (count) never shows — the wizard opens directly on step 2 (experience).
+      expect(screen.queryByTestId('gym-setup-days')).toBeNull();
+      expect(screen.getByTestId('gym-setup-experience-beginner')).toBeOnTheScreen();
+
+      // Step 4's weekday chips are pre-selected from the days param.
+      await user.press(screen.getByTestId('gym-setup-next')); // → step 3
+      await user.press(screen.getByTestId('gym-setup-next')); // → step 4
+      for (const i of [0, 2, 4]) {
+        const chip = screen.getByTestId(`gym-setup-weekday-${i}`) as unknown as {
+          props: { accessibilityState?: { selected?: boolean } };
+        };
+        expect(chip.props.accessibilityState?.selected).toBe(true);
+      }
+      for (const i of [1, 3, 5, 6]) {
+        const chip = screen.getByTestId(`gym-setup-weekday-${i}`) as unknown as {
+          props: { accessibilityState?: { selected?: boolean } };
+        };
+        expect(chip.props.accessibilityState?.selected).toBe(false);
+      }
+    });
+
+    it('submits with days = 3 (the weekday count) even though step 1 was never shown', async () => {
+      const mutate = jest.fn();
+      trpc.gym.profile.completeSetup.useMutation.mockReturnValue(mutationResult({ mutate }));
+      const user = userEvent.setup();
+      await renderWizard();
+
+      await user.press(screen.getByTestId('gym-setup-next')); // step 2 → 3
+      await user.press(screen.getByTestId('gym-setup-next')); // step 3 → 4
+      await user.press(screen.getByTestId('gym-setup-next')); // step 4 → 5 (weekdays kept)
+      await waitFor(() => expect(screen.getByTestId('gym-setup-preview-day-0')).toBeOnTheScreen());
+      await user.press(screen.getByTestId('gym-setup-next')); // → step 6
+      await user.press(screen.getByTestId('gym-setup-weights-help'));
+      await user.press(screen.getByTestId('gym-setup-next')); // → step 7
+      // The reminder toggle is still asked (protects D3) — finish without it.
+      await user.press(screen.getByTestId('gym-setup-finish'));
+
+      const payload = (mutate.mock.calls as [CompleteSetupInput][])[0]?.[0];
+      expect(payload?.days).toBe(3);
+      expect(payload?.plannedWeekdays).toEqual([0, 2, 4]);
+    });
+
+    it('back on step 2 returns to onboarding, not to the skipped step 1', async () => {
+      const user = userEvent.setup();
+      await renderWizard();
+      await user.press(screen.getByTestId('gym-setup-title-back'));
+      expect(router.back).toHaveBeenCalled();
+      // Still step 2's content, never step 1's — back left the screen entirely.
+      expect(screen.getByTestId('gym-setup-experience-beginner')).toBeOnTheScreen();
+    });
   });
 });
 

@@ -27,6 +27,11 @@ import { GymBootstrapService, previousMonth } from './gym-bootstrap.service.js';
 import type { GymUserContext } from './gym-context.js';
 import { toEquipmentProfile, toRoutineDto } from './mappers.js';
 
+// GymBootstrapService transitively imports client-level.ts → lib/flags.ts →
+// lib/env.ts, which validates the full env schema at import time — mock it
+// (the targets.service.test.ts pattern) so this file needs no real env vars.
+vi.mock('../../lib/flags.js', () => ({ isFlagEnabled: () => false }));
+
 vi.mock('@chefer/utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/utils')>()),
   buildNextWorkout: vi.fn(),
@@ -117,7 +122,9 @@ function setup(
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(toSessionSummary).mockImplementation(
-    (d) => ({ id: d.id, localDate: d.localDate }) as SessionSummaryDto,
+    // T-42.2: recentSessions runs through filterSessionExercisesForLevel, so
+    // the mock needs a real (empty) exercises array, not an undefined one.
+    (d) => ({ id: d.id, localDate: d.localDate, exercises: [] }) as unknown as SessionSummaryDto,
   );
   vi.mocked(summarizeWeeks).mockReturnValue({
     weeks: Array.from({ length: 14 }, (_, i) => ({

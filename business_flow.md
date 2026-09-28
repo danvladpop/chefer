@@ -145,6 +145,14 @@ free workout log too, not meal planning alone (CI-16/CI-25).
    └── Train (TRAIN) → gym setup first (web /gym/setup; mobile Gym mode →
          Today → setup). Food setup comes later: re-opening /onboarding skips
          the question and runs the food steps.
+         T-03.4: a Train + a food job hands off with
+         `/gym/setup?from=onboarding&days=0,2,4` (weekday indices, Mon = 0) —
+         `setup-wizard.tsx` reads this via `useLocalSearchParams`, pre-fills
+         step 1 (day count = the weekdays given) and step 4 (those weekdays
+         ticked), and opens straight at step 2; its back button then returns
+         to onboarding instead of the now-skipped step 1. Train-only (no
+         params) opens at step 1 exactly as before (UX-03 AC2/AC3). The
+         reminder toggle (step 4) is still asked either way (protects D3).
    Skip still works on every step (mobile "Skip for now" saves what is filled
    and leaves; web "Skip this question" continues with the solo flow).
    The premium wizard no longer asks "How many people are you cooking for?"
@@ -2493,6 +2501,72 @@ Workout (offline on the phone) → Finish → outbox → gym.session.upsertMany(
 - **Offers** in the bootstrap (deload, stall, comeback after > 8 days, monthly recap on days
   1–7) are dismissed by key via `gym.progression.dismissOffer`; `startDeload` makes the next 7 days'
   prescriptions deloads.
+
+### 22.1 Correcting a past session (UX-44, Δ2.3) — no new API surface
+
+Edit and delete both ride the existing `gym.session.upsertMany` sync path above; nothing new was
+added to the API for this.
+
+```
+Edit a completed session:
+  load the stored doc → change it on the client → bump clientUpdatedAt → outbox.enqueue(doc)
+  → gym.session.upsertMany applies it like any other sync (last-write-wins on clientUpdatedAt)
+  → recompute folds the EDITED history — a 600 → 60 kg fix changes the next-time target
+    the same way a fresh fold over the corrected numbers would (AC8)
+
+Delete a completed session (with an 8 s Undo):
+  the delete is held on the device (outbox OutboxEntry.holdUntil, T-44.2 — additive, `v` stays 1)
+    → Undo within the window: outbox.cancelHeld(id) removes the entry before it is ever sent
+    → after 8 s (or immediately if the app is killed and relaunched past the window):
+         outbox re-sends the SAME doc with status: 'DISCARDED' and a bumped clientUpdatedAt
+         → gym.session.upsertMany applies it — every list/bootstrap/stat already excludes
+           DISCARDED, and recompute folds the exercises as if the session never happened
+         → once that write is acknowledged AND the device is online, the client calls
+           gym.session.delete (hard delete) so no DISCARDED row lingers (Q-30)
+  Offline the whole way: the DISCARDED upsert is itself an outbox entry, so a delete started
+  offline still "sticks" locally (dropped from the next bootstrap.recentSessions/session.list)
+  even before the hard delete can run.
+
+Target-change notice (PAT-14): the client snapshots bootstrap.progressions[].state.next for the
+touched exercises before enqueueing the edit, diffs against the next bootstrap refetch
+(packages/utils/src/gym/session-edit.ts targetDiff()) and offers "Keep the old ones" →
+gym.progression.setOverride per row — no server change.
+```
+
+The delete confirm's preview lines (this week's session count and streak, before/after) are a pure
+client-side re-fold: `sessionDeletePreview()` (`packages/utils/src/gym/session-edit.ts`) rebuilds
+the current week's row from `bootstrap.weeks`/`.streak` with one session subtracted and re-runs
+`settleWeeks()` (`weeks.ts`) — the same fold the server uses — so the sheet can say "this drops you
+from a 3-week streak to 2" before the delete is even sent.
+
+### 22.2 Cardio delivery (UX-42 minimal slice, T-42.1/T-42.2)
+
+12 catalogue entries (`packages/types/src/gym/cardio-catalog.ts` + the `cardio()` builder in
+`exercise-catalog.ts`) ship through the same sync/bootstrap machinery as strength exercises — a
+cardio `SessionSet` is one row (`weightKg: 0, reps: 0, isWarmup: false`) carrying `durationSec` /
+`distanceM` / `intensityRpe` instead. The only new behaviour is what a client is SENT: `gym
+.bootstrap`, `gym.library.list`, `gym.session.get` and `gym.session.list` each drop rows/exercises
+whose `trackingType` isn't renderable at the caller's `x-chefer-api-level` (`renderableTrackingTypes()`,
+§9) — a mixed session (bench + bike) still shows its bench part to an old client, the bike part
+just isn't there, and week/streak counts are unaffected either way. Progression has no cardio
+state to recompute (Δ2.2); PR/e1RM/volume code needs no special case since a cardio set's
+`weightKg: 0, reps: 0` already produces nothing in those pure functions.
+
+**Mobile logging (T-42.3, behind `cardioLogging`, off by default).** A cardio exercise's card in the
+active workout renders `CardioEntry` (`src/features/gym/workout/cardio-entry.tsx`) instead of the
+usual set rows — `Timer | Enter`, an absolute-timestamp wall-clock timer that survives a kill
+(`cardio-timer.ts`, the same pattern as the existing rest timer, counting up with pause/resume
+instead of down), duration chips, a distance/level stepper when the catalogue entry uses them, and
+`EffortChips` (Easy/Moderate/Hard + an exact 1–10 expansion). "Log it" is one `completeSet` action
+carrying the cardio fields instead of weightKg/reps (`workout-reducer.ts`'s `completeSet`/`editSet`
+gained an optional `CardioSetFields` intersection for this). History (`session-detail-screen.tsx`)
+renders time/distance/effort for a cardio exercise instead of `0 kg × 0`. The custom exercise
+form's "How do you track it?" chips (`trackingType`, replacing the old `isTimed`-only checkbox) and
+a `Cardio` filter chip (exercise picker + Exercises tab) are also behind the flag. The mobile bundle
+sends `x-chefer-api-level: 3` as of this change (Δ2.1) — bumped in the same commit as this UI, per
+the rule that a level is only ever sent by a bundle that implements it. **Not done this wave:** web
+rendering/logging at all (T-42.5, tracked as a reverse `mobile_parity_backlog.md` row), the
+mixed-session `{done}/{planned}` header, and Stats/PR views for a cardio exercise (W5's T-42.8).
 
 ---
 

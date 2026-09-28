@@ -14,6 +14,7 @@ import {
   type StoredSessionSnapshot,
 } from '@chefer/database';
 import type {
+  ExerciseTrackingType,
   RoutineDto,
   SessionSummaryDto,
   SyncResultDto,
@@ -22,6 +23,7 @@ import type {
 } from '@chefer/types';
 import { nextCarryOver, nextDayIdAfter, toSessionSummary } from '@chefer/utils';
 import { logger } from '../../lib/logger.js';
+import { filterSessionExercisesForLevel } from './client-level.js';
 import { readCarryOver, toJson, toRoutineDto, toSessionDoc } from './mappers.js';
 import { progressionService, type ProgressionService } from './progression.service.js';
 
@@ -112,16 +114,25 @@ export class WorkoutSessionService {
     return { results: finalResults };
   }
 
-  async get(userId: string, id: string): Promise<WorkoutSessionDoc> {
+  async get(userId: string, id: string, level = 0): Promise<WorkoutSessionDoc> {
     const row = await this.sessionRepo.findByIdForUser(userId, id);
     if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Workout not found.' });
-    return toSessionDoc(row);
+    const doc = toSessionDoc(row);
+    const trackingTypeById = await this.trackingTypesFor(
+      userId,
+      doc.exercises.map((e) => e.exerciseId),
+    );
+    return {
+      ...doc,
+      exercises: filterSessionExercisesForLevel(doc.exercises, trackingTypeById, level),
+    };
   }
 
   /** History, newest first. Cursor is opaque ("<startedAt ISO>|<id>"). */
   async list(
     userId: string,
     input: { cursor?: string | undefined; limit: number },
+    level = 0,
   ): Promise<{ items: SessionSummaryDto[]; nextCursor: string | null }> {
     const rows = await this.sessionRepo.listForUser(userId, {
       cursor: decodeCursor(input.cursor),
@@ -129,8 +140,18 @@ export class WorkoutSessionService {
     });
     const page = rows.slice(0, input.limit);
     const last = page.at(-1);
+    const trackingTypeById = await this.trackingTypesFor(
+      userId,
+      page.flatMap((r) => r.exercises.map((e) => e.exerciseId)),
+    );
     return {
-      items: page.map((r) => toSessionSummary(toSessionDoc(r))),
+      items: page.map((r) => {
+        const summary = toSessionSummary(toSessionDoc(r));
+        return {
+          ...summary,
+          exercises: filterSessionExercisesForLevel(summary.exercises, trackingTypeById, level),
+        };
+      }),
       nextCursor:
         rows.length > input.limit && last ? `${last.startedAt.toISOString()}|${last.id}` : null,
     };
@@ -153,6 +174,17 @@ export class WorkoutSessionService {
   }
 
   // ─── internals ───────────────────────────────────────────────────────────
+
+  /** exerciseId → trackingType for the client-level filter (T-42.2, Δ2.1). */
+  private async trackingTypesFor(
+    userId: string,
+    exerciseIds: string[],
+  ): Promise<Map<string, ExerciseTrackingType>> {
+    const ids = [...new Set(exerciseIds)];
+    if (ids.length === 0) return new Map<string, ExerciseTrackingType>();
+    const rows = await this.exerciseRepo.findVisibleByIds(userId, ids);
+    return new Map(rows.map((r) => [r.id, r.trackingType]));
+  }
 
   private async applyOne(
     userId: string,
@@ -331,6 +363,15 @@ function toWriteData(doc: WorkoutSessionDoc): SessionDocWriteData {
         reps: s.reps,
         isWarmup: s.isWarmup,
         completedAt: s.completedAt ? new Date(s.completedAt) : null,
+        // S20 (T-42.2): cardio fields, undefined on a strength set's wire doc
+        // — normalised to null for the nullable DB columns.
+        durationSec: s.durationSec ?? null,
+        distanceM: s.distanceM ?? null,
+        intensityRpe: s.intensityRpe ?? null,
+        resistanceLevel: s.resistanceLevel ?? null,
+        inclinePct: s.inclinePct ?? null,
+        caloriesKcal: s.caloriesKcal ?? null,
+        avgHeartRateBpm: s.avgHeartRateBpm ?? null,
       })),
     })),
   };

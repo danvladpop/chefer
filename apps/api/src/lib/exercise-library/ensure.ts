@@ -75,6 +75,11 @@ export function catalogToWriteData(
     perHand: entry.perHand,
     isLowerBody: entry.isLowerBody,
     isTimed: entry.isTimed,
+    // T-42.1: only curated rows that set it explicitly (the cardio() builder)
+    // write trackingType — omitting the key for every other entry means
+    // changedFields() never diffs it, so the boot backfill (Δ2.2) stays the
+    // only thing that derives WEIGHT_REPS/DURATION/BODYWEIGHT_REPS for them.
+    ...(entry.trackingType !== undefined && { trackingType: entry.trackingType }),
     swapGroup: entry.swapGroup,
     cues: entry.cues,
     mistakes: entry.mistakes,

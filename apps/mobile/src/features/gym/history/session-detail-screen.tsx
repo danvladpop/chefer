@@ -3,7 +3,16 @@ import { Alert, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Badge, Button, Card, CardTitle, EmptyState, Screen, Text } from '@chefer/ui-mobile';
-import { cn, formatLoad } from '@chefer/utils';
+import {
+  cn,
+  distanceUnitFor,
+  effortLabelForRpe,
+  formatDistance,
+  formatDurationMinutes,
+  formatLoad,
+  isStrengthTrackingType,
+  trackingTypeOf,
+} from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../library-screens/online-status';
 import { StackBackButton } from '../library-screens/stack-back-button';
@@ -120,6 +129,12 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
 
         {view.exercises.map((exercise) => {
           const meta = libraryLookup.get(exercise.exerciseId);
+          // T-42.3: a cardio exercise's one "set" is time/distance/effort,
+          // never weightKg × reps (which would read "0 kg × 0" otherwise).
+          const cardio = meta ? !isStrengthTrackingType(trackingTypeOf(meta)) : false;
+          const distanceUnit = cardio
+            ? distanceUnitFor(exercise.exerciseId, unit === 'LB' ? 'MI' : 'KM')
+            : null;
           return (
             <Card
               key={exercise.exerciseId}
@@ -129,7 +144,26 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
                 <CardTitle className="mb-0">{meta?.name ?? exercise.exerciseId}</CardTitle>
                 {exercise.skipped ? <Badge variant="secondary">Skipped</Badge> : null}
               </View>
+              {!exercise.skipped && cardio
+                ? exercise.sets.map((set, i) => (
+                    <View key={i} className="flex-row items-center justify-between py-1">
+                      <Text>
+                        {set.durationSec !== undefined
+                          ? formatDurationMinutes(set.durationSec)
+                          : '—'}
+                        {set.distanceM !== undefined && distanceUnit
+                          ? ` · ${formatDistance(set.distanceM, distanceUnit)}`
+                          : ''}
+                        {set.intensityRpe !== undefined
+                          ? ` · ${effortLabelForRpe(set.intensityRpe) ?? `RPE ${set.intensityRpe}`}`
+                          : ''}
+                        {!set.completed ? ' (not logged)' : ''}
+                      </Text>
+                    </View>
+                  ))
+                : null}
               {!exercise.skipped &&
+                !cardio &&
                 (() => {
                   // Bug B-41: sets used to be numbered by their position in
                   // the WHOLE list (warm-ups included), so a working set

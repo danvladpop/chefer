@@ -12,6 +12,12 @@ export interface SessionSetView {
   reps: number;
   isWarmup: boolean;
   completed: boolean;
+  // T-42.3 (S20): the same cardio fields as SessionSetDoc, additive/optional
+  // — a strength set never carries them.
+  durationSec?: number;
+  distanceM?: number;
+  intensityRpe?: number;
+  resistanceLevel?: number;
 }
 
 export interface SessionExerciseView {
@@ -72,6 +78,10 @@ export function viewFromDoc(doc: WorkoutSessionDoc): SessionView {
         reps: s.reps,
         isWarmup: s.isWarmup,
         completed: s.completedAt !== null,
+        ...(s.durationSec !== undefined && { durationSec: s.durationSec }),
+        ...(s.distanceM !== undefined && { distanceM: s.distanceM }),
+        ...(s.intensityRpe !== undefined && { intensityRpe: s.intensityRpe }),
+        ...(s.resistanceLevel !== undefined && { resistanceLevel: s.resistanceLevel }),
       })),
     })),
   };
