@@ -26,6 +26,7 @@ jest.mock('../../src/lib/trpc', () => ({
         getDay: { invalidate: mockInvalidate },
         weeklySummary: { invalidate: mockInvalidate },
         monthlySummary: { invalidate: mockInvalidate },
+        recents: { invalidate: mockInvalidate },
       },
       dashboard: { summary: { invalidate: mockInvalidate } },
     }),

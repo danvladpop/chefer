@@ -47,6 +47,7 @@ jest.mock('../../src/lib/trpc', () => ({
         getDay: { invalidate: jest.fn() },
         weeklySummary: { invalidate: jest.fn() },
         monthlySummary: { invalidate: jest.fn() },
+        recents: { invalidate: jest.fn() },
       },
       dashboard: { summary: { invalidate: jest.fn() } },
       targets: { changes: { invalidate: jest.fn() }, get: { invalidate: jest.fn() } },

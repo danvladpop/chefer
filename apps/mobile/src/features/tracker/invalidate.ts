@@ -5,19 +5,22 @@ import type { trpc } from '../../lib/trpc';
 // scan: scan-meal-card.tsx's log mutation invalidated nothing, so the
 // dashboard ring only caught up on its own stale-time refetch. Every mutation
 // that changes a day's log calls this ONE helper so the day surfaces (the
-// tracker, its weekly strip, Today's ring) can never drift out of sync again.
+// tracker, its weekly strip, Today's ring, and the Log sheet's Recent list —
+// AC1 follow-up to bug B-34) can never drift out of sync again.
 
-type TrpcUtils = ReturnType<(typeof trpc)['useUtils']>;
+export type TrpcUtils = ReturnType<(typeof trpc)['useUtils']>;
 
 /**
  * Invalidates every query a logged/edited/undone day can affect: the day
- * itself, the weekly strip, and Today's dashboard ring. `date` is optional —
- * omit it to invalidate `tracker.getDay` for every cached date (safer after a
- * bulk change like copyDay, where more than one date may be affected).
+ * itself, the weekly strip, Today's dashboard ring, and the Log sheet's
+ * Recent list. `date` is optional — omit it to invalidate `tracker.getDay`
+ * for every cached date (safer after a bulk change like copyDay, where more
+ * than one date may be affected).
  */
 export function invalidateDayQueries(utils: TrpcUtils, date?: string): void {
   void utils.tracker.getDay.invalidate(date ? { date } : undefined);
   void utils.tracker.weeklySummary.invalidate();
   void utils.tracker.monthlySummary.invalidate();
+  void utils.tracker.recents.invalidate();
   void utils.dashboard.summary.invalidate();
 }
