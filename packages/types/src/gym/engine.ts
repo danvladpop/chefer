@@ -266,6 +266,12 @@ export interface PersonalRecord {
   e1rmKg: number | null;
   localDate: string;
   sessionId: string;
+  /**
+   * T-05.6 (UX-05 F): true when this is the exercise's first-ever logged
+   * set (nothing to beat, so this became the baseline) — callers render
+   * "First {lift}: {w} × {reps}" instead of the usual "beat your PR" copy.
+   */
+  isFirst: boolean;
 }
 
 export interface TrainingProfileFacts {

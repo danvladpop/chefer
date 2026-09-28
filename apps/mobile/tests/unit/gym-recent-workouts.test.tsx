@@ -50,6 +50,8 @@ function session(overrides: Partial<SessionSummaryDto> & { id: string }): Sessio
 const today = localDate();
 const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
 const YESTERDAY = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+const TWO_DAYS_AGO = `${twoDaysAgo.getFullYear()}-${String(twoDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(twoDaysAgo.getDate()).padStart(2, '0')}`;
 
 let fetchMock: ReturnType<typeof trpc.useUtils>['gym']['session']['list']['fetch'];
 
@@ -116,6 +118,9 @@ describe('RecentWorkouts', () => {
   });
 
   it('shows a PR badge on a row that beat a prior best', async () => {
+    // T-05.6 (UX-05 F): the very first logged set for an exercise now
+    // counts as a PR too, so s0 (the earliest) also gets the badge — s1
+    // matches it exactly (no PR), and s2 beats both (PR).
     const sessions: SessionSummaryDto[] = [
       session({
         id: 's2',
@@ -143,11 +148,25 @@ describe('RecentWorkouts', () => {
           },
         ],
       }),
+      session({
+        id: 's0',
+        localDate: TWO_DAYS_AGO,
+        startedAt: `${TWO_DAYS_AGO}T18:00:00.000Z`,
+        exercises: [
+          {
+            exerciseId: 'bench',
+            skipped: false,
+            lastSetRir: 2,
+            sets: [{ weightKg: 100, reps: 5, isWarmup: false, completed: true }],
+          },
+        ],
+      }),
     ];
     await render(<RecentWorkouts bootstrap={makeBootstrap({ recentSessions: sessions })} />);
 
     expect(screen.getByTestId('gym-today-recent-row-s2')).toHaveTextContent(/PR/);
     expect(screen.getByTestId('gym-today-recent-row-s1')).not.toHaveTextContent(/PR/);
+    expect(screen.getByTestId('gym-today-recent-row-s0')).toHaveTextContent(/PR/);
   });
 
   it('tapping a row opens its session detail', async () => {

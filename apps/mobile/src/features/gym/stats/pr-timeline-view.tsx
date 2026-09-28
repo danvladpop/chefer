@@ -82,7 +82,15 @@ export function PrTimelineView({ bootstrap }: { bootstrap: GymBootstrap }) {
               <Text>
                 {formatLoad(pr.weightKg, bootstrap.profile?.unit ?? 'KG')} × {pr.reps}
               </Text>
-              <Badge variant="warning">{KIND_LABEL[pr.kind]}</Badge>
+              {/* T-05.6 (UX-05 F): the first-ever logged set is its own kind
+                  of milestone — a bare "e1RM PR" badge would read oddly for
+                  a lift with nothing prior to beat. */}
+              <Badge
+                testID={`stats-pr-row-${i}-badge`}
+                variant={pr.isFirst ? 'secondary' : 'warning'}
+              >
+                {pr.isFirst ? 'First logged' : KIND_LABEL[pr.kind]}
+              </Badge>
             </View>
           </View>
         ))

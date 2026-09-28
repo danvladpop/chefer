@@ -116,9 +116,18 @@ export function StrengthTrendChart({
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-          Strength trend
-        </p>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+            Strength trend
+          </p>
+          {/* UX-05 F (CI-36): captions the chart so "e1RM" is never unexplained. */}
+          <p
+            className="text-xs text-neutral-400"
+            title="Your estimated one-rep max, worked out from your recent sets."
+          >
+            Estimated 1-rep max (e1RM)
+          </p>
+        </div>
         <div
           role="group"
           aria-label="Time range"
@@ -186,7 +195,7 @@ export function StrengthTrendChart({
           disabled={bodyweight.length === 0}
           className="h-4 w-4 rounded border-neutral-300"
         />
-        Relative strength (e1RM ÷ bodyweight)
+        Strength per kg of body weight
         {bodyweight.length === 0 && (
           <span className="text-neutral-400">— log your weight first</span>
         )}

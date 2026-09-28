@@ -1861,6 +1861,31 @@ streaks, no red "missed" markers.
   `nextWorkout.isDeload` and prescribes deload targets (half the sets,
   ~90% load, reps at the floor) on the very next bootstrap read.
 
+### Stats explained (T-05.6, CI-36, bug B-16)
+
+```
+Strength trend: e1RM per session for a picked lift, PR dots, 3m/1y/all, a
+  bodyweight overlay and a "Strength per kg of body weight" toggle (renamed
+  from "Relative strength" — same e1RM ÷ bodyweight math)
+  Caption "Estimated 1-rep max (e1RM)" — mobile's "(e1RM)" is a GlossaryTerm
+    (packages/utils/src/glossary.ts's existing `e1rm` entry); web is plain text
+  Mobile: no interactive tap-tooltip on the chart yet (the shared LineChart
+    primitive has no touch targets) — a caption under the chart instead names
+    the latest point ("{date} · {weight} × {reps} → e1RM {value}"). Web's
+    Recharts <Tooltip> already shows point detail on hover/tap
+PR timeline / summary: a lift's first-ever logged set now counts as a PR
+  (bug B-16's sibling bug: `kindsBeaten` used to require a prior exposure to
+  "beat", so a genuinely new lift never got a badge and a real PR-holder
+  could still see "No PRs yet"). `PersonalRecord.isFirst` (additive) flags it;
+  the timeline shows "First logged" instead of the usual weight/reps/e1RM
+  kind label. Ranked PRs (weight beaten, more reps at a weight already held)
+  still need real prior history — there's no "first" version of those
+Weekly sets per muscle (mobile only — web's chart shows one group at a time):
+  a legend under the stacked bar (colour swatch + `VOLUME_GROUP_LABELS` name,
+  wraps), using the same `seriesColors` map the bars themselves use so the
+  colours always match
+```
+
 ### Exercise library: photos, search and the swap sheet (T-05.11, T-05.A3.1, T-05.10)
 
 - **Photos, everywhere (T-05.11, UX-05 A6):** one shared `ExerciseImage`

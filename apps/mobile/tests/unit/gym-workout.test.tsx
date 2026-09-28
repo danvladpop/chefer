@@ -148,7 +148,11 @@ describe('WorkoutScreen — set rows', () => {
     expect(getRestTimer()).toMatchObject({ durationSec: 120, seId: SE_ID });
     expect(screen.getByTestId('rest-timer')).toBeOnTheScreen();
     expect(screen.getByTestId('workout-progress')).toHaveTextContent(/1\/3 sets/);
-    expect(haptics.impactAsync).toHaveBeenCalledTimes(1);
+    // T-05.6 (UX-05 F): this is the very first logged set ever for this
+    // exercise (no prior sessions, no olderBests) — it now counts as a PR,
+    // so it gets the success haptic instead of a plain tick.
+    expect(haptics.notificationAsync).toHaveBeenCalledWith('success');
+    expect(haptics.impactAsync).not.toHaveBeenCalled();
 
     // A second tap un-ticks it.
     await user.press(screen.getByTestId('exercise-0-set-1-check'));
