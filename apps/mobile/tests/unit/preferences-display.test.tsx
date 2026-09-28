@@ -111,8 +111,8 @@ describe('Preferences — Units & currency (P2-6)', () => {
 
     expect(screen.getByTestId('prefs-save-safety')).toHaveTextContent('Saved ✓');
 
-    await user.type(screen.getByTestId('prefs-allergies-input'), 'peanuts');
-    await user.press(screen.getByTestId('prefs-allergies-add'));
+    // The taxonomy SafetyPicker (T-01.7) replaced the free-text allergy field.
+    await user.press(screen.getByText('Tree nuts'));
 
     expect(screen.getByTestId('prefs-save-safety')).toHaveTextContent('Save safety preferences');
   });
