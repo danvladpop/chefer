@@ -243,8 +243,26 @@ export function WorkoutScreen() {
           }
         }
       },
+      // T-05.7 (bug B-20): typed/stepped reps carry to later unticked sets
+      // that still matched the old value, exactly like weight above — a
+      // reps change on set 1 almost always means the rest too.
       onReps: (seId, setId, reps) => {
+        const se = getResumableSession()?.exercises.find((e) => e.id === seId);
+        const set = se?.sets.find((s) => s.id === setId);
+        if (!se || !set) return;
+        const old = set.reps;
         dispatchWorkout({ type: 'editSet', seId, setId, reps });
+        if (set.isWarmup) return;
+        for (const later of se.sets) {
+          if (
+            !later.isWarmup &&
+            later.position > set.position &&
+            later.completedAt === null &&
+            later.reps === old
+          ) {
+            dispatchWorkout({ type: 'editSet', seId, setId: later.id, reps });
+          }
+        }
       },
       onOpenWeight: (seId, setId) => openSheet({ kind: 'weight', seId, setId }),
       onOpenReps: (seId, setId) => openSheet({ kind: 'reps', seId, setId }),

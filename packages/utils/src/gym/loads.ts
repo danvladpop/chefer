@@ -160,7 +160,9 @@ function computeLoads(slot: LoadSlot, profile: EquipmentProfile): number[] {
     case 'NONE':
       return [0];
     case 'BELT':
-      return profile.hasDipBelt ? beltLoads(profile.unit) : [0];
+      // Q-28: a held load (Back Extension — a plate against the chest) needs
+      // no belt/vest, unlike a weighted dip or pull-up.
+      return profile.hasDipBelt || slot.exercise.heldLoad ? beltLoads(profile.unit) : [0];
     case 'PLATES':
       return plateTotals(profile);
     case 'LIST': {
@@ -196,6 +198,7 @@ export function loadsFor(slot: LoadSlot, profile: EquipmentProfile): readonly nu
     profile.machineStepKg,
     profile.cableStepKg,
     profile.hasDipBelt,
+    model === 'BELT' ? (slot.exercise.heldLoad ?? false) : null,
   ]);
   const hit = cache.get(key);
   if (hit) {

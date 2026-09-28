@@ -38,6 +38,7 @@ import {
   lastNoteFor,
   lastTimeSets,
   livePrs,
+  propagateEditActions,
   sessionProgress,
   setLabelOf,
   sortedExercises,
@@ -153,10 +154,18 @@ export function WorkoutView() {
     (action: WorkoutActionInput) => dispatch(action, { supersets: supersetsRef.current }),
     [dispatch],
   );
+  // T-05.7 (bug B-20, web parity with the mobile logger): a weight or reps
+  // edit carries to later unticked sets that still matched the old value.
   const onEditSet = useCallback(
-    (seId: string, setId: string, patch: { weightKg?: number; reps?: number }) =>
-      act({ type: 'editSet', seId, setId, ...patch }),
-    [act],
+    (seId: string, setId: string, patch: { weightKg?: number; reps?: number }) => {
+      const se = session?.exercises.find((e) => e.id === seId);
+      const set = se?.sets.find((s) => s.id === setId);
+      act({ type: 'editSet', seId, setId, ...patch });
+      if (se && set) {
+        for (const later of propagateEditActions(se, set, patch)) act(later);
+      }
+    },
+    [act, session],
   );
   const onToggleSet = useCallback(
     (seId: string, set: SessionSetDoc) =>

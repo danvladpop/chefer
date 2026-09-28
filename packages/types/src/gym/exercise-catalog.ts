@@ -814,6 +814,7 @@ const STRUCTURE: Struct[] = [
     {
       loadType: 'BODYWEIGHT_PLUS',
       swapGroup: 'hinge',
+      heldLoad: true,
       aliases: ['Hyperextension', 'Roman Chair', 'Hyperextension Bench'],
     },
   ),

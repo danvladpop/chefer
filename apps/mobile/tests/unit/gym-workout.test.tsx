@@ -185,6 +185,31 @@ describe('WorkoutScreen — set rows', () => {
     expect(workingSet(1).reps).toBe(11);
   });
 
+  // T-05.7 (bug B-20): reps propagate to later unticked sets exactly like
+  // weight already does.
+  it('a typed/stepped reps change carries to later unticked sets that matched (B-20)', async () => {
+    const user = userEvent.setup();
+    await renderWorkout(activeDoc());
+    expect(workingSet(0).reps).toBe(10);
+    expect(workingSet(1).reps).toBe(10);
+    expect(workingSet(2).reps).toBe(10);
+
+    await user.press(screen.getByTestId('exercise-0-set-1-reps-inc'));
+    expect(workingSet(0).reps).toBe(11);
+    expect(workingSet(1).reps).toBe(11);
+    expect(workingSet(2).reps).toBe(11);
+
+    // A set that had already diverged (or is done) is left alone.
+    await user.press(screen.getByTestId('exercise-0-set-3-reps-dec'));
+    expect(workingSet(2).reps).toBe(10);
+    expect(workingSet(1).reps).toBe(11);
+
+    await user.press(screen.getByTestId('exercise-0-set-1-check'));
+    await user.press(screen.getByTestId('exercise-0-set-2-reps-inc'));
+    expect(workingSet(0).reps).toBe(11); // ticked set 1 untouched
+    expect(workingSet(1).reps).toBe(12);
+  });
+
   it('a machine stepper uses the profile stack step and snaps odd weights onto it', async () => {
     const user = userEvent.setup();
     const bootstrap = makeBootstrap({ library: [machine()] });
@@ -197,6 +222,25 @@ describe('WorkoutScreen — set rows', () => {
     await user.press(screen.getByTestId('exercise-0-set-2-weight-dec'));
     await user.press(screen.getByTestId('exercise-0-set-2-weight-dec'));
     expect(workingSet(1).weightKg).toBe(55);
+  });
+
+  // Q-28 (T-05.7): a held load (Back Extension) logs added weight without a
+  // dip belt — the weight stepper shows instead of the plain "BW" label.
+  it('a held-load exercise (Back Extension) shows the weight stepper without a dip belt', async () => {
+    const user = userEvent.setup();
+    const backExtension = {
+      ...makeExercise('back-extension', 'Back Extension'),
+      equipment: 'BODYWEIGHT' as const,
+      loadType: 'BODYWEIGHT_PLUS' as const,
+      heldLoad: true,
+    };
+    const bootstrap = makeBootstrap({ library: [backExtension] });
+    const doc = activeDoc({ exerciseId: 'back-extension' });
+    await renderWorkout(doc, bootstrap);
+
+    expect(screen.getByTestId('exercise-0-set-1-weight-value')).not.toHaveTextContent('BW');
+    await user.press(screen.getByTestId('exercise-0-set-1-weight-inc'));
+    expect(workingSet(0).weightKg).toBeGreaterThan(0);
   });
 
   it('tapping a barbell weight opens the plate calculator', async () => {

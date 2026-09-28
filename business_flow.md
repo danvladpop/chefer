@@ -1715,8 +1715,14 @@ next-up flow underneath it.
 Set row: [− weight +] [− reps +] ✓  (prefilled from the suggestion)
   ✓ → completeSet with the shown values → rest timer (working sets only) + haptic
   − / + → next ACHIEVABLE load for the equipment (engine stepUp/stepDown);
-          a weight change carries to the later unticked sets that had the old weight
+          a weight OR reps change carries to the later unticked sets that had the
+          old value (bug B-20, T-05.7 — reps used to be the one field that didn't
+          propagate; web now carries both too, via the shared `propagateEditActions`
+          pattern in `workout-model.ts`)
   tap weight → plate calculator (barbell/smith) or keypad; tap reps → keypad
+  Held loads (Back Extension, BODYWEIGHT_PLUS with `heldLoad: true`) offer the
+    weight stepper without a dip belt (Q-28, T-05.7) — a real belt/vest exercise
+    (weighted dip/pull-up) still needs one
 Last working set ticked → optional RIR chips (0/1/2/3+), highlighted while calibrating;
   the finished exercise stays open until answered / "Not now" / ticking elsewhere
 ⋯ menu → swap (just today | today + routine), skip, add/remove set, move, note, history

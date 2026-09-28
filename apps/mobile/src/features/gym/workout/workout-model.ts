@@ -309,7 +309,10 @@ export function weightModeOf(
 ): WeightMode {
   if (meta.isTimed && !hasLoggedLoad) return 'none';
   const model = loadModel({ exercise: meta });
-  if (model === 'NONE' || (model === 'BELT' && !profile.hasDipBelt)) return 'none';
+  // Q-28: a held load (Back Extension) needs no belt/vest.
+  if (model === 'NONE' || (model === 'BELT' && !profile.hasDipBelt && !meta.heldLoad)) {
+    return 'none';
+  }
   return model === 'PLATES' ? 'plates' : 'keypad';
 }
 
