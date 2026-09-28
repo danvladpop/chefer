@@ -13,8 +13,14 @@ import {
   Text,
   useSnackbar,
 } from '@chefer/ui-mobile';
-import { sameKg, sessionSupersetKey, type SessionSupersetSlot } from '@chefer/utils';
+import {
+  sameKg,
+  sessionSupersetKey,
+  unstartedExercises,
+  type SessionSupersetSlot,
+} from '@chefer/utils';
 import { ExercisePicker } from '../library/exercise-picker';
+import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate, newId } from '../offline/ids';
 import { dispatchWorkout, getResumableSession, useActiveWorkout } from '../use-active-workout';
 import { useGymBootstrap } from '../use-gym-bootstrap';
@@ -83,15 +89,17 @@ function leaveWorkout(): void {
 }
 
 export function WorkoutScreen() {
-  const { session, finish, discard } = useActiveWorkout();
+  const { session, finish, discard, saveForLater, resume } = useActiveWorkout();
   const { data: bootstrap } = useGymBootstrap();
   const online = useIsOnline();
   const swapRoutine = useRoutineSwap();
   const snackbar = useSnackbar();
   const [finishing, setFinishing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [moveUnstarted, setMoveUnstarted] = useState(true);
   const isActive = session !== null;
   const sessionId = session?.id ?? null;
+  const pausedAt = useActiveSessionPausedAt();
 
   // ── Keep the screen on while a workout runs ────────────────────────────────
   useEffect(() => {
@@ -101,6 +109,13 @@ export function WorkoutScreen() {
       deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => undefined);
     };
   }, [isActive]);
+
+  // Opening the workout screen on a "saved for later" session resumes it
+  // (UX-36 (3)) — the Resume card's job was only to get the user back here.
+  useEffect(() => {
+    if (pausedAt !== null) resume();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once, not on every pausedAt read
+  }, []);
 
   // ── Derived, memoised context ──────────────────────────────────────────────
   const unit = unitOf(bootstrap);
@@ -377,29 +392,50 @@ export function WorkoutScreen() {
   );
 
   // ── Finish / discard / minimise ────────────────────────────────────────────
-  const doFinish = useCallback(async () => {
-    closeSheet();
-    setFinishing(true);
-    try {
-      const doc = await finish();
-      if (doc) {
-        rememberFinished(doc);
-        router.replace({ pathname: '/gym/summary/[id]', params: { id: doc.id } });
-        return;
+  const doFinish = useCallback(
+    async (carryOverExerciseIds?: string[]) => {
+      closeSheet();
+      setFinishing(true);
+      try {
+        const doc = await finish(carryOverExerciseIds);
+        if (doc) {
+          rememberFinished(doc);
+          router.replace({ pathname: '/gym/summary/[id]', params: { id: doc.id } });
+          return;
+        }
+      } catch {
+        // The doc is enqueued before anything that can throw; fall through.
       }
-    } catch {
-      // The doc is enqueued before anything that can throw; fall through.
-    }
-    setFinishing(false);
-  }, [closeSheet, finish]);
+      setFinishing(false);
+    },
+    [closeSheet, finish],
+  );
+
+  // The names shown in the finish sheet's "N exercises not started" body and
+  // carried through to `finish()` when the switch stays on (UX-36 (3)).
+  const unstarted = useMemo(() => (session ? unstartedExercises(session) : []), [session]);
 
   const onFinishPress = useCallback(() => {
     const doc = getResumableSession();
     if (!doc) return;
     const { done, planned } = workoutProgress(doc);
-    if (done < planned || done === 0) openSheet({ kind: 'finish' });
-    else void doFinish();
+    if (done < planned || done === 0) {
+      setMoveUnstarted(true);
+      openSheet({ kind: 'finish' });
+    } else void doFinish();
   }, [doFinish, openSheet]);
+
+  const onFinishConfirm = useCallback(() => {
+    const ids =
+      moveUnstarted && session?.routineDayId ? unstarted.map((e) => e.exerciseId) : undefined;
+    void doFinish(ids);
+  }, [doFinish, moveUnstarted, session?.routineDayId, unstarted]);
+
+  const onSaveForLater = useCallback(() => {
+    closeSheet();
+    saveForLater();
+    leaveWorkout();
+  }, [closeSheet, saveForLater]);
 
   const onDiscardConfirm = useCallback(() => {
     closeSheet();
@@ -638,6 +674,11 @@ export function WorkoutScreen() {
         >
           Finish workout
         </Button>
+        {/* UX-36 (3), T-36.3: bottom actions become Finish · Save for later ·
+            Discard — a cut-short workout is never just finish-or-bin (CI-49). */}
+        <Button testID="workout-save-for-later" variant="outline" onPress={onSaveForLater}>
+          Save for later
+        </Button>
         <Button
           testID="workout-discard"
           variant="ghost"
@@ -750,15 +791,38 @@ export function WorkoutScreen() {
         visible={active?.kind === 'finish'}
         onClose={closeSheet}
         testID="workout-finish-sheet"
-        title="Finish workout?"
-        body={
-          done === 0
-            ? 'You haven’t logged any sets yet. Only ticked sets count.'
-            : `${unticked} ${unticked === 1 ? 'set isn’t' : 'sets aren’t'} ticked. Only ticked sets count.`
+        title={
+          unstarted.length > 0 && session.routineDayId
+            ? `${unstarted.length} ${unstarted.length === 1 ? 'exercise' : 'exercises'} not started`
+            : 'Finish workout?'
         }
-        confirmLabel="Finish anyway"
+        body={
+          unstarted.length > 0 && session.routineDayId
+            ? unstarted.map((e) => lookup(e.exerciseId).name).join(', ')
+            : done === 0
+              ? 'You haven’t logged any sets yet. Only ticked sets count.'
+              : `${unticked} ${unticked === 1 ? 'set isn’t' : 'sets aren’t'} ticked. Only ticked sets count.`
+        }
+        // UX-36 (3): "Move them to your next session" (T-36.3) — only offered
+        // when whole exercises were never started AND it's a routine day
+        // (freestyle sessions have no "next session" to carry into).
+        options={
+          unstarted.length > 0 && session.routineDayId
+            ? [
+                {
+                  label: 'Move them to your next session',
+                  detail: 'Turn off to finish now and skip them this time.',
+                  value: moveUnstarted,
+                  onChange: setMoveUnstarted,
+                },
+              ]
+            : undefined
+        }
+        confirmLabel={
+          unstarted.length > 0 && session.routineDayId ? 'Finish workout' : 'Finish anyway'
+        }
         cancelLabel="Keep going"
-        onConfirm={() => void doFinish()}
+        onConfirm={onFinishConfirm}
       />
       <ConfirmSheet
         visible={active?.kind === 'discard'}

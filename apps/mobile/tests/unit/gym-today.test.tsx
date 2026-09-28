@@ -28,6 +28,12 @@ jest.mock('../../src/lib/trpc', () => {
 jest.mock('expo-router', () => ({
   router: { replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true), push: jest.fn() },
   usePathname: () => '/today',
+  // Focus effects run like plain effects in a test render (matches
+  // gym-workout.test.tsx's mock — Today also uses useFocusEffect now, T-36.3).
+  useFocusEffect: (cb: () => undefined | (() => void)) => {
+    const { useEffect: mockUseEffect } = jest.requireActual<typeof import('react')>('react');
+    mockUseEffect(cb, [cb]);
+  },
 }));
 
 const { trpc } = jest.requireMock<ReturnType<typeof createTrpcGymMock>>('../../src/lib/trpc');
@@ -522,6 +528,86 @@ describe('TodayScreen', () => {
 
       await user.press(screen.getByTestId('gym-today-rest-start-anyway'));
       expect(router.push).toHaveBeenCalledWith('/gym/workout');
+    });
+  });
+
+  describe('How this works (T-36.4 remainder)', () => {
+    it('opens the kind-mechanics ExplainSheet from the week card', async () => {
+      const user = userEvent.setup();
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.queryByTestId('gym-how-this-works')).not.toBeOnTheScreen();
+      await user.press(screen.getByTestId('gym-today-how-this-works'));
+      expect(screen.getByTestId('gym-how-this-works')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-how-this-works')).toHaveTextContent(/Weeks, not days/);
+      expect(screen.getByTestId('gym-how-this-works')).toHaveTextContent(/Half sessions count/);
+    });
+  });
+
+  // Only meaningful once at least one weekday has already passed this week
+  // (Monday itself can never have a "missed" day yet — session.test.ts covers
+  // the pure function's Monday edge case directly).
+  const todayWeekday = weekdayOf(localDate());
+  (todayWeekday === 0 ? describe.skip : describe)('Still time this week (T-04.8, UX-04 §7)', () => {
+    // A day pinned to yesterday's weekday is always "earlier this week" here.
+    const missedWeekday = todayWeekday - 1;
+    const missedRoutine: RoutineDto = {
+      ...ROUTINE,
+      days: ROUTINE.days.map((d) => (d.id === 'd1' ? { ...d, plannedWeekday: missedWeekday } : d)),
+    };
+
+    it('offers to move the missed day into the rotation', async () => {
+      const user = userEvent.setup();
+      const mutate = jest.fn();
+      trpc.gym.routine.setNextDay.useMutation.mockReturnValue(mutationResult({ mutate }));
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: missedRoutine, nextWorkout: NEXT_WORKOUT }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByTestId('gym-today-missed')).toHaveTextContent(/Upper A/);
+      await user.press(screen.getByTestId('gym-today-missed-primary'));
+      expect(mutate).toHaveBeenCalledWith({ routineId: 'r1', dayId: 'd1' }, expect.anything());
+    });
+
+    it('"Not this week" dismisses it with a no-nagging snackbar and never a mutation', async () => {
+      const user = userEvent.setup();
+      const mutate = jest.fn();
+      trpc.gym.routine.setNextDay.useMutation.mockReturnValue(mutationResult({ mutate }));
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: missedRoutine, nextWorkout: NEXT_WORKOUT }),
+      );
+      await renderToday(queryClient);
+
+      await user.press(screen.getByTestId('gym-today-missed-dismiss'));
+      expect(mutate).not.toHaveBeenCalled();
+      expect(screen.getByTestId('snackbar-message')).toHaveTextContent(
+        'No problem — missing a session changes nothing.',
+      );
+      expect(screen.queryByTestId('gym-today-missed')).not.toBeOnTheScreen();
+    });
+
+    it('never shows while training is paused', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: missedRoutine,
+          nextWorkout: NEXT_WORKOUT,
+          activePause: { id: 'p1', startDate: localDate(), endDate: localDate(), reason: null },
+        }),
+      );
+      await renderToday(queryClient);
+      expect(screen.queryByTestId('gym-today-missed')).not.toBeOnTheScreen();
     });
   });
 });

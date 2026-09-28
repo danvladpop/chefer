@@ -4,6 +4,7 @@ import type { NextWorkoutDto, WorkoutSessionDoc } from '@chefer/types';
 import {
   setTickOutcome,
   startSession,
+  unstartedExercises,
   workoutReducer,
   type SessionSupersetSlot,
   type WorkoutAction,
@@ -17,7 +18,7 @@ import { localDate, newId, nowIso } from './offline/ids';
 import { outbox } from './offline/outbox';
 import { getGymOwner, subscribeGymOwner } from './offline/owner';
 import { localInstant } from './reminders/schedule';
-import { ensureRestNotificationPermission, skipRest, startRest } from './rest-timer';
+import { skipRest, startRest } from './rest-timer';
 import { applyFinishedLocally } from './use-gym-bootstrap';
 
 // Active workout (gym_plan.md §5.3): the shared pure reducer + crash-safe
@@ -81,10 +82,25 @@ export function startWorkout(input: StartWorkoutInput): WorkoutSessionDoc {
     exercises: planned?.exercises ?? [],
   });
   activeSessionStore.set(doc, getGymOwner());
-  // Lazy, one-time permission ask for the background rest-timer alert — at a
-  // user action, never on cold start.
-  void ensureRestNotificationPermission();
+  // B-40: the rest-timer background-notification permission used to be asked
+  // right here, cold, before the user had any reason to care. It's now asked
+  // with a rationale sheet the first time a rest actually starts
+  // (`rest-timer-bar.tsx`), never at workout start.
   return doc;
+}
+
+/**
+ * "Save for later" (UX-36 (3), T-36.3): keeps the session open (existing
+ * store) for up to 24 h instead of finishing/discarding. A no-op if nothing
+ * is active. Resume card enters its `paused` state (`resume.ts`).
+ */
+export function saveForLater(): void {
+  activeSessionStore.setPausedAt(nowIso());
+}
+
+/** Opening the workout screen on a saved-for-later session resumes it. */
+export function resumeWorkout(): void {
+  activeSessionStore.setPausedAt(null);
 }
 
 export interface DispatchOptions {
@@ -127,16 +143,59 @@ export function dispatchWorkout(
  * Finish: reducer 'finish' → outbox.enqueue (durable FIRST) → optimistic fold
  * into the cached bootstrap → clear the active session and rest timer.
  * Returns the finished doc (its id routes to the summary screen).
+ *
+ * `carryOverExerciseIds` (T-36.3): the unstarted exercises the user chose to
+ * "move to your next session" — omit/[] behaves exactly as before.
  */
-export async function finishWorkout(queryClient: QueryClient): Promise<WorkoutSessionDoc | null> {
+export async function finishWorkout(
+  queryClient: QueryClient,
+  carryOverExerciseIds?: string[],
+): Promise<WorkoutSessionDoc | null> {
   const record = activeSessionStore.get();
   if (!record) return null;
-  const finished = workoutReducer(record.doc, { type: 'finish', at: nowIso() });
+  const finished = workoutReducer(record.doc, {
+    type: 'finish',
+    at: nowIso(),
+    carryOverExerciseIds,
+  });
   outbox.enqueue(finished, { ownerId: record.ownerId ?? getGymOwner() });
   activeSessionStore.clear();
   skipRest();
   await applyFinishedLocally(queryClient, finished);
   return finished;
+}
+
+/** 24 h "Save for later" window (UX-36 (3)) — kept in one place with `resume.ts`'s copy of it. */
+const SAVE_FOR_LATER_HOURS = 24;
+
+export interface AutoFinishNotice {
+  dayName: string;
+  workingSetsDone: number;
+}
+
+/**
+ * Startup/foreground check (UX-36 (3)): a session "saved for later" more
+ * than 24 h ago finishes automatically with whatever was logged (D22 — half
+ * sessions still count), carrying over anything never started, exactly like
+ * a manual Finish would. Returns a notice for Gym Today to show once
+ * (`We finished your {dayName} with {n} sets.`), or null if nothing timed out.
+ */
+export async function checkPausedWorkoutTimeout(
+  queryClient: QueryClient,
+): Promise<AutoFinishNotice | null> {
+  const record = activeSessionStore.get();
+  if (!record?.pausedAt) return null;
+  const ageMs = Date.now() - Date.parse(record.pausedAt);
+  if (ageMs < SAVE_FOR_LATER_HOURS * 60 * 60 * 1000) return null;
+
+  const doc = record.doc;
+  const carryOverExerciseIds = unstartedExercises(doc).map((e) => e.exerciseId);
+  const workingSetsDone = doc.exercises.reduce(
+    (n, se) => n + se.sets.filter((s) => !s.isWarmup && s.completedAt !== null).length,
+    0,
+  );
+  await finishWorkout(queryClient, carryOverExerciseIds);
+  return { dayName: doc.name, workingSetsDone };
 }
 
 /**
@@ -181,8 +240,11 @@ export interface ActiveWorkout {
   isActive: boolean;
   start: (input: StartWorkoutInput) => WorkoutSessionDoc;
   dispatch: (action: WorkoutActionInput, options?: DispatchOptions) => WorkoutSessionDoc | null;
-  finish: () => Promise<WorkoutSessionDoc | null>;
+  /** `carryOverExerciseIds` (T-36.3): move these unstarted exercises to next time. */
+  finish: (carryOverExerciseIds?: string[]) => Promise<WorkoutSessionDoc | null>;
   discard: () => WorkoutSessionDoc | null;
+  saveForLater: () => void;
+  resume: () => void;
 }
 
 export function useActiveWorkout(): ActiveWorkout {
@@ -190,7 +252,10 @@ export function useActiveWorkout(): ActiveWorkout {
   const owner = useSyncExternalStore(subscribeGymOwner, getGymOwner);
   const queryClient = useQueryClient();
   const session = belongsTo(record, owner) ? (record?.doc ?? null) : null;
-  const finish = useCallback(() => finishWorkout(queryClient), [queryClient]);
+  const finish = useCallback(
+    (carryOverExerciseIds?: string[]) => finishWorkout(queryClient, carryOverExerciseIds),
+    [queryClient],
+  );
 
   return useMemo(
     () => ({
@@ -200,6 +265,8 @@ export function useActiveWorkout(): ActiveWorkout {
       dispatch: dispatchWorkout,
       finish,
       discard: discardWorkout,
+      saveForLater,
+      resume: resumeWorkout,
     }),
     [session, finish],
   );

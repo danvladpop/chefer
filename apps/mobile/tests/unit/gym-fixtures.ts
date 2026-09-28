@@ -40,6 +40,8 @@ export const profile: GymProfileDto = {
   reminderEnabled: false,
   reminderTime: null,
   setupCompletedAt: '2026-09-01T00:00:00.000Z',
+  reminderTimes: {},
+  quietNudgeDays: null,
 };
 
 export function makeExercise(id: string, name = id): ExerciseDto {
@@ -87,6 +89,7 @@ export function makeBootstrap(overrides: Partial<GymBootstrap> = {}): GymBootstr
     streak: { current: 0, best: 0, flexTokens: 0, thisWeekSessions: 0, thisWeekGoal: 3 },
     offers: [],
     activePause: null,
+    carryOver: [],
     bodyweightKg: null,
     serverTime: '2026-09-24T09:00:00.000Z',
     engineVersion: 1,

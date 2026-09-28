@@ -16,11 +16,14 @@ import { outbox } from '../../src/features/gym/offline/outbox';
 import { resetGymOwnerForTests, setGymOwner } from '../../src/features/gym/offline/owner';
 import { getRestTimer, resetRestTimerForTests } from '../../src/features/gym/rest-timer';
 import {
+  checkPausedWorkoutTimeout,
   discardWorkout,
   dispatchWorkout,
   finishWorkout,
   getResumableSession,
   reconcileActiveSession,
+  resumeWorkout,
+  saveForLater,
   startWorkout,
 } from '../../src/features/gym/use-active-workout';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
@@ -110,7 +113,14 @@ function fakeReducer(doc: WorkoutSessionDoc, action: WorkoutAction): WorkoutSess
   const next = { ...doc, clientUpdatedAt: action.at };
   switch (action.type) {
     case 'finish':
-      return { ...next, status: 'COMPLETED', finishedAt: action.at };
+      return {
+        ...next,
+        status: 'COMPLETED',
+        finishedAt: action.at,
+        ...(action.carryOverExerciseIds && action.carryOverExerciseIds.length > 0
+          ? { carryOverExerciseIds: action.carryOverExerciseIds }
+          : {}),
+      };
     case 'discard':
       return { ...next, status: 'DISCARDED', finishedAt: action.at };
     case 'completeSet':
@@ -298,5 +308,80 @@ describe('active workout', () => {
     const entry = outbox.getState().entries[0];
     expect(entry?.ownerId).toBe('user-a');
     expect(entry?.doc).toMatchObject({ id: doc.id, status: 'IN_PROGRESS' });
+  });
+
+  // Regression B-40: the rest-timer notification permission used to be
+  // requested right here, cold, on every workout start.
+  it('never requests the rest-timer notification permission at workout start (regression B-40)', () => {
+    const notifications = jest.requireMock<{ requestPermissionsAsync: jest.Mock }>(
+      'expo-notifications',
+    );
+    startWorkout({ kind: 'freestyle' });
+    expect(notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it('finish(carryOverExerciseIds) moves the unstarted exercises to the next session (T-36.3)', async () => {
+    const queryClient = testQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+    utils.applyFinishedSession.mockReturnValue(makeBootstrap());
+
+    startWorkout({ kind: 'freestyle' });
+    const finished = await finishWorkout(queryClient, ['bench']);
+
+    expect(finished).toMatchObject({ status: 'COMPLETED', carryOverExerciseIds: ['bench'] });
+  });
+
+  it('saveForLater() pauses the active session; resume() un-pauses it', () => {
+    startWorkout({ kind: 'freestyle' });
+    expect(activeSessionStore.get()?.pausedAt).toBeNull();
+
+    saveForLater();
+    expect(activeSessionStore.get()?.pausedAt).not.toBeNull();
+
+    resumeWorkout();
+    expect(activeSessionStore.get()?.pausedAt).toBeNull();
+  });
+
+  it('saveForLater() is a no-op with no active session', () => {
+    expect(activeSessionStore.get()).toBeNull();
+    saveForLater();
+    expect(activeSessionStore.get()).toBeNull();
+  });
+
+  describe('checkPausedWorkoutTimeout (UX-36 (3))', () => {
+    it('is a no-op with no active session, or an active-but-not-paused one', async () => {
+      const queryClient = testQueryClient();
+      expect(await checkPausedWorkoutTimeout(queryClient)).toBeNull();
+
+      startWorkout({ kind: 'freestyle' });
+      expect(await checkPausedWorkoutTimeout(queryClient)).toBeNull();
+      expect(getResumableSession()).not.toBeNull(); // never finished
+    });
+
+    it('is a no-op while inside the 24 h window', async () => {
+      const queryClient = testQueryClient();
+      startWorkout({ kind: 'freestyle' });
+      activeSessionStore.setPausedAt(new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString());
+
+      expect(await checkPausedWorkoutTimeout(queryClient)).toBeNull();
+      expect(getResumableSession()).not.toBeNull();
+    });
+
+    it('auto-finishes past 24 h, carrying over the unstarted exercise and naming it in the notice', async () => {
+      const queryClient = testQueryClient();
+      queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+      utils.applyFinishedSession.mockReturnValue(makeBootstrap());
+      // sessionWithSets(): one exercise (bench), never touched — 0 sets logged.
+      const doc = startWorkout({ kind: 'freestyle' });
+      activeSessionStore.setPausedAt(new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString());
+
+      const notice = await checkPausedWorkoutTimeout(queryClient);
+
+      expect(notice).toEqual({ dayName: doc.name, workingSetsDone: 0 });
+      expect(getResumableSession()).toBeNull(); // it finished
+      const enqueued = outbox.getState().entries[0]?.doc;
+      expect(enqueued?.status).toBe('COMPLETED');
+      expect(enqueued?.carryOverExerciseIds).toEqual(['bench']); // never started
+    });
   });
 });
