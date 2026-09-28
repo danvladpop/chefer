@@ -22,7 +22,8 @@ const withoutPushEntitlement = (cfg) => {
 
 // Two app variants (M4-4) so a laptop-independent production build and a
 // Metro-backed dev client can live side by side on the same phone:
-//   production  — "Chefer",     dev.chefer.app,     EAS Update channel "production"
+//   production  — "Chefer",     iOS com.popdan.chefer / Android dev.chefer.app,
+//                 EAS Update channel "production"
 //   development — "Chefer Dev", dev.chefer.app.dev, dev client (default)
 // ios/ and android/ are generated per variant — scripts/ensure-variant.sh
 // re-runs prebuild when the variant changes.
@@ -41,8 +42,11 @@ if (IS_PRODUCTION && !process.env.EXPO_PUBLIC_API_URL?.startsWith('https://')) {
 }
 
 /**
- * Bundle identifier dev.chefer.app was confirmed at EAS setup (M4-1); the dev
- * variant appends ".dev".
+ * Production iOS bundle id is com.popdan.chefer (2026-09-28): `dev.chefer.app`
+ * stayed registered to the free personal team that signed the early builds,
+ * and bundle ids are unique across all Apple teams, so the paid team's App
+ * Store build needs its own. Android keeps dev.chefer.app; the dev variant
+ * keeps dev.chefer.app.dev on both.
  * @type {import('expo/config').ExpoConfig}
  */
 const config = {
@@ -65,7 +69,7 @@ const config = {
   icon: IS_PRODUCTION ? './assets/icon.png' : './assets/icon-dev.png',
   userInterfaceStyle: 'automatic',
   ios: {
-    bundleIdentifier: IS_PRODUCTION ? 'dev.chefer.app' : 'dev.chefer.app.dev',
+    bundleIdentifier: IS_PRODUCTION ? 'com.popdan.chefer' : 'dev.chefer.app.dev',
     supportsTablet: false,
     // Apple team for signing local device builds (set in .env — the repo is
     // public). Unset is fine: simulator builds don't sign, and EAS cloud

@@ -123,14 +123,15 @@ cd apps/mobile && npx eas-cli env:create --environment production --name EXPO_AP
 After the first store build, check that the runtime version on the EAS build page equals the
 one `pnpm mobile:update` prints. If they differ, OTA won't reach the store build.
 
-**Bundle ID `dev.chefer.app`:** bundle IDs are unique across all Apple teams, and your free
-personal team registered this one for the phone builds. If EAS or App Store Connect says the
-identifier is **"not available"**, that's why:
+**Bundle ID `com.popdan.chefer`** (decided 2026-09-28). The first EAS build reported
+`dev.chefer.app` as **"not available"**: bundle IDs are unique across all Apple teams, and the
+free personal team that signed the early phone builds still holds it. The production iOS
+`bundleIdentifier` is now `com.popdan.chefer`; the Android package stays `dev.chefer.app`.
 
-- Stop re-signing with the free team and wait for its registration to lapse (free-team
-  profiles last 7 days; your last one expires around **30 Sep 2026**), then retry; or
-- Change the production `bundleIdentifier` in `apps/mobile/app.config.js` (e.g.
-  `app.chefer.ios`). Only the iOS ID has to change; the Android package can stay.
+- Let the **paid** team register it first: run the EAS build (or register it under
+  Certificates, IDs & Profiles → Identifiers) before any local build.
+- Never run `pnpm mobile:release:ios` with the free team's `EXPO_APPLE_TEAM_ID` again: Xcode
+  would register `com.popdan.chefer` to the free team and lock it the same way.
 
 Once TestFlight works (§6), install Chefer on your iPhone **from TestFlight** and drop the 7-day
 `pnpm mobile:release:ios` re-sign. TestFlight builds last 90 days.
@@ -141,14 +142,14 @@ Once TestFlight works (§6), install Chefer on your iPhone **from TestFlight** a
 
 App Store Connect → **Apps → + → New App**:
 
-| Field            | Value                                                                                                                                                                                   |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Platforms        | iOS                                                                                                                                                                                     |
-| Name             | `Chefer: Meal Planner & Gym` (fallbacks in metadata.md)                                                                                                                                 |
-| Primary language | English (U.S.)                                                                                                                                                                          |
-| Bundle ID        | `dev.chefer.app` (if it's missing from the dropdown, register it first under Certificates, IDs & Profiles → Identifiers → +, App IDs, Explicit; or let the first EAS build register it) |
-| SKU              | `chefer-ios-001`                                                                                                                                                                        |
-| User access      | Full access                                                                                                                                                                             |
+| Field            | Value                                                                                                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Platforms        | iOS                                                                                                                                                                                        |
+| Name             | `Chefer: Meal Planner & Gym` (fallbacks in metadata.md)                                                                                                                                    |
+| Primary language | English (U.S.)                                                                                                                                                                             |
+| Bundle ID        | `com.popdan.chefer` (if it's missing from the dropdown, register it first under Certificates, IDs & Profiles → Identifiers → +, App IDs, Explicit; or let the first EAS build register it) |
+| SKU              | `chefer-ios-001`                                                                                                                                                                           |
+| User access      | Full access                                                                                                                                                                                |
 
 Note the **Apple ID** number of the app (App Information → General). That's the `ascAppId`
 for `eas.json` → `submit.production.ios.ascAppId`, which saves EAS from asking every time.
