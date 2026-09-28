@@ -18,6 +18,12 @@ vi.mock('@/features/dashboard/components/training-day-note', () => ({
   TrainingDayNote: () => null,
 }));
 vi.mock('@/features/meal-plan/components/RebalanceBanner', () => ({ RebalanceBanner: () => null }));
+vi.mock('@/features/nutrition/components/ChangeNoticeCard', () => ({
+  ChangeNoticeCard: () => null,
+}));
+vi.mock('@/features/nutrition/components/TargetExplainSheet', () => ({
+  TargetExplainSheet: () => null,
+}));
 vi.mock('@/features/tracker/components/QuickAddSheet', () => ({ QuickAddSheet: () => null }));
 vi.mock('@/features/tracker/components/ScanMealButton', () => ({ ScanMealButton: () => null }));
 vi.mock('@/features/tracker/lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
@@ -38,6 +44,11 @@ vi.mock('@/lib/trpc', () => ({
       },
       upsertDay: { useMutation: () => ({ mutate: m.upsert, isPending: false }) },
       deleteCustomMeal: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+    },
+    // §2.11 — TargetExplainSheet's query (mocked away above; still called by
+    // the page directly).
+    targets: {
+      get: { useQuery: () => ({ data: undefined }) },
     },
   },
 }));

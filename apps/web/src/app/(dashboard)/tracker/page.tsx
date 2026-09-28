@@ -4,6 +4,8 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { TrainingDayNote } from '@/features/dashboard/components/training-day-note';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
+import { ChangeNoticeCard } from '@/features/nutrition/components/ChangeNoticeCard';
+import { TargetExplainSheet } from '@/features/nutrition/components/TargetExplainSheet';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
 import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
@@ -16,7 +18,7 @@ import { useIsPremium } from '@/hooks/useIsPremium';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { addDays, format } from 'date-fns';
-import { ChevronLeft, ChevronRight, Flame, Save, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Flame, Info, Save, Trash2 } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
 import { formatPortion, localDateStr, matchLoggedToSlots, slotPortion } from '@chefer/utils';
 
@@ -55,6 +57,10 @@ export default function TrackerPage() {
   const todayStr = toDateStr(new Date());
   const isToday = todayStr === dateStr;
   const isFuture = selectedDate > new Date() && !isToday;
+  // §2.11, T-11.2: fetched lazily (enabled only once the sheet opens) to
+  // keep it off the tracker's critical path.
+  const [explainOpen, setExplainOpen] = useState(false);
+  const { data: targetsView } = trpc.targets.get.useQuery(undefined, { enabled: explainOpen });
 
   const utils = trpc.useUtils();
   const { data, isLoading, isError, isRefetching, refetch } = trpc.tracker.getDay.useQuery(
@@ -288,16 +294,31 @@ export default function TrackerPage() {
             <QuickAddSheet date={dateStr} onLogged={() => void refetch()} />
           </div>
 
+          {/* Target change notice (§2.11, T-11.1/T-11.5) — never a silent change */}
+          <ChangeNoticeCard />
+
           {/* Macro summary */}
           <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
                 {isToday ? "Today's Progress" : 'Day Progress'}
               </p>
-              <span className="flex items-center gap-1 text-sm font-bold text-neutral-700">
-                <Flame className="h-4 w-4 text-[#944a00]" />
-                {loggedKcal.toLocaleString()} / {target.toLocaleString()} kcal
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 text-sm font-bold text-neutral-700">
+                  <Flame className="h-4 w-4 text-[#944a00]" />
+                  {loggedKcal.toLocaleString()} / {target.toLocaleString()} kcal
+                </span>
+                {/* UX-11 AC3: tapping the day totals opens "Why this number". */}
+                <button
+                  type="button"
+                  aria-label="Why this target"
+                  data-testid="tracker-why-target"
+                  onClick={() => setExplainOpen(true)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </div>
             </div>
             {data.trainingDay && <TrainingDayNote t={data.trainingDay} isToday={isToday} />}
             {[
@@ -544,6 +565,12 @@ export default function TrackerPage() {
           )}
         </>
       )}
+
+      <TargetExplainSheet
+        open={explainOpen}
+        onClose={() => setExplainOpen(false)}
+        view={targetsView}
+      />
     </div>
   );
 }
