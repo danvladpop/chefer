@@ -1,0 +1,106 @@
+# Gym Today Recent list → Stats "All history" → session detail set numbering.
+# E2E for T-36.5 (bug B-41: working sets used to be numbered including
+# preceding warm-ups) and the Recent list (T-36.A2.1). Needs at least one
+# COMPLETED gym session in the seeded/dev data for the signed-in account.
+# Preconditions: signed-in session (connect.yaml signs in as alice if
+# needed) with a gym profile and completed history (seed data).
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+
+# ── Food → Gym Today ──────────────────────────────────────────────────────────
+- tapOn:
+    id: 'mode-switch-gym'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 15000
+
+# A resumable/paused session left by an earlier run must not sit on top of
+# the Recent list — discard it first, exactly like gym-workout.flow.yaml.
+- runFlow:
+    when:
+      visible:
+        id: 'gym-today-resume'
+    commands:
+      - tapOn:
+          id: 'gym-today-resume-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'workout-title'
+          timeout: 15000
+      - scrollUntilVisible:
+          element:
+            id: 'workout-discard'
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          id: 'workout-discard'
+      - tapOn:
+          id: 'workout-discard-sheet-confirm'
+      - extendedWaitUntil:
+          visible:
+            id: 'gym-today-title'
+          timeout: 15000
+
+# ── Recent list on Gym Today (T-36.A2.1) ─────────────────────────────────────
+- scrollUntilVisible:
+    element:
+      id: 'gym-today-recent'
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: 'gym-today-recent'
+- scrollUntilVisible:
+    element:
+      id: 'gym-today-recent-all-history'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'gym-today-recent-all-history'
+
+# ── Stats › History segment (T-36.5, bug B-41) ───────────────────────────────
+# The link deep-links straight into the History segment (?tab=history) —
+# stats-tab.tsx reads it via useLocalSearchParams.
+- extendedWaitUntil:
+    visible:
+      id: 'gym-stats-title'
+    timeout: 15000
+- assertVisible:
+    id: 'gym-stats-segment-history'
+- assertVisible:
+    id: 'gym-history'
+- scrollUntilVisible:
+    element:
+      id: 'gym-history-row-.*'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'gym-history-row-.*'
+
+# ── Session detail: working sets numbered from 1, warm-ups labelled ─────────
+# Bug B-41: a working set after 2 warm-ups used to read "Set 3" — working
+# sets and warm-ups each get their own 1-based counter now.
+- extendedWaitUntil:
+    visible:
+      id: 'gym-session-detail'
+    timeout: 15000
+- assertVisible: 'Set 1'
+- tapOn:
+    id: 'gym-session-title-back'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-stats-title'
+    timeout: 15000
+
+# ── Back to Food mode ─────────────────────────────────────────────────────────
+- tapOn:
+    id: 'mode-switch-food'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000

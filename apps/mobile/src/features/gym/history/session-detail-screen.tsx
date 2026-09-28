@@ -130,23 +130,33 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
                 {exercise.skipped ? <Badge variant="secondary">Skipped</Badge> : null}
               </View>
               {!exercise.skipped &&
-                exercise.sets.map((set, i) => (
-                  <View
-                    key={i}
-                    className={cn(
-                      'flex-row items-center justify-between py-1',
-                      set.isWarmup && 'opacity-50',
-                    )}
-                  >
-                    <Text variant={set.isWarmup ? 'muted' : 'default'}>
-                      {set.isWarmup ? 'Warm-up' : `Set ${i + 1}`}
-                    </Text>
-                    <Text variant={set.isWarmup ? 'muted' : 'default'}>
-                      {formatLoad(set.weightKg, unit)} × {set.reps}
-                      {!set.completed ? ' (not done)' : ''}
-                    </Text>
-                  </View>
-                ))}
+                (() => {
+                  // Bug B-41: sets used to be numbered by their position in
+                  // the WHOLE list (warm-ups included), so a working set
+                  // after 2 warm-ups read "Set 3". Warm-ups and working
+                  // sets each get their own 1-based counter — the same
+                  // convention as `setLabelOf` in workout-model.ts.
+                  let warmupN = 0;
+                  let workingN = 0;
+                  return exercise.sets.map((set, i) => {
+                    const label = set.isWarmup ? `Warm-up ${++warmupN}` : `Set ${++workingN}`;
+                    return (
+                      <View
+                        key={i}
+                        className={cn(
+                          'flex-row items-center justify-between py-1',
+                          set.isWarmup && 'opacity-50',
+                        )}
+                      >
+                        <Text variant={set.isWarmup ? 'muted' : 'default'}>{label}</Text>
+                        <Text variant={set.isWarmup ? 'muted' : 'default'}>
+                          {formatLoad(set.weightKg, unit)} × {set.reps}
+                          {!set.completed ? ' (not done)' : ''}
+                        </Text>
+                      </View>
+                    );
+                  });
+                })()}
               {!exercise.skipped && exercise.lastSetRir !== null ? (
                 <Text variant="muted" className="mt-1">
                   RIR: {exercise.lastSetRir}

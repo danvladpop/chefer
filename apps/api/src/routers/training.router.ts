@@ -1,11 +1,25 @@
-import { trainingService } from '../application/training/training.service.js';
+import { z } from 'zod';
+import { dayKindSchema } from '@chefer/types';
+import { trainingDaysService } from '../application/training-days/training-days.service.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
 
-// ─── Training router (§2.6, T-00.10 stub) ──────────────────────────────────────
-// STUB — wave 1 (T-06.1) adds `setDayKinds` and the kind-led bump math.
-// Registered now so no lane needs to touch `routers/index.ts` later.
+// ─── Training router (§2.6, T-06.9) ─────────────────────────────────────────────
+// `getDayKinds`/`setDayKinds` back the gym settings "Training days &
+// reminders" kind row and onboarding (T-03.9) — the same two procedures for
+// both, so they can never disagree. `lift` is never settable here: it's
+// derived from the active routine's `plannedWeekday`s (read-only in the UI).
+
+const settableDayKindSchema = dayKindSchema.exclude(['lift']);
+
+export const setDayKindsInputSchema = z.object({
+  /** Weekday ("0"-"6", 0 = Monday) → kind, or `null` to clear back to unset. */
+  days: z.record(z.string().regex(/^[0-6]$/), settableDayKindSchema.nullable()),
+});
 
 export const trainingRouter = router({
-  /** This user's stored weekday kinds — a read-only passthrough. */
-  myDayKinds: protectedProcedure.query(({ ctx }) => trainingService.getDayKinds(ctx.user.id)),
+  /** This user's stored weekday kinds (`{}` until set) — never includes `lift`. */
+  getDayKinds: protectedProcedure.query(({ ctx }) => trainingDaysService.getDayKinds(ctx.user.id)),
+  setDayKinds: protectedProcedure
+    .input(setDayKindsInputSchema)
+    .mutation(({ ctx, input }) => trainingDaysService.setDayKinds(ctx.user.id, input.days)),
 });

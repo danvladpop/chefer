@@ -124,3 +124,79 @@ describe('T-BUG-O2 ValueStepper — identical values render identical font sizes
     expect(fontSizeOf('a', '102.5')).toBe(fontSizeOf('b', '102.5'));
   });
 });
+
+// UX-05 A1 (T-05.A1.1, O-05/O-06): a `grouped` variant — one filled
+// container with transparent −/+ — used by the set row and the routine
+// editor. AC13: identical rows render identical font sizes at 1.0x and 1.3x.
+describe('UX-05 A1 grouped ValueStepper variant', () => {
+  it('renders three identical grouped rows at identical font sizes, at 1.0x and after ticks/edits', async () => {
+    const rows = (aValue: number, aDone: boolean) => (
+      <>
+        {['a', 'b', 'c'].map((testID) => (
+          <ValueStepper
+            key={testID}
+            testID={testID}
+            variant="grouped"
+            value={testID === 'a' ? aValue : 55}
+            next={noopNext}
+            onChange={jest.fn()}
+            format={(v) => String(v)}
+            caption="kg"
+            name="Weight"
+            done={testID === 'a' ? aDone : false}
+          />
+        ))}
+      </>
+    );
+    const { rerender } = await render(rows(55, false));
+    expect([fontSizeOf('a', '55'), fontSizeOf('b', '55'), fontSizeOf('c', '55')]).toEqual([
+      17, 17, 17,
+    ]);
+    await rerender(rows(55, true)); // tick
+    expect([fontSizeOf('a', '55'), fontSizeOf('b', '55'), fontSizeOf('c', '55')]).toEqual([
+      17, 17, 17,
+    ]);
+    await rerender(rows(55, false)); // untick
+    expect([fontSizeOf('a', '55'), fontSizeOf('b', '55'), fontSizeOf('c', '55')]).toEqual([
+      17, 17, 17,
+    ]);
+  });
+
+  it('caps the caption and the −/+ glyphs at the dense max font scale (AX5 overflow fix)', async () => {
+    await render(
+      <ValueStepper
+        testID="grouped"
+        variant="grouped"
+        value={60}
+        next={noopNext}
+        onChange={jest.fn()}
+        format={(v) => String(v)}
+        caption="kg"
+        name="Weight"
+      />,
+    );
+    const row = screen.getByTestId('grouped');
+    const caption = within(row).getByText('kg');
+    const minus = within(row).getByText('−');
+    const plus = within(row).getByText('+');
+    expect(caption.props.maxFontSizeMultiplier).toBe(1.3);
+    expect(minus.props.maxFontSizeMultiplier).toBe(1.3);
+    expect(plus.props.maxFontSizeMultiplier).toBe(1.3);
+  });
+
+  it('the plain variant is unchanged (no shared container class)', async () => {
+    await render(
+      <ValueStepper
+        testID="plain"
+        value={60}
+        next={noopNext}
+        onChange={jest.fn()}
+        format={(v) => String(v)}
+        caption="kg"
+        name="Weight"
+      />,
+    );
+    const row = screen.getByTestId('plain');
+    expect(String(row.props.className ?? '')).not.toMatch(/bg-muted/);
+  });
+});

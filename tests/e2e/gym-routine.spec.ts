@@ -51,3 +51,46 @@ test.describe('Gym: routine editor', () => {
     }
   });
 });
+
+// UX-05 amendment A4 (T-05.3, AC23/AC25): the phone-width editor's exercise
+// cards are compact by default (full name, never truncated) and expand one
+// at a time.
+test.describe('Gym: routine editor (phone, UX-05 A4)', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('exercise cards show the full name and expand one at a time', async ({ page }) => {
+    await page.goto('/gym/routine/all');
+
+    await page.getByRole('button', { name: /new routine/i }).click();
+    const dialog = page.getByRole('dialog', { name: 'New routine' });
+    await expect(dialog).toBeVisible();
+    await dialog.locator('[data-testid^="template-option-"]').first().click();
+    await page.waitForURL(/\/gym\/routine\/edit\?id=/);
+
+    // The desktop board (hidden below lg) renders the same rows first in the
+    // DOM — only the phone list's visible rows count here.
+    const rows = page.locator('[data-testid="routine-exercise-row"]:visible');
+    await expect(rows.first()).toBeVisible();
+    // Compact by default: no steppers visible until the summary is tapped.
+    await expect(rows.first().getByTestId('exercise-sets-input')).toHaveCount(0);
+
+    await rows.first().getByTestId('routine-exercise-summary').click();
+    await expect(rows.first().getByTestId('exercise-sets-input')).toBeVisible();
+
+    if ((await rows.count()) > 1) {
+      // Opening the second card collapses the first (AC25).
+      await rows.nth(1).getByTestId('routine-exercise-summary').click();
+      await expect(rows.first().getByTestId('exercise-sets-input')).toHaveCount(0);
+      await expect(rows.nth(1).getByTestId('exercise-sets-input')).toBeVisible();
+    }
+
+    const url = new URL(page.url());
+    const routineId = url.searchParams.get('id');
+    await page.goto('/gym/routine/all');
+    if (routineId) {
+      const card = page.getByTestId(`routine-card-${routineId}`);
+      page.once('dialog', (d) => d.accept());
+      await card.getByRole('button', { name: /archive/i }).click();
+    }
+  });
+});

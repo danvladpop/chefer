@@ -65,7 +65,11 @@ export function PrTimeline({ library, unit }: { library: ExerciseDto[]; unit: We
                     {byId.get(pr.exerciseId) ?? pr.exerciseId}
                   </p>
                   <p className="text-xs text-neutral-500">
-                    {KIND_LABEL[pr.kind]} · {formatLoad(pr.weightKg, unit)} × {pr.reps}
+                    {/* T-05.6 (UX-05 F): the first-ever logged set is its own
+                        kind of milestone — a bare "e1RM PR" label would read
+                        oddly for a lift with nothing prior to beat. */}
+                    {pr.isFirst ? 'First logged' : KIND_LABEL[pr.kind]} ·{' '}
+                    {formatLoad(pr.weightKg, unit)} × {pr.reps}
                     {pr.e1rmKg !== null ? ` · e1RM ${formatLoad(pr.e1rmKg, unit)}` : ''}
                   </p>
                 </div>

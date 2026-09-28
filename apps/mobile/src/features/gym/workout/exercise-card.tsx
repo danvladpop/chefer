@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from 'react';
 import { Pressable, Text as RNText, View } from 'react-native';
-import { Image } from 'expo-image';
 import {
+  HIDDEN_EXERCISE_IMAGE_IDS,
   RIR_VALUES,
   type EquipmentProfile,
   type ExerciseBest,
@@ -14,6 +14,7 @@ import {
 } from '@chefer/types';
 import { Chip, Text } from '@chefer/ui-mobile';
 import { cn, explain, formatLoadNumber, unitLabel } from '@chefer/utils';
+import { ExerciseImage } from '../components/exercise-image';
 import { exerciseImageUrl } from '../library/exercise-image';
 import { SetRow, type SetRowHandlers } from './set-row';
 import {
@@ -105,7 +106,7 @@ function ExerciseCardImpl({
     [se, ctx.prior, ctx.olderBests],
   );
   const sentence = useMemo(() => explain(se.prescription, ctx.unit), [se.prescription, ctx.unit]);
-  const weightMode = weightModeOf(meta, ctx.profile);
+  const weightMode = weightModeOf(meta, ctx.profile, se.prescription.weightKg > 0);
   const working = workingSets(se);
   const warmups = warmupSetsOf(se);
   const done = working.filter(isDone).length;
@@ -134,21 +135,17 @@ function ExerciseCardImpl({
           accessibilityRole="button"
           accessibilityLabel={`Technique for ${meta.name}`}
           onPress={() => ctx.onSheet({ kind: 'technique', seId: se.id })}
-          className="h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-muted"
+          className="overflow-hidden rounded-lg"
         >
-          {imageUri ? (
-            <Image
-              source={{ uri: imageUri }}
-              style={{ width: 48, height: 48 }}
-              contentFit="cover"
-              cachePolicy="disk"
-              accessibilityIgnoresInvertColors
-            />
-          ) : (
-            <RNText className="text-lg font-bold text-muted-foreground">
-              {meta.name.slice(0, 1)}
-            </RNText>
-          )}
+          <ExerciseImage
+            uri={imageUri}
+            equipment={meta.equipment}
+            name={meta.name}
+            size="thumb"
+            hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(meta.id)}
+            analyticsExerciseId={meta.ownerId ? 'custom' : meta.id}
+            testID={`${base}-thumb-image`}
+          />
         </Pressable>
         <Pressable
           testID={`${base}-header`}

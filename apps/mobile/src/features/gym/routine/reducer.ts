@@ -36,6 +36,11 @@ export type RoutineDraftAction =
   | { type: 'addExercise'; dayKey: string; newExerciseKey: string; exercise: ExerciseMeta }
   | { type: 'swapExercise'; dayKey: string; exerciseKey: string; exercise: ExerciseMeta }
   | { type: 'removeExercise'; dayKey: string; exerciseKey: string }
+  // UX-05 A4 (T-05.3): undoes a `removeExercise` (no confirm dialog — the
+  // routine is only saved on Save, so a snackbar `Undo` is enough). A no-op
+  // if that key already exists (a stale/duplicate Undo tap), mirroring the
+  // workout reducer's `restoreSet`.
+  | { type: 'restoreExercise'; dayKey: string; index: number; exercise: RoutineExerciseDraft }
   | { type: 'moveExercise'; dayKey: string; exerciseKey: string; direction: 'up' | 'down' }
   /** "Superset with next": link / unlink this exercise and the one after it. */
   | { type: 'setSupersetWithNext'; dayKey: string; exerciseKey: string; linked: boolean }
@@ -191,6 +196,15 @@ export function routineDraftReducer(draft: RoutineDraft, action: RoutineDraftAct
       return updateDay(draft, action.dayKey, (d) => {
         const index = d.exercises.findIndex((e) => e.key === action.exerciseKey);
         return index < 0 ? d : { ...d, exercises: removeSupersetItem(d.exercises, index) };
+      });
+
+    case 'restoreExercise':
+      return updateDay(draft, action.dayKey, (d) => {
+        if (d.exercises.some((e) => e.key === action.exercise.key)) return d;
+        if (d.exercises.length >= MAX_EXERCISES_PER_DAY) return d;
+        const at = Math.max(0, Math.min(action.index, d.exercises.length));
+        const exercises = [...d.exercises.slice(0, at), action.exercise, ...d.exercises.slice(at)];
+        return { ...d, exercises: normalizeSupersets(exercises) };
       });
 
     case 'moveExercise':

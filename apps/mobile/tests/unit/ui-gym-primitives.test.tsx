@@ -367,6 +367,42 @@ describe('charts', () => {
     expect(screen.getByText('Log a session to see trends')).toBeOnTheScreen();
   });
 
+  it('B-16 (T-05.6, AC8): keeps the 38px minimum left-axis gutter for short labels', async () => {
+    await render(
+      <LineChart
+        testID="narrow-axis"
+        width={320}
+        data={[
+          { x: 1, y: 1 },
+          { x: 2, y: 2 },
+        ]}
+      />,
+    );
+    const [gridLine] = hostNodes('Line');
+    expect(Number(gridLine?.props.x1)).toBe(38);
+  });
+
+  it('B-16 (T-05.6, AC8): grows the left-axis gutter so a wide label is never clipped', async () => {
+    // The old fixed 38px gutter clipped a label like "1345.8" — the leading
+    // digit fell to the left of the SVG's own x=0 edge and never rendered
+    // ("55.4" for "255.4"). The gutter must widen to fit the longest label.
+    await render(
+      <LineChart
+        testID="wide-axis"
+        width={320}
+        data={[
+          { x: 1, y: 1234.5 },
+          { x: 2, y: 2345.6 },
+        ]}
+        formatY={(v) => v.toFixed(1)}
+      />,
+    );
+    const [gridLine] = hostNodes('Line');
+    // "1234.5"/"2345.6" etc are 6 characters; the gutter must grow past the
+    // old fixed 38px so the label's rendered width fits before x=0.
+    expect(Number(gridLine?.props.x1)).toBeGreaterThanOrEqual(6 * 6 + 8);
+  });
+
   it('BarChart stacks segments and shades the band', async () => {
     await render(
       <BarChart

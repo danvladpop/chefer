@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -8,26 +8,48 @@ import {
   View,
 } from 'react-native';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import type { GymBootstrap, GymOffer, NextWorkoutDto } from '@chefer/types';
-import { Button, Card, EmptyState, ProgressRing, Screen, Sheet, Text } from '@chefer/ui-mobile';
 import {
+  Button,
+  Card,
+  EmptyState,
+  ProgressRing,
+  Screen,
+  Sheet,
+  Text,
+  useSnackbar,
+} from '@chefer/ui-mobile';
+import {
+  addDaysLocal,
   buildNextWorkout,
   cn,
+  doneTodayCard,
   equipmentProfileOf,
+  missedPlannedDays,
   progressionKey,
   supersetRuns,
   supersetSlot,
+  todayStatus,
+  weekdayOf,
+  weekStartOf,
   type ProgressionEntry,
 } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { ExerciseNameLink } from '../components/exercise-name-link';
 import { ModeSwitch } from '../components/mode-switch';
+import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate } from '../offline/ids';
 import { useOutboxStatus } from '../offline/outbox';
 import { useGymReminders } from '../reminders/use-gym-reminders';
-import { useActiveWorkout } from '../use-active-workout';
+import { weekdayLabel } from '../routine/weekday';
+import { checkPausedWorkoutTimeout, useActiveWorkout } from '../use-active-workout';
 import { gymBootstrapQueryKey, libraryLookup, useGymBootstrap } from '../use-gym-bootstrap';
+import { HowThisWorksSheet } from './how-this-works-sheet';
 import { LogPastWorkoutAction } from './log-past-workout';
+import { dismissMissedDay, isMissedDayDismissed } from './missed-day-dismissed';
+import { RecentWorkouts } from './recent-workouts';
+import { ResumeCard } from './resume-card';
 import {
   computeWeekStrip,
   formatStreakLine,
@@ -35,6 +57,7 @@ import {
   pickOffer,
   type WeekStripDay,
 } from './today-helpers';
+import { useTimedRefresh } from './use-timed-refresh';
 
 // Gym Today tab (gym_plan.md §1.3 "Today tab"). The persisted bootstrap drives
 // everything here; "Do another day" and "Skip" only touch the server (§5.4
@@ -76,14 +99,43 @@ export function TodayScreen() {
   const bootstrapQuery = useGymBootstrap();
   const bootstrap = bootstrapQuery.data;
   const activeWorkout = useActiveWorkout();
+  const pausedAt = useActiveSessionPausedAt();
   const outboxStatus = useOutboxStatus();
+  const snackbar = useSnackbar();
   const [dayPickerVisible, setDayPickerVisible] = useState(false);
+  const [howThisWorksVisible, setHowThisWorksVisible] = useState(false);
+  // Bumped on "Not this week" so the dismissed KV write is reflected without
+  // waiting for an unrelated re-render (dismissal is local-only, D22).
+  const [missedDismissTick, setMissedDismissTick] = useState(0);
+  // Bug B-26: the pull-to-refresh spinner always drops after 10 s, even if
+  // the refetch itself never settles (host load, a flaky connection).
+  const { refreshing: manualRefreshing, onRefresh: handleRefresh } = useTimedRefresh(() =>
+    bootstrapQuery.refetch(),
+  );
+
+  // UX-36 (3), T-36.3: a "Save for later" session past its 24 h window
+  // finishes automatically with whatever was logged — checked every time
+  // Gym Today comes into focus (cold start, tab switch, backgrounded app).
+  useFocusEffect(
+    useCallback(() => {
+      void checkPausedWorkoutTimeout(queryClient).then((notice) => {
+        if (!notice) return;
+        snackbar.show({
+          message: `We finished your ${notice.dayName} with ${notice.workingSetsDone} ${notice.workingSetsDone === 1 ? 'set' : 'sets'}.`,
+        });
+      });
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- queryClient/snackbar are stable
+    }, []),
+  );
 
   const setNextDayMutation = trpc.gym.routine.setNextDay.useMutation({
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey }),
   });
   const dismissOfferMutation = trpc.gym.progression.dismissOffer.useMutation();
   const startDeloadMutation = trpc.gym.progression.startDeload.useMutation({
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey }),
+  });
+  const pauseEndMutation = trpc.gym.pause.end.useMutation({
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey }),
   });
 
@@ -119,16 +171,33 @@ export function TodayScreen() {
     startPlanned(workout);
   };
 
+  // Bug B-45: "Skip this day" used to swap the workout with no feedback or
+  // way back. A snackbar names both days and offers Undo (setNextDay back to
+  // the skipped day) — disabled offline, same as Skip itself.
   const handleSkip = () => {
     if (!bootstrap?.activeRoutine) return;
+    const routineId = bootstrap.activeRoutine.id;
     const days = [...bootstrap.activeRoutine.days].sort((a, b) => a.position - b.position);
-    const idx = bootstrap.nextWorkout
-      ? days.findIndex((d) => d.id === bootstrap.nextWorkout?.dayId)
-      : -1;
+    const skippedId = bootstrap.nextWorkout?.dayId ?? null;
+    const idx = skippedId ? days.findIndex((d) => d.id === skippedId) : -1;
     const after = days[(idx + 1) % days.length] ?? days[0];
-    if (after) {
-      setNextDayMutation.mutate({ routineId: bootstrap.activeRoutine.id, dayId: after.id });
-    }
+    const skipped = days.find((d) => d.id === skippedId);
+    if (!after) return;
+    setNextDayMutation.mutate(
+      { routineId, dayId: after.id },
+      {
+        onSuccess: () => {
+          snackbar.show({
+            message: `Skipped ${skipped?.name ?? 'this day'} · Next: ${after.name}`,
+            actionLabel: 'Undo',
+            onAction: () => {
+              if (!skippedId || !onlineManager.isOnline()) return;
+              setNextDayMutation.mutate({ routineId, dayId: skippedId });
+            },
+          });
+        },
+      },
+    );
   };
 
   const handleDismissOffer = (offer: GymOffer) => {
@@ -212,14 +281,44 @@ export function TodayScreen() {
     );
   }
 
-  const weekStrip = computeWeekStrip(bootstrap, localDate());
+  const today = localDate();
+  const weekStrip = computeWeekStrip(bootstrap, today);
   const { streak, nextWorkout, activeRoutine, profile } = bootstrap;
   const goalMet = streak.thisWeekGoal > 0 && streak.thisWeekSessions >= streak.thisWeekGoal;
   const ringProgress = streak.thisWeekGoal > 0 ? streak.thisWeekSessions / streak.thisWeekGoal : 0;
+  // Bug B-15: `nextWorkout` always reflects the rotation's next day, which
+  // advances the instant Finish runs — `todayStatus` stops Gym Today
+  // offering it, with a Start button, on the day it was just finished.
+  const status = todayStatus({ bootstrap, today });
+  const doneCard = status.kind === 'done' ? doneTodayCard({ bootstrap, today }) : null;
   const offer = pickOffer(bootstrap.offers);
-  const lastSession = bootstrap.recentSessions[0];
   const showOutbox = outboxStatus.pending > 0 || outboxStatus.parked.length > 0;
   const sortedDays = [...activeRoutine.days].sort((a, b) => a.position - b.position);
+
+  // T-04.8 (UX-04 §7): a planned day earlier this week that never happened —
+  // "Still time this week" — never shown during a pause (already excused) or
+  // once dismissed ("Not this week" changes nothing, D22).
+  const weekStart = weekStartOf(today);
+  const isSunday = weekdayOf(today) === 6;
+  // `missedDismissTick` isn't read below — bumping it forces this plain
+  // (non-memoised) computation to re-run and pick up the new KV write.
+  void missedDismissTick;
+  const missed = missedPlannedDays({
+    activeRoutine,
+    recentSessions: bootstrap.recentSessions,
+    today,
+  }).filter((d) => !isMissedDayDismissed(weekStart, d.dayId));
+  const firstMissed = missed[0] ?? null;
+  const nextFreeWeekday = weekdayOf(addDaysLocal(today, 1));
+
+  const handleMissedPrimary = (day: { dayId: string }) => {
+    setNextDayMutation.mutate({ routineId: activeRoutine.id, dayId: day.dayId });
+  };
+  const handleMissedDismiss = (day: { dayId: string }) => {
+    dismissMissedDay(weekStart, day.dayId);
+    setMissedDismissTick((t) => t + 1);
+    snackbar.show({ message: 'No problem — missing a session changes nothing.' });
+  };
 
   return (
     <Screen className="px-0">
@@ -227,27 +326,16 @@ export function TodayScreen() {
         contentContainerClassName="gap-4 px-4 py-4"
         refreshControl={
           <RefreshControl
-            refreshing={bootstrapQuery.isRefetching}
-            onRefresh={() => void bootstrapQuery.refetch()}
+            testID="gym-today-refresh"
+            refreshing={manualRefreshing}
+            onRefresh={handleRefresh}
           />
         }
       >
         {header}
 
-        {activeWorkout.isActive && (
-          <Card testID="gym-today-resume" className="border-primary/30 bg-accent">
-            <Text className="font-semibold text-primary">Resume workout</Text>
-            <Text variant="muted" className="mt-0.5 text-sm">
-              {activeWorkout.session?.name}
-            </Text>
-            <Button
-              testID="gym-today-resume-button"
-              className="mt-3"
-              onPress={() => router.push('/gym/workout')}
-            >
-              Resume
-            </Button>
-          </Card>
+        {activeWorkout.isActive && activeWorkout.session && (
+          <ResumeCard bootstrap={bootstrap} session={activeWorkout.session} pausedAt={pausedAt} />
         )}
 
         <Card className="gap-3">
@@ -274,9 +362,111 @@ export function TodayScreen() {
               </Text>
             </View>
           </View>
+          <Pressable
+            testID="gym-today-how-this-works"
+            accessibilityRole="button"
+            onPress={() => setHowThisWorksVisible(true)}
+            className="min-h-11 justify-center self-start"
+          >
+            <Text className="text-xs font-medium text-primary">How this works</Text>
+          </Pressable>
         </Card>
 
-        {nextWorkout ? (
+        {!bootstrap.activePause && firstMissed ? (
+          <Card testID="gym-today-missed" className="gap-2">
+            <Text className="font-semibold">Still time this week</Text>
+            <Text variant="muted" className="text-sm">
+              {missed.length === 1
+                ? `${firstMissed.dayName} hasn’t happened yet this week.`
+                : `${missed.map((d) => d.dayName).join(' and ')} haven’t happened yet this week.`}
+            </Text>
+            <View className="flex-row flex-wrap gap-3">
+              <Button
+                testID="gym-today-missed-primary"
+                size="sm"
+                loading={setNextDayMutation.isPending}
+                onPress={() => handleMissedPrimary(firstMissed)}
+              >
+                {isSunday ? `Start it now` : `Move it to ${weekdayLabel(nextFreeWeekday)}`}
+              </Button>
+              <Pressable
+                testID="gym-today-missed-dismiss"
+                accessibilityRole="button"
+                onPress={() => handleMissedDismiss(firstMissed)}
+                className="min-h-11 justify-center"
+              >
+                <Text className="text-sm font-medium text-primary">Not this week</Text>
+              </Pressable>
+            </View>
+          </Card>
+        ) : null}
+
+        {bootstrap.activePause ? (
+          <Card testID="gym-today-paused" className="gap-2">
+            <Text className="font-semibold">Training paused</Text>
+            <Text variant="muted" className="text-sm">
+              {`Resumes ${bootstrap.activePause.endDate}${bootstrap.activePause.reason ? ` · ${bootstrap.activePause.reason}` : ''}`}
+            </Text>
+            <Button
+              testID="gym-today-end-pause"
+              variant="outline"
+              loading={pauseEndMutation.isPending}
+              onPress={() => pauseEndMutation.mutate({ id: bootstrap.activePause?.id ?? '' })}
+            >
+              End pause
+            </Button>
+          </Card>
+        ) : status.kind === 'done' && doneCard ? (
+          <Card testID="gym-today-done" className="gap-2">
+            <Text className="font-semibold">✓ Done today</Text>
+            <Text variant="muted" className="text-sm">
+              {doneCard.session.name} · {doneCard.durationMin} min · {doneCard.workingSets} sets
+              {doneCard.prCount > 0
+                ? ` · ${doneCard.prCount} PR${doneCard.prCount > 1 ? 's' : ''}`
+                : ''}
+            </Text>
+            {doneCard.next && (
+              <Text testID="gym-today-done-next" variant="muted" className="text-xs">
+                Next session: {weekdayLabel(doneCard.next.weekday)} — {doneCard.next.dayName}
+              </Text>
+            )}
+            <Button
+              testID="gym-today-done-summary"
+              onPress={() =>
+                router.push({
+                  pathname: '/gym/summary/[id]',
+                  params: { id: doneCard.session.id },
+                })
+              }
+            >
+              See summary
+            </Button>
+            <Pressable
+              testID="gym-today-done-pick-day"
+              accessibilityRole="button"
+              onPress={() => setDayPickerVisible(true)}
+              className="min-h-11 justify-center"
+            >
+              <Text className="text-sm font-medium text-primary">
+                Train again today? Pick a day
+              </Text>
+            </Pressable>
+          </Card>
+        ) : status.kind === 'rest' && nextWorkout ? (
+          <Card testID="gym-today-rest" className="gap-2">
+            <Text className="font-semibold">Rest day</Text>
+            <Text variant="muted" className="text-sm">
+              Next session: {weekdayLabel(status.weekday)} — {status.dayName}. Rest counts too.
+            </Text>
+            <Button
+              testID="gym-today-rest-start-anyway"
+              variant="outline"
+              onPress={() => startPlanned(nextWorkout)}
+            >
+              {`Start ${status.dayName} anyway`}
+            </Button>
+          </Card>
+        ) : nextWorkout ? (
           <Card testID="gym-today-next-up" className="gap-3">
             <View className="flex-row items-center justify-between">
               <Text className="font-semibold">{nextWorkout.dayName}</Text>
@@ -328,9 +518,14 @@ export function TodayScreen() {
                               </RNText>
                             </View>
                           ) : null}
-                          <Text numberOfLines={1} className="min-w-0 flex-1 text-sm">
-                            {libraryLookup(bootstrap)(ex.exerciseId)?.name ?? ex.exerciseId}
-                          </Text>
+                          <ExerciseNameLink
+                            testID={`gym-today-next-up-${ex.routineExerciseId}-name`}
+                            exerciseId={ex.exerciseId}
+                            name={libraryLookup(bootstrap)(ex.exerciseId)?.name ?? ex.exerciseId}
+                            numberOfLines={1}
+                            className="flex-1"
+                            textClassName="text-sm"
+                          />
                         </View>
                         <Text variant="muted" className="text-xs">
                           {formatTarget(ex, bootstrap, profile.unit)}
@@ -422,24 +617,7 @@ export function TodayScreen() {
 
         <LogPastWorkoutAction bootstrap={bootstrap} />
 
-        {lastSession && (
-          <Pressable
-            testID="gym-today-last-session"
-            accessibilityRole="button"
-            onPress={() =>
-              router.push({ pathname: '/gym/session/[id]', params: { id: lastSession.id } })
-            }
-            className="min-h-11 flex-row items-center justify-between rounded-lg border border-border px-4 py-3"
-          >
-            <View className="min-w-0 flex-1">
-              <Text className="text-sm font-medium">{lastSession.name}</Text>
-              <Text variant="muted" className="text-xs">
-                {lastSession.localDate}
-              </Text>
-            </View>
-            <Text className="text-primary">→</Text>
-          </Pressable>
-        )}
+        <RecentWorkouts bootstrap={bootstrap} />
 
         {showOutbox && (
           <Pressable
@@ -475,6 +653,11 @@ export function TodayScreen() {
           </Pressable>
         ))}
       </Sheet>
+
+      <HowThisWorksSheet
+        visible={howThisWorksVisible}
+        onClose={() => setHowThisWorksVisible(false)}
+      />
     </Screen>
   );
 }

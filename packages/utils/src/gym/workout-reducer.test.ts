@@ -282,6 +282,77 @@ describe('workoutReducer', () => {
     expect(floor.exercises[2]?.sets[0]?.reps).toBe(8);
   });
 
+  // UX-05 A1 (T-05.A1.2, PAT-16): Undo after removing any set re-inserts it
+  // at the same index with the same id, values and completedAt.
+  it('restoreSet (Undo) re-inserts a removed set at its original index, with its values and tick', () => {
+    let doc = start();
+    const se = doc.exercises[0];
+    if (!se) {
+      throw new Error('fixture');
+    }
+    const removedSet = se.sets[1];
+    if (!removedSet) {
+      throw new Error('fixture');
+    }
+    // Tick it first, so the Undo must restore the tick too.
+    doc = workoutReducer(doc, {
+      type: 'completeSet',
+      seId: se.id,
+      setId: removedSet.id,
+      at: at(1),
+    });
+    const ticked = doc.exercises[0]?.sets.find((s) => s.id === removedSet.id);
+    if (!ticked) {
+      throw new Error('fixture');
+    }
+    expect(ticked.completedAt).not.toBeNull();
+
+    const removed = workoutReducer(doc, {
+      type: 'removeSet',
+      seId: se.id,
+      setId: removedSet.id,
+      at: at(2),
+    });
+    expect(removed.exercises[0]?.sets.some((s) => s.id === removedSet.id)).toBe(false);
+    expect(positionsContiguous(removed)).toBe(true);
+
+    const restored = workoutReducer(removed, {
+      type: 'restoreSet',
+      seId: se.id,
+      set: ticked,
+      index: 1,
+      at: at(3),
+    });
+    expect(restored.exercises[0]?.sets.map((s) => s.id)).toEqual(se.sets.map((s) => s.id));
+    expect(restored.exercises[0]?.sets[1]).toMatchObject({
+      id: removedSet.id,
+      completedAt: ticked.completedAt,
+      weightKg: removedSet.weightKg,
+      reps: removedSet.reps,
+    });
+    expect(positionsContiguous(restored)).toBe(true);
+
+    // A stale/duplicate Undo (the set is already back) is a no-op.
+    const again = workoutReducer(restored, {
+      type: 'restoreSet',
+      seId: se.id,
+      set: ticked,
+      index: 1,
+      at: at(4),
+    });
+    expect(again.exercises[0]?.sets).toEqual(restored.exercises[0]?.sets);
+
+    // Unknown exercise id is a no-op (same reference, no stamp).
+    const noop = workoutReducer(removed, {
+      type: 'restoreSet',
+      seId: 'nope',
+      set: ticked,
+      index: 1,
+      at: at(5),
+    });
+    expect(noop).toBe(removed);
+  });
+
   it('swap replaces the planned sets and remembers the original exercise', () => {
     let doc = start();
     const se = doc.exercises[1];

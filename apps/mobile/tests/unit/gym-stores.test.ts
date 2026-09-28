@@ -241,6 +241,7 @@ describe('in-progress checkpoint', () => {
       v: 1,
       ownerId: 'user-a',
       doc: makeDoc(1, { status: 'IN_PROGRESS', finishedAt: null, clientUpdatedAt: at }),
+      pausedAt: null,
     }) as const;
 
   it('uploads the latest doc at most once per minute', async () => {

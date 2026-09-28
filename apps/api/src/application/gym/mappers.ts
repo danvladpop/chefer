@@ -10,6 +10,7 @@ import {
   DEFAULT_PLATE_PAIRS_KG,
   MUSCLES,
   suggestionSchema,
+  type CarryOverList,
   type EquipmentProfile,
   type ExerciseDto,
   type ExerciseMeta,
@@ -18,6 +19,7 @@ import {
   type Muscle,
   type ProgressionOverride,
   type ProgressionState,
+  type ReminderTimes,
   type RoutineDto,
   type WorkoutSessionDoc,
 } from '@chefer/types';
@@ -125,6 +127,8 @@ export function toProfileDto(row: GymProfile): GymProfileDto {
     reminderEnabled: row.reminderEnabled,
     reminderTime: row.reminderTime,
     setupCompletedAt: row.setupCompletedAt?.toISOString() ?? null,
+    reminderTimes: readReminderTimes(row.reminderTimes),
+    quietNudgeDays: row.quietNudgeDays ?? null,
   };
 }
 
@@ -216,6 +220,17 @@ export function readOverride(json: Prisma.JsonValue | null): ProgressionOverride
 
 export function readGoalHistory(json: Prisma.JsonValue): GoalHistoryEntry[] {
   return Array.isArray(json) ? (json as unknown as GoalHistoryEntry[]) : [];
+}
+
+/** `GymProfile.carryOver` (T-36.3) — `[]` for a row written before this wave. */
+export function readCarryOver(json: Prisma.JsonValue | null | undefined): CarryOverList {
+  return Array.isArray(json) ? (json as unknown as CarryOverList) : [];
+}
+
+/** `GymProfile.reminderTimes` (T-36.2) — `{}` (use the single `reminderTime`) by default. */
+export function readReminderTimes(json: Prisma.JsonValue | null | undefined): ReminderTimes {
+  if (!json || typeof json !== 'object' || Array.isArray(json)) return {};
+  return json;
 }
 
 /**

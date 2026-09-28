@@ -1,6 +1,7 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, userEvent } from '@testing-library/react-native';
+import type { RoutineDto } from '@chefer/types';
 import { addDaysLocal, weekStartOf } from '@chefer/utils';
 import { localDate } from '../../src/features/gym/offline/ids';
 import { KV_KEYS } from '../../src/features/gym/offline/keys';
@@ -9,7 +10,7 @@ import { outbox } from '../../src/features/gym/offline/outbox';
 import { resetGymOwnerForTests } from '../../src/features/gym/offline/owner';
 import { GymSettingsScreen } from '../../src/features/gym/settings/settings-screen';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
-import { makeBootstrap, makeDoc } from './gym-fixtures';
+import { makeBootstrap, makeDoc, profile } from './gym-fixtures';
 import type { createTrpcGymMock } from './gym-trpc-mock';
 import { mutationResult } from './gym-trpc-mock';
 
@@ -77,6 +78,8 @@ beforeEach(() => {
   trpc.gym.profile.save.useMutation.mockReturnValue(mutationResult());
   trpc.gym.pause.create.useMutation.mockReturnValue(mutationResult());
   trpc.gym.pause.end.useMutation.mockReturnValue(mutationResult());
+  trpc.training.getDayKinds.useQuery.mockReturnValue({ data: {}, isLoading: false });
+  trpc.training.setDayKinds.useMutation.mockReturnValue(mutationResult());
 });
 
 describe('GymSettingsScreen — needs attention', () => {
@@ -140,6 +143,25 @@ describe('GymSettingsScreen — units and pause', () => {
     expect(mutate).toHaveBeenCalledWith({ unit: 'LB' });
   });
 
+  it('T-36.2: the quiet-days nudge saves in one tap and reflects the stored value', async () => {
+    const mutate = jest.fn();
+    trpc.gym.profile.save.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ profile: { ...profile, quietNudgeDays: 5 } }),
+    );
+    const user = userEvent.setup();
+    await renderSettings(queryClient);
+
+    expect(screen.getByTestId('gym-settings-quiet-nudge-5')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('gym-settings-quiet-nudge-never'));
+    expect(mutate).toHaveBeenCalledWith({ quietNudgeDays: null });
+
+    await user.press(screen.getByTestId('gym-settings-quiet-nudge-3'));
+    expect(mutate).toHaveBeenLastCalledWith({ quietNudgeDays: 3 });
+  });
+
   it('starts a pause with the chosen length and reason', async () => {
     const mutate = jest.fn();
     trpc.gym.pause.create.useMutation.mockReturnValue(mutationResult({ mutate }));
@@ -198,5 +220,71 @@ describe('GymSettingsScreen — units and pause', () => {
     expect(screen.queryByTestId('gym-settings-pause-start')).not.toBeOnTheScreen();
     await user.press(screen.getByTestId('gym-settings-pause-end'));
     expect(mutate).toHaveBeenCalledWith({ id: 'pause-1' });
+  });
+});
+
+describe('GymSettingsScreen — weekday kinds (T-06.9)', () => {
+  const ROUTINE: RoutineDto = {
+    id: 'r1',
+    name: 'Upper/Lower',
+    templateKey: null,
+    isActive: true,
+    nextDayId: null,
+    version: 1,
+    archived: false,
+    updatedAt: '2026-09-01T00:00:00.000Z',
+    days: [{ id: 'd1', position: 0, name: 'Upper', plannedWeekday: 0, exercises: [] }], // Monday
+  };
+
+  it('shows a lift day (from the routine) as read-only, other days as tappable', async () => {
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, recentSessions: [] }),
+    );
+    await renderSettings(queryClient);
+
+    const monday = screen.getByTestId('gym-settings-day-kind-0'); // 0 = Monday, a lift day
+    expect(monday).toHaveTextContent(/Lift/);
+    expect(monday).toBeDisabled();
+
+    const tuesday = screen.getByTestId('gym-settings-day-kind-1');
+    expect(tuesday).toHaveTextContent(/—/);
+  });
+
+  it('picking a kind for a non-lift day calls setDayKinds and shows the result', async () => {
+    const user = userEvent.setup();
+    const mutate = jest.fn();
+    trpc.training.setDayKinds.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, recentSessions: [] }),
+    );
+    await renderSettings(queryClient);
+
+    await user.press(screen.getByTestId('gym-settings-day-kind-1')); // Tuesday
+    await user.press(screen.getByTestId('gym-settings-day-kind-sheet-long-run'));
+
+    expect(mutate).toHaveBeenCalledWith({ days: { '1': 'long_run' } });
+  });
+
+  it('Clear sends null for that weekday', async () => {
+    const user = userEvent.setup();
+    const mutate = jest.fn();
+    trpc.training.setDayKinds.useMutation.mockReturnValue(mutationResult({ mutate }));
+    trpc.training.getDayKinds.useQuery.mockReturnValue({ data: { '1': 'run' }, isLoading: false });
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, recentSessions: [] }),
+    );
+    await renderSettings(queryClient);
+
+    expect(screen.getByTestId('gym-settings-day-kind-1')).toHaveTextContent(/Run/);
+    await user.press(screen.getByTestId('gym-settings-day-kind-1'));
+    await user.press(screen.getByTestId('gym-settings-day-kind-sheet-clear'));
+
+    expect(mutate).toHaveBeenCalledWith({ days: { '1': null } });
   });
 });

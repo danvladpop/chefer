@@ -2,10 +2,12 @@ import * as Sentry from '@sentry/node';
 import { TRPCError } from '@trpc/server';
 import {
   exerciseRepository,
+  gymProfileRepository,
   Prisma,
   routineRepository,
   workoutSessionRepository,
   type IExerciseRepository,
+  type IGymProfileRepository,
   type IRoutineRepository,
   type IWorkoutSessionRepository,
   type SessionDocWriteData,
@@ -18,9 +20,9 @@ import type {
   UpsertSessionsResultDto,
   WorkoutSessionDoc,
 } from '@chefer/types';
-import { nextDayIdAfter, toSessionSummary } from '@chefer/utils';
+import { nextCarryOver, nextDayIdAfter, toSessionSummary } from '@chefer/utils';
 import { logger } from '../../lib/logger.js';
-import { toJson, toRoutineDto, toSessionDoc } from './mappers.js';
+import { readCarryOver, toJson, toRoutineDto, toSessionDoc } from './mappers.js';
 import { progressionService, type ProgressionService } from './progression.service.js';
 
 // ─── WorkoutSessionService (gym_plan.md §4.1 / §5.2) ─────────────────────────
@@ -50,11 +52,16 @@ export class WorkoutSessionService {
     private readonly routineRepo: IRoutineRepository = routineRepository,
     private readonly exerciseRepo: IExerciseRepository = exerciseRepository,
     private readonly progression: Pick<ProgressionService, 'recompute'> = progressionService,
+    private readonly profileRepo: Pick<
+      IGymProfileRepository,
+      'findByUserId' | 'update'
+    > = gymProfileRepository,
   ) {}
 
   async upsertMany(userId: string, docs: WorkoutSessionDoc[]): Promise<UpsertSessionsResultDto> {
     const results = new Map<number, SyncResultDto>();
     const touched = new Set<string>();
+    const completedDocs: WorkoutSessionDoc[] = [];
 
     // Exercise ids must be curated or the caller's own custom (archived ok).
     const allExerciseIds = [...new Set(docs.flatMap((d) => d.exercises.map((e) => e.exerciseId)))];
@@ -79,6 +86,10 @@ export class WorkoutSessionService {
       }
       const result = await this.applyOne(userId, doc, routines, touched);
       results.set(index, result);
+      // T-36.3: fold carry-over for every COMPLETED doc that landed (written
+      // or an identical re-send) — re-sends are idempotent (nextCarryOver
+      // consume+merge), so re-running this for a resend is harmless.
+      if (result.status === 'applied' && doc.status === 'COMPLETED') completedDocs.push(doc);
     }
 
     if (touched.size > 0) {
@@ -87,6 +98,11 @@ export class WorkoutSessionService {
       // the next write touching these exercises re-folds them.
       await this.progression.recompute(userId, [...touched]).catch((err: unknown) => {
         console.error('[gym] progression recompute failed after upsertMany', { userId, err });
+      });
+    }
+    if (completedDocs.length > 0) {
+      await this.applyCarryOver(userId, completedDocs).catch((err: unknown) => {
+        console.error('[gym] carry-over update failed after upsertMany', { userId, err });
       });
     }
     const finalResults: SyncResultDto[] = docs.map(
@@ -178,6 +194,25 @@ export class WorkoutSessionService {
         return { id: doc.id, status: 'applied' };
       }
     }
+  }
+
+  /**
+   * T-36.3 (CI-49): read-modify-write `GymProfile.carryOver`, folding every
+   * newly-completed doc in this batch, oldest first (`nextCarryOver` both
+   * consumes what a doc addressed and adds what it newly carries over). A
+   * user has at most one device syncing a given profile at a time in
+   * practice, so the small race window against a concurrent settings save is
+   * accepted (same tradeoff `gym-profile.service.ts` already makes).
+   */
+  private async applyCarryOver(userId: string, completedDocs: WorkoutSessionDoc[]): Promise<void> {
+    const row = await this.profileRepo.findByUserId(userId);
+    if (!row) return; // no profile yet (shouldn't happen for a COMPLETED doc) — nothing to fold
+    let carryOver = readCarryOver(row.carryOver);
+    for (const doc of completedDocs) {
+      carryOver = nextCarryOver(carryOver, doc);
+    }
+    if (JSON.stringify(carryOver) === JSON.stringify(readCarryOver(row.carryOver))) return;
+    await this.profileRepo.update(userId, { carryOver: toJson(carryOver) });
   }
 
   /** A concurrent first insert of the same id can race into P2002 once — retry it. */

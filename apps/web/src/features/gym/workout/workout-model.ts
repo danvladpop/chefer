@@ -17,6 +17,7 @@ import {
   initialState,
   prescribe,
   repBucket,
+  sameKg,
   sessionSupersets,
   supersetGroupLookup,
   warmupSets,
@@ -128,6 +129,38 @@ export function setLabelOf(se: SessionExerciseDoc, setId: string): string | null
 /** The first set to tick in an exercise (warm-ups first, then working sets). */
 export function nextSetId(se: SessionExerciseDoc): string | null {
   return sortedSets(se).find((s) => s.completedAt === null)?.id ?? null;
+}
+
+/**
+ * T-05.7 (bug B-20, web parity with the mobile logger): the `editSet` actions
+ * a weight/reps edit should ALSO fire, one per later unticked set that still
+ * matched the edited field's old value — changing set 1 almost always means
+ * the rest too. `set` is the edited set's value BEFORE the patch. Returns an
+ * empty array for a warm-up (propagation is working-sets only).
+ */
+export function propagateEditActions(
+  se: SessionExerciseDoc,
+  set: SessionSetDoc,
+  patch: { weightKg?: number; reps?: number },
+): Extract<WorkoutActionInput, { type: 'editSet' }>[] {
+  if (set.isWarmup) return [];
+  const actions: Extract<WorkoutActionInput, { type: 'editSet' }>[] = [];
+  for (const later of se.sets) {
+    if (later.isWarmup || later.position <= set.position || later.completedAt !== null) {
+      continue;
+    }
+    const laterPatch: { weightKg?: number; reps?: number } = {};
+    if (patch.weightKg !== undefined && sameKg(later.weightKg, set.weightKg)) {
+      laterPatch.weightKg = patch.weightKg;
+    }
+    if (patch.reps !== undefined && later.reps === set.reps) {
+      laterPatch.reps = patch.reps;
+    }
+    if (Object.keys(laterPatch).length > 0) {
+      actions.push({ type: 'editSet', seId: se.id, setId: later.id, ...laterPatch });
+    }
+  }
+  return actions;
 }
 
 export function loadSlotOf(meta: ExerciseMeta): LoadSlot {

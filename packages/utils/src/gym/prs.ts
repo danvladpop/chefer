@@ -1,7 +1,10 @@
 // Personal records — research §4.2 #8 (weight / rep-at-weight / e1RM; one badge per exercise).
 // Rules: warm-ups and unticked sets never count; only COMPLETED sessions; the
-// first-ever exposure sets no PRs (there is nothing to beat yet); an e1RM PR
-// needs a candidate set of ≤ 10 reps (11–12 rep sets are low-confidence).
+// first-ever exposure DOES set a PR (T-05.6, UX-05 F, bug: "No PRs yet" used
+// to survive a real logged lift) — `PersonalRecord.isFirst` flags it so
+// callers can render "First {lift}: {w} × {reps}" instead of the usual
+// "beat your {kind} PR" copy; an e1RM PR needs a candidate set of ≤ 10 reps
+// (11–12 rep sets are low-confidence).
 import type { ExerciseBest, PersonalRecord, PrKind, SessionSummaryDto } from '@chefer/types';
 import { bestE1rm, e1rmConfidence, epley } from './e1rm';
 import { KG_EPS } from './loads';
@@ -40,7 +43,12 @@ function absorb(best: PriorBest, ex: SummaryExercise): void {
 }
 
 function kindsBeaten(best: PriorBest, candidate: Candidate): PrKind[] {
-  if (!best.any || candidate.reps <= 0) {
+  // T-05.6 (UX-05 F): the first-ever logged set for an exercise counts as a
+  // PR too (previously "nothing to beat yet" meant it never did) — an empty
+  // `best` (maxWeight 0, maxE1rm null) is a legitimate baseline any real
+  // weighted set beats. A reps PR still needs a prior set to compare against
+  // at the same weight (there's no "first" version of "more reps here").
+  if (candidate.reps <= 0) {
     return [];
   }
   const kinds: PrKind[] = [];
@@ -186,6 +194,7 @@ export function collectPrs(
             e1rmKg: s.weightKg > 0 ? epley(s.weightKg, s.reps, rir) : null,
             localDate: session.localDate,
             sessionId: session.id,
+            isFirst: !best.any,
           });
         }
       }

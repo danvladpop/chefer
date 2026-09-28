@@ -1828,14 +1828,27 @@ reconnect / focus. Web reminders are stored only; the phone sends them.
 ```
 Food/Gym switch (header of every tab root) → persisted mode
   ├─ no GymProfile → /gym/setup
-  │     days/week → experience → equipment + units → weekdays/reminder
+  │     days/week → experience (mobile, UX-05 B/T-05.2: "Experienced" adds
+  │         "Do you already follow a split?" on the same screen — Push/Pull/Legs,
+  │         Upper/Lower, Full body, or "Pick one for me"; sent as `split` on
+  │         recommend/completeSetup, additive/optional, web not yet asked)
+  │         → equipment + units → weekdays/reminder
   │     → gym.profile.recommend (pure engine: template + volume hints)
   │         equipment answer is a hard limit: Dumbbells → dumbbell + bodyweight moves,
   │         Bodyweight → bodyweight moves only (curated swaps, else closest same-pattern
   │         alternative, else the slot is dropped); saved routines are never rewritten
+  │         a chosen split picks the closest template of that family for the day
+  │         count (`recommendTemplate`), instead of the day-count default
+  │     → "Your program" (mobile): "Other programs that fit {n} days" now sits
+  │         right under the program card as visible rows with a "Use this" button
+  │         each (T-05.2, AC3) — "Choose another program" stays as a second path
+  │         to the full list via its sheet
   │     → "Help me find my weights" (calibration) | "I know my weights"
   │         (loadable lifts only; an all-bodyweight program has nothing to enter)
   │     → gym.profile.completeSetup  (profile + active routine + initial progressions)
+  │         weekly goal = the days the user chose (`input.days`), not the resulting
+  │         template's own day count (bug B-18, T-05.2, AC4 — 5 chosen days → goal 5,
+  │         even when the template itself has only 4)
   └─ profile exists → Gym tabs: Today / Routine / Exercises / Stats
 ```
 
@@ -1853,6 +1866,222 @@ Today: gym.bootstrap (persisted on the phone) → "Next up: <day>" with targets
       → invalidate gym.bootstrap
 ```
 
+### Resume card and Recent (UX-36 A1/A2, T-36.A1.1/T-36.A2.1)
+
+Gym Today's old one-line "Resume workout" banner and single "Last workout" row
+are replaced by two components built on the same pure summaries the logger
+itself uses, so they can never disagree with what the workout screen shows:
+
+- **Resume card** (`today/resume-card.tsx`, `resumeSummary()` in
+  `packages/utils/src/gym/resume.ts`): while a session is active, shows the
+  live elapsed time (ticking `mm:ss`/`h:mm:ss`), `{e} of {E} exercises · {s} of
+{S} sets` on a `ProgressBar`, and `Now: {exercise} · set {k} of {n}` — the
+  same `workoutFocus()` the workout screen's "current" exercise uses. A
+  backfilled ("Log a past workout") session — detected as `session.localDate
+!== today` (no schema field needed) — shows `LOGGING {weekday d Mon}`
+  instead and never ticks. Once every working set is logged the card reads
+  `All sets logged · Finish when you're ready.` and the button becomes
+  `Finish workout`. "Save for later" (T-36.3) sets a device-only `pausedAt` on
+  the active-session record (`offline/active-session-store.ts`); while paused
+  the card shows the static `{n} min in`, `Next:` instead of `Now:`, `Finish
+with {s} sets`, and `Keeps until {time} tomorrow`. The Resume/Finish button
+  always opens the workout screen, which owns the actual finish flow.
+- **Recent** (`today/recent-workouts.tsx`, `groupRecentSessions()` in
+  `packages/utils/src/gym/recent.ts`): the 3 most recent **completed**
+  sessions grouped under day headers (`Today` / `Yesterday` / `{weekday d
+Mon}`, never an ISO date), with a start time shown only when two sessions
+  share a day, and a PR badge (`collectPrs` against `bootstrap.recentSessions`
+  - `olderBests`). `Show more` first pages through the cached
+    `bootstrap.recentSessions` (offline-safe), then falls back to the online
+    cursor (`gym.session.list`) once the cache (12 weeks) is exhausted, up to 13
+    rows inline; beyond that only `All history` (→ Stats) remains. Hidden
+    entirely when there are no completed sessions.
+
+Web parity: not yet built this wave — see `mobile_parity_backlog.md` (planned
+for W2 alongside the web today-view rework).
+
+### Save for later / carry the rest (UX-36 (3), T-36.3, CI-49)
+
+A cut-short workout is never just finish-or-bin. `workout-screen.tsx`'s
+bottom actions are `Finish workout` · `Save for later` · `Discard workout`:
+
+- **Save for later** — `saveForLater()` sets the active-session record's
+  `pausedAt` (`offline/active-session-store.ts`, device-only, never
+  uploaded) and returns to Gym Today; the Resume card enters its `paused`
+  state (see above). Opening the workout screen again (from the Resume card,
+  or `/gym/workout` directly) calls `resumeWorkout()`, clearing `pausedAt`.
+- **Finish with unstarted exercises** — if any whole exercise has zero logged
+  sets (`unstartedExercises()`, `packages/utils/src/gym/carry-over.ts`) AND
+  the session belongs to a routine day (a freestyle session has no "next
+  session" to carry into), the finish sheet becomes `{n} exercises not
+started` + their names + a `Move them to your next session` switch,
+  **on by default**. Confirming calls `finish(carryOverExerciseIds)`, which
+  stamps `WorkoutSessionDoc.carryOverExerciseIds` on the `finish` reducer
+  action (additive field) before the doc reaches the outbox. Turning the
+  switch off finishes with nothing carried, same as today.
+- **24 h auto-finish** — `checkPausedWorkoutTimeout(queryClient)`, checked
+  every time Gym Today comes into focus, finishes a session that's been
+  paused for 24 h or more with whatever was logged (D22: half sessions still
+  count) and carries over everything never started (there's no dialog to ask,
+  so it always carries), showing a one-time snackbar `We finished your
+{dayName} with {n} sets.`
+- **Server fold** — `workout-session.service.ts`'s `upsertMany` folds
+  `carryOverExerciseIds` for every newly-applied `COMPLETED` doc through
+  `nextCarryOver()` (consume what the doc addressed, add what it newly
+  carries over) and writes `GymProfile.carryOver`; idempotent on re-sends,
+  best-effort (a write failure never fails the sync). `gym.bootstrap`'s
+  `nextWorkout` (`buildNextWorkout()`) prepends the stored carry-over,
+  tagging each exercise `fromLastTime: true` — a carried exercise that no
+  longer exists in its source routine day/exercise is dropped silently
+  (self-healing after a routine edit). The offline optimistic fold
+  (`applyFinishedSession`) runs the identical `nextCarryOver` logic on the
+  cached bootstrap so it never drifts from the server's answer.
+
+Edge cases (UX-36): a freestyle session never carries over (no `routineDayId`).
+A pause starting while a session is saved for later still lets that session
+finish first, on its own terms. Carry-over follows whichever day it's
+attached to if that day later moves (T-04.8).
+
+Web parity: not built this wave — `mobile_parity_backlog.md`.
+
+### Missed planned day → a kind next step (T-04.8, UX-04 §7)
+
+A routine day pinned to a specific weekday (`plannedWeekday`, set from
+`Training days & reminders`) that's earlier this week and still has no
+completed session is "missed" — `missedPlannedDays({ activeRoutine,
+recentSessions, today })` (`packages/utils/src/gym/session.ts`), pure and
+unit-tested for every weekday including the Monday edge case (nothing can be
+missed on the first day of the week) and the Sunday edge case (every
+undone planned day of the week is still open to move). Gym Today shows a
+`Still time this week` card (hidden during a pause — already excused) with:
+
+- **`Move it to {day}`** (or **`Start it now`** on a Sunday) — both call
+  `gym.routine.setNextDay(routineId, missedDayId)`, the same rotation-pointer
+  mutation "Skip this day" and the day-picker use; the next workout becomes
+  that missed day.
+- **`Not this week`** — no mutation at all (D22: half sessions count, never
+  red, no nagging — missing a session changes nothing): the day is dismissed
+  for the current week only (`today/missed-day-dismissed.ts`, KV-keyed by
+  `weekStartOf(today)`, pruned to the last two weeks on write), with a
+  snackbar `No problem — missing a session changes nothing.`
+
+Web parity: not built this wave — `mobile_parity_backlog.md`.
+
+### Done / rest states and the Food Today workout card (bug B-15, T-05.9/T-04.6)
+
+`bootstrap.nextWorkout` always reflects the **rotation's** next day, which
+advances the instant `Finish` runs (server-side `rotationAppliedAt`). Left
+alone, that means finishing day A today makes Gym Today immediately offer day
+B with a `Start` button, on the same day (bug B-15: "Finish workout A ›
+Done → Today shows B with Start"). `todayStatus({ bootstrap, today })`
+(`packages/utils/src/gym/session.ts`) closes that gap by classifying today
+against `recentSessions` and the next day's `plannedWeekday`:
+
+- **`done`** — a `COMPLETED` session already has `localDate === today`
+  (checked first, regardless of weekday). Gym Today shows `Done today` with
+  the just-finished session's stats (`doneTodayCard()`: duration, working
+  sets, PR count via `collectPrs`) and `Next session: {weekday} — {dayName}`;
+  no Start button. `See summary` opens that session; `Train again today? Pick
+a day` reuses the existing day-picker sheet.
+- **`rest`** — nothing done today, and the next day's `plannedWeekday`
+  (looked up on `activeRoutine`) doesn't match `weekdayOf(today)`. Gym Today
+  shows `Rest day` and a secondary `Start {dayName} anyway`, which starts that
+  day exactly like the normal Start button.
+- **`training`** — nothing done today and the next day IS due today (or has
+  no fixed weekday / nothing is planned at all): the existing "Next up" card,
+  unchanged.
+
+The Food Today dashboard card (`TodaysWorkoutCard`,
+`src/features/gym/today/todays-workout-card.tsx`, UX-04 §5 — placed on the
+Food dashboard by L-HOME, component owned by L-GYM) shares the same
+`todayStatus()` call, so the two surfaces can never disagree: `TRAINING
+TODAY`/`TRAINING TONIGHT` (after 16:00 local) with a one-tap `Start workout`
+that starts the session directly and pushes `/gym/workout`; `Done today ✓ ·
+Next: {dayName} on {weekday}` (whole card taps through to Gym Today, no
+button); `Rest day · Next: {dayName} on {weekday}` with a `Train anyway` text
+link (→ Gym Today, does not start the session itself).
+
+**Bug B-26** (a stuck spinner at the top of Gym Today after "Done", > 10 s):
+the pull-to-refresh spinner used to mirror the bootstrap query's own
+`isRefetching` indefinitely, so a hung refetch (host load, a flaky
+connection) spun forever. `useTimedRefresh()`
+(`src/features/gym/today/use-timed-refresh.ts`) decouples the two — the
+spinner always drops after 10 s, whether or not the refetch itself ever
+settles.
+
+### Stats › History and set numbering (bug B-41, T-36.5)
+
+Stats gains a `History` segment (a `Chip` toggle next to the 5 default
+views): every completed session, grouped by ISO week
+(`groupSessionsByWeek()`, `packages/utils/src/gym/history.ts`) newest first,
+with the same cache-then-cursor `Load more` as Gym Today's `Recent`
+(`bootstrap.recentSessions` first, `gym.session.list`'s cursor once that's
+exhausted). Gym Today's `Recent` section's `All history` link opens straight
+into it via `router.push({ pathname: '/stats', params: { tab: 'history' } })`
+— `stats-tab.tsx` reads it with `useLocalSearchParams` to pick the initial
+segment.
+
+**Bug B-41** (session detail numbered sets by their position in the WHOLE
+list, so a working set after 2 warm-ups read "Set 3"): `session-detail-
+screen.tsx` now numbers warm-ups and working sets with their own counters
+each starting at 1 — `Warm-up 1`, `Warm-up 2`, `Set 1`, `Set 2` — the same
+convention `setLabelOf()` already uses in the live logger
+(`workout/workout-model.ts`).
+
+### Weekday kinds (T-06.9) and gym settings reachability (bug B-19, T-36.1)
+
+`ChefProfile.trainingDayKinds` (`{"5": "long_run"}`, 0 = Monday) records what
+kind of training day each weekday is: `lift` (derived from the active
+routine's `plannedWeekday`s — never stored, never user-settable), or
+user-chosen `run` / `long_run` / `rest`. `training.getDayKinds` /
+`training.setDayKinds` (`apps/api/src/application/training-days/
+training-days.service.ts`, replacing the wave-0 `application/training/`
+stub) back a weekday-kind row in gym settings' "Training days & reminders"
+section: 7 cells, lift days shown disabled with a `Lift` label, the rest
+tappable to open a sheet (`Run` / `Long run` / `Rest` / `Clear`). Onboarding
+(T-03.9) calls the same two procedures, so the two surfaces can never
+disagree. The kind-led nutrition bump math itself (T-06.10, e.g. carb-led
+refuelling on a run day) is a separate, later L-PLAN2 task — this wave only
+wires the read/write and the settings row.
+
+Bug B-19 ("Gym settings unreachable except via the sync-outbox banner") was
+already fixed by an earlier task (T-00.9): every gym tab root
+(`ModeSwitch`'s gear) and the general Settings hub's "Training" group both
+open `/gym/settings`, which already has a real header (back button + title).
+This wave's remaining reachability work is the weekday-kind row above.
+
+### Never "0-week streak" (T-36.4)
+
+`streakWeeksLabel(current)` (`packages/utils/src/gym/weeks.ts`) is the one
+place a streak count becomes copy: a streak of 0 reads `Your streak starts
+when you hit this week's goal.` instead of the demoralising "0-week streak"
+that mobile's Gym Today, and web's today-view, workout summary and
+`ConsistencyGrid` all used to render verbatim (`${streak.current}-week
+streak`, no zero guard, three separate copies of the same bug). Mobile's
+`today-helpers.ts` `formatStreakLine()` layers the flex-week suffix on top of
+it; the web call sites call it directly.
+
+A `How this works` link on the Gym Today week card (`today/how-this-works-sheet.tsx`, T-36.4
+remainder) and the Stats consistency legend both open the same `ExplainSheet`: weeks-not-days
+(hit the weekly goal, missing a session changes nothing), flex weeks (one every 4 weeks), pause
+(nothing counts against you) and half sessions counting — the two links can never disagree
+because they render the identical sheet component.
+
+### Skip with Undo, and a paused state on Gym Today (bug B-45, T-36.4)
+
+`Skip this day` used to swap the next workout with no confirmation, feedback
+or way back (B-45). It now shows a `Snackbar` (`@chefer/ui-mobile`, PAT-4)
+naming both days — `Skipped {dayName} · Next: {dayName}` — with an `Undo`
+action that calls `gym.routine.setNextDay` back to the skipped day (a no-op
+offline, same gate as Skip itself).
+
+Gym Today also reads `bootstrap.activePause` (already computed server-side —
+"the pause covering today") to show a `Training paused` card in place of the
+next-up/done/rest card, with the resume date, the reason if one was given,
+and an `End pause` button (`gym.pause.end`) — previously only the settings
+screen surfaced an active pause; Gym Today itself showed the normal
+next-up flow underneath it.
+
 - The routine is a **rotation, not a calendar**: "next up" is the next day in
   sequence; missed days roll forward and are never marked failed.
 - Outbox entries are removed only on an `applied`/`stale` ack; a `rejected`
@@ -1864,8 +2093,14 @@ Today: gym.bootstrap (persisted on the phone) → "Next up: <day>" with targets
 Set row: [− weight +] [− reps +] ✓  (prefilled from the suggestion)
   ✓ → completeSet with the shown values → rest timer (working sets only) + haptic
   − / + → next ACHIEVABLE load for the equipment (engine stepUp/stepDown);
-          a weight change carries to the later unticked sets that had the old weight
+          a weight OR reps change carries to the later unticked sets that had the
+          old value (bug B-20, T-05.7 — reps used to be the one field that didn't
+          propagate; web now carries both too, via the shared `propagateEditActions`
+          pattern in `workout-model.ts`)
   tap weight → plate calculator (barbell/smith) or keypad; tap reps → keypad
+  Held loads (Back Extension, BODYWEIGHT_PLUS with `heldLoad: true`) offer the
+    weight stepper without a dip belt (Q-28, T-05.7) — a real belt/vest exercise
+    (weighted dip/pull-up) still needs one
 Last working set ticked → optional RIR chips (0/1/2/3+), highlighted while calibrating;
   the finished exercise stays open until answered / "Not now" / ticking elsewhere
 ⋯ menu → swap (just today | today + routine), skip, add/remove set, move, note, history
@@ -1876,12 +2111,40 @@ Finish → confirm if working sets are unticked → finish() → summary
   finishing with no connection shows the summary, not the browser's error page (F-GYM-5-1)
   Live PR badges and the summary's PRs compare against recent sessions AND the bootstrap's
   `olderBests` (all-time), so an old best is never re-celebrated (F-GYM-6-1)
-  Summary "Next time" reads the optimistically folded cached progressions;
-  Adjust → gym.progression.setOverride (online only)
+  Summary "Next time" reads the optimistically folded cached progressions, phrased as
+  "next time" not "today" (T-05.1 AC2); Adjust → gym.progression.setOverride (online only)
+  Adjust's weight is typed, not stepper-only (T-05.4, CI-31, AC6): mobile taps the
+  value to open the same NumberSheet keypad the live logger uses (plate calculator
+  for barbells too); web's `Stepper` gains an opt-in `onValueChange` (a real
+  `<input type="number">` in place of the read-only value, other callers unaffected)
+  wired on the Adjust weight field. Either way 40 → 150 kg takes a handful of
+  keystrokes instead of ~44 ± presses; the ± steppers stay for small nudges. Reps
+  stay ± only on both platforms (adjusting a whole set of reps at once by typing
+  one number is not obviously the right UI, and the ± range is small)
 Android back / ⌄ → minimise (the session stays resumable from Today); Discard is confirmed
-Remove one set → long-press its row (mobile, ConfirmSheet) / tap its number (web menu);
-  warm-ups and working sets alike, positions stay contiguous
+Remove any set (logged or not) → mobile: long-press its row, its ⋯, or swipe the row left
+  (`SwipeToRemove`, PAT-16, Δ2.6 — PanResponder + Reanimated, no native gesture-handler dep;
+  claims the gesture only on clear horizontal intent so it never fights the workout
+  `ScrollView`, and is always paired with the ⋯/long-press path, which alone satisfies every
+  acceptance criterion). Web: tap its set number (menu) → "Remove set". Every path removes the
+  set immediately, no confirm dialog: a snackbar/toast offers `Undo` for 8 s, restoring the set
+  at its position with its values and tick (`restoreSet`, UX-05 A1/T-05.A1.2). Warm-ups and
+  working sets alike; positions stay contiguous. The exercise ⋯ menu's "Remove last set" removes
+  the last unlogged set, or the last set once every set is logged.
 ```
+
+### Progression: the working weight and "next time" (T-05.1, B-07/B-08)
+
+The engine's working weight `W` for a session is the **heaviest** completed working set, never
+the lightest — a deliberate back-off/drop set logged after the top set (lighter by more than one
+load step) is excluded from `W` and from the reps the miss/stall rules judge (`ENGINE_VERSION`
+2 → 3). A set logged heavier than the day's prescription, even on an otherwise incomplete
+exposure, is better evidence than the plan: the next target starts from what was actually lifted,
+not from "same targets" (the `INCOMPLETE` reason code now branches on `liftedHeavier`). A timed
+exercise with a degenerate range (no real duration was ever set, e.g. a misconfigured custom
+exercise) gets no load guess and no invented "Aim for 1 s" — a normal-range timed exercise
+(Farmer's Carry, a weighted plank once a load has been logged) is unaffected (T-05.A2.1, O-02;
+the fuller cardio shape is W2/W5's `T-42.x`).
 
 ### Supersets (G4-B)
 
@@ -1959,6 +2222,27 @@ streaks, no red "missed" markers.
   the setup wizard's reminder step, never on cold start. Web shows "Reminders
   are sent by the Chefer phone app" — it stores the preference but sends
   nothing itself.
+- **Quiet-days nudge (T-36.2, bug B-40):** an independent, gym-settings-only
+  toggle — `Nudge me if I've gone quiet for` `3 days` / `5 days` / `a week` /
+  `Never` (`GymProfile.quietNudgeDays`, `null` = off; new setups default to
+  5). `computeQuietNudge()` schedules exactly one notification that many days
+  after the last finished session (`Fancy a short one today? Your {dayName}
+is ready — about {min} min.`), never during a pause, never late if it's
+  computed after the due date already passed while offline.
+  `computeAllGymReminders()` merges it with the planned/missed reminders
+  above, deduped to at most one notification a day (a same-day planned
+  reminder wins); it reschedules on the same triggers (finish, launch) as
+  everything else in `useGymReminders()`, independent of the main
+  `reminderEnabled` toggle. Web parity: not built this wave —
+  `mobile_parity_backlog.md`.
+- **Rest-timer permission rationale (bug B-40):** the rest-timer's own
+  background-notification permission used to be requested cold, at workout
+  start (`use-active-workout.ts`'s `startWorkout()`). It's now asked with a
+  rationale sheet (`workout/rest-permission-sheet.tsx`: `Want a buzz when
+your rest is over, even with the phone locked?` / `Allow notifications` /
+  `Not now`) shown once, in context, the first time a rest actually begins
+  (`workout/rest-timer-bar.tsx`) — never cold, never more than once per
+  device.
 - **Streak repair — "Log a past workout" (mobile + web, G4-A):** pick a date
   in the current or previous week (never the future), then a routine day or
   freestyle. Starts a session backdated to that date's `localDate` with
@@ -1975,6 +2259,97 @@ streaks, no red "missed" markers.
   accepted from Today (`gym.progression.startDeload`) flips
   `nextWorkout.isDeload` and prescribes deload targets (half the sets,
   ~90% load, reps at the floor) on the very next bootstrap read.
+
+### Stats explained (T-05.6, CI-36, bug B-16)
+
+```
+Strength trend: e1RM per session for a picked lift, PR dots, 3m/1y/all, a
+  bodyweight overlay and a "Strength per kg of body weight" toggle (renamed
+  from "Relative strength" — same e1RM ÷ bodyweight math)
+  Caption "Estimated 1-rep max (e1RM)" — mobile's "(e1RM)" is a GlossaryTerm
+    (packages/utils/src/glossary.ts's existing `e1rm` entry); web is plain text
+  Mobile: no interactive tap-tooltip on the chart yet (the shared LineChart
+    primitive has no touch targets) — a caption under the chart instead names
+    the latest point ("{date} · {weight} × {reps} → e1RM {value}"). Web's
+    Recharts <Tooltip> already shows point detail on hover/tap
+PR timeline / summary: a lift's first-ever logged set now counts as a PR
+  (bug B-16's sibling bug: `kindsBeaten` used to require a prior exposure to
+  "beat", so a genuinely new lift never got a badge and a real PR-holder
+  could still see "No PRs yet"). `PersonalRecord.isFirst` (additive) flags it;
+  the timeline shows "First logged" instead of the usual weight/reps/e1RM
+  kind label. Ranked PRs (weight beaten, more reps at a weight already held)
+  still need real prior history — there's no "first" version of those
+Weekly sets per muscle (mobile only — web's chart shows one group at a time):
+  a legend under the stacked bar (colour swatch + `VOLUME_GROUP_LABELS` name,
+  wraps), using the same `seriesColors` map the bars themselves use so the
+  colours always match
+```
+
+### Exercise library: photos, search and the swap sheet (T-05.11, T-05.A3.1, T-05.10)
+
+- **Photos, everywhere (T-05.11, UX-05 A6):** one shared `ExerciseImage`
+  (mobile: `apps/mobile/src/features/gym/components/exercise-image.tsx`; web
+  twin: `apps/web/src/features/gym/library/ExerciseImage.tsx`) renders every
+  exercise thumbnail and hero photo at a true 3:2 — never the square crop
+  that used to cut off a third of the frame. No photo, a custom exercise, or
+  a slug in `HIDDEN_EXERCISE_IMAGE_IDS` (a wrong-photo audit hit —
+  `packages/types/src/gym/exercise-catalog.ts`) shows a designed icon
+  placeholder (by equipment) instead of a blank tile or a letter. A load
+  failure retries once silently, then falls back to the placeholder and
+  fires `exercise_image_failed` (analytics id: the slug, or `'custom'`).
+  Surfaces: Exercises tab/list, swap sheet, workout exercise card, technique
+  sheet, detail hero (mobile: `PhotoCrossfade`; web: its own twin, same
+  contract).
+- **Swap sheet / Exercises tab keyboard collapse (T-05.A3.1, mobile):** both
+  screens' filter chips normally wrap or stack onto several rows; while the
+  keyboard is up (`use-keyboard-visible.ts`) `CollapsibleChipFilters`
+  (`apps/mobile/src/features/gym/library/collapsible-chip-filters.tsx`)
+  collapses them into one horizontal strip (MO-05 + a FLIP re-layout, `base`
+  timing, instant under reduced motion) so at least 5 results stay visible
+  above the keyboard. Search inputs carry a real accessible label, a 4.5:1
+  placeholder (`#4b5563`, not the default gray-400) and a clear (✕) button
+  once there's a query.
+- **Library staples (T-05.10, UX-05 A5):** `incline-barbell-bench-press`
+  (searchable by "incline bench"; shares the `incline-press` swap group,
+  sorted before the dumbbell version) and `back-extension` (`BODYWEIGHT_PLUS`
+  so "+ Add weight" loads a held plate; searchable by "hyper", "back ext" and
+  "roman chair"; `hinge` swap group) — additive catalog rows only, synced in
+  by the existing boot upsert (§ ensureExerciseLibrary, infrastructure.md).
+- **Tappable exercise names (T-05.5, mobile):** an exercise name is a real
+  link to `/gym/exercise/[id]` (`ExerciseNameLink`,
+  `apps/mobile/src/features/gym/components/exercise-name-link.tsx`) in Gym
+  Today's "Next up" card, the setup wizard's program preview, the
+  post-workout summary's PR list and "Next time" rows, and now the routine
+  editor's exercise cards (`day-editor.tsx`'s `ExerciseRow`, T-05.5 follow-up
+  — its name is its own tap target, a sibling of the expand/collapse
+  Pressable, never nested inside it) — so a name the user doesn't recognise
+  is never a dead end. Not yet done: web parity for the tappable link itself
+  (`mobile_parity_backlog.md` reverse row — the web routine editor's compact
+  card, below, shows the full name but not yet as a link); the glossary
+  (`packages/utils/src/glossary.ts`) gained gym terms (`amrap`,
+  `workingSet`, `warmUpSet`, `tempo`, `calibrating`) but nothing in a gym
+  screen renders a `GlossaryTerm` for them yet, and "first-sight" long-form
+  copy tracking in the gym offline KV is unbuilt.
+- **Routine-editor card, redesigned (T-05.3, UX-05 A4, O-23):** exercise
+  cards are compact by default (`{n} sets · {min}–{max} reps · {rest} s
+rest`) and expand **one at a time** (opening another collapses the first).
+  The expanded card is a labelled two-column grid (`Sets`/`Rest between
+sets`, `Reps from`/`to`, the grouped `ValueStepper`) with `Target effort
+(RIR)` and `Superset with next` tucked under `More ▸`. Move up/down, Swap
+  and Remove live in a per-row `⋯` sheet; the expanded card also shows
+  `Swap exercise`/`Remove` as text buttons. Removing a row is immediate (no
+  confirm — the routine only changes on Save) with an 8s Undo snackbar
+  (`restoreExercise`, mirroring the workout reducer's `restoreSet`); a newly
+  added exercise opens expanded. The day footer is a full-width `+ Add
+exercise` (never wraps) plus the live `~{n} min` (`estimateDurationMin`)
+  and the day's own `⋯` (`Duplicate day`, `Delete day`). Mobile:
+  `apps/mobile/src/features/gym/routine/day-editor.tsx`,
+  `reducer.ts`'s new `restoreExercise` action. Web (phone widths only —
+  `DesktopEditorBoard.tsx`'s dense always-open grid is unchanged):
+  `features/gym/routine/components/{PhoneEditorList,ExerciseFieldsForm}.tsx`
+  gain a `compact`/`expanded` mode with the same hierarchy, minus the `⋯`
+  sheet (Swap/Remove are already accessible as text buttons once expanded;
+  Move stays the existing up/down buttons).
 
 ## 22. Gym Setup & Workout Sync Flow (API)
 
@@ -2002,7 +2377,12 @@ Workout (offline on the phone) → Finish → outbox → gym.session.upsertMany(
   then ProgressionService.recompute(touched exercises):
     all completed exposures → group by rep bucket → engine foldHistory → state
     (overrides consumed by a newer exposure are cleared)
-  → phone invalidates gym.bootstrap → next workout + prescriptions for `today`
+  then (T-36.3) for every newly-applied COMPLETED doc, oldest first:
+    GymProfile.carryOver = engine nextCarryOver(carryOver, doc)
+      — consumes exercises the doc addressed, adds doc.carryOverExerciseIds
+      (best-effort; a write failure here never fails the sync)
+  → phone invalidates gym.bootstrap → next workout + prescriptions for `today`,
+    with GymProfile.carryOver prepended (tagged fromLastTime) by buildNextWorkout
 ```
 
 - **Re-syncs are harmless:** the same doc twice is one write; the rotation never advances twice
