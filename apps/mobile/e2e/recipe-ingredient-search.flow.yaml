@@ -120,6 +120,15 @@ appId: dev.chefer.app.dev
       platform: Android
     commands:
       - hideKeyboard
+# iOS: same trick as the earlier "Servings" tap — dismiss the keyboard (and
+# the decimal pad's NumericReturnBar accessory, which otherwise keeps
+# occupying the bottom of the screen) before scrolling further down.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: 'Steps'
+      - waitForAnimationToEnd
 
 # ── T-40.9: the computed nutrition card is the default, with a coverage line ──
 - scrollUntilVisible:
@@ -133,6 +142,10 @@ appId: dev.chefer.app.dev
     timeout: 10000
 - assertVisible:
     id: 'rf-nutrition-computed-kcal'
+# Let the CountUp tween and scroll momentum fully settle before tapping —
+# a tap right after scrollUntilVisible can otherwise race a still-moving
+# target (flaky, not an app bug: confirmed by retrying the same tap alone).
+- waitForAnimationToEnd
 
 # ── Edit numbers switches to the manual fields, prefilled ──
 - tapOn:

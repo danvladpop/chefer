@@ -8,12 +8,13 @@ import { naturalUnitForIngredient } from './natural-unit';
 import { useKeyboardAwareMaxHeight } from './use-keyboard-aware-max-height';
 
 /**
- * Reserve for everything besides the results list: grabber + title row
- * (~70), the search input (~60), the pinned footer's two action rows
- * (~100), plus safe-area/padding slop. Deliberately generous — see
- * use-keyboard-aware-max-height.ts.
+ * Reserve for everything ABOVE the one scrollable region: the grabber +
+ * title row (~70) and the search input (~60), plus safe-area/padding slop.
+ * Deliberately generous — see use-keyboard-aware-max-height.ts. Nothing is
+ * pinned below the scroll region any more (see the third bug-fix note), so
+ * there's no footer height to reserve for.
  */
-const RESULTS_RESERVED_PX = 280;
+const RESULTS_RESERVED_PX = 180;
 
 export type IngredientSearchRow = RouterOutputs['ingredients']['search'][number];
 
@@ -70,8 +71,20 @@ const MIN_QUERY_LENGTH = 2;
  * results list rendered past the visible area and UNDER the pinned footer
  * (tapping a row that far down hit the footer instead) — the kit Sheet's
  * `maxHeight` is a fraction of the FULL window and never accounts for the
- * keyboard. `useKeyboardAwareMaxHeight` bounds the results ScrollView to
- * the real remaining space instead, so it scrolls behind a clipped edge.
+ * keyboard, so a purely CSS-bounded ScrollView could still end up taller
+ * than the actual remaining on-screen room once the keyboard (and the
+ * KeyboardAvoidingView padding that shifts the whole sheet up to clear it)
+ * were accounted for — the pinned `footer` region has no scroll boundary
+ * of its own to protect it from an oversized sibling above it.
+ *
+ * Third bug fix (same review, confirmed on device): a `maxHeight` on the
+ * results ScrollView alone wasn't enough — the overlap persisted with a
+ * SEPARATE pinned footer next to it. Fixed per the orchestrator's own
+ * suggestion: there is no longer a separate footer region AT ALL. "Use as
+ * typed" / "Add as my ingredient" are now the LAST items inside the same
+ * ScrollView as the results (exactly like the UX mock's own layout — a
+ * divider line, then the two actions, all part of one scrolling list), so
+ * there is nothing left for them to be overlapped BY.
  */
 export function IngredientSearchSheet({
   visible,
@@ -150,32 +163,6 @@ export function IngredientSearchSheet({
       title={ingredientsCopy.search.title}
       testID={testID}
       scrollable={false}
-      footer={
-        trimmed.length > 0 ? (
-          <View className="gap-1">
-            <Pressable
-              testID={`${testID}-add-custom`}
-              accessibilityRole="button"
-              onPress={() => onCreateCustom(trimmed)}
-              className="min-h-11 justify-center"
-            >
-              <Text className="text-sm font-medium text-primary">
-                {ingredientsCopy.search.addAsMine(trimmed)}
-              </Text>
-            </Pressable>
-            <Pressable
-              testID={`${testID}-use-as-typed`}
-              accessibilityRole="button"
-              onPress={() => onUseAsTyped(trimmed)}
-              className="min-h-11 justify-center"
-            >
-              <Text variant="muted" className="text-xs">
-                {ingredientsCopy.search.useAsTyped(trimmed)}
-              </Text>
-            </Pressable>
-          </View>
-        ) : undefined
-      }
     >
       <View className="gap-3">
         <Input
@@ -188,7 +175,7 @@ export function IngredientSearchSheet({
           returnKeyType="search"
         />
 
-        {canSearch && (
+        {trimmed.length > 0 && (
           <ScrollView
             testID={`${testID}-results`}
             keyboardShouldPersistTaps="handled"
@@ -196,62 +183,91 @@ export function IngredientSearchSheet({
             style={{ maxHeight: resultsMaxHeight }}
           >
             <View className="gap-2">
-              {groups.map((group) => (
-                <View key={group.label} className="gap-1">
-                  <Text
-                    accessibilityRole="header"
-                    className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
-                  >
-                    {group.label}
-                  </Text>
-                  {group.rows.map((row) => (
-                    <Pressable
-                      key={row.name}
-                      testID={`${testID}-result-${row.name}`}
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        row.per100g
-                          ? `${row.displayName}, ${Math.round(row.per100g.calories)} kcal per 100 g`
-                          : `${row.displayName}, no nutrition data yet`
-                      }
-                      onPress={() => pick(row)}
-                      className="min-h-[52px] flex-row items-center gap-2.5 rounded-lg px-1 py-1.5 active:bg-accent"
+              {canSearch &&
+                groups.map((group) => (
+                  <View key={group.label} className="gap-1">
+                    <Text
+                      accessibilityRole="header"
+                      className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
                     >
-                      <Image
-                        source={{ uri: row.imageUrl }}
-                        className="h-9 w-9 shrink-0 rounded-md"
-                        resizeMode="cover"
-                      />
-                      <View className="min-w-0 flex-1">
-                        <Text numberOfLines={1} className="text-sm font-medium text-foreground">
-                          {row.displayName}
-                        </Text>
-                        {row.per100g ? (
-                          <Text className="text-xs text-muted-foreground">
-                            {Math.round(row.per100g.calories)} kcal / 100 g
+                      {group.label}
+                    </Text>
+                    {group.rows.map((row) => (
+                      <Pressable
+                        key={row.name}
+                        testID={`${testID}-result-${row.name}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          row.per100g
+                            ? `${row.displayName}, ${Math.round(row.per100g.calories)} kcal per 100 g`
+                            : `${row.displayName}, no nutrition data yet`
+                        }
+                        onPress={() => pick(row)}
+                        className="min-h-[52px] flex-row items-center gap-2.5 rounded-lg px-1 py-1.5 active:bg-accent"
+                      >
+                        <Image
+                          source={{ uri: row.imageUrl }}
+                          className="h-9 w-9 shrink-0 rounded-md"
+                          resizeMode="cover"
+                        />
+                        <View className="min-w-0 flex-1">
+                          <Text numberOfLines={1} className="text-sm font-medium text-foreground">
+                            {row.displayName}
                           </Text>
-                        ) : (
-                          <View className="mt-0.5 self-start rounded-full bg-muted px-1.5 py-0.5">
+                          {row.per100g ? (
                             <Text className="text-xs text-muted-foreground">
-                              {ingredientsCopy.search.noMacrosYet}
+                              {Math.round(row.per100g.calories)} kcal / 100 g
                             </Text>
-                          </View>
-                        )}
-                      </View>
-                    </Pressable>
-                  ))}
-                </View>
-              ))}
-              {groups.length === 0 && !isFetching && (
+                          ) : (
+                            <View className="mt-0.5 self-start rounded-full bg-muted px-1.5 py-0.5">
+                              <Text className="text-xs text-muted-foreground">
+                                {ingredientsCopy.search.noMacrosYet}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                ))}
+              {canSearch && groups.length === 0 && !isFetching && (
                 <Text testID={`${testID}-empty`} variant="muted" className="px-1 text-xs">
                   {ingredientsCopy.search.noMatches}
                 </Text>
               )}
-              {isFetching && groups.length === 0 && (
+              {canSearch && isFetching && groups.length === 0 && (
                 <Text variant="muted" className="px-1 text-xs">
                   {ingredientsCopy.search.searching}
                 </Text>
               )}
+
+              {/* T-40.7: no separate pinned footer any more (orchestrator
+                  review, third bug fix) — these are the last two rows of
+                  THIS scroll container, exactly like the UX mock's own
+                  layout, so there's nothing left for a long results list
+                  to render underneath. */}
+              <View className="gap-1 border-t border-border pt-3">
+                <Pressable
+                  testID={`${testID}-add-custom`}
+                  accessibilityRole="button"
+                  onPress={() => onCreateCustom(trimmed)}
+                  className="min-h-11 justify-center"
+                >
+                  <Text className="text-sm font-medium text-primary">
+                    {ingredientsCopy.search.addAsMine(trimmed)}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  testID={`${testID}-use-as-typed`}
+                  accessibilityRole="button"
+                  onPress={() => onUseAsTyped(trimmed)}
+                  className="min-h-11 justify-center"
+                >
+                  <Text variant="muted" className="text-xs">
+                    {ingredientsCopy.search.useAsTyped(trimmed)}
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           </ScrollView>
         )}
