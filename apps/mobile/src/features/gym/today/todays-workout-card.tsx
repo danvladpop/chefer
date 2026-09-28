@@ -1,13 +1,15 @@
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { todayStatus } from '@chefer/utils';
+import { resumeSummary, todayStatus } from '@chefer/utils';
 import { setMode } from '../mode-store';
+import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate } from '../offline/ids';
 import { useGymReminders } from '../reminders/use-gym-reminders';
 import { weekdayLabel } from '../routine/weekday';
 import { useActiveWorkout } from '../use-active-workout';
-import { useGymBootstrap } from '../use-gym-bootstrap';
+import { libraryLookup, useGymBootstrap } from '../use-gym-bootstrap';
+import { supersetsOf } from '../workout/workout-model';
 
 // "Today's workout" dashboard card (UX-04 §5 "Workout card on Food Today",
 // T-04.6): a link from Food into Gym. It reads only the persisted bootstrap —
@@ -27,14 +29,52 @@ const EYEBROW_TONIGHT_HOUR = 16;
 export function TodaysWorkoutCard() {
   const { data: bootstrap } = useGymBootstrap();
   const activeWorkout = useActiveWorkout();
+  const pausedAt = useActiveSessionPausedAt();
   useGymReminders();
 
   if (!bootstrap) return null;
+
+  const today = localDate();
 
   const goToGym = () => {
     setMode('gym');
     router.push('/today');
   };
+
+  // T-36.A1.2: an in-progress or paused session outranks the done/rest/
+  // training states below — it's the same resumeSummary() the gym Today
+  // Resume card and the logger itself build on (UX-36 A1, AC9), so this
+  // compact line can never disagree with them about state/progress.
+  if (activeWorkout.isActive && activeWorkout.session && bootstrap.profile) {
+    const session = activeWorkout.session;
+    const summary = resumeSummary(session, {
+      now: new Date().toISOString(),
+      pausedAt,
+      isBackfill: session.localDate !== today,
+      supersets: supersetsOf(session, bootstrap),
+      lookup: libraryLookup(bootstrap),
+    });
+    const stateLabel = summary.state === 'paused' ? 'Workout paused' : 'Workout in progress';
+    const goToWorkout = () => {
+      setMode('gym');
+      router.push('/gym/workout');
+    };
+    return (
+      <Card testID="todays-workout-card-resume" className="flex-row items-center gap-3">
+        <View className="min-w-0 flex-1">
+          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+            {summary.name}
+          </Text>
+          <Text testID="todays-workout-card-resume-label" className="mt-0.5 font-medium">
+            {`${stateLabel} · ${summary.exercisesDone} of ${summary.exercisesTotal} exercises`}
+          </Text>
+        </View>
+        <Button testID="todays-workout-card-resume-button" size="sm" onPress={goToWorkout}>
+          Resume
+        </Button>
+      </Card>
+    );
+  }
 
   if (!bootstrap.profile) {
     return (
@@ -53,7 +93,6 @@ export function TodaysWorkoutCard() {
     );
   }
 
-  const today = localDate();
   const status = todayStatus({ bootstrap, today });
   const { nextWorkout } = bootstrap;
 
