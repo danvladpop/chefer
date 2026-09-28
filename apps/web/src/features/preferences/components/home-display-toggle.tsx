@@ -27,7 +27,10 @@ export function HomeDisplayToggle({ initialEnabled }: { initialEnabled: boolean 
   };
 
   return (
-    <section className="mt-8 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+    <section
+      data-testid="prefs-home-display"
+      className="mt-8 rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 id="home-display-label" className="font-semibold text-gray-900">
@@ -38,6 +41,7 @@ export function HomeDisplayToggle({ initialEnabled }: { initialEnabled: boolean 
           </p>
         </div>
         <Switch
+          data-testid="prefs-home-display-switch"
           checked={enabled}
           onCheckedChange={toggle}
           aria-labelledby="home-display-label"
