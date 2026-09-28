@@ -38,8 +38,12 @@ let mockParams: { id?: string } = {};
 let mockExisting: unknown = null;
 let mockExistingLoading = false;
 let mockExistingError = false;
+let mockSearchResults: unknown[] = [];
+let mockComputedNutrition: unknown;
+let mockPremiumUser: { planTier: string; role: string } = { planTier: 'PREMIUM', role: 'USER' };
 const mockCreate = jest.fn();
 const mockUpdate = jest.fn();
+const mockCreateCustomIngredient = jest.fn();
 const mockInvalidate = { list: jest.fn(), getMyRecipe: jest.fn(), mealPlanGetRecipe: jest.fn() };
 const mockAddListener = jest.fn((_event: string, _cb: (e: unknown) => void) => () => undefined);
 const mockDispatch = jest.fn();
@@ -110,6 +114,36 @@ jest.mock('../../src/lib/trpc', () => ({
         }),
       },
     },
+    // T-40.7–T-40.9 (UX-40 slice 2): the ingredient picker sheet, the custom
+    // ingredient sheet and the computed-nutrition card all live behind this
+    // namespace now — the search/compute results are empty/undefined by
+    // default so the form behaves exactly like slice 1 (free text, manual
+    // numbers) unless a test seeds them.
+    ingredients: {
+      search: { useQuery: () => ({ data: mockSearchResults, isFetching: false }) },
+      computeNutrition: { useQuery: () => ({ data: mockComputedNutrition, isFetching: false }) },
+      createCustom: {
+        useMutation: (opts: { onSuccess?: (data: { displayName: string }) => void }) => ({
+          mutate: (input: { name: string }) => {
+            mockCreateCustomIngredient(input);
+            opts.onSuccess?.({ displayName: input.name });
+          },
+          isPending: false,
+          isError: false,
+        }),
+      },
+      estimateNutrition: {
+        useMutation: () => ({
+          mutate: jest.fn(),
+          isPending: false,
+          isError: false,
+          data: undefined,
+        }),
+      },
+    },
+    auth: {
+      me: { useQuery: () => ({ data: mockPremiumUser }) },
+    },
   },
 }));
 
@@ -120,8 +154,23 @@ beforeEach(() => {
   mockExisting = null;
   mockExistingLoading = false;
   mockExistingError = false;
+  mockSearchResults = [];
+  mockComputedNutrition = undefined;
+  mockPremiumUser = { planTier: 'PREMIUM', role: 'USER' };
   onlineManager.setOnline(true);
 });
+
+/** Opens the ingredient picker sheet and commits `text` via "Use as typed" — T-40.7. */
+async function typeIngredientAsFreeText(index: number, text: string) {
+  await fireEvent.press(screen.getByTestId(`rf-ingredient-name-${index}`));
+  await fireEvent.changeText(
+    screen.getByTestId(`rf-ingredient-name-${index}-search-sheet-input`),
+    text,
+  );
+  await fireEvent.press(
+    screen.getByTestId(`rf-ingredient-name-${index}-search-sheet-use-as-typed`),
+  );
+}
 
 afterEach(() => {
   onlineManager.setOnline(true);
@@ -133,7 +182,7 @@ describe('RecipeFormScreen — create (AC1, AC2)', () => {
     await renderScreen();
 
     await user.type(screen.getByTestId('rf-name-input'), "Grandma's lasagna");
-    await user.type(screen.getByTestId('rf-ingredient-name-0'), 'flour');
+    await typeIngredientAsFreeText(0, 'flour');
     await user.type(screen.getByTestId('rf-ingredient-qty-0'), '200');
 
     await fireEvent.press(screen.getByTestId('rf-save'));
@@ -158,7 +207,7 @@ describe('RecipeFormScreen — create (AC1, AC2)', () => {
 describe('RecipeFormScreen — PAT-17 blocked tap (AC3, AC4)', () => {
   it('with no name, the footer names it and a blocked tap never submits', async () => {
     await renderScreen();
-    await fireEvent.changeText(screen.getByTestId('rf-ingredient-name-0'), 'flour');
+    await typeIngredientAsFreeText(0, 'flour');
     await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '200');
 
     expect(screen.getByTestId('rf-missing')).toHaveTextContent('Add a name to save.');
@@ -171,7 +220,7 @@ describe('RecipeFormScreen — PAT-17 blocked tap (AC3, AC4)', () => {
   it('a named line with no amount blocks saving with "Finish the ingredient on line {n}."', async () => {
     await renderScreen();
     await fireEvent.changeText(screen.getByTestId('rf-name-input'), 'Bread');
-    await fireEvent.changeText(screen.getByTestId('rf-ingredient-name-0'), 'flour');
+    await typeIngredientAsFreeText(0, 'flour');
     // No amount typed — this line has a name but quantity is empty (0).
 
     expect(screen.getByTestId('rf-missing')).toHaveTextContent('Finish the ingredient on line 1.');
@@ -186,7 +235,7 @@ describe('RecipeFormScreen — PAT-17 blocked tap (AC3, AC4)', () => {
   it('a fully blank second line does not block saving', async () => {
     await renderScreen();
     await fireEvent.changeText(screen.getByTestId('rf-name-input'), 'Bread');
-    await fireEvent.changeText(screen.getByTestId('rf-ingredient-name-0'), 'flour');
+    await typeIngredientAsFreeText(0, 'flour');
     await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '200');
     await fireEvent.press(screen.getByTestId('rf-add-ingredient'));
 
@@ -299,5 +348,98 @@ describe('RecipeFormScreen — discard changes (AC9)', () => {
 
     await fireEvent.press(screen.getByText('Discard'));
     expect(mockDispatch).toHaveBeenCalledWith({ type: 'GO_BACK' });
+  });
+});
+
+// UX-40 slice 2 (T-40.7/T-40.9, AC12): picking a catalogue ingredient links
+// the line, and the nutrition section defaults to the computed card with an
+// Edit numbers ↔ Use calculated numbers round trip.
+describe('RecipeFormScreen — ingredient search & computed nutrition (AC12)', () => {
+  it('picking a catalogue result links the line ("nutrition known")', async () => {
+    mockSearchResults = [
+      {
+        name: 'rolled oats',
+        displayName: 'Rolled Oats',
+        imageUrl: 'https://img.example/oats.png',
+        hasMacros: true,
+        isCustom: false,
+        per100g: { calories: 379, protein: 13, carbs: 67, fat: 7 },
+      },
+    ];
+    await renderScreen();
+    await fireEvent.press(screen.getByTestId('rf-ingredient-name-0'));
+    await fireEvent.changeText(
+      screen.getByTestId('rf-ingredient-name-0-search-sheet-input'),
+      'oat',
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await fireEvent.press(
+      screen.getByTestId('rf-ingredient-name-0-search-sheet-result-rolled oats'),
+    );
+
+    expect(
+      screen.getByLabelText('Name for ingredient 1, Rolled Oats, nutrition known'),
+    ).toBeOnTheScreen();
+  });
+
+  it('"Use as typed" free text is never marked as linked nutrition', async () => {
+    await renderScreen();
+    await typeIngredientAsFreeText(0, 'a very unusual thing');
+    expect(screen.queryByLabelText(/nutrition known/)).toBeNull();
+  });
+
+  it('defaults to the computed nutrition card and sends its numbers on save', async () => {
+    mockComputedNutrition = {
+      perServing: { calories: 300, protein: 10, carbs: 40, fat: 5, fiber: 2 },
+      unmatched: [],
+      matchedCount: 1,
+      totalCount: 1,
+    };
+    await renderScreen();
+    await fireEvent.changeText(screen.getByTestId('rf-name-input'), 'Bread');
+    await typeIngredientAsFreeText(0, 'flour');
+    await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '200');
+
+    expect(screen.getByTestId('rf-nutrition-computed')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByTestId('rf-save'));
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    const payload = (mockCreate.mock.calls[0] as [RecipePayload])[0];
+    expect(payload.nutritionInfo).toMatchObject({
+      calories: 300,
+      protein: 10,
+      carbs: 40,
+      fat: 5,
+      fiber: 2,
+      source: 'computed',
+    });
+  });
+
+  it('Edit numbers switches to manual, prefilled with the computed values', async () => {
+    mockComputedNutrition = {
+      perServing: { calories: 300, protein: 10, carbs: 40, fat: 5, fiber: 2 },
+      unmatched: ['cinnamon'],
+      matchedCount: 1,
+      totalCount: 2,
+    };
+    await renderScreen();
+    await fireEvent.changeText(screen.getByTestId('rf-name-input'), 'Bread');
+    await typeIngredientAsFreeText(0, 'flour');
+    await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '200');
+    // use-computed-nutrition.ts debounces the ingredient list by 600ms
+    // before it counts as "has ingredients" and starts computing.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 700)));
+
+    expect(screen.getByTestId('rf-nutrition-computed-coverage')).toHaveTextContent(
+      'From 1 of 2 ingredients · no data for: cinnamon',
+    );
+
+    await fireEvent.press(screen.getByTestId('rf-nutrition-computed-edit'));
+
+    expect(screen.getByTestId('rf-kcal').props.value).toBe('300');
+    expect(screen.getByTestId('rf-nutrition-use-calculated')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByTestId('rf-nutrition-use-calculated'));
+    expect(screen.getByTestId('rf-nutrition-computed')).toBeOnTheScreen();
   });
 });

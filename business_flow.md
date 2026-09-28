@@ -36,6 +36,8 @@
 28. _(reserved — another wave-1 lane)_
 29. [Your Own Targets & Change Notices Flow](#29-your-own-targets--change-notices-flow)
 30. [Food Logging: Search, Edit, Undo, Copy Day Flow](#30-food-logging-search-edit-undo-copy-day-flow)
+31. [Manual Recipe Create and Edit](#31-manual-recipe-create-and-edit-ux-40-slices-12-t-401t-4010-t-bug-o3)
+32. [Terms Acceptance & Email Defaults Flow](#32-terms-acceptance--email-defaults-flow-t-391t-393)
 
 ---
 
@@ -3349,12 +3351,14 @@ change before the UI can honestly ship (handoff, see `mobile_parity_backlog.md`)
 
 ---
 
-## 31. Manual recipe create and edit (UX-40 slice 1, T-40.1–T-40.6, T-BUG-O3)
+## 31. Manual recipe create and edit (UX-40 slices 1–2, T-40.1–T-40.10, T-BUG-O3)
 
 > The D-19 minimum, the pickers, photo states, the sectioned mobile rebuild
-> and the O-15 ("edit doesn't work") fix, on both platforms. Slice 2
-> (ingredient search, computed nutrition, swipe-to-remove) is a
-> `mobile_parity_backlog.md` row for W2 L-RECIPE.
+> and the O-15 ("edit doesn't work") fix, on both platforms (slice 1). Slice
+> 2 (W2 L-RECIPE) brings mobile's ingredient lines to web parity: a
+> catalogue search sheet, a custom-ingredient sheet with a premium
+> AI auto-fill, computed nutrition, and swipe-to-remove — closing the
+> `mobile_parity_backlog.md` row opened in slice 1.
 
 ```
 D-19 minimum — recipe.create / recipe.update (additive widening, T-40.3):
@@ -3439,6 +3443,70 @@ shows "No steps yet" instead of an empty Instructions card.
 **Kit (T-40.2):** `SelectField`/`SelectSheet` (PAT-15) and `FormField`
 (PAT-17) in `packages/ui-mobile` — see infrastructure.md §5.8. No icon-font
 dependency (plain glyphs), consistent with the rest of the kit.
+
+### Mobile ingredient search and computed nutrition (slice 2, T-40.7–T-40.10, AC12)
+
+Mobile's manual ingredient lines now match the web reference
+(`IngredientPicker` / `IngredientFormModal`), built entirely in NEW
+`apps/mobile/src/features/ingredients/**`:
+
+```
+Ingredient row name field ──tap──► IngredientSearchSheet (full-height Sheet)
+  search box, 2+ chars, 250ms debounce ──► ingredients.search
+  results grouped "YOUR INGREDIENTS" (isCustom) then "CHEFER CATALOGUE"
+  pick a row   ──► line.name = row.displayName, line.linked = true,
+                    and — only while the unit is still the default 'g' —
+                    line.unit = naturalUnitForIngredient(row.name)
+                    (a small curated name-based heuristic: "milk"/"oil"/… →
+                    ml, "egg"/"onion"/… → piece; the search DTO carries no
+                    per-row unit hint today, so this is a client-side
+                    approximation, not a server answer)
+  linked line  ──► shows a muted `nutrition-outline` icon, a11y "…, nutrition known"
+  "Use "{text}" as typed"       ──► line.name = text, line.linked = false (today's free text)
+  "Add "{text}" as my ingredient" ──► CustomIngredientSheet (opens only once
+                                       the search sheet's exit animation
+                                       finishes — the kit Sheet's own rule:
+                                       one Modal must finish dismissing
+                                       before the next presents)
+```
+
+**Custom ingredient sheet (T-40.8):** name, four per-100g macro fields (no
+fiber, D-18), `One piece weighs (g)` optional, over
+`ingredients.createCustom` — a private row visible only to its creator
+(never even to another account searching the identical text, `AC12`).
+`Fill in for me` calls `ingredients.estimateNutrition` with ONLY the
+ingredient name — the delta rules' existing precedent that a name-only
+nutrition estimate is not AI-consent-gated. It is premium-only and the only
+lock on this screen (P4): a free tap never calls the mutation, it opens the
+existing `/profile?source=ingredient-autofill` upsell entry point instead
+(the same mechanism `import-recipe.tsx`'s locked state already uses),
+isolated in `premium-upsell.ts` so it is a one-line swap to
+`openPremium('ingredient-autofill')` once L-MONEY's job-led `PremiumSheet`
+ships. No price/checkout copy anywhere in that path (delta rule 2). Saving
+returns to the form with the new ingredient picked (linked, natural unit
+applied).
+
+**Computed nutrition (T-40.9):** the nutrition section defaults to a
+`ComputedNutritionCard` (`ingredients.computeNutrition`, debounced 600ms —
+the web model) showing four `CountUp` stats and a coverage line
+(`Calculated from all N ingredients.` / `From M of N ingredients · no data
+for: X, Y` / `Add ingredients to calculate nutrition automatically.` /
+offline: the last numbers stay with `Offline — showing the last calculated
+numbers. Will calculate when you're online.`). `Edit numbers` prefills the
+slice-1 manual fields with the last computed values and switches to manual;
+`Use calculated numbers` switches back. `nutritionInfo.source` records which
+mode saved (`'computed'`, `'manual'`, or `'none'` when computed mode never
+matched anything) — edit reopens in `'manual'` unless the loaded recipe was
+explicitly saved as `'computed'`, so an old manual save is never silently
+replaced by a fresh recompute.
+
+**Swipe-to-remove (T-40.10):** both ingredient and step lines wrap in
+L-GYM's `swipe-to-remove.tsx` (`apps/mobile/src/components/`) — swipe left
+to remove, always alongside the existing `⋯` row menu (progressive
+enhancement, never the only way to remove a line). The ingredient row's
+forwarded ref now targets the QUANTITY field, not the name field — the name
+field is a sheet trigger, not a `TextInput`, and the quantity is what D-19's
+`incompleteLine` error actually means.
 
 ---
 
