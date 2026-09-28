@@ -51,22 +51,43 @@ appId: dev.chefer.app.dev
       id: 'gym-routine-editor-title'
     timeout: 10000
 
-# Exercise rows start collapsed to a one-line summary (G4-B): expand the
-# first one. Then capture its current set count, bump it, and remember the
-# expected value (ids are server-assigned, so the row testIDs are matched by
-# pattern rather than by a fixed id).
+# Exercise rows start collapsed to a one-line summary (UX-05 A4, T-05.3):
+# expand the first one, check its full name is on screen (never truncated,
+# AC23) and that expanding shows the steppers, then collapse and re-expand it
+# (ids are server-assigned, so the row testIDs are matched by pattern rather
+# than by a fixed id).
 - tapOn:
     id: 'routine-editor-day-.*-exercise-.*-toggle'
     index: 0
+- assertVisible:
+    id: 'routine-editor-day-.*-exercise-.*-name$'
+- assertVisible:
+    id: '.*-sets-value$'
+- tapOn:
+    id: 'routine-editor-day-.*-exercise-.*-toggle'
+    index: 0
+- assertNotVisible:
+    id: '.*-sets-value$'
+- tapOn:
+    id: 'routine-editor-day-.*-exercise-.*-toggle'
+    index: 0
+- assertVisible:
+    id: '.*-sets-value$'
+
+# Then capture its current set count, bump it, and remember the expected
+# value.
 - copyTextFrom:
     id: '.*-sets-value$'
-# iOS reports the value element's full label ("3 sets"), so parse the leading int.
-- evalScript: ${output.expectedSets = parseInt(maestro.copiedText, 10) + 1}
+# iOS reports the value element's full accessible label, which reads "3 sets"
+# on the plain Stepper but "Sets 3" on the grouped ValueStepper (UX-05 A4,
+# T-05.3) — match the digits anywhere rather than assuming a leading int.
+- evalScript: ${output.expectedSets = parseInt(maestro.copiedText.match(/\d+/)[0], 10) + 1}
 - tapOn:
     id: '.*-sets-inc$'
 - assertVisible:
     id: '.*-sets-value$'
-    text: '${output.expectedSets}.*'
+    # Wrapped rather than leading-anchored: see the accessible-label note above.
+    text: '.*${output.expectedSets}.*'
 
 # ── Save ─────────────────────────────────────────────────────────────────────
 - tapOn:

@@ -85,6 +85,22 @@ appId: dev.chefer.app.dev
     id: 'rest-timer-remaining'
 - tapOn:
     id: 'rest-timer-skip'
+
+# ── Remove a set via its ⋯, then Undo (UX-05 A1, T-05.A1.2, PAT-16) ──────────
+# No confirm dialog: the row leaves immediately and a snackbar offers Undo.
+- tapOn:
+    id: 'exercise-0-set-2-menu'
+- assertVisible:
+    id: 'snackbar-message'
+- assertVisible:
+    id: 'snackbar-action'
+- tapOn:
+    id: 'snackbar-action'
+- assertNotVisible:
+    id: 'snackbar-message'
+- assertVisible:
+    id: 'exercise-0-set-2-check'
+
 - tapOn:
     id: 'exercise-0-set-2-check'
 - tapOn:
