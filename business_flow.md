@@ -521,8 +521,16 @@ mealPlan.generate { weekOffset }
        │   DONE image are marked DONE immediately
        ├─ remaining recipes upserted as PENDING with imagePriority
        │   (0 = today) → RecipeImageWorker.wake()
-       └─ worker generates up to 5 images in parallel (Pollinations),
-           streaming DONE events to the client over SSE
+       └─ worker generates up to 3 images in parallel (Pollinations, or
+           Cloudflare Workers AI in prod), streaming DONE events to the
+           client over SSE
+           └─ never "Photo unavailable" for a pipeline problem: Cloudflare's
+               daily free neurons used up (then skipped until 00:00 UTC),
+               the generated image can't be stored (never regenerated), or
+               the 3rd failed attempt → the dish's free deterministic
+               Pollinations URL, status DONE (client loads it; not warmed).
+               Only a content-policy refusal ends FAILED. On API start,
+               FAILED recipes with no image are backfilled the same way.
 ```
 
 ### "How you cook" plan shape (§2.3, T-07.1/T-07.2, persona-study wave 1)
