@@ -21,9 +21,11 @@ vi.mock('@/lib/trpc', () => {
     trpc: {
       useUtils: () => ({
         preferences: { get: { invalidate } },
-        dashboard: { invalidate },
+        dashboard: { invalidate, summary: { invalidate } },
         mealPlan: { invalidate },
         gym: { invalidate },
+        targets: { get: { invalidate }, changes: { invalidate } },
+        tracker: { getDay: { invalidate } },
       }),
       preferences: {
         updateSafety: { useMutation: () => ({ mutateAsync: m.safety, isPending: false }) },
@@ -32,6 +34,11 @@ vi.mock('@/lib/trpc', () => {
         },
         updateTargets: { useMutation: () => ({ mutateAsync: m.targets, isPending: false }) },
         computeTargets: { useQuery: (input: unknown) => m.computeTargets(input) },
+      },
+      // TargetsCard (§2.11, T-35.3) — not under test here.
+      targets: {
+        get: { useQuery: () => ({ data: undefined, isLoading: true }) },
+        set: { useMutation: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false }) },
       },
     },
   };

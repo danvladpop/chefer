@@ -33,13 +33,69 @@ import type { NutritionTargets, TrainingDayNutrition, TrainingDayReason } from '
 
 /** Base protein for GAIN_MUSCLE lifters, every tier (the training-day rules build on it). */
 export const LIFTER_PROTEIN_G_PER_KG = 1.8;
-/** Base protein for lifters by goal, every tier. Goals not listed get no lifter rule. */
+/**
+ * Base protein for lifters by goal, every tier. Goals not listed get no lifter
+ * rule. RECOMP and PERFORMANCE (§2.11, T-35.2, rev 2) sit in the same
+ * 1.6–2.2 g/kg evidence range as the original four: RECOMP (simultaneous fat
+ * loss + muscle retention) uses LOSE_WEIGHT's 2.0 g/kg; PERFORMANCE
+ * (maintenance calories, training-driven) uses GAIN_MUSCLE's 1.8 g/kg.
+ */
 export const LIFTER_PROTEIN_G_PER_KG_BY_GOAL: Readonly<Record<string, number>> = {
   GAIN_MUSCLE: LIFTER_PROTEIN_G_PER_KG,
   LOSE_WEIGHT: 2.0,
   MAINTAIN: 1.6,
   EAT_HEALTHIER: 1.6,
+  RECOMP: 2.0,
+  PERFORMANCE: 1.8,
 };
+
+/**
+ * Clinical "adjusted body weight" (§2.11, T-11.4): at a BMI of 30 or higher, a
+ * g/kg protein rule applied to actual bodyweight overstates need (the extra
+ * mass is disproportionately fat, not lean tissue). The weight used for the
+ * protein calculation is capped at what a BMI-30 person of the same height
+ * would weigh; below that BMI the actual weight is used unchanged.
+ */
+export const BMI_ADJUSTED_WEIGHT_THRESHOLD = 30;
+
+/**
+ * The bodyweight to use for a g/kg protein calculation, and whether the BMI
+ * rule adjusted it. Falls back to the actual weight (unadjusted) when height
+ * is unknown — the resolver still works, it just can't apply the rule.
+ */
+export function adjustedProteinWeightKg(
+  weightKg: number,
+  heightCm: number | null | undefined,
+): { weightKg: number; adjusted: boolean } {
+  if (!heightCm || heightCm <= 0) return { weightKg, adjusted: false };
+  const heightM = heightCm / 100;
+  const bmi = weightKg / (heightM * heightM);
+  if (bmi < BMI_ADJUSTED_WEIGHT_THRESHOLD) return { weightKg, adjusted: false };
+  const capped = BMI_ADJUSTED_WEIGHT_THRESHOLD * heightM * heightM;
+  return { weightKg: Math.round(capped * 10) / 10, adjusted: true };
+}
+
+/**
+ * One sentence fragment per goal, for the coach review and target-explain
+ * copy. The canonical goal → wording map (T-35.2, rev 2): L-PLAN's
+ * `lib/ai/prompts.ts` (owned by L-PLAN in wave 1) reads this instead of
+ * switching on the raw enum, so RECOMP/PERFORMANCE prompt wording stays in
+ * sync without L-TRACK editing a file it doesn't own.
+ */
+export const GOAL_WORDING: Readonly<Record<string, string>> = {
+  LOSE_WEIGHT: 'losing weight',
+  MAINTAIN: 'maintaining your weight',
+  GAIN_MUSCLE: 'gaining muscle',
+  EAT_HEALTHIER: 'eating healthier',
+  RECOMP: 'recomposition — losing fat while keeping muscle',
+  PERFORMANCE: 'training performance',
+};
+
+/** "losing weight" style sentence fragment for a goal, or a neutral fallback. */
+export function goalWording(goal: string | null | undefined): string {
+  return (goal ? GOAL_WORDING[goal] : undefined) ?? 'your nutrition goal';
+}
+
 /** Protein on a training day (premium). */
 export const TRAINING_DAY_PROTEIN_G_PER_KG = 2.2;
 /** Training-day calorie bump: a share of the base target, rounded and clamped. */
@@ -77,19 +133,38 @@ export function isLifter(input: {
 
 /**
  * Replaces the protein target with the lifter's g/kg base for their goal
- * (GAIN_MUSCLE's 1.8 when the goal is omitted). Calories stay fixed: the
- * protein grams removed (or added) move to carbs (both 4 kcal/g), never
- * below zero.
+ * (GAIN_MUSCLE's 1.8 when the goal is omitted), applying the BMI ≥ 30
+ * adjusted-weight rule (§2.11, T-11.4) when `heightCm` is passed. Calories
+ * stay fixed: the protein grams removed (or added) move to carbs (both
+ * 4 kcal/g), never below zero. Returns whether the adjustment fired, for
+ * callers that need to say so (`TargetInputs.usedAdjustedWeight`).
+ */
+export function withLifterProteinDetailed<T extends NutritionTargets>(
+  targets: T,
+  bodyweightKg: number,
+  goal?: string | null,
+  heightCm?: number | null,
+): { targets: T; usedAdjustedWeight: boolean } {
+  const perKg = lifterProteinGPerKg(goal ?? 'GAIN_MUSCLE') ?? LIFTER_PROTEIN_G_PER_KG;
+  const { weightKg: proteinWeightKg, adjusted } = adjustedProteinWeightKg(bodyweightKg, heightCm);
+  const proteinG = Math.round(proteinWeightKg * perKg);
+  const carbsG = Math.max(0, targets.carbsG + (targets.proteinG - proteinG));
+  return { targets: { ...targets, proteinG, carbsG }, usedAdjustedWeight: adjusted };
+}
+
+/**
+ * `withLifterProteinDetailed` without the BMI adjustment flag, for callers
+ * that only need the targets (kept so existing call sites — e.g. the
+ * preferences-form preview — don't have to change to pick up the new
+ * optional `heightCm` rule; kept additive).
  */
 export function withLifterProtein<T extends NutritionTargets>(
   targets: T,
   bodyweightKg: number,
   goal?: string | null,
+  heightCm?: number | null,
 ): T {
-  const perKg = lifterProteinGPerKg(goal ?? 'GAIN_MUSCLE') ?? LIFTER_PROTEIN_G_PER_KG;
-  const proteinG = Math.round(bodyweightKg * perKg);
-  const carbsG = Math.max(0, targets.carbsG + (targets.proteinG - proteinG));
-  return { ...targets, proteinG, carbsG };
+  return withLifterProteinDetailed(targets, bodyweightKg, goal, heightCm).targets;
 }
 
 export interface TrainingDayBonus {

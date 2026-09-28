@@ -284,7 +284,7 @@ describe('buildTemplateReviewText', () => {
     avgDailyKcal: 2100,
     targetKcal: 2000,
     weightTrendKg: -0.3,
-    adjustmentKcal: 0,
+    proposedAdjustmentKcal: 0,
     goal: 'LOSE_WEIGHT',
     dishNames: [],
   };
@@ -294,8 +294,11 @@ describe('buildTemplateReviewText', () => {
     expect(first).toContain('5 of 7');
   });
 
-  it('mentions the adjustment when the dial moved', () => {
-    expect(buildTemplateReviewText({ ...base, adjustmentKcal: -100 })).toContain('-100 kcal');
+  it('mentions the proposed adjustment as a suggestion, not an applied change (T-35.4)', () => {
+    const text = buildTemplateReviewText({ ...base, proposedAdjustmentKcal: -100 });
+    expect(text).toContain('-100 kcal');
+    expect(text).toMatch(/suggest/i);
+    expect(text).not.toMatch(/I've adjusted/i);
   });
 
   it('coaches the habit instead of numbers at low adherence', () => {
@@ -320,7 +323,11 @@ describe('buildTemplateReviewText', () => {
   });
 
   it('never mentions BMR or algorithms (non-medical tone rule)', () => {
-    const text = buildTemplateReviewText({ ...base, adjustmentKcal: 100, weightTrendKg: null });
+    const text = buildTemplateReviewText({
+      ...base,
+      proposedAdjustmentKcal: 100,
+      weightTrendKg: null,
+    });
     expect(text).not.toMatch(/BMR|TDEE|EWMA|algorithm/i);
   });
 });

@@ -183,6 +183,13 @@ export {
 } from './target-change.repository';
 
 export {
+  IngredientPriceRepository,
+  ingredientPriceRepository,
+  type IIngredientPriceRepository,
+  type IngredientCatalogRow,
+} from './ingredient-price.repository';
+
+export {
   ConsentEventRepository,
   consentEventRepository,
   type IConsentEventRepository,

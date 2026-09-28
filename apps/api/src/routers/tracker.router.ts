@@ -52,6 +52,26 @@ const logDateSchema = calendarDateSchema.refine(notFuture, "You can't log a futu
 const bodyWeightKgSchema = z.number().finite().min(BODY_WEIGHT_KG_MIN).max(BODY_WEIGHT_KG_MAX);
 const weightDateSchema = calendarDateSchema.refine(notFuture, "A weigh-in can't be in the future");
 
+// §2.12, T-21.1: the client's local "today" — optional, back-compat with
+// clients that only ever anchored on the server's UTC day.
+const localDateSchema = calendarDateSchema.optional();
+
+// A full custom-entry snapshot, for restoreCustomMeal's Undo (T-19.2, B-34):
+// the client sends back exactly what it had before deleting.
+const customEntrySnapshotSchema = z.object({
+  entryId: z.string().min(1).optional(),
+  custom: z.object({
+    name: z.string().min(1).max(200),
+    estimatedBy: z.enum(['vision', 'manual']),
+  }),
+  mealType: z.string().min(1).max(20),
+  portionMultiplier: z.number().min(0.5).max(2),
+  kcal: z.number().finite().min(0).max(10000),
+  protein: z.number().finite().min(0).max(1000),
+  carbs: z.number().finite().min(0).max(2000),
+  fat: z.number().finite().min(0).max(1000),
+});
+
 export const trackerRouter = router({
   getDay: protectedProcedure
     .input(z.object({ date: calendarDateSchema }))
@@ -114,7 +134,37 @@ export const trackerRouter = router({
       return trackerService.logCustomMeal(ctx.user, date, entry);
     }),
 
+  // The tracker's untick (T-19.4, one-save model): removes the planned-recipe
+  // entry `logRecipe` would have written for this slot. A no-op when nothing
+  // matches (already unticked) — additive, older clients keep using upsertDay.
+  unlogRecipe: protectedProcedure
+    .input(
+      z.object({
+        date: calendarDateSchema,
+        recipeId: z.string().min(1),
+        mealType: z.string().min(1).max(20),
+        slotIndex: z.number().int().min(0).max(20).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { date, ...target } = input;
+      return trackerService.unlogRecipe(ctx.user.id, date, target);
+    }),
+
+  // Removes any entries (recipe or custom) by stable id — undoes copyDay
+  // (deletes exactly the returned copies) and any other batch a client
+  // already holds ids for. Idempotent: an unmatched id is ignored.
+  deleteEntries: protectedProcedure
+    .input(
+      z.object({ date: calendarDateSchema, entryIds: z.array(z.string().min(1)).min(1).max(50) }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return trackerService.deleteEntries(ctx.user.id, input.date, input.entryIds);
+    }),
+
   // F4: delete one custom entry by its position in the day's loggedMeals.
+  // Older clients (no entryId, T-19.2) keep using this — the server resolves
+  // the index against the current array in one transaction.
   deleteCustomMeal: protectedProcedure
     .input(
       z.object({
@@ -126,13 +176,62 @@ export const trackerRouter = router({
       return trackerService.deleteCustomMeal(ctx.user.id, input.date, input.entryIndex);
     }),
 
-  weeklySummary: protectedProcedure.query(async ({ ctx }) => {
-    return trackerService.weeklySummary(ctx.user.id);
-  }),
+  // Edit any custom entry by its stable id (bug B-34, T-19.2). Additive —
+  // older clients keep deleting/re-adding via entryIndex.
+  updateCustomMeal: protectedProcedure
+    .input(
+      z.object({
+        date: calendarDateSchema,
+        entryId: z.string().min(1),
+        name: z.string().min(1).max(200).optional(),
+        estimatedBy: z.enum(['vision', 'manual']).optional(),
+        mealType: z.string().min(1).max(20).optional(),
+        kcal: z.number().finite().min(0).max(10000),
+        protein: z.number().finite().min(0).max(1000),
+        carbs: z.number().finite().min(0).max(2000),
+        fat: z.number().finite().min(0).max(1000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { date, entryId, ...updates } = input;
+      return trackerService.updateCustomMeal(ctx.user.id, date, entryId, updates);
+    }),
 
-  monthlySummary: protectedProcedure.query(async ({ ctx }) => {
-    return trackerService.monthlySummary(ctx.user.id);
-  }),
+  // The bin's `Undo` snackbar (8s): re-adds the exact entry the client had
+  // before deleting (bug B-34, T-19.2). Idempotent on entryId.
+  restoreCustomMeal: protectedProcedure
+    .input(z.object({ date: calendarDateSchema, entry: customEntrySnapshotSchema }))
+    .mutation(async ({ ctx, input }) => {
+      return trackerService.restoreCustomMeal(ctx.user.id, input.date, input.entry);
+    }),
+
+  // "Copy {yesterday} to today" (T-19.3). Returns the new entries' ids so the
+  // header's own Undo can delete exactly the copies.
+  copyDay: protectedProcedure
+    .input(z.object({ fromDate: calendarDateSchema, toDate: logDateSchema }))
+    .mutation(async ({ ctx, input }) => {
+      return trackerService.copyDay(ctx.user, input.fromDate, input.toDate);
+    }),
+
+  // Search-first Log sheet (T-19.1): the last 15 distinct things logged,
+  // most frequent first.
+  recents: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(30).default(15) }).optional())
+    .query(async ({ ctx, input }) => {
+      return trackerService.recents(ctx.user.id, input?.limit ?? 15);
+    }),
+
+  weeklySummary: protectedProcedure
+    .input(z.object({ localDate: localDateSchema }).optional())
+    .query(async ({ ctx, input }) => {
+      return trackerService.weeklySummary(ctx.user.id, input?.localDate);
+    }),
+
+  monthlySummary: protectedProcedure
+    .input(z.object({ localDate: localDateSchema }).optional())
+    .query(async ({ ctx, input }) => {
+      return trackerService.monthlySummary(ctx.user.id, input?.localDate);
+    }),
 
   logWeight: protectedProcedure
     .input(

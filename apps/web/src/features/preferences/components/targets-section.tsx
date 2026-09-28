@@ -7,6 +7,7 @@ import { trpc } from '@/lib/trpc';
 import { skipToken } from '@tanstack/react-query';
 import { lifterProteinNote } from '@chefer/utils';
 import { Section } from './section';
+import { TargetsCard } from './TargetsCard';
 
 // ─── Client-side nutrition preview (instant estimate, replaced by the
 // server's numbers as soon as they arrive — see serverPreview below) ─────────
@@ -171,7 +172,11 @@ export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProp
       {/* Goal — #targets is where "update your targets" links land
           (post-upgrade activation, audit F-PM-9) */}
       <section id="targets" className="scroll-mt-20 rounded-xl border bg-card p-4 shadow-sm sm:p-6">
-        <StepGoal value={data.goal} onChange={(goal: Goal) => onChange({ goal })} />
+        <StepGoal
+          value={data.goal}
+          onChange={(goal: Goal) => onChange({ goal })}
+          showDisclaimer={false}
+        />
       </section>
 
       {/* Body metrics */}
@@ -188,6 +193,10 @@ export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProp
           goal={data.goal}
         />
       </Section>
+
+      {/* §2.11, T-35.3 — Suggested (computed) or My own (never moved
+          silently — gym setup, a weigh-in or a goal edit only propose). */}
+      <TargetsCard />
 
       {/* Cuisine & meal cadence */}
       <Section>

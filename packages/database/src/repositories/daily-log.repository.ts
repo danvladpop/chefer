@@ -5,6 +5,14 @@ import { prisma } from '../client';
 // (custom set — Snap-to-Log photo scans and manual quick-adds, F4). Readers
 // must treat entries without recipeId as valid (premium_plan.md wave 0).
 export interface LoggedMealEntry {
+  /**
+   * Stable id for this entry within the day (§5.15b, T-19.2, bug B-34) — lets
+   * the client edit or undo-delete a specific row without relying on its
+   * position in the array. Optional: entries logged before this landed have
+   * none until `tracker.service.ts` backfills them lazily on read; a client
+   * deleting by `entryIndex` (older builds) still works unchanged.
+   */
+  entryId?: string | undefined;
   // `| undefined` keeps zod-parsed inputs assignable under
   // exactOptionalPropertyTypes.
   recipeId?: string | undefined;

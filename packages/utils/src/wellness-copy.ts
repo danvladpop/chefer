@@ -11,12 +11,16 @@
 // Settings "About" disclaimer. The goal/metrics disclaimer strings are added
 // here by L-TRACK, which owns `goal-step.tsx`/`metrics-step.tsx` this wave.
 
+// T-22.3 (rev 2, §5.13): `goalMetricsDisclaimer` is shown under the goal
+// picker and body-metrics form on every platform (onboarding AND the
+// Settings › Preferences "Goal & body" card) — a calculator, not a doctor.
 export type WellnessCopyKey =
   | 'chatHeaderSubtitle'
   | 'chatEmptyStateDisclaimer'
   | 'chatHealthTopicFooter'
   | 'chatSafetyTopicFooter'
-  | 'aboutMedicalDisclaimer';
+  | 'aboutMedicalDisclaimer'
+  | 'goalMetricsDisclaimer';
 
 export const WELLNESS_COPY: Record<WellnessCopyKey, string> = {
   chatHeaderSubtitle: 'AI · answers can be wrong',
@@ -26,4 +30,6 @@ export const WELLNESS_COPY: Record<WellnessCopyKey, string> = {
   chatSafetyTopicFooter: 'AI can be wrong about allergens — always check the label.',
   aboutMedicalDisclaimer:
     "Chefer offers general healthy-eating and training guidance. It isn't a medical device and doesn't give medical advice.",
+  goalMetricsDisclaimer:
+    'General estimates only, based on common formulas — for guidance about your own health, talk to a qualified professional.',
 };

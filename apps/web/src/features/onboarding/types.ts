@@ -3,7 +3,16 @@ import type { OnboardingIntent } from '@chefer/types';
 // Mirror of the Prisma enums — kept here so client components don't need
 // to import @chefer/database (which pulls in the Prisma server runtime).
 
-export type Goal = 'LOSE_WEIGHT' | 'MAINTAIN' | 'GAIN_MUSCLE' | 'EAT_HEALTHIER';
+// §2.11, T-35.2 (rev 2): RECOMP and PERFORMANCE are additive over the
+// original four — preferences.get downgrades them to MAINTAIN for a level-0
+// client; this app sends `x-chefer-api-level: 1` and gets the true value.
+export type Goal =
+  | 'LOSE_WEIGHT'
+  | 'MAINTAIN'
+  | 'GAIN_MUSCLE'
+  | 'EAT_HEALTHIER'
+  | 'RECOMP'
+  | 'PERFORMANCE';
 
 export type ActivityLevel =
   | 'SEDENTARY'

@@ -32,6 +32,10 @@
 24. [Account Deletion Flow (App Store 5.1.1(v))](#24-account-deletion-flow-app-store-511v)
 25. [AI Data Consent Flow (App Store 5.1.2(i))](#25-ai-data-consent-flow-app-store-512i)
 26. [Usage Analytics Consent Flow (P0-6)](#26-usage-analytics-consent-flow-p0-6)
+27. _(reserved — another wave-1 lane)_
+28. _(reserved — another wave-1 lane)_
+29. [Your Own Targets & Change Notices Flow](#29-your-own-targets--change-notices-flow)
+30. [Food Logging: Search, Edit, Undo, Copy Day Flow](#30-food-logging-search-edit-undo-copy-day-flow)
 
 ---
 
@@ -1260,11 +1264,17 @@ the adjusted target must shape next week's budget)
   │         │    → −100 kcal (floor BMR×1.1, partial clamp);
   │         │    GAIN stall (trend ≤ +0.05) → +100 kcal (ceiling TDEE+500);
   │         │    free tier: policy skipped entirely (adjustmentKcal = 0)
-  │         ├─ dial: ChefProfile.targetAdjustmentKcal += adjustment.
-  │         │    resolveDailyTargets applies the dial AFTER the goal
-  │         │    adjustment and BEFORE the protein cap — so the dashboard
-  │         │    ring, tracker bars, chat context AND next week's generation
-  │         │    budget all move together (ordering unit-tested)
+  │         ├─ §2.11, T-35.4 (rev 2): the coach PROPOSES, it no longer writes
+  │         │    ChefProfile.targetAdjustmentKcal itself. The adjustment is
+  │         │    stored on ChefReview.proposedAdjustmentKcal and surfaced as a
+  │         │    SUGGESTED/COACH TargetChange (targetsService
+  │         │    .proposeCoachAdjustment, best-effort); ChefReview
+  │         │    .adjustmentKcal keeps meaning "applied" — 0 until the user
+  │         │    accepts via targets.acknowledgeChange({ id, keep: false }),
+  │         │    which THEN bumps the dial that resolveTargets applies AFTER
+  │         │    the goal adjustment and BEFORE the protein cap — so the
+  │         │    dashboard ring, tracker bars, chat context AND next week's
+  │         │    generation budget all move together once accepted (§29)
   │         ├─ targets: resolveDailyTargets(profile, lifter bodyweight) —
   │         │    lifters (§10.1) get a protein line vs their g/kg target
   │         └─ prose: Gemini (application/coach/review-text.ts — warm,
@@ -1280,6 +1290,9 @@ the adjusted target must shape next week's budget)
 
 **Surfaces:**
 
+- Review prose says "I'd suggest moving next week's calorie budget by…",
+  never "I've adjusted…" (T-35.4) — an old client's banner text stays true
+  even though nothing moves until the proposal is accepted.
 - `coach.currentReview` (protected query) returns the latest review while
   fresh (≤14 days after its weekStart), shaped by entitlement:
   `full` for `adaptiveCoaching` accounts; `teaser` (FIRST line only +
@@ -1365,6 +1378,19 @@ Custom entries render on the tracker as their own rows (name + "estimated" /
 "quick add" chip, deletable via `tracker.deleteCustomMeal`) and count toward
 the day's progress bars.
 
+**Bug fixes (2026-09-28, L-TRACK wave 1).** B-36: the confirm sheet's meal-slot
+default used to always be Lunch regardless of the hour — it now uses the same
+`defaultMealSlot(localHour)` (`@chefer/utils`) Quick add uses. B-37: a denied
+camera permission used to leave a bare "Camera access is needed…" red-text
+dead end — it now shows a muted notice with **Open Settings**
+(`Linking.openSettings()`) and **Choose a photo instead** (falls back to the
+library picker, no new native permission). B-44: the scan's log mutation used
+to invalidate nothing, so the dashboard ring lagged the tracker by ~8 s after
+a snap log — every day-changing mutation now calls one shared
+`invalidateDayQueries(utils, date)` helper (`src/features/tracker/invalidate.ts`)
+that refreshes `tracker.getDay`, `tracker.weeklySummary`, `tracker.monthlySummary`
+and `dashboard.summary` together.
+
 **Day saves merge, they never replace** (audit 2026-09-25, F-PM-1 / F-TRK-1-2).
 `tracker.upsertDay` carries only the planned meals the tracker shows; the
 server keeps every custom entry and every logged recipe that isn't in today's
@@ -1386,6 +1412,9 @@ recipe (and type) — so an older entry without one ticks one snack, not both.
 `logRecipe` with a `slotIndex` replaces only that slot's entry; without one
 (cook mode, shipped apps) it keeps the recipe + meal type rule. No schema
 change: `slotIndex` is an optional field of the `loggedMeals` JSON.
+
+Search-first logging (recents, edit-by-id, undo-delete, copy a day) and the
+no-active-plan empty state are §30.
 
 ### Free-tier honesty tools
 
@@ -2384,3 +2413,223 @@ Profile → Your data → "Download my data" / "Export my data"
                  text share until expo-sharing lands (wave 4, T-39.5)
         then the Snackbar "Your export is ready."
 ```
+
+---
+
+## 29. Your Own Targets & Change Notices Flow
+
+**§2.11 (UX-35 "Set my own targets", UX-11 "Never change it silently"), wave 1
+(L-TRACK).** One resolver, an own-target override that nothing can move
+silently, and a provable change log.
+
+```
+resolveTargets(profile, lifterBodyweightKg?)      [preferences.service.ts]
+  ├─ suggested = live Mifflin-St Jeor TDEE ± goal adjustment ± the coach's
+  │    cumulative dial, macros from the goal's split; lifter g/kg protein +
+  │    BMI ≥ 30 adjusted-weight rule when lifterBodyweightKg is given
+  ├─ effective = profile.targetMode === 'OWN'
+  │      ? { customKcal, customProteinG, customCarbsG, customFatG }
+  │          (falling back per-field to `suggested`)
+  │      : suggested
+  └─ inputs = { weightKg, heightCm, age, activity, goal, isLifter,
+       proteinGPerKg, usedAdjustedWeight, rate } — what the Explain sheet names
+
+resolveDailyTargets(profile, lifterBodyweightKg?) = resolveTargets(...).effective
+  → every existing consumer (dashboard, tracker, meal-plan generation, the
+    coach review, TrainingNutritionService) picks up the own-target override
+    with ZERO call-site changes (AC1: one number, everywhere)
+
+targets.set({ targetMode, kcal, proteinG, carbsG?, fatG?, trainingKcal?,
+              trainingProteinG?, addTrainingBonus? })
+  ├─ gate: ownTargetsFree flag (free tier) OR premium
+  ├─ validate: kcal 1,200–5,000; protein 40–400 g; when carbs/fat are given,
+  │    protein*4 + carbs*4 + fat*9 must be within ±10% of kcal (AC4)
+  └─ writes ChefProfile.{targetMode, custom*}; the legacy dailyCalorieTarget
+       stays in step with the new effective value (old clients read the
+       right number)
+
+Every read of the targets (targets.get, tracker.getDay — dashboard.summary
+is a handoff, not yet wired) recomputes and detects a silent change:
+  targetsService.detectAndRecordChange(userId, profile, resolved)
+    ├─ first read ever → write the baseline snapshot (ChefProfile
+    │    .targetSnapshot = { effective, suggested, inputs }), no notice
+    ├─ SUGGESTED-mode user, effective moved since the snapshot → TargetChange
+    │    { kind: CHANGED, reason: GYM_SETUP|WEIGHT|GOAL|DAY_KIND (inferred
+    │    from which input changed) } — the new number is ALREADY showing
+    │    everywhere (AC1); weight-driven notices debounce to 1/7 days
+    ├─ OWN-mode user, suggested drifted ≥5% since the snapshot → TargetChange
+    │    { kind: SUGGESTED } — purely informational, effective never moved
+    │    (AC2: a gym setup or weigh-in can never silently change an own target)
+    └─ snapshot advances either way
+
+targets.acknowledgeChange({ id, keep })
+  ├─ keep: true  = "keep what I already have"
+  │    CHANGED   → writes the row's `before` numbers back as the OWN override
+  │                ("Keep {before}" restores exactly, AC1)
+  │    SUGGESTED → declines (a coach proposal never applies)
+  └─ keep: false = "use the new/suggested value"
+       CHANGED   → no-op (already effective); just resolves the row
+       SUGGESTED + reason COACH → applyCoachProposal: bumps
+         ChefProfile.targetAdjustmentKcal by the latest ChefReview's
+         proposedAdjustmentKcal, then chefReviewRepository.resolveProposal
+```
+
+**The coach proposes, never overwrites (T-35.4, §14 cross-reference).**
+`CoachService.runWeeklyReview` stops writing `targetAdjustmentKcal` directly —
+the computed adjustment becomes `ChefReview.proposedAdjustmentKcal` and a
+`SUGGESTED`/`COACH` `TargetChange` (AC3: a coach review never writes targets).
+
+**Goals (T-35.2).** `RECOMP` and `PERFORMANCE` join the four original goals —
+both maintenance-calorie (0 kcal adjustment), lifter protein 2.0 g/kg (RECOMP)
+/ 1.8 g/kg (PERFORMANCE). A client below `x-chefer-api-level 1` (a fixed
+client-side GOALS list that predates the two) sees `MAINTAIN` in
+`preferences.get`'s `chefProfile.goal`; the additive `goalV2` field carries the
+true value.
+
+**Surfaces:**
+
+- `TargetsCard` (Settings › Preferences, both platforms) — Suggested
+  (read-only) / My own (editable kcal/protein/carbs/fat) via `targets.get`/
+  `targets.set`; client-side bound checks before the round trip.
+- `ChangeNoticeCard` (tracker, both platforms) — the latest unresolved
+  `targets.changes` row, "Keep {before}" / "Use {after}" buttons.
+- `TargetExplainSheet` (tracker, both platforms) — "Why this number" (UX-11
+  AC3): the resolved numbers + the formula sentence (`@chefer/utils`
+  `explain-targets.ts`), with a never-an-upsell action to Settings.
+- **Handoff to L-HOME (wave 2):** the dashboard ring/macros should call
+  `targets.changes` + render `ChangeNoticeCard`, and wire a "why" tap to
+  `TargetExplainSheet` fed by `targets.get` — the same pattern as the tracker.
+  `dashboard.summary` itself should also call `detectAndRecordChange` so a
+  change is caught even for a user who never opens the tracker that day.
+- **Known gap:** `ChefReview.adjustmentKcal` doesn't get set to the applied
+  amount when a coach proposal is accepted (the repository only exposes
+  `resolveProposal`, which sets `proposalResolvedAt`) — it stays 0. A
+  `packages/database` follow-up should add that.
+
+---
+
+## 30. Food Logging: Search, Edit, Undo, Copy Day Flow
+
+**§5.15b (UX-19 "Log fast, fix mistakes"), wave 1 (L-TRACK).** Every logged
+entry is addressable, editable and undoable; a day's log can be copied to
+another day; the last things logged surface first.
+
+```
+Every LoggedMealEntry gains an optional `entryId` (stable, assigned server-
+side). Old entries (no id) are backfilled lazily: tracker.getDay checks
+needsEntryIdBackfill and, if true, writes ensureEntryIds(current) back through
+dailyLogRepository.mutateDay before returning — best-effort, a failed backfill
+never fails the day read (the client still gets in-memory ids for that
+response). New entries (logCustomMeal, copyDay's copies) get one at write time.
+
+tracker.recents({ limit? })                          [T-19.1]
+  └─ scans the last 60 days' DailyLog rows, aggregates by recipeId or
+     normalized custom name (aggregateRecents, @chefer/utils merge-log.ts),
+     most frequent first (ties → most recent) — the search-first Log sheet's
+     "Recent" group. A deleted entry simply isn't in the scanned days any
+     more; no separate filtering needed.
+
+tracker.updateCustomMeal({ date, entryId, name?, estimatedBy?, mealType?,
+                           kcal, protein, carbs, fat })       [T-19.2, B-34]
+  └─ finds the entry by entryId (must be a custom entry — a planned-recipe
+     entryId answers NOT_FOUND; those are edited by re-ticking a portion)
+     and replaces its fields in one mutateDay transaction
+
+tracker.restoreCustomMeal({ date, entry })                    [T-19.2, B-34]
+  └─ the bin's `Undo` snackbar (8 s): the client already holds the exact
+     deleted entry (its snapshot, including entryId) and sends it back;
+     idempotent — restoring the same entryId twice never duplicates the row.
+     AC2: restore reproduces the entry exactly.
+
+tracker.copyDay({ fromDate, toDate })                         [T-19.3]
+  └─ copies every entry from fromDate onto toDate, each with a FRESH entryId
+     (so the header's own Undo can delete exactly the copies, not the
+     originals) and no slotIndex (the target day's plan slots differ)
+
+tracker.unlogRecipe({ date, recipeId, mealType, slotIndex? })  [T-19.4, B-23]
+  └─ the one-save model's untick: removes exactly the entry logRecipe would
+     have written for that slot (matchesRecipeSlot, shared identity rule with
+     logRecipe — same slotIndex, else same recipeId + mealType). A no-op, not
+     NOT_FOUND, when nothing matches (an already-unticked row).
+
+tracker.deleteEntries({ date, entryIds })                      [T-19.3]
+  └─ removes any entries (recipe or custom) named by stable id — undoes
+     copyDay (deletes exactly the returned `copiedEntryIds`) and any other
+     batch a client already holds ids for. Idempotent: an unmatched id is
+     silently ignored.
+
+tracker.weeklySummary / monthlySummary({ localDate? })   [§2.12, T-21.1, B-33]
+  └─ optional localDate anchors the trailing-N-day window on the CLIENT's
+     local day instead of the server's UTC one (a user whose local day has
+     turned over relative to UTC used to see a window shifted by a day);
+     omitting it keeps the old server-UTC-anchored behaviour exactly
+
+getDay.hasActivePlan                                          [T-19.6]
+  └─ whether the user has an active meal plan at all, distinct from today
+     just having nothing scheduled. The tracker's empty state reads as an
+     invitation to log ("No plan today — log from Recent or search below.")
+     for a Track-only user who may never generate a plan, instead of a
+     plan-focused message that pushes them toward one.
+```
+
+**Macro sanity check (bug B-39, T-19.5).** `checkMacroSanity` (`@chefer/utils`
+`quick-add.ts`) compares a quick-add/edit entry's stated calories against the
+4/4/9 rule from its macros; a mismatch beyond ±25% (and above a small floor,
+to avoid false positives on tiny entries) is advisory only — "These don't add
+up: N kcal logged, but the macros add up to M kcal" with `Fix` / `Log
+anyway`, never a hard block. `formatQuickAddGrams` shows one decimal below
+10 g (a supplement scoop matters), whole grams at or above it.
+
+**Ingredients search carries per-100g macros (T-19.1).** `ingredients.search`
+rows now include `per100g` (null when the catalog row has no macro data yet)
+so the Log sheet's grams row can show a live kcal as the user picks
+50/100/150/200 g. Fixed alongside (T-BUG-X7): `search()` now goes through
+`ingredientPriceRepository.searchCatalog` instead of querying `prisma`
+directly.
+
+**Search-first Log sheet (T-19.1, both platforms).** `quick-add-sheet.tsx` /
+web `QuickAddSheet.tsx` open on a search field with **Recent** (one tap re-logs
+the same amount, AC1), **This week's plan** and **Your recipes** (portion
+chips ½ ¾ 1 1½ 2, log at a chosen portion), and **Ingredients (per 100 g)**
+(grams chips 50/100/150/200 + a live kcal preview from `ingredients.search`'s
+`per100g`). "Enter calories yourself" is the old calories-only form, kept as
+the fallback when nothing matches — gated by the macro sanity check above
+(`Fix` focuses the calories field, `Log anyway` bypasses it for that submit).
+Never a branded product or barcode (B-29, AC6): the Ingredients group is
+Chefer's own catalog only.
+
+**Edit any entry, undo any delete (bug B-34, T-19.2, both platforms).** Every
+custom entry (quick-add, photo scan) is tappable → `edit-entry-sheet.tsx` /
+web `EditEntrySheet.tsx` (name, meal, calories, macros — the sanity check
+applies here too), with `Save` and a destructive `Delete`. Deleting — from the
+sheet or the row's own bin icon — removes the row immediately with a
+snackbar/toast `Deleted {name}` + `Undo` that calls `restoreCustomMeal` with
+the exact snapshot held client-side (AC2). A planned-recipe row is still
+edited by re-ticking it with a different portion, matching the API's
+`updateCustomMeal` NOT_FOUND rule for a non-custom entryId.
+
+**One-save model (bug B-23, T-19.4, both platforms).** `app/tracker.tsx` /
+web `tracker/page.tsx` no longer have a `Save Day` button. Ticking a planned
+meal calls `tracker.logRecipe` immediately (portion chips already visible on
+the row) with a snackbar/toast `Logged {mealType}` + `Undo`; unticking calls
+the new `tracker.unlogRecipe` immediately, also with an `Undo`. A tick
+persists across a date change or an app kill because it was already written
+to the server the moment it happened (AC3) — the client no longer holds
+unsaved state to lose.
+
+**Copy a day (T-19.3, both platforms).** A header action (mobile: the ⧉ icon
+next to the title; web: the same icon by the page heading) opens a confirm
+sheet naming the previous day (`yesterday`, or a short date further back) and
+calls `tracker.copyDay`; the result's snackbar/toast `Copied {n} entries` +
+`Undo` calls the new `tracker.deleteEntries` with the returned
+`copiedEntryIds` — deleting exactly the copies, never the originals.
+
+**Known gap — training-day target pair has no UI (T-35.3 remainder).**
+`targets.get`/`targets.set` already read and write `customTrainingKcal`,
+`customTrainingProteinG` and `addTrainingBonus` (§29), but
+`TrainingNutritionService.targetsForDay` / `buildTrainingDayNutrition`
+(`@chefer/utils` `training-nutrition.ts`) — the function that actually
+computes a lifter's training-day bump, shared by the dashboard and the
+tracker — never reads them. Building `TargetsCard`'s "Different on training
+days" fields now would ship a control with zero effect. Needs a resolver
+change before the UI can honestly ship (handoff, see `mobile_parity_backlog.md`).

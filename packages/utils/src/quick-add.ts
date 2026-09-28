@@ -87,3 +87,65 @@ export function parseQuickAdd(input: QuickAddInput): QuickAddParseResult {
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, entry: { name, mealType: input.mealType, kcal: kcalValue, ...macros } };
 }
+
+// ─── Macro sanity check (bug B-39, T-19.5) ─────────────────────────────────────
+// A quick add or an edited entry can have macros that don't add up to the
+// stated calories (a typo, or numbers copied from two different sources).
+// Rather than silently store poisoned data (which then feeds charts and the
+// coach), the sheet shows an amber "These don't add up" line with `Fix` /
+// `Log anyway` — this is advisory only, never a hard block (B-39 AC).
+
+/** kcal per gram, the 4/4/9 rule. */
+export const KCAL_PER_G = { protein: 4, carbs: 4, fat: 9 } as const;
+
+/** Tolerance before the sanity line shows (±25% of the stated calories). */
+export const MACRO_SANITY_TOLERANCE = 0.25;
+
+/** Below this many stated calories the check is skipped — too easy to false-positive. */
+const MACRO_SANITY_MIN_KCAL = 30;
+
+export interface MacroSanityResult {
+  ok: boolean;
+  /** kcal the macros imply via the 4/4/9 rule, rounded. */
+  impliedKcal: number;
+  /** "These don't add up: 100 kcal logged, but the macros add up to 620 kcal." */
+  message: string | null;
+}
+
+/**
+ * Checks a logged/edited entry's macros against its stated calories using the
+ * 4/4/9 rule, ±25% tolerance. Entries with no macros at all (quick add is
+ * calories-only by default) are always fine — there's nothing to disagree.
+ */
+export function checkMacroSanity(entry: {
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}): MacroSanityResult {
+  const impliedKcal = Math.round(
+    entry.protein * KCAL_PER_G.protein +
+      entry.carbs * KCAL_PER_G.carbs +
+      entry.fat * KCAL_PER_G.fat,
+  );
+  const noMacros = entry.protein === 0 && entry.carbs === 0 && entry.fat === 0;
+  if (noMacros || entry.kcal < MACRO_SANITY_MIN_KCAL) {
+    return { ok: true, impliedKcal, message: null };
+  }
+  const diff = Math.abs(entry.kcal - impliedKcal) / entry.kcal;
+  if (diff <= MACRO_SANITY_TOLERANCE) return { ok: true, impliedKcal, message: null };
+  return {
+    ok: false,
+    impliedKcal,
+    message: `These don't add up: ${entry.kcal.toLocaleString('en-US')} kcal logged, but the macros add up to ${impliedKcal.toLocaleString('en-US')} kcal.`,
+  };
+}
+
+/**
+ * "7.5" below 10 g (one decimal — small amounts matter, e.g. a supplement
+ * scoop), "24" at or above 10 g (whole grams — false precision above that
+ * point). Used by the quick-add and edit-entry sheets for every macro field.
+ */
+export function formatQuickAddGrams(grams: number): string {
+  return grams < 10 ? grams.toFixed(1).replace(/\.0$/, '.0') : String(Math.round(grams));
+}

@@ -11,9 +11,17 @@ import {
   type UpsertChefProfileData,
   type UpsertDietaryPreferencesData,
 } from '@chefer/database';
-import type { DisplayCurrency, OnboardingIntent, SetDisplayPreferencesInput } from '@chefer/types';
-import { toDisplayCurrency, withLifterProtein } from '@chefer/utils';
+import type {
+  DisplayCurrency,
+  GoalValue,
+  OnboardingIntent,
+  SetDisplayPreferencesInput,
+  TargetInputs,
+  TargetsView,
+} from '@chefer/types';
+import { lifterProteinGPerKg, toDisplayCurrency, withLifterProteinDetailed } from '@chefer/utils';
 import { derivedServingSize, householdService } from '../household/household.service.js';
+import { consentService } from '../privacy/consent.service.js';
 
 // ─── Activity multipliers (Mifflin-St Jeor) ──────────────────────────────────
 
@@ -25,11 +33,19 @@ const ACTIVITY_MULTIPLIERS: Record<string, number> = {
   ATHLETE: 1.9,
 };
 
+// RECOMP and PERFORMANCE (§2.11, T-35.2, rev 2) are additive goals: both are
+// maintenance-calorie goals (no surplus/deficit — recomp trades fat for
+// muscle at the same weight; performance trains at upkeep), so both get a 0
+// kcal adjustment like MAINTAIN. Their macro split is a starting point only —
+// lifters (the expected audience for these two goals) get the g/kg protein
+// rule from `withLifterProtein` on top, same as every other goal.
 const GOAL_ADJUSTMENTS: Record<string, number> = {
   LOSE_WEIGHT: -500,
   MAINTAIN: 0,
   GAIN_MUSCLE: 300,
   EAT_HEALTHIER: 0,
+  RECOMP: 0,
+  PERFORMANCE: 0,
 };
 
 const GOAL_MACRO_SPLITS: Record<string, { protein: number; carbs: number; fat: number }> = {
@@ -37,6 +53,12 @@ const GOAL_MACRO_SPLITS: Record<string, { protein: number; carbs: number; fat: n
   GAIN_MUSCLE: { protein: 0.35, carbs: 0.4, fat: 0.25 },
   MAINTAIN: { protein: 0.25, carbs: 0.45, fat: 0.3 },
   EAT_HEALTHIER: { protein: 0.2, carbs: 0.5, fat: 0.3 },
+  // Higher protein than MAINTAIN (recomp needs a floor even for non-lifters);
+  // PERFORMANCE leans a bit more on carbs to fuel training sessions (the
+  // per-DayKind carb bias for run/long_run days is a training-nutrition
+  // service concern, out of scope for the flat resolver split).
+  RECOMP: { protein: 0.3, carbs: 0.4, fat: 0.3 },
+  PERFORMANCE: { protein: 0.25, carbs: 0.5, fat: 0.25 },
 };
 
 /**
@@ -161,43 +183,70 @@ export interface DailyTargets {
 
 const DEFAULT_CALORIE_TARGET = 2000;
 
+/** "−500 kcal/day deficit" style fragment for the targets explanation sheet. */
+const GOAL_RATE: Record<string, string> = {
+  LOSE_WEIGHT: '−500 kcal/day deficit',
+  GAIN_MUSCLE: '+300 kcal/day surplus',
+  MAINTAIN: 'Maintenance calories',
+  EAT_HEALTHIER: 'Maintenance calories',
+  RECOMP: 'Maintenance calories',
+  PERFORMANCE: 'Maintenance calories',
+};
+
+/** The profile fields `resolveTargets` needs — a subset of `ChefProfile`. */
+export interface ResolveTargetsProfile {
+  weightKg: number | null;
+  heightCm: number | null;
+  age: number | null;
+  activityLevel: string | null;
+  biologicalSex: string | null;
+  goal: string | null;
+  dailyCalorieTarget: number | null;
+  /**
+   * Adaptive Chef cumulative dial (F1). Optional so partial call sites and
+   * tests keep compiling; ChefProfile rows always carry it (default 0).
+   */
+  targetAdjustmentKcal?: number | null;
+  /** §2.11, T-35.1 (rev 2): own-target override. Optional, defaults to SUGGESTED. */
+  targetMode?: string | null;
+  customKcal?: number | null;
+  customProteinG?: number | null;
+  customCarbsG?: number | null;
+  customFatG?: number | null;
+}
+
 /**
- * THE single source of the user's daily calorie + macro targets. Dashboard,
- * tracker and meal-plan generation must all read targets through this —
- * before it existed each computed its own (live TDEE here, stale snapshot
- * there, hardcoded 30/45/25 splits elsewhere), so changing a goal moved the
- * generated plan but not the dashboard ring (roadmap F-5).
+ * THE single source of the user's daily calorie + macro targets (§2.11,
+ * T-35.1). Dashboard, tracker and meal-plan generation must all read targets
+ * through this — before it existed each computed its own (live TDEE here,
+ * stale snapshot there, hardcoded 30/45/25 splits elsewhere), so changing a
+ * goal moved the generated plan but not the dashboard ring (roadmap F-5).
  *
- * Pure over an already-loaded profile row so callers don't re-query:
- *  - complete body metrics → live Mifflin-St Jeor TDEE ± goal adjustment,
- *    macros from the goal's split
- *  - incomplete metrics    → stored snapshot (or 2000), macros from the
- *    goal's split applied to that number
+ * Returns `{ effective, suggested, source, inputs }`:
+ *  - `suggested` is today's computation (as before: complete body metrics →
+ *    live Mifflin-St Jeor TDEE ± goal adjustment ± the coach's cumulative
+ *    dial, macros from the goal's split, with the lifter g/kg rule and the
+ *    BMI >= 30 adjusted-weight rule applied when a lifter bodyweight is
+ *    passed; incomplete metrics → the stored snapshot or 2000).
+ *  - `effective` is the user's own numbers when `targetMode === 'OWN'` (a
+ *    gym-setup change, a new weigh-in or a goal edit never silently moves
+ *    it — those only ever change `suggested`), else `suggested`.
+ *  - `inputs` are the values the explanation sentences
+ *    (`@chefer/utils/explain-targets`) name.
+ *
+ * Pure over an already-loaded profile row so callers don't re-query.
  */
-export function resolveDailyTargets(
-  profile: {
-    weightKg: number | null;
-    heightCm: number | null;
-    age: number | null;
-    activityLevel: string | null;
-    biologicalSex: string | null;
-    goal: string | null;
-    dailyCalorieTarget: number | null;
-    /**
-     * Adaptive Chef cumulative dial (F1). Optional so partial call sites and
-     * tests keep compiling; ChefProfile rows always carry it (default 0).
-     */
-    targetAdjustmentKcal?: number | null;
-  } | null,
+export function resolveTargets(
+  profile: ResolveTargetsProfile | null,
   /**
    * Lifter bodyweight from trainingNutritionService.loadLifter (audit P2-4):
-   * when set, protein follows the goal's g/kg rule (GAIN 1.8, LOSE 2.0,
-   * MAINTAIN / EAT_HEALTHIER 1.6 — @chefer/utils) instead of the goal's
-   * split, and carbs take up the difference so calories are unchanged.
-   * Omitted = the old rules.
+   * when set, protein follows the goal's g/kg rule (GAIN/PERFORMANCE 1.8,
+   * LOSE/RECOMP 2.0, MAINTAIN / EAT_HEALTHIER 1.6 — @chefer/utils) instead of
+   * the goal's split, and carbs take up the difference so calories are
+   * unchanged. Omitted = the old rules.
    */
   lifterBodyweightKg?: number | null,
-): DailyTargets {
+): TargetsView {
   const goal = profile?.goal ?? 'MAINTAIN';
   const split = GOAL_MACRO_SPLITS[goal] ?? GOAL_MACRO_SPLITS['MAINTAIN']!;
 
@@ -218,19 +267,69 @@ export function resolveDailyTargets(
   // BEFORE the protein cap (splitToGrams below sees the adjusted calories).
   const calories = Math.max(1200, baseCalories + (profile?.targetAdjustmentKcal ?? 0));
 
-  const targets = {
+  let suggested: DailyTargets = {
     dailyCalorieTarget: calories,
     ...splitToGrams(calories, split, profile?.weightKg ?? null),
   };
-  return lifterBodyweightKg
-    ? withLifterProtein(targets, lifterBodyweightKg, profile?.goal ?? null)
-    : targets;
+
+  const isLifterFlag = typeof lifterBodyweightKg === 'number' && lifterBodyweightKg > 0;
+  let usedAdjustedWeight = false;
+  let proteinGPerKg: number | null = null;
+  if (isLifterFlag) {
+    const detailed = withLifterProteinDetailed(
+      suggested,
+      lifterBodyweightKg,
+      profile?.goal,
+      profile?.heightCm ?? null,
+    );
+    suggested = detailed.targets;
+    usedAdjustedWeight = detailed.usedAdjustedWeight;
+    proteinGPerKg = lifterProteinGPerKg(profile?.goal ?? null);
+  }
+
+  const isOwn = profile?.targetMode === 'OWN';
+  const effective: DailyTargets = isOwn
+    ? {
+        dailyCalorieTarget: profile?.customKcal ?? suggested.dailyCalorieTarget,
+        proteinG: profile?.customProteinG ?? suggested.proteinG,
+        carbsG: profile?.customCarbsG ?? suggested.carbsG,
+        fatG: profile?.customFatG ?? suggested.fatG,
+      }
+    : suggested;
+
+  const inputs: TargetInputs = {
+    weightKg: profile?.weightKg ?? null,
+    heightCm: profile?.heightCm ?? null,
+    age: profile?.age ?? null,
+    activity: profile?.activityLevel ?? null,
+    goal: profile?.goal ?? null,
+    isLifter: isLifterFlag,
+    proteinGPerKg,
+    usedAdjustedWeight,
+    rate: GOAL_RATE[goal] ?? null,
+  };
+
+  return { effective, suggested, source: isOwn ? 'own' : 'suggested', inputs };
+}
+
+/**
+ * The legacy flat shape (`effective` only) — kept so every existing consumer
+ * (dashboard, tracker, meal-plan generation, the coach review,
+ * training-nutrition service) picks up the own-target override and the new
+ * goals with zero call-site changes. New code that needs to tell "own" from
+ * "suggested" (the targets router, change detection) calls `resolveTargets`.
+ */
+export function resolveDailyTargets(
+  profile: ResolveTargetsProfile | null,
+  lifterBodyweightKg?: number | null,
+): DailyTargets {
+  return resolveTargets(profile, lifterBodyweightKg).effective;
 }
 
 // ─── Input / Output Types ─────────────────────────────────────────────────────
 
 export interface SetupPreferencesInput {
-  goal: 'LOSE_WEIGHT' | 'MAINTAIN' | 'GAIN_MUSCLE' | 'EAT_HEALTHIER';
+  goal: GoalValue;
   biologicalSex: 'MALE' | 'FEMALE';
   age: number;
   heightCm: number;
@@ -246,7 +345,7 @@ export interface SetupPreferencesInput {
 }
 
 export interface UpdatePreferencesInput {
-  goal?: 'LOSE_WEIGHT' | 'MAINTAIN' | 'GAIN_MUSCLE' | 'EAT_HEALTHIER';
+  goal?: GoalValue;
   biologicalSex?: 'MALE' | 'FEMALE';
   age?: number;
   heightCm?: number;
@@ -291,6 +390,8 @@ export interface GymUnitSync {
 
 export interface DisplayPreferencesDto {
   preferredUnits: 'METRIC' | 'IMPERIAL';
+  /** IANA time zone name (§2.12, T-21.1), or null when never set. Additive. */
+  timeZone: string | null;
   currency: DisplayCurrency;
 }
 
@@ -352,10 +453,12 @@ export class PreferencesService {
   }
 
   /**
-   * Unit system + currency — free for every tier (audit F-DASH-3-2: units
-   * used to save only through the premium updateTargets, so free users could
-   * not change them at all). A unit change also moves the gym profile's
-   * KG/LB unit so Food and Gym never disagree.
+   * Unit system + currency + time zone — free for every tier (audit
+   * F-DASH-3-2: units used to save only through the premium updateTargets, so
+   * free users could not change them at all). A unit change also moves the
+   * gym profile's KG/LB unit so Food and Gym never disagree. `timeZone`
+   * (§2.12, T-21.1) is the IANA name server-initiated work (the weekly
+   * worker, the quiet-days nudge text) reads for "what day is it for them".
    */
   async setDisplayPreferences(
     userId: string,
@@ -364,6 +467,7 @@ export class PreferencesService {
     const data: UpsertChefProfileData = {};
     if (input.preferredUnits !== undefined) data.preferredUnits = input.preferredUnits;
     if (input.currency !== undefined) data.deliveryCurrency = input.currency;
+    if (input.timeZone !== undefined) data.timeZone = input.timeZone;
     const profile = await this.chefProfileRepo.upsert(userId, data);
     if (input.preferredUnits !== undefined) {
       await this.syncGymUnit(userId, input.preferredUnits);
@@ -371,6 +475,7 @@ export class PreferencesService {
     return {
       preferredUnits: profile.preferredUnits,
       currency: toDisplayCurrency(profile.deliveryCurrency),
+      timeZone: profile.timeZone ?? null,
     };
   }
 
@@ -407,8 +512,19 @@ export class PreferencesService {
     };
   }
 
-  async setAutoPlanWeekly(userId: string, enabled: boolean): Promise<{ autoPlanWeekly: boolean }> {
+  /**
+   * §2.13, T-39.2: every consent event goes through `ConsentService.record`
+   * (L-DATA's stable API, merged onto this branch) so `AUTO_PLAN` is never
+   * missing from the append-only log. Logged AFTER the profile write
+   * succeeds — a failed toggle must not leave a phantom consent event.
+   */
+  async setAutoPlanWeekly(
+    userId: string,
+    enabled: boolean,
+    source: 'web' | 'mobile' = 'web',
+  ): Promise<{ autoPlanWeekly: boolean }> {
     const profile = await this.chefProfileRepo.upsert(userId, { autoPlanWeekly: enabled });
+    await consentService.record({ userId, kind: 'AUTO_PLAN', granted: enabled, source });
     return { autoPlanWeekly: profile.autoPlanWeekly };
   }
 

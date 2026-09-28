@@ -68,6 +68,17 @@ describe('customEntryRows (F4 custom-entry rendering)', () => {
   it('returns an empty list for a day with only planned meals', () => {
     expect(customEntryRows([planned('r1', 600)])).toEqual([]);
   });
+
+  it('carries entryId through (T-19.2, B-34) — the edit/undo sheets key off it', () => {
+    const withId: LoggedMealEntryLike = { ...custom('Toast', 'manual', 300), entryId: 'e1' };
+    const [row] = customEntryRows([withId]);
+    expect(row?.entryId).toBe('e1');
+  });
+
+  it('leaves entryId undefined for a pre-backfill entry', () => {
+    const [row] = customEntryRows([custom('Toast', 'manual', 300)]);
+    expect(row?.entryId).toBeUndefined();
+  });
 });
 
 describe('customEntryChipLabel', () => {

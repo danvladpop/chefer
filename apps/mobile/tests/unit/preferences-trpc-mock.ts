@@ -38,6 +38,29 @@ export function createTrpcPreferencesMock() {
           useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false, isError: false })),
         },
       },
+      // TargetsCard (§2.11, T-35.3) — default: suggested-mode, nothing loaded
+      // yet (isLoading true) so tests unrelated to it don't need to stub data.
+      targets: {
+        get: {
+          useQuery: jest.fn<unknown, unknown[]>(() => ({ data: undefined, isLoading: true })),
+        },
+        set: {
+          useMutation: jest.fn(() => ({
+            mutate: jest.fn(),
+            isPending: false,
+            isSuccess: false,
+            error: null,
+          })),
+        },
+        changes: { useQuery: jest.fn<unknown, unknown[]>(() => ({ data: [] })) },
+        acknowledgeChange: {
+          useMutation: jest.fn(() => ({
+            mutate: jest.fn(),
+            isPending: false,
+            variables: undefined,
+          })),
+        },
+      },
       // Weekly updates card (P2-5) — defaults: confirmed, both emails on.
       notifications: {
         getEmailPreferences: {
@@ -68,8 +91,10 @@ export function createTrpcPreferencesMock() {
         preferences: { get: { invalidate: jest.fn() }, invalidate: jest.fn() },
         gym: { invalidate: jest.fn() },
         mealPlan: { invalidate: jest.fn() },
-        dashboard: { invalidate: jest.fn() },
+        dashboard: { invalidate: jest.fn(), summary: { invalidate: jest.fn() } },
         user: { me: { setData: jest.fn(), invalidate: jest.fn() } },
+        targets: { get: { invalidate: jest.fn() }, changes: { invalidate: jest.fn() } },
+        tracker: { getDay: { invalidate: jest.fn() } },
       })),
     },
   };

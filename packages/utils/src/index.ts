@@ -243,9 +243,14 @@ export {
   type WeightParseResult,
 } from './weight';
 export {
+  KCAL_PER_G,
+  MACRO_SANITY_TOLERANCE,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
+  checkMacroSanity,
+  formatQuickAddGrams,
   parseQuickAdd,
+  type MacroSanityResult,
   type QuickAddEntry,
   type QuickAddErrors,
   type QuickAddInput,
@@ -272,13 +277,17 @@ export {
   type PlanStatus,
 } from './day-nutrition';
 export {
+  BMI_ADJUSTED_WEIGHT_THRESHOLD,
+  GOAL_WORDING,
   LIFTER_PROTEIN_G_PER_KG,
   LIFTER_PROTEIN_G_PER_KG_BY_GOAL,
   POST_WORKOUT_PROTEIN_G_PER_KG,
   TRAINING_DAY_KCAL,
   TRAINING_DAY_PROTEIN_G_PER_KG,
+  adjustedProteinWeightKg,
   applyTrainingDayBonus,
   buildTrainingDayNutrition,
+  goalWording,
   hasTrainingDayBump,
   isLifter,
   lifterProteinGPerKg,
@@ -289,6 +298,7 @@ export {
   trainingDayLine,
   trainingWeekdays,
   withLifterProtein,
+  withLifterProteinDetailed,
   type ResolvedTrainingDay,
   type TrainingDayBonus,
 } from './training-nutrition';
