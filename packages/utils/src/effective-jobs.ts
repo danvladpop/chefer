@@ -13,6 +13,30 @@ const LEGACY_INTENT_TO_JOB: Record<OnboardingIntent, OnboardingJob> = {
   TRAIN: 'TRAIN',
 };
 
+/** The reverse map — only these three jobs have a legacy intent at all. */
+const JOB_TO_LEGACY_INTENT: Partial<Record<OnboardingJob, OnboardingIntent>> = {
+  TRAIN: 'TRAIN',
+  PLAN_MEALS: 'EAT_BETTER',
+  HOUSEHOLD: 'HOUSEHOLD',
+};
+
+/**
+ * `preferences.setJobs` (T-03.1) writes the legacy `onboardingIntent`
+ * alongside the new `onboardingJobs`, so web and older binaries — which only
+ * ever read the intent — keep routing sensibly. This is the first job, in
+ * the order the user picked them, that has a legacy equivalent; `null` when
+ * none does (e.g. only `USE_WHAT_I_HAVE` / `SAVED_RECIPES` / `TRACK`), in
+ * which case the caller should leave the stored legacy intent as it was
+ * rather than overwrite it with a guess.
+ */
+export function legacyIntentForJobs(jobs: readonly OnboardingJob[]): OnboardingIntent | null {
+  for (const job of jobs) {
+    const intent = JOB_TO_LEGACY_INTENT[job];
+    if (intent) return intent;
+  }
+  return null;
+}
+
 /** Logged on this many of the last 7 days (or more) counts as already tracking. */
 export const TRACK_INFERENCE_MIN_DAYS = 3;
 

@@ -56,7 +56,14 @@ function MacroBar({
   );
 }
 
-export function NutritionSummary({ nutrition: n }: { nutrition: Nutrition }) {
+export function NutritionSummary({
+  nutrition: n,
+  targetMode,
+}: {
+  nutrition: Nutrition;
+  /** §2.11, T-35.5: the ring's label — "Your target" (OWN) vs "Suggested" (SUGGESTED). Omitted while unknown. */
+  targetMode?: 'SUGGESTED' | 'OWN';
+}) {
   // Premium lifters on a training day get the bumped targets (audit P2-4);
   // everyone else keeps the base targets the older fields carry.
   const target = n.adjustedTargets ?? {
@@ -113,6 +120,11 @@ export function NutritionSummary({ nutrition: n }: { nutrition: Nutrition }) {
         <Text testID="calorie-remaining" className="text-center text-xs text-gray-500">
           {dayNutritionCaption(n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
         </Text>
+        {targetMode && (
+          <Text testID="target-mode-label" className="text-center text-[11px] text-gray-400">
+            {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
+          </Text>
+        )}
       </View>
 
       {/* Macro bars */}

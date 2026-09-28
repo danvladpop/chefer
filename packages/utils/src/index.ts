@@ -13,12 +13,18 @@ export {
   type FormatMoneyOptions,
 } from './currency';
 export {
+  CM_PER_IN,
   EUROZONE_REGIONS,
   IMPERIAL_REGIONS,
+  cmToIn,
   defaultsForRegion,
   detectRegion,
+  inToCm,
+  inferUnitsFromInput,
   regionFromLocale,
   type DisplayDefaults,
+  type UnitInferenceInput,
+  type UnitInferenceResult,
 } from './locale';
 
 export {
@@ -402,7 +408,12 @@ export {
   NUDGE_DISMISS_COOLDOWN_MS,
   type NudgeCapState,
 } from './nudge-cap';
-export { effectiveJobs, TRACK_INFERENCE_MIN_DAYS, type EffectiveJobsInput } from './effective-jobs';
+export {
+  effectiveJobs,
+  legacyIntentForJobs,
+  TRACK_INFERENCE_MIN_DAYS,
+  type EffectiveJobsInput,
+} from './effective-jobs';
 export { priceRange, formatPriceRange, PRICE_RANGE_BAND, type PriceRange } from './price-range';
 export { pickProteinSnacks, PROTEIN_SNACKS, type ProteinSnack } from './protein-snacks';
 export { homeCardOrder, HOME_CARD_IDS, type HomeCardId } from './home-cards';

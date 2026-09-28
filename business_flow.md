@@ -136,10 +136,44 @@ free workout log too, not meal planning alone (CI-16/CI-25).
    └── the router then emails the address-confirmation link in the
        background (P2-5, §23) — never blocks or fails the signup
 3. Client redirects to /onboarding
-4. Onboarding step 0 — "What brings you here?" (backlog P2-3, F-PM-6; web and
-   mobile share `onboardingSteps` from @chefer/utils). Asked while
-   ChefProfile.onboardingIntent is null; the answer is saved with
-   preferences.setIntent (every tier):
+4. Onboarding step 1 — "What should Chefer help with?" (§2.4, T-03.1/T-03.2,
+   rev 2 — mobile only; web still runs the v1 single-intent flow below until
+   its own migration lands, T-03.6). A multi-select JobsStep (`Train` /
+   `Plan my meals` / `Feed my household` / `Use what I have` / `Cook my saved
+   recipes` / `Track what I eat`) replaces "What brings you here?"; the step
+   chain is built by `onboardingSteps({ askJobs: true, jobs, hasNumericGoal })`
+   (`@chefer/utils`, shared with the shared `landingFor`/`homeCardOrder`
+   pure functions), saved with `preferences.setJobs` (every tier — also
+   writes the legacy `onboardingIntent` via `legacyIntentForJobs()`, so web
+   and older builds still route sensibly):
+   ├── Train only → gym setup first (Gym mode → Today → setup), exactly as
+   │     the v1 TRAIN branch below. Food setup comes later, from Settings ›
+   │     "What you use Chefer for" (`app/settings/jobs.tsx`, T-03.5).
+   ├── Any food job, no Train → Diet → How you cook (+ currency/units
+   │     pre-selected from the device region, CI-24, and the once-only
+   │     "Plan my next week automatically every Sunday?" switch, default
+   │     off, T-03.9) → Your goal (adds a "Just good food" card — no
+   │     calorie target, ever, AC6) → Body metrics (optional).
+   ├── Feed my household also adds "Who's at your table?" before Diet.
+   ├── Train + a food job also adds "Which days do you train?" before Diet
+   │     (weekday chips + a per-day Lift/Run/Long run row via
+   │     `training.setDayKinds`, T-03.9) and, once a numeric goal is chosen,
+   │     "Your targets" (T-35.3's TargetsCard) before the gym hand-off
+   │     (`/gym/setup?from=onboarding&days=…` — the wizard passes the query
+   │     params; consuming them to pre-fill steps 1/4 is L-GYM's setup-
+   │     wizard, not yet wired as of this wave).
+   ├── Track what I eat (alone) → Diet → Goal → Body metrics → Your targets
+   │     — How you cook only joins the chain when a food-plan job was also
+   │     chosen (T-03.7). Ends on the tracker home (the ring first, D20).
+   └── Finish saves everything through the free-for-every-tier granular
+         procedures (`updateSafety`, `saveProfileBasics`, `mealPlan.setShape`,
+         `setDisplayPreferences`; premium also `updateTargets` for cuisine)
+         and fires a background `mealPlan.generate` for every food path,
+         gated by the AI consent sheet for premium accounts only
+         (`useAiConsent('meal-plan', …)` — declining never blocks
+         onboarding, it just skips generation this session).
+   v1 (web, until T-03.6) — "What brings you here?", asked while
+   ChefProfile.onboardingIntent is null, saved with preferences.setIntent:
    ├── Eat better (EAT_BETTER) → the tier's food wizard, unchanged
    │     (free: diet → goal → metrics; premium: goal → metrics → diet → cuisine)
    ├── Feed my household (HOUSEHOLD) → "Who's at your table?" (add members,
@@ -155,14 +189,16 @@ free workout log too, not meal planning alone (CI-16/CI-25).
          to onboarding instead of the now-skipped step 1. Train-only (no
          params) opens at step 1 exactly as before (UX-03 AC2/AC3). The
          reminder toggle (step 4) is still asked either way (protects D3).
-   Skip still works on every step (mobile "Skip for now" saves what is filled
-   and leaves; web "Skip this question" continues with the solo flow).
-   The premium wizard no longer asks "How many people are you cooking for?"
-   — the household is the one people model (F-PM-8).
+   Skip still works on every step (mobile's jobs step: "Just looking
+   around" saves `jobs: ['PLAN_MEALS']` and lands on Food Today directly —
+   every later mobile step is already independently optional, so Continue
+   alone finishes it; web "Skip this question" continues with the solo
+   flow). The premium wizard no longer asks "How many people are you
+   cooking for?" — the household is the one people model (F-PM-8).
    Step counter (both platforms, shared `onboardingProgress`): while the
-   intent question is on screen it reads "Step 1" with no total and an empty
-   bar — the answer changes the total, so it never reads "1 of 4" and then
-   "2 of 5"; from step 2 on it is "Step N of M" with a percentage.
+   jobs/intent question is on screen it reads "Step 1" with no total and an
+   empty bar — the answer changes the total, so it never reads "1 of 4" and
+   then "2 of 5"; from step 2 on it is "Step N of M" with a percentage.
 ```
 
 Admins can additionally create users via `user.create` (admin-only).
@@ -1054,6 +1090,65 @@ dashboard.summary
   └─ nutrition: planned kcal/macros for today vs targets
        └─ lifters only (P2-4): trainingDay + adjustedTargets (see below)
 ```
+
+### Home by job, Tonight/Tomorrow and cold-start Landing (§2.4, T-03/T-04, rev 2)
+
+`dashboard.summary` gains `planId`, `jobs` (`effectiveJobs()`) and `showNutrition`
+(an explicit `ChefProfile.showNutritionOnToday` override, else the same
+goal-or-tracks derivation `showNutritionCards` used, kept for older
+clients) — every call, no extra cost. An opt-in `include` array adds the
+heavier reads a client asks for:
+
+```
+dashboard.summary({ include: ['tonight','tomorrow','shopDue','safetyChecks','targets'] })
+  ├─ tonight: today's DINNER slot specifically (not "the next open meal") —
+  │    done from the log via isSlotEaten (@chefer/utils), independent of the
+  │    meal-window clock. safetyChecks (include also has 'safetyChecks')
+  │    decorates it read-only via SafetyService.getTable/.check — never
+  │    written back into the stored plan JSON — only when the table has
+  │    rules, for the Tonight hero's CheckedForChip.
+  ├─ tomorrow: tomorrow's first planned meal (dinner for a dinners-only
+  │    plan), always done: false — it hasn't happened yet.
+  ├─ shopDue: unticked ShoppingListService.getForWeek lines whose
+  │    recipeNames intersect tomorrow's planned meals — { count, sample,
+  │    forDate }, null when nothing's due. (Implementation note: a
+  │    **dynamic** import inside DashboardService, not a top-level one —
+  │    ShoppingListService pulls in the AI module, which validates its env
+  │    vars at import time, and this file has several unit tests that
+  │    import pure helpers with zero env/DB mocking.)
+  └─ targets: planVsTarget (today's planned kcal vs the resolved target,
+       'under'|'over'|'on_target') and pendingTargetChange (the most recent
+       unresolved TargetChange, read-only via TargetsService — also a
+       dynamic import, same reason).
+```
+
+Mobile's Food Today (`app/(food)/index.tsx`) picks the hero card by local
+moment band: 16:00–21:29 shows `TonightCard` (Cook it / Swap / "I ate
+this" — the last two only when `showNutrition`); once dinner is logged it
+collapses to a 56 pt "Dinner done" row and `TomorrowCard` appears under
+it; 21:30 onward (or once dinner is done) shows `TomorrowCard` instead of
+the existing "next up" hero, so Today never reads "NEXT UP · BREAKFAST"
+late at night. `ShopDueCard` renders whenever `shopDue` isn't null.
+`showNutrition` gates the ring, `WeightCard`, the profile nudge and
+Snap-to-log (B-31), same rule as before, now reading the additive field.
+The ring also shows a **"Your target" / "Suggested"** label
+(`targetMode` from `targets.get`, §2.11, T-35.5).
+
+**Landing (T-04.3).** `landingFor()` (`@chefer/utils`) is a pure function
+over `{ jobs, persistedMode, hasGymProfile, workoutInProgress?,
+isTrainingDayToday?, workoutDoneToday?, localHour?, reminderHour? }`:
+a workout in progress wins over everything; else the user's own last
+Food/Gym choice always wins; else Train-only (with gym set up) opens
+Gym; else a planned training day not yet done from 14:00 (or 2h before
+an earlier reminder) opens Gym; else Food. Mobile's cold start
+(`(food)/_layout.tsx`) calls a synchronous wrapper, `landingSurfaceSync()`,
+fed from a small KV-backed cache (`features/navigation/landing-cache.ts`)
+that a mounted hook keeps fresh from `preferences.get`/`gym.profile.get`
+for the _next_ cold start — this wave only wires the jobs/gym-setup rows
+live; the workout-in-progress and training-day-time rows are implemented
+and unit-tested in `landingFor` itself but not yet fed live gym state. A
+landing never writes the persisted mode, and never re-applies once the
+app is open (no foreground-after-30-minutes listener yet).
 
 ### Today (P2-2) — Home + Tracker in one tab
 

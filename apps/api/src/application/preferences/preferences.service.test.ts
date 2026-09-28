@@ -25,8 +25,17 @@ vi.mock('@chefer/database', async (importOriginal) => {
   };
 });
 
+// setJobs({ autoPlanWeekly }) and setAutoPlanWeekly both call
+// ConsentService.record — mocked so these tests never touch the real
+// consentEventRepository (which would hit prisma for real; CI runs this
+// suite with no DB at all — common-rules.md).
+vi.mock('../privacy/consent.service.js', () => ({
+  consentService: { record: vi.fn().mockResolvedValue(undefined) },
+}));
+
 // ─── Re-import prisma after mock so we can configure it per-test ──────────────
 const { prisma } = await import('@chefer/database');
+const { consentService } = await import('../privacy/consent.service.js');
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -653,15 +662,118 @@ describe('PreferencesService — household is the one people model (F-PM-8)', ()
 });
 
 describe('PreferencesService.setIntent (F-PM-6)', () => {
-  it('stores the onboarding intent on the chef profile', async () => {
+  it('stores the onboarding intent and back-fills jobs for a first-time answer', async () => {
     const upsert = vi
       .fn()
       .mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, goal: null, onboardingIntent: 'TRAIN' });
     const service = new PreferencesService(
-      makeChefProfileRepo({ upsert }),
+      makeChefProfileRepo({ upsert }), // findByUserId defaults to null (no profile yet)
       makeDietaryPreferencesRepo(),
     );
     await expect(service.setIntent('user1', 'TRAIN')).resolves.toEqual({ intent: 'TRAIN' });
+    expect(upsert).toHaveBeenCalledWith('user1', {
+      onboardingIntent: 'TRAIN',
+      onboardingJobs: ['TRAIN'],
+    });
+  });
+
+  it('does not overwrite jobs already answered via setJobs (rev 2, T-03.1)', async () => {
+    const findByUserId = vi
+      .fn()
+      .mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, onboardingJobs: ['TRACK'] });
+    const upsert = vi.fn().mockResolvedValue({
+      ...CHEF_PROFILE_FIXTURE,
+      onboardingJobs: ['TRACK'],
+      onboardingIntent: 'TRAIN',
+    });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ findByUserId, upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await service.setIntent('user1', 'TRAIN');
     expect(upsert).toHaveBeenCalledWith('user1', { onboardingIntent: 'TRAIN' });
+  });
+});
+
+describe('PreferencesService.setJobs (§2.4, T-03.1)', () => {
+  beforeEach(() => {
+    vi.mocked(consentService.record).mockClear();
+  });
+
+  it('writes the jobs list and the legacy intent for the first job that maps to one', async () => {
+    const upsert = vi.fn().mockResolvedValue({
+      ...CHEF_PROFILE_FIXTURE,
+      onboardingJobs: ['USE_WHAT_I_HAVE', 'TRAIN'],
+      onboardingIntent: 'TRAIN',
+    });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await expect(service.setJobs('user1', { jobs: ['USE_WHAT_I_HAVE', 'TRAIN'] })).resolves.toEqual(
+      { jobs: ['USE_WHAT_I_HAVE', 'TRAIN'], intent: 'TRAIN' },
+    );
+    expect(upsert).toHaveBeenCalledWith('user1', {
+      onboardingJobs: ['USE_WHAT_I_HAVE', 'TRAIN'],
+      onboardingIntent: 'TRAIN',
+    });
+    expect(consentService.record).not.toHaveBeenCalled();
+  });
+
+  it('leaves the legacy intent alone when no job has an equivalent', async () => {
+    const upsert = vi
+      .fn()
+      .mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, onboardingJobs: ['TRACK'] });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await service.setJobs('user1', { jobs: ['TRACK'] });
+    expect(upsert).toHaveBeenCalledWith('user1', { onboardingJobs: ['TRACK'] });
+  });
+
+  it('saves trainingWeekdays and records AUTO_PLAN consent when autoPlanWeekly is given', async () => {
+    const upsert = vi.fn().mockResolvedValue({
+      ...CHEF_PROFILE_FIXTURE,
+      onboardingJobs: ['TRAIN'],
+      onboardingIntent: 'TRAIN',
+    });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await service.setJobs(
+      'user1',
+      { jobs: ['TRAIN'], trainingWeekdays: [0, 2, 4], autoPlanWeekly: true },
+      'mobile',
+    );
+    expect(upsert).toHaveBeenCalledWith('user1', {
+      onboardingJobs: ['TRAIN'],
+      onboardingIntent: 'TRAIN',
+      trainingWeekdays: [0, 2, 4],
+      autoPlanWeekly: true,
+    });
+    expect(consentService.record).toHaveBeenCalledWith({
+      userId: 'user1',
+      kind: 'AUTO_PLAN',
+      granted: true,
+      source: 'mobile',
+    });
+  });
+});
+
+describe('PreferencesService.setHomeDisplay (§2.4, T-04.1)', () => {
+  it('stores the explicit override', async () => {
+    const upsert = vi
+      .fn()
+      .mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, showNutritionOnToday: false });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await expect(service.setHomeDisplay('user1', false)).resolves.toEqual({
+      showNutritionOnToday: false,
+    });
+    expect(upsert).toHaveBeenCalledWith('user1', { showNutritionOnToday: false });
   });
 });

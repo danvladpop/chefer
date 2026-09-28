@@ -15,11 +15,19 @@ import type {
   DisplayCurrency,
   GoalValue,
   OnboardingIntent,
+  OnboardingJob,
   SetDisplayPreferencesInput,
+  SetJobsInput,
   TargetInputs,
   TargetsView,
 } from '@chefer/types';
-import { lifterProteinGPerKg, toDisplayCurrency, withLifterProteinDetailed } from '@chefer/utils';
+import {
+  effectiveJobs,
+  legacyIntentForJobs,
+  lifterProteinGPerKg,
+  toDisplayCurrency,
+  withLifterProteinDetailed,
+} from '@chefer/utils';
 import { derivedServingSize, householdService } from '../household/household.service.js';
 import { consentService } from '../privacy/consent.service.js';
 
@@ -398,6 +406,15 @@ export interface DisplayPreferencesDto {
 export interface PreferencesDto {
   chefProfile: ChefProfile | null;
   dietaryPreferences: DietaryPreferences | null;
+  /**
+   * §2.4, T-03.1: the jobs every jobs-aware surface should read instead of
+   * `chefProfile.onboardingJobs`/`onboardingIntent` directly (additive).
+   * Computed from the stored fields only — the TRACK-from-logging inference
+   * (T-03.7's pre-selection) needs the last-7-days log count, which
+   * `dashboard.summary.jobs` already pays for; `preferences.get` stays cheap
+   * since it's read on nearly every screen.
+   */
+  jobs: OnboardingJob[];
 }
 
 /**
@@ -424,11 +441,64 @@ export class PreferencesService {
 
   /**
    * "What brings you here?" (backlog P2-3, audit F-PM-6) — free on every
-   * tier. Never counts as a profile: hasProfile still needs a goal.
+   * tier. Never counts as a profile: hasProfile still needs a goal. Rev 2
+   * (T-03.1): also back-fills `onboardingJobs` when the profile has never
+   * answered the jobs question, so a legacy client's single answer still
+   * shows up wherever `effectiveJobs()`/jobs-aware UI reads the jobs list —
+   * a stored (even single-job) list always wins over the derived mapping.
    */
   async setIntent(userId: string, intent: OnboardingIntent): Promise<{ intent: OnboardingIntent }> {
-    const profile = await this.chefProfileRepo.upsert(userId, { onboardingIntent: intent });
+    const existing = await this.chefProfileRepo.findByUserId(userId);
+    const data: UpsertChefProfileData = { onboardingIntent: intent };
+    if (!existing || existing.onboardingJobs.length === 0) {
+      data.onboardingJobs = effectiveJobs({ jobs: [], intent });
+    }
+    const profile = await this.chefProfileRepo.upsert(userId, data);
     return { intent: profile.onboardingIntent ?? intent };
+  }
+
+  /**
+   * "What should Chefer help with?" (§2.4, T-03.1) — free on every tier, the
+   * multi-select replacement for `setIntent`. Also writes the legacy
+   * `onboardingIntent` (the first job with a legacy equivalent) so web and
+   * older mobile builds — which only ever read the intent — keep routing
+   * sensibly; when none of the chosen jobs has one (e.g. only `USE_WHAT_I_HAVE`
+   * / `SAVED_RECIPES` / `TRACK`), the stored legacy intent is left as it was.
+   */
+  async setJobs(
+    userId: string,
+    input: SetJobsInput,
+    source: 'web' | 'mobile' = 'mobile',
+  ): Promise<{ jobs: OnboardingJob[]; intent: OnboardingIntent | null }> {
+    const legacyIntent = legacyIntentForJobs(input.jobs);
+    const data: UpsertChefProfileData = { onboardingJobs: [...input.jobs] };
+    if (legacyIntent) data.onboardingIntent = legacyIntent;
+    if (input.trainingWeekdays !== undefined) data.trainingWeekdays = input.trainingWeekdays;
+    if (input.autoPlanWeekly !== undefined) data.autoPlanWeekly = input.autoPlanWeekly;
+    const profile = await this.chefProfileRepo.upsert(userId, data);
+    if (input.autoPlanWeekly !== undefined) {
+      await consentService.record({
+        userId,
+        kind: 'AUTO_PLAN',
+        granted: input.autoPlanWeekly,
+        source,
+      });
+    }
+    return { jobs: profile.onboardingJobs, intent: profile.onboardingIntent ?? null };
+  }
+
+  /**
+   * "Show calories and macros on Today" (§2.4, T-04.1) — free on every tier.
+   * `null` (never set) means the dashboard derives the ring/weight/nudge
+   * visibility from the goal instead (bug B-31); an explicit value always
+   * wins, in either direction (a goal-having user may still prefer no ring).
+   */
+  async setHomeDisplay(
+    userId: string,
+    showNutritionOnToday: boolean,
+  ): Promise<{ showNutritionOnToday: boolean }> {
+    const profile = await this.chefProfileRepo.upsert(userId, { showNutritionOnToday });
+    return { showNutritionOnToday: profile.showNutritionOnToday ?? showNutritionOnToday };
   }
 
   /**
@@ -509,6 +579,10 @@ export class PreferencesService {
         dietaryPreferences && members
           ? { ...dietaryPreferences, servingSize: derivedServingSize(members) }
           : dietaryPreferences,
+      jobs: effectiveJobs({
+        jobs: chefProfile?.onboardingJobs ?? [],
+        intent: chefProfile?.onboardingIntent ?? null,
+      }),
     };
   }
 

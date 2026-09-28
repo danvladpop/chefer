@@ -8,6 +8,7 @@ import { cn, currencySymbol, fromEur, toDisplayCurrency, toEur } from '@chefer/u
 import { AutoPlanToggle } from '../src/features/preferences/auto-plan-toggle';
 import { SafetyStep } from '../src/features/preferences/components/safety-step';
 import { GoalBodyCard, type GoalBodySavePayload } from '../src/features/preferences/goal-body-card';
+import { HomeDisplayToggle } from '../src/features/preferences/home-display-toggle';
 import { TargetsCard } from '../src/features/preferences/targets-card';
 import type {
   ActivityLevel,
@@ -245,6 +246,13 @@ export default function PreferencesScreen() {
               <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
             </Pressable>
           )}
+
+          {/* T-04.5: an explicit choice overrides the goal-derived B-31 default. */}
+          <HomeDisplayToggle
+            initialEnabled={
+              data?.chefProfile?.showNutritionOnToday ?? data?.chefProfile?.goal != null
+            }
+          />
 
           {/* Every tier since P2-5: free users get a curated Sunday week. */}
           <AutoPlanToggle

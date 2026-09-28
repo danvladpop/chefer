@@ -27,6 +27,19 @@ describe('NutritionSummary', () => {
     expect(screen.getByTestId('nutrition-status')).toHaveTextContent(label);
   });
 
+  it('shows no target-mode label when it is unknown', async () => {
+    await render(<NutritionSummary nutrition={nutrition(1900, 800)} />);
+    expect(screen.queryByTestId('target-mode-label')).toBeNull();
+  });
+
+  it.each([
+    ['OWN' as const, 'Your target'],
+    ['SUGGESTED' as const, 'Suggested'],
+  ])('labels the ring %s -> "%s" (§2.11, T-35.5)', async (mode, label) => {
+    await render(<NutritionSummary nutrition={nutrition(1900, 800)} targetMode={mode} />);
+    expect(screen.getByTestId('target-mode-label')).toHaveTextContent(label);
+  });
+
   it('the ring shows what was EATEN against the target (audit F-DASH-1-2)', async () => {
     await render(<NutritionSummary nutrition={nutrition(1900, 800)} />);
     const ring = screen.getByTestId('calorie-ring');

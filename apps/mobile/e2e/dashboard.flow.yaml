@@ -57,3 +57,56 @@ appId: dev.chefer.app.dev
     id: 'day-chip-0'
 - tapOn:
     id: 'day-chip-0'
+
+# UX-04 §3, T-04.4: the card stack's hero is exactly one of hero-meal-card
+# (next-up, morning/daytime), tonight-card (evening, dinner planned),
+# tonight-card-done (dinner already logged), nothing-tonight-card (evening,
+# no dinner planned) or tomorrow-card (late evening) — never more than one.
+- runFlow:
+    when:
+      visible:
+        id: 'tonight-card'
+    commands:
+      - assertVisible:
+          id: 'tonight-cook-it'
+      - assertVisible:
+          id: 'tonight-swap'
+- runFlow:
+    when:
+      visible:
+        id: 'tomorrow-card'
+    commands:
+      - assertVisible:
+          id: 'tomorrow-view-recipe'
+
+# Shop-due card (T-04.2/T-04.4): only when something's due for tomorrow.
+- runFlow:
+    when:
+      visible:
+        id: 'shop-due-card'
+    commands:
+      - tapOn:
+          id: 'shop-due-card'
+      - extendedWaitUntil:
+          visible:
+            id: 'shopping-title'
+          timeout: 15000
+      - back
+      - extendedWaitUntil:
+          visible:
+            id: 'home-title'
+          timeout: 15000
+
+# T-35.5: the ring's target-mode label, only alongside the ring itself.
+- runFlow:
+    when:
+      visible:
+        id: 'nutrition-summary'
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'target-mode-label'
+          commands:
+            - assertVisible:
+                id: 'target-mode-label'

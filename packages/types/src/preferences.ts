@@ -78,3 +78,16 @@ export const setDisplayPreferencesInputSchema = z
     { message: 'Nothing to update' },
   );
 export type SetDisplayPreferencesInput = z.infer<typeof setDisplayPreferencesInputSchema>;
+
+// ─── Home display (§2.4, T-04.1) ────────────────────────────────────────────────
+// "Show calories and macros on Today" — free for every tier. Null/unset on
+// the profile means "derive from goal" (bug B-31): the ring, weight card,
+// profile nudge and Snap-to-log show only for a numeric goal, TRACK job, or
+// this explicit override. Settings writes `showNutritionOnToday` here; an
+// explicit `false` hides those cards even for a goal-having user who prefers
+// a plainer Today.
+
+export const setHomeDisplayInputSchema = z.object({
+  showNutritionOnToday: z.boolean(),
+});
+export type SetHomeDisplayInput = z.infer<typeof setHomeDisplayInputSchema>;

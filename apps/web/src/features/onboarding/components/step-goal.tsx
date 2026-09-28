@@ -67,9 +67,22 @@ interface StepGoalProps {
    * right below already carries the same line (shown once per screen).
    */
   showDisclaimer?: boolean;
+  /** T-03.6 (AC6): adds a first "Just good food" card — no calorie target, ever. */
+  showGoodFood?: boolean;
+  /** Whether "Just good food" is the current pick — mutually exclusive with `value`. */
+  goodFood?: boolean;
+  /** Called instead of `onChange` when "Just good food" is clicked. */
+  onGoodFood?: () => void;
 }
 
-export function StepGoal({ value, onChange, showDisclaimer = true }: StepGoalProps) {
+export function StepGoal({
+  value,
+  onChange,
+  showDisclaimer = true,
+  showGoodFood = false,
+  goodFood = false,
+  onGoodFood,
+}: StepGoalProps) {
   return (
     <div className="space-y-8">
       <div className="text-center">
@@ -82,8 +95,35 @@ export function StepGoal({ value, onChange, showDisclaimer = true }: StepGoalPro
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {showGoodFood && (
+          <button
+            type="button"
+            data-testid="goal-good-food"
+            onClick={() => onGoodFood?.()}
+            aria-pressed={goodFood}
+            aria-label="Just good food"
+            className={`relative flex flex-col items-center gap-3 rounded-xl border-2 p-6 text-center transition-all hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+              goodFood ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-card'
+            }`}
+          >
+            {goodFood && (
+              <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <Check className="h-3 w-3" aria-hidden="true" />
+              </span>
+            )}
+            <span className="text-4xl" aria-hidden="true">
+              🍽️
+            </span>
+            <div>
+              <p className="font-semibold">Just good food</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                No calorie target. We&apos;ll plan balanced meals and never count for you.
+              </p>
+            </div>
+          </button>
+        )}
         {GOALS.map(({ value: v, label, icon, description, calorieEffect }) => {
-          const selected = value === v;
+          const selected = !goodFood && value === v;
           return (
             <button
               key={v}

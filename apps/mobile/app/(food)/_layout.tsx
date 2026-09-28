@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs, usePathname } from 'expo-router';
-import { shouldOpenGymHome } from '../../src/features/gym/mode-store';
+import { landingSurfaceSync, useSyncLandingCache } from '../../src/features/navigation/use-landing';
 import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
 
 // Food mode tab bar. Mirrors PRIMARY_NAV_ITEMS + "More" from
@@ -11,15 +11,20 @@ import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
 // `(tabs)` for the Food / Gym mode switch — gym_plan.md §5.1; URLs are
 // unchanged.)
 export default function FoodTabsLayout() {
-  // "/" is home; in Gym mode home is Today (launch / sign-in in Gym mode).
-  // ONE-SHOT per mount: this layout stays mounted behind the gym tabs, so a
-  // sticky decision would bounce every later switch back to Food onto /today
-  // (caught by e2e/gym-mode.flow.yaml, 2026-09-25).
+  // "/" is home; where home opens is `landingSurfaceSync()` (UX-04 §1,
+  // T-04.3) — the persisted mode (today's behaviour, gym_plan.md D3) plus,
+  // for an account that's never explicitly switched, a jobs-based default
+  // (TRAIN-only lands on Gym once it's set up). ONE-SHOT per mount: this
+  // layout stays mounted behind the gym tabs, so a sticky decision would
+  // bounce every later switch back to Food onto /today (caught by
+  // e2e/gym-mode.flow.yaml, 2026-09-25) — a landing never re-applies once
+  // the app is open, and never writes the persisted mode.
   const pathname = usePathname();
   const launchChecked = useRef(false);
+  useSyncLandingCache();
   if (!launchChecked.current) {
     launchChecked.current = true;
-    if (shouldOpenGymHome(pathname)) {
+    if (pathname === '/' && landingSurfaceSync() === 'gym') {
       return <Redirect href="/today" />;
     }
   }
