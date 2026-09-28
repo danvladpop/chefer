@@ -39,7 +39,20 @@ export type OnboardingStepKey =
   | 'metrics'
   | 'cuisine'
   // Rev 2 (T-00.7): a TRACK job adds the "Your targets" step (§2.4).
-  | 'targets';
+  | 'targets'
+  // v3 (T-03.2/T-03.7, §2.4): the jobs-based UI — 'jobs' replaces 'intent',
+  // 'trainingDays' and 'howYouCook' are new.
+  | 'jobs'
+  | 'trainingDays'
+  | 'howYouCook';
+
+/** Jobs whose plans are "how you cook" plans — TRAIN and TRACK aren't. */
+const FOOD_PLAN_JOBS: readonly OnboardingJob[] = [
+  'PLAN_MEALS',
+  'HOUSEHOLD',
+  'USE_WHAT_I_HAVE',
+  'SAVED_RECIPES',
+];
 
 /**
  * The onboarding steps for one audience (PM review §5, F-PM-6):
@@ -54,20 +67,79 @@ export type OnboardingStepKey =
  * a TRACK job adds the "targets" step. Omitting `jobs` (or passing `[]`)
  * keeps the exact v1 behaviour above, so every existing call site keeps
  * working unchanged.
+ *
+ * v3 (T-03.2/T-03.7, §2.4): pass `askJobs: true` to switch to the jobs-based
+ * UI — a single multi-select 'jobs' step (replacing 'intent') plus
+ * 'trainingDays' (Train + any food job) and 'howYouCook' (any food-plan job;
+ * for Track alone only when another food-plan job is also chosen). `jobs`
+ * doubles as both "the saved answer" and "the in-progress wizard
+ * selection" — an empty array means unanswered, so the caller passes its
+ * local multi-select state while the user is still picking. Omitting
+ * `askJobs` keeps the exact v1/v2 behaviour above, so web (until its own
+ * migration) and any other v1/v2 call site keep working unchanged.
  */
 export function onboardingSteps({
   intent,
   askIntent,
   isPremium,
   jobs,
+  askJobs,
+  hasNumericGoal,
 }: {
   intent: OnboardingIntent | null;
   /** Show the question (false when the saved profile already has an intent). */
   askIntent: boolean;
   isPremium: boolean;
-  /** v2 only: the effective jobs list. Omitted/empty = v1 intent-based routing. */
+  /** v2+: the effective jobs list. Omitted/empty (with `askJobs` unset) = v1 intent-based routing. */
   jobs?: readonly OnboardingJob[];
+  /** v3 only: true switches to the jobs-based UI (see above). */
+  askJobs?: boolean;
+  /**
+   * v3 only: whether the goal step's current answer is a numeric goal (not
+   * null/"Just good food"). Gates the 'targets' step for Train + food users
+   * (UX-03 flow table) — recomputed live as the wizard's goal answer
+   * changes, same pattern as `intent` above.
+   */
+  hasNumericGoal?: boolean;
 }): OnboardingStepKey[] {
+  if (askJobs) {
+    const jobsList = jobs ?? [];
+    if (jobsList.length === 0) return ['jobs'];
+    const trainOnly = jobsList.length === 1 && jobsList[0] === 'TRAIN';
+    if (trainOnly) return ['jobs'];
+
+    const hasTrain = jobsList.includes('TRAIN');
+    const hasTrack = jobsList.includes('TRACK');
+    const hasFoodPlanJob = jobsList.some((j) => FOOD_PLAN_JOBS.includes(j));
+    const trainingDays: OnboardingStepKey[] = hasTrain ? ['trainingDays'] : [];
+    const table: OnboardingStepKey[] = jobsList.includes('HOUSEHOLD') ? ['table'] : [];
+    const howYouCook: OnboardingStepKey[] = hasFoodPlanJob ? ['howYouCook'] : [];
+    const cuisine: OnboardingStepKey[] = isPremium ? ['cuisine'] : [];
+    const targets: OnboardingStepKey[] =
+      hasTrack || (hasTrain && hasNumericGoal === true) ? ['targets'] : [];
+
+    // Track alone (or Track + Household, no Train, no other food-plan job):
+    // targets sit right after metrics, and How you cook only shows when a
+    // food-plan job was ALSO chosen (T-03.7) — after targets, not before.
+    if (hasTrack && !hasTrain) {
+      return ['jobs', ...table, 'diet', 'goal', 'metrics', ...targets, ...howYouCook, ...cuisine];
+    }
+
+    // Every other combination (a food job, with or without Train): How you
+    // cook sits before the goal, same as the current free/premium order.
+    return [
+      'jobs',
+      ...trainingDays,
+      ...table,
+      'diet',
+      ...howYouCook,
+      'goal',
+      'metrics',
+      ...targets,
+      ...cuisine,
+    ];
+  }
+
   const head: OnboardingStepKey[] = askIntent ? ['intent'] : [];
   const food: OnboardingStepKey[] = isPremium
     ? ['goal', 'metrics', 'diet', 'cuisine']
@@ -147,7 +219,9 @@ export function onboardingProgress(
 ): OnboardingProgress {
   const total = Math.max(1, steps.length);
   const i = Math.min(Math.max(0, index), total - 1);
-  if (steps[i] === 'intent') {
+  // 'jobs' (v3) is 'intent's replacement — same "unanswered, total unknown"
+  // treatment while it's the step on screen.
+  if (steps[i] === 'intent' || steps[i] === 'jobs') {
     return { label: `Step ${i + 1}`, total: null, percent: null };
   }
   return {
