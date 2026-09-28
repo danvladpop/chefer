@@ -1954,7 +1954,7 @@ logout → resetAnalytics() → posthog.reset()
 The choice is stored per account in this browser only (another browser or a
 new device starts OFF). The card links to `/privacy#analytics`.
 
-## 27. Safety filter & reporting flow (UX-01, T-01.1/T-01.2)
+## 27. Safety filter & reporting flow (UX-01/UX-02, T-01.1–T-01.7, T-02.2/T-02.3/T-02.5, T-22.1)
 
 > One matcher, one merge, one service. Every surface that shows or picks a
 > recipe answers "is this safe for the table" the same way — see
@@ -1988,7 +1988,7 @@ Every surface calls the SAME SafetyContext:
   only, not the household union (T-BUG-X1's chat half)
 
 Reporting a recipe (T-01.5):
-  recipe detail (future report entry point, UI cut this PR) ──► safety.report
+  recipe detail overflow (mobile) / Report button (web) ──► safety.report
         { recipeId, surface, reason, note? }
     └─► SafetyReport row written (rulesSnapshot = the table's SafetyPrefs NOW)
     └─► next SafetyService.loadContext() includes it in hiddenRecipeIds
@@ -2012,11 +2012,76 @@ strength restriction (`gluten-free-coeliac`, what the `coeliac` CONDITION
 implies) excludes those ingredients outright instead, as does any plain
 gluten-free profile once `DietaryPreferences.excludeLabelDependent` is on.
 
-**UI status (this PR):** the SERVER half (matcher, `SafetyService`,
-`safety.getTable`/`report`/`confirmReview`) is complete and tested. The
-CLIENT surfaces — `WhatWeCheckSheet`, `CheckedForLine`/chip, the report sheet,
-the legacy-review migration card, the full `SafetyPicker` rebuild — are cut
-from this PR; see the PR description for the exact list and rationale.
+**UI status:** both the server half (matcher, `SafetyService`,
+`safety.getTable`/`report`/`confirmReview`) and the client surfaces below are
+now built on both platforms (mobile `apps/mobile/src/features/safety/**`, web
+`apps/web/src/features/safety/components/**`), sharing one copy module
+(`@chefer/utils` `safety-copy.ts`) and one picker-state helper
+(`safety-classify.ts`, `classifySafetyValue`/`serialiseSafetyPickerValue`).
+
+**Detail-surface Checked line (T-02.3).** `mealPlan.getRecipe` (another
+lane's file) is not touched — the Checked line and the coeliac label caveat
+are a separate, additive query instead:
+
+```
+recipe.getSafetyChecks({ recipeId })
+  └─► RecipeService.getSafetyChecks(userId, recipeId)
+        ├─ findRecipeVisibleTo (recipe-access.ts) — NOT_FOUND if the user can't see it
+        ├─ SafetyService.loadContext(userId) → table
+        └─ table.hasRules ? SafetyService.check(recipe, table) : { safetyChecks: null }
+              (also null when checked/unchecked/conflicts are ALL empty —
+              nothing to show, AC1)
+```
+
+`app/recipe/[id].tsx` (mobile) and `recipes/[id]/page.tsx` (web) render
+`CheckedForLine` from this query under the tag chips — but only when the
+EXISTING `recipe.allergenWarnings` conflict banner isn't already showing
+(AC3: the two are never both on screen). Cook mode (`app/cook/[id].tsx`)
+renders the same line at the top of the ingredient list. A recipe's
+`labelCaveats` render as a `LabelCaveat` line under Checked (AC8, coeliac's
+"Check the label: certified GF …").
+
+**Filtered lists say so (T-02.5).** `recipe.discover` keeps returning a plain
+array (old clients unaffected); a separate `recipe.discoverHiddenCount(filters)`
+diffs the safety-filtered pool against the unfiltered one and returns
+`{ hiddenCount, filteredFor }` for the `FilteredForLine` Discover renders on
+both platforms (AC7), opening the same `WhatWeCheckSheet`.
+
+**SafetyPicker (T-01.7).** The onboarding diet step, Settings › Allergies &
+diets, and the household member editor all render the same structured entry
+(mobile `safety-picker.tsx`, web `StepDiet` — same component name kept so
+every caller's props are unchanged): Allergies/Diet/Won't-eat `ChipGroup`s
+over `SAFETY_TAXONOMY`, a live read-back panel, and a "Something else" field
+wired to the recogniser's five outcomes (allergy/dislike chip, diet base,
+diet modifier — including the AC2 "no eggs" base-diet disambiguation —
+UX-22's condition notice, coeliac's automatic `gluten-free-coeliac` mapping,
+and the unrecognised term's Keep-as-a-note/Remove flow). A household editor
+always shows a "You" card first (UX-01) and a table read-back summary line
+once `safety.getTable().hasRules`.
+
+**Legacy migration card (T-01.3).** Mounted in Settings › Allergies & diets
+on both platforms (`MigrationCard` / `SafetyReviewCard`); the Food Today
+mount point is a wave-2 (L-HOME) handoff. Shown while
+`safety.getTable().needsReview` is true: every stored term is mapped through
+`recogniseSafetyTerm` client-side for display; "Looks right" calls
+`safety.confirmReview` directly, "Change" opens the SafetyPicker pre-applied
+(the same stored values) and saves through `preferences.updateSafety` before
+confirming in the same flow (AC9).
+
+**Report a safety problem (T-01.5, AC10).** A 44pt header overflow on recipe
+detail (mobile) / a "Report" button in the action row (web) opens
+`ReportSafetySheet`: a reason `ChipGroup` + optional note, `safety.report`
+hides the recipe from the reporter's plans/swaps immediately and both
+`recipe.list` and `mealPlan` caches are invalidated so it disappears at once.
+
+**Not yet wired this wave (handoffs):** `ChatService.buildContextSummary`
+still reads only the owner's `DietaryPreferences` (T-BUG-X1's chat half —
+`application/chat/**` is L-ENTRY's file, outside this lane's ownership); the
+Replace picker, plan meal-card long-press report entry and shopping-list
+`Check label` chip are L-SAFE2's wave-2 tasks (T-01.8); the import
+preview/Cheferize draft still shows only the pre-existing conflict banner
+(`ImportSafety.ok/issues`), not a positive Checked line — a UX-02 nicety not
+built this wave.
 
 ## 31. Manual recipe create and edit (UX-40 slice 1, T-40.1–T-40.6, T-BUG-O3)
 
