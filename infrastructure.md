@@ -1465,12 +1465,19 @@ procedures: the two switches, the confirmation email (sent at signup from
 
 ### RecipeImageWorker (worker)
 
-`apps/api/src/workers/recipe-image.worker.ts`. Background generator for recipe photos via Pollinations.ai:
+`apps/api/src/workers/recipe-image.worker.ts`. Background generator for recipe photos via the configured `IRecipeImageService` (Pollinations by default, Cloudflare Workers AI in prod — see MealPlanAIService "Recipe images"):
 
-- Claims up to **5 PENDING recipes at a time** (atomic per-row claim, horizontal-scale safe) and generates them in parallel, draining the queue until empty; 5 s poll interval is only a discovery fallback.
+- Claims up to **3 PENDING recipes at a time** (atomic per-row claim, horizontal-scale safe) and generates them in parallel, draining the queue until empty; 5 s poll interval is only a discovery fallback.
 - `wake()` — called by MealPlanService right after persisting, so generation starts with zero poll delay.
 - Queue is ordered by `imagePriority` asc (today's meals first), then `createdAt`.
 - Image URLs are deterministic: Pollinations seed + prompt derive from _normalised recipe name + cuisine_ (never the LLM description), so the same dish always maps to the same CDN-cached URL across regenerations. Images render at 512×384.
+- **Free fallback instead of "Photo unavailable" (prod incident 2026-09-28).** Every failure path that used to end `FAILED` now ends `DONE` with the recipe's deterministic Pollinations URL (`recipeImageFallbackUrl` in `lib/image-gen/pollinations.ts` = `buildPollinationsUrl(buildRecipeImagePrompt(name, cuisine), name, cuisine)`), and emits the same SSE `DONE` event. The URL is **not** warmed server-side — clients show their "preparing" placeholder until the image loads. Triggers:
+  - `ImageQuotaExhaustedError` — Workers AI's daily free allocation is used up (`isDailyQuotaError` in `cloudflare.ts`: error code `3036`/`4006` or the "daily free allocation" wording, any status). The worker then skips Cloudflare **for the rest of that UTC day** (in-memory flag, reset by a restart or at 00:00 UTC), so no more 429 round-trips race the text fallback for neurons. An ordinary 429 is still the short `ImagenRateLimitError` back-off.
+  - `ImageStorageError` — the image was generated but could not be stored (local store `mkdir`/`writeFile` failure, unrecognised bytes, Cloudinary upload failure; `CloudflareImageService` wraps any upload failure in it). **Never regenerated** — that would pay again for an image that can't be saved. The worker marks the store broken and serves the fallback without generating until a re-probe (at most once a minute) finds it writable again.
+  - The last (`MAX_RETRIES` = 3rd) attempt of any other failure.
+  - `ImagenContentFilterError` alone still ends `FAILED` (the prompt itself was refused, and the fallback URL is built from the same prompt). No current provider raises it — only the retired Imagen client did.
+- **Startup storage probe** — `start()` calls `probeRecipeImageStorage()` (only for `IMAGE_PROVIDER=cloudflare` + `IMAGE_STORAGE=local`: creates `uploads/recipes`, writes and removes a probe file). If it fails, a loud `✗ IMAGE STORAGE NOT WRITABLE` error names the path and the fix (§12), and generation stays off until the store is writable.
+- **Startup backfill** — next to the `GENERATING → PENDING` recovery (same never-crash-boot `try/catch`), `backfillFailedImages()` gives every `imageStatus = FAILED` + `imageUrl IS NULL` recipe its fallback URL and `DONE`, in batches of 100 (max 50 batches), with a per-row `FAILED + null` guard so it is idempotent. Logs the count. Note: a fallback URL is a normal `DONE` image, so MealPlanService's name-based image reuse will reuse it for the same dish later.
 
 ### PantryService (application layer) — F3 Zero-Waste Kitchen
 
@@ -1676,7 +1683,7 @@ Read-only bridge from the gym to the food side; the rules are pure functions in
 | `index.ts`             | Factory — `AI_MOCK_ENABLED` → mock; otherwise builds the configured providers (`gemini` when `AI_PROVIDER=gemini`, `groq` when `AI_SECONDARY_API_KEY` is set), resolves the `AI_ROUTE_*` chains and wraps them in `ChainAIService` (+ `ShadowRunner` when shadow mode is on). A single provider is returned bare, as before. `AI_FREE_ONLY=true`: no Gemini, defaults `FREE_ONLY_AI_ROUTES` (`groq>cloudflare` everywhere); `cloudflare` is built only in free-only mode or when a route names it. Exports `aiProviderDisclosure` (who receives data, for `profile.aiProviders`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `fixtures/`            | Hardcoded week plan + swap recipes used by `MockAIService`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
-**Recipe images** sit behind `IRecipeImageService` (`lib/image-gen/`): `IMAGE_PROVIDER=pollinations` (default, anonymous URL) or `cloudflare` (`CloudflareImageService`: Workers AI `CF_IMAGE_MODEL`, default flux-1-schnell). Cloudflare bytes go through `lib/image-cdn/local.ts` (`createLocalImageStore`) into `uploads/recipes/<recipeId>-<sha256:12>.<ext>` — the same `uploads` volume and `/uploads/*` static route as user photos — and the stored URL is `API_PUBLIC_URL`/`APP_URL` + `/uploads/recipes/…`. The file type is sniffed from the bytes; the content hash in the name keeps the `immutable` cache honest when an image is regenerated. `IMAGE_STORAGE=cloudinary` switches to the optional Cloudinary upload instead. The recipe-image worker only calls `generateAndUploadRecipeImage`.
+**Recipe images** sit behind `IRecipeImageService` (`lib/image-gen/`): `IMAGE_PROVIDER=pollinations` (default, anonymous URL) or `cloudflare` (`CloudflareImageService`: Workers AI `CF_IMAGE_MODEL`, default flux-1-schnell). Cloudflare bytes go through `lib/image-cdn/local.ts` (`createLocalImageStore`) into `uploads/recipes/<recipeId>-<sha256:12>.<ext>` — the same `uploads` volume and `/uploads/*` static route as user photos — and the stored URL is `API_PUBLIC_URL`/`APP_URL` + `/uploads/recipes/…`. The file type is sniffed from the bytes; the content hash in the name keeps the `immutable` cache honest when an image is regenerated. `IMAGE_STORAGE=cloudinary` switches to the optional Cloudinary upload instead. The recipe-image worker calls `generateAndUploadRecipeImage` (plus `probeRecipeImageStorage` at startup and `recipeImageFallbackUrl` for the free fallback). Error contract (`lib/image-gen/errors.ts`): `ImagenRateLimitError` = short back-off, `ImageQuotaExhaustedError` = daily free allocation gone, `ImageStorageError` = generated but not stored (never regenerate), `ImagenContentFilterError` = permanent — see RecipeImageWorker.
 
 **Free-only mode:** `AI_FREE_ONLY=true` runs every workload on `groq>cloudflare` (Groq free tier, then Workers AI's free 10K neurons/day), with no Gemini at all; see `docs/ai-providers.md` "Free-only mode" for the exact lines and capacity maths.
 
@@ -2336,7 +2343,10 @@ ffmpeg follows the Alpine base image; bump it with the base.
 source, so there is no project-wide `tsc` emit; the container transpiles TS on load exactly
 like `pnpm dev`). Stages: `deps` (install incl. tsx) → `runner` (source + Prisma client with
 the `linux-musl-arm64` engine for ARM VMs, pinned `yt-dlp` + `ffmpeg` for video-link import — see above,
-non-root `apiuser`, dumb-init, health check).
+non-root `apiuser`, dumb-init, health check). The image creates `/app/uploads/recipes` owned by
+`apiuser` **before** `USER apiuser`: Docker seeds a new, empty named volume from the image's
+directory at the mount point — contents and ownership — so without it `chefer_uploads` comes up
+root-owned and every write fails with `EACCES` (see the volume gotcha below).
 
 **`Dockerfile.web`** — 3-stage `next build` (standalone). Includes the `@chefer/api` +
 `@chefer/database` workspace deps (needed for end-to-end tRPC types) and runs `prisma generate`.
@@ -2355,6 +2365,16 @@ Caddy. See **`docs/plan-deployment.md`** for the full plan. Key files:
   `docker compose down -v` or `docker volume rm chefer_uploads` would delete it. It is **not** in
   the nightly `pg_dump` (A11) — a lost volume means lost photos; generated images can be
   re-created by resetting those recipes' `imageStatus` to `PENDING`.
+
+  **Ownership gotcha (incident 2026-09-28):** the API runs as `apiuser` (uid 1001). A volume
+  created before `Dockerfile.api` pre-created `/app/uploads` is **root-owned**, so every recipe
+  image was generated by Cloudflare and then failed to save with `EACCES` on
+  `mkdir /app/uploads/recipes` (user photo uploads fail the same way). The Dockerfile fix only
+  affects a _new, empty_ volume — an existing one keeps its owner. Fix it once, live, no restart
+  needed: `docker compose -f docker-compose.deploy.yml exec -u root api chown -R apiuser:nodejs /app/uploads`.
+  The recipe-image worker probes the folder at startup and logs `✗ IMAGE STORAGE NOT WRITABLE`
+  when it is wrong; meanwhile recipes get the free Pollinations fallback instead of paid images.
+
 - `infrastructure/docker/Caddyfile` — TLS + single-origin path routing (`/trpc`, `/api/uploads/*`,
   `/api/recipe-images/*`, `/api/chat`, `/api/health`, `/uploads/*`, `/static/exercises/*` (gym
   exercise photos, gym_plan.md §5.5) → API; rest → web).

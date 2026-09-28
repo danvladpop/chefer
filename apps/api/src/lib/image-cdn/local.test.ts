@@ -1,8 +1,14 @@
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createLocalImageStore, resolveMediaBaseUrl, UPLOADS_DIR } from './local.js';
+import { ImageStorageError } from '../image-gen/errors.js';
+import {
+  createLocalImageStore,
+  probeLocalImageStore,
+  resolveMediaBaseUrl,
+  UPLOADS_DIR,
+} from './local.js';
 
 // A 1×1 PNG (smallest valid file) and a JPEG signature stub.
 const PNG_1X1 =
@@ -57,6 +63,31 @@ describe('createLocalImageStore', () => {
     const store = createLocalImageStore({ dir, publicBaseUrl: 'http://x' });
     const html = Buffer.from('<html>nope</html>').toString('base64');
     await expect(store(html, 'image/png', 'r1')).rejects.toThrow(/not a recognised image/);
+  });
+
+  it('reports an unwritable folder as a storage error (not a generation failure)', async () => {
+    // A regular file where the folder should be: mkdir fails (ENOTDIR/EEXIST)
+    // regardless of the user the tests run as — stands in for the root-owned
+    // volume's EACCES.
+    const blocker = path.join(dir, 'not-a-dir');
+    await writeFile(blocker, '');
+    const store = createLocalImageStore({ dir: blocker, publicBaseUrl: 'http://x' });
+    const err = await store(PNG_1X1, 'image/png', 'r1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ImageStorageError);
+    expect((err as Error).message).toContain(path.join(blocker, 'recipes'));
+  });
+});
+
+describe('probeLocalImageStore', () => {
+  it('returns null for a writable folder and leaves no probe file behind', async () => {
+    await expect(probeLocalImageStore(dir)).resolves.toBeNull();
+    expect(await readdir(path.join(dir, 'recipes'))).toEqual([]);
+  });
+
+  it('returns the reason for an unwritable one', async () => {
+    const blocker = path.join(dir, 'not-a-dir');
+    await writeFile(blocker, '');
+    await expect(probeLocalImageStore(blocker)).resolves.toMatch(/recipes is not writable/);
   });
 });
 

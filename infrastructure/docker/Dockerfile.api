@@ -80,8 +80,18 @@ COPY apps/api ./apps/api
 RUN cd packages/database && npx prisma generate
 
 # Non-root
+#
+# /app/uploads is the mount point of the `chefer_uploads` named volume (user
+# photos + generated recipe images under recipes/, see lib/image-cdn/local.ts).
+# Docker seeds a NEW, EMPTY named volume from the image's directory at that
+# path — contents AND ownership — so it must exist here, owned by apiuser.
+# Without it the volume comes up root-owned and every write fails with EACCES
+# (prod incident 2026-09-28: every Cloudflare recipe image was generated, then
+# lost on save). An already-existing volume keeps its owner; fix that one with
+# `chown -R apiuser /app/uploads` inside the container (infrastructure.md §12).
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 apiuser && \
+    mkdir -p /app/uploads/recipes && \
     chown -R apiuser:nodejs /app
 USER apiuser
 
