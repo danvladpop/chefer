@@ -1523,14 +1523,27 @@ reconnect / focus. Web reminders are stored only; the phone sends them.
 ```
 Food/Gym switch (header of every tab root) → persisted mode
   ├─ no GymProfile → /gym/setup
-  │     days/week → experience → equipment + units → weekdays/reminder
+  │     days/week → experience (mobile, UX-05 B/T-05.2: "Experienced" adds
+  │         "Do you already follow a split?" on the same screen — Push/Pull/Legs,
+  │         Upper/Lower, Full body, or "Pick one for me"; sent as `split` on
+  │         recommend/completeSetup, additive/optional, web not yet asked)
+  │         → equipment + units → weekdays/reminder
   │     → gym.profile.recommend (pure engine: template + volume hints)
   │         equipment answer is a hard limit: Dumbbells → dumbbell + bodyweight moves,
   │         Bodyweight → bodyweight moves only (curated swaps, else closest same-pattern
   │         alternative, else the slot is dropped); saved routines are never rewritten
+  │         a chosen split picks the closest template of that family for the day
+  │         count (`recommendTemplate`), instead of the day-count default
+  │     → "Your program" (mobile): "Other programs that fit {n} days" now sits
+  │         right under the program card as visible rows with a "Use this" button
+  │         each (T-05.2, AC3) — "Choose another program" stays as a second path
+  │         to the full list via its sheet
   │     → "Help me find my weights" (calibration) | "I know my weights"
   │         (loadable lifts only; an all-bodyweight program has nothing to enter)
   │     → gym.profile.completeSetup  (profile + active routine + initial progressions)
+  │         weekly goal = the days the user chose (`input.days`), not the resulting
+  │         template's own day count (bug B-18, T-05.2, AC4 — 5 chosen days → goal 5,
+  │         even when the template itself has only 4)
   └─ profile exists → Gym tabs: Today / Routine / Exercises / Stats
 ```
 
@@ -1716,6 +1729,14 @@ Finish → confirm if working sets are unticked → finish() → summary
   `olderBests` (all-time), so an old best is never re-celebrated (F-GYM-6-1)
   Summary "Next time" reads the optimistically folded cached progressions, phrased as
   "next time" not "today" (T-05.1 AC2); Adjust → gym.progression.setOverride (online only)
+  Adjust's weight is typed, not stepper-only (T-05.4, CI-31, AC6): mobile taps the
+  value to open the same NumberSheet keypad the live logger uses (plate calculator
+  for barbells too); web's `Stepper` gains an opt-in `onValueChange` (a real
+  `<input type="number">` in place of the read-only value, other callers unaffected)
+  wired on the Adjust weight field. Either way 40 → 150 kg takes a handful of
+  keystrokes instead of ~44 ± presses; the ± steppers stay for small nudges. Reps
+  stay ± only on both platforms (adjusting a whole set of reps at once by typing
+  one number is not obviously the right UI, and the ± range is small)
 Android back / ⌄ → minimise (the session stays resumable from Today); Discard is confirmed
 Remove any set (logged or not) → mobile: long-press its row, its ⋯, or swipe the row left
   (`SwipeToRemove`, PAT-16, Δ2.6 — PanResponder + Reanimated, no native gesture-handler dep;

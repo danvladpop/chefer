@@ -28,12 +28,14 @@ import {
   explain,
   formatLoad,
   isHarder,
+  kgToUnit,
   localDateStr,
   postWorkoutProteinG,
   repBucket,
   stepDown,
   stepUp,
   streakWeeksLabel,
+  unitToKg,
 } from '@chefer/utils';
 import { captureGymEvent } from '../analytics';
 import { KIND_ARROW, KIND_TONE, prescriptionText, repsText } from '../shared/format';
@@ -358,11 +360,17 @@ function NextTimeRow({
         <div className="mt-3 rounded-xl border bg-gray-50 p-3 sm:ml-10">
           <div className="grid gap-2 sm:grid-cols-2">
             {hasLoad && slot && (
+              // T-05.4 (CI-31, AC6): typed entry — 40 → 150 kg takes a few
+              // keystrokes here instead of ~44 ± clicks.
               <Stepper
                 label="next weight"
                 value={formatLoad(weightKg, unit, meta?.loadType)}
+                valueLabel={`Next weight, ${formatLoad(weightKg, unit, meta?.loadType)}`}
+                rawValue={kgToUnit(weightKg, unit)}
+                onValueChange={(v) => setWeightKg(unitToKg(v, unit))}
                 onDecrement={() => setWeightKg((w) => stepDown(w, slot, profile))}
                 onIncrement={() => setWeightKg((w) => stepUp(w, slot, profile))}
+                testId="adjust-weight-stepper"
               />
             )}
             <Stepper

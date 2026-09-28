@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type {
   GymEquipmentAccess,
+  GymSplitPreference,
   TrainingExperience,
   VolumeGroup,
   WeightUnit,
@@ -86,6 +87,10 @@ export function SetupWizard() {
   const [step, setStep] = useState(1);
   const [days, setDays] = useState(3);
   const [experience, setExperience] = useState<TrainingExperience>('BEGINNER');
+  // UX-05 B (T-05.2): "Do you already follow a split?" — only asked once the
+  // user says they're Experienced. `null` = "Pick one for me" (the default,
+  // and what a "New or returning" answer implies too).
+  const [split, setSplit] = useState<GymSplitPreference | null>(null);
   const [equipmentAccess, setEquipmentAccess] = useState<GymEquipmentAccess>('FULL_GYM');
   const [unit, setUnit] = useState<WeightUnit>(() => defaultUnitFromLocale());
   // One unit preference across Food and Gym (P2-6): once preferences load,
@@ -118,8 +123,13 @@ export function SetupWizard() {
   };
 
   const recommendInput = useMemo(
-    () => ({ days, experience, equipmentAccess }),
-    [days, experience, equipmentAccess],
+    () => ({
+      days,
+      experience,
+      equipmentAccess,
+      ...(experience === 'INTERMEDIATE' && split ? { split } : {}),
+    }),
+    [days, experience, equipmentAccess, split],
   );
   const recommendQuery = trpc.gym.profile.recommend.useQuery(recommendInput, {
     enabled: step >= 5,
@@ -202,6 +212,7 @@ export function SetupWizard() {
       templateKey,
       plannedWeekdays: [...weekdays].sort((a, b) => a - b),
       reminderTime,
+      ...(experience === 'INTERMEDIATE' && split ? { split } : {}),
       ...(weightsChoice === 'know' && Object.keys(knownWeightsKg).length > 0
         ? { knownWeightsKg }
         : {}),
@@ -304,6 +315,7 @@ export function SetupWizard() {
                 const next = v[0];
                 if (next) {
                   setExperience(next);
+                  if (next === 'BEGINNER') setSplit(null);
                   resetForNewRecommendation();
                 }
               }}
@@ -311,6 +323,37 @@ export function SetupWizard() {
             <Text variant="muted" className="text-xs">
               &quot;New or returning&quot; means under 6 months of consistent lifting.
             </Text>
+
+            {/* UX-05 B (T-05.2): only asked once experienced — a follow-up on
+                the same screen, so step 5 can lead with the matching template. */}
+            {experience === 'INTERMEDIATE' && (
+              <View className="gap-2">
+                <Text variant="label">Do you already follow a split?</Text>
+                <ChipGroup
+                  testID="gym-setup-split"
+                  options={[
+                    {
+                      value: 'PICK_FOR_ME',
+                      label: 'Pick one for me',
+                      testID: 'gym-setup-split-auto',
+                    },
+                    {
+                      value: 'PUSH_PULL_LEGS',
+                      label: 'Push / Pull / Legs',
+                      testID: 'gym-setup-split-ppl',
+                    },
+                    { value: 'UPPER_LOWER', label: 'Upper / Lower', testID: 'gym-setup-split-ul' },
+                    { value: 'FULL_BODY', label: 'Full body', testID: 'gym-setup-split-fb' },
+                  ]}
+                  value={[split ?? 'PICK_FOR_ME']}
+                  onChange={(v) => {
+                    const next = v[0];
+                    setSplit(!next || next === 'PICK_FOR_ME' ? null : next);
+                    resetForNewRecommendation();
+                  }}
+                />
+              </View>
+            )}
           </View>
         )}
 
@@ -467,6 +510,41 @@ export function SetupWizard() {
                     </Text>
                   )}
                 </Card>
+                {/* UX-05 B (T-05.2, AC3): alternatives sit right under the
+                    program card as visible rows — never below the fold —
+                    with the existing "Choose another program" sheet kept as
+                    a second path to the full list. */}
+                {recommendQuery.data && recommendQuery.data.alternatives.length > 0 && (
+                  <View className="gap-2" testID="gym-setup-alternatives-inline">
+                    <Text variant="label">Other programs that fit {days} days</Text>
+                    {recommendQuery.data.alternatives.map((t) => (
+                      <Card
+                        key={t.key}
+                        testID={`gym-setup-alt-inline-${t.key}`}
+                        className="flex-row items-center justify-between gap-2"
+                      >
+                        <View className="min-w-0 flex-1">
+                          <Text className="font-medium">{t.name}</Text>
+                          <Text variant="muted" className="text-xs">
+                            {t.daysPerWeek}× a week · {t.description}
+                          </Text>
+                        </View>
+                        <Button
+                          testID={`gym-setup-alt-use-${t.key}`}
+                          size="sm"
+                          variant="outline"
+                          onPress={() => {
+                            setOverrideKey(t.key);
+                            setWeightsChoice(null);
+                            setKnownWeights({});
+                          }}
+                        >
+                          Use this
+                        </Button>
+                      </Card>
+                    ))}
+                  </View>
+                )}
                 <View className="gap-3">
                   {preview.days.map((day, i) => (
                     <Card

@@ -140,10 +140,18 @@ export const saveRoutineInputSchema = z.object({
 
 // ─── Setup, profile, library, progression ────────────────────────────────────
 
+// UX-05 B (T-05.2): "Do you already follow a split?" on setup step 2 for an
+// Experienced lifter. Omitted (or "pick one for me") keeps the existing
+// auto-recommendation; a chosen split picks the closest template of that
+// family for the day count instead (packages/utils/src/gym/templates.ts).
+export const gymSplitPreferenceSchema = z.enum(['PUSH_PULL_LEGS', 'UPPER_LOWER', 'FULL_BODY']);
+export type GymSplitPreference = z.infer<typeof gymSplitPreferenceSchema>;
+
 export const recommendInputSchema = z.object({
   days: z.number().int().min(2).max(6),
   experience: trainingExperienceSchema,
   equipmentAccess: gymEquipmentAccessSchema,
+  split: gymSplitPreferenceSchema.optional(),
 });
 export type RecommendInput = z.infer<typeof recommendInputSchema>;
 

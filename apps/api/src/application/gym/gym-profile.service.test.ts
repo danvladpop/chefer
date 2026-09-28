@@ -184,6 +184,24 @@ describe('GymProfileService.completeSetup', () => {
     expect(defaultInventory('LB').cableStepKg).toBe(2.27); // 5 lb
   });
 
+  // B-18 / UX-05 B (AC4): the weekly goal is what the user CHOSE, not the
+  // recommended template's own day count (ul4 has 4 days; 5 was chosen).
+  it("weekly goal is the days the user chose, not the resulting template's day count (B-18)", async () => {
+    const { service, repo } = setup();
+    const template = TEMPLATE_BY_KEY.get('ul4-beginner')!;
+    expect(template.daysPerWeek).toBe(4);
+
+    await service.completeSetup(
+      USER,
+      setupInput({ days: 5, templateKey: 'ul4-beginner', plannedWeekdays: [1, 2, 3, 4, 5] }),
+      '2026-09-24',
+    );
+
+    const data = vi.mocked(repo.completeSetup).mock.calls[0]![1];
+    expect(data.profile.weeklyGoal).toBe(5);
+    expect(data.profile.goalHistory).toEqual([{ fromWeek: '2026-09-21', goal: 5 }]);
+  });
+
   it('rejects an unknown template before touching the database', async () => {
     const { service, repo } = setup();
 

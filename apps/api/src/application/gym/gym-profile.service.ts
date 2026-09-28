@@ -306,10 +306,15 @@ export class GymProfileService {
         }
       : defaultInventory(input.unit);
 
+    // B-18 (UX-05 B, AC4): the weekly goal is the days the user CHOSE on step
+    // 1 (`input.days`), not the resulting template's own day count — a
+    // recommended template can have fewer days than requested (5 chosen days
+    // → ul4's 4, plus an "Optional 5th day"), and the goal must still read 5.
+    const weeklyGoal = input.days;
     const fromWeek = weekStartOf(today);
     const goalHistory: GoalHistoryEntry[] = [
       ...readGoalHistory(existing?.goalHistory ?? []).filter((g) => g.fromWeek < fromWeek),
-      { fromWeek, goal: draft.weeklyGoal },
+      { fromWeek, goal: weeklyGoal },
     ];
     const knownWeightsKg = Object.fromEntries(
       Object.entries(input.knownWeightsKg ?? {}).map(([id, kg]) => [id, round2(kg)]),
@@ -346,7 +351,7 @@ export class GymProfileService {
         experience: input.experience,
         equipmentAccess: input.equipmentAccess,
         unit: input.unit,
-        weeklyGoal: draft.weeklyGoal,
+        weeklyGoal,
         goalHistory: toJson(goalHistory),
         barWeightKg: inventory.barWeightKg,
         platePairsKg: inventory.platePairsKg,

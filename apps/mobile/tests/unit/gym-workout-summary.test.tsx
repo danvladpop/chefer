@@ -239,6 +239,55 @@ describe('SummaryScreen', () => {
     expect(cached?.progressions[0]?.override?.weightKg).toBe(65);
   });
 
+  // T-05.4 (CI-31, AC6): tapping the value opens the same typed keypad the
+  // live logger uses, reaching 150 kg from 40 kg in far fewer than the ~44
+  // ± taps the plain stepper would need.
+  it('Adjust: tapping the weight opens a keypad, reaching 150 kg from 40 kg in 4 taps', async () => {
+    const user = userEvent.setup();
+    const doc = finishedDoc();
+    rememberFinished(doc);
+    const bootstrap = makeBootstrap({
+      library: [makeExercise('bench', 'Bench Press')],
+      progressions: [
+        progression({
+          suggestion: suggestion({
+            kind: 'increase',
+            weightKg: 40,
+            reps: [8, 8, 8],
+            reasonCode: 'TOP_OF_RANGE',
+            deltaKg: 2.5,
+            inputs: {
+              repMin: 8,
+              repMax: 12,
+              loadType: 'WEIGHTED',
+              equipment: 'BARBELL',
+              lastWeightKg: 40,
+              lastReps: [12, 12, 12],
+            },
+          }),
+        }),
+      ],
+      recentSessions: [toSessionSummary(doc)],
+      streak: { current: 3, best: 5, flexTokens: 1, thisWeekSessions: 2, thisWeekGoal: 3 },
+    });
+    await renderSummary(doc.id, bootstrap);
+
+    await user.press(screen.getByTestId('summary-next-0-adjust'));
+    expect(screen.getByTestId('adjust-weight-value')).toHaveTextContent('40 kg');
+
+    // Tap 1: open the keypad.
+    await user.press(screen.getByTestId('adjust-weight-value'));
+    expect(screen.getByTestId('number-sheet')).toBeTruthy();
+    // Taps 2-4: "1", "5", "0".
+    await user.press(screen.getByTestId('number-sheet-key-1'));
+    await user.press(screen.getByTestId('number-sheet-key-5'));
+    await user.press(screen.getByTestId('number-sheet-key-0'));
+    expect(screen.getByTestId('number-sheet-value')).toHaveTextContent('150 kg');
+    await user.press(screen.getByTestId('number-sheet-save'));
+
+    expect(screen.getByTestId('adjust-weight-value')).toHaveTextContent('150 kg');
+  });
+
   it('Done returns to Today', async () => {
     const user = userEvent.setup();
     const doc = finishedDoc();

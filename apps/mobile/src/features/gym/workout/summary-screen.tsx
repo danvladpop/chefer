@@ -20,6 +20,7 @@ import { trpc } from '../../../lib/trpc';
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { gymBootstrapQueryKey, useGymBootstrap } from '../use-gym-bootstrap';
 import { getFinished } from './finished-store';
+import { NumberSheet } from './number-sheet';
 import {
   nextTimeRows,
   sessionPrs,
@@ -36,6 +37,7 @@ import {
   formatDuration,
   nextLoad,
   unitOf,
+  weightModeOf,
 } from './workout-model';
 
 // Finish screen (gym_plan.md §1.1: the loop closes here). Shows what the
@@ -375,6 +377,10 @@ function AdjustSheet({
   const [weightKg, setWeightKg] = useState(s.weightKg);
   const [repsFirst, setRepsFirst] = useState(firstRep);
   const [error, setError] = useState<string | null>(null);
+  // T-05.4 (CI-31): typed entry — tapping the value opens the same keypad
+  // (with a plate calculator for barbells) the live logger uses, so reaching
+  // 150 kg from 40 kg takes at most 5 taps instead of ~44 ± presses.
+  const [editing, setEditing] = useState<'weight' | 'reps' | null>(null);
   const reps = s.reps.map((r) => Math.max(1, r + (repsFirst - firstRep)));
   const mutation = trpc.gym.progression.setOverride.useMutation();
 
@@ -416,58 +422,82 @@ function AdjustSheet({
   };
 
   return (
-    <Sheet
-      visible
-      onClose={onClose}
-      title={meta.name}
-      eyebrow="Next time"
-      testID="adjust-sheet"
-      footer={
-        <Button
-          testID="adjust-sheet-save"
-          size="lg"
-          loading={mutation.isPending}
-          disabled={!online}
-          onPress={save}
-        >
-          Save target
-        </Button>
-      }
-    >
-      <Text variant="muted">Your target wins over the suggestion, for the next session only.</Text>
-      <View className="gap-1">
-        <Text variant="label">Weight</Text>
-        <ValueStepper
-          testID="adjust-weight"
-          name="Weight"
-          value={weightKg}
-          next={nextWeight}
-          onChange={setWeightKg}
-          format={formatWeight}
-          caption=""
-        />
-      </View>
-      <View className="gap-1">
-        <Text variant="label">{meta.isTimed ? 'Seconds' : 'Reps'} on the first set</Text>
-        <ValueStepper
-          testID="adjust-reps"
-          name={meta.isTimed ? 'Seconds' : 'Reps'}
-          value={repsFirst}
-          next={nextReps}
-          onChange={setRepsFirst}
-          format={formatReps}
-          caption=""
-        />
-        <Text testID="adjust-reps-all" variant="muted">
-          All sets: {reps.join(' / ')}
+    <>
+      <Sheet
+        visible
+        onClose={onClose}
+        title={meta.name}
+        eyebrow="Next time"
+        testID="adjust-sheet"
+        footer={
+          <Button
+            testID="adjust-sheet-save"
+            size="lg"
+            loading={mutation.isPending}
+            disabled={!online}
+            onPress={save}
+          >
+            Save target
+          </Button>
+        }
+      >
+        <Text variant="muted">
+          Your target wins over the suggestion, for the next session only.
         </Text>
-      </View>
-      {!online ? <Text variant="muted">Adjusting targets needs a connection.</Text> : null}
-      {error ? (
-        <Text testID="adjust-sheet-error" className="text-sm text-destructive">
-          {error}
-        </Text>
-      ) : null}
-    </Sheet>
+        <View className="gap-1">
+          <Text variant="label">Weight</Text>
+          <ValueStepper
+            testID="adjust-weight"
+            name="Weight"
+            value={weightKg}
+            next={nextWeight}
+            onChange={setWeightKg}
+            format={formatWeight}
+            caption=""
+            onPressValue={() => setEditing('weight')}
+          />
+        </View>
+        <View className="gap-1">
+          <Text variant="label">{meta.isTimed ? 'Seconds' : 'Reps'} on the first set</Text>
+          <ValueStepper
+            testID="adjust-reps"
+            name={meta.isTimed ? 'Seconds' : 'Reps'}
+            value={repsFirst}
+            next={nextReps}
+            onChange={setRepsFirst}
+            format={formatReps}
+            caption=""
+            onPressValue={() => setEditing('reps')}
+          />
+          <Text testID="adjust-reps-all" variant="muted">
+            All sets: {reps.join(' / ')}
+          </Text>
+        </View>
+        {!online ? <Text variant="muted">Adjusting targets needs a connection.</Text> : null}
+        {error ? (
+          <Text testID="adjust-sheet-error" className="text-sm text-destructive">
+            {error}
+          </Text>
+        ) : null}
+      </Sheet>
+      <NumberSheet
+        key={editing ?? 'closed'}
+        visible={editing !== null}
+        onClose={() => setEditing(null)}
+        kind={editing === 'reps' ? 'reps' : 'weight'}
+        value={editing === 'reps' ? repsFirst : weightKg}
+        title={`${meta.name} · ${editing === 'reps' ? (meta.isTimed ? 'Seconds' : 'Reps') : 'Weight'}`}
+        unit={unit}
+        meta={meta}
+        profile={profile}
+        showPlates={editing === 'weight' && weightModeOf(meta, profile) === 'plates'}
+        timed={meta.isTimed}
+        onSubmit={(value) => {
+          if (editing === 'reps') setRepsFirst(value);
+          else setWeightKg(value);
+          setEditing(null);
+        }}
+      />
+    </>
   );
 }
