@@ -17,8 +17,11 @@ export {
   IMPERIAL_REGIONS,
   defaultsForRegion,
   detectRegion,
+  inferUnitsFromInput,
   regionFromLocale,
   type DisplayDefaults,
+  type UnitInferenceInput,
+  type UnitInferenceResult,
 } from './locale';
 
 export {
