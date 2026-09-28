@@ -11,12 +11,15 @@ import {
   formatPortion,
   formatScaledQuantity,
   guessMealType,
+  labelCaveatLineText,
   localDateStr,
   parseStepDuration,
   slotPortion,
 } from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { StarRating } from '../../src/features/recipes/star-rating';
+import { CheckedForLine } from '../../src/features/safety/checked-for-line';
+import { LabelCaveat } from '../../src/features/safety/label-caveat';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { recordRebalance } from '../../src/features/tracker/rebalance-store';
 import { useHousehold } from '../../src/hooks/use-household';
@@ -119,6 +122,9 @@ export default function CookModeScreen() {
   const unitSystem = useUnitSystem();
 
   const { data: recipe, isLoading } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  // T-02.3: a separate, additive query — see app/recipe/[id].tsx's comment.
+  const { data: safetyData } = trpc.recipe.getSafetyChecks.useQuery({ recipeId: id });
+  const safetyChecks = safetyData?.safetyChecks ?? null;
   const utils = trpc.useUtils();
   // Premium households cook for the whole table (null otherwise).
   const { portionSum } = useHousehold();
@@ -263,6 +269,17 @@ export default function CookModeScreen() {
               Set for your plan&apos;s {formatPortion(planPortion)} portion.
             </Text>
           )}
+          {/* T-02.3: top of the ingredient list — never both with the
+              conflict banner above (AC3). */}
+          {(recipe.allergenWarnings?.length ?? 0) === 0 && safetyChecks ? (
+            <CheckedForLine testID="cook-checked-for" checks={safetyChecks} />
+          ) : null}
+          {safetyChecks?.labelCaveats && safetyChecks.labelCaveats.length > 0 ? (
+            <LabelCaveat
+              testID="cook-label-caveat"
+              text={labelCaveatLineText(safetyChecks.labelCaveats.map((c) => c.ingredient))}
+            />
+          ) : null}
           {recipe.ingredients.map((ing, i) => {
             const isChecked = checkedIngredients.has(i);
             return (
