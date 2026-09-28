@@ -9,6 +9,7 @@ import { PantryCheckBanner } from '@/features/pantry/components/PantryCheckBanne
 import { PantryGhostBanner } from '@/features/pantry/components/PantryGhostBanner';
 import { PantryPanel } from '@/features/pantry/components/PantryPanel';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { LabelCaveat } from '@/features/safety/components/LabelCaveat';
 import {
   ShopSegments,
   shopViewFromParam,
@@ -40,12 +41,14 @@ import {
 } from 'lucide-react';
 import { ErrorState, pressCard, pressControl, pressTransition, Sheet, useMenu } from '@chefer/ui';
 import {
+  checkedForListHeaderText,
   defaultWeekOffset,
   formatMoney,
   formatPriceRange,
   formatQuantity,
   getWeekStartDate,
   isConvertedCurrency,
+  labelCaveatCompactText,
   perPortionCost,
   shoppingWindowLabel,
 } from '@chefer/utils';
@@ -477,6 +480,14 @@ export default function ShoppingListPage() {
           </span>
         )}
 
+        {/* PAT-2 (UX-02 §3, T-02.1/T-02.4): the table has ≥ 1 safety rule
+            checked against this week's list. */}
+        {weekList?.tableSafety?.hasRules && (
+          <span className="whitespace-nowrap rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-xs font-medium text-[#944a00]">
+            {checkedForListHeaderText(weekList.items.length)}
+          </span>
+        )}
+
         {/* Who the quantities are for (P2-3, audit F-PM-5): a premium
             household's list is scaled to the table; a free table's list is
             recipes as written (one portion) and says so. */}
@@ -699,6 +710,11 @@ export default function ShoppingListPage() {
                                   <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">
                                     Have it
                                   </span>
+                                )}
+                                {/* T-01.9: this ingredient needs a certified product for the
+                                    table's diet labels (e.g. certified gluten-free oats). */}
+                                {item.labelCheck && item.labelCheck.length > 0 && (
+                                  <LabelCaveat text={labelCaveatCompactText()} compact />
                                 )}
                               </p>
                               {/* Quantity and price share a line — as separate

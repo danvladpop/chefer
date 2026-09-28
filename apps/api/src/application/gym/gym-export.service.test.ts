@@ -79,7 +79,9 @@ describe('GymExportService.exportCsv', () => {
     const { csv, filename } = await service.exportCsv(USER);
 
     const lines = csv.split('\r\n');
-    expect(lines[0]).toBe('Date,Session,Exercise,Set #,Warm-up,Weight (kg),Reps,RIR,Notes');
+    expect(lines[0]).toBe(
+      'Date,Session,Exercise,Set #,Warm-up,Weight (kg),Reps,RIR,Duration (s),Distance (m),Effort (RPE),Notes',
+    );
     expect(lines).toHaveLength(2); // header + the fixture's one set
     expect(filename).toMatch(/^chefer-gym-history-\d{4}-\d{2}-\d{2}\.csv$/);
   });
@@ -208,15 +210,74 @@ describe('GymExportService.exportCsv', () => {
     expect(rows).toHaveLength(3);
     // Warm-up row: no RIR, carries the notes (it's the first row for the exercise).
     expect(rows[0]?.[4]).toBe('y');
-    // KG profile: one weight column, so RIR is column 7 and Notes column 8.
+    // KG profile: one weight column, so RIR is column 7 and (a strength row's
+    // blank cardio columns later) Notes is column 11.
     expect(rows[0]?.[7]).toBe('');
-    expect(rows[0]?.[8]).toBe('Felt strong, comma, and "quoted" text');
+    expect(rows[0]?.[11]).toBe('Felt strong, comma, and "quoted" text');
     // Middle working set: no RIR, no notes.
     expect(rows[1]?.[7]).toBe('');
-    expect(rows[1]?.[8]).toBe('');
+    expect(rows[1]?.[11]).toBe('');
     // Last working set: RIR present.
     expect(rows[2]?.[4]).toBe('n');
     expect(rows[2]?.[7]).toBe('2');
+  });
+
+  it('adds duration/distance/effort for a cardio set, blank for a strength set (T-42.2)', async () => {
+    const doc = sessionDoc({
+      exercises: [
+        {
+          id: uuid(),
+          exerciseId: 'bike',
+          routineExerciseId: null,
+          position: 0,
+          repMin: 1,
+          repMax: 1,
+          targetRir: 0,
+          restSec: 0,
+          skipped: false,
+          swappedFromId: null,
+          lastSetRir: null,
+          prescription: {
+            kind: 'hold',
+            weightKg: 0,
+            reps: [],
+            sets: 0,
+            reasonCode: 'START',
+            inputs: {},
+            deltaKg: 0,
+            engineVersion: 1,
+          },
+          notes: null,
+          sets: [
+            {
+              id: uuid(),
+              position: 0,
+              weightKg: 0,
+              reps: 0,
+              isWarmup: false,
+              completedAt: '2026-09-02T17:10:00.000Z',
+              durationSec: 1200,
+              distanceM: 5000,
+              intensityRpe: 6,
+            },
+          ],
+        },
+      ],
+    });
+    const { service } = setup({
+      sessions: [sessionRow(doc)],
+      exercises: [
+        exerciseRow('bike', { name: 'Stationary bike', trackingType: 'DURATION_DISTANCE' }),
+      ],
+    });
+
+    const { csv } = await service.exportCsv(USER);
+    const row = parseCsvLine(csv.split('\r\n')[1] ?? '');
+
+    // Date,Session,Exercise,Set #,Warm-up,Weight (kg),Reps,RIR,Duration (s),Distance (m),Effort (RPE),Notes
+    expect(row[8]).toBe('1200');
+    expect(row[9]).toBe('5000');
+    expect(row[10]).toBe('6');
   });
 
   it('renders 3+ for an RIR of 3 (the "3+" chip)', async () => {

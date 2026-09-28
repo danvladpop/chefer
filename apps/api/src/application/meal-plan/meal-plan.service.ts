@@ -18,7 +18,7 @@ import {
   type PlanMealSlotJson,
   type Recipe,
 } from '@chefer/database';
-import type { PlanTailoring } from '@chefer/types';
+import type { PlanTailoring, SafetyChecks, TableSafety } from '@chefer/types';
 import {
   applyTrainingDayBonus,
   hasTrainingDayBump,
@@ -47,6 +47,7 @@ import {
   MIN_SAFE_POOL_SIZE,
   pickRandomCurated,
   safeCuratedPools,
+  type SafetyCheckable,
   type SafetyPrefs,
 } from '../../lib/curated-recipes/index.js';
 import { normalizeIngredientName } from '../../lib/ingredient-prices/index.js';
@@ -57,12 +58,12 @@ import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
 import {
   computeHouseholdContext,
   legacyServingSizePlaceholders,
-  mergeHouseholdSafety,
 } from '../household/household.service.js';
 import { pairLeftovers, pairLeftoverSlots } from '../pantry/leftovers.js';
 import { computeUsedPantryItemsForUser, getUseFirstIngredients } from '../pantry/pantry-context.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { findRecipeVisibleTo, isRecipeOpenTo } from '../recipe/recipe-access.js';
+import { safetyService, type SafetyContext } from '../safety/safety.service.js';
 import { estimatePlanCostEur, type PlanCostEstimate } from '../shared/plan-cost.js';
 import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
 import {
@@ -133,6 +134,21 @@ export interface RecipeDto {
    * (e.g. an empty slot) or the DTO isn't a swap/replace response.
    */
   previousRecipeId?: string;
+  /**
+   * §2.2, T-02.1: which of the table's safety rules this recipe passes/fails
+   * — the plan-surface `Checked` chip / conflict line. Present only when the
+   * table has rules (SafetyService.check's caller only attaches it then, so
+   * older/rule-less tables never render a false "Checked" claim — UX-02 AC1).
+   */
+  safetyChecks?: SafetyChecks;
+  /**
+   * T-01.10: ingredient-derived diet tags (never trust the static
+   * `dietaryTags` for gluten-free/vegan/vegetarian/dairy-free) and, for a
+   * label-dependent one, which qualifier it needs a certified product for
+   * (SafetyService.decorate()).
+   */
+  derivedTags?: string[];
+  tagQualifiers?: Record<string, string>;
 }
 
 export interface MealSlotDto {
@@ -266,6 +282,13 @@ export interface WeekPlanDto {
    * curated week at once and see tailored days on their next read.
    */
   tailoring?: PlanTailoring | null;
+  /**
+   * §2.2, T-02.1: the read-back table this response's `safetyChecks` were
+   * computed against (week card / list header). Present whenever the caller
+   * is a signed-in user — `hasRules: false` for a table with nothing to
+   * check, same as `safety.getTable`.
+   */
+  tableSafety?: TableSafety;
 }
 
 export type GenerateOptions = {
@@ -399,14 +422,26 @@ export class MealPlanService {
     await this.householdRepo
       .migrateLegacyServingSize(userId, (n) => legacyServingSizePlaceholders(n))
       .catch((err: unknown) => console.error('[meal-plan] servingSize migration failed', err));
-    const [chefProfile, dietaryPrefs, pinnedCandidates, ratingSignals, householdMembers] =
-      await Promise.all([
-        chefProfileRepository.findByUserId(userId),
-        dietaryPreferencesRepository.findByUserId(userId),
-        favouriteRecipeRepository.findPinnedForNextPlan(userId),
-        mealRatingRepository.findSignalsForUser(userId),
-        this.householdRepo.findByUserId(userId),
-      ]);
+    const [
+      chefProfile,
+      dietaryPrefs,
+      pinnedCandidates,
+      ratingSignals,
+      householdMembers,
+      safetyCtx,
+    ] = await Promise.all([
+      chefProfileRepository.findByUserId(userId),
+      dietaryPreferencesRepository.findByUserId(userId),
+      favouriteRecipeRepository.findPinnedForNextPlan(userId),
+      mealRatingRepository.findSignalsForUser(userId),
+      this.householdRepo.findByUserId(userId),
+      // T-01.5/delta-4: reported recipes must never resurface in a fresh AI
+      // week or a later tailored day — `enforcePlanSafety` excludes them
+      // alongside the allergy/restriction pass. `safetyTable` is the same
+      // read-back the client renders, so `generate`'s response can carry
+      // `tableSafety` without a second query.
+      safetyService.loadContext(userId),
+    ]);
 
     // No profile yet (the goal and metrics steps are optional) is not a dead
     // end: generate against default targets, and the dashboard keeps nudging
@@ -520,6 +555,8 @@ export class MealPlanService {
       trainingDayTargets,
       householdContext,
       planSafety,
+      hiddenRecipeIds: safetyCtx.hiddenRecipeIds,
+      safetyTable: safetyCtx.table,
       pinnedFavourites,
       likedDishes,
       dislikedDishes,
@@ -546,6 +583,8 @@ export class MealPlanService {
       trainingDayTargets,
       householdContext,
       planSafety,
+      hiddenRecipeIds,
+      safetyTable,
       pinnedFavourites,
       likedDishes,
       dislikedDishes,
@@ -604,8 +643,9 @@ export class MealPlanService {
     // 3a''. AI output is never trusted for safety (audit F-PLAN-1-9): every
     // generated dish is re-checked against the household's allergies and
     // restrictions, and a failing slot is replaced from the safe curated
-    // pool (or dropped when nothing safe fits).
-    const safetyPass = await this.enforcePlanSafety(weekPlan, planSafety);
+    // pool (or dropped when nothing safe fits) — reported recipes (T-01.5)
+    // are excluded from that replacement pool too.
+    const safetyPass = await this.enforcePlanSafety(weekPlan, planSafety, hiddenRecipeIds);
     weekPlan = safetyPass.plan;
 
     // 3a'''. §T-07.2: an explicit one-off shape override (e.g. `Plan this
@@ -781,10 +821,14 @@ export class MealPlanService {
           const img = resolvedImage(m.recipe);
           return {
             type: m.type,
-            recipe: toRecipeDto(m.recipe, {
-              imageUrl: img.imageUrl,
-              imageStatus: img.done ? 'DONE' : 'PENDING',
-            }),
+            recipe: decorateRecipeDto(
+              toRecipeDto(m.recipe, {
+                imageUrl: img.imageUrl,
+                imageStatus: img.done ? 'DONE' : 'PENDING',
+              }),
+              m.recipe,
+              { prefs: planSafety, table: safetyTable },
+            ),
             ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
           };
         }),
@@ -794,6 +838,7 @@ export class MealPlanService {
         portions: householdContext?.portionSum ?? null,
       }),
       ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
+      tableSafety: safetyTable,
       personalisation: {
         pinnedDishNames: placedPinNames,
         likedCount: likedDishes.length,
@@ -943,7 +988,7 @@ export class MealPlanService {
     const locked = lockedSlotIndexes(plan.days, dayOfWeek);
     if (current.length > 0 && locked.size >= current.length) return { skip: 'locked' };
 
-    const { aiInput, liveTargets, trainingDayTargets, planSafety } =
+    const { aiInput, liveTargets, trainingDayTargets, planSafety, hiddenRecipeIds } =
       await this.loadPremiumContext(userId);
     const dayTargets = trainingDayTargets.get(dayOfWeek) ?? liveTargets;
 
@@ -994,7 +1039,7 @@ export class MealPlanService {
 
     // Server-minted ids + the household safety pass, exactly as for a week.
     const minted = withServerRecipeIds({ days: dayPlan.days.map((d) => ({ ...d, dayOfWeek })) });
-    const safetyPass = await this.enforcePlanSafety(minted, planSafety);
+    const safetyPass = await this.enforcePlanSafety(minted, planSafety, hiddenRecipeIds);
     const aiDay = safetyPass.plan.days[0];
     const aiMeals: PlanMealSlotJson[] = (aiDay?.meals ?? []).map((m) => ({
       type: m.type,
@@ -1243,8 +1288,16 @@ export class MealPlanService {
     // F2: household members' allergies/restrictions are unioned with the
     // owner's — safety is never premium, so the filter applies on the free
     // tier too whenever members exist (e.g. created before a downgrade).
-    const safety = await this.loadMergedSafety(userId);
-    const pools = safeCuratedPools(safety);
+    const ctx = await this.loadSafetyContext(userId);
+    const safety = ctx.prefs;
+    const rawPools = safeCuratedPools(safety);
+    // T-01.5: a reported recipe never resurfaces in a fresh curated week.
+    const pools: Record<MealType, RecipeData[]> = {
+      breakfast: excludeHidden(rawPools.breakfast, ctx.hiddenRecipeIds),
+      lunch: excludeHidden(rawPools.lunch, ctx.hiddenRecipeIds),
+      dinner: excludeHidden(rawPools.dinner, ctx.hiddenRecipeIds),
+      snack: excludeHidden(rawPools.snack, ctx.hiddenRecipeIds),
+    };
 
     // §2.3, T-07.1/T-07.2: the stored "how you cook" shape, with this call's
     // one-off override (e.g. `Plan this day` sends `{ days: [d] }`) merged
@@ -1411,7 +1464,11 @@ export class MealPlanService {
         planned: d.planned,
         meals: d.meals.map((m) => ({
           type: m.type,
-          recipe: toRecipeDto(m.recipe, { imageUrl: m.recipe.imageUrl, imageStatus: 'DONE' }),
+          recipe: decorateRecipeDto(
+            toRecipeDto(m.recipe, { imageUrl: m.recipe.imageUrl, imageStatus: 'DONE' }),
+            m.recipe,
+            ctx,
+          ),
           ...(m.portion !== 1 && { portion: m.portion }),
           ...(m.pinned && { pinned: true }),
           ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
@@ -1425,6 +1482,7 @@ export class MealPlanService {
           })
         : await estimatePlanCostEur(daysFrom(days, curatedShopFrom)),
       ...(curatedShopFrom > 0 && { shoppingFromDay: curatedShopFrom }),
+      tableSafety: ctx.table,
       ...(plan.previousPlanId && { previousPlanId: plan.previousPlanId }),
       ...(options.keepPinned && { droppedPinned }),
     };
@@ -1476,9 +1534,14 @@ export class MealPlanService {
   private async enforcePlanSafety(
     plan: WeekPlanResponse,
     safety: SafetyPrefs,
+    hiddenIds: string[] = [],
   ): Promise<{ plan: WeekPlanResponse; curatedIds: Set<string> }> {
     const curatedIds = new Set<string>();
-    if (safety.allergies.length === 0 && safety.dietaryRestrictions.length === 0) {
+    if (
+      safety.allergies.length === 0 &&
+      safety.dietaryRestrictions.length === 0 &&
+      hiddenIds.length === 0
+    ) {
       return { plan, curatedIds };
     }
     let replaced = 0;
@@ -1486,8 +1549,13 @@ export class MealPlanService {
     const days = plan.days.map((day) => ({
       ...day,
       meals: day.meals.flatMap((slot) => {
-        if (findSafetyIssues(slot.recipe, safety).length === 0) return [slot];
-        const safe = pickRandomCurated(slot.type, undefined, safety);
+        if (
+          findSafetyIssues(slot.recipe, safety).length === 0 &&
+          !hiddenIds.includes(slot.recipe.id)
+        ) {
+          return [slot];
+        }
+        const safe = pickSafeCurated(slot.type, hiddenIds, undefined, safety);
         if (!safe) {
           dropped++;
           return [];
@@ -1507,19 +1575,14 @@ export class MealPlanService {
     return { plan: { ...plan, days }, curatedIds };
   }
 
-  private async loadMergedSafety(userId: string): Promise<SafetyPrefs> {
-    const [dietaryPrefs, members] = await Promise.all([
-      dietaryPreferencesRepository.findByUserId(userId),
-      this.householdRepo.findByUserId(userId),
-    ]);
-    return mergeHouseholdSafety(
-      {
-        allergies: dietaryPrefs?.allergies ?? [],
-        dietaryRestrictions: dietaryPrefs?.dietaryRestrictions ?? [],
-        dislikedIngredients: dietaryPrefs?.dislikedIngredients ?? [],
-      },
-      members,
-    );
+  /**
+   * The ONE safety read this file uses (T-01.2/T-02.1/delta-4): prefs +
+   * reported (hidden) recipe ids + the read-back table, via `SafetyService`
+   * instead of a locally re-merged copy (that duplication was exactly how
+   * this file's own safety pass used to drift from the rest of the app).
+   */
+  private async loadSafetyContext(userId: string): Promise<SafetyContext> {
+    return safetyService.loadContext(userId);
   }
 
   /** Table portion sum, or null when it's just the owner (P2-3). */
@@ -1562,9 +1625,9 @@ export class MealPlanService {
   ): Promise<WeekPlanDto> {
     const allMeals = plan.days.flatMap((d) => d.meals as PlanMealSlotJson[]);
     const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
-    const [recipeRows, safety, targets, shape, tailoringRow] = await Promise.all([
+    const [recipeRows, safetyCtx, targets, shape, tailoringRow] = await Promise.all([
       this.repo.findRecipesByIds(uniqueIds),
-      userId ? this.loadMergedSafety(userId) : Promise.resolve(null),
+      userId ? this.loadSafetyContext(userId) : Promise.resolve(null),
       userId ? this.loadTargets(userId) : Promise.resolve(null),
       // wave-1 T-07.6: `planned` used to be reliable only on `generate`'s own
       // response (no shape snapshot was kept per-read) — a plain reload of
@@ -1600,7 +1663,7 @@ export class MealPlanService {
         protein += ((row.nutritionInfo as unknown as NutritionInfo).protein ?? 0) * portion;
         return {
           type: m.type as MealType,
-          recipe: withAllergenWarnings(rowToRecipeDto(row), row, safety),
+          recipe: decorateRecipeDto(rowToRecipeDto(row), rowToRecipeData(row), safetyCtx),
           ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
           ...(portion !== 1 && { portion }),
           ...(m.pinned && { pinned: true }),
@@ -1634,6 +1697,7 @@ export class MealPlanService {
         proteinTarget: targets.proteinG,
       }),
       ...(tailoring && { tailoring }),
+      ...(safetyCtx && { tableSafety: safetyCtx.table }),
     };
   }
 
@@ -1713,7 +1777,8 @@ export class MealPlanService {
     if (!row) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     }
-    return withAllergenWarnings(rowToRecipeDto(row), row, await this.loadMergedSafety(userId));
+    const ctx = await this.loadSafetyContext(userId);
+    return decorateRecipeDto(rowToRecipeDto(row), rowToRecipeData(row), ctx);
   }
 
   /**
@@ -1743,11 +1808,12 @@ export class MealPlanService {
 
     // Load dietary preferences for the swap prompt. Safety is the household
     // union (F2) — a swapped-in dish must be safe for everyone at the table.
-    const [, dietaryPrefs, mergedSafety] = await Promise.all([
+    const [, dietaryPrefs, ctx] = await Promise.all([
       chefProfileRepository.findByUserId(userId),
       dietaryPreferencesRepository.findByUserId(userId),
-      this.loadMergedSafety(userId),
+      this.loadSafetyContext(userId),
     ]);
+    const mergedSafety = ctx.prefs;
 
     // Find the current recipe name in the plan day
     const slot = slotAt(plan, dayOfWeek, slotIndex);
@@ -1824,10 +1890,14 @@ export class MealPlanService {
     if (!reusedUrl) recipeImageWorker.wake();
 
     return {
-      ...toRecipeDto(newRecipe, {
-        imageUrl: reusedUrl,
-        imageStatus: reusedUrl ? 'DONE' : 'PENDING',
-      }),
+      ...decorateRecipeDto(
+        toRecipeDto(newRecipe, {
+          imageUrl: reusedUrl,
+          imageStatus: reusedUrl ? 'DONE' : 'PENDING',
+        }),
+        newRecipe,
+        ctx,
+      ),
       // T-08.6: the default this wave is commit + Undo (no preview) — the
       // client offers Undo by calling `replaceRecipe` back to this id.
       ...(previousRecipeId && { previousRecipeId }),
@@ -1848,12 +1918,18 @@ export class MealPlanService {
   ): Promise<RecipeDto> {
     await ensureCuratedRecipes();
 
-    // F2: swap alternatives must be safe for the whole household too.
-    const safety = await this.loadMergedSafety(userId);
+    // F2: swap alternatives must be safe for the whole household too; T-01.5
+    // reported recipes are excluded from the pick as well.
+    const ctx = await this.loadSafetyContext(userId);
 
     const slot = slotAt(plan, dayOfWeek, slotIndex);
 
-    const newRecipe = pickRandomCurated(mealType as MealType, slot?.recipeId, safety);
+    const newRecipe = pickSafeCurated(
+      mealType as MealType,
+      ctx.hiddenRecipeIds,
+      slot?.recipeId,
+      ctx.prefs,
+    );
     if (!newRecipe) {
       throw new TRPCError({
         code: 'PRECONDITION_FAILED',
@@ -1881,7 +1957,11 @@ export class MealPlanService {
     );
 
     return {
-      ...toRecipeDto(newRecipe, { imageUrl: newRecipe.imageUrl, imageStatus: 'DONE' }),
+      ...decorateRecipeDto(
+        toRecipeDto(newRecipe, { imageUrl: newRecipe.imageUrl, imageStatus: 'DONE' }),
+        newRecipe,
+        ctx,
+      ),
       ...(slot?.recipeId && { previousRecipeId: slot.recipeId }),
     };
   }
@@ -1919,8 +1999,8 @@ export class MealPlanService {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     }
 
-    const safety = await this.loadMergedSafety(userId);
-    const issues = findSafetyIssues(rowToRecipeData(recipe), safety);
+    const ctx = await this.loadSafetyContext(userId);
+    const issues = findSafetyIssues(rowToRecipeData(recipe), ctx.prefs);
     if (issues.length > 0) {
       const isOwnRecipe = recipe.source === 'MANUAL' && recipe.creatorId === userId;
       if (!acknowledgeConflict || !isOwnRecipe) {
@@ -1949,7 +2029,7 @@ export class MealPlanService {
     );
 
     return {
-      ...rowToRecipeDto(recipe),
+      ...decorateRecipeDto(rowToRecipeDto(recipe), rowToRecipeData(recipe), ctx),
       ...(previousRecipeId && previousRecipeId !== recipeId && { previousRecipeId }),
     };
   }
@@ -2063,8 +2143,15 @@ export class MealPlanService {
     }
 
     await ensureCuratedRecipes();
-    const safety = await this.loadMergedSafety(userId);
-    const pools = safeCuratedPools(safety);
+    const dayCtx = await this.loadSafetyContext(userId);
+    const rawDayPools = safeCuratedPools(dayCtx.prefs);
+    // T-01.5: a reported recipe never resurfaces via `Plan this day` either.
+    const pools: Record<MealType, RecipeData[]> = {
+      breakfast: excludeHidden(rawDayPools.breakfast, dayCtx.hiddenRecipeIds),
+      lunch: excludeHidden(rawDayPools.lunch, dayCtx.hiddenRecipeIds),
+      dinner: excludeHidden(rawDayPools.dinner, dayCtx.hiddenRecipeIds),
+      snack: excludeHidden(rawDayPools.snack, dayCtx.hiddenRecipeIds),
+    };
 
     // The stored shape, with `days` forced to just this one day for this
     // call only (never persisted) — mirrors `generate`'s one-off `shape`
@@ -2552,11 +2639,17 @@ function toRecipeDto(
 /**
  * Adds `allergenWarnings` when the recipe conflicts with the viewer's hard
  * safety prefs — the detail page, cook mode and planner show them so an
- * unsafe dish is never presented silently (F-REC-2-3, F-PLAN-1-7).
+ * unsafe dish is never presented silently (F-REC-2-3, F-PLAN-1-7). Takes the
+ * SafetyCheckable-shaped source directly (a Recipe row via `rowToRecipeData`,
+ * or an AI `RecipeData`) so both DTO-mapping paths share one implementation.
  */
-function withAllergenWarnings(dto: RecipeDto, row: Recipe, safety: SafetyPrefs | null): RecipeDto {
+function withAllergenWarnings(
+  dto: RecipeDto,
+  data: SafetyCheckable,
+  safety: SafetyPrefs | null,
+): RecipeDto {
   if (!safety) return dto;
-  const issues = findSafetyIssues(rowToRecipeData(row), safety);
+  const issues = findSafetyIssues(data, safety);
   if (issues.length === 0) return dto;
   const restrictions = new Set(safety.dietaryRestrictions);
   return {
@@ -2565,6 +2658,91 @@ function withAllergenWarnings(dto: RecipeDto, row: Recipe, safety: SafetyPrefs |
       restrictions.has(issue) ? restrictionWarningLabel(issue) : issue,
     ),
   };
+}
+
+/**
+ * §2.2/UX-02 AC1: attaches `safetyChecks` (which of the table's rules this
+ * recipe passes/fails) only when the table actually has rules — a rule-less
+ * table never renders a false "Checked" claim, and older clients that ignore
+ * the field see nothing either way.
+ */
+function withSafetyChecks(
+  dto: RecipeDto,
+  data: SafetyCheckable,
+  table: TableSafety | null,
+): RecipeDto {
+  if (!table?.hasRules) return dto;
+  return { ...dto, safetyChecks: safetyService.check(data, table) };
+}
+
+/**
+ * T-01.10: the one `SafetyService.decorate()` call every DTO mapping in this
+ * file goes through — ingredient-derived diet tags (never the static,
+ * sometimes-stale `dietaryTags`) + their label-dependency qualifiers.
+ */
+function withDerivedTags(dto: RecipeDto, data: SafetyCheckable): RecipeDto {
+  const { derivedTags, tagQualifiers } = safetyService.decorate(data);
+  return { ...dto, derivedTags, ...(tagQualifiers && { tagQualifiers }) };
+}
+
+/**
+ * The one place a plan/recipe DTO picks up every additive safety field
+ * (T-02.1): derived tags, allergen warnings and, when the table has rules,
+ * the `safetyChecks` read-back. `ctx` is `null` when there is no signed-in
+ * viewer to check against (never happens on an authenticated procedure, but
+ * `assemblePlanDto` is also called without a userId in one legacy path).
+ */
+function decorateRecipeDto(
+  dto: RecipeDto,
+  data: SafetyCheckable,
+  ctx: Pick<SafetyContext, 'prefs' | 'table'> | null,
+): RecipeDto {
+  // Never let a malformed/partial row 500 a plan read (bug: recipe.discover's
+  // summary DTO used to be cast straight into SafetyService.check, whose
+  // ingredients.map then threw for any user with a rule) — every call site
+  // in this file passes a full SafetyCheckable already, but decoration
+  // failing for one recipe must still never break the whole response.
+  try {
+    let out = withDerivedTags(dto, data);
+    out = withAllergenWarnings(out, data, ctx?.prefs ?? null);
+    out = withSafetyChecks(out, data, ctx?.table ?? null);
+    return out;
+  } catch (err) {
+    console.error(
+      '[meal-plan] safety decoration failed for a recipe — serving it undecorated',
+      err,
+    );
+    return dto;
+  }
+}
+
+/** Drops ids the user has reported (T-01.5, UX-01 AC10) from a curated pool. */
+function excludeHidden<T extends { id: string }>(pool: T[], hiddenIds: string[]): T[] {
+  return hiddenIds.length === 0 ? pool : pool.filter((r) => !hiddenIds.includes(r.id));
+}
+
+/**
+ * Same as `pickRandomCurated` (lib/curated-recipes) but also excludes
+ * reported ids — kept local so a reported recipe never resurfaces via a
+ * curated swap/replacement fallback (T-01.5's "excluded from the instant
+ * curated week and from later tailored days" requirement) without having to
+ * change the shared curated-pool helper's signature. Delegates to the
+ * shared helper unchanged when there is nothing to exclude (the common
+ * case), so every existing curated-pick behaviour is untouched.
+ */
+function pickSafeCurated(
+  mealType: MealType,
+  hiddenIds: string[],
+  excludeId?: string,
+  prefs?: SafetyPrefs | null,
+): RecipeData | null {
+  if (hiddenIds.length === 0) return pickRandomCurated(mealType, excludeId, prefs);
+  const pools = safeCuratedPools(prefs ?? null);
+  const pool = excludeHidden(pools[mealType] ?? pools.breakfast, hiddenIds);
+  if (pool.length === 0) return null;
+  const candidates = pool.filter((r) => r.id !== excludeId);
+  const source = candidates.length > 0 ? candidates : pool;
+  return source[Math.floor(Math.random() * source.length)] ?? null;
 }
 
 /**

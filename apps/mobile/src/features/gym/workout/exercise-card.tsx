@@ -16,11 +16,13 @@ import { Chip, Text } from '@chefer/ui-mobile';
 import { cn, explain, formatLoadNumber, unitLabel } from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
 import { exerciseImageUrl } from '../library/exercise-image';
+import { CardioEntry } from './cardio-entry';
 import { SetRow, type SetRowHandlers } from './set-row';
 import {
   DIRECTION_ICON,
   directionOf,
   isCalibrating,
+  isCardioMeta,
   isDone,
   lastNoteFor,
   lastTimeSets,
@@ -56,6 +58,16 @@ export interface WorkoutContext {
   onSkip: (seId: string, skipped: boolean) => void;
   onAddSet: (seId: string) => void;
   onLayoutY: (seId: string, y: number) => void;
+  /** T-42.3: "Log it" on a cardio entry — completes the exercise's one set with these fields. */
+  onLogCardio: (seId: string, setId: string, fields: CardioLogFields) => void;
+}
+
+/** T-42.3: the fields a cardio "Log it" can set (S20, Δ2.2) — a subset of SessionSetDoc's cardio columns. */
+export interface CardioLogFields {
+  durationSec?: number;
+  distanceM?: number;
+  intensityRpe?: number;
+  resistanceLevel?: number;
 }
 
 export interface ExerciseCardProps {
@@ -112,7 +124,13 @@ function ExerciseCardImpl({
   const done = working.filter(isDone).length;
   const warmupsDone = warmups.filter(isDone).length;
   const range = se.repMin === se.repMax ? `${se.repMin}` : `${se.repMin}–${se.repMax}`;
-  const subtitle = `${working.length} × ${range}${meta.isTimed ? ' s' : ''} · ${done}/${working.length} done`;
+  const cardio = isCardioMeta(meta);
+  // AC1: a cardio card never shows kg/sets/RIR — just done/not-done.
+  const subtitle = cardio
+    ? working[0] && isDone(working[0])
+      ? 'Logged'
+      : 'Not logged yet'
+    : `${working.length} × ${range}${meta.isTimed ? ' s' : ''} · ${done}/${working.length} done`;
   const imageUri = exerciseImageUrl(meta);
   const calibrating = isCalibrating(se.prescription);
   const showRir = !se.skipped && lastWorkingSetDone(se);
@@ -208,6 +226,25 @@ function ExerciseCardImpl({
           >
             <Text className="font-semibold text-primary">Undo</Text>
           </Pressable>
+        </View>
+      ) : expanded && cardio ? (
+        <View className="gap-2 px-2 pb-3">
+          <CardioEntry
+            se={se}
+            meta={meta}
+            unit={ctx.unit}
+            prior={ctx.prior}
+            testID={`${base}-cardio`}
+            onLogIt={(fields) => {
+              const setId = working[0]?.id;
+              if (setId) ctx.onLogCardio(se.id, setId, fields);
+            }}
+          />
+          {se.notes ? (
+            <Text testID={`${base}-note`} variant="muted" className="px-1">
+              Note: {se.notes}
+            </Text>
+          ) : null}
         </View>
       ) : expanded ? (
         <View className="gap-2 px-2 pb-3">

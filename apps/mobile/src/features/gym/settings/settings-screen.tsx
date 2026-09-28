@@ -26,6 +26,7 @@ import {
   unitToKg,
   weekStartOf,
 } from '@chefer/utils';
+import { useFlags } from '../../../hooks/use-flags';
 import { trpc } from '../../../lib/trpc';
 import { GymExportRow } from '../export/export-row';
 import { localDate } from '../offline/ids';
@@ -190,6 +191,7 @@ function WeightListEditor({
 export function GymSettingsScreen() {
   const queryClient = useQueryClient();
   const { data: bootstrap } = useGymBootstrap();
+  const { cardioLogging } = useFlags();
   const outboxStatus = useOutboxStatus();
   const [pauseSheetVisible, setPauseSheetVisible] = useState(false);
   const [pauseWeeks, setPauseWeeks] = useState(1);
@@ -253,6 +255,8 @@ export function GymSettingsScreen() {
 
   const { profile } = bootstrap;
   const unit = profile.unit;
+  // T-42.3 (S21, Δ2.2): null/absent derives from `unit` — MI when LB, else KM.
+  const distanceUnit = profile.distanceUnit ?? (unit === 'LB' ? 'MI' : 'KM');
   const today = localDate();
   const isPausedThisWeek = bootstrap.weeks.some(
     (w) => w.weekStart === weekStartOf(today) && w.status === 'paused',
@@ -318,6 +322,24 @@ export function GymSettingsScreen() {
             Also switches recipes, shopping lists and your body weight.
           </Text>
         </View>
+
+        {cardioLogging ? (
+          <View className="gap-2">
+            <SectionTitle>Distance</SectionTitle>
+            <ChipGroup
+              testID="gym-settings-distance-unit"
+              options={[
+                { value: 'KM' as const, label: 'km', testID: 'gym-settings-distance-unit-km' },
+                { value: 'MI' as const, label: 'mi', testID: 'gym-settings-distance-unit-mi' },
+              ]}
+              value={[distanceUnit]}
+              onChange={(v) => {
+                const next = v[0];
+                if (next) saveMutation.mutate({ distanceUnit: next });
+              }}
+            />
+          </View>
+        ) : null}
 
         <View className="gap-2">
           <SectionTitle>Weekly goal</SectionTitle>

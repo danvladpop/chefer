@@ -40,6 +40,11 @@ const HEADER = (unit: WeightUnit): string[] => [
   ...(unit === 'KG' ? [] : [`Weight (${unitLabel(unit)})`]),
   'Reps',
   'RIR',
+  // T-42.2 (06 §5): cardio columns, blank for a strength row — one CSV shape
+  // for every set, so a spreadsheet import never needs two schemas.
+  'Duration (s)',
+  'Distance (m)',
+  'Effort (RPE)',
   'Notes',
 ];
 
@@ -111,6 +116,9 @@ function exerciseRows(
     ...(unit === 'KG' ? [] : [formatLoadNumber(set.weightKg, unit)]),
     String(set.reps),
     set.id === lastWorkingId ? formatRir(exercise.lastSetRir) : '',
+    set.durationSec !== null ? String(set.durationSec) : '',
+    set.distanceM !== null ? String(set.distanceM) : '',
+    set.intensityRpe !== null ? String(set.intensityRpe) : '',
     index === 0 ? (exercise.notes ?? '') : '',
   ]);
 }

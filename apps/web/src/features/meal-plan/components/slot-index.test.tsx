@@ -64,6 +64,8 @@ vi.mock('@/lib/trpc', () => {
       }),
       recipe: {
         list: { useQuery: () => ({ data: [picked], isLoading: false }) },
+        // T-02.5/AC7: ReplaceMealSheet's FilteredForLine footer query.
+        listHiddenCount: { useQuery: () => ({ data: { hiddenCount: 0, filteredFor: [] } }) },
       },
       mealPlan: {
         replaceRecipe: { useMutation: mutation(m.replace) },

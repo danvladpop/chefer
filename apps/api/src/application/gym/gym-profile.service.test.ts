@@ -13,6 +13,11 @@ import {
 import { profileRow, progressionState, routineRow } from './__test__/fixtures.js';
 import { defaultInventory, GymProfileService } from './gym-profile.service.js';
 
+// GymProfileService transitively imports client-level.ts → lib/flags.ts →
+// lib/env.ts, which validates the full env schema at import time — mock it
+// (the targets.service.test.ts pattern) so this file needs no real env vars.
+vi.mock('../../lib/flags.js', () => ({ isFlagEnabled: () => false }));
+
 vi.mock('@chefer/utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/utils')>()),
   initialState: vi.fn(),
@@ -156,8 +161,9 @@ describe('GymProfileService.completeSetup', () => {
       quietNudgeDays: 5,
     });
 
-    // Returns a fresh bootstrap for the same device-local day.
-    expect(bootstrap.get).toHaveBeenCalledWith(USER, { today: '2026-09-24' });
+    // Returns a fresh bootstrap for the same device-local day (T-42.2: 3rd
+    // arg is the client level completeSetup passes through, default 0).
+    expect(bootstrap.get).toHaveBeenCalledWith(USER, { today: '2026-09-24' }, 0);
   });
 
   it('honours "I know my weights" in the initial states and keeps them for recomputes', async () => {

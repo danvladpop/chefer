@@ -79,7 +79,22 @@ appId: dev.chefer.app.dev
 - tapOn: 'Tree nuts'
 - assertVisible:
     id: 'prefs-allergies-readback'
-- assertVisible: 'granola'
+- assertVisible: '.*granola.*'
+# Save the allergy, then leave the pushed Settings › Food safety screens so
+# the tab bar is reachable again.
+- scrollUntilVisible:
+    element:
+      id: 'prefs-save-safety'
+- tapOn:
+    id: 'prefs-save-safety'
+- tapOn:
+    text: 'Back'
+    optional: true
+# Settings' own back control has no text label — edge-swipe back to More.
+- swipe:
+    start: 1%, 50%
+    end: 85%, 50%
+    duration: 400
 
 # ── T-02.5: Discover says what it filtered (AC7) ──
 - tapOn:
@@ -102,7 +117,7 @@ appId: dev.chefer.app.dev
     visible:
       id: 'discover-filtered-for'
     timeout: 15000
-- assertVisible: 'hidden'
+- assertVisible: '.*hidden.*'
 - tapOn:
     id: 'discover-filtered-for'
 - extendedWaitUntil:
@@ -145,5 +160,104 @@ appId: dev.chefer.app.dev
 - tapOn:
     id: 'report-safety-send'
 - extendedWaitUntil:
-    visible: 'Thanks'
+    visible: '.*Thanks.*'
     timeout: 10000
+
+# ── T-02.4/T-02.5/T-01.5 (L-SAFE2, wave 2): Plan tab week card, Replace
+# picker's Filtered-for line, and the plan-card long-press report ──
+# Leave the recipe detail pushed above the tabs first.
+- tapOn:
+    text: 'Back'
+    optional: true
+- waitForAnimationToEnd
+- tapOn: 'Plan(, tab.*)?'
+- extendedWaitUntil:
+    visible:
+      id: 'plan-week-label'
+    timeout: 5000
+    optional: true
+# A tab tap during the Back transition can be dropped — retry once.
+- runFlow:
+    when:
+      notVisible:
+        id: 'plan-week-label'
+    commands:
+      - tapOn: 'Plan(, tab.*)?'
+- extendedWaitUntil:
+    visible:
+      id: 'plan-week-label'
+    timeout: 15000
+# A fresh account has no week yet — plan one (premium asks for AI consent
+# first; Allow continues).
+- runFlow:
+    when:
+      visible:
+        id: 'plan-empty'
+    commands:
+      - tapOn:
+          id: 'plan-generate'
+      - extendedWaitUntil:
+          visible:
+            id: 'ai-consent-allow'
+          timeout: 5000
+          optional: true
+      - tapOn:
+          id: 'ai-consent-allow'
+          optional: true
+      - extendedWaitUntil:
+          notVisible:
+            id: 'plan-empty'
+          timeout: 60000
+- runFlow:
+    when:
+      notVisible:
+        id: 'plan-empty'
+    commands:
+      # Tree nuts was set above (T-01.7) — the table has rules, so the week
+      # card shows the exact copy string verbatim (AC1).
+      - assertVisible:
+          id: 'plan-week-safety'
+      - assertVisible: '.*Checked for your table.*'
+      - tapOn:
+          id: 'plan-day-0'
+      # Replace picker: a tree-nut table hides some curated recipes for at
+      # least one slot — assert the Filtered-for line whenever this
+      # particular slot's search actually hid something (pool content varies
+      # by meal type/day, so this stays optional rather than flaking).
+      - tapOn:
+          id: 'plan-meal-swap-.*'
+          index: 0
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'picker-search'
+          commands:
+            - runFlow:
+                when:
+                  visible:
+                    id: 'picker-filtered-for'
+                commands:
+                  - assertVisible: '.*hidden.*'
+            - tapOn:
+                id: 'picker-close'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'picker-search'
+                timeout: 5000
+      # T-01.5: long-press a plan meal card opens the SAME report sheet as
+      # the recipe-detail overflow action (onLongPress never also navigates
+      # to the recipe — onPress and onLongPress are mutually exclusive).
+      - longPressOn:
+          id: 'plan-meal-(breakfast|lunch|dinner|snack)'
+          index: 0
+      - extendedWaitUntil:
+          visible:
+            id: 'report-safety-sheet-title'
+          timeout: 10000
+      - tapOn: 'Something else'
+      - tapOn:
+          id: 'report-safety-send'
+      - extendedWaitUntil:
+          visible: '.*Thanks.*'
+          timeout: 10000

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { clientIdSchema, upsertSessionsInputSchema } from '@chefer/types';
+import { effectiveLevel } from '../../application/gym/client-level.js';
 import { workoutSessionService } from '../../application/gym/workout-session.service.js';
 import { assertWithinRateLimit } from '../../lib/rate-limit.js';
 import { protectedProcedure, router } from '../../lib/trpc.js';
@@ -14,7 +15,9 @@ export const gymSessionRouter = router({
   }),
   get: protectedProcedure
     .input(z.object({ id: clientIdSchema }))
-    .query(({ ctx, input }) => workoutSessionService.get(ctx.user.id, input.id)),
+    .query(({ ctx, input }) =>
+      workoutSessionService.get(ctx.user.id, input.id, effectiveLevel(ctx.clientApiLevel)),
+    ),
   list: protectedProcedure
     .input(
       z.object({
@@ -22,7 +25,9 @@ export const gymSessionRouter = router({
         limit: z.number().int().min(1).max(50).default(20),
       }),
     )
-    .query(({ ctx, input }) => workoutSessionService.list(ctx.user.id, input)),
+    .query(({ ctx, input }) =>
+      workoutSessionService.list(ctx.user.id, input, effectiveLevel(ctx.clientApiLevel)),
+    ),
   discard: protectedProcedure
     .input(z.object({ id: clientIdSchema }))
     .mutation(({ ctx, input }) => workoutSessionService.discard(ctx.user.id, input.id)),

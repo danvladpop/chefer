@@ -176,9 +176,17 @@ free workout log too, not meal planning alone (CI-16/CI-25).
    │     (free: diet → goal → metrics; premium: goal → metrics → diet → cuisine)
    ├── Feed my household (HOUSEHOLD) → "Who's at your table?" (add members,
    │     free) → the food wizard
-   └── Train (TRAIN) → gym setup first (web /gym/setup). Food setup comes
-         later: re-opening /onboarding skips the question and runs the food
-         steps.
+   └── Train (TRAIN) → gym setup first (web /gym/setup; mobile Gym mode →
+         Today → setup). Food setup comes later: re-opening /onboarding skips
+         the question and runs the food steps.
+         T-03.4: a Train + a food job hands off with
+         `/gym/setup?from=onboarding&days=0,2,4` (weekday indices, Mon = 0) —
+         `setup-wizard.tsx` reads this via `useLocalSearchParams`, pre-fills
+         step 1 (day count = the weekdays given) and step 4 (those weekdays
+         ticked), and opens straight at step 2; its back button then returns
+         to onboarding instead of the now-skipped step 1. Train-only (no
+         params) opens at step 1 exactly as before (UX-03 AC2/AC3). The
+         reminder toggle (step 4) is still asked either way (protects D3).
    Skip still works on every step (mobile's jobs step: "Just looking
    around" saves `jobs: ['PLAN_MEALS']` and lands on Food Today directly —
    every later mobile step is already independently optional, so Continue
@@ -2589,6 +2597,72 @@ Workout (offline on the phone) → Finish → outbox → gym.session.upsertMany(
   1–7) are dismissed by key via `gym.progression.dismissOffer`; `startDeload` makes the next 7 days'
   prescriptions deloads.
 
+### 22.1 Correcting a past session (UX-44, Δ2.3) — no new API surface
+
+Edit and delete both ride the existing `gym.session.upsertMany` sync path above; nothing new was
+added to the API for this.
+
+```
+Edit a completed session:
+  load the stored doc → change it on the client → bump clientUpdatedAt → outbox.enqueue(doc)
+  → gym.session.upsertMany applies it like any other sync (last-write-wins on clientUpdatedAt)
+  → recompute folds the EDITED history — a 600 → 60 kg fix changes the next-time target
+    the same way a fresh fold over the corrected numbers would (AC8)
+
+Delete a completed session (with an 8 s Undo):
+  the delete is held on the device (outbox OutboxEntry.holdUntil, T-44.2 — additive, `v` stays 1)
+    → Undo within the window: outbox.cancelHeld(id) removes the entry before it is ever sent
+    → after 8 s (or immediately if the app is killed and relaunched past the window):
+         outbox re-sends the SAME doc with status: 'DISCARDED' and a bumped clientUpdatedAt
+         → gym.session.upsertMany applies it — every list/bootstrap/stat already excludes
+           DISCARDED, and recompute folds the exercises as if the session never happened
+         → once that write is acknowledged AND the device is online, the client calls
+           gym.session.delete (hard delete) so no DISCARDED row lingers (Q-30)
+  Offline the whole way: the DISCARDED upsert is itself an outbox entry, so a delete started
+  offline still "sticks" locally (dropped from the next bootstrap.recentSessions/session.list)
+  even before the hard delete can run.
+
+Target-change notice (PAT-14): the client snapshots bootstrap.progressions[].state.next for the
+touched exercises before enqueueing the edit, diffs against the next bootstrap refetch
+(packages/utils/src/gym/session-edit.ts targetDiff()) and offers "Keep the old ones" →
+gym.progression.setOverride per row — no server change.
+```
+
+The delete confirm's preview lines (this week's session count and streak, before/after) are a pure
+client-side re-fold: `sessionDeletePreview()` (`packages/utils/src/gym/session-edit.ts`) rebuilds
+the current week's row from `bootstrap.weeks`/`.streak` with one session subtracted and re-runs
+`settleWeeks()` (`weeks.ts`) — the same fold the server uses — so the sheet can say "this drops you
+from a 3-week streak to 2" before the delete is even sent.
+
+### 22.2 Cardio delivery (UX-42 minimal slice, T-42.1/T-42.2)
+
+12 catalogue entries (`packages/types/src/gym/cardio-catalog.ts` + the `cardio()` builder in
+`exercise-catalog.ts`) ship through the same sync/bootstrap machinery as strength exercises — a
+cardio `SessionSet` is one row (`weightKg: 0, reps: 0, isWarmup: false`) carrying `durationSec` /
+`distanceM` / `intensityRpe` instead. The only new behaviour is what a client is SENT: `gym
+.bootstrap`, `gym.library.list`, `gym.session.get` and `gym.session.list` each drop rows/exercises
+whose `trackingType` isn't renderable at the caller's `x-chefer-api-level` (`renderableTrackingTypes()`,
+§9) — a mixed session (bench + bike) still shows its bench part to an old client, the bike part
+just isn't there, and week/streak counts are unaffected either way. Progression has no cardio
+state to recompute (Δ2.2); PR/e1RM/volume code needs no special case since a cardio set's
+`weightKg: 0, reps: 0` already produces nothing in those pure functions.
+
+**Mobile logging (T-42.3, behind `cardioLogging`, off by default).** A cardio exercise's card in the
+active workout renders `CardioEntry` (`src/features/gym/workout/cardio-entry.tsx`) instead of the
+usual set rows — `Timer | Enter`, an absolute-timestamp wall-clock timer that survives a kill
+(`cardio-timer.ts`, the same pattern as the existing rest timer, counting up with pause/resume
+instead of down), duration chips, a distance/level stepper when the catalogue entry uses them, and
+`EffortChips` (Easy/Moderate/Hard + an exact 1–10 expansion). "Log it" is one `completeSet` action
+carrying the cardio fields instead of weightKg/reps (`workout-reducer.ts`'s `completeSet`/`editSet`
+gained an optional `CardioSetFields` intersection for this). History (`session-detail-screen.tsx`)
+renders time/distance/effort for a cardio exercise instead of `0 kg × 0`. The custom exercise
+form's "How do you track it?" chips (`trackingType`, replacing the old `isTimed`-only checkbox) and
+a `Cardio` filter chip (exercise picker + Exercises tab) are also behind the flag. The mobile bundle
+sends `x-chefer-api-level: 3` as of this change (Δ2.1) — bumped in the same commit as this UI, per
+the rule that a level is only ever sent by a bundle that implements it. **Not done this wave:** web
+rendering/logging at all (T-42.5, tracked as a reverse `mobile_parity_backlog.md` row), the
+mixed-session `{done}/{planned}` header, and Stats/PR views for a cardio exercise (W5's T-42.8).
+
 ---
 
 ## 23. Weekly Emails & Notifications Flow (P2-5)
@@ -2881,7 +2955,7 @@ Transparency prompt, anywhere (AC7).
 
 ---
 
-## 27. Safety filter & reporting flow (UX-01/UX-02, T-01.1–T-01.7, T-02.2/T-02.3/T-02.5, T-22.1)
+## 27. Safety filter & reporting flow (UX-01/UX-02, T-01.1–T-01.10, T-02.1–T-02.5, T-22.1)
 
 > One matcher, one merge, one service. Every surface that shows or picks a
 > recipe answers "is this safe for the table" the same way — see
@@ -3004,11 +3078,81 @@ hides the recipe from the reporter's plans/swaps immediately and both
 **Not yet wired this wave (handoffs):** `ChatService.buildContextSummary`
 still reads only the owner's `DietaryPreferences` (T-BUG-X1's chat half —
 `application/chat/**` is L-ENTRY's file, outside this lane's ownership); the
-Replace picker, plan meal-card long-press report entry and shopping-list
-`Check label` chip are L-SAFE2's wave-2 tasks (T-01.8); the import
-preview/Cheferize draft still shows only the pre-existing conflict banner
-(`ImportSafety.ok/issues`), not a positive Checked line — a UX-02 nicety not
-built this wave.
+import preview/Cheferize draft still shows only the pre-existing conflict
+banner (`ImportSafety.ok/issues`), not a positive Checked line — a UX-02
+nicety not built this wave.
+
+### Plan / Replace / Shop surfaces (wave 2, L-SAFE2 — T-01.5/T-01.8/T-01.9/T-01.10/T-02.1/T-02.4/T-02.5)
+
+The wave-1 handoff above ("Replace picker, plan meal-card long-press report
+entry and shopping-list `Check label` chip are L-SAFE2's wave-2 tasks") is
+done this wave. `application/meal-plan/**` and `application/shopping-list/**`
+now call `SafetyService` the same way every other surface does (§7's
+`MealPlanService`/`ShoppingListService` notes) instead of a locally re-merged
+`SafetyPrefs`:
+
+```
+mealPlan.{getActive,getForWeek,getById,generate,restore,planDay}
+  └─► assemblePlanDto / buildCuratedWeek / generateBlocking's own DTO
+        ├─ SafetyService.loadContext(userId) → { prefs, hiddenRecipeIds, table }
+        ├─ per meal: decorateRecipeDto(dto, recipeData, ctx)
+        │     ├─ SafetyService.decorate() → derivedTags / tagQualifiers (T-01.10)
+        │     ├─ allergenWarnings? (unchanged matcher, now also on
+        │     │     replaceRecipe/swapRecipe — they returned neither before)
+        │     └─ table.hasRules ? SafetyService.check() → safetyChecks? : (nothing)
+        └─ response.tableSafety = table   (top-level, §2.2)
+
+mealPlan.{replaceRecipe,swapRecipe,getRecipe}  → same decorateRecipeDto call
+
+Reported-recipe exclusion (T-01.5/AC10) reaches the curated pool, not just
+`recipe.list`/`discover`:
+  buildCuratedWeek / planDay / swapCurated / enforcePlanSafety(unsafe-AI-slot
+  replacement) ──► pool.filter(id not in hiddenRecipeIds) before a pick
+  enforcePlanSafety is ALSO `tailorDay`'s safety pass (plan-tailoring.service.ts
+  → MealPlanService.tailorDay) — a reported recipe is excluded from a fresh
+  instant/curated week AND from every later live-tailored day, not only the
+  week that was active when it was reported.
+
+recipe.list({forTable:true}) / recipe.discover
+  └─► rows gain safetyChecks? (same table.hasRules gate)
+  └─► NEW recipe.listHiddenCount mirrors discoverHiddenCount for the
+        Replace picker's FilteredForLine (AC7)
+
+shoppingList.getForWeek
+  └─► response.tableSafety = table
+  └─► per item: labelCheck? = gluten-free diet labels this ingredient needs
+        a certified product for (LABEL_DEPENDENT_INGREDIENTS, bug B-47/T-01.9)
+```
+
+**Read-only, never a plan edit.** Every field above is computed fresh on each
+read from the CURRENT table and the CURRENT stored recipe rows — none of it
+is written into a plan's stored day JSON. This matters for two things this
+wave depends on: (1) the Replace picker hiding a failing row is a pure
+`recipe.list({forTable:true})` read, so it never counts as the user editing
+the day; (2) `plan-tailoring.service.ts`'s compare-and-set
+(`isTouched`/`replaceDayIfUnchanged`, §21-adjacent "instant week, live
+tailoring" flow) keeps comparing the day's stored slot JSON exactly as
+before — safety decoration never touches it, so a tailored day's Checked/
+conflict state is always derived fresh on the next read, never stale from
+tailor time (proven by
+`meal-plan.service.test.ts`'s `"delta-4: a day replaced by tailorDay shows
+the CORRECT Checked/conflict state on a later read"`).
+
+**Client surfaces.** Plan surfaces: the week view shows
+`SAFETY_COPY.weekCardTitle` ("Checked for your table") above the badges row
+when `tableSafety.hasRules`; each `PlanMealCard`/`MealCard` shows
+`CheckedForChip` from `recipe.safetyChecks.checked` (a conflict still shows
+the pre-existing `AllergenWarningChip`/banner instead, AC3 — the two are
+never both on screen, same rule as the detail-surface Checked line above).
+Report a safety problem (T-01.5) is also reachable from a plan meal card's
+long-press (mobile) — the same `ReportSafetySheet` as the recipe-detail
+overflow, `surface: 'plan_card'`. Replace sheet: `FilteredForLine` from
+`recipe.listHiddenCount` above the search results (AC7), `CheckedForChip` per
+row; it already hard-excludes unsafe rows (`forTable: true`) and, since
+dislikes are hard there too (§ above), there is nothing left to soft-chip.
+Shopping list: a header Checked/needs-a-look line from `tableSafety`, and a
+compact `LabelCaveat` ("Buy certified gluten-free") on any line carrying
+`labelCheck`.
 
 ---
 

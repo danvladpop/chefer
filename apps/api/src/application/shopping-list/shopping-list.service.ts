@@ -10,7 +10,7 @@ import {
   type PlanMealSlotJson,
   type Prisma,
 } from '@chefer/database';
-import type { UserProfile } from '@chefer/types';
+import { LABEL_DEPENDENT_INGREDIENTS, type TableSafety, type UserProfile } from '@chefer/types';
 import { slotPortion } from '@chefer/utils';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
@@ -27,6 +27,7 @@ import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js'
 import { householdService } from '../household/household.service.js';
 import { buildPantryCoverageMatcher } from '../pantry/pantry-match.js';
 import { pantryService } from '../pantry/pantry.service.js';
+import { safetyService } from '../safety/safety.service.js';
 import { inferCategory } from '../shared/category-map.js';
 import { householdScaleFactor } from '../shared/household-scale.js';
 import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
@@ -65,6 +66,14 @@ export interface ShoppingListItemForWeek {
    * match at all.
    */
   haveQuantity?: number;
+  /**
+   * §2.2, T-01.9/T-02.1: diet labels (e.g. "Gluten-free") this line needs a
+   * certified product for — it's a label-dependent ingredient (stock, curry
+   * powder, soy sauce…) that CAN be safe but isn't guaranteed to be. Present
+   * only when the table has a diet this applies to; the client renders
+   * `LabelCaveat` / "Buy certified gluten-free".
+   */
+  labelCheck?: string[];
 }
 
 /** F3 pantry summary attached to every served list. */
@@ -109,6 +118,11 @@ export interface WeekShoppingList {
    * curated plans). Per-person cost = total ÷ this, never ÷ head count.
    */
   portions?: number;
+  /**
+   * §2.2, T-02.1/T-02.4: the read-back table this list's `labelCheck` lines
+   * were computed against — the Shop header's Checked/needs-a-look line.
+   */
+  tableSafety?: TableSafety;
 }
 
 /** Items as persisted in the ShoppingList table (images/prices re-resolved on read). */
@@ -181,6 +195,33 @@ export function carryCheckedKeys(
 
 function customItemKey(planId: string, name: string, unit: string): string {
   return `${planId}-custom-${name.toLowerCase().trim().replace(/\s+/g, '-')}-${unit.toLowerCase().trim()}`;
+}
+
+/**
+ * T-01.9/T-02.1: flags list lines that need a certified product for a
+ * gluten-free member's table — the same label-dependent ingredient list
+ * `findLabelCaveats` runs against a recipe's ingredients (bug B-47), applied
+ * here to a shopping-list line's plain ingredient name. Additive: a table
+ * with no gluten-free diet (or no rules at all) leaves every item unchanged.
+ */
+function withLabelChecks(
+  items: ShoppingListItemForWeek[],
+  table: TableSafety,
+): ShoppingListItemForWeek[] {
+  const glutenFreeLabels = [
+    ...new Set(
+      table.people
+        .flatMap((p) => p.items)
+        .filter((i) => i.kind === 'diet' && /gluten-free/i.test(i.label))
+        .map((i) => i.label),
+    ),
+  ];
+  if (glutenFreeLabels.length === 0) return items;
+  return items.map((item) => {
+    const name = item.ingredientName.toLowerCase();
+    const isLabelDependent = LABEL_DEPENDENT_INGREDIENTS.some((ing) => name.includes(ing));
+    return isLabelDependent ? { ...item, labelCheck: glutenFreeLabels } : item;
+  });
 }
 
 function getMondayOfWeek(offset: number): Date {
@@ -378,6 +419,9 @@ export class ShoppingListService {
     // plan (every Sunday planner's view). findForWeek only ever matches
     // THIS calendar week.
     const targetPlan = await mealPlanRepository.findForWeek(userId, weekStart);
+    // T-01.9/T-02.1: the one read-back table every list line's `labelCheck`
+    // and the header's Checked/needs-a-look line are computed against.
+    const safetyTable = (await safetyService.loadContext(userId)).table;
 
     if (!targetPlan) {
       const { pantry } = await this.applyPantry(user, [], null);
@@ -392,6 +436,7 @@ export class ShoppingListService {
         aiGenerated: false,
         checkedKeys: [],
         pantry,
+        tableSafety: safetyTable,
       };
     }
 
@@ -423,12 +468,13 @@ export class ShoppingListService {
         weekStartDate: weekStart.toISOString(),
         weekEndDate: weekEnd.toISOString(),
         hasPlan: true,
-        items,
+        items: withLabelChecks(items, safetyTable),
         weekOffset,
         estimatedTotalEur,
         aiGenerated: true,
         checkedKeys,
         pantry,
+        tableSafety: safetyTable,
         ...sized,
       };
     }
@@ -448,12 +494,13 @@ export class ShoppingListService {
       weekStartDate: weekStart.toISOString(),
       weekEndDate: weekEnd.toISOString(),
       hasPlan: true,
-      items,
+      items: withLabelChecks(items, safetyTable),
       weekOffset,
       estimatedTotalEur,
       aiGenerated: false,
       checkedKeys,
       pantry,
+      tableSafety: safetyTable,
       ...sized,
     };
   }

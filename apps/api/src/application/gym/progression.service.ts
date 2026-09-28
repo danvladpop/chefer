@@ -23,8 +23,10 @@ import {
   ENGINE_VERSION,
   exposuresFromSession,
   foldHistory,
+  isStrengthTrackingType,
   prescribe,
   repBucket,
+  trackingTypeOf,
 } from '@chefer/utils';
 import {
   gymContextLoader,
@@ -96,6 +98,10 @@ export class ProgressionService {
     for (const session of sessions) {
       for (const { exerciseId, exposure } of exposuresFromSession(toSessionDoc(session))) {
         if (!idSet.has(exerciseId)) continue;
+        // Δ2.2: cardio has no stored progression state — its "Next time" is a
+        // pure function of recentSessions (cardio.ts), never this fold.
+        const meta = metas.get(exerciseId);
+        if (!meta || !isStrengthTrackingType(trackingTypeOf(meta))) continue;
         group(exerciseId, repBucket(exposure.repMin, exposure.repMax)).exposures.push(exposure);
       }
     }
@@ -106,7 +112,7 @@ export class ProgressionService {
     const writes: ProgressionStateWrite[] = [];
     for (const g of groups.values()) {
       const meta = metas.get(g.exerciseId);
-      if (!meta) continue;
+      if (!meta || !isStrengthTrackingType(trackingTypeOf(meta))) continue;
       writes.push({
         exerciseId: g.exerciseId,
         repBucket: g.bucket,
@@ -150,7 +156,7 @@ export class ProgressionService {
     const covered = new Set(rows.map((r) => r.exerciseId));
     for (const id of ids) {
       const meta = metas.get(id);
-      if (!meta || covered.has(id)) continue;
+      if (!meta || covered.has(id) || !isStrengthTrackingType(trackingTypeOf(meta))) continue;
       const buckets = new Set(
         ctx.activeRoutine?.days
           .flatMap((d) => d.exercises)

@@ -258,4 +258,22 @@ export const recipeRouter = router({
     .query(async ({ ctx, input }) => {
       return recipeService.discoverHiddenCount(ctx.user.id, input);
     }),
+
+  /**
+   * T-02.5 (rev 2, L-SAFE2): the Replace picker's `Filtered for …` footer —
+   * how many `list({ forTable: true })` results the safety filter removed,
+   * mirroring `discoverHiddenCount`. A separate query so an old client that
+   * only calls `list` is unaffected.
+   */
+  listHiddenCount: protectedProcedure
+    .input(
+      z.object({
+        search: z.string().optional(),
+        savedOnly: z.boolean().optional(),
+        myRecipesOnly: z.boolean().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      return recipeService.listHiddenCount(ctx.user.id, input);
+    }),
 });

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import type {
   GymEquipmentAccess,
   GymSplitPreference,
@@ -81,11 +81,33 @@ function StepHeader({ title, description }: { title: string; description: string
   );
 }
 
+/** "0,2,4" → [0, 2, 4] (weekday indices, Mon = 0), invalid/out-of-range entries dropped. */
+function parseWeekdaysParam(raw: string | undefined): number[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+}
+
 export function SetupWizard() {
   const queryClient = useQueryClient();
 
-  const [step, setStep] = useState(1);
-  const [days, setDays] = useState(3);
+  // T-03.4 (UX-03 AC2/AC3): L-HOME's onboarding hands off to gym setup with
+  // `?from=onboarding&days=0,2,4` when the user picked Train + a food job —
+  // step 1 (count) and step 4 (weekdays) come pre-filled and the wizard
+  // opens straight at step 2, skipping the now-redundant count question.
+  // Train-only unchanged (no params, AC2): opens at step 1 as it always has.
+  const params = useLocalSearchParams<{ from?: string; days?: string }>();
+  const fromOnboarding = params.from === 'onboarding';
+  const initialWeekdays = useMemo(
+    () => (fromOnboarding ? parseWeekdaysParam(params.days) : []),
+    [fromOnboarding, params.days],
+  );
+  const firstStep = fromOnboarding && initialWeekdays.length > 0 ? 2 : 1;
+
+  const [step, setStep] = useState(firstStep);
+  const [days, setDays] = useState(initialWeekdays.length > 0 ? initialWeekdays.length : 3);
   const [experience, setExperience] = useState<TrainingExperience>('BEGINNER');
   // UX-05 B (T-05.2): "Do you already follow a split?" — only asked once the
   // user says they're Experienced. `null` = "Pick one for me" (the default,
@@ -105,7 +127,7 @@ export function SetupWizard() {
     const preferred = prefs.data?.chefProfile?.preferredUnits;
     if (preferred) setUnit(weightUnitForSystem(preferred));
   }, [prefs.isLoading, prefs.data]);
-  const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [weekdays, setWeekdays] = useState<number[]>(initialWeekdays);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderHour, setReminderHour] = useState(7);
   const [reminderMinute, setReminderMinute] = useState(0);
@@ -180,7 +202,10 @@ export function SetupWizard() {
 
   const goBack = () => {
     if (completeSetupMutation.isPending) return;
-    if (step === 1) {
+    // T-03.4: back from the wizard's first visible step — step 1 normally,
+    // or step 2 when onboarding pre-filled step 1 and skipped it — returns
+    // to whatever pushed this screen (onboarding, or Today).
+    if (step === firstStep) {
       if (router.canGoBack()) router.back();
       else router.replace('/today');
       return;

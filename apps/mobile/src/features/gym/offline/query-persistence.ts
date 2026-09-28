@@ -9,8 +9,13 @@ import { kvAsyncStorage } from './kv';
 // written to disk, so the Today tab, next workout and history render offline.
 // Food queries stay memory-only exactly as before.
 
-/** Bump when the persisted cache shape changes; ENGINE_VERSION bumps on its own. */
-export const GYM_CACHE_SCHEMA_VERSION = 1;
+/**
+ * Bump when the persisted cache shape changes; ENGINE_VERSION bumps on its
+ * own. 2 (T-42.3): the client moved to x-chefer-api-level 3, so a persisted
+ * library cache filtered under the old level (no cardio rows) must be
+ * dropped for a full re-bootstrap (Δ2.1).
+ */
+export const GYM_CACHE_SCHEMA_VERSION = 2;
 export const GYM_CACHE_BUSTER = `${ENGINE_VERSION}:${GYM_CACHE_SCHEMA_VERSION}`;
 export const GYM_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 

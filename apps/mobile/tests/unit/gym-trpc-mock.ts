@@ -27,6 +27,11 @@ export function createTrpcGymMock() {
       preferences: {
         get: { useQuery: jest.fn(() => ({ data: undefined, isLoading: false })) },
       },
+      // T-42.3: useFlags() (gym settings, workout/exercises-tab pickers) —
+      // every flag off by default, same as ALL_FEATURE_FLAGS_OFF.
+      profile: {
+        flags: { useQuery: jest.fn(() => ({ data: undefined })) },
+      },
       gym: {
         bootstrap: { _def: () => ({ path: ['gym', 'bootstrap'] }) },
         profile: {
