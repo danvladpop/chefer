@@ -7,10 +7,12 @@ import type {
   CheferizedRecipe,
   CheferizeInput,
   CoachReviewInput,
+  DayPlan,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
   MealPhotoEstimate,
+  MealPlanDayRequest,
   MealPlanInput,
   RecipeData,
   RecipeExtractionSource,
@@ -64,10 +66,21 @@ export class MockAIService implements IAIService {
   // returning the first alternative.
   private swapIndex = 0;
 
+  /**
+   * @param extraDelayMs AI_MOCK_DELAY_MS — added to plan calls so slow-AI
+   *   states (live tailoring progress, spinners) can be observed locally.
+   *   0 (the default) keeps every existing timing unchanged.
+   */
+  constructor(private readonly extraDelayMs = 0) {}
+
   async generateMealPlan(input: MealPlanInput): Promise<WeekPlanResponse> {
     // Simulate a brief AI "thinking" delay so the UI loading state is visible
-    await delay(600);
+    await delay(600 + this.extraDelayMs);
+    return this.planWithSeams(input);
+  }
 
+  /** The fixture week with the §4.5 seam fields applied (no delay). */
+  private async planWithSeams(input: MealPlanInput): Promise<WeekPlanResponse> {
     const household = input.householdContext;
     const useFirst = input.useFirstIngredients;
     // No seam fields → the frozen default, untouched (wave-1 behavior).
@@ -119,6 +132,18 @@ export class MockAIService implements IAIService {
     }
 
     return plan;
+  }
+
+  /**
+   * Live tailoring: the fixture's day for `dayOfWeek` (cloned), with the
+   * same seam handling as the week. Deterministic; `extraDelayMs` applies.
+   */
+  async generateMealPlanDay(input: MealPlanInput, request: MealPlanDayRequest): Promise<DayPlan> {
+    await delay(300 + this.extraDelayMs);
+    const week = await this.planWithSeams(input);
+    const day = week.days.find((d) => d.dayOfWeek === request.dayOfWeek) ??
+      week.days[0] ?? { meals: [] };
+    return { dayOfWeek: request.dayOfWeek, meals: structuredClone(day.meals) };
   }
 
   async generateRecipeSwap(input: SwapInput): Promise<RecipeData> {

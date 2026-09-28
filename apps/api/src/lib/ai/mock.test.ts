@@ -284,3 +284,22 @@ describe('MockAIService.generateMealPlan — seam handling', () => {
     expect(firstDinner?.ingredients.some((i) => i.name === 'leftover rice')).toBe(true);
   });
 });
+
+// ─── generateMealPlanDay (live tailoring) ────────────────────────────────────
+
+describe('MockAIService.generateMealPlanDay', () => {
+  it("returns a copy of the fixture's day, labelled with the requested day", async () => {
+    const day = await ai.generateMealPlanDay(baseMealPlanInput, {
+      dayOfWeek: 3,
+      alreadyPlanned: [],
+    });
+    const fixtureDay = WEEK_PLAN_FIXTURE.days.find((d) => d.dayOfWeek === 3);
+    expect(day.dayOfWeek).toBe(3);
+    expect(day.meals.map((m) => m.recipe.name)).toEqual(
+      fixtureDay?.meals.map((m) => m.recipe.name),
+    );
+    // A copy — mutating it never touches the shared fixture.
+    day.meals[0]!.recipe.name = 'changed';
+    expect(fixtureDay?.meals[0]?.recipe.name).not.toBe('changed');
+  });
+});

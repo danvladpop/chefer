@@ -21,6 +21,7 @@ const PLAN_INPUT = { userId: 'u1' } as MealPlanInput;
 function stubService(overrides: Partial<Record<keyof IAIService, unknown>> = {}): IAIService {
   const base: Record<keyof IAIService, unknown> = {
     generateMealPlan: vi.fn().mockResolvedValue({ days: [] }),
+    generateMealPlanDay: vi.fn().mockResolvedValue({ dayOfWeek: 0, meals: [] }),
     generateRecipeSwap: vi.fn().mockResolvedValue({ id: 'r1' }),
     generateShoppingList: vi.fn().mockResolvedValue({ items: [] }),
     estimateIngredientPrices: vi.fn().mockResolvedValue([]),
@@ -80,6 +81,21 @@ describe('FailoverAIService — primary-first calls', () => {
       ),
     );
     expect(console.info).toHaveBeenCalledWith('[AI] generateMealPlan: served by groq (failover)');
+  });
+
+  it('generateMealPlanDay rides the meal-plan chain and fails over on capacity (live tailoring)', async () => {
+    const primary = stubService({ generateMealPlanDay: failing(capacity429) });
+    const secondary = stubService({
+      generateMealPlanDay: vi.fn().mockResolvedValue({ dayOfWeek: 3, meals: [] }),
+    });
+    const request = { dayOfWeek: 3, alreadyPlanned: ['Soup'] };
+    const result = await wrap(primary, secondary).generateMealPlanDay(PLAN_INPUT, request);
+
+    expect(result.dayOfWeek).toBe(3);
+    expect(secondary.generateMealPlanDay).toHaveBeenCalledWith(PLAN_INPUT, request);
+    expect(console.info).toHaveBeenCalledWith(
+      '[AI] generateMealPlanDay: served by groq (failover)',
+    );
   });
 
   it('fails over on status-less network timeouts too', async () => {
