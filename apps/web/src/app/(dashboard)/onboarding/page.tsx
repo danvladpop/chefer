@@ -4,10 +4,12 @@ import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wi
 import {
   EMPTY_WIZARD_DATA,
   savedIntent,
+  savedJobs,
   wizardDataFromPreferences,
   type WizardData,
 } from '@/features/onboarding/types';
 import { createServerClient } from '@/lib/trpc-server';
+import type { OnboardingJob } from '@chefer/types';
 import { ErrorState } from '@chefer/ui';
 
 // ─── Onboarding Page ──────────────────────────────────────────────────────────
@@ -26,6 +28,7 @@ export default async function OnboardingPage() {
   let hasProfile = false;
   let initialData: WizardData = EMPTY_WIZARD_DATA;
   let initialIntent: ReturnType<typeof savedIntent> = null;
+  let initialJobs: OnboardingJob[] = [];
   let loadFailed = false;
 
   try {
@@ -44,6 +47,7 @@ export default async function OnboardingPage() {
     initialData = wizardDataFromPreferences(saved);
     // Step 0 is asked once (P2-3): a saved answer skips it.
     initialIntent = savedIntent(saved);
+    initialJobs = savedJobs(saved);
   } catch {
     // A blank wizard over data we couldn't load would save empty safety
     // lists (F-ONB-1-1): show an error instead.
@@ -72,6 +76,7 @@ export default async function OnboardingPage() {
       isPremium={isPremium}
       initialData={initialData}
       initialIntent={initialIntent}
+      initialJobs={initialJobs}
     />
   );
 }
