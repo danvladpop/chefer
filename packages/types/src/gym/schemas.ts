@@ -93,6 +93,14 @@ export const workoutSessionDocSchema = z.object({
   clientUpdatedAt: isoDateTimeSchema,
   engineVersion: z.number().int().min(1),
   exercises: z.array(sessionExerciseDocSchema).max(30),
+  /**
+   * T-36.3 (CI-49): exercise ids the user chose to "move to next session" on
+   * finish, or that an auto-finish (24 h save-for-later timeout) carried over
+   * untouched. Additive — older clients never send it, which behaves exactly
+   * like today (nothing carried). Only meaningful on a COMPLETED doc with a
+   * routineDayId (freestyle sessions never carry over).
+   */
+  carryOverExerciseIds: z.array(z.string().min(1).max(100)).max(30).optional(),
 });
 export type WorkoutSessionDoc = z.infer<typeof workoutSessionDocSchema>;
 
@@ -168,6 +176,16 @@ export const completeSetupInputSchema = recommendInputSchema.extend({
 });
 export type CompleteSetupInput = z.infer<typeof completeSetupInputSchema>;
 
+/** Per-weekday "HH:MM" overrides, keyed "0" (Monday) … "6" (Sunday). */
+export const reminderTimesSchema = z.record(
+  z.enum(['0', '1', '2', '3', '4', '5', '6']),
+  z.string().regex(/^\d{2}:\d{2}$/),
+);
+export type ReminderTimes = z.infer<typeof reminderTimesSchema>;
+
+/** `null` = never (quiet-days nudge off). */
+export const quietNudgeDaysSchema = z.number().int().min(1).max(30).nullable();
+
 export const saveGymProfileInputSchema = z.object({
   unit: weightUnitSchema.optional(),
   experience: trainingExperienceSchema.optional(),
@@ -186,6 +204,9 @@ export const saveGymProfileInputSchema = z.object({
     .regex(/^\d{2}:\d{2}$/)
     .nullable()
     .optional(),
+  // T-36.2 (bug B-40): per-day reminder times and the quiet-days nudge.
+  reminderTimes: reminderTimesSchema.optional(),
+  quietNudgeDays: quietNudgeDaysSchema.optional(),
 });
 export type SaveGymProfileInput = z.infer<typeof saveGymProfileInputSchema>;
 

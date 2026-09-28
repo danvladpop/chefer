@@ -13,6 +13,7 @@ import {
   doneTodayCard,
   equipmentProfileOf,
   exposuresFromSession,
+  missedPlannedDays,
   nextDayIdAfter,
   todayStatus,
   toSessionSummary,
@@ -39,6 +40,8 @@ const PROFILE_DTO: GymProfileDto = {
   reminderEnabled: false,
   reminderTime: null,
   setupCompletedAt: '2026-09-01T10:00:00.000Z',
+  reminderTimes: {},
+  quietNudgeDays: null,
 };
 
 function re(
@@ -191,6 +194,69 @@ describe('todayStatus (bug B-15)', () => {
   it('training: no nextWorkout at all (nothing planned)', () => {
     const boot = bootstrapFor(TUESDAY, { nextWorkout: null });
     expect(todayStatus({ bootstrap: boot, today: TUESDAY })).toEqual({ kind: 'training' });
+  });
+});
+
+describe('missedPlannedDays (T-04.8, UX-04 §7)', () => {
+  // ROUTINE: dA "Upper" plannedWeekday 0 (Mon), dB "Lower" plannedWeekday 3 (Thu).
+  it('is empty before any planned day this week has passed', () => {
+    expect(
+      missedPlannedDays({ activeRoutine: ROUTINE, recentSessions: [], today: '2026-09-07' }),
+    ).toEqual([]); // Monday itself — Monday's own day isn't "missed" yet
+  });
+
+  it('flags Monday once Thursday arrives and Monday was never trained', () => {
+    expect(
+      missedPlannedDays({ activeRoutine: ROUTINE, recentSessions: [], today: '2026-09-10' }),
+    ).toEqual([{ dayId: 'dA', dayName: 'Upper', weekday: 0 }]);
+  });
+
+  it('is empty once the missed day was trained that week (any day)', () => {
+    const trained = summary('s1', '2026-09-09', 'barbell-bench-press', [[60, 8, true]], {
+      routineDayId: 'dA',
+    });
+    expect(
+      missedPlannedDays({
+        activeRoutine: ROUTINE,
+        recentSessions: [trained],
+        today: '2026-09-10',
+      }),
+    ).toEqual([]);
+  });
+
+  it("a session from last week does not excuse this week's missed day", () => {
+    const lastWeek = summary('s0', '2026-08-31', 'barbell-bench-press', [[60, 8, true]], {
+      routineDayId: 'dA',
+    });
+    expect(
+      missedPlannedDays({
+        activeRoutine: ROUTINE,
+        recentSessions: [lastWeek],
+        today: '2026-09-10',
+      }),
+    ).toEqual([{ dayId: 'dA', dayName: 'Upper', weekday: 0 }]);
+  });
+
+  it('on Sunday, every undone planned day of the week shows (the "Start it now" variant)', () => {
+    expect(
+      missedPlannedDays({ activeRoutine: ROUTINE, recentSessions: [], today: '2026-09-13' }),
+    ).toEqual([
+      { dayId: 'dA', dayName: 'Upper', weekday: 0 },
+      { dayId: 'dB', dayName: 'Lower', weekday: 3 },
+    ]);
+  });
+
+  it('is empty with no active routine, or when no day has a fixed weekday', () => {
+    expect(
+      missedPlannedDays({ activeRoutine: null, recentSessions: [], today: '2026-09-10' }),
+    ).toEqual([]);
+    const flexible: RoutineDto = {
+      ...ROUTINE,
+      days: ROUTINE.days.map((d) => ({ ...d, plannedWeekday: null })),
+    };
+    expect(
+      missedPlannedDays({ activeRoutine: flexible, recentSessions: [], today: '2026-09-10' }),
+    ).toEqual([]);
   });
 });
 
@@ -366,6 +432,87 @@ describe('buildNextWorkout', () => {
   });
 });
 
+describe('buildNextWorkout carry-over (T-36.3, CI-49)', () => {
+  it('prepends a carried-over exercise from another day, tagged fromLastTime, ahead of the day itself', () => {
+    const carried = buildNextWorkout({
+      routine: ROUTINE,
+      dayId: 'dA',
+      lookup,
+      progressions: new Map(),
+      profile: KG_PROFILE,
+      facts,
+      today: '2026-09-15',
+      recentSessions: [],
+      isDeload: false,
+      carryOver: [{ exerciseId: 'seated-leg-curl', fromSessionId: 's0', routineDayId: 'dB' }],
+    });
+    expect(
+      carried.exercises.map((e) => [e.exerciseId, e.position, e.fromLastTime ?? false]),
+    ).toEqual([
+      ['seated-leg-curl', 0, true],
+      ['barbell-bench-press', 1, false],
+      ['dumbbell-bench-press', 2, false],
+      ['dumbbell-lateral-raise', 3, false],
+    ]);
+  });
+
+  it('never duplicates an exercise already in the day itself', () => {
+    const carried = buildNextWorkout({
+      routine: ROUTINE,
+      dayId: 'dA',
+      lookup,
+      progressions: new Map(),
+      profile: KG_PROFILE,
+      facts,
+      today: '2026-09-15',
+      recentSessions: [],
+      isDeload: false,
+      carryOver: [
+        { exerciseId: 'dumbbell-lateral-raise', fromSessionId: 's0', routineDayId: 'dA' },
+      ],
+    });
+    expect(carried.exercises).toHaveLength(3); // same as the base workout — no extra row
+  });
+
+  it('drops a stale carry-over item (routine day or exercise no longer exists) silently', () => {
+    const carried = buildNextWorkout({
+      routine: ROUTINE,
+      dayId: 'dA',
+      lookup,
+      progressions: new Map(),
+      profile: KG_PROFILE,
+      facts,
+      today: '2026-09-15',
+      recentSessions: [],
+      isDeload: false,
+      carryOver: [
+        { exerciseId: 'seated-leg-curl', fromSessionId: 's0', routineDayId: 'gone' },
+        { exerciseId: 'never-existed', fromSessionId: 's0', routineDayId: 'dB' },
+      ],
+    });
+    expect(carried.exercises.map((e) => e.exerciseId)).toEqual([
+      'barbell-bench-press',
+      'dumbbell-bench-press',
+      'dumbbell-lateral-raise',
+    ]);
+  });
+
+  it('omitting carryOver behaves exactly like an empty list (backward compatible)', () => {
+    const args = {
+      routine: ROUTINE,
+      dayId: 'dA' as const,
+      lookup,
+      progressions: new Map(),
+      profile: KG_PROFILE,
+      facts,
+      today: '2026-09-15',
+      recentSessions: [],
+      isDeload: false,
+    };
+    expect(buildNextWorkout(args)).toEqual(buildNextWorkout({ ...args, carryOver: [] }));
+  });
+});
+
 let idn = 0;
 const newId = () => `00000000-0000-4000-8000-${String(++idn).padStart(12, '0')}`;
 
@@ -400,6 +547,7 @@ function bootstrapFor(today: string, overrides: Partial<GymBootstrap> = {}): Gym
     streak,
     offers: [],
     activePause: null,
+    carryOver: [],
     bodyweightKg: null,
     serverTime: `${today}T08:00:00.000Z`,
     engineVersion: 1,
@@ -546,6 +694,71 @@ describe('applyFinishedSession — the offline optimistic fold', () => {
         }),
       );
     }
+  });
+
+  it('T-36.3: carries an explicitly-moved exercise into the next workout, then consumes it', () => {
+    const boot = bootstrapFor('2026-09-15');
+    const nw = boot.nextWorkout;
+    if (!nw) throw new Error('no next workout');
+    // Log every exercise except the last one (dumbbell-lateral-raise) —
+    // "Move them to your next session" on Finish.
+    let doc = startSession({
+      id: newId(),
+      newId,
+      now: '2026-09-15T18:00:00.000Z',
+      localDate: '2026-09-15',
+      routineId: nw.routineId,
+      routineDayId: nw.dayId,
+      name: nw.dayName,
+      isDeload: false,
+      exercises: nw.exercises,
+    });
+    for (const se of doc.exercises) {
+      if (se.exerciseId === 'dumbbell-lateral-raise') continue;
+      for (const set of se.sets) {
+        doc = workoutReducer(doc, {
+          type: 'completeSet',
+          seId: se.id,
+          setId: set.id,
+          reps: set.isWarmup ? set.reps : se.repMax,
+          at: '2026-09-15T18:30:00.000Z',
+        });
+      }
+    }
+    doc = workoutReducer(doc, {
+      type: 'finish',
+      at: '2026-09-15T19:00:00.000Z',
+      carryOverExerciseIds: ['dumbbell-lateral-raise'],
+    });
+
+    const afterFinish = applyFinishedSession({
+      bootstrap: boot,
+      doc,
+      lookup,
+      facts,
+      today: '2026-09-15',
+    });
+    expect(afterFinish.carryOver).toEqual([
+      { exerciseId: 'dumbbell-lateral-raise', fromSessionId: doc.id, routineDayId: 'dA' },
+    ]);
+    // The rotation moved on to Lower (dB), which doesn't include the lateral
+    // raise itself — it's prepended, tagged `fromLastTime`.
+    expect(afterFinish.nextWorkout?.dayId).toBe('dB');
+    expect(afterFinish.nextWorkout?.exercises[0]).toMatchObject({
+      exerciseId: 'dumbbell-lateral-raise',
+      fromLastTime: true,
+    });
+
+    // Finishing THAT session (touching the lateral raise again) consumes it.
+    const secondDoc = doWorkout(afterFinish, '2026-09-17');
+    const afterSecond = applyFinishedSession({
+      bootstrap: afterFinish,
+      doc: secondDoc,
+      lookup,
+      facts,
+      today: '2026-09-17',
+    });
+    expect(afterSecond.carryOver).toEqual([]);
   });
 
   it('leaves progressions alone for a backfilled session older than the last exposure', () => {

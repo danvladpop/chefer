@@ -58,7 +58,10 @@ export type WorkoutAction =
     }
   | { type: 'moveExercise'; seId: string; direction: 'up' | 'down'; at: string }
   | { type: 'setNote'; seId: string | null; notes: string | null; at: string }
-  | { type: 'finish'; at: string }
+  // T-36.3: `carryOverExerciseIds` names the unstarted exercises to move to
+  // the next session (`Move them to your next session`, or the 24 h
+  // save-for-later auto-finish); omitted/[] behaves exactly as before.
+  | { type: 'finish'; at: string; carryOverExerciseIds?: string[] }
   | { type: 'discard'; at: string };
 
 /**
@@ -314,7 +317,13 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
       }
       return withExercises(mapExercise(doc, action.seId, (se) => ({ ...se, notes: action.notes })));
     case 'finish':
-      return stamp({ status: 'COMPLETED', finishedAt: action.at });
+      return stamp({
+        status: 'COMPLETED',
+        finishedAt: action.at,
+        ...(action.carryOverExerciseIds && action.carryOverExerciseIds.length > 0
+          ? { carryOverExerciseIds: action.carryOverExerciseIds }
+          : {}),
+      });
     case 'discard':
       return stamp({ status: 'DISCARDED' });
   }
