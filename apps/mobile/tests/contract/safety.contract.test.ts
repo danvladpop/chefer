@@ -164,4 +164,45 @@ describe('Plan/Replace/Shop surfaces (wave 2, L-SAFE2, T-02.1) — the same tabl
       dislikedIngredients: [],
     });
   }, 30_000);
+
+  it('bug fix: recipe.discover and recipe.list({forTable:true}) return 200 with safetyChecks once a rule is set', async () => {
+    // The real regression (found by the orchestrator's review): `discover`
+    // maps the curated pool into a SUMMARY DTO (no ingredients/
+    // instructions) before attaching `safetyChecks` — casting that summary
+    // straight into `SafetyService.check` threw `ingredients.map` on
+    // `undefined`, so this call 500'd for any signed-in user with a rule.
+    // Exercised through the real API (not the unit-test mock) so a
+    // regression here fails loudly instead of only in a browser.
+    try {
+      await client.preferences.updateSafety.mutate({
+        allergies: ['Tree nuts'],
+        dietaryRestrictions: [],
+        dislikedIngredients: [],
+      });
+
+      const discovered = await client.recipe.discover.query({});
+      expect(discovered.length).toBeGreaterThan(0);
+      const discoveredWithChecks = discovered.filter((r) => r.safetyChecks !== undefined);
+      expect(discoveredWithChecks.length).toBeGreaterThan(0);
+      expect(discoveredWithChecks[0]?.safetyChecks?.checked).toContainEqual(
+        expect.objectContaining({ label: 'Tree nuts' }),
+      );
+
+      const listed = await client.recipe.list.query({ forTable: true, limit: 20 });
+      // Not every account has saved/plan recipes — only assert the shape
+      // when there's at least one row to check (the crash this guards
+      // against happened inside the per-row map, so any row exercises it).
+      const listedWithChecks = listed.filter((r) => r.safetyChecks !== undefined);
+      if (listed.length > 0) {
+        expect(listedWithChecks.length).toBeGreaterThan(0);
+      }
+    } finally {
+      // Restore, even if an assertion above threw.
+      await client.preferences.updateSafety.mutate({
+        allergies: [],
+        dietaryRestrictions: [],
+        dislikedIngredients: [],
+      });
+    }
+  }, 30_000);
 });

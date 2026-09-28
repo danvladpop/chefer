@@ -2697,10 +2697,23 @@ function decorateRecipeDto(
   data: SafetyCheckable,
   ctx: Pick<SafetyContext, 'prefs' | 'table'> | null,
 ): RecipeDto {
-  let out = withDerivedTags(dto, data);
-  out = withAllergenWarnings(out, data, ctx?.prefs ?? null);
-  out = withSafetyChecks(out, data, ctx?.table ?? null);
-  return out;
+  // Never let a malformed/partial row 500 a plan read (bug: recipe.discover's
+  // summary DTO used to be cast straight into SafetyService.check, whose
+  // ingredients.map then threw for any user with a rule) — every call site
+  // in this file passes a full SafetyCheckable already, but decoration
+  // failing for one recipe must still never break the whole response.
+  try {
+    let out = withDerivedTags(dto, data);
+    out = withAllergenWarnings(out, data, ctx?.prefs ?? null);
+    out = withSafetyChecks(out, data, ctx?.table ?? null);
+    return out;
+  } catch (err) {
+    console.error(
+      '[meal-plan] safety decoration failed for a recipe — serving it undecorated',
+      err,
+    );
+    return dto;
+  }
 }
 
 /** Drops ids the user has reported (T-01.5, UX-01 AC10) from a curated pool. */
