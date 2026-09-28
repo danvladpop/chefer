@@ -39,7 +39,32 @@ const ALLERGY_ENTRIES: SafetyTaxonomyEntry[] = [
     id: 'tree-nuts',
     group: 'allergy',
     label: 'Tree nuts',
-    synonyms: ['tree nuts', 'nuts', 'nut allergy', 'tree nut'],
+    // UX-01 AC2: typing a specific nut ("walnut") must select this chip, not
+    // fall through to "unrecognised" — the read-back already names them.
+    synonyms: [
+      'tree nuts',
+      'nuts',
+      'nut allergy',
+      'tree nut',
+      'walnut',
+      'walnuts',
+      'almond',
+      'almonds',
+      'cashew',
+      'cashews',
+      'pecan',
+      'pecans',
+      'pistachio',
+      'pistachios',
+      'hazelnut',
+      'hazelnuts',
+      'macadamia',
+      'macadamias',
+      'brazil nut',
+      'brazil nuts',
+      'pine nut',
+      'pine nuts',
+    ],
     patternSet: 'TREE_NUT_PATTERNS',
     readBack: 'a tree nut allergy',
     mayContain: 'granola, muesli, pesto, praline, marzipan, nut butter or nut milk',
@@ -128,7 +153,7 @@ const DIET_ENTRIES: SafetyTaxonomyEntry[] = [
   {
     id: 'vegetarian-no-eggs',
     group: 'diet',
-    label: 'Vegetarian (no eggs)',
+    label: 'Vegetarian, no eggs',
     // bug B-03: "no eggs" / "vegetarian, no eggs" used to be a silent no-op —
     // an unrecognised free-text restriction was matched literally as a
     // disliked ingredient (a term that never appears in an ingredient name)
