@@ -1,13 +1,19 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent } from '@testing-library/react-native';
 import TrackerScreen from '../../app/tracker';
 
-// P1-7: the tracker opens Quick add, shows the rebalance banner on the
-// logging surface, and hands every log's rebalance result to the store.
+// T-19.1–T-19.4 (UX-19): the search-first Log sheet, edit/undo and the
+// one-save model. The rebalance banner shows on the logging surface, and
+// every log hands its rebalance result to the store.
 
-const mockUpsert = jest.fn();
+const mockLogRecipe = jest.fn();
+const mockUnlogRecipe = jest.fn();
+const mockCopyDay = jest.fn();
+const mockDeleteEntries = jest.fn();
+const mockDeleteCustom = jest.fn();
+const mockRestoreCustom = jest.fn();
 const mockRecordRebalance = jest.fn();
-const mockUpsertOpts: { onSuccess?: (data: unknown) => void } = {};
+const mockSnackbarShow = jest.fn();
 // Audit P2-4 follow-up: per-test training-day fields on the getDay payload.
 let mockDayExtras: Record<string, unknown> = {};
 
@@ -24,10 +30,24 @@ jest.mock('../../src/features/tracker/rebalance-store', () => ({
   },
 }));
 
+const rebalance = { rebalanced: false, swaps: [], projectedDeviation: 0, planId: 'p' };
+
+jest.mock('@chefer/ui-mobile', () => {
+  const actual = jest.requireActual<typeof import('@chefer/ui-mobile')>('@chefer/ui-mobile');
+  return {
+    ...actual,
+    useSnackbar: () => ({ show: mockSnackbarShow }),
+  };
+});
+
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
-      tracker: { getDay: { invalidate: jest.fn() }, weeklySummary: { invalidate: jest.fn() } },
+      tracker: {
+        getDay: { invalidate: jest.fn() },
+        weeklySummary: { invalidate: jest.fn() },
+        monthlySummary: { invalidate: jest.fn() },
+      },
       dashboard: { summary: { invalidate: jest.fn() } },
       targets: { changes: { invalidate: jest.fn() }, get: { invalidate: jest.fn() } },
     }),
@@ -37,6 +57,8 @@ jest.mock('../../src/lib/trpc', () => ({
       get: { useQuery: () => ({ data: undefined }) },
       acknowledgeChange: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
     },
+    recipe: { list: { useQuery: () => ({ data: [] }) } },
+    ingredients: { search: { useQuery: () => ({ data: [] }) } },
     tracker: {
       getDay: {
         useQuery: () => ({
@@ -76,13 +98,64 @@ jest.mock('../../src/lib/trpc', () => ({
           refetch: jest.fn(),
         }),
       },
-      upsertDay: {
-        useMutation: (opts: { onSuccess?: (data: unknown) => void }) => {
-          mockUpsertOpts.onSuccess = opts.onSuccess;
-          return { mutate: mockUpsert, isPending: false };
-        },
+      recents: { useQuery: () => ({ data: [] }) },
+      logRecipe: {
+        useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({
+          mutate: (vars: unknown) => {
+            mockLogRecipe(vars);
+            opts.onSuccess?.({ log: {}, rebalance }, vars);
+          },
+          isPending: false,
+        }),
       },
-      deleteCustomMeal: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
+      unlogRecipe: {
+        useMutation: (opts: { onSuccess?: () => void }) => ({
+          mutate: (vars: unknown) => {
+            mockUnlogRecipe(vars);
+            opts.onSuccess?.();
+          },
+          isPending: false,
+        }),
+      },
+      copyDay: {
+        useMutation: () => ({
+          mutate: (vars: unknown, callbacks?: { onSuccess?: (data: unknown) => void }) => {
+            mockCopyDay(vars);
+            callbacks?.onSuccess?.({ log: {}, copiedEntryIds: ['c1', 'c2'], rebalance });
+          },
+          isPending: false,
+        }),
+      },
+      deleteEntries: {
+        useMutation: (opts: { onSuccess?: () => void }) => ({
+          mutate: (vars: unknown) => {
+            mockDeleteEntries(vars);
+            opts.onSuccess?.();
+          },
+          isPending: false,
+        }),
+      },
+      deleteCustomMeal: {
+        useMutation: () => ({
+          mutate: (vars: unknown, callbacks?: { onSuccess?: () => void }) => {
+            mockDeleteCustom(vars);
+            callbacks?.onSuccess?.();
+          },
+          isPending: false,
+        }),
+      },
+      restoreCustomMeal: {
+        useMutation: (opts: { onSuccess?: () => void }) => ({
+          mutate: (vars: unknown) => {
+            mockRestoreCustom(vars);
+            opts.onSuccess?.();
+          },
+          isPending: false,
+        }),
+      },
+      updateCustomMeal: {
+        useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false, error: null }),
+      },
       logCustomMeal: {
         useMutation: () => ({
           mutate: jest.fn(),
@@ -156,13 +229,13 @@ describe('TrackerScreen — training-day targets (audit P2-4)', () => {
   });
 });
 
-describe('TrackerScreen', () => {
-  it('opens Quick add from the tracker', async () => {
+describe('TrackerScreen — one-save model (bug B-23, T-19.4)', () => {
+  it('opens the Log sheet from the tracker', async () => {
     const user = userEvent.setup();
     await renderTracker();
-    expect(screen.queryByTestId('quick-add-sheet-title')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('log-sheet-title')).not.toBeOnTheScreen();
     await user.press(screen.getByTestId('tracker-quick-add'));
-    expect(screen.getByTestId('quick-add-sheet-title')).toHaveTextContent('Quick add');
+    expect(screen.getByTestId('log-sheet-title')).toHaveTextContent('Log something');
   });
 
   it('shows the rebalance banner where the log happens', async () => {
@@ -170,27 +243,67 @@ describe('TrackerScreen', () => {
     expect(screen.getByTestId('rebalance-banner-stub')).toBeOnTheScreen();
   });
 
-  it('hands the Save Day rebalance result to the undo store', async () => {
-    // Fake timers: the "Saved ✓" flash resets on a 3s timeout.
-    jest.useFakeTimers();
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+  it('there is no Save Day button', async () => {
+    await renderTracker();
+    expect(screen.queryByTestId('tracker-save')).not.toBeOnTheScreen();
+  });
+
+  it('bug B-23: ticking a planned meal saves it immediately, with an Undo snackbar', async () => {
+    const user = userEvent.setup();
     await renderTracker();
     await user.press(screen.getByTestId('tracker-meal-breakfast'));
-    await user.press(screen.getByTestId('tracker-save'));
-    expect(mockUpsert).toHaveBeenCalledWith(
+    expect(mockLogRecipe).toHaveBeenCalledWith(
       expect.objectContaining({
-        loggedMeals: [expect.objectContaining({ recipeId: 'r1', mealType: 'breakfast' })],
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers/mocks are typed any
+        date: expect.any(String),
+        recipeId: 'r1',
+        mealType: 'breakfast',
+        portionMultiplier: 1,
       }),
     );
-    const rebalance = { rebalanced: true, swaps: [], projectedDeviation: 0.2, planId: 'p' };
-    await act(() => {
-      mockUpsertOpts.onSuccess?.({ log: {}, rebalance });
-    });
     expect(mockRecordRebalance).toHaveBeenCalledWith(rebalance);
-    await act(() => {
-      jest.runOnlyPendingTimers();
-    });
-    jest.useRealTimers();
+    expect(mockSnackbarShow).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Logged breakfast', actionLabel: 'Undo' }),
+    );
+  });
+
+  it('bug B-23: unticking a logged planned meal removes it immediately, no separate save', async () => {
+    mockDayExtras = {
+      log: {
+        loggedMeals: [
+          {
+            recipeId: 'r1',
+            mealType: 'breakfast',
+            slotIndex: 0,
+            portionMultiplier: 1,
+            kcal: 400,
+            protein: 20,
+            carbs: 50,
+            fat: 10,
+          },
+        ],
+        totalKcal: 400,
+        totalProtein: 20,
+        totalCarbs: 50,
+        totalFat: 10,
+      },
+    };
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-meal-breakfast'));
+    expect(mockUnlogRecipe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipeId: 'r1', mealType: 'breakfast' }),
+    );
+  });
+
+  it('logs a planned meal at its plan portion by default (P1-1)', async () => {
+    const user = userEvent.setup();
+    await renderTracker();
+    expect(screen.getByText(/750 kcal · plan 1¼×/)).toBeOnTheScreen();
+    await user.press(screen.getByTestId('tracker-meal-lunch'));
+    expect(mockLogRecipe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipeId: 'r2', portionMultiplier: 1.25 }),
+    );
   });
 
   // T-19.6: a Track-only user may never generate a plan — the empty state
@@ -199,7 +312,7 @@ describe('TrackerScreen', () => {
     mockDayExtras = { plannedMeals: [], hasActivePlan: false };
     await renderTracker();
     expect(screen.getByTestId('tracker-empty-plan-text')).toHaveTextContent(
-      'No plan today — log what you eat with Quick add or Snap to log below.',
+      'No plan today — log from Recent or search below.',
     );
   });
 
@@ -210,30 +323,88 @@ describe('TrackerScreen', () => {
       'No planned meals for this day.',
     );
   });
+});
 
-  it('logs a planned meal at its plan portion by default (P1-1)', async () => {
-    jest.useFakeTimers();
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+describe('TrackerScreen — copy a day (T-19.3)', () => {
+  it('confirms, then copies the previous day onto this one, with an Undo', async () => {
+    const user = userEvent.setup();
     await renderTracker();
-    expect(screen.getByText(/750 kcal · plan 1¼×/)).toBeOnTheScreen();
-    await user.press(screen.getByTestId('tracker-meal-lunch'));
-    await user.press(screen.getByTestId('tracker-save'));
-    expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        loggedMeals: [
-          expect.objectContaining({
-            recipeId: 'r2',
-            portionMultiplier: 1.25,
-            kcal: 750,
-            protein: 50,
-          }),
-        ],
-      }),
+    await user.press(screen.getByTestId('tracker-copy-day'));
+    await user.press(screen.getByTestId('tracker-copy-day-confirm-confirm'));
+    expect(mockCopyDay).toHaveBeenCalledWith(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers/mocks are typed any
+      expect.objectContaining({ toDate: expect.any(String) }),
     );
-    await act(() => {
-      jest.runOnlyPendingTimers();
+    expect(mockSnackbarShow).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Copied 2 entries', actionLabel: 'Undo' }),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- jest matchers/mocks are typed any
+    mockSnackbarShow.mock.calls[0]?.[0]?.onAction?.();
+    expect(mockDeleteEntries).toHaveBeenCalledWith(
+      expect.objectContaining({ entryIds: ['c1', 'c2'] }),
+    );
+  });
+});
+
+describe('TrackerScreen — edit/undo a custom entry (bug B-34, T-19.2)', () => {
+  const withCustomEntry = {
+    plannedMeals: [],
+    hasActivePlan: true,
+    log: {
+      loggedMeals: [
+        {
+          entryId: 'e1',
+          custom: { name: 'Protein shake', estimatedBy: 'manual' },
+          mealType: 'snack',
+          portionMultiplier: 1,
+          kcal: 180,
+          protein: 30,
+          carbs: 5,
+          fat: 2,
+        },
+      ],
+      totalKcal: 180,
+      totalProtein: 30,
+      totalCarbs: 5,
+      totalFat: 2,
+    },
+  };
+
+  it('tapping a custom entry opens Edit entry', async () => {
+    mockDayExtras = withCustomEntry;
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-custom-0'));
+    expect(screen.getByTestId('edit-entry-sheet-title')).toHaveTextContent('Edit entry');
+    expect(screen.getByTestId('edit-entry-name')).toHaveProp('value', 'Protein shake');
+  });
+
+  it('the bin deletes immediately and offers Undo that restores it exactly (AC2)', async () => {
+    mockDayExtras = withCustomEntry;
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByLabelText('Delete Protein shake'));
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers/mocks are typed any
+    expect(mockDeleteCustom).toHaveBeenCalledWith({ date: expect.any(String), entryIndex: 0 });
+    expect(mockSnackbarShow).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Deleted Protein shake', actionLabel: 'Undo' }),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- jest matchers/mocks are typed any
+    mockSnackbarShow.mock.calls[0]?.[0]?.onAction?.();
+    expect(mockRestoreCustom).toHaveBeenCalledWith({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers/mocks are typed any
+      date: expect.any(String),
+      entry: {
+        entryId: 'e1',
+        custom: { name: 'Protein shake', estimatedBy: 'manual' },
+        mealType: 'snack',
+        portionMultiplier: 1,
+        kcal: 180,
+        protein: 30,
+        carbs: 5,
+        fat: 2,
+      },
     });
-    jest.useRealTimers();
   });
 });
 
@@ -267,25 +438,17 @@ describe('TrackerScreen — two identical snacks', () => {
           (row.props as { accessibilityState?: { checked?: boolean } }).accessibilityState?.checked,
       );
 
-  it('ticking one snack leaves the other unticked and saves its slot', async () => {
+  it('ticking one snack leaves the other unticked and saves only its slot', async () => {
     mockDayExtras = { plannedMeals: [snack(1), snack(3)] };
-    jest.useFakeTimers();
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const user = userEvent.setup();
     await renderTracker();
     const [, secondSnack] = screen.getAllByTestId('tracker-meal-snack');
     if (!secondSnack) throw new Error('expected two snack rows');
     await user.press(secondSnack);
     expect(ticks()).toEqual([false, true]);
-    await user.press(screen.getByTestId('tracker-save'));
-    expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        loggedMeals: [expect.objectContaining({ recipeId: 'yog', slotIndex: 3 })],
-      }),
+    expect(mockLogRecipe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipeId: 'yog', slotIndex: 3 }),
     );
-    await act(() => {
-      jest.runOnlyPendingTimers();
-    });
-    jest.useRealTimers();
   });
 
   it('a logged entry with a slotIndex ticks only its own slot', async () => {

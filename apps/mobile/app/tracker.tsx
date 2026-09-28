@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { ConfirmSheet, ErrorState, Screen, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
   cn,
   customEntryChipLabel,
@@ -12,11 +12,14 @@ import {
   localDateStr,
   matchLoggedToSlots,
   slotPortion,
+  type CustomEntryRow,
 } from '@chefer/utils';
 import { MealTypeBadge } from '../src/features/dashboard/components/meal-type-badge';
 import { TrainingDayNote } from '../src/features/dashboard/components/training-day-note';
 import { ChangeNoticeCard } from '../src/features/nutrition/change-notice-card';
 import { TargetExplainSheet } from '../src/features/nutrition/target-explain-sheet';
+import { EditEntrySheet } from '../src/features/tracker/edit-entry-sheet';
+import { invalidateDayQueries } from '../src/features/tracker/invalidate';
 import { QuickAddSheet } from '../src/features/tracker/quick-add-sheet';
 import { RebalanceBanner } from '../src/features/tracker/rebalance-banner';
 import { recordRebalance } from '../src/features/tracker/rebalance-store';
@@ -24,10 +27,10 @@ import { ScanMealCard } from '../src/features/tracker/scan-meal-card';
 import { getRecipeImageUrl } from '../src/lib/recipe-image';
 import { trpc } from '../src/lib/trpc';
 
-// Tracker — port of apps/web (dashboard)/tracker/page.tsx (M2-4), with quick
-// add, Snap-to-Log (M3-2) and the week-rebalance banner (P1-7). Deviation,
-// deliberate: the rebalance banner + undo shows HERE, right after the log
-// that caused it — web only shows it on the meal plan (F-TRK-3-2).
+// Tracker — port of apps/web (dashboard)/tracker/page.tsx (M2-4), with the
+// search-first Log sheet, edit/undo and one-save model (T-19.1/2/3/4, UX-19).
+// Deviation, deliberate: the rebalance banner + undo shows HERE, right after
+// the log that caused it — web only shows it on the meal plan (F-TRK-3-2).
 
 type PortionKey = number;
 
@@ -59,6 +62,13 @@ function addDays(d: Date, delta: number): Date {
   return next;
 }
 
+/** "yesterday" when `from` is the calendar day before `to`, else a short date. */
+function relativeDayLabel(from: Date, to: Date): string {
+  const diffDays = Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
+  if (diffDays === 1) return 'yesterday';
+  return from.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
 function TargetBar({ label, value, target }: { label: string; value: number; target: number }) {
   const pct = Math.min(Math.round((value / (target || 1)) * 100), 100);
   return (
@@ -77,6 +87,8 @@ function TargetBar({ label, value, target }: { label: string; value: number; tar
 }
 
 export default function TrackerScreen() {
+  const snackbar = useSnackbar();
+  const utils = trpc.useUtils();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const dateStr = toDateStr(selectedDate);
   const todayStr = toDateStr(new Date());
@@ -94,9 +106,10 @@ export default function TrackerScreen() {
   const [checkedMeals, setCheckedMeals] = useState<
     Record<string, { checked: boolean; portion: PortionKey }>
   >({});
-  const [savedSuccess, setSavedSuccess] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [explainOpen, setExplainOpen] = useState(false);
+  const [copyDayOpen, setCopyDayOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<CustomEntryRow | null>(null);
   const [initialised, setInitialised] = useState<string | null>(null);
 
   // §2.11, T-11.2: the same resolved view targets.get exposes, for "Why this
@@ -136,40 +149,144 @@ export default function TrackerScreen() {
     setInitialised(dateStr);
   }, [data, dateStr, initialised]);
 
-  const upsertMutation = trpc.tracker.upsertDay.useMutation({
+  // ─── One-save model (bug B-23, T-19.4) — every tick/portion change saves
+  // immediately through logRecipe/unlogRecipe; there is no Save Day. ────────
+  const logRecipeMutation = trpc.tracker.logRecipe.useMutation({
     onSuccess: (result) => {
       recordRebalance(result.rebalance);
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3000);
-      void refetch();
+      invalidateDayQueries(utils, dateStr);
     },
   });
-  const deleteCustomMutation = trpc.tracker.deleteCustomMeal.useMutation({
-    onSuccess: () => void refetch(),
+  const unlogRecipeMutation = trpc.tracker.unlogRecipe.useMutation({
+    onSuccess: () => invalidateDayQueries(utils, dateStr),
+  });
+  const copyDayMutation = trpc.tracker.copyDay.useMutation();
+  const deleteEntriesMutation = trpc.tracker.deleteEntries.useMutation({
+    onSuccess: () => invalidateDayQueries(utils, dateStr),
+  });
+  const deleteCustomMutation = trpc.tracker.deleteCustomMeal.useMutation();
+  const restoreCustomMutation = trpc.tracker.restoreCustomMeal.useMutation({
+    onSuccess: () => invalidateDayQueries(utils, dateStr),
   });
 
-  const toggleMeal = (k: string, planPortion: PortionKey) => {
-    setCheckedMeals((prev) => ({
-      ...prev,
-      [k]: { checked: !(prev[k]?.checked ?? false), portion: prev[k]?.portion ?? planPortion },
-    }));
-    setSavedSuccess(false);
+  const planned = (data?.plannedMeals ?? []).map((m, i) => ({ ...m, key: keyOf(m, i) }));
+  type PlannedRow = (typeof planned)[number];
+
+  const logSlot = (meal: PlannedRow, portionMultiplier: PortionKey) => {
+    logRecipeMutation.mutate({
+      date: dateStr,
+      recipeId: meal.recipeId,
+      mealType: meal.mealType,
+      portionMultiplier,
+      ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
+    });
   };
 
-  const setPortion = (k: string, portion: PortionKey) => {
-    setCheckedMeals((prev) => ({ ...prev, [k]: { checked: true, portion } }));
-    setSavedSuccess(false);
+  const toggleMeal = (meal: PlannedRow) => {
+    const wasChecked = checkedMeals[meal.key]?.checked ?? false;
+    const portion = checkedMeals[meal.key]?.portion ?? planPortionOf(meal);
+    setCheckedMeals((prev) => ({ ...prev, [meal.key]: { checked: !wasChecked, portion } }));
+    if (!wasChecked) {
+      logSlot(meal, portion);
+      snackbar.show({
+        message: `Logged ${meal.mealType}`,
+        actionLabel: 'Undo',
+        onAction: () =>
+          unlogRecipeMutation.mutate({
+            date: dateStr,
+            recipeId: meal.recipeId,
+            mealType: meal.mealType,
+            ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
+          }),
+        tone: 'success',
+      });
+    } else {
+      unlogRecipeMutation.mutate({
+        date: dateStr,
+        recipeId: meal.recipeId,
+        mealType: meal.mealType,
+        ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
+      });
+      snackbar.show({
+        message: `Removed ${meal.mealType}`,
+        actionLabel: 'Undo',
+        onAction: () => logSlot(meal, portion),
+      });
+    }
+  };
+
+  const setPortion = (meal: PlannedRow, portion: PortionKey) => {
+    setCheckedMeals((prev) => ({ ...prev, [meal.key]: { checked: true, portion } }));
+    logSlot(meal, portion);
   };
 
   const changeDate = (delta: number) => {
     setSelectedDate((d) => addDays(d, delta));
     setCheckedMeals({});
-    setSavedSuccess(false);
     setInitialised(null);
   };
 
-  // Custom and off-plan entries are server-owned: upsertDay merges, so a save
-  // sends only the planned meals this screen manages (F-PM-1, F-TRK-1-2).
+  const deleteCustomEntry = (row: CustomEntryRow) => {
+    if (deleteCustomMutation.isPending) return;
+    const entryId = row.entryId;
+    deleteCustomMutation.mutate(
+      { date: dateStr, entryIndex: row.entryIndex },
+      {
+        onSuccess: () => {
+          invalidateDayQueries(utils, dateStr);
+          snackbar.show({
+            message: `Deleted ${row.name}`,
+            actionLabel: entryId ? 'Undo' : undefined,
+            onAction: entryId
+              ? () =>
+                  restoreCustomMutation.mutate({
+                    date: dateStr,
+                    entry: {
+                      entryId,
+                      custom: { name: row.name, estimatedBy: row.estimatedBy },
+                      mealType: row.mealType,
+                      portionMultiplier: 1,
+                      kcal: row.kcal,
+                      protein: row.protein,
+                      carbs: row.carbs,
+                      fat: row.fat,
+                    },
+                  })
+              : undefined,
+          });
+        },
+      },
+    );
+  };
+
+  const copyFromDate = addDays(selectedDate, -1);
+  const copyFromDateStr = toDateStr(copyFromDate);
+  const copyLabel = relativeDayLabel(copyFromDate, selectedDate);
+
+  const confirmCopyDay = () => {
+    copyDayMutation.mutate(
+      { fromDate: copyFromDateStr, toDate: dateStr },
+      {
+        onSuccess: (result) => {
+          recordRebalance(result.rebalance);
+          invalidateDayQueries(utils); // both the source and target dates
+          setCopyDayOpen(false);
+          snackbar.show({
+            message: `Copied ${result.copiedEntryIds.length} entries`,
+            actionLabel: result.copiedEntryIds.length > 0 ? 'Undo' : undefined,
+            onAction:
+              result.copiedEntryIds.length > 0
+                ? () =>
+                    deleteEntriesMutation.mutate({ date: dateStr, entryIds: result.copiedEntryIds })
+                : undefined,
+          });
+        },
+      },
+    );
+  };
+
+  // Custom and off-plan entries are server-owned: each write is its own
+  // mutation (F-PM-1, F-TRK-1-2) — nothing here re-sends them.
   const offPlanLogged = data?.offPlanLogged ?? [];
   const offPlanTotals = offPlanLogged.reduce(
     (t, m) => ({
@@ -180,16 +297,9 @@ export default function TrackerScreen() {
     }),
     { kcal: 0, protein: 0, carbs: 0, fat: 0 },
   );
-  // A day with planned meals already logged can be saved with nothing ticked
-  // — that un-logs them (F-TRK-1-3).
-  const plannedIds = new Set((data?.plannedMeals ?? []).map((m) => m.recipeId));
-  const hadPlannedLogged = (data?.log?.loggedMeals ?? []).some(
-    (m) => m.recipeId !== undefined && plannedIds.has(m.recipeId),
-  );
   const customRows = customEntryRows(data?.log?.loggedMeals ?? []);
   const customTotals = customEntryTotals(data?.log?.loggedMeals ?? []);
 
-  const planned = (data?.plannedMeals ?? []).map((m, i) => ({ ...m, key: keyOf(m, i) }));
   const checked = (key: string) => checkedMeals[key]?.checked ?? false;
   const portionOf = (m: { key: string; portion?: number }): PortionKey =>
     checkedMeals[m.key]?.portion ?? planPortionOf(m);
@@ -212,29 +322,6 @@ export default function TrackerScreen() {
     customTotals.fat +
     offPlanTotals.fat;
 
-  const handleSave = () => {
-    if (!data) {
-      return;
-    }
-    const plannedLogged = loggedPlanned.map((m) => {
-      const portion = portionOf(m);
-      return {
-        recipeId: m.recipeId,
-        mealType: m.mealType,
-        ...(m.slotIndex !== undefined && { slotIndex: m.slotIndex }),
-        portionMultiplier: portion,
-        kcal: Math.round(m.kcal * portion),
-        protein: Math.round(m.protein * portion * 10) / 10,
-        carbs: Math.round(m.carbs * portion * 10) / 10,
-        fat: Math.round(m.fat * portion * 10) / 10,
-      };
-    });
-    if (plannedLogged.length === 0 && !hadPlannedLogged) {
-      return;
-    }
-    upsertMutation.mutate({ date: dateStr, loggedMeals: plannedLogged });
-  };
-
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
       {/* Header */}
@@ -248,9 +335,18 @@ export default function TrackerScreen() {
         >
           <Ionicons name="arrow-back" size={20} color="#1f2937" />
         </Pressable>
-        <Text testID="tracker-title" variant="title">
+        <Text testID="tracker-title" variant="title" className="flex-1">
           Tracker
         </Text>
+        <Pressable
+          testID="tracker-copy-day"
+          accessibilityRole="button"
+          accessibilityLabel={`Copy ${copyLabel} to ${isToday ? 'today' : 'this day'}`}
+          onPress={() => setCopyDayOpen(true)}
+          className="h-11 w-11 items-center justify-center"
+        >
+          <Ionicons name="copy-outline" size={20} color="#6b7280" />
+        </Pressable>
       </View>
 
       {/* Date navigator */}
@@ -299,7 +395,10 @@ export default function TrackerScreen() {
           onRetry={() => void refetch()}
         />
       ) : (
-        <ScrollView contentContainerClassName="gap-4 px-4 py-2 pb-8">
+        <ScrollView
+          contentContainerClassName="gap-4 px-4 py-2 pb-8"
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Premium week rebalance triggered by a log on this screen */}
           <RebalanceBanner />
 
@@ -307,8 +406,11 @@ export default function TrackerScreen() {
           <ChangeNoticeCard />
 
           {/* Totals vs targets */}
-          <Card testID="tracker-totals">
-            <View className="mb-3 flex-row items-center justify-between">
+          <View
+            testID="tracker-totals"
+            className="gap-3 rounded-xl border border-border bg-card p-4"
+          >
+            <View className="mb-1 flex-row items-center justify-between">
               <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
                 Logged {isToday ? 'Today' : 'This Day'}
               </Text>
@@ -338,11 +440,14 @@ export default function TrackerScreen() {
               <TargetBar label="Carbs (g)" value={loggedCarbs} target={dayTargets?.carbsG ?? 225} />
               <TargetBar label="Fat (g)" value={loggedFat} target={dayTargets?.fatG ?? 65} />
             </View>
-          </Card>
+          </View>
 
           {/* Planned meals to check off */}
           {(data?.plannedMeals ?? []).length === 0 ? (
-            <Card testID="tracker-empty-plan" className="items-center gap-3 py-8">
+            <View
+              testID="tracker-empty-plan"
+              className="items-center gap-3 rounded-xl border border-border bg-card py-8"
+            >
               {data?.hasActivePlan === false ? (
                 // T-19.6: a Track-only user may never generate a plan — this
                 // reads as an invitation to log, not a missing-plan error.
@@ -353,7 +458,7 @@ export default function TrackerScreen() {
                     variant="muted"
                     className="text-center text-sm"
                   >
-                    No plan today — log what you eat with Quick add or Snap to log below.
+                    No plan today — log from Recent or search below.
                   </Text>
                 </>
               ) : (
@@ -361,7 +466,7 @@ export default function TrackerScreen() {
                   No planned meals for this day.
                 </Text>
               )}
-            </Card>
+            </View>
           ) : (
             <View className="gap-2">
               {planned.map((meal) => {
@@ -379,7 +484,7 @@ export default function TrackerScreen() {
                       testID={`tracker-meal-${meal.mealType}`}
                       accessibilityRole="button"
                       accessibilityState={{ checked: isChecked }}
-                      onPress={() => toggleMeal(meal.key, planPortionOf(meal))}
+                      onPress={() => toggleMeal(meal)}
                       className="flex-row items-center gap-3"
                     >
                       <Image
@@ -417,7 +522,7 @@ export default function TrackerScreen() {
                           <Pressable
                             key={p}
                             accessibilityRole="button"
-                            onPress={() => setPortion(meal.key, p)}
+                            onPress={() => setPortion(meal, p)}
                             className={cn(
                               'h-9 flex-1 items-center justify-center rounded-lg border',
                               portion === p
@@ -443,27 +548,29 @@ export default function TrackerScreen() {
             </View>
           )}
 
-          {/* Quick add (F4, all tiers) — any day, for off-plan food */}
-          <Button
+          {/* Log something (T-19.1) — search-first sheet, any day, for
+              off-plan food or a repeat from Recent. */}
+          <Pressable
             testID="tracker-quick-add"
-            variant="outline"
+            accessibilityRole="button"
             onPress={() => setQuickAddOpen(true)}
+            className="h-11 flex-row items-center justify-center gap-1.5 rounded-md border border-border"
           >
-            <View className="flex-row items-center gap-1.5">
-              <Ionicons name="add" size={18} color="#944a00" />
-              <Text className="text-sm font-medium text-primary">Quick add</Text>
-            </View>
-          </Button>
+            <Ionicons name="add" size={18} color="#944a00" />
+            <Text className="text-sm font-medium text-primary">Log something</Text>
+          </Pressable>
 
           {/* Snap-to-Log (F4 / M3-2) — today only; past days are typed by hand */}
-          {isToday && <ScanMealCard date={dateStr} onLogged={() => void refetch()} />}
+          {isToday && (
+            <ScanMealCard date={dateStr} onLogged={() => invalidateDayQueries(utils, dateStr)} />
+          )}
 
           {/* Off-plan meals (F-PM-1): logged recipes that have since left
               today's plan (regenerate or swap). Kept and counted. */}
           {offPlanLogged.length > 0 && (
             <View testID="tracker-off-plan" className="gap-2">
               <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-                Also logged today
+                Also eaten
               </Text>
               {offPlanLogged.map((m) => (
                 <View
@@ -481,15 +588,20 @@ export default function TrackerScreen() {
             </View>
           )}
 
-          {/* Custom entries (scans + quick adds) */}
+          {/* Custom entries (scans + quick adds) — tap to edit, bin to delete
+              (bug B-34, T-19.2): both are immediate + an Undo snackbar. */}
           {customRows.length > 0 && (
             <View className="gap-2">
               <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-                Extras
+                Also eaten
               </Text>
               {customRows.map((row) => (
-                <View
+                <Pressable
                   key={row.entryIndex}
+                  testID={`tracker-custom-${row.entryIndex}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${row.name}`}
+                  onPress={() => setEditingEntry(row)}
                   className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
                 >
                   <View className="min-w-0 flex-1">
@@ -509,22 +621,18 @@ export default function TrackerScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={`Delete ${row.name}`}
                     disabled={deleteCustomMutation.isPending}
-                    onPress={() =>
-                      deleteCustomMutation.mutate({ date: dateStr, entryIndex: row.entryIndex })
-                    }
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      deleteCustomEntry(row);
+                    }}
                     className="h-11 w-11 items-center justify-center"
                   >
                     <Ionicons name="trash-outline" size={18} color="#9ca3af" />
                   </Pressable>
-                </View>
+                </Pressable>
               ))}
             </View>
           )}
-
-          {/* Save */}
-          <Button testID="tracker-save" loading={upsertMutation.isPending} onPress={handleSave}>
-            {savedSuccess ? 'Saved ✓' : 'Save Day'}
-          </Button>
         </ScrollView>
       )}
 
@@ -532,13 +640,49 @@ export default function TrackerScreen() {
         visible={quickAddOpen}
         onClose={() => setQuickAddOpen(false)}
         date={dateStr}
-        onLogged={() => void refetch()}
+        onLogged={() => invalidateDayQueries(utils, dateStr)}
+        plannedMeals={(data?.plannedMeals ?? []).map((m, i) => ({
+          recipeId: m.recipeId,
+          recipeName: m.recipeName,
+          mealType: m.mealType,
+          imageUrl: m.imageUrl,
+          kcal: m.kcal,
+          protein: m.protein,
+          carbs: m.carbs,
+          fat: m.fat,
+          ...(m.portion !== undefined && { portion: m.portion }),
+          slotIndex: m.slotIndex ?? i,
+        }))}
+      />
+
+      <EditEntrySheet
+        visible={editingEntry !== null}
+        onClose={() => setEditingEntry(null)}
+        date={dateStr}
+        entry={editingEntry}
+        onSaved={() => invalidateDayQueries(utils, dateStr)}
+        onDeleted={() => setEditingEntry(null)}
       />
 
       <TargetExplainSheet
         visible={explainOpen}
         onClose={() => setExplainOpen(false)}
         view={targetsView}
+      />
+
+      <ConfirmSheet
+        visible={copyDayOpen}
+        onClose={() => setCopyDayOpen(false)}
+        title="Copy day"
+        body={`Copy everything logged ${copyLabel} to ${isToday ? 'today' : 'this day'}? You can undo it right after.`}
+        confirmLabel={
+          copyDayMutation.isPending
+            ? 'Copying…'
+            : `Copy ${copyLabel} to ${isToday ? 'today' : 'this day'}`
+        }
+        cancelLabel="Cancel"
+        onConfirm={confirmCopyDay}
+        testID="tracker-copy-day-confirm"
       />
     </Screen>
   );
