@@ -13,10 +13,13 @@ export {
   type FormatMoneyOptions,
 } from './currency';
 export {
+  CM_PER_IN,
   EUROZONE_REGIONS,
   IMPERIAL_REGIONS,
+  cmToIn,
   defaultsForRegion,
   detectRegion,
+  inToCm,
   inferUnitsFromInput,
   regionFromLocale,
   type DisplayDefaults,

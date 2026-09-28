@@ -3,9 +3,12 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { OnboardingJob } from '@chefer/types';
+import { LB_PER_KG } from '@chefer/types';
 import { Button, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
+  inferUnitsFromInput,
+  inToCm,
   onboardingProgress,
   onboardingSteps,
   type OnboardingStepKey,
@@ -93,6 +96,14 @@ export function OnboardingWizard() {
   const [trainingWeekdays, setTrainingWeekdays] = useState<number[]>([]);
   const [trainingDayKinds, setTrainingDayKinds] = useState<Record<number, TrainingDayKind>>({});
   const [howYouCook, setHowYouCook] = useState<HowYouCookStepValue>(EMPTY_HOW_YOU_COOK);
+  // §2.4, T-03.8 (bug B-43): set when a typed height/weight didn't fit the
+  // current units and the metrics step auto-switched — `from` is the unit
+  // Undo restores. `howYouCook.units` is the single units source the whole
+  // wizard shares (How you cook and Body metrics), even on a Track-only
+  // chain where How you cook never renders.
+  const [unitSwitchNotice, setUnitSwitchNotice] = useState<{
+    from: 'METRIC' | 'IMPERIAL';
+  } | null>(null);
   const [goodFood, setGoodFood] = useState(false);
   const [goal, setGoal] = useState<Goal | null>(null);
   const [metrics, setMetrics] = useState<MetricsValue>({
@@ -219,15 +230,85 @@ export function OnboardingWizard() {
     const n = parseInt(raw, 10);
     setMetrics((m) => ({ ...m, age: raw === '' || isNaN(n) ? null : n }));
   }
+
+  /** Raw typed text -> a number in whatever `units` currently means, or null. */
+  function parseTyped(raw: string): number | null {
+    const n = parseFloat(raw.replace(',', '.'));
+    return raw === '' || isNaN(n) ? null : n;
+  }
+
+  /**
+   * §2.4, T-03.8 (bug B-43, AC11): after either field changes, check whether
+   * the two typed values (read fresh from state, in the CURRENT units) fit
+   * the other system far better — if so, switch `howYouCook.units` for the
+   * whole wizard and re-interpret the SAME typed digits under the new unit
+   * (170 stays "170" but now means 170 cm, not 170 in), so the stored
+   * heightCm/weightKg are never briefly nonsense mid-switch.
+   */
+  function checkUnitSwitch(heightRaw: string, weightRaw: string) {
+    const currentUnits = howYouCook.units;
+    const heightVal = parseTyped(heightRaw);
+    const weightVal = parseTyped(weightRaw);
+    const result = inferUnitsFromInput({
+      heightValue: heightVal,
+      weightValue: weightVal,
+      currentUnits,
+    });
+    if (!result.shouldSwitch) return;
+    const next = result.suggestedUnits;
+    setHowYouCook((h) => ({ ...h, units: next }));
+    setMetrics((m) => ({
+      ...m,
+      ...(heightVal !== null && { heightCm: next === 'IMPERIAL' ? inToCm(heightVal) : heightVal }),
+      ...(weightVal !== null && {
+        weightKg: next === 'IMPERIAL' ? weightVal / LB_PER_KG : weightVal,
+      }),
+    }));
+    setUnitSwitchNotice({ from: currentUnits });
+  }
+
+  function heightWeightToMetric(
+    typed: number | null,
+    units: 'METRIC' | 'IMPERIAL',
+    kind: 'height' | 'weight',
+  ) {
+    if (typed === null) return null;
+    if (units !== 'IMPERIAL') return typed;
+    return kind === 'height' ? inToCm(typed) : typed / LB_PER_KG;
+  }
+
   function handleHeightText(raw: string) {
     setHeightText(raw);
-    const n = parseFloat(raw.replace(',', '.'));
-    setMetrics((m) => ({ ...m, heightCm: raw === '' || isNaN(n) ? null : n }));
+    const typed = parseTyped(raw);
+    setMetrics((m) => ({
+      ...m,
+      heightCm: heightWeightToMetric(typed, howYouCook.units, 'height'),
+    }));
+    checkUnitSwitch(raw, weightText);
   }
   function handleWeightText(raw: string) {
     setWeightText(raw);
-    const n = parseFloat(raw.replace(',', '.'));
-    setMetrics((m) => ({ ...m, weightKg: raw === '' || isNaN(n) ? null : n }));
+    const typed = parseTyped(raw);
+    setMetrics((m) => ({
+      ...m,
+      weightKg: heightWeightToMetric(typed, howYouCook.units, 'weight'),
+    }));
+    checkUnitSwitch(heightText, raw);
+  }
+
+  /** Reverts the units switch and re-interprets the same typed digits under the old unit. */
+  function undoUnitSwitch() {
+    if (!unitSwitchNotice) return;
+    const revert = unitSwitchNotice.from;
+    setHowYouCook((h) => ({ ...h, units: revert }));
+    const heightVal = parseTyped(heightText);
+    const weightVal = parseTyped(weightText);
+    setMetrics((m) => ({
+      ...m,
+      ...(heightVal !== null && { heightCm: heightWeightToMetric(heightVal, revert, 'height') }),
+      ...(weightVal !== null && { weightKg: heightWeightToMetric(weightVal, revert, 'weight') }),
+    }));
+    setUnitSwitchNotice(null);
   }
 
   const hasTrain = jobs.includes('TRAIN');
@@ -365,17 +446,40 @@ export function OnboardingWizard() {
 
   let content: React.ReactNode = null;
   const metricsStep = (
-    <MetricsStep
-      value={metrics}
-      onChange={setMetrics}
-      goal={goodFood ? null : goal}
-      ageText={ageText}
-      heightText={heightText}
-      weightText={weightText}
-      onAgeText={handleAgeText}
-      onHeightText={handleHeightText}
-      onWeightText={handleWeightText}
-    />
+    <View className="gap-3">
+      <MetricsStep
+        value={metrics}
+        onChange={setMetrics}
+        goal={goodFood ? null : goal}
+        ageText={ageText}
+        heightText={heightText}
+        weightText={weightText}
+        onAgeText={handleAgeText}
+        onHeightText={handleHeightText}
+        onWeightText={handleWeightText}
+        units={howYouCook.units}
+      />
+      {unitSwitchNotice && (
+        <View
+          testID="metrics-units-switch-notice"
+          className="flex-row flex-wrap items-center gap-2"
+        >
+          <Text variant="muted" className="flex-1 text-xs">
+            {howYouCook.units === 'METRIC'
+              ? ONBOARDING_COPY.unitsSwitchedToMetric
+              : ONBOARDING_COPY.unitsSwitchedToImperial}
+          </Text>
+          <Pressable
+            testID="metrics-units-switch-undo"
+            accessibilityRole="button"
+            onPress={undoUnitSwitch}
+            className="min-h-11 justify-center"
+          >
+            <Text className="text-xs font-semibold text-primary">Undo</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
   );
   if (stepKey === 'jobs') {
     content = <JobsStep value={jobs} onChange={setJobsState} />;

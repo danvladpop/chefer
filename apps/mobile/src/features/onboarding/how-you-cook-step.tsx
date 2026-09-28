@@ -33,7 +33,18 @@ export interface HowYouCookStepValue {
 
 export interface HowYouCookStepProps {
   value: HowYouCookStepValue;
-  onChange: (value: HowYouCookStepValue) => void;
+  /**
+   * Also accepts a functional updater (`setState`-style), same as React's
+   * own `Dispatch<SetStateAction<T>>` — this component runs two independent
+   * mount-time effects (shape hydration, region pre-selection) that must
+   * never clobber each other's write with a stale `value` closure, so both
+   * use the functional form. A caller passing `setHowYouCook` directly
+   * already supports both shapes; a caller passing a plain value-setter
+   * callback needs to accept the updater form too (`(prev) => next`).
+   */
+  onChange: (
+    value: HowYouCookStepValue | ((prev: HowYouCookStepValue) => HowYouCookStepValue),
+  ) => void;
   isPremium: boolean;
 }
 
@@ -44,8 +55,12 @@ export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepPro
   // Hydrate the plan shape from the server once; pre-select currency/units
   // from the device region the first time this step is ever shown (the
   // user can always change either chip — this only sets the starting pick).
+  // Both effects can fire in the same commit (data already cached, mount
+  // effects run in order) — the functional form means neither clobbers the
+  // other's write with a stale `value` closure.
   useEffect(() => {
-    if (data && !value.shape) onChange({ ...value, shape: data });
+    if (!data) return;
+    onChange((prev) => (prev.shape ? prev : { ...prev, shape: data }));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once
   }, [data]);
 
@@ -53,7 +68,7 @@ export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepPro
     if (regionApplied) return;
     setRegionApplied(true);
     const { preferredUnits, currency } = defaultsForRegion(detectRegion());
-    onChange({ ...value, units: preferredUnits, currency });
+    onChange((prev) => ({ ...prev, units: preferredUnits, currency }));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once
   }, []);
 

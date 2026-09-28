@@ -1,11 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cmToIn,
   defaultsForRegion,
   detectRegion,
   EUROZONE_REGIONS,
   inferUnitsFromInput,
+  inToCm,
   regionFromLocale,
 } from './locale';
+
+describe('cmToIn / inToCm', () => {
+  it('round-trips a typical height', () => {
+    expect(cmToIn(175)).toBeCloseTo(68.9, 1);
+    expect(inToCm(69)).toBeCloseTo(175.3, 1);
+  });
+
+  it('inToCm(cmToIn(x)) is stable within rounding', () => {
+    expect(inToCm(cmToIn(180))).toBeCloseTo(180, 0);
+  });
+});
 
 describe('defaultsForRegion', () => {
   it('puts the US, Liberia and Myanmar on imperial, everyone else on metric', () => {

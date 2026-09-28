@@ -67,14 +67,28 @@ export interface MetricsStepProps {
   onAgeText: (raw: string) => void;
   onHeightText: (raw: string) => void;
   onWeightText: (raw: string) => void;
+  /**
+   * §2.4, T-03.8 (bug B-43): which unit height/weight are typed in — labels
+   * the fields ("Height (cm)" vs "Height (in)", single-field inches rather
+   * than a ft/in split; "Weight (kg)" vs "Weight (lb)"). Parsing/storing the
+   * typed number in the right unit, and switching this when the typed value
+   * doesn't fit it (`inferUnitsFromInput`), is the caller's job — this
+   * component only reads it for the labels. Omitted defaults to metric (the
+   * onboarding wizard always passes it; other callers are unaffected).
+   */
+  units?: 'METRIC' | 'IMPERIAL';
 }
 
 /** iOS accessory bar id shared by the three numeric fields below (T-21.5). */
 const NUMERIC_BAR_ID = 'metrics-step-numeric-bar';
 
 /**
- * Body metrics — port of apps/web/src/features/onboarding/components/step-metrics.tsx
- * (metric units only — no ft/in or lbs toggle on mobile v1).
+ * Body metrics — port of apps/web/src/features/onboarding/components/step-metrics.tsx.
+ * §2.4, T-03.8 (bug B-43, rev 2): height/weight are labelled and parsed in
+ * whichever unit the caller passes (`units`) — height as a single inches
+ * field in Imperial (no ft/in split, to keep this a drop-in for the metric
+ * v1 layout), weight in lb. The caller owns switching `units` itself when
+ * the typed value doesn't fit it (`inferUnitsFromInput`, @chefer/utils).
  */
 export function MetricsStep({
   value,
@@ -87,8 +101,13 @@ export function MetricsStep({
   onAgeText,
   onHeightText,
   onWeightText,
+  units = 'METRIC',
 }: MetricsStepProps) {
   const preview = computeCaloriePreview(value, goal);
+  const heightLabel = units === 'IMPERIAL' ? 'Height (in)' : 'Height (cm)';
+  const weightLabel = units === 'IMPERIAL' ? 'Weight (lb)' : 'Weight (kg)';
+  const heightPlaceholder = units === 'IMPERIAL' ? 'e.g. 69' : 'e.g. 175';
+  const weightPlaceholder = units === 'IMPERIAL' ? 'e.g. 165' : 'e.g. 75';
   // T-21.5 (CI-14, PAT-11): Return/accessory-bar chains Age → Height →
   // Weight, and each field scrolls clear of the keyboard on focus (a no-op
   // outside a KeyboardAwareScrollView, so this is safe wherever it renders).
@@ -149,7 +168,7 @@ export function MetricsStep({
           />
         </View>
         <View className="flex-1 gap-1">
-          <Text variant="label">Height (cm)</Text>
+          <Text variant="label">{heightLabel}</Text>
           <TextInput
             testID="metrics-height"
             {...chain.bind(1, { onFocus: scrollFieldIntoView })}
@@ -157,13 +176,13 @@ export function MetricsStep({
             value={heightText}
             onChangeText={onHeightText}
             keyboardType="decimal-pad"
-            placeholder="e.g. 175"
+            placeholder={heightPlaceholder}
             placeholderTextColor="#9ca3af"
             className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
           />
         </View>
         <View className="flex-1 gap-1">
-          <Text variant="label">Weight (kg)</Text>
+          <Text variant="label">{weightLabel}</Text>
           <TextInput
             testID="metrics-weight"
             {...chain.bind(2, { onFocus: scrollFieldIntoView })}
@@ -171,7 +190,7 @@ export function MetricsStep({
             value={weightText}
             onChangeText={onWeightText}
             keyboardType="decimal-pad"
-            placeholder="e.g. 75"
+            placeholder={weightPlaceholder}
             placeholderTextColor="#9ca3af"
             className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
           />

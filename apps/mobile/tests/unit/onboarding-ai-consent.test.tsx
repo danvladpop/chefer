@@ -23,16 +23,26 @@ jest.mock('../../src/hooks/use-is-premium', () => ({
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
-jest.mock('expo-router', () => ({
-  router: {
-    push: (href: string): void => {
-      mockPush(href);
+jest.mock('expo-router', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't close over top-of-file imports
+  const { createElement } = require('react') as typeof import('react');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Pressable } = require('react-native') as typeof import('react-native');
+  return {
+    router: {
+      push: (href: string): void => {
+        mockPush(href);
+      },
+      replace: (href: string): void => {
+        mockReplace(href);
+      },
     },
-    replace: (href: string): void => {
-      mockReplace(href);
-    },
-  },
-}));
+    // HowYouCookForm (rendered on the wizard's "how you cook" step) links to
+    // /household — a plain Pressable wrapper is enough for these tests.
+    Link: ({ children, testID }: { children: React.ReactNode; testID?: string }) =>
+      createElement(Pressable, { testID }, children),
+  };
+});
 jest.mock('../../src/features/gym/mode-store', () => ({ setMode: jest.fn() }));
 
 let mockUser: { aiDataConsentAt: Date | null } | undefined;

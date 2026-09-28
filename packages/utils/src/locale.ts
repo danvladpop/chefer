@@ -99,6 +99,24 @@ export function detectRegion(
   return null;
 }
 
+// ─── Height conversion (bug B-43, T-03.8) ──────────────────────────────────────
+// The metric-only body-weight helpers (weight.ts) already have a kg<->lb pair
+// (`bodyWeightInUnit`/`LB_PER_KG`); height has no such shared helper yet — web's
+// step-metrics.tsx converts inline. One inches figure (not a ft/in split), so
+// it drops straight into a single text field on both platforms.
+
+export const CM_PER_IN = 2.54;
+
+/** cm -> inches, rounded to 0.1 (175 cm -> 68.9 in). */
+export function cmToIn(cm: number): number {
+  return Math.round((cm / CM_PER_IN) * 10) / 10;
+}
+
+/** inches -> cm, rounded to 0.1 (69 in -> 175.3 cm). */
+export function inToCm(inches: number): number {
+  return Math.round(inches * CM_PER_IN * 10) / 10;
+}
+
 // ─── Units follow typed values (bug B-43, T-03.8) ──────────────────────────────
 // An en-US phone in Romania defaults to Imperial from the device region, but
 // the metrics/How-you-cook steps still take a plain number: someone who
