@@ -36,8 +36,8 @@ vi.mock('@/lib/trpc', () => {
   // setJobs.mutate is called both as a plain fire-and-forget (Finish) and
   // with a per-call { onSuccess } (Skip/"Just looking around") — react-query
   // invokes that callback itself, so the mock has to as well.
-  const setJobsMutate = (input: unknown, opts?: { onSuccess?: () => void }) => {
-    const result = m.setJobs(input, opts);
+  const setJobsMutate = (input: unknown, opts?: { onSuccess?: () => void }): unknown => {
+    const result: unknown = m.setJobs(input, opts);
     opts?.onSuccess?.();
     return result;
   };
@@ -133,9 +133,11 @@ describe('OnboardingWizard — jobs step (§2.4, T-03.6)', () => {
     render(<OnboardingWizard isPremium={false} />);
     fireEvent.click(screen.getByRole('button', { name: 'Just looking around' }));
     await waitFor(() => expect(m.push).toHaveBeenCalledWith('/dashboard'));
-    expect(m.setJobs).toHaveBeenCalledWith(
-      { jobs: ['PLAN_MEALS'] },
-      expect.objectContaining({ onSuccess: expect.any(Function) }),
-    );
+    const [input, opts] = m.setJobs.mock.calls[0] as [
+      { jobs: string[] },
+      { onSuccess?: () => void } | undefined,
+    ];
+    expect(input).toEqual({ jobs: ['PLAN_MEALS'] });
+    expect(typeof opts?.onSuccess).toBe('function');
   });
 });
