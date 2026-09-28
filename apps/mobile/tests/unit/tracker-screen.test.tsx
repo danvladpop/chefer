@@ -193,6 +193,24 @@ describe('TrackerScreen', () => {
     jest.useRealTimers();
   });
 
+  // T-19.6: a Track-only user may never generate a plan — the empty state
+  // reads as an invitation to log, not a missing-plan error.
+  it('bug/T-19.6: no active plan reads as an invitation to log', async () => {
+    mockDayExtras = { plannedMeals: [], hasActivePlan: false };
+    await renderTracker();
+    expect(screen.getByTestId('tracker-empty-plan-text')).toHaveTextContent(
+      'No plan today — log what you eat with Quick add or Snap to log below.',
+    );
+  });
+
+  it('T-19.6: an active plan with nothing scheduled today keeps the old copy', async () => {
+    mockDayExtras = { plannedMeals: [], hasActivePlan: true };
+    await renderTracker();
+    expect(screen.getByTestId('tracker-empty-plan-text')).toHaveTextContent(
+      'No planned meals for this day.',
+    );
+  });
+
   it('logs a planned meal at its plan portion by default (P1-1)', async () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });

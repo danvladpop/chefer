@@ -123,3 +123,36 @@ describe('Tracker — two identical snacks', () => {
     expect(checks().map((b) => b.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
   });
 });
+
+// T-19.6: a Track-only user may never generate a plan — the empty state
+// reads as an invitation to log, not a missing-plan error.
+describe('Tracker — no-plan empty state (T-19.6)', () => {
+  it('reads as an invitation to log when there is no active plan', () => {
+    m.state.day = {
+      date: '2026-09-26',
+      plannedMeals: [],
+      hasActivePlan: false,
+      offPlanLogged: [],
+      log: null,
+      targets: { dailyCalorieTarget: 2000, proteinG: 125, carbsG: 225, fatG: 67 },
+    };
+    render(<TrackerPage />);
+    expect(screen.getByTestId('tracker-empty-plan').textContent).toContain(
+      'No plan today — log what you eat with Snap to log or Quick add above.',
+    );
+    expect(screen.queryByText('Go to Meal Planner →')).toBeNull();
+  });
+
+  it('keeps the "Go to Meal Planner" copy when a plan exists but today is empty', () => {
+    m.state.day = {
+      date: '2026-09-26',
+      plannedMeals: [],
+      hasActivePlan: true,
+      offPlanLogged: [],
+      log: null,
+      targets: { dailyCalorieTarget: 2000, proteinG: 125, carbsG: 225, fatG: 67 },
+    };
+    render(<TrackerPage />);
+    expect(screen.getByText('Go to Meal Planner →')).toBeTruthy();
+  });
+});

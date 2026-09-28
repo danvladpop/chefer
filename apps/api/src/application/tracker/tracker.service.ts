@@ -68,6 +68,14 @@ export interface DayTrackerData {
   date: string; // YYYY-MM-DD
   plannedMeals: DayPlanMeal[];
   /**
+   * Whether the user has an active meal plan at all (T-19.6) — distinct from
+   * `plannedMeals` being empty because today just has nothing scheduled
+   * (weekend, a rest day). A Track-only user may never generate a plan; the
+   * tracker's empty state reads differently for the two cases. Additive:
+   * older clients ignore it.
+   */
+  hasActivePlan: boolean;
+  /**
    * Logged recipes that aren't among today's planned meals — e.g. cooked
    * before a regenerate or swap. The tracker shows and counts them (audit
    * F-PM-1). Additive: older clients ignore it.
@@ -278,6 +286,7 @@ export const trackerService = {
     return {
       date: dateStr,
       plannedMeals,
+      hasActivePlan: plan !== null,
       offPlanLogged,
       log: log
         ? {

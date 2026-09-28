@@ -342,8 +342,25 @@ export default function TrackerScreen() {
 
           {/* Planned meals to check off */}
           {(data?.plannedMeals ?? []).length === 0 ? (
-            <Card className="items-center py-8">
-              <Text variant="muted">No planned meals for this day.</Text>
+            <Card testID="tracker-empty-plan" className="items-center gap-3 py-8">
+              {data?.hasActivePlan === false ? (
+                // T-19.6: a Track-only user may never generate a plan — this
+                // reads as an invitation to log, not a missing-plan error.
+                <>
+                  <Ionicons name="restaurant-outline" size={28} color="#9ca3af" />
+                  <Text
+                    testID="tracker-empty-plan-text"
+                    variant="muted"
+                    className="text-center text-sm"
+                  >
+                    No plan today — log what you eat with Quick add or Snap to log below.
+                  </Text>
+                </>
+              ) : (
+                <Text testID="tracker-empty-plan-text" variant="muted">
+                  No planned meals for this day.
+                </Text>
+              )}
             </Card>
           ) : (
             <View className="gap-2">

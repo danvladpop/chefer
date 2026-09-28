@@ -360,11 +360,25 @@ export default function TrackerPage() {
 
           {/* Meal list */}
           {data.plannedMeals.length === 0 ? (
-            <div className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-500">
-              No meals planned for this day.{' '}
-              <a href="/meal-plan" className="touch-target relative text-[#944a00] hover:underline">
-                Go to Meal Planner →
-              </a>
+            <div
+              data-testid="tracker-empty-plan"
+              className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-500"
+            >
+              {!data.hasActivePlan ? (
+                // T-19.6: a Track-only user may never generate a plan — this
+                // reads as an invitation to log, not a missing-plan error.
+                <p>No plan today — log what you eat with Snap to log or Quick add above.</p>
+              ) : (
+                <>
+                  No meals planned for this day.{' '}
+                  <a
+                    href="/meal-plan"
+                    className="touch-target relative text-[#944a00] hover:underline"
+                  >
+                    Go to Meal Planner →
+                  </a>
+                </>
+              )}
             </div>
           ) : (
             <div className="mb-6 space-y-3">
