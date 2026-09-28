@@ -1,6 +1,11 @@
 import { env } from '../env.js';
 import { uploadRecipeImage } from '../image-cdn/cloudinary.js';
-import { createLocalImageStore, resolveMediaBaseUrl, UPLOADS_DIR } from '../image-cdn/local.js';
+import {
+  createLocalImageStore,
+  probeLocalImageStore,
+  resolveMediaBaseUrl,
+  UPLOADS_DIR,
+} from '../image-cdn/local.js';
 import { CloudflareImageService } from './cloudflare.js';
 import { ImagenRateLimitError } from './imagen.js';
 import { buildPollinationsUrl } from './pollinations.js';
@@ -10,6 +15,8 @@ import type { IRecipeImageService, RecipeImageInput } from './types.js';
 // Re-export error classes so callers don't need to know where they come from.
 // The worker references these types — keep them even if Imagen is no longer used.
 export { ImagenRateLimitError, ImagenContentFilterError } from './imagen.js';
+export { ImageQuotaExhaustedError, ImageStorageError } from './errors.js';
+export { recipeImageFallbackUrl } from './pollinations.js';
 export { CloudflareImageService } from './cloudflare.js';
 
 export type { IRecipeImageService, RecipeImageInput } from './types.js';
@@ -115,6 +122,18 @@ export function getRecipeImageService(): IRecipeImageService {
   }
   console.info(`[image-gen] recipe images via ${service.name}`);
   return service;
+}
+
+/**
+ * Whether the configured image store can take a generated image. Only the
+ * local store (IMAGE_PROVIDER=cloudflare + IMAGE_STORAGE=local) is probed —
+ * Pollinations stores nothing, Cloudinary is checked per upload. Returns null
+ * when fine, else the reason (the worker logs it and skips paid generation
+ * while it persists).
+ */
+export async function probeRecipeImageStorage(): Promise<string | null> {
+  if (env.IMAGE_PROVIDER !== 'cloudflare' || env.IMAGE_STORAGE !== 'local') return null;
+  return probeLocalImageStore(UPLOADS_DIR);
 }
 
 /** Generates (and, where needed, uploads) a recipe image; returns its URL. */

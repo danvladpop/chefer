@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CloudflareImageService } from './cloudflare.js';
-import { ImagenRateLimitError } from './errors.js';
+import { CloudflareImageService, isDailyQuotaError } from './cloudflare.js';
+import { ImagenRateLimitError, ImageQuotaExhaustedError, ImageStorageError } from './errors.js';
 
 // Fixture responses only — no live calls (§8 AI-cost rule).
 
@@ -58,6 +58,46 @@ describe('CloudflareImageService', () => {
   it('maps 429 to the worker back-off error (no retry burned)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('slow down', { status: 429 })));
     await expect(service().svc.generate(INPUT)).rejects.toBeInstanceOf(ImagenRateLimitError);
+  });
+
+  it('maps the daily-free-allocation 429 to the quota error, not the short back-off', async () => {
+    const body =
+      '{"success":false,"errors":[{"code":3036,"message":"You have used up your daily free allocation of 10,000 neurons."}]}';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, { status: 429 })));
+    await expect(service().svc.generate(INPUT)).rejects.toBeInstanceOf(ImageQuotaExhaustedError);
+  });
+
+  it('recognises the quota answer by code or wording', () => {
+    expect(isDailyQuotaError('{"errors":[{"code":3036,"message":"x"}]}')).toBe(true);
+    expect(isDailyQuotaError('AiError: 4006: {"code": 4006}')).toBe(true);
+    expect(isDailyQuotaError('you have used up your daily free allocation of 10,000 neurons')).toBe(
+      true,
+    );
+    expect(
+      isDailyQuotaError('{"errors":[{"code":3040,"message":"Capacity temporarily exceeded"}]}'),
+    ).toBe(false);
+    expect(isDailyQuotaError('slow down')).toBe(false);
+  });
+
+  it('wraps an upload failure as a storage error (the image was already paid for)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ success: true, result: { image: 'aGVsbG8=' } }), {
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    const upload = vi.fn().mockRejectedValue(
+      Object.assign(new Error("EACCES: permission denied, mkdir '/app/uploads/recipes'"), {
+        code: 'EACCES',
+      }),
+    );
+    const err = await service(upload)
+      .svc.generate(INPUT)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ImageStorageError);
+    expect((err as Error).message).toMatch(/EACCES/);
   });
 
   it('fails loudly on other errors and on a missing image', async () => {

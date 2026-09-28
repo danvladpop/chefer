@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { ImageStorageError } from '../image-gen/errors.js';
 import { sniffImageMime } from '../image-sniff.js';
 
 // ─── Local image store (our own server) ───────────────────────────────────────
@@ -77,13 +78,42 @@ export function createLocalImageStore(
     const mime = sniffImageMime(bytes);
     const ext = mime ? EXT_BY_MIME[mime] : undefined;
     if (!ext) {
-      throw new Error(`Generated image for recipe ${recipeId} is not a recognised image type`);
+      throw new ImageStorageError(
+        `Generated image for recipe ${recipeId} is not a recognised image type`,
+      );
     }
     const hash = createHash('sha256').update(bytes).digest('hex').slice(0, 12);
     const filename = `${safeKey(recipeId)}-${hash}.${ext}`;
     const dir = path.join(config.dir, GENERATED_RECIPES_SUBDIR);
-    await mkdir(dir, { recursive: true });
-    await writeFile(path.join(dir, filename), bytes);
+    try {
+      await mkdir(dir, { recursive: true });
+      await writeFile(path.join(dir, filename), bytes);
+    } catch (err) {
+      throw new ImageStorageError(
+        `Could not write ${path.join(dir, filename)}: ${(err as Error).message}`,
+        { cause: err },
+      );
+    }
     return `${config.publicBaseUrl}${UPLOADS_ROUTE}/${GENERATED_RECIPES_SUBDIR}/${filename}`;
   };
+}
+
+/**
+ * Checks that generated images can be written under `dir`/recipes (creates
+ * the folder, writes and removes a probe file). Returns null when writable,
+ * else the reason. Run by the recipe-image worker at startup so a
+ * root-owned/read-only uploads volume is reported loudly BEFORE any image is
+ * paid for.
+ */
+export async function probeLocalImageStore(dir: string): Promise<string | null> {
+  const target = path.join(dir, GENERATED_RECIPES_SUBDIR);
+  const probe = path.join(target, `.write-probe-${process.pid}`);
+  try {
+    await mkdir(target, { recursive: true });
+    await writeFile(probe, '');
+    await rm(probe, { force: true });
+    return null;
+  } catch (err) {
+    return `${target} is not writable: ${(err as Error).message}`;
+  }
 }
