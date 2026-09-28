@@ -46,6 +46,7 @@ import {
   type SafetyPrefs,
 } from '../../lib/curated-recipes/index.js';
 import { normalizeIngredientName } from '../../lib/ingredient-prices/index.js';
+import { PoolExhaustedCause } from '../../lib/pool-exhausted.js';
 import type { MacroVocabularyRow } from '../../lib/recipe-import/macro-check.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
 import {
@@ -68,20 +69,7 @@ import { reconcileRecipeMacros } from './macro-reconcile.js';
 import { planShapeService } from './plan-shape.service.js';
 import { withServerRecipeIds } from './recipe-ids.js';
 
-/**
- * §T-10.4: machine-readable cause for the free curated pool being exhausted
- * (`PRECONDITION_FAILED`) — not yet exposed on the client-visible error
- * shape. `apps/api/src/lib/trpc.ts`'s `errorFormatter` would need a case for
- * it (mirroring `ConflictCause` → `shape.data.conflict`, `lib/conflict.ts`)
- * to reach `shape.data`; that file isn't owned by this lane (see the PR's
- * handoff note). The human-readable `message` is unchanged either way, so
- * old clients keep working exactly as before.
- */
-export class PoolExhaustedCause extends Error {
-  constructor() {
-    super('POOL_EXHAUSTED');
-  }
-}
+export { PoolExhaustedCause };
 
 // ─── Summary DTO ──────────────────────────────────────────────────────────────
 
@@ -819,8 +807,7 @@ export class MealPlanService {
     // cover this combination of restrictions, but AI generation can. Only the
     // meal types the shape actually wants must clear the bar (T-07.2) — a
     // "dinners only" shape no longer needs a breakfast pool. T-10.4: the
-    // cause is attached for a future client-visible `data.cause` (see the
-    // PR's handoff note — apps/api/src/lib/trpc.ts is not owned by this lane).
+    // cause reaches clients as `data.poolExhausted` (lib/trpc.ts).
     const exhausted = wantedMainTypes.filter((type) => pools[type].length < MIN_SAFE_POOL_SIZE);
     if (exhausted.length > 0) {
       throw new TRPCError({

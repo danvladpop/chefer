@@ -7,6 +7,7 @@ import { runWithAiCallContext } from './ai/call-context.js';
 import { ConflictCause } from './conflict.js';
 import { isPremiumUser } from './entitlements.js';
 import { logger } from './logger.js';
+import { PoolExhaustedCause } from './pool-exhausted.js';
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,11 @@ const t = initTRPC.context<Context>().create({
         zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
         // CONFLICT errors that carry the server's current version (lib/conflict.ts).
         conflict: error.cause instanceof ConflictCause ? error.cause.payload : null,
+        // T-10.4: the free curated pool can't cover this plan (lib/pool-exhausted.ts).
+        poolExhausted:
+          error.cause instanceof PoolExhaustedCause
+            ? { cause: 'POOL_EXHAUSTED' as const, message: shape.message }
+            : null,
       },
     };
   },
