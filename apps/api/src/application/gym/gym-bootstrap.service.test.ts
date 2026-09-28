@@ -117,7 +117,9 @@ function setup(
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(toSessionSummary).mockImplementation(
-    (d) => ({ id: d.id, localDate: d.localDate }) as SessionSummaryDto,
+    // T-42.2: recentSessions runs through filterSessionExercisesForLevel, so
+    // the mock needs a real (empty) exercises array, not an undefined one.
+    (d) => ({ id: d.id, localDate: d.localDate, exercises: [] }) as unknown as SessionSummaryDto,
   );
   vi.mocked(summarizeWeeks).mockReturnValue({
     weeks: Array.from({ length: 14 }, (_, i) => ({

@@ -27,10 +27,14 @@ export const gymRouter = router({
         .optional(),
     )
     .query(({ ctx, input }) =>
-      gymBootstrapService.get(ctx.user.id, {
-        librarySince: input?.librarySince,
-        today: input?.today,
-      }),
+      gymBootstrapService.get(
+        ctx.user.id,
+        {
+          librarySince: input?.librarySince,
+          today: input?.today,
+        },
+        ctx.clientApiLevel,
+      ),
     ),
   library: gymLibraryRouter,
   profile: gymProfileRouter,

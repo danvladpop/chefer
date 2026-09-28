@@ -51,6 +51,9 @@ export function toExerciseMeta(row: Exercise): ExerciseMeta {
     isLowerBody: row.isLowerBody,
     isTimed: row.isTimed,
     swapGroup: row.swapGroup,
+    // S18 (T-42.0/T-42.2): always set on the row (column default WEIGHT_REPS),
+    // so every client-level filter can rely on it instead of re-deriving.
+    trackingType: row.trackingType,
   };
 }
 
@@ -129,6 +132,8 @@ export function toProfileDto(row: GymProfile): GymProfileDto {
     setupCompletedAt: row.setupCompletedAt?.toISOString() ?? null,
     reminderTimes: readReminderTimes(row.reminderTimes),
     quietNudgeDays: row.quietNudgeDays ?? null,
+    // S21 (T-42.0/T-42.2): null/absent lets the client derive KM/MI from `unit`.
+    distanceUnit: row.distanceUnit,
   };
 }
 
@@ -199,6 +204,17 @@ export function toSessionDoc(row: SessionWithChildren): WorkoutSessionDoc {
         reps: s.reps,
         isWarmup: s.isWarmup,
         completedAt: s.completedAt?.toISOString() ?? null,
+        // S20 (T-42.0/T-42.2): cardio fields, nullable in the DB, optional on
+        // the wire — `?? undefined` so a strength set (every column null)
+        // round-trips without gaining `null`-valued keys a level-0/1 client
+        // has never seen.
+        durationSec: s.durationSec ?? undefined,
+        distanceM: s.distanceM ?? undefined,
+        intensityRpe: s.intensityRpe ?? undefined,
+        resistanceLevel: s.resistanceLevel ?? undefined,
+        inclinePct: s.inclinePct ?? undefined,
+        caloriesKcal: s.caloriesKcal ?? undefined,
+        avgHeartRateBpm: s.avgHeartRateBpm ?? undefined,
       })),
     })),
   };

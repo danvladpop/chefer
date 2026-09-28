@@ -51,3 +51,41 @@ export function isTrackingTypeRenderable(
 ): boolean {
   return renderableTrackingTypes(level).includes(trackingType);
 }
+
+// ─── T-42.2: the four read paths (gym.bootstrap library/recentSessions,
+// gym.library.list, gym.session.get, gym.session.list) share these two
+// filters so the rule is applied identically everywhere. ────────────────────
+
+/**
+ * Drops library/exercise rows of a non-renderable type for `level`. Missing
+ * `trackingType` (a shape that predates this field) defaults to WEIGHT_REPS,
+ * which is renderable at every level.
+ */
+export function filterExerciseDtosForLevel<T extends { trackingType?: ExerciseTrackingType }>(
+  rows: readonly T[],
+  level: number,
+): T[] {
+  return rows.filter((r) =>
+    isTrackingTypeRenderable(r.trackingType ?? ExerciseTrackingType.WEIGHT_REPS, level),
+  );
+}
+
+/**
+ * Drops session exercises whose exercise is a non-renderable type for
+ * `level` — the session itself is never dropped, so week counts and streaks
+ * are unaffected (Δ2.1). An exercise id missing from `trackingTypeById`
+ * (shouldn't happen — session exercises only ever reference curated/owned
+ * rows) defaults to WEIGHT_REPS and is kept.
+ */
+export function filterSessionExercisesForLevel<T extends { exerciseId: string }>(
+  exercises: readonly T[],
+  trackingTypeById: ReadonlyMap<string, ExerciseTrackingType>,
+  level: number,
+): T[] {
+  return exercises.filter((e) =>
+    isTrackingTypeRenderable(
+      trackingTypeById.get(e.exerciseId) ?? ExerciseTrackingType.WEIGHT_REPS,
+      level,
+    ),
+  );
+}

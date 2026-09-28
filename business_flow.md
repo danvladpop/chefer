@@ -2494,6 +2494,56 @@ Workout (offline on the phone) → Finish → outbox → gym.session.upsertMany(
   1–7) are dismissed by key via `gym.progression.dismissOffer`; `startDeload` makes the next 7 days'
   prescriptions deloads.
 
+### 22.1 Correcting a past session (UX-44, Δ2.3) — no new API surface
+
+Edit and delete both ride the existing `gym.session.upsertMany` sync path above; nothing new was
+added to the API for this.
+
+```
+Edit a completed session:
+  load the stored doc → change it on the client → bump clientUpdatedAt → outbox.enqueue(doc)
+  → gym.session.upsertMany applies it like any other sync (last-write-wins on clientUpdatedAt)
+  → recompute folds the EDITED history — a 600 → 60 kg fix changes the next-time target
+    the same way a fresh fold over the corrected numbers would (AC8)
+
+Delete a completed session (with an 8 s Undo):
+  the delete is held on the device (outbox OutboxEntry.holdUntil, T-44.2 — additive, `v` stays 1)
+    → Undo within the window: outbox.cancelHeld(id) removes the entry before it is ever sent
+    → after 8 s (or immediately if the app is killed and relaunched past the window):
+         outbox re-sends the SAME doc with status: 'DISCARDED' and a bumped clientUpdatedAt
+         → gym.session.upsertMany applies it — every list/bootstrap/stat already excludes
+           DISCARDED, and recompute folds the exercises as if the session never happened
+         → once that write is acknowledged AND the device is online, the client calls
+           gym.session.delete (hard delete) so no DISCARDED row lingers (Q-30)
+  Offline the whole way: the DISCARDED upsert is itself an outbox entry, so a delete started
+  offline still "sticks" locally (dropped from the next bootstrap.recentSessions/session.list)
+  even before the hard delete can run.
+
+Target-change notice (PAT-14): the client snapshots bootstrap.progressions[].state.next for the
+touched exercises before enqueueing the edit, diffs against the next bootstrap refetch
+(packages/utils/src/gym/session-edit.ts targetDiff()) and offers "Keep the old ones" →
+gym.progression.setOverride per row — no server change.
+```
+
+The delete confirm's preview lines (this week's session count and streak, before/after) are a pure
+client-side re-fold: `sessionDeletePreview()` (`packages/utils/src/gym/session-edit.ts`) rebuilds
+the current week's row from `bootstrap.weeks`/`.streak` with one session subtracted and re-runs
+`settleWeeks()` (`weeks.ts`) — the same fold the server uses — so the sheet can say "this drops you
+from a 3-week streak to 2" before the delete is even sent.
+
+### 22.2 Cardio delivery (UX-42 minimal slice, T-42.1/T-42.2)
+
+12 catalogue entries (`packages/types/src/gym/cardio-catalog.ts` + the `cardio()` builder in
+`exercise-catalog.ts`) ship through the same sync/bootstrap machinery as strength exercises — a
+cardio `SessionSet` is one row (`weightKg: 0, reps: 0, isWarmup: false`) carrying `durationSec` /
+`distanceM` / `intensityRpe` instead. The only new behaviour is what a client is SENT: `gym
+.bootstrap`, `gym.library.list`, `gym.session.get` and `gym.session.list` each drop rows/exercises
+whose `trackingType` isn't renderable at the caller's `x-chefer-api-level` (`renderableTrackingTypes()`,
+§9) — a mixed session (bench + bike) still shows its bench part to an old client, the bike part
+just isn't there, and week/streak counts are unaffected either way. Progression has no cardio
+state to recompute (Δ2.2); PR/e1RM/volume code needs no special case since a cardio set's
+`weightKg: 0, reps: 0` already produces nothing in those pure functions.
+
 ---
 
 ## 23. Weekly Emails & Notifications Flow (P2-5)

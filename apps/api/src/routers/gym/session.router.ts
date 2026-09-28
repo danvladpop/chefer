@@ -14,7 +14,9 @@ export const gymSessionRouter = router({
   }),
   get: protectedProcedure
     .input(z.object({ id: clientIdSchema }))
-    .query(({ ctx, input }) => workoutSessionService.get(ctx.user.id, input.id)),
+    .query(({ ctx, input }) =>
+      workoutSessionService.get(ctx.user.id, input.id, ctx.clientApiLevel),
+    ),
   list: protectedProcedure
     .input(
       z.object({
@@ -22,7 +24,7 @@ export const gymSessionRouter = router({
         limit: z.number().int().min(1).max(50).default(20),
       }),
     )
-    .query(({ ctx, input }) => workoutSessionService.list(ctx.user.id, input)),
+    .query(({ ctx, input }) => workoutSessionService.list(ctx.user.id, input, ctx.clientApiLevel)),
   discard: protectedProcedure
     .input(z.object({ id: clientIdSchema }))
     .mutation(({ ctx, input }) => workoutSessionService.discard(ctx.user.id, input.id)),

@@ -9,7 +9,9 @@ const HOUR_MS = 60 * 60 * 1000;
 export const gymLibraryRouter = router({
   list: protectedProcedure
     .input(z.object({ updatedSince: z.string().datetime({ offset: true }).optional() }).optional())
-    .query(({ ctx, input }) => exerciseLibraryService.list(ctx.user.id, input?.updatedSince)),
+    .query(({ ctx, input }) =>
+      exerciseLibraryService.list(ctx.user.id, input?.updatedSince, ctx.clientApiLevel),
+    ),
   get: protectedProcedure
     .input(z.object({ id: z.string().min(1).max(100) }))
     .query(({ ctx, input }) => exerciseLibraryService.get(ctx.user.id, input.id)),

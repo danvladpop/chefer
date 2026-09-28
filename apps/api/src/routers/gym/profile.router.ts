@@ -19,6 +19,6 @@ export const gymProfileRouter = router({
   /** Creates profile + active routine + initial progressions; returns a fresh bootstrap. */
   completeSetup: protectedProcedure.input(completeSetupInputSchema).mutation(({ ctx, input }) => {
     assertWithinRateLimit('gym.completeSetup', ctx.user.id, 20, 60 * 60 * 1000);
-    return gymProfileService.completeSetup(ctx.user.id, input);
+    return gymProfileService.completeSetup(ctx.user.id, input, undefined, ctx.clientApiLevel);
   }),
 });

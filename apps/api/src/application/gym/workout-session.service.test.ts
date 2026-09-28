@@ -430,7 +430,8 @@ describe('WorkoutSessionService delete / discard / get / list', () => {
     ];
     const repo = makeMemorySessionRepo().repo;
     vi.mocked(repo.listForUser).mockResolvedValue(docs.map((d) => sessionRow(d)));
-    vi.mocked(toSessionSummary).mockImplementation((d) => ({ id: d.id }) as never);
+    // T-42.2: list() runs each summary through filterSessionExercisesForLevel.
+    vi.mocked(toSessionSummary).mockImplementation((d) => ({ id: d.id, exercises: [] }) as never);
     const { service } = setup(repo);
 
     const page = await service.list(USER, { limit: 2 });
