@@ -7,6 +7,9 @@ import { ChefReviewBanner } from '@/features/coach/components/ChefReviewBanner';
 import { WeightCard } from '@/features/coach/components/WeightCard';
 import { NextMealCard } from '@/features/dashboard/components/next-meal-card';
 import { NutritionSummary } from '@/features/dashboard/components/nutrition-summary';
+import { ShopDueCard } from '@/features/dashboard/components/shop-due-card';
+import { TomorrowCard } from '@/features/dashboard/components/tomorrow-card';
+import { NothingTonightCard, TonightCard } from '@/features/dashboard/components/tonight-card';
 import { TodaysWorkoutCard } from '@/features/gym/shared/todays-workout-card';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
@@ -29,6 +32,15 @@ const MEAL_COLOURS: Record<string, string> = {
   snack: 'bg-purple-100 text-purple-700',
 };
 
+// UX-04 §2: which moment band the clock is in, deciding the hero card
+// (T-04.7 — same bands as mobile's (food)/index.tsx).
+type Moment = 'morning' | 'evening' | 'late';
+function momentFor(hour: number): Moment {
+  if (hour >= 16 && hour < 21.5) return 'evening';
+  if (hour >= 21.5 || hour < 4) return 'late';
+  return 'morning';
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 // Today (P2-2, PM review §5): Home and the Tracker merged into one daily
@@ -39,10 +51,13 @@ export default function DashboardPage() {
   const { data, isLoading, isError, isRefetching, refetch } = trpc.dashboard.summary.useQuery({
     localDate: localDateStr(),
     localHour: new Date().getHours(),
+    include: ['tonight', 'tomorrow', 'shopDue', 'safetyChecks'],
   });
   const { data: weekSummary } = trpc.tracker.weeklySummary.useQuery(undefined, {
     staleTime: 60_000,
   });
+  // §2.11, T-35.5: the ring's "Your target" / "Suggested" label.
+  const { data: targetsData } = trpc.targets.get.useQuery();
 
   // Profile completion nudge: surface it here rather than letting the user
   // discover the gap only when "Generate plan" asks for a profile.
@@ -91,15 +106,27 @@ export default function DashboardPage() {
   }
 
   const hasPlan = d.weekPlan.length > 0;
-  // B-31 interim (T-00.12): the ring, weight card, profile nudge and
-  // Snap-to-log all assume a goal — meaningless for someone who only wants
-  // to log what they ate. `dashboard.summary` derives this from
-  // chefProfile.goal OR the user already tracking (≥ 3 of the last 7 days).
-  const showNutritionCards = d.showNutritionCards;
+  // B-31 (T-04.7): the ring, weight card, profile nudge and Snap-to-log all
+  // assume a goal — meaningless for someone who only wants to log what they
+  // ate. `showNutrition` is the explicit-override-aware successor to the
+  // interim `showNutritionCards` (T-00.12): a goal, `Track what I eat`, or
+  // the Settings toggle.
+  const showNutritionCards = d.showNutrition;
 
-  // After the last meal window of the day the API sends tomorrow's first meal
-  // instead — the spotlight stays populated, just badged "Tomorrow".
-  const heroMeal = d.nextMeal ?? d.tomorrowFirstMeal;
+  // UX-04 §2/§3: which hero card leads — Tonight (today's dinner) in the
+  // evening band, its done collapse once dinner is logged, Tomorrow once
+  // dinner is done or it's late (AC5: never "NEXT UP · BREAKFAST" at
+  // 22:00), else the existing "next up" hero (today's next open window).
+  const moment = momentFor(new Date().getHours());
+  const dinnerDone = d.tonight?.done === true;
+  const showTonightCard = moment === 'evening' && !!d.tonight && !dinnerDone;
+  const showTonightDoneRow = dinnerDone;
+  const showNothingTonight = moment === 'evening' && !d.tonight && !dinnerDone;
+  const showTomorrowCard = (moment === 'late' || dinnerDone) && !!d.tomorrow;
+  const heroMeal =
+    !showTonightCard && !showTonightDoneRow && !showNothingTonight && !showTomorrowCard
+      ? (d.nextMeal ?? d.tomorrowFirstMeal)
+      : null;
   const heroIsTomorrow = !d.nextMeal && d.tomorrowFirstMeal !== null;
 
   // Day‑of‑week labels Mon–Sun
@@ -192,7 +219,13 @@ export default function DashboardPage() {
             above it. The ring reads the dashboard summary's nutrition fields,
             so target changes made server-side flow straight through. B-31
             interim (T-00.12): hidden for a goal-less, non-tracking user. */}
-        {showNutritionCards && <NutritionSummary nutrition={d.nutrition} className="xl:hidden" />}
+        {showNutritionCards && (
+          <NutritionSummary
+            nutrition={d.nutrition}
+            targetMode={targetsData?.targetMode}
+            className="xl:hidden"
+          />
+        )}
 
         {/* Off-plan logging: free quick add + premium scan (demo for free).
             Quick add stays available to everyone; scan is nutrition-tracking
@@ -204,10 +237,24 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* UX-04 §3: Tonight (evening, AC3) -> its done collapse -> Tomorrow
+            (late/AC5, never "NEXT UP · BREAKFAST" at 22:00) -> the existing
+            "next up" hero for the daytime band. */}
+        {(showTonightCard || showTonightDoneRow) && d.tonight && (
+          <TonightCard meal={d.tonight} showNutrition={showNutritionCards} onLogged={onLogged} />
+        )}
+        {showNothingTonight && <NothingTonightCard />}
+        {showTomorrowCard && d.tomorrow && <TomorrowCard meal={d.tomorrow} />}
+        {/* Shop-due (T-04.2/T-04.7): tomorrow's unticked shopping-list lines. */}
+        {d.shopDue && <ShopDueCard shopDue={d.shopDue} />}
+
         {/* Next meal spotlight — advances past meals already logged today */}
         {heroMeal ? (
           <NextMealCard meal={heroMeal} isTomorrow={heroIsTomorrow} />
-        ) : hasPlan ? (
+        ) : showTonightCard ||
+          showTonightDoneRow ||
+          showNothingTonight ||
+          showTomorrowCard ? null : hasPlan ? (
           <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed bg-white py-8 text-center shadow-sm">
             <span className="text-3xl">🎉</span>
             <p className="font-medium text-gray-700">You&apos;re all caught up for today!</p>
@@ -500,7 +547,11 @@ export default function DashboardPage() {
              hidden — otherwise goal-less users get an empty 288px column. ── */}
       {showNutritionCards && (
         <div className="hidden w-72 shrink-0 flex-col gap-4 xl:flex">
-          <NutritionSummary nutrition={d.nutrition} className="sticky top-6" />
+          <NutritionSummary
+            nutrition={d.nutrition}
+            targetMode={targetsData?.targetMode}
+            className="sticky top-6"
+          />
         </div>
       )}
     </div>
