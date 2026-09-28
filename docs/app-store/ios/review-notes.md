@@ -41,10 +41,10 @@ DEMO ACCOUNT
 The account above already has a meal plan, recipes and a logged workout. Premium features are enabled on it. Premium is currently free for everyone: the Profile "Upgrade" button just switches the account's tier, and no payment is taken anywhere in the app. There are no in-app purchases.
 
 WHERE THINGS ARE
-- Food mode (default): Home, Plan, Recipes, Shopping, More tabs.
+- Food mode (default): Today, Plan, Shop, Cookbook, More tabs.
 - Gym mode: use the Food/Gym switch in the header of the Food tabs. Gym works offline.
 - Account deletion: More → Profile → "Delete account" (last card). It asks for the password and for DELETE to be typed, then permanently deletes the account and all its data and signs out everywhere.
-- AI data consent: the first time an AI feature is used (plan generation, meal-photo scan, recipe import, chat) the app explains what is sent to Google Gemini and asks for permission (Allow / Not now; "Not now" sends nothing). It can be withdrawn under More → Profile → "AI & your data". To see the consent sheet on the demo account, switch that toggle off and tap Generate on the Plan tab.
+- AI data consent: the first time an AI feature is used (plan generation, meal-photo scan, recipe import, chat) the app explains what is sent to Groq and Cloudflare Workers AI and asks for permission (Allow / Not now; "Not now" sends nothing). It can be withdrawn under More → Profile → "AI & your data". To see the consent sheet on the demo account, switch that toggle off and tap Generate on the Plan tab.
 
 PERMISSIONS
 - Camera / Photos: only when the user chooses to scan a meal (Tracker → Snap to log) or add a photo to a recipe.
