@@ -9,6 +9,7 @@ import {
   type QuickAddMealType,
 } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { invalidateDayQueries } from './invalidate';
 import { recordRebalance } from './rebalance-store';
 
 // Manual quick add (F4, FREE tier included) — mobile counterpart of web's
@@ -48,9 +49,7 @@ export function QuickAddSheet({ visible, onClose, date, onLogged }: QuickAddShee
   const logMutation = trpc.tracker.logCustomMeal.useMutation({
     onSuccess: (data) => {
       recordRebalance(data.rebalance);
-      void utils.tracker.getDay.invalidate({ date });
-      void utils.tracker.weeklySummary.invalidate();
-      void utils.dashboard.summary.invalidate();
+      invalidateDayQueries(utils, date);
       setName('');
       setKcal('');
       setMacros({ protein: '', carbs: '', fat: '' });

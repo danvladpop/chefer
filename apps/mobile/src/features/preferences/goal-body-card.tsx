@@ -63,6 +63,20 @@ export function GoalBodyCard({
   const [weightText, setWeightText] = useState(initial.weightKg?.toString() ?? '');
   const [loaded, setLoaded] = useState(false);
 
+  // Bug B-38: "Saved ✓" used to stick regardless of edits made after the
+  // save. Captured synchronously at the moment `handleSave` is pressed (not
+  // reactively off `isSaved`, which would race the hydration effect below:
+  // both could fire in the same commit, off stale pre-hydration closures) —
+  // any edit after that point makes the button honest again.
+  const [savedSnapshot, setSavedSnapshot] = useState<{
+    goal: Goal | null;
+    metrics: MetricsValue;
+  } | null>(null);
+  const dirty =
+    savedSnapshot !== null &&
+    (savedSnapshot.goal !== goal ||
+      JSON.stringify(savedSnapshot.metrics) !== JSON.stringify(metrics));
+
   // Only hydrate from the server once the query resolves — mirrors the
   // existing preferences.tsx `safetyLoaded` pattern so typing isn't clobbered
   // by a refetch.
@@ -151,6 +165,9 @@ export function GoalBodyCard({
       ...(metrics.weightKg !== null && metrics.weightKg > 0 && { weightKg: metrics.weightKg }),
       ...(metrics.activityLevel !== null && { activityLevel: metrics.activityLevel }),
     };
+    // Bug B-38: snapshot exactly what's being sent, so a later edit is judged
+    // against it — not against whatever the server eventually echoes back.
+    setSavedSnapshot({ goal, metrics });
     onSave(payload);
   }
 
@@ -183,7 +200,7 @@ export function GoalBodyCard({
       />
 
       <Button testID="prefs-save-goal-body" loading={isSaving} onPress={handleSave}>
-        {isSaved ? 'Saved ✓' : 'Save goal & body'}
+        {isSaved && !dirty ? 'Saved ✓' : 'Save goal & body'}
       </Button>
       {errorMessage && <Text className="text-xs text-red-600">{errorMessage}</Text>}
     </Card>
