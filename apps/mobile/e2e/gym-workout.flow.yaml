@@ -2,9 +2,12 @@
 # Preconditions: signed-in session (connect.yaml signs in as alice if needed)
 # and a gym profile with an active routine (run gym-setup.flow.yaml first on a
 # fresh account). Today's "Start workout" / "Resume" testIDs come from G2-B.
-# Checks: start from Today → tick every working set of the first exercise
-# (one tap each, prefilled values) → answer the RIR chip → Finish (confirming
-# the unticked-sets sheet) → the summary shows the "Next time" decisions.
+# Checks: start from Today → tick a working set (rest starts → the B-40
+# rest-permission rationale sheet, T-36.2) → remove + Undo a set → Save for
+# later → Resume card (paused) → Resume → tick the rest of the first
+# exercise → answer the RIR chip → Finish with other exercises never started
+# (the T-36.3 "N exercises not started" sheet, carrying them to next time by
+# default) → the summary shows the "Next time" decisions.
 # Ends in FOOD mode so the food flows are unaffected.
 appId: dev.chefer.app.dev
 ---
@@ -54,19 +57,6 @@ appId: dev.chefer.app.dev
     timeout: 15000
 - tapOn:
     id: 'gym-today-start'
-# First workout asks for notification permission (rest-timer alerts) — accept.
-# (Android's dialog covers the screen, so handle it before waiting for it.)
-- extendedWaitUntil:
-    visible: 'Allow'
-    timeout: 5000
-    optional: true
-- tapOn:
-    text: 'Allow'
-    optional: true
-- extendedWaitUntil:
-    visible:
-      id: 'workout-title'
-    timeout: 15000
 - extendedWaitUntil:
     visible:
       id: 'workout-title'
@@ -83,6 +73,24 @@ appId: dev.chefer.app.dev
     id: 'exercise-0-set-1-check'
 - assertVisible:
     id: 'rest-timer-remaining'
+# B-40 (T-36.2): the first rest ever started on this device shows the
+# rest-timer permission rationale sheet in front of the timer bar — never a
+# cold OS prompt at workout start. Accept it, then the OS dialog it triggers.
+- extendedWaitUntil:
+    visible:
+      id: 'gym-rest-permission-allow'
+    timeout: 5000
+    optional: true
+- tapOn:
+    id: 'gym-rest-permission-allow'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Allow'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Allow'
+    optional: true
 - tapOn:
     id: 'rest-timer-skip'
 
@@ -100,6 +108,34 @@ appId: dev.chefer.app.dev
     id: 'snackbar-message'
 - assertVisible:
     id: 'exercise-0-set-2-check'
+
+# ── Save for later → Resume card → Resume (UX-36 (3), T-36.3) ────────────────
+# One set logged so far. Saving for later must not lose it: back on Today the
+# Resume card shows its paused variant ("Keeps until …"), and Resume reopens
+# this exact session with set 1 still ticked.
+- scrollUntilVisible:
+    element:
+      id: 'workout-save-for-later'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'workout-save-for-later'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 15000
+- assertVisible:
+    id: 'gym-today-resume'
+- assertVisible:
+    id: 'gym-today-resume-keeps-until'
+- tapOn:
+    id: 'gym-today-resume-button'
+- extendedWaitUntil:
+    visible:
+      id: 'workout-title'
+    timeout: 15000
+- assertVisible:
+    id: 'exercise-0-set-1-check'
 
 - tapOn:
     id: 'exercise-0-set-2-check'
@@ -138,6 +174,9 @@ appId: dev.chefer.app.dev
 
 # ── Finish (other exercises are unticked → confirmation sheet) ───────────────
 # The list-end Finish (the header one sits under the dev-build Tools bubble).
+# Other exercises were never started, so this is the richer T-36.3 sheet:
+# "N exercises not started" + a "Move them to your next session" switch,
+# on by default — leave it on and confirm, carrying them to next time.
 - scrollUntilVisible:
     element:
       id: 'workout-finish-bottom'
@@ -149,6 +188,9 @@ appId: dev.chefer.app.dev
     visible:
       id: 'workout-finish-sheet-confirm'
     timeout: 5000
+    optional: true
+- assertVisible:
+    id: 'workout-finish-sheet-option-0-switch'
     optional: true
 - tapOn:
     id: 'workout-finish-sheet-confirm'
