@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import superjson from 'superjson';
+import superjson, { type SuperJSONResult } from 'superjson';
 import { describe, expect, it, vi } from 'vitest';
 import { PoolExhaustedCause } from './pool-exhausted.js';
 import { publicProcedure, router, type Context } from './trpc.js';
@@ -36,7 +36,7 @@ async function call(path: 'exhausted' | 'other') {
     router: testRouter,
     createContext: () => ({}) as unknown as Context,
   });
-  const body = (await res.json()) as { error: { json: unknown } };
+  const body = (await res.json()) as { error: SuperJSONResult };
   return superjson.deserialize<{ message: string; data: Record<string, unknown> }>(body.error);
 }
 
