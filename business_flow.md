@@ -145,6 +145,14 @@ free workout log too, not meal planning alone (CI-16/CI-25).
    └── Train (TRAIN) → gym setup first (web /gym/setup; mobile Gym mode →
          Today → setup). Food setup comes later: re-opening /onboarding skips
          the question and runs the food steps.
+         T-03.4: a Train + a food job hands off with
+         `/gym/setup?from=onboarding&days=0,2,4` (weekday indices, Mon = 0) —
+         `setup-wizard.tsx` reads this via `useLocalSearchParams`, pre-fills
+         step 1 (day count = the weekdays given) and step 4 (those weekdays
+         ticked), and opens straight at step 2; its back button then returns
+         to onboarding instead of the now-skipped step 1. Train-only (no
+         params) opens at step 1 exactly as before (UX-03 AC2/AC3). The
+         reminder toggle (step 4) is still asked either way (protects D3).
    Skip still works on every step (mobile "Skip for now" saves what is filled
    and leaves; web "Skip this question" continues with the solo flow).
    The premium wizard no longer asks "How many people are you cooking for?"
@@ -2543,6 +2551,22 @@ whose `trackingType` isn't renderable at the caller's `x-chefer-api-level` (`ren
 just isn't there, and week/streak counts are unaffected either way. Progression has no cardio
 state to recompute (Δ2.2); PR/e1RM/volume code needs no special case since a cardio set's
 `weightKg: 0, reps: 0` already produces nothing in those pure functions.
+
+**Mobile logging (T-42.3, behind `cardioLogging`, off by default).** A cardio exercise's card in the
+active workout renders `CardioEntry` (`src/features/gym/workout/cardio-entry.tsx`) instead of the
+usual set rows — `Timer | Enter`, an absolute-timestamp wall-clock timer that survives a kill
+(`cardio-timer.ts`, the same pattern as the existing rest timer, counting up with pause/resume
+instead of down), duration chips, a distance/level stepper when the catalogue entry uses them, and
+`EffortChips` (Easy/Moderate/Hard + an exact 1–10 expansion). "Log it" is one `completeSet` action
+carrying the cardio fields instead of weightKg/reps (`workout-reducer.ts`'s `completeSet`/`editSet`
+gained an optional `CardioSetFields` intersection for this). History (`session-detail-screen.tsx`)
+renders time/distance/effort for a cardio exercise instead of `0 kg × 0`. The custom exercise
+form's "How do you track it?" chips (`trackingType`, replacing the old `isTimed`-only checkbox) and
+a `Cardio` filter chip (exercise picker + Exercises tab) are also behind the flag. The mobile bundle
+sends `x-chefer-api-level: 3` as of this change (Δ2.1) — bumped in the same commit as this UI, per
+the rule that a level is only ever sent by a bundle that implements it. **Not done this wave:** web
+rendering/logging at all (T-42.5, tracked as a reverse `mobile_parity_backlog.md` row), the
+mixed-session `{done}/{planned}` header, and Stats/PR views for a cardio exercise (W5's T-42.8).
 
 ---
 

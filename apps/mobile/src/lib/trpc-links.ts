@@ -24,7 +24,10 @@ export function buildAuthHeaders(getToken: () => string | null): Record<string, 
     // checkboxes, so `AuthService.register` only requires the consent
     // fields from level >= 2 — a wave-0 client already out on OTA (which
     // sends level 1, no checkboxes) keeps registering exactly as before.
-    'x-chefer-api-level': '2',
+    // Bumped to 3 for T-42.3 (this commit ships the cardio entry UI that
+    // reads it — Δ2.1, orchestrator decision 2026-09-28: cardio moved off
+    // level 2 because wave 1 already claimed it, see client-level.ts).
+    'x-chefer-api-level': '3',
     ...(token ? { authorization: `Bearer ${token}` } : {}),
   };
 }

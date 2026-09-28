@@ -43,10 +43,11 @@ export function uniqueEmail(prefix: string): string {
 
 /**
  * T-39.1 / T-26.5: `makeContractClient()` uses the real `buildTrpcLinks`, so
- * it sends `x-chefer-api-level: 2` exactly like the shipped app — which means
- * `auth.register` now requires explicit consent here too, the same as the
- * real register screen sends. Spread this into every contract-test register
- * call (`client.auth.register.mutate({ email, password, ...CONTRACT_CONSENT })`).
+ * it sends `x-chefer-api-level` exactly like the shipped app (3, as of
+ * T-42.3) — which means `auth.register` now requires explicit consent here
+ * too (that gate is `>= 2`, so still satisfied), the same as the real
+ * register screen sends. Spread this into every contract-test register call
+ * (`client.auth.register.mutate({ email, password, ...CONTRACT_CONSENT })`).
  */
 export const CONTRACT_CONSENT = {
   acceptedTerms: true,

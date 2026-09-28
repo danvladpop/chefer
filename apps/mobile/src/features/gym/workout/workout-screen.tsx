@@ -19,6 +19,7 @@ import {
   unstartedExercises,
   type SessionSupersetSlot,
 } from '@chefer/utils';
+import { useFlags } from '../../../hooks/use-flags';
 import { ExercisePicker } from '../library/exercise-picker';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate, newId } from '../offline/ids';
@@ -91,6 +92,7 @@ function leaveWorkout(): void {
 export function WorkoutScreen() {
   const { session, finish, discard, saveForLater, resume } = useActiveWorkout();
   const { data: bootstrap } = useGymBootstrap();
+  const { cardioLogging } = useFlags();
   const online = useIsOnline();
   const swapRoutine = useRoutineSwap();
   const snackbar = useSnackbar();
@@ -387,6 +389,10 @@ export function WorkoutScreen() {
         layoutY.current.set(seId, y);
         if (pendingScrollId.current === seId) scheduleScroll();
       },
+      // T-42.3: "Log it" on a cardio entry — one completeSet carrying the
+      // cardio fields instead of weightKg/reps (weightKg/reps stay 0/0).
+      onLogCardio: (seId, setId, fields) =>
+        dispatchWorkout({ type: 'completeSet', seId, setId, weightKg: 0, reps: 0, ...fields }),
     }),
     [unit, profile, lookup, prior, olderBests, handlers, openSheet, scheduleScroll],
   );
@@ -785,6 +791,7 @@ export function WorkoutScreen() {
           content?.kind === 'picker' && content.mode === 'swap' ? contentMeta?.swapGroup : null
         }
         excludeIds={contentSe && content?.kind === 'picker' ? [contentSe.exerciseId] : undefined}
+        showCardioFilter={cardioLogging}
         testID="workout-picker"
       />
       <ConfirmSheet
