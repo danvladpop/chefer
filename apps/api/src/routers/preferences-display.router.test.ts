@@ -198,3 +198,40 @@ describe('preferences.setup — safety array caps (T-BUG-X4)', () => {
     });
   });
 });
+
+// §2.11, T-35.2: RECOMP/PERFORMANCE are additive goals. A level-0 client
+// renders a fixed GOALS list that predates them.
+describe('preferences.get — RECOMP/PERFORMANCE level-0 downgrade (T-35.2)', () => {
+  const mockGet = (goal: string | null) => ({
+    get: vi.fn().mockResolvedValue({
+      chefProfile: goal === null ? null : { goal },
+      dietaryPreferences: null,
+    }),
+  });
+
+  it('a level-0 client sees MAINTAIN in chefProfile.goal, the true value in goalV2', async () => {
+    Object.assign(svc, mockGet('RECOMP'));
+    const result = await caller.get();
+    expect(result.chefProfile?.goal).toBe('MAINTAIN');
+    expect((result.chefProfile as { goalV2: string }).goalV2).toBe('RECOMP');
+  });
+
+  it('a level-1+ client sees the true goal in both fields', async () => {
+    Object.assign(svc, mockGet('PERFORMANCE'));
+    const result = await premiumLevel1Caller.get();
+    expect(result.chefProfile?.goal).toBe('PERFORMANCE');
+    expect((result.chefProfile as { goalV2: string }).goalV2).toBe('PERFORMANCE');
+  });
+
+  it('an original-four goal is never downgraded, at any client level', async () => {
+    Object.assign(svc, mockGet('LOSE_WEIGHT'));
+    const result = await caller.get();
+    expect(result.chefProfile?.goal).toBe('LOSE_WEIGHT');
+  });
+
+  it('a null chefProfile passes through untouched', async () => {
+    Object.assign(svc, mockGet(null));
+    const result = await caller.get();
+    expect(result.chefProfile).toBeNull();
+  });
+});

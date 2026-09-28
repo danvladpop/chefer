@@ -1,6 +1,11 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { setDisplayPreferencesInputSchema, setOnboardingIntentInputSchema } from '@chefer/types';
+import {
+  goalSchema,
+  LEVEL_0_UNKNOWN_GOALS,
+  setDisplayPreferencesInputSchema,
+  setOnboardingIntentInputSchema,
+} from '@chefer/types';
 import {
   preferencesService,
   type UpdatePreferencesInput,
@@ -11,7 +16,7 @@ import { premiumProcedure, protectedProcedure, router } from '../lib/trpc.js';
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const setupSchema = z.object({
-  goal: z.enum(['LOSE_WEIGHT', 'MAINTAIN', 'GAIN_MUSCLE', 'EAT_HEALTHIER']),
+  goal: goalSchema,
   biologicalSex: z.enum(['MALE', 'FEMALE']),
   age: z.number().int().min(10).max(110),
   heightCm: z.number().positive().max(300),
@@ -91,7 +96,24 @@ export const preferencesRouter = router({
   }),
 
   get: protectedProcedure.query(async ({ ctx }) => {
-    return preferencesService.get(ctx.user.id);
+    const result = await preferencesService.get(ctx.user.id);
+    const chefProfile = result.chefProfile;
+    if (!chefProfile) return result;
+    // §2.11, T-35.2: RECOMP/PERFORMANCE are additive goals. A level-0 client
+    // (no x-chefer-api-level >= 1) renders a fixed GOALS list that predates
+    // them — `goal` downgrades to MAINTAIN for those clients; `goalV2`
+    // (additive) always carries the true value.
+    const goalV2 = chefProfile.goal;
+    const needsDowngrade =
+      ctx.clientApiLevel < 1 && goalV2 !== null && LEVEL_0_UNKNOWN_GOALS.has(goalV2);
+    return {
+      ...result,
+      chefProfile: {
+        ...chefProfile,
+        ...(needsDowngrade && { goal: 'MAINTAIN' as const }),
+        goalV2,
+      },
+    };
   }),
 
   // Personalisation depth (goal, body metrics, cadence) is premium — free
@@ -174,7 +196,7 @@ export const preferencesRouter = router({
   computeTargets: protectedProcedure
     .input(
       z.object({
-        goal: z.enum(['LOSE_WEIGHT', 'MAINTAIN', 'GAIN_MUSCLE', 'EAT_HEALTHIER']),
+        goal: goalSchema,
         biologicalSex: z.enum(['MALE', 'FEMALE']),
         age: z.number().int().min(10).max(110),
         heightCm: z.number().positive().max(300),

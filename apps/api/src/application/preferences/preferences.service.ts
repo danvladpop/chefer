@@ -13,6 +13,7 @@ import {
 } from '@chefer/database';
 import type {
   DisplayCurrency,
+  GoalValue,
   OnboardingIntent,
   SetDisplayPreferencesInput,
   TargetInputs,
@@ -328,7 +329,7 @@ export function resolveDailyTargets(
 // ─── Input / Output Types ─────────────────────────────────────────────────────
 
 export interface SetupPreferencesInput {
-  goal: 'LOSE_WEIGHT' | 'MAINTAIN' | 'GAIN_MUSCLE' | 'EAT_HEALTHIER';
+  goal: GoalValue;
   biologicalSex: 'MALE' | 'FEMALE';
   age: number;
   heightCm: number;
@@ -344,7 +345,7 @@ export interface SetupPreferencesInput {
 }
 
 export interface UpdatePreferencesInput {
-  goal?: 'LOSE_WEIGHT' | 'MAINTAIN' | 'GAIN_MUSCLE' | 'EAT_HEALTHIER';
+  goal?: GoalValue;
   biologicalSex?: 'MALE' | 'FEMALE';
   age?: number;
   heightCm?: number;
