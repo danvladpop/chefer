@@ -404,6 +404,16 @@ export {
 } from './plan-shape';
 export { recogniseSafetyTerm, type SafetyRecogniseOutcome } from './safety-recognise';
 export {
+  classifySafetyValue,
+  serialiseSafetyPickerValue,
+  BASE_DIET_IDS,
+  DIET_MODIFIER_IDS,
+  type SafetyPickerValue,
+  type ClassifiedSafetyValue,
+  type BaseDietId,
+  type DietModifierId,
+} from './safety-classify';
+export {
   formatDinnersForSharing,
   formatListForSharing,
   shareListFooter,
