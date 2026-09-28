@@ -8,6 +8,7 @@ import { cn, currencySymbol, fromEur, toDisplayCurrency, toEur } from '@chefer/u
 import { AutoPlanToggle } from '../src/features/preferences/auto-plan-toggle';
 import { SafetyStep } from '../src/features/preferences/components/safety-step';
 import { GoalBodyCard, type GoalBodySavePayload } from '../src/features/preferences/goal-body-card';
+import { TargetsCard } from '../src/features/preferences/targets-card';
 import type {
   ActivityLevel,
   BiologicalSex,
@@ -222,6 +223,10 @@ export default function PreferencesScreen() {
             isSaved={goalBodyMutation.isSuccess}
             errorMessage={goalBodyMutation.error?.message}
           />
+
+          {/* §2.11, T-35.3 — Suggested (computed) or My own (never moved
+              silently — gym setup, a weigh-in or a goal edit only propose). */}
+          <TargetsCard />
 
           {isPremium === true && (
             <Pressable
