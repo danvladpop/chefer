@@ -6,6 +6,13 @@
 // `chefer/no-forbidden-copy` and the belt-and-braces test in
 // `copy-lint.test.ts`.
 
-export type WellnessCopyKey = never;
+// T-22.3 (rev 2, §5.13): the goal/metrics disclaimer, shown under the goal
+// picker and body-metrics form on every platform (onboarding AND the
+// Settings › Preferences "Goal & body" card) — a calculator, not a doctor.
+// The About-line variant is L-ENTRY's key, added alongside this one.
+export type WellnessCopyKey = 'goalMetricsDisclaimer';
 
-export const WELLNESS_COPY: Record<WellnessCopyKey, string> = {};
+export const WELLNESS_COPY: Record<WellnessCopyKey, string> = {
+  goalMetricsDisclaimer:
+    'General estimates only, based on common formulas — for guidance about your own health, talk to a qualified professional.',
+};

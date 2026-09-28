@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { WELLNESS_COPY } from '@chefer/utils';
 import type { ActivityLevel, BiologicalSex } from '../types';
 
 // ─── Calorie estimate ─────────────────────────────────────────────────────────
@@ -464,6 +465,9 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
           </p>
         )}
       </div>
+
+      {/* T-22.3: a calculator, not a doctor — visible at 1.8x text (AC5), never truncated. */}
+      <p className="text-xs text-muted-foreground">{WELLNESS_COPY.goalMetricsDisclaimer}</p>
     </div>
   );
 }

@@ -171,7 +171,11 @@ export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProp
       {/* Goal — #targets is where "update your targets" links land
           (post-upgrade activation, audit F-PM-9) */}
       <section id="targets" className="scroll-mt-20 rounded-xl border bg-card p-4 shadow-sm sm:p-6">
-        <StepGoal value={data.goal} onChange={(goal: Goal) => onChange({ goal })} />
+        <StepGoal
+          value={data.goal}
+          onChange={(goal: Goal) => onChange({ goal })}
+          showDisclaimer={false}
+        />
       </section>
 
       {/* Body metrics */}

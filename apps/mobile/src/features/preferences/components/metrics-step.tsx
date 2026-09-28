@@ -1,6 +1,6 @@
 import { Pressable, TextInput, View } from 'react-native';
 import { Card, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, WELLNESS_COPY } from '@chefer/utils';
 import {
   ACTIVITY_OPTIONS,
   estimateCalories,
@@ -213,6 +213,12 @@ export function MetricsStep({
           </Text>
         )}
       </Card>
+
+      {/* T-22.3: a calculator, not a doctor — visible at 1.8x text (AC5), never
+          truncated. */}
+      <Text testID="metrics-disclaimer" variant="muted" className="text-xs">
+        {WELLNESS_COPY.goalMetricsDisclaimer}
+      </Text>
     </View>
   );
 }

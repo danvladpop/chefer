@@ -183,7 +183,7 @@ export function GoalBodyCard({
 
       <View className="gap-2">
         <Text variant="label">Goal</Text>
-        <GoalStep value={goal} onChange={setGoal} compact />
+        <GoalStep value={goal} onChange={setGoal} compact showDisclaimer={false} />
       </View>
 
       <MetricsStep
