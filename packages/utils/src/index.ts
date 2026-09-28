@@ -490,3 +490,16 @@ export {
   type RecipeFormMinimum,
   type RecipeFormMissingField,
 } from './recipe-form';
+export {
+  PLAN_TAILORING_COPY,
+  isTailoringRunning,
+  newlyTailoredDays,
+  shouldShowTailoringBanner,
+  tailoringBannerText,
+  tailoringDayLabel,
+  tailoringDayState,
+  tailoringProgress,
+  type PlanTailoringCopyKey,
+  type TailoringBannerText,
+  type TailoringDayState,
+} from './plan-tailoring';
