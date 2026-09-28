@@ -36,7 +36,9 @@ export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
         className={cn(
           // Below sm the toast spans the screen and clears the bottom tab bar
           // (4rem) plus the home indicator; at sm+ it returns to the corner.
-          'fixed inset-x-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 flex items-start gap-3 rounded-lg border px-4 py-3 shadow-lg',
+          // z-[60]: above the fixed AI Chef button (z-50, same corner), which
+          // otherwise swallows taps on the toast's action (e.g. Undo).
+          'fixed inset-x-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[60] flex items-start gap-3 rounded-lg border px-4 py-3 shadow-lg',
           'sm:inset-x-auto sm:bottom-6 sm:right-6 sm:max-w-sm',
           type === 'success'
             ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200'
