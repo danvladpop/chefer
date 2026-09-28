@@ -2786,7 +2786,7 @@ Transparency prompt, anywhere (AC7).
 
 ---
 
-## 27. Safety filter & reporting flow (UX-01/UX-02, T-01.1–T-01.7, T-02.2/T-02.3/T-02.5, T-22.1)
+## 27. Safety filter & reporting flow (UX-01/UX-02, T-01.1–T-01.10, T-02.1–T-02.5, T-22.1)
 
 > One matcher, one merge, one service. Every surface that shows or picks a
 > recipe answers "is this safe for the table" the same way — see
@@ -2909,11 +2909,81 @@ hides the recipe from the reporter's plans/swaps immediately and both
 **Not yet wired this wave (handoffs):** `ChatService.buildContextSummary`
 still reads only the owner's `DietaryPreferences` (T-BUG-X1's chat half —
 `application/chat/**` is L-ENTRY's file, outside this lane's ownership); the
-Replace picker, plan meal-card long-press report entry and shopping-list
-`Check label` chip are L-SAFE2's wave-2 tasks (T-01.8); the import
-preview/Cheferize draft still shows only the pre-existing conflict banner
-(`ImportSafety.ok/issues`), not a positive Checked line — a UX-02 nicety not
-built this wave.
+import preview/Cheferize draft still shows only the pre-existing conflict
+banner (`ImportSafety.ok/issues`), not a positive Checked line — a UX-02
+nicety not built this wave.
+
+### Plan / Replace / Shop surfaces (wave 2, L-SAFE2 — T-01.5/T-01.8/T-01.9/T-01.10/T-02.1/T-02.4/T-02.5)
+
+The wave-1 handoff above ("Replace picker, plan meal-card long-press report
+entry and shopping-list `Check label` chip are L-SAFE2's wave-2 tasks") is
+done this wave. `application/meal-plan/**` and `application/shopping-list/**`
+now call `SafetyService` the same way every other surface does (§7's
+`MealPlanService`/`ShoppingListService` notes) instead of a locally re-merged
+`SafetyPrefs`:
+
+```
+mealPlan.{getActive,getForWeek,getById,generate,restore,planDay}
+  └─► assemblePlanDto / buildCuratedWeek / generateBlocking's own DTO
+        ├─ SafetyService.loadContext(userId) → { prefs, hiddenRecipeIds, table }
+        ├─ per meal: decorateRecipeDto(dto, recipeData, ctx)
+        │     ├─ SafetyService.decorate() → derivedTags / tagQualifiers (T-01.10)
+        │     ├─ allergenWarnings? (unchanged matcher, now also on
+        │     │     replaceRecipe/swapRecipe — they returned neither before)
+        │     └─ table.hasRules ? SafetyService.check() → safetyChecks? : (nothing)
+        └─ response.tableSafety = table   (top-level, §2.2)
+
+mealPlan.{replaceRecipe,swapRecipe,getRecipe}  → same decorateRecipeDto call
+
+Reported-recipe exclusion (T-01.5/AC10) reaches the curated pool, not just
+`recipe.list`/`discover`:
+  buildCuratedWeek / planDay / swapCurated / enforcePlanSafety(unsafe-AI-slot
+  replacement) ──► pool.filter(id not in hiddenRecipeIds) before a pick
+  enforcePlanSafety is ALSO `tailorDay`'s safety pass (plan-tailoring.service.ts
+  → MealPlanService.tailorDay) — a reported recipe is excluded from a fresh
+  instant/curated week AND from every later live-tailored day, not only the
+  week that was active when it was reported.
+
+recipe.list({forTable:true}) / recipe.discover
+  └─► rows gain safetyChecks? (same table.hasRules gate)
+  └─► NEW recipe.listHiddenCount mirrors discoverHiddenCount for the
+        Replace picker's FilteredForLine (AC7)
+
+shoppingList.getForWeek
+  └─► response.tableSafety = table
+  └─► per item: labelCheck? = gluten-free diet labels this ingredient needs
+        a certified product for (LABEL_DEPENDENT_INGREDIENTS, bug B-47/T-01.9)
+```
+
+**Read-only, never a plan edit.** Every field above is computed fresh on each
+read from the CURRENT table and the CURRENT stored recipe rows — none of it
+is written into a plan's stored day JSON. This matters for two things this
+wave depends on: (1) the Replace picker hiding a failing row is a pure
+`recipe.list({forTable:true})` read, so it never counts as the user editing
+the day; (2) `plan-tailoring.service.ts`'s compare-and-set
+(`isTouched`/`replaceDayIfUnchanged`, §21-adjacent "instant week, live
+tailoring" flow) keeps comparing the day's stored slot JSON exactly as
+before — safety decoration never touches it, so a tailored day's Checked/
+conflict state is always derived fresh on the next read, never stale from
+tailor time (proven by
+`meal-plan.service.test.ts`'s `"delta-4: a day replaced by tailorDay shows
+the CORRECT Checked/conflict state on a later read"`).
+
+**Client surfaces.** Plan surfaces: the week view shows
+`SAFETY_COPY.weekCardTitle` ("Checked for your table") above the badges row
+when `tableSafety.hasRules`; each `PlanMealCard`/`MealCard` shows
+`CheckedForChip` from `recipe.safetyChecks.checked` (a conflict still shows
+the pre-existing `AllergenWarningChip`/banner instead, AC3 — the two are
+never both on screen, same rule as the detail-surface Checked line above).
+Report a safety problem (T-01.5) is also reachable from a plan meal card's
+long-press (mobile) — the same `ReportSafetySheet` as the recipe-detail
+overflow, `surface: 'plan_card'`. Replace sheet: `FilteredForLine` from
+`recipe.listHiddenCount` above the search results (AC7), `CheckedForChip` per
+row; it already hard-excludes unsafe rows (`forTable: true`) and, since
+dislikes are hard there too (§ above), there is nothing left to soft-chip.
+Shopping list: a header Checked/needs-a-look line from `tableSafety`, and a
+compact `LabelCaveat` ("Buy certified gluten-free") on any line carrying
+`labelCheck`.
 
 ---
 

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { AllergenWarningChip } from '@/features/recipes/components/AllergenWarning';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
+import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
 import { ArrowLeftRight, Bookmark, Clock } from 'lucide-react';
 import { formatPortion, scaleNutrition, slotPortion } from '@chefer/utils';
 
@@ -23,6 +24,12 @@ interface RecipeDto {
   imageUrl?: string | null;
   imageStatus?: ImageStatusType;
   allergenWarnings?: string[];
+  safetyChecks?: {
+    checked: { label: string; who: string }[];
+    conflicts: string[];
+    unchecked: string[];
+    labelCaveats?: { ingredient: string; rule: string }[] | undefined;
+  };
 }
 
 interface MealCardProps {
@@ -197,6 +204,10 @@ export function MealCard({
               {recipe.name}
             </p>
             <AllergenWarningChip warnings={recipe.allergenWarnings} className="mt-1" />
+            <CheckedForChip
+              labels={recipe.safetyChecks?.checked.map((c) => c.label) ?? []}
+              className="mt-1"
+            />
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-600">
@@ -258,10 +269,13 @@ export function MealCard({
             <span className="normal-case tracking-normal"> · {formatPortion(portion)}</span>
           )}
         </span>
-        <AllergenWarningChip
-          warnings={recipe.allergenWarnings}
-          className="absolute bottom-2 right-2 max-w-[calc(100%-1rem)] truncate text-xs"
-        />
+        <div className="absolute bottom-2 right-2 flex max-w-[calc(100%-1rem)] flex-col items-end gap-1">
+          <AllergenWarningChip warnings={recipe.allergenWarnings} className="truncate text-xs" />
+          <CheckedForChip
+            labels={recipe.safetyChecks?.checked.map((c) => c.label) ?? []}
+            className="truncate text-xs"
+          />
+        </div>
         {leftoverLabel && (
           <span className="absolute bottom-2 left-2 rounded-full bg-emerald-100/90 px-2 py-0.5 text-xs font-semibold text-emerald-800 backdrop-blur-sm">
             Leftovers · {leftoverLabel.slice(0, 3)}
