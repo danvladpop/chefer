@@ -114,7 +114,6 @@ export function ReplaceMealSheet({
   const error = replaceMutation.error?.message ?? swapMutation.error?.message ?? null;
   // T-08.10 (bug B-50): never re-offer the meal being replaced; narrow to
   // the slot's type (rows without a `mealType` still pass).
-  // T-08.10: switch to recipe-access.filterReplaceCandidates at integration.
   const filterOpts = {
     ...(target?.recipeId && { excludeRecipeId: target.recipeId }),
     ...(target?.mealType && { slotType: target.mealType }),

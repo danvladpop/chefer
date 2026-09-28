@@ -93,7 +93,6 @@ export function RecipePickerSheet({
     { enabled: visible },
   );
 
-  // T-08.10: switch to recipe-access.filterReplaceCandidates at integration
   // (lane L-SAFE's server-side, safety-aware version — same signature).
   const filterOpts = { excludeRecipeId, slotType };
   const mineFiltered = mineQuery.data && filterReplaceCandidates(mineQuery.data, filterOpts);

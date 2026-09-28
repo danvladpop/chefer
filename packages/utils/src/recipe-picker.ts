@@ -6,12 +6,8 @@ export interface PickerSection<T> {
 }
 
 // ─── Replace candidates (T-08.10, bug B-50) ────────────────────────────────────
-// The server-side, safety-aware version of this filter lives at
-// `apps/api/src/application/recipe/recipe-access.ts` (lane L-SAFE, not yet on
-// this branch). This is a pure, signature-identical stand-in so the mobile
-// Replace picker can dedupe, drop the meal being replaced and narrow to the
-// slot's type today; the orchestrator swaps the import at integration.
-// T-08.10: switch to recipe-access.filterReplaceCandidates at integration.
+// Shared by the mobile and web Replace pickers and re-exported by the API's
+// `application/recipe/recipe-access.ts` — one implementation everywhere.
 export interface ReplaceCandidateLike {
   id: string;
   mealType?: string | null | undefined;
