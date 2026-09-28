@@ -11,6 +11,10 @@ import { ShopDueCard } from '@/features/dashboard/components/shop-due-card';
 import { TomorrowCard } from '@/features/dashboard/components/tomorrow-card';
 import { NothingTonightCard, TonightCard } from '@/features/dashboard/components/tonight-card';
 import { TodaysWorkoutCard } from '@/features/gym/shared/todays-workout-card';
+import {
+  ReplaceMealSheet,
+  type ReplaceTarget,
+} from '@/features/meal-plan/components/ReplaceMealSheet';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
 import { useIsPremium } from '@/hooks/useIsPremium';
@@ -69,6 +73,9 @@ export default function DashboardPage() {
   const showProfileNudge = isPremium === true && hasProfile === false;
 
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
+  // T-04.7 delta: Tonight's Swap opens the existing ReplaceMealSheet inline
+  // (L-SAFE2's) instead of navigating to the full Plan.
+  const [replaceTarget, setReplaceTarget] = useState<ReplaceTarget | null>(null);
 
   // Quick add / scan land in today's log: refresh the ring and the spotlight.
   const utils = trpc.useUtils();
@@ -241,7 +248,23 @@ export default function DashboardPage() {
             (late/AC5, never "NEXT UP · BREAKFAST" at 22:00) -> the existing
             "next up" hero for the daytime band. */}
         {(showTonightCard || showTonightDoneRow) && d.tonight && (
-          <TonightCard meal={d.tonight} showNutrition={showNutritionCards} onLogged={onLogged} />
+          <TonightCard
+            meal={d.tonight}
+            showNutrition={showNutritionCards}
+            onLogged={onLogged}
+            onSwap={() => {
+              const tonight = d.tonight;
+              if (!tonight) return;
+              setReplaceTarget({
+                planId: tonight.planId,
+                dayOfWeek: tonight.dayOfWeek,
+                mealType: tonight.mealType,
+                slotIndex: tonight.slotIndex,
+                mealName: tonight.recipe.name,
+                recipeId: tonight.recipe.id,
+              });
+            }}
+          />
         )}
         {showNothingTonight && <NothingTonightCard />}
         {showTomorrowCard && d.tomorrow && <TomorrowCard meal={d.tomorrow} />}
@@ -554,6 +577,10 @@ export default function DashboardPage() {
           />
         </div>
       )}
+
+      {/* Closes and invalidates dashboard.summary itself on a successful
+          replace/AI-swap — Tonight picks up the new recipe automatically. */}
+      <ReplaceMealSheet target={replaceTarget} onClose={() => setReplaceTarget(null)} />
     </div>
   );
 }

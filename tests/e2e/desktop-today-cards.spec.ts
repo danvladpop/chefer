@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { gotoAndSettle } from './helpers/layout';
 
 // ─── Today: Tonight/Tomorrow/Shop-due card stack + ring label (T-04.7) ─────────
@@ -17,19 +17,6 @@ const HERO_TESTIDS = [
   'nothing-tonight-card',
   'tomorrow-card',
 ] as const;
-
-async function visibleHero(page: Page): Promise<string | null> {
-  for (const id of HERO_TESTIDS) {
-    if (
-      await page
-        .getByTestId(id)
-        .isVisible()
-        .catch(() => false)
-    )
-      return id;
-  }
-  return null;
-}
 
 test.describe('Today — page shell (T-04.7)', () => {
   test('renders one <h1>, the quick-log row and the full-day link', async ({ page }) => {
@@ -56,9 +43,13 @@ test.describe('Today — page shell (T-04.7)', () => {
 });
 
 test.describe('Today — hero card stack (Tonight/Tomorrow/Shop-due, T-04.7)', () => {
-  test('shows exactly one of the mutually-exclusive hero states', async ({ page }) => {
+  test('shows at most one of the mutually-exclusive hero states', async ({ page }) => {
     await gotoAndSettle(page, '/dashboard');
 
+    // 0 is valid too (daytime band with no dinner/tomorrow state, or an
+    // account with no plan at all) — the "next up"/empty-state fallback
+    // chain covers that case and is out of this lane's scope. Each test
+    // below checks its own testid's visibility and skips itself otherwise.
     let visibleCount = 0;
     for (const id of HERO_TESTIDS) {
       if (
@@ -69,13 +60,10 @@ test.describe('Today — hero card stack (Tonight/Tomorrow/Shop-due, T-04.7)', (
       )
         visibleCount++;
     }
-    // 0 is valid too (daytime band with no dinner/tomorrow state, or an
-    // account with no plan at all) — the "next up"/empty-state fallback
-    // chain covers that case and is out of this lane's scope.
     expect(visibleCount).toBeLessThanOrEqual(1);
   });
 
-  test('Tonight card: safety chip, Cook it / Swap links, and logging it collapses to the done row', async ({
+  test('Tonight card: safety chip, Cook it, and logging it collapses to the done row', async ({
     page,
   }) => {
     await gotoAndSettle(page, '/dashboard');
@@ -86,10 +74,6 @@ test.describe('Today — hero card stack (Tonight/Tomorrow/Shop-due, T-04.7)', (
       'href',
       /\/recipes\/.+\/cook/,
     );
-    // T-04.7 delta: Swap still opens the full Plan rather than an inline
-    // RecipePickerSheet (evaluated and left as-is, see the lane's final
-    // report) — this pins the current, intentional behaviour.
-    await expect(page.getByTestId('tonight-swap')).toHaveAttribute('href', '/meal-plan');
 
     const ateThis = page.getByTestId('tonight-ate-this');
     if (await ateThis.isVisible().catch(() => false)) {
@@ -100,6 +84,21 @@ test.describe('Today — hero card stack (Tonight/Tomorrow/Shop-due, T-04.7)', (
       await logged;
       await expect(page.getByTestId('tonight-card-done')).toBeVisible();
     }
+  });
+
+  // T-04.7 delta: Swap opens the existing ReplaceMealSheet inline (L-SAFE2's)
+  // instead of navigating to the full Plan.
+  test('Tonight card: Swap opens the inline recipe picker, not a navigation', async ({ page }) => {
+    await gotoAndSettle(page, '/dashboard');
+    const swap = page.getByTestId('tonight-swap');
+    test.skip(!(await swap.isVisible().catch(() => false)), 'Tonight card not showing right now');
+
+    await expect(swap).toHaveAttribute('type', 'button');
+    await swap.click();
+
+    await expect(page.getByRole('dialog', { name: 'Replace meal' })).toBeVisible();
+    await expect(page.getByTestId('picker-search')).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard/);
   });
 
   test('Nothing-tonight card links to Recipes', async ({ page }) => {

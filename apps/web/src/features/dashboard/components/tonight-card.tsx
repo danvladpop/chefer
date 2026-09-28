@@ -21,10 +21,19 @@ export function TonightCard({
   meal,
   showNutrition,
   onLogged,
+  onSwap,
 }: {
   meal: Tonight;
   showNutrition: boolean;
   onLogged: () => void;
+  /**
+   * T-04.7 delta: opens the existing ReplaceMealSheet inline (L-SAFE2's,
+   * apps/web/src/features/meal-plan/components/ReplaceMealSheet.tsx)
+   * instead of navigating to the full Plan. Optional so this card still
+   * renders standalone (e.g. in a test) without a picker wired up — falls
+   * back to linking to /meal-plan.
+   */
+  onSwap?: () => void;
 }) {
   const utils = trpc.useUtils();
   const [rated, setRated] = useState(false);
@@ -114,14 +123,26 @@ export function TonightCard({
               <ChefHat className="h-4 w-4" aria-hidden="true" />
               Cook it
             </Link>
-            <Link
-              href="/meal-plan"
-              data-testid="tonight-swap"
-              className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
-            >
-              <Repeat className="h-4 w-4" aria-hidden="true" />
-              Swap
-            </Link>
+            {onSwap ? (
+              <button
+                type="button"
+                data-testid="tonight-swap"
+                onClick={onSwap}
+                className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
+              >
+                <Repeat className="h-4 w-4" aria-hidden="true" />
+                Swap
+              </button>
+            ) : (
+              <Link
+                href="/meal-plan"
+                data-testid="tonight-swap"
+                className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
+              >
+                <Repeat className="h-4 w-4" aria-hidden="true" />
+                Swap
+              </Link>
+            )}
           </div>
         </div>
       </div>
