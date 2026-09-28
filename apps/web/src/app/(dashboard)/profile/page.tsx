@@ -83,7 +83,9 @@ function HouseholdCard() {
       </span>
       <span className="min-w-0 flex-1">
         <span className="block font-semibold text-gray-900">Your household</span>
-        <span className="block truncate text-sm text-gray-600">{summary}</span>
+        {/* T-21.13: no truncate — a household of several names (or the same
+            names at a large text-zoom level) needs to wrap, not clip. */}
+        <span className="block text-sm text-gray-600">{summary}</span>
       </span>
       <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
     </Link>

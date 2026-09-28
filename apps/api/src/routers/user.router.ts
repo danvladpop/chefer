@@ -199,7 +199,7 @@ export const userRouter = router({
    * idempotent. Additive — `user.me` carries `aiDataConsentAt`.
    */
   grantAiDataConsent: protectedProcedure.mutation(async ({ ctx }) => {
-    return userService.setAiDataConsent(ctx.user.id, true);
+    return userService.setAiDataConsent(ctx.user.id, true, ctx.isMobileClient ? 'mobile' : 'web');
   }),
 
   /**
@@ -207,7 +207,17 @@ export const userRouter = router({
    * Not enforced server-side: background jobs keep working.
    */
   revokeAiDataConsent: protectedProcedure.mutation(async ({ ctx }) => {
-    return userService.setAiDataConsent(ctx.user.id, false);
+    return userService.setAiDataConsent(ctx.user.id, false, ctx.isMobileClient ? 'mobile' : 'web');
+  }),
+
+  /**
+   * T-39.3: marks the one-time "we've changed how emails work" notice as
+   * shown, for an existing account whose weekly-email switches predate the
+   * S15 default change. Idempotent. Additive — `user.me` carries
+   * `emailDefaultsNoticeAt`.
+   */
+  dismissEmailDefaultsNotice: protectedProcedure.mutation(async ({ ctx }) => {
+    return userService.dismissEmailDefaultsNotice(ctx.user.id);
   }),
 
   /**

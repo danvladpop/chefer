@@ -1775,6 +1775,10 @@ email "Unsubscribe" ─► /unsubscribe?token=… (public, no login)
       (so link-prefetching mail scanners can't unsubscribe anyone)
       → flips the Monday, Sunday or both switches; "Undo" re-subscribes
 Preferences (web + mobile) ─► notifications.setEmailPreferences
+                               └─ logs a ConsentEvent per switch present in the
+                                  call (kind EMAIL_WEEK_READY / EMAIL_RECAP,
+                                  §28) — the digest IS the consent, so
+                                  switching it off is withdrawing it
 ```
 
 Deleting the account (§24) hard-deletes the user (cascade), so there is nobody left
@@ -1859,6 +1863,15 @@ deleted with the owner. There is no ownership to transfer.
 remain with `creatorId` nulled. Backups roll off within about 30 days: the VM
 keeps 14 nightly dumps and the off-site mirror keeps 30 (`/privacy`, P0-6). Admins deleting a user (`user.delete`) run the same purge.
 
+**Linked analytics (T-12.5, added 2026-09-28):** BEFORE the transaction (its
+`ConsentEvent` row cascades away with the user), `deleteAccount` reads whether
+the account ever linked analytics to itself (latest `ANALYTICS_LINKED` event,
+`granted: true`). If so, AFTER the commit it calls
+`posthogAdmin.deletePerson(userId)` (`infrastructure/analytics/posthog-admin.ts`)
+— best effort, logged, never blocks or reverts the deletion. A no-op (logged)
+when the account never linked, or when `POSTHOG_PERSONAL_API_KEY` /
+`POSTHOG_PROJECT_ID` aren't configured (`infrastructure.md` §10).
+
 ---
 
 ## 25. AI Data Consent Flow (App Store 5.1.2(i))
@@ -1930,11 +1943,16 @@ off 90 s → doubling → 1 h.
 
 ---
 
-## 26. Usage Analytics Consent Flow (P0-6)
+## 26. Usage Analytics Consent Flow (P0-6, T-12.2/T-12.3)
 
-> **Status:** Implemented on web 2026-09-26. Mobile sends no analytics, so
-> there is nothing to port (recorded in `mobile_parity_backlog.md`). Details and
+> **Status:** Implemented on web (2026-09-26) and mobile (2026-09-28,
+> T-12.2/T-12.3 — mobile no longer "sends no analytics"; the
+> `mobile_parity_backlog.md` row for this feature is now `done`). Details and
 > the legal reasoning: `infrastructure.md` §15 "Privacy & analytics consent".
+> Every switch change is also logged server-side (§28) so the choice is
+> provable, on top of the local storage that actually enforces it.
+
+**Web**
 
 ```
 page load ──► initAnalytics(): PostHog EU, persistence 'memory'
@@ -1943,15 +1961,152 @@ page load ──► initAnalytics(): PostHog EU, persistence 'memory'
   ├─ signed out ──────────────────────────► anonymous events, in-memory ID
   │
   └─ auth.me resolves ──► identifyUser(id, planTier)
+        ├─ chefer.analytics-anonymous:<id> = 'denied' → capture() sends nothing
         ├─ chefer.analytics-consent:<id> ≠ 'granted' (default)
-        │     └─► no identify(): events stay anonymous
+        │     └─► no identify(): anonymous events only
         └─ 'granted' ──► posthog.identify(id, { planTier })  (ID + tier only)
 
-Profile → "Usage analytics" → "Link usage analytics to my account" switch
-  ├─ on  → setAnalyticsConsent(id, 'granted') → identify now
-  └─ off → setAnalyticsConsent(id, 'denied')  → posthog.reset() now (new anonymous ID)
-logout → resetAnalytics() → posthog.reset()
+Profile → "Usage analytics" (AnalyticsConsentCard)
+  "Send anonymous usage counts" (Q-8 default: ON)
+    ├─ off → setAnonymousAnalyticsConsent(id, 'denied') → also forces "linked"
+    │        off; capture() sends nothing at all, not even anonymous counts
+    └─ on  → resumes anonymous counting
+  "Link usage to my account" (default: OFF, disabled while anonymous is off)
+    ├─ on  → setAnalyticsConsent(id, 'granted') → identify now
+    └─ off → setAnalyticsConsent(id, 'denied')  → posthog.reset() (new anonymous ID)
+  each change also calls privacy.recordAnalyticsConsent({ anonymous?, linked? })
+logout → resetAnalytics() → posthog.reset(); anonymous choice resets to ON for
+         the next (anonymous) visitor
 ```
 
-The choice is stored per account in this browser only (another browser or a
-new device starts OFF). The card links to `/privacy#analytics`.
+**Mobile** — a pure-JS transport (`apps/mobile/src/lib/{analytics,analytics-transport}.ts`,
+T-12.2), not the PostHog SDK: no native module, no runtime-fingerprint change.
+
+```
+app/_layout.tsx ──► initAnalytics(): starts the 30s flush timer + background flush
+                     track('app_opened', {})
+  │
+  distinct_id = a random session id, generated once per cold start,
+                NEVER written to storage (AC1)
+  │
+  consent (device-local, default { anonymous: true, linked: false } — Q-8):
+    anonymous off  → track() queues nothing, fetch is never called (AC3)
+    linked on + signed in → distinct_id becomes the account id on the very
+                             next event (AC2); off → sign-out resets it to off
+
+Profile → Privacy & data → "Usage analytics" (AnalyticsConsentCard, mobile)
+  same two switches as web; each change also calls
+  privacy.recordAnalyticsConsent and fires analytics_consent_changed
+```
+
+The choice is stored per account/device only (another browser, another phone,
+or a new device starts at the Q-8 defaults). The card links to
+`/privacy#analytics`. No advertising identifiers, no App Tracking
+Transparency prompt, anywhere (AC7).
+
+---
+
+## 27. Terms Acceptance & Email Defaults Flow (T-39.1/T-39.3)
+
+> **Status:** Terms acceptance at sign-up (`auth.register`'s
+> `acceptedTermsVersion`/`ageConfirmed`) is reserved — owned by L-ENTRY, not
+> written by this lane. The email-defaults one-time notice (below) IS this
+> lane's (L-DATA, 2026-09-28).
+
+### Email-defaults notice (existing accounts)
+
+```
+Preferences (mobile) / Settings › Emails (web) load
+  │
+  └─ user.me().emailDefaultsNoticeAt === null
+     AND (weekReady === true OR weeklyRecap === true)   ← "yours are still on"
+     would be the wrong sentence for an account that already starts off
+        │
+        └─ shows once: "We've changed how emails work: they're now off
+           unless you turn them on. Yours are still on."
+             ├─ "Keep them on"  → user.dismissEmailDefaultsNotice
+             └─ "Turn them off" → notifications.setEmailPreferences
+                                  { weekReady: false, weeklyRecap: false }
+                                  (logs EMAIL_WEEK_READY/EMAIL_RECAP
+                                  ConsentEvents, §28)
+                                  + user.dismissEmailDefaultsNotice
+
+user.dismissEmailDefaultsNotice: sets User.emailDefaultsNoticeAt = now,
+  idempotent (a second call keeps the original timestamp — a race between
+  two devices dismissing at once never overwrites an earlier value)
+```
+
+A brand-new account created after the S15 default change already starts
+both digests off (`@default(false)` for new rows), so it never sees this —
+the condition above only fires for an account whose values predate the
+change and are still on. L-ENTRY's registration flow (§27 above) is
+expected to set `emailDefaultsNoticeAt` explicitly for accounts created
+through it, so a new sign-up never sees the notice either way.
+
+---
+
+## 28. Consent Log & Data Export Flow (§2.13, T-39.2/T-39.5)
+
+> **Status:** Implemented 2026-09-28 (L-DATA). Every consent write in
+> Chefer — AI, the two analytics switches, the two weekly-email switches,
+> Terms/Privacy/age (§27), health (wave 3) — goes through one service, so
+> the log is complete and the export can show it.
+
+```
+ConsentService.record({ userId, kind, granted, source, documentVersion?, providers? })
+  └─ consentEventRepository.record(): append-only INSERT — a revoke never
+     erases the earlier grant row. `source` is always `ctx.isMobileClient ?
+     'mobile' : 'web'`, decided at the router, never a client-supplied field.
+
+Callers (this wave):
+  user.grantAiDataConsent / revokeAiDataConsent  → kind AI        (on a real transition only)
+  notifications.setEmailPreferences              → kind EMAIL_WEEK_READY / EMAIL_RECAP (§23)
+  privacy.recordAnalyticsConsent                 → kind ANALYTICS_ANON / ANALYTICS_LINKED (§26)
+  privacy.acceptTerms                            → kind TERMS + PRIVACY (+ AGE) — the
+                                                     re-accept-after-a-version-bump path
+Callers (other wave-1 branches, same stable signature):
+  auth.register (L-ENTRY)                        → kind TERMS / PRIVACY / AGE, at sign-up (§27)
+  preferences.setAutoPlanWeekly (L-TRACK)         → kind AUTO_PLAN
+
+Profile → Privacy & data → "Consent history" (mobile: consent-history.tsx;
+web: privacy.getConsentHistory is served, UI port tracked in
+mobile_parity_backlog.md) → privacy.getConsentHistory → every ConsentEvent,
+newest first, in plain language ("AI features allowed (Groq, Cloudflare)",
+"Usage analytics: anonymous on", "Weekly email (Monday): off", …).
+```
+
+`user.dismissEmailDefaultsNotice` (§27) is NOT a `ConsentEvent` writer — it
+only marks the one-time notice shown (`User.emailDefaultsNoticeAt`). The
+actual consent change it can trigger ("Turn them off") goes through
+`notifications.setEmailPreferences` above, which IS logged.
+
+**Boot backfill** (`consent-backfill.service.ts`, unchanged from wave 0):
+every non-null `User.aiDataConsentAt` gets a `source: migration` AI
+`ConsentEvent` with the ORIGINAL timestamp, idempotently, so the log is the
+source of truth even for pre-existing accounts.
+
+### Data export (bug B-53)
+
+```
+Profile → Your data → "Download my data" / "Export my data"
+  │
+  └─ user.exportData ──► exportAccountData(userId)
+        food (chefProfile, dietaryPreferences, householdMembers, mealPlans,
+              dailyLogs, weightEntries, favourites, ratings, pantryItems,
+              recipes, chefReviews, shoppingLists — resolved through the
+              user's own meal-plan ids, since ShoppingList has no userId)
+        gym  (gymProfile, routines, workoutSessions, exerciseProgressions,
+              trainingPauses, customExercises)
+        feedback
+        privacy (consentHistory — every ConsentEvent; emailPreferences;
+                 aiCallLog — type/provider/time only, never model output)
+  │
+  ├─ web:    Blob download, filename chefer-export-YYYY-MM-DD.json,
+             then a Toast "Your export is ready."
+  └─ mobile: shareExportFile() (src/lib/share-file.ts)
+        iOS:     expo-file-system writes the named file to the cache dir,
+                 then Share.share({ url }) — a real, named, saveable file
+        Android: Share.share({ title, message }) — same content, titled
+                 text share until expo-sharing lands (wave 4, T-39.5)
+        then the Snackbar "Your export is ready."
+```

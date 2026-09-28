@@ -109,4 +109,26 @@ describe('protected reads via Bearer', () => {
     const dates = JSON.stringify(summary).length;
     expect(dates).toBeGreaterThan(2);
   });
+
+  it('user.dismissEmailDefaultsNotice is idempotent and reflected on user.me (T-39.3)', async () => {
+    const first = await client.user.dismissEmailDefaultsNotice.mutate();
+    expect(first.emailDefaultsNoticeAt).toBeTruthy();
+
+    const second = await client.user.dismissEmailDefaultsNotice.mutate();
+    expect(second.emailDefaultsNoticeAt).toEqual(first.emailDefaultsNoticeAt);
+
+    const me = await client.user.me.query();
+    expect(me.emailDefaultsNoticeAt).toEqual(first.emailDefaultsNoticeAt);
+  });
+
+  it('privacy.getConsentHistory + recordAnalyticsConsent round-trip over Bearer (T-39.2)', async () => {
+    const before = await client.privacy.getConsentHistory.query();
+    await client.privacy.recordAnalyticsConsent.mutate({ anonymous: true, linked: false });
+    const after = await client.privacy.getConsentHistory.query();
+    // Two new rows (ANALYTICS_ANON + ANALYTICS_LINKED), both from this call.
+    expect(after.length).toBe(before.length + 2);
+    const newRows = after.slice(0, 2);
+    expect(newRows.map((r) => r.kind).sort()).toEqual(['ANALYTICS_ANON', 'ANALYTICS_LINKED']);
+    expect(newRows.every((r) => r.source === 'mobile')).toBe(true);
+  });
 });
