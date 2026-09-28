@@ -11,10 +11,27 @@ const m = vi.hoisted(() => ({
   delete: vi.fn(),
   restore: vi.fn(),
   updateState: { isPending: false, isError: false, error: null as { message: string } | null },
+  invalidate: {
+    getDay: vi.fn(),
+    weeklySummary: vi.fn(),
+    monthlySummary: vi.fn(),
+    recents: vi.fn(),
+    dashboardSummary: vi.fn(),
+  },
+  setData: vi.fn(),
 }));
 
 vi.mock('@/lib/trpc', () => ({
   trpc: {
+    useUtils: () => ({
+      tracker: {
+        getDay: { invalidate: m.invalidate.getDay, setData: m.setData },
+        weeklySummary: { invalidate: m.invalidate.weeklySummary },
+        monthlySummary: { invalidate: m.invalidate.monthlySummary },
+        recents: { invalidate: m.invalidate.recents },
+      },
+      dashboard: { summary: { invalidate: m.invalidate.dashboardSummary } },
+    }),
     tracker: {
       updateCustomMeal: {
         useMutation: (opts: { onSuccess?: () => void }) => ({
@@ -35,9 +52,10 @@ vi.mock('@/lib/trpc', () => ({
         }),
       },
       restoreCustomMeal: {
-        useMutation: () => ({
+        useMutation: (opts: { onSuccess?: () => void }) => ({
           mutate: (vars: unknown) => {
             m.restore(vars);
+            opts.onSuccess?.();
           },
           isPending: false,
         }),
@@ -136,11 +154,17 @@ describe('EditEntrySheet (bug B-34, T-19.2)', () => {
     expect(onClose).toHaveBeenCalled();
     expect(m.delete).toHaveBeenCalledWith({ date: '2026-09-26', entryIndex: 2 });
     expect(onDeleted).toHaveBeenCalled();
+    // The row must be gone as soon as the delete settles — page.tsx's
+    // onDeleted only clears local edit-sheet state, so the sheet itself must
+    // invalidate the day (the bug: it previously didn't, leaving the deleted
+    // row visible until an unrelated refetch).
+    expect(m.invalidate.getDay).toHaveBeenCalled();
     expect(showToast).toHaveBeenCalledWith(
       'Deleted Protein shake',
       expect.objectContaining({ label: 'Undo' }),
     );
     const [, action] = showToast.mock.calls[0] as [string, { onClick: () => void }];
+    m.invalidate.getDay.mockClear();
     action.onClick();
     expect(m.restore).toHaveBeenCalledWith({
       date: '2026-09-26',
@@ -155,6 +179,54 @@ describe('EditEntrySheet (bug B-34, T-19.2)', () => {
         fat: 2,
       },
     });
+    // Undo must also invalidate — the restored row has to reappear on its
+    // own, not wait for the next unrelated refetch.
+    expect(m.invalidate.getDay).toHaveBeenCalled();
+  });
+
+  // AC2 "Delete — immediate": under load, the delete's own invalidate+refetch
+  // can take several seconds — too long to make the user wait before the row
+  // disappears, and it used to eat into the Undo toast's own window. The row
+  // must vanish (and Undo must restore it) from the cache directly, not only
+  // once the network round trip lands.
+  it('bug B-34/AC2: delete and Undo splice the cache optimistically, not just via a later refetch', () => {
+    renderSheet();
+    fireEvent.click(screen.getByTestId('edit-entry-delete'));
+
+    const deleteCall = m.setData.mock.calls[0] as [
+      { date: string },
+      (old: { log: { loggedMeals: unknown[] } }) => { log: { loggedMeals: unknown[] } },
+    ];
+    expect(deleteCall[0]).toEqual({ date: '2026-09-26' });
+    const dayBefore = {
+      log: { loggedMeals: ['a', 'b', 'PROTEIN_SHAKE', 'c'] }, // entryIndex 2
+    };
+    expect(deleteCall[1](dayBefore).log.loggedMeals).toEqual(['a', 'b', 'c']);
+
+    const [, action] = showToast.mock.calls[0] as [string, { onClick: () => void }];
+    m.setData.mockClear();
+    action.onClick();
+
+    const restoreCall = m.setData.mock.calls[0] as [
+      { date: string },
+      (old: { log: { loggedMeals: unknown[] } }) => { log: { loggedMeals: unknown[] } },
+    ];
+    const dayAfterDelete = { log: { loggedMeals: ['a', 'b', 'c'] } };
+    expect(restoreCall[1](dayAfterDelete).log.loggedMeals).toEqual([
+      'a',
+      'b',
+      {
+        entryId: 'e1',
+        custom: { name: 'Protein shake', estimatedBy: 'manual' },
+        mealType: 'snack',
+        portionMultiplier: 1,
+        kcal: 180,
+        protein: 30,
+        carbs: 5,
+        fat: 2,
+      },
+      'c',
+    ]);
   });
 
   it('shows the API error', () => {

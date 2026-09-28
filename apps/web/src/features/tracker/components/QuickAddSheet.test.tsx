@@ -14,6 +14,13 @@ const m = vi.hoisted(() => ({
   recipes: [] as unknown[],
   ingredients: [] as unknown[],
   logCustomState: { isPending: false, isError: false, error: null as { message: string } | null },
+  invalidate: {
+    getDay: vi.fn(),
+    weeklySummary: vi.fn(),
+    monthlySummary: vi.fn(),
+    recents: vi.fn(),
+    dashboardSummary: vi.fn(),
+  },
 }));
 
 const rebalance = { rebalanced: false, swaps: [], projectedDeviation: 0, planId: 'p' };
@@ -21,6 +28,15 @@ const rebalance = { rebalanced: false, swaps: [], projectedDeviation: 0, planId:
 vi.mock('../lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
+    useUtils: () => ({
+      tracker: {
+        getDay: { invalidate: m.invalidate.getDay },
+        weeklySummary: { invalidate: m.invalidate.weeklySummary },
+        monthlySummary: { invalidate: m.invalidate.monthlySummary },
+        recents: { invalidate: m.invalidate.recents },
+      },
+      dashboard: { summary: { invalidate: m.invalidate.dashboardSummary } },
+    }),
     recipe: { list: { useQuery: () => ({ data: m.recipes }) } },
     ingredients: { search: { useQuery: () => ({ data: m.ingredients }) } },
     tracker: {
@@ -154,6 +170,18 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
   it('B-29/AC6: never shows a barcode or branded-product affordance', () => {
     renderSheet();
     expect(screen.queryByText(/barcode/i)).toBeNull();
+  });
+
+  // AC1 follow-up: a custom entry logged via the manual fallback must show up
+  // under Recent the next time the sheet opens, not after tracker.recents'
+  // own 60s staleTime. Logging invalidates it eagerly.
+  it('AC1: logging invalidates tracker.recents so Recent is fresh on reopen', () => {
+    renderSheet();
+    goToManual();
+    fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'Snack bar' } });
+    fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '150' } });
+    fireEvent.click(screen.getByTestId('quick-add-submit'));
+    expect(m.invalidate.recents).toHaveBeenCalled();
   });
 });
 

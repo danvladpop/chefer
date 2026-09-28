@@ -15,6 +15,7 @@ import {
   type QuickAddErrors,
   type QuickAddMealType,
 } from '@chefer/utils';
+import { invalidateDayQueries } from '../lib/invalidate';
 import { handleRebalanceResult } from '../lib/rebalance-storage';
 
 // ─── Search-first Log sheet (T-19.1, UX-19) ────────────────────────────────────
@@ -121,10 +122,17 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
     else reset();
   }, [open]);
 
+  const utils = trpc.useUtils();
+
   const onLoggedCommon = (
     data: RouterOutputs['tracker']['logRecipe'] | RouterOutputs['tracker']['logCustomMeal'],
   ) => {
     handleRebalanceResult(data.rebalance);
+    // Recent (AC1) — and the weekly/monthly summaries, dashboard ring — must
+    // reflect this log the next time the sheet (or those surfaces) opens, not
+    // after the query's 60s staleTime. onLogged() alone only refetches
+    // tracker.getDay via the page.
+    invalidateDayQueries(utils, date);
     onLogged();
     setOpen(false);
   };

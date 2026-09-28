@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { trpc } from '@/lib/trpc';
+import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
 import {
   checkMacroSanity,
@@ -10,6 +10,7 @@ import {
   type CustomEntryRow,
   type QuickAddMealType,
 } from '@chefer/utils';
+import { invalidateDayQueries } from '../lib/invalidate';
 
 // Edit any custom entry, undo any delete (bug B-34, T-19.2). Only custom
 // entries (quick-adds, photo scans) reach this sheet — a planned-recipe row
@@ -31,6 +32,25 @@ interface CustomEntrySnapshot {
   protein: number;
   carbs: number;
   fat: number;
+}
+
+type DayData = RouterOutputs['tracker']['getDay'];
+
+/** Splices `entryIndex` out of the cached day (AC2 "Delete — immediate"). */
+function withEntryRemoved(day: DayData, entryIndex: number): DayData {
+  if (!day.log) return day;
+  return {
+    ...day,
+    log: { ...day.log, loggedMeals: day.log.loggedMeals.filter((_, i) => i !== entryIndex) },
+  };
+}
+
+/** Reinserts a deleted entry at its original slot (Undo, exactly). */
+function withEntryRestored(day: DayData, entryIndex: number, entry: CustomEntrySnapshot): DayData {
+  if (!day.log) return day;
+  const loggedMeals = [...day.log.loggedMeals];
+  loggedMeals.splice(entryIndex, 0, entry);
+  return { ...day, log: { ...day.log, loggedMeals } };
 }
 
 export interface EditEntrySheetProps {
@@ -63,6 +83,7 @@ export function EditEntrySheet({
   });
   const [sanityOverridden, setSanityOverridden] = useState(false);
   const kcalRef = useRef<HTMLInputElement>(null);
+  const utils = trpc.useUtils();
 
   useEffect(() => {
     if (!entry) return;
@@ -83,13 +104,16 @@ export function EditEntrySheet({
 
   const updateMutation = trpc.tracker.updateCustomMeal.useMutation({
     onSuccess: () => {
+      invalidateDayQueries(utils, date);
       showToast('Changes saved');
       onSaved();
       onClose();
     },
   });
   const deleteMutation = trpc.tracker.deleteCustomMeal.useMutation();
-  const restoreMutation = trpc.tracker.restoreCustomMeal.useMutation();
+  const restoreMutation = trpc.tracker.restoreCustomMeal.useMutation({
+    onSuccess: () => invalidateDayQueries(utils, date),
+  });
 
   if (!entry) return null;
   const entryId = entry.entryId;
@@ -121,6 +145,7 @@ export function EditEntrySheet({
 
   const del = () => {
     if (deleteMutation.isPending || !entryId) return;
+    const entryIndex = entry.entryIndex;
     const snapshot: CustomEntrySnapshot = {
       entryId,
       custom: { name: entry.name, estimatedBy: entry.estimatedBy },
@@ -132,16 +157,38 @@ export function EditEntrySheet({
       fat: entry.fat,
     };
     onClose();
+
+    // Bug B-34/AC2 ("Delete — immediate"): splice the row out of the cached
+    // day right away instead of waiting on the network round trip + refetch
+    // — under load that round trip can take several seconds, which used to
+    // eat into the Undo toast's own window before the row had even
+    // disappeared. deleteMutation reconciles with the server in the
+    // background; onError rolls this back with a real refetch.
+    utils.tracker.getDay.setData({ date }, (old) =>
+      old ? withEntryRemoved(old, entryIndex) : old,
+    );
+
     deleteMutation.mutate(
-      { date, entryIndex: entry.entryIndex },
+      { date, entryIndex },
       {
         onSuccess: () => {
+          invalidateDayQueries(utils, date);
           onDeleted();
           showToast(`Deleted ${entry.name}`, {
             label: 'Undo',
-            onClick: () => restoreMutation.mutate({ date, entry: snapshot }),
+            onClick: () => {
+              // Undo must be exactly as immediate as the delete it reverses.
+              utils.tracker.getDay.setData({ date }, (old) =>
+                old ? withEntryRestored(old, entryIndex, snapshot) : old,
+              );
+              restoreMutation.mutate(
+                { date, entry: snapshot },
+                { onError: () => void utils.tracker.getDay.invalidate({ date }) },
+              );
+            },
           });
         },
+        onError: () => void utils.tracker.getDay.invalidate({ date }),
       },
     );
   };

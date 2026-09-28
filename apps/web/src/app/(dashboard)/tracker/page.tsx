@@ -732,6 +732,13 @@ export default function TrackerPage() {
         <Toast
           message={toast.message}
           onClose={() => setToast(null)}
+          // Bug B-34/AC2: an Undo toast (delete, remove-meal, copy-day) needs
+          // longer than the plain 3s default — deleting also invalidates the
+          // day/summary/recents queries, and that refetch's render can eat
+          // into the window before the user gets a chance to tap Undo.
+          // 8000ms matches mobile's WITH_ACTION_DURATION_MS
+          // (packages/ui-mobile/src/components/snackbar.tsx).
+          duration={toast.action ? 8000 : 3000}
           {...(toast.action && { action: toast.action })}
         />
       )}
