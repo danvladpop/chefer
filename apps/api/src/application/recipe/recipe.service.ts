@@ -6,7 +6,9 @@ import {
   type IMealRatingRepository,
   type Recipe,
 } from '@chefer/database';
+import type { SafetyChecks } from '@chefer/types';
 import { ensureCuratedRecipes, safeCuratedPools } from '../../lib/curated-recipes/index.js';
+import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import { selectDiscoverRecipes, type DiscoverFilters, type DiscoverRecipeDto } from './discover.js';
 import { findRecipeVisibleTo } from './recipe-access.js';
@@ -183,6 +185,54 @@ export class RecipeService {
       new Set(savedIds),
     );
     return results.filter((r) => !ctx.hiddenRecipeIds.includes(r.id));
+  }
+
+  /**
+   * T-02.3: the detail-surface Checked line (recipe page, cook mode). A
+   * separate, additive query rather than a new field on `mealPlan.getRecipe`
+   * (`application/meal-plan/**` is another lane's file this wave) — the
+   * client fetches this alongside its existing recipe query. `null` when the
+   * table has no rules at all (T-02.2/T-02.3 AC1: the Checked element only
+   * ever renders when there is something to check).
+   */
+  async getSafetyChecks(
+    userId: string,
+    recipeId: string,
+  ): Promise<{ safetyChecks: SafetyChecks | null }> {
+    const recipe = await findRecipeVisibleTo(userId, recipeId);
+    if (!recipe) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+    const ctx = await this.safety.loadContext(userId);
+    if (!ctx.table.hasRules) return { safetyChecks: null };
+    const checks = this.safety.check(recipe as unknown as SafetyCheckable, ctx.table);
+    const nothingToShow =
+      checks.checked.length === 0 && checks.unchecked.length === 0 && checks.conflicts.length === 0;
+    if (nothingToShow) return { safetyChecks: null };
+    return { safetyChecks: checks };
+  }
+
+  /**
+   * T-02.5/T-01.4: the `FilteredForLine` count for Discover — how many
+   * curated results the safety filter removed, and which rule labels are
+   * active (allergies + diet; dislikes are soft here, T-01.2, so they never
+   * count as "hidden"). A separate query from `discover` itself so an old
+   * client that only calls `discover` keeps getting a plain array back.
+   */
+  async discoverHiddenCount(
+    userId: string,
+    filters: DiscoverFilters,
+  ): Promise<{ hiddenCount: number; filteredFor: string[] }> {
+    const [ctx] = await Promise.all([this.safety.loadContext(userId), ensureCuratedRecipes()]);
+    const searchPrefs = { ...ctx.prefs, dislikedIngredients: [] };
+    const unfiltered = selectDiscoverRecipes(safeCuratedPools(null), filters, new Set());
+    const filtered = selectDiscoverRecipes(safeCuratedPools(searchPrefs), filters, new Set());
+    const filteredIds = new Set(filtered.map((r) => r.id));
+    const hiddenCount = unfiltered.filter(
+      (r) => !filteredIds.has(r.id) || ctx.hiddenRecipeIds.includes(r.id),
+    ).length;
+    const filteredFor = [...ctx.prefs.allergies, ...ctx.prefs.dietaryRestrictions];
+    return { hiddenCount, filteredFor };
   }
 }
 

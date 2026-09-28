@@ -229,4 +229,34 @@ export const recipeRouter = router({
     .query(async ({ ctx, input }) => {
       return recipeService.getMyRating(ctx.user.id, input.recipeId);
     }),
+
+  /**
+   * T-02.3: the detail-surface `CheckedForLine` payload for a recipe.
+   * Additive and separate from `mealPlan.getRecipe` (`safetyChecks: null`
+   * when the table has nothing to check) — see the recipe.service.ts
+   * doc comment for why this is its own query.
+   */
+  getSafetyChecks: protectedProcedure
+    .input(z.object({ recipeId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      return recipeService.getSafetyChecks(ctx.user.id, input.recipeId);
+    }),
+
+  /**
+   * T-02.5/T-01.4: the `FilteredForLine` count + active rule labels for
+   * Discover. A separate query from `discover` so an old client that only
+   * calls `discover` is unaffected.
+   */
+  discoverHiddenCount: protectedProcedure
+    .input(
+      z.object({
+        mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']).optional(),
+        search: z.string().max(100).optional(),
+        maxTotalMins: z.number().int().min(5).max(600).optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      return recipeService.discoverHiddenCount(ctx.user.id, input);
+    }),
 });
