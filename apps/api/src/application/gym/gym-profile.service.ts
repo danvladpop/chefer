@@ -196,6 +196,9 @@ export class GymProfileService {
         data.reminderEnabled = false;
       }
     }
+    // T-36.2 (bug B-40): per-day reminder times and the quiet-days nudge.
+    if (input.reminderTimes !== undefined) data.reminderTimes = toJson(input.reminderTimes);
+    if (input.quietNudgeDays !== undefined) data.quietNudgeDays = input.quietNudgeDays;
     if (input.weeklyGoal !== undefined && input.weeklyGoal !== row.weeklyGoal) {
       const fromWeek = weekStartOf(today);
       const history = readGoalHistory(row.goalHistory).filter((g) => g.fromWeek !== fromWeek);
@@ -362,6 +365,8 @@ export class GymProfileService {
         microPlates: inventory.microPlates,
         reminderEnabled: input.reminderTime !== null,
         reminderTime: input.reminderTime,
+        // T-36.2: new setups default the quiet-days nudge on at 5 days.
+        quietNudgeDays: 5,
         offerState: toJson({
           ...offerState,
           knownWeightsKg: { ...(offerState.knownWeightsKg ?? {}), ...knownWeightsKg },

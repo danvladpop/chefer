@@ -152,6 +152,8 @@ describe('GymProfileService.completeSetup', () => {
       reminderEnabled: true,
       reminderTime: '18:30',
       goalHistory: [{ fromWeek: '2026-09-21', goal: template.daysPerWeek }],
+      // T-36.2: new setups default the quiet-days nudge on at 5 days.
+      quietNudgeDays: 5,
     });
 
     // Returns a fresh bootstrap for the same device-local day.
@@ -244,6 +246,18 @@ describe('GymProfileService.save / recommend', () => {
       reminderEnabled: false,
       platePairsKg: [20, 10],
     });
+  });
+
+  it('T-36.2: saves per-day reminder times and the quiet-days nudge independently', async () => {
+    const { service, repo } = setup(profileRow());
+
+    await service.save(USER, { reminderTimes: { '1': '07:00', '4': '18:30' } });
+    expect(repo.update).toHaveBeenLastCalledWith(USER, {
+      reminderTimes: { '1': '07:00', '4': '18:30' },
+    });
+
+    await service.save(USER, { quietNudgeDays: null });
+    expect(repo.update).toHaveBeenLastCalledWith(USER, { quietNudgeDays: null });
   });
 
   it('a unit change re-folds every progression onto the new inventory (F-GYM-11-2)', async () => {

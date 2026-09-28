@@ -42,6 +42,7 @@ import {
 } from './gym-context.js';
 import {
   lookupFromRows,
+  readCarryOver,
   serverToday,
   toExerciseDto,
   toProfileDto,
@@ -137,6 +138,7 @@ export class GymBootstrapService {
       streak,
       offers: this.offers(ctx, progressions, allWeeks, sessionDates, today),
       activePause: this.activePause(pauses, today),
+      carryOver: ctx.profileRow ? readCarryOver(ctx.profileRow.carryOver) : [],
       bodyweightKg: latestWeight?.weightKg ?? null,
       olderBests: summarizeBests(olderRows.map((r) => toSessionSummary(toSessionDoc(r)))),
       serverTime: new Date().toISOString(),
@@ -172,6 +174,7 @@ export class GymBootstrapService {
       today,
       recentSessions,
       isDeload: isDeloadActive(ctx.offerState, today),
+      carryOver: readCarryOver(ctx.profileRow.carryOver),
     });
   }
 
