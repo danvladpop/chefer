@@ -168,7 +168,23 @@ export interface SessionSummaryDto {
     lastSetRir: Rir | null;
     /** Additive (mobile in stores may not send it): the note typed for this exercise that session. */
     notes?: string | null;
-    sets: { weightKg: number; reps: number; isWarmup: boolean; completed: boolean }[];
+    sets: {
+      weightKg: number;
+      reps: number;
+      isWarmup: boolean;
+      completed: boolean;
+      // S20 (T-42.0/T-42.2, Δ2.2): the same seven cardio fields as
+      // sessionSetDocSchema, additive/optional — a strength set omits them.
+      // Lets bootstrap.recentSessions / session.list show cardio history
+      // without shipping the full WorkoutSessionDoc.
+      durationSec?: number;
+      distanceM?: number;
+      intensityRpe?: number;
+      resistanceLevel?: number;
+      inclinePct?: number;
+      caloriesKcal?: number;
+      avgHeartRateBpm?: number;
+    }[];
   }[];
 }
 

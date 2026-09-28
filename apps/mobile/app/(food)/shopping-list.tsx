@@ -13,6 +13,7 @@ import {
   useScrollFieldIntoView,
 } from '@chefer/ui-mobile';
 import {
+  checkedForListHeaderText,
   cn,
   defaultWeekOffset,
   formatMoney,
@@ -20,6 +21,7 @@ import {
   formatQuantity,
   getWeekStartDate,
   isConvertedCurrency,
+  labelCaveatCompactText,
   perPortionCost,
   shoppingWindowLabel,
 } from '@chefer/utils';
@@ -28,6 +30,7 @@ import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { PantryCheckBanner } from '../../src/features/pantry/pantry-check-banner';
 import { PantryGhostBanner } from '../../src/features/pantry/pantry-ghost-banner';
 import { PantryPanel } from '../../src/features/pantry/pantry-panel';
+import { LabelCaveat } from '../../src/features/safety/label-caveat';
 import { CategoryHeader } from '../../src/features/shopping-list/category-header';
 import { parseCustomItemInput } from '../../src/features/shopping-list/parse-custom-item';
 import { useCurrency } from '../../src/hooks/use-currency';
@@ -300,6 +303,17 @@ export default function ShoppingListScreen() {
           </View>
         </View>
 
+        {/* T-02.1/T-02.4: the table has rules, so this list's items were
+            checked against them (PAT-2, UX-02 §3). */}
+        {weekList?.tableSafety?.hasRules && (
+          <View testID="shopping-safety-line" className="flex-row items-center gap-1.5">
+            <Ionicons name="shield-checkmark-outline" size={13} color="#944a00" />
+            <Text className="text-xs font-medium text-primary">
+              {checkedForListHeaderText(items.length)}
+            </Text>
+          </View>
+        )}
+
         {/* Cost badges (UX-08 §7/AC6: a range, never a single precise
             number; §7/AC7: the pantry savings chip is gone — B-33 until
             savings can be itemised). */}
@@ -476,6 +490,16 @@ export default function ShoppingListScreen() {
                                         Have it
                                       </Text>
                                     </View>
+                                  )}
+                                  {/* T-01.9: the risk sits in a bought product
+                                      (e.g. stock, oats, soy sauce) — the item
+                                      stays on the list, flagged inline. */}
+                                  {item.labelCheck && item.labelCheck.length > 0 && (
+                                    <LabelCaveat
+                                      testID={`shop-item-${item.key}-label`}
+                                      text={labelCaveatCompactText()}
+                                      compact
+                                    />
                                   )}
                                 </View>
                                 <Text numberOfLines={1} className="text-xs text-gray-500">

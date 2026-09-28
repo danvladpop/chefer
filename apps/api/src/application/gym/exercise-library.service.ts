@@ -7,7 +7,9 @@ import {
   type IExerciseRepository,
 } from '@chefer/database';
 import type { CustomExerciseInput, ExerciseDto, ExerciseEquipment, Muscle } from '@chefer/types';
+import { trackingTypeOf } from '@chefer/utils';
 import { ensureExerciseLibrary } from '../../lib/exercise-library/ensure.js';
+import { filterExerciseDtosForLevel } from './client-level.js';
 import { toExerciseDto } from './mappers.js';
 
 // ─── ExerciseLibraryService (gym_plan.md §4.1) ───────────────────────────────
@@ -72,6 +74,14 @@ export function customToWriteData(input: CustomExerciseInput): ExerciseWriteData
     perHand: input.equipment === 'DUMBBELL' || input.equipment === 'KETTLEBELL',
     isLowerBody: input.primaryMuscles.some((m) => LOWER_BODY.has(m)),
     isTimed: input.isTimed,
+    // S18 (T-42.2): the "How do you track it?" chips send trackingType
+    // directly; an old client sending only isTimed/loadType gets the same
+    // default the boot backfill would derive (Δ2.2).
+    trackingType: trackingTypeOf({
+      ...(input.trackingType !== undefined && { trackingType: input.trackingType }),
+      isTimed: input.isTimed,
+      loadType: input.loadType,
+    }),
     swapGroup: null,
     cues: input.cues,
     mistakes: [],
@@ -94,13 +104,13 @@ export class ExerciseLibraryService {
    * `archived`) because history still shows them. With `updatedSince`, only
    * rows changed at or after it (a delta; duplicates are harmless).
    */
-  async list(userId: string, updatedSince?: string): Promise<ExerciseDto[]> {
+  async list(userId: string, updatedSince?: string, level = 0): Promise<ExerciseDto[]> {
     await this.ensure();
     const rows = await this.repo.findVisible(
       userId,
       updatedSince ? new Date(updatedSince) : undefined,
     );
-    return rows.map(toExerciseDto);
+    return filterExerciseDtosForLevel(rows.map(toExerciseDto), level);
   }
 
   async get(userId: string, id: string): Promise<ExerciseDto> {

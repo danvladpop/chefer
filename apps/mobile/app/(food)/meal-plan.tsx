@@ -18,6 +18,7 @@ import {
 } from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
+  checkedForLineText,
   cn,
   defaultWeekOffset,
   formatMoney,
@@ -27,6 +28,7 @@ import {
   PLAN_TAILORING_COPY,
   planButtonLabel,
   planShapeSummary,
+  SAFETY_COPY,
   sumPlanDay,
   tailoringDayLabel,
   tailoringDayState,
@@ -40,6 +42,7 @@ import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sh
 import { TailoringBanner, TailoringDayMark } from '../../src/features/meal-plan/tailoring-banner';
 import { useTailoringWatch } from '../../src/features/meal-plan/use-tailoring-watch';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
+import { ReportSafetySheet } from '../../src/features/safety/report-sheet';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { useCurrency } from '../../src/hooks/use-currency';
 import { useHousehold } from '../../src/hooks/use-household';
@@ -90,6 +93,12 @@ export default function MealPlanScreen() {
     mealName: string;
     /** T-08.10 (bug B-50): never offer this slot's own recipe as its replacement. */
     recipeId: string;
+  } | null>(null);
+  // L-SAFE2/T-01.5: long-press "Report a safety problem" on a plan card,
+  // same sheet as the recipe-detail overflow action.
+  const [reportTarget, setReportTarget] = useState<{
+    recipeId: string;
+    recipeName: string;
   } | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -651,6 +660,38 @@ export default function MealPlanScreen() {
             {/* A log elsewhere swapped future meals — say which, offer undo */}
             <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
 
+            {/* T-02.4: week-level safety line — the table has rules, so this
+                week's meals were checked against them (PAT-2, UX-02 §3). A
+                plain text row is enough for this pass; the full
+                checked/needs-a-look/can't-check card is a later lane. The
+                title is always the exact SAFETY_COPY.weekCardTitle string
+                (Maestro asserts it verbatim); a representative rule list
+                from checkedForLineText follows as a second, muted line when
+                one can be assembled. */}
+            {plan.tableSafety?.hasRules && (
+              <View testID="plan-week-safety" className="gap-0.5 px-1">
+                <View className="flex-row items-center gap-1.5">
+                  <Ionicons name="shield-checkmark-outline" size={13} color="#944a00" />
+                  <Text className="text-xs font-medium text-primary">
+                    {SAFETY_COPY.weekCardTitle}
+                  </Text>
+                </View>
+                {(() => {
+                  const rules = plan.tableSafety.people.flatMap((person) =>
+                    person.items.slice(0, 2).map((item) => ({
+                      label: item.label,
+                      who: person.isOwner ? 'you' : person.who,
+                    })),
+                  );
+                  return rules.length > 0 ? (
+                    <Text variant="muted" numberOfLines={1} className="text-xs">
+                      {checkedForLineText(rules.slice(0, 3))}
+                    </Text>
+                  ) : null;
+                })()}
+              </View>
+            )}
+
             {/* Badges row */}
             <View className="flex-row flex-wrap gap-2">
               {plan.carriedOver && (
@@ -739,6 +780,7 @@ export default function MealPlanScreen() {
                     testID={`plan-meal-${meal.type}`}
                     day={selectedDay}
                     meal={meal}
+                    onReport={(recipeId, recipeName) => setReportTarget({ recipeId, recipeName })}
                     trailing={
                       // Replace this meal (all tiers) + toggle "Your pick"
                       // (T-07.4/T-08.3: a pinned slot survives Regenerate).
@@ -931,6 +973,19 @@ export default function MealPlanScreen() {
                 },
               ],
             })}
+          />
+
+          {/* L-SAFE2/T-01.5: long-press on a plan card → same report sheet as
+              recipe detail. Its own onSuccess already invalidates
+              `mealPlan` and `recipe.list` (utils), which refetches this
+              screen's active `getForWeek` query — hides the recipe from
+              future plans/replace lists, not from this already-served day. */}
+          <ReportSafetySheet
+            visible={reportTarget !== null}
+            onClose={() => setReportTarget(null)}
+            recipeId={reportTarget?.recipeId ?? ''}
+            recipeName={reportTarget?.recipeName ?? ''}
+            surface="plan_card"
           />
         </>
       )}

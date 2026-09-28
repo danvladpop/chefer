@@ -316,3 +316,85 @@ describe('gym outbox — flush', () => {
     expect(outbox.isFlushing()).toBe(false);
   });
 });
+
+describe('gym outbox — holdUntil / Undo (T-44.2, Δ2.3)', () => {
+  it('a held entry is not flushed before holdUntil, even when forced', async () => {
+    const { outbox, now } = setup();
+    const send = acking('applied');
+    outbox.configure({ send });
+    const doc = makeDoc(1);
+    outbox.enqueue(doc, { holdUntil: new Date(now() + 8_000).toISOString() });
+
+    const result = await outbox.flush({ force: true });
+    expect(result.status).toBe('skipped');
+    expect(result.reason).toBe('empty');
+    expect(send).not.toHaveBeenCalled();
+    expect(ids(outbox)).toEqual([doc.id]);
+  });
+
+  it('the entry flushes normally once the hold expires', async () => {
+    const { outbox, advance } = setup();
+    const send = acking('applied');
+    outbox.configure({ send });
+    const doc = makeDoc(1);
+    outbox.enqueue(doc, { holdUntil: new Date(1_000_000 + 8_000).toISOString() });
+
+    advance(8_001);
+    const result = await outbox.flush({ force: true });
+    expect(result.status).toBe('ok');
+    expect(result.applied).toBe(1);
+    expect(send).toHaveBeenCalledWith([doc]);
+    expect(outbox.getState().entries).toHaveLength(0);
+  });
+
+  it('cancelHeld (Undo) removes a held entry — AC4: Undo within the window sends nothing', async () => {
+    const { outbox, now } = setup();
+    const send = acking('applied');
+    outbox.configure({ send });
+    const doc = makeDoc(1);
+    outbox.enqueue(doc, { holdUntil: new Date(now() + 8_000).toISOString() });
+
+    const cancelled = outbox.cancelHeld(doc.id);
+    expect(cancelled?.doc.id).toBe(doc.id);
+    expect(outbox.getState().entries).toHaveLength(0);
+
+    await outbox.flush({ force: true });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('cancelHeld is a no-op once the hold has already expired', () => {
+    const { outbox, advance } = setup();
+    const doc = makeDoc(1);
+    outbox.enqueue(doc, { holdUntil: new Date(1_000_000 + 8_000).toISOString() });
+
+    advance(8_001);
+    expect(outbox.cancelHeld(doc.id)).toBeNull();
+    expect(ids(outbox)).toEqual([doc.id]);
+  });
+
+  it('a re-enqueue of the same session without holdUntil clears a stale hold (a live edit overtaking a pending delete)', async () => {
+    const { outbox, now } = setup();
+    const send = acking('applied');
+    outbox.configure({ send });
+    const held = makeDoc(1, { clientUpdatedAt: '2026-09-24T08:00:00.000Z' });
+    outbox.enqueue(held, { holdUntil: new Date(now() + 8_000).toISOString() });
+
+    const edited = makeDoc(1, { clientUpdatedAt: '2026-09-24T09:00:00.000Z', name: 'edited' });
+    outbox.enqueue(edited);
+
+    const result = await outbox.flush({ force: true });
+    expect(result.status).toBe('ok');
+    expect(send).toHaveBeenCalledWith([edited]);
+  });
+
+  it('enqueue without holdUntil behaves exactly as before (sendable immediately)', async () => {
+    const { outbox } = setup();
+    const send = acking('applied');
+    outbox.configure({ send });
+    outbox.enqueue(makeDoc(1));
+
+    const result = await outbox.flush({ force: true });
+    expect(result.status).toBe('ok');
+    expect(result.applied).toBe(1);
+  });
+});

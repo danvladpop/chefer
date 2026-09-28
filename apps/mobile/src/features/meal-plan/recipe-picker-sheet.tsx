@@ -6,6 +6,8 @@ import { buildPickerSections, filterReplaceCandidates } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc } from '../../lib/trpc';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
+import { CheckedForChip } from '../safety/checked-for-chip';
+import { FilteredForLine } from '../safety/filtered-for-line';
 
 // Bottom sheet for replacing one meal slot. Primary action: pick a specific
 // recipe (free tier included — replaceRecipe has no quota). Secondary, in the
@@ -92,6 +94,13 @@ export function RecipePickerSheet({
     { search: searchInput, limit: 30, forTable: true },
     { enabled: visible },
   );
+  // T-02.5/AC7: how many of the (safety-filtered) `allQuery` results this
+  // table's rules hid — same input shape as `allQuery` minus limit/forTable.
+  const hiddenCountQuery = trpc.recipe.listHiddenCount.useQuery(
+    { search: searchInput },
+    { enabled: visible },
+  );
+  const hiddenData = hiddenCountQuery.data;
 
   // (lane L-SAFE's server-side, safety-aware version — same signature).
   const filterOpts = { excludeRecipeId, slotType };
@@ -121,6 +130,15 @@ export function RecipePickerSheet({
         ) : undefined
       }
     >
+      {/* T-02.5/AC7: how many results the table's rules hid from this list. */}
+      {hiddenData && hiddenData.hiddenCount > 0 && (
+        <FilteredForLine
+          testID="picker-filtered-for"
+          filters={hiddenData.filteredFor.join(' + ')}
+          hiddenCount={hiddenData.hiddenCount}
+        />
+      )}
+
       {/* Search */}
       <View className="pb-2">
         <TextInput
@@ -197,6 +215,15 @@ export function RecipePickerSheet({
                   </Text>
                   <Text className="text-xs text-gray-500">{n.calories} kcal</Text>
                 </View>
+                {/* T-02.4: this row's own checked rules, next to the favourite
+                    heart — dislikes are already excluded server-side, so no
+                    dislike chip belongs here. */}
+                {recipe.safetyChecks?.checked && recipe.safetyChecks.checked.length > 0 && (
+                  <CheckedForChip
+                    testID={`picker-recipe-${recipe.id}-checked`}
+                    labels={recipe.safetyChecks.checked.map((c) => c.label)}
+                  />
+                )}
                 {recipe.isFavourite && <Ionicons name="heart" size={14} color="#944a00" />}
               </Pressable>
             );

@@ -4,6 +4,7 @@ export * from './vocab';
 export * from './engine';
 export * from './schemas';
 export * from './dto';
+export * from './cardio-catalog';
 export * from './exercise-catalog';
 export * from './exercise-content';
 export * from './templates';
