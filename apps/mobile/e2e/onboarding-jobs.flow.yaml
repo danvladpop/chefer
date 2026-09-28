@@ -42,9 +42,20 @@ appId: dev.chefer.app.dev
       visible: 'Continue'
     commands:
       - tapOn: 'Continue'
+# First-run explainer: Continue opens the dev menu on Android (its own
+# device-chrome overlay, not app UI) — close it (xmark on iOS, hardware
+# back on Android). Mirrors common/launch.yaml, which this flow's own
+# preamble otherwise duplicates by hand for the iOS "Open in Chefer Dev?"
+# dialog launch.yaml doesn't need to handle (it never clears state).
 - tapOn:
     id: 'xmark'
     optional: true
+- runFlow:
+    when:
+      platform: Android
+      visible: 'Reload'
+    commands:
+      - back
 
 # ── Register a throwaway account (Train + food path) ────────────────────────
 - evalScript: ${output.email = 'maestro-jobs-' + Date.now() + '@e2e.chefer.dev'}
