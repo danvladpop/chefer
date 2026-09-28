@@ -1,0 +1,152 @@
+# UX-40 slice 2 (T-40.7/T-40.9, AC12): the ingredient search combobox and
+# computed nutrition on the manual recipe form. Signs in as alice (catalog
+# has real ingredients with macros, e.g. "Oats, rolled" per the UX spec
+# mockup) — costs 1 login of the 10/15min per-IP budget.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-title'
+    commands:
+      - tapOn: '.*More.*'
+      - scrollUntilVisible:
+          element:
+            id: 'logout-button'
+          direction: DOWN
+          centerElement: true
+      - tapOn:
+          id: 'logout-button'
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 15000
+- tapOn:
+    id: 'login-email'
+- inputText: 'alice@chefer.dev'
+- tapOn:
+    id: 'login-password'
+- inputText: 'User@123!'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'login-submit'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+
+# ── Open the create-recipe form ──
+- tapOn: '.*Cookbook.*'
+- extendedWaitUntil:
+    visible:
+      id: 'recipes-title'
+    timeout: 45000
+- tapOn:
+    id: 'recipes-new'
+- extendedWaitUntil:
+    visible:
+      id: 'recipe-form-title'
+    timeout: 15000
+
+- tapOn:
+    id: 'rf-name-input'
+- inputText: 'Maestro oat test'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+
+# ── T-40.7: the name field opens the search sheet — type "oat", pick "Oats, rolled" ──
+- tapOn:
+    id: 'rf-ingredient-name-0'
+- extendedWaitUntil:
+    visible:
+      id: 'rf-ingredient-name-0-search-sheet'
+    timeout: 10000
+- tapOn:
+    id: 'rf-ingredient-name-0-search-sheet-input'
+- inputText: 'oat'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+# The debounce is 250ms; give the real API a moment to answer.
+- extendedWaitUntil:
+    visible: '.*Oats, rolled.*'
+    timeout: 10000
+- tapOn: '.*Oats, rolled.*'
+# The sheet closes once a row is picked.
+- assertNotVisible:
+    id: 'rf-ingredient-name-0-search-sheet'
+# The line now shows the "nutrition known" icon — AC12's link.
+- assertVisible:
+    id: 'rf-ingredient-name-0'
+
+- tapOn:
+    id: 'rf-ingredient-qty-0'
+- inputText: '80'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+
+# ── T-40.9: the computed nutrition card is the default, with a coverage line ──
+- scrollUntilVisible:
+    element:
+      id: 'rf-nutrition-computed'
+    direction: DOWN
+    centerElement: true
+- extendedWaitUntil:
+    visible:
+      id: 'rf-nutrition-computed-coverage'
+    timeout: 10000
+- assertVisible:
+    id: 'rf-nutrition-computed-kcal'
+
+# ── Edit numbers switches to the manual fields, prefilled ──
+- tapOn:
+    id: 'rf-nutrition-computed-edit'
+- assertVisible:
+    id: 'rf-kcal'
+- assertVisible:
+    id: 'rf-nutrition-use-calculated'
+# Back to the computed card, so this run leaves nothing half-edited.
+- tapOn:
+    id: 'rf-nutrition-use-calculated'
+- assertVisible:
+    id: 'rf-nutrition-computed'
+
+# ── Never save (this is a catalog/search smoke test, not a create test —
+#    recipes.flow.yaml and recipe-create-photo.flow.yaml already cover the
+#    save path). The form is already dirty (name + ingredient typed), so
+#    leaving opens the discard confirm — discard instead. ──
+- back
+- extendedWaitUntil:
+    visible: 'Discard your changes?'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Discard'
+    optional: true
