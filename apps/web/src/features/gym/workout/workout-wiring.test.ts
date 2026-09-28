@@ -58,6 +58,8 @@ const PROFILE: GymProfileDto = {
   microPlates: false,
   reminderEnabled: false,
   reminderTime: null,
+  reminderTimes: {},
+  quietNudgeDays: null,
   setupCompletedAt: '2026-09-01T10:00:00.000Z',
 };
 
