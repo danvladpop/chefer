@@ -7,18 +7,32 @@ import { OnboardingWizard } from '../../src/features/onboarding/onboarding-wizar
 // targets, finish) is covered by the Maestro flow this PR writes for the
 // orchestrator to run.
 
+/** RNTL types `.props` loosely — a small typed peek instead of `any` access. */
+function a11yState(
+  element: ReturnType<typeof screen.getByTestId>,
+): { disabled?: boolean; checked?: boolean } | undefined {
+  return (element.props as { accessibilityState?: { disabled?: boolean; checked?: boolean } })
+    .accessibilityState;
+}
+
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
   router: {
-    push: (...args: unknown[]) => mockPush(...args),
-    replace: (...args: unknown[]) => mockReplace(...args),
+    push: (href: string): void => {
+      mockPush(href);
+    },
+    replace: (href: string): void => {
+      mockReplace(href);
+    },
   },
 }));
 
 const mockSetMode = jest.fn();
 jest.mock('../../src/features/gym/mode-store', () => ({
-  setMode: (...args: unknown[]) => mockSetMode(...args),
+  setMode: (mode: string): void => {
+    mockSetMode(mode);
+  },
 }));
 
 jest.mock('../../src/hooks/use-is-premium', () => ({
@@ -79,25 +93,23 @@ describe('OnboardingWizard — Jobs step (UX-03)', () => {
 
   it('Continue is disabled with nothing selected (AC1)', async () => {
     await render(<OnboardingWizard />);
-    const continueBtn = screen.getByTestId('onboarding-continue');
-    expect(continueBtn.props.accessibilityState?.disabled).toBe(true);
+    expect(a11yState(screen.getByTestId('onboarding-continue'))?.disabled).toBe(true);
   });
 
   it('selecting a job enables Continue and its label counts (AC1)', async () => {
     await render(<OnboardingWizard />);
     await fireEvent.press(screen.getByTestId('onboarding-job-PLAN_MEALS'));
     expect(screen.getByText('Continue — 1 selected')).toBeTruthy();
-    const continueBtn = screen.getByTestId('onboarding-continue');
-    expect(continueBtn.props.accessibilityState?.disabled).toBeFalsy();
+    expect(a11yState(screen.getByTestId('onboarding-continue'))?.disabled).toBeFalsy();
   });
 
   it('tapping a selected card deselects it (AC1)', async () => {
     await render(<OnboardingWizard />);
     const card = screen.getByTestId('onboarding-job-TRAIN');
     await fireEvent.press(card);
-    expect(card.props.accessibilityState.checked).toBe(true);
+    expect(a11yState(card)?.checked).toBe(true);
     await fireEvent.press(card);
-    expect(card.props.accessibilityState.checked).toBe(false);
+    expect(a11yState(card)?.checked).toBe(false);
   });
 
   it('Train only hands off straight to gym setup (AC2)', async () => {
@@ -113,9 +125,11 @@ describe('OnboardingWizard — Jobs step (UX-03)', () => {
   it('"Just looking around" saves PLAN_MEALS and skips to Food Today', async () => {
     await render(<OnboardingWizard />);
     await fireEvent.press(screen.getByTestId('onboarding-skip'));
-    expect(mockSetJobsMutate).toHaveBeenCalledWith(
-      { jobs: ['PLAN_MEALS'] },
-      expect.objectContaining({ onSuccess: expect.any(Function) }),
-    );
+    const [input, opts] = mockSetJobsMutate.mock.calls[0] as [
+      { jobs: string[] },
+      { onSuccess?: () => void } | undefined,
+    ];
+    expect(input).toEqual({ jobs: ['PLAN_MEALS'] });
+    expect(typeof opts?.onSuccess).toBe('function');
   });
 });

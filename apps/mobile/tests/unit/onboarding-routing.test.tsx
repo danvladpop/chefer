@@ -139,10 +139,12 @@ describe('OnboardingWizard — "Just looking around" lands on the Food dashboard
 
     await user.press(screen.getByTestId('onboarding-skip'));
 
-    expect(setJobsMutate).toHaveBeenCalledWith(
-      { jobs: ['PLAN_MEALS'] },
-      expect.objectContaining({ onSuccess: expect.any(Function) }),
-    );
+    const [input, opts] = setJobsMutate.mock.calls[0] as [
+      { jobs: string[] },
+      { onSuccess?: () => void } | undefined,
+    ];
+    expect(input).toEqual({ jobs: ['PLAN_MEALS'] });
+    expect(typeof opts?.onSuccess).toBe('function');
   });
 });
 
