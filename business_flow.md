@@ -1595,6 +1595,73 @@ Mon}`, never an ISO date), with a start time shown only when two sessions
 Web parity: not yet built this wave — see `mobile_parity_backlog.md` (planned
 for W2 alongside the web today-view rework).
 
+### Save for later / carry the rest (UX-36 (3), T-36.3, CI-49)
+
+A cut-short workout is never just finish-or-bin. `workout-screen.tsx`'s
+bottom actions are `Finish workout` · `Save for later` · `Discard workout`:
+
+- **Save for later** — `saveForLater()` sets the active-session record's
+  `pausedAt` (`offline/active-session-store.ts`, device-only, never
+  uploaded) and returns to Gym Today; the Resume card enters its `paused`
+  state (see above). Opening the workout screen again (from the Resume card,
+  or `/gym/workout` directly) calls `resumeWorkout()`, clearing `pausedAt`.
+- **Finish with unstarted exercises** — if any whole exercise has zero logged
+  sets (`unstartedExercises()`, `packages/utils/src/gym/carry-over.ts`) AND
+  the session belongs to a routine day (a freestyle session has no "next
+  session" to carry into), the finish sheet becomes `{n} exercises not
+started` + their names + a `Move them to your next session` switch,
+  **on by default**. Confirming calls `finish(carryOverExerciseIds)`, which
+  stamps `WorkoutSessionDoc.carryOverExerciseIds` on the `finish` reducer
+  action (additive field) before the doc reaches the outbox. Turning the
+  switch off finishes with nothing carried, same as today.
+- **24 h auto-finish** — `checkPausedWorkoutTimeout(queryClient)`, checked
+  every time Gym Today comes into focus, finishes a session that's been
+  paused for 24 h or more with whatever was logged (D22: half sessions still
+  count) and carries over everything never started (there's no dialog to ask,
+  so it always carries), showing a one-time snackbar `We finished your
+{dayName} with {n} sets.`
+- **Server fold** — `workout-session.service.ts`'s `upsertMany` folds
+  `carryOverExerciseIds` for every newly-applied `COMPLETED` doc through
+  `nextCarryOver()` (consume what the doc addressed, add what it newly
+  carries over) and writes `GymProfile.carryOver`; idempotent on re-sends,
+  best-effort (a write failure never fails the sync). `gym.bootstrap`'s
+  `nextWorkout` (`buildNextWorkout()`) prepends the stored carry-over,
+  tagging each exercise `fromLastTime: true` — a carried exercise that no
+  longer exists in its source routine day/exercise is dropped silently
+  (self-healing after a routine edit). The offline optimistic fold
+  (`applyFinishedSession`) runs the identical `nextCarryOver` logic on the
+  cached bootstrap so it never drifts from the server's answer.
+
+Edge cases (UX-36): a freestyle session never carries over (no `routineDayId`).
+A pause starting while a session is saved for later still lets that session
+finish first, on its own terms. Carry-over follows whichever day it's
+attached to if that day later moves (T-04.8).
+
+Web parity: not built this wave — `mobile_parity_backlog.md`.
+
+### Missed planned day → a kind next step (T-04.8, UX-04 §7)
+
+A routine day pinned to a specific weekday (`plannedWeekday`, set from
+`Training days & reminders`) that's earlier this week and still has no
+completed session is "missed" — `missedPlannedDays({ activeRoutine,
+recentSessions, today })` (`packages/utils/src/gym/session.ts`), pure and
+unit-tested for every weekday including the Monday edge case (nothing can be
+missed on the first day of the week) and the Sunday edge case (every
+undone planned day of the week is still open to move). Gym Today shows a
+`Still time this week` card (hidden during a pause — already excused) with:
+
+- **`Move it to {day}`** (or **`Start it now`** on a Sunday) — both call
+  `gym.routine.setNextDay(routineId, missedDayId)`, the same rotation-pointer
+  mutation "Skip this day" and the day-picker use; the next workout becomes
+  that missed day.
+- **`Not this week`** — no mutation at all (D22: half sessions count, never
+  red, no nagging — missing a session changes nothing): the day is dismissed
+  for the current week only (`today/missed-day-dismissed.ts`, KV-keyed by
+  `weekStartOf(today)`, pruned to the last two weeks on write), with a
+  snackbar `No problem — missing a session changes nothing.`
+
+Web parity: not built this wave — `mobile_parity_backlog.md`.
+
 ### Done / rest states and the Food Today workout card (bug B-15, T-05.9/T-04.6)
 
 `bootstrap.nextWorkout` always reflects the **rotation's** next day, which
@@ -1688,6 +1755,12 @@ that mobile's Gym Today, and web's today-view, workout summary and
 streak`, no zero guard, three separate copies of the same bug). Mobile's
 `today-helpers.ts` `formatStreakLine()` layers the flex-week suffix on top of
 it; the web call sites call it directly.
+
+A `How this works` link on the Gym Today week card (`today/how-this-works-sheet.tsx`, T-36.4
+remainder) and the Stats consistency legend both open the same `ExplainSheet`: weeks-not-days
+(hit the weekly goal, missing a session changes nothing), flex weeks (one every 4 weeks), pause
+(nothing counts against you) and half sessions counting — the two links can never disagree
+because they render the identical sheet component.
 
 ### Skip with Undo, and a paused state on Gym Today (bug B-45, T-36.4)
 
@@ -1844,6 +1917,27 @@ streaks, no red "missed" markers.
   the setup wizard's reminder step, never on cold start. Web shows "Reminders
   are sent by the Chefer phone app" — it stores the preference but sends
   nothing itself.
+- **Quiet-days nudge (T-36.2, bug B-40):** an independent, gym-settings-only
+  toggle — `Nudge me if I've gone quiet for` `3 days` / `5 days` / `a week` /
+  `Never` (`GymProfile.quietNudgeDays`, `null` = off; new setups default to
+  5). `computeQuietNudge()` schedules exactly one notification that many days
+  after the last finished session (`Fancy a short one today? Your {dayName}
+is ready — about {min} min.`), never during a pause, never late if it's
+  computed after the due date already passed while offline.
+  `computeAllGymReminders()` merges it with the planned/missed reminders
+  above, deduped to at most one notification a day (a same-day planned
+  reminder wins); it reschedules on the same triggers (finish, launch) as
+  everything else in `useGymReminders()`, independent of the main
+  `reminderEnabled` toggle. Web parity: not built this wave —
+  `mobile_parity_backlog.md`.
+- **Rest-timer permission rationale (bug B-40):** the rest-timer's own
+  background-notification permission used to be requested cold, at workout
+  start (`use-active-workout.ts`'s `startWorkout()`). It's now asked with a
+  rationale sheet (`workout/rest-permission-sheet.tsx`: `Want a buzz when
+your rest is over, even with the phone locked?` / `Allow notifications` /
+  `Not now`) shown once, in context, the first time a rest actually begins
+  (`workout/rest-timer-bar.tsx`) — never cold, never more than once per
+  device.
 - **Streak repair — "Log a past workout" (mobile + web, G4-A):** pick a date
   in the current or previous week (never the future), then a routine day or
   freestyle. Starts a session backdated to that date's `localDate` with
@@ -1978,7 +2072,12 @@ Workout (offline on the phone) → Finish → outbox → gym.session.upsertMany(
   then ProgressionService.recompute(touched exercises):
     all completed exposures → group by rep bucket → engine foldHistory → state
     (overrides consumed by a newer exposure are cleared)
-  → phone invalidates gym.bootstrap → next workout + prescriptions for `today`
+  then (T-36.3) for every newly-applied COMPLETED doc, oldest first:
+    GymProfile.carryOver = engine nextCarryOver(carryOver, doc)
+      — consumes exercises the doc addressed, adds doc.carryOverExerciseIds
+      (best-effort; a write failure here never fails the sync)
+  → phone invalidates gym.bootstrap → next workout + prescriptions for `today`,
+    with GymProfile.carryOver prepended (tagged fromLastTime) by buildNextWorkout
 ```
 
 - **Re-syncs are harmless:** the same doc twice is one write; the rotation never advances twice
