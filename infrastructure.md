@@ -1181,7 +1181,7 @@ enum TargetChangeKind { CHANGED  SUGGESTED }
 enum ConsentKind      { TERMS  PRIVACY  AGE  AI  ANALYTICS_ANON  ANALYTICS_LINKED  EMAIL_WEEK_READY  EMAIL_RECAP  AUTO_PLAN  HEALTH }
 // Gym (gym_plan.md §2.2)
 enum ExerciseEquipment  { BARBELL  DUMBBELL  CABLE  MACHINE  BODYWEIGHT  SMITH  EZ_BAR  KETTLEBELL  BAND  ASSISTED
-                           TREADMILL  BIKE  ROWER  ELLIPTICAL  STAIR_CLIMBER  SKI_ERG  ASSAULT_BIKE  JUMP_ROPE  POOL  OUTDOOR }  // S19 (T-42.0, 06 §5.3) — cardio equipment, never sent to a client below API level 2
+                           TREADMILL  BIKE  ROWER  ELLIPTICAL  STAIR_CLIMBER  SKI_ERG  ASSAULT_BIKE  JUMP_ROPE  POOL  OUTDOOR }  // S19 (T-42.0, 06 §5.3) — cardio equipment, never sent to a client below API level 3
 enum ExerciseLoadType   { WEIGHTED  BODYWEIGHT  BODYWEIGHT_PLUS  ASSISTED }
 enum ExerciseCategory   { COMPOUND  ISOLATION }
 enum TrainingExperience { BEGINNER  INTERMEDIATE }
@@ -1234,7 +1234,7 @@ read-only.
 | #   | Model                       | Change                                                                                                                                                                           | Backfill / notes                                                                                                                                                                                                                                                                                                                                                |
 | --- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | S18 | `Exercise` + **NEW** enum   | `+ trackingType ExerciseTrackingType @default(WEIGHT_REPS)`; enum `WEIGHT_REPS, BODYWEIGHT_REPS, DURATION, DURATION_DISTANCE, DISTANCE, INTERVALS` (`INTERVALS` unused until W5) | Catalogue sync (T-42.1, not this PR) writes it for curated rows. **Idempotent boot backfill** (`gymTrackingBackfillService.backfillTrackingTypes()`, called from `apps/api/src/index.ts`): custom rows with `isTimed` → `DURATION`, `loadType BODYWEIGHT` → `BODYWEIGHT_REPS`. `isTimed` stays and is still written (old clients read it, never `trackingType`) |
-| S19 | `ExerciseEquipment` (enum)  | `+ TREADMILL, BIKE, ROWER, ELLIPTICAL, STAIR_CLIMBER, SKI_ERG, ASSAULT_BIKE, JUMP_ROPE, POOL, OUTDOOR` (06 §5.3)                                                                 | Never sent to a client below API level 2 (`renderableTrackingTypes`, §9); `exerciseEquipmentSchema` accepts them everywhere (Zod is shape-only), gating is a server READ-path concern owned by L-GYM's T-42.2, not this PR                                                                                                                                      |
+| S19 | `ExerciseEquipment` (enum)  | `+ TREADMILL, BIKE, ROWER, ELLIPTICAL, STAIR_CLIMBER, SKI_ERG, ASSAULT_BIKE, JUMP_ROPE, POOL, OUTDOOR` (06 §5.3)                                                                 | Never sent to a client below API level 3 (`renderableTrackingTypes`, §9, revised 2026-09-28 — cardio moved to level 3, not 2, since wave 1 already used 2); `exerciseEquipmentSchema` accepts them everywhere (Zod is shape-only), gating is a server READ-path concern owned by L-GYM's T-42.2, not this PR                                                    |
 | S20 | `SessionSet`                | `+ durationSec Int?`, `+ distanceM Float?`, `+ intensityRpe Int?`, `+ resistanceLevel Int?`, `+ inclinePct Float?`, `+ caloriesKcal Float?`, `+ avgHeartRateBpm Int?`            | None — null for every existing (strength) row                                                                                                                                                                                                                                                                                                                   |
 | S21 | `GymProfile` + **NEW** enum | `+ distanceUnit DistanceUnit?` (`KM \| MI`)                                                                                                                                      | Null ⇒ derived from `unit` (`MI` when `unit = LB`, else `KM`)                                                                                                                                                                                                                                                                                                   |
 
@@ -1279,10 +1279,17 @@ type — Δ2.2: cardio has no stored progression state; PR/e1RM/volume code need
 cardio `SessionSet` (`weightKg: 0, reps: 0`) already produces nothing in `bestE1rm`/`kindsBeaten`/`groupShare`.
 `gym-export.service.ts`'s CSV gained `Duration (s)`, `Distance (m)`, `Effort (RPE)` columns (blank for a strength
 row). New flag `cardioLogging` (`packages/types/src/feature-flags.ts`), off by default (Q-24).
+`packages/types/src/gym/dto.ts`'s `SessionSummaryDto['exercises'][number]['sets']` also gained the same seven S20
+fields (additive/optional; `toSessionSummary`, `packages/utils/src/gym/session.ts`, maps them) so
+`bootstrap.recentSessions`/`gym.session.list` can show cardio history without shipping the full `WorkoutSessionDoc`.
 
-Contract test **NEW** `apps/mobile/tests/contract/gym-cardio.contract.test.ts` pins AC10 (a level-0/1
-`gym.bootstrap`/`gym.library.list` contains no cardio row) plus level-2 round-tripping, a mixed session dropping
-only its cardio exercise for an old reader, and `progression.recompute` never creating a row for a cardio exercise.
+**Cardio is level 3, not 2** — see the §9 note. `renderableTrackingTypes(level >= 3)` is what actually gates all of
+the above; nothing here is reachable below level 3 regardless of `cardioLogging`.
+
+Contract test **NEW** `apps/mobile/tests/contract/gym-cardio.contract.test.ts` pins AC10 (a level-0/1/2 —
+including the live App Store build — `gym.bootstrap`/`gym.library.list` contains no cardio row) plus level-3
+round-tripping, a mixed session dropping only its cardio exercise for an old reader, and `progression.recompute`
+never creating a row for a cardio exercise.
 
 ---
 
@@ -2135,41 +2142,39 @@ all, and firing the sheet for the entire existing user base the moment this ship
 the design calls for; it only fires for an account that already went through the new consent
 flow and the document version has since moved past what it recorded.
 
-**Gym client API levels 2–3 (Δ2.1, T-42.0, UX-42):** `ctx.clientApiLevel` gains two more meanings
-for the gym domain, still the same header/hydration (above) — no new parsing. A level is only
-ever sent by a bundle that implements it.
+**Gym client API levels 2–4 (Δ2.1, T-42.0, UX-42, revised 2026-09-28):** `ctx.clientApiLevel`
+gains three more meanings for the gym domain, still the same header/hydration (above) — no new
+parsing. A level is only ever sent by a bundle that implements it.
 
-| Level | Sent by                            | Means the client…                                                                                                                               |
-| ----- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | installed binaries before W0's OTA | knows nothing below                                                                                                                             |
-| 1     | W0+                                | handles the health-consent error (§2.8)                                                                                                         |
-| 2     | W2 L-GYM's OTA (⚖ D-20 b) or W5    | renders `trackingType` `DURATION_DISTANCE`/`DISTANCE`, the cardio `SessionSet` fields and the cardio equipment values; logs cardio as one entry |
-| 3     | W5 L-GYMDATA's OTA                 | also renders `INTERVALS`, requested exercises (`origin: REQUESTED`, status chips) and routine cardio slots                                      |
+| Level | Sent by                                                              | Means the client…                                                                                                                               |
+| ----- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | installed binaries before W0's OTA                                   | knows nothing below                                                                                                                             |
+| 1     | W0+                                                                  | handles the health-consent error (§2.8)                                                                                                         |
+| 2     | wave-1 OTA (T-39.1/T-26.5), incl. the live App Store build 1.0.0 (5) | sign-up consent checkboxes (unrelated to gym) — **renders no cardio**; see the note below                                                       |
+| 3     | W2 L-GYM's OTA (⚖ D-20 b) or W5                                      | renders `trackingType` `DURATION_DISTANCE`/`DISTANCE`, the cardio `SessionSet` fields and the cardio equipment values; logs cardio as one entry |
+| 4     | W5 L-GYMDATA's OTA                                                   | also renders `INTERVALS`, requested exercises (`origin: REQUESTED`, status chips) and routine cardio slots                                      |
 
 `renderableTrackingTypes(level)` (`apps/api/src/application/gym/client-level.ts`, T-42.0) =
 strength types (`WEIGHT_REPS`, `BODYWEIGHT_REPS`) + `DURATION` at every level (a timed exercise —
 plank, carries — already renders on every shipped client) + `DURATION_DISTANCE`/`DISTANCE` at
-level ≥ 2 + `INTERVALS` at level ≥ 3. **T-42.2 (L-GYM) wired it** into the four read paths
+level ≥ 3 + `INTERVALS` at level ≥ 4. **T-42.2 (L-GYM) wired it** into the four read paths
 (`gym.bootstrap`, `gym.library.list`, `gym.session.get`, `gym.session.list` — dropping
 non-renderable library rows and session exercises via `filterExerciseDtosForLevel`/
-`filterSessionExercisesForLevel`). Re-inserting a level < 3 client's stored routine cardio slots
+`filterSessionExercisesForLevel`). Re-inserting a level < 4 client's stored routine cardio slots
 on `gym.routine.save` is still open — routine cardio slots don't exist until W5's S22, so there is
 nothing to re-insert yet. When a client moves up a level, the OTA that bumps it also bumps
 `GYM_CACHE_SCHEMA_VERSION` (mobile `features/gym/offline/query-persistence.ts`) so its persisted
 library cache — filtered under the old level — is dropped for a full re-bootstrap.
 
-> **⚠ Merge-order risk found while wiring T-42.2 (2026-09-28):** wave 1 already bumped
-> `x-chefer-api-level` to `2` for an unrelated fix (`fix(api,mobile,web): gate sign-up consent on
-clientApiLevel 2, not 1`, commit `66470eb8`) — see the rollout note below. That means **every
-> currently-active mobile install already sends level 2**, not just a future T-42.3 OTA. The level
-> gate this section relies on ("a level is only sent by a bundle that implements it") is broken for
-> cardio specifically: the moment T-42.1/T-42.2 reach production, the _already-shipped_ app (which
-> has no cardio UI yet — `cardioLogging` is off by default, Q-24, but that only hides the `Cardio`
-> chip, not the raw rows) starts receiving 12 new `ExerciseDto` rows with unfamiliar `equipment`
-> values (`TREADMILL`, `BIKE`, …) in `gym.bootstrap.library`/`gym.library.list` any screen that
-> iterates the full library without a trackingType filter would now render. Before merging T-42.1
-> ahead of T-42.3: audit the current mobile/web exercise-library UI for a non-exhaustive
-> switch/map over `ExerciseEquipment`, or hold T-42.1/T-42.2 until T-42.3 ships in the same OTA.
+> **Cardio is level 3, not 2 (orchestrator decision, 2026-09-28):** wiring T-42.2 first at "level
+> ≥ 2" found that wave 1 had already bumped `x-chefer-api-level` to `2` for an unrelated fix
+> (`fix(api,mobile,web): gate sign-up consent on clientApiLevel 2, not 1`, commit `66470eb8`) — see
+> the rollout note below. That meant every currently-active mobile install, including the live App
+> Store build 1.0.0 (5), already sent level 2 with no cardio UI to render it. Cardio moved to the
+> next unclaimed level (3) and `INTERVALS` to 4, restoring "a level is only ever sent by a bundle
+> that implements it" for the gym domain. The mobile bundle (`trpc-links.ts`) and web
+> (`trpc-provider.tsx`/`trpc-server.ts`) switch to `'3'` only in the same commit that ships their
+> cardio rendering (mobile with T-42.3, web with T-42.5) — never ahead of it.
 
 **`HEALTH_CONSENT_ENFORCE` rollout (§2.8, wave 1 T-26.1):** ship the API at `off` → ship web +
 mobile OTA sending `x-chefer-api-level: 1` (T-00.8, already done; wave 1 bumped it further to

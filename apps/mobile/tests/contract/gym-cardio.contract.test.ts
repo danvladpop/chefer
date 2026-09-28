@@ -8,8 +8,13 @@ import { API_URL, CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './cl
 
 // ─── T-42.2 / Δ2.1: the client-level filter (gym.bootstrap, gym.library.list,
 // gym.session.get, gym.session.list) gates every cardio-typed row an old
-// (level 0/1) client is ever sent. This is the gate the plan calls out as
-// safety-critical for installed apps — AC10 asserts it directly. ────────────
+// (level < 3) client is ever sent. This is the gate the plan calls out as
+// safety-critical for installed apps — AC10 asserts it directly.
+//
+// Cardio is level 3, not 2 (revised 2026-09-28): wave 1 already shipped
+// level 2 for an unrelated fix (sign-up consent checkboxes, T-39.1/T-26.5),
+// so the CURRENTLY LIVE App Store build (1.0.0 (5)) already sends level 2 —
+// it must never see cardio. Levels 0/1/2 all render strength-only.
 
 const NOW = Date.now();
 const iso = (offsetMin: number) => new Date(NOW + offsetMin * 60_000).toISOString();
@@ -146,8 +151,8 @@ describe('gym cardio: client-level filtering (T-42.2, Δ2.1)', () => {
     token = user.session.token;
   });
 
-  it('AC10: a level-0 and level-1 bootstrap/library contain no cardio-typed row', async () => {
-    for (const level of [0, 1]) {
+  it('AC10: a level-0/1/2 bootstrap/library contain no cardio-typed row (2 = the live App Store build)', async () => {
+    for (const level of [0, 1, 2]) {
       const c = leveledClient(level, token);
       const boot = await c.gym.bootstrap.query({ today: localDate });
       expect(
@@ -162,8 +167,8 @@ describe('gym cardio: client-level filtering (T-42.2, Δ2.1)', () => {
     }
   });
 
-  it('a level-2 bootstrap/library DO include the cardio catalogue rows', async () => {
-    const c = leveledClient(2, token);
+  it('a level-3 bootstrap/library DO include the cardio catalogue rows', async () => {
+    const c = leveledClient(3, token);
     const boot = await c.gym.bootstrap.query({ today: localDate });
     expect(boot.library.some((e) => e.id === BIKE_ID)).toBe(true);
     const list = await c.gym.library.list.query();
@@ -171,13 +176,13 @@ describe('gym cardio: client-level filtering (T-42.2, Δ2.1)', () => {
     expect(bike?.trackingType).toBe('DURATION_DISTANCE');
   });
 
-  it('a mixed session (bench + bike) uploads at any level, but a level-0/1 read drops the cardio exercise while keeping the session', async () => {
-    const writer = leveledClient(2, token);
+  it('a mixed session (bench + bike) uploads at any level, but a level-0/1/2 read drops the cardio exercise while keeping the session', async () => {
+    const writer = leveledClient(3, token);
     const doc = mixedDoc();
     const res = await writer.gym.session.upsertMany.mutate({ docs: [doc] });
     expect(res.results).toEqual([{ id: doc.id, status: 'applied' }]);
 
-    for (const level of [0, 1]) {
+    for (const level of [0, 1, 2]) {
       const c = leveledClient(level, token);
       const got = await c.gym.session.get.query({ id: doc.id });
       // The session itself is never dropped — only the cardio exercise inside it.
@@ -191,8 +196,8 @@ describe('gym cardio: client-level filtering (T-42.2, Δ2.1)', () => {
     }
   });
 
-  it('AC6/level 2: session.get round-trips the cardio set fields exactly', async () => {
-    const writer = leveledClient(2, token);
+  it('AC6/level 3: session.get round-trips the cardio set fields exactly', async () => {
+    const writer = leveledClient(3, token);
     const doc = mixedDoc();
     await writer.gym.session.upsertMany.mutate({ docs: [doc] });
 
@@ -208,7 +213,7 @@ describe('gym cardio: client-level filtering (T-42.2, Δ2.1)', () => {
   });
 
   it('progression.recompute skips the cardio exercise — no progression row is ever created for it', async () => {
-    const writer = leveledClient(2, token);
+    const writer = leveledClient(3, token);
     const doc = mixedDoc();
     await writer.gym.session.upsertMany.mutate({ docs: [doc] });
 
