@@ -25,7 +25,7 @@ import {
 } from '../../lib/ingredient-prices/index.js';
 import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js';
 import { householdService } from '../household/household.service.js';
-import { buildPantryMatcher } from '../pantry/pantry-match.js';
+import { buildPantryCoverageMatcher } from '../pantry/pantry-match.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { inferCategory } from '../shared/category-map.js';
 import { householdScaleFactor } from '../shared/household-scale.js';
@@ -55,6 +55,16 @@ export interface ShoppingListItemForWeek {
    * accounts; the one-tap re-add clears the pantry row (`pantry.markOutOfStock`).
    */
   pantryCovered?: boolean;
+  /**
+   * Bug B-24 (T-BUG-24): the pantry has SOME of this line but not all of it
+   * — `quantity`/`estimatedPriceEur` above are already reduced to the
+   * remaining amount to buy, and this is what the pantry already covers (in
+   * the same unit), so the UI can say "You have {haveQuantity} of {need +
+   * haveQuantity} · Buy {quantity}". Only ever set for `pantryPlanning`
+   * accounts; absent for a full match (`pantryCovered: true` instead) or no
+   * match at all.
+   */
+  haveQuantity?: number;
 }
 
 /** F3 pantry summary attached to every served list. */
@@ -250,7 +260,7 @@ export class ShoppingListService {
       return { items, estimatedTotalEur, pantry: { entitled, itemCount: 0, savedEur: 0 } };
     }
 
-    const matcher = buildPantryMatcher(
+    const matcher = buildPantryCoverageMatcher(
       pantryRows.map((row) => ({
         name: row.ingredientName,
         quantity: row.quantity,
@@ -261,32 +271,42 @@ export class ShoppingListService {
     // that pantry row must not flip the same line to "have it", drop it
     // from the total and count it as saved (audit F-PAN-1-1).
     const ticked = new Set(checkedKeys);
-    const coveredKeys = new Set(
-      items
-        .filter(
-          (item) =>
-            !item.isCustom &&
-            !ticked.has(item.key) &&
-            matcher(item.ingredientName, {
-              quantity: parseFloat(item.quantity),
-              unit: item.unit,
-            }) !== null,
-        )
-        .map((item) => item.key),
-    );
     const round = (v: number) => Math.round(v * 100) / 100;
+
+    // Bug B-24 (T-BUG-24): a pantry row that covers SOME but not all of a
+    // line is a PARTIAL match — the item stays on the list at its remaining
+    // (need − have) amount, instead of either the whole line or nothing.
+    const marked = items.map((item) => {
+      if (item.isCustom || ticked.has(item.key)) return item;
+      const need = parseFloat(item.quantity);
+      const hit = matcher(item.ingredientName, { quantity: need, unit: item.unit });
+      if (!hit) return item;
+      if (hit.haveQuantity === null || hit.haveQuantity >= need) {
+        return { ...item, pantryCovered: true };
+      }
+      if (hit.haveQuantity <= 0) return item;
+      const remaining = need - hit.haveQuantity;
+      const priceFactor = need > 0 ? remaining / need : 1;
+      return {
+        ...item,
+        haveQuantity: round(hit.haveQuantity),
+        quantity: formatLineQuantity(remaining),
+        ...(item.estimatedPriceEur !== null && {
+          estimatedPriceEur: round(item.estimatedPriceEur * priceFactor),
+        }),
+      };
+    });
+
+    const originalPriceByKey = new Map(items.map((item) => [item.key, item.estimatedPriceEur]));
     const savedEur = round(
-      items
-        .filter((item) => coveredKeys.has(item.key))
-        .reduce((sum, item) => sum + (item.estimatedPriceEur ?? 0), 0),
+      marked
+        .filter((item) => item.pantryCovered)
+        .reduce((sum, item) => sum + (originalPriceByKey.get(item.key) ?? 0), 0),
     );
     const pantry: ShoppingListPantryInfo = { entitled, itemCount: pantryRows.length, savedEur };
 
     if (!entitled) return { items, estimatedTotalEur, pantry };
 
-    const marked = items.map((item) =>
-      coveredKeys.has(item.key) ? { ...item, pantryCovered: true } : item,
-    );
     const priced = marked.filter((item) => item.estimatedPriceEur !== null);
     const newTotal =
       priced.length > 0

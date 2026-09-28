@@ -1,4 +1,4 @@
-import { isShortOf } from '../shopping-list/aggregate.js';
+import { coveredQuantity, isShortOf } from '../shopping-list/aggregate.js';
 import { isStapleIngredient } from './staples.js';
 
 // ─── Pantry ↔ ingredient matching (F3, pure) ─────────────────────────────────
@@ -92,6 +92,52 @@ export function buildPantryMatcher(
       (entry) => namesMatch(entry.name, ingredientName) && !(need && isShortOf(entry, need)),
     );
     return hit?.name ?? null;
+  };
+}
+
+/** A pantry row that covers a list line, in full or in part (T-BUG-24, bug B-24). */
+export interface PantryCoverage {
+  name: string;
+  /**
+   * The pantry row's amount expressed in the list line's unit — `null` when
+   * the amount is unknown ("some") or the units can't be compared (treated
+   * as full coverage, same as `buildPantryMatcher`). When set and less than
+   * `need.quantity`, the match is PARTIAL: the caller still owes the rest.
+   */
+  haveQuantity: number | null;
+}
+
+/**
+ * Like `buildPantryMatcher`, but a pantry row with less than the needed
+ * amount is still returned (as a PARTIAL match, `haveQuantity` set) instead
+ * of being treated as no match at all — so the list can say
+ * "You have {have} of {need} · Buy {n}" instead of asking to buy the whole
+ * line (bug B-24). Ties break toward the entry with the most coverage.
+ */
+export function buildPantryCoverageMatcher(
+  pantry: PantryEntry[],
+): (ingredientName: string, need?: { quantity: number; unit: string }) => PantryCoverage | null {
+  const entries = pantry
+    .map((entry) =>
+      typeof entry === 'string'
+        ? { name: normalize(entry), quantity: 0, unit: '' }
+        : { ...entry, name: normalize(entry.name) },
+    )
+    .filter((entry) => entry.name.length > 0);
+  return (ingredientName, need) => {
+    if (isStapleIngredient(ingredientName)) return null;
+    const matches = entries.filter((entry) => namesMatch(entry.name, ingredientName));
+    if (matches.length === 0) return null;
+    if (!need) return { name: matches[0]!.name, haveQuantity: null };
+    let best: PantryCoverage | null = null;
+    for (const entry of matches) {
+      const have = coveredQuantity(entry, need);
+      const covered: PantryCoverage = { name: entry.name, haveQuantity: have };
+      if (have === null) return covered; // an unknown-amount row fully covers — nothing beats that
+      if (!best || (best.haveQuantity ?? 0) < have) best = covered;
+      if (have >= need.quantity) break;
+    }
+    return best;
   };
 }
 

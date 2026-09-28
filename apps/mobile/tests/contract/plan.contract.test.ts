@@ -137,6 +137,43 @@ describe('mealPlan.replaceRecipe — safety rejection (B-34/B-46, T-00.11)', () 
   });
 });
 
+describe('mealPlan.planDay (wave-1 L-PLAN, "Plan this day")', () => {
+  it('fills an unplanned day without touching any other day, then rejects a second fill', async () => {
+    const plan = await client.mealPlan.getForWeek.query({ weekOffset: 0 }).catch(() => null);
+    const unplannedDay = plan?.days.find((d) => d.meals.length === 0);
+    if (!plan || !unplannedDay) {
+      console.warn('[plan.contract] no unplanned day this week — planDay not exercised');
+      return;
+    }
+
+    const otherDaysBefore = plan.days
+      .filter((d) => d.dayOfWeek !== unplannedDay.dayOfWeek)
+      .map((d) => ({ dayOfWeek: d.dayOfWeek, recipeIds: d.meals.map((m) => m.recipe.id) }));
+
+    const result = await client.mealPlan.planDay.mutate({
+      planId: plan.planId,
+      dayOfWeek: unplannedDay.dayOfWeek,
+    });
+
+    const filled = result.days.find((d) => d.dayOfWeek === unplannedDay.dayOfWeek);
+    expect(filled?.meals.length).toBeGreaterThan(0);
+
+    const otherDaysAfter = result.days
+      .filter((d) => d.dayOfWeek !== unplannedDay.dayOfWeek)
+      .map((d) => ({ dayOfWeek: d.dayOfWeek, recipeIds: d.meals.map((m) => m.recipe.id) }));
+    expect(otherDaysAfter).toEqual(otherDaysBefore);
+
+    // A day that already has a plan is not `planDay`'s job — Replace/
+    // Regenerate own that.
+    await expect(
+      client.mealPlan.planDay.mutate({
+        planId: plan.planId,
+        dayOfWeek: unplannedDay.dayOfWeek,
+      }),
+    ).rejects.toThrow();
+  });
+});
+
 describe('mealPlan week templates (My Weeks contract)', () => {
   it('save → list → rename → delete leaves no trace', async () => {
     const plan = await client.mealPlan.getForWeek.query({ weekOffset: 0 }).catch(() => null);

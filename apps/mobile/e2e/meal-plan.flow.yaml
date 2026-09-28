@@ -54,8 +54,59 @@ appId: dev.chefer.app.dev
                 notVisible:
                   id: 'picker-search'
                 timeout: 5000
+# Plan settings sheet (UX-07 T-07.5) — header "Plan settings" button, only
+# once the shape has loaded. Open, assert the form + Save, close WITHOUT
+# saving (a save with an existing plan opens the regenerate confirm below).
+- runFlow:
+    when:
+      notVisible:
+        id: 'plan-empty'
+    commands:
+      - tapOn:
+          id: 'plan-settings-open'
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'plan-settings-title'
+          commands:
+            - assertVisible:
+                id: 'plan-settings-save'
+            - tapOn:
+                id: 'plan-settings-close'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'plan-settings-title'
+                timeout: 5000
+
+# Visible Regenerate action row (UX-08 T-08.2/T-08.3) — under the day chips,
+# not only behind the week-summary sheet. It now always asks first: open the
+# confirm and Cancel WITHOUT confirming (a confirm would replace the week).
+- runFlow:
+    when:
+      notVisible:
+        id: 'plan-empty'
+    commands:
+      - assertVisible:
+          id: 'plan-regenerate-action'
+      - tapOn:
+          id: 'plan-regenerate-action'
+      - extendedWaitUntil:
+          visible:
+            id: 'regenerate-confirm-title'
+          timeout: 10000
+      - assertVisible:
+          id: 'regenerate-confirm-cancel'
+      - tapOn:
+          id: 'regenerate-confirm-cancel'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'regenerate-confirm-title'
+          timeout: 5000
+
 # Week summary sheet (tap the week label) — holds the WEEK-level actions.
-# Read-only: assert Regenerate exists but NEVER tap it (real AI cost).
+# Read-only: assert Regenerate exists but NEVER tap it (real AI cost) — it
+# now opens the same confirm as the row above.
 - runFlow:
     when:
       notVisible:

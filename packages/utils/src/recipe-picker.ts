@@ -5,6 +5,44 @@ export interface PickerSection<T> {
   data: T[];
 }
 
+// ─── Replace candidates (T-08.10, bug B-50) ────────────────────────────────────
+// The server-side, safety-aware version of this filter lives at
+// `apps/api/src/application/recipe/recipe-access.ts` (lane L-SAFE, not yet on
+// this branch). This is a pure, signature-identical stand-in so the mobile
+// Replace picker can dedupe, drop the meal being replaced and narrow to the
+// slot's type today; the orchestrator swaps the import at integration.
+// T-08.10: switch to recipe-access.filterReplaceCandidates at integration.
+export interface ReplaceCandidateLike {
+  id: string;
+  mealType?: string | null | undefined;
+}
+
+export interface FilterReplaceCandidatesOptions {
+  /** Narrows to recipes tagged for this slot; rows without `mealType` pass. */
+  slotType?: string;
+  /** The recipe currently in the slot — never offered as its own replacement. */
+  excludeRecipeId?: string;
+}
+
+/** Dedupes by id, drops `excludeRecipeId`, and filters by `slotType` (rows without `mealType` pass). */
+export function filterReplaceCandidates<T extends ReplaceCandidateLike>(
+  candidates: readonly T[],
+  opts: FilterReplaceCandidatesOptions = {},
+): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const candidate of candidates) {
+    if (opts.excludeRecipeId && candidate.id === opts.excludeRecipeId) continue;
+    if (seen.has(candidate.id)) continue;
+    if (opts.slotType && candidate.mealType != null && candidate.mealType !== opts.slotType) {
+      continue;
+    }
+    seen.add(candidate.id);
+    result.push(candidate);
+  }
+  return result;
+}
+
 export function buildPickerSections<T extends { id: string; isFavourite?: boolean }>(
   mine: T[] | undefined,
   all: T[] | undefined,

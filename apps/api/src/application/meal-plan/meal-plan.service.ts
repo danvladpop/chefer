@@ -22,6 +22,8 @@ import {
   householdPortionSum,
   PLAN_PORTION_STEPS,
   proteinGapG,
+  resolvePlanDays,
+  resolvePlanSlots,
   slotPortion,
   trainingDayBonus,
   trainingWeekdays,
@@ -61,9 +63,25 @@ import {
   trainingNutritionService,
   type TrainingNutritionService,
 } from '../training-nutrition/training-nutrition.service.js';
-import { planCuratedWeek } from './curated-planner.js';
+import { planCuratedWeek, type CuratedShapeOptions } from './curated-planner.js';
 import { reconcileRecipeMacros } from './macro-reconcile.js';
+import { planShapeService } from './plan-shape.service.js';
 import { withServerRecipeIds } from './recipe-ids.js';
+
+/**
+ * §T-10.4: machine-readable cause for the free curated pool being exhausted
+ * (`PRECONDITION_FAILED`) — not yet exposed on the client-visible error
+ * shape. `apps/api/src/lib/trpc.ts`'s `errorFormatter` would need a case for
+ * it (mirroring `ConflictCause` → `shape.data.conflict`, `lib/conflict.ts`)
+ * to reach `shape.data`; that file isn't owned by this lane (see the PR's
+ * handoff note). The human-readable `message` is unchanged either way, so
+ * old clients keep working exactly as before.
+ */
+export class PoolExhaustedCause extends Error {
+  constructor() {
+    super('POOL_EXHAUSTED');
+  }
+}
 
 // ─── Summary DTO ──────────────────────────────────────────────────────────────
 
@@ -104,6 +122,13 @@ export interface RecipeDto {
    * clients ignore it (audit F-REC-2-3, F-PLAN-1-7).
    */
   allergenWarnings?: string[];
+  /**
+   * §T-08.5/T-08.6: on `replaceRecipe`/`swapRecipe`'s response, the recipe id
+   * that WAS in the slot — lets the client offer `Undo` (call the same
+   * mutation again with this id). Absent when there was nothing to undo to
+   * (e.g. an empty slot) or the DTO isn't a swap/replace response.
+   */
+  previousRecipeId?: string;
 }
 
 export interface MealSlotDto {
@@ -118,6 +143,12 @@ export interface MealSlotDto {
    * this portion. Additive — older clients ignore it and show 1×.
    */
   portion?: number;
+  /**
+   * §2.3, T-07.4: the user chose this exact dish — the card shows
+   * `Your pick`, and it survives `generate({ keepPinned: true })` when it
+   * still passes the safety filter. Additive; absent = not pinned.
+   */
+  pinned?: boolean;
 }
 
 export interface DayPlanDto {
@@ -129,6 +160,22 @@ export interface DayPlanDto {
    * "Protein short by N g — add a snack" instead of calling the day on target.
    */
   proteinGapG?: number;
+  /**
+   * §2.3, T-07.2: false when this day is outside the user's chosen days (the
+   * user cooks nothing this day) — `meals` is `[]`. Reliable on the response
+   * that generated the plan; a later read (`getForWeek`/`getById`/…) omits
+   * it rather than guess (no schema column yet to persist it — see the plan
+   * shape doc comment on `WeekPlanDto`). Absent = treat as planned (every
+   * day, for a plan made before this field existed).
+   */
+  planned?: boolean;
+  /**
+   * §2.3, T-07.2: present only on the response that generated the plan, when
+   * a chosen day's pool couldn't fill every wanted slot — `reason: 'time'`
+   * (nothing left inside the time cap) or `'pool'` (the pool itself was
+   * empty for that meal type).
+   */
+  unfilled?: { slot: MealType; reason: 'time' | 'pool' }[];
 }
 
 export const MAX_WEEK_TEMPLATES = 4;
@@ -182,6 +229,30 @@ export interface WeekPlanDto {
     dislikedCount: number;
     /** F3: pantry items the generated week actually uses (use-first order). */
     usedPantryItems: string[];
+  };
+  /**
+   * §T-08.3: the same-week plan this `generate` call replaced, `undefined`
+   * when there wasn't one. Clients offer `Undo` → `mealPlan.restore({
+   * planId: previousPlanId })` (unchanged). Present only on `generate`'s own
+   * response, not on later reads.
+   */
+  previousPlanId?: string;
+  /**
+   * §T-07.4: present only on a `generate({ keepPinned: true })` response —
+   * how many of the previous plan's pinned slots could not be kept (the day
+   * is no longer planned, no longer has that meal type, or the pinned dish
+   * now fails the safety filter).
+   */
+  droppedPinned?: number;
+  /**
+   * §T-10.7 ("What Premium changed", rev 2): present only on a PREMIUM
+   * regeneration response. One-time, kind-aware lines the Plan tab can show
+   * above the day view before the compare sheet (built by L-PLAN2, wave 3).
+   */
+  premiumChanges?: {
+    lines: string[];
+    targetHits: number;
+    missDays: number;
   };
 }
 
@@ -257,10 +328,25 @@ export class MealPlanService {
       usageReserved?: boolean;
       /** WEEKLY_AUTO when the Sunday worker generates (drives the Monday banner). */
       origin?: MealPlanOrigin;
+      /**
+       * §T-07.2/T-07.3: a one-off override of the stored plan shape for this
+       * call only (e.g. `Plan this day` sends `{ days: [d] }`) — never
+       * persisted. Merged over the user's stored shape; omitted fields keep
+       * the stored value. Old clients that omit it get the stored shape (or
+       * the legacy default), exactly as before this feature existed (AC7).
+       */
+      shape?: Partial<CuratedShapeOptions>;
+      /**
+       * §T-07.4/T-08.3: preserve slots the user pinned (Replace, an own
+       * recipe, `Keep this meal`) that still pass the safety filter, instead
+       * of overwriting them. Default false (today's behaviour: a fresh
+       * generation replaces everything).
+       */
+      keepPinned?: boolean;
     } = {},
   ): Promise<WeekPlanDto> {
     if (!premium) {
-      return this.generateCurated(userId, weekOffset, options.origin);
+      return this.generateCurated(userId, weekOffset, options);
     }
     // 1. Load user preferences + learning signals (P1-1: pinned favourites
     // and recent ratings feed the generation) + household members (F2). A
@@ -438,6 +524,28 @@ export class MealPlanService {
     const safetyPass = await this.enforcePlanSafety(weekPlan, planSafety);
     weekPlan = safetyPass.plan;
 
+    // 3a'''. §T-07.2: an explicit one-off shape override (e.g. `Plan this
+    // day`) narrows the AI week to the requested days/slots. Without an
+    // override, premium generation is unchanged (AC7) — it does not yet read
+    // the stored "how you cook" shape automatically (tracked as a follow-up:
+    // see the PR notes).
+    if (options.shape) {
+      const shapeSlots = options.shape.slots;
+      const shapeDays = options.shape.days;
+      weekPlan = {
+        ...weekPlan,
+        days: weekPlan.days.map((d) => ({
+          ...d,
+          meals:
+            shapeDays && !shapeDays.includes(d.dayOfWeek)
+              ? []
+              : shapeSlots
+                ? d.meals.filter((m) => (shapeSlots as string[]).includes(m.type))
+                : d.meals,
+        })),
+      };
+    }
+
     // Log AI call (fire-and-forget — never crash the server if logging fails)
     // The router's quota reservation already logged it; the weekly worker
     // path hasn't.
@@ -535,6 +643,37 @@ export class MealPlanService {
       recipeIds: recipes.map((r) => r.id),
       origin: options.origin,
     });
+    const previousPlanId = plan.previousPlanId ?? undefined;
+
+    // §T-10.7 ("What Premium changed", rev 2): only on a regeneration (a
+    // same-week plan existed to replace) — kind-aware lines from what this
+    // generation actually did, plus how many days landed on target.
+    let premiumChanges: WeekPlanDto['premiumChanges'];
+    if (previousPlanId) {
+      const dayKcalTotals = planDayKcalTotals(weekPlan);
+      const targetHits = weekPlan.days.filter((d, i) => {
+        const target = trainingDayTargets.get(d.dayOfWeek)?.dailyCalorieTarget ?? liveCalorieTarget;
+        return (
+          target > 0 && Math.abs((dayKcalTotals[i] ?? 0) - target) / target <= PLAN_KCAL_TOLERANCE
+        );
+      }).length;
+      const lines: string[] = [];
+      if (trainingBonus && trainingDays.length > 0) {
+        lines.push(
+          `${trainingDays.length} training day${trainingDays.length === 1 ? '' : 's'} get extra calories and protein to fuel the work.`,
+        );
+      }
+      if (options.leftovers) {
+        lines.push('Dinners are paired with next-day lunches so you cook less.');
+      }
+      if (placedPinNames.length > 0) {
+        lines.push(
+          `${placedPinNames.length} of your favourite${placedPinNames.length === 1 ? '' : 's'} made it into the week.`,
+        );
+      }
+      lines.push(`Hit your calorie target on ${targetHits} of ${weekPlan.days.length} days.`);
+      premiumChanges = { lines, targetHits, missDays: weekPlan.days.length - targetHits };
+    }
 
     // 8. Start image generation immediately — don't wait for the worker's poll
     recipeImageWorker.wake();
@@ -577,6 +716,8 @@ export class MealPlanService {
         // "uses N things you already have" banner + plan_used_pantry event.
         usedPantryItems: await computeUsedPantryItemsForUser(userId, weekPlan.days),
       },
+      ...(previousPlanId && { previousPlanId }),
+      ...(premiumChanges && { premiumChanges }),
     };
   }
 
@@ -649,8 +790,11 @@ export class MealPlanService {
   private async generateCurated(
     userId: string,
     weekOffset = 0,
-    /** WEEKLY_AUTO when the Sunday worker builds a free user's week (P2-5). */
-    origin?: MealPlanOrigin,
+    options: {
+      origin?: MealPlanOrigin;
+      shape?: Partial<CuratedShapeOptions>;
+      keepPinned?: boolean;
+    } = {},
   ): Promise<WeekPlanDto> {
     await ensureCuratedRecipes();
 
@@ -660,16 +804,30 @@ export class MealPlanService {
     const safety = await this.loadMergedSafety(userId);
     const pools = safeCuratedPools(safety);
 
-    const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner'];
+    // §2.3, T-07.1/T-07.2: the stored "how you cook" shape, with this call's
+    // one-off override (e.g. `Plan this day` sends `{ days: [d] }`) merged
+    // over it. `getShape` itself already falls back to the legacy defaults
+    // (breakfast/lunch/dinner, every day, no cap) for a user who never
+    // touched the settings (AC7).
+    const storedShape = await planShapeService.getShape(userId);
+    const shape: CuratedShapeOptions = { ...storedShape, ...options.shape };
+    const wantedMainTypes = (['breakfast', 'lunch', 'dinner'] as MealType[]).filter((type) =>
+      resolvePlanSlots(shape.slots ?? []).includes(type),
+    );
 
     // Pool exhaustion is an upgrade moment, not an error: the free pool can't
-    // cover this combination of restrictions, but AI generation can.
-    const exhausted = MEAL_TYPES.filter((type) => pools[type].length < MIN_SAFE_POOL_SIZE);
+    // cover this combination of restrictions, but AI generation can. Only the
+    // meal types the shape actually wants must clear the bar (T-07.2) — a
+    // "dinners only" shape no longer needs a breakfast pool. T-10.4: the
+    // cause is attached for a future client-visible `data.cause` (see the
+    // PR's handoff note — apps/api/src/lib/trpc.ts is not owned by this lane).
+    const exhausted = wantedMainTypes.filter((type) => pools[type].length < MIN_SAFE_POOL_SIZE);
     if (exhausted.length > 0) {
       throw new TRPCError({
         code: 'PRECONDITION_FAILED',
         message:
           "We don't have enough free recipes matching your restrictions — upgrade for AI-generated plans that always fit your needs.",
+        cause: new PoolExhaustedCause(),
       });
     }
 
@@ -687,18 +845,82 @@ export class MealPlanService {
       lifterBodyweightKg && hasTrainingDayBump(profile?.goal)
         ? trainingWeekdays(await this.training.trainingSchedule(userId)).map((d) => d.dayOfWeek)
         : [];
-    const days = planCuratedWeek(pools, {
-      calories: targets.dailyCalorieTarget,
-      proteinG: targets.proteinG,
-      goal: profile?.goal ?? null,
-      ...(trainingDays.length > 0 && { trainingDays }),
+    const weekStartDate = getMondayOfWeek(weekOffset);
+
+    // §T-07.4: pinned slots from the plan this generation is about to
+    // replace survive when the caller asks (`keepPinned`) and the pinned
+    // dish still passes the safety filter — otherwise it's dropped and
+    // counted (`droppedPinned`).
+    let droppedPinned = 0;
+    const overrides = new Map<string, { recipeId: string; portion?: number; recipe: RecipeData }>();
+    if (options.keepPinned) {
+      const existingPlan = await this.repo.findForWeek(userId, weekStartDate);
+      const pinnedSlots = (existingPlan?.days ?? []).flatMap((d) =>
+        (d.meals as unknown as PlanMealSlotJson[])
+          .filter((m) => m.pinned)
+          .map((m) => ({
+            dayOfWeek: d.dayOfWeek,
+            type: m.type as MealType,
+            recipeId: m.recipeId,
+            portion: m.portion,
+          })),
+      );
+      if (pinnedSlots.length > 0) {
+        const rows = await this.repo.findRecipesByIds(pinnedSlots.map((p) => p.recipeId));
+        const rowMap = new Map(rows.map((r) => [r.id, r]));
+        for (const pin of pinnedSlots) {
+          const row = rowMap.get(pin.recipeId);
+          if (!row || findSafetyIssues(rowToRecipeData(row), safety).length > 0) {
+            droppedPinned++;
+            continue;
+          }
+          overrides.set(`${pin.dayOfWeek}:${pin.type}`, {
+            recipeId: pin.recipeId,
+            recipe: rowToRecipeData(row),
+            ...(pin.portion !== undefined && { portion: pin.portion }),
+          });
+        }
+      }
+    }
+
+    const planned = planCuratedWeek(
+      pools,
+      {
+        calories: targets.dailyCalorieTarget,
+        proteinG: targets.proteinG,
+        goal: profile?.goal ?? null,
+        ...(trainingDays.length > 0 && { trainingDays }),
+      },
+      Math.random,
+      shape,
+    );
+
+    // Applies a pinned override to the first not-yet-consumed meal of its
+    // type on its day; a day that no longer plans that type (or isn't
+    // planned at all) can't host the override — it's dropped and counted.
+    const consumed = new Set<string>();
+    const days = planned.map((day) => {
+      const meals = day.meals.map((meal) => {
+        const key = `${day.dayOfWeek}:${meal.type}`;
+        const override = !consumed.has(key) ? overrides.get(key) : undefined;
+        if (!override) return { ...meal, pinned: false };
+        consumed.add(key);
+        return {
+          type: meal.type,
+          recipe: override.recipe,
+          portion: override.portion ?? 1,
+          pinned: true,
+        };
+      });
+      return { ...day, meals };
     });
+    droppedPinned += [...overrides.keys()].filter((key) => !consumed.has(key)).length;
 
     const uniqueRecipeIds = [...new Set(days.flatMap((d) => d.meals.map((m) => m.recipe.id)))];
-    const weekStartDate = getMondayOfWeek(weekOffset);
     const curatedShopFrom = firstShoppingDay(weekStartDate, new Date());
     // P1-1: each slot's portion is stored in the day JSON (1× is left out,
-    // so untouched slots look exactly like before).
+    // so untouched slots look exactly like before). Only planned days keep
+    // meals — an unplanned day is stored as `meals: []` (§2.3, T-07.2).
     const plan = await this.repo.createPlan({
       userId,
       weekStartDate,
@@ -708,10 +930,11 @@ export class MealPlanService {
           type: m.type,
           recipeId: m.recipe.id,
           ...(m.portion !== 1 && { portion: m.portion }),
+          ...(m.pinned && { pinned: true }),
         })),
       })),
       recipeIds: uniqueRecipeIds,
-      origin,
+      origin: options.origin,
     });
 
     return {
@@ -721,15 +944,20 @@ export class MealPlanService {
       proteinTarget: targets.proteinG,
       days: days.map((d) => ({
         dayOfWeek: d.dayOfWeek,
+        planned: d.planned,
         meals: d.meals.map((m) => ({
           type: m.type,
           recipe: toRecipeDto(m.recipe, { imageUrl: m.recipe.imageUrl, imageStatus: 'DONE' }),
           ...(m.portion !== 1 && { portion: m.portion }),
+          ...(m.pinned && { pinned: true }),
         })),
         ...(d.proteinGapG !== null && { proteinGapG: d.proteinGapG }),
+        ...(d.unfilled && { unfilled: d.unfilled }),
       })),
       estimatedCost: await estimatePlanCostEur(daysFrom(days, curatedShopFrom)),
       ...(curatedShopFrom > 0 && { shoppingFromDay: curatedShopFrom }),
+      ...(plan.previousPlanId && { previousPlanId: plan.previousPlanId }),
+      ...(options.keepPinned && { droppedPinned }),
     };
   }
 
@@ -862,12 +1090,21 @@ export class MealPlanService {
   ): Promise<WeekPlanDto> {
     const allMeals = plan.days.flatMap((d) => d.meals as PlanMealSlotJson[]);
     const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
-    const [recipeRows, safety, targets] = await Promise.all([
+    const [recipeRows, safety, targets, shape] = await Promise.all([
       this.repo.findRecipesByIds(uniqueIds),
       userId ? this.loadMergedSafety(userId) : Promise.resolve(null),
       userId ? this.loadTargets(userId) : Promise.resolve(null),
+      // wave-1 T-07.6: `planned` used to be reliable only on `generate`'s own
+      // response (no shape snapshot was kept per-read) — a plain reload of
+      // an unplanned day fell back to a generic "no meals" line with no
+      // "Plan this day" CTA. Recomputed from the CURRENT stored shape on
+      // every read instead: a day with `meals: []` outside today's chosen
+      // days is `planned: false` (a day that already has `meals` is never
+      // relabelled, regardless of the shape changing later — see below).
+      userId ? planShapeService.getShape(userId) : Promise.resolve(null),
     ]);
     const recipeMap = new Map<string, Recipe>(recipeRows.map((r) => [r.id, r]));
+    const plannedDays = shape ? resolvePlanDays(shape.days) : null;
 
     const days: DayPlanDto[] = plan.days.map((d) => {
       let protein = 0;
@@ -886,11 +1123,21 @@ export class MealPlanService {
           recipe: withAllergenWarnings(rowToRecipeDto(row), row, safety),
           ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
           ...(portion !== 1 && { portion }),
+          ...(m.pinned && { pinned: true }),
         };
       });
       // P1-1: an honest per-day protein hint, judged on portioned totals.
       const gap = meals.length > 0 ? proteinGapG(protein, targets?.proteinG) : null;
-      return { dayOfWeek: d.dayOfWeek, meals, ...(gap !== null && { proteinGapG: gap }) };
+      // An empty day is only ever mislabelled toward `planned: true` (the
+      // safe direction — never hides a "Plan this day" CTA a day actually
+      // deserves; never claims a day WITH meals isn't planned).
+      const planned = meals.length > 0 || !plannedDays ? true : plannedDays.includes(d.dayOfWeek);
+      return {
+        dayOfWeek: d.dayOfWeek,
+        meals,
+        ...(gap !== null && { proteinGapG: gap }),
+        ...(!planned && { planned }),
+      };
     });
 
     const shopFrom = firstShoppingDay(plan.weekStartDate, plan.createdAt);
@@ -1023,6 +1270,7 @@ export class MealPlanService {
 
     // Find the current recipe name in the plan day
     const slot = slotAt(plan, dayOfWeek, slotIndex);
+    const previousRecipeId = slot?.recipeId;
     const currentRecipe = slot ? await this.repo.findRecipeById(slot.recipeId) : null;
 
     // Call AI swap
@@ -1094,10 +1342,15 @@ export class MealPlanService {
 
     if (!reusedUrl) recipeImageWorker.wake();
 
-    return toRecipeDto(newRecipe, {
-      imageUrl: reusedUrl,
-      imageStatus: reusedUrl ? 'DONE' : 'PENDING',
-    });
+    return {
+      ...toRecipeDto(newRecipe, {
+        imageUrl: reusedUrl,
+        imageStatus: reusedUrl ? 'DONE' : 'PENDING',
+      }),
+      // T-08.6: the default this wave is commit + Undo (no preview) — the
+      // client offers Undo by calling `replaceRecipe` back to this id.
+      ...(previousRecipeId && { previousRecipeId }),
+    };
   }
 
   /**
@@ -1146,7 +1399,10 @@ export class MealPlanService {
       ...slotArgs(portion, slotIndex),
     );
 
-    return toRecipeDto(newRecipe, { imageUrl: newRecipe.imageUrl, imageStatus: 'DONE' });
+    return {
+      ...toRecipeDto(newRecipe, { imageUrl: newRecipe.imageUrl, imageStatus: 'DONE' }),
+      ...(slot?.recipeId && { previousRecipeId: slot.recipeId }),
+    };
   }
 
   /**
@@ -1194,15 +1450,206 @@ export class MealPlanService {
       }
     }
 
+    // T-08.5/T-BUG-X2: keep the slot's current portion (it used to always
+    // drop to 1×) and mark the slot `Your pick` (T-07.4) — a manual Replace
+    // is exactly the kind of choice Regenerate should preserve by default.
+    const currentSlot = slotAt(plan, dayOfWeek, slotIndex);
+    const previousRecipeId = currentSlot?.recipeId;
+    const keepPortion = slotPortion(currentSlot?.portion);
+
     await this.repo.updateDayMeal(
       planId,
       dayOfWeek,
       mealType,
       recipeId,
-      ...slotArgs(undefined, slotIndex),
+      keepPortion !== 1 ? keepPortion : undefined,
+      slotIndex ?? undefined,
+      true,
     );
 
-    return rowToRecipeDto(recipe);
+    return {
+      ...rowToRecipeDto(recipe),
+      ...(previousRecipeId && previousRecipeId !== recipeId && { previousRecipeId }),
+    };
+  }
+
+  /** §T-07.4: toggles `Your pick` on an existing slot without touching its recipe. */
+  async setSlotPinned(
+    userId: string,
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    requestedSlotIndex: number | undefined,
+    pinned: boolean,
+  ): Promise<void> {
+    const plan = await this.repo.findByIdForUser(userId, planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+    const slotIndex = resolvePlanSlot(plan, dayOfWeek, mealType, requestedSlotIndex);
+    await this.repo.setSlotPinned(planId, dayOfWeek, mealType, slotIndex, pinned);
+  }
+
+  /**
+   * §T-11.3: scales every slot of one day by `factor` (0.75–1.5×, each
+   * slot's own resulting portion still capped to the plan's 0.75–2× steps —
+   * T-11.4). `apply: false` (the default) previews without persisting;
+   * `apply: true` writes it and is the same shape `PlanMissSheet`'s
+   * "Bigger portions" commits (built by L-HOME, wave 2).
+   */
+  async scaleDay(
+    userId: string,
+    planId: string,
+    dayOfWeek: number,
+    factor: number,
+    apply = false,
+  ): Promise<{ dayOfWeek: number; meals: MealSlotDto[]; kcal: number; protein: number }> {
+    const plan = await this.repo.findByIdForUser(userId, planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+    const day = plan.days.find((d) => d.dayOfWeek === dayOfWeek);
+    if (!day) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'That day has no plan.' });
+    }
+    const meals = day.meals as unknown as PlanMealSlotJson[];
+    const recipeRows = await this.repo.findRecipesByIds(meals.map((m) => m.recipeId));
+    const recipeMap = new Map<string, Recipe>(recipeRows.map((r) => [r.id, r]));
+
+    const newPortions = meals.map((m) => nearestPortionStep(slotPortion(m.portion) * factor));
+    if (apply) {
+      await this.repo.setDayPortions(planId, dayOfWeek, newPortions);
+    }
+
+    let kcal = 0;
+    let protein = 0;
+    const mealDtos: MealSlotDto[] = meals.map((m, i) => {
+      const row = recipeMap.get(m.recipeId);
+      if (!row) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Recipe ${m.recipeId} not found in database.`,
+        });
+      }
+      const portion = newPortions[i] ?? 1;
+      const n = row.nutritionInfo as unknown as NutritionInfo;
+      kcal += (n.calories ?? 0) * portion;
+      protein += (n.protein ?? 0) * portion;
+      return {
+        type: m.type as MealType,
+        recipe: rowToRecipeDto(row),
+        ...(portion !== 1 && { portion }),
+        ...(m.pinned && { pinned: true }),
+      };
+    });
+
+    return { dayOfWeek, meals: mealDtos, kcal: Math.round(kcal), protein: Math.round(protein) };
+  }
+
+  /**
+   * §wave-1 L-PLAN (T-planDay, UX-07 "Plan this day"): fills ONE currently
+   * unplanned day of an EXISTING plan in place — every other day's `meals`
+   * is untouched. Until this existed, the only way to add a day was
+   * `generate({ shape: { days: [d] } })`, which rewrites the whole plan
+   * document (every other day too), because `generate` always calls
+   * `createPlan` fresh.
+   *
+   * Always uses the curated (zero-AI-cost) picker — the same engine the free
+   * tier's `generate` uses — regardless of the caller's plan tier: filling
+   * one day doesn't warrant a full AI-personalised regeneration, and this
+   * keeps the operation fast and free to retry. The router reserves it
+   * against the same `CURATED_PLAN` daily quota `generate`'s free path uses
+   * (`reservePlanGeneration(user, false)`).
+   *
+   * Rejects a day that already has meals (`CONFLICT`) — Replace/AI-swap own
+   * changing an existing slot, `generate` owns redoing the whole week.
+   */
+  async planDay(userId: string, planId: string, dayOfWeek: number): Promise<WeekPlanDto> {
+    const plan = await this.repo.findByIdForUser(userId, planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+    const day = plan.days.find((d) => d.dayOfWeek === dayOfWeek);
+    if (!day) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'That day is not part of this plan.' });
+    }
+    const existingMeals = day.meals as unknown as PlanMealSlotJson[];
+    if (existingMeals.length > 0) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'This day already has a plan — use Replace or Regenerate instead.',
+      });
+    }
+
+    await ensureCuratedRecipes();
+    const safety = await this.loadMergedSafety(userId);
+    const pools = safeCuratedPools(safety);
+
+    // The stored shape, with `days` forced to just this one day for this
+    // call only (never persisted) — mirrors `generate`'s one-off `shape`
+    // override (T-07.2/T-07.3).
+    const storedShape = await planShapeService.getShape(userId);
+    const shape: CuratedShapeOptions = { ...storedShape, days: [dayOfWeek] };
+    const wantedMainTypes = (['breakfast', 'lunch', 'dinner'] as MealType[]).filter((type) =>
+      resolvePlanSlots(shape.slots ?? []).includes(type),
+    );
+    // T-10.4: same pool-exhaustion signal `generate` gives — only the meal
+    // types this day's shape actually wants must clear the bar.
+    const exhausted = wantedMainTypes.filter((type) => pools[type].length < MIN_SAFE_POOL_SIZE);
+    if (exhausted.length > 0) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message:
+          "We don't have enough free recipes matching your restrictions — upgrade for AI-generated plans that always fit your needs.",
+        cause: new PoolExhaustedCause(),
+      });
+    }
+
+    const profile = await chefProfileRepository.findByUserId(userId);
+    const { lifterBodyweightKg } = await this.training.loadLifter(userId, profile ?? null);
+    const targets = resolveDailyTargets(profile ?? null, lifterBodyweightKg);
+    const trainingDays =
+      lifterBodyweightKg && hasTrainingDayBump(profile?.goal)
+        ? trainingWeekdays(await this.training.trainingSchedule(userId)).map((d) => d.dayOfWeek)
+        : [];
+
+    const planned = planCuratedWeek(
+      pools,
+      {
+        calories: targets.dailyCalorieTarget,
+        proteinG: targets.proteinG,
+        goal: profile?.goal ?? null,
+        ...(trainingDays.length > 0 && { trainingDays }),
+      },
+      Math.random,
+      shape,
+    );
+    const plannedDay = planned.find((d) => d.dayOfWeek === dayOfWeek);
+    if (!plannedDay || plannedDay.meals.length === 0) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: "We couldn't fit a plan for that day — try again or adjust your plan settings.",
+      });
+    }
+
+    await this.repo.setDayMeals(
+      planId,
+      dayOfWeek,
+      plannedDay.meals.map((m) => ({
+        type: m.type,
+        recipeId: m.recipe.id,
+        ...(m.portion !== 1 && { portion: m.portion }),
+      })),
+    );
+
+    const updatedPlan = await this.repo.findByIdForUser(userId, planId);
+    if (!updatedPlan) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Plan disappeared while it was being updated.',
+      });
+    }
+    return this.assemblePlanDto(updatedPlan, userId, {});
   }
 
   // ─── Week templates ("My weeks") ────────────────────────────────────────────

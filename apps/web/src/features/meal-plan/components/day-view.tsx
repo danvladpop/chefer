@@ -30,6 +30,8 @@ interface MealSlot {
   leftoverOf?: string;
   /** P1-1: servings of the recipe this slot is (absent = 1). */
   portion?: number;
+  /** §T-07.4/T-08.9: "Your pick" — survives Regenerate by default. */
+  pinned?: boolean;
   recipe: {
     id: string;
     name: string;
@@ -48,6 +50,12 @@ export interface PlanDay {
   meals: MealSlot[];
   /** P1-1: grams short of the protein target, when meaningfully short. */
   proteinGapG?: number;
+  /**
+   * §T-07.2/T-07.6: false when this day is outside the chosen plan shape
+   * (`meals` is `[]`) — recomputed from the CURRENT stored shape on every
+   * read, not just right after `generate`. Absent = treat as planned.
+   */
+  planned?: boolean;
 }
 
 export type ImageOverrides = Record<string, { imageUrl: string | null; status: ImageStatusType }>;
@@ -66,8 +74,21 @@ interface DayViewProps {
   className?: string;
   /** Daily calorie target for the DayRecapBar's off-target badge (P-1). */
   calorieTarget?: number | undefined;
-  /** Opens the replace-recipe sheet for a slot (mealType, mealName, index in `day.meals`). */
-  onReplaceMeal?: ((mealType: string, mealName: string, slotIndex: number) => void) | undefined;
+  /**
+   * Opens the replace-recipe sheet for a slot (mealType, mealName, index in
+   * `day.meals`, and the recipe currently in it — T-08.10, never re-offered).
+   */
+  onReplaceMeal?:
+    | ((mealType: string, mealName: string, slotIndex: number, recipeId: string) => void)
+    | undefined;
+  /** Toggles `pinned` on a slot (§T-07.4/T-08.9). */
+  onTogglePin?: ((mealType: string, slotIndex: number, pinned: boolean) => void) | undefined;
+  /** §T-07.6 (UX-07 "Plan this day"): fills this currently-unplanned day. */
+  onPlanDay?: ((dayOfWeek: number) => void) | undefined;
+  /** True while `onPlanDay`'s mutation is running for THIS day. */
+  planDayPending?: boolean;
+  /** Live summary of the plan shape, e.g. "Breakfast, lunch, dinner · every day". */
+  planShapeSummary?: string | undefined;
 }
 
 export function DayView({
@@ -82,6 +103,10 @@ export function DayView({
   imageOverrides = {},
   className,
   onReplaceMeal,
+  onTogglePin,
+  onPlanDay,
+  planDayPending = false,
+  planShapeSummary,
 }: DayViewProps) {
   const day = days.find((d) => d.dayOfWeek === selectedDay);
   const meals = day?.meals ?? [];
@@ -152,9 +177,31 @@ export function DayView({
 
       {/* Meals */}
       {meals.length === 0 ? (
+        // §T-07.3/T-07.6 (UX-07 §2): a day outside the chosen shape says so
+        // and offers to add it via `planDay` — `planned` is now reliable on
+        // every read (T-07.6), not just right after generate.
         <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed bg-gray-50 py-10 text-center">
           <UtensilsCrossed className="h-6 w-6 text-gray-400" aria-hidden="true" />
-          <p className="text-sm text-gray-500">No meals planned for this day.</p>
+          {day?.planned === false ? (
+            <>
+              <p data-testid="plan-day-unplanned" className="text-sm text-gray-500">
+                Not planned — you cook {planShapeSummary ?? 'some days'}.
+              </p>
+              {!readOnly && onPlanDay && (
+                <button
+                  type="button"
+                  data-testid="plan-day-add"
+                  disabled={planDayPending}
+                  onClick={() => onPlanDay(selectedDay)}
+                  className="min-h-11 px-2 text-xs font-semibold text-[#944a00] hover:underline disabled:opacity-50"
+                >
+                  {planDayPending ? 'Planning…' : 'Plan this day'}
+                </button>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">No meals planned for this day.</p>
+          )}
         </div>
       ) : (
         <>
@@ -175,10 +222,14 @@ export function DayView({
                   imageStatusOverride={override?.status}
                   leftoverLabel={slot.leftoverOf}
                   portion={slot.portion}
+                  pinned={slot.pinned}
                   onReplace={
                     onReplaceMeal
-                      ? () => onReplaceMeal(slot.type, slot.recipe.name, slotIndex)
+                      ? () => onReplaceMeal(slot.type, slot.recipe.name, slotIndex, slot.recipe.id)
                       : undefined
+                  }
+                  onTogglePin={
+                    onTogglePin ? () => onTogglePin(slot.type, slotIndex, !slot.pinned) : undefined
                   }
                 />
               );

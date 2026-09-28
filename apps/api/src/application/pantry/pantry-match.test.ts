@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildPantryMatcher, namesMatch, rankRecipesByPantry } from './pantry-match.js';
+import {
+  buildPantryCoverageMatcher,
+  buildPantryMatcher,
+  namesMatch,
+  rankRecipesByPantry,
+} from './pantry-match.js';
 import { isStapleIngredient } from './staples.js';
 
 describe('isStapleIngredient (F3 denylist)', () => {
@@ -93,6 +98,52 @@ describe('buildPantryMatcher', () => {
     // Even if a staple somehow ended up matching, staples are never covered.
     const stapleMatcher = buildPantryMatcher(['olive oil']);
     expect(stapleMatcher('olive oil')).toBeNull();
+  });
+});
+
+describe('buildPantryCoverageMatcher (bug B-24, T-BUG-24)', () => {
+  it('reports a PARTIAL match (haveQuantity set) instead of no match at all', () => {
+    const matcher = buildPantryCoverageMatcher([{ name: 'paneer', quantity: 100, unit: 'g' }]);
+    const result = matcher('paneer', { quantity: 250, unit: 'g' });
+    expect(result).toEqual({ name: 'paneer', haveQuantity: 100 });
+  });
+
+  it('converts units within the same family (g/kg, ml/l, …)', () => {
+    const matcher = buildPantryCoverageMatcher([{ name: 'flour', quantity: 0.5, unit: 'kg' }]);
+    const result = matcher('flour', { quantity: 800, unit: 'g' });
+    expect(result?.haveQuantity).toBe(500);
+  });
+
+  it('a full or over-covering amount is still returned (not treated as "no match")', () => {
+    const matcher = buildPantryCoverageMatcher([{ name: 'rice', quantity: 2, unit: 'kg' }]);
+    const result = matcher('rice', { quantity: 500, unit: 'g' });
+    expect(result?.haveQuantity).toBe(2000);
+  });
+
+  it('an unknown amount ("some") covers fully — haveQuantity null', () => {
+    const matcher = buildPantryCoverageMatcher(['garlic']);
+    expect(matcher('garlic', { quantity: 3, unit: 'pcs' })).toEqual({
+      name: 'garlic',
+      haveQuantity: null,
+    });
+  });
+
+  it('incomparable units (mass vs a bare count) are treated as unknown, not zero', () => {
+    const matcher = buildPantryCoverageMatcher([{ name: 'egg', quantity: 200, unit: 'g' }]);
+    expect(matcher('egg', { quantity: 6, unit: 'pcs' })).toEqual({
+      name: 'egg',
+      haveQuantity: null,
+    });
+  });
+
+  it('never covers staples', () => {
+    const matcher = buildPantryCoverageMatcher([{ name: 'olive oil', quantity: 500, unit: 'ml' }]);
+    expect(matcher('olive oil', { quantity: 100, unit: 'ml' })).toBeNull();
+  });
+
+  it('no matching pantry row → null', () => {
+    const matcher = buildPantryCoverageMatcher(['tomato']);
+    expect(matcher('beef', { quantity: 500, unit: 'g' })).toBeNull();
   });
 });
 

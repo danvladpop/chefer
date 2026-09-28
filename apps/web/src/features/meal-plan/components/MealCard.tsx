@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { AllergenWarningChip } from '@/features/recipes/components/AllergenWarning';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
-import { ArrowLeftRight, Clock } from 'lucide-react';
+import { ArrowLeftRight, Bookmark, Clock } from 'lucide-react';
 import { formatPortion, scaleNutrition, slotPortion } from '@chefer/utils';
 
 interface NutritionInfo {
@@ -53,6 +53,14 @@ interface MealCardProps {
   portion?: number | undefined;
   /** Opens the replace-recipe sheet for this slot (hidden when absent/readOnly). */
   onReplace?: (() => void) | undefined;
+  /**
+   * §T-07.4/T-08.9: the user chose this exact dish (Replace, AI swap or an
+   * own recipe) — shows a "Your pick" badge; it survives Regenerate by
+   * default (`generate({ keepPinned: true })`).
+   */
+  pinned?: boolean | undefined;
+  /** Toggles `pinned` on this slot (hidden when absent/readOnly). */
+  onTogglePin?: (() => void) | undefined;
 }
 
 const MEAL_TYPE_LABELS: Record<string, string> = {
@@ -82,8 +90,10 @@ export function MealCard({
   leftoverLabel,
   portion: rawPortion,
   onReplace,
+  pinned = false,
+  onTogglePin,
 }: MealCardProps) {
-  // Cards are Links — the replace button lives inside, so stop the navigation.
+  // Cards are Links — the replace/pin buttons live inside, so stop navigation.
   const replaceButton = (extraClass: string) =>
     onReplace && !readOnly ? (
       <button
@@ -100,6 +110,34 @@ export function MealCard({
         <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
       </button>
     ) : null;
+  const pinButton = (extraClass: string) =>
+    onTogglePin && !readOnly ? (
+      <button
+        type="button"
+        aria-label={pinned ? `Stop keeping ${recipe.name}` : `Keep ${recipe.name}`}
+        aria-pressed={pinned}
+        data-testid={`plan-meal-pin-${mealType}`}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onTogglePin();
+        }}
+        className={`flex items-center justify-center transition-colors hover:bg-orange-50 ${
+          pinned ? 'text-[#944a00]' : 'text-gray-400'
+        } ${extraClass}`}
+      >
+        <Bookmark className="h-4 w-4" aria-hidden="true" fill={pinned ? 'currentColor' : 'none'} />
+      </button>
+    ) : null;
+  const pinBadge = pinned ? (
+    <span
+      data-testid={`plan-meal-${mealType}-pinned`}
+      className="ml-1 inline-flex items-center gap-1 rounded-full bg-[#fff3e8] px-2 py-0.5 text-xs font-semibold text-[#944a00]"
+    >
+      <Bookmark className="h-2.5 w-2.5" aria-hidden="true" fill="currentColor" />
+      Your pick
+    </span>
+  ) : null;
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const portion = slotPortion(rawPortion);
   const href = `/recipes/${recipe.id}?planId=${planId}&day=${dayOfWeek}&meal=${mealType}${
@@ -154,6 +192,7 @@ export function MealCard({
               </span>
             )}
             {portionBadge && <span className="ml-1">{portionBadge}</span>}
+            {pinBadge}
             <p className="mt-1 line-clamp-2 text-sm font-semibold leading-snug text-gray-900">
               {recipe.name}
             </p>
@@ -171,7 +210,12 @@ export function MealCard({
             </span>
           </div>
         </div>
-        {replaceButton('w-11 shrink-0 self-stretch border-l border-gray-100')}
+        {(replaceButton('') ?? pinButton('')) && (
+          <div className="flex shrink-0 flex-col self-stretch border-l border-gray-100">
+            {pinButton('h-11 w-11')}
+            {replaceButton('h-11 w-11')}
+          </div>
+        )}
       </>
     );
 
@@ -223,9 +267,14 @@ export function MealCard({
             Leftovers · {leftoverLabel.slice(0, 3)}
           </span>
         )}
-        {replaceButton(
-          'touch-target absolute right-1.5 top-1.5 h-8 w-8 rounded-full bg-white/90 shadow-sm backdrop-blur-sm',
-        )}
+        {/* Pin above Replace — a filled bookmark IS the "Your pick" signal at
+            this card's size (no room for the row variant's text badge). */}
+        <div className="absolute right-1.5 top-1.5 flex flex-col gap-1">
+          {pinButton('touch-target h-8 w-8 rounded-full bg-white/90 shadow-sm backdrop-blur-sm')}
+          {replaceButton(
+            'touch-target h-8 w-8 rounded-full bg-white/90 shadow-sm backdrop-blur-sm',
+          )}
+        </div>
       </div>
 
       {/* Card body — fixed height so all cards are the same size */}

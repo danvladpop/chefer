@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Image, Pressable, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Text } from '@chefer/ui-mobile';
 import { formatPortion, slotPortion } from '@chefer/utils';
@@ -60,6 +61,18 @@ export function PlanMealCard({
                 <Text className="text-xs uppercase text-gray-500">
                   Leftovers · {meal.leftoverOf}
                 </Text>
+              </View>
+            )}
+            {/* T-07.4/UX-07 §2: a meal the user chose (Replace, own recipe or
+                `Keep`) shows a pin glyph + "Your pick" — it survives
+                Regenerate by default (UX-08 §3). */}
+            {meal.pinned && (
+              <View
+                testID={`${testID}-pinned`}
+                className="flex-row items-center gap-1 rounded-full bg-accent px-2 py-0.5"
+              >
+                <Ionicons name="bookmark" size={10} color="#944a00" />
+                <Text className="text-xs font-semibold text-primary">Your pick</Text>
               </View>
             )}
             {portion !== 1 && (

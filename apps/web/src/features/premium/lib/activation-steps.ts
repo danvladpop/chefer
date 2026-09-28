@@ -18,11 +18,18 @@ export interface ActivationStep extends ActivationStepCopy {
   href: string;
 }
 
+// bug B-09: "regenerate" and "cheferize" used to just link to the page and
+// stop — the user still had to find and click the actual action themselves,
+// so premium looked identical to free until they figured out what to do.
+// Both routes now carry a fire-once query param the target page reads to
+// act immediately on arrival (`?generate=1` — meal-plan/page.tsx already
+// supported it for the dashboard's "Generate My Week"; `?import=1` —
+// recipes/page.tsx, added alongside this fix).
 const HREFS: Record<ActivationStepKey, string> = {
   profile: '/onboarding',
   household: '/preferences#household',
-  regenerate: '/meal-plan',
-  cheferize: '/recipes',
+  regenerate: '/meal-plan?generate=1',
+  cheferize: '/recipes?import=1',
 };
 
 /**

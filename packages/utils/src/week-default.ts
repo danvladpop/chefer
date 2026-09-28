@@ -9,3 +9,22 @@ export function defaultWeekOffset(now: Date): 0 | 1 {
   if (day === 6) return 1;
   return 0;
 }
+
+// ─── Week start (T-08.1, UX-08 §0) ──────────────────────────────────────────────
+// The one Monday-of-week calculation Plan, Shop and the week-outlook must all
+// share — previously duplicated (and able to drift) across
+// `app/(food)/meal-plan.tsx`, `app/(food)/shopping-list.tsx` and
+// `week-outlook.tsx`. All arithmetic is in LOCAL calendar days: `setDate`
+// moves by calendar day (DST-safe — a "day" stays a day across a spring-
+// forward/fall-back transition) and `setHours(0, 0, 0, 0)` re-normalises to
+// local midnight, so the result is always that calendar day's midnight even
+// when the offset crosses a DST boundary.
+/** The local midnight of the Monday that starts the week `offset` weeks from `now`'s week. */
+export function getWeekStartDate(offset: number, now: Date = new Date()): Date {
+  const day = now.getDay(); // 0 = Sunday .. 6 = Saturday
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday + offset * 7);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
