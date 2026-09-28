@@ -101,11 +101,30 @@ test.describe('Safety filter — web parity', () => {
   }) => {
     await gotoAndSettle(page, '/meal-plan');
 
+    // A fresh database has no week yet — plan one (a premium account that
+    // never granted AI data consent is asked first; "Allow" continues).
+    const emptyCta = page.getByTestId('plan-generate-empty');
+    if (await emptyCta.isVisible().catch(() => false)) {
+      await emptyCta.click();
+      const allowAi = page.getByRole('button', { name: 'Allow', exact: true });
+      if (
+        await allowAi
+          .waitFor({ state: 'visible', timeout: 3_000 })
+          .then(() => true)
+          .catch(() => false)
+      ) {
+        await allowAi.click();
+      }
+      await expect(page.locator('[data-testid^="plan-meal-swap-"]:visible').first()).toBeVisible({
+        timeout: 30_000,
+      });
+    }
+
     // AC1: the week-level badge only ever claims Checked while the table
     // actually has rules — it does here (Tree nuts, from test 1).
     await expect(page.getByText('Checked for your table').first()).toBeVisible();
 
-    const swapButton = page.locator('[data-testid^="plan-meal-swap-"]').first();
+    const swapButton = page.locator('[data-testid^="plan-meal-swap-"]:visible').first();
     if (!(await swapButton.isVisible().catch(() => false))) {
       test.skip(true, 'No meal plan this week to open a Replace sheet for.');
       return;
