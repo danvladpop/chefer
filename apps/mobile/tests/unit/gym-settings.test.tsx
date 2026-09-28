@@ -10,7 +10,7 @@ import { outbox } from '../../src/features/gym/offline/outbox';
 import { resetGymOwnerForTests } from '../../src/features/gym/offline/owner';
 import { GymSettingsScreen } from '../../src/features/gym/settings/settings-screen';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
-import { makeBootstrap, makeDoc } from './gym-fixtures';
+import { makeBootstrap, makeDoc, profile } from './gym-fixtures';
 import type { createTrpcGymMock } from './gym-trpc-mock';
 import { mutationResult } from './gym-trpc-mock';
 
@@ -141,6 +141,25 @@ describe('GymSettingsScreen — units and pause', () => {
 
     await user.press(screen.getByTestId('gym-settings-unit-lb'));
     expect(mutate).toHaveBeenCalledWith({ unit: 'LB' });
+  });
+
+  it('T-36.2: the quiet-days nudge saves in one tap and reflects the stored value', async () => {
+    const mutate = jest.fn();
+    trpc.gym.profile.save.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ profile: { ...profile, quietNudgeDays: 5 } }),
+    );
+    const user = userEvent.setup();
+    await renderSettings(queryClient);
+
+    expect(screen.getByTestId('gym-settings-quiet-nudge-5')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('gym-settings-quiet-nudge-never'));
+    expect(mutate).toHaveBeenCalledWith({ quietNudgeDays: null });
+
+    await user.press(screen.getByTestId('gym-settings-quiet-nudge-3'));
+    expect(mutate).toHaveBeenLastCalledWith({ quietNudgeDays: 3 });
   });
 
   it('starts a pause with the chosen length and reason', async () => {

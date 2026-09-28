@@ -60,6 +60,28 @@ const PAUSE_REASONS = [
   { value: 'other' as const, label: 'Other' },
 ];
 
+// T-36.2 (bug B-40): "Nudge me if I've gone quiet for" — a reachable, ≤ 3-tap
+// control for GymProfile.quietNudgeDays (null = never).
+type QuietNudgeChip = '3' | '5' | '7' | 'never';
+const QUIET_NUDGE_DAYS: Record<QuietNudgeChip, number | null> = {
+  '3': 3,
+  '5': 5,
+  '7': 7,
+  never: null,
+};
+const QUIET_NUDGE_OPTIONS: { value: QuietNudgeChip; label: string; testID: string }[] = [
+  { value: '3', label: '3 days', testID: 'gym-settings-quiet-nudge-3' },
+  { value: '5', label: '5 days', testID: 'gym-settings-quiet-nudge-5' },
+  { value: '7', label: 'A week', testID: 'gym-settings-quiet-nudge-7' },
+  { value: 'never', label: 'Never', testID: 'gym-settings-quiet-nudge-never' },
+];
+function quietNudgeChipValue(days: number | null): QuietNudgeChip {
+  if (days === 3) return '3';
+  if (days === 7) return '7';
+  if (days === null) return 'never';
+  return '5'; // default bucket for 5 or any other stored value
+}
+
 function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -469,6 +491,18 @@ export function GymSettingsScreen() {
                 />
               </View>
             )}
+            <View className="gap-1.5">
+              <Text variant="label">Nudge me if I’ve gone quiet for</Text>
+              <ChipGroup
+                testID="gym-settings-quiet-nudge"
+                options={QUIET_NUDGE_OPTIONS}
+                value={[quietNudgeChipValue(profile.quietNudgeDays)]}
+                onChange={(v) => {
+                  const chip = v[0] ?? 'never';
+                  saveMutation.mutate({ quietNudgeDays: QUIET_NUDGE_DAYS[chip] });
+                }}
+              />
+            </View>
           </Card>
         </View>
 
