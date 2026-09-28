@@ -110,7 +110,7 @@ export const recipeRouter = router({
         // D-19: at least one ingredient LINE with a name and an amount > 0.
         ingredients: z.array(recipeIngredientSchema).min(1),
         // T-40.4: steps are optional now (a recipe can be "no steps yet").
-        instructions: z.array(z.string().min(1).max(500)).default([]),
+        instructions: z.array(z.string().min(1)).default([]),
         nutritionInfo: recipeNutritionInfoSchema.default({
           calories: 0,
           protein: 0,
@@ -144,7 +144,7 @@ export const recipeRouter = router({
         name: z.string().min(1).max(120),
         description: z.string().max(500).default(''),
         ingredients: z.array(recipeIngredientSchema).min(1),
-        instructions: z.array(z.string().min(1).max(500)).default([]),
+        instructions: z.array(z.string().min(1)).default([]),
         nutritionInfo: recipeNutritionInfoSchema.default({
           calories: 0,
           protein: 0,
@@ -165,18 +165,17 @@ export const recipeRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { recipeId, imageUrl, dietaryTags, ...data } = input;
-      // T-01.6 (bug B-01): a level-0 mobile client (`x-chefer-client:
-      // mobile`, no `x-chefer-api-level`) hard-codes `dietaryTags: []` on
-      // every save — that used to silently strip a saved recipe's tags. A
-      // level-0 mobile update with an EMPTY tags array keeps whatever tags
-      // are already stored instead of overwriting them; every other client
-      // (web, or a mobile build that sends a real api-level) is trusted to
-      // mean it when it sends `[]`.
-      const isLevel0MobileEmptyTags =
-        ctx.isMobileClient && ctx.clientApiLevel === 0 && dietaryTags.length === 0;
+      // T-01.6 (bug B-01): installed mobile apps below api-level 2 (no
+      // header, or the wave-0 JS at level 1) hard-code `dietaryTags: []` on
+      // every save — that used to silently strip a saved recipe's tags. Such
+      // an update with an EMPTY tags array keeps whatever tags are already
+      // stored instead of overwriting them; web and wave-1+ mobile builds
+      // are trusted to mean it when they send `[]`.
+      const isLegacyMobileEmptyTags =
+        ctx.isMobileClient && ctx.clientApiLevel < 2 && dietaryTags.length === 0;
       return recipeService.update(ctx.user.id, recipeId, {
         ...data,
-        ...(isLevel0MobileEmptyTags ? {} : { dietaryTags }),
+        ...(isLegacyMobileEmptyTags ? {} : { dietaryTags }),
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- '' from a cleared form field must also become null
         imageUrl: imageUrl || null,
       });

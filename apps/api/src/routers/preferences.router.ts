@@ -50,9 +50,9 @@ const safetySchema = z.object({
 
 // T-BUG-X4 (was 43): `setup`'s safety arrays were uncapped, unlike the same
 // fields on `updateSafety` (20/20/30 above). The cap is enforced only for
-// clients that say `x-chefer-api-level >= 1` — an older client (level 0,
-// §2.8) is silently truncated instead of rejected, so an installed binary
-// that happens to send more than 20/30 entries keeps working.
+// clients that say `x-chefer-api-level >= 2` (wave 1 on) — installed apps
+// (level 0, and the wave-0 JS at level 1, §2.8) are silently truncated
+// instead of rejected, so they keep working.
 const SAFETY_ARRAY_CAPS = {
   dietaryRestrictions: 20,
   allergies: 20,
@@ -66,7 +66,7 @@ function capSetupSafetyArrays<T extends Record<keyof typeof SAFETY_ARRAY_CAPS, s
   for (const key of Object.keys(SAFETY_ARRAY_CAPS) as (keyof typeof SAFETY_ARRAY_CAPS)[]) {
     const cap = SAFETY_ARRAY_CAPS[key];
     if (input[key].length <= cap) continue;
-    if (clientApiLevel >= 1) {
+    if (clientApiLevel >= 2) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message: `${key} can have at most ${cap} entries.`,
@@ -99,13 +99,14 @@ export const preferencesRouter = router({
     const result = await preferencesService.get(ctx.user.id);
     const chefProfile = result.chefProfile;
     if (!chefProfile) return result;
-    // §2.11, T-35.2: RECOMP/PERFORMANCE are additive goals. A level-0 client
-    // (no x-chefer-api-level >= 1) renders a fixed GOALS list that predates
-    // them — `goal` downgrades to MAINTAIN for those clients; `goalV2`
-    // (additive) always carries the true value.
+    // §2.11, T-35.2: RECOMP/PERFORMANCE are additive goals. Installed apps
+    // below x-chefer-api-level 2 (level 0, and the wave-0 JS at level 1)
+    // render a fixed GOALS list that predates them — `goal` downgrades to
+    // MAINTAIN for those clients; `goalV2` (additive) always carries the
+    // true value.
     const goalV2 = chefProfile.goal;
     const needsDowngrade =
-      ctx.clientApiLevel < 1 && goalV2 !== null && LEVEL_0_UNKNOWN_GOALS.has(goalV2);
+      ctx.clientApiLevel < 2 && goalV2 !== null && LEVEL_0_UNKNOWN_GOALS.has(goalV2);
     return {
       ...result,
       chefProfile: {

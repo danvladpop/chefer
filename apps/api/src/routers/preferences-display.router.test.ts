@@ -66,6 +66,16 @@ const premiumLevel1Caller = preferencesRouter.createCaller({
   clientApiLevel: 1,
   res: {} as Response,
 });
+// Level 2 = wave-1 JS; level 1 is the wave-0 app already on phones.
+const premiumLevel2Caller = preferencesRouter.createCaller({
+  user: premiumUser,
+  requestId: 'test',
+  ipAddress: '127.0.0.1',
+  sessionToken: null,
+  isMobileClient: false,
+  clientApiLevel: 2,
+  res: {} as Response,
+});
 
 describe('preferences.setDisplayPreferences', () => {
   beforeEach(() => {
@@ -170,10 +180,21 @@ describe('preferences.setup — safety array caps (T-BUG-X4)', () => {
     expect(sent.allergies).toEqual(allergies.slice(0, 20));
   });
 
-  it('a level-1 client sending 25 allergies is rejected (BAD_REQUEST)', async () => {
+  it('the wave-0 app (level 1) sending 25 allergies is truncated, not rejected', async () => {
+    const allergies = Array.from({ length: 25 }, (_, i) => `allergy-${i}`);
+    await premiumLevel1Caller.setup({
+      ...SETUP_BASE,
+      dietaryRestrictions: [],
+      allergies,
+      dislikedIngredients: [],
+    });
+    expect(svc.setup.mock.calls[0]![1].allergies).toHaveLength(20);
+  });
+
+  it('a level-2 client sending 25 allergies is rejected (BAD_REQUEST)', async () => {
     const allergies = Array.from({ length: 25 }, (_, i) => `allergy-${i}`);
     await expect(
-      premiumLevel1Caller.setup({
+      premiumLevel2Caller.setup({
         ...SETUP_BASE,
         dietaryRestrictions: [],
         allergies,
@@ -216,9 +237,16 @@ describe('preferences.get — RECOMP/PERFORMANCE level-0 downgrade (T-35.2)', ()
     expect((result.chefProfile as { goalV2: string }).goalV2).toBe('RECOMP');
   });
 
-  it('a level-1+ client sees the true goal in both fields', async () => {
+  it('the wave-0 app (level 1) is downgraded too — it predates the new goals', async () => {
     Object.assign(svc, mockGet('PERFORMANCE'));
     const result = await premiumLevel1Caller.get();
+    expect(result.chefProfile?.goal).toBe('MAINTAIN');
+    expect((result.chefProfile as { goalV2: string }).goalV2).toBe('PERFORMANCE');
+  });
+
+  it('a level-2+ client sees the true goal in both fields', async () => {
+    Object.assign(svc, mockGet('PERFORMANCE'));
+    const result = await premiumLevel2Caller.get();
     expect(result.chefProfile?.goal).toBe('PERFORMANCE');
     expect((result.chefProfile as { goalV2: string }).goalV2).toBe('PERFORMANCE');
   });
