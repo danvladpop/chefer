@@ -56,6 +56,20 @@ describe('classifySafetyValue (T-01.7)', () => {
     expect(classified.notes).toEqual(['pre-diabetes', 'zzz']);
   });
 
+  it('never silently drops a recognised diet id the picker has no chip for (C5e)', () => {
+    // Plain "Gluten-free" (not the coeliac-strength diet) has no dedicated
+    // "Also:" chip in this picker, but must still round-trip.
+    const value: SafetyPickerValue = {
+      allergies: [],
+      dietaryRestrictions: ['Gluten-free'],
+      dislikedIngredients: [],
+    };
+    const classified = classifySafetyValue(value);
+    expect(classified.dietModifierIds).toEqual(['gluten-free']);
+    const serialised = serialiseSafetyPickerValue(classified);
+    expect(serialised.dietaryRestrictions).toEqual(['Gluten-free']);
+  });
+
   it('round-trips through serialiseSafetyPickerValue', () => {
     const value: SafetyPickerValue = {
       allergies: ['Tree nuts', 'Eggs'],

@@ -35,8 +35,13 @@ export interface ClassifiedSafetyValue {
   allergyIds: string[];
   /** The single selected base diet, or null for "No restriction". */
   dietBaseId: BaseDietId | null;
-  /** Selected "Also:" modifiers. */
-  dietModifierIds: DietModifierId[];
+  /**
+   * Every other selected diet-group id — the picker's "Also:" row only
+   * offers `DIET_MODIFIER_IDS`, but a stored id outside that list (e.g. a
+   * bare `gluten-free`, from an older save) is kept here rather than
+   * silently dropped (C5e) even though no chip in this picker renders it.
+   */
+  dietModifierIds: string[];
   /** Taxonomy ids of selected "Won't eat" categories. */
   dislikeIds: string[];
   /**
@@ -90,9 +95,9 @@ export function classifySafetyValue(value: SafetyPickerValue): ClassifiedSafetyV
   const dietBucket = bucketTerms(value.dietaryRestrictions, 'diet');
   const dislikeBucket = bucketTerms(value.dislikedIngredients, 'dislike');
 
-  const dietIds = [...dietBucket.ids, ...dietBucket.dietImpliedIds];
+  const dietIds = [...new Set([...dietBucket.ids, ...dietBucket.dietImpliedIds])];
   const dietBaseId = BASE_DIET_IDS.find((id) => dietIds.includes(id)) ?? null;
-  const dietModifierIds = DIET_MODIFIER_IDS.filter((id) => dietIds.includes(id));
+  const dietModifierIds = dietIds.filter((id) => id !== dietBaseId);
 
   return {
     allergyIds: [...new Set(allergyBucket.ids)],
