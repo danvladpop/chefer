@@ -207,7 +207,7 @@ describe('routineDraftReducer — exercises', () => {
       exercise: isolationCurl,
     });
     const before = d.days[0]?.exercises.find((e) => e.key === 'e1');
-    expect(before).toBeDefined();
+    if (!before) throw new Error('expected exercise e1');
 
     d = routineDraftReducer(d, { type: 'removeExercise', dayKey: 'd1', exerciseKey: 'e1' });
     expect(d.days[0]?.exercises.map((e) => e.key)).toEqual(['e2']);
@@ -216,7 +216,7 @@ describe('routineDraftReducer — exercises', () => {
       type: 'restoreExercise',
       dayKey: 'd1',
       index: 0,
-      exercise: before as NonNullable<typeof before>,
+      exercise: before,
     });
     expect(d.days[0]?.exercises.map((e) => e.key)).toEqual(['e1', 'e2']);
     expect(d.days[0]?.exercises[0]).toEqual(before);
@@ -224,9 +224,8 @@ describe('routineDraftReducer — exercises', () => {
 
   it('restoreExercise is a no-op if the key already exists (a stale/duplicate Undo tap)', () => {
     const d0 = draft();
-    const existing = d0.days[0]?.exercises[0] as NonNullable<
-      RoutineDraft['days'][number]['exercises'][number]
-    >;
+    const existing = d0.days[0]?.exercises[0];
+    if (!existing) throw new Error('expected a fixture exercise');
     const d = routineDraftReducer(d0, {
       type: 'restoreExercise',
       dayKey: 'd1',
