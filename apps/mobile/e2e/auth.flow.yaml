@@ -69,6 +69,12 @@ appId: dev.chefer.app.dev
     commands:
       # Tab items expose labels like "More, tab, 5 of 5" — match loosely.
       - tapOn: '.*More.*'
+      # Sign out sits low on More — on a 16e its centre is under the tab bar.
+      - scrollUntilVisible:
+          element:
+            id: 'logout-button'
+          direction: DOWN
+          centerElement: true
       - tapOn:
           id: 'logout-button'
 
@@ -162,11 +168,21 @@ appId: dev.chefer.app.dev
     visible:
       id: 'home-title'
     timeout: 10000
-- assertVisible:
-    id: 'week-outlook'
+# Below the fold on smaller phones once Today has more cards above it.
+- scrollUntilVisible:
+    element:
+      id: 'week-outlook'
+    direction: DOWN
+    visibilityPercentage: 50
 
 # ── Sign out from the More tab ───────────────────────────────────────────────
 - tapOn: '.*More.*'
+# Sign out sits low on More — on a 16e its centre is under the tab bar.
+- scrollUntilVisible:
+    element:
+      id: 'logout-button'
+    direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'logout-button'
 - extendedWaitUntil:
@@ -207,6 +223,12 @@ appId: dev.chefer.app.dev
 # "Welcome back" — never the first-timer "Sign in" title, regardless of
 # whether Welcome showed at the top of this run.
 - tapOn: '.*More.*'
+# Sign out sits low on More — on a 16e its centre is under the tab bar.
+- scrollUntilVisible:
+    element:
+      id: 'logout-button'
+    direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'logout-button'
 - extendedWaitUntil:

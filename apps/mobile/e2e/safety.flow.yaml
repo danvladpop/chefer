@@ -17,6 +17,12 @@ appId: dev.chefer.app.dev
         id: 'home-title'
     commands:
       - tapOn: '.*More.*'
+      # Sign out sits low on More — on a 16e its centre is under the tab bar.
+      - scrollUntilVisible:
+          element:
+            id: 'logout-button'
+          direction: DOWN
+          centerElement: true
       - tapOn:
           id: 'logout-button'
 - extendedWaitUntil:
