@@ -56,6 +56,8 @@ export {
   flattenObject,
 } from './object';
 
+export { isHealthTopic, isSafetyTopic } from './health-topic';
+
 export {
   invariant,
   assertDefined,

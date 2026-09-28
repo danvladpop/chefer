@@ -72,6 +72,27 @@ appId: dev.chefer.app.dev
       - tapOn:
           id: 'logout-button'
 
+# ── UX-25 (T-25.1): a device that has NEVER signed in lands on Welcome, not
+# Sign in — `hasSignedInBefore` lives in SecureStore, so this only shows on a
+# device/simulator that has never completed a sign-in before. A run after a
+# previous one on the same simulator sees `login-title` directly instead
+# (never cleared by sign-out) — either way the flow converges on Sign in
+# below. Navigate via "I already have an account" rather than "Create free
+# account" so the rest of the flow (which starts from Sign in) is unchanged.
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-title'
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-title'
+    commands:
+      - assertNotVisible: 'Welcome back'
+      - tapOn:
+          id: 'welcome-sign-in'
+
 # ── Register a throwaway account ──────────────────────────────────────────────
 - evalScript: ${output.email = 'maestro-' + Date.now() + '@e2e.chefer.dev'}
 - extendedWaitUntil:
@@ -108,6 +129,13 @@ appId: dev.chefer.app.dev
       platform: Android
     commands:
       - hideKeyboard
+# ── T-39.1 / T-26.5: both consent boxes — required before the submit reaches
+# the API (the button itself stays enabled; an unticked box would show an
+# inline error instead of registering).
+- tapOn:
+    id: 'register-accept-terms'
+- tapOn:
+    id: 'register-age-confirm'
 - tapOn:
     id: 'register-submit'
     optional: true
@@ -175,6 +203,9 @@ appId: dev.chefer.app.dev
     timeout: 10000
 
 # ── Teardown: sign out so the next flows sign in as alice (connect.yaml) ────
+# UX-25 (T-25.1, AC2): this device HAS signed in now, so Sign in reads
+# "Welcome back" — never the first-timer "Sign in" title, regardless of
+# whether Welcome showed at the top of this run.
 - tapOn: '.*More.*'
 - tapOn:
     id: 'logout-button'
@@ -182,3 +213,4 @@ appId: dev.chefer.app.dev
     visible:
       id: 'login-title'
     timeout: 15000
+- assertVisible: 'Welcome back'

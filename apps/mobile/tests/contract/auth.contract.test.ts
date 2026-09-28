@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeContractClient, uniqueEmail } from './client';
+import { CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './client';
 
 // NOTE: auth.register/login are rate-limited to 10 per 15 min per IP — this
 // suite spends 2 of those per run. Keep new auth calls out of other suites.
@@ -14,6 +14,7 @@ describe('mobile auth contract', () => {
       email,
       password: 'Contract@123!',
       firstName: 'Contract',
+      ...CONTRACT_CONSENT,
     });
     expect(registered.email).toBe(email);
     const session = registered.session;

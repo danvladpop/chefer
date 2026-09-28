@@ -15,6 +15,23 @@ appId: dev.chefer.app.dev
     timeout: 90000
     optional: true
 
+# UX-25 (T-25.1): a profile that has NEVER signed in lands on Welcome, not
+# Sign in (`hasSignedInBefore` in SecureStore) — every other flow in this
+# suite assumes a fresh profile reaches Sign in directly, so route through
+# "I already have an account" here, once, rather than touching every flow.
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-title'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-title'
+    commands:
+      - tapOn:
+          id: 'welcome-sign-in'
+
 # Fresh installs/profiles have no session — sign in as the seeded account so
 # session-dependent flows hold on any device (costs 1 login when it fires).
 - extendedWaitUntil:

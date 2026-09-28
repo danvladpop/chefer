@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { NextWorkoutDto, WorkoutSessionDoc } from '@chefer/types';
-import { makeContractClient, uniqueEmail } from './client';
+import { CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './client';
 
 // gym.* contract (gym_plan.md §4 / §5.2) against the REAL API through the
 // app's link stack. Registers ONE throwaway user per run (auth rate limit:
@@ -25,6 +25,7 @@ beforeAll(async () => {
     email: uniqueEmail('gym'),
     password: 'Contract@123!',
     firstName: 'Gym',
+    ...CONTRACT_CONSENT,
   });
   if (!user.session) throw new Error('mobile register response is missing the session credential');
   setToken(user.session.token);

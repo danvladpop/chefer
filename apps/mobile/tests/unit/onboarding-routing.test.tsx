@@ -2,6 +2,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import LoginScreen from '../../app/(auth)/login';
 import RegisterScreen from '../../app/(auth)/register';
+import { clearRegisterDraft } from '../../src/features/auth/register-draft';
 import { OnboardingWizard } from '../../src/features/onboarding/onboarding-wizard';
 import type { createTrpcOnboardingMock } from './onboarding-trpc-mock';
 import { mutationResult, queryResult } from './onboarding-trpc-mock';
@@ -33,6 +34,11 @@ jest.mock('expo-router', () => {
 });
 jest.mock('../../src/lib/auth-store', () => ({
   setToken: jest.fn(() => Promise.resolve(undefined)),
+  getToken: jest.fn(() => null),
+  subscribe: jest.fn(() => () => undefined),
+  loadToken: jest.fn(() => Promise.resolve(null)),
+  hasSignedInBefore: jest.fn(() => true),
+  loadHasSignedInBefore: jest.fn(() => Promise.resolve(true)),
 }));
 jest.mock('../../src/features/gym/mode-store', () => ({ setMode: jest.fn() }));
 
@@ -53,6 +59,10 @@ function renderWithSafeArea(ui: React.ReactElement) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // T-39.1: `register-draft.ts` is a deliberately module-scoped cache (so the
+  // in-app legal screen round trip keeps the form's values) — clear it so
+  // one test's typed values never leak into the next screen's mount.
+  clearRegisterDraft();
 });
 
 describe('Register → onboarding', () => {
@@ -71,6 +81,9 @@ describe('Register → onboarding', () => {
     await user.type(screen.getByTestId('register-email'), 'new@e2e.chefer.dev');
     await user.type(screen.getByTestId('register-password'), 'Password123!');
     await user.type(screen.getByTestId('register-confirm-password'), 'Password123!');
+    // T-39.1 / T-26.5: both consent boxes are required before the API is called.
+    await user.press(screen.getByTestId('register-accept-terms'));
+    await user.press(screen.getByTestId('register-age-confirm'));
     await user.press(screen.getByTestId('register-submit'));
 
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/onboarding'));

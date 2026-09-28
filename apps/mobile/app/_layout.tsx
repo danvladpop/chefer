@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Snackbar } from '@chefer/ui-mobile';
 import { AiConsentHost, AiConsentProvider } from '../src/features/ai-consent/ai-consent-provider';
+import { TermsReacceptSheet } from '../src/features/auth/terms-reaccept-sheet';
 import { useSession } from '../src/features/auth/use-session';
 import { installQueryConnectivity } from '../src/features/gym/offline/connectivity';
 import { GymSyncProvider } from '../src/features/gym/offline/gym-sync-provider';
@@ -116,8 +117,14 @@ export default function RootLayout() {
               <Stack.Protected guard={token === null}>
                 <Stack.Screen name="(auth)" />
               </Stack.Protected>
+              {/* T-39.1: the in-app legal screen — unguarded, reachable both
+                  from Register (signed out) and Settings/More (signed in). */}
+              <Stack.Screen name="legal/[doc]" />
             </Stack>
             <AiConsentHost />
+            {/* T-39.1: re-accept sheet for an existing account whose stored
+                Terms/Privacy acceptance predates a document version bump. */}
+            <TermsReacceptSheet signedIn={token !== null} />
             {/* PAT-4 (T-00.2): one snackbar host for the whole app, mounted
               above the tab bar so it never sits under it. */}
             <Snackbar />

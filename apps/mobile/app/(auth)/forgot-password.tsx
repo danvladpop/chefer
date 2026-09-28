@@ -73,6 +73,8 @@ function ForgotPasswordForm() {
                   ref={emailRef}
                   testID="forgot-password-email"
                   autoCapitalize="none"
+                  autoCorrect={false}
+                  spellCheck={false}
                   autoComplete="email"
                   keyboardType="email-address"
                   placeholder="you@example.com"

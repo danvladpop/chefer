@@ -19,8 +19,12 @@ export function buildAuthHeaders(getToken: () => string | null): Record<string, 
     'x-chefer-client': 'mobile',
     'x-trpc-source': 'mobile-react',
     // §2.8/T-00.8: declares this client understands the health-consent error
-    // and reads `profile.flags`. Nothing on the server requires it yet.
-    'x-chefer-api-level': '1',
+    // and reads `profile.flags`. Bumped to 2 for T-39.1/T-26.5 (wave 1
+    // L-ENTRY): level 2 is the first to render the sign-up consent
+    // checkboxes, so `AuthService.register` only requires the consent
+    // fields from level >= 2 — a wave-0 client already out on OTA (which
+    // sends level 1, no checkboxes) keeps registering exactly as before.
+    'x-chefer-api-level': '2',
     ...(token ? { authorization: `Bearer ${token}` } : {}),
   };
 }

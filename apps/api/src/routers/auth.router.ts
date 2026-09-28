@@ -21,6 +21,18 @@ const registerSchema = z.object({
    * currency (backlog P2-6). Optional: older apps don't send it.
    */
   region: regionCodeSchema.optional(),
+  /**
+   * Explicit sign-up consent (T-39.1, T-26.5). All optional here — a client
+   * below `clientApiLevel` 2 (a wave-0 client already out on OTA, which
+   * sends level 1, or an older installed binary at level 0) sends none of
+   * these and still registers; `AuthService.register` is what requires them
+   * once the caller declares level ≥ 2 (never a `z.literal(true)` at the
+   * schema level, or an old client's omission would fail validation instead
+   * of being ignored).
+   */
+  acceptedTerms: z.boolean().optional(),
+  ageConfirmed: z.boolean().optional(),
+  acceptedTermsVersion: z.string().min(1).max(40).optional(),
 });
 
 const loginSchema = z.object({
@@ -42,6 +54,8 @@ export const authRouter = router({
     assertWithinRateLimit('auth.register', ctx.ipAddress, AUTH_ATTEMPTS_MAX, AUTH_WINDOW_MS);
     const user = await authService.register(input, ctx.res, {
       includeSession: ctx.isMobileClient,
+      clientApiLevel: ctx.clientApiLevel,
+      consentSource: ctx.isMobileClient ? 'mobile' : 'web',
     });
     // Weekly emails need a confirmed address (audit P2-5) — best effort, the
     // signup never waits on or fails because of it.

@@ -36,8 +36,14 @@ export default async function RegisterPage() {
           <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight">
             Create your account
           </h1>
+          {/* UX-25 (T-25.2, "only what works on the free tier" rule): the old
+              copy ("Start your personal chef journey today") mentioned only
+              meal planning — CI-16/CI-25, "meal planning? My friend said it
+              does workouts." The Terms/Privacy/16+ disclaimer that used to
+              live here as static text is now the explicit checkboxes inside
+              RegisterForm (T-39.1/T-26.5) — kept in one place, not both. */}
           <p className="mt-2 text-sm text-muted-foreground">
-            Start your personal chef journey today
+            Free workout log and weekly meal plans.
           </p>
         </div>
 
@@ -55,23 +61,6 @@ export default async function RegisterPage() {
           >
             Sign in
           </Link>
-        </p>
-        <p className="text-center text-xs text-muted-foreground">
-          By creating an account, you confirm you are 16 or older and agree to our{' '}
-          <Link
-            href="/terms"
-            className="touch-target relative underline underline-offset-4 hover:text-foreground"
-          >
-            Terms of Service
-          </Link>
-          . Our{' '}
-          <Link
-            href="/privacy"
-            className="touch-target relative underline underline-offset-4 hover:text-foreground"
-          >
-            Privacy Policy
-          </Link>{' '}
-          explains how we use your data.
         </p>
       </div>
     </div>

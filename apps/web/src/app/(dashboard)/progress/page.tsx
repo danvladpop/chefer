@@ -3,7 +3,7 @@
 import { WeightEntriesList } from '@/features/coach/components/WeightEntriesList';
 import { WeightLogForm } from '@/features/coach/components/WeightLogForm';
 import { trpc } from '@/lib/trpc';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { Flame, Scale, TrendingUp } from 'lucide-react';
 import {
   Bar,
@@ -24,6 +24,16 @@ import {
   formatBodyWeight,
   weightChangeTone,
 } from '@chefer/utils';
+
+// T-21.1 (bugs B-06/B-33): `d.date` is a `YYYY-MM-DD` calendar day (the
+// user's local day, not UTC). `parseISO('2026-09-26')` parses a date-only
+// string as UTC midnight — formatting that back in a browser west of UTC
+// (most of the Americas) rendered the day before. Parsing it as a local
+// midnight instead (mobile's `progress.tsx` `shortDate` does the same) keeps
+// the label matching the day it's actually attached to.
+function localDate(dateStr: string): Date {
+  return new Date(`${dateStr}T00:00:00`);
+}
 
 export default function ProgressPage() {
   // Tooltips stay on the default hover trigger. Tapping a chart already opens
@@ -56,7 +66,7 @@ export default function ProgressPage() {
   });
 
   const chartData = (monthly?.days ?? []).map((d) => ({
-    date: format(parseISO(d.date), 'dd MMM'),
+    date: format(localDate(d.date), 'dd MMM'),
     logged: d.hasLog ? d.totalKcal : null,
     target: monthly?.dailyCalorieTarget ?? 2000,
     protein: d.hasLog ? Math.round(d.totalProtein) : null,

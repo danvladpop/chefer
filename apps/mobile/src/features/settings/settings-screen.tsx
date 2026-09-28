@@ -3,6 +3,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { ConfirmSheet, Screen, Text } from '@chefer/ui-mobile';
+import { WELLNESS_COPY } from '@chefer/utils';
 import { clearToken } from '../../lib/auth-store';
 import { trpc } from '../../lib/trpc';
 
@@ -165,6 +166,10 @@ export function SettingsScreen() {
             </View>
           </View>
         ))}
+        {/* T-22.3: the medical/legal disclaimer, always visible on Settings. */}
+        <Text testID="settings-about-disclaimer" variant="muted" className="px-4 text-xs">
+          {WELLNESS_COPY.aboutMedicalDisclaimer}
+        </Text>
       </ScrollView>
 
       <ConfirmSheet

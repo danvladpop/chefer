@@ -22,6 +22,10 @@ export interface StreamChatResult {
   fullText: string;
   /** True when the reply was the quota-exhausted message (upgrade moment). */
   quotaExhausted: boolean;
+  /** UX-22 (T-22.2, AC4): the last user message read as a medical question. */
+  healthTopic: boolean;
+  /** UX-22 (T-22.2, AC4): the last user message read as an allergen/safety question. */
+  safetyTopic: boolean;
 }
 
 export async function streamChat({
@@ -58,13 +62,15 @@ export async function streamChat({
   }
 
   const quotaExhausted = res.headers.get('x-chat-quota-exhausted') === '1';
+  const healthTopic = res.headers.get('x-chat-health-topic') === '1';
+  const safetyTopic = res.headers.get('x-chat-safety-topic') === '1';
 
   const body = res.body;
   if (!body) {
     // No streaming support in this runtime — fall back to buffered text.
     const text = await res.text();
     onChunk?.(text);
-    return { fullText: text, quotaExhausted };
+    return { fullText: text, quotaExhausted, healthTopic, safetyTopic };
   }
 
   const reader = body.getReader();
@@ -81,5 +87,5 @@ export async function streamChat({
       onChunk?.(chunk);
     }
   }
-  return { fullText, quotaExhausted };
+  return { fullText, quotaExhausted, healthTopic, safetyTopic };
 }
