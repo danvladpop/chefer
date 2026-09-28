@@ -75,6 +75,8 @@ export default function HomeScreen() {
   });
   const showProfileNudge = isPremium === true && hasProfile === false;
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  // §2.11, T-35.5: the ring's "Your target" / "Suggested" label.
+  const { data: targetsData } = trpc.targets.get.useQuery();
 
   // B-13 (T-00.15): Today has no week selector, so the server's fix (reading
   // findForWeek, never findActiveWithDays) is the whole guarantee here —
@@ -215,7 +217,9 @@ export default function HomeScreen() {
             fields, so server-side target changes flow straight through.
             B-31 interim (T-00.12): hidden for a goal-less, non-tracking
             user — a ring/target against nothing set is meaningless. */}
-        {showNutritionCards && <NutritionSummary nutrition={d.nutrition} />}
+        {showNutritionCards && (
+          <NutritionSummary nutrition={d.nutrition} targetMode={targetsData?.targetMode} />
+        )}
 
         {/* Off-plan logging: free quick add + premium Snap-to-log. Quick add
             stays available to everyone; Snap-to-log is nutrition-tracking
