@@ -5,6 +5,15 @@ import { Input, Sheet, Text } from '@chefer/ui-mobile';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { ingredientsCopy } from './copy';
 import { naturalUnitForIngredient } from './natural-unit';
+import { useKeyboardAwareMaxHeight } from './use-keyboard-aware-max-height';
+
+/**
+ * Reserve for everything besides the results list: grabber + title row
+ * (~70), the search input (~60), the pinned footer's two action rows
+ * (~100), plus safe-area/padding slop. Deliberately generous — see
+ * use-keyboard-aware-max-height.ts.
+ */
+const RESULTS_RESERVED_PX = 280;
 
 export type IngredientSearchRow = RouterOutputs['ingredients']['search'][number];
 
@@ -56,6 +65,13 @@ const MIN_QUERY_LENGTH = 2;
  *     `autoFocus` input is never the sheet's first-and-only child on open;
  *     ours was. Fixed by focusing manually via `InteractionManager`, after
  *     the sheet's opening interaction has finished.
+ *
+ * Second bug fix (same review, follow-up): with the keyboard up, a long
+ * results list rendered past the visible area and UNDER the pinned footer
+ * (tapping a row that far down hit the footer instead) — the kit Sheet's
+ * `maxHeight` is a fraction of the FULL window and never accounts for the
+ * keyboard. `useKeyboardAwareMaxHeight` bounds the results ScrollView to
+ * the real remaining space instead, so it scrolls behind a clipped edge.
  */
 export function IngredientSearchSheet({
   visible,
@@ -70,6 +86,7 @@ export function IngredientSearchSheet({
   const [query, setQuery] = useState(initialQuery);
   const [debounced, setDebounced] = useState('');
   const inputRef = useRef<TextInput>(null);
+  const resultsMaxHeight = useKeyboardAwareMaxHeight(RESULTS_RESERVED_PX);
 
   useEffect(() => {
     if (visible) setQuery(initialQuery);
@@ -176,6 +193,7 @@ export function IngredientSearchSheet({
             testID={`${testID}-results`}
             keyboardShouldPersistTaps="handled"
             className="grow-0"
+            style={{ maxHeight: resultsMaxHeight }}
           >
             <View className="gap-2">
               {groups.map((group) => (

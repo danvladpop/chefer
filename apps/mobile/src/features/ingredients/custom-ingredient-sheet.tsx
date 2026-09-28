@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Input, Sheet, Text } from '@chefer/ui-mobile';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
 import { ingredientsCopy } from './copy';
 import { openIngredientAutofillUpsell } from './premium-upsell';
+import { useKeyboardAwareMaxHeight } from './use-keyboard-aware-max-height';
+
+/** Reserve for the grabber + title row and the pinned Save footer — see
+ * ingredient-search-sheet.tsx / use-keyboard-aware-max-height.ts. */
+const CONTENT_RESERVED_PX = 200;
 
 export interface CustomIngredientSheetProps {
   visible: boolean;
@@ -28,6 +33,13 @@ const numStr = (v: number | null | undefined) => (v == null ? '' : String(v));
  * `ingredient-autofill`) and the only lock on this screen; free taps open
  * the upsell instead of calling the mutation at all. No fiber field (D-18),
  * no price/checkout copy anywhere in the locked path (delta rule 2).
+ *
+ * Orchestrator review fix (Maestro, iOS simulator): the same class of bug
+ * as ingredient-search-sheet.tsx's follow-up — a kit Sheet's `maxHeight`
+ * never accounts for the on-screen keyboard, so content could in principle
+ * render past the visible area and under the pinned Save footer. This
+ * content is short and static (no dynamic list), but it's wrapped in a
+ * keyboard-aware-bounded ScrollView defensively, for the same reason.
  */
 export function CustomIngredientSheet({
   visible,
@@ -38,6 +50,7 @@ export function CustomIngredientSheet({
   testID = 'custom-ingredient-sheet',
 }: CustomIngredientSheetProps) {
   const isPremium = useIsPremium();
+  const contentMaxHeight = useKeyboardAwareMaxHeight(CONTENT_RESERVED_PX);
 
   const [name, setName] = useState(initialName);
   const [macros, setMacros] = useState({ calories: '', protein: '', carbs: '', fat: '' });
@@ -117,117 +130,124 @@ export function CustomIngredientSheet({
         </Button>
       }
     >
-      <View className="gap-4">
-        <Text variant="muted" className="text-xs">
-          {ingredientsCopy.custom.description}
-        </Text>
-
-        <View className="gap-1">
-          <Text variant="label">{ingredientsCopy.custom.name}</Text>
-          <Input
-            testID={`${testID}-name`}
-            accessibilityLabel={ingredientsCopy.custom.name}
-            value={name}
-            onChangeText={setName}
-          />
-        </View>
-
-        <View className="gap-2">
-          <View className="flex-row items-center justify-between">
-            <Text variant="label">{ingredientsCopy.custom.nutritionHeading}</Text>
-            <Button
-              testID={`${testID}-fill-in`}
-              variant="outline"
-              size="sm"
-              disabled={name.trim().length < 2 || estimateMutation.isPending}
-              onPress={fillInForMe}
-            >
-              <View className="flex-row items-center gap-1.5">
-                <Ionicons
-                  name={locked ? 'lock-closed-outline' : 'sparkles-outline'}
-                  size={14}
-                  color="#944a00"
-                />
-                <Text className="text-xs font-medium text-primary">
-                  {estimateMutation.isPending
-                    ? ingredientsCopy.custom.fillInEstimating
-                    : ingredientsCopy.custom.fillInForMe}
-                </Text>
-                {locked && (
-                  <Text className="text-xs font-medium text-primary">
-                    {ingredientsCopy.custom.fillInLocked}
-                  </Text>
-                )}
-              </View>
-            </Button>
-          </View>
-
-          {estimateMutation.isError && (
-            <Text testID={`${testID}-fill-in-error`} className="text-xs text-destructive">
-              {ingredientsCopy.custom.fillInError}
-            </Text>
-          )}
-          {/* react-query's discriminated union already guarantees isPending
-              is false whenever data is set — no separate check needed. */}
-          {estimateMutation.data && (
-            <Text className="text-xs text-muted-foreground">
-              {estimateMutation.data.source === 'catalog'
-                ? ingredientsCopy.custom.fillInFromCatalog
-                : ingredientsCopy.custom.fillInFromAi}
-            </Text>
-          )}
-
-          <View className="flex-row gap-2">
-            <MacroField
-              testID={`${testID}-kcal`}
-              label="kcal"
-              value={macros.calories}
-              onChangeText={(v) => setMacros((m) => ({ ...m, calories: v }))}
-            />
-            <MacroField
-              testID={`${testID}-protein`}
-              label="Protein g"
-              value={macros.protein}
-              onChangeText={(v) => setMacros((m) => ({ ...m, protein: v }))}
-            />
-            <MacroField
-              testID={`${testID}-carbs`}
-              label="Carbs g"
-              value={macros.carbs}
-              onChangeText={(v) => setMacros((m) => ({ ...m, carbs: v }))}
-            />
-            <MacroField
-              testID={`${testID}-fat`}
-              label="Fat g"
-              value={macros.fat}
-              onChangeText={(v) => setMacros((m) => ({ ...m, fat: v }))}
-            />
-          </View>
-        </View>
-
-        <View className="gap-1">
-          <Text variant="label">
-            {ingredientsCopy.custom.gramsPerPiece}{' '}
-            <Text variant="muted" className="text-xs">
-              ({ingredientsCopy.custom.gramsPerPieceHint})
-            </Text>
+      <ScrollView
+        testID={`${testID}-scroll`}
+        keyboardShouldPersistTaps="handled"
+        className="grow-0"
+        style={{ maxHeight: contentMaxHeight }}
+      >
+        <View className="gap-4">
+          <Text variant="muted" className="text-xs">
+            {ingredientsCopy.custom.description}
           </Text>
-          <Input
-            testID={`${testID}-grams-per-piece`}
-            accessibilityLabel={ingredientsCopy.custom.gramsPerPiece}
-            value={gramsPerPiece}
-            onChangeText={setGramsPerPiece}
-            keyboardType="decimal-pad"
-            placeholder="e.g. 118 for a banana"
-          />
-        </View>
 
-        {createMutation.isError && (
-          <Card testID={`${testID}-save-error`} className="border-red-200 bg-red-50">
-            <Text className="text-sm text-red-600">{createMutation.error.message}</Text>
-          </Card>
-        )}
-      </View>
+          <View className="gap-1">
+            <Text variant="label">{ingredientsCopy.custom.name}</Text>
+            <Input
+              testID={`${testID}-name`}
+              accessibilityLabel={ingredientsCopy.custom.name}
+              value={name}
+              onChangeText={setName}
+            />
+          </View>
+
+          <View className="gap-2">
+            <View className="flex-row items-center justify-between">
+              <Text variant="label">{ingredientsCopy.custom.nutritionHeading}</Text>
+              <Button
+                testID={`${testID}-fill-in`}
+                variant="outline"
+                size="sm"
+                disabled={name.trim().length < 2 || estimateMutation.isPending}
+                onPress={fillInForMe}
+              >
+                <View className="flex-row items-center gap-1.5">
+                  <Ionicons
+                    name={locked ? 'lock-closed-outline' : 'sparkles-outline'}
+                    size={14}
+                    color="#944a00"
+                  />
+                  <Text className="text-xs font-medium text-primary">
+                    {estimateMutation.isPending
+                      ? ingredientsCopy.custom.fillInEstimating
+                      : ingredientsCopy.custom.fillInForMe}
+                  </Text>
+                  {locked && (
+                    <Text className="text-xs font-medium text-primary">
+                      {ingredientsCopy.custom.fillInLocked}
+                    </Text>
+                  )}
+                </View>
+              </Button>
+            </View>
+
+            {estimateMutation.isError && (
+              <Text testID={`${testID}-fill-in-error`} className="text-xs text-destructive">
+                {ingredientsCopy.custom.fillInError}
+              </Text>
+            )}
+            {/* react-query's discriminated union already guarantees isPending
+              is false whenever data is set — no separate check needed. */}
+            {estimateMutation.data && (
+              <Text className="text-xs text-muted-foreground">
+                {estimateMutation.data.source === 'catalog'
+                  ? ingredientsCopy.custom.fillInFromCatalog
+                  : ingredientsCopy.custom.fillInFromAi}
+              </Text>
+            )}
+
+            <View className="flex-row gap-2">
+              <MacroField
+                testID={`${testID}-kcal`}
+                label="kcal"
+                value={macros.calories}
+                onChangeText={(v) => setMacros((m) => ({ ...m, calories: v }))}
+              />
+              <MacroField
+                testID={`${testID}-protein`}
+                label="Protein g"
+                value={macros.protein}
+                onChangeText={(v) => setMacros((m) => ({ ...m, protein: v }))}
+              />
+              <MacroField
+                testID={`${testID}-carbs`}
+                label="Carbs g"
+                value={macros.carbs}
+                onChangeText={(v) => setMacros((m) => ({ ...m, carbs: v }))}
+              />
+              <MacroField
+                testID={`${testID}-fat`}
+                label="Fat g"
+                value={macros.fat}
+                onChangeText={(v) => setMacros((m) => ({ ...m, fat: v }))}
+              />
+            </View>
+          </View>
+
+          <View className="gap-1">
+            <Text variant="label">
+              {ingredientsCopy.custom.gramsPerPiece}{' '}
+              <Text variant="muted" className="text-xs">
+                ({ingredientsCopy.custom.gramsPerPieceHint})
+              </Text>
+            </Text>
+            <Input
+              testID={`${testID}-grams-per-piece`}
+              accessibilityLabel={ingredientsCopy.custom.gramsPerPiece}
+              value={gramsPerPiece}
+              onChangeText={setGramsPerPiece}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 118 for a banana"
+            />
+          </View>
+
+          {createMutation.isError && (
+            <Card testID={`${testID}-save-error`} className="border-red-200 bg-red-50">
+              <Text className="text-sm text-red-600">{createMutation.error.message}</Text>
+            </Card>
+          )}
+        </View>
+      </ScrollView>
     </Sheet>
   );
 }

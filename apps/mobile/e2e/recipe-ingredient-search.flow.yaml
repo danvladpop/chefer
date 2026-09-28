@@ -1,6 +1,6 @@
 # UX-40 slice 2 (T-40.7/T-40.9, AC12): the ingredient search combobox and
 # computed nutrition on the manual recipe form. Signs in as alice (catalog
-# has real ingredients with macros, e.g. "Oats, rolled" per the UX spec
+# has real ingredients with macros, e.g. "Rolled Oats" per the UX spec
 # mockup) — costs 1 login of the 10/15min per-IP budget.
 appId: dev.chefer.app.dev
 ---
@@ -85,7 +85,7 @@ appId: dev.chefer.app.dev
       - tapOn: 'Servings'
       - waitForAnimationToEnd
 
-# ── T-40.7: the name field opens the search sheet — type "oat", pick "Oats, rolled" ──
+# ── T-40.7: the name field opens the search sheet — type "oat", pick "Rolled Oats" ──
 - tapOn:
     id: 'rf-ingredient-name-0'
 - extendedWaitUntil:
@@ -102,9 +102,9 @@ appId: dev.chefer.app.dev
       - hideKeyboard
 # The debounce is 250ms; give the real API a moment to answer.
 - extendedWaitUntil:
-    visible: '.*Oats, rolled.*'
+    visible: '.*Rolled Oats.*'
     timeout: 10000
-- tapOn: '.*Oats, rolled.*'
+- tapOn: '.*Rolled Oats.*'
 # The sheet closes once a row is picked.
 - assertNotVisible:
     id: 'rf-ingredient-name-0-search-sheet-title'
