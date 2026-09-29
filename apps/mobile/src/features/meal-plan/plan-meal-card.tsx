@@ -94,6 +94,9 @@ export function PlanMealCard({
           <Text numberOfLines={2} className="text-sm font-semibold text-gray-900">
             {meal.recipe.name}
           </Text>
+          {/* TODO(W3 integration): mount L-CONSENT's <AiGeneratedChip recipe={meal.recipe} />
+              here (src/components/ai-generated-chip.tsx, only on feat/ux-now/consent). The
+              API already sends `recipe.aiGenerated` (T-26.6). */}
           <AllergenWarningChip warnings={meal.recipe.allergenWarnings} />
           {/* T-02.4/AC3: a recipe that fails the table's rules never claims
               "Checked" — a conflict pill takes the Checked chip's place. */}

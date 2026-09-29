@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DayRecapBar } from './DayRecapBar';
 import { MealCard } from './MealCard';
@@ -35,14 +35,41 @@ describe('DayRecapBar — plan portions (audit P1-1)', () => {
     expect(screen.queryByText(/under target/)).toBeNull();
   });
 
-  it('shows an honest protein hint only when the API flags a gap', () => {
+  it('shows a neutral protein hint only when the API flags a gap', () => {
     const meals = [{ type: 'dinner', recipe: { nutritionInfo: nutrition(2000, 90) } }];
     const { rerender } = render(<DayRecapBar meals={meals} proteinGapG={85} />);
-    expect(screen.getByTestId('day-protein-gap').textContent).toBe(
-      'Protein short by 85 g — add a snack',
-    );
+    expect(screen.getByTestId('day-protein-gap').textContent).toBe('About 85 g short on protein');
+    expect(screen.queryByText(/add a snack/)).toBeNull();
     rerender(<DayRecapBar meals={meals} />);
     expect(screen.queryByTestId('day-protein-gap')).toBeNull();
+  });
+
+  // T-11.3: the under/over status is neutral and, with a handler, tappable.
+  it('an under-target day says "About n kcal under target" and opens the miss sheet', () => {
+    const onOpenMiss = vi.fn();
+    render(
+      <DayRecapBar
+        meals={[{ type: 'dinner', recipe: { nutritionInfo: nutrition(1500, 60) } }]}
+        calorieTarget={2000}
+        onOpenMiss={onOpenMiss}
+      />,
+    );
+    const status = screen.getByTestId('day-target-status');
+    expect(status.textContent).toContain('About 500 kcal under target');
+    fireEvent.click(status);
+    expect(onOpenMiss).toHaveBeenCalledOnce();
+    expect(screen.queryByText(/PLAN UNDER TARGET/i)).toBeNull();
+  });
+
+  it('without a handler (a read-only week) the status is plain text', () => {
+    render(
+      <DayRecapBar
+        meals={[{ type: 'dinner', recipe: { nutritionInfo: nutrition(2600, 60) } }]}
+        calorieTarget={2000}
+      />,
+    );
+    expect(screen.getByTestId('day-target-status').tagName).toBe('P');
+    expect(screen.getByTestId('day-target-status').textContent).toBe('About 600 kcal over target');
   });
 });
 

@@ -31,6 +31,8 @@ import { trpc } from '../src/lib/trpc';
 
 const MACRO_COLORS = { protein: '#3b82f6', carbs: '#10b981', fat: '#f59e0b' } as const;
 const DAY_MS = 86_400_000;
+/** T-11.6: an average or a percentage needs at least this many logged days to mean anything. */
+const MIN_LOGGED_DAYS = 3;
 
 const TONE_CLASS: Record<WeightChangeTone, string> = {
   positive: 'text-emerald-600',
@@ -100,9 +102,26 @@ export default function ProgressScreen() {
   const target = monthly?.dailyCalorieTarget ?? 2000;
   const loggedDays = days.filter((d) => d.hasLog);
   const daysLogged = loggedDays.length;
-  const avgKcal =
-    daysLogged > 0 ? Math.round(loggedDays.reduce((s, d) => s + d.totalKcal, 0) / daysLogged) : 0;
+  const enoughDays = daysLogged >= MIN_LOGGED_DAYS;
+  const avgKcal = enoughDays
+    ? Math.round(loggedDays.reduce((s, d) => s + d.totalKcal, 0) / daysLogged)
+    : 0;
   const diffPct = target > 0 ? Math.round(((avgKcal - target) / target) * 100) : 0;
+  const daysToGo = MIN_LOGGED_DAYS - daysLogged;
+  // This week = the last 7 days of the window, and again only from >= 3 logged days.
+  const weekLogged = days.slice(-7).filter((d) => d.hasLog);
+  const weekAvg =
+    weekLogged.length >= MIN_LOGGED_DAYS
+      ? weekLogged.reduce((s, d) => s + d.totalKcal, 0) / weekLogged.length
+      : null;
+  const weekPct =
+    weekAvg != null && target > 0 ? Math.round(((weekAvg - target) / target) * 100) : null;
+  const weekLine =
+    weekPct == null
+      ? null
+      : Math.abs(weekPct) < 2
+        ? 'About on your target this week'
+        : `About ${Math.abs(weekPct)} % ${weekPct < 0 ? 'under' : 'over'} your target this week`;
 
   // x = day index, so unlogged days leave a gap on the axis instead of
   // collapsing the month.
@@ -196,6 +215,17 @@ export default function ProgressScreen() {
             value={avgKcal > 0 ? `${diffPct > 0 ? '+' : ''}${diffPct}%` : '—'}
           />
         </View>
+
+        {monthly && !enoughDays && (
+          <Text testID="progress-more-days" variant="muted" className="text-sm">
+            Log {daysToGo} more {daysToGo === 1 ? 'day' : 'days'} to see your average
+          </Text>
+        )}
+        {weekLine && (
+          <Text testID="progress-week-line" variant="muted" className="text-sm">
+            {weekLine}
+          </Text>
+        )}
 
         {isLoading ? (
           <View className="items-center py-12">

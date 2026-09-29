@@ -11,6 +11,9 @@ function service(opts: {
   days?: { plannedWeekday: number | null; name: string }[];
   completed?: { localDate: string; name: string }[];
   pauses?: { startDate: string; endDate: string }[];
+  kinds?: Record<string, 'lift' | 'run' | 'long_run' | 'rest'>;
+  /** The `trainingBumpFree` flag (D-2 / Q-3): off unless a test opts in. */
+  widened?: boolean;
 }) {
   const gymProfileRepo = {
     findByUserId: vi
@@ -29,12 +32,15 @@ function service(opts: {
   };
   const sessionRepo = { findCompleted: vi.fn().mockResolvedValue(opts.completed ?? []) };
   const pauseRepo = { listForUser: vi.fn().mockResolvedValue(opts.pauses ?? []) };
+  const kindsService = { getDayKinds: vi.fn().mockResolvedValue(opts.kinds ?? {}) };
   const svc = new TrainingNutritionService(
     gymProfileRepo,
     weightRepo,
     routineRepo,
     sessionRepo,
     pauseRepo,
+    kindsService,
+    () => Promise.resolve(opts.widened === true),
   );
   return { svc, gymProfileRepo, sessionRepo };
 }
@@ -135,6 +141,7 @@ describe('TrainingNutritionService.trainingDayFor', () => {
       isTrainingDay: true,
       reason: 'SCHEDULED',
       workoutName: 'Full Body A',
+      kind: 'lift',
     });
     expect(sessionRepo.findCompleted).toHaveBeenCalledWith('u1', {
       fromLocalDate: '2026-09-28',
@@ -150,5 +157,213 @@ describe('TrainingNutritionService.trainingDayFor', () => {
   it('a training pause covering the day cancels the schedule', async () => {
     const { svc } = service({ days, pauses: [{ startDate: '2026-09-27', endDate: '2026-10-03' }] });
     expect((await svc.trainingDayFor('u1', '2026-09-28', 0)).isTrainingDay).toBe(false);
+  });
+});
+
+// ─── UX-06: kinds, the D-2 gate and the widened Q-3 gate ───────────────────────
+
+describe('TrainingNutritionService.trainingDayFor — kinds', () => {
+  it('a user-set run kind on a non-lift weekday makes a run day', async () => {
+    const { svc } = service({
+      days: [{ plannedWeekday: 0, name: 'A' }],
+      kinds: { '5': 'long_run' },
+    });
+    expect(await svc.trainingDayFor('u1', '2026-10-03', 5)).toEqual({
+      isTrainingDay: true,
+      reason: 'SCHEDULED',
+      workoutName: null,
+      kind: 'long_run',
+    });
+  });
+
+  it('a lift weekday stays a lift day even if a run kind was stored on it', async () => {
+    const { svc } = service({ days: [{ plannedWeekday: 0, name: 'A' }], kinds: { '0': 'run' } });
+    expect((await svc.trainingDayFor('u1', '2026-09-28', 0)).kind).toBe('lift');
+  });
+});
+
+describe('TrainingNutritionService.targetsForDay — the bump gate (T-06.1, T-06.10)', () => {
+  const RAW = {
+    goal: 'GAIN_MUSCLE',
+    biologicalSex: 'MALE',
+    age: 30,
+    heightCm: 180,
+    weightKg: 80,
+    activityLevel: 'MODERATELY_ACTIVE',
+  };
+  const profile = RAW as never;
+  const lifter = { setupCompletedAt: new Date(), latestWeightKg: 80 };
+  const days = [{ plannedWeekday: 0, name: 'Upper A' }];
+  const monday = { localDate: '2026-09-28', weekday: 0 };
+
+  it('free without the flag: the bump is previewed, not applied (today)', async () => {
+    const { svc } = service({ ...lifter, days });
+    const { training } = await svc.targetsForDay('u1', profile, monday, false);
+    expect(training?.trainingDay.isTrainingDay).toBe(true);
+    expect(training?.trainingDay.applied).toBe(false);
+    expect(training?.adjustedTargets).toBeNull();
+  });
+
+  it('free with trainingBumpFree on: applied targets, kind lift', async () => {
+    const { svc } = service({ ...lifter, days, widened: true });
+    const { targets, training } = await svc.targetsForDay('u1', profile, monday, false);
+    expect(training?.trainingDay.applied).toBe(true);
+    expect(training?.trainingDay.kind).toBe('lift');
+    expect(training?.adjustedTargets?.dailyCalorieTarget).toBeGreaterThan(
+      targets.dailyCalorieTarget,
+    );
+  });
+
+  it('premium: applied without the flag', async () => {
+    const { svc } = service({ ...lifter, days });
+    const { training } = await svc.targetsForDay('u1', profile, monday, true);
+    expect(training?.trainingDay.applied).toBe(true);
+  });
+
+  it('a long run is carb-led: kcal up, protein unchanged, kind reported (flag on)', async () => {
+    const { svc } = service({ ...lifter, days, kinds: { '5': 'long_run' }, widened: true });
+    const { targets, training } = await svc.targetsForDay(
+      'u1',
+      profile,
+      { localDate: '2026-10-03', weekday: 5 },
+      false,
+    );
+    expect(training?.trainingDay.kind).toBe('long_run');
+    expect(training?.trainingDay.proteinBonus).toBe(0);
+    expect(training?.trainingDay.kcalBonus).toBeGreaterThanOrEqual(200);
+    expect(training?.adjustedTargets?.proteinG).toBe(targets.proteinG);
+  });
+
+  it('run kinds do nothing while the widened gate is off (today)', async () => {
+    const { svc } = service({ ...lifter, days, kinds: { '5': 'long_run' } });
+    const { training } = await svc.targetsForDay(
+      'u1',
+      profile,
+      { localDate: '2026-10-03', weekday: 5 },
+      true,
+    );
+    expect(training?.trainingDay.isTrainingDay).toBe(false);
+  });
+
+  it('LOSE_WEIGHT never gets a run bump even widened (a cut is not eaten back)', async () => {
+    const { svc } = service({ ...lifter, days, kinds: { '5': 'run' }, widened: true });
+    const { training } = await svc.targetsForDay(
+      'u1',
+      { ...RAW, goal: 'LOSE_WEIGHT' } as never,
+      { localDate: '2026-10-03', weekday: 5 },
+      true,
+    );
+    expect(training).toBeNull();
+  });
+
+  it('a runner with no gym profile still gets the run bump when widened', async () => {
+    const { svc } = service({ kinds: { '5': 'run' }, widened: true });
+    const { training } = await svc.targetsForDay(
+      'u1',
+      { ...RAW, goal: 'PERFORMANCE' } as never,
+      { localDate: '2026-10-03', weekday: 5 },
+      false,
+    );
+    expect(training?.trainingDay.kind).toBe('run');
+    expect(training?.trainingDay.applied).toBe(true);
+  });
+});
+
+describe('TrainingNutritionService.trainingWeek (T-06.2)', () => {
+  const RAW = {
+    goal: 'GAIN_MUSCLE',
+    biologicalSex: 'MALE',
+    age: 30,
+    heightCm: 180,
+    weightKg: 80,
+    activityLevel: 'MODERATELY_ACTIVE',
+  };
+  const profile = RAW as never;
+  const monday = new Date(2026, 8, 28); // Mon 28 Sep 2026, local midnight
+
+  it('marks exactly the routine weekdays, with kinds and the bump for a premium lifter', async () => {
+    const { svc } = service({
+      setupCompletedAt: new Date(),
+      latestWeightKg: 80,
+      days: [
+        { plannedWeekday: 0, name: 'Upper A' },
+        { plannedWeekday: 2, name: 'Lower' },
+        { plannedWeekday: 4, name: 'Upper B' },
+      ],
+      completed: [{ localDate: '2026-09-28', name: 'Upper A' }],
+    });
+    const { trainingDays, basis } = await svc.trainingWeek('u1', profile, monday, true);
+    expect(trainingDays.map((d) => d.dayOfWeek)).toEqual([0, 2, 4]);
+    expect(trainingDays.every((d) => d.kind === 'lift' && d.applied)).toBe(true);
+    expect(trainingDays[0]?.done).toBe(true);
+    expect(trainingDays[1]?.done).toBe(false);
+    expect(trainingDays[0]?.workoutName).toBe('Upper A');
+    expect(trainingDays[0]?.targetKcal).toBeGreaterThan(basis?.restKcal ?? 0);
+    expect(basis?.proteinGPerKg).toBe(1.8);
+  });
+
+  it('a goal without the bump keeps the markers but shows no kcal (non-goal user)', async () => {
+    const { svc } = service({
+      setupCompletedAt: new Date(),
+      latestWeightKg: 80,
+      days: [{ plannedWeekday: 1, name: 'Full body' }],
+    });
+    const { trainingDays } = await svc.trainingWeek(
+      'u1',
+      { ...RAW, goal: 'MAINTAIN' } as never,
+      monday,
+      true,
+    );
+    expect(trainingDays).toHaveLength(1);
+    expect(trainingDays[0]).toMatchObject({ kcalBonus: 0, proteinBonus: 0, applied: false });
+  });
+
+  it('a Saturday long run reports its kind and the Friday snack idea (flag on)', async () => {
+    const { svc } = service({ kinds: { '5': 'long_run' }, widened: true });
+    const { trainingDays } = await svc.trainingWeek(
+      'u1',
+      { ...RAW, goal: 'PERFORMANCE' } as never,
+      monday,
+      false,
+    );
+    expect(trainingDays).toHaveLength(1);
+    expect(trainingDays[0]).toMatchObject({ dayOfWeek: 5, kind: 'long_run', applied: true });
+    expect(trainingDays[0]?.preRunSnack).toBeTruthy();
+  });
+
+  it('no schedule, no training days', async () => {
+    const { svc } = service({});
+    expect((await svc.trainingWeek('u1', profile, monday, true)).trainingDays).toEqual([]);
+  });
+});
+
+describe('TrainingNutritionService.refuelSnacks (T-06.3, AC4)', () => {
+  const none = { allergies: [], dietaryRestrictions: [], dislikedIngredients: [] };
+  const { svc } = service({});
+
+  it('returns two snacks by default', () => {
+    expect(svc.refuelSnacks(none)).toHaveLength(2);
+  });
+
+  it('a dairy allergy drops yogurt, cottage cheese and the shake', () => {
+    const names = svc.refuelSnacks({ ...none, allergies: ['dairy'] }, 20).map((s) => s.id);
+    expect(names).not.toContain('greek-yogurt');
+    expect(names).not.toContain('cottage-cheese');
+    expect(names).not.toContain('protein-shake');
+    expect(names.length).toBeGreaterThan(0);
+  });
+
+  it('egg-free drops eggs; vegan keeps only plant snacks', () => {
+    const eggFree = svc.refuelSnacks({ ...none, dietaryRestrictions: ['egg-free'] }, 20);
+    expect(eggFree.map((s) => s.id)).not.toContain('boiled-eggs');
+    const vegan = svc.refuelSnacks({ ...none, dietaryRestrictions: ['vegan'] }, 20);
+    expect(vegan.length).toBeGreaterThan(0);
+    for (const snack of vegan)
+      expect(['edamame', 'hummus-pita', 'roasted-chickpeas']).toContain(snack.id);
+  });
+
+  it('a soy allergy drops edamame; a table can leave fewer than two', () => {
+    const soy = svc.refuelSnacks({ ...none, allergies: ['soy'] }, 20).map((s) => s.id);
+    expect(soy).not.toContain('edamame');
   });
 });

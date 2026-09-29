@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import { cn, sumPlanDay } from '@chefer/utils';
 
 interface NutritionInfo {
@@ -28,45 +29,87 @@ interface DayRecapBarProps {
    * present only when meaningfully short) — shown as an honest hint.
    */
   proteinGapG?: number | undefined;
+  /**
+   * T-11.3: makes the under/over-target status a tappable, neutral line that
+   * opens the plan-miss sheet (Bigger portions / Add a snack / Keep it).
+   * Absent (read-only weeks) = the status is plain text.
+   */
+  onOpenMiss?: (() => void) | undefined;
 }
 
 /** Matches the API's PLAN_KCAL_TOLERANCE — one band, every surface. */
 const TARGET_BAND = 0.15;
 
-export function DayRecapBar({ meals, calorieTarget, proteinGapG }: DayRecapBarProps) {
+/** "About 300 kcal" — rounded to 10 so the status never reads falsely precise. */
+export function aboutKcal(n: number): string {
+  return `About ${(Math.round(Math.abs(n) / 10) * 10).toLocaleString('en-US')} kcal`;
+}
+
+function StatusLine({
+  testId,
+  text,
+  onOpenMiss,
+}: {
+  testId: string;
+  text: string;
+  onOpenMiss?: (() => void) | undefined;
+}) {
+  const cls = 'mt-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700';
+  if (!onOpenMiss) {
+    return (
+      <p data-testid={testId} className={cls}>
+        {text}
+      </p>
+    );
+  }
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onOpenMiss}
+      aria-label={`${text}. See options`}
+      className={cn(
+        cls,
+        'flex min-h-11 w-full items-center justify-between gap-1 text-left hover:bg-gray-200 sm:min-h-0',
+      )}
+    >
+      <span className="min-w-0">{text}</span>
+      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-500" aria-hidden="true" />
+    </button>
+  );
+}
+
+export function DayRecapBar({ meals, calorieTarget, proteinGapG, onOpenMiss }: DayRecapBarProps) {
   // Totals count each slot at its portion (P1-1) — same sum as mobile.
   const { kcal, protein, carbs, fat } = sumPlanDay(meals);
   const totals = { calories: kcal, protein, carbs, fat };
 
   const delta = calorieTarget ? totals.calories - calorieTarget : 0;
   const offTarget = calorieTarget ? Math.abs(delta) / calorieTarget > TARGET_BAND : false;
+  const proteinShort = proteinGapG !== undefined && proteinGapG > 0;
 
   return (
     <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2">
       <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">Day total</p>
       <p className="text-sm font-bold text-[#944a00]">{totals.calories} kcal</p>
       {offTarget && (
-        <p
-          className={cn(
-            'mt-0.5 inline-block rounded-full px-1.5 py-px text-xs font-semibold',
-            delta < 0 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-700',
-          )}
-        >
-          {delta < 0 ? `${Math.abs(delta)} kcal under target` : `${delta} kcal over target`}
-        </p>
+        <StatusLine
+          testId="day-target-status"
+          text={`${aboutKcal(delta)} ${delta < 0 ? 'under' : 'over'} target`}
+          onOpenMiss={onOpenMiss}
+        />
       )}
       <div className="mt-1 flex gap-3 text-xs text-gray-500">
         <span>P {totals.protein}g</span>
         <span>C {totals.carbs}g</span>
         <span>F {totals.fat}g</span>
       </div>
-      {proteinGapG !== undefined && proteinGapG > 0 && (
-        <p
-          data-testid="day-protein-gap"
-          className="mt-1 rounded-md bg-amber-50 px-1.5 py-1 text-xs font-medium text-amber-800"
-        >
-          Protein short by {proteinGapG} g — add a snack
-        </p>
+      {proteinShort && !offTarget && (
+        <StatusLine
+          testId="day-protein-gap"
+          text={`About ${proteinGapG} g short on protein`}
+          onOpenMiss={onOpenMiss}
+        />
       )}
     </div>
   );

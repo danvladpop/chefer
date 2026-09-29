@@ -49,6 +49,8 @@ export interface UpsertChefProfileData {
   customTrainingProteinG?: number | null;
   addTrainingBonus?: boolean;
   targetSnapshot?: Prisma.InputJsonValue | typeof Prisma.JsonNull;
+  /** S10 (T-10.4, D-7): the week start whose household scaling was free (first week). */
+  freeScaledWeekStart?: Date | null;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────

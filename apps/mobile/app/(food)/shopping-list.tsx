@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams } from 'expo-router';
 import {
@@ -30,9 +38,12 @@ import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { PantryCheckBanner } from '../../src/features/pantry/pantry-check-banner';
 import { PantryGhostBanner } from '../../src/features/pantry/pantry-ghost-banner';
 import { PantryPanel } from '../../src/features/pantry/pantry-panel';
+import { LockedFeatureCard } from '../../src/features/premium/locked-feature-card';
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
+import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../src/features/shopping-list/categories';
 import { CategoryHeader } from '../../src/features/shopping-list/category-header';
 import { parseCustomItemInput } from '../../src/features/shopping-list/parse-custom-item';
+import { ShareListSheet } from '../../src/features/shopping-list/share-list-sheet';
 import { useCurrency } from '../../src/hooks/use-currency';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
@@ -55,16 +66,6 @@ const SHOP_SEGMENTS = [
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=120&h=120&fit=crop&q=80';
 
-const CATEGORY_ORDER = ['produce', 'proteins', 'dairy', 'grains', 'frozen', 'other'] as const;
-const CATEGORY_LABELS: Record<string, string> = {
-  produce: 'Produce',
-  proteins: 'Proteins',
-  dairy: 'Dairy & Eggs',
-  grains: 'Grains & Pantry',
-  frozen: 'Frozen',
-  other: 'Other',
-};
-
 export default function ShoppingListScreen() {
   // Deep links (/shopping-list?view=kitchen) open the kitchen segment.
   const params = useLocalSearchParams<{ view?: string }>();
@@ -75,7 +76,8 @@ export default function ShoppingListScreen() {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [newItemText, setNewItemText] = useState('');
   const isPremium = useIsPremium();
-  const { memberCount } = useHousehold();
+  const { memberCount, tablePortions } = useHousehold();
+  const [shareOpen, setShareOpen] = useState(false);
   const unitSystem = useUnitSystem();
   // Prices are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
@@ -89,6 +91,14 @@ export default function ShoppingListScreen() {
     isError,
     refetch: refetchList,
   } = trpc.shoppingList.getForWeek.useQuery({ weekOffset }, { staleTime: 60_000 });
+
+  // T-10.4: the household's first scaled week is free — the plan says so.
+  // Only asked for free users (premium is always scaled, nothing to explain).
+  const { data: planForWeek } = trpc.mealPlan.getForWeek.useQuery(
+    { weekOffset },
+    { staleTime: 60_000, enabled: isPremium === false },
+  );
+  const firstScaledWeek = isPremium === false && planForWeek?.firstScaledWeek === true;
 
   // B-13 (T-00.15): confirms the server sent the WEEK actually asked for —
   // a monitoring signal for the "next week shown as this week" bug class,
@@ -278,6 +288,24 @@ export default function ShoppingListScreen() {
           </View>
           <View className="flex-row gap-1">
             <Pressable
+              testID="share-list"
+              accessibilityRole="button"
+              accessibilityLabel="Share the list"
+              accessibilityState={{ disabled: items.length === 0 }}
+              disabled={items.length === 0}
+              onPress={() => setShareOpen(true)}
+              className={cn(
+                'h-11 w-11 items-center justify-center rounded-full border border-border',
+                items.length === 0 && 'opacity-40',
+              )}
+            >
+              <Ionicons
+                name={Platform.select({ ios: 'share-outline', default: 'share-social-outline' })}
+                size={18}
+                color="#6b7280"
+              />
+            </Pressable>
+            <Pressable
               testID="week-prev"
               accessibilityRole="button"
               accessibilityLabel="Previous week"
@@ -355,6 +383,30 @@ export default function ShoppingListScreen() {
             )}
           </View>
         )}
+
+        {/* T-10.4: household first week is free — say so; from week 2 the
+            list is sized for 1 and a lock card offers the table's portions. */}
+        {firstScaledWeek && weekList?.portions != null && (
+          <Text testID="shopping-first-week" className="text-xs font-medium text-primary">
+            Sized for your table of {weekList.portions} — free for your first week
+          </Text>
+        )}
+        {isPremium === false &&
+          !firstScaledWeek &&
+          weekList?.hasPlan &&
+          weekList.portions == null &&
+          memberCount > 0 && (
+            <LockedFeatureCard
+              testID="shopping-household-locked"
+              source="household"
+              compact
+              job={
+                tablePortions != null && tablePortions > 1
+                  ? `Keep portions for your table of ${tablePortions}`
+                  : 'Keep portions right for your table'
+              }
+            />
+          )}
 
         {/* Weekly kitchen check — inline, never over the list (F-PM-13) */}
         <PantryCheckBanner />
@@ -561,6 +613,16 @@ export default function ShoppingListScreen() {
           </>
         )}
       </KeyboardAwareScrollView>
+      <ShareListSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        weekOffset={weekOffset}
+        weekStart={weekStart}
+        items={items}
+        checkedKeys={checkedItems}
+        fromDayOfWeek={weekList?.fromDayOfWeek}
+        portions={weekList?.portions ?? null}
+      />
     </Screen>
   );
 }

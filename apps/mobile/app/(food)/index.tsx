@@ -300,7 +300,7 @@ export default function HomeScreen() {
           </Card>
         )}
 
-        <WeekOutlook weekPlan={d.weekPlan} />
+        <WeekOutlook weekPlan={d.weekPlan} weekGlance={d.weekGlance} />
 
         {/* B-31 interim (T-00.12): weight tracking assumes a goal. */}
         {showNutritionCards && <WeightCard />}

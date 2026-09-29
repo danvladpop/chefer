@@ -24,6 +24,7 @@ import {
   formatBodyWeight,
   weightChangeTone,
 } from '@chefer/utils';
+import { hasEnoughDaysForAverage, moreDaysHint } from './average-gate';
 
 // T-21.1 (bugs B-06/B-33): `d.date` is a `YYYY-MM-DD` calendar day (the
 // user's local day, not UTC). `parseISO('2026-09-26')` parses a date-only
@@ -88,6 +89,9 @@ export default function ProgressPage() {
     loggedDays.length > 0
       ? Math.round(loggedDays.reduce((s, d) => s + d.totalKcal, 0) / loggedDays.length)
       : 0;
+  // T-11.6: an average from one or two days is noise — show it from three.
+  const enoughDays = hasEnoughDaysForAverage(daysLogged);
+  const averageHint = moreDaysHint(daysLogged);
   const target = monthly?.dailyCalorieTarget ?? 2000;
   const diffPct = target > 0 ? Math.round(((avgKcal - target) / target) * 100) : 0;
 
@@ -118,12 +122,12 @@ export default function ProgressPage() {
           {
             icon: <TrendingUp className="h-4 w-4 text-blue-500" />,
             label: 'Avg kcal',
-            value: avgKcal > 0 ? avgKcal.toLocaleString() : '—',
+            value: enoughDays && avgKcal > 0 ? avgKcal.toLocaleString() : '—',
           },
           {
             icon: <Scale className="h-4 w-4 text-emerald-500" />,
             label: 'vs target',
-            value: avgKcal > 0 ? `${diffPct > 0 ? '+' : ''}${diffPct}%` : '—',
+            value: enoughDays && avgKcal > 0 ? `${diffPct > 0 ? '+' : ''}${diffPct}%` : '—',
           },
         ].map((s, i) => (
           <div key={i} className="flex flex-col gap-1 rounded-2xl border bg-white p-4 shadow-sm">
@@ -135,6 +139,12 @@ export default function ProgressPage() {
           </div>
         ))}
       </div>
+
+      {!isLoading && averageHint && (
+        <p data-testid="progress-average-hint" className="-mt-2 mb-6 text-xs text-neutral-500">
+          {averageHint}
+        </p>
+      )}
 
       {isLoading && (
         <div className="space-y-4">

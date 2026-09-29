@@ -1,12 +1,26 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TrainingDayNutrition } from '@chefer/types';
 import { TrainingDayNote } from './training-day-note';
 
 vi.mock('@/features/premium/components/UpgradeButton', () => ({
   UpgradeButton: ({ source }: { source: string }) => <button data-source={source}>Upgrade</button>,
+}));
+
+vi.mock('@/lib/trpc', () => ({
+  trpc: {
+    targets: {
+      get: {
+        useQuery: () => ({
+          data: {
+            effective: { dailyCalorieTarget: 2240, proteinG: 150, carbsG: 250, fatG: 70 },
+          },
+        }),
+      },
+    },
+  },
 }));
 
 afterEach(cleanup);
@@ -37,5 +51,49 @@ describe('TrainingDayNote on the tracker', () => {
     render(<TrainingDayNote t={t(false)} isToday={false} />);
     expect(screen.getByText(/Premium adds this to this day's targets/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Upgrade' })).toBeTruthy();
+  });
+});
+
+// T-06.8: the applied state is the same for premium and for free with the
+// server flag on; the locked variant shows only when the bump is not applied.
+describe('TrainingDayNote applied state (T-06.8)', () => {
+  it('shows the glyph line, the protein sentence and a Why? button', () => {
+    render(<TrainingDayNote t={t(true)} />);
+    expect(screen.getByText('Training day · +280 kcal, +32 g protein')).toBeTruthy();
+    expect(
+      screen.getByText('Full Body B today · protein at 2.2 g/kg, added to today'),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Why?' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull();
+    expect(screen.queryByText(/Upgrade from your Profile/)).toBeNull();
+  });
+
+  it('a run day says "Mostly carbs, added to today" and uses the run copy', () => {
+    render(<TrainingDayNote t={{ ...t(true), kind: 'run', proteinBonus: 0 }} />);
+    expect(screen.getByText('Run day · +280 kcal, mostly carbs')).toBeTruthy();
+    expect(screen.getByText('Mostly carbs, added to today')).toBeTruthy();
+  });
+
+  it('Why? opens the explain dialog built from the training copy', () => {
+    render(<TrainingDayNote t={t(true)} />);
+    expect(screen.queryByTestId('training-explain')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Why?' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.textContent).toContain('More food on training days');
+    expect(dialog.textContent).toContain('2,240 kcal · 150 g protein');
+    expect(screen.getByRole('link', { name: 'Change training days' }).getAttribute('href')).toBe(
+      '/gym/settings',
+    );
+  });
+
+  it('locked only when not applied: no Why?, upgrade shown', () => {
+    render(<TrainingDayNote t={t(false)} />);
+    expect(screen.queryByRole('button', { name: 'Why?' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Upgrade' })).toBeTruthy();
+  });
+
+  it('another day without a date offers no Why? (it would name the wrong weekday)', () => {
+    render(<TrainingDayNote t={t(true)} isToday={false} />);
+    expect(screen.queryByRole('button', { name: 'Why?' })).toBeNull();
   });
 });

@@ -79,6 +79,35 @@ appId: dev.chefer.app.dev
                   id: 'plan-settings-title'
                 timeout: 5000
 
+# Training days on the plan (UX-06 T-06.4/T-06.10). OPTIONAL precondition: the
+# account has a training day set — a routine with a planned weekday, or (no
+# gym profile needed) Saturday set to `Long run` via `training.setDayKinds
+# { days: { "5": "long_run" } }` or Gym settings > Training days & reminders.
+# alice has no routine in the seed, so this block only asserts when the chip's
+# a11y label carries the training marker (`Saturday, long run day` /
+# `<Weekday>, training day`); otherwise it is skipped. Read-only: only asserts
+# the header (the Explain sheet is covered by the Jest plan-markers test).
+- runFlow:
+    when:
+      visible: 'Saturday, long run day.*'
+    commands:
+      - tapOn: 'Saturday, long run day.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'plan-training-header'
+          timeout: 10000
+      - assertVisible: 'Long run day.*'
+- runFlow:
+    when:
+      visible: '.*, training day.*'
+    commands:
+      - tapOn: '.*, training day.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'plan-training-header'
+          timeout: 10000
+      - assertVisible: 'Training day · .*'
+
 # Visible Regenerate action row (UX-08 T-08.2/T-08.3) — under the day chips,
 # not only behind the week-summary sheet. It now always asks first: open the
 # confirm and Cancel WITHOUT confirming (a confirm would replace the week).

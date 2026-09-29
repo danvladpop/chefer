@@ -18,6 +18,8 @@ const planShapeOverrideSchema = planShapeSchema.partial();
 // Premium households see the week cost sized for the whole table (P2-3).
 const planView = (user: Parameters<typeof hasFeature>[0]) => ({
   householdScaling: hasFeature(user, 'householdPlans'),
+  // UX-06 (T-06.1): whether the training-day bump is applied or only previewed.
+  trainingAccess: hasFeature(user, 'trainingDayTargets'),
 });
 
 // A slot's index in `day.meals` (a curated day can hold two snacks). Optional
@@ -43,6 +45,13 @@ export const mealPlanRouter = router({
         shape: planShapeOverrideSchema.optional(),
         /** §T-07.4/T-08.3: keep slots the user pinned when they still pass safety. */
         keepPinned: z.boolean().optional(),
+        /**
+         * §T-06.7: premium `Fit meals to my training days`. Omitted = today's
+         * behaviour (on for lifters whose goal gets the bump); `false` turns
+         * it off for this week. Ignored on the free tier (the switch is a
+         * locked preview there).
+         */
+        fitTrainingDays: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -59,6 +68,8 @@ export const mealPlanRouter = router({
           instant: premium && env.AI_PLAN_TAILORING,
           ...(input.shape && { shape: input.shape }),
           ...(input.keepPinned !== undefined && { keepPinned: input.keepPinned }),
+          ...(premium &&
+            input.fitTrainingDays !== undefined && { fitTrainingDays: input.fitTrainingDays }),
         });
       } catch (err) {
         await reservation.release();

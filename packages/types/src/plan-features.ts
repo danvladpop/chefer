@@ -192,15 +192,32 @@ export const PLAN_FEATURES = {
   },
   trainingNutrition: {
     // The gym premium hero (audit P2-4). Free lifters get the base protein
-    // target from their bodyweight and the post-workout nudge; premium applies
-    // the training-day bump to Today's targets and builds AI weeks around the
-    // routine's training days. Deterministic — no extra AI call.
+    // target from their bodyweight and the post-workout nudge; premium builds
+    // the week around the routine's training days ("Fit meals to my training
+    // days"). Since UX-06 (T-06.1) the training-day BUMP itself is gated by
+    // `trainingDayTargets` below, not by this key — a key split, not a rename
+    // (old clients that read this key for their lock copy keep working).
+    // Deterministic — no extra AI call.
     free: false,
     premium: true,
     label: 'Nutrition that follows your training',
     description:
       'On workout days your calorie and protein targets rise to fuel the session, and your AI week puts protein-rich meals on your training days.',
     upsell: true,
+  },
+  trainingDayTargets: {
+    // UX-06 (T-06.1, D-2): the training-day calorie/protein bump on Today,
+    // the tracker and the plan's day targets. Premium-only here; the
+    // `trainingBumpFree` feature flag (server-side, packages/types
+    // feature-flags.ts) opens it to the free tier — enforced in
+    // TrainingNutritionService, which ORs the flag onto this key's access.
+    // Not a perk line of its own (the pitch lists `trainingNutrition`).
+    free: false,
+    premium: true,
+    label: 'Training-day targets',
+    description:
+      'On a training day your calorie and protein targets rise to fuel the session, with the reason one tap away.',
+    upsell: false,
   },
   aiNutritionEstimatesPerDay: {
     // "Auto-fill with AI" on the custom-ingredient form — per-user AI, so

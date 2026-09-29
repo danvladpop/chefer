@@ -1327,6 +1327,91 @@ protein in your next meal" — linking the next planned meal (from
 `dashboard.summary`, recipe page) or, offline / without a plan, the tracker's
 quick add.
 
+### 10.2 Food that follows training (UX-06, wave 3 — persona study)
+
+**Weekday kinds.** Each weekday is `lift` (from the routine's planned
+weekdays, or a workout completed that date), `run` or `long_run` (set by the
+user in Gym settings › Training days & reminders or onboarding, stored on
+`ChefProfile.trainingDayKinds`) or `rest`. A lift weekday always wins over a
+stored kind. `TrainingNutritionService.trainingWeek` resolves them for the
+plan week.
+
+**Bumps by kind (deterministic, no AI).** `lift` keeps the protein-led bump
+(§10.1). `run` and `long_run` are carb-led: kcal only (`RUN_DAY_KCAL` 8 %,
+100–250; `LONG_RUN_DAY_KCAL` 15 %, 200–450), no extra protein, everything to
+carbs; a long run adds an evening-before carb snack idea shown on the
+previous day. **The numbers are placeholders pending dietitian review
+(Q-3).** Who gets what: unwidened (default) — GAIN_MUSCLE lift days only, as
+before; widened (Q-3, behind the server flag `trainingBumpFree`, off by
+default) — lift for GAIN_MUSCLE / RECOMP / PERFORMANCE, run and long run for
+every goal except LOSE_WEIGHT.
+
+**Free vs premium (D-2).** The bump on Today, the tracker and the plan's day
+targets is gated by `trainingDayTargets` (premium) OR the flag
+`trainingBumpFree` (free). Flag off → a free user sees the same numbers as a
+locked preview and the target does not move. `trainingNutrition` (premium)
+means "Fit meals to my training days" — the AI/curated week is built around
+the lift days; the switch is in the Plan settings sheet and is sent as
+`generate.fitTrainingDays`.
+
+**Plan (web + mobile).** Day chips carry a barbell (lift) or walk (run) glyph
+on exactly the training weekdays; the day view gets a header (`Training day ·
+Upper A`, `Target today … kcal · … g protein`, `(+300 kcal, +31 g protein for
+training)`, or `Long run day · +N kcal, mostly carbs`) that opens an Explain
+sheet (`Why this target`, rest-day target, bonus, protein basis, `Change
+training days`); a user whose goal gets no bump sees the marker and title but
+no kcal. The week summary shows `3 training days`. The day before a long run
+shows the pre-run snack idea.
+
+**Today.** `training-day-note` renders the applied state for free (flag on)
+and premium with a `Why?` link; the locked variant only when the bump is not
+applied. For users who train, the week outlook becomes the week glance: seven
+equal columns (Mon–Sun, never a scroll), each with the meal count and a
+barbell / walk glyph (filled = done, outline = planned, never red).
+`dashboard.summary.refuelSnacks` carries two allergy-safe snacks for the gym
+summary's refuel card.
+
+**Known gap.** A change of weekday kinds moves training-day targets, not the
+base targets `TargetsService` snapshots, so it does not yet raise a `DAY_KIND`
+change notice; the run kinds are behind the off-by-default flag until that
+hook lands (see the wave report).
+
+### 10.3 What Premium changed, miss sheet, re-plan banner (T-10.7, T-11.3)
+
+After a premium regeneration the Plan shows a one-time `What Premium changed`
+card from `premiumChanges` (lines, `Meets your … target on X of Y days`, a
+`Fix it` for days outside ±15 %) with `Compare with your free week`
+(`mealPlan.getById(previousPlanId)`). A day under or over its target opens
+`PlanMissSheet`: `Bigger portions` (preview via `mealPlan.scaleDay`, 0.75–1.5×),
+`Add a snack` (never for LOSE_WEIGHT), `Keep it`. When the live target moved
+≥ 5 % since the week was planned, a banner offers `Re-plan with {new}?`.
+
+### 10.4 Sharing the list and the dinners (UX-13, T-13.1–T-13.3)
+
+The Shop header (mobile) / overflow menu (web) offers `Share`: a `Send the
+list` sheet with scope (`What’s left to buy · n items` / `Everything · n
+items`), `Include amounts` and `Add this week’s dinners`, remembered per
+device. The text is built by the shared `formatListForSharing`: title
+(`Shopping list · 28 Sep – 4 Oct`, or `· Fri–Sun` mid-week), aisles in the
+list's order in capitals, `- ` bullets, custom lines under their aisle, ticked
+and pantry-covered lines omitted from "What's left" (pantry-covered marked
+`(have it)` in "Everything"), no emoji or markdown, the dinners block, and one
+`Made with Chefer · {url}` line. Mobile uses React Native's `Share.share`; web
+uses `navigator.share` with a `Copy list` clipboard fallback. The button is
+disabled on an empty list. The week-summary sheet has `Share this week’s
+dinners` (planned dinners only). Sharing is not an AI call.
+
+### 10.5 Household first week free and the pool-exhausted card (T-10.4, D-7)
+
+Flag `householdFirstWeekFree` (off by default): the first curated week
+generated for a free household is sized for the table (plan cost and the
+`Sized for your table of {n} — free for your first week` line, `firstScaledWeek`
+on the plan); `ChefProfile.freeScaledWeekStart` records it once. From week 2 the
+list says `Sized for 1 portion` with a `Keep portions for your table of {n}`
+row. When the free pool cannot fill the week the Plan shows `Our recipes can’t
+fill this week around your restrictions.` with `Pick recipes yourself` and
+`Premium builds a plan around them` (never a suggestion to relax safety).
+
 ---
 
 ## 11. Password Reset Flow
