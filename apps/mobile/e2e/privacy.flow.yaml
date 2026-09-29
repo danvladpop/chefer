@@ -187,7 +187,9 @@ appId: dev.chefer.app.dev
     centerElement: true
 - tapOn:
     id: 'logout-button'
+# Signing out lands on Welcome or straight on Sign in, depending on history.
 - extendedWaitUntil:
-    visible:
-      id: 'welcome-title'
+    notVisible:
+      id: 'logout-button'
     timeout: 15000
+- assertVisible: 'Welcome.*|Sign in.*'
