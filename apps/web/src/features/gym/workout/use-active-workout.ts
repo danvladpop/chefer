@@ -5,6 +5,7 @@ import { trpc } from '@/lib/trpc';
 import type { GymBootstrap, NextWorkoutDto, WorkoutSessionDoc } from '@chefer/types';
 import {
   applyFinishedSession,
+  applyPendingCorrections,
   setTickOutcome,
   startSession,
   workoutReducer,
@@ -229,11 +230,14 @@ export function reconcileWithPending(
   today: string,
 ): GymBootstrap {
   if (!bootstrap.profile) return bootstrap;
-  const known = new Set(bootstrap.recentSessions.map((s) => s.id));
+  // UX-44: a correction still in the outbox (an edited COMPLETED doc, a
+  // DISCARDED tombstone — held or not) survives a refetch made before it synced.
+  const corrected = applyPendingCorrections(bootstrap, pending, today);
+  const known = new Set(corrected.recentSessions.map((s) => s.id));
   return pending
     .filter((doc) => doc.status === 'COMPLETED' && !known.has(doc.id))
     .sort((a, b) => (a.finishedAt ?? a.startedAt).localeCompare(b.finishedAt ?? b.startedAt))
-    .reduce((current, doc) => foldFinished(current, doc, today), bootstrap);
+    .reduce((current, doc) => foldFinished(current, doc, today), corrected);
 }
 
 export interface ActiveWorkout {

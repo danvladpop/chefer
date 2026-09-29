@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
-import { Alert, ScrollView, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { useMemo, useSyncExternalStore } from 'react';
+import { Pressable, Text as RNText, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
+import type { SessionSummaryDto, WorkoutSessionDoc } from '@chefer/types';
 import { Badge, Button, Card, CardTitle, EmptyState, Screen, Text } from '@chefer/ui-mobile';
 import {
   cn,
@@ -11,23 +11,36 @@ import {
   formatDurationMinutes,
   formatLoad,
   isStrengthTrackingType,
+  toSessionSummary,
   trackingTypeOf,
+  weekdayDateLabel,
 } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../library-screens/online-status';
 import { StackBackButton } from '../library-screens/stack-back-button';
+import { outbox } from '../offline/outbox';
 import { useGymBootstrap } from '../use-gym-bootstrap';
 import { sessionDurationMin, viewFromDoc, viewFromSummary, type SessionView } from './session-view';
+import { useSessionActions } from './use-session-actions';
 
 // Past session detail (gym_plan.md §1.3): date, duration, each exercise's
-// sets (warm-ups dimmed), RIR and notes, with a guarded delete. Offline-first:
-// renders from the cached `recentSessions` summary immediately, then upgrades
-// to the full `session.get` doc (adds notes) once online.
+// sets (warm-ups dimmed), RIR and notes. UX-44 (T-44.1): the header has `Edit`
+// and a `⋯` menu (Edit / Delete workout) — the old bottom-of-screen native
+// `Alert` delete is gone. Offline-first: renders from the cached
+// `recentSessions` summary immediately, then upgrades to the full
+// `session.get` doc (adds notes) once online. A correction still waiting in
+// the outbox wins over both (an edit shows at once; a delete hides it).
+
+/** The outbox's copy of a session, if a correction is still waiting to sync. */
+function usePendingDoc(sessionId: string): WorkoutSessionDoc | null {
+  const state = useSyncExternalStore(outbox.subscribe, outbox.getState);
+  return state.entries.find((e) => e.doc.id === sessionId && !e.parkedReason)?.doc ?? null;
+}
 
 export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
   const online = useIsOnline();
-  const utils = trpc.useUtils();
   const { data: bootstrap, isLoading: bootstrapLoading } = useGymBootstrap();
+  const pending = usePendingDoc(sessionId);
 
   const summary = bootstrap?.recentSessions.find((s) => s.id === sessionId);
   const { data: fullDoc, isLoading: docLoading } = trpc.gym.session.get.useQuery(
@@ -36,37 +49,30 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
   );
 
   const view: SessionView | undefined = useMemo(() => {
+    if (pending) return pending.status === 'COMPLETED' ? viewFromDoc(pending) : undefined;
     if (fullDoc) return viewFromDoc(fullDoc);
     if (summary) return viewFromSummary(summary);
     return undefined;
-  }, [fullDoc, summary]);
+  }, [pending, fullDoc, summary]);
 
-  const deleteMutation = trpc.gym.session.delete.useMutation({
-    onSuccess: () => {
-      void utils.gym.bootstrap.invalidate();
-      router.back();
-    },
+  // The `SessionSummaryDto` the shared row actions work on (delete preview, tombstone).
+  const actionSession: SessionSummaryDto | null = useMemo(() => {
+    if (pending?.status === 'COMPLETED') return toSessionSummary(pending);
+    if (summary) return summary;
+    return fullDoc ? toSessionSummary(fullDoc) : null;
+  }, [pending, summary, fullDoc]);
+
+  const actions = useSessionActions({
+    bootstrap,
+    source: 'detail',
+    onDeleted: () => router.back(),
+    testIDPrefix: 'session-detail',
   });
 
   const libraryLookup = useMemo(
     () => new Map((bootstrap?.library ?? []).map((e) => [e.id, e])),
     [bootstrap],
   );
-
-  const onDelete = () => {
-    Alert.alert(
-      'Delete this session?',
-      'Your progression for its exercises will be recalculated as if it never happened.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => deleteMutation.mutate({ id: sessionId }),
-        },
-      ],
-    );
-  };
 
   if (!view) {
     return (
@@ -110,15 +116,28 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
               {view.isDeload ? ' · Deload' : ''}
             </Text>
           </View>
-          <Button
-            testID="session-detail-delete"
-            variant="ghost"
-            size="icon"
-            accessibilityLabel="Delete session"
-            onPress={onDelete}
-          >
-            <Ionicons name="trash-outline" size={20} color="#b91c1c" />
-          </Button>
+          {actionSession ? (
+            <>
+              <Button
+                testID="session-detail-edit"
+                variant="ghost"
+                size="sm"
+                accessibilityLabel={`Edit ${view.name}, ${weekdayDateLabel(view.localDate)}`}
+                onPress={() => actions.edit(actionSession)}
+              >
+                Edit
+              </Button>
+              <Pressable
+                testID="session-detail-options"
+                accessibilityRole="button"
+                accessibilityLabel={`Options for ${view.name}, ${weekdayDateLabel(view.localDate)}`}
+                onPress={() => actions.openMenu(actionSession)}
+                className="h-11 w-11 items-center justify-center rounded-full active:bg-muted"
+              >
+                <RNText className="text-xl font-bold text-foreground">⋯</RNText>
+              </Pressable>
+            </>
+          ) : null}
         </View>
 
         {view.notes ? (
@@ -205,6 +224,7 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
           );
         })}
       </ScrollView>
+      {actions.sheets}
     </Screen>
   );
 }

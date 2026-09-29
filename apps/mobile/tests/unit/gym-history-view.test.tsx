@@ -1,8 +1,10 @@
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager } from '@tanstack/react-query';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { SessionSummaryDto } from '@chefer/types';
 import { HistoryView } from '../../src/features/gym/stats/history-view';
 import { makeBootstrap } from './gym-fixtures';
+import { safeAreaMetrics } from './gym-workout-helpers';
 
 // T-36.5: Stats › History — week-grouped list of every completed session,
 // cache-then-cursor `Load more`, same shape as Gym Today's `Recent`
@@ -122,5 +124,29 @@ describe('HistoryView', () => {
       ),
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // ── UX-44 (T-44.1, AC1) ────────────────────────────────────────────────────
+  it('AC1: ⋯ → Edit workout opens edit mode in two taps from Stats › History', async () => {
+    const user = userEvent.setup();
+    await render(
+      <SafeAreaProvider initialMetrics={safeAreaMetrics}>
+        <HistoryView
+          bootstrap={makeBootstrap({ recentSessions: [session({ id: 's1', name: 'Upper A' })] })}
+        />
+      </SafeAreaProvider>,
+    );
+    expect(screen.getByTestId('gym-history-row-s1').props.accessibilityActions).toEqual(
+      expect.arrayContaining([
+        { name: 'edit', label: 'Edit' },
+        { name: 'delete', label: 'Delete' },
+      ]),
+    );
+    await user.press(screen.getByTestId('gym-history-row-s1-options'));
+    await user.press(await screen.findByTestId('gym-history-menu-edit'));
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/gym/workout',
+      params: { edit: 's1' },
+    });
   });
 });

@@ -63,6 +63,9 @@ export type WorkoutAction =
       at: string;
     }
   | { type: 'skipExercise'; seId: string; skipped: boolean; at: string }
+  // UX-44 (T-44.3): edit mode's `Remove from this workout` — drops the whole
+  // exercise (the routine is never touched). Live workouts use Skip instead.
+  | { type: 'removeExercise'; seId: string; at: string }
   | {
       type: 'addExercise';
       newSeId: string;
@@ -321,6 +324,12 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
       return withExercises(
         mapExercise(doc, action.seId, (se) => ({ ...se, skipped: action.skipped })),
       );
+    case 'removeExercise': {
+      if (!doc.exercises.some((se) => se.id === action.seId)) return doc;
+      return stamp({
+        exercises: reindex(sortedByPosition(doc.exercises).filter((se) => se.id !== action.seId)),
+      });
+    }
     case 'addExercise': {
       const exercises = sortedByPosition(doc.exercises);
       const added: SessionExerciseDoc = {

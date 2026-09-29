@@ -4,6 +4,7 @@
 // platforms agree on what "matches" means; kept local per G5-B's file
 // ownership (apps/web/src/features/gym/routine/**).
 import { VOLUME_GROUPS, type ExerciseDto, type VolumeGroup } from '@chefer/types';
+import { isCardioExercise } from '../shared/cardio';
 
 export interface ExerciseFilterOptions {
   query: string;
@@ -22,15 +23,18 @@ export function filterExercises(
 ): ExerciseDto[] {
   const q = opts.query.trim().toLowerCase();
   const exclude = opts.excludeIds ?? [];
-  return library
-    .filter((e) => !e.archived && !exclude.includes(e.id))
-    .filter((e) => (opts.group ? matchesGroup(e, opts.group) : true))
-    .filter((e) =>
-      q.length === 0
-        ? true
-        : e.name.toLowerCase().includes(q) || e.aliases.some((a) => a.toLowerCase().includes(q)),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    library
+      // T-42.5 (Q-31): the web renders cardio but never logs it — pickers exclude it.
+      .filter((e) => !e.archived && !exclude.includes(e.id) && !isCardioExercise(e))
+      .filter((e) => (opts.group ? matchesGroup(e, opts.group) : true))
+      .filter((e) =>
+        q.length === 0
+          ? true
+          : e.name.toLowerCase().includes(q) || e.aliases.some((a) => a.toLowerCase().includes(q)),
+      )
+      .sort((a, b) => a.name.localeCompare(b.name))
+  );
 }
 
 /** Same-swap-group alternatives first (research: "suggests same-swap-group alternatives first"). */

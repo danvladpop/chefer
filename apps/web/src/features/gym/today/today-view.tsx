@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import {
-  ArrowRight,
   CalendarClock,
   Clock,
   Dumbbell,
@@ -28,16 +27,18 @@ import {
   type ExerciseLookup,
 } from '@chefer/utils';
 import { SupersetHeading } from '../routine/components/SupersetHeading';
-import { prescriptionText, shortDate } from '../shared/format';
+import { prescriptionText } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
 import { SyncIndicator } from '../shared/sync-indicator';
 import { useGymData } from '../shared/use-gym-data';
 import { WeekRing } from '../shared/week-ring';
 import { weekDays, WeekStrip } from '../shared/week-strip';
 import { useActiveWorkout } from '../workout/use-active-workout';
-import { sessionProgress } from '../workout/workout-model';
+import { HowThisWorksSheet } from './HowThisWorksSheet';
 import { buildBackfillWorkout, LogPastWorkoutSheet } from './log-past-workout-sheet';
 import { PickDaySheet } from './pick-day-sheet';
+import { RecentWorkouts } from './RecentWorkouts';
+import { ResumeBanner } from './ResumeBanner';
 
 // ─── Gym Today (gym_plan.md §1.3) ─────────────────────────────────────────────
 // "What do I do today": the resume banner, the week (strip, ring, streak),
@@ -52,6 +53,7 @@ export function TodayView() {
   const utils = trpc.useUtils();
   const [pickOpen, setPickOpen] = useState(false);
   const [backfillOpen, setBackfillOpen] = useState(false);
+  const [howOpen, setHowOpen] = useState(false);
 
   // First visit without a gym profile → the setup flow (gym_plan.md §1.3).
   const needsSetup = ready && data?.profile === null;
@@ -102,7 +104,6 @@ export function TodayView() {
   // mobile app whenever more than one offer was pending at once (found while
   // verifying the comeback/deload flows end to end — G4-A).
   const offer = pickOffer(data.offers);
-  const lastSession = data.recentSessions.find((s) => s.status === 'COMPLETED') ?? null;
 
   const startPlanned = (workout: NextWorkoutDto) => {
     if (!session) {
@@ -141,8 +142,9 @@ export function TodayView() {
     <Shell>
       {session && (
         <ResumeBanner
-          name={session.name}
-          progress={sessionProgress(session)}
+          session={session}
+          bootstrap={data}
+          today={today}
           onResume={() => router.push('/gym/workout')}
         />
       )}
@@ -201,6 +203,9 @@ export function TodayView() {
           >
             Log a past workout
           </button>
+
+          {/* UX-36 A2 (T-36.A2.2): grouped Recent list replaces the single "Last session" link. */}
+          <RecentWorkouts data={data} today={today} />
         </div>
 
         {/* Right: the week, the last session */}
@@ -216,6 +221,14 @@ export function TodayView() {
               )}
             </div>
             <WeekStrip days={days} />
+            <button
+              type="button"
+              data-testid="gym-how-this-works-open"
+              onClick={() => setHowOpen(true)}
+              className="-ml-2 mt-1 inline-flex min-h-11 items-center rounded-lg px-2 text-xs font-medium text-[#944a00] hover:bg-[#fff3e8]"
+            >
+              How this works
+            </button>
             <div className="mt-4 flex items-center gap-4">
               <WeekRing done={data.streak.thisWeekSessions} goal={data.streak.thisWeekGoal} />
               <div className="min-w-0 text-sm">
@@ -233,31 +246,6 @@ export function TodayView() {
               </div>
             </div>
           </GymCard>
-
-          {lastSession && (
-            <Link
-              href={`/gym/summary/${lastSession.id}`}
-              className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border bg-white p-4 shadow-sm transition-colors hover:border-[#944a00]/40"
-            >
-              <div className="min-w-0">
-                <CardLabel>Last session</CardLabel>
-                <p className="mt-1 truncate text-sm font-semibold text-gray-900">
-                  {lastSession.name}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {shortDate(lastSession.localDate)} ·{' '}
-                  {
-                    lastSession.exercises
-                      .filter((e) => !e.skipped)
-                      .flatMap((e) => e.sets)
-                      .filter((s) => !s.isWarmup && s.completed).length
-                  }{' '}
-                  sets
-                </p>
-              </div>
-              <ArrowRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
-            </Link>
-          )}
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <SyncIndicator />
@@ -283,6 +271,8 @@ export function TodayView() {
         />
       )}
 
+      <HowThisWorksSheet open={howOpen} onClose={() => setHowOpen(false)} />
+
       <LogPastWorkoutSheet
         open={backfillOpen}
         onClose={() => setBackfillOpen(false)}
@@ -303,34 +293,6 @@ function Shell({ children }: { children: React.ReactNode }) {
         <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">Today</h1>
       </div>
       {children}
-    </div>
-  );
-}
-
-function ResumeBanner({
-  name,
-  progress,
-  onResume,
-}: {
-  name: string;
-  progress: { done: number; planned: number };
-  onResume: () => void;
-}) {
-  return (
-    <div
-      className="sticky top-16 z-20 mb-4 flex items-center justify-between gap-3 rounded-2xl border border-[#944a00]/30 bg-[#fff8f0] p-3 shadow-sm lg:top-0"
-      data-testid="gym-resume-banner"
-    >
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-gray-900">Workout in progress: {name}</p>
-        <p className="text-xs text-gray-600">
-          {progress.done} of {progress.planned} sets done
-        </p>
-      </div>
-      <Button onClick={onResume} className="shrink-0 bg-[#944a00] hover:bg-[#7a3d00]">
-        <Play aria-hidden="true" />
-        Resume
-      </Button>
     </div>
   );
 }

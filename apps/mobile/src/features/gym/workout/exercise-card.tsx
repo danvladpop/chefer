@@ -49,6 +49,12 @@ export interface WorkoutContext {
   prior: SessionSummaryDto[];
   /** Bootstrap `olderBests` — PRs must beat these too (audit F-GYM-6-1). */
   olderBests?: Record<string, ExerciseBest> | undefined;
+  /**
+   * UX-44 (T-44.3): `edit` is the logger over a past session — no Why?/Next-time
+   * banner (they describe the future; the notice on Gym Today covers it) and the
+   * reps-left row is a collapsed `Change` line instead of a prompt. Omitted = live.
+   */
+  mode?: 'live' | 'edit';
   handlers: SetRowHandlers;
   onSheet: (request: WorkoutSheetRequest) => void;
   onToggle: (seId: string) => void;
@@ -133,8 +139,9 @@ function ExerciseCardImpl({
     : `${working.length} × ${range}${meta.isTimed ? ' s' : ''} · ${done}/${working.length} done`;
   const imageUri = exerciseImageUrl(meta);
   const calibrating = isCalibrating(se.prescription);
-  const showRir = !se.skipped && lastWorkingSetDone(se);
-  const rirExpanded = rirOpen ?? se.lastSetRir === null;
+  const editing = ctx.mode === 'edit';
+  const showRir = !se.skipped && (editing ? working.length > 0 : lastWorkingSetDone(se));
+  const rirExpanded = rirOpen ?? (!editing && se.lastSetRir === null);
 
   return (
     <View
@@ -198,7 +205,7 @@ function ExerciseCardImpl({
             {se.skipped ? 'Skipped' : subtitle}
             {pr ? ' · PR' : ''}
           </Text>
-          {lastNote ? (
+          {lastNote && !editing ? (
             <Text testID={`${base}-last-note`} variant="muted" numberOfLines={1}>
               Last time: {lastNote}
             </Text>
@@ -248,25 +255,27 @@ function ExerciseCardImpl({
         </View>
       ) : expanded ? (
         <View className="gap-2 px-2 pb-3">
-          <View className="flex-row items-start gap-2 rounded-xl bg-accent p-2">
-            <View className="rounded-md bg-card px-2 py-1">
-              <RNText testID={`${base}-direction`} className="text-xs font-bold text-primary">
-                {bannerChip(se.prescription, ctx.unit)}
-              </RNText>
+          {editing ? null : (
+            <View className="flex-row items-start gap-2 rounded-xl bg-accent p-2">
+              <View className="rounded-md bg-card px-2 py-1">
+                <RNText testID={`${base}-direction`} className="text-xs font-bold text-primary">
+                  {bannerChip(se.prescription, ctx.unit)}
+                </RNText>
+              </View>
+              <Text testID={`${base}-suggestion`} className="min-w-0 flex-1 text-sm">
+                {sentence}
+              </Text>
+              <Pressable
+                testID={`${base}-why`}
+                accessibilityRole="button"
+                accessibilityLabel="Why this target?"
+                onPress={() => ctx.onSheet({ kind: 'why', seId: se.id })}
+                className="-my-2 min-h-11 justify-center px-2"
+              >
+                <Text className="text-sm font-semibold text-primary">Why?</Text>
+              </Pressable>
             </View>
-            <Text testID={`${base}-suggestion`} className="min-w-0 flex-1 text-sm">
-              {sentence}
-            </Text>
-            <Pressable
-              testID={`${base}-why`}
-              accessibilityRole="button"
-              accessibilityLabel="Why this target?"
-              onPress={() => ctx.onSheet({ kind: 'why', seId: se.id })}
-              className="-my-2 min-h-11 justify-center px-2"
-            >
-              <Text className="text-sm font-semibold text-primary">Why?</Text>
-            </Pressable>
-          </View>
+          )}
 
           {warmups.length > 0 ? (
             <View>
