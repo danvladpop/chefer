@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { trpc } from '@/lib/trpc';
+import { Lock } from 'lucide-react';
 import type { PlanShape, PlanSlot } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import { cn, planShapeSummary } from '@chefer/utils';
@@ -72,6 +74,13 @@ export interface PlanSettingsSheetProps {
   weekLabel: string;
   isPremium: boolean;
   onSaved: (shape: DraftShape) => void;
+  /**
+   * T-06.8 (UX-06 §4): premium `Fit meals to my training days`. A per-generation
+   * option (the API takes it on `mealPlan.generate`, it is not part of the
+   * stored shape), so the page owns the state. Free sees it locked.
+   */
+  fitTrainingDays?: boolean;
+  onFitTrainingDaysChange?: (value: boolean) => void;
 }
 
 export function PlanSettingsSheet({
@@ -81,6 +90,8 @@ export function PlanSettingsSheet({
   weekLabel,
   isPremium,
   onSaved,
+  fitTrainingDays = true,
+  onFitTrainingDaysChange,
 }: PlanSettingsSheetProps) {
   const { data, isLoading } = trpc.mealPlan.getShape.useQuery(undefined, { enabled: open });
   const [draft, setDraft] = useState<DraftShape | null>(null);
@@ -259,11 +270,11 @@ export function PlanSettingsSheet({
               </Link>
             </fieldset>
 
-            {isPremium && (
-              <div className="flex flex-col gap-2 border-t border-gray-200 pt-4">
-                <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-                  Options
-                </p>
+            <div className="flex flex-col gap-2 border-t border-gray-200 pt-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                Options
+              </p>
+              {isPremium && (
                 <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-gray-700">
                   Cook once, eat twice (leftover lunches)
                   <input
@@ -274,8 +285,43 @@ export function PlanSettingsSheet({
                     className="h-5 w-5 rounded border-gray-300 text-[#944a00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00]"
                   />
                 </label>
-              </div>
-            )}
+              )}
+              {isPremium ? (
+                <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-gray-700">
+                  Fit meals to my training days
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    data-testid="plan-settings-fit-training"
+                    checked={fitTrainingDays}
+                    onChange={(e) => onFitTrainingDaysChange?.(e.target.checked)}
+                    className="h-5 w-5 rounded border-gray-300 text-[#944a00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00]"
+                  />
+                </label>
+              ) : (
+                <div
+                  data-testid="plan-settings-fit-training-locked"
+                  className="flex flex-col gap-1"
+                >
+                  <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-gray-500">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      Fit meals to my training days
+                    </span>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      disabled
+                      checked={false}
+                      readOnly
+                      data-testid="plan-settings-fit-training"
+                      className="h-5 w-5 rounded border-gray-300"
+                    />
+                  </label>
+                  <UpgradeButton source="fit-training-days" className="self-start" />
+                </div>
+              )}
+            </div>
 
             <div aria-live="polite" className="rounded-xl bg-gray-50 px-3 py-2.5">
               <p data-testid="plan-settings-summary" className="text-sm text-gray-700">

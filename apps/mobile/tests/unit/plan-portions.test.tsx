@@ -63,14 +63,27 @@ describe('PlanDayTotals', () => {
     expect(screen.queryByText(/under target/)).toBeNull();
   });
 
-  it('shows the protein hint only when the API flags a gap', async () => {
+  it('shows a neutral, tappable status only when the API flags a protein gap', async () => {
     const meals = [{ recipe: { nutritionInfo: nutrition(2000, 90) } }];
-    await render(<PlanDayTotals meals={meals} proteinGapG={85} />);
-    expect(screen.getByTestId('plan-day-totals-protein-gap')).toHaveTextContent(
-      'Protein short by 85 g — add a snack',
+    const onOpen = jest.fn();
+    await render(<PlanDayTotals meals={meals} proteinGapG={85} onOpenStatus={onOpen} />);
+    expect(screen.getByTestId('plan-day-totals-status')).toHaveTextContent(
+      /About 85 g short on protein/,
     );
+    expect(screen.queryByText(/add a snack/i)).toBeNull();
+    await fireEvent.press(screen.getByTestId('plan-day-totals-status'));
+    expect(onOpen).toHaveBeenCalledTimes(1);
     await render(<PlanDayTotals meals={meals} />);
-    expect(screen.queryByTestId('plan-day-totals-protein-gap')).toBeNull();
+    expect(screen.queryByTestId('plan-day-totals-status')).toBeNull();
+  });
+
+  it('a day far under target reads neutrally, not as an alarm', async () => {
+    const meals = [{ recipe: { nutritionInfo: nutrition(1000, 60) } }];
+    await render(<PlanDayTotals meals={meals} calorieTarget={2000} onOpenStatus={jest.fn()} />);
+    expect(screen.getByTestId('plan-day-totals-status')).toHaveTextContent(
+      /About 1,000 kcal under this day’s target/,
+    );
+    expect(screen.queryByText(/PLAN UNDER TARGET/i)).toBeNull();
   });
 });
 

@@ -203,6 +203,9 @@ export function MealCard({
             <p className="mt-1 line-clamp-2 text-sm font-semibold leading-snug text-gray-900">
               {recipe.name}
             </p>
+            {/* TODO(W3 integration): mount L-CONSENT's <AiGeneratedChip recipe={recipe} />
+                here (features/privacy/components/AiGeneratedChip.tsx, only on
+                feat/ux-now/consent). The API already sends `recipe.aiGenerated` (T-26.6). */}
             <AllergenWarningChip warnings={recipe.allergenWarnings} className="mt-1" />
             <CheckedForChip
               labels={recipe.safetyChecks?.checked.map((c) => c.label) ?? []}

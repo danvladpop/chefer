@@ -87,11 +87,27 @@ describe('ProgressScreen', () => {
   it('summarises logged days against the target and draws both charts', async () => {
     await renderScreen();
     expect(screen.getByTestId('progress-stat-days')).toHaveTextContent('2');
-    expect(screen.getByTestId('progress-stat-avg')).toHaveTextContent('2,000');
-    expect(screen.getByTestId('progress-stat-vs-target')).toHaveTextContent('0%');
+    // T-11.6: two logged days are too few for an average or a percentage.
+    expect(screen.getByTestId('progress-stat-avg')).toHaveTextContent('—');
+    expect(screen.getByTestId('progress-stat-vs-target')).toHaveTextContent('—');
+    expect(screen.getByTestId('progress-more-days')).toHaveTextContent(
+      'Log 1 more day to see your average',
+    );
+    expect(screen.queryByTestId('progress-week-line')).toBeNull();
     expect(screen.getByTestId('progress-calories-chart')).toBeOnTheScreen();
     expect(screen.getByTestId('progress-macros-chart')).toBeOnTheScreen();
     expect(screen.getByTestId('progress-weight-chart')).toBeOnTheScreen();
+  });
+
+  it('shows the average and the week line once 3 days are logged (T-11.6)', async () => {
+    mockMonthly.mockReturnValue(query({ data: monthWith([1800, 1800, 1800, null]) }));
+    await renderScreen();
+    expect(screen.getByTestId('progress-stat-avg')).toHaveTextContent('1,800');
+    expect(screen.getByTestId('progress-stat-vs-target')).toHaveTextContent('-10%');
+    expect(screen.queryByTestId('progress-more-days')).toBeNull();
+    expect(screen.getByTestId('progress-week-line')).toHaveTextContent(
+      'About 10 % under your target this week',
+    );
   });
 
   it('points to the Tracker when nothing is logged yet', async () => {

@@ -2,17 +2,19 @@
 
 import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { Check, UtensilsCrossed } from 'lucide-react';
-import type { PlanTailoring } from '@chefer/types';
+import type { PlanTailoring, PlanTrainingDay } from '@chefer/types';
 import { pressControl } from '@chefer/ui';
 import {
   cn,
   PLAN_TAILORING_COPY,
   tailoringDayLabel,
   tailoringDayState,
+  trainingChipA11y,
   type TailoringDayState,
 } from '@chefer/utils';
 import { DayRecapBar } from './DayRecapBar';
 import { MealCard } from './MealCard';
+import { PreRunNote, preRunNoteFor, TrainingDayHeader, TrainingGlyph } from './TrainingDayHeader';
 
 // ─── Mobile day view ──────────────────────────────────────────────────────────
 // A seven-column week grid has no phone equivalent — the desktop version needs
@@ -100,6 +102,12 @@ interface DayViewProps {
   tailoring?: PlanTailoring | null | undefined;
   /** Days the chef replaced moments ago — their meals fade in. */
   updatedDays?: ReadonlySet<number> | undefined;
+  /** T-06.8: the week's training days (glyph on the chip, header above the meals). */
+  trainingDays?: readonly PlanTrainingDay[] | undefined;
+  /** Opens the training explain dialog (owned by the page — the desktop grid shares it). */
+  onOpenTrainingExplain?: (() => void) | undefined;
+  /** T-11.3: opens the plan-miss sheet for a day whose total misses its target. */
+  onOpenMiss?: ((dayOfWeek: number) => void) | undefined;
 }
 
 /**
@@ -168,9 +176,19 @@ export function DayView({
   planShapeSummary,
   tailoring,
   updatedDays,
+  trainingDays,
+  onOpenTrainingExplain,
+  onOpenMiss,
 }: DayViewProps) {
   const day = days.find((d) => d.dayOfWeek === selectedDay);
   const meals = day?.meals ?? [];
+  const trainingToday = trainingDays?.find((t) => t.dayOfWeek === selectedDay);
+  const preRun = preRunNoteFor(trainingDays, selectedDay);
+  // A training day's target carries its bump when the viewer's tier applies it.
+  const dayTarget =
+    trainingToday?.applied && trainingToday.targetKcal !== undefined
+      ? trainingToday.targetKcal
+      : calorieTarget;
 
   const dayNumber = (index: number): number | null => {
     if (!weekStartDate) return null;
@@ -191,6 +209,7 @@ export function DayView({
           const num = dayNumber(index);
           const tailorState = tailoringDayState(tailoring, index);
           const tailorLabel = tailoringDayLabel(tailorState);
+          const training = trainingDays?.find((t) => t.dayOfWeek === index);
           const marked =
             tailorState === 'tailored' || tailorState === 'tailoring' || tailorState === 'waiting';
 
@@ -199,9 +218,9 @@ export function DayView({
               key={label}
               role="tab"
               aria-selected={isSelected}
-              aria-label={`${DAY_LONG[index]}${isToday ? ', today' : ''}${
-                tailorLabel ? `, ${tailorLabel}` : ''
-              }`}
+              aria-label={`${
+                training ? trainingChipA11y(DAY_LONG[index] ?? '', training.kind) : DAY_LONG[index]
+              }${isToday ? ', today' : ''}${tailorLabel ? `, ${tailorLabel}` : ''}`}
               data-tailoring={tailorState}
               onClick={() => onSelectDay(index)}
               className={cn(
@@ -214,7 +233,10 @@ export function DayView({
                     : 'bg-gray-100 text-gray-600',
               )}
             >
-              <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+              <span className="flex items-center gap-0.5 text-xs font-semibold uppercase tracking-wide">
+                {label}
+                {training && <TrainingGlyph kind={training.kind} className="h-2.5 w-2.5" />}
+              </span>
               {num !== null && <span className="text-sm font-bold leading-none">{num}</span>}
               {/* Fixed-height slot: the dot and the tailoring marks swap
                   without moving the chip's content. */}
@@ -261,6 +283,15 @@ export function DayView({
           )}
         </span>
       </div>
+
+      {trainingToday && onOpenTrainingExplain && (
+        <TrainingDayHeader
+          day={trainingToday}
+          isToday={selectedDay === todayIndex}
+          onOpen={onOpenTrainingExplain}
+        />
+      )}
+      {preRun && <PreRunNote note={preRun} />}
 
       {/* Meals */}
       {meals.length === 0 ? (
@@ -331,7 +362,12 @@ export function DayView({
               );
             })}
           </div>
-          <DayRecapBar meals={meals} calorieTarget={calorieTarget} proteinGapG={day?.proteinGapG} />
+          <DayRecapBar
+            meals={meals}
+            calorieTarget={dayTarget}
+            proteinGapG={day?.proteinGapG}
+            onOpenMiss={!readOnly && onOpenMiss ? () => onOpenMiss(selectedDay) : undefined}
+          />
         </>
       )}
     </div>

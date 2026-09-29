@@ -8,7 +8,12 @@ import { DayView, TailoringDayMark } from '@/features/meal-plan/components/day-v
 import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
+import { PlanMissSheet } from '@/features/meal-plan/components/PlanMissSheet';
 import { PlanSettingsSheet } from '@/features/meal-plan/components/PlanSettingsSheet';
+import {
+  PremiumChangesCard,
+  type PremiumChangesData,
+} from '@/features/meal-plan/components/PremiumChangesCard';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import {
   ReplaceMealSheet,
@@ -16,7 +21,20 @@ import {
   type ReplaceTarget,
 } from '@/features/meal-plan/components/ReplaceMealSheet';
 import { TailoringBanner } from '@/features/meal-plan/components/TailoringBanner';
+import {
+  PreRunNote,
+  preRunNoteFor,
+  TrainingDayHeader,
+  TrainingGlyph,
+} from '@/features/meal-plan/components/TrainingDayHeader';
+import { TrainingExplainSheet } from '@/features/meal-plan/components/TrainingExplainSheet';
 import { useTailoringWatch } from '@/features/meal-plan/hooks/use-tailoring-watch';
+import {
+  dismissReplan,
+  isReplanDismissed,
+  missDirection,
+  targetDrifted,
+} from '@/features/meal-plan/plan-miss';
 import { PantryUsageBanner } from '@/features/pantry/components/PantryUsageBanner';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
@@ -32,6 +50,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CookingPot,
+  Dumbbell,
   ImageIcon,
   RefreshCw,
   Repeat,
@@ -54,9 +73,12 @@ import {
   planButtonLabel,
   planShapeSummary,
   SAFETY_COPY,
+  sumPlanDay,
   tailoringDayLabel,
   tailoringDayState,
   toDisplayCurrency,
+  trainingDaysChip,
+  trainingKindLabel,
 } from '@chefer/utils';
 import MealPlanLoading from './loading';
 
@@ -255,7 +277,9 @@ export default function MealPlanPage() {
 
   // PRECONDITION_FAILED = the free curated pool can't satisfy the user's
   // restrictions (P1-2). That's an upgrade moment, not an error dialog.
-  const [poolExhaustedMessage, setPoolExhaustedMessage] = useState<string | null>(null);
+  // T-10.4: `null` = not exhausted; the string is the API's structured detail
+  // (may be empty) shown under the card's fixed headline.
+  const [poolExhausted, setPoolExhausted] = useState<{ detail: string | null } | null>(null);
   // Generation failures render inline with a retry, not as a native alert()
   // with raw transport text (audit F-PLAN-1-5, F-PM-2).
   const [generateError, setGenerateError] = useState<string | null>(null);
@@ -272,6 +296,18 @@ export default function MealPlanPage() {
   // F3 "cook once, eat twice" generation option (premium): pairs dinners with
   // next-day leftover lunches. Plain state — remembered per visit, not stored.
   const [leftovers, setLeftovers] = useState(false);
+  // T-06.8: premium `Fit meals to my training days` — a per-generation option,
+  // on by default (the API's own default for lifters).
+  const [fitTraining, setFitTraining] = useState(true);
+  const [generated, setGenerated] = useState<{
+    planId: string;
+    previousPlanId: string | undefined;
+    fitTrainingDays: boolean;
+    premiumChanges: PremiumChangesData | undefined;
+  } | null>(null);
+  const [trainingExplainOpen, setTrainingExplainOpen] = useState(false);
+  // T-11.3: the day whose plan-miss sheet is open.
+  const [missDay, setMissDay] = useState<number | null>(null);
 
   // T-08.3: restores the plan `generate` just replaced (exact same recipes
   // and portions) — offered as Undo on the regenerate toast below.
@@ -285,14 +321,23 @@ export default function MealPlanPage() {
   const generateMutation = trpc.mealPlan.generate.useMutation({
     onMutate: () => {
       setIsGenerating(true);
-      setPoolExhaustedMessage(null);
+      setPoolExhausted(null);
       setGenerateError(null);
       setPersonalisation(null);
+      setGenerated(null);
     },
     onSettled: () => setIsGenerating(false),
     onSuccess: (data) => {
       capture('plan_generated', { tier: isPremium ? 'premium' : 'free', weekOffset });
       setPersonalisation(data.personalisation ?? null);
+      // T-06.8 / T-10.7: what this generation was built around, and (premium
+      // regenerations) what it changed — read once from the response.
+      setGenerated({
+        planId: data.planId,
+        previousPlanId: data.previousPlanId,
+        fitTrainingDays: data.fitTrainingDays === true,
+        premiumChanges: data.premiumChanges,
+      });
       setRegenerateConfirmOpen(false);
       void refetch();
       // T-08.3 (UX-08 §3): only a regeneration (a plan already existed for
@@ -323,7 +368,7 @@ export default function MealPlanPage() {
         // meanwhile (mirrors the mobile Plan tab's same read).
         const cause = (err.data as { poolExhausted?: { message?: string } } | undefined)
           ?.poolExhausted;
-        setPoolExhaustedMessage(cause?.message ?? err.message);
+        setPoolExhausted({ detail: cause?.message ?? null });
       } else {
         setGenerateError(
           err.data?.code === 'TOO_MANY_REQUESTS'
@@ -341,18 +386,31 @@ export default function MealPlanPage() {
     weekOffset: number;
     leftovers?: true;
     keepPinned?: boolean;
+    fitTrainingDays?: boolean;
   }) =>
     requestAiConsent('meal-plan', () => generateMutation.mutate(input), {
       usesAi: aiConsentRequiredFor('meal-plan', isPremium),
     });
 
+  // Premium sends the training-day switch explicitly; free never does.
+  const fitTrainingInput = isPremium ? { fitTrainingDays: fitTraining } : {};
   const handleGenerate = () =>
-    generateWithConsent({ weekOffset, ...(leftovers && { leftovers: true as const }) });
+    generateWithConsent({
+      weekOffset,
+      ...(leftovers && { leftovers: true as const }),
+      ...fitTrainingInput,
+    });
 
   // T-07.6/T-08.9: the "how you cook" shape names the empty-week job and
   // feeds the unplanned-day line — same query mobile's Plan tab uses.
   const { data: shape } = trpc.mealPlan.getShape.useQuery();
   const planShapeSummaryText = shape ? planShapeSummary(shape) : '';
+
+  // T-11.3: the live effective target (and goal) — the re-plan banner compares
+  // it with what this week was planned for; the miss sheet reads the goal.
+  const { data: targetsView } = trpc.targets.get.useQuery(undefined, { staleTime: 60_000 });
+  const goal = targetsView?.inputs.goal;
+  const [replanDismissedFor, setReplanDismissedFor] = useState<string | null>(null);
 
   const pinnedCount = plan?.days.flatMap((d) => d.meals).filter((m) => m.pinned).length ?? 0;
   const plannedMealsCount = plan?.days.flatMap((d) => d.meals).length ?? 0;
@@ -365,6 +423,39 @@ export default function MealPlanPage() {
   };
 
   const utils = trpc.useUtils();
+
+  // T-11.3: a day's target (its training bump when applied) and what is planned.
+  const missFor = (dayOfWeek: number) => {
+    const day = plan?.days.find((d) => d.dayOfWeek === dayOfWeek);
+    const training = plan?.trainingDays?.find((t) => t.dayOfWeek === dayOfWeek);
+    const target =
+      training?.applied && training.targetKcal !== undefined
+        ? training.targetKcal
+        : plan?.calorieTarget;
+    if (!day || !target || day.meals.length === 0) return null;
+    const kcal = Math.round(sumPlanDay(day.meals).kcal);
+    return { day, kcal, target, direction: missDirection(kcal, target) };
+  };
+  // `Add a snack`: a curated day may already hold a snack slot (swap it for a
+  // bigger one); otherwise the snack is logged in the tracker — the plan has no
+  // add-a-slot procedure.
+  const handleAddSnack = (dayOfWeek: number) => {
+    const day = plan?.days.find((d) => d.dayOfWeek === dayOfWeek);
+    const slotIndex = day?.meals.findIndex((m) => m.type === 'snack') ?? -1;
+    const slot = slotIndex >= 0 ? day?.meals[slotIndex] : undefined;
+    if (plan && slot) {
+      setReplaceTarget({
+        planId: plan.planId,
+        dayOfWeek,
+        mealType: 'snack',
+        slotIndex,
+        mealName: slot.recipe.name,
+        recipeId: slot.recipe.id,
+      });
+    } else {
+      router.push('/tracker');
+    }
+  };
   // Live tailoring: which days the chef just replaced (brief highlight) and
   // whether the user watched it run (the DONE confirmation). A replaced day
   // changes the shopping list and today's totals too.
@@ -430,6 +521,34 @@ export default function MealPlanPage() {
 
   const weekArrowCls =
     'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40';
+
+  const trainingCount = plan?.trainingDays?.length ?? 0;
+  const trainingChip = trainingDaysChip(trainingCount);
+  const replanVisible =
+    !isPast &&
+    plan !== null &&
+    plan !== undefined &&
+    targetDrifted(plan.calorieTarget, targetsView?.effective.dailyCalorieTarget) &&
+    replanDismissedFor !== plan.planId &&
+    !isReplanDismissed(plan.planId);
+  const premiumChanges =
+    plan && generated?.planId === plan.planId ? generated.premiumChanges : undefined;
+  // "Pick recipes yourself" reuses the replace flow when the week already has a
+  // meal to change; with no plan there is nothing to replace, so it browses recipes.
+  const firstPlannedDay = plan?.days.find((d) => d.meals.length > 0);
+  const firstPlannedMeal = firstPlannedDay?.meals[0];
+  const pickFirstMeal: ReplaceTarget | null =
+    plan && firstPlannedDay && firstPlannedMeal
+      ? {
+          planId: plan.planId,
+          dayOfWeek: firstPlannedDay.dayOfWeek,
+          mealType: firstPlannedMeal.type,
+          slotIndex: 0,
+          mealName: firstPlannedMeal.recipe.name,
+          recipeId: firstPlannedMeal.recipe.id,
+        }
+      : null;
+  const openMiss = isPast ? undefined : (dayOfWeek: number) => setMissDay(dayOfWeek);
 
   const navBar = (
     <div className="flex shrink-0 flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
@@ -522,6 +641,27 @@ export default function MealPlanPage() {
               </span>
             )}
           </span>
+        )}
+
+        {/* T-06.8: how many days this week are training days */}
+        {trainingChip && (
+          <span
+            data-testid="plan-training-chip"
+            className="flex items-center gap-1 rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-xs font-medium text-[#944a00]"
+          >
+            <Dumbbell className="h-3 w-3" aria-hidden="true" />
+            {trainingChip}
+          </span>
+        )}
+
+        {/* T-10.4 (D-7): the household week-1 line under the cost chip */}
+        {plan?.firstScaledWeek && (
+          <p
+            data-testid="plan-first-scaled-week"
+            className="basis-full text-xs text-gray-600 sm:text-right"
+          >
+            Sized for your table of {costPortions ?? memberCount} — free for your first week
+          </p>
         )}
 
         {/* Photo generation progress */}
@@ -673,6 +813,67 @@ export default function MealPlanPage() {
         </div>
       )}
 
+      {/* T-06.8: this week was built around the routine's training days */}
+      {generated?.fitTrainingDays && plan?.planId === generated.planId && (
+        <p
+          data-testid="plan-fit-training-note"
+          className="mx-4 mb-2 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-900 sm:mx-6"
+        >
+          <Dumbbell className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
+          Your week is built around your training days
+        </p>
+      )}
+
+      {/* T-10.7: what Premium changed (premium regeneration, once per plan) */}
+      {plan && premiumChanges && (
+        <PremiumChangesCard
+          key={plan.planId}
+          planId={plan.planId}
+          previousPlanId={generated?.previousPlanId}
+          changes={premiumChanges}
+          currentDays={plan.days}
+          onFix={(dayOfWeek) => {
+            setSelectedDay(dayOfWeek);
+            setMissDay(dayOfWeek);
+          }}
+          className="mx-4 mb-2 sm:mx-6"
+        />
+      )}
+
+      {/* T-11.3: the plan was made for a different target than today's */}
+      {replanVisible && targetsView && (
+        <div
+          data-testid="plan-replan-banner"
+          className="mx-4 mb-2 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 sm:mx-6 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+        >
+          <p className="text-sm text-gray-800">
+            This week was planned for {(plan.calorieTarget ?? 0).toLocaleString('en-US')} kcal.
+            Re-plan with {targetsView.effective.dailyCalorieTarget.toLocaleString('en-US')} kcal?
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              data-testid="plan-replan"
+              onClick={openRegenerateConfirm}
+              className="min-h-11 flex-1 rounded-lg bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] sm:flex-none"
+            >
+              Re-plan
+            </button>
+            <button
+              type="button"
+              data-testid="plan-replan-keep"
+              onClick={() => {
+                dismissReplan(plan.planId);
+                setReplanDismissedFor(plan.planId);
+              }}
+              className="min-h-11 flex-1 rounded-lg border border-gray-200 px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 sm:flex-none"
+            >
+              Keep
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Over-budget warning (P2-4) */}
       {overBudget !== null && (
         <div className="mx-4 mb-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 sm:mx-6">
@@ -702,14 +903,47 @@ export default function MealPlanPage() {
         </div>
       )}
 
-      {/* Contextual upsell — the free pool can't cover these restrictions */}
-      {poolExhaustedMessage && (
-        <div className="mx-4 mb-2 flex flex-col items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 sm:mx-6 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+      {/* T-10.4: the free pool can't cover these restrictions — two honest
+          ways forward: pick recipes yourself, or Premium builds around them. */}
+      {poolExhausted && (
+        <div
+          data-testid="plan-pool-exhausted"
+          className="mx-4 mb-2 flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 sm:mx-6"
+        >
           <p className="flex items-start gap-2 text-sm text-amber-900">
             <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
-            {poolExhaustedMessage}
+            <span className="min-w-0">
+              Our recipes can’t fill this week around your restrictions.
+              {poolExhausted.detail && (
+                <span className="mt-1 block text-xs text-amber-800">{poolExhausted.detail}</span>
+              )}
+            </span>
           </p>
-          <UpgradeButton className="w-full sm:w-auto sm:shrink-0" source="pool-exhaustion" />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {pickFirstMeal ? (
+              <button
+                type="button"
+                data-testid="plan-pool-pick"
+                onClick={() => setReplaceTarget(pickFirstMeal)}
+                className="flex min-h-11 items-center justify-center rounded-lg border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-900 hover:bg-amber-100"
+              >
+                Pick recipes yourself
+              </button>
+            ) : (
+              <Link
+                href="/recipes"
+                data-testid="plan-pool-pick"
+                className="flex min-h-11 items-center justify-center rounded-lg border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-900 hover:bg-amber-100"
+              >
+                Pick recipes yourself
+              </Link>
+            )}
+            <UpgradeButton
+              className="w-full sm:w-auto"
+              source="pool-exhaustion"
+              label="Premium builds a plan around them"
+            />
+          </div>
         </div>
       )}
 
@@ -796,6 +1030,9 @@ export default function MealPlanPage() {
             planDayPending={planDayMutation.isPending && planningDay === selectedDay}
             tailoring={plan.tailoring}
             updatedDays={updatedDays}
+            trainingDays={plan.trainingDays}
+            onOpenTrainingExplain={() => setTrainingExplainOpen(true)}
+            onOpenMiss={openMiss}
             onTogglePin={
               !isPast
                 ? (mealType, slotIndex, pinned) =>
@@ -831,6 +1068,12 @@ export default function MealPlanPage() {
               const tailorState = tailoringDayState(plan.tailoring, day.dayOfWeek);
               const tailorLabel = tailoringDayLabel(tailorState);
               const justUpdated = updatedDays.has(day.dayOfWeek);
+              const training = plan.trainingDays?.find((t) => t.dayOfWeek === day.dayOfWeek);
+              const preRun = preRunNoteFor(plan.trainingDays, day.dayOfWeek);
+              const dayTarget =
+                training?.applied && training.targetKcal !== undefined
+                  ? training.targetKcal
+                  : plan.calorieTarget;
               return (
                 <div key={day.dayOfWeek} className="flex flex-col gap-2">
                   {/* Day header — fixed height so all headers are the same size */}
@@ -844,6 +1087,17 @@ export default function MealPlanPage() {
                     >
                       {DAY_NAMES[day.dayOfWeek]}
                     </p>
+                    {training && (
+                      <>
+                        <TrainingGlyph
+                          kind={training.kind}
+                          className={isToday ? 'text-white' : 'text-[#944a00]'}
+                        />
+                        <span className="sr-only">
+                          , {trainingKindLabel(training.kind).toLowerCase()}
+                        </span>
+                      </>
+                    )}
                     {isToday && (
                       <span className="rounded-full bg-white/25 px-1.5 py-px text-xs font-semibold uppercase tracking-wide text-white">
                         Today
@@ -864,6 +1118,15 @@ export default function MealPlanPage() {
                       isToday ? 'bg-[#944a00]/10 ring-2 ring-[#944a00]/40' : ''
                     } ${justUpdated ? 'animate-in fade-in-0 duration-deliberate ease-enter' : ''}`}
                   >
+                    {training && (
+                      <TrainingDayHeader
+                        day={training}
+                        isToday={isToday}
+                        onOpen={() => setTrainingExplainOpen(true)}
+                      />
+                    )}
+                    {preRun && <PreRunNote note={preRun} />}
+
                     {/* T-07.6 (UX-07 §2): a day outside the chosen shape says
                         so and offers to add it via `planDay` — `planned` is
                         reliable on every read (T-07.6). */}
@@ -937,8 +1200,9 @@ export default function MealPlanPage() {
                     {/* Day totals */}
                     <DayRecapBar
                       meals={day.meals}
-                      calorieTarget={plan.calorieTarget}
+                      calorieTarget={dayTarget}
                       proteinGapG={day.proteinGapG}
+                      onOpenMiss={openMiss ? () => openMiss(day.dayOfWeek) : undefined}
                     />
                   </div>
                 </div>
@@ -1017,6 +1281,7 @@ export default function MealPlanPage() {
                 generateWithConsent({
                   weekOffset,
                   ...(leftovers && { leftovers: true as const }),
+                  ...fitTrainingInput,
                   keepPinned: keepPicks,
                 })
               }
@@ -1043,12 +1308,45 @@ export default function MealPlanPage() {
         </div>
       </Sheet>
 
+      {/* T-06.8: why this week has training days, one dialog for both layouts */}
+      <TrainingExplainSheet
+        open={trainingExplainOpen}
+        onClose={() => setTrainingExplainOpen(false)}
+        days={plan?.trainingDays ?? []}
+        basis={plan?.trainingBasis ?? null}
+      />
+
+      {/* T-11.3: a day off its target — portions, a snack, or leave it */}
+      {plan &&
+        missDay !== null &&
+        (() => {
+          const miss = missFor(missDay);
+          if (!miss) return null;
+          return (
+            <PlanMissSheet
+              open
+              onClose={() => setMissDay(null)}
+              planId={plan.planId}
+              dayOfWeek={missDay}
+              dayName={DAY_NAMES[missDay] ?? ''}
+              kcal={miss.kcal}
+              target={miss.target}
+              proteinGapG={miss.day.proteinGapG}
+              goal={goal}
+              onAddSnack={() => handleAddSnack(missDay)}
+              onApplied={(message) => setToast({ message })}
+            />
+          );
+        })()}
+
       <PlanSettingsSheet
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         hasPlan={plan !== null && plan !== undefined}
         weekLabel={weekOffset === 0 ? 'this week' : 'next week'}
         isPremium={isPremium === true}
+        fitTrainingDays={fitTraining}
+        onFitTrainingDaysChange={setFitTraining}
         onSaved={() => {
           void utils.mealPlan.getShape.invalidate();
           // A plan already exists for this week — the settings change needs
