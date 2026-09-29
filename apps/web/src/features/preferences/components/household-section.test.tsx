@@ -14,6 +14,16 @@ const m = vi.hoisted(() => ({
   ownSafety: { allergies: [] as string[], dietaryRestrictions: [] as string[] },
   table: { people: [] as Record<string, unknown>[], hasRules: false, needsReview: false },
 }));
+// T-26.2: these tests are about the save itself — the health-consent guard is
+// covered in privacy/use-health-consent.test.tsx, so here consent is always on record.
+vi.mock('@/features/privacy/use-health-consent', () => ({
+  useHealthConsent: () => ({
+    consented: true,
+    requestHealthConsent: (run: () => void) => run(),
+    healthConsentSheet: null,
+  }),
+}));
+
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('@/features/premium/components/UpgradeButton', () => ({
   UpgradeButton: ({ source }: { source: string }) => <button>Upgrade ({source})</button>,

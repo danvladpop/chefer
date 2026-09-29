@@ -11,7 +11,9 @@ const API_URL = `${
 // §2.8/T-00.8: declares this client understands the health-consent error and
 // reads `profile.flags`. Bumped to 2 for T-39.1/T-26.5 (wave 1 L-ENTRY) —
 // see trpc-links.ts. 3 (T-42.5, UX-42): the web renders cardio (Δ2.1).
-const API_LEVEL_HEADERS = { 'x-chefer-api-level': '3' };
+// 4 (T-26.2/T-26.3, L-CONSENT): the web shows the health consent sheet before any
+// health save. Same value as HEALTH_CONSENT_API_LEVEL (@chefer/types).
+const API_LEVEL_HEADERS = { 'x-chefer-api-level': '4' };
 
 export const serverClient = createTRPCClient<AppRouter>({
   links: [

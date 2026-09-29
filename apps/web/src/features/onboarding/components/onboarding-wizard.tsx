@@ -6,6 +6,11 @@ import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { HouseholdSection } from '@/features/preferences/components/household-section';
 import { TargetsCard } from '@/features/preferences/components/TargetsCard';
 import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
+import {
+  HEALTH_DECLINED_BODY_NOTICE,
+  HealthDeclinedNotice,
+} from '@/features/privacy/components/HealthDeclinedNotice';
+import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { trpc } from '@/lib/trpc';
 import type { OnboardingJob } from '@chefer/types';
 import { aiConsentRequiredFor, onboardingProgress, onboardingSteps } from '@chefer/utils';
@@ -75,6 +80,11 @@ export function OnboardingWizard({
   const router = useRouter();
   const utils = trpc.useUtils();
   const requestAiConsent = useAiConsent();
+  // T-26.2 (UX-26): allergies/diets, goal and body metrics are health information —
+  // asked once, the first time a step holding any of them is continued. SEPARATE
+  // from the AI consent above (which still guards the first-week generation).
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
+  const [healthDeclined, setHealthDeclined] = useState<'diet' | 'body' | null>(null);
 
   const [askJobs] = useState(initialJobs.length === 0);
   const [jobs, setJobs] = useState<OnboardingJob[]>(askJobs ? [] : initialJobs);
@@ -155,7 +165,7 @@ export function OnboardingWizard({
       );
       return;
     }
-    void handleFinish();
+    handleFinish();
   }
 
   function handleBack() {
@@ -166,7 +176,37 @@ export function OnboardingWizard({
     }
   }
 
-  async function handleFinish() {
+  /** The goal + body fields to store (health information — T-26.2). */
+  function buildBasics() {
+    return {
+      ...(!goodFood && data.goal !== null && { goal: data.goal }),
+      ...(data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
+      ...(data.age !== null && data.age > 0 && { age: data.age }),
+      ...(data.heightCm !== null && data.heightCm > 0 && { heightCm: data.heightCm }),
+      ...(data.weightKg !== null && data.weightKg > 0 && { weightKg: data.weightKg }),
+      ...(data.activityLevel !== null && { activityLevel: data.activityLevel }),
+    };
+  }
+  const hasSafetyTerms =
+    data.allergies.length + data.dietaryRestrictions.length + data.dislikedIngredients.length > 0;
+
+  /**
+   * Finish = save everything. Health fields go through the health consent
+   * guard: allowed (or already on record) → saved; "Don't save it" → every
+   * OTHER answer is still saved and the health fields are left out (AC2).
+   */
+  function handleFinish() {
+    setError(null);
+    requestHealthConsent(() => void saveAll(true), {
+      hasHealthData: hasSafetyTerms || Object.keys(buildBasics()).length > 0,
+      onDeclined: () => {
+        setHealthDeclined('diet');
+        void saveAll(false);
+      },
+    });
+  }
+
+  async function saveAll(includeHealth: boolean) {
     setError(null);
     try {
       await setJobsMutation.mutateAsync({
@@ -184,21 +224,17 @@ export function OnboardingWizard({
           currency: howYouCook.currency,
         });
       }
-      await safetyMutation.mutateAsync({
-        dietaryRestrictions: data.dietaryRestrictions,
-        allergies: data.allergies,
-        dislikedIngredients: data.dislikedIngredients,
-      });
-      const basics = {
-        ...(!goodFood && data.goal !== null && { goal: data.goal }),
-        ...(data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
-        ...(data.age !== null && data.age > 0 && { age: data.age }),
-        ...(data.heightCm !== null && data.heightCm > 0 && { heightCm: data.heightCm }),
-        ...(data.weightKg !== null && data.weightKg > 0 && { weightKg: data.weightKg }),
-        ...(data.activityLevel !== null && { activityLevel: data.activityLevel }),
-      };
-      if (Object.keys(basics).length > 0) {
-        await profileBasicsMutation.mutateAsync(basics);
+      // With health left out (declined) nothing health-related is sent at all.
+      if (includeHealth) {
+        await safetyMutation.mutateAsync({
+          dietaryRestrictions: data.dietaryRestrictions,
+          allergies: data.allergies,
+          dislikedIngredients: data.dislikedIngredients,
+        });
+        const basics = buildBasics();
+        if (Object.keys(basics).length > 0) {
+          await profileBasicsMutation.mutateAsync(basics);
+        }
       }
       if (isPremium && steps.includes('cuisine')) {
         await updateTargetsMutation.mutateAsync({
@@ -228,10 +264,58 @@ export function OnboardingWizard({
       void handleJobsContinue();
       return;
     }
+    // T-26.2: ask when leaving the step that holds health information, so the
+    // sheet appears where the user just typed it. "Don't save it" discards that
+    // step's health fields (never sent) and keeps the step open with an amber
+    // notice — Continue again moves on.
+    if (stepKey === 'diet' && hasSafetyTerms) {
+      requestHealthConsent(advance, {
+        onDeclined: () => {
+          setData((d) => ({
+            ...d,
+            dietaryRestrictions: [],
+            allergies: [],
+            dislikedIngredients: [],
+          }));
+          setHealthDeclined('diet');
+        },
+      });
+      return;
+    }
+    const bodyStepHasData =
+      (stepKey === 'goal' && !goodFood && data.goal !== null) ||
+      (stepKey === 'metrics' &&
+        [data.biologicalSex, data.age, data.heightCm, data.weightKg, data.activityLevel].some(
+          (v) => v !== null,
+        ));
+    if (bodyStepHasData) {
+      requestHealthConsent(advance, {
+        onDeclined: () => {
+          setData((d) =>
+            stepKey === 'goal'
+              ? { ...d, goal: null }
+              : {
+                  ...d,
+                  biologicalSex: null,
+                  age: null,
+                  heightCm: null,
+                  weightKg: null,
+                  activityLevel: null,
+                },
+          );
+          setHealthDeclined('body');
+        },
+      });
+      return;
+    }
+    advance();
+  }
+
+  function advance() {
     if (step < totalSteps) {
       setStep((s) => s + 1);
     } else {
-      void handleFinish();
+      handleFinish();
     }
   }
 
@@ -323,6 +407,11 @@ export function OnboardingWizard({
               onChange={(diet) => setData((d) => ({ ...d, ...diet }))}
             />
           )}
+          {stepKey === 'diet' && healthDeclined === 'diet' && (
+            <div className="mt-4">
+              <HealthDeclinedNotice testId="onb-safety-declined" />
+            </div>
+          )}
 
           {stepKey === 'howYouCook' && (
             <StepHowYouCook value={howYouCook} onChange={setHowYouCook} isPremium={isPremium} />
@@ -343,6 +432,12 @@ export function OnboardingWizard({
                 goodFood={goodFood}
                 onGoodFood={() => setGoodFood(true)}
               />
+              {healthDeclined === 'body' && (
+                <HealthDeclinedNotice
+                  testId="onb-body-declined"
+                  message={HEALTH_DECLINED_BODY_NOTICE}
+                />
+              )}
             </div>
           )}
 
@@ -364,6 +459,12 @@ export function OnboardingWizard({
                   onChange={(metrics) => setData((d) => ({ ...d, ...metrics }))}
                   goal={goodFood ? null : data.goal}
                 />
+                {healthDeclined === 'body' && (
+                  <HealthDeclinedNotice
+                    testId="onb-body-declined"
+                    message={HEALTH_DECLINED_BODY_NOTICE}
+                  />
+                )}
               </div>
               {!isPremium && (
                 <UpgradeCard
@@ -434,6 +535,7 @@ export function OnboardingWizard({
           </div>
         </div>
       </div>
+      {healthConsentSheet}
     </div>
   );
 }

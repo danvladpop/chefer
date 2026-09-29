@@ -1,6 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import {
+  HEALTH_DECLINED_BODY_NOTICE_WEIGHT,
+  HealthDeclinedNotice,
+} from '@/features/privacy/components/HealthDeclinedNotice';
+import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
@@ -27,6 +32,9 @@ export function WeightLogForm({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const utils = trpc.useUtils();
+  // T-26.2: a weigh-in is health information — asked once, on the first save.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
+  const [declined, setDeclined] = useState(false);
 
   const logWeight = trpc.tracker.logWeight.useMutation({
     onSuccess: () => {
@@ -49,7 +57,11 @@ export function WeightLogForm({
       return;
     }
     setError(null);
-    logWeight.mutate({ weightKg: parsed.kg });
+    setDeclined(false);
+    // "Don't save it": nothing is stored; the typed value stays in the field.
+    requestHealthConsent(() => logWeight.mutate({ weightKg: parsed.kg }), {
+      onDeclined: () => setDeclined(true),
+    });
   };
 
   return (
@@ -88,6 +100,15 @@ export function WeightLogForm({
           {error}
         </p>
       )}
+      {declined && (
+        <div className="mt-2">
+          <HealthDeclinedNotice
+            testId="weight-declined"
+            message={HEALTH_DECLINED_BODY_NOTICE_WEIGHT}
+          />
+        </div>
+      )}
+      {healthConsentSheet}
     </form>
   );
 }

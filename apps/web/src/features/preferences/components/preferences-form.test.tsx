@@ -11,6 +11,16 @@ const m = vi.hoisted(() => ({
   targets: vi.fn<[Record<string, unknown>], Promise<unknown>>(),
   computeTargets: vi.fn<[unknown], { data: unknown }>(() => ({ data: undefined })),
 }));
+// T-26.2: these tests are about the save itself — the health-consent guard is
+// covered in privacy/use-health-consent.test.tsx, so here consent is always on record.
+vi.mock('@/features/privacy/use-health-consent', () => ({
+  useHealthConsent: () => ({
+    consented: true,
+    requestHealthConsent: (run: () => void) => run(),
+    healthConsentSheet: null,
+  }),
+}));
+
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('./household-section', () => ({ HouseholdSection: () => null }));

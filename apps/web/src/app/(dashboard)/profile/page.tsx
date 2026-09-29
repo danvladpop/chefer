@@ -6,6 +6,7 @@ import { usePremiumPitch } from '@/features/premium/lib/use-premium-pitch';
 import { AccountDataCard } from '@/features/profile/components/AccountDataCard';
 import { AiConsentCard } from '@/features/profile/components/AiConsentCard';
 import { AnalyticsConsentCard } from '@/features/profile/components/AnalyticsConsentCard';
+import { HealthConsentCard } from '@/features/profile/components/HealthConsentCard';
 import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
 import { Check, ChevronRight, Users } from 'lucide-react';
@@ -357,6 +358,7 @@ export default function ProfilePage() {
       ) : null}
 
       <div className="mt-4 space-y-4">
+        <HealthConsentCard />
         <AiConsentCard />
         <AnalyticsConsentCard />
         <AccountDataCard />

@@ -10,6 +10,16 @@ const unitSystem = vi.hoisted(() => {
   const state: { value: 'METRIC' | 'IMPERIAL' } = { value: 'METRIC' };
   return state;
 });
+// T-26.2: these tests are about the save itself — the health-consent guard is
+// covered in privacy/use-health-consent.test.tsx, so here consent is always on record.
+vi.mock('@/features/privacy/use-health-consent', () => ({
+  useHealthConsent: () => ({
+    consented: true,
+    requestHealthConsent: (run: () => void) => run(),
+    healthConsentSheet: null,
+  }),
+}));
+
 vi.mock('@/hooks/useUnitSystem', () => ({ useUnitSystem: () => unitSystem.value }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
