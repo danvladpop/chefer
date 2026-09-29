@@ -35,7 +35,11 @@ import { WeekRing } from '../shared/week-ring';
 import { weekDays, WeekStrip } from '../shared/week-strip';
 import { useActiveWorkout } from '../workout/use-active-workout';
 import { HowThisWorksSheet } from './HowThisWorksSheet';
-import { buildBackfillWorkout, LogPastWorkoutSheet } from './log-past-workout-sheet';
+import {
+  backfillDateFor,
+  buildBackfillWorkout,
+  LogPastWorkoutSheet,
+} from './log-past-workout-sheet';
 import { PickDaySheet } from './pick-day-sheet';
 import { RecentWorkouts } from './RecentWorkouts';
 import { ResumeBanner } from './ResumeBanner';
@@ -120,18 +124,26 @@ export function TodayView() {
     router.push('/gym/workout');
   };
 
-  const startBackfillFreestyle = (backfillDate: string) => {
+  const startBackfillFreestyle = (date: string) => {
+    const backfillDate = backfillDateFor(date, today);
     if (!session) {
-      start({ kind: 'freestyle', name: 'Backfilled workout', backfillDate });
+      start(
+        backfillDate
+          ? { kind: 'freestyle', name: 'Backfilled workout', backfillDate }
+          : { kind: 'freestyle' },
+      );
       capture('workout_started', { source: 'freestyle' });
     }
     setBackfillOpen(false);
     router.push('/gym/workout');
   };
-  const startBackfillDay = (dayId: string, backfillDate: string) => {
-    const workout = buildBackfillWorkout(data, dayId, backfillDate);
+  const startBackfillDay = (dayId: string, date: string) => {
+    const workout = buildBackfillWorkout(data, dayId, date);
     if (!session && workout) {
-      start({ kind: 'planned', workout, backfillDate });
+      const backfillDate = backfillDateFor(date, today);
+      start(
+        backfillDate ? { kind: 'planned', workout, backfillDate } : { kind: 'planned', workout },
+      );
       capture('workout_started', { source: 'picked' });
     }
     setBackfillOpen(false);
@@ -201,7 +213,7 @@ export function TodayView() {
             onClick={() => setBackfillOpen(true)}
             className="min-h-11 self-start text-sm font-medium text-[#944a00] hover:underline"
           >
-            Log a past workout
+            Log a workout you already did
           </button>
 
           {/* UX-36 A2 (T-36.A2.2): grouped Recent list replaces the single "Last session" link. */}

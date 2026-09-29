@@ -68,8 +68,13 @@ export function nextDayIdAfter(routine: RoutineDto, completedDayId: string | nul
 }
 
 export type TodayStatus =
-  /** Nothing done today, and the rotation's next day is due today (or has no fixed weekday) — show Start. */
-  | { kind: 'training' }
+  /**
+   * Nothing done today, and the rotation's next day is due today, has no
+   * fixed weekday, or is overdue — show Start. `overdueFrom` is set when the
+   * day was pinned to an earlier weekday this week and hasn't happened yet
+   * (0 = Monday … 6 = Sunday), so the card can say "Planned for Monday".
+   */
+  | { kind: 'training'; overdueFrom?: number }
   /** A session was already completed today: `nextWorkout` (the rotation's now-next day) is upcoming, not today's. */
   | { kind: 'done'; dayName: string; weekday: number | null }
   /** Nothing done today, but the rotation's next day is due a different weekday — offer it anyway. */
@@ -101,6 +106,18 @@ export function todayStatus(input: {
   }
   if (!next || weekday === null || weekday === weekdayOf(today)) {
     return { kind: 'training' };
+  }
+  // Owner dogfood 2026-09-29: a day pinned to Monday that was missed used to
+  // make Tuesday a "Rest day" pointing at *next* Monday, with no way to train
+  // except "Start anyway". The rotation never advanced past it, so it is
+  // overdue, not upcoming — it's today's workout.
+  const overdue = missedPlannedDays({
+    activeRoutine: bootstrap.activeRoutine,
+    recentSessions: bootstrap.recentSessions,
+    today,
+  }).some((d) => d.dayId === next.dayId);
+  if (overdue) {
+    return { kind: 'training', overdueFrom: weekday };
   }
   return { kind: 'rest', dayName: next.dayName, weekday };
 }

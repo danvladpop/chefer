@@ -21,7 +21,6 @@ import {
   useSnackbar,
 } from '@chefer/ui-mobile';
 import {
-  addDaysLocal,
   buildNextWorkout,
   cn,
   doneTodayCard,
@@ -31,7 +30,6 @@ import {
   supersetRuns,
   supersetSlot,
   todayStatus,
-  weekdayOf,
   weekStartOf,
   type ProgressionEntry,
 } from '@chefer/utils';
@@ -61,10 +59,12 @@ import {
 import { useTimedRefresh } from './use-timed-refresh';
 
 // Gym Today tab (gym_plan.md §1.3 "Today tab"). The persisted bootstrap drives
-// everything here; "Do another day" and "Skip" only touch the server (§5.4
-// scope — routine editing needs a connection), while offline the shared
-// engine builds the picked day locally so a basement gym never blocks a
-// workout (D6).
+// everything here. Picking a day ("Do another day instead", "Train again
+// today?", a missed day's "Do it today") starts it straight away, built
+// locally by the shared engine so it works the same online and offline (D6);
+// only "Skip" and "Make it next" move the server's rotation pointer.
+// Owner dogfood 2026-09-29: every state offers another day or freestyle —
+// real weeks rarely follow the plan to the letter.
 
 const WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -145,11 +145,20 @@ export function TodayScreen() {
     router.push('/gym/workout');
   };
 
-  const handlePickDay = (dayId: string) => {
-    setDayPickerVisible(false);
+  const startFreestyle = () => {
+    activeWorkout.start({ kind: 'freestyle' });
+    router.push('/gym/workout');
+  };
+
+  // Starts `dayId` now. Used to only move the server's rotation pointer when
+  // online, which on a rest day just re-rendered "Rest day" for the picked
+  // day — the user could never actually start it. Finishing the session
+  // advances the rotation from this day either way.
+  const startDay = (dayId: string) => {
     if (!bootstrap?.activeRoutine || !bootstrap.profile) return;
-    if (onlineManager.isOnline()) {
-      setNextDayMutation.mutate({ routineId: bootstrap.activeRoutine.id, dayId });
+    if (bootstrap.nextWorkout?.dayId === dayId) {
+      // The server-built workout already carries "From last time" exercises.
+      startPlanned(bootstrap.nextWorkout);
       return;
     }
     const progressions = new Map<string, ProgressionEntry>(
@@ -170,6 +179,16 @@ export function TodayScreen() {
       isDeload: false,
     });
     startPlanned(workout);
+  };
+
+  const handlePickDay = (dayId: string) => {
+    setDayPickerVisible(false);
+    startDay(dayId);
+  };
+
+  const handlePickFreestyle = () => {
+    setDayPickerVisible(false);
+    startFreestyle();
   };
 
   // Bug B-45: "Skip this day" used to swap the workout with no feedback or
@@ -300,20 +319,31 @@ export function TodayScreen() {
   // "Still time this week" — never shown during a pause (already excused) or
   // once dismissed ("Not this week" changes nothing, D22).
   const weekStart = weekStartOf(today);
-  const isSunday = weekdayOf(today) === 6;
   // `missedDismissTick` isn't read below — bumping it forces this plain
   // (non-memoised) computation to re-run and pick up the new KV write.
   void missedDismissTick;
+  // The rotation's own next day is never listed here: when it's the missed
+  // one, the main card already offers it as today's workout (`overdueFrom`).
+  // Listing it too gave "Move it to Wednesday" a setNextDay to the day that
+  // was already next — a silent no-op (owner dogfood 2026-09-29).
   const missed = missedPlannedDays({
     activeRoutine,
     recentSessions: bootstrap.recentSessions,
     today,
-  }).filter((d) => !isMissedDayDismissed(weekStart, d.dayId));
+  }).filter((d) => d.dayId !== nextWorkout?.dayId && !isMissedDayDismissed(weekStart, d.dayId));
   const firstMissed = missed[0] ?? null;
-  const nextFreeWeekday = weekdayOf(addDaysLocal(today, 1));
+  const doneToday = status.kind === 'done';
 
-  const handleMissedPrimary = (day: { dayId: string }) => {
-    setNextDayMutation.mutate({ routineId: activeRoutine.id, dayId: day.dayId });
+  const handleMissedPrimary = (day: { dayId: string; dayName: string }) => {
+    if (!doneToday) {
+      startDay(day.dayId);
+      return;
+    }
+    // Already trained today: queue it up as the next session instead.
+    setNextDayMutation.mutate(
+      { routineId: activeRoutine.id, dayId: day.dayId },
+      { onSuccess: () => snackbar.show({ message: `${day.dayName} is up next.` }) },
+    );
   };
   const handleMissedDismiss = (day: { dayId: string }) => {
     dismissMissedDay(weekStart, day.dayId);
@@ -388,10 +418,11 @@ export function TodayScreen() {
               <Button
                 testID="gym-today-missed-primary"
                 size="sm"
+                disabled={doneToday && !onlineManager.isOnline()}
                 loading={setNextDayMutation.isPending}
                 onPress={() => handleMissedPrimary(firstMissed)}
               >
-                {isSunday ? `Start it now` : `Move it to ${weekdayLabel(nextFreeWeekday)}`}
+                {doneToday ? 'Make it next' : 'Do it today'}
               </Button>
               <Pressable
                 testID="gym-today-missed-dismiss"
@@ -469,6 +500,16 @@ export function TodayScreen() {
             >
               {`Start ${status.dayName} anyway`}
             </Button>
+            <Pressable
+              testID="gym-today-rest-pick-day"
+              accessibilityRole="button"
+              onPress={() => setDayPickerVisible(true)}
+              className="min-h-11 justify-center"
+            >
+              <Text className="text-sm font-medium text-primary">
+                Train something else? Pick a day or freestyle
+              </Text>
+            </Pressable>
           </Card>
         ) : nextWorkout ? (
           <Card testID="gym-today-next-up" className="gap-3">
@@ -478,6 +519,11 @@ export function TodayScreen() {
                 ~{nextWorkout.estimatedMin} min
               </Text>
             </View>
+            {status.kind === 'training' && status.overdueFrom !== undefined ? (
+              <Text testID="gym-today-overdue" variant="muted" className="-mt-2 text-xs">
+                {`Planned for ${weekdayLabel(status.overdueFrom)} — today works just as well.`}
+              </Text>
+            ) : null}
             <View className="gap-1.5">
               {(() => {
                 const runs = supersetRuns(nextWorkout.exercises);
@@ -543,6 +589,9 @@ export function TodayScreen() {
             <Button testID="gym-today-start" onPress={() => startPlanned(nextWorkout)}>
               Start workout
             </Button>
+            <Text variant="muted" className="text-xs">
+              Not feeling an exercise? Swap, skip or add one from its ⋯ menu as you go.
+            </Text>
             <View className="flex-row flex-wrap gap-x-4 gap-y-2">
               <Pressable
                 testID="gym-today-pick-day"
@@ -564,10 +613,7 @@ export function TodayScreen() {
               <Pressable
                 testID="gym-today-freestyle"
                 accessibilityRole="button"
-                onPress={() => {
-                  activeWorkout.start({ kind: 'freestyle' });
-                  router.push('/gym/workout');
-                }}
+                onPress={startFreestyle}
                 className="min-h-11 justify-center"
               >
                 <Text className="text-sm font-medium text-primary">Freestyle workout</Text>
@@ -582,10 +628,7 @@ export function TodayScreen() {
             action={{
               label: 'Freestyle workout',
               testID: 'gym-today-freestyle',
-              onPress: () => {
-                activeWorkout.start({ kind: 'freestyle' });
-                router.push('/gym/workout');
-              },
+              onPress: startFreestyle,
             }}
           />
         )}
@@ -656,6 +699,14 @@ export function TodayScreen() {
             <Text className="font-medium">{day.name}</Text>
           </Pressable>
         ))}
+        <Pressable
+          testID="gym-today-day-freestyle"
+          accessibilityRole="button"
+          onPress={handlePickFreestyle}
+          className="min-h-11 justify-center py-3"
+        >
+          <Text className="font-medium text-primary">Freestyle — build it as you go</Text>
+        </Pressable>
       </Sheet>
 
       <HowThisWorksSheet

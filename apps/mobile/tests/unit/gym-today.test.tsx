@@ -300,6 +300,43 @@ describe('TodayScreen', () => {
     jest.restoreAllMocks();
   });
 
+  it('online day picker starts the chosen day too, without touching the rotation', async () => {
+    const mutate = jest.fn();
+    trpc.gym.routine.setNextDay.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+    );
+    const user = userEvent.setup();
+    await renderToday(queryClient);
+
+    await user.press(screen.getByTestId('gym-today-pick-day'));
+    await waitFor(() => expect(screen.getByTestId('gym-today-day-d2')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('gym-today-day-d2'));
+
+    expect(mutate).not.toHaveBeenCalled();
+    expect(activeSessionStore.get()?.doc.name).toBe('Lower A');
+    expect(router.push).toHaveBeenCalledWith('/gym/workout');
+  });
+
+  it('the day picker offers freestyle', async () => {
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+    );
+    const user = userEvent.setup();
+    await renderToday(queryClient);
+
+    await user.press(screen.getByTestId('gym-today-pick-day'));
+    await waitFor(() => expect(screen.getByTestId('gym-today-day-freestyle')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('gym-today-day-freestyle'));
+
+    expect(activeSessionStore.get()?.doc.routineDayId).toBeNull();
+    expect(router.push).toHaveBeenCalledWith('/gym/workout');
+  });
+
   describe('Skip this day (bug B-45)', () => {
     it('shows a snackbar naming both days, and Undo reverts to the skipped day', async () => {
       const user = userEvent.setup();
@@ -453,8 +490,35 @@ describe('TodayScreen', () => {
       await waitFor(() =>
         expect(screen.getByTestId('gym-today-backfill-date-picker')).toBeOnTheScreen(),
       );
-      expect(screen.queryByTestId(`gym-today-backfill-date-${today}`)).not.toBeOnTheScreen();
       expect(screen.queryByTestId(`gym-today-backfill-date-${tomorrow}`)).not.toBeOnTheScreen();
+    });
+
+    it('offers today, logged as a normal session starting now (owner dogfood 2026-09-29)', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+      );
+      const user = userEvent.setup();
+      await renderToday(queryClient);
+
+      await user.press(screen.getByTestId('gym-today-log-past'));
+      const today = localDate();
+      await waitFor(() =>
+        expect(screen.getByTestId(`gym-today-backfill-date-${today}`)).toHaveTextContent('Today'),
+      );
+      await user.press(screen.getByTestId(`gym-today-backfill-date-${today}`));
+      await waitFor(() =>
+        expect(screen.getByTestId('gym-today-backfill-day-d2')).toBeOnTheScreen(),
+      );
+      const before = Date.now();
+      await user.press(screen.getByTestId('gym-today-backfill-day-d2'));
+
+      const started = activeSessionStore.get();
+      expect(started?.doc.localDate).toBe(today);
+      expect(started?.doc.routineDayId).toBe('d2');
+      // Not the 18:00 backdate, which could be in the future.
+      expect(new Date(started?.doc.startedAt ?? 0).getTime()).toBeGreaterThanOrEqual(before - 1000);
     });
   });
 
@@ -538,6 +602,31 @@ describe('TodayScreen', () => {
       await user.press(screen.getByTestId('gym-today-rest-start-anyway'));
       expect(router.push).toHaveBeenCalledWith('/gym/workout');
     });
+
+    it('a rest day still lets you pick another day or freestyle (owner dogfood 2026-09-29)', async () => {
+      const user = userEvent.setup();
+      const restDayWeekday = (weekdayOf(localDate()) + 1) % 7;
+      const restRoutine: RoutineDto = {
+        ...ROUTINE,
+        days: ROUTINE.days.map((d) =>
+          d.id === 'd1' ? { ...d, plannedWeekday: restDayWeekday } : d,
+        ),
+      };
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: restRoutine, nextWorkout: NEXT_WORKOUT }),
+      );
+      await renderToday(queryClient);
+
+      await user.press(screen.getByTestId('gym-today-rest-pick-day'));
+      await waitFor(() => expect(screen.getByTestId('gym-today-day-d2')).toBeOnTheScreen());
+      expect(screen.getByTestId('gym-today-day-freestyle')).toBeOnTheScreen();
+      await user.press(screen.getByTestId('gym-today-day-d2'));
+
+      expect(activeSessionStore.get()?.doc.name).toBe('Lower A');
+      expect(router.push).toHaveBeenCalledWith('/gym/workout');
+    });
   });
 
   describe('How this works (T-36.4 remainder)', () => {
@@ -574,10 +663,19 @@ describe('TodayScreen', () => {
       days: ROUTINE.days.map((d) => (d.id === 'd1' ? { ...d, plannedWeekday: missedWeekday } : d)),
     };
 
-    it('offers to move the missed day into the rotation', async () => {
-      const user = userEvent.setup();
-      const mutate = jest.fn();
-      trpc.gym.routine.setNextDay.useMutation.mockReturnValue(mutationResult({ mutate }));
+    // The rotation has moved past the missed Upper A (e.g. Lower A was done
+    // instead), so Lower A is next and Upper A is still owed this week.
+    const LOWER_NEXT: NextWorkoutDto = {
+      ...NEXT_WORKOUT,
+      dayId: 'd2',
+      dayName: 'Lower A',
+      exercises: [],
+    };
+
+    it('when the missed day is already next, the main card offers it for today instead', async () => {
+      // Owner dogfood 2026-09-29: "Move it to Wednesday" was a setNextDay to
+      // the day that was already next — a silent no-op — while the main card
+      // said "Rest day" and pointed at next week.
       const queryClient = makeClient();
       queryClient.setQueryData(
         gymBootstrapQueryKey,
@@ -585,9 +683,66 @@ describe('TodayScreen', () => {
       );
       await renderToday(queryClient);
 
+      expect(screen.queryByTestId('gym-today-missed')).not.toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-today-rest')).not.toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-next-up')).toHaveTextContent(/Upper A/);
+      expect(screen.getByTestId('gym-today-overdue')).toHaveTextContent(/Planned for/);
+    });
+
+    it('"Do it today" starts the missed day', async () => {
+      const user = userEvent.setup();
+      const mutate = jest.fn();
+      trpc.gym.routine.setNextDay.useMutation.mockReturnValue(mutationResult({ mutate }));
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: missedRoutine, nextWorkout: LOWER_NEXT }),
+      );
+      await renderToday(queryClient);
+
       expect(screen.getByTestId('gym-today-missed')).toHaveTextContent(/Upper A/);
+      expect(screen.getByTestId('gym-today-missed-primary')).toHaveTextContent('Do it today');
       await user.press(screen.getByTestId('gym-today-missed-primary'));
-      expect(mutate).toHaveBeenCalledWith({ routineId: 'r1', dayId: 'd1' });
+      expect(mutate).not.toHaveBeenCalled();
+      expect(activeSessionStore.get()?.doc.name).toBe('Upper A');
+      expect(router.push).toHaveBeenCalledWith('/gym/workout');
+    });
+
+    it('after training today, "Make it next" queues the missed day with feedback', async () => {
+      const user = userEvent.setup();
+      const mutate = jest.fn(
+        (_input: { routineId: string; dayId: string }, opts?: { onSuccess?: () => void }) => {
+          opts?.onSuccess?.();
+        },
+      );
+      trpc.gym.routine.setNextDay.useMutation.mockReturnValue(mutationResult({ mutate }));
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: missedRoutine,
+          nextWorkout: LOWER_NEXT,
+          recentSessions: [
+            {
+              id: 'today-lower',
+              name: 'Lower A',
+              routineDayId: 'd2',
+              status: 'COMPLETED',
+              localDate: localDate(),
+              startedAt: new Date().toISOString(),
+              finishedAt: new Date().toISOString(),
+              isDeload: false,
+              exercises: [],
+            },
+          ],
+        }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByTestId('gym-today-missed-primary')).toHaveTextContent('Make it next');
+      await user.press(screen.getByTestId('gym-today-missed-primary'));
+      expect(mutate).toHaveBeenCalledWith({ routineId: 'r1', dayId: 'd1' }, expect.anything());
+      expect(screen.getByTestId('snackbar-message')).toHaveTextContent('Upper A is up next.');
     });
 
     it('"Not this week" dismisses it with a no-nagging snackbar and never a mutation', async () => {
@@ -597,7 +752,7 @@ describe('TodayScreen', () => {
       const queryClient = makeClient();
       queryClient.setQueryData(
         gymBootstrapQueryKey,
-        makeBootstrap({ activeRoutine: missedRoutine, nextWorkout: NEXT_WORKOUT }),
+        makeBootstrap({ activeRoutine: missedRoutine, nextWorkout: LOWER_NEXT }),
       );
       await renderToday(queryClient);
 
@@ -615,7 +770,7 @@ describe('TodayScreen', () => {
         gymBootstrapQueryKey,
         makeBootstrap({
           activeRoutine: missedRoutine,
-          nextWorkout: NEXT_WORKOUT,
+          nextWorkout: LOWER_NEXT,
           activePause: { id: 'p1', startDate: localDate(), endDate: localDate(), reason: null },
         }),
       );
