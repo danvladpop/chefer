@@ -49,6 +49,11 @@ export function HealthConsentTodayNotice() {
 
 let promptedThisSession = false;
 
+/** Test seam: forget that this session already prompted. */
+export function resetHealthConsentLaunchPromptForTests(): void {
+  promptedThisSession = false;
+}
+
 export function HealthConsentLaunchPrompt() {
   const { consented, requestHealthConsent, healthConsentSheet } = useHealthConsent();
   const { data: prefs } = trpc.preferences.get.useQuery(undefined, {

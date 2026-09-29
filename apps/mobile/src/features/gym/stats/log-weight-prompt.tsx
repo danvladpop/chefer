@@ -4,6 +4,8 @@ import { Button, Input, Text } from '@chefer/ui-mobile';
 import { parseBodyWeight } from '@chefer/utils';
 import { useUnitSystem } from '../../../hooks/use-unit-system';
 import { trpc } from '../../../lib/trpc';
+import { HealthDeclinedNotice } from '../../privacy/health-notices';
+import { useHealthConsent } from '../../privacy/use-health-consent';
 
 // "Missing bodyweight" empty state (gym_plan.md §6.2): a one-tap path to log
 // today's weight with the EXISTING tracker.logWeight procedure, reused by the
@@ -14,6 +16,9 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
+  // T-26.2: a weigh-in is health information — asked once, on the first save.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
+  const [declined, setDeclined] = useState(false);
   const logWeight = trpc.tracker.logWeight.useMutation({
     onSuccess: () => {
       setValue('');
@@ -33,7 +38,11 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
       return;
     }
     setError(null);
-    logWeight.mutate({ weightKg: parsed.kg });
+    setDeclined(false);
+    // "Don't save it": nothing is stored; the typed value stays in the field.
+    requestHealthConsent(() => logWeight.mutate({ weightKg: parsed.kg }), {
+      onDeclined: () => setDeclined(true),
+    });
   };
 
   return (
@@ -67,6 +76,13 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
           {error}
         </Text>
       )}
+      {declined && (
+        <HealthDeclinedNotice
+          testID={`${testID}-declined`}
+          message="Your weight wasn’t saved, because Chefer doesn’t have permission to store health information."
+        />
+      )}
+      {healthConsentSheet}
     </View>
   );
 }

@@ -13,6 +13,11 @@ import { useHealthConsent } from './use-health-consent';
 
 let promptedThisLaunch = false;
 
+/** Test seam: forget that this launch already prompted. */
+export function resetHealthConsentLaunchPromptForTests(): void {
+  promptedThisLaunch = false;
+}
+
 export function HealthConsentLaunchPrompt({ signedIn }: { signedIn: boolean }) {
   const { consented, requestHealthConsent, healthConsentSheet } = useHealthConsent();
   const { data: prefs } = trpc.preferences.get.useQuery(undefined, {
