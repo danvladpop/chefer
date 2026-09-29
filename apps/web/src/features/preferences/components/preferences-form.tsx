@@ -296,7 +296,7 @@ export function PreferencesForm({
           )}
           <button
             type="button"
-            onClick={() => void handleSave()}
+            onClick={handleSave}
             disabled={isSaving}
             className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10"
           >

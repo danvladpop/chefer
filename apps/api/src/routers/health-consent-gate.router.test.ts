@@ -11,12 +11,15 @@ import { trackerRouter } from './tracker.router.js';
 // `declared` it is rejected ONLY for a client declaring the new API level and
 // ACCEPTED without the header (the installed-binary case). Services are mocked.
 
-const enforce = vi.hoisted(() => ({ mode: 'off' as 'off' | 'declared' | 'all' }));
+const enforce = vi.hoisted(() => ({ mode: 'off' }));
 vi.mock('../lib/env.js', () => ({
   // Standalone (the real env.ts throws without secrets): only the mode is read.
-  env: new Proxy({} as Record<string, unknown>, {
-    get: (_target, key) => (key === 'HEALTH_CONSENT_ENFORCE' ? enforce.mode : undefined),
-  }),
+  env: new Proxy(
+    {},
+    {
+      get: (_target, key) => (key === 'HEALTH_CONSENT_ENFORCE' ? enforce.mode : undefined),
+    },
+  ),
 }));
 vi.mock('@chefer/database', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@chefer/database')>();

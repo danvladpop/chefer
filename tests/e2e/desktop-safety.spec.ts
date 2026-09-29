@@ -45,6 +45,12 @@ test.describe('Safety filter — web parity', () => {
     await expect(page.getByText(/granola, muesli/)).toBeVisible();
 
     await page.getByRole('button', { name: 'Save preferences' }).click();
+    // UX-26 (T-26.2): the first allergy save asks for health-information
+    // consent (once per account) — allow it; skipped when already on record.
+    await page
+      .getByTestId('health-consent-allow')
+      .click({ timeout: 4000 })
+      .catch(() => undefined);
     await page.waitForURL('**/dashboard');
   });
 

@@ -87,6 +87,16 @@ appId: dev.chefer.app.dev
       id: 'prefs-save-safety'
 - tapOn:
     id: 'prefs-save-safety'
+# UX-26 (T-26.2): the first allergy save asks for health-information consent
+# (alice has none on a fresh DB) — allow it; a no-op when already given.
+- extendedWaitUntil:
+    visible:
+      id: 'health-consent-allow'
+    timeout: 3000
+    optional: true
+- tapOn:
+    id: 'health-consent-allow'
+    optional: true
 - tapOn:
     text: 'Back'
     optional: true

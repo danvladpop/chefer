@@ -38,6 +38,7 @@
 30. [Food Logging: Search, Edit, Undo, Copy Day Flow](#30-food-logging-search-edit-undo-copy-day-flow)
 31. [Manual Recipe Create and Edit](#31-manual-recipe-create-and-edit-ux-40-slices-12-t-401t-4010-t-bug-o3)
 32. [Terms Acceptance & Email Defaults Flow](#32-terms-acceptance--email-defaults-flow-t-391t-393)
+33. [Health Information Consent Flow](#33-health-information-consent-flow-ux-26-t-261t-264-wave-3)
 
 ---
 
@@ -294,6 +295,14 @@ during render. A successful login overwrites it via `Set-Cookie`.
 | ADMIN             | Everything, incl. `user.list`, `user.getById`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure`           |
 
 ---
+
+### 4.9 Health-consent gate (T-26.3, wave 3)
+
+Health writes (`preferences.updateSafety/setup/saveProfileBasics/updateTargets`, `household.add/update`,
+`tracker.logWeight/updateWeight`) pass `requireHealthConsent`. `HEALTH_CONSENT_ENFORCE=off` (all envs, wave 3): never
+rejects. `declared`: an un-consented write is rejected (`PRECONDITION_FAILED` / `HEALTH_CONSENT_REQUIRED`) only from a
+client sending `x-chefer-api-level >= 4`; a request WITHOUT the header (installed binary) is always accepted. See
+§33 and `infrastructure.md` §9.
 
 ## 5. View User Profile Flow
 
@@ -3807,3 +3816,46 @@ the condition above only fires for an account whose values predate the
 change and are still on. L-ENTRY's registration flow (§27 above) is
 expected to set `emailDefaultsNoticeAt` explicitly for accounts created
 through it, so a new sign-up never sees the notice either way.
+
+---
+
+## 33. Health Information Consent Flow (UX-26, T-26.1–T-26.4, wave 3)
+
+_(Numbered §33 because §28 is the consent log flow.)_ Allergies, diets, dislikes, goal, body metrics and weigh-ins —
+for the user and every household member — are health information under GDPR Art. 9. **Separate from the AI data
+consent (§25):** this one is about STORING the data, that one about SENDING it to an AI provider. A save that also
+triggers AI asks health consent first for the save; the AI consent still guards the AI call.
+**PENDING COUNSEL REVIEW:** all copy, and the legal ground (explicit consent for every health field, incl. allergies).
+
+**1. First save.** `useHealthConsent().requestHealthConsent(run, { hasHealthData, onDeclined })` wraps every health save on
+web and mobile: safety picker saves (Preferences, household "You", safety migration card), household member save,
+onboarding diet/goal/metrics steps (asked when leaving the step; again at Finish if needed), goal & body card, preferences
+form, weigh-in log/edit. Consent on record, or nothing health-related being stored (empty lists, a member with only a
+name), runs the save at once. Otherwise the `HealthDataConsentSheet` opens (What/Why/Where/Your choice; two buttons,
+nothing pre-selected).
+
+**2. Allow and save.** `privacy.grantHealthConsent({ version })` → one transaction: `HEALTH` `ConsentEvent`
+(`granted:true`, copy version) + `User.healthDataConsentAt/Version`; then the original save runs (after the sheet has
+fully closed on mobile, so a following modal can present). Idempotent.
+
+**3. Don't save it.** Nothing health-related is sent or stored (AC2). Other answers are kept (a household member without
+allergy lists; onboarding's other steps; preferences' units/cuisine). An amber notice says what that means
+(`Without this, Chefer can’t check plans for allergies.`); the device remembers the answer and Food Today shows a
+dismissible `Plans aren’t being checked for allergies` / `Allow health information` card
+(`HealthConsentTodayNotice`, mounted by the dashboard lane).
+
+**4. Existing data (Q-7, owner default, PENDING COUNSEL).** Data stored before this consent existed is kept; on the
+next launch `HealthConsentLaunchPrompt` opens the sheet once per launch/session if health data exists but consent
+doesn't. "Don't save it" changes nothing stored.
+
+**5. Withdraw (Profile › Privacy & data › Health information).** Shows `Allowed on {date}`; `Withdraw and delete` →
+confirm (`Delete your health information?`) → `privacy.withdrawHealthData({ confirm: 'WITHDRAW' })`: one transaction
+deletes allergies/diets/dislikes (owner + household), goal/metrics/own targets, weigh-ins, target-change history, blanks
+the allergy snapshot in safety reports, clears the consent cache and logs the withdrawal (AC3). The account and the
+household people stay. Plans stop showing `Checked for` because the rules are gone. Then all caches are invalidated. Not
+allowed → the row offers `Allow health information`.
+
+**6. Server gate.** §4.x above. **7. AI label (T-26.6).** `RecipeDto.aiGenerated` (additive) → `AiGeneratedChip` on AI plan
+meals, imported drafts and swap proposals; chat carries its own "AI Chef" label. **8. Evidence trail (T-26.7).** CI archives
+the safety regression report per commit; `SafetyReport` rows; one `safety.filter` log line per plan generation.
+Analytics (counts only): `health_consent_answered { allowed }`, `health_consent_withdrawn {}`.
