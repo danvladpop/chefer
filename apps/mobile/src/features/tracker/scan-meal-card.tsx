@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fetch as expoFetch } from 'expo/fetch';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { cn, defaultMealSlot } from '@chefer/utils';
+import { cn, defaultMealSlot, PREMIUM_PITCH_COPY, showSnapTaste } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { getApiBaseUrl } from '../../lib/api-url';
 import { getToken } from '../../lib/auth-store';
@@ -16,6 +16,7 @@ import {
 import { photoPickerOptions, preparePhoto } from '../../lib/prepare-photo';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
+import { openPremium } from '../premium/open-premium';
 import { invalidateDayQueries } from './invalidate';
 import { recordRebalance } from './rebalance-store';
 
@@ -30,8 +31,67 @@ const CONFIDENCE_LABEL: Record<MealPhotoEstimate['confidence'], string> = {
   high: 'Confident',
 };
 
-export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () => void }) {
+/**
+ * Premium (and admins) get the real Snap card. On a free plan the card used to
+ * render nothing, so a tracker never learned Snap existed (bug B-35, T-10.6):
+ * a food-job user now sees a taste instead, and a gym-only user still sees
+ * nothing.
+ */
+export function ScanMealCard(props: { date: string; onLogged: () => void }) {
   const { enabled } = useEntitlement('mealScansPerDay');
+  return enabled ? <SnapCard {...props} /> : <SnapTaste />;
+}
+
+/**
+ * The free taste (UX-10 §7): a labelled static example and "See what Premium
+ * adds" (source `snap-scan`). It sends nothing and opens no camera — there is
+ * no AI call here, so no AI consent is asked; the real scan below still asks
+ * (`meal-scan`) before the camera or library opens.
+ */
+function SnapTaste() {
+  const { isPremium } = useEntitlement('mealScansPerDay');
+  const { data } = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
+  if (!showSnapTaste({ isPremium, jobs: data?.jobs ?? [] })) return null;
+  return (
+    <Card testID="scan-taste" className="gap-3">
+      <Text variant="heading">{PREMIUM_PITCH_COPY.snapTasteTitle}</Text>
+      <Text variant="muted" className="text-xs">
+        {PREMIUM_PITCH_COPY.snapTasteBody}
+      </Text>
+      <View
+        testID="scan-taste-example"
+        accessibilityLabel={`${PREMIUM_PITCH_COPY.snapTasteExampleLabel}: ${PREMIUM_PITCH_COPY.snapTasteExampleMacros}, ${PREMIUM_PITCH_COPY.snapTasteExampleNote}`}
+        className="flex-row items-center gap-3 rounded-xl border border-dashed border-border bg-muted p-3"
+      >
+        <View className="h-12 w-12 items-center justify-center rounded-lg bg-white">
+          <Ionicons name="restaurant-outline" size={24} color="#944a00" />
+        </View>
+        <View className="min-w-0 flex-1 gap-0.5">
+          <View className="self-start rounded-full bg-accent px-2 py-0.5">
+            <Text className="text-xs font-semibold uppercase text-primary">
+              {PREMIUM_PITCH_COPY.snapTasteExampleLabel}
+            </Text>
+          </View>
+          <Text className="text-sm font-semibold text-gray-900">
+            {PREMIUM_PITCH_COPY.snapTasteExampleMacros}
+          </Text>
+          <Text variant="muted" className="text-xs">
+            {PREMIUM_PITCH_COPY.snapTasteExampleNote}
+          </Text>
+        </View>
+      </View>
+      <Button
+        testID="scan-taste-premium"
+        variant="outline"
+        onPress={() => openPremium('snap-scan')}
+      >
+        {PREMIUM_PITCH_COPY.seeWhatPremiumAdds}
+      </Button>
+    </Card>
+  );
+}
+
+function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [upgradeNeeded, setUpgradeNeeded] = useState(false);
@@ -114,10 +174,6 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
     }
   };
 
-  if (!enabled) {
-    return null; // tier has zero scans — the profile page carries the upsell
-  }
-
   return (
     <Card testID="scan-meal-card" className="gap-3">
       {!estimate ? (
@@ -154,8 +210,7 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
           </View>
           {upgradeNeeded && (
             <Text className="text-xs text-primary">
-              You&apos;ve used today&apos;s scans — premium raises the limit. Upgrade from your
-              Profile.
+              You&apos;ve used today&apos;s scans. Premium raises the limit.
             </Text>
           )}
           {cameraDenied && (

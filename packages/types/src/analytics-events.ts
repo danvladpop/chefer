@@ -1,3 +1,4 @@
+import type { PremiumJobId, PremiumSource } from './plan-features';
 import type { PlanSlot } from './plan-shape';
 
 // ─── Shared analytics EventMap (T-12.1) ────────────────────────────────────────
@@ -88,6 +89,14 @@ export interface EventMap {
   swap_undone: Record<string, never>;
   replace_undone: Record<string, never>;
   premium_changes_viewed: Record<string, never>;
+
+  // ─── Premium (L-MONEY, wave 2, UX-10) ────────────────────────────────────────
+  upgrade_prompt_shown: { source: PremiumSource; job: PremiumJobId };
+  upgrade_clicked: { source: PremiumSource; job: PremiumJobId };
+  upgrade_completed: { source: PremiumSource; job: PremiumJobId };
+  downgrade_completed: Record<string, never>;
+  /** The once-a-day nudge cap swallowed a nudge (§2.7). */
+  nudge_suppressed: { source: PremiumSource };
 
   // ─── Safety (L-SAFE, wave 1) ─────────────────────────────────────────────────
   safety_readback_viewed: Record<string, never>;

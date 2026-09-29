@@ -41,7 +41,10 @@ export const PLAN_FEATURES = {
   aiMealPlans: {
     free: false,
     premium: true,
-    label: 'AI meal plans tailored to you',
+    // B-32 (T-10.1): the label no longer headlines "AI meal plans tailored to
+    // you" — the persona study found the pitch named none of the jobs people
+    // came for. Key unchanged, so enforcement and shipped clients are unaffected.
+    label: 'A new week planned for you',
     description:
       'Weekly plans generated from your goals, body metrics and preferences — free plans draw from a chef-curated pool filtered by your restrictions.',
     upsell: true,
@@ -217,3 +220,51 @@ export type PlanFeatureKey = keyof typeof PLAN_FEATURES;
 export const PREMIUM_PERK_KEYS = (Object.keys(PLAN_FEATURES) as PlanFeatureKey[]).filter(
   (key) => PLAN_FEATURES[key].upsell,
 );
+
+// ─── Premium sources + jobs (T-10.1, UX-10) ───────────────────────────────────
+// Every place that offers Premium passes a `source`; the pitch registry
+// (`premiumPitchFor` in @chefer/utils) maps it to the job it unlocks. Kept
+// here so the analytics EventMap can type `source` as a literal union (the
+// health-data guard forbids a bare `string`). Add, never rename: a source is
+// also an analytics dimension.
+export const PREMIUM_SOURCES = [
+  'household',
+  'recipe-import',
+  'training-day',
+  'training-week',
+  'budget',
+  'shopping-list',
+  'pantry',
+  'chat-locked',
+  'chat-quota',
+  'snap-scan',
+  'ingredient-autofill',
+  'pool-exhaustion',
+  'swap',
+  'coach-review',
+  'preferences-locked',
+  'profile',
+  'monday-nudge',
+  'meal-plan-banner',
+  'post-rating',
+] as const;
+export type PremiumSource = (typeof PREMIUM_SOURCES)[number];
+
+/** The job a pitch is headlined by (`gym-first` = the default for Train users). */
+export const PREMIUM_JOB_IDS = [
+  'household',
+  'recipe-import',
+  'training',
+  'budget',
+  'pantry',
+  'chat',
+  'snap-scan',
+  'ingredient-autofill',
+  'pool-exhausted',
+  'swap',
+  'coaching',
+  'targets',
+  'default',
+  'gym-first',
+] as const;
+export type PremiumJobId = (typeof PREMIUM_JOB_IDS)[number];

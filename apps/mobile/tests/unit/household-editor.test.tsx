@@ -23,6 +23,7 @@ const mockUpdate = jest.fn();
 const mockRemove = jest.fn();
 const mockUpdateSafety = jest.fn();
 const mockPush = jest.fn();
+const mockOpenPremium = jest.fn();
 let mockMembers: Record<string, unknown>[] = [];
 let mockIsPremium: boolean | undefined = false;
 let mockTable: { people: unknown[]; hasRules: boolean; needsReview: boolean } = {
@@ -35,6 +36,11 @@ jest.mock('../../src/hooks/use-is-premium', () => ({
   useIsPremium: () => mockIsPremium,
 }));
 
+jest.mock('../../src/features/premium/open-premium', () => ({
+  openPremium: (...args: unknown[]) => {
+    mockOpenPremium(...args);
+  },
+}));
 jest.mock('expo-router', () => ({
   router: {
     push: (...args: unknown[]) => {
@@ -203,10 +209,7 @@ describe('HouseholdEditor', () => {
     expect(screen.getByTestId('household-ghost-sample')).toHaveTextContent(/your week with Alex/);
 
     await user.press(screen.getByTestId('household-ghost-upgrade'));
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: '/profile',
-      params: { source: 'household' },
-    });
+    expect(mockOpenPremium).toHaveBeenCalledWith('household');
   });
 
   it('premium tables get no ghost', async () => {

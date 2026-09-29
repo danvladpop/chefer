@@ -109,7 +109,7 @@ encryption for each build. If it still asks, answer: **"None of the algorithms m
 
 ## Paid features: keep it that way until In-App Purchase exists
 
-Premium is currently a free toggle ("Upgrade — free for now"). That's fine for review. **When
+Premium is currently a free toggle ("Turn on Premium", under a "FREE FOR NOW" note). That's fine for review. **When
 real payments arrive (P2-1 Stripe), digital features sold inside the iOS app must go through
 Apple In-App Purchase** (Guideline 3.1.1). A Stripe checkout or a link to one in the iOS app
 will be rejected (US storefront link-out rules differ, but don't count on them).

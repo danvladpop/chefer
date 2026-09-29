@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Input, Sheet, Text } from '@chefer/ui-mobile';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
+import { PremiumHost } from '../premium/premium-host';
 import { ingredientsCopy } from './copy';
 import { openIngredientAutofillUpsell } from './premium-upsell';
 import { useKeyboardAwareMaxHeight } from './use-keyboard-aware-max-height';
@@ -248,6 +249,10 @@ export function CustomIngredientSheet({
           )}
         </View>
       </ScrollView>
+      {/* "Fill in for me" can open the premium sheet from in here. iOS cannot
+          present a Modal over a Modal, so the sheet nests in its own host
+          (the AiConsentHost pattern). */}
+      <PremiumHost />
     </Sheet>
   );
 }
