@@ -459,6 +459,44 @@ export class MealPlanService {
   }
 
   /**
+   * T-10.4 (D-7, flag `householdFirstWeekFree`, off by default): the first
+   * week generated for a free household is sized for the table. Claims the
+   * week on generation (records `ChefProfile.freeScaledWeekStart` once per
+   * account) and returns the table's portion sum when this week is that
+   * week, else null. Lazy flag import: `lib/flags` validates env at load.
+   */
+  private async claimFirstScaledWeek(userId: string, weekStart: Date): Promise<number | null> {
+    let on = false;
+    try {
+      const { isFlagEnabled } = await import('../../lib/flags.js');
+      on = isFlagEnabled('householdFirstWeekFree');
+    } catch {
+      on = false;
+    }
+    if (!on) return null;
+    const [profile, members] = await Promise.all([
+      chefProfileRepository.findByUserId(userId),
+      this.householdRepo.findByUserId(userId),
+    ]);
+    if (members.length === 0) return null;
+    const claimed = profile?.freeScaledWeekStart ?? null;
+    if (claimed === null) {
+      await chefProfileRepository.upsert(userId, { freeScaledWeekStart: weekStart });
+    } else if (claimed.getTime() !== weekStart.getTime()) {
+      return null;
+    }
+    return householdPortionSum(members);
+  }
+
+  /** Read-only: whether `weekStart` is this user's household-scaled first week. */
+  private async firstScaledWeekPortions(userId: string, weekStart: Date): Promise<number | null> {
+    const profile = await chefProfileRepository.findByUserId(userId);
+    const claimed = profile?.freeScaledWeekStart ?? null;
+    if (!claimed || claimed.getTime() !== weekStart.getTime()) return null;
+    return this.householdPortions(userId);
+  }
+
+  /**
    * §2.6 / T-06.2: the `trainingDays` + `trainingBasis` payload for the week
    * starting `weekStart` (one training read for every response that shows the
    * plan). Empty for a user with no training days — the fields stay absent.
@@ -1565,6 +1603,10 @@ export class MealPlanService {
         }),
       ),
     }));
+    // T-10.4: a free household's first generated week is sized for the table.
+    const firstScaledPortions = premium
+      ? null
+      : await this.claimFirstScaledWeek(userId, weekStartDate);
     // A newer generation supersedes any live tailoring of this week's plan.
     await this.tailoringRepo.cancelRunningForWeek(userId, weekStartDate);
     const plan = await this.repo.createPlan({
@@ -1601,7 +1643,10 @@ export class MealPlanService {
         ? await estimatePlanCostEur(daysFrom(days, curatedShopFrom), {
             portions: premium.costPortions,
           })
-        : await estimatePlanCostEur(daysFrom(days, curatedShopFrom)),
+        : await estimatePlanCostEur(daysFrom(days, curatedShopFrom), {
+            portions: firstScaledPortions,
+          }),
+      ...(!premium && firstScaledPortions !== null && { firstScaledWeek: true }),
       ...(curatedShopFrom > 0 && { shoppingFromDay: curatedShopFrom }),
       tableSafety: ctx.table,
       ...(plan.previousPlanId && { previousPlanId: plan.previousPlanId }),
@@ -1807,13 +1852,23 @@ export class MealPlanService {
     });
 
     const shopFrom = firstShoppingDay(plan.weekStartDate, plan.createdAt);
-    const portions = userId && view.householdScaling ? await this.householdPortions(userId) : null;
+    let portions = userId && view.householdScaling ? await this.householdPortions(userId) : null;
+    // T-10.4: the free household's first week is scaled too (flag-gated at claim time).
+    let firstScaledWeek = false;
+    if (userId && portions === null) {
+      const first = await this.firstScaledWeekPortions(userId, plan.weekStartDate);
+      if (first !== null) {
+        portions = first;
+        firstScaledWeek = true;
+      }
+    }
     return {
       planId: plan.id,
       weekStartDate: plan.weekStartDate,
       days,
       // Same scaling as the shopping list, so the chip equals the list total.
       estimatedCost: await estimatePlanCostEur(daysFrom(days, shopFrom), { portions }),
+      ...(firstScaledWeek && { firstScaledWeek: true }),
       ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
       ...(targets && {
         calorieTarget: targets.dailyCalorieTarget,

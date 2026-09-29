@@ -866,6 +866,49 @@ describe('MealPlanService.getForWeek carry-forward', () => {
     vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(null);
   });
 
+  it('UX-06 (T-06.2): a read carries trainingDays + trainingBasis from the training service', async () => {
+    const repo = makeRepo();
+    repo.findForWeek.mockResolvedValue(CLONED_PLAN);
+    repo.findRecipesByIds.mockResolvedValue([DB_RECIPE]);
+    const trainingDays = [
+      {
+        dayOfWeek: 0,
+        dayName: 'Monday',
+        kind: 'lift',
+        workoutName: 'Upper A',
+        kcalBonus: 250,
+        proteinBonus: 32,
+        carbsBonus: 30,
+        done: false,
+        applied: true,
+      },
+    ];
+    const basis = { restKcal: 2500, restProteinG: 144, proteinGPerKg: 1.8, bodyweightKg: 80 };
+    const training = {
+      loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: null }),
+      trainingSchedule: vi.fn().mockResolvedValue([]),
+      isBumpWidened: vi.fn().mockResolvedValue(false),
+      trainingWeek: vi.fn().mockResolvedValue({ trainingDays, basis }),
+    };
+    const service = new MealPlanService(repo, undefined, training);
+
+    const result = await service.getForWeek('u1', 0, { trainingAccess: true });
+
+    expect(result?.trainingDays).toEqual(trainingDays);
+    expect(result?.trainingBasis).toEqual(basis);
+    expect(training.trainingWeek).toHaveBeenCalledWith('u1', null, expect.any(Date), true);
+  });
+
+  it('UX-06: a user with no training days gets neither field', async () => {
+    const repo = makeRepo();
+    repo.findForWeek.mockResolvedValue(CLONED_PLAN);
+    repo.findRecipesByIds.mockResolvedValue([DB_RECIPE]);
+    const result = await new MealPlanService(repo).getForWeek('u1', 0);
+    expect(result?.trainingDays).toBeUndefined();
+    expect(result?.trainingBasis).toBeUndefined();
+    expect(result?.firstScaledWeek).toBeUndefined();
+  });
+
   it('clones the most recent plan into an empty next week and flags it', async () => {
     const repo = makeRepo();
     repo.findForWeek.mockResolvedValueOnce(null).mockResolvedValueOnce(CLONED_PLAN);
