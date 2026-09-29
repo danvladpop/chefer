@@ -170,3 +170,24 @@ appId: dev.chefer.app.dev
     timeout: 15000
 - assertVisible:
     id: 'profile-health-allow'
+
+# ── Sign the throwaway account out ───────────────────────────────────────────
+# Later flows sign in as alice only when nobody is signed in (connect.yaml), so
+# leaving this account signed in would run them against an empty account.
+- runFlow: common/launch.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+- tapOn: '.*More.*'
+- scrollUntilVisible:
+    element:
+      id: 'logout-button'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'logout-button'
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-title'
+    timeout: 15000
