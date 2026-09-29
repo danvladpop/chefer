@@ -16,22 +16,33 @@ import { useActiveWorkout } from '../use-active-workout';
 import { libraryLookup } from '../use-gym-bootstrap';
 
 // "Log a past workout" (gym_plan.md §1.4 "Repair", research §4.2 #5): pick a
-// date in the current or previous week — never the future — then a routine
+// date in the current or previous week (today included) — never the future — then a routine
 // day or freestyle. Starts a session backdated to that day at 18:00 local
 // (use-active-workout.ts's `backfillDate`); the user logs the actual sets in
 // the normal workout screen and finishes exactly like any other session.
 // Showing this path is what weakens the "broken streak" effect (research
 // §4.1): a missed day is repairable, not a permanent gap.
 
-/** Every date from the Monday of the PREVIOUS week through yesterday, newest first. */
+/**
+ * Every date from the Monday of the PREVIOUS week through today, newest first.
+ * Today is included (owner dogfood 2026-09-29): a session already done
+ * without the app — or one that isn't the planned day — must be loggable
+ * the same day. It starts now, not backdated (see `backfillDateFor`).
+ */
 function eligibleBackfillDates(today: string): string[] {
   const start = weekStartOf(addDaysLocal(today, -7));
   const dates: string[] = [];
-  for (let d = start; d < today; d = addDaysLocal(d, 1)) dates.push(d);
+  for (let d = start; d <= today; d = addDaysLocal(d, 1)) dates.push(d);
   return dates.reverse();
 }
 
+/** Today logs as a normal session (an 18:00 start could be in the future). */
+function backfillDateFor(date: string, today: string): string | undefined {
+  return date === today ? undefined : date;
+}
+
 function formatDateLabel(date: string, today: string): string {
+  if (date === today) return 'Today';
   if (date === addDaysLocal(today, -1)) return 'Yesterday';
   const d = new Date(`${date}T00:00:00`);
   return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -60,7 +71,12 @@ export function LogPastWorkoutAction({ bootstrap }: { bootstrap: GymBootstrap })
 
   const startFreestyle = () => {
     if (!date) return;
-    activeWorkout.start({ kind: 'freestyle', name: 'Backfilled workout', backfillDate: date });
+    const backfillDate = backfillDateFor(date, today);
+    activeWorkout.start(
+      backfillDate
+        ? { kind: 'freestyle', name: 'Backfilled workout', backfillDate }
+        : { kind: 'freestyle' },
+    );
     goToWorkout();
   };
 
@@ -83,7 +99,7 @@ export function LogPastWorkoutAction({ bootstrap }: { bootstrap: GymBootstrap })
       recentSessions: bootstrap.recentSessions,
       isDeload: false,
     });
-    activeWorkout.start({ kind: 'planned', workout, backfillDate: date });
+    activeWorkout.start({ kind: 'planned', workout, backfillDate: backfillDateFor(date, today) });
     goToWorkout();
   };
 
@@ -100,7 +116,7 @@ export function LogPastWorkoutAction({ bootstrap }: { bootstrap: GymBootstrap })
         onPress={() => setStep('date')}
         className="min-h-11 justify-center"
       >
-        <Text className="text-sm font-medium text-primary">Log a past workout</Text>
+        <Text className="text-sm font-medium text-primary">Log a workout you already did</Text>
       </Pressable>
 
       <Sheet
