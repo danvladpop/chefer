@@ -5,6 +5,8 @@ import { Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { cn, parseBodyWeight } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
+import { HealthDeclinedNotice } from '../privacy/health-notices';
+import { useHealthConsent } from '../privacy/use-health-consent';
 
 // One weigh-in form for the dashboard weight card and the Progress screen —
 // mobile counterpart of web features/coach/WeightLogForm. Validation mirrors
@@ -22,6 +24,9 @@ export function WeightLogForm({ placeholder, label }: { placeholder?: string; la
   // (Progress); a no-op elsewhere.
   const scrollFieldIntoView = useScrollFieldIntoView();
   const utils = trpc.useUtils();
+  // T-26.2: a weigh-in is health information — asked once, on the first save.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
+  const [declined, setDeclined] = useState(false);
 
   const logWeight = trpc.tracker.logWeight.useMutation({
     onSuccess: () => {
@@ -43,7 +48,11 @@ export function WeightLogForm({ placeholder, label }: { placeholder?: string; la
       return;
     }
     setInputError(null);
-    logWeight.mutate({ weightKg: parsed.kg });
+    setDeclined(false);
+    // "Don't save it": nothing is stored; the typed value stays in the field.
+    requestHealthConsent(() => logWeight.mutate({ weightKg: parsed.kg }), {
+      onDeclined: () => setDeclined(true),
+    });
   };
 
   const error = inputError ?? logWeight.error?.message ?? null;
@@ -87,6 +96,15 @@ export function WeightLogForm({ placeholder, label }: { placeholder?: string; la
           {error}
         </Text>
       )}
+      {declined && (
+        <View className="mt-2">
+          <HealthDeclinedNotice
+            testID="weight-declined"
+            message="Your weight wasn’t saved, because Chefer doesn’t have permission to store health information."
+          />
+        </View>
+      )}
+      {healthConsentSheet}
     </View>
   );
 }

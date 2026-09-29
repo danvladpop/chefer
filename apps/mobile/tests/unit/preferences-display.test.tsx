@@ -7,6 +7,16 @@ import { mutationResult, queryResult } from './preferences-trpc-mock';
 // Backlog P2-6 / audit F-DASH-3-2: units + currency are editable on every
 // tier (setDisplayPreferences); the weekly budget stays premium and is typed
 // in the user's currency but stored in EUR.
+// T-26.2: these tests are about the save itself — the health-consent guard is
+// covered in health-consent.test.tsx, so here consent is always on record.
+jest.mock('../../src/features/privacy/use-health-consent', () => ({
+  useHealthConsent: () => ({
+    consented: true,
+    requestHealthConsent: (run: () => void) => run(),
+    healthConsentSheet: null,
+  }),
+}));
+
 jest.mock('../../src/lib/trpc', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- factory runs before imports resolve
   const mock = require('./preferences-trpc-mock') as typeof import('./preferences-trpc-mock');

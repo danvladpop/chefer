@@ -27,7 +27,13 @@ export function buildAuthHeaders(getToken: () => string | null): Record<string, 
     // Bumped to 3 for T-42.3 (this commit ships the cardio entry UI that
     // reads it — Δ2.1, orchestrator decision 2026-09-28: cardio moved off
     // level 2 because wave 1 already claimed it, see client-level.ts).
-    'x-chefer-api-level': '3',
+    // Bumped to 4 for T-26.2/T-26.3 (wave 3 L-CONSENT): level 4 is the first to
+    // show the HealthDataConsentSheet before any health save, so
+    // HEALTH_CONSENT_ENFORCE=declared may reject an un-consented health write
+    // from it (installed binaries at <= 3 never are). Same number as
+    // HEALTH_CONSENT_API_LEVEL (@chefer/types) — the shared counter's next
+    // unclaimed value (gym W5's intervals must take 5, see client-level.ts).
+    'x-chefer-api-level': '4',
     ...(token ? { authorization: `Bearer ${token}` } : {}),
   };
 }

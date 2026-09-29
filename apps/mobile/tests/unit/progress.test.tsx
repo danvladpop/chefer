@@ -12,6 +12,16 @@ const mockPreferences = jest.fn<unknown, []>();
 const mockLogMutate = jest.fn();
 const mockInvalidate = jest.fn();
 
+// T-26.2: these tests are about the save itself — the health-consent guard is
+// covered in health-consent.test.tsx, so here consent is always on record.
+jest.mock('../../src/features/privacy/use-health-consent', () => ({
+  useHealthConsent: () => ({
+    consented: true,
+    requestHealthConsent: (run: () => void) => run(),
+    healthConsentSheet: null,
+  }),
+}));
+
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
