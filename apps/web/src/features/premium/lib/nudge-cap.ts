@@ -1,34 +1,48 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import {
+  canShowNudge as canShowNudgeRule,
+  INITIAL_NUDGE_CAP_STATE,
+  markNudgeDismissed as markDismissed,
+  markNudgeShown as markShown,
+  type NudgeCapState,
+} from '@chefer/utils';
 
-// ─── Contextual-nudge frequency cap (premium_plan.md §6.5) ────────────────────
+// ─── Contextual-nudge frequency cap (premium_plan.md §6.5, T-10.1) ─────────────
 // Hard taste rules for every moment-based upgrade nudge:
 //   1. At most ONE contextual nudge shown per day, across all sources.
 //   2. Dismissing a nudge silences that source for 7 days.
 //   3. State lives in localStorage — per-device is good enough for taste.
-// The soft paywall's credibility is a launch asset; this helper is what keeps
-// nudge authors honest. All nudges must render through useNudge().
+// The rule itself is the storage-agnostic `nudge-cap.ts` in @chefer/utils
+// (shared with the mobile adapter); this file is only the localStorage
+// adapter. All nudges must render through useNudge().
 
-const DAY_KEY = 'chefer.nudge.lastShownDay';
-const DISMISS_PREFIX = 'chefer.nudge.dismissedAt.';
-const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const STATE_KEY = 'chefer.nudge.cap';
 
-function todayStr(now: Date = new Date()): string {
-  return now.toISOString().split('T')[0]!;
+function isState(value: unknown): value is NudgeCapState {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as { lastShownDay?: unknown; dismissedAt?: unknown };
+  return (
+    (v.lastShownDay === null || typeof v.lastShownDay === 'string') &&
+    typeof v.dismissedAt === 'object' &&
+    v.dismissedAt !== null
+  );
 }
 
-function safeGet(key: string): string | null {
+function readState(): NudgeCapState {
   try {
-    return window.localStorage.getItem(key);
+    const raw = window.localStorage.getItem(STATE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    return isState(parsed) ? parsed : INITIAL_NUDGE_CAP_STATE;
   } catch {
-    return null;
+    return INITIAL_NUDGE_CAP_STATE;
   }
 }
 
-function safeSet(key: string, value: string): void {
+function writeState(state: NudgeCapState): void {
   try {
-    window.localStorage.setItem(key, value);
+    window.localStorage.setItem(STATE_KEY, JSON.stringify(state));
   } catch {
     /* private mode etc. — nudges just won't cap, worst case */
   }
@@ -36,20 +50,17 @@ function safeSet(key: string, value: string): void {
 
 /** Pure check — exported for tests and non-hook call sites. */
 export function canShowNudge(source: string, now: Date = new Date()): boolean {
-  const dismissedAt = safeGet(DISMISS_PREFIX + source);
-  if (dismissedAt && now.getTime() - Number(dismissedAt) < DISMISS_COOLDOWN_MS) return false;
-  const lastShownDay = safeGet(DAY_KEY);
-  return lastShownDay !== todayStr(now);
+  return canShowNudgeRule(source, readState(), now);
 }
 
 /** Records that a nudge was shown today (consumes the daily slot). */
-export function markNudgeShown(): void {
-  safeSet(DAY_KEY, todayStr());
+export function markNudgeShown(now: Date = new Date()): void {
+  writeState(markShown(readState(), now));
 }
 
 /** Records a dismissal — silences the source for 7 days. */
-export function markNudgeDismissed(source: string): void {
-  safeSet(DISMISS_PREFIX + source, String(Date.now()));
+export function markNudgeDismissed(source: string, now: Date = new Date()): void {
+  writeState(markDismissed(source, readState(), now));
 }
 
 /**
