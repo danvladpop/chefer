@@ -2179,15 +2179,17 @@ parsing. A level is only ever sent by a bundle that implements it.
 | 1     | W0+                                                                  | handles the health-consent error (§2.8)                                                                                                         |
 | 2     | wave-1 OTA (T-39.1/T-26.5), incl. the live App Store build 1.0.0 (5) | sign-up consent checkboxes (unrelated to gym) — **renders no cardio**; see the note below                                                       |
 | 3     | W2 L-GYM's OTA (⚖ D-20 b) or W5                                      | renders `trackingType` `DURATION_DISTANCE`/`DISTANCE`, the cardio `SessionSet` fields and the cardio equipment values; logs cardio as one entry |
-| 4     | W5 L-GYMDATA's OTA                                                   | also renders `INTERVALS`, requested exercises (`origin: REQUESTED`, status chips) and routine cardio slots                                      |
+| 4     | W3 OTA (L-CONSENT, T-26.3)                                           | shows the health-consent sheet — `HEALTH_CONSENT_ENFORCE=declared` rejects un-consented health writes only from level ≥ 4 (not gym)             |
+| 5     | W5 L-GYMDATA's OTA                                                   | also renders `INTERVALS`, requested exercises (`origin: REQUESTED`, status chips) and routine cardio slots                                      |
 
 `renderableTrackingTypes(level)` (`apps/api/src/application/gym/client-level.ts`, T-42.0) =
 strength types (`WEIGHT_REPS`, `BODYWEIGHT_REPS`) + `DURATION` at every level (a timed exercise —
 plank, carries — already renders on every shipped client) + `DURATION_DISTANCE`/`DISTANCE` at
-level ≥ 3 + `INTERVALS` at level ≥ 4. **T-42.2 (L-GYM) wired it** into the four read paths
+level ≥ 3 + `INTERVALS` at level ≥ 5 (moved from 4 on 2026-09-29: wave 3's health consent claimed
+level 4, and the W3 OTA cannot render intervals). **T-42.2 (L-GYM) wired it** into the four read paths
 (`gym.bootstrap`, `gym.library.list`, `gym.session.get`, `gym.session.list` — dropping
 non-renderable library rows and session exercises via `filterExerciseDtosForLevel`/
-`filterSessionExercisesForLevel`). Re-inserting a level < 4 client's stored routine cardio slots
+`filterSessionExercisesForLevel`). Re-inserting a level < 5 client's stored routine cardio slots
 on `gym.routine.save` is still open — routine cardio slots don't exist until W5's S22, so there is
 nothing to re-insert yet. When a client moves up a level, the OTA that bumps it also bumps
 `GYM_CACHE_SCHEMA_VERSION` (mobile `features/gym/offline/query-persistence.ts`) so its persisted
