@@ -1,6 +1,6 @@
 # Implementation Plan — Premium User Tier
 
-Status: **implemented** · Scope: FREE vs PREMIUM user tiers; AI features and profile
+Status: **implemented** · Paywall copy since UX-10 (wave 2) lives in `packages/utils/src/premium-pitch.ts` — a job-led pitch per upgrade source with the free-for-now terms and no price or checkout on iOS; the "Upgrade plan" wording below is historical. · Scope: FREE vs PREMIUM user tiers; AI features and profile
 personalisation gated behind premium; curated generic recipe pool for free users.
 
 ## Product rules

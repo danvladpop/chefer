@@ -20,6 +20,44 @@ export type ExerciseContent = Pick<
  * See docs/gym/exercise-library-research.md "QA table (G1-D)" for the full record.
  */
 export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
+  // T-05.10 (library staples, UX-05 A5, AC27-29). videoId left null — no
+  // video pick has been oEmbed-verified for these two yet (handoff: see
+  // apps/api/static/exercises/README.md "content gaps").
+  'incline-barbell-bench-press': {
+    cues: [
+      'Set the bench to 30-45 degrees, not steeper.',
+      'Unrack over your shoulders, then lower to the top of your chest.',
+      'Drive the bar back up and slightly toward your face.',
+    ],
+    mistakes: [
+      'Setting the incline too steep, turning it into a shoulder press.',
+      'Letting the bar drift toward your neck instead of your upper chest.',
+    ],
+    blurb:
+      'The barbell version of the incline press — heavier loading than dumbbells once the shoulder groove is comfortable.',
+    freeExerciseDbId: 'Barbell_Incline_Bench_Press_-_Medium_Grip',
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'back-extension': {
+    cues: [
+      'Hinge at the hips, not the lower back, on the way down.',
+      'Stop level with your body — don’t hyperextend past straight.',
+      'Squeeze your glutes to drive back up.',
+    ],
+    mistakes: [
+      'Rounding the lower back to chase extra range of motion.',
+      'Snapping upright with momentum instead of a controlled squeeze.',
+    ],
+    blurb:
+      'A no-barbell way to load the lower back, glutes and hamstrings together; hold a plate to keep progressing once bodyweight is easy.',
+    freeExerciseDbId: 'Hyperextensions_Back_Extensions',
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+    aliases: ['Hyperextension', 'Roman Chair', 'Hyperextension Bench'],
+  },
   'barbell-bench-press': {
     cues: [
       'Drag the bar down your body, not straight down.',
@@ -1331,5 +1369,208 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     videoId: '66x0qQiJ-MA',
     videoStartSec: 0,
     videoChannel: 'Minus The Gym',
+  },
+
+  // ─── Cardio (T-42.1, 06 §6) — no vendored photo/video yet; content is
+  // Chefer's own copy, cues drawn from the research doc's form/safety cue. ──
+  'treadmill-walk': {
+    cues: [
+      'Land midfoot under your hips, not out in front of you.',
+      'Keep a tall posture and swing your arms naturally.',
+      'Start at a pace you can hold a conversation at.',
+    ],
+    mistakes: [
+      'Overstriding, which brakes every step instead of driving it forward.',
+      'Gripping the handrails, which shortens your stride and skews your posture.',
+    ],
+    blurb: 'A low-impact way to build walking volume at a controlled, repeatable pace.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'treadmill-incline-walk': {
+    cues: [
+      'Hold the rails only for balance, not to unload your legs.',
+      'Lean slightly from the ankles, not the waist.',
+      'Shorten your stride as the incline goes up.',
+    ],
+    mistakes: [
+      'Leaning on the rails, which quietly removes most of the training effect.',
+      'Keeping a flat-ground stride length on a steep incline.',
+    ],
+    blurb:
+      'Raises the effort of a walk without adding impact — a glute- and calf-heavy way to build cardio base.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'treadmill-run': {
+    cues: [
+      'Keep cadence quick and light; let the belt do the pull.',
+      "Don't reach forward with your lead foot.",
+      'Breathe on a rhythm you can sustain the whole run.',
+    ],
+    mistakes: [
+      'Reaching the foot out ahead of the hips (overstriding).',
+      'Starting faster than the pace you can hold to the end.',
+    ],
+    blurb: 'Belt-paced running — useful for holding an exact pace or effort indoors.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'outdoor-walk': {
+    cues: [
+      'Pick even, predictable terrain for a consistent pace.',
+      'Keep a tall posture and a relaxed arm swing.',
+      'Warm up the first few minutes before settling into pace.',
+    ],
+    mistakes: [
+      'Choosing uneven or crowded terrain that forces constant pace changes.',
+      'Setting off at your fastest pace instead of easing in.',
+    ],
+    blurb: 'The simplest cardio there is — logged by time and distance, wherever you walk.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'outdoor-run': {
+    cues: [
+      'Start conservative: the first outdoor km always feels easier than it is.',
+      'Land under your hips, not reaching out in front.',
+      'Save your fastest effort for the last third of the run.',
+    ],
+    mistakes: [
+      'Going out too hard because the first kilometre feels easy.',
+      'Ignoring terrain and weather when judging pace against a flat treadmill run.',
+    ],
+    blurb:
+      'Running outdoors — pace varies with terrain and weather, so judge effort by feel as much as pace.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'outdoor-cycle': {
+    cues: [
+      'Check brakes and tire pressure before every ride.',
+      'Keep a steady cadence rather than mashing hard, slow pedal strokes.',
+      'Shift down before a hill, not halfway up it.',
+    ],
+    mistakes: [
+      'Skipping a quick brake and tire check before setting off.',
+      'Mashing a low cadence instead of spinning a lighter gear faster.',
+    ],
+    blurb:
+      'Outdoor cycling — logged by time and distance; effort swings with hills, wind and traffic.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'stationary-bike-upright': {
+    cues: [
+      'Set seat height so your knee has a slight bend at extension.',
+      'Keep a light grip on the handlebars, not locked elbows.',
+      'Pedal in smooth circles rather than stomping down.',
+    ],
+    mistakes: [
+      'Setting the seat too low, so the knees do all the work.',
+      'Rocking the hips to reach the pedals instead of adjusting the seat.',
+    ],
+    blurb: 'A steady, low-impact bike session — resistance and pace are fully in your control.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'stationary-bike-recumbent': {
+    cues: [
+      'Recline the seat back for lower-back support, not a slouch.',
+      'Set the seat so your knee has a slight bend at extension.',
+      'Keep your feet flat through the whole pedal stroke.',
+    ],
+    mistakes: [
+      'Sliding down into a slouch instead of using the seat back support.',
+      'Leaving the seat too far forward, cramping the knees at the top.',
+    ],
+    blurb:
+      'The back-supported bike — an easier entry point for longer, lower-impact cardio sessions.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'spin-class': {
+    cues: [
+      'Keep hips still on the saddle even when you stand to pedal.',
+      'Match resistance to the instructor cue, not just the beat.',
+      'Take a drink at every easier interval.',
+    ],
+    mistakes: [
+      'Bouncing in the saddle instead of keeping the hips quiet.',
+      'Chasing the music tempo instead of the coached resistance and effort.',
+    ],
+    blurb:
+      'An instructor-led bike session — logged by time and effort since resistance varies through the class.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  elliptical: {
+    cues: [
+      "Keep a tall posture — don't lean on the front rail.",
+      'Push and pull evenly through both arms and legs.',
+      'Vary resistance rather than only stride speed.',
+    ],
+    mistakes: [
+      'Leaning on the front rail, which quietly cuts the training effect.',
+      'Taking tiny, rushed strides instead of a full, controlled stride.',
+    ],
+    blurb:
+      'A no-impact, full-body cardio machine — good on days a joint needs a break from running.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'rowing-machine': {
+    cues: [
+      'Sequence legs, then hips, then arms on the drive.',
+      'Reverse the order — arms, hips, legs — on the recovery.',
+      'Keep the same stroke length as you settle into pace.',
+    ],
+    mistakes: [
+      'Pulling with the arms first instead of driving with the legs.',
+      'Shortening the stroke as fatigue sets in instead of easing the pace.',
+    ],
+    blurb:
+      'A full-body, low-impact machine — distance is logged in metres, the standard rowing unit.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'stair-climber': {
+    cues: [
+      "Stand tall — don't lean on the handles.",
+      'Take full steps rather than tiny, rapid ones.',
+      'Keep a pace you can hold for the whole session.',
+    ],
+    mistakes: [
+      'Leaning on the handles, which removes most of the training effect.',
+      'Taking short, shuffling steps instead of a full stepping motion.',
+    ],
+    blurb:
+      'A demanding lower-body cardio machine — logged by time and effort rather than distance.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
   },
 };

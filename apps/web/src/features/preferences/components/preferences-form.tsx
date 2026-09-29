@@ -2,108 +2,22 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { StepCuisine } from '@/features/onboarding/components/step-cuisine';
-import { StepDiet } from '@/features/onboarding/components/step-diet';
-import { StepGoal } from '@/features/onboarding/components/step-goal';
-import { StepMetrics } from '@/features/onboarding/components/step-metrics';
 import type { ActivityLevel, BiologicalSex, Goal } from '@/features/onboarding/types';
-import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
+import { SafetyReviewCard } from '@/features/safety/components/SafetyReviewCard';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import { skipToken } from '@tanstack/react-query';
-import { DISPLAY_CURRENCIES, type DisplayCurrency } from '@chefer/types';
+import type { DisplayCurrency } from '@chefer/types';
 import { Toast } from '@chefer/ui';
-import {
-  currencySymbol,
-  fromEur,
-  lifterProteinNote,
-  toDisplayCurrency,
-  toEur,
-} from '@chefer/utils';
+import { fromEur, toDisplayCurrency, toEur } from '@chefer/utils';
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
+import { BudgetSection } from './budget-section';
 import { HouseholdSection } from './household-section';
-
-// ─── Client-side nutrition computation ───────────────────────────────────────
-
-const ACTIVITY_MULTIPLIERS: Record<string, number> = {
-  SEDENTARY: 1.2,
-  LIGHTLY_ACTIVE: 1.375,
-  MODERATELY_ACTIVE: 1.55,
-  VERY_ACTIVE: 1.725,
-  ATHLETE: 1.9,
-};
-
-const GOAL_ADJUSTMENTS: Record<string, number> = {
-  LOSE_WEIGHT: -500,
-  MAINTAIN: 0,
-  GAIN_MUSCLE: 300,
-  EAT_HEALTHIER: 0,
-};
-
-const GOAL_MACRO_SPLITS: Record<string, { protein: number; carbs: number; fat: number }> = {
-  LOSE_WEIGHT: { protein: 0.35, carbs: 0.35, fat: 0.3 },
-  GAIN_MUSCLE: { protein: 0.35, carbs: 0.4, fat: 0.25 },
-  MAINTAIN: { protein: 0.25, carbs: 0.45, fat: 0.3 },
-  EAT_HEALTHIER: { protein: 0.2, carbs: 0.5, fat: 0.3 },
-};
-
-const GOAL_DESCRIPTIONS: Record<string, string> = {
-  LOSE_WEIGHT: '500 kcal daily deficit to support fat loss',
-  GAIN_MUSCLE: '300 kcal daily surplus to support muscle growth',
-  MAINTAIN: 'Maintenance calories to keep your current weight',
-  EAT_HEALTHIER: 'Maintenance calories with optimised macro balance',
-};
-
-interface PreviewFormData {
-  goal: string | null;
-  biologicalSex: string | null;
-  age: number | null;
-  heightCm: number | null;
-  weightKg: number | null;
-  activityLevel: string | null;
-}
-
-function computePreviewTargets(data: PreviewFormData) {
-  if (
-    !data.goal ||
-    !data.biologicalSex ||
-    !data.age ||
-    !data.heightCm ||
-    !data.weightKg ||
-    !data.activityLevel
-  ) {
-    return null;
-  }
-  const sexConstant = data.biologicalSex === 'MALE' ? 5 : -161;
-  const bmr = 10 * data.weightKg + 6.25 * data.heightCm - 5 * data.age + sexConstant;
-  const multiplier = ACTIVITY_MULTIPLIERS[data.activityLevel] ?? 1.55;
-  const tdee = Math.round(bmr * multiplier);
-  const adjustment = GOAL_ADJUSTMENTS[data.goal] ?? 0;
-  const calories = Math.max(1200, tdee + adjustment);
-  const split = GOAL_MACRO_SPLITS[data.goal] ?? GOAL_MACRO_SPLITS['MAINTAIN']!;
-  return {
-    calories,
-    tdee,
-    adjustment,
-    proteinG: Math.round((calories * split.protein) / 4),
-    carbsG: Math.round((calories * split.carbs) / 4),
-    fatG: Math.round((calories * split.fat) / 9),
-    proteinPct: Math.round(split.protein * 100),
-    carbsPct: Math.round(split.carbs * 100),
-    fatPct: Math.round(split.fat * 100),
-    description: GOAL_DESCRIPTIONS[data.goal] ?? '',
-  };
-}
+import { SafetySection } from './safety-section';
+import { TargetsSection } from './targets-section';
+import { UnitsSection } from './units-section';
 
 // ─── Currency helpers (backlog P2-6) ──────────────────────────────────────────
 // The budget is stored in EUR; the field shows and takes the user's currency.
-
-const CURRENCY_LABELS: Record<DisplayCurrency, string> = {
-  EUR: 'Euro (€)',
-  USD: 'US dollar ($)',
-  GBP: 'British pound (£)',
-  RON: 'Romanian leu (RON)',
-};
 
 /** EUR budget → input text in `currency` ("55.56" EUR → "60" USD). */
 function budgetText(budgetEur: number | null | undefined, currency: DisplayCurrency): string {
@@ -140,12 +54,6 @@ interface PreferencesFormProps {
   dietaryPreferences: DietaryPreferencesData | null;
   /** Free users edit only the safety section; the rest renders locked (P1-2). */
   isPremium: boolean;
-}
-
-// ─── Section wrapper ──────────────────────────────────────────────────────────
-
-function Section({ children }: { children: React.ReactNode }) {
-  return <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-6">{children}</section>;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -217,38 +125,10 @@ export function PreferencesForm({
     data.weightKg > 0 &&
     data.activityLevel !== null;
 
-  // ── Macro preview ──────────────────────────────────────────────────────────
-  // Instant local estimate, replaced by the server's numbers as soon as they
-  // arrive: preferences.computeTargets applies the same rules as the
-  // dashboard (the 2.2 g/kg protein cap, and a lifter's bodyweight protein),
-  // so the preview shows what the dashboard will show.
-  const previewInput =
-    isPremium &&
-    data.goal !== null &&
-    data.biologicalSex !== null &&
-    data.age !== null &&
-    data.age >= 10 &&
-    data.age <= 110 &&
-    data.heightCm !== null &&
-    data.heightCm > 0 &&
-    data.heightCm <= 300 &&
-    data.weightKg !== null &&
-    data.weightKg > 0 &&
-    data.weightKg <= 500 &&
-    data.activityLevel !== null
-      ? {
-          goal: data.goal,
-          biologicalSex: data.biologicalSex,
-          age: Math.round(data.age),
-          heightCm: data.heightCm,
-          weightKg: data.weightKg,
-          activityLevel: data.activityLevel,
-        }
-      : null;
-  const serverPreview = trpc.preferences.computeTargets.useQuery(previewInput ?? skipToken, {
-    placeholderData: (prev) => prev,
-    staleTime: 60_000,
-  }).data;
+  // Generic field patcher passed to every section — the same
+  // `(x) => setData((d) => ({ ...d, ...x }))` pattern each section used
+  // inline before the split (T-00.13).
+  const patch = (fields: Partial<FormData>) => setData((d) => ({ ...d, ...fields }));
 
   // ── Save handler ────────────────────────────────────────────────────────────
   // Saves whatever is filled (review PR-1): updateTargets accepts partials, so
@@ -298,18 +178,19 @@ export function PreferencesForm({
   return (
     <>
       <div className="space-y-6">
+        {/* T-01.3: one-time free-text migration card */}
+        <SafetyReviewCard />
+
         {/* Diet & restrictions — the safety section, free for every account.
             Rendered first so free users see their editable section on top. */}
-        <Section>
-          <StepDiet
-            value={{
-              dietaryRestrictions: data.dietaryRestrictions,
-              allergies: data.allergies,
-              dislikedIngredients: data.dislikedIngredients,
-            }}
-            onChange={(diet) => setData((d) => ({ ...d, ...diet }))}
-          />
-        </Section>
+        <SafetySection
+          value={{
+            dietaryRestrictions: data.dietaryRestrictions,
+            allergies: data.allergies,
+            dislikedIngredients: data.dislikedIngredients,
+          }}
+          onChange={patch}
+        />
 
         {/* My household (F2) — member chips + per-member safety editors for
             premium; the §6.4 ghost state for free users. Self-contained
@@ -322,222 +203,49 @@ export function PreferencesForm({
           }}
         />
 
-        {/* Units & currency — free on every tier (backlog P2-6, audit
-            F-DASH-3-2). One unit system for recipes, shopping, body weight
-            and the gym; prices are EUR estimates shown in this currency. */}
-        <Section>
-          <h2 className="mb-4 text-base font-semibold">Units &amp; currency</h2>
-          <div className="space-y-5">
-            <div>
-              <p id="units-label" className="mb-1 block text-sm font-medium text-foreground">
-                Measurement units
-              </p>
-              <div role="radiogroup" aria-labelledby="units-label" className="flex flex-wrap gap-2">
-                {(
-                  [
-                    ['METRIC', 'Metric (g, ml, kg)'],
-                    ['IMPERIAL', 'Imperial (oz, cups, lb)'],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    role="radio"
-                    aria-checked={data.preferredUnits === value}
-                    onClick={() => setData((d) => ({ ...d, preferredUnits: value }))}
-                    className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-medium transition ${
-                      data.preferredUnits === value
-                        ? 'border-primary bg-primary/5 text-primary'
-                        : 'border-input text-muted-foreground hover:border-primary/40'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Recipes, shopping lists, your body weight and gym loads all use this system.
-              </p>
-            </div>
-            <div>
-              <label
-                htmlFor="currency-select"
-                className="mb-1 block text-sm font-medium text-foreground"
-              >
-                Currency
-              </label>
-              <select
-                id="currency-select"
-                value={data.deliveryCurrency}
-                onChange={(e) => {
-                  const next = e.target.value as DisplayCurrency;
-                  setData((d) => {
-                    // Keep the typed budget worth the same when the currency changes.
-                    const amount = Number(d.weeklyBudget);
-                    const weeklyBudget =
-                      d.weeklyBudget.trim() && Number.isFinite(amount)
-                        ? budgetText(toEur(amount, d.deliveryCurrency), next)
-                        : d.weeklyBudget;
-                    return { ...d, deliveryCurrency: next, weeklyBudget };
-                  });
-                }}
-                className="min-h-11 w-full max-w-xs rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {DISPLAY_CURRENCIES.map((c) => (
-                  <option key={c} value={c}>
-                    {CURRENCY_LABELS[c]}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Prices are estimates from typical supermarket prices
-                {data.deliveryCurrency !== 'EUR' && ', converted from euros at an approximate rate'}
-                .
-              </p>
-            </div>
-          </div>
-        </Section>
+        {/* Units & currency — free on every tier (backlog P2-6, audit F-DASH-3-2). */}
+        <UnitsSection
+          preferredUnits={data.preferredUnits}
+          deliveryCurrency={data.deliveryCurrency}
+          onUnitsChange={(preferredUnits) => patch({ preferredUnits })}
+          onCurrencyChange={(next) =>
+            setData((d) => {
+              // Keep the typed budget worth the same when the currency changes.
+              const amount = Number(d.weeklyBudget);
+              const weeklyBudget =
+                d.weeklyBudget.trim() && Number.isFinite(amount)
+                  ? budgetText(toEur(amount, d.deliveryCurrency), next)
+                  : d.weeklyBudget;
+              return { ...d, deliveryCurrency: next, weeklyBudget };
+            })
+          }
+        />
 
-        {/* Personal targets — premium personalisation. Free users see the
+        {/* Personal targets — premium personalisation (goal, body metrics,
+            cuisine/meal cadence, nutrition preview). Free users see the
             upgrade panel instead (mutations are server-gated regardless). */}
-        {!isPremium && (
-          <UpgradeCard
-            source="preferences-locked"
-            title="Unlock your personal targets"
-            description="Set your goal, body metrics and cuisine preferences, and the AI chef builds every plan around them. Your allergies and restrictions above are always respected — on any plan."
-          />
-        )}
+        <TargetsSection
+          isPremium={isPremium}
+          data={{
+            goal: data.goal,
+            biologicalSex: data.biologicalSex,
+            age: data.age,
+            heightCm: data.heightCm,
+            weightKg: data.weightKg,
+            activityLevel: data.activityLevel,
+            cuisinePreferences: data.cuisinePreferences,
+            mealsPerDay: data.mealsPerDay,
+          }}
+          onChange={patch}
+        />
 
-        {isPremium && (
-          <>
-            {/* Goal — #targets is where "update your targets" links land
-                (post-upgrade activation, audit F-PM-9) */}
-            <section
-              id="targets"
-              className="scroll-mt-20 rounded-xl border bg-card p-4 shadow-sm sm:p-6"
-            >
-              <StepGoal
-                value={data.goal}
-                onChange={(goal: Goal) => setData((d) => ({ ...d, goal }))}
-              />
-            </section>
-
-            {/* Body metrics */}
-            <Section>
-              <StepMetrics
-                value={{
-                  biologicalSex: data.biologicalSex,
-                  age: data.age,
-                  heightCm: data.heightCm,
-                  weightKg: data.weightKg,
-                  activityLevel: data.activityLevel,
-                }}
-                onChange={(metrics) => setData((d) => ({ ...d, ...metrics }))}
-                goal={data.goal}
-              />
-            </Section>
-
-            {/* Cuisine & meal cadence */}
-            <Section>
-              <StepCuisine
-                value={{
-                  cuisinePreferences: data.cuisinePreferences,
-                  mealsPerDay: data.mealsPerDay,
-                }}
-                onChange={(cuisine) => setData((d) => ({ ...d, ...cuisine }))}
-                // The household section is on this page (P2-3).
-                showHouseholdHint={false}
-              />
-            </Section>
-
-            {/* Weekly budget (P2-4) — generation treats it as a hard ceiling */}
-            <Section>
-              <h2 className="mb-1 text-base font-semibold">Weekly Budget</h2>
-              <p className="mb-4 text-sm text-muted-foreground">
-                Keep my week under a set amount — the AI chef plans affordable meals to stay within
-                it. Leave empty for no budget.
-              </p>
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-medium text-muted-foreground">
-                  {currencySymbol(data.deliveryCurrency)}
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  max={Math.round(fromEur(2000, data.deliveryCurrency))}
-                  step="1"
-                  value={data.weeklyBudget}
-                  onChange={(e) => setData((d) => ({ ...d, weeklyBudget: e.target.value }))}
-                  onFocus={(e) => e.currentTarget.select()}
-                  placeholder="e.g. 60"
-                  className="w-32 rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <span className="text-sm text-muted-foreground">per week</span>
-              </div>
-            </Section>
-          </>
-        )}
-
-        {/* Nutrition Preview */}
-        {(() => {
-          if (!isPremium) return null;
-          const local = computePreviewTargets(data);
-          if (!local) return null;
-          const preview = serverPreview
-            ? {
-                ...local,
-                calories: serverPreview.dailyCalorieTarget,
-                proteinG: serverPreview.proteinG,
-                carbsG: serverPreview.carbsG,
-                fatG: serverPreview.fatG,
-                proteinPct: serverPreview.proteinPct,
-                carbsPct: serverPreview.carbsPct,
-                fatPct: serverPreview.fatPct,
-              }
-            : local;
-          const lifter = serverPreview?.lifter ?? null;
-          return (
-            <Section>
-              <h2 className="mb-3 text-base font-semibold">Estimated Daily Nutrition Targets</h2>
-              <p className="mb-4 text-sm text-muted-foreground">{preview.description}</p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div className="rounded-xl bg-[#fff3e8] p-3 text-center">
-                  <p className="text-2xl font-bold text-[#944a00]">{preview.calories}</p>
-                  <p className="mt-0.5 text-xs text-[#944a00]/70">kcal / day</p>
-                </div>
-                <div className="rounded-xl bg-blue-50 p-3 text-center">
-                  <p className="text-2xl font-bold text-blue-600">{preview.proteinG}g</p>
-                  <p className="mt-0.5 text-xs text-blue-500">Protein ({preview.proteinPct}%)</p>
-                </div>
-                <div className="rounded-xl bg-amber-50 p-3 text-center">
-                  <p className="text-2xl font-bold text-amber-600">{preview.carbsG}g</p>
-                  <p className="mt-0.5 text-xs text-amber-500">Carbs ({preview.carbsPct}%)</p>
-                </div>
-                <div className="rounded-xl bg-green-50 p-3 text-center">
-                  <p className="text-2xl font-bold text-green-600">{preview.fatG}g</p>
-                  <p className="mt-0.5 text-xs text-green-500">Fat ({preview.fatPct}%)</p>
-                </div>
-              </div>
-              {lifter && (
-                <p
-                  data-testid="preferences-lifter-note"
-                  className="mt-3 text-center text-xs text-muted-foreground"
-                >
-                  {lifterProteinNote(lifter.proteinGPerKg)}
-                </p>
-              )}
-              {preview.adjustment !== 0 && (
-                <p className="mt-3 text-center text-xs text-muted-foreground">
-                  TDEE: {preview.tdee} kcal
-                  {preview.adjustment > 0
-                    ? ` + ${preview.adjustment}`
-                    : ` ${preview.adjustment}`}{' '}
-                  kcal adjustment
-                </p>
-              )}
-            </Section>
-          );
-        })()}
+        {/* Weekly budget (P2-4) — generation treats it as a hard ceiling. */}
+        <BudgetSection
+          isPremium={isPremium}
+          weeklyBudget={data.weeklyBudget}
+          deliveryCurrency={data.deliveryCurrency}
+          onChange={(weeklyBudget) => patch({ weeklyBudget })}
+        />
 
         {/* Save bar */}
         <div className="flex flex-col-reverse items-stretch gap-3 rounded-xl border bg-card px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-end sm:gap-4 sm:px-6">

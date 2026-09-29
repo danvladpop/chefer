@@ -86,6 +86,8 @@ const PROFILE_BASE = {
   hasDipBelt: false,
   microPlates: false,
   setupCompletedAt: '2026-09-01T00:00:00.000Z',
+  reminderTimes: {},
+  quietNudgeDays: null,
 };
 
 beforeEach(() => {

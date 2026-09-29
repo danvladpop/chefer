@@ -33,6 +33,7 @@ import {
   type ProgressionEntry,
 } from '@chefer/utils';
 import { ensureExerciseLibrary } from '../../lib/exercise-library/ensure.js';
+import { filterExerciseDtosForLevel, filterSessionExercisesForLevel } from './client-level.js';
 import {
   gymContextLoader,
   isDeloadActive,
@@ -42,6 +43,7 @@ import {
 } from './gym-context.js';
 import {
   lookupFromRows,
+  readCarryOver,
   serverToday,
   toExerciseDto,
   toProfileDto,
@@ -76,6 +78,7 @@ export class GymBootstrapService {
   async get(
     userId: string,
     input: { librarySince?: string | undefined; today?: string | undefined } = {},
+    level = 0,
   ): Promise<GymBootstrap> {
     const today = input.today ?? serverToday();
     await this.ensure();
@@ -104,6 +107,8 @@ export class GymBootstrapService {
     ]);
 
     const { lookup, metas } = lookupFromRows(exerciseRows);
+    // T-42.2 (Δ2.1): one lookup for the two session-exercise filters below.
+    const trackingTypeById = new Map(exerciseRows.map((r) => [r.id, r.trackingType]));
 
     // Library: full list, or the rows changed since the client's cursor.
     const since = input.librarySince ? new Date(input.librarySince) : null;
@@ -114,7 +119,13 @@ export class GymBootstrapService {
     );
 
     const progressions = this.progression.toDtos(ctx, progressionRows, metas, today);
-    const recentSessions = recentRows.map((r) => toSessionSummary(toSessionDoc(r))).reverse(); // newest first
+    const recentSessions = recentRows
+      .map((r) => toSessionSummary(toSessionDoc(r)))
+      .reverse() // newest first
+      .map((s) => ({
+        ...s,
+        exercises: filterSessionExercisesForLevel(s.exercises, trackingTypeById, level),
+      }));
     const { weeks: allWeeks, streak } = summarizeUserWeeks({
       profileRow: ctx.profileRow,
       sessionDates,
@@ -126,7 +137,7 @@ export class GymBootstrapService {
       profile: ctx.profileRow ? toProfileDto(ctx.profileRow) : null,
       activeRoutine: ctx.activeRoutine,
       nextWorkout: this.nextWorkout(ctx, lookup, progressions, recentSessions, today),
-      library: libraryRows.map(toExerciseDto),
+      library: filterExerciseDtosForLevel(libraryRows.map(toExerciseDto), level),
       libraryCursor: new Date(cursorMs).toISOString(),
       progressions,
       recentSessions,
@@ -137,6 +148,7 @@ export class GymBootstrapService {
       streak,
       offers: this.offers(ctx, progressions, allWeeks, sessionDates, today),
       activePause: this.activePause(pauses, today),
+      carryOver: ctx.profileRow ? readCarryOver(ctx.profileRow.carryOver) : [],
       bodyweightKg: latestWeight?.weightKg ?? null,
       olderBests: summarizeBests(olderRows.map((r) => toSessionSummary(toSessionDoc(r)))),
       serverTime: new Date().toISOString(),
@@ -172,6 +184,7 @@ export class GymBootstrapService {
       today,
       recentSessions,
       isDeload: isDeloadActive(ctx.offerState, today),
+      carryOver: readCarryOver(ctx.profileRow.carryOver),
     });
   }
 

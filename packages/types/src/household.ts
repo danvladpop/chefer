@@ -10,9 +10,43 @@ export const ONBOARDING_INTENTS = ['EAT_BETTER', 'HOUSEHOLD', 'TRAIN'] as const;
 export const onboardingIntentSchema = z.enum(ONBOARDING_INTENTS);
 export type OnboardingIntent = z.infer<typeof onboardingIntentSchema>;
 
+// ─── Jobs (§2.4, T-03.1, rev 2) ────────────────────────────────────────────────
+// `ChefProfile.onboardingJobs` — what the user is here to do. Replaces the
+// single `onboardingIntent` for new clients; `effectiveJobs()` in
+// `@chefer/utils` maps a legacy intent onto this set on read, so old clients
+// (which only ever wrote an intent) still get a sensible jobs list.
+// `TRACK` ("Track what I eat") keeps the ring home on Today (D20) and adds
+// the "Your targets" onboarding step.
+export const ONBOARDING_JOBS = [
+  'TRAIN',
+  'PLAN_MEALS',
+  'HOUSEHOLD',
+  'USE_WHAT_I_HAVE',
+  'SAVED_RECIPES',
+  'TRACK',
+] as const;
+export const onboardingJobSchema = z.enum(ONBOARDING_JOBS);
+export type OnboardingJob = z.infer<typeof onboardingJobSchema>;
+
 /** preferences.setIntent — free for every tier. */
 export const setOnboardingIntentInputSchema = z.object({ intent: onboardingIntentSchema });
 export type SetOnboardingIntentInput = z.infer<typeof setOnboardingIntentInputSchema>;
+
+/**
+ * preferences.setJobs (§2.4, T-03.1) — free for every tier. `jobs` replaces
+ * the single legacy intent for clients built against it; the service still
+ * writes `onboardingIntent` (the first job with a legacy equivalent) so web
+ * and older binaries keep working unchanged. `trainingWeekdays` (T-03.3/09)
+ * is the onboarding "which days do you train" answer, stored on the profile
+ * until a gym routine has planned weekdays of its own. `autoPlanWeekly`
+ * (T-03.9) is the Sunday auto-plan question asked once in How you cook.
+ */
+export const setJobsInputSchema = z.object({
+  jobs: z.array(onboardingJobSchema).min(1),
+  trainingWeekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+  autoPlanWeekly: z.boolean().optional(),
+});
+export type SetJobsInput = z.infer<typeof setJobsInputSchema>;
 
 /** Relative portion sizes offered in every member editor (0.5 = a kid). */
 export const HOUSEHOLD_PORTION_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5] as const;

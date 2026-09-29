@@ -3,7 +3,18 @@
 // as apps/web/src/features/onboarding/types.ts — so client code doesn't need
 // to import @chefer/database.
 
-export type Goal = 'LOSE_WEIGHT' | 'MAINTAIN' | 'GAIN_MUSCLE' | 'EAT_HEALTHIER';
+// §2.11, T-35.2 (rev 2): RECOMP and PERFORMANCE are additive over the
+// original four — old server responses/requests that only know the original
+// four keep working (preferences.get downgrades them to MAINTAIN for a
+// level-0 client; this app build sends `x-chefer-api-level: 1` and gets the
+// true value).
+export type Goal =
+  | 'LOSE_WEIGHT'
+  | 'MAINTAIN'
+  | 'GAIN_MUSCLE'
+  | 'EAT_HEALTHIER'
+  | 'RECOMP'
+  | 'PERFORMANCE';
 
 export type ActivityLevel =
   | 'SEDENTARY'
@@ -52,6 +63,20 @@ export const GOALS: GoalOption[] = [
     description: 'Improve overall nutrition and eating habits',
     calorieEffect: 'Maintenance calories, better macros',
   },
+  {
+    value: 'RECOMP',
+    label: 'Recomposition',
+    icon: '🔄',
+    description: 'Lose fat and build muscle at the same time',
+    calorieEffect: 'Maintenance calories',
+  },
+  {
+    value: 'PERFORMANCE',
+    label: 'Performance',
+    icon: '🏃',
+    description: 'Fuel training and recovery, not a scale number',
+    calorieEffect: 'Maintenance calories',
+  },
 ];
 
 export interface ActivityOption {
@@ -90,6 +115,8 @@ export const GOAL_ADJUSTMENTS: Record<Goal, number> = {
   MAINTAIN: 0,
   GAIN_MUSCLE: 300,
   EAT_HEALTHIER: 0,
+  RECOMP: 0,
+  PERFORMANCE: 0,
 };
 
 /**

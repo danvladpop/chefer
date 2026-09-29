@@ -1,15 +1,24 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Linking, View, type TextInput } from 'react-native';
+import { View, type TextInput } from 'react-native';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from 'expo-router';
+import { LEGAL_VERSIONS } from '@chefer/types';
 import { Button, Input, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { detectRegion } from '@chefer/utils';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
+import { ConsentCheckbox } from '../../src/features/auth/consent-checkbox';
+import { AUTH_COPY } from '../../src/features/auth/copy';
+import {
+  clearRegisterDraft,
+  getRegisterDraft,
+  setRegisterDraft,
+} from '../../src/features/auth/register-draft';
 import { registerSchema, type RegisterFormValues } from '../../src/features/auth/schemas';
-import { getWebUrl } from '../../src/lib/api-url';
 import { setToken } from '../../src/lib/auth-store';
 import { trpc } from '../../src/lib/trpc';
+
+// UX-25 (T-25.1) / UX-26 (T-26.5) / UX-39 (T-39.1) / B-25 / B-31.
 
 // NOT "new-password" on the password fields: iOS's Automatic Strong Password
 // overlay covers the field and swallows programmatic input (breaks E2E, and
@@ -42,17 +51,52 @@ function RegisterForm() {
   // One toggle (on the password field) reveals both fields, as on web.
   const [revealed, setRevealed] = useState(false);
 
+  const draft = getRegisterDraft();
+
   const {
     control,
     handleSubmit,
+    watch,
+    trigger,
+    getValues,
     formState: { errors },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { email: '', password: '', confirmPassword: '', firstName: '' },
+    defaultValues: {
+      email: '',
+      password: '',
+      confirmPassword: '',
+      firstName: '',
+      acceptedTerms: false,
+      ageConfirmed: false,
+      ...draft,
+    },
   });
+
+  // T-39.1: keep the in-app legal screen (a real route) from losing the
+  // in-progress form — an ephemeral, in-memory cache, not SecureStore.
+  useEffect(() => {
+    const sub = watch((values) => setRegisterDraft(values));
+    return () => sub.unsubscribe();
+  }, [watch]);
+
+  // Bug B-25: `withPasswordConfirmation`'s cross-field refine attaches its
+  // "Passwords do not match" error to `confirmPassword` — react-hook-form
+  // only re-validates a field when THAT field changes, so editing `password`
+  // after a mismatch left a stale error even once the two matched again.
+  // Re-run confirmPassword's own validation whenever password changes and
+  // confirmPassword already has something to compare against.
+  const password = watch('password');
+  useEffect(() => {
+    if (getValues('confirmPassword')) {
+      void trigger('confirmPassword');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [password]);
 
   const register = trpc.auth.register.useMutation({
     onSuccess: async (data) => {
+      clearRegisterDraft();
       if (data.session) {
         await setToken(data.session.token);
         // Dogfood feedback #9: guide new accounts through onboarding instead
@@ -68,18 +112,23 @@ function RegisterForm() {
       email: values.email,
       password: values.password,
       ...(values.firstName ? { firstName: values.firstName } : {}),
+      acceptedTerms: values.acceptedTerms,
+      ageConfirmed: values.ageConfirmed,
+      acceptedTermsVersion: LEGAL_VERSIONS.terms,
       // Location defaults (P2-6): the device region seeds units + currency.
       // Intl only — Hermes ships it, no native dependency.
       ...withRegion(detectRegion()),
     }),
   );
 
+  const openLegal = (doc: 'terms' | 'privacy') => router.push(`/legal/${doc}`);
+
   return (
     <>
       <Text variant="title" testID="register-title">
         Create your account
       </Text>
-      <Text variant="muted">Meal planning that fits your goals</Text>
+      <Text variant="muted">{AUTH_COPY.registerSubtitle}</Text>
 
       <AuthField label="First name (optional)">
         <Controller
@@ -111,6 +160,8 @@ function RegisterForm() {
               ref={emailRef}
               testID="register-email"
               autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
               autoComplete="email"
               keyboardType="email-address"
               returnKeyType="next"
@@ -174,6 +225,56 @@ function RegisterForm() {
         />
       </AuthField>
 
+      {/* T-39.1 / T-26.5: explicit, real checkboxes — the button stays
+          enabled either way (03 §UX-26 AC), the inline error is what blocks
+          a submit with either box unticked. */}
+      <Controller
+        control={control}
+        name="acceptedTerms"
+        render={({ field: { onChange, value } }) => (
+          <ConsentCheckbox
+            testID="register-accept-terms"
+            checked={value}
+            onChange={onChange}
+            error={errors.acceptedTerms?.message}
+            errorTestID="register-accept-terms-error"
+          >
+            {AUTH_COPY.registerTermsLabel}{' '}
+            <Text
+              accessibilityRole="link"
+              className="text-sm text-primary underline"
+              onPress={() => openLegal('terms')}
+            >
+              Terms
+            </Text>
+            {' and the '}
+            <Text
+              accessibilityRole="link"
+              className="text-sm text-primary underline"
+              onPress={() => openLegal('privacy')}
+            >
+              Privacy Policy
+            </Text>
+          </ConsentCheckbox>
+        )}
+      />
+
+      <Controller
+        control={control}
+        name="ageConfirmed"
+        render={({ field: { onChange, value } }) => (
+          <ConsentCheckbox
+            testID="register-age-confirm"
+            checked={value}
+            onChange={onChange}
+            error={errors.ageConfirmed?.message}
+            errorTestID="register-age-confirm-error"
+          >
+            {AUTH_COPY.registerAgeLabel}
+          </ConsentCheckbox>
+        )}
+      />
+
       {register.error && (
         <Text variant="muted" className="text-destructive" testID="register-error">
           {register.error.message}
@@ -183,27 +284,6 @@ function RegisterForm() {
       <Button testID="register-submit" loading={register.isPending} onPress={() => void onSubmit()}>
         Create account
       </Button>
-
-      {/* Consent + legal links, required by both app stores (F-M-PROF-1-1). */}
-      <Text variant="muted" className="text-center text-xs">
-        By creating an account you confirm you are 16 or older and agree to the{' '}
-        <Text
-          accessibilityRole="link"
-          className="text-xs text-primary underline"
-          onPress={() => void Linking.openURL(getWebUrl('/terms'))}
-        >
-          Terms
-        </Text>
-        . The{' '}
-        <Text
-          accessibilityRole="link"
-          className="text-xs text-primary underline"
-          onPress={() => void Linking.openURL(getWebUrl('/privacy'))}
-        >
-          Privacy Policy
-        </Text>{' '}
-        explains how we use your data.
-      </Text>
 
       <View className="flex-row justify-center gap-1">
         <Text variant="muted">Already have an account?</Text>

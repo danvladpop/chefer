@@ -3,6 +3,10 @@ import {
   generateAndUploadRecipeImage,
   ImagenContentFilterError,
   ImagenRateLimitError,
+  ImageQuotaExhaustedError,
+  ImageStorageError,
+  probeRecipeImageStorage,
+  recipeImageFallbackUrl,
 } from '../lib/image-gen/index.js';
 import { recipeImageEventEmitter } from '../lib/sse/recipe-image-emitter.js';
 
@@ -13,6 +17,13 @@ const MAX_RETRIES = 3;
 // while the 429→rate-limit back-off (see image-gen/index.ts) absorbs rejections
 // without burning retry budgets. 1-at-a-time made a full plan take 5-12 minutes.
 const CONCURRENCY = 3;
+// While the image store is known broken, re-probe it at most this often (an
+// operator can fix the volume's ownership live, without a restart).
+const STORAGE_REPROBE_MS = 60_000;
+// Startup backfill of FAILED recipes: rows per batch, and a hard cap on
+// batches so a pathological table can never stall boot.
+const BACKFILL_BATCH = 100;
+const BACKFILL_MAX_BATCHES = 50;
 
 interface ClaimedRecipe {
   id: string;
@@ -21,11 +32,38 @@ interface ClaimedRecipe {
   creatorId: string | null;
 }
 
+/** "2026-09-28" — Workers AI's free allocation resets at 00:00 UTC. */
+function utcDay(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+// ─── Free fallback (prod incident 2026-09-28) ─────────────────────────────────
+// Every path that used to end in FAILED ("Photo unavailable") now ends in the
+// recipe's deterministic Pollinations URL with status DONE — free, keyless,
+// and loaded by the client (NOT warmed here, so no 10–120 s wait):
+//   - Cloudflare's daily free neurons are used up → fallback, and Cloudflare is
+//     skipped for the rest of that UTC day (in memory) so the 429s stop and the
+//     text fallback isn't raced for whatever is left;
+//   - the image was generated but could not be STORED → fallback, never a
+//     regeneration (that would pay again for an image that can't be saved);
+//     while the store stays broken, generation is skipped entirely;
+//   - the last retry of any other failure → fallback.
+// ImagenContentFilterError alone stays FAILED: the prompt itself was refused,
+// and the Pollinations URL is built from the same prompt. (No current provider
+// raises it — only the retired Imagen client did.)
+
 export class RecipeImageWorker {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private rateLimitUntil = 0; // epoch ms — worker pauses if set
   private inFlight: Promise<void> | null = null; // for graceful shutdown
+  /** UTC day Cloudflare reported its daily free allocation used up. */
+  private quotaExhaustedDay: string | null = null;
+  /** Why the image store can't be written (null = writable / not probed yet). */
+  private storageProblem: string | null = null;
+  private storageCheckedAt = 0;
+
+  constructor(private readonly now: () => number = Date.now) {}
 
   async start(): Promise<void> {
     if (this.timer) return;
@@ -45,6 +83,17 @@ export class RecipeImageWorker {
     } catch (err) {
       console.warn('[RecipeImageWorker] startup recovery skipped (database not ready):', err);
     }
+
+    // Recipes that ended FAILED with no image get the free fallback (same
+    // discipline: never fatal).
+    try {
+      await this.backfillFailedImages();
+    } catch (err) {
+      console.warn('[RecipeImageWorker] FAILED-image backfill skipped (database not ready):', err);
+    }
+
+    // Report an unwritable image store loudly BEFORE any image is paid for.
+    await this.checkStorage();
 
     console.log(`[RecipeImageWorker] started (concurrency ${CONCURRENCY})`);
     this.timer = setInterval(() => {
@@ -75,9 +124,52 @@ export class RecipeImageWorker {
     console.log('[RecipeImageWorker] stopped');
   }
 
-  private async tick(): Promise<void> {
+  /**
+   * Gives every `FAILED` recipe without an image its deterministic Pollinations
+   * URL and marks it DONE — the recipes a broken pipeline left as "Photo
+   * unavailable". Bounded batches; idempotent (the per-row guard re-checks
+   * FAILED + null, so a re-run or a concurrent instance changes nothing twice).
+   * Returns how many rows were updated.
+   */
+  async backfillFailedImages(): Promise<number> {
+    let total = 0;
+    for (let batch = 0; batch < BACKFILL_MAX_BATCHES; batch++) {
+      const rows = await prisma.recipe.findMany({
+        where: { imageStatus: ImageStatus.FAILED, imageUrl: null },
+        select: { id: true, name: true, cuisineType: true },
+        orderBy: { id: 'asc' },
+        take: BACKFILL_BATCH,
+      });
+      if (rows.length === 0) break;
+
+      let updated = 0;
+      for (const row of rows) {
+        const res = await prisma.recipe.updateMany({
+          where: { id: row.id, imageStatus: ImageStatus.FAILED, imageUrl: null },
+          data: {
+            imageUrl: recipeImageFallbackUrl(row.name, row.cuisineType),
+            imageStatus: ImageStatus.DONE,
+          },
+        });
+        updated += res.count;
+      }
+      total += updated;
+      // A short batch was the last one; a batch that changed nothing would
+      // only be re-read forever.
+      if (rows.length < BACKFILL_BATCH || updated === 0) break;
+    }
+    if (total > 0) {
+      console.log(
+        `[RecipeImageWorker] backfilled ${total} FAILED recipe image(s) with the free Pollinations fallback`,
+      );
+    }
+    return total;
+  }
+
+  /** One processing pass (public for tests; wake() and the poll call it). */
+  async tick(): Promise<void> {
     if (this.running) return;
-    if (Date.now() < this.rateLimitUntil) return;
+    if (this.now() < this.rateLimitUntil) return;
 
     this.running = true;
     try {
@@ -85,7 +177,7 @@ export class RecipeImageWorker {
       // rate-limit back-off engages. The poll interval is only a discovery
       // fallback — a plan generation calls wake() and the whole queue drains here.
       for (;;) {
-        if (Date.now() < this.rateLimitUntil) break;
+        if (this.now() < this.rateLimitUntil) break;
 
         const batch = await this.claimBatch();
         if (batch.length === 0) break;
@@ -130,7 +222,72 @@ export class RecipeImageWorker {
     await Promise.allSettled(batch.map((recipe) => this.processOne(recipe)));
   }
 
+  /**
+   * Probes the image store; logs loudly on a new problem and on recovery.
+   * Returns whether it is writable.
+   */
+  private async checkStorage(): Promise<boolean> {
+    this.storageCheckedAt = this.now();
+    let problem: string | null;
+    try {
+      problem = await probeRecipeImageStorage();
+    } catch (err) {
+      problem = `storage probe failed: ${(err as Error).message}`;
+    }
+    if (problem) {
+      this.markStorageBroken(problem);
+      return false;
+    }
+    if (this.storageProblem) {
+      console.log('[RecipeImageWorker] image storage is writable again — generation resumes');
+      this.storageProblem = null;
+    }
+    return true;
+  }
+
+  private markStorageBroken(problem: string): void {
+    this.storageCheckedAt = this.now();
+    if (this.storageProblem === null) {
+      console.error(
+        `[RecipeImageWorker] ✗ IMAGE STORAGE NOT WRITABLE — ${problem}. ` +
+          'Generated images cannot be saved, so generation is skipped and recipes get the free ' +
+          'Pollinations fallback until it is fixed. Usual cause: the uploads volume is owned by ' +
+          'root — run `chown -R apiuser /app/uploads` in the api container (infrastructure.md §12).',
+      );
+    }
+    this.storageProblem = problem;
+  }
+
+  /** False while the store is known broken (re-probed at most every minute). */
+  private async storageReady(): Promise<boolean> {
+    if (this.storageProblem === null) return true;
+    if (this.now() - this.storageCheckedAt < STORAGE_REPROBE_MS) return false;
+    return this.checkStorage();
+  }
+
+  private quotaExhaustedToday(): boolean {
+    return this.quotaExhaustedDay === utcDay(this.now());
+  }
+
+  /** Sets the recipe's free Pollinations URL, status DONE, and tells SSE clients. */
+  private async useFallback(recipe: ClaimedRecipe, reason: string): Promise<void> {
+    const imageUrl = recipeImageFallbackUrl(recipe.name, recipe.cuisineType);
+    await prisma.recipe.update({
+      where: { id: recipe.id },
+      data: { imageUrl, imageStatus: ImageStatus.DONE },
+    });
+    recipeImageEventEmitter.emit(recipe.id, { imageUrl, status: 'DONE' });
+    console.log(`[RecipeImageWorker] ↪ ${recipe.id} (${recipe.name}) → Pollinations (${reason})`);
+  }
+
   private async processOne(recipe: ClaimedRecipe): Promise<void> {
+    if (this.quotaExhaustedToday()) {
+      return this.useFallback(recipe, 'Cloudflare daily free allocation used up');
+    }
+    if (!(await this.storageReady())) {
+      return this.useFallback(recipe, 'image storage not writable');
+    }
+
     try {
       const cdnUrl = await generateAndUploadRecipeImage({
         recipeId: recipe.id,
@@ -155,7 +312,7 @@ export class RecipeImageWorker {
     } catch (err) {
       if (err instanceof ImagenRateLimitError) {
         // Not a real failure — reset to PENDING and pause the worker
-        this.rateLimitUntil = Date.now() + err.retryAfterMs;
+        this.rateLimitUntil = this.now() + err.retryAfterMs;
         await prisma.recipe.update({
           where: { id: recipe.id },
           data: { imageStatus: ImageStatus.PENDING },
@@ -164,8 +321,26 @@ export class RecipeImageWorker {
         return;
       }
 
+      if (err instanceof ImageQuotaExhaustedError) {
+        if (!this.quotaExhaustedToday()) {
+          console.warn(
+            `[RecipeImageWorker] Cloudflare daily free allocation used up — Pollinations fallback until 00:00 UTC (${err.message})`,
+          );
+        }
+        this.quotaExhaustedDay = utcDay(this.now());
+        return this.useFallback(recipe, 'Cloudflare daily free allocation used up');
+      }
+
+      if (err instanceof ImageStorageError) {
+        // The image WAS generated (and paid for); regenerating would fail the
+        // same way. Never retry — fall back and stop generating until the
+        // store is writable again.
+        this.markStorageBroken(err.message);
+        return this.useFallback(recipe, 'image storage failed');
+      }
+
       if (err instanceof ImagenContentFilterError) {
-        // Permanent failure — do not retry
+        // Permanent failure — do not retry (see the fallback note above)
         await prisma.recipe.update({
           where: { id: recipe.id },
           data: { imageStatus: ImageStatus.FAILED },
@@ -183,15 +358,11 @@ export class RecipeImageWorker {
       });
 
       if (updated.imageRetries >= MAX_RETRIES) {
-        await prisma.recipe.update({
-          where: { id: recipe.id },
-          data: { imageStatus: ImageStatus.FAILED },
-        });
-        recipeImageEventEmitter.emit(recipe.id, { imageUrl: null, status: 'FAILED' });
         console.error(
-          `[RecipeImageWorker] permanently failed after ${MAX_RETRIES} attempts: ${recipe.id}`,
+          `[RecipeImageWorker] generation failed ${MAX_RETRIES} times, using the fallback: ${recipe.id}`,
           err,
         );
+        await this.useFallback(recipe, `failed after ${MAX_RETRIES} attempts`);
       } else {
         await prisma.recipe.update({
           where: { id: recipe.id },

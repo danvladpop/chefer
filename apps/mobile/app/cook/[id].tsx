@@ -7,15 +7,19 @@ import { Button, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile
 import {
   cn,
   defaultCookServings,
+  finishMealCopy,
   formatPortion,
-  formatQuantity,
+  formatScaledQuantity,
   guessMealType,
+  labelCaveatLineText,
   localDateStr,
   parseStepDuration,
   slotPortion,
 } from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { StarRating } from '../../src/features/recipes/star-rating';
+import { CheckedForLine } from '../../src/features/safety/checked-for-line';
+import { LabelCaveat } from '../../src/features/safety/label-caveat';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { recordRebalance } from '../../src/features/tracker/rebalance-store';
 import { useHousehold } from '../../src/hooks/use-household';
@@ -107,12 +111,20 @@ export default function CookModeScreen() {
     meal?: string;
     portion?: string;
   }>();
+  // Tracker logging still needs a real slot (breakfast/lunch/…) even when
+  // cook mode was opened with no `meal` param — the clock guess is fine
+  // THERE. bug B-21: the finish-screen COPY is different — it must never
+  // claim a meal it doesn't actually know, so it uses `meal` directly via
+  // `finishMealCopy` below instead of this guessed value.
   const mealType = meal ?? guessMealType();
   // P1-1: cooking a portioned plan slot shows its quantities and logs it.
   const planPortion = slotPortion(parseFloat(portion ?? ''));
   const unitSystem = useUnitSystem();
 
   const { data: recipe, isLoading } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  // T-02.3: a separate, additive query — see app/recipe/[id].tsx's comment.
+  const { data: safetyData } = trpc.recipe.getSafetyChecks.useQuery({ recipeId: id });
+  const safetyChecks = safetyData?.safetyChecks ?? null;
   const utils = trpc.useUtils();
   // Premium households cook for the whole table (null otherwise).
   const { portionSum } = useHousehold();
@@ -257,6 +269,17 @@ export default function CookModeScreen() {
               Set for your plan&apos;s {formatPortion(planPortion)} portion.
             </Text>
           )}
+          {/* T-02.3: top of the ingredient list — never both with the
+              conflict banner above (AC3). */}
+          {(recipe.allergenWarnings?.length ?? 0) === 0 && safetyChecks ? (
+            <CheckedForLine testID="cook-checked-for" checks={safetyChecks} />
+          ) : null}
+          {safetyChecks?.labelCaveats && safetyChecks.labelCaveats.length > 0 ? (
+            <LabelCaveat
+              testID="cook-label-caveat"
+              text={labelCaveatLineText(safetyChecks.labelCaveats.map((c) => c.ingredient))}
+            />
+          ) : null}
           {recipe.ingredients.map((ing, i) => {
             const isChecked = checkedIngredients.has(i);
             return (
@@ -291,7 +314,7 @@ export default function CookModeScreen() {
                     isChecked ? 'text-gray-400 line-through' : 'text-gray-800',
                   )}
                 >
-                  {formatQuantity(ing.quantity * scale, ing.unit, unitSystem)} {ing.name}
+                  {formatScaledQuantity(ing.quantity, ing.unit, scale, unitSystem)} {ing.name}
                 </Text>
               </Pressable>
             );
@@ -308,7 +331,7 @@ export default function CookModeScreen() {
         >
           <Text className="text-5xl">🎉</Text>
           <Text testID="cook-finished" variant="title" className="text-center">
-            Enjoy your {mealType}!
+            {finishMealCopy(meal)}
           </Text>
           <Text variant="muted" className="text-center text-sm">
             Log it to today&apos;s tracker so your nutrition stays honest.

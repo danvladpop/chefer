@@ -1,0 +1,169 @@
+# Cardio-in-a-mixed-session E2E — T-42.3 (UX-42 minimal slice).
+# Run:  cd apps/mobile && maestro test e2e/gym-cardio-row.flow.yaml
+# Preconditions: signed-in session (connect.yaml), an active routine
+# (gym-setup.flow.yaml on a fresh account), and `cardioLogging` ON for this
+# account's API (FEATURE_FLAGS=cardioLogging on the dev API — the flag is off
+# by default, Q-24). Client sends x-chefer-api-level 3 (T-42.3) so the 12
+# cardio catalogue rows are visible.
+#
+# Checks: start a workout → tick the first (strength) exercise's working
+# sets → "+ Add exercise" → the "Cardio" filter chip → pick Stationary Bike
+# (AC1: one entry, no kg/sets/RIR row appears) → Enter mode, 20 min chip →
+# Log it (no distance/level fields on this catalogue entry beyond what the
+# preset shows) → Finish → the summary and history both show the cardio
+# entry, and the session is counted once (AC4).
+#
+# The airplane-mode timer-survival case (AC2) is unit-tested directly
+# (gym-cardio-timer.test.ts simulates the "kill" by dropping the in-memory
+# store and re-reading the same persisted KV state) rather than repeated
+# here — toggling real airplane mode from Maestro is flaky across CI
+# runners; a maintainer wiring device automation for it can extend this flow
+# with `- inputSelector`-style OS controls once one is available in this repo.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+
+- tapOn:
+    id: 'mode-switch-gym'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 15000
+
+# A workout left running by an earlier (failed) run is discarded first.
+- runFlow:
+    when:
+      visible:
+        id: 'gym-today-resume'
+    commands:
+      - tapOn:
+          id: 'gym-today-resume-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'workout-title'
+          timeout: 15000
+      - scrollUntilVisible:
+          element:
+            id: 'workout-discard'
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          id: 'workout-discard'
+      - tapOn:
+          id: 'workout-discard-sheet-confirm'
+      - extendedWaitUntil:
+          visible:
+            id: 'gym-today-title'
+          timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-start'
+    timeout: 15000
+- tapOn:
+    id: 'gym-today-start'
+- extendedWaitUntil:
+    visible:
+      id: 'workout-title'
+    timeout: 15000
+
+# ── Tick the first (strength) exercise's first working set ──────────────────
+- tapOn:
+    id: 'exercise-0-set-1-check'
+- tapOn:
+    id: 'rest-timer-skip'
+    optional: true
+
+# ── Add the cardio exercise (Stationary Bike, upright) ───────────────────────
+- scrollUntilVisible:
+    element:
+      id: 'workout-add-exercise'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'workout-add-exercise'
+- extendedWaitUntil:
+    visible:
+      id: 'workout-picker'
+    timeout: 10000
+# AC9: the "Cardio" filter chip is first, ahead of every muscle group.
+- tapOn:
+    text: 'Cardio'
+- tapOn:
+    id: 'workout-picker-item-stationary-bike-upright'
+- extendedWaitUntil:
+    visible:
+      text: 'Stationary Bike'
+    timeout: 10000
+
+# ── AC1: the cardio card shows Timer/Enter, no kg/sets/RIR row ──────────────
+- assertNotVisible: 'RIR'
+- assertVisible:
+    text: 'Timer'
+- assertVisible:
+    text: 'Enter'
+
+# ── Log it via Enter mode + a duration chip (AC3-adjacent: a couple of taps) ─
+- tapOn:
+    text: 'Enter'
+- tapOn:
+    text: '20 min'
+- tapOn:
+    text: 'Log it'
+- assertVisible:
+    text: 'Logged.'
+
+# ── Finish (other planned exercises unticked → the T-36.3 confirmation) ──────
+- scrollUntilVisible:
+    element:
+      id: 'workout-finish-bottom'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'workout-finish-bottom'
+- extendedWaitUntil:
+    visible:
+      id: 'workout-finish-sheet-confirm'
+    timeout: 5000
+    optional: true
+- tapOn:
+    id: 'workout-finish-sheet-confirm'
+    optional: true
+
+# ── Summary: counted once, cardio renders (never "0 kg × 0") ────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'summary-title'
+    timeout: 15000
+- assertVisible:
+    id: 'summary-sets'
+- tapOn:
+    id: 'summary-done'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 15000
+
+# ── History: open the just-finished session, the bike row shows time/effort ─
+- tapOn:
+    id: 'gym-today-recent-0'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-session-detail'
+    timeout: 15000
+- assertVisible:
+    text: 'Stationary Bike'
+- assertNotVisible: '0 kg'
+- tapOn:
+    id: 'gym-session-title-back'
+
+# ── Back to Food mode ─────────────────────────────────────────────────────────
+- tapOn:
+    id: 'mode-switch-food'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000

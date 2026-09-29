@@ -14,6 +14,9 @@ export interface UpsertChefReviewData {
   /** Pantry savings surfaced in the review (F3 seam) — null until F3 lands. */
   savedEur?: number | null;
   reviewText: string;
+  /** §2.11, T-35.4 (S13, rev 2) — the coach proposes, never overwrites. */
+  proposedAdjustmentKcal?: number | null;
+  proposalResolvedAt?: Date | null;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────
@@ -26,6 +29,8 @@ export interface IChefReviewRepository {
   findPreviousBefore(userId: string, weekStart: Date): Promise<ChefReview | null>;
   /** Idempotent on @@unique([userId, weekStart]) — a re-run updates in place. */
   upsert(data: UpsertChefReviewData): Promise<ChefReview>;
+  /** Marks a review's proposed adjustment resolved (§2.11, T-35.4, wave 1). */
+  resolveProposal(id: string): Promise<ChefReview>;
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -58,6 +63,13 @@ export class ChefReviewRepository implements IChefReviewRepository {
       where: { userId_weekStart: { userId, weekStart } },
       create: { userId, weekStart, ...payload },
       update: payload,
+    });
+  }
+
+  async resolveProposal(id: string): Promise<ChefReview> {
+    return prisma.chefReview.update({
+      where: { id },
+      data: { proposalResolvedAt: new Date() },
     });
   }
 }

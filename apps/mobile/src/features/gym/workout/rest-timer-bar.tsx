@@ -2,16 +2,67 @@ import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptics, Text } from '@chefer/ui-mobile';
-import { adjustRest, REST_ADJUST_STEP_SEC, skipRest, useRestRemaining } from '../rest-timer';
+import {
+  adjustRest,
+  ensureRestNotificationPermission,
+  hasRestNotificationPermission,
+  hasShownRestPermissionRationale,
+  markRestPermissionRationaleShown,
+  REST_ADJUST_STEP_SEC,
+  skipRest,
+  useRestRemaining,
+} from '../rest-timer';
+import { RestPermissionSheet } from './rest-permission-sheet';
 import { formatClock } from './workout-model';
 
 // Sticky rest bar (gym_plan.md §1.3). The ONLY subscriber to the 4×/s tick —
 // the workout list never re-renders because a timer is running.
 
+/** B-40 (T-36.2): the rationale sheet the first time a rest actually starts. */
+function useRestPermissionRationale(active: boolean): {
+  visible: boolean;
+  onAllow: () => void;
+  onClose: () => void;
+} {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!active || hasShownRestPermissionRationale()) return;
+    let cancelled = false;
+    void hasRestNotificationPermission().then((granted) => {
+      if (!cancelled && !granted) {
+        markRestPermissionRationaleShown();
+        setVisible(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [active]);
+  return {
+    visible,
+    onAllow: () => {
+      setVisible(false);
+      void ensureRestNotificationPermission();
+    },
+    onClose: () => setVisible(false),
+  };
+}
+
 export function RestTimerBar() {
   const insets = useSafeAreaInsets();
   const { remainingSec, state } = useRestRemaining(haptics.warning);
-  if (!state) return null;
+  const rationale = useRestPermissionRationale(state !== null);
+  if (!state) {
+    // The rationale sheet can still be open right as the rest ends (rare,
+    // but the user should get to answer it either way).
+    return rationale.visible ? (
+      <RestPermissionSheet
+        visible={rationale.visible}
+        onClose={rationale.onClose}
+        onAllow={rationale.onAllow}
+      />
+    ) : null;
+  }
   const progress = state.durationSec > 0 ? 1 - remainingSec / state.durationSec : 1;
 
   return (
@@ -60,6 +111,11 @@ export function RestTimerBar() {
           primary
         />
       </View>
+      <RestPermissionSheet
+        visible={rationale.visible}
+        onClose={rationale.onClose}
+        onAllow={rationale.onAllow}
+      />
     </View>
   );
 }

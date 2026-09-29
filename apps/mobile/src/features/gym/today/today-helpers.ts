@@ -1,5 +1,5 @@
 import type { GymBootstrap, NextWorkoutExerciseDto, StreakInfo, WeightUnit } from '@chefer/types';
-import { addDaysLocal, formatLoad, pickOffer, weekStartOf } from '@chefer/utils';
+import { addDaysLocal, formatLoad, pickOffer, streakWeeksLabel, weekStartOf } from '@chefer/utils';
 import { libraryLookup } from '../use-gym-bootstrap';
 
 // Pure helpers for the Today tab (gym_plan.md §1.3 "Today tab", §1.4 habit
@@ -41,7 +41,7 @@ export function computeWeekStrip(bootstrap: GymBootstrap, today: string): WeekSt
 
 /** "7-week streak" (+ a flex-week note when one was just spent — never guilt copy). */
 export function formatStreakLine(streak: StreakInfo): string {
-  const weeks = streak.current === 1 ? '1-week streak' : `${streak.current}-week streak`;
+  const weeks = streakWeeksLabel(streak.current);
   if (streak.flexTokens <= 0) return weeks;
   const token = streak.flexTokens === 1 ? 'flex week' : 'flex weeks';
   return `${weeks} · ${streak.flexTokens} ${token} saved`;

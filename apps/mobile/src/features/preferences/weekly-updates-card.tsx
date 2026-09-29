@@ -62,8 +62,56 @@ function ToggleRow(props: {
   );
 }
 
+/**
+ * T-39.3: existing accounts whose weekly-email switches predate the S15
+ * default change (weeklyEmailReady/Recap now default false for NEW rows
+ * only) see this once. Shown only when the notice hasn't fired yet AND at
+ * least one digest is currently on — a fresh post-change account already
+ * starts both off, so "Yours are still on" would be the wrong sentence for it.
+ */
+function EmailDefaultsNoticeCard({
+  onKeepOn,
+  onTurnOff,
+  busy,
+}: {
+  onKeepOn: () => void;
+  onTurnOff: () => void;
+  busy: boolean;
+}) {
+  return (
+    <View testID="prefs-email-defaults-notice" className="gap-2 rounded-lg bg-amber-50 p-3">
+      <Text className="text-sm text-amber-900">
+        We&apos;ve changed how emails work: they&apos;re now off unless you turn them on. Yours are
+        still on.
+      </Text>
+      <View className="flex-row gap-2">
+        <Button
+          testID="prefs-email-defaults-keep"
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onPress={onKeepOn}
+        >
+          Keep them on
+        </Button>
+        <Button
+          testID="prefs-email-defaults-turn-off"
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onPress={onTurnOff}
+        >
+          Turn them off
+        </Button>
+      </View>
+    </View>
+  );
+}
+
 export function WeeklyUpdatesCard() {
   const prefsQuery = trpc.notifications.getEmailPreferences.useQuery();
+  const meQuery = trpc.user.me.useQuery();
+  const utils = trpc.useUtils();
   const [email, setEmail] = useState<Record<EmailKey, boolean> | null>(null);
   const serverReady = prefsQuery.data?.weekReady;
   const serverRecap = prefsQuery.data?.weeklyRecap;
@@ -72,6 +120,16 @@ export function WeeklyUpdatesCard() {
       setEmail({ weekReady: serverReady, weeklyRecap: serverRecap });
     }
   }, [serverReady, serverRecap]);
+
+  const dismissNotice = trpc.user.dismissEmailDefaultsNotice.useMutation({
+    onSuccess: (res) =>
+      utils.user.me.setData(undefined, (prev) =>
+        prev ? { ...prev, emailDefaultsNoticeAt: res.emailDefaultsNoticeAt } : prev,
+      ),
+  });
+  const showEmailDefaultsNotice =
+    meQuery.data?.emailDefaultsNoticeAt === null &&
+    (prefsQuery.data?.weekReady === true || prefsQuery.data?.weeklyRecap === true);
 
   const save = trpc.notifications.setEmailPreferences.useMutation({
     onSuccess: (res) => setEmail({ weekReady: res.weekReady, weeklyRecap: res.weeklyRecap }),
@@ -128,9 +186,24 @@ export function WeeklyUpdatesCard() {
     save.mutate({ [key]: next });
   };
 
+  const keepEmailDefaults = () => dismissNotice.mutate();
+  const turnOffEmailDefaults = () => {
+    setEmail({ weekReady: false, weeklyRecap: false });
+    save.mutate({ weekReady: false, weeklyRecap: false });
+    dismissNotice.mutate();
+  };
+
   return (
     <Card testID="prefs-weekly-updates" className="gap-3">
       <Text variant="heading">Weekly updates</Text>
+
+      {showEmailDefaultsNotice && (
+        <EmailDefaultsNoticeCard
+          onKeepOn={keepEmailDefaults}
+          onTurnOff={turnOffEmailDefaults}
+          busy={dismissNotice.isPending || save.isPending}
+        />
+      )}
 
       <View className="gap-1">
         <Text variant="label">On this phone</Text>

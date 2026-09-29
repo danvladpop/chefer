@@ -119,6 +119,16 @@ describe('GymStatsService', () => {
     expect(s.trend).toEqual([e(90), e(105), e(105), e(110)]);
   });
 
+  // T-05.6 (UX-05 F): the very first logged session for an exercise counts
+  // as a PR — it beats "nothing", which used to leave it unflagged.
+  it('e1rm: the first-ever session is flagged as a PR too', async () => {
+    const { service } = setup([summary('2026-09-01', 60), summary('2026-09-08', 65)]);
+
+    const s = await service.e1rm(USER, 'bench', 'all', '2026-09-24');
+
+    expect(s.points.map((p) => p.isPr)).toEqual([true, true]);
+  });
+
   it('repPrs keeps the heaviest completed working set per rep count', async () => {
     const { service } = setup([
       summary('2026-09-01', 100, 5),
@@ -144,6 +154,7 @@ describe('GymStatsService', () => {
         e1rmKg: null,
         localDate: '2026-09-01',
         sessionId: 'a',
+        isFirst: false,
       },
       {
         exerciseId: 'bench',
@@ -153,6 +164,7 @@ describe('GymStatsService', () => {
         e1rmKg: null,
         localDate: '2026-09-08',
         sessionId: 'b',
+        isFirst: false,
       },
     ]);
     const { service } = setup([summary('2026-09-01', 100)]);

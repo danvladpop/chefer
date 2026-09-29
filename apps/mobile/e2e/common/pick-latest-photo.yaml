@@ -1,0 +1,51 @@
+# Taps the recipe form's `Add a photo` and picks the most recently added
+# photo (the one the calling flow just pushed with addMedia). Both system
+# pickers list newest first, so it is the first grid cell; the pickers have no
+# stable ids, hence a point on iOS and the cell label on Android.
+appId: dev.chefer.app.dev
+---
+# Android's photo picker syncs from MediaStore a few seconds after addMedia;
+# opened sooner, it lists the previous newest photo. Maestro has no sleep, so
+# wait on something that never appears.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - extendedWaitUntil:
+          visible: 'never-shown-photo-picker-sync-wait'
+          timeout: 8000
+          optional: true
+- scrollUntilVisible:
+    element:
+      id: 'rf-photo'
+    direction: DOWN
+- tapOn:
+    id: 'rf-photo'
+- waitForAnimationToEnd:
+    timeout: 5000
+# iOS PHPicker: 3-column grid under the Photos/Collections header.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - extendedWaitUntil:
+          visible: 'Photos'
+          timeout: 10000
+      - tapOn:
+          point: '16%, 24%'
+# Android photo picker: a bottom sheet whose cells are labelled
+# "Photo taken on <date>", newest first; a cloud-media banner may sit above.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - extendedWaitUntil:
+          visible: 'Photo taken on.*'
+          timeout: 10000
+      - tapOn:
+          text: 'Photo taken on.*'
+          index: 0
+      # Some picker versions select first and return on Done.
+      - tapOn:
+          text: 'Done'
+          optional: true

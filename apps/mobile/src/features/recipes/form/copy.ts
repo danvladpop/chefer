@@ -1,0 +1,101 @@
+// ─── Manual recipe form copy (T-40.4, UX-40 slice 1 §Copy) ────────────────────
+// Every user-facing string for app/recipe-form.tsx and its form/** sections,
+// kept together so a copy review only touches one file.
+
+export const recipeFormCopy = {
+  titles: {
+    create: 'New recipe',
+    edit: 'Edit recipe',
+    legend: '* Required',
+  },
+  fields: {
+    name: 'Name',
+    namePlaceholder: "Grandma's lasagna",
+    servings: 'Servings',
+    cuisine: 'Cuisine',
+    cuisinePlaceholder: 'Choose a cuisine',
+    other: 'Other…',
+    ingredients: 'Ingredients',
+    steps: 'Steps',
+    photo: 'Photo',
+    nutrition: 'Nutrition per serving',
+    nutritionOptional: 'optional',
+    moreDetails: 'More details',
+    description: 'Description',
+    prepTimeMins: 'Prep (min)',
+    cookTimeMins: 'Cook (min)',
+    unitGroups: {
+      Weight: 'Weight',
+      Volume: 'Volume',
+      Count: 'Count',
+      Other: 'Other',
+    },
+  },
+  missing: {
+    nameAndIngredient: 'Add a name and at least one ingredient.',
+    name: 'Add a name.',
+    ingredient: 'Add at least one ingredient.',
+    incompleteLine: (line: number) => `Finish the ingredient on line ${line}.`,
+    fieldName: 'Add a name.',
+    fieldIngredient: 'Add at least one ingredient with an amount.',
+    fieldLineAmount: 'Add an amount, or remove this line.',
+  },
+  buttons: {
+    create: 'Create recipe',
+    save: 'Save changes',
+    creating: 'Creating…',
+    saving: 'Saving…',
+    needsConnection: 'Needs a connection',
+    addIngredient: '+ Add ingredient',
+    addStep: '+ Add step',
+    removeIngredient: 'Remove ingredient',
+    removeStep: 'Remove step',
+    moveUp: 'Move up',
+    moveDown: 'Move down',
+  },
+  removed: {
+    ingredient: 'Removed ingredient',
+    step: (n: number) => `Removed step ${n}`,
+    undo: 'Undo',
+  },
+  save: {
+    error: "Couldn't save your recipe. Nothing you typed is lost.",
+    tryAgain: 'Try again',
+    saved: 'Saved to your Cookbook',
+    view: 'View',
+    offline: "You're offline. Your recipe stays on this screen until you're back.",
+  },
+  discard: {
+    title: 'Discard your changes?',
+    body: "You'll lose what you typed on this recipe.",
+    confirm: 'Discard',
+    cancel: 'Keep editing',
+  },
+  photo: {
+    add: 'Add a photo',
+    uploading: 'Uploading photo…',
+    change: 'Change photo',
+    remove: 'Remove',
+    failedTitle: "Couldn't add the photo.",
+    tooBig: 'That photo is too big. Choose another, or use a screenshot of it.',
+    offline: "No connection. Try again when you're back online.",
+    signedOut: 'Sign in again to add photos.',
+    generic: 'Something went wrong on our side. Try again in a moment.',
+    tryAgain: 'Try again',
+    chooseAnother: 'Choose another',
+  },
+  nutrition: {
+    dontAddUp: (grams: number, macro: string, kcal: number) =>
+      `These don't add up: ${grams} g ${macro} is about ${kcal} kcal.`,
+    notAdded: 'Nutrition not added',
+    // T-40.9 (UX-40 slice 2): the manual fields' way back to the computed card.
+    useCalculated: 'Use calculated numbers',
+  },
+  loadError: {
+    title: "Couldn't load your recipe",
+  },
+  detail: {
+    noSteps: 'No steps yet',
+    addSteps: 'Add steps',
+  },
+} as const;

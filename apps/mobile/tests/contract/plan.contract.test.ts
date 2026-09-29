@@ -63,6 +63,117 @@ describe('mealPlan.replaceRecipe (picker sheet contract)', () => {
   });
 });
 
+describe('mealPlan.replaceRecipe — safety rejection (B-34/B-46, T-00.11)', () => {
+  it('rejects an unsafe recipe with UNSAFE_FOR_TABLE, then accepts it once acknowledged (own recipe)', async () => {
+    const plan = await client.mealPlan.getForWeek.query({ weekOffset: 0 }).catch(() => null);
+    const day = plan?.days.find((d) => d.meals.length > 0);
+    const meal = day?.meals[0];
+    if (!plan || !day || !meal) {
+      console.warn('[plan.contract] no meal plan this week — safety rejection not exercised');
+      return;
+    }
+
+    const before = await client.preferences.get.query();
+    const originalPrefs = {
+      dietaryRestrictions: before.dietaryPreferences?.dietaryRestrictions ?? [],
+      allergies: before.dietaryPreferences?.allergies ?? [],
+      dislikedIngredients: before.dietaryPreferences?.dislikedIngredients ?? [],
+    };
+    const original = meal.recipe.id;
+
+    try {
+      // A temporary egg allergy + a throwaway MANUAL recipe that contains
+      // egg gives a deterministic conflict regardless of local DB state.
+      await client.preferences.updateSafety.mutate({
+        ...originalPrefs,
+        allergies: [...originalPrefs.allergies, 'egg'],
+      });
+      const unsafeRecipe: { id: string } = await client.recipe.create.mutate({
+        name: 'Contract Test Egg Scramble',
+        description: 'Throwaway recipe for the T-00.11 safety contract test.',
+        ingredients: [{ name: 'egg', quantity: 2, unit: 'pcs' }],
+        instructions: ['Scramble the eggs.'],
+        nutritionInfo: { calories: 200, protein: 14, carbs: 2, fat: 14, fiber: 0 },
+        cuisineType: 'international',
+        dietaryTags: [],
+        prepTimeMins: 5,
+        cookTimeMins: 5,
+        servings: 1,
+      });
+
+      await expect(
+        client.mealPlan.replaceRecipe.mutate({
+          planId: plan.planId,
+          dayOfWeek: day.dayOfWeek,
+          mealType: meal.type,
+          recipeId: unsafeRecipe.id,
+        }),
+      ).rejects.toThrow(/UNSAFE_FOR_TABLE/);
+
+      // acknowledgeConflict succeeds because it's the caller's own MANUAL recipe.
+      await client.mealPlan.replaceRecipe.mutate({
+        planId: plan.planId,
+        dayOfWeek: day.dayOfWeek,
+        mealType: meal.type,
+        recipeId: unsafeRecipe.id,
+        acknowledgeConflict: true,
+      });
+      const after = await client.mealPlan.getForWeek.query({ weekOffset: 0 });
+      const replaced = after?.days
+        .find((d) => d.dayOfWeek === day.dayOfWeek)
+        ?.meals.find((m) => m.type === meal.type);
+      expect(replaced?.recipe.id).toBe(unsafeRecipe.id);
+    } finally {
+      // Drop the temporary allergy FIRST so restoring the original slot
+      // never needs acknowledgeConflict itself.
+      await client.preferences.updateSafety.mutate(originalPrefs);
+      await client.mealPlan.replaceRecipe.mutate({
+        planId: plan.planId,
+        dayOfWeek: day.dayOfWeek,
+        mealType: meal.type,
+        recipeId: original,
+      });
+    }
+  });
+});
+
+describe('mealPlan.planDay (wave-1 L-PLAN, "Plan this day")', () => {
+  it('fills an unplanned day without touching any other day, then rejects a second fill', async () => {
+    const plan = await client.mealPlan.getForWeek.query({ weekOffset: 0 }).catch(() => null);
+    const unplannedDay = plan?.days.find((d) => d.meals.length === 0);
+    if (!plan || !unplannedDay) {
+      console.warn('[plan.contract] no unplanned day this week — planDay not exercised');
+      return;
+    }
+
+    const otherDaysBefore = plan.days
+      .filter((d) => d.dayOfWeek !== unplannedDay.dayOfWeek)
+      .map((d) => ({ dayOfWeek: d.dayOfWeek, recipeIds: d.meals.map((m) => m.recipe.id) }));
+
+    const result = await client.mealPlan.planDay.mutate({
+      planId: plan.planId,
+      dayOfWeek: unplannedDay.dayOfWeek,
+    });
+
+    const filled = result.days.find((d) => d.dayOfWeek === unplannedDay.dayOfWeek);
+    expect(filled?.meals.length).toBeGreaterThan(0);
+
+    const otherDaysAfter = result.days
+      .filter((d) => d.dayOfWeek !== unplannedDay.dayOfWeek)
+      .map((d) => ({ dayOfWeek: d.dayOfWeek, recipeIds: d.meals.map((m) => m.recipe.id) }));
+    expect(otherDaysAfter).toEqual(otherDaysBefore);
+
+    // A day that already has a plan is not `planDay`'s job — Replace/
+    // Regenerate own that.
+    await expect(
+      client.mealPlan.planDay.mutate({
+        planId: plan.planId,
+        dayOfWeek: unplannedDay.dayOfWeek,
+      }),
+    ).rejects.toThrow();
+  });
+});
+
 describe('mealPlan week templates (My Weeks contract)', () => {
   it('save → list → rename → delete leaves no trace', async () => {
     const plan = await client.mealPlan.getForWeek.query({ weekOffset: 0 }).catch(() => null);

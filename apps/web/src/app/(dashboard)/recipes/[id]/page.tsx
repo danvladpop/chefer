@@ -9,6 +9,9 @@ import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget'
 import { AllergenWarningBanner } from '@/features/recipes/components/AllergenWarning';
 import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
+import { CheckedForLine } from '@/features/safety/components/CheckedForLine';
+import { ReportSafetySheet } from '@/features/safety/components/ReportSafetySheet';
+import { WhatWeCheckSheet } from '@/features/safety/components/WhatWeCheckSheet';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
@@ -19,6 +22,7 @@ import {
   ArrowLeft,
   ChefHat,
   Clock,
+  Flag,
   Flame,
   Heart,
   Library,
@@ -33,6 +37,8 @@ import {
   defaultCookServings,
   formatPortion,
   formatQuantity,
+  labelCaveatLineText,
+  reportSentSnackbarText,
   scaleNutrition,
   slotPortion,
 } from '@chefer/utils';
@@ -140,7 +146,14 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const { data: recipe, isLoading, isError } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
   const { data: savedData } = trpc.recipe.isSaved.useQuery({ recipeId: id });
   const { data: myRating } = trpc.recipe.getMyRating.useQuery({ recipeId: id });
+  // T-02.3: a separate, additive query (mealPlan.getRecipe is another
+  // lane's file this wave) — null when the table has nothing to check.
+  const { data: safetyData } = trpc.recipe.getSafetyChecks.useQuery({ recipeId: id });
+  const { data: table } = trpc.safety.getTable.useQuery();
   const isSaved = savedData?.isSaved ?? false;
+  const [whatWeCheckOpen, setWhatWeCheckOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportedToast, setReportedToast] = useState(false);
 
   const utils = trpc.useUtils();
 
@@ -333,6 +346,21 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           <h1 className="font-serif text-2xl font-bold text-gray-900">{recipe.name}</h1>
           <p className="mt-1 text-sm text-gray-500">{recipe.description}</p>
           <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mt-3" />
+          {/* T-02.3 AC3: never both — only shows when the conflict banner
+              above isn't already showing one. */}
+          {(recipe.allergenWarnings?.length ?? 0) === 0 && safetyData?.safetyChecks ? (
+            <CheckedForLine
+              checks={safetyData.safetyChecks}
+              onOpenSheet={() => setWhatWeCheckOpen(true)}
+              className="mt-3"
+            />
+          ) : null}
+          {safetyData?.safetyChecks?.labelCaveats &&
+          safetyData.safetyChecks.labelCaveats.length > 0 ? (
+            <p className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+              {labelCaveatLineText(safetyData.safetyChecks.labelCaveats.map((c) => c.ingredient))}
+            </p>
+          ) : null}
         </div>
 
         {/* Action buttons — up to three ~110px buttons wrap raggedly on a
@@ -350,6 +378,17 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           >
             <Heart className={`h-3.5 w-3.5 ${isSaved ? 'fill-[#944a00]' : ''}`} />
             {isSaved ? 'Saved' : 'Save'}
+          </button>
+
+          {/* UX-01 (d), T-01.5: report a safety problem — hides this recipe
+              from the reporter's plans, swaps and suggestions at once. */}
+          <button
+            onClick={() => setReportOpen(true)}
+            aria-label="Report a safety problem"
+            className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-red-300 hover:text-red-700"
+          >
+            <Flag className="h-3.5 w-3.5" />
+            Report
           </button>
 
           {/* Cook mode (P1-3) — the primary action on a recipe you're about to make */}
@@ -489,12 +528,11 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         </p>
       )}
 
-      {/* Macros */}
-      <div className="mb-8 grid grid-cols-4 gap-3">
+      {/* Macros — no Fiber (D-18) */}
+      <div className="mb-8 grid grid-cols-3 gap-3">
         <MacroChip label="Protein" value={n.protein} />
         <MacroChip label="Carbs" value={n.carbs} />
         <MacroChip label="Fat" value={n.fat} />
-        <MacroChip label="Fiber" value={n.fiber} />
       </div>
 
       {/* Two-column layout */}
@@ -631,6 +669,29 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               setSwapUndo(null);
             },
           }}
+        />
+      )}
+
+      {/* T-02.2 sheet + T-01.5 report sheet */}
+      {table && (
+        <WhatWeCheckSheet
+          open={whatWeCheckOpen}
+          onClose={() => setWhatWeCheckOpen(false)}
+          table={table}
+        />
+      )}
+      <ReportSafetySheet
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        recipeId={id}
+        recipeName={recipe.name}
+        surface="recipe_detail"
+        onSent={() => setReportedToast(true)}
+      />
+      {reportedToast && (
+        <Toast
+          message={reportSentSnackbarText(recipe.name)}
+          onClose={() => setReportedToast(false)}
         />
       )}
 

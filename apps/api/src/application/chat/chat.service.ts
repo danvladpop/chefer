@@ -1,9 +1,4 @@
-import {
-  chefProfileRepository,
-  dailyLogRepository,
-  dietaryPreferencesRepository,
-  mealRatingRepository,
-} from '@chefer/database';
+import { chefProfileRepository, dailyLogRepository, mealRatingRepository } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { isAiCapacityFailure } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
@@ -15,6 +10,7 @@ import { mealPlanService, type WeekPlanDto } from '../meal-plan/meal-plan.servic
 import { pantryService } from '../pantry/pantry.service.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { recipeImportService } from '../recipe-import/recipe-import.service.js';
+import { safetyService } from '../safety/safety.service.js';
 import { shoppingListService } from '../shopping-list/shopping-list.service.js';
 import { trackerService } from '../tracker/tracker.service.js';
 import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
@@ -32,15 +28,49 @@ function ordinal(n: number): string {
   return ['first', 'second', 'third', 'fourth'][n - 1] ?? `#${n}`;
 }
 
-/** 0=Monday … 6=Sunday for today (matches dayOfWeek in plans). */
-function getTodayDayIndex(): number {
-  const jsDay = new Date().getDay();
+// ─── One local-day contract (T-21.1, §2.12, bugs B-06/B-33) ────────────────────
+// The server has no time zone of its own — "today" for chat must be the
+// USER's calendar day (`ChefProfile.timeZone`), not the server host's clock
+// (UTC in production). Deriving the day from `Date#getDay` or an ISO
+// timestamp's date portion silently used the server's day: a message sent
+// at 11pm US-Pacific landed
+// on tomorrow's log, a message sent just after midnight in Bucharest landed
+// on yesterday's plan day. Falls back to UTC when the profile has never set
+// a zone (unchanged behaviour for those accounts) — `setDisplayPreferences`
+// (preferences, another lane) is what populates it.
+
+/** The user's local calendar day as `YYYY-MM-DD`, from their IANA time zone. */
+export function localDateInZone(
+  timeZone: string | null | undefined,
+  now: Date = new Date(),
+): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timeZone ?? 'UTC',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/** 0=Monday … 6=Sunday for the user's local today (matches dayOfWeek in plans). */
+export function localDayIndexInZone(
+  timeZone: string | null | undefined,
+  now: Date = new Date(),
+): number {
+  const [y, m, d] = localDateInZone(timeZone, now).split('-').map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const jsDay = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
   return jsDay === 0 ? 6 : jsDay - 1;
 }
 
-function startOfTodayUtc(): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+/** UTC-midnight `Date` that keys the user's local calendar day (DailyLog's row key convention). */
+function localDayKey(timeZone: string | null | undefined, now: Date = new Date()): Date {
+  return new Date(`${localDateInZone(timeZone, now)}T00:00:00.000Z`);
 }
 
 export class ChatService {
@@ -50,11 +80,18 @@ export class ChatService {
    * facts.
    */
   async buildContextSummary(user: UserProfile, plan: WeekPlanDto | null): Promise<string> {
-    const [profile, prefs, signals, todayLog] = await Promise.all([
-      chefProfileRepository.findByUserId(user.id),
-      dietaryPreferencesRepository.findByUserId(user.id),
+    // T-21.1: the user's own local day, not the server's — read before the
+    // rest so `todayLog` looks up the right calendar day.
+    const profile = await chefProfileRepository.findByUserId(user.id);
+    const timeZone = profile?.timeZone;
+    const todayIdx = localDayIndexInZone(timeZone);
+
+    // T-BUG-X1: the whole table's merged rules (owner + household members),
+    // the same ones every other surface filters by — not the owner's alone.
+    const [{ prefs }, signals, todayLog] = await Promise.all([
+      safetyService.loadContext(user.id),
       mealRatingRepository.findSignalsForUser(user.id, 10),
-      dailyLogRepository.findByDate(user.id, startOfTodayUtc()),
+      dailyLogRepository.findByDate(user.id, localDayKey(timeZone)),
     ]);
 
     const { lifterBodyweightKg } = await trainingNutritionService.loadLifter(user.id, profile);
@@ -65,15 +102,14 @@ export class ChatService {
       `Daily targets: ${targets.dailyCalorieTarget} kcal, ${targets.proteinG}g protein, ${targets.carbsG}g carbs, ${targets.fatG}g fat.`,
     );
 
-    if (prefs?.allergies.length)
+    if (prefs.allergies.length)
       lines.push(`Allergies (never suggest): ${prefs.allergies.join(', ')}.`);
-    if (prefs?.dietaryRestrictions.length)
+    if (prefs.dietaryRestrictions.length)
       lines.push(`Dietary restrictions: ${prefs.dietaryRestrictions.join(', ')}.`);
-    if (prefs?.dislikedIngredients.length)
+    if (prefs.dislikedIngredients.length)
       lines.push(`Dislikes: ${prefs.dislikedIngredients.join(', ')}.`);
 
     if (plan) {
-      const todayIdx = getTodayDayIndex();
       const today = plan.days.find((d) => d.dayOfWeek === todayIdx);
       if (today) {
         const totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
@@ -119,7 +155,7 @@ export class ChatService {
     if (liked.length) lines.push(`Recently liked (4-5 stars): ${liked.join(', ')}.`);
     if (disliked.length) lines.push(`Recently disliked (1-2 stars): ${disliked.join(', ')}.`);
 
-    lines.push(`Days are indexed 0=Monday … 6=Sunday; today is ${DAY_NAMES[getTodayDayIndex()]}.`);
+    lines.push(`Days are indexed 0=Monday … 6=Sunday; today is ${DAY_NAMES[todayIdx]}.`);
     return lines.join('\n');
   }
 
@@ -221,7 +257,11 @@ export class ChatService {
         const type = ['breakfast', 'lunch', 'dinner', 'snack'].includes(mealType ?? '')
           ? mealType!
           : 'snack';
-        const today = new Date().toISOString().split('T')[0]!;
+        // T-21.1: the user's local "today", not the server's UTC day — a
+        // late-evening "I ate X" must land on the day the user actually
+        // means (bugs B-06/B-33).
+        const profile = await chefProfileRepository.findByUserId(user.id);
+        const today = localDateInZone(profile?.timeZone);
         const { rebalance } = await trackerService.logCustomMeal(user, today, {
           name: cleanName,
           estimatedBy: 'manual',

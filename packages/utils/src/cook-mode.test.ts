@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultCookServings, parseStepDuration } from './cook-mode';
+import { defaultCookServings, finishMealCopy, parseStepDuration } from './cook-mode';
 
 describe('parseStepDuration (P1-3 inline timers)', () => {
   it('parses simple minute durations', () => {
@@ -39,5 +39,18 @@ describe('defaultCookServings (P1-1, P2-3)', () => {
 
   it('multiplies the table by the plan slot portion', () => {
     expect(defaultCookServings(2, 3, 1.25)).toBe(3.75);
+  });
+});
+
+describe('finishMealCopy (bug B-21 — no clock-guessed meal name)', () => {
+  it('names the real meal when one was passed', () => {
+    expect(finishMealCopy('dinner')).toBe('Enjoy your dinner!');
+    expect(finishMealCopy('breakfast')).toBe('Enjoy your breakfast!');
+  });
+
+  it('falls back to a generic "Enjoy!" instead of guessing from the clock', () => {
+    expect(finishMealCopy(undefined)).toBe('Enjoy!');
+    expect(finishMealCopy(null)).toBe('Enjoy!');
+    expect(finishMealCopy('')).toBe('Enjoy!');
   });
 });

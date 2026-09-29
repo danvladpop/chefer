@@ -4,6 +4,7 @@ import { cn } from '@chefer/utils';
 import { haptics } from '../motion/haptics';
 import { PressableScale } from '../motion/pressable-scale';
 import { STEPPER_REPEAT_DELAY_MS, STEPPER_REPEAT_INTERVAL_MS } from './stepper';
+import { DENSE_MAX_FONT_SCALE } from './text';
 
 // A compact − value + stepper (promoted from the gym workout's set rows, G4-B).
 // Differs from Stepper in two ways the workout needs:
@@ -13,6 +14,23 @@ import { STEPPER_REPEAT_DELAY_MS, STEPPER_REPEAT_INTERVAL_MS } from './stepper';
 //  • no gaps and a flexible value cell, so two steppers + a 56pt ✓ fit a
 //    360pt-wide phone. Buttons stay 44×44 (CLAUDE.md touch targets).
 // Same testID scheme as Stepper: `${testID}-dec`, `-inc`, `-value`.
+
+// T-BUG-O2 (O-07): `adjustsFontSizeToFit` measures the shrink factor against
+// the cell's width at that render's measure time and, on the new
+// architecture, never recomputes it upward once the cell widens again — a
+// transient narrow measure of one row (a re-layout triggered by a sibling
+// changing) leaves that row's value stuck at a near-zero scale forever, even
+// though identical neighbouring rows render normally. The fix removes the
+// auto-shrink mechanism entirely: the font size is a pure function of the
+// string, sized to fit a 375pt-wide row (the narrowest
+// layout this stepper currently ships in) for the longest values it renders
+// today, e.g. "102.5" (kg with a decimal) and "1:30" (a mm:ss rest/tempo
+// value).
+export function valueFontSize(display: string): number {
+  if (display.length <= 4) return 17;
+  if (display.length === 5) return 15;
+  return 13;
+}
 
 export interface ValueStepperProps {
   value: number;
@@ -27,6 +45,13 @@ export interface ValueStepperProps {
   done?: boolean;
   testID: string;
   className?: string;
+  /**
+   * `plain` (default): the original no-gap tiles other callers still use.
+   * `grouped` (UX-05 A1, O-05/O-06): one filled 48 pt container with
+   * transparent −/+ buttons, so the eye reads one control, not three tiles.
+   * Callers space `grouped` instances 8 pt apart themselves (`set-row.tsx`).
+   */
+  variant?: 'plain' | 'grouped';
 }
 
 function ValueStepperImpl({
@@ -40,6 +65,7 @@ function ValueStepperImpl({
   done = false,
   testID,
   className,
+  variant = 'plain',
 }: ValueStepperProps) {
   // The repeat timer outlives renders — read fresh props through a ref.
   const latest = useRef({ value, next, onChange });
@@ -74,6 +100,7 @@ function ValueStepperImpl({
     }, STEPPER_REPEAT_INTERVAL_MS);
   };
 
+  const grouped = variant === 'grouped';
   const display = format(value);
   const button = (direction: 1 | -1) => (
     <PressableScale
@@ -85,9 +112,19 @@ function ValueStepperImpl({
       onLongPress={() => startRepeat(direction)}
       onPressOut={stop}
       hitSlop={{ top: 4, bottom: 4 }}
-      className="h-11 w-11 items-center justify-center rounded-md bg-muted active:opacity-70"
+      className={cn(
+        'h-11 w-11 items-center justify-center',
+        // Grouped: transparent, sits inside the shared container; pressed
+        // state is 5% darker (MO-01) instead of its own fill (UX-05 A1).
+        grouped ? 'active:bg-black/5' : 'rounded-md bg-muted active:opacity-70',
+      )}
     >
-      <Text className="text-xl font-semibold text-foreground">{direction === 1 ? '+' : '−'}</Text>
+      <Text
+        maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+        className="text-xl font-semibold text-foreground"
+      >
+        {direction === 1 ? '+' : '−'}
+      </Text>
     </PressableScale>
   );
 
@@ -96,7 +133,11 @@ function ValueStepperImpl({
       testID={testID}
       accessibilityLabel={name}
       accessibilityValue={{ text: `${display} ${caption}` }}
-      className={cn('min-w-0 flex-row items-center', className)}
+      className={cn(
+        'min-w-0 flex-row items-center',
+        grouped && 'h-12 rounded-lg bg-muted',
+        className,
+      )}
     >
       {button(-1)}
       <PressableScale
@@ -109,15 +150,21 @@ function ValueStepperImpl({
       >
         <Text
           numberOfLines={1}
-          adjustsFontSizeToFit
+          maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+          style={{ fontSize: valueFontSize(display) }}
           className={cn(
-            'text-base font-semibold tabular-nums',
+            'font-semibold tabular-nums',
             done ? 'text-emerald-800' : 'text-foreground',
           )}
         >
           {display}
         </Text>
-        <Text className="text-[12px] text-muted-foreground">{caption}</Text>
+        <Text
+          maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+          className="text-[12px] text-muted-foreground"
+        >
+          {caption}
+        </Text>
       </PressableScale>
       {button(1)}
     </View>

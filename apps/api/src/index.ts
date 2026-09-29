@@ -6,7 +6,9 @@ import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import { gymTrackingBackfillService } from './application/gym/tracking-backfill.service.js';
 import { householdService } from './application/household/household.service.js';
+import { consentBackfillService } from './application/privacy/consent-backfill.service.js';
 import {
   createContext,
   requestIdMiddleware,
@@ -25,6 +27,7 @@ import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
 import { scanRouter } from './routers/scan.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
+import { planTailoringWorker } from './workers/plan-tailoring.worker.js';
 import { recipeImageWorker } from './workers/recipe-image.worker.js';
 import { weeklyEmailWorker } from './workers/weekly-email.worker.js';
 import { weeklyPlanWorker } from './workers/weekly-plan.worker.js';
@@ -57,6 +60,7 @@ app.use(
       'X-Request-ID',
       'x-trpc-source',
       'x-chefer-client',
+      'x-chefer-api-level',
     ],
   }),
 );
@@ -237,6 +241,9 @@ const server = app.listen(env.PORT, env.HOST, () => {
   // Build/refresh the ingredient price vocabulary (weekly cadence)
   ingredientPriceWorker.start();
 
+  // Premium live tailoring: swaps AI days into instant curated weeks
+  planTailoringWorker.start();
+
   // Sunday pre-generation of next week's plan for premium users (PW-5)
   weeklyPlanWorker.start();
 
@@ -261,6 +268,32 @@ const server = app.listen(env.PORT, env.HOST, () => {
     .catch((err: unknown) => {
       logger.error({ err }, 'legacy servingSize backfill failed at boot');
     });
+
+  // ConsentEvent boot backfill (§2.13, T-39.2): one migration-sourced AI
+  // event per non-null aiDataConsentAt. Idempotent — a failure here only
+  // delays it to the next boot.
+  consentBackfillService
+    .backfillAiConsentEvents()
+    .then((result) => {
+      if (result.users > 0) logger.info(result, 'ConsentEvent AI backfill from aiDataConsentAt');
+    })
+    .catch((err: unknown) => {
+      logger.error({ err }, 'ConsentEvent AI backfill failed at boot');
+    });
+
+  // Exercise.trackingType boot backfill (S18, T-42.0, Δ2.2): customs with
+  // isTimed → DURATION, loadType BODYWEIGHT → BODYWEIGHT_REPS. Idempotent —
+  // a failure here only delays it to the next boot.
+  gymTrackingBackfillService
+    .backfillTrackingTypes()
+    .then((result) => {
+      if (result.duration > 0 || result.bodyweightReps > 0) {
+        logger.info(result, 'Exercise trackingType backfilled from isTimed/loadType');
+      }
+    })
+    .catch((err: unknown) => {
+      logger.error({ err }, 'Exercise trackingType backfill failed at boot');
+    });
 });
 
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────
@@ -272,6 +305,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
   ingredientPriceWorker.stop();
   weeklyPlanWorker.stop();
   weeklyEmailWorker.stop();
+  await planTailoringWorker.stop();
   await recipeImageWorker.stop();
 
   server.close(() => {

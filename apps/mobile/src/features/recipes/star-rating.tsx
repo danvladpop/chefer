@@ -11,6 +11,8 @@ import {
 } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
+import { useNudge } from '../premium/nudge-cap';
+import { openPremium } from '../premium/open-premium';
 
 // Star rating — mobile counterpart of web's StarRatingWidget. Ratings feed
 // next week's generation (P1-1); the optional "Who liked it" chips (F2) are
@@ -184,11 +186,41 @@ export function StarRating({
       )}
 
       {/* The P1-1 pitch at the exact moment they generated the signal */}
-      {justRated && isPremium === false && (
-        <Text testID="star-rating-nudge" className="text-xs text-primary">
-          Premium turns your ratings into next week&apos;s menu — upgrade from your Profile.
-        </Text>
-      )}
+      {justRated && isPremium === false && <RatingNudge />}
     </Card>
+  );
+}
+
+/**
+ * The post-rating nudge (UX-10 §6, AC8): mounted only at the moment a free
+ * user saves a rating, and gated by the shared cap — at most one nudge a day
+ * across every source, and a dismissal keeps this one quiet for 7 days.
+ */
+function RatingNudge() {
+  const { visible, dismiss } = useNudge('post-rating');
+  if (!visible) return null;
+  return (
+    <View testID="star-rating-nudge" className="flex-row items-center gap-2">
+      <Text className="min-w-0 flex-1 text-xs text-primary">
+        Premium turns your ratings into next week&apos;s menu.
+      </Text>
+      <Pressable
+        testID="star-rating-nudge-open"
+        accessibilityRole="button"
+        onPress={() => openPremium('post-rating')}
+        className="min-h-11 justify-center"
+      >
+        <Text className="text-xs font-semibold text-primary">See what Premium adds</Text>
+      </Pressable>
+      <Pressable
+        testID="star-rating-nudge-dismiss"
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss"
+        onPress={dismiss}
+        className="h-11 w-11 items-center justify-center"
+      >
+        <Ionicons name="close" size={16} color="#9ca3af" />
+      </Pressable>
+    </View>
   );
 }

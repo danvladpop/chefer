@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { EXERCISE_BY_ID, EXERCISE_CATALOG } from './exercise-catalog';
+import { CARDIO_CATALOG_BY_ID, CARDIO_EXERCISE_IDS } from './cardio-catalog';
+import { EXERCISE_BY_ID, EXERCISE_CATALOG, HIDDEN_EXERCISE_IMAGE_IDS } from './exercise-catalog';
 import { EXERCISE_CONTENT } from './exercise-content';
 import { workoutSessionDocSchema, type WorkoutSessionDoc } from './schemas';
 import { EQUIPMENT_ACCESS_SETS, EQUIPMENT_SWAPS, PROGRAM_TEMPLATES } from './templates';
 import { MUSCLES } from './vocab';
+
+/** T-42.1: cardio entries opt out of the strength-only invariants below. */
+const isCardio = (e: { id: string }) => CARDIO_EXERCISE_IDS.has(e.id);
 
 describe('exercise catalog invariants', () => {
   it('has unique kebab-case slugs', () => {
@@ -18,15 +22,24 @@ describe('exercise catalog invariants', () => {
       for (const m of [...e.primaryMuscles, ...e.secondaryMuscles]) {
         expect(MUSCLES, `${e.id}: ${m}`).toContain(m);
       }
-      expect(e.primaryMuscles.length, e.id).toBeGreaterThan(0);
+      // Cardio contributes no fractional set to any muscle group (T-42.2:
+      // volumeByGroup/PR/e1RM code all skip cardio) — empty muscles is deliberate.
+      if (!isCardio(e)) expect(e.primaryMuscles.length, e.id).toBeGreaterThan(0);
     }
   });
 
   it('has sane numeric defaults', () => {
     for (const e of EXERCISE_CATALOG) {
       expect(e.repMin, e.id).toBeLessThanOrEqual(e.repMax);
-      expect(e.restSec, e.id).toBeGreaterThanOrEqual(30);
-      expect(e.incrementKg, e.id).toBeGreaterThan(0);
+      if (isCardio(e)) {
+        // No strength progression exists for cardio (progression.service.ts
+        // recompute skips it) — these are unused placeholders (T-42.1).
+        expect(e.restSec, e.id).toBe(0);
+        expect(e.incrementKg, e.id).toBe(0);
+      } else {
+        expect(e.restSec, e.id).toBeGreaterThanOrEqual(30);
+        expect(e.incrementKg, e.id).toBeGreaterThan(0);
+      }
     }
   });
 
@@ -104,7 +117,9 @@ describe('home variants (audit F-GYM-2-1)', () => {
   ];
 
   it('are all in the catalog with full coaching content', () => {
-    expect(EXERCISE_CATALOG).toHaveLength(77);
+    // 77 + 2 library-staple additions (T-05.10, UX-05 A5): incline-barbell-
+    // bench-press and back-extension. + 12 cardio entries (T-42.1).
+    expect(EXERCISE_CATALOG).toHaveLength(91);
     for (const id of HOME_VARIANTS) {
       const e = EXERCISE_BY_ID.get(id);
       expect(e, id).toBeDefined();
@@ -185,6 +200,49 @@ describe('home variants (audit F-GYM-2-1)', () => {
   });
 });
 
+describe('library staples (T-05.10, UX-05 A5, AC27-29)', () => {
+  // Mirrors the substring-over-name-or-aliases search every client uses
+  // (mobile: filterExercises in apps/mobile/src/features/gym/library/
+  // exercise-picker.tsx; web: its ExercisePickerSheet/ExerciseCard
+  // equivalent) without importing app code from this package.
+  function searchable(term: string): string[] {
+    const q = term.toLowerCase();
+    return EXERCISE_CATALOG.filter(
+      (e) => e.name.toLowerCase().includes(q) || e.aliases.some((a) => a.toLowerCase().includes(q)),
+    ).map((e) => e.id);
+  }
+
+  it('finds Back Extension by "hyper", "back ext" and "roman chair"', () => {
+    for (const term of ['hyper', 'back ext', 'roman chair']) {
+      expect(searchable(term), term).toContain('back-extension');
+    }
+  });
+
+  it('finds Incline Barbell Bench Press by "incline bench"', () => {
+    expect(searchable('incline bench')).toContain('incline-barbell-bench-press');
+  });
+
+  it('Back Extension is BODYWEIGHT_PLUS so "+ Add weight" can load a held plate (Q-28)', () => {
+    expect(EXERCISE_BY_ID.get('back-extension')?.loadType).toBe('BODYWEIGHT_PLUS');
+  });
+
+  it('HIDDEN_EXERCISE_IMAGE_IDS only names real catalog slugs that actually have a vendored photo', () => {
+    for (const id of HIDDEN_EXERCISE_IMAGE_IDS) {
+      const e = EXERCISE_BY_ID.get(id);
+      expect(e, id).toBeDefined();
+      expect(e?.freeExerciseDbId, id).not.toBeNull();
+    }
+  });
+
+  it('Incline Barbell Bench Press shares the incline-press swap group, sorted before the dumbbell version', () => {
+    const barbell = EXERCISE_BY_ID.get('incline-barbell-bench-press');
+    const dumbbell = EXERCISE_BY_ID.get('incline-dumbbell-press');
+    expect(barbell?.swapGroup).toBe('incline-press');
+    expect(dumbbell?.swapGroup).toBe('incline-press');
+    expect(barbell?.name.localeCompare(dumbbell?.name ?? '')).toBeLessThan(0);
+  });
+});
+
 describe('equipment swaps (audit F-GYM-2-1)', () => {
   const inSet = (id: string, access: 'DUMBBELLS' | 'BODYWEIGHT') => {
     const e = EXERCISE_BY_ID.get(id);
@@ -220,6 +278,39 @@ describe('equipment swaps (audit F-GYM-2-1)', () => {
   it('FULL_GYM allows every equipment type', () => {
     const all = new Set(EXERCISE_CATALOG.map((e) => e.equipment));
     for (const eq of all) expect(EQUIPMENT_ACCESS_SETS.FULL_GYM).toContain(eq);
+  });
+});
+
+describe('cardio catalog (T-42.1)', () => {
+  const CARDIO_EQUIPMENT = new Set([
+    'TREADMILL',
+    'OUTDOOR',
+    'BIKE',
+    'ROWER',
+    'ELLIPTICAL',
+    'STAIR_CLIMBER',
+  ]);
+
+  it('has exactly 12 entries this wave, every one DURATION or DURATION_DISTANCE', () => {
+    const cardio = EXERCISE_CATALOG.filter(isCardio);
+    expect(cardio).toHaveLength(12);
+    for (const e of cardio) {
+      expect(['DURATION', 'DURATION_DISTANCE'], e.id).toContain(e.trackingType);
+      expect(CARDIO_EQUIPMENT.has(e.equipment), e.id).toBe(true);
+      expect(e.movementPattern, e.id).toBe('cardio');
+      expect(e.isTimed, e.id).toBe(true);
+      expect(e.swapGroup, e.id).toBeNull();
+    }
+  });
+
+  it('CARDIO_CATALOG_BY_ID (MET/preset data) covers exactly the catalog cardio entries', () => {
+    const catalogIds = new Set(EXERCISE_CATALOG.filter(isCardio).map((e) => e.id));
+    expect(new Set(CARDIO_CATALOG_BY_ID.keys())).toEqual(catalogIds);
+    for (const entry of CARDIO_CATALOG_BY_ID.values()) {
+      expect(entry.metLow, entry.exerciseId).toBeGreaterThan(0);
+      expect(entry.metHigh, entry.exerciseId).toBeGreaterThanOrEqual(entry.metLow);
+      expect(entry.metrics.length, entry.exerciseId).toBeGreaterThan(0);
+    }
   });
 });
 

@@ -10,6 +10,9 @@ const m = vi.hoisted(() => ({
   isPremium: false,
   remove: vi.fn(),
   add: vi.fn(),
+  updateSafety: vi.fn(),
+  ownSafety: { allergies: [] as string[], dietaryRestrictions: [] as string[] },
+  table: { people: [] as Record<string, unknown>[], hasRules: false, needsReview: false },
 }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('@/features/premium/components/UpgradeButton', () => ({
@@ -56,6 +59,18 @@ vi.mock('@/lib/trpc', () => {
         update: { useMutation: mutation(() => undefined) },
         remove: { useMutation: mutation((...a) => m.remove(...a)) },
       },
+      // T-01.7: the "You" row and the table summary line.
+      preferences: {
+        get: {
+          useQuery: () => ({
+            data: { dietaryPreferences: m.ownSafety },
+          }),
+        },
+        updateSafety: { useMutation: mutation((...a) => m.updateSafety(...a)) },
+      },
+      safety: {
+        getTable: { useQuery: () => ({ data: m.table }) },
+      },
     },
   };
 });
@@ -76,6 +91,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.members = [];
   m.isPremium = false;
+  m.ownSafety = { allergies: [], dietaryRestrictions: [] };
+  m.table = { people: [], hasRules: false, needsReview: false };
 });
 
 describe('HouseholdSection', () => {
@@ -135,5 +152,40 @@ describe('HouseholdSection', () => {
   it('the section is an anchor Profile and Preferences link to', () => {
     const { container } = render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
     expect(container.querySelector('section#household')).not.toBeNull();
+  });
+
+  it('a "You" row is always shown and opens the safety editor (UX-01)', () => {
+    m.ownSafety = { allergies: ['Tree nuts'], dietaryRestrictions: [] };
+    render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+    const youButton = screen.getByRole('button', { name: 'Allergies & diet for you' });
+    expect(youButton.textContent).toContain('allergic: Tree nuts');
+    fireEvent.click(youButton);
+    expect(screen.getByRole('dialog', { name: 'Allergies & diet for you' })).toBeTruthy();
+  });
+
+  it('shows the table read-back summary once the table has rules (CI-41)', () => {
+    m.members = [sam];
+    m.table = {
+      people: [
+        { who: 'you', isOwner: true, items: [], notes: [] },
+        {
+          who: 'Sam',
+          isOwner: false,
+          items: [{ id: 'peanuts', label: 'Peanuts', kind: 'allergy' }],
+          notes: [],
+        },
+      ],
+      hasRules: true,
+      needsReview: false,
+    };
+    render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+    expect(screen.getByText('2 at the table · we’ll check for Peanuts (Sam)')).toBeTruthy();
+  });
+
+  it('the onboarding variant skips the "You" row and the table summary', () => {
+    m.members = [sam];
+    m.table = { people: [], hasRules: true, needsReview: false };
+    render(<HouseholdSection isPremium={false} ownerSafety={owner} variant="onboarding" />);
+    expect(screen.queryByRole('button', { name: 'Allergies & diet for you' })).toBeNull();
   });
 });

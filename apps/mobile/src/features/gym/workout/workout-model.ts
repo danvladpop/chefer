@@ -22,9 +22,11 @@ import {
 import {
   defaultTargetRir,
   detectPrs,
+  ENGINE_VERSION,
   equipmentProfileOf,
   initialState,
   isAssisted,
+  isStrengthTrackingType,
   loadModel,
   prescribe,
   repBucket,
@@ -32,6 +34,7 @@ import {
   stepDown,
   stepUp,
   supersetGroupLookup,
+  trackingTypeOf,
   warmupSets,
   workoutFocus,
   type SessionSupersetSlot,
@@ -239,6 +242,30 @@ export function lastTimeSets(
   return exerciseHistory(exerciseId, prior, 1)[0]?.sets ?? [];
 }
 
+/**
+ * T-42.3: the most recent cardio exposure for this exercise — feeds
+ * `cardioNextTime()` and the "Same as last time" quick-fill. Only a set that
+ * was actually completed and carries a duration counts (a skipped exercise,
+ * or one abandoned mid-entry, never counts as "last time").
+ */
+export function lastCardioExposure(
+  exerciseId: string,
+  prior: readonly SessionSummaryDto[],
+): { durationSec?: number; distanceM?: number; intensityRpe?: number } | null {
+  for (const s of prior) {
+    const ex = s.exercises.find((e) => e.exerciseId === exerciseId && !e.skipped);
+    const set = ex?.sets.find((x) => x.completed && x.durationSec !== undefined);
+    if (set) {
+      return {
+        durationSec: set.durationSec,
+        distanceM: set.distanceM,
+        intensityRpe: set.intensityRpe,
+      };
+    }
+  }
+  return null;
+}
+
 /** The most recent non-empty note typed for this exercise ("Last time: seat 4, grip wide"). */
 export function lastNoteFor(
   exerciseId: string,
@@ -297,10 +324,22 @@ export function livePr(
 
 export type WeightMode = 'plates' | 'keypad' | 'none';
 
-/** Tapping the weight: plate calculator (barbell/smith), keypad, or nothing (pure bodyweight). */
-export function weightModeOf(meta: ExerciseMeta, profile: EquipmentProfile): WeightMode {
+/**
+ * Tapping the weight: plate calculator (barbell/smith), keypad, or nothing
+ * (pure bodyweight, or a timed exercise with no logged load yet — a weighted
+ * plank keeps its stepper once a load has been logged on it, O-02/T-05.A2.1).
+ */
+export function weightModeOf(
+  meta: ExerciseMeta,
+  profile: EquipmentProfile,
+  hasLoggedLoad = false,
+): WeightMode {
+  if (meta.isTimed && !hasLoggedLoad) return 'none';
   const model = loadModel({ exercise: meta });
-  if (model === 'NONE' || (model === 'BELT' && !profile.hasDipBelt)) return 'none';
+  // Q-28: a held load (Back Extension) needs no belt/vest.
+  if (model === 'NONE' || (model === 'BELT' && !profile.hasDipBelt && !meta.heldLoad)) {
+    return 'none';
+  }
   return model === 'PLATES' ? 'plates' : 'keypad';
 }
 
@@ -330,8 +369,16 @@ export interface SlotParams {
   restSec: number;
 }
 
-/** Defaults for an exercise added mid-session. */
+/** T-42.3: true for any cardio trackingType (DURATION/DURATION_DISTANCE/DISTANCE/INTERVALS). */
+export function isCardioMeta(meta: ExerciseMeta): boolean {
+  return !isStrengthTrackingType(trackingTypeOf(meta));
+}
+
+/** Defaults for an exercise added mid-session. A cardio exercise gets ONE entry (AC1: no kg/sets/RIR). */
 export function defaultSlotParams(meta: ExerciseMeta): SlotParams {
+  if (isCardioMeta(meta)) {
+    return { sets: 1, repMin: 1, repMax: 1, targetRir: 0, restSec: 0 };
+  }
   return {
     sets: 3,
     repMin: meta.repMin,
@@ -343,7 +390,9 @@ export function defaultSlotParams(meta: ExerciseMeta): SlotParams {
 
 /**
  * A swap keeps the slot (sets, rep range, rest, RIR) — unless the new exercise
- * is timed and the old one isn't (or vice versa): seconds and reps don't mix.
+ * is timed and the old one isn't (or vice versa: seconds and reps don't mix),
+ * or cardio-ness differs (T-42.3: a strength slot's set count is meaningless
+ * for a cardio entry, and vice versa).
  */
 export function swapSlotParams(
   se: SessionExerciseDoc,
@@ -351,6 +400,12 @@ export function swapSlotParams(
   newMeta: ExerciseMeta,
 ): SlotParams {
   const sets = Math.max(1, workingSets(se).length);
+  const cardioChanged = (oldMeta ? isCardioMeta(oldMeta) : false) !== isCardioMeta(newMeta);
+  if (cardioChanged) {
+    // Cardio always gets its own default (ONE entry) — the old slot's set
+    // count is meaningless either direction.
+    return defaultSlotParams(newMeta);
+  }
   if ((oldMeta?.isTimed ?? false) !== newMeta.isTimed) {
     return { ...defaultSlotParams(newMeta), sets };
   }
@@ -364,9 +419,34 @@ export function swapSlotParams(
 }
 
 /**
+ * T-42.3 (Δ2.2): cardio has no stored progression state, so it never touches
+ * the strength engine — a trivial `hold`/`START` placeholder is all
+ * `startSession`/`addExercise`/`swapExercise` need to create the ONE
+ * SessionSetDoc a cardio entry logs into (weightKg: 0, reps: 0, isWarmup:
+ * false; the cardio-entry UI fills durationSec/distanceM/intensityRpe on
+ * `completeSet`/`editSet`).
+ */
+export function cardioPrescription(): { prescription: Suggestion; warmups: WarmupSet[] } {
+  return {
+    prescription: {
+      kind: 'hold',
+      weightKg: 0,
+      reps: [0],
+      sets: 1,
+      reasonCode: 'START',
+      inputs: {},
+      deltaKg: 0,
+      engineVersion: ENGINE_VERSION,
+    },
+    warmups: [],
+  };
+}
+
+/**
  * The engine's prescription for `meta` in this slot today: the cached
  * progression if there is one (so a swap back to a known lift gets its real
  * targets), else a starting guess. Offline-safe — pure engine on cached data.
+ * Cardio exercises short-circuit to `cardioPrescription()` (Δ2.2).
  */
 export function prescribeFor(input: {
   meta: ExerciseMeta;
@@ -378,6 +458,7 @@ export function prescribeFor(input: {
   isFirstForPattern: boolean;
 }): { prescription: Suggestion; warmups: WarmupSet[] } {
   const { meta, params, bootstrap, profile } = input;
+  if (isCardioMeta(meta)) return cardioPrescription();
   const slot: ExerciseSlot = { exercise: meta, ...params };
   const bucket = repBucket(params.repMin, params.repMax);
   const entry = bootstrap?.progressions.find(

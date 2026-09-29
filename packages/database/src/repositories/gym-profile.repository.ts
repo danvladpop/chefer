@@ -1,4 +1,5 @@
 import type {
+  DistanceUnit,
   GymEquipmentAccess,
   GymProfile,
   Prisma,
@@ -32,6 +33,17 @@ export interface GymProfileWriteData {
   reminderEnabled: boolean;
   reminderTime: string | null;
   offerState: Prisma.InputJsonValue;
+  // S6, rev 2 (T-05.3, T-36.2, T-36.3, T-36.6)
+  hasWeightedVest?: boolean;
+  /** null = never (quiet-days nudge off); new setups write 5. */
+  quietNudgeDays?: number | null;
+  sessionLengthMins?: number | null;
+  /** Per-weekday "HH:MM" overrides; {} = use the single reminderTime. */
+  reminderTimes?: Prisma.InputJsonValue;
+  /** CarryOverList (@chefer/utils gym/carry-over.ts), JSON. */
+  carryOver?: Prisma.InputJsonValue;
+  /** S21 (T-42.0): null = derived from `unit` (MI when unit = LB, else KM). */
+  distanceUnit?: DistanceUnit | null;
 }
 
 export type GymProfileUpdateData = Partial<GymProfileWriteData>;

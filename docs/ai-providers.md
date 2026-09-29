@@ -228,6 +228,11 @@ container. The copy switches back to Gemini on the next request.
   step**. The client sends 4 steps, so a 1024×1024 image is ~58 neurons. The ~2K neurons left for
   images is therefore **~35 images a day**, not ~400 (the per-step cost dominates). _Estimate:_ the
   image size is not pinned in the request; images log their real `cf-ai-neurons` when present.
+- **When the 10K is gone** Workers AI answers 429 with code `3036` ("You have used up your daily
+  free allocation…"). The image client maps that (or code `4006` / the same wording) to
+  `ImageQuotaExhaustedError`; the recipe-image worker gives the recipe its free Pollinations URL and
+  stops calling Cloudflare for images until 00:00 UTC. Images never cost a second generation for
+  one recipe on a storage failure (`ImageStorageError`, see infrastructure.md RecipeImageWorker).
 
 ### Capacity per day (free tiers)
 

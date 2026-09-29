@@ -7,7 +7,7 @@ import type {
   IWorkoutSessionRepository,
 } from '@chefer/database';
 import type { Exposure } from '@chefer/types';
-import { exposuresFromSession, foldHistory, prescribe } from '@chefer/utils';
+import { ENGINE_VERSION, exposuresFromSession, foldHistory, prescribe } from '@chefer/utils';
 import {
   exerciseRow,
   profileRow,
@@ -147,7 +147,7 @@ describe('ProgressionService.recompute', () => {
       'bench|6-10',
       'squat|8-12',
     ]);
-    expect(writes?.every((w) => w.engineVersion === 1)).toBe(true);
+    expect(writes?.every((w) => w.engineVersion === ENGINE_VERSION)).toBe(true);
   });
 
   it('re-folds a bucket that lost all exposures (deleted session) back to its start', async () => {

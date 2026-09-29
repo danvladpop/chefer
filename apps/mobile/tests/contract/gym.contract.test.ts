@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { NextWorkoutDto, WorkoutSessionDoc } from '@chefer/types';
-import { makeContractClient, uniqueEmail } from './client';
+import { CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './client';
 
 // gym.* contract (gym_plan.md §4 / §5.2) against the REAL API through the
 // app's link stack. Registers ONE throwaway user per run (auth rate limit:
@@ -25,6 +25,7 @@ beforeAll(async () => {
     email: uniqueEmail('gym'),
     password: 'Contract@123!',
     firstName: 'Gym',
+    ...CONTRACT_CONSENT,
   });
   if (!user.session) throw new Error('mobile register response is missing the session credential');
   setToken(user.session.token);
@@ -178,6 +179,72 @@ describe('gym storage + sync (no engine needed)', () => {
     ]);
   });
 
+  it('T-44: a DISCARDED re-upsert of a COMPLETED doc drops it from recentSessions/session.list; session.get still finds the row by id (Δ2.3)', async () => {
+    const doc = freestyleDoc();
+    const applied = await client.gym.session.upsertMany.mutate({ docs: [doc] });
+    expect(applied.results).toEqual([{ id: doc.id, status: 'applied' }]);
+
+    const listed = await client.gym.session.list.query({ limit: 50 });
+    expect(listed.items.map((i) => i.id)).toContain(doc.id);
+    const bootBefore = await client.gym.bootstrap.query({ today: localDate });
+    expect(bootBefore.recentSessions.map((s) => s.id)).toContain(doc.id);
+
+    // Delete-with-Undo (T-44.2): the outbox re-sends the same doc as DISCARDED.
+    const discarded: WorkoutSessionDoc = {
+      ...doc,
+      status: 'DISCARDED',
+      clientUpdatedAt: iso(1),
+    };
+    const res = await client.gym.session.upsertMany.mutate({ docs: [discarded] });
+    expect(res.results).toEqual([{ id: doc.id, status: 'applied' }]);
+
+    const listedAfter = await client.gym.session.list.query({ limit: 50 });
+    expect(listedAfter.items.map((i) => i.id)).not.toContain(doc.id);
+    const bootAfter = await client.gym.bootstrap.query({ today: localDate });
+    expect(bootAfter.recentSessions.map((s) => s.id)).not.toContain(doc.id);
+
+    // Not hard-deleted yet — Q-30's separate gym.session.delete runs once the
+    // outbox write is acknowledged online. Until then, session.get still finds it.
+    const stillThere = await client.gym.session.get.query({ id: doc.id });
+    expect(stillThere.status).toBe('DISCARDED');
+
+    await client.gym.session.delete.mutate({ id: doc.id });
+  });
+
+  it('T-44.2: the childless DISCARDED tombstone the clients send drops it from the lists, re-folds progression, and the hard delete then finds the row', async () => {
+    const doc = freestyleDoc();
+    await client.gym.session.upsertMany.mutate({ docs: [doc] });
+
+    // What `discardedTombstone()` sends: same id + times, no children, a newer clientUpdatedAt.
+    const tombstone: WorkoutSessionDoc = {
+      ...doc,
+      status: 'DISCARDED',
+      exercises: [],
+      clientUpdatedAt: iso(1),
+    };
+    const res = await client.gym.session.upsertMany.mutate({ docs: [tombstone] });
+    expect(res.results).toEqual([{ id: doc.id, status: 'applied' }]);
+
+    const listed = await client.gym.session.list.query({ limit: 50 });
+    expect(listed.items.map((i) => i.id)).not.toContain(doc.id);
+    const boot = await client.gym.bootstrap.query({ today: localDate });
+    expect(boot.recentSessions.map((s) => s.id)).not.toContain(doc.id);
+
+    // A re-send of the tombstone (the outbox retries) is idempotent, and an OLDER copy of the
+    // completed doc (a stale device) never resurrects it.
+    const again = await client.gym.session.upsertMany.mutate({ docs: [tombstone, doc] });
+    expect(again.results).toEqual([
+      { id: doc.id, status: 'applied' },
+      { id: doc.id, status: 'stale' },
+    ]);
+
+    // Q-30: the hard delete after the ack works once, then the row is gone (NOT_FOUND is fine to the client).
+    await client.gym.session.delete.mutate({ id: doc.id });
+    await expect(client.gym.session.delete.mutate({ id: doc.id })).rejects.toMatchObject({
+      data: { code: 'NOT_FOUND' },
+    });
+  });
+
   it('routine save uses optimistic concurrency and returns the current doc on CONFLICT', async () => {
     const blank = await client.gym.routine.createBlank.mutate({ name: 'Contract split', days: 2 });
     expect(blank.version).toBe(1);
@@ -244,6 +311,74 @@ describe('gym storage + sync (no engine needed)', () => {
 });
 
 describe('gym setup → bootstrap → sync (ENGINE-DEPENDENT)', () => {
+  it('T-44: editing a COMPLETED doc recomputes progression (600 → 60 kg changes the next target)', async () => {
+    if (!engineReady) return;
+
+    // An isolation exercise no other test in this file logs, so this
+    // assertion can't be muddied by progression history from elsewhere.
+    const EX = 'dumbbell-lateral-raise';
+    const heavySets = (weightKg: number) =>
+      [0, 1, 2].map((position) => ({
+        id: randomUUID(),
+        position,
+        weightKg,
+        reps: 10,
+        isWarmup: false,
+        completedAt: iso(-50 + position * 3),
+      }));
+    const doc = freestyleDoc({
+      exercises: [
+        {
+          id: randomUUID(),
+          exerciseId: EX,
+          routineExerciseId: null,
+          position: 0,
+          repMin: 10,
+          repMax: 15,
+          targetRir: 2,
+          restSec: 90,
+          skipped: false,
+          swappedFromId: null,
+          lastSetRir: 2,
+          prescription: {
+            kind: 'start',
+            weightKg: 6,
+            reps: [10, 10, 10],
+            sets: 3,
+            reasonCode: 'START',
+            inputs: {},
+            deltaKg: 0,
+            engineVersion: 1,
+          },
+          notes: null,
+          sets: heavySets(60),
+        },
+      ],
+    });
+    await client.gym.session.upsertMany.mutate({ docs: [doc] });
+
+    const before = await client.gym.progression.forExercises.query({ exerciseIds: [EX] });
+    const beforeKg = before.find((p) => p.exerciseId === EX)?.suggestion.weightKg;
+    expect(beforeKg).toBeGreaterThan(30);
+
+    // Fix a mis-entered weight on the SAME session (an edit, Δ2.3) — the
+    // outbox re-sends the whole doc with a bumped clientUpdatedAt.
+    const fixed: WorkoutSessionDoc = {
+      ...doc,
+      clientUpdatedAt: iso(1),
+      exercises: doc.exercises.map((e) => ({ ...e, sets: heavySets(6) })),
+    };
+    const res = await client.gym.session.upsertMany.mutate({ docs: [fixed] });
+    expect(res.results).toEqual([{ id: doc.id, status: 'applied' }]);
+    await expect(client.gym.session.get.query({ id: doc.id })).resolves.toEqual(fixed);
+
+    const after = await client.gym.progression.forExercises.query({ exerciseIds: [EX] });
+    const afterKg = after.find((p) => p.exerciseId === EX)?.suggestion.weightKg;
+    // AC8: a fresh fold over the edited history, not the pre-edit one.
+    expect(afterKg).not.toBe(beforeKg);
+    expect(afterKg).toBeLessThan(beforeKg ?? Number.POSITIVE_INFINITY);
+  });
+
   it('completes setup, syncs the next workout idempotently and advances the rotation once', async () => {
     if (!engineReady) return;
 

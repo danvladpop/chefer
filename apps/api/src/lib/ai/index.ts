@@ -148,7 +148,7 @@ function createShadow(available: AiProviderName[]): ShadowRunner | null {
 function createAIService(): IAIService {
   if (env.AI_MOCK_ENABLED) {
     console.info('[AI] Using MockAIService (fixture data)');
-    return new MockAIService();
+    return new MockAIService(env.AI_MOCK_DELAY_MS);
   }
 
   const available = configuredProviders(providerConfig);
@@ -243,6 +243,7 @@ export type {
   RecipeExtractionSource,
   Ingredient,
   IngredientPriceEstimate,
+  MealPlanDayRequest,
   MealPlanInput,
   MealSlot,
   MealType,

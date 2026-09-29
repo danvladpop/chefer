@@ -1,22 +1,23 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fetch as expoFetch } from 'expo/fetch';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, defaultMealSlot, PREMIUM_PITCH_COPY, showSnapTaste } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { getApiBaseUrl } from '../../lib/api-url';
 import { getToken } from '../../lib/auth-store';
 import {
-  base64ToBytes,
   scanMealPhoto,
   ScanUpgradeRequiredError,
-  type ImageMime,
   type MealPhotoEstimate,
 } from '../../lib/media-client';
+import { photoPickerOptions, preparePhoto } from '../../lib/prepare-photo';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
+import { openPremium } from '../premium/open-premium';
+import { invalidateDayQueries } from './invalidate';
 import { recordRebalance } from './rebalance-store';
 
 // Snap-to-Log (F4 / M3-2) — mobile counterpart of web's ScanMealButton.
@@ -30,17 +31,89 @@ const CONFIDENCE_LABEL: Record<MealPhotoEstimate['confidence'], string> = {
   high: 'Confident',
 };
 
-export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () => void }) {
+/**
+ * Premium (and admins) get the real Snap card. On a free plan the card used to
+ * render nothing, so a tracker never learned Snap existed (bug B-35, T-10.6):
+ * a food-job user now sees a taste instead, and a gym-only user still sees
+ * nothing.
+ */
+export function ScanMealCard(props: { date: string; onLogged: () => void }) {
   const { enabled } = useEntitlement('mealScansPerDay');
+  return enabled ? <SnapCard {...props} /> : <SnapTaste />;
+}
+
+/**
+ * The free taste (UX-10 §7): a labelled static example and "See what Premium
+ * adds" (source `snap-scan`). It sends nothing and opens no camera — there is
+ * no AI call here, so no AI consent is asked; the real scan below still asks
+ * (`meal-scan`) before the camera or library opens.
+ */
+function SnapTaste() {
+  const { isPremium } = useEntitlement('mealScansPerDay');
+  const { data } = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
+  if (!showSnapTaste({ isPremium, jobs: data?.jobs ?? [] })) return null;
+  return (
+    <Card testID="scan-taste" className="gap-3">
+      <Text variant="heading">{PREMIUM_PITCH_COPY.snapTasteTitle}</Text>
+      <Text variant="muted" className="text-xs">
+        {PREMIUM_PITCH_COPY.snapTasteBody}
+      </Text>
+      <View
+        testID="scan-taste-example"
+        accessibilityLabel={`${PREMIUM_PITCH_COPY.snapTasteExampleLabel}: ${PREMIUM_PITCH_COPY.snapTasteExampleMacros}, ${PREMIUM_PITCH_COPY.snapTasteExampleNote}`}
+        className="flex-row items-center gap-3 rounded-xl border border-dashed border-border bg-muted p-3"
+      >
+        <View className="h-12 w-12 items-center justify-center rounded-lg bg-white">
+          <Ionicons name="restaurant-outline" size={24} color="#944a00" />
+        </View>
+        <View className="min-w-0 flex-1 gap-0.5">
+          <View className="self-start rounded-full bg-accent px-2 py-0.5">
+            <Text className="text-xs font-semibold uppercase text-primary">
+              {PREMIUM_PITCH_COPY.snapTasteExampleLabel}
+            </Text>
+          </View>
+          <Text className="text-sm font-semibold text-gray-900">
+            {PREMIUM_PITCH_COPY.snapTasteExampleMacros}
+          </Text>
+          <Text variant="muted" className="text-xs">
+            {PREMIUM_PITCH_COPY.snapTasteExampleNote}
+          </Text>
+        </View>
+      </View>
+      <Button
+        testID="scan-taste-premium"
+        variant="outline"
+        onPress={() => openPremium('snap-scan')}
+      >
+        {PREMIUM_PITCH_COPY.seeWhatPremiumAdds}
+      </Button>
+    </Card>
+  );
+}
+
+function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [upgradeNeeded, setUpgradeNeeded] = useState(false);
   const [estimate, setEstimate] = useState<MealPhotoEstimate | null>(null);
-  const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>('lunch');
+  // Bug B-36: this always defaulted to Lunch, even for a 7am or 9pm scan.
+  // Shared with Quick add so a log entered at any hour lands sensibly.
+  const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>(() =>
+    defaultMealSlot(new Date().getHours()),
+  );
+  // Bug B-37: camera permission denied used to leave the user staring at red
+  // error text with no way forward. `cameraDenied` renders a muted notice
+  // with a real way out instead.
+  const [cameraDenied, setCameraDenied] = useState(false);
 
+  const utils = trpc.useUtils();
   const logMutation = trpc.tracker.logCustomMeal.useMutation({
     onSuccess: (data) => {
       recordRebalance(data.rebalance);
+      // Bug B-44: Today used to lag the tracker by ~8s after a snap log —
+      // this mutation invalidated nothing, so the dashboard ring only caught
+      // up on its own stale-time refetch.
+      invalidateDayQueries(utils, date);
       setEstimate(null);
       onLogged();
     },
@@ -57,17 +130,17 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
   const pickNow = async (source: 'camera' | 'library') => {
     setError(null);
     setUpgradeNeeded(false);
-    const options: ImagePicker.ImagePickerOptions = {
-      mediaTypes: 'images',
-      base64: true,
-      quality: 0.7,
-    };
+    setCameraDenied(false);
+    // T-BUG-O1.2: the photo is shrunk on the device before the scan.
+    const options = photoPickerOptions();
     const result =
       source === 'camera'
         ? await (async () => {
             const perm = await ImagePicker.requestCameraPermissionsAsync();
             if (!perm.granted) {
-              setError('Camera access is needed to scan a meal.');
+              // Bug B-37: a muted notice + a real way out (Settings, or fall
+              // back to a library photo — no new native module needed).
+              setCameraDenied(true);
               return null;
             }
             return ImagePicker.launchCameraAsync(options);
@@ -75,16 +148,19 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
         : await ImagePicker.launchImageLibraryAsync(options);
 
     const asset = result && !result.canceled ? result.assets.at(0) : null;
-    if (!asset?.base64) {
+    if (!asset) {
       return;
     }
     setScanning(true);
     try {
-      const mime = (asset.mimeType ?? 'image/jpeg') as ImageMime;
+      const photo = await preparePhoto(asset);
+      if (!photo) {
+        return;
+      }
       const est = await scanMealPhoto(
         { fetchImpl: expoFetch, apiBaseUrl: getApiBaseUrl(), getToken },
-        base64ToBytes(asset.base64),
-        mime,
+        photo.bytes,
+        photo.mime,
       );
       setEstimate(est);
     } catch (err) {
@@ -97,10 +173,6 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
       setScanning(false);
     }
   };
-
-  if (!enabled) {
-    return null; // tier has zero scans — the profile page carries the upsell
-  }
 
   return (
     <Card testID="scan-meal-card" className="gap-3">
@@ -138,9 +210,34 @@ export function ScanMealCard({ date, onLogged }: { date: string; onLogged: () =>
           </View>
           {upgradeNeeded && (
             <Text className="text-xs text-primary">
-              You&apos;ve used today&apos;s scans — premium raises the limit. Upgrade from your
-              Profile.
+              You&apos;ve used today&apos;s scans. Premium raises the limit.
             </Text>
+          )}
+          {cameraDenied && (
+            <View className="gap-2 rounded-lg bg-muted p-3">
+              <Text variant="muted" className="text-xs">
+                Chefer needs camera access to scan a meal. You can turn it on in Settings, or pick a
+                photo instead.
+              </Text>
+              <View className="flex-row gap-2">
+                <Button
+                  testID="scan-open-settings"
+                  variant="outline"
+                  className="flex-1"
+                  onPress={() => void Linking.openSettings()}
+                >
+                  Open Settings
+                </Button>
+                <Button
+                  testID="scan-choose-photo-instead"
+                  variant="outline"
+                  className="flex-1"
+                  onPress={() => pick('library')}
+                >
+                  Choose a photo instead
+                </Button>
+              </View>
+            </View>
           )}
           {error && <Text className="text-xs text-red-600">{error}</Text>}
         </>

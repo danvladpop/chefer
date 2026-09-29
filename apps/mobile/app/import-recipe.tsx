@@ -4,8 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { VIDEO_IMPORT_COPY } from '@chefer/types';
 import { Button, Card, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
-import { cn, isSupportedVideoUrl } from '@chefer/utils';
+import { cn, isSupportedVideoUrl, PREMIUM_PITCH_COPY } from '@chefer/utils';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
+import { LockedFeatureCard } from '../src/features/premium/locked-feature-card';
+import { openPremium } from '../src/features/premium/open-premium';
 import {
   VideoDraftForm,
   type VideoDraftRecipe,
@@ -16,9 +18,9 @@ import { trpc, type RouterOutputs } from '../src/lib/trpc';
 
 // Recipe import (F5 Cheferize) — port of web's ImportRecipeSheet (wave-2b).
 // Sources: URL, pasted text and a video link. Photo import lands with M3-2's
-// image-picker work. Per-user AI is premium-only: free users see a locked
-// card instead of the form, like web's locked example (the API answers
-// FORBIDDEN anyway).
+// image-picker work. Per-user AI is premium-only: free users keep the form
+// (T-10.4) with a lock card above it; "Preview import" opens the job-led
+// premium sheet instead of calling the API (which would answer FORBIDDEN).
 //
 // Video links (2026-09-26): the API reads the video's words (caption,
 // subtitles or speech) into a draft, and VideoDraftForm lets the user correct
@@ -120,6 +122,12 @@ export default function ImportRecipeScreen() {
     if (previewPending) {
       return;
     }
+    // Free: importing is Premium. Nothing is sent (no consent needed, no
+    // request made) — the sheet opens and the pasted content stays put.
+    if (isPremium === false) {
+      openPremium('recipe-import');
+      return;
+    }
     if (tab === 'video' && isSupportedVideoUrl(videoUrl)) {
       const input = { url: videoUrl.trim() };
       requestAiConsent('recipe-import', () => videoPreviewMutation.mutate(input));
@@ -170,26 +178,20 @@ export default function ImportRecipeScreen() {
       </View>
 
       <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 pb-8">
-        {isPremium === false ? (
-          <Card testID="import-locked" className="border-primary/20 bg-accent">
-            <Text className="text-sm font-semibold text-primary">Importing recipes is premium</Text>
-            <Text className="mt-1 text-xs text-primary/80">
-              Premium imports any recipe from a link, pasted text or a cooking video, adapts it to
-              your allergies and household, and saves it to your collection.
-            </Text>
-            <Button
-              testID="import-locked-upgrade"
-              variant="outline"
-              size="sm"
-              className="mt-3 self-start"
-              onPress={() =>
-                router.push({ pathname: '/profile', params: { source: 'recipe-import' } })
-              }
-            >
-              See Premium
-            </Button>
-          </Card>
-        ) : videoPreview ? (
+        {/* T-10.4 (UX-10 §5): on free the form stays visible — a lock card sits
+            above it, "Import" opens the premium sheet, and what was pasted
+            survives the sheet. "Or type it in yourself" is the free path. */}
+        {isPremium === false && (
+          <LockedFeatureCard
+            testID="import-locked"
+            source="recipe-import"
+            freeAction={{
+              label: PREMIUM_PITCH_COPY.importFreePath,
+              onPress: () => router.push('/recipe-form'),
+            }}
+          />
+        )}
+        {videoPreview ? (
           <VideoDraftForm
             preview={videoPreview}
             saving={saveMutation.isPending}
@@ -265,7 +267,19 @@ export default function ImportRecipeScreen() {
               <TextInput
                 testID="import-url"
                 value={url}
-                onChangeText={setUrl}
+                onChangeText={(v) => {
+                  // bug B-17: pasting a video link into the plain Link tab
+                  // used to run it through the wrong (page-text) extractor.
+                  // Detect a supported video URL and switch to the video
+                  // flow, keeping what was typed.
+                  if (isSupportedVideoUrl(v)) {
+                    setTab('video');
+                    setVideoUrl(v);
+                    setUrl('');
+                    return;
+                  }
+                  setUrl(v);
+                }}
                 autoCapitalize="none"
                 keyboardType="url"
                 placeholder="https://example.com/best-lasagna"

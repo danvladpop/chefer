@@ -32,4 +32,10 @@ describe('activationSteps (F-PREM-1-5, F-PM-9)', () => {
     ]);
     expect(activationSteps('unknown-source', false)).toHaveLength(3);
   });
+
+  it('regenerate/cheferize act on arrival instead of just linking to the page (bug B-09)', () => {
+    const steps = activationSteps('recipe-import', true);
+    expect(steps.find((s) => s.key === 'regenerate')?.href).toBe('/meal-plan?generate=1');
+    expect(steps.find((s) => s.key === 'cheferize')?.href).toBe('/recipes?import=1');
+  });
 });

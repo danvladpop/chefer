@@ -2,103 +2,109 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { ONBOARDING_INTENTS, type OnboardingIntent } from '@chefer/types';
+import type { OnboardingJob } from '@chefer/types';
+import { LB_PER_KG } from '@chefer/types';
 import { Button, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { onboardingProgress, onboardingSteps, type OnboardingStepKey } from '@chefer/utils';
+import {
+  aiConsentRequiredFor,
+  inferUnitsFromInput,
+  inToCm,
+  onboardingProgress,
+  onboardingSteps,
+  type OnboardingStepKey,
+} from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
+import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { setMode } from '../gym/mode-store';
 import { HouseholdEditor } from '../household/household-editor';
 import { CuisineStep, type CuisineStepValue } from '../preferences/components/cuisine-step';
 import { GoalStep } from '../preferences/components/goal-step';
 import { MetricsStep } from '../preferences/components/metrics-step';
 import { SafetyStep } from '../preferences/components/safety-step';
-import type {
-  ActivityLevel,
-  BiologicalSex,
-  Goal,
-  MetricsValue,
-  SafetyValue,
-} from '../preferences/types';
-import { IntentStep } from './intent-step';
+import { TargetsCard } from '../preferences/targets-card';
+import { GOALS, type Goal, type MetricsValue, type SafetyValue } from '../preferences/types';
+import { ONBOARDING_COPY } from './copy';
+import { HowYouCookStep, type HowYouCookStepValue } from './how-you-cook-step';
+import { JobsStep } from './jobs-step';
+import { TrainingDaysStep, type TrainingDayKind } from './training-days-step';
 
 // Onboarding — dogfood feedback #9: a new account used to land straight on
 // the dashboard. Now register (app/(auth)/register.tsx) routes here first.
 //
-// Mirrors apps/web/src/features/onboarding/components/onboarding-wizard.tsx:
-//  - Premium: 4 steps (goal → metrics → diet → cuisine), all saved together
-//    via the premium preferences.setup mutation on finish.
-//  - Free: 3 steps — safety first (free preferences.updateSafety), then
-//    OPTIONAL goal and body metrics (free preferences.saveProfileBasics,
-//    P1-2 / ux-fixes-plan 3.1).
-// Sign-in never routes here (app/(auth)/login.tsx is unchanged).
-//
-// Step 0 (backlog P2-3, audit F-PM-6): "What brings you here?" while the
-// profile has no intent — households get "Who's at your table?" before the
-// food steps, gym-goers go straight to Gym setup (food later). The step list
-// is the shared `onboardingSteps`, same as web. No serving-size question:
-// the household is the one people model (F-PM-8).
+// v3 (UX-03, T-03.2/T-03.3, rev 2): the jobs-based wizard. Step 1 replaces
+// "What brings you here?" with a multi-select "What should Chefer help
+// with?" (JobsStep); the step list is built from the answer by the shared
+// `onboardingSteps({ askJobs: true, ... })` (@chefer/utils) — Train alone
+// hands off to gym setup exactly as before, any food job gets Diet → How
+// you cook → Goal → Body metrics (+ Targets for Track or Train with a
+// numeric goal), premium adds Cuisine at the end. Every tier saves through
+// the same free-for-every-tier granular procedures (updateSafety,
+// saveProfileBasics) — the old premium/free branch collapses into one
+// builder (edge case note, UX-03).
 
 function stepTitle(key: OnboardingStepKey, isPremium: boolean): string {
   switch (key) {
     case 'intent':
       return 'What brings you here?';
+    case 'jobs':
+      return ONBOARDING_COPY.jobsTitle;
+    case 'trainingDays':
+      return ONBOARDING_COPY.trainingDaysTitle;
     case 'table':
       return 'Who’s at your table?';
     case 'diet':
       return isPremium ? 'Diet & restrictions' : 'Diet & safety';
+    case 'howYouCook':
+      return 'How you cook';
     case 'goal':
       return 'Your goal';
     case 'metrics':
       return 'Body metrics';
     case 'cuisine':
       return 'Cuisine & cadence';
+    case 'targets':
+      return 'Your targets';
   }
 }
 
-function parseIntent(raw: unknown): OnboardingIntent | null {
-  return ONBOARDING_INTENTS.find((i) => i === raw) ?? null;
-}
-
-interface CompleteMetrics {
-  biologicalSex: BiologicalSex;
-  age: number;
-  heightCm: number;
-  weightKg: number;
-  activityLevel: ActivityLevel;
-}
-
-/** Type predicate — narrows away the nulls so the setup payload below needs
-    no non-null assertions. Mirrors web onboarding-wizard.tsx's canContinue
-    validation for its metrics step. */
-function isMetricsValid(m: MetricsValue): m is MetricsValue & CompleteMetrics {
-  return (
-    m.biologicalSex !== null &&
-    m.activityLevel !== null &&
-    m.age !== null &&
-    m.age >= 10 &&
-    m.age <= 110 &&
-    m.heightCm !== null &&
-    m.heightCm > 0 &&
-    m.heightCm <= 300 &&
-    m.weightKg !== null &&
-    m.weightKg > 0 &&
-    m.weightKg <= 500
-  );
+// §2.11, T-35.2 narrows away RECOMP/PERFORMANCE from the fixed GOALS list —
+// see the original comment this carries forward from v1.
+function knownGoal(goal: string | null | undefined): Goal | null {
+  return GOALS.find((g) => g.value === goal)?.value ?? null;
 }
 
 function goToDashboard() {
-  // Explicit group — bare '/' also matches the guarded (auth)/index and
-  // silently no-ops while signed in (same fix as ModeSwitch's onChange).
   router.replace('/(food)');
 }
+
+const EMPTY_HOW_YOU_COOK: HowYouCookStepValue = {
+  shape: null,
+  currency: 'EUR',
+  units: 'METRIC',
+  autoPlanWeekly: false,
+};
 
 export function OnboardingWizard() {
   const isPremium = useIsPremium();
   const utils = trpc.useUtils();
+  const requestAiConsent = useAiConsent();
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  const [jobs, setJobsState] = useState<OnboardingJob[]>([]);
+  const [trainingWeekdays, setTrainingWeekdays] = useState<number[]>([]);
+  const [trainingDayKinds, setTrainingDayKinds] = useState<Record<number, TrainingDayKind>>({});
+  const [howYouCook, setHowYouCook] = useState<HowYouCookStepValue>(EMPTY_HOW_YOU_COOK);
+  // §2.4, T-03.8 (bug B-43): set when a typed height/weight didn't fit the
+  // current units and the metrics step auto-switched — `from` is the unit
+  // Undo restores. `howYouCook.units` is the single units source the whole
+  // wizard shares (How you cook and Body metrics), even on a Track-only
+  // chain where How you cook never renders.
+  const [unitSwitchNotice, setUnitSwitchNotice] = useState<{
+    from: 'METRIC' | 'IMPERIAL';
+  } | null>(null);
+  const [goodFood, setGoodFood] = useState(false);
   const [goal, setGoal] = useState<Goal | null>(null);
   const [metrics, setMetrics] = useState<MetricsValue>({
     biologicalSex: null,
@@ -119,16 +125,14 @@ export function OnboardingWizard() {
     cuisinePreferences: [],
     mealsPerDay: 3,
   });
-  const [intent, setIntent] = useState<OnboardingIntent | null>(null);
 
   // Start from what's already saved: a wizard re-opened after upgrading used
   // to start blank, and Finish saved empty allergy lists over the real ones
   // (audit F-ONB-1-1). Mirrors web's wizardDataFromPreferences.
   const savedPrefs = trpc.preferences.get.useQuery();
-  // The saved intent, captured once: a saved answer skips the question.
-  const savedIntent = useRef<OnboardingIntent | null | undefined>(undefined);
-  if (savedIntent.current === undefined && savedPrefs.data) {
-    savedIntent.current = parseIntent(savedPrefs.data.chefProfile?.onboardingIntent);
+  const savedJobs = useRef<OnboardingJob[] | undefined>(undefined);
+  if (savedJobs.current === undefined && savedPrefs.data) {
+    savedJobs.current = savedPrefs.data.jobs;
   }
   const hydrated = useRef(false);
   useEffect(() => {
@@ -138,7 +142,7 @@ export function OnboardingWizard() {
     const profile = saved.chefProfile;
     const diet = saved.dietaryPreferences;
     if (profile) {
-      setGoal(profile.goal ?? null);
+      setGoal(knownGoal(profile.goal));
       setMetrics({
         biologicalSex: profile.biologicalSex ?? null,
         age: profile.age ?? null,
@@ -163,21 +167,39 @@ export function OnboardingWizard() {
     }
   }, [savedPrefs.data]);
 
-  const setupMutation = trpc.preferences.setup.useMutation({
+  const setJobsMutation = trpc.preferences.setJobs.useMutation({
     onError: (err) => setError(err.message),
   });
+  const setDayKindsMutation = trpc.training.setDayKinds.useMutation();
+  const setShapeMutation = trpc.mealPlan.setShape.useMutation();
+  const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation();
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
     onError: (err) => setError(err.message),
   });
   const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
     onError: (err) => setError(err.message),
   });
-  const intentMutation = trpc.preferences.setIntent.useMutation({
-    onError: (err) => setError(err.message),
-  });
+  const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
+  const generateMutation = trpc.mealPlan.generate.useMutation();
 
-  // Saved prefs failed to load: a blank wizard could save empty safety
-  // lists, so show an error instead (F-ONB-1-1, F-X-3-1).
+  // Bug (UX-03): the ScrollView is one persistent instance across every
+  // step, so a step reached scrolled down (e.g. How you cook, which needs
+  // scrolling to reach the auto-plan toggle) carried that offset straight
+  // into the next step. The content visually snapped back on its own a
+  // beat later, but a tap delivered before that correction lands on
+  // whatever the stale offset put under it — on the goal step this meant
+  // the very first Continue tap after How you cook could miss "Lose
+  // Weight" entirely and silently leave `goal` at null, which then
+  // silently dropped the whole `targets` step for Train + a numeric goal
+  // (03 UX-03 flow table). Reset to the top on every step change instead.
+  // Keyed on `step` (not `stepKey`) so this hook can sit above the loading/
+  // error early returns below, where `steps`/`stepKey` aren't computed yet
+  // — hooks can't follow a conditional return.
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [step]);
+
   if (savedPrefs.isError && !savedPrefs.data) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
@@ -191,7 +213,6 @@ export function OnboardingWizard() {
     );
   }
 
-  // Wait for saved prefs too, so Finish can't submit a blank wizard.
   if (isPremium === undefined || savedPrefs.isLoading) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
@@ -200,74 +221,148 @@ export function OnboardingWizard() {
     );
   }
 
-  const askIntent = (savedIntent.current ?? null) === null;
+  const askJobs = (savedJobs.current ?? []).length === 0;
+  const effectiveJobsAnswer = askJobs ? jobs : (savedJobs.current ?? []);
   const steps = onboardingSteps({
-    intent: askIntent ? intent : (savedIntent.current ?? null),
-    askIntent,
+    intent: null,
+    askIntent: false,
     isPremium,
+    jobs: effectiveJobsAnswer,
+    askJobs: true,
+    hasNumericGoal: !goodFood && goal !== null,
   });
   const totalSteps = steps.length;
   const stepKey: OnboardingStepKey = steps[Math.min(step, totalSteps - 1)] ?? 'diet';
-  // "Step 1" with no total while the intent question is open: the answer
-  // changes the total, and the counter must never grow (4 → 5).
   const progress = onboardingProgress(steps, step);
   const progressPct = progress.percent ?? 0;
   const isSubmitting =
-    setupMutation.isPending ||
+    setJobsMutation.isPending ||
     safetyMutation.isPending ||
     profileBasicsMutation.isPending ||
-    intentMutation.isPending;
+    setShapeMutation.isPending ||
+    setDisplayPrefsMutation.isPending ||
+    updateTargetsMutation.isPending;
 
   function handleAgeText(raw: string) {
     setAgeText(raw);
     const n = parseInt(raw, 10);
     setMetrics((m) => ({ ...m, age: raw === '' || isNaN(n) ? null : n }));
   }
+
+  /** Raw typed text -> a number in whatever `units` currently means, or null. */
+  function parseTyped(raw: string): number | null {
+    const n = parseFloat(raw.replace(',', '.'));
+    return raw === '' || isNaN(n) ? null : n;
+  }
+
+  /**
+   * §2.4, T-03.8 (bug B-43, AC11): after either field changes, check whether
+   * the two typed values (read fresh from state, in the CURRENT units) fit
+   * the other system far better — if so, switch `howYouCook.units` for the
+   * whole wizard and re-interpret the SAME typed digits under the new unit
+   * (170 stays "170" but now means 170 cm, not 170 in), so the stored
+   * heightCm/weightKg are never briefly nonsense mid-switch.
+   */
+  function checkUnitSwitch(heightRaw: string, weightRaw: string) {
+    const currentUnits = howYouCook.units;
+    const heightVal = parseTyped(heightRaw);
+    const weightVal = parseTyped(weightRaw);
+    const result = inferUnitsFromInput({
+      heightValue: heightVal,
+      weightValue: weightVal,
+      currentUnits,
+    });
+    if (!result.shouldSwitch) return;
+    const next = result.suggestedUnits;
+    setHowYouCook((h) => ({ ...h, units: next }));
+    setMetrics((m) => ({
+      ...m,
+      ...(heightVal !== null && { heightCm: next === 'IMPERIAL' ? inToCm(heightVal) : heightVal }),
+      ...(weightVal !== null && {
+        weightKg: next === 'IMPERIAL' ? weightVal / LB_PER_KG : weightVal,
+      }),
+    }));
+    setUnitSwitchNotice({ from: currentUnits });
+  }
+
+  function heightWeightToMetric(
+    typed: number | null,
+    units: 'METRIC' | 'IMPERIAL',
+    kind: 'height' | 'weight',
+  ) {
+    if (typed === null) return null;
+    if (units !== 'IMPERIAL') return typed;
+    return kind === 'height' ? inToCm(typed) : typed / LB_PER_KG;
+  }
+
   function handleHeightText(raw: string) {
     setHeightText(raw);
-    const n = parseFloat(raw.replace(',', '.'));
-    setMetrics((m) => ({ ...m, heightCm: raw === '' || isNaN(n) ? null : n }));
+    const typed = parseTyped(raw);
+    setMetrics((m) => ({
+      ...m,
+      heightCm: heightWeightToMetric(typed, howYouCook.units, 'height'),
+    }));
+    checkUnitSwitch(raw, weightText);
   }
   function handleWeightText(raw: string) {
     setWeightText(raw);
-    const n = parseFloat(raw.replace(',', '.'));
-    setMetrics((m) => ({ ...m, weightKg: raw === '' || isNaN(n) ? null : n }));
+    const typed = parseTyped(raw);
+    setMetrics((m) => ({
+      ...m,
+      weightKg: heightWeightToMetric(typed, howYouCook.units, 'weight'),
+    }));
+    checkUnitSwitch(heightText, raw);
+  }
+
+  /** Reverts the units switch and re-interprets the same typed digits under the old unit. */
+  function undoUnitSwitch() {
+    if (!unitSwitchNotice) return;
+    const revert = unitSwitchNotice.from;
+    setHowYouCook((h) => ({ ...h, units: revert }));
+    const heightVal = parseTyped(heightText);
+    const weightVal = parseTyped(weightText);
+    setMetrics((m) => ({
+      ...m,
+      ...(heightVal !== null && { heightCm: heightWeightToMetric(heightVal, revert, 'height') }),
+      ...(weightVal !== null && { weightKg: heightWeightToMetric(weightVal, revert, 'weight') }),
+    }));
+    setUnitSwitchNotice(null);
+  }
+
+  const hasTrain = jobs.includes('TRAIN');
+
+  /** Fire-and-forget first-week generation (AC7) — a failure never blocks onboarding. */
+  function generateFirstWeek() {
+    const run = () => generateMutation.mutate({ weekOffset: 0 });
+    requestAiConsent('meal-plan', run, {
+      usesAi: aiConsentRequiredFor('meal-plan', isPremium === true),
+    });
   }
 
   async function handleFinish() {
-    if (isPremium) {
-      if (!goal || !isMetricsValid(metrics)) {
-        return;
-      }
-      try {
-        await setupMutation.mutateAsync({
-          goal,
-          biologicalSex: metrics.biologicalSex,
-          age: metrics.age,
-          heightCm: metrics.heightCm,
-          weightKg: metrics.weightKg,
-          activityLevel: metrics.activityLevel,
-          dietaryRestrictions: safety.dietaryRestrictions,
-          allergies: safety.allergies,
-          dislikedIngredients: safety.dislikedIngredients,
-          cuisinePreferences: cuisine.cuisinePreferences,
-          mealsPerDay: cuisine.mealsPerDay,
-        });
-        void utils.preferences.invalidate();
-        void utils.dashboard.invalidate();
-        goToDashboard();
-      } catch {
-        // onError already surfaced the message.
-      }
-      return;
-    }
-
-    // Free tier: safety is always saved; goal + metrics are optional but
-    // storable (every-tier saveProfileBasics) — same finish action as web.
+    setError(null);
     try {
+      await setJobsMutation.mutateAsync({
+        jobs,
+        ...(hasTrain && trainingWeekdays.length > 0 && { trainingWeekdays }),
+        ...(steps.includes('howYouCook') && { autoPlanWeekly: howYouCook.autoPlanWeekly }),
+      });
+      if (Object.keys(trainingDayKinds).length > 0) {
+        const days = Object.fromEntries(
+          Object.entries(trainingDayKinds).map(([weekday, kind]) => [weekday, kind]),
+        );
+        await setDayKindsMutation.mutateAsync({ days });
+      }
+      if (steps.includes('howYouCook') && howYouCook.shape) {
+        await setShapeMutation.mutateAsync(howYouCook.shape);
+        await setDisplayPrefsMutation.mutateAsync({
+          preferredUnits: howYouCook.units,
+          currency: howYouCook.currency,
+        });
+      }
       await safetyMutation.mutateAsync(safety);
       const basics = {
-        ...(goal !== null && { goal }),
+        ...(!goodFood && goal !== null && { goal }),
         ...(metrics.biologicalSex !== null && { biologicalSex: metrics.biologicalSex }),
         ...(metrics.age !== null && metrics.age > 0 && { age: metrics.age }),
         ...(metrics.heightCm !== null && metrics.heightCm > 0 && { heightCm: metrics.heightCm }),
@@ -277,24 +372,70 @@ export function OnboardingWizard() {
       if (Object.keys(basics).length > 0) {
         await profileBasicsMutation.mutateAsync(basics);
       }
+      if (isPremium && steps.includes('cuisine')) {
+        await updateTargetsMutation.mutateAsync({
+          cuisinePreferences: cuisine.cuisinePreferences,
+          mealsPerDay: cuisine.mealsPerDay,
+        });
+      }
       void utils.preferences.invalidate();
       void utils.dashboard.invalidate();
+
+      if (hasTrain) {
+        // Train + food (AC3/AC9): a first week generates in the background
+        // while the gym wizard opens pre-filled at step 2 (T-03.4 — the
+        // days/pre-fill handling itself is L-GYM's setup-wizard, see the
+        // final report).
+        generateFirstWeek();
+        setMode('gym');
+        router.replace('/today');
+        const days = [...trainingWeekdays].sort((a, b) => a - b).join(',');
+        router.push(`/gym/setup?from=onboarding${days ? `&days=${days}` : ''}`);
+        return;
+      }
+      generateFirstWeek();
       goToDashboard();
     } catch {
-      // onError already surfaced the message.
+      // onError already surfaced the message for the mutations that set one.
     }
   }
 
-  function handleSkip() {
-    if (isPremium) {
-      // The premium setup mutation is all-or-nothing (needs goal + full
-      // metrics), so there's nothing partial to save — just leave.
-      goToDashboard();
+  async function handleJobsContinue() {
+    if (jobs.length === 0) return;
+    try {
+      await setJobsMutation.mutateAsync({ jobs });
+    } catch {
       return;
     }
-    // Free tier: every field is optional and its procedures accept partial
-    // data any time, so Skip saves whatever is already filled in, same as
-    // Finish would.
+    const trainOnly = jobs.length === 1 && jobs[0] === 'TRAIN';
+    if (trainOnly) {
+      // Train only (AC2): gym setup exactly as today, food later.
+      setMode('gym');
+      router.replace('/today');
+      router.push('/gym/setup');
+      return;
+    }
+    setStep((s) => s + 1);
+  }
+
+  function handleSkip() {
+    // "Just looking around" on the jobs step only — saves PLAN_MEALS and
+    // goes straight to Food Today (replaces "Skip for now" on this step).
+    if (stepKey === 'jobs') {
+      setJobsState(['PLAN_MEALS']);
+      setJobsMutation.mutate(
+        { jobs: ['PLAN_MEALS'] },
+        {
+          onSuccess: () => {
+            void utils.preferences.invalidate();
+            goToDashboard();
+          },
+        },
+      );
+      return;
+    }
+    // Every later step is already optional/skippable — Skip just finishes
+    // with whatever is filled in so far, same as Continue would.
     void handleFinish();
   }
 
@@ -306,30 +447,10 @@ export function OnboardingWizard() {
     goToDashboard();
   }
 
-  async function handleIntentContinue() {
-    if (intent === null) {
-      return;
-    }
-    try {
-      await intentMutation.mutateAsync({ intent });
-    } catch {
-      return; // onError surfaced it
-    }
-    if (intent === 'TRAIN') {
-      // Gym-goers set up training first; food setup can wait (F-PM-6). Same
-      // path as the Food | Gym switch: Today underneath, Setup on top.
-      setMode('gym');
-      router.replace('/today');
-      router.push('/gym/setup');
-      return;
-    }
-    setStep((s) => s + 1);
-  }
-
   function handleContinue() {
     setError(null);
-    if (stepKey === 'intent') {
-      void handleIntentContinue();
+    if (stepKey === 'jobs') {
+      void handleJobsContinue();
       return;
     }
     if (step < totalSteps - 1) {
@@ -343,20 +464,53 @@ export function OnboardingWizard() {
 
   let content: React.ReactNode = null;
   const metricsStep = (
-    <MetricsStep
-      value={metrics}
-      onChange={setMetrics}
-      goal={goal}
-      ageText={ageText}
-      heightText={heightText}
-      weightText={weightText}
-      onAgeText={handleAgeText}
-      onHeightText={handleHeightText}
-      onWeightText={handleWeightText}
-    />
+    <View className="gap-3">
+      <MetricsStep
+        value={metrics}
+        onChange={setMetrics}
+        goal={goodFood ? null : goal}
+        ageText={ageText}
+        heightText={heightText}
+        weightText={weightText}
+        onAgeText={handleAgeText}
+        onHeightText={handleHeightText}
+        onWeightText={handleWeightText}
+        units={howYouCook.units}
+      />
+      {unitSwitchNotice && (
+        <View
+          testID="metrics-units-switch-notice"
+          className="flex-row flex-wrap items-center gap-2"
+        >
+          <Text variant="muted" className="flex-1 text-xs">
+            {howYouCook.units === 'METRIC'
+              ? ONBOARDING_COPY.unitsSwitchedToMetric
+              : ONBOARDING_COPY.unitsSwitchedToImperial}
+          </Text>
+          <Pressable
+            testID="metrics-units-switch-undo"
+            accessibilityRole="button"
+            onPress={undoUnitSwitch}
+            className="min-h-11 justify-center"
+          >
+            <Text className="text-xs font-semibold text-primary">Undo</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
   );
-  if (stepKey === 'intent') {
-    content = <IntentStep value={intent} onChange={setIntent} />;
+  if (stepKey === 'jobs') {
+    content = <JobsStep value={jobs} onChange={setJobsState} />;
+  } else if (stepKey === 'trainingDays') {
+    content = (
+      <TrainingDaysStep
+        weekdays={trainingWeekdays}
+        onWeekdaysChange={setTrainingWeekdays}
+        dayKinds={trainingDayKinds}
+        onDayKindsChange={setTrainingDayKinds}
+        onNotSure={() => setStep((s) => s + 1)}
+      />
+    );
   } else if (stepKey === 'table') {
     content = (
       <View className="gap-3">
@@ -369,17 +523,28 @@ export function OnboardingWizard() {
     );
   } else if (stepKey === 'diet') {
     content = <SafetyStep value={safety} onChange={setSafety} testIDPrefix="onb" />;
+  } else if (stepKey === 'howYouCook') {
+    content = <HowYouCookStep value={howYouCook} onChange={setHowYouCook} isPremium={isPremium} />;
   } else if (stepKey === 'cuisine') {
     content = <CuisineStep value={cuisine} onChange={setCuisine} />;
-  } else if (isPremium) {
-    content = stepKey === 'goal' ? <GoalStep value={goal} onChange={setGoal} /> : metricsStep;
+  } else if (stepKey === 'targets') {
+    content = <TargetsCard />;
   } else if (stepKey === 'goal') {
     content = (
       <View className="gap-3">
         <Text variant="muted" className="text-center text-sm">
           Optional — skip if you just want chef-picked meals.
         </Text>
-        <GoalStep value={goal} onChange={setGoal} />
+        <GoalStep
+          value={goodFood ? null : goal}
+          onChange={(g) => {
+            setGoodFood(false);
+            setGoal(g);
+          }}
+          showGoodFood
+          goodFood={goodFood}
+          onGoodFood={() => setGoodFood(true)}
+        />
       </View>
     );
   } else {
@@ -395,14 +560,10 @@ export function OnboardingWizard() {
   }
 
   const canContinue =
-    stepKey === 'intent'
-      ? intent !== null
-      : isPremium
-        ? stepKey === 'goal'
-          ? goal !== null
-          : stepKey === 'metrics'
-            ? isMetricsValid(metrics)
-            : true
+    stepKey === 'jobs'
+      ? jobs.length > 0
+      : stepKey === 'goal'
+        ? goodFood || true // goal is always optional past the jobs step
         : true;
 
   return (
@@ -445,6 +606,7 @@ export function OnboardingWizard() {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         contentContainerClassName="gap-4 px-4 py-3 pb-8"
         keyboardShouldPersistTaps="handled"
       >
@@ -464,23 +626,27 @@ export function OnboardingWizard() {
           disabled={!canContinue || isSubmitting}
           onPress={handleContinue}
         >
-          {stepKey === 'intent' && intent === 'TRAIN'
-            ? 'Set up training'
+          {stepKey === 'jobs'
+            ? `Continue — ${jobs.length} selected`
             : step === totalSteps - 1
-              ? 'Finish'
+              ? hasTrain
+                ? ONBOARDING_COPY.finishTrainFood
+                : ONBOARDING_COPY.finishFood
               : 'Continue'}
         </Button>
-        {/* Skip sits under Continue: thumb reach, and clear of the top-right
-            corner (the dev-client Tools bubble swallowed taps there). */}
-        <Pressable
-          testID="onboarding-skip"
-          accessibilityRole="button"
-          onPress={handleSkip}
-          disabled={isSubmitting}
-          className="h-11 items-center justify-center"
-        >
-          <Text className="text-sm font-semibold text-primary">Skip for now</Text>
-        </Pressable>
+        {stepKey === 'jobs' && (
+          <Pressable
+            testID="onboarding-skip"
+            accessibilityRole="button"
+            onPress={handleSkip}
+            disabled={isSubmitting}
+            className="h-11 items-center justify-center"
+          >
+            <Text className="text-sm font-semibold text-primary">
+              {ONBOARDING_COPY.continueSkip}
+            </Text>
+          </Pressable>
+        )}
       </View>
     </Screen>
   );

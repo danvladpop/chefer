@@ -1,8 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, userEvent } from '@testing-library/react-native';
+import type { NextWorkoutDto, RoutineDto, SessionSummaryDto } from '@chefer/types';
+import { weekdayOf } from '@chefer/utils';
 import { getMode, resetModeForTests } from '../../src/features/gym/mode-store';
+import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
+import { localDate } from '../../src/features/gym/offline/ids';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { TodaysWorkoutCard } from '../../src/features/gym/today/todays-workout-card';
+import { saveForLater, startWorkout } from '../../src/features/gym/use-active-workout';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { makeBootstrap } from './gym-fixtures';
 
@@ -31,10 +36,77 @@ function makeClient() {
   return new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
 }
 
+// A one-day routine whose weekday can be pinned to "today" (training) or a
+// different day (rest) — T-05.9 / T-04.6 (UX-04 §5-6, bug B-15's companion).
+function routineFor(plannedWeekday: number): RoutineDto {
+  return {
+    id: 'r1',
+    name: 'Upper/Lower',
+    templateKey: null,
+    isActive: true,
+    nextDayId: 'day-a',
+    version: 1,
+    archived: false,
+    updatedAt: '2026-09-01T00:00:00.000Z',
+    days: [{ id: 'day-a', position: 0, name: 'Upper A', plannedWeekday, exercises: [] }],
+  };
+}
+
+const NEXT_WORKOUT: NextWorkoutDto = {
+  routineId: 'r1',
+  dayId: 'day-a',
+  dayName: 'Upper A',
+  isDeload: false,
+  estimatedMin: 40,
+  exercises: [
+    {
+      routineExerciseId: 're1',
+      exerciseId: 'bench',
+      position: 0,
+      sets: 3,
+      repMin: 8,
+      repMax: 12,
+      targetRir: 2,
+      restSec: 120,
+      supersetGroup: null,
+      notes: null,
+      repBucket: '8-12',
+      suggestion: {
+        kind: 'start',
+        weightKg: 60,
+        reps: [10, 10, 10],
+        sets: 3,
+        reasonCode: 'START',
+        inputs: {},
+        deltaKg: 0,
+        engineVersion: 1,
+      },
+      warmups: [],
+      lastTime: null,
+    },
+  ],
+};
+
+function todaySession(): SessionSummaryDto {
+  const today = localDate();
+  return {
+    id: 'done-session',
+    name: 'Upper A',
+    routineDayId: 'day-a',
+    status: 'COMPLETED',
+    localDate: today,
+    startedAt: `${today}T18:00:00.000Z`,
+    finishedAt: `${today}T18:40:00.000Z`,
+    isDeload: false,
+    exercises: [],
+  };
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   setKvBackendForTests(createMemoryKvBackend());
   resetModeForTests();
+  activeSessionStore.clear();
 });
 
 describe('TodaysWorkoutCard', () => {
@@ -58,37 +130,113 @@ describe('TodaysWorkoutCard', () => {
     expect(router.push).toHaveBeenCalledWith('/today');
   });
 
-  it('shows the next day name and the week ring', async () => {
+  it('training, not done: shows the day name, estimate and a Start workout button', async () => {
+    const user = userEvent.setup();
     const queryClient = makeClient();
     queryClient.setQueryData(
       gymBootstrapQueryKey,
       makeBootstrap({
-        nextWorkout: {
-          routineId: 'r1',
-          dayId: 'd1',
-          dayName: 'Upper A',
-          isDeload: false,
-          estimatedMin: 40,
-          exercises: [],
-        },
-        streak: { current: 1, best: 1, flexTokens: 0, thisWeekSessions: 1, thisWeekGoal: 3 },
+        activeRoutine: routineFor(weekdayOf(localDate())),
+        nextWorkout: NEXT_WORKOUT,
       }),
     );
     await renderCard(queryClient);
+
     expect(screen.getByTestId('todays-workout-card-label')).toHaveTextContent('Upper A');
-    expect(screen.getByTestId('todays-workout-card-ring')).toBeOnTheScreen();
+    expect(screen.getByTestId('todays-workout-card')).toHaveTextContent(/~40 min · 1 exercises/);
+
+    await user.press(screen.getByTestId('todays-workout-card-start'));
+    expect(getMode()).toBe('gym');
+    expect(router.push).toHaveBeenCalledWith('/gym/workout');
+    expect(activeSessionStore.get()?.doc.name).toBe('Upper A');
   });
 
-  it('shows "Done ✓" once the weekly goal is met and nothing is next', async () => {
+  it('done today: "Done today ✓ · Next: …", no Start button, taps through to Gym Today', async () => {
+    const user = userEvent.setup();
     const queryClient = makeClient();
     queryClient.setQueryData(
       gymBootstrapQueryKey,
       makeBootstrap({
-        nextWorkout: null,
-        streak: { current: 1, best: 1, flexTokens: 0, thisWeekSessions: 3, thisWeekGoal: 3 },
+        activeRoutine: routineFor(weekdayOf(localDate())),
+        nextWorkout: NEXT_WORKOUT,
+        recentSessions: [todaySession()],
       }),
     );
     await renderCard(queryClient);
-    expect(screen.getByTestId('todays-workout-card-label')).toHaveTextContent('Done ✓');
+
+    expect(screen.getByTestId('todays-workout-card-label')).toHaveTextContent(
+      /Done today ✓ · Next: Upper A on/,
+    );
+    expect(screen.queryByTestId('todays-workout-card-start')).not.toBeOnTheScreen();
+
+    await user.press(screen.getByTestId('todays-workout-card'));
+    expect(getMode()).toBe('gym');
+    expect(router.push).toHaveBeenCalledWith('/today');
+  });
+
+  it('rest day: "Rest day · Next: …", a Train anyway link instead of Start', async () => {
+    const user = userEvent.setup();
+    const restWeekday = (weekdayOf(localDate()) + 1) % 7;
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: routineFor(restWeekday), nextWorkout: NEXT_WORKOUT }),
+    );
+    await renderCard(queryClient);
+
+    expect(screen.getByTestId('todays-workout-card-label')).toHaveTextContent(
+      /Rest day · Next: Upper A on/,
+    );
+    expect(screen.queryByTestId('todays-workout-card-start')).not.toBeOnTheScreen();
+
+    await user.press(screen.getByTestId('todays-workout-card-train-anyway'));
+    expect(getMode()).toBe('gym');
+    expect(router.push).toHaveBeenCalledWith('/today');
+  });
+
+  // T-36.A1.2: the resume line, built on the same resumeSummary() the gym
+  // Today Resume card and the logger itself use (UX-36 A1, AC9) — it
+  // outranks the done/rest/training states above.
+  describe('an in-progress or paused session (T-36.A1.2)', () => {
+    beforeEach(() => {
+      startWorkout({ kind: 'planned', workout: NEXT_WORKOUT });
+    });
+
+    it('shows "Workout in progress · N of M exercises" and a Resume button', async () => {
+      const user = userEvent.setup();
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: routineFor(weekdayOf(localDate())),
+          nextWorkout: NEXT_WORKOUT,
+        }),
+      );
+      await renderCard(queryClient);
+
+      expect(screen.getByTestId('todays-workout-card-resume-label')).toHaveTextContent(
+        'Workout in progress · 0 of 1 exercises',
+      );
+      await user.press(screen.getByTestId('todays-workout-card-resume-button'));
+      expect(getMode()).toBe('gym');
+      expect(router.push).toHaveBeenCalledWith('/gym/workout');
+    });
+
+    it('shows "Workout paused" once saved for later', async () => {
+      saveForLater();
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: routineFor(weekdayOf(localDate())),
+          nextWorkout: NEXT_WORKOUT,
+        }),
+      );
+      await renderCard(queryClient);
+
+      expect(screen.getByTestId('todays-workout-card-resume-label')).toHaveTextContent(
+        'Workout paused · 0 of 1 exercises',
+      );
+    });
   });
 });

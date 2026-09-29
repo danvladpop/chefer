@@ -23,6 +23,16 @@ export interface SessionSetWriteData {
   reps: number;
   isWarmup: boolean;
   completedAt: Date | null;
+  // S20 (T-42.0, Δ2.2) — cardio fields, all optional/nullable; undefined for
+  // every strength set. A cardio entry is ONE row (weightKg: 0, reps: 0,
+  // isWarmup: false); INTERVALS (W5) is one row per work/rest segment.
+  durationSec?: number | null;
+  distanceM?: number | null;
+  intensityRpe?: number | null;
+  resistanceLevel?: number | null;
+  inclinePct?: number | null;
+  caloriesKcal?: number | null;
+  avgHeartRateBpm?: number | null;
 }
 
 export interface SessionExerciseWriteData {

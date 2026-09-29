@@ -37,8 +37,10 @@
     "expo-constants": "~57.0.16",
     "expo-crypto": "~57.0.3",
     "expo-dev-client": "~57.0.16",
+    "expo-file-system": "57.0.6",
     "expo-haptics": "~57.0.3",
     "expo-image": "~57.0.5",
+    "expo-image-manipulator": "~57.0.20",
     "expo-image-picker": "~57.0.14",
     "expo-keep-awake": "~57.0.1",
     "expo-linking": "~57.0.8",
@@ -73,6 +75,7 @@
     "@types/react": "~19.2.2",
     "babel-preset-expo": "~57.0.0",
     "eslint": "^9.7.0",
+    "expo-modules-autolinking": "57.0.12",
     "typescript": "^5.5.2",
     "vitest": "^1.6.0"
   },

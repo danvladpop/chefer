@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { getQueryKey } from '@trpc/react-query';
 import type { GymBootstrap, WorkoutSessionDoc } from '@chefer/types';
-import { applyFinishedSession, type ExerciseLookup } from '@chefer/utils';
+import { applyFinishedSession, applyPendingCorrections, type ExerciseLookup } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { localDate } from './offline/ids';
 import { outbox } from './offline/outbox';
@@ -55,11 +55,15 @@ export function reconcileWithPending(
   today: string,
 ): GymBootstrap {
   if (!bootstrap.profile) return bootstrap;
-  const known = new Set(bootstrap.recentSessions.map((s) => s.id));
+  // UX-44: a correction still in the outbox (an edited COMPLETED doc, a
+  // DISCARDED tombstone — held or not) must survive a refetch made before it
+  // synced, or the old version would flash back.
+  const corrected = applyPendingCorrections(bootstrap, pending, today);
+  const known = new Set(corrected.recentSessions.map((s) => s.id));
   const missing = pending
     .filter((doc) => doc.status === 'COMPLETED' && !known.has(doc.id))
     .sort((a, b) => (a.finishedAt ?? a.startedAt).localeCompare(b.finishedAt ?? b.startedAt));
-  let current = bootstrap;
+  let current = corrected;
   for (const doc of missing) {
     try {
       current = applyFinishedSession({
@@ -78,13 +82,25 @@ export function reconcileWithPending(
 
 /** Finished docs in the outbox that belong to the signed-in user and will be sent. */
 export function pendingFinishedDocs(): WorkoutSessionDoc[] {
+  return pendingOutboxDocs(['COMPLETED']);
+}
+
+/**
+ * UX-44: also DISCARDED tombstones — a held or unsynced delete must stay out of
+ * the lists when a bootstrap fetched before it synced arrives.
+ */
+export function pendingCorrectionDocs(): WorkoutSessionDoc[] {
+  return pendingOutboxDocs(['COMPLETED', 'DISCARDED']);
+}
+
+function pendingOutboxDocs(statuses: readonly WorkoutSessionDoc['status'][]): WorkoutSessionDoc[] {
   const owner = getGymOwner();
   return outbox
     .getState()
     .entries.filter(
       (e) =>
         !e.parkedReason &&
-        e.doc.status === 'COMPLETED' &&
+        statuses.includes(e.doc.status) &&
         (e.ownerId === null || owner === null || e.ownerId === owner),
     )
     .map((e) => e.doc);
@@ -99,7 +115,7 @@ export function gymBootstrapQueryOptions(queryClient: QueryClient, fetcher: Boot
       const today = localDate();
       const next = await fetcher(since ? { today, librarySince: since } : { today });
       const merged = mergeBootstrap(prev, next, since !== undefined);
-      return reconcileWithPending(merged, pendingFinishedDocs(), today);
+      return reconcileWithPending(merged, pendingCorrectionDocs(), today);
     },
     staleTime: 60_000,
     gcTime: GYM_QUERY_GC_TIME,

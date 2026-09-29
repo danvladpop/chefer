@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from 'react';
 import { Pressable, Text as RNText, View } from 'react-native';
-import { Image } from 'expo-image';
 import {
+  HIDDEN_EXERCISE_IMAGE_IDS,
   RIR_VALUES,
   type EquipmentProfile,
   type ExerciseBest,
@@ -14,12 +14,15 @@ import {
 } from '@chefer/types';
 import { Chip, Text } from '@chefer/ui-mobile';
 import { cn, explain, formatLoadNumber, unitLabel } from '@chefer/utils';
+import { ExerciseImage } from '../components/exercise-image';
 import { exerciseImageUrl } from '../library/exercise-image';
+import { CardioEntry } from './cardio-entry';
 import { SetRow, type SetRowHandlers } from './set-row';
 import {
   DIRECTION_ICON,
   directionOf,
   isCalibrating,
+  isCardioMeta,
   isDone,
   lastNoteFor,
   lastTimeSets,
@@ -46,6 +49,12 @@ export interface WorkoutContext {
   prior: SessionSummaryDto[];
   /** Bootstrap `olderBests` — PRs must beat these too (audit F-GYM-6-1). */
   olderBests?: Record<string, ExerciseBest> | undefined;
+  /**
+   * UX-44 (T-44.3): `edit` is the logger over a past session — no Why?/Next-time
+   * banner (they describe the future; the notice on Gym Today covers it) and the
+   * reps-left row is a collapsed `Change` line instead of a prompt. Omitted = live.
+   */
+  mode?: 'live' | 'edit';
   handlers: SetRowHandlers;
   onSheet: (request: WorkoutSheetRequest) => void;
   onToggle: (seId: string) => void;
@@ -55,6 +64,16 @@ export interface WorkoutContext {
   onSkip: (seId: string, skipped: boolean) => void;
   onAddSet: (seId: string) => void;
   onLayoutY: (seId: string, y: number) => void;
+  /** T-42.3: "Log it" on a cardio entry — completes the exercise's one set with these fields. */
+  onLogCardio: (seId: string, setId: string, fields: CardioLogFields) => void;
+}
+
+/** T-42.3: the fields a cardio "Log it" can set (S20, Δ2.2) — a subset of SessionSetDoc's cardio columns. */
+export interface CardioLogFields {
+  durationSec?: number;
+  distanceM?: number;
+  intensityRpe?: number;
+  resistanceLevel?: number;
 }
 
 export interface ExerciseCardProps {
@@ -105,17 +124,24 @@ function ExerciseCardImpl({
     [se, ctx.prior, ctx.olderBests],
   );
   const sentence = useMemo(() => explain(se.prescription, ctx.unit), [se.prescription, ctx.unit]);
-  const weightMode = weightModeOf(meta, ctx.profile);
+  const weightMode = weightModeOf(meta, ctx.profile, se.prescription.weightKg > 0);
   const working = workingSets(se);
   const warmups = warmupSetsOf(se);
   const done = working.filter(isDone).length;
   const warmupsDone = warmups.filter(isDone).length;
   const range = se.repMin === se.repMax ? `${se.repMin}` : `${se.repMin}–${se.repMax}`;
-  const subtitle = `${working.length} × ${range}${meta.isTimed ? ' s' : ''} · ${done}/${working.length} done`;
+  const cardio = isCardioMeta(meta);
+  // AC1: a cardio card never shows kg/sets/RIR — just done/not-done.
+  const subtitle = cardio
+    ? working[0] && isDone(working[0])
+      ? 'Logged'
+      : 'Not logged yet'
+    : `${working.length} × ${range}${meta.isTimed ? ' s' : ''} · ${done}/${working.length} done`;
   const imageUri = exerciseImageUrl(meta);
   const calibrating = isCalibrating(se.prescription);
-  const showRir = !se.skipped && lastWorkingSetDone(se);
-  const rirExpanded = rirOpen ?? se.lastSetRir === null;
+  const editing = ctx.mode === 'edit';
+  const showRir = !se.skipped && (editing ? working.length > 0 : lastWorkingSetDone(se));
+  const rirExpanded = rirOpen ?? (!editing && se.lastSetRir === null);
 
   return (
     <View
@@ -134,21 +160,17 @@ function ExerciseCardImpl({
           accessibilityRole="button"
           accessibilityLabel={`Technique for ${meta.name}`}
           onPress={() => ctx.onSheet({ kind: 'technique', seId: se.id })}
-          className="h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-muted"
+          className="overflow-hidden rounded-lg"
         >
-          {imageUri ? (
-            <Image
-              source={{ uri: imageUri }}
-              style={{ width: 48, height: 48 }}
-              contentFit="cover"
-              cachePolicy="disk"
-              accessibilityIgnoresInvertColors
-            />
-          ) : (
-            <RNText className="text-lg font-bold text-muted-foreground">
-              {meta.name.slice(0, 1)}
-            </RNText>
-          )}
+          <ExerciseImage
+            uri={imageUri}
+            equipment={meta.equipment}
+            name={meta.name}
+            size="thumb"
+            hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(meta.id)}
+            analyticsExerciseId={meta.ownerId ? 'custom' : meta.id}
+            testID={`${base}-thumb-image`}
+          />
         </Pressable>
         <Pressable
           testID={`${base}-header`}
@@ -183,7 +205,7 @@ function ExerciseCardImpl({
             {se.skipped ? 'Skipped' : subtitle}
             {pr ? ' · PR' : ''}
           </Text>
-          {lastNote ? (
+          {lastNote && !editing ? (
             <Text testID={`${base}-last-note`} variant="muted" numberOfLines={1}>
               Last time: {lastNote}
             </Text>
@@ -212,27 +234,48 @@ function ExerciseCardImpl({
             <Text className="font-semibold text-primary">Undo</Text>
           </Pressable>
         </View>
+      ) : expanded && cardio ? (
+        <View className="gap-2 px-2 pb-3">
+          <CardioEntry
+            se={se}
+            meta={meta}
+            unit={ctx.unit}
+            prior={ctx.prior}
+            testID={`${base}-cardio`}
+            onLogIt={(fields) => {
+              const setId = working[0]?.id;
+              if (setId) ctx.onLogCardio(se.id, setId, fields);
+            }}
+          />
+          {se.notes ? (
+            <Text testID={`${base}-note`} variant="muted" className="px-1">
+              Note: {se.notes}
+            </Text>
+          ) : null}
+        </View>
       ) : expanded ? (
         <View className="gap-2 px-2 pb-3">
-          <View className="flex-row items-start gap-2 rounded-xl bg-accent p-2">
-            <View className="rounded-md bg-card px-2 py-1">
-              <RNText testID={`${base}-direction`} className="text-xs font-bold text-primary">
-                {bannerChip(se.prescription, ctx.unit)}
-              </RNText>
+          {editing ? null : (
+            <View className="flex-row items-start gap-2 rounded-xl bg-accent p-2">
+              <View className="rounded-md bg-card px-2 py-1">
+                <RNText testID={`${base}-direction`} className="text-xs font-bold text-primary">
+                  {bannerChip(se.prescription, ctx.unit)}
+                </RNText>
+              </View>
+              <Text testID={`${base}-suggestion`} className="min-w-0 flex-1 text-sm">
+                {sentence}
+              </Text>
+              <Pressable
+                testID={`${base}-why`}
+                accessibilityRole="button"
+                accessibilityLabel="Why this target?"
+                onPress={() => ctx.onSheet({ kind: 'why', seId: se.id })}
+                className="-my-2 min-h-11 justify-center px-2"
+              >
+                <Text className="text-sm font-semibold text-primary">Why?</Text>
+              </Pressable>
             </View>
-            <Text testID={`${base}-suggestion`} className="min-w-0 flex-1 text-sm">
-              {sentence}
-            </Text>
-            <Pressable
-              testID={`${base}-why`}
-              accessibilityRole="button"
-              accessibilityLabel="Why this target?"
-              onPress={() => ctx.onSheet({ kind: 'why', seId: se.id })}
-              className="-my-2 min-h-11 justify-center px-2"
-            >
-              <Text className="text-sm font-semibold text-primary">Why?</Text>
-            </Pressable>
-          </View>
+          )}
 
           {warmups.length > 0 ? (
             <View>

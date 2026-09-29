@@ -1,12 +1,22 @@
 import { Fragment, useState } from 'react';
 import { ActivityIndicator, Pressable, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { HOUSEHOLD_PORTION_OPTIONS } from '@chefer/types';
-import { Button, Card, Input, PressableScale, Text } from '@chefer/ui-mobile';
-import { cn, householdPortionSum, type HouseholdGhostKind } from '@chefer/utils';
+import { findSafetyTaxonomyEntry, HOUSEHOLD_PORTION_OPTIONS } from '@chefer/types';
+import { Button, Card, Input, PressableScale, Sheet, Text } from '@chefer/ui-mobile';
+import {
+  allergiesAndDietForText,
+  classifySafetyValue,
+  cn,
+  householdPortionSum,
+  memberSummaryLine,
+  tableSummaryLine,
+  type HouseholdGhostKind,
+  type SafetyPickerValue,
+} from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { trpc } from '../../lib/trpc';
+import { openPremium } from '../premium/open-premium';
+import { SafetyPicker } from '../safety/safety-picker';
 import { HouseholdGhost } from './household-ghost';
 
 // Household editor (F2, backlog P2-3) — port of web's household-section.
@@ -16,6 +26,11 @@ import { HouseholdGhost } from './household-ghost';
 // week cost follow the whole table. Free + empty: the preset chips reveal
 // the ghost sample for the chip tapped (F-PM-12). Used by the Household
 // screen and the onboarding "Who's at your table?" step.
+//
+// T-01.7: the old comma-separated Allergies/Dietary restrictions/Dislikes
+// text inputs are replaced by one "Allergies & diet for {name}" button that
+// opens the shared SafetyPicker in a Sheet — the same structured entry
+// onboarding and Settings use. A "You" card is always first (UX-01).
 
 const PORTION_LABELS: Record<number, string> = {
   0.5: '½',
@@ -30,6 +45,12 @@ const PRESETS: Record<HouseholdGhostKind, { portionFactor: number; isKid: boolea
   kid: { portionFactor: 0.5, isKid: true },
 };
 
+const EMPTY_SAFETY: SafetyPickerValue = {
+  dietaryRestrictions: [],
+  allergies: [],
+  dislikedIngredients: [],
+};
+
 type Member = {
   id: string;
   name: string;
@@ -40,23 +61,103 @@ type Member = {
   dislikedIngredients: string[];
 };
 
-const splitList = (raw: string): string[] =>
-  raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+function labelFor(id: string): string {
+  return findSafetyTaxonomyEntry(id)?.label ?? id;
+}
+
+/** `{portion} portion · allergic: … · {diet} · won't eat: …` (UX-02, CI-41). */
+function memberCardSummary(m: {
+  portionFactor: number;
+  allergies: string[];
+  dietaryRestrictions: string[];
+  dislikedIngredients: string[];
+}): string {
+  const classified = classifySafetyValue(m);
+  const dietParts = [
+    ...(classified.dietBaseId ? [classified.dietBaseId] : []),
+    ...classified.dietModifierIds,
+  ].map(labelFor);
+  return memberSummaryLine({
+    portionLabel: PORTION_LABELS[m.portionFactor] ?? String(m.portionFactor),
+    allergies: classified.allergyIds.map(labelFor),
+    diet: dietParts.length > 0 ? dietParts.join(', ') : undefined,
+    dislikes: classified.dislikeIds.map(labelFor),
+  });
+}
+
+/** "You" card — always first (UX-01). Own safety, saved through preferences.updateSafety. */
+function YouCard() {
+  const { data } = trpc.preferences.get.useQuery();
+  const utils = trpc.useUtils();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [draft, setDraft] = useState<SafetyPickerValue>(EMPTY_SAFETY);
+
+  const ownSafety: SafetyPickerValue = {
+    dietaryRestrictions: data?.dietaryPreferences?.dietaryRestrictions ?? [],
+    allergies: data?.dietaryPreferences?.allergies ?? [],
+    dislikedIngredients: data?.dietaryPreferences?.dislikedIngredients ?? [],
+  };
+
+  const saveMutation = trpc.preferences.updateSafety.useMutation({
+    onSuccess: () => {
+      setSheetOpen(false);
+      void utils.preferences.get.invalidate();
+      void utils.mealPlan.invalidate();
+    },
+  });
+
+  return (
+    <>
+      <Pressable
+        testID="household-you-card"
+        accessibilityRole="button"
+        accessibilityLabel={allergiesAndDietForText('you')}
+        onPress={() => {
+          setDraft(ownSafety);
+          setSheetOpen(true);
+        }}
+        className="flex-row items-center gap-3 rounded-xl border border-primary/30 bg-accent/40 p-3"
+      >
+        <View className="min-w-0 flex-1">
+          <Text className="text-sm font-medium text-gray-800">You</Text>
+          <Text className="text-xs text-gray-500">
+            {memberCardSummary({ portionFactor: 1, ...ownSafety })}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+      </Pressable>
+      <Sheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        title={allergiesAndDietForText('you')}
+        testID="household-you-sheet"
+        footer={
+          <Button
+            testID="household-you-save"
+            loading={saveMutation.isPending}
+            onPress={() => saveMutation.mutate(draft)}
+          >
+            Save changes
+          </Button>
+        }
+      >
+        <SafetyPicker value={draft} onChange={setDraft} testIDPrefix="household-you" />
+      </Sheet>
+    </>
+  );
+}
 
 export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | 'onboarding' }) {
   const { limit, isPremium } = useEntitlement('householdMembers');
   const { data: members = [], isLoading } = trpc.household.list.useQuery();
+  const { data: table } = trpc.safety.getTable.useQuery();
   const utils = trpc.useUtils();
 
   const [name, setName] = useState('');
   const [portionFactor, setPortionFactor] = useState<number>(1);
   const [isKid, setIsKid] = useState(false);
-  const [allergyText, setAllergyText] = useState('');
-  const [restrictionText, setRestrictionText] = useState('');
-  const [dislikeText, setDislikeText] = useState('');
+  const [memberSafety, setMemberSafety] = useState<SafetyPickerValue>(EMPTY_SAFETY);
+  const [memberSafetySheetOpen, setMemberSafetySheetOpen] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   /** The member being edited in the form; null = the form adds someone. */
   const [editing, setEditing] = useState<Member | null>(null);
@@ -69,12 +170,11 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
     void utils.preferences.get.invalidate();
     void utils.mealPlan.invalidate();
     void utils.shoppingList.getForWeek.invalidate();
+    void utils.safety.getTable.invalidate();
   };
   const resetForm = () => {
     setName('');
-    setAllergyText('');
-    setRestrictionText('');
-    setDislikeText('');
+    setMemberSafety(EMPTY_SAFETY);
     setIsKid(false);
     setPortionFactor(1);
     setEditing(null);
@@ -119,9 +219,11 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
     setName(m.name);
     setPortionFactor(m.portionFactor);
     setIsKid(m.isKid);
-    setAllergyText(m.allergies.join(', '));
-    setRestrictionText(m.dietaryRestrictions.join(', '));
-    setDislikeText(m.dislikedIngredients.join(', '));
+    setMemberSafety({
+      allergies: m.allergies,
+      dietaryRestrictions: m.dietaryRestrictions,
+      dislikedIngredients: m.dislikedIngredients,
+    });
   };
 
   const handleSave = () => {
@@ -132,9 +234,7 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
       name: name.trim(),
       portionFactor,
       isKid,
-      allergies: splitList(allergyText),
-      dietaryRestrictions: splitList(restrictionText),
-      dislikedIngredients: splitList(dislikeText),
+      ...memberSafety,
     };
     if (editing) {
       updateMutation.mutate({ id: editing.id, ...payload });
@@ -142,6 +242,15 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
       addMutation.mutate(payload);
     }
   };
+
+  // Table summary (UX-02, CI-41): "{n} at the table · we'll check for …".
+  const peopleCount = members.length + 1; // + you
+  const tableSummary = table?.hasRules
+    ? tableSummaryLine(
+        peopleCount,
+        table.people.flatMap((p) => p.items.map((item) => ({ label: item.label, who: p.who }))),
+      )
+    : null;
 
   // Add or edit someone — every tier. While editing, the form opens right
   // under that member's row so the pencil visibly does something.
@@ -231,27 +340,21 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
               }}
             />
           </View>
-          <Input
-            testID="household-allergies"
-            value={allergyText}
-            onChangeText={setAllergyText}
-            placeholder="Allergies, comma-separated (optional)"
-            accessibilityLabel="Allergies"
-          />
-          <Input
-            testID="household-restrictions"
-            value={restrictionText}
-            onChangeText={setRestrictionText}
-            placeholder="Diet, e.g. Vegetarian (optional)"
-            accessibilityLabel="Dietary restrictions"
-          />
-          <Input
-            testID="household-dislikes"
-            value={dislikeText}
-            onChangeText={setDislikeText}
-            placeholder="Dislikes, comma-separated (optional)"
-            accessibilityLabel="Dislikes"
-          />
+          <Pressable
+            testID="household-safety-open"
+            accessibilityRole="button"
+            accessibilityLabel={allergiesAndDietForText(name.trim() || 'this person')}
+            onPress={() => setMemberSafetySheetOpen(true)}
+            className="min-h-11 flex-row items-center justify-between rounded-md border border-border px-3"
+          >
+            <Text className="text-sm text-gray-700">
+              {allergiesAndDietForText(name.trim() || 'this person')}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color="#6b7280" />
+          </Pressable>
+          <Text testID="household-safety-summary" variant="muted" className="text-xs">
+            {memberCardSummary({ portionFactor, ...memberSafety })}
+          </Text>
           <Button
             testID="household-add"
             loading={isSaving}
@@ -273,6 +376,9 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
 
   return (
     <View className="gap-4">
+      {/* "You" card — always first (UX-01) */}
+      {variant === 'screen' && <YouCard />}
+
       {/* Members */}
       {isLoading ? (
         <ActivityIndicator color="#944a00" />
@@ -343,10 +449,8 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
                         </View>
                       )}
                     </View>
-                    <Text className="text-xs text-gray-500">
-                      {PORTION_LABELS[m.portionFactor] ?? m.portionFactor} portion
-                      {m.allergies.length > 0 && ` · allergic: ${m.allergies.join(', ')}`}
-                      {m.dietaryRestrictions.length > 0 && ` · ${m.dietaryRestrictions.join(', ')}`}
+                    <Text testID={`household-summary-${m.id}`} className="text-xs text-gray-500">
+                      {memberCardSummary(m)}
                     </Text>
                   </View>
                   <Pressable
@@ -381,6 +485,13 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
         </View>
       )}
 
+      {/* UX-02/CI-41: table read-back summary */}
+      {tableSummary && (
+        <Text testID="household-table-summary" variant="muted" className="text-xs">
+          {tableSummary}
+        </Text>
+      )}
+
       {/* Free tables: safety applies, scaling is the premium part (P2-3).
           An empty free table sees the ghost instead (F-PM-12). */}
       {variant === 'screen' && isPremium === false && members.length > 0 && (
@@ -397,15 +508,36 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
             variant="outline"
             size="sm"
             className="mt-3"
-            onPress={() => router.push({ pathname: '/profile', params: { source: 'household' } })}
+            onPress={() => openPremium('household')}
           >
-            See Premium
+            See what Premium adds
           </Button>
         </Card>
       )}
 
       {/* Add someone — every tier (editing happens under the member) */}
       {!editing && formCard}
+
+      <Sheet
+        visible={memberSafetySheetOpen}
+        onClose={() => setMemberSafetySheetOpen(false)}
+        title={allergiesAndDietForText(name.trim() || 'this person')}
+        testID="household-member-safety-sheet"
+        footer={
+          <Button
+            testID="household-member-safety-done"
+            onPress={() => setMemberSafetySheetOpen(false)}
+          >
+            Done
+          </Button>
+        }
+      >
+        <SafetyPicker
+          value={memberSafety}
+          onChange={setMemberSafety}
+          testIDPrefix="household-member"
+        />
+      </Sheet>
     </View>
   );
 }

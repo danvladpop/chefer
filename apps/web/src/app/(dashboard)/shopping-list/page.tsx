@@ -9,6 +9,7 @@ import { PantryCheckBanner } from '@/features/pantry/components/PantryCheckBanne
 import { PantryGhostBanner } from '@/features/pantry/components/PantryGhostBanner';
 import { PantryPanel } from '@/features/pantry/components/PantryPanel';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { LabelCaveat } from '@/features/safety/components/LabelCaveat';
 import {
   ShopSegments,
   shopViewFromParam,
@@ -40,9 +41,14 @@ import {
 } from 'lucide-react';
 import { ErrorState, pressCard, pressControl, pressTransition, Sheet, useMenu } from '@chefer/ui';
 import {
+  checkedForListHeaderText,
+  defaultWeekOffset,
   formatMoney,
+  formatPriceRange,
   formatQuantity,
+  getWeekStartDate,
   isConvertedCurrency,
+  labelCaveatCompactText,
   perPortionCost,
   shoppingWindowLabel,
 } from '@chefer/utils';
@@ -72,34 +78,39 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
+// Bug B-32 (T-BUG-32): a bare number with no unit word used to fall through
+// with no `unit` at all, and the pantry/list UI then defaulted THAT to
+// "pcs" — "paneer 225" rendered as "paneer 225 pcs". Nobody buys 225 pieces
+// of a kitchen ingredient in one line; a number this large with no unit word
+// is a weight, so it's inferred as grams instead. Mirrors
+// apps/mobile/src/features/shopping-list/parse-custom-item.ts.
+const LARGE_BARE_NUMBER_UNIT_THRESHOLD = 20;
+
 /**
  * "2 kg flour" → {quantity: 2, unit: 'kg', name: 'flour'}; plain text is a
- * name-only item (quantity defaults server-side).
+ * name-only item (quantity defaults server-side). "225 paneer" → unit
+ * inferred as grams (bug B-32) rather than left to default to "pcs".
  */
 function parseCustomItemInput(raw: string): { name: string; quantity?: number; unit?: string } {
   const match = /^(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l|pcs|x)?\s+(.+)$/i.exec(raw.trim());
   if (!match) return { name: raw.trim() };
+  const quantity = parseFloat((match[1] ?? '1').replace(',', '.'));
+  const unit =
+    match[2]?.toLowerCase() ?? (quantity > LARGE_BARE_NUMBER_UNIT_THRESHOLD ? 'g' : undefined);
   return {
     name: (match[3] ?? '').trim(),
-    quantity: parseFloat((match[1] ?? '1').replace(',', '.')),
-    ...(match[2] ? { unit: match[2].toLowerCase() } : {}),
+    quantity,
+    ...(unit && { unit }),
   };
-}
-
-function getMondayOfWeek(offset: number): Date {
-  const now = new Date();
-  const day = now.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diffToMonday + offset * 7);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
 }
 
 export default function ShoppingListPage() {
   // Shop = "To buy" / "In my kitchen" (P2-8): ?view=kitchen shows the pantry.
   const view = shopViewFromParam(useSearchParams().get('view'));
-  const [weekOffset, setWeekOffset] = useState(0);
+  // T-08.9 (UX-08 AC1, bug B-13): defaults to the SAME week as Plan — next
+  // week from Friday 15:00 to Sunday 23:59 local, else this week — via the
+  // shared `defaultWeekOffset` (@chefer/utils), not always 0.
+  const [weekOffset, setWeekOffset] = useState<number>(() => defaultWeekOffset(new Date()));
   // Legacy localStorage keys are migrated to the server once (P1-5), then
   // cleared — the server's checkedKeys is the source of truth from then on.
   const [legacyChecked, , clearLegacyChecked] = useLocalStorage<string[]>('shopping-checked', []);
@@ -113,7 +124,7 @@ export default function ShoppingListPage() {
   // Prices are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
 
-  const weekStart = getMondayOfWeek(weekOffset);
+  const weekStart = getWeekStartDate(weekOffset);
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
 
@@ -125,6 +136,19 @@ export default function ShoppingListPage() {
     isRefetching: listRefetching,
     refetch: refetchList,
   } = trpc.shoppingList.getForWeek.useQuery({ weekOffset }, { staleTime: 60_000 });
+
+  // B-13 (T-00.15): confirms the server sent the WEEK actually asked for —
+  // a monitoring signal for the "next week shown as this week" bug class,
+  // not just this one fix. No-op until the analytics transport lands
+  // (wave 1); `capture` already drops events until then (see lib/analytics).
+  useEffect(() => {
+    if (listLoading) return;
+    const weekMatches =
+      !weekList?.hasPlan ||
+      new Date(weekList.weekStartDate).toDateString() === weekStart.toDateString();
+    capture('plan_shown', { surface: 'shop', weekMatches });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per load, not on every render
+  }, [weekList?.planId, weekList?.weekStartDate, listLoading, weekOffset]);
 
   const utils = trpc.useUtils();
 
@@ -438,7 +462,9 @@ export default function ShoppingListPage() {
           </span>
         )}
 
-        {/* Estimated week total from the ingredient price vocabulary */}
+        {/* Estimated week total from the ingredient price vocabulary.
+            T-08.9: a range (formatPriceRange), not a false-precision point
+            number — matches the Plan tab's week-cost badge. */}
         {weekList?.estimatedTotalEur != null && (
           <span
             title={
@@ -448,7 +474,17 @@ export default function ShoppingListPage() {
             }
             className="whitespace-nowrap rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-600"
           >
-            Est. total ~{formatMoney(weekList.estimatedTotalEur, currency)}
+            Est. total{' '}
+            {formatPriceRange(weekList.estimatedTotalEur, currency) ??
+              `~${formatMoney(weekList.estimatedTotalEur, currency)}`}
+          </span>
+        )}
+
+        {/* PAT-2 (UX-02 §3, T-02.1/T-02.4): the table has ≥ 1 safety rule
+            checked against this week's list. */}
+        {weekList?.tableSafety?.hasRules && (
+          <span className="whitespace-nowrap rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-xs font-medium text-[#944a00]">
+            {checkedForListHeaderText(weekList.items.length)}
           </span>
         )}
 
@@ -480,16 +516,10 @@ export default function ShoppingListPage() {
           )
         )}
 
-        {/* F3 savings counter: Σ prices of pantry-covered items, already
-            excluded from the total above */}
-        {pantry?.entitled && pantry.savedEur > 0 && (
-          <span
-            title="Items you already have, subtracted from this list"
-            className="whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
-          >
-            Saved ~{formatMoney(pantry.savedEur, currency)} this week
-          </span>
-        )}
+        {/* bug B-33 (T-08.9): the "Saved ~X this week" chip is removed until
+            savings can be itemised — matches the mobile Shop tab. Pantry
+            coverage is still shown per item ("Have it" / "You have N of M"
+            below); `pantry.savedEur` stays in the free-tier ghost banner. */}
 
         {/* Kitchen link (+ manual weekly check for premium) */}
         {pantry && pantry.itemCount > 0 && (
@@ -681,11 +711,33 @@ export default function ShoppingListPage() {
                                     Have it
                                   </span>
                                 )}
+                                {/* T-01.9: this ingredient needs a certified product for the
+                                    table's diet labels (e.g. certified gluten-free oats). */}
+                                {item.labelCheck && item.labelCheck.length > 0 && (
+                                  <LabelCaveat text={labelCaveatCompactText()} compact />
+                                )}
                               </p>
                               {/* Quantity and price share a line — as separate
                               columns the name was squeezed to ~150px. */}
                               <p className="truncate text-xs text-neutral-500">
-                                {quantityLabel}
+                                {/* bug B-24 (T-08.4): a pantry row with LESS
+                                    than the line's needed amount is a partial
+                                    match — `quantity` is already the
+                                    remaining (need − have) amount to buy. */}
+                                {item.haveQuantity != null ? (
+                                  <span data-testid={`shopping-item-coverage-${item.key}`}>
+                                    You have{' '}
+                                    {formatQuantity(item.haveQuantity, item.unit, unitSystem)} of{' '}
+                                    {formatQuantity(
+                                      item.haveQuantity + Number(item.quantity),
+                                      item.unit,
+                                      unitSystem,
+                                    )}{' '}
+                                    · Buy {quantityLabel}
+                                  </span>
+                                ) : (
+                                  quantityLabel
+                                )}
                                 {item.estimatedPriceEur != null && (
                                   <span
                                     className={`ml-2 font-medium ${item.pantryCovered ? 'line-through opacity-60' : ''}`}

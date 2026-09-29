@@ -14,6 +14,7 @@ import { lifterProteinGPerKg } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { computeBmrTdee, resolveDailyTargets } from '../preferences/preferences.service.js';
+import { targetsService, type TargetsService } from '../targets/targets.service.js';
 import {
   trainingNutritionService,
   type TrainingNutritionService,
@@ -91,6 +92,12 @@ export class CoachService {
       TrainingNutritionService,
       'loadLifter'
     > = trainingNutritionService,
+    /**
+     * §2.11, T-35.4: the coach proposes, it never writes `targetAdjustmentKcal`
+     * itself any more — it records a SUGGESTED `TargetChange` and the user
+     * accepts it through `targets.acknowledgeChange`.
+     */
+    private readonly targets: Pick<TargetsService, 'proposeCoachAdjustment'> = targetsService,
   ) {}
 
   /**
@@ -158,7 +165,7 @@ export class CoachService {
           )
         : null;
 
-    const adjustmentKcal = applyAdjustment
+    const proposedAdjustmentKcal = applyAdjustment
       ? decideAdjustmentKcal({
           goal: profile?.goal ?? null,
           adherencePct: metrics.adherencePct,
@@ -176,7 +183,7 @@ export class CoachService {
       avgDailyKcal: metrics.avgDailyKcal,
       targetKcal: targets.dailyCalorieTarget,
       weightTrendKg: metrics.weightTrendKg,
-      adjustmentKcal,
+      proposedAdjustmentKcal,
       goal: profile?.goal ?? null,
       dishNames: await this.loadWeekDishNames(userId),
       protein: proteinGPerKg
@@ -202,22 +209,20 @@ export class CoachService {
       }
     }
 
-    // Move the cumulative dial BEFORE writing the review row: if the profile
-    // write fails, the retry (next tick) recomputes — the review row is the
-    // idempotency marker, so it must come last.
-    if (adjustmentKcal !== 0) {
-      await this.profileRepo.upsert(userId, {
-        targetAdjustmentKcal: (profile?.targetAdjustmentKcal ?? 0) + adjustmentKcal,
-      });
-    }
-
-    return this.reviewRepo.upsert({
+    // §2.11, T-35.4: the coach proposes, it never overwrites. The cumulative
+    // dial (`ChefProfile.targetAdjustmentKcal`) is left untouched here;
+    // `ChefReview.adjustmentKcal` keeps meaning "applied" (0 until a user
+    // accepts). The review row is written first (it's the idempotency
+    // marker), then the proposal is recorded as a SUGGESTED `TargetChange` —
+    // a failure to record the notice must never lose the review itself.
+    const review = await this.reviewRepo.upsert({
       userId,
       weekStart,
       adherencePct: metrics.adherencePct,
       avgDailyKcal: metrics.avgDailyKcal,
       weightTrendKg: metrics.weightTrendKg,
-      adjustmentKcal,
+      adjustmentKcal: 0,
+      proposedAdjustmentKcal: proposedAdjustmentKcal !== 0 ? proposedAdjustmentKcal : null,
       // F3: what the pantry saved this week (null = no plan that week; a
       // pantry failure must never block the review write).
       savedEur: await pantryService.computeWeekPantrySavings(userId, weekStart).catch((err) => {
@@ -226,6 +231,20 @@ export class CoachService {
       }),
       reviewText,
     });
+
+    if (proposedAdjustmentKcal !== 0) {
+      try {
+        await this.targets.proposeCoachAdjustment(
+          userId,
+          targets.dailyCalorieTarget,
+          proposedAdjustmentKcal,
+        );
+      } catch (err) {
+        console.error('[coach] proposeCoachAdjustment failed (review unaffected):', err);
+      }
+    }
+
+    return review;
   }
 
   /**

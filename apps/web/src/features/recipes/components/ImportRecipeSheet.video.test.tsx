@@ -20,7 +20,9 @@ vi.mock('@/features/ai-consent/AiConsentProvider', () => ({
   useAiConsent: () => (_feature: string, run: () => void) => run(),
 }));
 vi.mock('@/features/premium/components/UpgradeButton', () => ({
-  UpgradeButton: () => <button type="button">Upgrade</button>,
+  UpgradeButton: ({ label }: { label?: string }) => (
+    <button type="button">{label ?? 'See what Premium adds'}</button>
+  ),
 }));
 vi.mock('@/lib/trpc', () => {
   const idle = { mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null };
@@ -71,11 +73,17 @@ describe('ImportRecipeSheet — video source', () => {
     expect(screen.getByText(/audio is deleted right after it is transcribed/)).toBeTruthy();
   });
 
-  it('free users get the same locked example as every other AI source', () => {
+  it('free users keep the form under a lock card, with a free path (T-10.4/T-10.5)', () => {
     mocks.isPremium = false;
     render(<ImportRecipeSheet open onClose={vi.fn()} />);
+    // The lock is one card above the form — it never replaces it.
     expect(screen.getByTestId('import-locked')).toBeTruthy();
-    expect(screen.queryByLabelText('Video link')).toBeNull();
-    expect(screen.getByText(/a cookbook photo or a cooking video/)).toBeTruthy();
+    expect(screen.getByText('Turn your saved links and videos into recipes')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Video/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Video/ }));
+    expect(screen.getByLabelText('Video link')).toBeTruthy();
+    // "Or type it in yourself" is the free way in: the manual recipe form.
+    const free = screen.getByRole('link', { name: 'Or type it in yourself' });
+    expect(free.getAttribute('href')).toBe('/recipes/new');
   });
 });

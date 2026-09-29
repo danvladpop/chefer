@@ -2,6 +2,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import LoginScreen from '../../app/(auth)/login';
 import RegisterScreen from '../../app/(auth)/register';
+import { clearRegisterDraft } from '../../src/features/auth/register-draft';
 import { OnboardingWizard } from '../../src/features/onboarding/onboarding-wizard';
 import type { createTrpcOnboardingMock } from './onboarding-trpc-mock';
 import { mutationResult, queryResult } from './onboarding-trpc-mock';
@@ -33,8 +34,19 @@ jest.mock('expo-router', () => {
 });
 jest.mock('../../src/lib/auth-store', () => ({
   setToken: jest.fn(() => Promise.resolve(undefined)),
+  getToken: jest.fn(() => null),
+  subscribe: jest.fn(() => () => undefined),
+  loadToken: jest.fn(() => Promise.resolve(null)),
+  hasSignedInBefore: jest.fn(() => true),
+  loadHasSignedInBefore: jest.fn(() => Promise.resolve(true)),
 }));
 jest.mock('../../src/features/gym/mode-store', () => ({ setMode: jest.fn() }));
+// The onboarding wizard's first-week generation is AI-consent-gated
+// (Rule 3) — these routing tests aren't exercising that flow, so the hook
+// is stubbed rather than requiring a full <AiConsentProvider> tree.
+jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
+  useAiConsent: () => jest.fn(),
+}));
 
 const { trpc } =
   jest.requireMock<ReturnType<typeof createTrpcOnboardingMock>>('../../src/lib/trpc');
@@ -53,6 +65,10 @@ function renderWithSafeArea(ui: React.ReactElement) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // T-39.1: `register-draft.ts` is a deliberately module-scoped cache (so the
+  // in-app legal screen round trip keeps the form's values) — clear it so
+  // one test's typed values never leak into the next screen's mount.
+  clearRegisterDraft();
 });
 
 describe('Register → onboarding', () => {
@@ -71,6 +87,9 @@ describe('Register → onboarding', () => {
     await user.type(screen.getByTestId('register-email'), 'new@e2e.chefer.dev');
     await user.type(screen.getByTestId('register-password'), 'Password123!');
     await user.type(screen.getByTestId('register-confirm-password'), 'Password123!');
+    // T-39.1 / T-26.5: both consent boxes are required before the API is called.
+    await user.press(screen.getByTestId('register-accept-terms'));
+    await user.press(screen.getByTestId('register-age-confirm'));
     await user.press(screen.getByTestId('register-submit'));
 
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/onboarding'));
@@ -102,139 +121,79 @@ describe('Login → no onboarding', () => {
   });
 });
 
-describe('OnboardingWizard — Skip lands on the Food dashboard', () => {
+describe('OnboardingWizard — "Just looking around" lands on the Food dashboard', () => {
   beforeEach(() => {
-    trpc.preferences.updateSafety.useMutation.mockReturnValue(mutationResult());
-    trpc.preferences.saveProfileBasics.useMutation.mockReturnValue(mutationResult());
-    trpc.preferences.setup.useMutation.mockReturnValue(mutationResult());
-  });
-
-  it('free tier: Skip saves nothing (no fields filled) and lands on /(food)', async () => {
-    trpc.auth.me.useQuery.mockReturnValue(
-      queryResult({ data: { planTier: 'FREE', role: 'USER' } }),
-    );
-    const safetyMutateAsync = jest.fn(() => Promise.resolve(undefined));
-    const basicsMutateAsync = jest.fn(() => Promise.resolve(undefined));
-    trpc.preferences.updateSafety.useMutation.mockReturnValue(
-      mutationResult({ mutateAsync: safetyMutateAsync }),
-    );
-    trpc.preferences.saveProfileBasics.useMutation.mockReturnValue(
-      mutationResult({ mutateAsync: basicsMutateAsync }),
-    );
-    const user = userEvent.setup();
-    await renderWithSafeArea(<OnboardingWizard />);
-
-    await user.press(screen.getByTestId('onboarding-skip'));
-
-    await waitFor(() =>
-      expect(safetyMutateAsync).toHaveBeenCalledWith({
-        dietaryRestrictions: [],
-        allergies: [],
-        dislikedIngredients: [],
-      }),
-    );
-    // No goal/metrics were filled in, so saveProfileBasics is never called.
-    expect(basicsMutateAsync).not.toHaveBeenCalled();
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/(food)'));
-  });
-
-  it('free tier: Skip keeps allergies that were already saved (F-ONB-1-1)', async () => {
     trpc.auth.me.useQuery.mockReturnValue(
       queryResult({ data: { planTier: 'FREE', role: 'USER' } }),
     );
     trpc.preferences.get.useQuery.mockReturnValue(
-      queryResult({
-        data: {
-          chefProfile: null,
-          dietaryPreferences: {
-            dietaryRestrictions: ['Vegetarian'],
-            allergies: ['Peanuts', 'Shellfish'],
-            dislikedIngredients: [],
-            cuisinePreferences: [],
-            mealsPerDay: 3,
-          },
-        },
-      }),
+      queryResult({ data: { chefProfile: null, dietaryPreferences: null, jobs: [] } }),
     );
-    const safetyMutateAsync = jest.fn(() => Promise.resolve(undefined));
-    trpc.preferences.updateSafety.useMutation.mockReturnValue(
-      mutationResult({ mutateAsync: safetyMutateAsync }),
-    );
-    const user = userEvent.setup();
-    await renderWithSafeArea(<OnboardingWizard />);
-
-    await user.press(screen.getByTestId('onboarding-skip'));
-
-    await waitFor(() =>
-      expect(safetyMutateAsync).toHaveBeenCalledWith({
-        dietaryRestrictions: ['Vegetarian'],
-        allergies: ['Peanuts', 'Shellfish'],
-        dislikedIngredients: [],
-      }),
-    );
-    trpc.preferences.get.useQuery.mockReturnValue(queryResult());
   });
 
-  it('premium tier: Skip abandons the wizard without saving (setup is all-or-nothing)', async () => {
-    trpc.auth.me.useQuery.mockReturnValue(
-      queryResult({ data: { planTier: 'PREMIUM', role: 'USER' } }),
-    );
-    const setupMutateAsync = jest.fn(() => Promise.resolve(undefined));
-    trpc.preferences.setup.useMutation.mockReturnValue(
-      mutationResult({ mutateAsync: setupMutateAsync }),
-    );
+  it('saves jobs: [PLAN_MEALS] and lands on /(food) (UX-03 copy)', async () => {
+    const setJobsMutate = jest.fn();
+    trpc.preferences.setJobs.useMutation.mockReturnValue(mutationResult({ mutate: setJobsMutate }));
     const user = userEvent.setup();
     await renderWithSafeArea(<OnboardingWizard />);
 
     await user.press(screen.getByTestId('onboarding-skip'));
 
-    expect(setupMutateAsync).not.toHaveBeenCalled();
-    expect(router.replace).toHaveBeenCalledWith('/(food)');
+    const [input, opts] = setJobsMutate.mock.calls[0] as [
+      { jobs: string[] },
+      { onSuccess?: () => void } | undefined,
+    ];
+    expect(input).toEqual({ jobs: ['PLAN_MEALS'] });
+    expect(typeof opts?.onSuccess).toBe('function');
   });
 });
 
-describe('OnboardingWizard — "What brings you here?" (P2-3, F-PM-6)', () => {
+describe('OnboardingWizard — jobs step (UX-03, T-03.2/T-03.3)', () => {
   beforeEach(() => {
     trpc.auth.me.useQuery.mockReturnValue(
       queryResult({ data: { planTier: 'FREE', role: 'USER' } }),
     );
-    trpc.preferences.get.useQuery.mockReturnValue(queryResult());
+    trpc.preferences.get.useQuery.mockReturnValue(
+      queryResult({ data: { chefProfile: null, dietaryPreferences: null, jobs: [] } }),
+    );
     trpc.preferences.updateSafety.useMutation.mockReturnValue(mutationResult());
     trpc.preferences.saveProfileBasics.useMutation.mockReturnValue(mutationResult());
-    trpc.preferences.setup.useMutation.mockReturnValue(mutationResult());
   });
 
-  it('asks the intent first', async () => {
+  it('asks the jobs question first (AC1)', async () => {
     await renderWithSafeArea(<OnboardingWizard />);
-    expect(screen.getByTestId('onboarding-title').props.children).toBe('What brings you here?');
-    // No total until the answer fixes it — the counter never grows (4 → 5).
+    expect(screen.getByTestId('onboarding-title').props.children).toBe(
+      'What should Chefer help with?',
+    );
+    // No total until jobs are known — the counter never grows.
     expect(screen.getByText('Step 1')).toBeTruthy();
   });
 
-  it('households go to "Who\'s at your table?" and the member editor', async () => {
-    const setIntent = jest.fn(() => Promise.resolve({ intent: 'HOUSEHOLD' }));
-    trpc.preferences.setIntent.useMutation.mockReturnValue(
-      mutationResult({ mutateAsync: setIntent }),
+  it('Feed my household adds "Who\'s at your table?" before the food steps (AC4)', async () => {
+    const setJobsMutateAsync = jest.fn(() =>
+      Promise.resolve({ jobs: ['HOUSEHOLD'], intent: 'HOUSEHOLD' }),
+    );
+    trpc.preferences.setJobs.useMutation.mockReturnValue(
+      mutationResult({ mutateAsync: setJobsMutateAsync }),
     );
     const user = userEvent.setup();
     await renderWithSafeArea(<OnboardingWizard />);
 
-    await user.press(screen.getByTestId('onboarding-intent-HOUSEHOLD'));
+    await user.press(screen.getByTestId('onboarding-job-HOUSEHOLD'));
     expect(screen.getByText('Step 1')).toBeTruthy();
     await user.press(screen.getByTestId('onboarding-continue'));
 
     await waitFor(() =>
       expect(screen.getByTestId('onboarding-title').props.children).toBe('Who’s at your table?'),
     );
-    expect(setIntent).toHaveBeenCalledWith({ intent: 'HOUSEHOLD' });
+    expect(setJobsMutateAsync).toHaveBeenCalledWith({ jobs: ['HOUSEHOLD'] });
     expect(screen.getByTestId('household-add')).toBeTruthy();
-    expect(screen.getByText('Step 2 of 5 · 40%')).toBeTruthy();
   });
 
-  it('gym-goers go straight to Gym setup — no food wizard first', async () => {
-    const setIntent = jest.fn(() => Promise.resolve({ intent: 'TRAIN' }));
-    trpc.preferences.setIntent.useMutation.mockReturnValue(
-      mutationResult({ mutateAsync: setIntent }),
+  it('Train only goes straight to Gym setup — no food wizard first (AC2)', async () => {
+    const setJobsMutateAsync = jest.fn(() => Promise.resolve({ jobs: ['TRAIN'], intent: 'TRAIN' }));
+    trpc.preferences.setJobs.useMutation.mockReturnValue(
+      mutationResult({ mutateAsync: setJobsMutateAsync }),
     );
     const { setMode } = jest.requireMock<{ setMode: jest.Mock }>(
       '../../src/features/gym/mode-store',
@@ -242,23 +201,12 @@ describe('OnboardingWizard — "What brings you here?" (P2-3, F-PM-6)', () => {
     const user = userEvent.setup();
     await renderWithSafeArea(<OnboardingWizard />);
 
-    await user.press(screen.getByTestId('onboarding-intent-TRAIN'));
+    await user.press(screen.getByTestId('onboarding-job-TRAIN'));
     await user.press(screen.getByTestId('onboarding-continue'));
 
     await waitFor(() => expect(router.push).toHaveBeenCalledWith('/gym/setup'));
-    expect(setIntent).toHaveBeenCalledWith({ intent: 'TRAIN' });
+    expect(setJobsMutateAsync).toHaveBeenCalledWith({ jobs: ['TRAIN'] });
     expect(setMode).toHaveBeenCalledWith('gym');
     expect(router.replace).toHaveBeenCalledWith('/today');
-  });
-
-  it('a saved intent skips the question', async () => {
-    trpc.preferences.get.useQuery.mockReturnValue(
-      queryResult({
-        data: { chefProfile: { onboardingIntent: 'TRAIN' }, dietaryPreferences: null },
-      }),
-    );
-    await renderWithSafeArea(<OnboardingWizard />);
-    expect(screen.getByTestId('onboarding-title').props.children).toBe('Diet & safety');
-    trpc.preferences.get.useQuery.mockReturnValue(queryResult());
   });
 });

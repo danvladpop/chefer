@@ -1,5 +1,13 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { setDisplayPreferencesInputSchema, setOnboardingIntentInputSchema } from '@chefer/types';
+import {
+  goalSchema,
+  LEVEL_0_UNKNOWN_GOALS,
+  setDisplayPreferencesInputSchema,
+  setHomeDisplayInputSchema,
+  setJobsInputSchema,
+  setOnboardingIntentInputSchema,
+} from '@chefer/types';
 import {
   preferencesService,
   type UpdatePreferencesInput,
@@ -10,7 +18,7 @@ import { premiumProcedure, protectedProcedure, router } from '../lib/trpc.js';
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const setupSchema = z.object({
-  goal: z.enum(['LOSE_WEIGHT', 'MAINTAIN', 'GAIN_MUSCLE', 'EAT_HEALTHIER']),
+  goal: goalSchema,
   biologicalSex: z.enum(['MALE', 'FEMALE']),
   age: z.number().int().min(10).max(110),
   heightCm: z.number().positive().max(300),
@@ -42,6 +50,35 @@ const safetySchema = z.object({
   dislikedIngredients: z.array(z.string().max(60)).max(30),
 });
 
+// T-BUG-X4 (was 43): `setup`'s safety arrays were uncapped, unlike the same
+// fields on `updateSafety` (20/20/30 above). The cap is enforced only for
+// clients that say `x-chefer-api-level >= 2` (wave 1 on) — installed apps
+// (level 0, and the wave-0 JS at level 1, §2.8) are silently truncated
+// instead of rejected, so they keep working.
+const SAFETY_ARRAY_CAPS = {
+  dietaryRestrictions: 20,
+  allergies: 20,
+  dislikedIngredients: 30,
+} as const;
+
+function capSetupSafetyArrays<T extends Record<keyof typeof SAFETY_ARRAY_CAPS, string[]>>(
+  input: T,
+  clientApiLevel: number,
+): T {
+  for (const key of Object.keys(SAFETY_ARRAY_CAPS) as (keyof typeof SAFETY_ARRAY_CAPS)[]) {
+    const cap = SAFETY_ARRAY_CAPS[key];
+    if (input[key].length <= cap) continue;
+    if (clientApiLevel >= 2) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `${key} can have at most ${cap} entries.`,
+      });
+    }
+    input[key] = input[key].slice(0, cap);
+  }
+  return input;
+}
+
 const targetsSchema = setupSchema
   .omit({ dietaryRestrictions: true, allergies: true, dislikedIngredients: true })
   .partial()
@@ -61,14 +98,33 @@ export const preferencesRouter = router({
   }),
 
   get: protectedProcedure.query(async ({ ctx }) => {
-    return preferencesService.get(ctx.user.id);
+    const result = await preferencesService.get(ctx.user.id);
+    const chefProfile = result.chefProfile;
+    if (!chefProfile) return result;
+    // §2.11, T-35.2: RECOMP/PERFORMANCE are additive goals. Installed apps
+    // below x-chefer-api-level 2 (level 0, and the wave-0 JS at level 1)
+    // render a fixed GOALS list that predates them — `goal` downgrades to
+    // MAINTAIN for those clients; `goalV2` (additive) always carries the
+    // true value.
+    const goalV2 = chefProfile.goal;
+    const needsDowngrade =
+      ctx.clientApiLevel < 2 && goalV2 !== null && LEVEL_0_UNKNOWN_GOALS.has(goalV2);
+    return {
+      ...result,
+      chefProfile: {
+        ...chefProfile,
+        ...(needsDowngrade && { goal: 'MAINTAIN' as const }),
+        goalV2,
+      },
+    };
   }),
 
   // Personalisation depth (goal, body metrics, cadence) is premium — free
   // users use the curated plans and are prompted to upgrade. Reads stay open
   // so the locked UI can still render existing state.
   setup: premiumProcedure.input(setupSchema).mutation(async ({ input, ctx }) => {
-    await preferencesService.setup(ctx.user.id, input);
+    const capped = capSetupSafetyArrays(input, ctx.clientApiLevel);
+    await preferencesService.setup(ctx.user.id, capped);
     return { success: true as const };
   }),
 
@@ -80,6 +136,25 @@ export const preferencesRouter = router({
     .input(setOnboardingIntentInputSchema)
     .mutation(async ({ input, ctx }) => {
       return preferencesService.setIntent(ctx.user.id, input.intent);
+    }),
+
+  /**
+   * "What should Chefer help with?" (§2.4, T-03.1) — free for every tier,
+   * the multi-select onboarding-by-job question and its Settings ›
+   * "What you use Chefer for" screen (T-03.5).
+   */
+  setJobs: protectedProcedure.input(setJobsInputSchema).mutation(async ({ input, ctx }) => {
+    return preferencesService.setJobs(ctx.user.id, input, ctx.isMobileClient ? 'mobile' : 'web');
+  }),
+
+  /**
+   * "Show calories and macros on Today" (§2.4, T-04.1) — free for every
+   * tier. Overrides the goal-derived default either way.
+   */
+  setHomeDisplay: protectedProcedure
+    .input(setHomeDisplayInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      return preferencesService.setHomeDisplay(ctx.user.id, input.showNutritionOnToday);
     }),
 
   /** Allergies, restrictions, dislikes — free for every account (P1-2). */
@@ -111,7 +186,11 @@ export const preferencesRouter = router({
   setAutoPlanWeekly: protectedProcedure
     .input(z.object({ enabled: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
-      return preferencesService.setAutoPlanWeekly(ctx.user.id, input.enabled);
+      return preferencesService.setAutoPlanWeekly(
+        ctx.user.id,
+        input.enabled,
+        ctx.isMobileClient ? 'mobile' : 'web',
+      );
     }),
 
   /**
@@ -139,7 +218,7 @@ export const preferencesRouter = router({
   computeTargets: protectedProcedure
     .input(
       z.object({
-        goal: z.enum(['LOSE_WEIGHT', 'MAINTAIN', 'GAIN_MUSCLE', 'EAT_HEALTHIER']),
+        goal: goalSchema,
         biologicalSex: z.enum(['MALE', 'FEMALE']),
         age: z.number().int().min(10).max(110),
         heightCm: z.number().positive().max(300),

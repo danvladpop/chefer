@@ -6,6 +6,7 @@ import {
   mergeSafetyList,
   PreferencesService,
   resolveDailyTargets,
+  resolveTargets,
 } from './preferences.service.js';
 
 // ─── Mock @chefer/database so prisma.$transaction is controllable ─────────────
@@ -24,8 +25,17 @@ vi.mock('@chefer/database', async (importOriginal) => {
   };
 });
 
+// setJobs({ autoPlanWeekly }) and setAutoPlanWeekly both call
+// ConsentService.record — mocked so these tests never touch the real
+// consentEventRepository (which would hit prisma for real; CI runs this
+// suite with no DB at all — common-rules.md).
+vi.mock('../privacy/consent.service.js', () => ({
+  consentService: { record: vi.fn().mockResolvedValue(undefined) },
+}));
+
 // ─── Re-import prisma after mock so we can configure it per-test ──────────────
 const { prisma } = await import('@chefer/database');
+const { consentService } = await import('../privacy/consent.service.js');
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -320,6 +330,99 @@ describe('resolveDailyTargets — targetAdjustmentKcal ordering', () => {
   });
 });
 
+// ─── resolveTargets — own overrides, RECOMP/PERFORMANCE, BMI adjustment ────────
+// §2.11, T-35.1/T-35.2/T-11.4.
+
+describe('resolveTargets', () => {
+  const METRICS = {
+    weightKg: 80,
+    heightCm: 180,
+    age: 30,
+    activityLevel: 'MODERATELY_ACTIVE',
+    biologicalSex: 'MALE',
+    goal: 'MAINTAIN',
+    dailyCalorieTarget: null,
+  };
+
+  it('a SUGGESTED-mode profile has effective === suggested, source "suggested"', () => {
+    const view = resolveTargets(METRICS);
+    expect(view.source).toBe('suggested');
+    expect(view.effective).toEqual(view.suggested);
+  });
+
+  it('an OWN-mode profile serves the custom numbers as effective, suggested unchanged (AC1)', () => {
+    const view = resolveTargets({
+      ...METRICS,
+      targetMode: 'OWN',
+      customKcal: 2500,
+      customProteinG: 190,
+      customCarbsG: 220,
+      customFatG: 80,
+    });
+    expect(view.source).toBe('own');
+    expect(view.effective).toEqual({
+      dailyCalorieTarget: 2500,
+      proteinG: 190,
+      carbsG: 220,
+      fatG: 80,
+    });
+    // suggested keeps computing the system's number — it just isn't shown.
+    expect(view.suggested.dailyCalorieTarget).not.toBe(2500);
+  });
+
+  it('an OWN profile with no custom numbers yet falls back to suggested per-field', () => {
+    const view = resolveTargets({ ...METRICS, targetMode: 'OWN' });
+    expect(view.effective).toEqual(view.suggested);
+  });
+
+  it('weight/goal changes never move an OWN effective target (AC2)', () => {
+    const owned = {
+      ...METRICS,
+      targetMode: 'OWN',
+      customKcal: 2500,
+      customProteinG: 190,
+      customCarbsG: 220,
+      customFatG: 80,
+    };
+    const a = resolveTargets(owned);
+    const b = resolveTargets({ ...owned, weightKg: 120, goal: 'GAIN_MUSCLE' });
+    expect(a.effective).toEqual(b.effective);
+  });
+
+  it('RECOMP and PERFORMANCE are maintenance-calorie goals (0 kcal adjustment)', () => {
+    const maintain = resolveTargets(METRICS);
+    const recomp = resolveTargets({ ...METRICS, goal: 'RECOMP' });
+    const performance = resolveTargets({ ...METRICS, goal: 'PERFORMANCE' });
+    expect(recomp.suggested.dailyCalorieTarget).toBe(maintain.suggested.dailyCalorieTarget);
+    expect(performance.suggested.dailyCalorieTarget).toBe(maintain.suggested.dailyCalorieTarget);
+  });
+
+  it('inputs carry a rate sentence for every goal, including the new two', () => {
+    expect(resolveTargets({ ...METRICS, goal: 'LOSE_WEIGHT' }).inputs.rate).toContain('deficit');
+    expect(resolveTargets({ ...METRICS, goal: 'RECOMP' }).inputs.rate).toBe('Maintenance calories');
+    expect(resolveTargets({ ...METRICS, goal: 'PERFORMANCE' }).inputs.rate).toBe(
+      'Maintenance calories',
+    );
+  });
+
+  it('a lifter bodyweight sets isLifter and proteinGPerKg on inputs', () => {
+    const view = resolveTargets(METRICS, 80);
+    expect(view.inputs.isLifter).toBe(true);
+    expect(view.inputs.proteinGPerKg).toBe(1.6); // MAINTAIN
+  });
+
+  it('a BMI >= 30 lifter gets usedAdjustedWeight on inputs (T-11.4)', () => {
+    // 120kg @ 170cm -> BMI ~41.5
+    const view = resolveTargets({ ...METRICS, heightCm: 170 }, 120);
+    expect(view.inputs.usedAdjustedWeight).toBe(true);
+  });
+
+  it('a non-obese lifter does not trigger the adjusted-weight rule', () => {
+    const view = resolveTargets(METRICS, 80); // BMI ~24.7 @ 180cm
+    expect(view.inputs.usedAdjustedWeight).toBe(false);
+  });
+});
+
 // ─── setup never shrinks safety (audit F-ONB-1-1) ─────────────────────────────
 
 describe('PreferencesService.setup — safety lists', () => {
@@ -419,7 +522,7 @@ describe('PreferencesService.setDisplayPreferences', () => {
       preferredUnits: 'IMPERIAL',
       deliveryCurrency: 'USD',
     });
-    expect(result).toEqual({ preferredUnits: 'IMPERIAL', currency: 'USD' });
+    expect(result).toEqual({ preferredUnits: 'IMPERIAL', currency: 'USD', timeZone: null });
   });
 
   it('moves the gym unit when the unit system changes', async () => {
@@ -440,7 +543,7 @@ describe('PreferencesService.setDisplayPreferences', () => {
     const { service } = build(vi.fn().mockRejectedValue(new Error('db down')));
     await expect(
       service.setDisplayPreferences('user1', { preferredUnits: 'METRIC' }),
-    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR' });
+    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR', timeZone: null });
     error.mockRestore();
   });
 
@@ -455,7 +558,7 @@ describe('PreferencesService.setDisplayPreferences', () => {
     const service = new PreferencesService(chefProfileRepo, makeDietaryPreferencesRepo());
     await expect(
       service.setDisplayPreferences('user1', { preferredUnits: 'METRIC' }),
-    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR' });
+    ).resolves.toEqual({ preferredUnits: 'METRIC', currency: 'EUR', timeZone: null });
   });
 
   it('syncs the gym when old apps change units through update()', async () => {
@@ -559,15 +662,118 @@ describe('PreferencesService — household is the one people model (F-PM-8)', ()
 });
 
 describe('PreferencesService.setIntent (F-PM-6)', () => {
-  it('stores the onboarding intent on the chef profile', async () => {
+  it('stores the onboarding intent and back-fills jobs for a first-time answer', async () => {
     const upsert = vi
       .fn()
       .mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, goal: null, onboardingIntent: 'TRAIN' });
     const service = new PreferencesService(
-      makeChefProfileRepo({ upsert }),
+      makeChefProfileRepo({ upsert }), // findByUserId defaults to null (no profile yet)
       makeDietaryPreferencesRepo(),
     );
     await expect(service.setIntent('user1', 'TRAIN')).resolves.toEqual({ intent: 'TRAIN' });
+    expect(upsert).toHaveBeenCalledWith('user1', {
+      onboardingIntent: 'TRAIN',
+      onboardingJobs: ['TRAIN'],
+    });
+  });
+
+  it('does not overwrite jobs already answered via setJobs (rev 2, T-03.1)', async () => {
+    const findByUserId = vi
+      .fn()
+      .mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, onboardingJobs: ['TRACK'] });
+    const upsert = vi.fn().mockResolvedValue({
+      ...CHEF_PROFILE_FIXTURE,
+      onboardingJobs: ['TRACK'],
+      onboardingIntent: 'TRAIN',
+    });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ findByUserId, upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await service.setIntent('user1', 'TRAIN');
     expect(upsert).toHaveBeenCalledWith('user1', { onboardingIntent: 'TRAIN' });
+  });
+});
+
+describe('PreferencesService.setJobs (§2.4, T-03.1)', () => {
+  beforeEach(() => {
+    vi.mocked(consentService.record).mockClear();
+  });
+
+  it('writes the jobs list and the legacy intent for the first job that maps to one', async () => {
+    const upsert = vi.fn().mockResolvedValue({
+      ...CHEF_PROFILE_FIXTURE,
+      onboardingJobs: ['USE_WHAT_I_HAVE', 'TRAIN'],
+      onboardingIntent: 'TRAIN',
+    });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await expect(service.setJobs('user1', { jobs: ['USE_WHAT_I_HAVE', 'TRAIN'] })).resolves.toEqual(
+      { jobs: ['USE_WHAT_I_HAVE', 'TRAIN'], intent: 'TRAIN' },
+    );
+    expect(upsert).toHaveBeenCalledWith('user1', {
+      onboardingJobs: ['USE_WHAT_I_HAVE', 'TRAIN'],
+      onboardingIntent: 'TRAIN',
+    });
+    expect(consentService.record).not.toHaveBeenCalled();
+  });
+
+  it('leaves the legacy intent alone when no job has an equivalent', async () => {
+    const upsert = vi
+      .fn()
+      .mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, onboardingJobs: ['TRACK'] });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await service.setJobs('user1', { jobs: ['TRACK'] });
+    expect(upsert).toHaveBeenCalledWith('user1', { onboardingJobs: ['TRACK'] });
+  });
+
+  it('saves trainingWeekdays and records AUTO_PLAN consent when autoPlanWeekly is given', async () => {
+    const upsert = vi.fn().mockResolvedValue({
+      ...CHEF_PROFILE_FIXTURE,
+      onboardingJobs: ['TRAIN'],
+      onboardingIntent: 'TRAIN',
+    });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await service.setJobs(
+      'user1',
+      { jobs: ['TRAIN'], trainingWeekdays: [0, 2, 4], autoPlanWeekly: true },
+      'mobile',
+    );
+    expect(upsert).toHaveBeenCalledWith('user1', {
+      onboardingJobs: ['TRAIN'],
+      onboardingIntent: 'TRAIN',
+      trainingWeekdays: [0, 2, 4],
+      autoPlanWeekly: true,
+    });
+    expect(consentService.record).toHaveBeenCalledWith({
+      userId: 'user1',
+      kind: 'AUTO_PLAN',
+      granted: true,
+      source: 'mobile',
+    });
+  });
+});
+
+describe('PreferencesService.setHomeDisplay (§2.4, T-04.1)', () => {
+  it('stores the explicit override', async () => {
+    const upsert = vi
+      .fn()
+      .mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, showNutritionOnToday: false });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await expect(service.setHomeDisplay('user1', false)).resolves.toEqual({
+      showNutritionOnToday: false,
+    });
+    expect(upsert).toHaveBeenCalledWith('user1', { showNutritionOnToday: false });
   });
 });

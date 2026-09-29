@@ -28,13 +28,17 @@ import {
   explain,
   formatLoad,
   isHarder,
+  kgToUnit,
   localDateStr,
   postWorkoutProteinG,
   repBucket,
   stepDown,
   stepUp,
+  streakWeeksLabel,
+  unitToKg,
 } from '@chefer/utils';
 import { captureGymEvent } from '../analytics';
+import { cardioSetText, isCardioExercise, profileDistanceUnit } from '../shared/cardio';
 import { KIND_ARROW, KIND_TONE, prescriptionText, repsText } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
 import { Stepper } from '../shared/stepper';
@@ -135,7 +139,7 @@ export function SummaryView({ id }: { id: string }) {
               </p>
               <p className="flex items-center gap-1 text-xs text-gray-500">
                 <Flame className="h-3.5 w-3.5 shrink-0 text-[#944a00]" aria-hidden="true" />
-                {data.streak.current}-week streak
+                {streakWeeksLabel(data.streak.current)}
               </p>
             </div>
           </GymCard>
@@ -175,22 +179,32 @@ export function SummaryView({ id }: { id: string }) {
         <GymCard data-testid="gym-next-time">
           <CardLabel>Next time</CardLabel>
           <ul className="mt-3 divide-y">
-            {exercises.map((se) => (
-              <NextTimeRow
-                key={se.id}
-                se={se}
-                meta={lookup(se.exerciseId)}
-                progression={
-                  data.progressions.find(
-                    (p) =>
-                      p.exerciseId === se.exerciseId &&
-                      p.repBucket === repBucket(se.repMin, se.repMax),
-                  ) ?? null
-                }
-                profile={inventory}
-                unit={unit}
-              />
-            ))}
+            {exercises.map((se) =>
+              isCardioExercise(lookup(se.exerciseId)) ? (
+                // T-42.5: cardio has no Next-time target on web; it reads time · distance · effort.
+                <CardioRow
+                  key={se.id}
+                  se={se}
+                  name={lookup(se.exerciseId)?.name ?? 'Exercise'}
+                  distanceUnit={profileDistanceUnit(data.profile)}
+                />
+              ) : (
+                <NextTimeRow
+                  key={se.id}
+                  se={se}
+                  meta={lookup(se.exerciseId)}
+                  progression={
+                    data.progressions.find(
+                      (p) =>
+                        p.exerciseId === se.exerciseId &&
+                        p.repBucket === repBucket(se.repMin, se.repMax),
+                    ) ?? null
+                  }
+                  profile={inventory}
+                  unit={unit}
+                />
+              ),
+            )}
             {exercises.length === 0 && (
               <li className="py-3 text-sm text-gray-500">No exercises were logged.</li>
             )}
@@ -276,6 +290,28 @@ function Stat({ icon: Icon, label, value }: { icon: typeof Clock; label: string;
   );
 }
 
+function CardioRow({
+  se,
+  name,
+  distanceUnit,
+}: {
+  se: SessionExerciseDoc;
+  name: string;
+  distanceUnit: ReturnType<typeof profileDistanceUnit>;
+}) {
+  const logged = se.sets.filter((s) => !s.isWarmup && s.completedAt !== null);
+  return (
+    <li className="py-3" data-testid="gym-summary-cardio-row">
+      <p className="truncate text-sm font-medium text-gray-900">{name}</p>
+      <p className="text-xs text-gray-500">
+        {logged.length > 0
+          ? logged.map((s) => cardioSetText(s, se.exerciseId, distanceUnit)).join(' · ')
+          : 'Not logged'}
+      </p>
+    </li>
+  );
+}
+
 function NextTimeRow({
   se,
   meta,
@@ -335,7 +371,7 @@ function NextTimeRow({
               {prescriptionText(suggestion, unit, meta?.loadType, timed)}
             </p>
           </div>
-          <p className="mt-0.5 text-xs text-gray-500">{explain(suggestion, unit)}</p>
+          <p className="mt-0.5 text-xs text-gray-500">{explain(suggestion, unit, 'next')}</p>
           {!editing && (
             <button
               type="button"
@@ -357,11 +393,17 @@ function NextTimeRow({
         <div className="mt-3 rounded-xl border bg-gray-50 p-3 sm:ml-10">
           <div className="grid gap-2 sm:grid-cols-2">
             {hasLoad && slot && (
+              // T-05.4 (CI-31, AC6): typed entry — 40 → 150 kg takes a few
+              // keystrokes here instead of ~44 ± clicks.
               <Stepper
                 label="next weight"
                 value={formatLoad(weightKg, unit, meta?.loadType)}
+                valueLabel={`Next weight, ${formatLoad(weightKg, unit, meta?.loadType)}`}
+                rawValue={kgToUnit(weightKg, unit)}
+                onValueChange={(v) => setWeightKg(unitToKg(v, unit))}
                 onDecrement={() => setWeightKg((w) => stepDown(w, slot, profile))}
                 onIncrement={() => setWeightKg((w) => stepUp(w, slot, profile))}
+                testId="adjust-weight-stepper"
               />
             )}
             <Stepper

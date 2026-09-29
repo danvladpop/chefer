@@ -46,10 +46,25 @@ export interface LineChartProps {
 }
 
 const PAD_TOP = 10;
-const AXIS_W = 38;
+const AXIS_W_MIN = 38;
 const LABEL_H = 18;
+/** Rough average glyph width at the axis labels' fontSize (10) — tabular digits run close to this. */
+const GLYPH_W = 6;
+const AXIS_LABEL_GAP = 8;
 
 const toPoints = (pts: { x: number; y: number }[]) => pts.map((p) => `${p.x},${p.y}`).join(' ');
+
+/**
+ * B-16 (T-05.6, AC8): the left axis gutter used to be a fixed 38px, which
+ * clipped any label wider than that ("55.4" for a value like 255.4 — the
+ * leading digit fell outside the SVG's own left edge and never rendered).
+ * Size it from the longest label actually being drawn instead, with 38 as a
+ * floor so short labels don't shrink the gutter below the old width.
+ */
+export function axisWidthFor(labels: readonly string[]): number {
+  const longest = labels.reduce((max, l) => Math.max(max, l.length), 0);
+  return Math.max(AXIS_W_MIN, longest * GLYPH_W + AXIS_LABEL_GAP);
+}
 
 /**
  * Points + trend line + highlighted dots, with an optional secondary series
@@ -96,16 +111,18 @@ export function LineChart({
     );
   }
 
-  const plotLeft = AXIS_W;
-  const plotRight = width - (secondaryExtent ? AXIS_W : 8);
+  const gridValues = [yExtent.min, (yExtent.min + yExtent.max) / 2, yExtent.max];
+  const formatY2 = secondary?.formatY ?? defaultFormat;
+  const secondaryColor = secondary?.color ?? colors.info;
+
+  const axisW = axisWidthFor(gridValues.map((v) => formatY(v)));
+  const axisW2 = secondaryExtent ? axisWidthFor(gridValues.map((v) => formatY2(v))) : 8;
+  const plotLeft = axisW;
+  const plotRight = width - axisW2;
   const plotBottom = height - (xLabels ? LABEL_H : 6);
   const x = linearScale(xExtent, plotLeft + 6, plotRight - 6);
   const y = linearScale(yExtent, plotBottom, PAD_TOP);
   const y2 = secondaryExtent ? linearScale(secondaryExtent, plotBottom, PAD_TOP) : null;
-
-  const gridValues = [yExtent.min, (yExtent.min + yExtent.max) / 2, yExtent.max];
-  const formatY2 = secondary?.formatY ?? defaultFormat;
-  const secondaryColor = secondary?.color ?? colors.info;
 
   // Split the trend at nulls so gaps stay gaps.
   const trendRuns: { x: number; y: number }[][] = [];

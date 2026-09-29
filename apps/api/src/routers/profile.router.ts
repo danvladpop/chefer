@@ -1,6 +1,7 @@
-import { AiCallType, prisma } from '@chefer/database';
 import { AI_PROVIDERS } from '@chefer/types';
+import { getTodayAiUsage } from '../application/profile/ai-usage.service.js';
 import { aiProviderDisclosure } from '../lib/ai/index.js';
+import { allFlags } from '../lib/flags.js';
 import { protectedProcedure, publicProcedure, router } from '../lib/trpc.js';
 
 /**
@@ -31,47 +32,39 @@ export const profileRouter = router({
   aiProviders: publicProcedure.query(() => aiProviderDisclosure),
 
   /**
+   * Feature flags (§2.9, T-00.8). Public — read before sign-in matters for
+   * some (e.g. a landing-page pitch) and there's nothing sensitive in a
+   * flag name. Cached by clients like `profile.aiProviders`. A failed or
+   * absent response means "treat every flag as off" — old APIs and old
+   * clients behave exactly as today.
+   */
+  flags: publicProcedure.query(() => allFlags()),
+
+  /**
    * Returns today's AI usage counts per call type for the current user,
    * alongside the known free-tier limits for each provider.
+   *
+   * T-10.8 (bug B-49): the counters mirror what `lib/quotas.ts` reserves —
+   * see `application/profile/ai-usage.service.ts`. `aiMealPlans`,
+   * `curatedPlans` and `importsSaved` are additive; `today` and `geminiTotal`
+   * keep their shape for shipped clients.
    */
   getAiUsage: protectedProcedure.query(async ({ ctx }) => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    const logs = await prisma.aiCallLog.findMany({
-      where: { userId: ctx.user.id, createdAt: { gte: todayStart } },
-      select: { callType: true },
-    });
-
-    const counts = {
-      [AiCallType.MEAL_PLAN]: 0,
-      [AiCallType.RECIPE_SWAP]: 0,
-      [AiCallType.SHOPPING_LIST]: 0,
-      [AiCallType.IMAGE_GENERATION]: 0,
-      [AiCallType.INGREDIENT_PRICES]: 0,
-      [AiCallType.CHAT]: 0,
-      [AiCallType.SCAN]: 0,
-      [AiCallType.RECIPE_IMPORT]: 0,
-    };
-    for (const log of logs) {
-      counts[log.callType]++;
-    }
-
-    // Total AI calls (meal plan + swap + shopping list + chat + vision). The
-    // field keeps its old name for shipped clients; it counts whatever
-    // provider serves them (primaryProvider).
-    const geminiTotal =
-      counts[AiCallType.MEAL_PLAN] +
-      counts[AiCallType.RECIPE_SWAP] +
-      counts[AiCallType.SHOPPING_LIST] +
-      counts[AiCallType.CHAT] +
-      counts[AiCallType.SCAN] +
-      counts[AiCallType.RECIPE_IMPORT];
+    const {
+      today: counts,
+      geminiTotal,
+      aiMealPlans,
+      curatedPlans,
+      importsSaved,
+    } = await getTodayAiUsage(ctx.user.id);
 
     const primary = aiProviderDisclosure.primary;
     return {
       today: counts,
       geminiTotal,
+      aiMealPlans,
+      curatedPlans,
+      importsSaved,
       /** The provider serving most workloads (admin telemetry card). */
       primaryProvider: {
         id: primary,

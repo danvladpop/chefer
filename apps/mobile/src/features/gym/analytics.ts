@@ -1,14 +1,18 @@
 import type { PrKind, ReasonCode, TrainingExperience } from '@chefer/types';
+import { track } from '../../lib/analytics';
 
-// ─── Gym analytics — mobile no-op (gym_plan.md §6.6) ─────────────────────────
-// Mobile has no analytics SDK yet, so this deliberately does NOT wire one up.
-// It exists so every call site in the app compiles today with the same typed
-// shape as the web wrapper (apps/web/src/features/gym/analytics.ts) — when a
-// mobile SDK lands, only this file changes; every call site stays the same.
-//
-// Kept in step with the web GymEventMap by hand (mobile and web can't share a
-// runtime import here without adding a cross-app dependency, and the shared
-// package boundary is types/utils only per CLAUDE.md).
+// ─── Gym analytics — mobile (T-12.2, gym_plan.md §6.6) ───────────────────────
+// T-12.2: `captureGymEvent` is now a real re-export over the shared JS
+// transport (`lib/analytics.ts`) instead of a `__DEV__`-only no-op — every
+// call site is unchanged. Still its own `GymEventMap`, kept in step with the
+// web version (`apps/web/src/features/gym/analytics.ts`) by hand: mobile and
+// web can't share a runtime import here without a cross-app dependency, and
+// the shared package boundary is types/utils only per CLAUDE.md. It is a
+// separate namespace from the shared `EventMap` (`@chefer/types`) — some of
+// its property types (`kind: string`, `reason: string | null`) predate and
+// would fail the health-data guard as literally typed; unifying it with
+// `EventMap` is a good follow-up but not this task's to make alone (the web
+// counterpart has the same shape and isn't owned by this lane).
 
 export interface GymEventMap {
   gym_mode_switched: { to: 'food' | 'gym' };
@@ -33,17 +37,23 @@ export interface GymEventMap {
   training_paused: { weeks: number; reason: string | null };
   sync_failed: { reason: string };
   video_opened: { fallback: boolean };
+  // UX-44: correcting a past workout — counts and booleans only.
+  session_edited: {
+    setsChanged: number;
+    exercisesReplaced: number;
+    exercisesRemoved: number;
+    dateChanged: boolean;
+  };
+  session_deleted: { from: 'recent' | 'history' | 'detail' };
+  session_delete_undone: Record<string, never>;
+  session_edit_discarded: Record<string, never>;
+  target_notice_answered: { choice: 'new' | 'keep'; source: 'session_edit' };
 }
 
-/**
- * No-op today (logs in __DEV__ only, for the call sites to be smoke-tested by
- * eye during development). Fires nothing in production and never throws.
- */
+/** Re-exports through the shared JS transport — respects the same consent switches. */
 export function captureGymEvent<E extends keyof GymEventMap>(
   event: E,
   properties: GymEventMap[E],
 ): void {
-  if (__DEV__) {
-    console.warn(`[gym analytics stub] ${event}`, properties);
-  }
+  track(event, properties);
 }

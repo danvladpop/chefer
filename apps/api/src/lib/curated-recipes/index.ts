@@ -16,10 +16,16 @@ import {
 import { filterSafeRecipes, hasSafetyPrefs, type SafetyPrefs } from './safety.js';
 
 export {
+  deriveDietTags,
+  deriveTagQualifiers,
   filterSafeRecipes,
+  findLabelCaveats,
+  findSafetyBlockers,
   findSafetyIssues,
   hasSafetyPrefs,
   isRecipeSafe,
+  type SafetyBlocker,
+  type SafetyCheckable,
   type SafetyPrefs,
 } from './safety.js';
 

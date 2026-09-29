@@ -8,11 +8,17 @@ const API_URL = `${
   process.env['API_INTERNAL_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
 }/trpc`;
 
+// §2.8/T-00.8: declares this client understands the health-consent error and
+// reads `profile.flags`. Bumped to 2 for T-39.1/T-26.5 (wave 1 L-ENTRY) —
+// see trpc-links.ts. 3 (T-42.5, UX-42): the web renders cardio (Δ2.1).
+const API_LEVEL_HEADERS = { 'x-chefer-api-level': '3' };
+
 export const serverClient = createTRPCClient<AppRouter>({
   links: [
     httpBatchLink({
       url: API_URL,
       transformer: superjson,
+      headers: API_LEVEL_HEADERS,
     }),
   ],
 });
@@ -27,7 +33,7 @@ export function createServerClient(cookieHeader: string) {
       httpBatchLink({
         url: API_URL,
         transformer: superjson,
-        headers: { cookie: cookieHeader },
+        headers: { cookie: cookieHeader, ...API_LEVEL_HEADERS },
       }),
     ],
   });

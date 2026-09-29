@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { AiConsentProvider } from '@/features/ai-consent/AiConsentProvider';
+import { TermsReacceptGate } from '@/features/auth/components/TermsReacceptGate';
 import { ChatWidgetGate } from '@/features/chat/components/ChatWidgetGate';
 import { DashboardShell } from '@/features/nav/components/dashboard-shell';
 import { MODE_COOKIE, parseMode } from '@/features/nav/nav-items';
@@ -20,6 +21,9 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
         {children}
         {/* Hidden on /gym/workout*: the active workout stays distraction-free. */}
         <ChatWidgetGate />
+        {/* T-39.1: re-accept sheet for an existing account whose stored
+            Terms/Privacy acceptance predates a document version bump. */}
+        <TermsReacceptGate />
       </DashboardShell>
     </AiConsentProvider>
   );

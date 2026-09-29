@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { env } from '../env.js';
+import { ImageStorageError } from '../image-gen/errors.js';
 
 const cloudinaryConfigured =
   !!env.CLOUDINARY_CLOUD_NAME && !!env.CLOUDINARY_API_KEY && !!env.CLOUDINARY_API_SECRET;
@@ -35,14 +36,21 @@ export async function uploadRecipeImage(
     return dataUri;
   }
 
-  const result = await cloudinary.uploader.upload(dataUri, {
-    public_id: recipeId, // no 'recipes/' prefix — folder param handles it
-    folder: 'chefer/recipes',
-    overwrite: true,
-    transformation: [
-      { width: 800, height: 600, crop: 'fill', quality: 'auto', fetch_format: 'auto' },
-    ],
-  });
-
-  return result.secure_url;
+  try {
+    const result = await cloudinary.uploader.upload(dataUri, {
+      public_id: recipeId, // no 'recipes/' prefix — folder param handles it
+      folder: 'chefer/recipes',
+      overwrite: true,
+      transformation: [
+        { width: 800, height: 600, crop: 'fill', quality: 'auto', fetch_format: 'auto' },
+      ],
+    });
+    return result.secure_url;
+  } catch (err) {
+    // A storage failure — the worker must not regenerate (and re-pay) for it.
+    throw new ImageStorageError(
+      `Cloudinary upload failed for recipe ${recipeId}: ${(err as { message?: string }).message ?? String(err)}`,
+      { cause: err },
+    );
+  }
 }

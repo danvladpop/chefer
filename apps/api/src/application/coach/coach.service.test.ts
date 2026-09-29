@@ -6,6 +6,7 @@ import type {
   IWeightEntryRepository,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { targetsService } from '../targets/targets.service.js';
 import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
 import { CoachService, MIN_LOGGED_DAYS, weekStartUtc } from './coach.service.js';
 import { generateReviewText } from './review-text.js';
@@ -50,6 +51,12 @@ vi.mock('../training-nutrition/training-nutrition.service.js', () => ({
   trainingNutritionService: {
     loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: null }),
   },
+}));
+
+// §2.11, T-35.4: the coach proposes through this instead of writing
+// ChefProfile.targetAdjustmentKcal itself.
+vi.mock('../targets/targets.service.js', () => ({
+  targetsService: { proposeCoachAdjustment: vi.fn().mockResolvedValue(undefined) },
 }));
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -100,6 +107,7 @@ function makeReviewRepo(overrides: Partial<IChefReviewRepository> = {}): IChefRe
       .mockImplementation((data: Record<string, unknown>) =>
         Promise.resolve({ id: 'r1', createdAt: SUNDAY, savedEur: null, ...data }),
       ),
+    resolveProposal: vi.fn().mockResolvedValue(null),
     ...overrides,
   };
 }
@@ -226,7 +234,7 @@ describe('CoachService.runWeeklyReview', () => {
     expect(generateReviewText).toHaveBeenCalledWith(expect.objectContaining({ protein: null }));
   });
 
-  it('moves the cumulative dial on a second consecutive plateau (LOSE −100)', async () => {
+  it('proposes (never applies) a cumulative-dial move on a second consecutive plateau (LOSE −100)', async () => {
     const reviewRepo = makeReviewRepo({
       // Previous review also saw a plateau — the 2-consecutive rule fires.
       findPreviousBefore: vi.fn().mockResolvedValue({ weightTrendKg: 0 }),
@@ -236,27 +244,19 @@ describe('CoachService.runWeeklyReview', () => {
 
     await service.runWeeklyReview('u1', SUNDAY);
 
-    expect(profileRepo.upsert).toHaveBeenCalledWith('u1', { targetAdjustmentKcal: -100 });
+    // §2.11, T-35.4: the coach never writes targetAdjustmentKcal itself.
+    expect(profileRepo.upsert).not.toHaveBeenCalled();
     expect(reviewRepo.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ adjustmentKcal: -100 }),
+      expect.objectContaining({ adjustmentKcal: 0, proposedAdjustmentKcal: -100 }),
+    );
+    expect(targetsService.proposeCoachAdjustment).toHaveBeenCalledWith(
+      'u1',
+      expect.any(Number),
+      -100,
     );
   });
 
-  it('accumulates onto an existing dial instead of overwriting it', async () => {
-    const reviewRepo = makeReviewRepo({
-      findPreviousBefore: vi.fn().mockResolvedValue({ weightTrendKg: 0 }),
-    });
-    const profileRepo = makeProfileRepo({
-      findByUserId: vi.fn().mockResolvedValue({ ...PROFILE, targetAdjustmentKcal: -100 }),
-    });
-    const service = new CoachService(reviewRepo, profileRepo, makeWeightRepo());
-
-    await service.runWeeklyReview('u1', SUNDAY);
-
-    expect(profileRepo.upsert).toHaveBeenCalledWith('u1', { targetAdjustmentKcal: -200 });
-  });
-
-  it('first plateau review records the trend but leaves the dial alone', async () => {
+  it('first plateau review records the trend but proposes nothing yet', async () => {
     const reviewRepo = makeReviewRepo(); // no previous review
     const profileRepo = makeProfileRepo();
     const service = new CoachService(reviewRepo, profileRepo, makeWeightRepo());
@@ -264,12 +264,17 @@ describe('CoachService.runWeeklyReview', () => {
     await service.runWeeklyReview('u1', SUNDAY);
 
     expect(profileRepo.upsert).not.toHaveBeenCalled();
+    expect(targetsService.proposeCoachAdjustment).not.toHaveBeenCalled();
     expect(reviewRepo.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ adjustmentKcal: 0, weightTrendKg: 0 }),
+      expect.objectContaining({
+        adjustmentKcal: 0,
+        proposedAdjustmentKcal: null,
+        weightTrendKg: 0,
+      }),
     );
   });
 
-  it('free-tier reviews (applyAdjustment=false) never move the dial', async () => {
+  it('free-tier reviews (applyAdjustment=false) never propose an adjustment', async () => {
     const reviewRepo = makeReviewRepo({
       findPreviousBefore: vi.fn().mockResolvedValue({ weightTrendKg: 0 }),
     });
@@ -279,7 +284,10 @@ describe('CoachService.runWeeklyReview', () => {
     await service.runWeeklyReview('u1', SUNDAY, false);
 
     expect(profileRepo.upsert).not.toHaveBeenCalled();
-    expect(reviewRepo.upsert).toHaveBeenCalledWith(expect.objectContaining({ adjustmentKcal: 0 }));
+    expect(targetsService.proposeCoachAdjustment).not.toHaveBeenCalled();
+    expect(reviewRepo.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ adjustmentKcal: 0, proposedAdjustmentKcal: null }),
+    );
   });
 });
 

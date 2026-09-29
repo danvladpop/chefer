@@ -1,7 +1,8 @@
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { Card, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, PREMIUM_PITCH_COPY } from '@chefer/utils';
+import { openPremium } from '../premium/open-premium';
 
 // Mirrors apps/web/src/features/chat/components/LockedChatPreview.tsx.
 // Per-user AI is premium-only (owner decision 2026-09-25): free users see a
@@ -58,10 +59,12 @@ export function LockedChatPreview() {
         <Pressable
           testID="chat-locked-upgrade"
           accessibilityRole="button"
-          onPress={() => router.push({ pathname: '/profile', params: { source: 'chat-locked' } })}
+          onPress={() => openPremium('chat-locked')}
           className="mt-2 min-h-11 justify-center"
         >
-          <Text className="text-sm font-semibold text-primary">Upgrade from your Profile →</Text>
+          <Text className="text-sm font-semibold text-primary">
+            {PREMIUM_PITCH_COPY.seeWhatPremiumAdds}
+          </Text>
         </Pressable>
       </Card>
       <View>

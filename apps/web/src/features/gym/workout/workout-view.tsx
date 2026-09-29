@@ -15,7 +15,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { ExerciseDto, PrKind, Rir, SessionSetDoc, WorkoutSessionDoc } from '@chefer/types';
-import { Button, Sheet } from '@chefer/ui';
+import { Button, Sheet, Toast } from '@chefer/ui';
 import { cn, sessionSupersetKey, type SessionSupersetSlot } from '@chefer/utils';
 import { captureGymEvent } from '../analytics';
 import { ExercisePickerSheet } from '../shared/exercise-picker-sheet';
@@ -38,6 +38,7 @@ import {
   lastNoteFor,
   lastTimeSets,
   livePrs,
+  propagateEditActions,
   sessionProgress,
   setLabelOf,
   sortedExercises,
@@ -70,6 +71,15 @@ export function WorkoutView() {
   const [picker, setPicker] = useState<Picker>(null);
   const [plateKg, setPlateKg] = useState<number | null>(null);
   const [setMenu, setSetMenu] = useState<{ seId: string; setId: string } | null>(null);
+  // UX-05 A1 (T-05.A1.2 web parity): the set-number menu already removed a
+  // set with no confirm; this adds the same 8 s Undo the mobile long-press/⋯
+  // path has, restoring the set at its original position with its values.
+  const [undoRemove, setUndoRemove] = useState<{
+    seId: string;
+    set: SessionSetDoc;
+    index: number;
+    label: string;
+  } | null>(null);
   const [confirm, setConfirm] = useState<'finish' | 'discard' | null>(null);
   const [finishing, setFinishing] = useState(false);
   // Set after Finish: the summary renders in place (audit F-GYM-5-1 — a
@@ -144,10 +154,18 @@ export function WorkoutView() {
     (action: WorkoutActionInput) => dispatch(action, { supersets: supersetsRef.current }),
     [dispatch],
   );
+  // T-05.7 (bug B-20, web parity with the mobile logger): a weight or reps
+  // edit carries to later unticked sets that still matched the old value.
   const onEditSet = useCallback(
-    (seId: string, setId: string, patch: { weightKg?: number; reps?: number }) =>
-      act({ type: 'editSet', seId, setId, ...patch }),
-    [act],
+    (seId: string, setId: string, patch: { weightKg?: number; reps?: number }) => {
+      const se = session?.exercises.find((e) => e.id === seId);
+      const set = se?.sets.find((s) => s.id === setId);
+      act({ type: 'editSet', seId, setId, ...patch });
+      if (se && set) {
+        for (const later of propagateEditActions(se, set, patch)) act(later);
+      }
+    },
+    [act, session],
   );
   const onToggleSet = useCallback(
     (seId: string, set: SessionSetDoc) =>
@@ -581,10 +599,42 @@ export function WorkoutView() {
         }
         onClose={() => setSetMenu(null)}
         onRemove={() => {
-          if (setMenu) act({ type: 'removeSet', seId: setMenu.seId, setId: setMenu.setId });
+          if (setMenu) {
+            const se = exercises.find((e) => e.id === setMenu.seId);
+            const set = se?.sets.find((s) => s.id === setMenu.setId);
+            if (se && set) {
+              act({ type: 'removeSet', seId: setMenu.seId, setId: setMenu.setId });
+              setUndoRemove({
+                seId: se.id,
+                set,
+                index: set.position,
+                label: setLabelOf(se, set.id) ?? 'set',
+              });
+            }
+          }
           setSetMenu(null);
         }}
       />
+
+      {undoRemove && (
+        <Toast
+          message={`Removed ${undoRemove.label.toLowerCase()}`}
+          onClose={() => setUndoRemove(null)}
+          duration={8000}
+          action={{
+            label: 'Undo',
+            onClick: () => {
+              act({
+                type: 'restoreSet',
+                seId: undoRemove.seId,
+                set: undoRemove.set,
+                index: undoRemove.index,
+              });
+              setUndoRemove(null);
+            },
+          }}
+        />
+      )}
 
       <PlateSheet weightKg={plateKg} profile={inventory} onClose={() => setPlateKg(null)} />
 

@@ -10,6 +10,7 @@ import { makeGymQueryClient, renderWithGym } from './gym-screen-test-utils';
 jest.mock('expo-router', () => ({
   router: { replace: jest.fn(), push: jest.fn(), back: jest.fn(), canGoBack: () => false },
   useIsFocused: () => true,
+  usePathname: () => '/exercises',
 }));
 
 const { router } = jest.requireMock<{

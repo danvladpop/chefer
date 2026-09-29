@@ -64,6 +64,8 @@ vi.mock('@/lib/trpc', () => {
       }),
       recipe: {
         list: { useQuery: () => ({ data: [picked], isLoading: false }) },
+        // T-02.5/AC7: ReplaceMealSheet's FilteredForLine footer query.
+        listHiddenCount: { useQuery: () => ({ data: { hiddenCount: 0, filteredFor: [] } }) },
       },
       mealPlan: {
         replaceRecipe: { useMutation: mutation(m.replace) },
@@ -109,8 +111,8 @@ function Planner() {
         planId="plan1"
         selectedDay={2}
         onSelectDay={() => undefined}
-        onReplaceMeal={(mealType, mealName, slotIndex) =>
-          setTarget({ planId: 'plan1', dayOfWeek: 2, mealType, slotIndex, mealName })
+        onReplaceMeal={(mealType, mealName, slotIndex, recipeId) =>
+          setTarget({ planId: 'plan1', dayOfWeek: 2, mealType, slotIndex, mealName, recipeId })
         }
       />
       <ReplaceMealSheet target={target} onClose={() => setTarget(null)} />

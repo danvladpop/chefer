@@ -1,0 +1,74 @@
+# T-BUG-O1 / T-BUG-O1.2 (O-18, UX-21 AC 11): attaching a photo to a new recipe
+# never shows "[object Object]" or a bare status code, and every photo size
+# uploads — the app shrinks it on the device (long edge ≤ 2048 px, JPEG 0.8)
+# first. A 36 MP photo (the too-big sentence before T-BUG-O1.2), a > 5 MB one
+# (a 500 before W0-D) and a screenshot all end with the photo attached. The
+# too-big sentence itself is covered by the unit, contract and web tests.
+#
+# Fixtures (e2e/fixtures/, git-ignored): run
+# `e2e/fixtures/make-photo-fixtures.sh` before EVERY run of this flow on its
+# own (run-suite.sh does it for you) — the photo library skips a re-import of
+# an identical file, and each step picks "the newest photo".
+#
+# Known platform quirk (same as recipes.flow.yaml): `recipes-new` is the
+# rightmost Cookbook header button, which can sit under the Android dev-build
+# floating Tools bubble — if this flow starts failing to open the create form
+# on Android, that bubble is the first thing to check.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+
+# A loaded emulator can still be mounting the tab bar when connect returns.
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+
+- tapOn: '.*Cookbook.*'
+# First visit in a cold dev-client process can wait on Metro for the route.
+- extendedWaitUntil:
+    visible:
+      id: 'recipes-title'
+    timeout: 45000
+- tapOn:
+    id: 'recipes-new'
+- extendedWaitUntil:
+    visible:
+      id: 'recipe-form-title'
+    timeout: 15000
+
+# ── 36 MP, ~20 MB: shrunk on the device, uploads ──
+- addMedia:
+    - 'fixtures/oversize-photo.jpg'
+- runFlow: common/pick-latest-photo.yaml
+# The result renders under the button, which can sit below the fold (Android).
+- scrollUntilVisible:
+    element: 'Remove photo'
+    direction: DOWN
+    timeout: 60000
+- assertNotVisible: 'That photo is too big.*'
+- assertNotVisible: '.*\[object Object\].*'
+- assertNotVisible: '.*\b(413|500)\b.*'
+- tapOn: 'Remove photo'
+
+# ── Over the old 5 MB limit: uploads ──
+- addMedia:
+    - 'fixtures/large-photo.jpg'
+- runFlow: common/pick-latest-photo.yaml
+- scrollUntilVisible:
+    element: 'Remove'
+    direction: DOWN
+    timeout: 60000
+- assertNotVisible: 'That photo is too big.*'
+- assertNotVisible: '.*\[object Object\].*'
+- tapOn: 'Remove'
+
+# ── Screenshot-sized: uploads ──
+- addMedia:
+    - 'fixtures/screenshot-photo.jpg'
+- runFlow: common/pick-latest-photo.yaml
+- scrollUntilVisible:
+    element: 'Remove'
+    direction: DOWN
+    timeout: 30000
+- assertNotVisible: '.*\[object Object\].*'

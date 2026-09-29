@@ -1,10 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import {
-  dietaryPreferencesRepository,
   favouriteRecipeRepository,
   householdMemberRepository,
   prisma,
-  type IDietaryPreferencesRepository,
   type IFavouriteRecipeRepository,
   type Recipe,
 } from '@chefer/database';
@@ -28,6 +26,8 @@ import type {
 import { NO_RECIPE_SENTINEL } from '../../lib/ai/prompts.js';
 import {
   findSafetyIssues as findRecipeSafetyIssues,
+  findSafetyBlockers,
+  type SafetyBlocker,
   type SafetyPrefs,
 } from '../../lib/curated-recipes/safety.js';
 import { buildPollinationsUrl } from '../../lib/image-gen/pollinations.js';
@@ -46,7 +46,8 @@ import {
   findNotFoundFields,
   unverifiedQuantityIndexes,
 } from '../../lib/video-import/index.js';
-import { mergeHouseholdSafety } from '../household/household.service.js';
+import { markLatestImportSaved } from '../profile/ai-usage.service.js';
+import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import {
   videoRecipeService,
   type VideoRecipeService,
@@ -69,6 +70,11 @@ export interface ImportSafety {
   ok: boolean;
   /** The safety terms that still match the adapted recipe (fail-closed evidence). */
   issues: string[];
+  /**
+   * T-BUG-51 (copy half): the same conflicts, but naming the actual
+   * ingredient line(s) responsible instead of only the allergy/diet label.
+   */
+  blockedBy?: SafetyBlocker[];
 }
 
 export interface ImportPreview {
@@ -128,6 +134,21 @@ export function findSafetyIssues(recipe: ExtractedRecipe, prefs: SafetyPrefs): s
   return findRecipeSafetyIssues(toRecipeData(recipe), prefs);
 }
 
+/** T-BUG-51: builds the full ImportSafety payload (labels AND ingredients). */
+function checkImportSafety(recipe: ExtractedRecipe, prefs: SafetyPrefs): ImportSafety {
+  const data = toRecipeData(recipe);
+  const issues = findRecipeSafetyIssues(data, prefs);
+  const blockedBy = findSafetyBlockers(data, prefs);
+  return { ok: issues.length === 0, issues, blockedBy };
+}
+
+/** "peanut butter, walnuts (tree nuts)" — the copy half of T-BUG-51. */
+export function describeSafetyBlockers(blockers: SafetyBlocker[]): string {
+  return blockers
+    .map((b) => (b.ingredients.length > 0 ? `${b.ingredients.join(', ')} (${b.term})` : b.term))
+    .join('; ');
+}
+
 /** Clamps AI output to the lengths the recipe form/DB expect. */
 function sanitizeExtracted(recipe: ExtractedRecipe): ExtractedRecipe {
   const clampNum = (v: number, min: number, max: number) =>
@@ -160,16 +181,11 @@ export class RecipeImportService {
   constructor(
     private readonly ai: IAIService = aiService,
     private readonly recipeRepo: IFavouriteRecipeRepository = favouriteRecipeRepository,
-    private readonly prefsRepo: IDietaryPreferencesRepository = dietaryPreferencesRepository,
-    /** Household members (P2-3): their safety + the table's servings. */
+    /** T-01.2: the ONE safety context (owner + household merged, reported recipes). */
+    private readonly safety: Pick<SafetyService, 'loadContext'> = safetyService,
+    /** Household members (P2-3): the table's servings (portionFactor only). */
     private readonly householdRepo: {
-      findByUserId(userId: string): Promise<
-        {
-          portionFactor: number;
-          allergies: string[];
-          dietaryRestrictions: string[];
-        }[]
-      >;
+      findByUserId(userId: string): Promise<{ portionFactor: number }[]>;
     } = householdMemberRepository,
     private readonly video: Pick<VideoRecipeService, 'extract'> = videoRecipeService,
   ) {}
@@ -253,20 +269,14 @@ export class RecipeImportService {
     }
     const original = sanitizeExtracted(rawExtracted);
 
-    const [prefs, members] = await Promise.all([
-      this.prefsRepo.findByUserId(user.id),
+    // T-01.2: the whole table's allergies and restrictions — an imported
+    // recipe must be safe for everyone the user cooks for (P2-3: member
+    // safety is free) — via the ONE SafetyService context.
+    const [ctx, members] = await Promise.all([
+      this.safety.loadContext(user.id),
       this.householdRepo.findByUserId(user.id),
     ]);
-    // The whole table's allergies and restrictions — an imported recipe must
-    // be safe for everyone the user cooks for (P2-3: member safety is free).
-    const safetyPrefs: SafetyPrefs = mergeHouseholdSafety(
-      {
-        allergies: prefs?.allergies ?? [],
-        dietaryRestrictions: prefs?.dietaryRestrictions ?? [],
-        dislikedIngredients: prefs?.dislikedIngredients ?? [],
-      },
-      members,
-    );
+    const safetyPrefs = ctx.prefs;
     // One people model (audit F-PM-8): servings come from the household,
     // never the legacy serving-size setting. Solo users get one serving.
     const targetServings = householdPortionSum(members);
@@ -290,8 +300,7 @@ export class RecipeImportService {
     // AI output is never trusted for safety — re-validate with the P1-2
     // matcher. `ok: false` means an allergen/restriction survived the
     // adaptation; the UI shows a hard warning and importSave rejects it.
-    const issues = findSafetyIssues(adapted, safetyPrefs);
-    const safety: ImportSafety = { ok: issues.length === 0, issues };
+    const safety = checkImportSafety(adapted, safetyPrefs);
 
     const macroCheck = await this.crossCheckAgainstVocabulary(original);
 
@@ -326,21 +335,9 @@ export class RecipeImportService {
     const result = await this.video.extract(url);
     const draft = sanitizeExtracted(result.recipe);
 
-    const [prefs, members] = await Promise.all([
-      this.prefsRepo.findByUserId(user.id),
-      this.householdRepo.findByUserId(user.id),
-    ]);
-    const issues = findSafetyIssues(
-      draft,
-      mergeHouseholdSafety(
-        {
-          allergies: prefs?.allergies ?? [],
-          dietaryRestrictions: prefs?.dietaryRestrictions ?? [],
-          dislikedIngredients: [], // dislikes are soft — never a warning here
-        },
-        members,
-      ),
-    );
+    const ctx = await this.safety.loadContext(user.id);
+    // Dislikes are soft — never a warning on the video draft either.
+    const safety = checkImportSafety(draft, { ...ctx.prefs, dislikedIngredients: [] });
 
     return {
       via: 'video',
@@ -351,7 +348,7 @@ export class RecipeImportService {
       // reviewer note would only repeat it.
       assumptions: result.assumptions.filter((a) => a !== DERIVED_SERVINGS_NOTE).slice(0, 10),
       transcriptSource: result.stage,
-      safety: { ok: issues.length === 0, issues },
+      safety,
       platform: result.platform,
       sourceUrl: result.sourceUrl,
       ogImageUrl: result.platform === 'youtube' ? result.thumbnailUrl : null,
@@ -372,28 +369,22 @@ export class RecipeImportService {
   async save(user: UserProfile, input: ImportSaveInput): Promise<Recipe> {
     const recipe = sanitizeExtracted(input.recipe);
 
-    if (input.variant === 'adapted') {
-      const [prefs, members] = await Promise.all([
-        this.prefsRepo.findByUserId(user.id),
-        this.householdRepo.findByUserId(user.id),
-      ]);
-      const issues = findSafetyIssues(
-        recipe,
-        mergeHouseholdSafety(
-          {
-            allergies: prefs?.allergies ?? [],
-            dietaryRestrictions: prefs?.dietaryRestrictions ?? [],
-            dislikedIngredients: [], // dislikes are soft — they never block a save
-          },
-          members,
-        ),
-      );
-      if (issues.length > 0) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: `The adapted recipe still conflicts with your preferences (${issues.join(', ')}). Save the original instead, or adjust the recipe.`,
-        });
-      }
+    // T-BUG-X3 (folded into T-01.2): both variants are checked now — the
+    // `original` variant's check used to be skipped entirely. The result is
+    // never a block for `original` ("saving a conflicting recipe stays
+    // allowed but it is never auto-placed" — §2.1); `adapted` still rejects,
+    // fail-closed, with the ingredient-naming copy from T-BUG-51.
+    const ctx = await this.safety.loadContext(user.id);
+    // Dislikes are soft — they never block a save on either variant.
+    const savePrefs = { ...ctx.prefs, dislikedIngredients: [] };
+    const safety = checkImportSafety(recipe, savePrefs);
+
+    if (input.variant === 'adapted' && !safety.ok) {
+      const detail = describeSafetyBlockers(safety.blockedBy ?? []);
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `The adapted recipe still contains ${detail || safety.issues.join(', ')}. Save the original instead, or adjust the recipe.`,
+      });
     }
 
     // Image: the page's og:image when it actually serves one (HEAD-checked,
@@ -410,13 +401,17 @@ export class RecipeImportService {
       );
     }
 
-    return this.recipeRepo.createManualRecipe(user.id, {
+    const saved = await this.recipeRepo.createManualRecipe(user.id, {
       ...recipe,
       ingredients: recipe.ingredients,
       nutritionInfo: recipe.nutritionInfo,
       imageUrl,
       sourceUrl: input.sourceUrl ?? null,
     });
+    // T-10.8: the import's AI cost is its preview (already reserved); this
+    // only lets Profile say how many of today's previews were saved.
+    await markLatestImportSaved(user.id);
+    return saved;
   }
 
   /** Vocabulary lookup + pure cross-check (lib/recipe-import/macro-check). */

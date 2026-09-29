@@ -8,6 +8,7 @@ import type {
 import type { NextWorkoutDto, ProgressionDto, SessionSummaryDto } from '@chefer/types';
 import {
   buildNextWorkout,
+  ENGINE_VERSION,
   shouldOfferDeload,
   summarizeWeeks,
   toSessionSummary,
@@ -25,6 +26,11 @@ import {
 import { GymBootstrapService, previousMonth } from './gym-bootstrap.service.js';
 import type { GymUserContext } from './gym-context.js';
 import { toEquipmentProfile, toRoutineDto } from './mappers.js';
+
+// GymBootstrapService transitively imports client-level.ts → lib/flags.ts →
+// lib/env.ts, which validates the full env schema at import time — mock it
+// (the targets.service.test.ts pattern) so this file needs no real env vars.
+vi.mock('../../lib/flags.js', () => ({ isFlagEnabled: () => false }));
 
 vi.mock('@chefer/utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/utils')>()),
@@ -116,7 +122,9 @@ function setup(
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(toSessionSummary).mockImplementation(
-    (d) => ({ id: d.id, localDate: d.localDate }) as SessionSummaryDto,
+    // T-42.2: recentSessions runs through filterSessionExercisesForLevel, so
+    // the mock needs a real (empty) exercises array, not an undefined one.
+    (d) => ({ id: d.id, localDate: d.localDate, exercises: [] }) as unknown as SessionSummaryDto,
   );
   vi.mocked(summarizeWeeks).mockReturnValue({
     weeks: Array.from({ length: 14 }, (_, i) => ({
@@ -162,7 +170,7 @@ describe('GymBootstrapService.get', () => {
     expect(b.library.map((e) => e.id)).toEqual(['bench', 'squat']);
     expect(b.libraryCursor).toBe('2026-09-20T00:00:00.000Z');
     expect(b.bodyweightKg).toBe(81.4);
-    expect(b.engineVersion).toBe(1);
+    expect(b.engineVersion).toBe(ENGINE_VERSION);
     expect(b.activePause).toBeNull();
     expect(Date.parse(b.serverTime)).not.toBeNaN();
   });
@@ -265,6 +273,22 @@ describe('GymBootstrapService.get', () => {
     });
     const b3 = await future.service.get(USER, { today: TODAY });
     expect(b3.activePause).toBeNull();
+  });
+
+  it('T-36.3: passes GymProfile.carryOver into buildNextWorkout and the bootstrap', async () => {
+    const carryOver = [{ exerciseId: 'squat', fromSessionId: 's0', routineDayId: 'day-a' }];
+    const { service } = setup({ context: ctx({ profileRow: profileRow({ carryOver }) }) });
+
+    const b = await service.get(USER, { today: TODAY });
+
+    expect(buildNextWorkout).toHaveBeenCalledWith(expect.objectContaining({ carryOver }));
+    expect(b.carryOver).toEqual(carryOver);
+  });
+
+  it('carryOver is [] before setup (no profile row)', async () => {
+    const { service } = setup({ context: ctx({ profileRow: null, activeRoutine: null }) });
+    const b = await service.get(USER, { today: TODAY });
+    expect(b.carryOver).toEqual([]);
   });
 
   it('falls back to the first day when the pointer is missing', async () => {

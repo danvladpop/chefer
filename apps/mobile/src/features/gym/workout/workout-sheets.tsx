@@ -1,9 +1,14 @@
 import { useState } from 'react';
 import { Linking, Pressable, TextInput, View } from 'react-native';
-import { Image } from 'expo-image';
-import type { ExerciseDto, SessionExerciseDoc, WeightUnit } from '@chefer/types';
-import { Button, Sheet, Text } from '@chefer/ui-mobile';
+import {
+  HIDDEN_EXERCISE_IMAGE_IDS,
+  type ExerciseDto,
+  type SessionExerciseDoc,
+  type WeightUnit,
+} from '@chefer/types';
+import { Button, ExplainSheet, Sheet, Text } from '@chefer/ui-mobile';
 import { cn, explain, explainInputs, formatLoad } from '@chefer/utils';
+import { ExerciseImage } from '../components/exercise-image';
 import { exerciseImageUrl } from '../library/exercise-image';
 import type { ExerciseHistoryEntry } from './workout-model';
 
@@ -38,18 +43,34 @@ export function TechniqueSheet({
       eyebrow="Technique"
       testID="technique-sheet"
     >
-      {images.length > 0 ? (
+      {exercise ? (
         <View className="flex-row gap-2">
-          {images.map((uri) => (
-            <Image
-              key={uri}
-              source={{ uri }}
-              style={{ flex: 1, aspectRatio: 1, borderRadius: 12 }}
-              contentFit="cover"
-              cachePolicy="disk"
-              accessibilityIgnoresInvertColors
-            />
-          ))}
+          {images.length > 0 ? (
+            images.map((uri, i) => (
+              <View key={uri} className="flex-1 overflow-hidden rounded-xl">
+                <ExerciseImage
+                  uri={uri}
+                  equipment={exercise.equipment}
+                  name={exercise.name}
+                  size="hero"
+                  hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(exercise.id)}
+                  analyticsExerciseId={exercise.ownerId ? 'custom' : exercise.id}
+                  testID={`technique-sheet-image-${i}`}
+                />
+              </View>
+            ))
+          ) : (
+            <View className="flex-1 overflow-hidden rounded-xl">
+              <ExerciseImage
+                uri={null}
+                equipment={exercise.equipment}
+                name={exercise.name}
+                size="hero"
+                analyticsExerciseId={exercise.ownerId ? 'custom' : exercise.id}
+                testID="technique-sheet-image-0"
+              />
+            </View>
+          )}
         </View>
       ) : null}
       {exercise?.videoId ? (
@@ -109,35 +130,20 @@ export function WhySheet({
   name: string;
   unit: WeightUnit;
 }) {
-  const rows = exercise ? explainInputs(exercise.prescription, unit) : [];
+  // D2 protected (gym-why-sheet.test.tsx pins the exact copy/testIDs): this
+  // is the gym instance of the kit ExplainSheet (PAT-1, T-00.1) — same
+  // sentence, rows and footnote as before the refactor, unchanged.
   return (
-    <Sheet
+    <ExplainSheet
       visible={visible}
       onClose={onClose}
       title={name}
       eyebrow="Why this target"
       testID="why-sheet"
-    >
-      {exercise ? (
-        <Text testID="why-sheet-sentence" className="text-base">
-          {explain(exercise.prescription, unit)}
-        </Text>
-      ) : null}
-      <View className="gap-2">
-        {rows.map((row) => (
-          <View
-            key={row.label}
-            className="flex-row justify-between gap-3 border-b border-border py-2"
-          >
-            <Text variant="muted">{row.label}</Text>
-            <Text className="min-w-0 flex-1 text-right text-sm font-medium">{row.value}</Text>
-          </View>
-        ))}
-      </View>
-      <Text variant="muted" className="text-xs">
-        Change any number freely: the next suggestion uses what you actually lift.
-      </Text>
-    </Sheet>
+      sentence={exercise ? explain(exercise.prescription, unit) : undefined}
+      rows={exercise ? explainInputs(exercise.prescription, unit) : []}
+      footnote="Change any number freely: the next suggestion uses what you actually lift."
+    />
   );
 }
 
@@ -163,6 +169,13 @@ export interface ExerciseMenuProps {
   onRemoveSet: () => void;
   onMove: (direction: 'up' | 'down') => void;
   onSaveNote: (note: string | null) => void;
+  /**
+   * UX-44 (T-44.3): `edit` is a past workout — `Replace exercise` goes straight
+   * to the picker (this workout only, never the routine: no scope page),
+   * `Remove from this workout` drops the exercise, and Skip is hidden.
+   */
+  mode?: 'live' | 'edit';
+  onRemoveExercise?: () => void;
 }
 
 type MenuPage = 'actions' | 'swap' | 'note' | 'history';
@@ -208,8 +221,12 @@ function MenuRow({
 
 export function ExerciseMenuSheet(props: ExerciseMenuProps) {
   const { visible, onClose, exercise, name, isFirst, isLast, routineBlockedReason } = props;
+  const editing = props.mode === 'edit';
   const [page, setPage] = useState<MenuPage>('actions');
   const [note, setNote] = useState(exercise?.notes ?? '');
+  // UX-05 A1 (T-05.A1.2): renamed "Remove last set" — it removes the last
+  // unlogged set, or (once every set is logged) the last set outright.
+  const hasWorkingSet = exercise?.sets.some((s) => !s.isWarmup) ?? false;
   const hasOpenSet = exercise?.sets.some((s) => !s.isWarmup && s.completedAt === null) ?? false;
 
   const titles: Record<MenuPage, string> = {
@@ -229,19 +246,44 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
     >
       {page === 'actions' && exercise ? (
         <View>
-          <MenuRow testID="menu-swap" label="Swap exercise" onPress={() => setPage('swap')} />
-          <MenuRow
-            testID="menu-skip"
-            label={exercise.skipped ? 'Unskip exercise' : 'Skip exercise'}
-            hint={exercise.skipped ? undefined : 'Skipping never counts as a miss.'}
-            onPress={props.onSkip}
-          />
+          {editing ? (
+            <>
+              <MenuRow
+                testID="menu-replace"
+                label="Replace exercise"
+                hint="Changes this workout only."
+                onPress={() => props.onSwap('today')}
+              />
+              <MenuRow
+                testID="menu-remove-exercise"
+                label="Remove from this workout"
+                destructive
+                onPress={() => props.onRemoveExercise?.()}
+              />
+            </>
+          ) : (
+            <>
+              <MenuRow testID="menu-swap" label="Swap exercise" onPress={() => setPage('swap')} />
+              <MenuRow
+                testID="menu-skip"
+                label={exercise.skipped ? 'Unskip exercise' : 'Skip exercise'}
+                hint={exercise.skipped ? undefined : 'Skipping never counts as a miss.'}
+                onPress={props.onSkip}
+              />
+            </>
+          )}
           <MenuRow testID="menu-add-set" label="Add set" onPress={props.onAddSet} />
           <MenuRow
             testID="menu-remove-set"
-            label="Remove a set"
-            hint={hasOpenSet ? 'Removes the last set you haven’t logged.' : 'Every set is logged.'}
-            disabled={!hasOpenSet}
+            label="Remove last set"
+            hint={
+              hasOpenSet
+                ? 'Removes the last set you haven’t logged.'
+                : hasWorkingSet
+                  ? 'Removes the last set.'
+                  : 'No sets to remove.'
+            }
+            disabled={!hasWorkingSet}
             onPress={props.onRemoveSet}
           />
           <MenuRow

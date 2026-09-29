@@ -3,6 +3,7 @@
 import { trpc } from '@/lib/trpc';
 import { Flame } from 'lucide-react';
 import type { WeekStatus } from '@chefer/types';
+import { streakWeeksLabel } from '@chefer/utils';
 
 // Stats tab #3 (gym_plan.md §1.3, §1.4): a grid of weeks (met / flex / paused
 // / under / empty), never daily, and never red — the habit mechanics are
@@ -32,7 +33,7 @@ export function ConsistencyGrid() {
           <div className="flex items-center gap-3 text-xs text-neutral-600">
             <span className="flex items-center gap-1 font-semibold text-neutral-900">
               <Flame className="h-3.5 w-3.5 text-orange-500" />
-              {data.streak.current}-week streak
+              {streakWeeksLabel(data.streak.current)}
             </span>
             <span>Best: {data.streak.best}</span>
             {data.streak.flexTokens > 0 && <span>{data.streak.flexTokens} flex weeks saved</span>}

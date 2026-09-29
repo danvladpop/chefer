@@ -1,7 +1,14 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import type { Exercise, IExerciseRepository } from '@chefer/database';
 import { EXERCISE_CATALOG, type ExerciseCatalogEntry } from '@chefer/types';
-import { catalogToWriteData, imageKeysFor, syncExerciseLibrary } from './ensure.js';
+import {
+  catalogToWriteData,
+  EXERCISE_STATIC_DIR,
+  imageKeysFor,
+  syncExerciseLibrary,
+} from './ensure.js';
+import { webpDimensions } from './webp-dimensions.js';
 
 const entry = (over: Partial<ExerciseCatalogEntry> = {}): ExerciseCatalogEntry => ({
   ...EXERCISE_CATALOG[0]!,
@@ -14,6 +21,9 @@ function storedRow(e: ExerciseCatalogEntry, over: Partial<Exercise> = {}): Exerc
     id: e.id,
     ownerId: null,
     ...catalogToWriteData(e, []),
+    // S18 (T-42.0): ExerciseWriteData.trackingType is optional (existing
+    // callers keep compiling); the full Exercise row always has one.
+    trackingType: e.trackingType ?? 'WEIGHT_REPS',
     contentVersion: 3,
     archivedAt: null,
     createdAt: new Date(),
@@ -72,8 +82,8 @@ describe('syncExerciseLibrary', () => {
 describe('imageKeysFor', () => {
   it('lists only photos that exist, and none without a free-exercise-db id', () => {
     const e = entry({ id: 'bench' });
-    expect(imageKeysFor(e, (f) => f === 'bench-0.webp')).toEqual(['bench-0.webp']);
-    expect(imageKeysFor(e, () => true)).toEqual(['bench-0.webp', 'bench-1.webp']);
+    expect(imageKeysFor(e, (f) => f === 'bench-0.3x2.webp')).toEqual(['bench-0.3x2.webp']);
+    expect(imageKeysFor(e, () => true)).toEqual(['bench-0.3x2.webp', 'bench-1.3x2.webp']);
     expect(imageKeysFor(entry({ freeExerciseDbId: null }), () => true)).toEqual([]);
   });
 });
@@ -86,6 +96,20 @@ describe('vendored photos (apps/api/static/exercises)', () => {
       (e) => e.freeExerciseDbId !== null && imageKeysFor(e).length !== 2,
     ).map((e) => e.id);
     expect(missing).toEqual([]);
+  });
+
+  it('is exactly 600×400 (3:2, T-05.11 AC30) for every vendored photo', () => {
+    const badSizes: string[] = [];
+    for (const e of EXERCISE_CATALOG) {
+      for (const key of imageKeysFor(e)) {
+        const buf = readFileSync(`${EXERCISE_STATIC_DIR}/${key}`);
+        const { width, height } = webpDimensions(buf);
+        if (width !== 600 || height !== 400) {
+          badSizes.push(`${key}: ${width}×${height}`);
+        }
+      }
+    }
+    expect(badSizes).toEqual([]);
   });
 
   it('creates new catalog entries on an existing database, idempotently (F-GYM-2-1)', async () => {

@@ -2,136 +2,160 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { HouseholdSection } from '@/features/preferences/components/household-section';
+import { TargetsCard } from '@/features/preferences/components/TargetsCard';
 import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
-import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import type { OnboardingIntent } from '@chefer/types';
-import { onboardingProgress, onboardingSteps } from '@chefer/utils';
+import type { OnboardingJob } from '@chefer/types';
+import { aiConsentRequiredFor, onboardingProgress, onboardingSteps } from '@chefer/utils';
 import { EMPTY_WIZARD_DATA, type Goal, type WizardData } from '../types';
 import { StepCuisine } from './step-cuisine';
 import { StepDiet } from './step-diet';
 import { StepGoal } from './step-goal';
-import { StepIntent } from './step-intent';
+import { StepHowYouCook, type HowYouCookStepValue } from './step-how-you-cook';
+import { StepJobs } from './step-jobs';
 import { StepMetrics } from './step-metrics';
+import { StepTrainingDays, type TrainingDayKind } from './step-training-days';
 
-// ─── Wizard Component ─────────────────────────────────────────────────────────
-// Premium: 4 steps (goal → metrics → diet → cuisine) saved via
-// preferences.setup. Free (P1-2 + ux-fixes-plan.md 3.1): 3 steps — safety
-// (free preferences.updateSafety), then OPTIONAL goal and body metrics
-// (preferences.saveProfileBasics, free tier stores them so the dashboard
-// target is real). The old step 2 was a premium pitch masquerading as
-// onboarding progress (review O-1); the pitch is now a card under step 3.
-//
-// Step 0 (backlog P2-3, audit F-PM-6): "What brings you here?" — asked while
-// the profile has no intent. Households get "Who's at your table?" before the
-// food steps; gym-goers go straight to gym setup (food setup later — opening
-// /onboarding again skips the question). The step list comes from the shared
-// `onboardingSteps`, so web and mobile route identically. There is no
-// serving-size question any more: the household is the one people model.
+// ─── Wizard Component (§2.4, T-03.6, rev 2) ────────────────────────────────────
+// v3, jobs-based (mirrors the mobile wizard — same shared `onboardingSteps`/
+// `effectiveJobs` from @chefer/utils, so web and mobile route identically).
+// Step 1 replaces "What brings you here?" with a multi-select "What should
+// Chefer help with?" (StepJobs). Train alone hands off to gym setup
+// unchanged; any food job gets Diet -> How you cook -> Goal -> Body metrics
+// (+ Targets for Track or Train with a numeric goal), premium adds Cuisine
+// at the end. Every tier saves through the free-for-every-tier granular
+// procedures — the old premium/free branch collapses into one builder.
+
+const EMPTY_HOW_YOU_COOK: HowYouCookStepValue = {
+  shape: null,
+  currency: 'EUR',
+  units: 'METRIC',
+  autoPlanWeekly: false,
+};
+
+function stepTitle(key: string): string {
+  switch (key) {
+    case 'jobs':
+      return 'What should Chefer help with?';
+    case 'trainingDays':
+      return 'Training days';
+    case 'table':
+      return "Who's at your table?";
+    case 'diet':
+      return 'Diet & restrictions';
+    case 'howYouCook':
+      return 'How you cook';
+    case 'goal':
+      return 'Your goal';
+    case 'metrics':
+      return 'Body metrics';
+    case 'cuisine':
+      return 'Cuisine & cadence';
+    case 'targets':
+      return 'Your targets';
+    default:
+      return '';
+  }
+}
 
 export function OnboardingWizard({
   isPremium,
   initialData = EMPTY_WIZARD_DATA,
-  initialIntent = null,
+  initialJobs = [],
 }: {
   isPremium: boolean;
   /** Saved preferences, so a re-run never starts blank (F-ONB-1-1). */
   initialData?: WizardData;
-  /** The saved onboarding intent; null asks the question. */
-  initialIntent?: OnboardingIntent | null;
+  /** The saved effective jobs list; [] asks the question. */
+  initialIntent?: unknown;
+  initialJobs?: OnboardingJob[];
 }) {
   const router = useRouter();
-  const [askIntent] = useState(initialIntent === null);
-  const [intent, setIntent] = useState<OnboardingIntent | null>(initialIntent);
-  const steps = onboardingSteps({ intent, askIntent, isPremium });
-  const totalSteps = steps.length;
-  // 1-based position in `steps` (kept 1-based so progress reads naturally).
+  const utils = trpc.useUtils();
+  const requestAiConsent = useAiConsent();
+
+  const [askJobs] = useState(initialJobs.length === 0);
+  const [jobs, setJobs] = useState<OnboardingJob[]>(askJobs ? [] : initialJobs);
+  const [trainingWeekdays, setTrainingWeekdays] = useState<number[]>([]);
+  const [trainingDayKinds, setTrainingDayKinds] = useState<Record<number, TrainingDayKind>>({});
+  const [howYouCook, setHowYouCook] = useState<HowYouCookStepValue>(EMPTY_HOW_YOU_COOK);
+  const [goodFood, setGoodFood] = useState(false);
   const [step, setStep] = useState(1);
-  const stepKey = steps[step - 1] ?? steps[steps.length - 1];
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<WizardData>(initialData);
 
-  const intentMutation = trpc.preferences.setIntent.useMutation({
+  const steps = onboardingSteps({
+    intent: null,
+    askIntent: false,
+    isPremium,
+    jobs: askJobs ? jobs : initialJobs,
+    askJobs: true,
+    hasNumericGoal: !goodFood && data.goal !== null,
+  });
+  const totalSteps = steps.length;
+  const stepKey = steps[step - 1] ?? steps[steps.length - 1] ?? 'jobs';
+
+  const setJobsMutation = trpc.preferences.setJobs.useMutation({
     onError: (err) => setError(err.message),
   });
-
-  const setupMutation = trpc.preferences.setup.useMutation({
-    onSuccess: () => router.push('/dashboard'),
-    onError: (err) => setError(err.message),
-  });
-
+  const setDayKindsMutation = trpc.training.setDayKinds.useMutation();
+  const setShapeMutation = trpc.mealPlan.setShape.useMutation();
+  const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation();
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
     onError: (err) => setError(err.message),
   });
-
-  // Free tier: goal + metrics are optional but storable (3.1) — saved in the
-  // same finish action as safety, then straight to the dashboard.
   const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
     onError: (err) => setError(err.message),
   });
+  const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
+  const generateMutation = trpc.mealPlan.generate.useMutation();
 
-  // ── Validation ──────────────────────────────────────────────────────────────
+  const hasTrain = jobs.includes('TRAIN');
+
+  function generateFirstWeek() {
+    const run = () => generateMutation.mutate({ weekOffset: 0 });
+    requestAiConsent('meal-plan', run, { usesAi: aiConsentRequiredFor('meal-plan', isPremium) });
+  }
 
   function canContinue(): boolean {
-    if (stepKey === 'intent') return intent !== null;
-    if (!isPremium) return true; // every free step is optional
-    if (stepKey === 'goal') return data.goal !== null;
-    if (stepKey === 'metrics')
-      return (
-        data.biologicalSex !== null &&
-        data.age !== null &&
-        data.age > 0 &&
-        data.heightCm !== null &&
-        data.heightCm > 0 &&
-        data.weightKg !== null &&
-        data.weightKg > 0 &&
-        data.activityLevel !== null
-      );
-    return true; // Diet, cuisine and the table are optional
+    if (stepKey === 'jobs') return jobs.length > 0;
+    return true; // every later step is independently optional
   }
 
-  // ── Navigation ──────────────────────────────────────────────────────────────
-
-  function stepIndexOf(key: (typeof steps)[number]): number {
-    const index = steps.indexOf(key);
-    return index >= 0 ? index + 1 : 1;
-  }
-
-  async function handleIntentContinue() {
-    if (intent === null) return;
+  async function handleJobsContinue() {
+    if (jobs.length === 0) return;
     try {
-      await intentMutation.mutateAsync({ intent });
+      await setJobsMutation.mutateAsync({ jobs });
     } catch {
-      return; // onError surfaced it
+      return;
     }
-    capture('onboarding_intent', { intent });
-    if (intent === 'TRAIN') {
-      // Gym-goers set up training first; food setup can wait (F-PM-6).
+    const trainOnly = jobs.length === 1 && jobs[0] === 'TRAIN';
+    if (trainOnly) {
       router.push('/gym/setup');
       return;
     }
     setStep((s) => s + 1);
   }
 
-  function handleContinue() {
-    setError(null);
-    if (stepKey === 'intent') {
-      void handleIntentContinue();
+  function handleSkip() {
+    // "Just looking around" (jobs step only) — saves PLAN_MEALS and lands
+    // on the dashboard directly; every later step is already optional.
+    if (stepKey === 'jobs') {
+      setJobs(['PLAN_MEALS']);
+      setJobsMutation.mutate(
+        { jobs: ['PLAN_MEALS'] },
+        {
+          onSuccess: () => {
+            void utils.preferences.invalidate();
+            router.push('/dashboard');
+          },
+        },
+      );
       return;
     }
-    if (step < totalSteps) {
-      setStep((s) => s + 1);
-    } else {
-      void handleFinish();
-    }
-  }
-
-  /** "Skip this question": no intent stored, the solo flow continues. */
-  function handleSkipIntent() {
-    setError(null);
-    setIntent(null);
-    setStep((s) => s + 1);
+    void handleFinish();
   }
 
   function handleBack() {
@@ -143,72 +167,83 @@ export function OnboardingWizard({
   }
 
   async function handleFinish() {
-    if (!isPremium) {
-      try {
-        await safetyMutation.mutateAsync({
-          dietaryRestrictions: data.dietaryRestrictions,
-          allergies: data.allergies,
-          dislikedIngredients: data.dislikedIngredients,
-        });
-        const basics = {
-          ...(data.goal !== null && { goal: data.goal }),
-          ...(data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
-          ...(data.age !== null && data.age > 0 && { age: data.age }),
-          ...(data.heightCm !== null && data.heightCm > 0 && { heightCm: data.heightCm }),
-          ...(data.weightKg !== null && data.weightKg > 0 && { weightKg: data.weightKg }),
-          ...(data.activityLevel !== null && { activityLevel: data.activityLevel }),
-        };
-        if (Object.keys(basics).length > 0) {
-          await profileBasicsMutation.mutateAsync(basics);
-        }
-        router.push('/dashboard');
-      } catch {
-        // onError already surfaced the message.
+    setError(null);
+    try {
+      await setJobsMutation.mutateAsync({
+        jobs,
+        ...(hasTrain && trainingWeekdays.length > 0 && { trainingWeekdays }),
+        ...(steps.includes('howYouCook') && { autoPlanWeekly: howYouCook.autoPlanWeekly }),
+      });
+      if (Object.keys(trainingDayKinds).length > 0) {
+        await setDayKindsMutation.mutateAsync({ days: trainingDayKinds });
       }
-      return;
-    }
+      if (steps.includes('howYouCook') && howYouCook.shape) {
+        await setShapeMutation.mutateAsync(howYouCook.shape);
+        await setDisplayPrefsMutation.mutateAsync({
+          preferredUnits: howYouCook.units,
+          currency: howYouCook.currency,
+        });
+      }
+      await safetyMutation.mutateAsync({
+        dietaryRestrictions: data.dietaryRestrictions,
+        allergies: data.allergies,
+        dislikedIngredients: data.dislikedIngredients,
+      });
+      const basics = {
+        ...(!goodFood && data.goal !== null && { goal: data.goal }),
+        ...(data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
+        ...(data.age !== null && data.age > 0 && { age: data.age }),
+        ...(data.heightCm !== null && data.heightCm > 0 && { heightCm: data.heightCm }),
+        ...(data.weightKg !== null && data.weightKg > 0 && { weightKg: data.weightKg }),
+        ...(data.activityLevel !== null && { activityLevel: data.activityLevel }),
+      };
+      if (Object.keys(basics).length > 0) {
+        await profileBasicsMutation.mutateAsync(basics);
+      }
+      if (isPremium && steps.includes('cuisine')) {
+        await updateTargetsMutation.mutateAsync({
+          cuisinePreferences: data.cuisinePreferences,
+          mealsPerDay: data.mealsPerDay,
+        });
+      }
+      void utils.preferences.invalidate();
+      void utils.dashboard.invalidate();
 
-    // Premium setup needs goal and metrics. A user who upgraded mid-wizard
-    // skipped those steps, and Finish used to do nothing at all (audit
-    // F-ONB-1-3): send them to the first missing step and say why.
-    if (data.goal === null) {
-      setError('Pick a goal to finish setting up.');
-      setStep(stepIndexOf('goal'));
-      return;
+      if (hasTrain) {
+        generateFirstWeek();
+        const days = [...trainingWeekdays].sort((a, b) => a - b).join(',');
+        router.push(`/gym/setup?from=onboarding${days ? `&days=${days}` : ''}`);
+        return;
+      }
+      generateFirstWeek();
+      router.push('/dashboard');
+    } catch {
+      // onError already surfaced the message.
     }
-    if (
-      data.biologicalSex === null ||
-      data.age === null ||
-      data.heightCm === null ||
-      data.weightKg === null ||
-      data.activityLevel === null
-    ) {
-      setError('Add your body metrics to finish setting up.');
-      setStep(stepIndexOf('metrics'));
-      return;
-    }
-
-    setupMutation.mutate({
-      goal: data.goal,
-      biologicalSex: data.biologicalSex,
-      age: data.age,
-      heightCm: data.heightCm,
-      weightKg: data.weightKg,
-      activityLevel: data.activityLevel,
-      dietaryRestrictions: data.dietaryRestrictions,
-      allergies: data.allergies,
-      dislikedIngredients: data.dislikedIngredients,
-      cuisinePreferences: data.cuisinePreferences,
-      mealsPerDay: data.mealsPerDay,
-    });
   }
 
-  // "Step 1" with no total while the intent question is open: the answer
-  // changes the total, and the counter must never grow (4 → 5).
+  function handleContinue() {
+    setError(null);
+    if (stepKey === 'jobs') {
+      void handleJobsContinue();
+      return;
+    }
+    if (step < totalSteps) {
+      setStep((s) => s + 1);
+    } else {
+      void handleFinish();
+    }
+  }
+
   const progress = onboardingProgress(steps, step - 1);
   const progressPct = progress.percent ?? 0;
   const isSubmitting =
-    setupMutation.isPending || safetyMutation.isPending || intentMutation.isPending;
+    setJobsMutation.isPending ||
+    safetyMutation.isPending ||
+    profileBasicsMutation.isPending ||
+    setShapeMutation.isPending ||
+    setDisplayPrefsMutation.isPending ||
+    updateTargetsMutation.isPending;
 
   return (
     <div className="flex min-h-[calc(100dvh-4rem)] flex-col">
@@ -216,8 +251,12 @@ export function OnboardingWizard({
       <div className="border-b bg-background px-4 py-4">
         <div className="mx-auto max-w-2xl">
           <div className="mb-2 flex items-center justify-between text-sm text-muted-foreground">
-            <span>{progress.label}</span>
-            {progress.percent !== null && <span>{progress.percent}% complete</span>}
+            <span data-testid="onboarding-title">{stepTitle(stepKey)}</span>
+            <span>
+              {progress.percent === null
+                ? progress.label
+                : `${progress.label} · ${progress.percent}%`}
+            </span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-muted">
             <div
@@ -242,11 +281,15 @@ export function OnboardingWizard({
             </div>
           )}
 
-          {stepKey === 'intent' && (
-            <StepIntent
-              value={intent}
-              onChange={(next) => setIntent(next)}
-              onSkip={handleSkipIntent}
+          {stepKey === 'jobs' && <StepJobs value={jobs} onChange={setJobs} />}
+
+          {stepKey === 'trainingDays' && (
+            <StepTrainingDays
+              weekdays={trainingWeekdays}
+              onWeekdaysChange={setTrainingWeekdays}
+              dayKinds={trainingDayKinds}
+              onDayKindsChange={setTrainingDayKinds}
+              onNotSure={() => setStep((s) => s + 1)}
             />
           )}
 
@@ -270,8 +313,7 @@ export function OnboardingWizard({
             </div>
           )}
 
-          {/* Free flow: safety first, then a preview of premium personalisation */}
-          {!isPremium && stepKey === 'diet' && (
+          {stepKey === 'diet' && (
             <StepDiet
               value={{
                 dietaryRestrictions: data.dietaryRestrictions,
@@ -282,19 +324,29 @@ export function OnboardingWizard({
             />
           )}
 
-          {!isPremium && stepKey === 'goal' && (
+          {stepKey === 'howYouCook' && (
+            <StepHowYouCook value={howYouCook} onChange={setHowYouCook} isPremium={isPremium} />
+          )}
+
+          {stepKey === 'goal' && (
             <div className="space-y-4">
               <p className="text-center text-sm text-muted-foreground">
                 Optional — skip if you just want chef-picked meals.
               </p>
               <StepGoal
-                value={data.goal}
-                onChange={(goal: Goal) => setData((d) => ({ ...d, goal }))}
+                value={goodFood ? null : data.goal}
+                onChange={(goal: Goal) => {
+                  setGoodFood(false);
+                  setData((d) => ({ ...d, goal }));
+                }}
+                showGoodFood
+                goodFood={goodFood}
+                onGoodFood={() => setGoodFood(true)}
               />
             </div>
           )}
 
-          {!isPremium && stepKey === 'metrics' && (
+          {stepKey === 'metrics' && (
             <div className="space-y-8">
               <div className="space-y-4">
                 <p className="text-center text-sm text-muted-foreground">
@@ -310,59 +362,29 @@ export function OnboardingWizard({
                     activityLevel: data.activityLevel,
                   }}
                   onChange={(metrics) => setData((d) => ({ ...d, ...metrics }))}
-                  goal={data.goal}
+                  goal={goodFood ? null : data.goal}
                 />
               </div>
-              <UpgradeCard
-                source="onboarding"
-                title="Want every week generated around this profile?"
-                description="Free plans are chef-picked and always respect your allergies. Premium — free for now — has the AI chef build each week around your goal, targets and taste."
-                perkDisplay="carousel"
-              />
+              {!isPremium && (
+                <UpgradeCard
+                  source="onboarding"
+                  title="Want every week generated around this profile?"
+                  description="Free plans are chef-picked and always respect your allergies. Premium — free for now — has the AI chef build each week around your goal, targets and taste."
+                  perkDisplay="carousel"
+                />
+              )}
             </div>
           )}
 
-          {isPremium && stepKey === 'goal' && (
-            <StepGoal
-              value={data.goal}
-              onChange={(goal: Goal) => setData((d) => ({ ...d, goal }))}
-            />
-          )}
+          {stepKey === 'targets' && <TargetsCard />}
 
-          {isPremium && stepKey === 'metrics' && (
-            <StepMetrics
-              value={{
-                biologicalSex: data.biologicalSex,
-                age: data.age,
-                heightCm: data.heightCm,
-                weightKg: data.weightKg,
-                activityLevel: data.activityLevel,
-              }}
-              onChange={(metrics) => setData((d) => ({ ...d, ...metrics }))}
-              goal={data.goal}
-            />
-          )}
-
-          {isPremium && stepKey === 'diet' && (
-            <StepDiet
-              value={{
-                dietaryRestrictions: data.dietaryRestrictions,
-                allergies: data.allergies,
-                dislikedIngredients: data.dislikedIngredients,
-              }}
-              onChange={(diet) => setData((d) => ({ ...d, ...diet }))}
-            />
-          )}
-
-          {isPremium && stepKey === 'cuisine' && (
+          {stepKey === 'cuisine' && (
             <StepCuisine
               value={{
                 cuisinePreferences: data.cuisinePreferences,
                 mealsPerDay: data.mealsPerDay,
               }}
               onChange={(cuisine) => setData((d) => ({ ...d, ...cuisine }))}
-              // Leaving mid-wizard would lose the answers; the household is
-              // reachable from Profile and Preferences afterwards.
               showHouseholdHint={false}
             />
           )}
@@ -381,20 +403,35 @@ export function OnboardingWizard({
             {step === 1 ? 'Cancel' : 'Back'}
           </button>
 
-          <button
-            type="button"
-            onClick={handleContinue}
-            disabled={!canContinue() || isSubmitting}
-            className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSubmitting
-              ? 'Saving…'
-              : stepKey === 'intent' && intent === 'TRAIN'
-                ? 'Set up training'
-                : step === totalSteps
-                  ? 'Finish'
-                  : 'Continue'}
-          </button>
+          <div className="flex items-center gap-4">
+            {stepKey === 'jobs' && (
+              <button
+                type="button"
+                onClick={handleSkip}
+                disabled={isSubmitting}
+                className="min-h-11 px-2 text-sm font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Just looking around
+              </button>
+            )}
+            <button
+              type="button"
+              data-testid="onboarding-continue"
+              onClick={handleContinue}
+              disabled={!canContinue() || isSubmitting}
+              className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSubmitting
+                ? 'Saving…'
+                : stepKey === 'jobs'
+                  ? `Continue — ${jobs.length} selected`
+                  : step === totalSteps
+                    ? hasTrain
+                      ? 'Next: set up training'
+                      : 'Plan my first week'
+                    : 'Continue'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

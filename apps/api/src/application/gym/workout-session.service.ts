@@ -2,25 +2,29 @@ import * as Sentry from '@sentry/node';
 import { TRPCError } from '@trpc/server';
 import {
   exerciseRepository,
+  gymProfileRepository,
   Prisma,
   routineRepository,
   workoutSessionRepository,
   type IExerciseRepository,
+  type IGymProfileRepository,
   type IRoutineRepository,
   type IWorkoutSessionRepository,
   type SessionDocWriteData,
   type StoredSessionSnapshot,
 } from '@chefer/database';
 import type {
+  ExerciseTrackingType,
   RoutineDto,
   SessionSummaryDto,
   SyncResultDto,
   UpsertSessionsResultDto,
   WorkoutSessionDoc,
 } from '@chefer/types';
-import { nextDayIdAfter, toSessionSummary } from '@chefer/utils';
+import { nextCarryOver, nextDayIdAfter, toSessionSummary } from '@chefer/utils';
 import { logger } from '../../lib/logger.js';
-import { toJson, toRoutineDto, toSessionDoc } from './mappers.js';
+import { filterSessionExercisesForLevel } from './client-level.js';
+import { readCarryOver, toJson, toRoutineDto, toSessionDoc } from './mappers.js';
 import { progressionService, type ProgressionService } from './progression.service.js';
 
 // ─── WorkoutSessionService (gym_plan.md §4.1 / §5.2) ─────────────────────────
@@ -50,11 +54,16 @@ export class WorkoutSessionService {
     private readonly routineRepo: IRoutineRepository = routineRepository,
     private readonly exerciseRepo: IExerciseRepository = exerciseRepository,
     private readonly progression: Pick<ProgressionService, 'recompute'> = progressionService,
+    private readonly profileRepo: Pick<
+      IGymProfileRepository,
+      'findByUserId' | 'update'
+    > = gymProfileRepository,
   ) {}
 
   async upsertMany(userId: string, docs: WorkoutSessionDoc[]): Promise<UpsertSessionsResultDto> {
     const results = new Map<number, SyncResultDto>();
     const touched = new Set<string>();
+    const completedDocs: WorkoutSessionDoc[] = [];
 
     // Exercise ids must be curated or the caller's own custom (archived ok).
     const allExerciseIds = [...new Set(docs.flatMap((d) => d.exercises.map((e) => e.exerciseId)))];
@@ -79,6 +88,10 @@ export class WorkoutSessionService {
       }
       const result = await this.applyOne(userId, doc, routines, touched);
       results.set(index, result);
+      // T-36.3: fold carry-over for every COMPLETED doc that landed (written
+      // or an identical re-send) — re-sends are idempotent (nextCarryOver
+      // consume+merge), so re-running this for a resend is harmless.
+      if (result.status === 'applied' && doc.status === 'COMPLETED') completedDocs.push(doc);
     }
 
     if (touched.size > 0) {
@@ -89,6 +102,11 @@ export class WorkoutSessionService {
         console.error('[gym] progression recompute failed after upsertMany', { userId, err });
       });
     }
+    if (completedDocs.length > 0) {
+      await this.applyCarryOver(userId, completedDocs).catch((err: unknown) => {
+        console.error('[gym] carry-over update failed after upsertMany', { userId, err });
+      });
+    }
     const finalResults: SyncResultDto[] = docs.map(
       (doc, i) => results.get(i) ?? { id: doc.id, status: 'rejected' },
     );
@@ -96,16 +114,25 @@ export class WorkoutSessionService {
     return { results: finalResults };
   }
 
-  async get(userId: string, id: string): Promise<WorkoutSessionDoc> {
+  async get(userId: string, id: string, level = 0): Promise<WorkoutSessionDoc> {
     const row = await this.sessionRepo.findByIdForUser(userId, id);
     if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Workout not found.' });
-    return toSessionDoc(row);
+    const doc = toSessionDoc(row);
+    const trackingTypeById = await this.trackingTypesFor(
+      userId,
+      doc.exercises.map((e) => e.exerciseId),
+    );
+    return {
+      ...doc,
+      exercises: filterSessionExercisesForLevel(doc.exercises, trackingTypeById, level),
+    };
   }
 
   /** History, newest first. Cursor is opaque ("<startedAt ISO>|<id>"). */
   async list(
     userId: string,
     input: { cursor?: string | undefined; limit: number },
+    level = 0,
   ): Promise<{ items: SessionSummaryDto[]; nextCursor: string | null }> {
     const rows = await this.sessionRepo.listForUser(userId, {
       cursor: decodeCursor(input.cursor),
@@ -113,8 +140,18 @@ export class WorkoutSessionService {
     });
     const page = rows.slice(0, input.limit);
     const last = page.at(-1);
+    const trackingTypeById = await this.trackingTypesFor(
+      userId,
+      page.flatMap((r) => r.exercises.map((e) => e.exerciseId)),
+    );
     return {
-      items: page.map((r) => toSessionSummary(toSessionDoc(r))),
+      items: page.map((r) => {
+        const summary = toSessionSummary(toSessionDoc(r));
+        return {
+          ...summary,
+          exercises: filterSessionExercisesForLevel(summary.exercises, trackingTypeById, level),
+        };
+      }),
       nextCursor:
         rows.length > input.limit && last ? `${last.startedAt.toISOString()}|${last.id}` : null,
     };
@@ -137,6 +174,17 @@ export class WorkoutSessionService {
   }
 
   // ─── internals ───────────────────────────────────────────────────────────
+
+  /** exerciseId → trackingType for the client-level filter (T-42.2, Δ2.1). */
+  private async trackingTypesFor(
+    userId: string,
+    exerciseIds: string[],
+  ): Promise<Map<string, ExerciseTrackingType>> {
+    const ids = [...new Set(exerciseIds)];
+    if (ids.length === 0) return new Map<string, ExerciseTrackingType>();
+    const rows = await this.exerciseRepo.findVisibleByIds(userId, ids);
+    return new Map(rows.map((r) => [r.id, r.trackingType]));
+  }
 
   private async applyOne(
     userId: string,
@@ -178,6 +226,25 @@ export class WorkoutSessionService {
         return { id: doc.id, status: 'applied' };
       }
     }
+  }
+
+  /**
+   * T-36.3 (CI-49): read-modify-write `GymProfile.carryOver`, folding every
+   * newly-completed doc in this batch, oldest first (`nextCarryOver` both
+   * consumes what a doc addressed and adds what it newly carries over). A
+   * user has at most one device syncing a given profile at a time in
+   * practice, so the small race window against a concurrent settings save is
+   * accepted (same tradeoff `gym-profile.service.ts` already makes).
+   */
+  private async applyCarryOver(userId: string, completedDocs: WorkoutSessionDoc[]): Promise<void> {
+    const row = await this.profileRepo.findByUserId(userId);
+    if (!row) return; // no profile yet (shouldn't happen for a COMPLETED doc) — nothing to fold
+    let carryOver = readCarryOver(row.carryOver);
+    for (const doc of completedDocs) {
+      carryOver = nextCarryOver(carryOver, doc);
+    }
+    if (JSON.stringify(carryOver) === JSON.stringify(readCarryOver(row.carryOver))) return;
+    await this.profileRepo.update(userId, { carryOver: toJson(carryOver) });
   }
 
   /** A concurrent first insert of the same id can race into P2002 once — retry it. */
@@ -296,6 +363,15 @@ function toWriteData(doc: WorkoutSessionDoc): SessionDocWriteData {
         reps: s.reps,
         isWarmup: s.isWarmup,
         completedAt: s.completedAt ? new Date(s.completedAt) : null,
+        // S20 (T-42.2): cardio fields, undefined on a strength set's wire doc
+        // — normalised to null for the nullable DB columns.
+        durationSec: s.durationSec ?? null,
+        distanceM: s.distanceM ?? null,
+        intensityRpe: s.intensityRpe ?? null,
+        resistanceLevel: s.resistanceLevel ?? null,
+        inclinePct: s.inclinePct ?? null,
+        caloriesKcal: s.caloriesKcal ?? null,
+        avgHeartRateBpm: s.avgHeartRateBpm ?? null,
       })),
     })),
   };

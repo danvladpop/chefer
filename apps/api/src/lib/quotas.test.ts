@@ -103,12 +103,34 @@ describe('reservation mechanics (audit F-PLAN-2-3, F-TRK-2-2)', () => {
     expect(prisma.aiCallLog.delete).toHaveBeenCalledWith({ where: { id: 'log1' } });
   });
 
-  it('plan generations count MEAL_PLAN reservations, not plan rows (F-PLAN-5-1)', async () => {
+  it('plan generations count reservations, not plan rows (F-PLAN-5-1)', async () => {
     countMock.mockResolvedValue(3); // free limit is 3/day
     await expect(reservePlanGeneration(free)).rejects.toMatchObject({
       code: 'TOO_MANY_REQUESTS',
     });
-    expect(countMock.mock.calls[0]?.[0]).toMatchObject({ where: { callType: 'MEAL_PLAN' } });
+    // T-10.8 (bug B-49): a FREE (curated, zero-AI) generation is counted
+    // against its own call type, not MEAL_PLAN — the daily cap still works
+    // (same limit, same mechanics) but it no longer inflates "AI usage".
+    expect(countMock.mock.calls[0]?.[0]).toMatchObject({ where: { callType: 'CURATED_PLAN' } });
+  });
+
+  it('T-10.8: a PREMIUM generation still counts as MEAL_PLAN (real AI usage)', async () => {
+    countMock.mockResolvedValue(0);
+    await reservePlanGeneration(premium);
+    expect(createMock).toHaveBeenCalledWith({ data: { userId: 'u1', callType: 'MEAL_PLAN' } });
+  });
+
+  it('T-10.8: a FREE generation counts as CURATED_PLAN, not MEAL_PLAN', async () => {
+    countMock.mockResolvedValue(0);
+    await reservePlanGeneration(free);
+    expect(createMock).toHaveBeenCalledWith({ data: { userId: 'u1', callType: 'CURATED_PLAN' } });
+  });
+
+  it('T-10.8: an explicit `premium` argument overrides the tier-derived default', async () => {
+    countMock.mockResolvedValue(0);
+    // A free user going through the premium (AI) code path, e.g. a beta flag.
+    await reservePlanGeneration(free, true);
+    expect(createMock).toHaveBeenCalledWith({ data: { userId: 'u1', callType: 'MEAL_PLAN' } });
   });
 
   it('free AI swaps need no reservation (curated pool, no AI)', async () => {

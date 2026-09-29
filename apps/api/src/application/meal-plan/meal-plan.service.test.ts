@@ -1,13 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   chefProfileRepository,
   dietaryPreferencesRepository,
   favouriteRecipeRepository,
   householdMemberRepository,
+  mealPlanTailoringRepository,
   mealRatingRepository,
+  prisma,
 } from '@chefer/database';
 import { aiService } from '../../lib/ai/index.js';
-import { pickRandomCurated } from '../../lib/curated-recipes/index.js';
+import { pickRandomCurated, safeCuratedPools } from '../../lib/curated-recipes/index.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import {
   dayImagePriority,
@@ -39,6 +41,9 @@ vi.mock('@chefer/database', async (importOriginal) => {
       findByUserId: vi.fn().mockResolvedValue([]),
       migrateLegacyServingSize: vi.fn().mockResolvedValue(0),
     },
+    // T-01.5/delta-4: SafetyService.loadContext (now called throughout this
+    // file) reads reported recipes too — nobody has reported anything here.
+    safetyReportRepository: { findRecipeIdsByUser: vi.fn().mockResolvedValue([]) },
     // F3 wiring: generate loads use-first items + computes usedPantryItems —
     // empty pantry keeps every existing expectation identical.
     pantryItemRepository: { findByUser: vi.fn().mockResolvedValue([]) },
@@ -47,11 +52,24 @@ vi.mock('@chefer/database', async (importOriginal) => {
     weightEntryRepository: { findLatest: vi.fn().mockResolvedValue(null) },
     routineRepository: { findActive: vi.fn().mockResolvedValue(null) },
     mealPlanRepository: {},
+    // Live tailoring: no jobs unless a test queues one.
+    mealPlanTailoringRepository: {
+      findByPlanId: vi.fn().mockResolvedValue(null),
+      cancelRunningForWeek: vi.fn().mockResolvedValue(0),
+      create: vi.fn(),
+      findCheckedKeys: vi.fn().mockResolvedValue([]),
+      findUserGate: vi.fn().mockResolvedValue(null),
+      saveProgress: vi.fn(),
+    },
   };
 });
 
 vi.mock('../../lib/ai/index.js', () => ({
-  aiService: { generateMealPlan: vi.fn(), generateRecipeSwap: vi.fn() },
+  aiService: {
+    generateMealPlan: vi.fn(),
+    generateMealPlanDay: vi.fn(),
+    generateRecipeSwap: vi.fn(),
+  },
 }));
 
 vi.mock('../../lib/curated-recipes/index.js', async () => {
@@ -118,8 +136,12 @@ function makeRepo() {
       weekStartDate: new Date('2026-08-17'),
     }),
     findActiveWithDays: vi.fn().mockResolvedValue(null),
+    findForWeek: vi.fn().mockResolvedValue(null),
     archiveOldPlans: vi.fn().mockResolvedValue(undefined),
     updateDayMeal: vi.fn().mockResolvedValue(undefined),
+    setSlotPinned: vi.fn().mockResolvedValue(undefined),
+    setDayPortions: vi.fn().mockResolvedValue(undefined),
+    setDayMeals: vi.fn().mockResolvedValue(undefined),
     findAllByUserId: vi.fn().mockResolvedValue([]),
     findByIdForUser: vi.fn().mockResolvedValue(null),
     findByWeekStart: vi.fn().mockResolvedValue(null),
@@ -239,6 +261,140 @@ describe('MealPlanService.generate', () => {
     expect(aiService.generateMealPlan).not.toHaveBeenCalled();
   });
 
+  it('free tier: pool exhaustion attaches a machine-readable PoolExhaustedCause (T-10.4)', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    const curated = await import('../../lib/curated-recipes/index.js');
+    vi.mocked(curated.safeCuratedPools).mockReturnValueOnce({
+      breakfast: [1, 2, 3],
+      lunch: [1, 2, 3],
+      dinner: [1, 2],
+      snack: [],
+    } as never);
+
+    const { PoolExhaustedCause } = await import('./meal-plan.service.js');
+    await expect(service.generate('user1', 0, false)).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      cause: expect.any(PoolExhaustedCause),
+    });
+  });
+
+  it('a shape only requiring dinner is not blocked by an empty breakfast/lunch pool (T-07.2)', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    const curated = await import('../../lib/curated-recipes/index.js');
+    vi.mocked(curated.safeCuratedPools).mockReturnValueOnce({
+      breakfast: [],
+      lunch: [],
+      dinner: [
+        { ...AI_RECIPE, id: 'd1' },
+        { ...AI_RECIPE, id: 'd2' },
+        { ...AI_RECIPE, id: 'd3' },
+      ],
+      snack: [],
+    });
+
+    await expect(
+      service.generate('user1', 0, false, { shape: { slots: ['dinner'] } }),
+    ).resolves.toBeDefined();
+  });
+
+  it('AC1: an explicit shape plans only the chosen days and slots; other days are `planned: false`', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 0, false, {
+      shape: { slots: ['dinner'], days: [0, 1, 2, 3] },
+    });
+
+    expect(plan.days).toHaveLength(7);
+    const planned = plan.days.filter((d) => d.planned);
+    expect(planned).toHaveLength(4);
+    expect(planned.every((d) => d.dayOfWeek <= 3)).toBe(true);
+    expect(planned.every((d) => d.meals.every((m) => m.type === 'dinner'))).toBe(true);
+    const unplanned = plan.days.filter((d) => d.planned === false);
+    expect(unplanned).toHaveLength(3);
+    expect(unplanned.every((d) => d.meals.length === 0)).toBe(true);
+  });
+
+  it("generate returns previousPlanId from the repo's createPlan result (T-08.3)", async () => {
+    const repo = makeRepo();
+    repo.createPlan.mockResolvedValueOnce({
+      id: 'plan2',
+      weekStartDate: new Date('2026-08-17'),
+      previousPlanId: 'plan1',
+    });
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 0, false);
+
+    expect(plan.previousPlanId).toBe('plan1');
+  });
+
+  it('T-07.4: keepPinned preserves a pinned slot from the replaced plan and reports drops', async () => {
+    const repo = makeRepo();
+    repo.findForWeek.mockResolvedValue({
+      id: 'old-plan',
+      days: [
+        {
+          dayOfWeek: 0,
+          meals: [
+            { type: 'dinner', recipeId: 'd1', pinned: true },
+            // Pinned but unsafe now — dropped and counted.
+            { type: 'lunch', recipeId: 'peanut-dish', pinned: true },
+          ],
+        },
+      ],
+    });
+    repo.findRecipesByIds.mockResolvedValue([
+      {
+        id: 'd1',
+        name: 'Curated dinner d1',
+        description: 'd',
+        ingredients: [],
+        instructions: ['step'],
+        nutritionInfo: { calories: 500, protein: 30, carbs: 40, fat: 20, fiber: 5 },
+        cuisineType: 'generic',
+        dietaryTags: [],
+        prepTimeMins: 10,
+        cookTimeMins: 10,
+        servings: 1,
+        imageUrl: null,
+      },
+      {
+        id: 'peanut-dish',
+        name: 'Peanut noodles',
+        description: 'd',
+        ingredients: [],
+        instructions: ['step'],
+        nutritionInfo: { calories: 500, protein: 30, carbs: 40, fat: 20, fiber: 5 },
+        cuisineType: 'generic',
+        dietaryTags: ['peanut'],
+        prepTimeMins: 10,
+        cookTimeMins: 10,
+        servings: 1,
+        imageUrl: null,
+      },
+    ] as never);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      dietaryRestrictions: [],
+      allergies: ['peanut'],
+      dislikedIngredients: [],
+    } as never);
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 0, false, { keepPinned: true });
+
+    const monday = plan.days.find((d) => d.dayOfWeek === 0)!;
+    const dinner = monday.meals.find((m) => m.type === 'dinner')!;
+    expect(dinner.recipe.id).toBe('d1');
+    expect(dinner.pinned).toBe(true);
+    // The lunch pin was unsafe (peanut allergy) — dropped, not applied.
+    const lunch = monday.meals.find((m) => m.type === 'lunch')!;
+    expect(lunch.recipe.id).not.toBe('peanut-dish');
+    expect(plan.droppedPinned).toBe(1);
+  });
+
   it('premium: passes allergies, restrictions and the LIVE calorie target to the AI', async () => {
     const repo = makeRepo();
     const service = new MealPlanService(repo);
@@ -335,6 +491,30 @@ describe('MealPlanService.generate', () => {
     expect(plan.personalisation).toMatchObject({ likedCount: 2, dislikedCount: 1 });
     // No pins → nothing to clear.
     expect(favouriteRecipeRepository.clearNextPlanFlags).not.toHaveBeenCalled();
+  });
+
+  it('T-10.7: premiumChanges is present only on a regeneration, with an honest target-hit count', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+
+    // First generation of the week: nothing to compare against.
+    const first = await service.generate('user1', 0, true);
+    expect(first.premiumChanges).toBeUndefined();
+
+    // A regeneration: the repo reports a previousPlanId for the same week.
+    repo.createPlan.mockResolvedValueOnce({
+      id: 'plan2',
+      weekStartDate: new Date('2026-08-17'),
+      previousPlanId: 'plan1',
+    });
+    const regenerated = await service.generate('user1', 0, true);
+    expect(regenerated.previousPlanId).toBe('plan1');
+    expect(regenerated.premiumChanges?.targetHits).toBe(1); // AI_WEEK_PLAN's one day, in-band
+    expect(regenerated.premiumChanges?.missDays).toBe(0);
+    expect(regenerated.premiumChanges?.lines.length).toBeGreaterThan(0);
   });
 
   it('premium: the weekly budget reaches the AI input and the cost lands on the DTO (P2-4)', async () => {
@@ -595,8 +775,10 @@ describe('MealPlanService — household context (F2)', () => {
 
     const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
     expect(input.servingSize).toBe(2); // ceil(1 + 0.5)
-    // A legacy "cooking for N" is converted into members BEFORE they're read.
-    expect(order).toEqual(['migrate', 'find']);
+    // A legacy "cooking for N" is converted into members BEFORE they're read
+    // (the second "find" is SafetyService's own household read, T-01.5/
+    // delta-4 — it now also carries this generation's hidden-recipe ids).
+    expect(order).toEqual(['migrate', 'find', 'find']);
     // The week cost is sized for the same table.
     const { estimatePlanCostEur } = await import('../shared/plan-cost.js');
     expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({ portions: 2 });
@@ -630,6 +812,9 @@ describe('MealPlanService — household context (F2)', () => {
       allergies: ['shellfish', 'peanuts'],
       dietaryRestrictions: ['Vegan'],
       dislikedIngredients: ['okra'],
+      // T-01.5/delta-4: SafetyService.loadContext (buildCuratedWeek's new
+      // safety read, for reported-recipe exclusion) carries this through.
+      excludeLabelDependent: false,
     });
   });
 });
@@ -678,7 +863,7 @@ describe('MealPlanService.getForWeek carry-forward', () => {
 
   it('clones the most recent plan into an empty next week and flags it', async () => {
     const repo = makeRepo();
-    repo.findByWeekStart.mockResolvedValueOnce(null).mockResolvedValueOnce(CLONED_PLAN);
+    repo.findForWeek.mockResolvedValueOnce(null).mockResolvedValueOnce(CLONED_PLAN);
     repo.findLatestWithDaysBefore.mockResolvedValue(SOURCE_PLAN);
     repo.findRecipesByIds.mockResolvedValue([DB_RECIPE]);
 
@@ -700,7 +885,7 @@ describe('MealPlanService.getForWeek carry-forward', () => {
   it('sizes the week cost for a premium household only (householdScaling, P2-3)', async () => {
     const { estimatePlanCostEur } = await import('../shared/plan-cost.js');
     const repo = makeRepo();
-    repo.findByWeekStart.mockResolvedValue(CLONED_PLAN);
+    repo.findForWeek.mockResolvedValue(CLONED_PLAN);
     repo.findRecipesByIds.mockResolvedValue([DB_RECIPE]);
     vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([
       { portionFactor: 1, allergies: [], dietaryRestrictions: [], dislikedIngredients: [] },
@@ -749,6 +934,39 @@ describe('MealPlanService.getForWeek carry-forward', () => {
 
     expect(result).toBeNull();
     expect(repo.createPlan).not.toHaveBeenCalled();
+  });
+});
+
+// ─── B-13: one "this week" everywhere ──────────────────────────────────────────
+
+describe('MealPlanService — B-13 week-matched reads (T-00.15)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(null);
+  });
+
+  it('Sunday: only next week planned → getForWeek(0) and getActive are both empty, never leak next week', async () => {
+    const repo = makeRepo();
+    // Only a plan for NEXT week exists and it's the sole ACTIVE plan — the
+    // old bug read it via findActiveWithDays as if it were "this week".
+    repo.findActiveWithDays.mockResolvedValue({
+      id: 'plan-next-week',
+      weekStartDate: new Date('2026-10-05'),
+      days: [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'r1' }] }],
+    });
+    repo.findForWeek.mockResolvedValue(null);
+    repo.findLatestWithDaysBefore.mockResolvedValue(null);
+    repo.findFollowedTemplate.mockResolvedValue(null);
+
+    const service = new MealPlanService(repo);
+
+    const thisWeek = await service.getForWeek('u1', 0);
+    expect(thisWeek).toBeNull();
+    expect(repo.findActiveWithDays).not.toHaveBeenCalled();
+
+    const active = await service.getActive('u1');
+    expect(active).toBeNull();
+    expect(repo.findActiveWithDays).not.toHaveBeenCalled();
   });
 });
 
@@ -833,7 +1051,7 @@ describe('MealPlanService week templates', () => {
 
   it('carry-forward prefers the followed template over the latest plan', async () => {
     const repo = makeRepo();
-    repo.findByWeekStart.mockResolvedValueOnce(null).mockResolvedValueOnce({
+    repo.findForWeek.mockResolvedValueOnce(null).mockResolvedValueOnce({
       id: 'plan-clone',
       weekStartDate: new Date(),
       days: TEMPLATE_ROW.days,
@@ -927,6 +1145,119 @@ describe('MealPlanService — recipe visibility (F-REC-2-1, F-PLAN-3-1)', () => 
 
     const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
     expect(input.pinnedDishNames).toEqual([]);
+  });
+});
+
+describe('MealPlanService.replaceRecipe — safety (B-34/B-46, T-00.11)', () => {
+  const PLAN_ROW_SIMPLE = {
+    id: 'plan1',
+    days: [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'old' }] }],
+  };
+  const eggRecipe = (over: Record<string, unknown> = {}) => ({
+    ...AI_RECIPE,
+    id: 'egg-r1',
+    name: 'Egg Fried Rice',
+    ingredients: [{ name: 'egg', quantity: 2, unit: 'pcs' }],
+    source: 'AI',
+    creatorId: null,
+    ...over,
+  });
+  const EGG_ALLERGY = { allergies: ['egg'], dietaryRestrictions: [], dislikedIngredients: [] };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+  });
+
+  it('rejects an unsafe recipe with UNSAFE_FOR_TABLE, naming the conflicting allergen', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_ROW_SIMPLE);
+    repo.findRecipeById.mockResolvedValue(eggRecipe());
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(EGG_ALLERGY as never);
+    const service = new MealPlanService(repo);
+
+    await expect(
+      service.replaceRecipe('user1', 'plan1', 0, 'dinner', 'egg-r1'),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: expect.stringMatching(/UNSAFE_FOR_TABLE/),
+    });
+    await expect(service.replaceRecipe('user1', 'plan1', 0, 'dinner', 'egg-r1')).rejects.toThrow(
+      /egg/i,
+    );
+    expect(repo.updateDayMeal).not.toHaveBeenCalled();
+  });
+
+  it("acknowledgeConflict succeeds for the user's own manual recipe", async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_ROW_SIMPLE);
+    repo.findRecipeById.mockResolvedValue(eggRecipe({ source: 'MANUAL', creatorId: 'user1' }));
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(EGG_ALLERGY as never);
+    const service = new MealPlanService(repo);
+
+    await service.replaceRecipe('user1', 'plan1', 0, 'dinner', 'egg-r1', undefined, true);
+    expect(repo.updateDayMeal).toHaveBeenCalled();
+  });
+
+  it('acknowledgeConflict never bypasses safety for a recipe the user does not own', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_ROW_SIMPLE);
+    // AI/curated — visible to everyone, owned by nobody.
+    repo.findRecipeById.mockResolvedValue(eggRecipe({ source: 'AI', creatorId: null }));
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(EGG_ALLERGY as never);
+    const service = new MealPlanService(repo);
+
+    await expect(
+      service.replaceRecipe('user1', 'plan1', 0, 'dinner', 'egg-r1', undefined, true),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(repo.updateDayMeal).not.toHaveBeenCalled();
+  });
+
+  it('a safe recipe is unaffected', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_ROW_SIMPLE);
+    repo.findRecipeById.mockResolvedValue({ ...AI_RECIPE, id: 'safe-r1', source: 'AI' });
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(EGG_ALLERGY as never);
+    const service = new MealPlanService(repo);
+
+    await service.replaceRecipe('user1', 'plan1', 0, 'dinner', 'safe-r1');
+    expect(repo.updateDayMeal).toHaveBeenCalled();
+  });
+
+  it("T-08.5/T-BUG-X2: keeps the slot's current portion instead of dropping it to 1×", async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({
+      id: 'plan1',
+      days: [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'old', portion: 1.5 }] }],
+    });
+    repo.findRecipeById.mockResolvedValue({ ...AI_RECIPE, id: 'safe-r1', source: 'AI' });
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(EGG_ALLERGY as never);
+    const service = new MealPlanService(repo);
+
+    await service.replaceRecipe('user1', 'plan1', 0, 'dinner', 'safe-r1');
+
+    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 0, 'dinner', 'safe-r1', 1.5, 0, true);
+  });
+
+  it('T-07.4: Replace marks the slot pinned and returns previousRecipeId', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_ROW_SIMPLE);
+    repo.findRecipeById.mockResolvedValue({ ...AI_RECIPE, id: 'safe-r1', source: 'AI' });
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(EGG_ALLERGY as never);
+    const service = new MealPlanService(repo);
+
+    const result = await service.replaceRecipe('user1', 'plan1', 0, 'dinner', 'safe-r1');
+
+    expect(repo.updateDayMeal).toHaveBeenCalledWith(
+      'plan1',
+      0,
+      'dinner',
+      'safe-r1',
+      undefined,
+      0,
+      true,
+    );
+    expect(result.previousRecipeId).toBe('old');
   });
 });
 
@@ -1343,7 +1674,16 @@ describe('MealPlanService — per-slot operations on a two-snack day', () => {
 
     await service.replaceRecipe('user1', 'plan1', 2, 'snack', 'mine', 4);
 
-    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 2, 'snack', 'mine', undefined, 4);
+    // T-07.4: Replace always pins the slot ("Your pick").
+    expect(repo.updateDayMeal).toHaveBeenCalledWith(
+      'plan1',
+      2,
+      'snack',
+      'mine',
+      undefined,
+      4,
+      true,
+    );
   });
 
   it('rejects a slotIndex that points at a different meal type with BAD_REQUEST', async () => {
@@ -1381,5 +1721,790 @@ describe('MealPlanService — per-slot operations on a two-snack day', () => {
     expect(resolvePlanSlot(TWO_SNACK_PLAN, 2, 'snack', 4)).toBe(4);
     expect(resolvePlanSlot(TWO_SNACK_PLAN, 5, 'snack')).toBeNull();
     expect(() => resolvePlanSlot(TWO_SNACK_PLAN, 5, 'snack', 0)).toThrow();
+  });
+});
+
+describe('MealPlanService.setSlotPinned (T-07.4)', () => {
+  it('resolves the slot then delegates to the repository', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({
+      id: 'plan1',
+      days: [{ dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'd1' }] }],
+    });
+    const service = new MealPlanService(repo);
+
+    await service.setSlotPinned('user1', 'plan1', 0, 'dinner', undefined, true);
+
+    expect(repo.setSlotPinned).toHaveBeenCalledWith('plan1', 0, 'dinner', 0, true);
+  });
+
+  it('rejects a plan the user does not own', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(null);
+    const service = new MealPlanService(repo);
+
+    await expect(
+      service.setSlotPinned('attacker', 'plan1', 0, 'dinner', undefined, true),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(repo.setSlotPinned).not.toHaveBeenCalled();
+  });
+});
+
+describe('MealPlanService.scaleDay (T-11.3, portion cap T-11.4)', () => {
+  const scaleDayPlan = {
+    id: 'plan1',
+    days: [
+      {
+        dayOfWeek: 0,
+        meals: [
+          { type: 'dinner', recipeId: 'd1', portion: 1.5 },
+          { type: 'snack', recipeId: 's1', pinned: true },
+        ],
+      },
+    ],
+  };
+  const dinnerRow = {
+    ...AI_RECIPE,
+    id: 'd1',
+    nutritionInfo: { calories: 600, protein: 40, carbs: 50, fat: 20, fiber: 5 },
+  };
+  const snackRow = {
+    ...AI_RECIPE,
+    id: 's1',
+    nutritionInfo: { calories: 200, protein: 10, carbs: 20, fat: 5, fiber: 2 },
+  };
+
+  it('preview (apply: false) computes the scaled totals without writing', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(scaleDayPlan);
+    repo.findRecipesByIds.mockResolvedValue([dinnerRow, snackRow]);
+    const service = new MealPlanService(repo);
+
+    const result = await service.scaleDay('user1', 'plan1', 0, 1.25);
+
+    // 1.5 × 1.25 = 1.875 → nearest step 1.75 (a tie with 2, kept at the
+    // lower/earlier step); 1 × 1.25 = 1.25.
+    const dinner = result.meals.find((m) => m.type === 'dinner')!;
+    const snack = result.meals.find((m) => m.type === 'snack')!;
+    expect(dinner.portion).toBe(1.75);
+    expect(snack.portion).toBe(1.25);
+    expect(snack.pinned).toBe(true);
+    expect(result.kcal).toBe(600 * 1.75 + 200 * 1.25);
+    expect(repo.setDayPortions).not.toHaveBeenCalled();
+  });
+
+  it('apply: true persists the scaled portions and never exceeds the 2× cap (T-11.4)', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(scaleDayPlan);
+    repo.findRecipesByIds.mockResolvedValue([dinnerRow, snackRow]);
+    const service = new MealPlanService(repo);
+
+    // 1.5 × 1.5 = 2.25 → clamped to the plan's hard cap, step 2 (T-11.4).
+    await service.scaleDay('user1', 'plan1', 0, 1.5, true);
+
+    expect(repo.setDayPortions).toHaveBeenCalledWith('plan1', 0, [2, 1.5]);
+    const applied = vi.mocked(repo.setDayPortions).mock.calls[0]![2] as number[];
+    expect(Math.max(...applied)).toBeLessThanOrEqual(2);
+  });
+
+  it('404s for a day the plan does not have', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({ id: 'plan1', days: [] });
+    const service = new MealPlanService(repo);
+
+    await expect(service.scaleDay('user1', 'plan1', 3, 1.25)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+});
+
+describe('MealPlanService.planDay (wave-1 L-PLAN, UX-07 "Plan this day")', () => {
+  const basePlan = {
+    id: 'plan1',
+    weekStartDate: new Date('2026-08-17'),
+    days: [
+      { dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'd1' }] },
+      { dayOfWeek: 3, meals: [] },
+    ],
+  };
+  const filledPlan = {
+    ...basePlan,
+    days: [
+      basePlan.days[0],
+      {
+        dayOfWeek: 3,
+        meals: [
+          { type: 'breakfast', recipeId: 'b1' },
+          { type: 'lunch', recipeId: 'l1' },
+          { type: 'dinner', recipeId: 'd1' },
+        ],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+  });
+
+  it('fills an unplanned day with the curated picker, leaving every other day untouched', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValueOnce(basePlan).mockResolvedValueOnce(filledPlan);
+    repo.findRecipesByIds.mockResolvedValue([
+      { ...AI_RECIPE, id: 'd1' },
+      { ...AI_RECIPE, id: 'b1' },
+      { ...AI_RECIPE, id: 'l1' },
+    ]);
+    const service = new MealPlanService(repo);
+
+    const result = await service.planDay('user1', 'plan1', 3);
+
+    // Persists via setDayMeals (a full-day write), never updateDayMeal/
+    // setDayPortions (single-slot patches) — and only for day 3.
+    expect(repo.setDayMeals).toHaveBeenCalledOnce();
+    const [planIdArg, dayArg, mealsArg] = repo.setDayMeals.mock.calls[0]!;
+    expect(planIdArg).toBe('plan1');
+    expect(dayArg).toBe(3);
+    expect((mealsArg as { type: string }[]).map((m) => m.type).slice(0, 3)).toEqual([
+      'breakfast',
+      'lunch',
+      'dinner',
+    ]);
+    expect(repo.updateDayMeal).not.toHaveBeenCalled();
+
+    // The response is the whole plan (day 0 unaffected, day 3 now filled) —
+    // clients can `setData` it the same way `generate`'s response is applied.
+    expect(result.days.find((d) => d.dayOfWeek === 0)?.meals).toHaveLength(1);
+    expect(result.days.find((d) => d.dayOfWeek === 3)?.meals.length).toBeGreaterThan(0);
+  });
+
+  it('rejects a day that already has meals — Replace/Regenerate own that job', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(basePlan);
+    const service = new MealPlanService(repo);
+
+    await expect(service.planDay('user1', 'plan1', 0)).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(repo.setDayMeals).not.toHaveBeenCalled();
+  });
+
+  it('404s for a plan the user does not own', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(null);
+    const service = new MealPlanService(repo);
+
+    await expect(service.planDay('attacker', 'plan1', 3)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('404s for a day the plan does not have', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({ id: 'plan1', days: [] });
+    const service = new MealPlanService(repo);
+
+    await expect(service.planDay('user1', 'plan1', 5)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+});
+
+describe('MealPlanService — reliable `planned` on every read (wave-1 T-07.6)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+  });
+
+  it('marks an empty day outside the CURRENT stored shape as planned: false, even on a later read', async () => {
+    // Before this test's fix, `planned` was reliable only on generate's own
+    // response — a plain reload (getForWeek/getById) always omitted it, so
+    // "Plan this day" only ever appeared right after generating.
+    const repo = makeRepo();
+    repo.findForWeek.mockResolvedValue({
+      id: 'plan1',
+      weekStartDate: new Date('2026-08-17'),
+      days: [
+        { dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'd1' }] },
+        { dayOfWeek: 3, meals: [] },
+      ],
+    });
+    repo.findRecipesByIds.mockResolvedValue([{ ...AI_RECIPE, id: 'd1' }]);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      planSlots: ['dinner'],
+      planDays: [0],
+      timeCapMins: null,
+      weekendNoLimit: false,
+      cookingFor: null,
+      leftovers: false,
+    } as never);
+    const service = new MealPlanService(repo);
+
+    const plan = await service.getForWeek('user1', 0);
+
+    expect(plan?.days.find((d) => d.dayOfWeek === 0)?.planned).toBeUndefined();
+    expect(plan?.days.find((d) => d.dayOfWeek === 3)?.planned).toBe(false);
+  });
+
+  it('never relabels a day that already HAS meals, even once the shape excludes it', async () => {
+    const repo = makeRepo();
+    repo.findForWeek.mockResolvedValue({
+      id: 'plan1',
+      weekStartDate: new Date('2026-08-17'),
+      days: [{ dayOfWeek: 3, meals: [{ type: 'dinner', recipeId: 'd1' }] }],
+    });
+    repo.findRecipesByIds.mockResolvedValue([{ ...AI_RECIPE, id: 'd1' }]);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      planSlots: ['dinner'],
+      planDays: [0], // day 3 no longer in the shape
+      timeCapMins: null,
+      weekendNoLimit: false,
+      cookingFor: null,
+      leftovers: false,
+    } as never);
+    const service = new MealPlanService(repo);
+
+    const plan = await service.getForWeek('user1', 0);
+    const day3 = plan?.days.find((d) => d.dayOfWeek === 3);
+
+    expect(day3?.planned).toBeUndefined();
+    expect(day3?.meals).toHaveLength(1);
+  });
+
+  it('a legacy shape (never set) keeps every empty day `planned` absent, matching today’s behaviour', async () => {
+    const repo = makeRepo();
+    // clearAllMocks (in this describe's beforeEach) keeps a mock's LAST
+    // implementation, not just its default — reset the previous tests'
+    // stored shape explicitly so this one gets the true "never set" case.
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(undefined as never);
+    repo.findForWeek.mockResolvedValue({
+      id: 'plan1',
+      weekStartDate: new Date('2026-08-17'),
+      days: [{ dayOfWeek: 3, meals: [] }],
+    });
+    const service = new MealPlanService(repo);
+
+    const plan = await service.getForWeek('user1', 0);
+
+    expect(plan?.days.find((d) => d.dayOfWeek === 3)?.planned).toBeUndefined();
+  });
+});
+
+// ─── Instant week, then live tailoring (premium) ──────────────────────────────
+
+describe('MealPlanService — instant week + live tailoring (premium)', () => {
+  const CONSENTED = { planTier: 'PREMIUM', role: 'USER', aiDataConsentAt: new Date() };
+  const WEDNESDAY = new Date(2026, 8, 30, 10, 0, 0);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(WEDNESDAY);
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([]);
+    vi.mocked(mealRatingRepository.findSignalsForUser).mockResolvedValue([]);
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(mealPlanTailoringRepository.findUserGate).mockResolvedValue(CONSENTED);
+    vi.mocked(mealPlanTailoringRepository.findByPlanId).mockResolvedValue(null);
+    vi.mocked(mealPlanTailoringRepository.findCheckedKeys).mockResolvedValue(['carried|g']);
+    vi.mocked(mealPlanTailoringRepository.create).mockImplementation(
+      async (data) =>
+        ({
+          ...data,
+          id: 'job1',
+          status: 'RUNNING',
+          totalDays: data.queuedDays.length,
+          tailoredDays: [],
+          keptDays: [],
+          failedDays: [],
+          currentDay: data.queuedDays[0] ?? null,
+          resumes: 0,
+        }) as never,
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns a COMPLETE curated week at once with zero AI calls, and queues tailoring today-first', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 0, true, { instant: true, usageReserved: true });
+
+    expect(aiService.generateMealPlan).not.toHaveBeenCalled();
+    expect(aiService.generateMealPlanDay).not.toHaveBeenCalled();
+    expect(plan.days).toHaveLength(7);
+    expect(plan.days.every((d) => d.meals.length >= 3)).toBe(true);
+    // Wednesday: today first, then the following days; Mon/Tue are past.
+    expect(plan.tailoring).toMatchObject({
+      status: 'RUNNING',
+      tailoredDays: [],
+      totalDays: 5,
+      currentDay: 2,
+      queuedDays: [2, 3, 4, 5, 6],
+    });
+    const job = vi.mocked(mealPlanTailoringRepository.create).mock.calls[0]![0];
+    // Snapshots are the days exactly as stored — a later mismatch = the user touched it.
+    const stored = repo.createPlan.mock.calls[0]![0].days as {
+      dayOfWeek: number;
+      meals: unknown;
+    }[];
+    expect(job.snapshots['2']).toEqual(stored[2]!.meals);
+    expect(job.baselineCheckedKeys).toEqual(['carried|g']);
+    expect(job.slotTypes).toEqual(['breakfast', 'lunch', 'dinner']);
+    // Usage was reserved (and logged) by the router — not logged twice.
+    expect(prisma.aiCallLog.create).not.toHaveBeenCalled();
+  });
+
+  it('next week tailors Monday first; the Sunday worker path logs the one generation', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 1, true, { instant: true });
+
+    expect(plan.tailoring?.queuedDays).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(prisma.aiCallLog.create).toHaveBeenCalledOnce();
+  });
+
+  it('a newer generation cancels the running tailoring of the same week before replacing the plan', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+
+    await service.generate('user1', 0, true, { instant: true, usageReserved: true });
+
+    const cancel = vi.mocked(mealPlanTailoringRepository.cancelRunningForWeek);
+    expect(cancel).toHaveBeenCalledWith('user1', expect.any(Date));
+    expect(cancel.mock.invocationCallOrder[0]!).toBeLessThan(
+      repo.createPlan.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('without AI data consent the week stays curated — nothing is queued', async () => {
+    vi.mocked(mealPlanTailoringRepository.findUserGate).mockResolvedValue({
+      ...CONSENTED,
+      aiDataConsentAt: null,
+    });
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 0, true, { instant: true, usageReserved: true });
+
+    expect(mealPlanTailoringRepository.create).not.toHaveBeenCalled();
+    expect(plan.tailoring).toBeUndefined();
+    expect(plan.days).toHaveLength(7);
+  });
+
+  it('places pinned favourites as the user’s picks (locked for tailoring) and clears the flags', async () => {
+    const pinnedRecipe = {
+      ...AI_RECIPE,
+      id: 'fav-1',
+      name: 'Shakshuka with Peppers',
+      imageUrl: 'https://img.example/s.jpg',
+    };
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([
+      { recipe: pinnedRecipe } as never,
+    ]);
+    const repo = makeRepo();
+    repo.isRecipeInUserPlans.mockResolvedValue(true);
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 1, true, { instant: true, usageReserved: true });
+
+    const monDinner = plan.days[0]!.meals.find((m) => m.type === 'dinner')!;
+    expect(monDinner.recipe.id).toBe('fav-1');
+    expect(monDinner.pinned).toBe(true);
+    expect(plan.personalisation?.pinnedDishNames).toEqual(['Shakshuka with Peppers']);
+    expect(favouriteRecipeRepository.clearNextPlanFlags).toHaveBeenCalledWith('user1');
+  });
+
+  it('leftovers: dinners pair with next-day lunches in the instant week (a locked pair)', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+
+    await service.generate('user1', 1, true, {
+      instant: true,
+      usageReserved: true,
+      leftovers: true,
+    });
+
+    const stored = repo.createPlan.mock.calls[0]![0].days as {
+      dayOfWeek: number;
+      meals: { type: string; recipeId: string; leftoverOf?: string }[];
+    }[];
+    const monDinner = stored[0]!.meals.find((m) => m.type === 'dinner')!;
+    const tueLunch = stored[1]!.meals.find((m) => m.type === 'lunch')!;
+    expect(tueLunch).toMatchObject({ recipeId: monDinner.recipeId, leftoverOf: 'Monday' });
+    expect(vi.mocked(mealPlanTailoringRepository.create).mock.calls[0]![0].leftovers).toBe(true);
+  });
+
+  it('a table the curated pool cannot cover falls back to the blocking AI week', async () => {
+    vi.mocked(safeCuratedPools).mockReturnValueOnce({
+      breakfast: [],
+      lunch: [],
+      dinner: [],
+      snack: [],
+    });
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 0, true, { instant: true, usageReserved: true });
+
+    expect(aiService.generateMealPlan).toHaveBeenCalled();
+    expect(plan.tailoring).toBeUndefined();
+  });
+
+  it('reads carry the tailoring block (additive — absent when there is no job)', async () => {
+    const repo = makeRepo();
+    repo.findForWeek.mockResolvedValue({
+      id: 'plan1',
+      status: 'ACTIVE',
+      weekStartDate: new Date(2026, 8, 28),
+      createdAt: new Date(2026, 8, 28),
+      days: [{ dayOfWeek: 2, meals: [] }],
+    });
+    vi.mocked(mealPlanTailoringRepository.findByPlanId).mockResolvedValue({
+      status: 'RUNNING',
+      tailoredDays: [2],
+      totalDays: 5,
+      currentDay: 3,
+      queuedDays: [3, 4, 5, 6],
+      keptDays: [],
+      failedDays: [],
+      resumes: 0,
+    } as never);
+    const service = new MealPlanService(repo);
+
+    const dto = await service.getForWeek('user1', 0);
+
+    expect(dto?.tailoring).toMatchObject({ status: 'RUNNING', tailoredDays: [2], currentDay: 3 });
+  });
+});
+
+describe('MealPlanService.tailorDay (one live-tailored day)', () => {
+  const planDays = [
+    {
+      dayOfWeek: 2,
+      meals: [
+        { type: 'breakfast', recipeId: 'kept-pick', pinned: true },
+        { type: 'lunch', recipeId: 'cur-l' },
+        { type: 'dinner', recipeId: 'cur-d' },
+      ],
+    },
+    { dayOfWeek: 3, meals: [{ type: 'dinner', recipeId: 'other-day' }] },
+  ];
+  const plan = { id: 'plan1', weekStartDate: new Date(2026, 8, 28), days: planDays };
+  const dish = (id: string, name: string, calories: number, extra = {}) => ({
+    ...AI_RECIPE,
+    id,
+    name,
+    nutritionInfo: { ...AI_RECIPE.nutritionInfo, calories },
+    ...extra,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([]);
+    vi.mocked(mealRatingRepository.findSignalsForUser).mockResolvedValue([]);
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+  });
+
+  it('keeps locked slots, takes the AI for the rest, persists the new recipes under server ids', async () => {
+    const repo = makeRepo();
+    repo.findRecipesByIds.mockResolvedValue([{ id: 'other-day', name: 'Thai Curry' }] as never);
+    vi.mocked(aiService.generateMealPlanDay).mockResolvedValue({
+      dayOfWeek: 2,
+      meals: [
+        { type: 'breakfast', recipe: dish('llm-b', 'Oats', 600) },
+        { type: 'lunch', recipe: dish('llm-l', 'Salad', 800) },
+        { type: 'dinner', recipe: dish('llm-d', 'Salmon', 900) },
+      ],
+    } as never);
+    const service = new MealPlanService(repo);
+
+    const result = await service.tailorDay({
+      userId: 'user1',
+      plan,
+      dayOfWeek: 2,
+      slotTypes: ['breakfast', 'lunch', 'dinner'],
+      deadline: Date.now() + 60_000,
+    });
+
+    if (!('meals' in result)) throw new Error('expected meals');
+    expect(result.meals[0]).toEqual({ type: 'breakfast', recipeId: 'kept-pick', pinned: true });
+    expect(result.meals.map((m) => m.type)).toEqual(['breakfast', 'lunch', 'dinner']);
+    expect(result.meals.map((m) => m.recipeId)).not.toContain('llm-l');
+    // The AI was told the day and what the rest of the week already has.
+    const request = vi.mocked(aiService.generateMealPlanDay).mock.calls[0]![1];
+    expect(request).toMatchObject({ dayOfWeek: 2 });
+    expect(request.alreadyPlanned).toContain('Thai Curry');
+    const upserted = repo.upsertRecipes.mock.calls[0]![0] as { id: string; name: string }[];
+    expect(upserted.map((r) => r.name).sort()).toEqual(['Salad', 'Salmon']);
+    expect(upserted.every((r) => !r.id.startsWith('llm-'))).toBe(true);
+  });
+
+  it('an unsafe AI dish is swapped for a safe curated one, exactly like a whole AI week', async () => {
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      allergies: ['Eggs'],
+      dietaryRestrictions: [],
+      dislikedIngredients: [],
+    } as never);
+    const repo = makeRepo();
+    vi.mocked(aiService.generateMealPlanDay).mockResolvedValue({
+      dayOfWeek: 2,
+      meals: [
+        {
+          type: 'dinner',
+          recipe: dish('llm-d', 'Omelette', 2000, {
+            ingredients: [{ name: 'eggs', quantity: 3, unit: 'piece' }],
+          }),
+        },
+      ],
+    } as never);
+    const service = new MealPlanService(repo);
+
+    const result = await service.tailorDay({
+      userId: 'user1',
+      plan,
+      dayOfWeek: 2,
+      slotTypes: ['breakfast', 'lunch', 'dinner'],
+      deadline: Date.now() + 60_000,
+    });
+
+    if (!('meals' in result)) throw new Error('expected meals');
+    const dinner = result.meals.find((m) => m.type === 'dinner')!;
+    expect(dinner.recipeId).toBe('swap'); // pickRandomCurated mock
+    // Lunch the AI didn't provide keeps its curated slot.
+    expect(result.meals.find((m) => m.type === 'lunch')?.recipeId).toBe('cur-l');
+  });
+
+  it('delta-4: a day replaced by tailorDay shows the CORRECT Checked/conflict state on a later read', async () => {
+    // Same setup as "an unsafe AI dish is swapped…" above: the household has
+    // an egg allergy, and the AI's dinner pick is rejected and swapped for a
+    // safe curated dish at tailor time.
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      allergies: ['Eggs'],
+      dietaryRestrictions: [],
+      dislikedIngredients: [],
+    } as never);
+    const repo = makeRepo();
+    vi.mocked(aiService.generateMealPlanDay).mockResolvedValue({
+      dayOfWeek: 2,
+      meals: [
+        {
+          type: 'dinner',
+          recipe: dish('llm-d', 'Omelette', 2000, {
+            ingredients: [{ name: 'eggs', quantity: 3, unit: 'piece' }],
+          }),
+        },
+      ],
+    } as never);
+    const service = new MealPlanService(repo);
+
+    const tailored = await service.tailorDay({
+      userId: 'user1',
+      plan,
+      dayOfWeek: 2,
+      slotTypes: ['breakfast', 'lunch', 'dinner'],
+      deadline: Date.now() + 60_000,
+    });
+    if (!('meals' in tailored)) throw new Error('expected meals');
+
+    // Simulate the compare-and-set write: day 2 now holds tailorDay's
+    // output — breakfast is the pinned slot tailoring left untouched
+    // ("kept-pick", deliberately given egg ingredients below to prove a
+    // conflict is still caught for a slot tailoring never touched), dinner
+    // is the curated dish tailoring swapped in ("swap", egg-free).
+    repo.findByIdForUser.mockResolvedValue({
+      id: 'plan1',
+      weekStartDate: plan.weekStartDate,
+      days: [{ dayOfWeek: 2, meals: tailored.meals }, planDays[1]],
+    });
+    repo.findRecipesByIds.mockResolvedValue([
+      {
+        ...dish('kept-pick', 'Egg Fried Rice', 500, {
+          ingredients: [{ name: 'egg', quantity: 2, unit: 'piece' }],
+        }),
+        imageStatus: 'DONE',
+      },
+      {
+        ...dish('swap', 'Chicken Skewers', 500, {
+          ingredients: [{ name: 'chicken', quantity: 200, unit: 'g' }],
+        }),
+        imageStatus: 'DONE',
+      },
+      {
+        ...dish('cur-l', 'Curated Lunch', 500, {
+          ingredients: [{ name: 'rice', quantity: 200, unit: 'g' }],
+        }),
+        imageStatus: 'DONE',
+      },
+      { ...dish('other-day', 'Thai Curry', 500), imageStatus: 'DONE' },
+    ] as never);
+
+    // The read is what matters (delta-4): every recipe on the tailored day
+    // gets its OWN fresh safety verdict from the CURRENT table, regardless
+    // of how it got into the slot or what tailorDay's own safety pass
+    // already knew about it.
+    const dto = await service.getById('user1', 'plan1');
+    const day2 = dto.days.find((d) => d.dayOfWeek === 2)!;
+    const dinnerMeal = day2.meals.find((m) => m.type === 'dinner')!;
+    expect(dinnerMeal.recipe.safetyChecks?.checked.map((c) => c.label)).toEqual(['Eggs']);
+    expect(dinnerMeal.recipe.safetyChecks?.conflicts ?? []).toEqual([]);
+    const breakfastMeal = day2.meals.find((m) => m.type === 'breakfast')!;
+    expect(breakfastMeal.recipe.safetyChecks?.conflicts).toEqual(['Eggs']);
+  });
+
+  it('an off-target day gets one corrective retry carrying its numbers (budget permitting)', async () => {
+    const repo = makeRepo();
+    vi.mocked(aiService.generateMealPlanDay)
+      .mockResolvedValueOnce({
+        dayOfWeek: 2,
+        meals: [{ type: 'dinner', recipe: dish('a', 'Tiny', 300) }],
+      } as never)
+      .mockResolvedValueOnce({
+        dayOfWeek: 2,
+        meals: [{ type: 'dinner', recipe: dish('b', 'Hearty', 2200) }],
+      } as never);
+    const service = new MealPlanService(repo);
+
+    const result = await service.tailorDay({
+      userId: 'user1',
+      plan,
+      dayOfWeek: 2,
+      slotTypes: ['dinner'],
+      deadline: Date.now() + 60_000,
+    });
+
+    expect(aiService.generateMealPlanDay).toHaveBeenCalledTimes(2);
+    const retryInput = vi.mocked(aiService.generateMealPlanDay).mock.calls[1]![0];
+    expect(retryInput.calorieCorrection?.previousDayTotals).toEqual([300]);
+    if (!('meals' in result)) throw new Error('expected meals');
+    const upserted = repo.upsertRecipes.mock.calls[0]![0] as { name: string }[];
+    expect(upserted.map((r) => r.name)).toEqual(['Hearty']);
+  });
+
+  it('a day whose every slot is locked is skipped without an AI call', async () => {
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    const locked = {
+      ...plan,
+      days: [{ dayOfWeek: 2, meals: [{ type: 'dinner', recipeId: 'x', pinned: true }] }],
+    };
+    const result = await service.tailorDay({
+      userId: 'user1',
+      plan: locked,
+      dayOfWeek: 2,
+      slotTypes: ['dinner'],
+      deadline: Date.now() + 60_000,
+    });
+    expect(result).toEqual({ skip: 'locked' });
+    expect(aiService.generateMealPlanDay).not.toHaveBeenCalled();
+  });
+});
+
+describe('MealPlanService.resumeTailoring ("Tailor the rest")', () => {
+  const WEDNESDAY = new Date(2026, 8, 30, 10, 0, 0);
+  const planRow = {
+    id: 'plan1',
+    status: 'ACTIVE',
+    isTemplate: false,
+    weekStartDate: new Date(2026, 8, 28),
+    createdAt: new Date(2026, 8, 28),
+    days: [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d, meals: [] as unknown[] })),
+  };
+  const partial = {
+    id: 'job1',
+    status: 'PARTIAL',
+    tailoredDays: [2, 3],
+    keptDays: [4],
+    failedDays: [5],
+    queuedDays: [6],
+    totalDays: 5,
+    resumes: 0,
+    snapshots: {},
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(WEDNESDAY);
+    vi.mocked(mealPlanTailoringRepository.findUserGate).mockResolvedValue({
+      planTier: 'PREMIUM',
+      role: 'USER',
+      aiDataConsentAt: new Date(),
+    });
+    vi.mocked(mealPlanTailoringRepository.findCheckedKeys).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function repoWithPlan() {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue({
+      ...planRow,
+      days: planRow.days.map((d) => ({
+        ...d,
+        meals: [{ type: 'dinner', recipeId: `cur-${d.dayOfWeek}` }],
+      })),
+    });
+    repo.findRecipesByIds.mockImplementation(async (ids: string[]) =>
+      ids.map((id) => ({ ...AI_RECIPE, id, imageStatus: 'DONE' })),
+    );
+    return repo;
+  }
+
+  it('re-queues ONLY the untailored days (failed + unreached), never tailored or kept ones', async () => {
+    vi.mocked(mealPlanTailoringRepository.findByPlanId).mockResolvedValue(partial as never);
+    const repo = repoWithPlan();
+    const service = new MealPlanService(repo);
+
+    await service.resumeTailoring('user1', 'plan1', true);
+
+    const [, patch] = vi.mocked(mealPlanTailoringRepository.saveProgress).mock.calls[0]!;
+    expect(patch).toMatchObject({
+      status: 'RUNNING',
+      queuedDays: [5, 6],
+      failedDays: [],
+      resumes: 1,
+      strikes: 0,
+      totalDays: 5,
+    });
+    expect((patch.snapshots as Record<string, unknown>)['5']).toEqual([
+      { type: 'dinner', recipeId: 'cur-5' },
+    ]);
+  });
+
+  it('is premium-only, and capped per plan', async () => {
+    vi.mocked(mealPlanTailoringRepository.findByPlanId).mockResolvedValue(partial as never);
+    const service = new MealPlanService(repoWithPlan());
+    await expect(service.resumeTailoring('user1', 'plan1', false)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    vi.mocked(mealPlanTailoringRepository.findByPlanId).mockResolvedValue({
+      ...partial,
+      resumes: 3,
+    } as never);
+    await expect(service.resumeTailoring('user1', 'plan1', true)).rejects.toMatchObject({
+      code: 'CONFLICT',
+    });
+    expect(mealPlanTailoringRepository.saveProgress).not.toHaveBeenCalled();
+  });
+
+  it('refuses a running or finished job', async () => {
+    vi.mocked(mealPlanTailoringRepository.findByPlanId).mockResolvedValue({
+      ...partial,
+      status: 'DONE',
+    } as never);
+    const service = new MealPlanService(repoWithPlan());
+    await expect(service.resumeTailoring('user1', 'plan1', true)).rejects.toMatchObject({
+      code: 'CONFLICT',
+    });
   });
 });

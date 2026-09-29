@@ -51,14 +51,22 @@ function unionTerms(...lists: string[][]): string[] {
 }
 
 /**
- * Merged SafetyPrefs for recipe filtering: allergies and dietary restrictions
- * are the HARD union of the owner's and every member's; dislikes stay the
- * owner's only (member dislikes are soft prompt notes, and filtering the
- * small curated pool by everyone's dislikes would starve it).
+ * Merged SafetyPrefs for recipe filtering: allergies, dietary restrictions
+ * AND dislikes are all the HARD union of the owner's and every member's
+ * (§2.1, T-01.1/T-01.2, owner decision 2026-09-27: "dislikes become hard
+ * filters — yes"). This used to keep dislikes owner-only ("filtering the
+ * small curated pool by everyone's dislikes would starve it") — the
+ * regression suite's per-profile pool-size report (T-01.1) is the ongoing
+ * check that this doesn't happen; `filter()`'s `opts.dislikes: 'mark'` lets
+ * a caller (search results) soften dislikes back to a chip instead of a hard
+ * exclusion when it wants to.
  */
 export function mergeHouseholdSafety(
   owner: SafetyPrefs,
-  members: Pick<HouseholdMemberSafety, 'allergies' | 'dietaryRestrictions'>[],
+  members: Pick<
+    HouseholdMemberSafety,
+    'allergies' | 'dietaryRestrictions' | 'dislikedIngredients'
+  >[],
 ): SafetyPrefs {
   if (members.length === 0) return owner;
   return {
@@ -67,7 +75,10 @@ export function mergeHouseholdSafety(
       owner.dietaryRestrictions,
       ...members.map((m) => m.dietaryRestrictions),
     ),
-    dislikedIngredients: owner.dislikedIngredients,
+    dislikedIngredients: unionTerms(
+      owner.dislikedIngredients,
+      ...members.map((m) => m.dislikedIngredients ?? []),
+    ),
   };
 }
 

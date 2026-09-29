@@ -15,7 +15,13 @@ import type {
   WeekSummary,
 } from './engine';
 import type { GymOfferKind, WorkoutSessionDoc } from './schemas';
-import type { GymEquipmentAccess, Rir, TrainingExperience, WeightUnit } from './vocab';
+import type {
+  DistanceUnit,
+  GymEquipmentAccess,
+  Rir,
+  TrainingExperience,
+  WeightUnit,
+} from './vocab';
 
 export interface ExerciseDto extends ExerciseMeta {
   ownerId: string | null;
@@ -47,6 +53,18 @@ export interface GymProfileDto {
   reminderEnabled: boolean;
   reminderTime: string | null;
   setupCompletedAt: string | null;
+  // S6, rev 2 (T-36.2/T-36.3): additive — older clients ignore them.
+  /** Per-weekday "HH:MM" overrides; {} = use `reminderTime` every day. */
+  reminderTimes: Record<string, string>;
+  /** null = never (quiet-days nudge off). */
+  quietNudgeDays: number | null;
+  /**
+   * S21 (T-42.0): null/absent = derived from `unit` (MI when unit = LB, else
+   * KM). Optional (not just nullable) so existing constructors of this DTO
+   * outside this lane's ownership (mappers, fixtures, web/mobile settings)
+   * keep compiling until they're updated to set it explicitly.
+   */
+  distanceUnit?: DistanceUnit | null;
 }
 
 export interface RoutineExerciseDto {
@@ -121,6 +139,8 @@ export interface NextWorkoutExerciseDto {
   suggestion: Suggestion;
   warmups: WarmupSet[];
   lastTime: { localDate: string; sets: LastTimeSet[]; lastSetRir: Rir | null } | null;
+  /** T-36.3: prepended from `GymProfile.carryOver` — render under `From last time`. */
+  fromLastTime?: boolean;
 }
 
 export interface NextWorkoutDto {
@@ -148,7 +168,23 @@ export interface SessionSummaryDto {
     lastSetRir: Rir | null;
     /** Additive (mobile in stores may not send it): the note typed for this exercise that session. */
     notes?: string | null;
-    sets: { weightKg: number; reps: number; isWarmup: boolean; completed: boolean }[];
+    sets: {
+      weightKg: number;
+      reps: number;
+      isWarmup: boolean;
+      completed: boolean;
+      // S20 (T-42.0/T-42.2, Δ2.2): the same seven cardio fields as
+      // sessionSetDocSchema, additive/optional — a strength set omits them.
+      // Lets bootstrap.recentSessions / session.list show cardio history
+      // without shipping the full WorkoutSessionDoc.
+      durationSec?: number;
+      distanceM?: number;
+      intensityRpe?: number;
+      resistanceLevel?: number;
+      inclinePct?: number;
+      caloriesKcal?: number;
+      avgHeartRateBpm?: number;
+    }[];
   }[];
 }
 
@@ -161,6 +197,23 @@ export interface GymOffer {
   exerciseId?: string;
   data?: Record<string, number | string | null>;
 }
+
+// ─── Carry-over (T-36.3, CI-49) ──────────────────────────────────────────────
+// `GymProfile.carryOver` and the session doc's `carryOverExerciseIds?` agree
+// on this shape. List logic (`@chefer/utils` `gym/carry-over.ts`) builds and
+// consumes it; `buildNextWorkout` (`gym/session.ts`) prepends it.
+
+/** One exercise carried from an unfinished session into the next workout. */
+export interface CarryOverItem {
+  exerciseId: string;
+  /** The session it was left unstarted in. */
+  fromSessionId: string;
+  /** The routine day it belongs to, so it re-attaches to the right slot. */
+  routineDayId: string;
+}
+
+/** `GymProfile.carryOver` — stored as JSON, `[]` when nothing is carried. */
+export type CarryOverList = CarryOverItem[];
 
 /** The pause covering `today` (device-local), if any — lets a client end it directly. */
 export interface ActivePauseDto {
@@ -186,6 +239,8 @@ export interface GymBootstrap {
   offers: GymOffer[];
   /** The pause covering `today`, or null — additive field, see gym_plan.md §1.4 / §9.2. */
   activePause: ActivePauseDto | null;
+  /** `GymProfile.carryOver` (T-36.3) — additive; already folded into `nextWorkout`. */
+  carryOver: CarryOverList;
   /** Latest known bodyweight (kg) from the nutrition weight log. */
   bodyweightKg: number | null;
   /**

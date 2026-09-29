@@ -1,13 +1,16 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
+import { LEGAL_VERSIONS } from '@chefer/types';
 import { detectRegion } from '@chefer/utils';
+
+// UX-25 (T-25.2) / UX-26 (T-26.5) / UX-39 (T-39.1) / B-25.
 
 const registerSchema = z
   .object({
@@ -16,6 +19,14 @@ const registerSchema = z
     email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
     password: z.string().min(8, 'Password must be at least 8 characters').max(100),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
+    // T-39.1 / T-26.5: real checkboxes that must be ticked before submit —
+    // the boolean starts `false`, so this stays `z.boolean().refine`, not
+    // `z.literal(true)` (which would type the field as the literal `true`
+    // and reject the unchecked default).
+    acceptedTerms: z
+      .boolean()
+      .refine((v) => v, { message: 'You must agree to the Terms and the Privacy Policy' }),
+    ageConfirmed: z.boolean().refine((v) => v, { message: 'You must confirm you are 16 or older' }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Passwords do not match',
@@ -45,6 +56,9 @@ export function RegisterForm() {
   const {
     register,
     handleSubmit,
+    watch,
+    trigger,
+    getValues,
     formState: { errors },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -54,8 +68,23 @@ export function RegisterForm() {
       email: '',
       password: '',
       confirmPassword: '',
+      acceptedTerms: false,
+      ageConfirmed: false,
     },
   });
+
+  // Bug B-25: the cross-field `.refine` attaches "Passwords do not match" to
+  // `confirmPassword`; react-hook-form only re-validates a field when THAT
+  // field itself changes, so editing `password` after a mismatch left a
+  // stale error even once the two matched again. Re-check confirmPassword
+  // whenever password changes, once confirmPassword has something to compare.
+  const password = watch('password');
+  useEffect(() => {
+    if (getValues('confirmPassword')) {
+      void trigger('confirmPassword');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [password]);
 
   const onSubmit = (data: RegisterFormValues) => {
     setServerError(null);
@@ -66,6 +95,9 @@ export function RegisterForm() {
       password: data.password,
       firstName: data.firstName,
       lastName: data.lastName,
+      acceptedTerms: data.acceptedTerms,
+      ageConfirmed: data.ageConfirmed,
+      acceptedTermsVersion: LEGAL_VERSIONS.terms,
       ...(region && { region }),
     });
   };
@@ -245,6 +277,53 @@ export function RegisterForm() {
         {errors.confirmPassword && (
           <p id="confirmPassword-error" className="text-sm text-destructive" role="alert">
             {errors.confirmPassword.message}
+          </p>
+        )}
+      </div>
+
+      {/* T-39.1 / T-26.5: explicit consent — the button stays enabled either
+          way (03 §UX-26 AC); the inline error is what blocks submission. */}
+      <div className="space-y-1.5">
+        <label className="flex min-h-11 items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-5 w-5 shrink-0 rounded border-input"
+            aria-invalid={errors.acceptedTerms ? 'true' : undefined}
+            aria-describedby={errors.acceptedTerms ? 'acceptedTerms-error' : undefined}
+            {...register('acceptedTerms')}
+          />
+          <span>
+            I agree to the{' '}
+            <a href="/terms" target="_blank" rel="noreferrer" className="text-primary underline">
+              Terms
+            </a>{' '}
+            and the{' '}
+            <a href="/privacy" target="_blank" rel="noreferrer" className="text-primary underline">
+              Privacy Policy
+            </a>
+          </span>
+        </label>
+        {errors.acceptedTerms && (
+          <p id="acceptedTerms-error" className="text-sm text-destructive" role="alert">
+            {errors.acceptedTerms.message}
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="flex min-h-11 items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-5 w-5 shrink-0 rounded border-input"
+            aria-invalid={errors.ageConfirmed ? 'true' : undefined}
+            aria-describedby={errors.ageConfirmed ? 'ageConfirmed-error' : undefined}
+            {...register('ageConfirmed')}
+          />
+          <span>I&rsquo;m 16 or older</span>
+        </label>
+        {errors.ageConfirmed && (
+          <p id="ageConfirmed-error" className="text-sm text-destructive" role="alert">
+            {errors.ageConfirmed.message}
           </p>
         )}
       </div>

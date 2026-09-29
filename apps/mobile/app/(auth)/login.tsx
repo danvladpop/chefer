@@ -5,7 +5,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from 'expo-router';
 import { Button, Input, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
+import { AUTH_COPY } from '../../src/features/auth/copy';
 import { loginSchema, type LoginFormValues } from '../../src/features/auth/schemas';
+import { useSession } from '../../src/features/auth/use-session';
 import { setToken } from '../../src/lib/auth-store';
 import { trpc } from '../../src/lib/trpc';
 
@@ -21,6 +23,10 @@ function LoginForm() {
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
+  // UX-25 (T-25.1, AC2): "Welcome back" only once this device has actually
+  // signed in before — reached here by deep link, back navigation from
+  // Welcome, or any other path that skips the (auth)/index.tsx gate.
+  const { hasSignedInBefore } = useSession();
 
   const {
     control,
@@ -45,9 +51,11 @@ function LoginForm() {
   return (
     <>
       <Text variant="title" testID="login-title">
-        Welcome back
+        {hasSignedInBefore ? AUTH_COPY.loginTitleReturning : AUTH_COPY.loginTitleFirstTime}
       </Text>
-      <Text variant="muted">Sign in to your Chefer account</Text>
+      <Text variant="muted">
+        {hasSignedInBefore ? AUTH_COPY.loginSubtitleReturning : AUTH_COPY.loginSubtitleFirstTime}
+      </Text>
 
       <AuthField label="Email" error={errors.email?.message}>
         <Controller
@@ -58,6 +66,8 @@ function LoginForm() {
               ref={emailRef}
               testID="login-email"
               autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
               autoComplete="email"
               keyboardType="email-address"
               returnKeyType="next"
@@ -114,14 +124,27 @@ function LoginForm() {
         Sign in
       </Button>
 
-      <View className="flex-row justify-center gap-1">
-        <Text variant="muted">No account yet?</Text>
-        <Link href="/register" testID="login-to-register">
-          <Text variant="muted" className="font-semibold text-primary">
-            Create one
-          </Text>
-        </Link>
-      </View>
+      {hasSignedInBefore ? (
+        <View className="flex-row justify-center gap-1">
+          <Text variant="muted">No account yet?</Text>
+          <Link href="/register" testID="login-to-register">
+            <Text variant="muted" className="font-semibold text-primary">
+              Create one
+            </Text>
+          </Link>
+        </View>
+      ) : (
+        // UX-25 (T-25.1): a first-timer who reached Sign in without going
+        // through Welcome gets the same full-width CTA Welcome would have
+        // shown, not a small link easy to miss.
+        <Button
+          testID="login-to-register"
+          variant="outline"
+          onPress={() => router.push('/register')}
+        >
+          {AUTH_COPY.loginCreateAccountCta}
+        </Button>
+      )}
     </>
   );
 }

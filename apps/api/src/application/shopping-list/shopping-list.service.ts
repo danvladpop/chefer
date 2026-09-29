@@ -10,7 +10,7 @@ import {
   type PlanMealSlotJson,
   type Prisma,
 } from '@chefer/database';
-import type { UserProfile } from '@chefer/types';
+import { LABEL_DEPENDENT_INGREDIENTS, type TableSafety, type UserProfile } from '@chefer/types';
 import { slotPortion } from '@chefer/utils';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
@@ -25,8 +25,9 @@ import {
 } from '../../lib/ingredient-prices/index.js';
 import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js';
 import { householdService } from '../household/household.service.js';
-import { buildPantryMatcher } from '../pantry/pantry-match.js';
+import { buildPantryCoverageMatcher } from '../pantry/pantry-match.js';
 import { pantryService } from '../pantry/pantry.service.js';
+import { safetyService } from '../safety/safety.service.js';
 import { inferCategory } from '../shared/category-map.js';
 import { householdScaleFactor } from '../shared/household-scale.js';
 import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
@@ -55,6 +56,24 @@ export interface ShoppingListItemForWeek {
    * accounts; the one-tap re-add clears the pantry row (`pantry.markOutOfStock`).
    */
   pantryCovered?: boolean;
+  /**
+   * Bug B-24 (T-BUG-24): the pantry has SOME of this line but not all of it
+   * — `quantity`/`estimatedPriceEur` above are already reduced to the
+   * remaining amount to buy, and this is what the pantry already covers (in
+   * the same unit), so the UI can say "You have {haveQuantity} of {need +
+   * haveQuantity} · Buy {quantity}". Only ever set for `pantryPlanning`
+   * accounts; absent for a full match (`pantryCovered: true` instead) or no
+   * match at all.
+   */
+  haveQuantity?: number;
+  /**
+   * §2.2, T-01.9/T-02.1: diet labels (e.g. "Gluten-free") this line needs a
+   * certified product for — it's a label-dependent ingredient (stock, curry
+   * powder, soy sauce…) that CAN be safe but isn't guaranteed to be. Present
+   * only when the table has a diet this applies to; the client renders
+   * `LabelCaveat` / "Buy certified gluten-free".
+   */
+  labelCheck?: string[];
 }
 
 /** F3 pantry summary attached to every served list. */
@@ -99,6 +118,11 @@ export interface WeekShoppingList {
    * curated plans). Per-person cost = total ÷ this, never ÷ head count.
    */
   portions?: number;
+  /**
+   * §2.2, T-02.1/T-02.4: the read-back table this list's `labelCheck` lines
+   * were computed against — the Shop header's Checked/needs-a-look line.
+   */
+  tableSafety?: TableSafety;
 }
 
 /** Items as persisted in the ShoppingList table (images/prices re-resolved on read). */
@@ -171,6 +195,33 @@ export function carryCheckedKeys(
 
 function customItemKey(planId: string, name: string, unit: string): string {
   return `${planId}-custom-${name.toLowerCase().trim().replace(/\s+/g, '-')}-${unit.toLowerCase().trim()}`;
+}
+
+/**
+ * T-01.9/T-02.1: flags list lines that need a certified product for a
+ * gluten-free member's table — the same label-dependent ingredient list
+ * `findLabelCaveats` runs against a recipe's ingredients (bug B-47), applied
+ * here to a shopping-list line's plain ingredient name. Additive: a table
+ * with no gluten-free diet (or no rules at all) leaves every item unchanged.
+ */
+function withLabelChecks(
+  items: ShoppingListItemForWeek[],
+  table: TableSafety,
+): ShoppingListItemForWeek[] {
+  const glutenFreeLabels = [
+    ...new Set(
+      table.people
+        .flatMap((p) => p.items)
+        .filter((i) => i.kind === 'diet' && /gluten-free/i.test(i.label))
+        .map((i) => i.label),
+    ),
+  ];
+  if (glutenFreeLabels.length === 0) return items;
+  return items.map((item) => {
+    const name = item.ingredientName.toLowerCase();
+    const isLabelDependent = LABEL_DEPENDENT_INGREDIENTS.some((ing) => name.includes(ing));
+    return isLabelDependent ? { ...item, labelCheck: glutenFreeLabels } : item;
+  });
 }
 
 function getMondayOfWeek(offset: number): Date {
@@ -250,7 +301,7 @@ export class ShoppingListService {
       return { items, estimatedTotalEur, pantry: { entitled, itemCount: 0, savedEur: 0 } };
     }
 
-    const matcher = buildPantryMatcher(
+    const matcher = buildPantryCoverageMatcher(
       pantryRows.map((row) => ({
         name: row.ingredientName,
         quantity: row.quantity,
@@ -261,32 +312,42 @@ export class ShoppingListService {
     // that pantry row must not flip the same line to "have it", drop it
     // from the total and count it as saved (audit F-PAN-1-1).
     const ticked = new Set(checkedKeys);
-    const coveredKeys = new Set(
-      items
-        .filter(
-          (item) =>
-            !item.isCustom &&
-            !ticked.has(item.key) &&
-            matcher(item.ingredientName, {
-              quantity: parseFloat(item.quantity),
-              unit: item.unit,
-            }) !== null,
-        )
-        .map((item) => item.key),
-    );
     const round = (v: number) => Math.round(v * 100) / 100;
+
+    // Bug B-24 (T-BUG-24): a pantry row that covers SOME but not all of a
+    // line is a PARTIAL match — the item stays on the list at its remaining
+    // (need − have) amount, instead of either the whole line or nothing.
+    const marked = items.map((item) => {
+      if (item.isCustom || ticked.has(item.key)) return item;
+      const need = parseFloat(item.quantity);
+      const hit = matcher(item.ingredientName, { quantity: need, unit: item.unit });
+      if (!hit) return item;
+      if (hit.haveQuantity === null || hit.haveQuantity >= need) {
+        return { ...item, pantryCovered: true };
+      }
+      if (hit.haveQuantity <= 0) return item;
+      const remaining = need - hit.haveQuantity;
+      const priceFactor = need > 0 ? remaining / need : 1;
+      return {
+        ...item,
+        haveQuantity: round(hit.haveQuantity),
+        quantity: formatLineQuantity(remaining),
+        ...(item.estimatedPriceEur !== null && {
+          estimatedPriceEur: round(item.estimatedPriceEur * priceFactor),
+        }),
+      };
+    });
+
+    const originalPriceByKey = new Map(items.map((item) => [item.key, item.estimatedPriceEur]));
     const savedEur = round(
-      items
-        .filter((item) => coveredKeys.has(item.key))
-        .reduce((sum, item) => sum + (item.estimatedPriceEur ?? 0), 0),
+      marked
+        .filter((item) => item.pantryCovered)
+        .reduce((sum, item) => sum + (originalPriceByKey.get(item.key) ?? 0), 0),
     );
     const pantry: ShoppingListPantryInfo = { entitled, itemCount: pantryRows.length, savedEur };
 
     if (!entitled) return { items, estimatedTotalEur, pantry };
 
-    const marked = items.map((item) =>
-      coveredKeys.has(item.key) ? { ...item, pantryCovered: true } : item,
-    );
     const priced = marked.filter((item) => item.estimatedPriceEur !== null);
     const newTotal =
       priced.length > 0
@@ -351,12 +412,16 @@ export class ShoppingListService {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
 
-    // Find the plan for this week (single indexed query); for offset 0 fall
-    // back to the active plan.
-    let targetPlan = await mealPlanRepository.findByWeekStart(userId, weekStart);
-    if (!targetPlan && weekOffset === 0) {
-      targetPlan = await mealPlanRepository.findActiveWithDays(userId);
-    }
+    // Find the plan for this week (single indexed query). B-13/T-00.15: this
+    // used to fall back to findActiveWithDays for offset 0 — whichever plan
+    // happened to be ACTIVE, any week — which leaked a later week's plan
+    // into "this week"'s Shop view once that week became the sole active
+    // plan (every Sunday planner's view). findForWeek only ever matches
+    // THIS calendar week.
+    const targetPlan = await mealPlanRepository.findForWeek(userId, weekStart);
+    // T-01.9/T-02.1: the one read-back table every list line's `labelCheck`
+    // and the header's Checked/needs-a-look line are computed against.
+    const safetyTable = (await safetyService.loadContext(userId)).table;
 
     if (!targetPlan) {
       const { pantry } = await this.applyPantry(user, [], null);
@@ -371,6 +436,7 @@ export class ShoppingListService {
         aiGenerated: false,
         checkedKeys: [],
         pantry,
+        tableSafety: safetyTable,
       };
     }
 
@@ -402,12 +468,13 @@ export class ShoppingListService {
         weekStartDate: weekStart.toISOString(),
         weekEndDate: weekEnd.toISOString(),
         hasPlan: true,
-        items,
+        items: withLabelChecks(items, safetyTable),
         weekOffset,
         estimatedTotalEur,
         aiGenerated: true,
         checkedKeys,
         pantry,
+        tableSafety: safetyTable,
         ...sized,
       };
     }
@@ -427,12 +494,13 @@ export class ShoppingListService {
       weekStartDate: weekStart.toISOString(),
       weekEndDate: weekEnd.toISOString(),
       hasPlan: true,
-      items,
+      items: withLabelChecks(items, safetyTable),
       weekOffset,
       estimatedTotalEur,
       aiGenerated: false,
       checkedKeys,
       pantry,
+      tableSafety: safetyTable,
       ...sized,
     };
   }
@@ -661,8 +729,10 @@ export class ShoppingListService {
       return planMonday.toDateString() === targetDateStr;
     });
 
+    // B-13/T-00.15: same bug as getForWeek above — findActiveWithDays could
+    // return a different week's plan. findForWeek matches THIS week only.
     if (!targetPlan && weekOffset === 0) {
-      targetPlan = (await mealPlanRepository.findActiveWithDays(userId)) ?? undefined;
+      targetPlan = (await mealPlanRepository.findForWeek(userId, weekStart)) ?? undefined;
     }
 
     if (!targetPlan) {

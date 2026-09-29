@@ -7,6 +7,8 @@ set -u
 DEVICE="${1:?usage: run-suite.sh <device-id>}"
 MAESTRO="${MAESTRO_BIN:-$HOME/.maestro/bin/maestro}"
 pass=0; fail=0; failed=()
+# Fresh photo fixtures for recipe-create-photo.flow.yaml (git-ignored).
+"$(dirname "$0")"/fixtures/make-photo-fixtures.sh >/dev/null || exit 1
 for flow in "$(dirname "$0")"/*.flow.yaml; do
   name=$(basename "$flow")
   if "$MAESTRO" --device "$DEVICE" test "$flow" >/dev/null 2>&1; then

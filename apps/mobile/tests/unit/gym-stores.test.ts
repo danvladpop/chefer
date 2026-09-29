@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import type { GymBootstrap } from '@chefer/types';
+import { ENGINE_VERSION } from '@chefer/utils';
 import {
   getMode,
   resetModeForTests,
@@ -111,7 +112,8 @@ describe('query persistence filter', () => {
     expect(shouldPersistQuery({ queryKey: gymBootstrapQueryKey, state: { status: 'error' } })).toBe(
       false,
     );
-    expect(GYM_CACHE_BUSTER).toBe('1:1');
+    // T-42.3: bumped to 2 — the client moved to x-chefer-api-level 3.
+    expect(GYM_CACHE_BUSTER).toBe(`${ENGINE_VERSION}:2`);
   });
 
   it('uses an input-free bootstrap key (a date in the key would miss the cache every morning)', () => {
@@ -240,6 +242,7 @@ describe('in-progress checkpoint', () => {
       v: 1,
       ownerId: 'user-a',
       doc: makeDoc(1, { status: 'IN_PROGRESS', finishedAt: null, clientUpdatedAt: at }),
+      pausedAt: null,
     }) as const;
 
   it('uploads the latest doc at most once per minute', async () => {

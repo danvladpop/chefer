@@ -6,6 +6,8 @@ import { MockAIService } from '../../lib/ai/mock.js';
 import type { CheferizedRecipe, ExtractedRecipe, IAIService } from '../../lib/ai/types.js';
 import { headCheckImage } from '../../lib/recipe-import/index.js';
 import { MockVideoTranscriber } from '../../lib/video-import/index.js';
+import { mergeHouseholdSafety } from '../household/household.service.js';
+import type { SafetyService } from '../safety/safety.service.js';
 import {
   VideoRecipeService,
   type VideoRecipeResult,
@@ -26,6 +28,9 @@ vi.mock('@chefer/database', async (importOriginal) => {
           count: vi.fn().mockResolvedValue(0),
           create: vi.fn().mockResolvedValue({ id: 'log1' }),
           delete: vi.fn().mockResolvedValue({}),
+          // T-10.8: `save` marks the day's newest import preview as saved.
+          findFirst: vi.fn().mockResolvedValue({ id: 'log1' }),
+          update: vi.fn().mockResolvedValue({}),
         },
         ingredientPrice: { findMany: vi.fn().mockResolvedValue([]) },
       };
@@ -124,15 +129,47 @@ function makeAi(): IAIService {
   } as unknown as IAIService;
 }
 
-const prefsRepo = (prefs: {
+// T-01.2: `RecipeImportService`'s 3rd constructor arg is now a SafetyService
+// (loadContext) instead of a raw DietaryPreferencesRepository — this fake
+// builds the same shape `SafetyService.loadContext` returns. `servingSize`
+// is accepted (unused) so existing call sites don't need to change.
+const fakeSafety = (prefs: {
   allergies: string[];
   dietaryRestrictions: string[];
   dislikedIngredients: string[];
   servingSize?: number;
-}) =>
-  ({
-    findByUserId: vi.fn().mockResolvedValue({ servingSize: 2, ...prefs }),
-  }) as never;
+}): Pick<SafetyService, 'loadContext'> => ({
+  loadContext: vi.fn().mockResolvedValue({
+    prefs: {
+      allergies: prefs.allergies,
+      dietaryRestrictions: prefs.dietaryRestrictions,
+      dislikedIngredients: prefs.dislikedIngredients,
+    },
+    hiddenRecipeIds: [],
+    table: { people: [], hasRules: false, needsReview: false },
+  }),
+});
+const prefsRepo = fakeSafety;
+
+/**
+ * The "whole table" describe block below varies owner prefs AND household
+ * members independently and expects them merged — this fake does the same
+ * merge `SafetyService.loadContext` does in production, via the real
+ * `mergeHouseholdSafety`.
+ */
+const fakeSafetyWithHousehold = (
+  ownerPrefs: { allergies: string[]; dietaryRestrictions: string[]; dislikedIngredients: string[] },
+  members: { allergies: string[]; dietaryRestrictions: string[]; dislikedIngredients?: string[] }[],
+): Pick<SafetyService, 'loadContext'> => ({
+  loadContext: vi.fn().mockResolvedValue({
+    prefs: mergeHouseholdSafety(
+      ownerPrefs,
+      members.map((m) => ({ ...m, dislikedIngredients: m.dislikedIngredients ?? [] })),
+    ),
+    hiddenRecipeIds: [],
+    table: { people: [], hasRules: false, needsReview: false },
+  }),
+});
 
 const recipeRepo = () =>
   ({
@@ -210,7 +247,7 @@ describe('RecipeImportService.preview — extraction + Cheferize', () => {
     expect(preview.via).toBe('text');
     expect(preview.adapted.name).toBe('Sunflower Tofu Satay');
     expect(preview.changes).toHaveLength(3);
-    expect(preview.safety).toEqual({ ok: true, issues: [] });
+    expect(preview.safety).toEqual({ ok: true, issues: [], blockedBy: [] });
   });
 
   it('FAILS CLOSED when the AI missed the peanut — matcher overrides the AI', async () => {
@@ -271,6 +308,15 @@ describe('RecipeImportService.save — fail closed', () => {
     expect(saved.imageUrl).toContain('image.pollinations.ai');
   });
 
+  it("marks the day's newest import preview as saved (T-10.8 importsSaved)", async () => {
+    const service = new RecipeImportService(makeAi(), recipeRepo(), prefsRepo(peanutVegetarian));
+    await service.save(premiumUser, { recipe: goodAdaptation.adapted, variant: 'adapted' });
+    expect(vi.mocked(prisma.aiCallLog.update)).toHaveBeenCalledWith({
+      where: { id: 'log1' },
+      data: { saved: true },
+    });
+  });
+
   it('uses the og:image only when the HEAD check confirms it serves an image', async () => {
     vi.mocked(headCheckImage).mockResolvedValue(true);
     const repo = recipeRepo();
@@ -299,11 +345,12 @@ describe('RecipeImportService — the whole table (P2-3)', () => {
   const noSafety = { allergies: [], dietaryRestrictions: [], dislikedIngredients: [] };
 
   it("a member's allergy blocks saving an adapted recipe that contains it", async () => {
+    const members = [{ portionFactor: 0.5, allergies: ['peanuts'], dietaryRestrictions: [] }];
     const service = new RecipeImportService(
       makeAi(),
       recipeRepo(),
-      prefsRepo(noSafety),
-      household([{ portionFactor: 0.5, allergies: ['peanuts'], dietaryRestrictions: [] }]),
+      fakeSafetyWithHousehold(noSafety, members),
+      household(members),
     );
     await expect(
       service.save(premiumUser, { recipe: missedPeanutAdaptation.adapted, variant: 'adapted' }),
@@ -312,14 +359,15 @@ describe('RecipeImportService — the whole table (P2-3)', () => {
 
   it('adapts to the household portion sum, not the legacy serving size', async () => {
     const ai = makeAi();
+    const members = [
+      { portionFactor: 1, allergies: [], dietaryRestrictions: [] },
+      { portionFactor: 0.5, allergies: ['sesame'], dietaryRestrictions: [] },
+    ];
     const service = new RecipeImportService(
       ai,
       recipeRepo(),
-      prefsRepo({ ...noSafety, servingSize: 4 }),
-      household([
-        { portionFactor: 1, allergies: [], dietaryRestrictions: [] },
-        { portionFactor: 0.5, allergies: ['sesame'], dietaryRestrictions: [] },
-      ]),
+      fakeSafetyWithHousehold(noSafety, members),
+      household(members),
     );
     await service.preview(premiumUser, { text: 'A'.repeat(100) });
     const input = vi.mocked(ai.cheferizeRecipe).mock.calls[0]![0];
@@ -402,7 +450,7 @@ describe('RecipeImportService.preview — steered MockAIService end-to-end (§4.
     );
     const preview = await service.preview(premiumUser, { text: 'grandma’s chicken satay recipe' });
     expect(preview.changes.some((c) => c.kind === 'allergen')).toBe(true);
-    expect(preview.safety).toEqual({ ok: true, issues: [] });
+    expect(preview.safety).toEqual({ ok: true, issues: [], blockedBy: [] });
   });
 });
 

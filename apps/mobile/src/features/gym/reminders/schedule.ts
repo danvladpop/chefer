@@ -8,7 +8,7 @@ import { addDaysLocal, weekdayOf } from '@chefer/utils';
 // Tone rules (docs/gym/programming-research.md §4.3): never more than one
 // reminder a day, and never guilt copy ("you missed", "broken streak", …).
 
-export type GymReminderKind = 'planned' | 'missed';
+export type GymReminderKind = 'planned' | 'missed' | 'quiet';
 
 export interface GymReminderProfile {
   reminderEnabled: boolean;
@@ -169,4 +169,73 @@ export function computeGymReminders(input: GymReminderInput): GymReminder[] {
   }
 
   return reminders.sort((a, b) => a.at.localeCompare(b.at));
+}
+
+// ─── Quiet-days nudge (T-36.2, bug B-40) ────────────────────────────────────
+// "Nudge me if I've gone quiet for N days" — independent of the per-day
+// planned reminders above: it fires once, N days after the last finished
+// session, rescheduled every time `use-gym-reminders.ts` runs (on a finish or
+// app launch), and never during a training pause (UX-36 (2)).
+
+/** Local time of day the quiet nudge fires at, absent a configured reminder time. */
+export const QUIET_NUDGE_DEFAULT_TIME = '10:00';
+
+export interface QuietNudgeInput {
+  /** `GymProfile.quietNudgeDays` — null means the nudge is off. */
+  quietNudgeDays: number | null;
+  /** localDate of the most recently COMPLETED session, or null if none yet. */
+  lastSessionDate: string | null;
+  /** Named + timed so the copy can say "your {dayName} is ready — about {min} min." */
+  nextWorkout: { dayName: string; estimatedMin: number } | null;
+  today: string;
+  now: string;
+  activePause?: GymReminderPause | null;
+  /** Falls back to `profile.reminderTime` in practice; see `useGymReminders`. */
+  atTime?: string;
+  toLocalInstant?: LocalInstantFn;
+}
+
+/**
+ * The single upcoming quiet-days nudge, or null when it's off, there's no
+ * baseline session yet, its due date falls inside a pause, or it would have
+ * already fired (never fires late after being offline).
+ */
+export function computeQuietNudge(input: QuietNudgeInput): GymReminder | null {
+  const { quietNudgeDays, lastSessionDate, nextWorkout, now, activePause } = input;
+  if (quietNudgeDays === null || quietNudgeDays <= 0 || !lastSessionDate) return null;
+  const dueDate = addDaysLocal(lastSessionDate, quietNudgeDays);
+  if (insidePause(dueDate, activePause)) return null; // never during a pause
+  const toInstant = input.toLocalInstant ?? localInstant;
+  const at = toInstant(dueDate, input.atTime ?? QUIET_NUDGE_DEFAULT_TIME);
+  if (at <= now) return null;
+  const dayName = nextWorkout?.dayName ?? 'workout';
+  const body = nextWorkout
+    ? `Fancy a short one today? Your ${dayName} is ready — about ${nextWorkout.estimatedMin} min.`
+    : `Fancy a short one today? Your ${dayName} is ready.`;
+  return { at, title: 'Fancy a short one today?', body, kind: 'quiet' };
+}
+
+/**
+ * Every gym notification to schedule: the per-day planned/missed reminders
+ * plus the quiet-days nudge, deduped so a day never carries two (max one
+ * notification a day, research §4.3) — the planned/missed reminder wins.
+ */
+export function computeAllGymReminders(
+  input: GymReminderInput & Pick<QuietNudgeInput, 'quietNudgeDays' | 'nextWorkout'>,
+): GymReminder[] {
+  const planned = computeGymReminders(input);
+  const quiet = computeQuietNudge({
+    quietNudgeDays: input.quietNudgeDays,
+    lastSessionDate: input.lastSessionDate,
+    nextWorkout: input.nextWorkout,
+    today: input.today,
+    now: input.now,
+    activePause: input.activePause,
+    atTime: input.profile.reminderTime ?? undefined,
+    toLocalInstant: input.toLocalInstant,
+  });
+  if (!quiet) return planned;
+  const quietDate = quiet.at.slice(0, 10);
+  const collides = planned.some((r) => r.at.slice(0, 10) === quietDate);
+  return collides ? planned : [...planned, quiet].sort((a, b) => a.at.localeCompare(b.at));
 }

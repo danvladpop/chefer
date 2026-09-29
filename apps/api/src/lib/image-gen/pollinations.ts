@@ -10,6 +10,7 @@
  *
  * The URL is served with Cache-Control: immutable so browsers won't re-fetch it.
  */
+import { buildRecipeImagePrompt } from './prompt.js';
 
 /** Deterministic numeric seed from a string (djb2 hash) */
 function strToSeed(s: string): number {
@@ -38,4 +39,19 @@ export function buildPollinationsUrl(
   const encoded = encodeURIComponent(prompt);
   const seed = strToSeed(`${normalizeForSeed(recipeName)}|${normalizeForSeed(cuisineType)}`);
   return `https://image.pollinations.ai/prompt/${encoded}?seed=${seed}&width=${width}&height=${height}&nologo=true&model=flux`;
+}
+
+/**
+ * The free fallback a recipe gets when the configured provider can't deliver
+ * (Cloudflare's daily free neurons used up, the image store is broken, or the
+ * last retry failed): the same deterministic Pollinations URL the default
+ * provider would have produced. NOT warmed server-side — clients load it and
+ * show their "preparing" placeholder until it arrives.
+ */
+export function recipeImageFallbackUrl(recipeName: string, cuisineType: string): string {
+  return buildPollinationsUrl(
+    buildRecipeImagePrompt(recipeName, cuisineType),
+    recipeName,
+    cuisineType,
+  );
 }

@@ -7,10 +7,12 @@ import type {
   CheferizedRecipe,
   CheferizeInput,
   CoachReviewInput,
+  DayPlan,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
   MealPhotoEstimate,
+  MealPlanDayRequest,
   MealPlanInput,
   RecipeData,
   RecipeExtractionSource,
@@ -166,6 +168,18 @@ export class ChainAIService implements IAIService {
 
   generateMealPlan(input: MealPlanInput): Promise<WeekPlanResponse> {
     return this.run('generateMealPlan', 'mealPlan', (s) => s.generateMealPlan(input), input);
+  }
+
+  generateMealPlanDay(input: MealPlanInput, request: MealPlanDayRequest): Promise<DayPlan> {
+    // Same chain as the week (the `mealPlan` workload): a capacity/quota
+    // error on one provider fails over to the next; when the whole chain is
+    // out, the tailoring worker keeps the curated day and backs off.
+    return this.run(
+      'generateMealPlanDay',
+      'mealPlan',
+      (s) => s.generateMealPlanDay(input, request),
+      input,
+    );
   }
 
   generateRecipeSwap(input: SwapInput): Promise<RecipeData> {

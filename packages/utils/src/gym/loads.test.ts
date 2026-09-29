@@ -97,6 +97,22 @@ describe('achievableLoads', () => {
     expect(loadModel(slot)).toBe('BELT');
   });
 
+  // Q-28 (T-05.7): a held load (Back Extension — a plate against the chest)
+  // logs added weight without a dip belt, unlike a weighted pull-up/dip.
+  it('held loads (Back Extension) get belt-style increments without a dip belt', () => {
+    const backExtension = slotFor('back-extension', 2, 10, 15);
+    expect(meta('back-extension').heldLoad).toBe(true);
+    expect(loadModel(backExtension)).toBe('BELT');
+    expect(achievableLoads(backExtension, P).slice(0, 4)).toEqual([0, 1.25, 2.5, 5]);
+    // Still works (unchanged) once the user also has a dip belt.
+    expect(achievableLoads(backExtension, { ...P, hasDipBelt: true }).slice(0, 4)).toEqual([
+      0, 1.25, 2.5, 5,
+    ]);
+    // A real belt/vest exercise is unaffected: still gated on hasDipBelt.
+    expect(meta('pull-up').heldLoad).toBeUndefined();
+    expect(achievableLoads(pullUp, P)).toEqual([0]);
+  });
+
   it('assisted: multiples of the machine step including 0 (unassisted)', () => {
     const loads = achievableLoads(assisted, P);
     expect(loads.slice(0, 3)).toEqual([0, 5, 10]);

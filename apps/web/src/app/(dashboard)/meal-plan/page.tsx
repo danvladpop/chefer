@@ -4,15 +4,19 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
-import { DayView } from '@/features/meal-plan/components/day-view';
+import { DayView, TailoringDayMark } from '@/features/meal-plan/components/day-view';
 import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
+import { PlanSettingsSheet } from '@/features/meal-plan/components/PlanSettingsSheet';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import {
   ReplaceMealSheet,
+  type ReplaceMealResult,
   type ReplaceTarget,
 } from '@/features/meal-plan/components/ReplaceMealSheet';
+import { TailoringBanner } from '@/features/meal-plan/components/TailoringBanner';
+import { useTailoringWatch } from '@/features/meal-plan/hooks/use-tailoring-watch';
 import { PantryUsageBanner } from '@/features/pantry/components/PantryUsageBanner';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
@@ -31,15 +35,27 @@ import {
   ImageIcon,
   RefreshCw,
   Repeat,
+  Settings2,
+  ShieldCheck,
   Sparkles,
   Wallet,
   Wand2,
 } from 'lucide-react';
-import { ErrorState } from '@chefer/ui';
+import { PLAN_TAILORING_POLL_MS } from '@chefer/types';
+import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
+  defaultWeekOffset,
   formatMoney,
+  formatPriceRange,
+  getWeekStartDate,
+  isTailoringRunning,
   perPortionCost,
+  planButtonLabel,
+  planShapeSummary,
+  SAFETY_COPY,
+  tailoringDayLabel,
+  tailoringDayState,
   toDisplayCurrency,
 } from '@chefer/utils';
 import MealPlanLoading from './loading';
@@ -66,35 +82,29 @@ function getTodayDayIndex(): number {
   return jsDay === 0 ? 6 : jsDay - 1;
 }
 
-// Client-side helper to compute Monday of a given week offset
-function getMondayOfWeekClient(offset: number): Date {
-  const now = new Date();
-  const day = now.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diffToMonday + offset * 7);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MealPlanPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const rawOffset = parseInt(searchParams.get('week') ?? '0', 10);
+  // T-08.9 (UX-08 AC1): no `?week` in the URL yet defaults to next week from
+  // Friday 15:00 to Sunday 23:59 local, else this week — the same
+  // `defaultWeekOffset` mobile's Plan/Shop share (@chefer/utils). An
+  // explicit `?week=0` (e.g. the nav arrows) is never overridden.
+  const weekParam = searchParams.get('week');
+  const rawOffset = weekParam === null ? defaultWeekOffset(new Date()) : parseInt(weekParam, 10);
   const weekOffset = Number.isNaN(rawOffset)
     ? 0
     : Math.max(MIN_OFFSET, Math.min(MAX_OFFSET, rawOffset));
 
   const setWeekOffset = (offset: number) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (offset === 0) {
-      params.delete('week');
-    } else {
-      params.set('week', String(offset));
-    }
+    // T-08.9: `week` is always written explicitly, even for 0 — deleting it
+    // on "this week" used to mean the NEXT render recomputed the default
+    // (possibly next week again, e.g. Friday afternoon) instead of staying
+    // on the week the arrows just navigated to.
+    params.set('week', String(offset));
     router.replace(`/meal-plan?${params.toString()}`, { scroll: false });
   };
 
@@ -117,6 +127,21 @@ export default function MealPlanPage() {
   const [imageOverrides, setImageOverrides] = useState<
     Record<string, { imageUrl: string | null; status: ImageStatusType }>
   >({});
+  // T-07.6: the shared "how you cook" plan settings sheet.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // T-08.9 (UX-08 §3, PAT-5): Regenerate always asks first.
+  const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
+  const [keepPicks, setKeepPicks] = useState(true);
+  // Snapshot of how many picks existed when Regenerate was confirmed — the
+  // toast's "Kept N of your picks" needs the BEFORE count; `plan` itself has
+  // already been replaced by the time the mutation resolves.
+  const [pinnedBeforeRegenerate, setPinnedBeforeRegenerate] = useState(0);
+  // One toast slot for regenerate/replace/swap/plan-day undo (T-08.3/T-08.5/
+  // T-08.6) — mirrors the recipe detail page's existing swap-undo Toast.
+  const [toast, setToast] = useState<{
+    message: string;
+    action?: { label: string; onClick: () => void };
+  } | null>(null);
 
   const isPast = weekOffset < 0;
   const isCurrent = weekOffset === 0;
@@ -127,10 +152,32 @@ export default function MealPlanPage() {
     isError,
     isRefetching,
     refetch,
-  } = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { retry: false });
+  } = trpc.mealPlan.getForWeek.useQuery(
+    { weekOffset },
+    {
+      retry: false,
+      // Live tailoring (premium instant week): poll while the chef is still
+      // working — and only then. React Query pauses the interval while the
+      // tab is hidden (refetchIntervalInBackground defaults to false).
+      refetchInterval: (query) =>
+        isTailoringRunning(query.state.data?.tailoring) ? PLAN_TAILORING_POLL_MS : false,
+    },
+  );
   // A failed load is not an empty week: never offer "Generate" over a plan we
   // simply couldn't fetch (audit F-X-3-1, F-PLAN-1-4).
   const loadFailed = isError && !plan;
+
+  // B-13 (T-00.15): confirms the server sent the WEEK actually asked for —
+  // a monitoring signal for the "next week shown as this week" bug class,
+  // not just this one fix. No-op until the analytics transport lands
+  // (wave 1); `capture` already drops events until then (see lib/analytics).
+  useEffect(() => {
+    if (isLoading) return;
+    const expected = getWeekStartDate(weekOffset).toDateString();
+    const weekMatches = !plan || new Date(plan.weekStartDate).toDateString() === expected;
+    capture('plan_shown', { surface: 'plan', weekMatches });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per load, not on every render
+  }, [plan?.planId, plan?.weekStartDate, isLoading, weekOffset]);
 
   // Week cost + budget (P2-4). Every tier sees the cost; the budget is a
   // premium preference and simply comes back null for free users.
@@ -226,6 +273,15 @@ export default function MealPlanPage() {
   // next-day leftover lunches. Plain state — remembered per visit, not stored.
   const [leftovers, setLeftovers] = useState(false);
 
+  // T-08.3: restores the plan `generate` just replaced (exact same recipes
+  // and portions) — offered as Undo on the regenerate toast below.
+  const restoreMutation = trpc.mealPlan.restore.useMutation({
+    onSuccess: () => {
+      void refetch();
+      capture('regenerate_undone');
+    },
+  });
+
   const generateMutation = trpc.mealPlan.generate.useMutation({
     onMutate: () => {
       setIsGenerating(true);
@@ -237,12 +293,37 @@ export default function MealPlanPage() {
     onSuccess: (data) => {
       capture('plan_generated', { tier: isPremium ? 'premium' : 'free', weekOffset });
       setPersonalisation(data.personalisation ?? null);
+      setRegenerateConfirmOpen(false);
       void refetch();
+      // T-08.3 (UX-08 §3): only a regeneration (a plan already existed for
+      // this week) gets the "New week planned" toast + Undo.
+      const { previousPlanId } = data;
+      if (previousPlanId) {
+        const keptCount =
+          data.droppedPinned !== undefined
+            ? Math.max(0, pinnedBeforeRegenerate - data.droppedPinned)
+            : 0;
+        const keptNote = keptCount > 0 ? ` Kept ${keptCount} of your picks.` : '';
+        setToast({
+          message: `New week planned.${keptNote}`,
+          action: {
+            label: 'Undo',
+            onClick: () => restoreMutation.mutate({ planId: previousPlanId }),
+          },
+        });
+      }
     },
     onError: (err) => {
       if (err.data?.code === 'PRECONDITION_FAILED') {
         capture('pool_exhausted');
-        setPoolExhaustedMessage(err.message);
+        // T-10.4: the structured cause (`error.data.poolExhausted`) isn't
+        // wired through `trpc.ts`'s errorFormatter on this branch yet (not
+        // owned by this lane) — read it defensively so the richer copy
+        // appears the moment the orchestrator wires it, with no crash
+        // meanwhile (mirrors the mobile Plan tab's same read).
+        const cause = (err.data as { poolExhausted?: { message?: string } } | undefined)
+          ?.poolExhausted;
+        setPoolExhaustedMessage(cause?.message ?? err.message);
       } else {
         setGenerateError(
           err.data?.code === 'TOO_MANY_REQUESTS'
@@ -256,13 +337,70 @@ export default function MealPlanPage() {
   // AI data consent (App Store 5.1.2(i)): premium generation sends the
   // profile to the AI provider; free generation is curated and never asks.
   const requestAiConsent = useAiConsent();
-  const generateWithConsent = (input: { weekOffset: number; leftovers?: true }) =>
+  const generateWithConsent = (input: {
+    weekOffset: number;
+    leftovers?: true;
+    keepPinned?: boolean;
+  }) =>
     requestAiConsent('meal-plan', () => generateMutation.mutate(input), {
       usesAi: aiConsentRequiredFor('meal-plan', isPremium),
     });
 
   const handleGenerate = () =>
     generateWithConsent({ weekOffset, ...(leftovers && { leftovers: true as const }) });
+
+  // T-07.6/T-08.9: the "how you cook" shape names the empty-week job and
+  // feeds the unplanned-day line — same query mobile's Plan tab uses.
+  const { data: shape } = trpc.mealPlan.getShape.useQuery();
+  const planShapeSummaryText = shape ? planShapeSummary(shape) : '';
+
+  const pinnedCount = plan?.days.flatMap((d) => d.meals).filter((m) => m.pinned).length ?? 0;
+  const plannedMealsCount = plan?.days.flatMap((d) => d.meals).length ?? 0;
+
+  // Visible under the week nav — always asks first (UX-08 §3).
+  const openRegenerateConfirm = () => {
+    setKeepPicks(true);
+    setPinnedBeforeRegenerate(pinnedCount);
+    setRegenerateConfirmOpen(true);
+  };
+
+  const utils = trpc.useUtils();
+  // Live tailoring: which days the chef just replaced (brief highlight) and
+  // whether the user watched it run (the DONE confirmation). A replaced day
+  // changes the shopping list and today's totals too.
+  const { sawRunning, updatedDays } = useTailoringWatch(plan?.planId, plan?.tailoring, () => {
+    void utils.shoppingList.invalidate();
+    void utils.dashboard.invalidate();
+  });
+  const resumeTailoringMutation = trpc.mealPlan.resumeTailoring.useMutation({
+    onSuccess: () => void refetch(),
+    onError: (err) => setToast({ message: err.message }),
+  });
+  const resumeTailoring = () => {
+    if (!plan) return;
+    const planId = plan.planId;
+    requestAiConsent('meal-plan', () => resumeTailoringMutation.mutate({ planId }), {
+      usesAi: true,
+    });
+  };
+  const pinMutation = trpc.mealPlan.setSlotPinned.useMutation({ onSuccess: () => void refetch() });
+  // T-08.5/T-08.6 Undo: replaceRecipe back to `previousRecipeId` — used by
+  // the swap/replace toast's Undo action (the sheet itself is closed by then).
+  const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    onSuccess: () => void refetch(),
+  });
+
+  const [planningDay, setPlanningDay] = useState<number | null>(null);
+  const planDayMutation = trpc.mealPlan.planDay.useMutation({
+    onMutate: (input) => setPlanningDay(input.dayOfWeek),
+    onSettled: () => setPlanningDay(null),
+    onSuccess: (_data, input) => {
+      capture('plan_day_filled', { dayOfWeek: input.dayOfWeek });
+      void refetch();
+      setToast({ message: `${DAY_NAMES[selectedDay]} planned.` });
+    },
+    onError: (err) => setToast({ message: err.message }),
+  });
 
   // ?generate=1 (dashboard's "Generate My Week", prod-followups #9): start
   // generation on arrival when the week has no plan yet. Fires at most once
@@ -288,7 +426,7 @@ export default function MealPlanPage() {
   // ── Navigation bar (always visible) ───────────────────────────────────────
   // Always derive label from weekOffset so it updates instantly on click,
   // regardless of whether a plan has loaded yet.
-  const weekLabel = formatWeekLabel(getMondayOfWeekClient(weekOffset));
+  const weekLabel = formatWeekLabel(getWeekStartDate(weekOffset));
 
   const weekArrowCls =
     'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40';
@@ -350,6 +488,14 @@ export default function MealPlanPage() {
             Continued from your last plan
           </span>
         )}
+        {/* PAT-2 week card (UX-02 §3, T-02.2): the table has ≥ 1 safety rule
+            checked against this week's plan. */}
+        {plan?.tableSafety?.hasRules && (
+          <span className="flex items-center gap-1 rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-xs font-medium text-[#944a00]">
+            <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+            {SAFETY_COPY.weekCardTitle}
+          </span>
+        )}
         {/* Estimated week cost (P2-4) — the priced-list wedge, on the plan */}
         {weekCost !== null && (
           <span
@@ -360,8 +506,8 @@ export default function MealPlanPage() {
             }`}
             title="Estimated ingredient cost for the whole week"
           >
-            <Wallet className="h-3 w-3" aria-hidden="true" />≈ {formatMoney(weekCost, currency)}{' '}
-            this week
+            <Wallet className="h-3 w-3" aria-hidden="true" />≈{' '}
+            {formatPriceRange(weekCost, currency) ?? formatMoney(weekCost, currency)} this week
             {perPortion !== null && costPortions !== null && (
               <span className="font-normal opacity-80">
                 · {formatMoney(perPortion, currency)}/portion · {costPortions} portions
@@ -404,16 +550,34 @@ export default function MealPlanPage() {
           </button>
         )}
 
+        {/* T-07.6: opens the shared "how you cook" plan settings sheet. */}
+        {!isPast && (
+          <button
+            type="button"
+            data-testid="plan-settings-open"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Plan settings"
+            title="Plan settings — how you cook"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 sm:h-auto sm:w-auto sm:min-h-0 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs sm:font-medium"
+          >
+            <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="hidden sm:inline">Plan settings</span>
+          </button>
+        )}
+
         {/* Hidden while the week failed to load — "Generate" would overwrite
-            a plan we simply couldn't fetch (F-X-3-1). */}
+            a plan we simply couldn't fetch (F-X-3-1). T-08.9 (UX-08 §3):
+            once a plan exists, Regenerate always asks first — nothing to
+            lose on an empty week, so that one still generates directly. */}
         {!isPast && !loadFailed && (
           <button
-            onClick={handleGenerate}
+            data-testid="plan-regenerate"
+            onClick={() => (plan ? openRegenerateConfirm() : handleGenerate())}
             disabled={isGenerating}
             className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:flex-none"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
-            {plan ? 'Regenerate' : 'Generate'}
+            {plan ? 'Regenerate' : shape ? planButtonLabel(shape) : 'Generate'}
           </button>
         )}
       </div>
@@ -443,6 +607,17 @@ export default function MealPlanPage() {
             className="mx-4 mb-2 sm:mx-6"
           />
         )}
+
+      {/* Live tailoring: the week is usable now; the chef finishes it day by day */}
+      {plan && !isPast && (
+        <TailoringBanner
+          className="mx-4 mb-2 sm:mx-6"
+          tailoring={plan.tailoring}
+          sawRunning={sawRunning}
+          onResume={isPremium && plan.tailoring?.canResume ? resumeTailoring : undefined}
+          resuming={resumeTailoringMutation.isPending}
+        />
+      )}
 
       {/* Learning signals used by the last generation (P1-1) */}
       {personalisation &&
@@ -544,7 +719,7 @@ export default function MealPlanPage() {
           <p className="flex items-start gap-2 text-xs text-amber-900">
             <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
             You&apos;re on the free plan: chef-picked recipes that respect your allergies and
-            restrictions. Upgrade for AI plans tailored to your goals and taste.
+            restrictions. Premium generates your week from your goals and preferences.
           </p>
           <UpgradeButton className="w-full sm:w-auto sm:shrink-0" source="meal-plan-banner" />
         </div>
@@ -585,12 +760,14 @@ export default function MealPlanPage() {
           </div>
           {!isPast && (
             <button
+              data-testid="plan-generate-empty"
               onClick={handleGenerate}
               disabled={isGenerating}
               className="flex items-center gap-2 rounded-xl bg-[#944a00] px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a3d00] disabled:opacity-50"
             >
               <Wand2 className="h-4 w-4" />
-              Generate my meal plan
+              {/* T-07.6 (UX-07 AC3): names the job, e.g. "Plan 4 dinners". */}
+              {shape ? planButtonLabel(shape) : 'Generate my meal plan'}
             </button>
           )}
         </div>
@@ -606,17 +783,39 @@ export default function MealPlanPage() {
             selectedDay={selectedDay}
             onSelectDay={setSelectedDay}
             todayIndex={isCurrent ? todayIndex : null}
-            weekStartDate={getMondayOfWeekClient(weekOffset)}
+            weekStartDate={getWeekStartDate(weekOffset)}
             readOnly={isPast}
             imageOverrides={imageOverrides}
             calorieTarget={plan.calorieTarget}
-            onReplaceMeal={(mealType, mealName, slotIndex) =>
+            planShapeSummary={planShapeSummaryText}
+            onPlanDay={
+              !isPast
+                ? (dayOfWeek) => planDayMutation.mutate({ planId: plan.planId, dayOfWeek })
+                : undefined
+            }
+            planDayPending={planDayMutation.isPending && planningDay === selectedDay}
+            tailoring={plan.tailoring}
+            updatedDays={updatedDays}
+            onTogglePin={
+              !isPast
+                ? (mealType, slotIndex, pinned) =>
+                    pinMutation.mutate({
+                      planId: plan.planId,
+                      dayOfWeek: selectedDay,
+                      mealType: mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+                      slotIndex,
+                      pinned,
+                    })
+                : undefined
+            }
+            onReplaceMeal={(mealType, mealName, slotIndex, recipeId) =>
               setReplaceTarget({
                 planId: plan.planId,
                 dayOfWeek: selectedDay,
                 mealType,
                 slotIndex,
                 mealName,
+                recipeId,
               })
             }
           />
@@ -629,6 +828,9 @@ export default function MealPlanPage() {
           <div className="grid min-w-[900px] grid-cols-7 gap-3">
             {plan.days.map((day) => {
               const isToday = isCurrent && day.dayOfWeek === todayIndex;
+              const tailorState = tailoringDayState(plan.tailoring, day.dayOfWeek);
+              const tailorLabel = tailoringDayLabel(tailorState);
+              const justUpdated = updatedDays.has(day.dayOfWeek);
               return (
                 <div key={day.dayOfWeek} className="flex flex-col gap-2">
                   {/* Day header — fixed height so all headers are the same size */}
@@ -647,14 +849,51 @@ export default function MealPlanPage() {
                         Today
                       </span>
                     )}
+                    <TailoringDayMark state={tailorState} onDark={isToday} />
+                    {tailorLabel && <span className="sr-only">, {tailorLabel}</span>}
                   </div>
 
                   {/* Column highlight wrapper for today */}
                   <div
+                    // A day the chef just replaced fades its new meals in
+                    // (MO-13 crossfade: opacity only; the global
+                    // reduced-motion rule makes it instant).
+                    key={day.meals.map((m) => m.recipe.id).join(',')}
+                    data-testid={justUpdated ? `plan-day-updated-${day.dayOfWeek}` : undefined}
                     className={`flex flex-col gap-2 rounded-xl p-1 ${
                       isToday ? 'bg-[#944a00]/10 ring-2 ring-[#944a00]/40' : ''
-                    }`}
+                    } ${justUpdated ? 'animate-in fade-in-0 duration-deliberate ease-enter' : ''}`}
                   >
+                    {/* T-07.6 (UX-07 §2): a day outside the chosen shape says
+                        so and offers to add it via `planDay` — `planned` is
+                        reliable on every read (T-07.6). */}
+                    {day.meals.length === 0 && day.planned === false && !isPast && (
+                      <div className="flex flex-col items-center gap-1 rounded-xl border border-dashed bg-gray-50 p-2 text-center">
+                        <p
+                          data-testid={`plan-day-unplanned-${day.dayOfWeek}`}
+                          className="text-[11px] leading-tight text-gray-500"
+                        >
+                          Not planned
+                        </p>
+                        <button
+                          type="button"
+                          data-testid={`plan-day-add-${day.dayOfWeek}`}
+                          disabled={planDayMutation.isPending && planningDay === day.dayOfWeek}
+                          onClick={() =>
+                            planDayMutation.mutate({
+                              planId: plan.planId,
+                              dayOfWeek: day.dayOfWeek,
+                            })
+                          }
+                          className="min-h-11 px-1 text-xs font-semibold text-[#944a00] hover:underline disabled:opacity-50"
+                        >
+                          {planDayMutation.isPending && planningDay === day.dayOfWeek
+                            ? '…'
+                            : 'Plan this day'}
+                        </button>
+                      </div>
+                    )}
+
                     {/* Meal cards */}
                     {day.meals.map((slot, slotIndex) => {
                       const override = imageOverrides[slot.recipe.id];
@@ -671,6 +910,7 @@ export default function MealPlanPage() {
                           imageStatusOverride={override?.status}
                           leftoverLabel={slot.leftoverOf}
                           portion={slot.portion}
+                          pinned={slot.pinned}
                           onReplace={() =>
                             setReplaceTarget({
                               planId: plan.planId,
@@ -678,6 +918,16 @@ export default function MealPlanPage() {
                               mealType: slot.type,
                               slotIndex,
                               mealName: slot.recipe.name,
+                              recipeId: slot.recipe.id,
+                            })
+                          }
+                          onTogglePin={() =>
+                            pinMutation.mutate({
+                              planId: plan.planId,
+                              dayOfWeek: day.dayOfWeek,
+                              mealType: slot.type,
+                              slotIndex,
+                              pinned: !slot.pinned,
                             })
                           }
                         />
@@ -720,7 +970,101 @@ export default function MealPlanPage() {
         </div>
       )}
 
-      <ReplaceMealSheet target={replaceTarget} onClose={() => setReplaceTarget(null)} />
+      <ReplaceMealSheet
+        target={replaceTarget}
+        onClose={() => setReplaceTarget(null)}
+        onChanged={({ recipeName, previousRecipeId, target }: ReplaceMealResult) => {
+          setToast({
+            message: `Swapped to ${recipeName}`,
+            ...(previousRecipeId && {
+              action: {
+                label: 'Undo',
+                onClick: () =>
+                  replaceMutation.mutate({
+                    planId: target.planId,
+                    dayOfWeek: target.dayOfWeek,
+                    mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+                    slotIndex: target.slotIndex,
+                    recipeId: previousRecipeId,
+                  }),
+              },
+            }),
+          });
+        }}
+      />
+
+      {/* T-08.9 (UX-08 §3, PAT-5): Regenerate always asks first; "Keep"
+          defaults on and only shows when picks exist. */}
+      <Sheet
+        open={regenerateConfirmOpen}
+        onClose={() => setRegenerateConfirmOpen(false)}
+        title={`Regenerate ${weekOffset === 0 ? 'this week' : 'next week'}?`}
+        description={`This replaces the ${plannedMealsCount} planned meal${plannedMealsCount === 1 ? '' : 's'}.`}
+        size="sm"
+        footer={
+          <div className="flex w-full gap-2">
+            <button
+              type="button"
+              onClick={() => setRegenerateConfirmOpen(false)}
+              className="flex h-11 flex-1 items-center justify-center rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              data-testid="regenerate-confirm-submit"
+              onClick={() =>
+                generateWithConsent({
+                  weekOffset,
+                  ...(leftovers && { leftovers: true as const }),
+                  keepPinned: keepPicks,
+                })
+              }
+              className="flex h-11 flex-1 items-center justify-center rounded-xl bg-[#944a00] text-sm font-semibold text-white hover:bg-[#7a3d00]"
+            >
+              {weekOffset === 0 ? 'Regenerate this week' : 'Regenerate next week'}
+            </button>
+          </div>
+        }
+      >
+        <div className="px-5 pb-4">
+          {pinnedCount > 0 && (
+            <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-gray-700">
+              Keep the {pinnedCount} meal{pinnedCount === 1 ? '' : 's'} you chose
+              <input
+                type="checkbox"
+                data-testid="regenerate-keep-picks"
+                checked={keepPicks}
+                onChange={(e) => setKeepPicks(e.target.checked)}
+                className="h-5 w-5 rounded border-gray-300 text-[#944a00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00]"
+              />
+            </label>
+          )}
+        </div>
+      </Sheet>
+
+      <PlanSettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        hasPlan={plan !== null && plan !== undefined}
+        weekLabel={weekOffset === 0 ? 'this week' : 'next week'}
+        isPremium={isPremium === true}
+        onSaved={() => {
+          void utils.mealPlan.getShape.invalidate();
+          // A plan already exists for this week — the settings change needs
+          // its own regenerate confirm (interaction spec: settings never
+          // regenerate by themselves).
+          if (plan) openRegenerateConfirm();
+        }}
+      />
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          {...(toast.action && { action: toast.action })}
+          onClose={() => setToast(null)}
+        />
+      )}
 
       {isGenerating && <GenerateOverlay premium={isPremium !== false} />}
     </div>

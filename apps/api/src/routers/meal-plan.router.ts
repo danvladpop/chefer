@@ -1,8 +1,19 @@
 import { z } from 'zod';
+import { planShapeSchema } from '@chefer/types';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
+import { planShapeService } from '../application/meal-plan/plan-shape.service.js';
 import { hasFeature, isPremiumUser } from '../lib/entitlements.js';
+import { env } from '../lib/env.js';
 import { reserveAiSwap, reservePlanGeneration } from '../lib/quotas.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
+
+// §2.3, T-07.1 (S1): the "how you cook" shape, plus `leftovers` (bug B-27,
+// stored on the same DietaryPreferences row).
+const planShapeWithLeftoversSchema = planShapeSchema.extend({ leftovers: z.boolean() });
+// A one-off override on `generate`: every field optional, merged over the
+// user's stored shape for this call only (never persisted) — e.g.
+// `Plan this day` sends `{ days: [d] }`.
+const planShapeOverrideSchema = planShapeSchema.partial();
 
 // Premium households see the week cost sized for the whole table (P2-3).
 const planView = (user: Parameters<typeof hasFeature>[0]) => ({
@@ -28,22 +39,127 @@ export const mealPlanRouter = router({
         weekOffset: z.number().int().min(0).max(52).default(0),
         /** F3 "cook once, eat twice" — premium generation option. */
         leftovers: z.boolean().optional(),
+        /** §T-07.2/T-07.3: a one-off shape override for this call only. */
+        shape: planShapeOverrideSchema.optional(),
+        /** §T-07.4/T-08.3: keep slots the user pinned when they still pass safety. */
+        keepPinned: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       // Atomic reservation; refunded when generation fails, so an outage or
       // an exhausted curated pool doesn't use up the day's allowance.
-      const reservation = await reservePlanGeneration(ctx.user);
       const premium = isPremiumUser(ctx.user);
+      const reservation = await reservePlanGeneration(ctx.user, premium);
       try {
         return await mealPlanService.generate(ctx.user.id, input.weekOffset, premium, {
           leftovers: premium && input.leftovers === true,
           usageReserved: true,
+          // Premium: the curated week at once, then the chef tailors it live
+          // (the response carries `tailoring`; poll getForWeek while RUNNING).
+          instant: premium && env.AI_PLAN_TAILORING,
+          ...(input.shape && { shape: input.shape }),
+          ...(input.keepPinned !== undefined && { keepPinned: input.keepPinned }),
         });
       } catch (err) {
         await reservation.release();
         throw err;
       }
+    }),
+
+  /**
+   * §wave-1 L-PLAN (UX-07 "Plan this day"): adds meals to ONE currently
+   * unplanned day of an existing plan, without rewriting the rest of the
+   * week (unlike `generate({ shape: { days: [d] } })`, which replaces the
+   * whole plan document today). Always the curated, zero-AI-cost picker —
+   * see `MealPlanService.planDay` — so it's reserved against the same
+   * `CURATED_PLAN` daily quota `generate`'s free path uses, for every tier.
+   */
+  planDay: protectedProcedure
+    .input(z.object({ planId: z.string().min(1), dayOfWeek: z.number().int().min(0).max(6) }))
+    .mutation(async ({ ctx, input }) => {
+      const reservation = await reservePlanGeneration(ctx.user, false);
+      try {
+        return await mealPlanService.planDay(ctx.user.id, input.planId, input.dayOfWeek);
+      } catch (err) {
+        await reservation.release();
+        throw err;
+      }
+    }),
+
+  /**
+   * "Tailor the rest": re-queues the days live tailoring did not get to
+   * (PARTIAL/FAILED) — only those days, premium only, capped per plan. No
+   * quota reservation: it completes the generation the user already paid
+   * for (see MealPlanService.resumeTailoring). Returns the plan.
+   */
+  resumeTailoring: protectedProcedure
+    .input(z.object({ planId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      return mealPlanService.resumeTailoring(
+        ctx.user.id,
+        input.planId,
+        isPremiumUser(ctx.user),
+        planView(ctx.user),
+      );
+    }),
+
+  /** §T-07.1: the user's "how you cook" plan shape (legacy default when unset). */
+  getShape: protectedProcedure.query(async ({ ctx }) => {
+    return planShapeService.getShape(ctx.user.id);
+  }),
+
+  /** §T-07.1: persists the plan shape (onboarding, Settings, or the Plan settings sheet). */
+  setShape: protectedProcedure
+    .input(planShapeWithLeftoversSchema)
+    .mutation(async ({ ctx, input }) => {
+      return planShapeService.setShape(ctx.user.id, input);
+    }),
+
+  /** §T-07.4: toggles `Your pick` on an existing slot. */
+  setSlotPinned: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        dayOfWeek: z.number().int().min(0).max(6),
+        mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+        slotIndex: slotIndexSchema,
+        pinned: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await mealPlanService.setSlotPinned(
+        ctx.user.id,
+        input.planId,
+        input.dayOfWeek,
+        input.mealType,
+        input.slotIndex,
+        input.pinned,
+      );
+      return { ok: true };
+    }),
+
+  /**
+   * §T-11.3: previews (default) or applies scaling every slot of one day by
+   * `factor` (0.75–1.5×; each slot's own resulting portion is still capped
+   * to the plan's 0.75–2× steps, T-11.4).
+   */
+  scaleDay: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        dayOfWeek: z.number().int().min(0).max(6),
+        factor: z.number().min(0.75).max(1.5),
+        apply: z.boolean().optional().default(false),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return mealPlanService.scaleDay(
+        ctx.user.id,
+        input.planId,
+        input.dayOfWeek,
+        input.factor,
+        input.apply,
+      );
     }),
 
   /**
@@ -118,6 +234,13 @@ export const mealPlanRouter = router({
         mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
         slotIndex: slotIndexSchema,
         recipeId: z.string().min(1),
+        /**
+         * T-00.11 (B-34/B-46): confirms the pick despite an UNSAFE_FOR_TABLE
+         * rejection — the service only honours it for the user's own manual
+         * recipe. Optional and additive; old clients that omit it get
+         * today's rejection with no bypass.
+         */
+        acknowledgeConflict: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -128,6 +251,7 @@ export const mealPlanRouter = router({
         input.mealType,
         input.recipeId,
         input.slotIndex,
+        input.acknowledgeConflict,
       );
     }),
 

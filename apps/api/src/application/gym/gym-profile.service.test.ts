@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IGymProfileRepository } from '@chefer/database';
 import { TEMPLATE_BY_KEY, type CompleteSetupInput } from '@chefer/types';
 import {
+  ENGINE_VERSION,
   estimateDurationMin,
   initialState,
   instantiateTemplate,
@@ -11,6 +12,11 @@ import {
 } from '@chefer/utils';
 import { profileRow, progressionState, routineRow } from './__test__/fixtures.js';
 import { defaultInventory, GymProfileService } from './gym-profile.service.js';
+
+// GymProfileService transitively imports client-level.ts → lib/flags.ts →
+// lib/env.ts, which validates the full env schema at import time — mock it
+// (the targets.service.test.ts pattern) so this file needs no real env vars.
+vi.mock('../../lib/flags.js', () => ({ isFlagEnabled: () => false }));
 
 vi.mock('@chefer/utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/utils')>()),
@@ -140,7 +146,7 @@ describe('GymProfileService.completeSetup', () => {
     expect(new Set(data.progressions.map((p) => `${p.exerciseId}|${p.repBucket}`))).toEqual(
       expectedKeys,
     );
-    expect(data.progressions.every((p) => p.engineVersion === 1)).toBe(true);
+    expect(data.progressions.every((p) => p.engineVersion === ENGINE_VERSION)).toBe(true);
 
     // Profile: goal from the template, goal history from this week, reminder on.
     expect(data.profile).toMatchObject({
@@ -151,10 +157,13 @@ describe('GymProfileService.completeSetup', () => {
       reminderEnabled: true,
       reminderTime: '18:30',
       goalHistory: [{ fromWeek: '2026-09-21', goal: template.daysPerWeek }],
+      // T-36.2: new setups default the quiet-days nudge on at 5 days.
+      quietNudgeDays: 5,
     });
 
-    // Returns a fresh bootstrap for the same device-local day.
-    expect(bootstrap.get).toHaveBeenCalledWith(USER, { today: '2026-09-24' });
+    // Returns a fresh bootstrap for the same device-local day (T-42.2: 3rd
+    // arg is the client level completeSetup passes through, default 0).
+    expect(bootstrap.get).toHaveBeenCalledWith(USER, { today: '2026-09-24' }, 0);
   });
 
   it('honours "I know my weights" in the initial states and keeps them for recomputes', async () => {
@@ -181,6 +190,24 @@ describe('GymProfileService.completeSetup', () => {
     expect(profile.barWeightKg).toBe(20.41); // 45 lb
     expect(profile.platePairsKg[0]).toBe(20.41); // 45 lb plate
     expect(defaultInventory('LB').cableStepKg).toBe(2.27); // 5 lb
+  });
+
+  // B-18 / UX-05 B (AC4): the weekly goal is what the user CHOSE, not the
+  // recommended template's own day count (ul4 has 4 days; 5 was chosen).
+  it("weekly goal is the days the user chose, not the resulting template's day count (B-18)", async () => {
+    const { service, repo } = setup();
+    const template = TEMPLATE_BY_KEY.get('ul4-beginner')!;
+    expect(template.daysPerWeek).toBe(4);
+
+    await service.completeSetup(
+      USER,
+      setupInput({ days: 5, templateKey: 'ul4-beginner', plannedWeekdays: [1, 2, 3, 4, 5] }),
+      '2026-09-24',
+    );
+
+    const data = vi.mocked(repo.completeSetup).mock.calls[0]![1];
+    expect(data.profile.weeklyGoal).toBe(5);
+    expect(data.profile.goalHistory).toEqual([{ fromWeek: '2026-09-21', goal: 5 }]);
   });
 
   it('rejects an unknown template before touching the database', async () => {
@@ -225,6 +252,18 @@ describe('GymProfileService.save / recommend', () => {
       reminderEnabled: false,
       platePairsKg: [20, 10],
     });
+  });
+
+  it('T-36.2: saves per-day reminder times and the quiet-days nudge independently', async () => {
+    const { service, repo } = setup(profileRow());
+
+    await service.save(USER, { reminderTimes: { '1': '07:00', '4': '18:30' } });
+    expect(repo.update).toHaveBeenLastCalledWith(USER, {
+      reminderTimes: { '1': '07:00', '4': '18:30' },
+    });
+
+    await service.save(USER, { quietNudgeDays: null });
+    expect(repo.update).toHaveBeenLastCalledWith(USER, { quietNudgeDays: null });
   });
 
   it('a unit change re-folds every progression onto the new inventory (F-GYM-11-2)', async () => {

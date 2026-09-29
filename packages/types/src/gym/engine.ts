@@ -8,6 +8,7 @@ import type {
   ExerciseCategory,
   ExerciseEquipment,
   ExerciseLoadType,
+  ExerciseTrackingType,
   Muscle,
   Rir,
   TrainingExperience,
@@ -32,6 +33,21 @@ export interface ExerciseMeta {
   isLowerBody: boolean;
   isTimed: boolean;
   swapGroup: string | null;
+  /**
+   * Q-28 (T-05.7): a `BODYWEIGHT_PLUS` exercise where the added load is held
+   * (a plate against the chest — Back Extension) rather than worn on a belt
+   * or vest (a weighted dip/pull-up). Held loads need no equipment beyond
+   * what the gym already has, so they skip the dip-belt/vest gate other
+   * `BODYWEIGHT_PLUS` exercises need before "+ weight" is offered at all.
+   */
+  heldLoad?: boolean;
+  /**
+   * S18 (T-42.0): how the exercise is logged. Optional — older cached rows
+   * and catalogue entries predating W2 never set it; derive it with
+   * `trackingTypeOf()` (`@chefer/utils` gym/tracking.ts) instead of reading
+   * this field directly.
+   */
+  trackingType?: ExerciseTrackingType;
 }
 
 /** One exercise slot as prescribed (routine exercise or its session snapshot). */
@@ -258,6 +274,12 @@ export interface PersonalRecord {
   e1rmKg: number | null;
   localDate: string;
   sessionId: string;
+  /**
+   * T-05.6 (UX-05 F): true when this is the exercise's first-ever logged
+   * set (nothing to beat, so this became the baseline) — callers render
+   * "First {lift}: {w} × {reps}" instead of the usual "beat your PR" copy.
+   */
+  isFirst: boolean;
 }
 
 export interface TrainingProfileFacts {

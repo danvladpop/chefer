@@ -12,9 +12,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
 import { Card, Screen, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, WELLNESS_COPY } from '@chefer/utils';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { LockedChatPreview } from '../src/features/chat/locked-chat-preview';
+import { openPremium } from '../src/features/premium/open-premium';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { getApiBaseUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
@@ -26,6 +27,9 @@ import { streamChat, type ChatMessageInput } from '../src/lib/chat-stream';
 
 interface ThreadMessage extends ChatMessageInput {
   id: number;
+  /** UX-22 (T-22.2, AC4) — set once the reply finishes streaming. */
+  healthTopic?: boolean;
+  safetyTopic?: boolean;
 }
 
 export default function ChatScreen() {
@@ -77,6 +81,15 @@ export default function ChatScreen() {
       if (result.quotaExhausted) {
         setQuotaExhausted(true);
       }
+      if (result.healthTopic || result.safetyTopic) {
+        setThread((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, healthTopic: result.healthTopic, safetyTopic: result.safetyTopic }
+              : m,
+          ),
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The chef is unavailable right now.');
       // Drop the empty assistant bubble on failure
@@ -97,9 +110,16 @@ export default function ChatScreen() {
         >
           <Ionicons name="arrow-back" size={20} color="#1f2937" />
         </Pressable>
-        <Text testID="chat-title" variant="title">
-          AI Chef
-        </Text>
+        <View>
+          <Text testID="chat-title" variant="title">
+            AI Chef
+          </Text>
+          {/* UX-22 (T-22.2, AC2/AC5): always visible, at 1.8× text without
+              truncation — no `numberOfLines`, wraps under the title. */}
+          <Text testID="chat-header-subtitle" variant="muted" className="text-xs">
+            {WELLNESS_COPY.chatHeaderSubtitle}
+          </Text>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -119,24 +139,46 @@ export default function ChatScreen() {
                 Swap ideas, cooking questions, nutrition doubts — or ask to add something to your
                 shopping list.
               </Text>
+              {/* UX-22 (T-22.2, AC2): the chef-not-a-doctor line on the empty thread. */}
+              <Text testID="chat-empty-disclaimer" variant="muted" className="mt-2 text-xs">
+                {WELLNESS_COPY.chatEmptyStateDisclaimer}
+              </Text>
             </Card>
           )}
           {thread.map((m) => (
             <View
               key={m.id}
-              className={cn(
-                'max-w-[85%] rounded-2xl px-3 py-2',
-                m.role === 'user' ? 'self-end bg-primary' : 'self-start bg-gray-100',
-              )}
+              className={cn('max-w-[85%]', m.role === 'user' ? 'self-end' : 'self-start')}
             >
-              <Text
+              <View
                 className={cn(
-                  'text-sm',
-                  m.role === 'user' ? 'text-primary-foreground' : 'text-gray-800',
+                  'rounded-2xl px-3 py-2',
+                  m.role === 'user' ? 'bg-primary' : 'bg-gray-100',
                 )}
               >
-                {m.content || '…'}
-              </Text>
+                <Text
+                  className={cn(
+                    'text-sm',
+                    m.role === 'user' ? 'text-primary-foreground' : 'text-gray-800',
+                  )}
+                >
+                  {m.content || '…'}
+                </Text>
+              </View>
+              {/* UX-22 (T-22.2, AC4): the belt-and-braces footer under a
+                  flagged reply — the guardrail lives in the prompt (T-00.14);
+                  this is the visible reminder, not the control. */}
+              {((m.healthTopic ?? false) || (m.safetyTopic ?? false)) && (
+                <Text
+                  testID={m.healthTopic ? 'chat-health-topic-footer' : 'chat-safety-topic-footer'}
+                  variant="muted"
+                  className="mt-1 text-xs"
+                >
+                  {m.healthTopic
+                    ? WELLNESS_COPY.chatHealthTopicFooter
+                    : WELLNESS_COPY.chatSafetyTopicFooter}
+                </Text>
+              )}
             </View>
           ))}
           {error && (
@@ -152,9 +194,16 @@ export default function ChatScreen() {
               You&apos;ve used today&apos;s chat messages
             </Text>
             <Text className="mt-1 text-xs text-primary/80">
-              Premium raises every daily limit — upgrade from your Profile. Allowances reset at
-              midnight.
+              Premium raises the daily limit. Allowances reset at midnight UTC.
             </Text>
+            <Pressable
+              testID="chat-quota-upgrade"
+              accessibilityRole="button"
+              onPress={() => openPremium('chat-quota')}
+              className="min-h-11 justify-center"
+            >
+              <Text className="text-xs font-semibold text-primary">See what Premium adds</Text>
+            </Pressable>
           </Card>
         ) : (
           <View className="flex-row items-end gap-2 border-t border-border px-4 py-3">

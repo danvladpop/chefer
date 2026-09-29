@@ -1,36 +1,27 @@
 'use client';
 
-import { useId, useRef, useState } from 'react';
+import { useState } from 'react';
+import { UncheckedNotice } from '@/features/safety/components/UncheckedNotice';
+import { findSafetyTaxonomyEntry, safetyTaxonomyEntriesByGroup } from '@chefer/types';
+import {
+  BASE_DIET_IDS,
+  classifySafetyValue,
+  DIET_MODIFIER_IDS,
+  recognisedAddedText,
+  recognisedDietSetText,
+  recognisedModifierAddedText,
+  recogniseSafetyTerm,
+  SAFETY_COPY,
+  serialiseSafetyPickerValue,
+  type BaseDietId,
+} from '@chefer/utils';
 
-// ─── Diet type options ────────────────────────────────────────────────────────
-
-const DIET_OPTIONS: { value: string; label: string; icon: string }[] = [
-  { value: 'Omnivore', label: 'Omnivore', icon: '🍖' },
-  { value: 'Vegetarian', label: 'Vegetarian', icon: '🥦' },
-  { value: 'Vegan', label: 'Vegan', icon: '🌱' },
-  { value: 'Pescatarian', label: 'Pescatarian', icon: '🐟' },
-  { value: 'Keto', label: 'Keto', icon: '🥑' },
-  { value: 'Paleo', label: 'Paleo', icon: '🍗' },
-  { value: 'Gluten-Free', label: 'Gluten-Free', icon: '🌾' },
-  { value: 'Dairy-Free', label: 'Dairy-Free', icon: '🥛' },
-];
-
-// ─── Preset disliked ingredients ─────────────────────────────────────────────
-
-const PRESET_DISLIKES: string[] = [
-  'Onions',
-  'Mushrooms',
-  'Cilantro',
-  'Bell peppers',
-  'Olives',
-  'Anchovies',
-  'Blue cheese',
-  'Liver',
-  'Brussels sprouts',
-  'Eggplant',
-];
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── SafetyPicker (T-01.7, UX-01 (a)) — web ────────────────────────────────────
+// Web parity of the mobile safety-picker.tsx: taxonomy-driven Allergies/Diet/
+// Won't-eat chip groups, a live read-back panel, and the "Something else"
+// field wired to every recogniser outcome. Kept as `StepDiet` (its existing
+// name/props) so onboarding, SafetySection and the household member editor
+// sheet all pick up the rebuild without their own changes.
 
 export interface StepDietValues {
   dietaryRestrictions: string[];
@@ -43,94 +34,132 @@ interface StepDietProps {
   onChange: (value: StepDietValues) => void;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+function labelFor(id: string): string {
+  return findSafetyTaxonomyEntry(id)?.label ?? id;
+}
+
+function dietReadBackFor(id: BaseDietId | null): string | null {
+  switch (id) {
+    case 'vegetarian':
+      return SAFETY_COPY.vegetarianReadBack;
+    case 'vegetarian-no-eggs':
+      return SAFETY_COPY.vegetarianNoEggsReadBack;
+    case 'vegan':
+      return SAFETY_COPY.veganReadBack;
+    case 'pescatarian':
+      return SAFETY_COPY.pescatarianReadBack;
+    default:
+      return null;
+  }
+}
+
+const chipCls = (selected: boolean, disabled = false) =>
+  `min-h-11 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+    disabled
+      ? 'cursor-not-allowed border-border text-muted-foreground/50'
+      : selected
+        ? 'border-primary bg-primary/5 text-primary'
+        : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
+  }`;
 
 export function StepDiet({ value, onChange }: StepDietProps) {
-  const [allergyInput, setAllergyInput] = useState('');
-  const [dislikeInput, setDislikeInput] = useState('');
-  const allergyRef = useRef<HTMLInputElement>(null);
-  const allergyInputId = useId();
-  const allergyHintId = useId();
+  const classified = classifySafetyValue(value);
+  const [somethingElse, setSomethingElse] = useState('');
+  const [addedMessage, setAddedMessage] = useState<string | null>(null);
+  const [pending, setPending] = useState<{
+    variant: 'unrecognised' | 'condition';
+    term: string;
+  } | null>(null);
 
-  // ── Diet type toggles ──────────────────────────────────────────────────────
+  const commit = (patch: Partial<ReturnType<typeof classifySafetyValue>>) => {
+    onChange(serialiseSafetyPickerValue({ ...classified, ...patch }));
+  };
 
-  function toggleDiet(diet: string) {
-    const next = value.dietaryRestrictions.includes(diet)
-      ? value.dietaryRestrictions.filter((d) => d !== diet)
-      : [...value.dietaryRestrictions, diet];
-    onChange({ ...value, dietaryRestrictions: next });
+  const allergyEntries = safetyTaxonomyEntriesByGroup('allergy');
+  const dislikeEntries = safetyTaxonomyEntriesByGroup('dislike');
+  const veganSelected = classified.dietBaseId === 'vegan';
+  const knownModifierIds = classified.dietModifierIds.filter((id) =>
+    (DIET_MODIFIER_IDS as readonly string[]).includes(id),
+  );
+  const unknownModifierIds = classified.dietModifierIds.filter(
+    (id) => !(DIET_MODIFIER_IDS as readonly string[]).includes(id),
+  );
+
+  const allergyReadBackLines = classified.allergyIds
+    .map((id) => findSafetyTaxonomyEntry(id))
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    .map((entry) =>
+      entry.mayContain
+        ? `${entry.label} — and foods that often contain it: ${entry.mayContain}.`
+        : `${entry.label}.`,
+    );
+  const dislikeLine =
+    classified.dislikeIds.length > 0
+      ? `We’ll leave out ${classified.dislikeIds
+          .map((id) => findSafetyTaxonomyEntry(id)?.readBack.replace(/^doesn.t eat /, ''))
+          .filter(Boolean)
+          .join(' and ')}.`
+      : '';
+
+  function toggle(list: string[], id: string): string[] {
+    return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
   }
 
-  // ── Allergy chips ──────────────────────────────────────────────────────────
+  function handleAdd() {
+    const term = somethingElse.trim();
+    if (!term) return;
+    setSomethingElse('');
+    setAddedMessage(null);
+    const recognised = recogniseSafetyTerm(term);
 
-  function commitAllergyInput(raw: string) {
-    const trimmed = raw.trim().replace(/,$/, '').trim();
-    if (!trimmed) return;
-    // Case-insensitive: "Peanuts" and "peanuts" are the same allergy (F-ONB-1-7).
-    if (!value.allergies.some((a) => a.toLowerCase() === trimmed.toLowerCase())) {
-      onChange({ ...value, allergies: [...value.allergies, trimmed] });
+    if (recognised.kind === 'unrecognised') {
+      setPending({ variant: 'unrecognised', term });
+      return;
     }
-    setAllergyInput('');
-  }
-
-  function handleAllergyKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      commitAllergyInput(allergyInput);
-    } else if (e.key === 'Backspace' && allergyInput === '' && value.allergies.length > 0) {
-      onChange({ ...value, allergies: value.allergies.slice(0, -1) });
+    if (recognised.kind === 'condition') {
+      if (recognised.impliesDietId) {
+        commit({
+          dietModifierIds: [...new Set([...classified.dietModifierIds, recognised.impliesDietId])],
+        });
+        setAddedMessage(recognisedDietSetText(labelFor(recognised.impliesDietId)));
+      } else {
+        setPending({ variant: 'condition', term });
+      }
+      return;
     }
-  }
-
-  function handleAllergyChange(raw: string) {
-    // Auto-commit when user types a comma
-    if (raw.endsWith(',')) {
-      commitAllergyInput(raw);
-    } else {
-      setAllergyInput(raw);
+    if (recognised.kind === 'allergy') {
+      commit({ allergyIds: [...new Set([...classified.allergyIds, recognised.id])] });
+      setAddedMessage(recognisedAddedText('Allergies', recognised.label));
+      return;
     }
-  }
-
-  function removeAllergy(item: string) {
-    onChange({ ...value, allergies: value.allergies.filter((a) => a !== item) });
-  }
-
-  // ── Disliked ingredients ───────────────────────────────────────────────────
-
-  function toggleDislike(ingredient: string) {
-    const next = value.dislikedIngredients.includes(ingredient)
-      ? value.dislikedIngredients.filter((d) => d !== ingredient)
-      : [...value.dislikedIngredients, ingredient];
-    onChange({ ...value, dislikedIngredients: next });
-  }
-
-  function addCustomDislike() {
-    const trimmed = dislikeInput.trim();
-    if (!trimmed) return;
-    if (!value.dislikedIngredients.some((d) => d.toLowerCase() === trimmed.toLowerCase())) {
-      onChange({ ...value, dislikedIngredients: [...value.dislikedIngredients, trimmed] });
+    if (recognised.kind === 'dislike') {
+      commit({ dislikeIds: [...new Set([...classified.dislikeIds, recognised.id])] });
+      setAddedMessage(recognisedAddedText('Won’t eat', recognised.label));
+      return;
     }
-    setDislikeInput('');
-  }
-
-  function handleDislikeKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addCustomDislike();
+    if (
+      recognised.id === 'vegetarian-no-eggs' &&
+      classified.dietBaseId !== 'vegetarian' &&
+      classified.dietBaseId !== 'vegetarian-no-eggs'
+    ) {
+      commit({ dietModifierIds: [...new Set([...classified.dietModifierIds, 'egg-free'])] });
+      setAddedMessage(recognisedModifierAddedText('Egg-free'));
+      return;
     }
+    if ((BASE_DIET_IDS as readonly string[]).includes(recognised.id)) {
+      commit({ dietBaseId: recognised.id as BaseDietId });
+      setAddedMessage(recognisedDietSetText(recognised.label));
+      return;
+    }
+    commit({ dietModifierIds: [...new Set([...classified.dietModifierIds, recognised.id])] });
+    setAddedMessage(recognisedModifierAddedText(recognised.label));
   }
 
-  function removeDislike(ingredient: string) {
-    onChange({
-      ...value,
-      dislikedIngredients: value.dislikedIngredients.filter((d) => d !== ingredient),
-    });
+  function keepPendingAsNote() {
+    if (!pending) return;
+    commit({ notes: [...classified.notes, pending.term] });
+    setPending(null);
   }
-
-  // ── Shared styles ──────────────────────────────────────────────────────────
-
-  const inputCls =
-    'flex min-h-11 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 
   return (
     <div className="space-y-8">
@@ -143,160 +172,187 @@ export function StepDiet({ value, onChange }: StepDietProps) {
       </div>
 
       <div className="space-y-8">
-        {/* Diet type */}
-        <div className="space-y-3">
-          <p className="text-sm font-medium">Diet type</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {DIET_OPTIONS.map(({ value: v, label, icon }) => {
-              const selected = value.dietaryRestrictions.includes(v);
-              return (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => toggleDiet(v)}
-                  aria-pressed={selected}
-                  className={`flex items-center gap-2 rounded-lg border-2 px-3 py-2.5 text-sm font-medium transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                    selected
-                      ? 'border-primary bg-primary/5 text-foreground'
-                      : 'border-border bg-card text-muted-foreground'
-                  }`}
-                >
-                  <span aria-hidden="true">{icon}</span>
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {/* Allergies */}
         <div className="space-y-3">
-          <div>
-            <label htmlFor={allergyInputId} className="text-sm font-medium">
-              Allergies
-            </label>
-            <p id={allergyHintId} className="mt-0.5 text-xs text-muted-foreground">
-              Type an allergy and press Enter or comma to add it.
-            </p>
-          </div>
-
-          {/* Chip container */}
-          <div
-            className="flex min-h-11 flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
-            onClick={() => allergyRef.current?.focus()}
-          >
-            {value.allergies.map((allergy) => (
-              <span
-                key={allergy}
-                className="inline-flex items-center gap-1 rounded-md bg-primary/10 py-0.5 pl-2 pr-1 text-sm font-medium text-primary"
-              >
-                {allergy}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeAllergy(allergy);
-                  }}
-                  aria-label={`Remove ${allergy}`}
-                  className="touch-target relative flex h-6 w-6 items-center justify-center rounded-full hover:bg-primary/10 hover:text-primary/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            <input
-              ref={allergyRef}
-              id={allergyInputId}
-              aria-describedby={allergyHintId}
-              type="text"
-              placeholder={value.allergies.length === 0 ? 'e.g. peanuts, shellfish…' : ''}
-              value={allergyInput}
-              onChange={(e) => handleAllergyChange(e.target.value)}
-              onKeyDown={handleAllergyKeyDown}
-              onBlur={() => commitAllergyInput(allergyInput)}
-              className="min-h-8 min-w-[8rem] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-        </div>
-
-        {/* Disliked ingredients */}
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm font-medium">Ingredients you dislike</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Select from the list or add your own.
-            </p>
-          </div>
-
-          {/* Preset grid */}
+          <p className="text-sm font-medium">Allergies</p>
           <div className="flex flex-wrap gap-2">
-            {PRESET_DISLIKES.map((ingredient) => {
-              const selected = value.dislikedIngredients.includes(ingredient);
+            {allergyEntries.map((entry) => {
+              const selected = classified.allergyIds.includes(entry.id);
               return (
                 <button
-                  key={ingredient}
+                  key={entry.id}
                   type="button"
-                  onClick={() => toggleDislike(ingredient)}
-                  aria-pressed={selected}
-                  className={`min-h-11 rounded-full border px-4 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                    selected
-                      ? 'border-primary bg-primary/5 font-medium text-primary'
-                      : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
-                  }`}
+                  role="checkbox"
+                  aria-checked={selected}
+                  onClick={() => commit({ allergyIds: toggle(classified.allergyIds, entry.id) })}
+                  className={chipCls(selected)}
                 >
-                  {ingredient}
+                  {entry.label}
                 </button>
               );
             })}
           </div>
+          <div
+            aria-live="polite"
+            className="rounded-xl bg-muted/40 p-3 text-sm text-muted-foreground"
+          >
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">
+              {SAFETY_COPY.readBackTitle}
+            </p>
+            {allergyReadBackLines.length > 0 ? (
+              allergyReadBackLines.map((line) => <p key={line}>{line}</p>)
+            ) : (
+              <p>{SAFETY_COPY.readBackEmpty}</p>
+            )}
+          </div>
+        </div>
 
-          {/* Custom additions */}
-          {value.dislikedIngredients.filter((d) => !PRESET_DISLIKES.includes(d)).length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {value.dislikedIngredients
-                .filter((d) => !PRESET_DISLIKES.includes(d))
-                .map((ingredient) => (
-                  <span
-                    key={ingredient}
-                    className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 py-1 pl-3 pr-1.5 text-sm font-medium text-primary"
+        {/* Diet */}
+        <div className="space-y-3">
+          <p className="text-sm font-medium">Diet</p>
+          <div role="radiogroup" aria-label="Diet" className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={classified.dietBaseId === null}
+              onClick={() => commit({ dietBaseId: null })}
+              className={chipCls(classified.dietBaseId === null)}
+            >
+              No restriction
+            </button>
+            {BASE_DIET_IDS.map((id) => {
+              const selected = classified.dietBaseId === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => commit({ dietBaseId: id })}
+                  className={chipCls(selected)}
+                >
+                  {labelFor(id)}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground">Also:</p>
+          <div className="flex flex-wrap gap-2">
+            {DIET_MODIFIER_IDS.map((id) => {
+              const selected = knownModifierIds.includes(id);
+              const disabled = veganSelected && id === 'dairy-free';
+              return (
+                <div key={id} className="flex flex-col items-center gap-1">
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={selected}
+                    disabled={disabled}
+                    onClick={() =>
+                      !disabled &&
+                      commit({
+                        dietModifierIds: [...toggle(knownModifierIds, id), ...unknownModifierIds],
+                      })
+                    }
+                    className={chipCls(selected, disabled)}
                   >
-                    {ingredient}
-                    <button
-                      type="button"
-                      onClick={() => removeDislike(ingredient)}
-                      aria-label={`Remove ${ingredient}`}
-                      className="touch-target relative flex h-6 w-6 items-center justify-center rounded-full hover:bg-primary/10 hover:text-primary/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-            </div>
+                    {labelFor(id)}
+                  </button>
+                  {disabled && (
+                    <span className="text-center text-xs text-muted-foreground">
+                      {SAFETY_COPY.veganDairyFreeHint}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {dietReadBackFor(classified.dietBaseId) && (
+            <p className="text-sm text-muted-foreground">
+              {dietReadBackFor(classified.dietBaseId)}
+            </p>
           )}
+        </div>
 
-          {/* Free-text add */}
+        {/* Won't eat */}
+        <div className="space-y-3">
+          <p className="text-sm font-medium">Won&apos;t eat</p>
+          <div className="flex flex-wrap gap-2">
+            {dislikeEntries.map((entry) => {
+              const selected = classified.dislikeIds.includes(entry.id);
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={selected}
+                  onClick={() => commit({ dislikeIds: toggle(classified.dislikeIds, entry.id) })}
+                  className={chipCls(selected)}
+                >
+                  {entry.label}
+                </button>
+              );
+            })}
+          </div>
+          {dislikeLine && <p className="text-xs text-muted-foreground">{dislikeLine}</p>}
+        </div>
+
+        {/* Something else */}
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="safety-something-else" className="text-sm font-medium">
+              Something else?
+            </label>
+          </div>
           <div className="flex gap-2">
-            {/* min-w-0: a flex item defaults to min-width:auto, so the input
-                refused to shrink below its intrinsic width and pushed the Add
-                button off-screen at 320px. */}
             <input
+              id="safety-something-else"
               type="text"
-              aria-label="Add another disliked ingredient"
-              placeholder="Add another ingredient…"
-              value={dislikeInput}
-              onChange={(e) => setDislikeInput(e.target.value)}
-              onKeyDown={handleDislikeKeyDown}
-              className={`${inputCls} min-w-0 flex-1`}
+              value={somethingElse}
+              onChange={(e) => setSomethingElse(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAdd();
+                }
+              }}
+              placeholder="e.g. aubergine"
+              className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <button
               type="button"
-              onClick={addCustomDislike}
-              disabled={!dislikeInput.trim()}
-              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={handleAdd}
+              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent"
             >
               Add
             </button>
           </div>
+          {addedMessage && <p className="text-xs text-muted-foreground">{addedMessage}</p>}
+          {pending && (
+            <UncheckedNotice
+              term={pending.term}
+              variant={pending.variant}
+              onKeepNote={keepPendingAsNote}
+              onRemove={() => setPending(null)}
+              onChooseGoal={() => setPending(null)}
+              onDismiss={() => setPending(null)}
+            />
+          )}
+          {classified.notes.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {classified.notes.map((note) => (
+                <button
+                  key={note}
+                  type="button"
+                  onClick={() => commit({ notes: classified.notes.filter((n) => n !== note) })}
+                  aria-label={`Remove note ${note}`}
+                  className="inline-flex min-h-9 items-center gap-1 rounded-full bg-muted px-3 text-xs text-muted-foreground hover:bg-muted/70"
+                >
+                  {note} ×
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

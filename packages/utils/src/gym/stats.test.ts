@@ -180,12 +180,23 @@ describe('PRs (research §4.2 #8)', () => {
   const detect = (weightKg: number, reps: number, rir: number | null = null) =>
     detectPrs({ exerciseId: 'barbell-bench-press', history, candidate: { weightKg, reps, rir } });
 
-  it('never awards PRs without history', () => {
+  // T-05.6 (UX-05 F): the first-ever logged set counts as a PR too — there is
+  // nothing to beat, but an empty best is still a legitimate baseline.
+  it('awards a PR on the very first exposure, with no prior history', () => {
     expect(
       detectPrs({
         exerciseId: 'barbell-bench-press',
         history: [],
         candidate: { weightKg: 100, reps: 5 },
+      }),
+    ).toEqual(['e1rm', 'weight']);
+    // A reps-only PR still needs a prior set at the same weight to compare
+    // against — there's no "first" version of "more reps here".
+    expect(
+      detectPrs({
+        exerciseId: 'barbell-bench-press',
+        history: [],
+        candidate: { weightKg: 0, reps: 5 },
       }),
     ).toEqual([]);
   });
@@ -219,13 +230,19 @@ describe('PRs (research §4.2 #8)', () => {
       session('2026-09-12', [{ sets: [[300, 1]] }], 'DISCARDED'),
     ];
     const prs = collectPrs(sessions);
+    // T-05.6 (UX-05 F): 2026-09-01 (s1) is the first exposure for both
+    // exercises, so it now also produces a record (isFirst: true) ahead of
+    // the previously-only entries.
     expect(prs.map((p) => [p.localDate, p.exerciseId, p.kind, p.weightKg, p.reps])).toEqual([
+      ['2026-09-01', 'barbell-bench-press', 'e1rm', 80, 8],
+      ['2026-09-01', 'lat-pulldown', 'e1rm', 50, 10],
       ['2026-09-05', 'barbell-bench-press', 'weight', 82.5, 6],
       ['2026-09-05', 'lat-pulldown', 'e1rm', 55, 10],
       ['2026-09-10', 'barbell-bench-press', 'e1rm', 80, 9],
     ]);
-    expect(prs[2]?.e1rmKg).toBe(106.67);
-    expect(collectPrs(sessions, 'lat-pulldown')).toHaveLength(1);
+    expect(prs.map((p) => p.isFirst)).toEqual([true, true, false, false, false]);
+    expect(prs[4]?.e1rmKg).toBe(106.67);
+    expect(collectPrs(sessions, 'lat-pulldown')).toHaveLength(2);
   });
 
   it('bodyweight PRs carry no e1RM', () => {

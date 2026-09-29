@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 import EditRecipePage from '@/app/(dashboard)/recipes/[id]/edit/page';
 import NewRecipePage from '@/app/(dashboard)/recipes/new/page';
+import { uploadImage } from '@/lib/upload-image';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Audit F-X-5-1 / F-REC-3-7: every recipe form control has an accessible
-// name; a failed submit links, announces and focuses the first error; editing
-// a field clears its stale error.
+// Audit F-X-5-1 / F-REC-3-7 (a11y) + T-40.6 (UX-40 slice 1, D-19): only the
+// name and >= 1 ingredient are required now; cuisine, description, steps,
+// times and nutrition are all optional, and there is no fiber field
+// anywhere. A failed submit still links, announces and focuses the first
+// error; editing a field still clears its stale error.
 
 const createMutate = vi.fn();
 const updateMutate = vi.fn();
@@ -54,12 +57,25 @@ vi.mock('@/lib/trpc', () => ({
         useMutation: () => ({ mutate: createMutate, isPending: false, error: null }),
       },
       getMyRecipe: {
-        useQuery: () => ({ data: RECIPE, isLoading: false, error: null }),
+        useQuery: () => ({
+          data: RECIPE,
+          isLoading: false,
+          error: null,
+          isFetchedAfterMount: true,
+          isFetching: false,
+          refetch: vi.fn(),
+        }),
       },
       update: {
         useMutation: () => ({ mutate: updateMutate, isPending: false, error: null }),
       },
     },
+    // T-BUG-O3 C1: EditRecipePage invalidates recipe.getMyRecipe/list +
+    // mealPlan.getRecipe on a successful update.
+    useUtils: () => ({
+      recipe: { getMyRecipe: { invalidate: vi.fn() }, list: { invalidate: vi.fn() } },
+      mealPlan: { getRecipe: { invalidate: vi.fn() } },
+    }),
   },
 }));
 
@@ -100,7 +116,7 @@ function submit() {
 describe('NewRecipePage accessibility', () => {
   it('names every control, the back link and the step/ingredient remove buttons', () => {
     render(<NewRecipePage />);
-    expect(screen.getByLabelText('Recipe Name')).toBeTruthy();
+    expect(screen.getByLabelText(/Recipe Name/)).toBeTruthy();
     expect(screen.getByLabelText('Description')).toBeTruthy();
     expect(screen.getByLabelText('Prep (min)')).toBeTruthy();
     expect(screen.getByLabelText('Cook (min)')).toBeTruthy();
@@ -121,32 +137,50 @@ describe('NewRecipePage accessibility', () => {
     expect(unnamedControls()).toEqual([]);
   });
 
+  it('shows the "* Required" legend once and marks Name/Ingredients with a *', () => {
+    render(<NewRecipePage />);
+    expect(screen.getByText('* Required')).toBeTruthy();
+    expect(screen.getByText('Ingredients *')).toBeTruthy();
+  });
+
   it('opts out of native validation so the custom errors own the messages', () => {
     render(<NewRecipePage />);
     expect(form().noValidate).toBe(true);
   });
 
-  it('on an empty submit: links + announces the errors and focuses the first invalid field', async () => {
+  it('never renders a fiber input or stat (D-18)', () => {
+    render(<NewRecipePage />);
+    expect(screen.queryByText(/fiber/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /enter manually instead/i }));
+    expect(screen.queryByLabelText(/fiber/i)).toBeNull();
+  });
+
+  it('D-19: on an empty submit, only the name is required — cuisine and steps are not', async () => {
     render(<NewRecipePage />);
     submit();
 
     expect(createMutate).not.toHaveBeenCalled();
-    const name = screen.getByLabelText('Recipe Name');
+    const name = screen.getByLabelText(/Recipe Name/);
     await waitFor(() => expect(document.activeElement).toBe(name));
     expect(name.getAttribute('aria-invalid')).toBe('true');
     expect(describedByText(name)).toBe('Recipe name is required.');
-    expect(describedByText(screen.getByRole('group', { name: 'Cuisine' }))).toMatch(
-      /pick a cuisine/i,
-    );
-    expect(describedByText(screen.getByLabelText('Step 1'))).toMatch(/instruction step/i);
+    // Cuisine and steps are optional now — no error is reported for either.
+    expect(describedByText(screen.getByRole('group', { name: 'Cuisine' }))).toBe('');
+    expect(describedByText(screen.getByLabelText('Step 1'))).toBe('');
     expect(screen.getByRole('alert').textContent).toMatch(/recipe not saved/i);
   });
 
+  // The "name + one ingredient line saves" round trip through the real
+  // IngredientPicker (search/create-custom) is covered end-to-end by
+  // tests/e2e/recipe-form.spec.ts (Playwright) rather than here — typing a
+  // free-text ingredient name only commits through a picked suggestion or
+  // the custom-ingredient modal, both of which need a live search backend.
+
   it('focuses the first invalid field further down (the audit’s −2 prep time)', async () => {
     render(<NewRecipePage />);
-    fireEvent.change(screen.getByLabelText('Recipe Name'), { target: { value: 'Soup' } });
-    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Warm.' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Italian' }));
+    fireEvent.change(screen.getByLabelText(/Recipe Name/), {
+      target: { value: 'Soup' },
+    });
     fireEvent.change(screen.getByLabelText('Prep (min)'), { target: { value: '-2' } });
     submit();
 
@@ -154,67 +188,95 @@ describe('NewRecipePage accessibility', () => {
     await waitFor(() => expect(document.activeElement).toBe(prep));
     expect(prep.getAttribute('aria-invalid')).toBe('true');
     expect(describedByText(prep)).toMatch(/0 or more/);
-    expect(screen.getByLabelText('Recipe Name').getAttribute('aria-invalid')).toBeNull();
+    expect(screen.getByLabelText(/Recipe Name/).getAttribute('aria-invalid')).toBeNull();
   });
 
   it('clears a stale error as soon as that field changes', () => {
     render(<NewRecipePage />);
     submit();
-    const name = screen.getByLabelText('Recipe Name');
+    const name = screen.getByLabelText(/Recipe Name/);
     expect(screen.queryByText('Recipe name is required.')).toBeTruthy();
 
     fireEvent.change(name, { target: { value: 'Soup' } });
     expect(screen.queryByText('Recipe name is required.')).toBeNull();
     expect(name.getAttribute('aria-invalid')).toBeNull();
     expect(name.getAttribute('aria-describedby')).toBeNull();
-    // Other errors stay until their own field is fixed.
-    expect(screen.queryByText('Description is required.')).toBeTruthy();
+  });
+});
 
-    fireEvent.click(screen.getByRole('button', { name: 'Thai' }));
-    expect(screen.queryByText(/pick a cuisine/i)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Thai' }).getAttribute('aria-pressed')).toBe('true');
+describe('NewRecipePage photo upload (T-BUG-O1)', () => {
+  // O-18: `uploadImage` used to throw `new Error(data.error)` where `error`
+  // could be `{ code, message }`, which rendered as the literal text
+  // "[object Object]". uploadImage itself now maps every failure to one of
+  // UX-40's four sentences (apps/web/src/lib/upload-image.test.ts covers
+  // that mapping) — this checks the page surfaces whatever sentence it
+  // throws, verbatim, in the alert.
+  it('shows the too-big sentence when the upload rejects with it, never a status code or [object Object]', async () => {
+    vi.mocked(uploadImage).mockRejectedValueOnce(
+      new Error('That photo is too big. Choose another, or use a screenshot of it.'),
+    );
+    render(<NewRecipePage />);
+
+    const file = new File(['x'], 'photo.jpg', { type: 'image/jpeg' });
+    const input = screen.getByLabelText(/upload from device/i);
+    fireEvent.change(input, { target: { files: [file] } });
+
+    const alert = await screen.findByText(
+      'That photo is too big. Choose another, or use a screenshot of it.',
+    );
+    expect(alert.getAttribute('role')).toBe('alert');
+    expect(alert.textContent).not.toContain('[object Object]');
+    expect(alert.textContent).not.toMatch(/^\d{3}$|\(\d{3}\)/);
   });
 });
 
 describe('EditRecipePage accessibility', () => {
   it('names every control and the back link', () => {
     render(<EditRecipePage />);
-    expect(screen.getByLabelText('Recipe Name')).toHaveProperty('value', 'Pesto Pasta');
+    expect(screen.getByLabelText(/Recipe Name/)).toHaveProperty('value', 'Pesto Pasta');
     expect(screen.getByLabelText('Cuisine Type')).toBeTruthy();
     expect(screen.getByLabelText('Dietary Tags (comma-separated)')).toBeTruthy();
     expect(screen.getByLabelText('Image URL (optional)')).toBeTruthy();
-    expect(screen.getByLabelText('Fiber (g)')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Back to my recipes' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Remove step 2' })).toBeTruthy();
     expect(unnamedControls()).toEqual([]);
   });
 
-  it('focuses the calories field when it is cleared, then clears the error on input', async () => {
+  it('shows the "* Required" legend and never renders a fiber field (D-18)', () => {
     render(<EditRecipePage />);
-    const calories = screen.getByLabelText('Calories (kcal)');
-    fireEvent.change(calories, { target: { value: '' } });
-    submit();
-
-    expect(updateMutate).not.toHaveBeenCalled();
-    await waitFor(() => expect(document.activeElement).toBe(calories));
-    expect(calories.getAttribute('aria-invalid')).toBe('true');
-    expect(describedByText(calories)).toMatch(/enter calories/i);
-
-    fireEvent.change(calories, { target: { value: '480' } });
-    expect(calories.getAttribute('aria-invalid')).toBeNull();
-    expect(screen.queryByRole('alert')?.textContent ?? '').toBe('');
+    expect(screen.getByText('* Required')).toBeTruthy();
+    expect(screen.getByText('Ingredients *')).toBeTruthy();
+    expect(screen.queryByLabelText(/fiber/i)).toBeNull();
+    expect(screen.queryByText(/fiber/i)).toBeNull();
   });
 
-  it('submits a valid recipe (calories rounded to the API’s integer)', () => {
+  it('D-19: cuisine and calories are optional — saving without changing them still works', () => {
+    render(<EditRecipePage />);
+    submit();
+    expect(updateMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('submits a valid recipe and keeps the stored fiber (calories rounded to the API’s integer)', () => {
     render(<EditRecipePage />);
     submit();
     expect(updateMutate).toHaveBeenCalledTimes(1);
     expect(updateMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         recipeId: 'r1',
-        nutritionInfo: expect.objectContaining({ calories: 520 }) as unknown,
+        nutritionInfo: expect.objectContaining({ calories: 520, fiber: 4 }) as unknown,
         ingredients: [{ name: 'basil', quantity: 30, unit: 'g' }],
       }),
     );
+  });
+
+  it('clearing the name still blocks the save and focuses it', async () => {
+    render(<EditRecipePage />);
+    const name = screen.getByLabelText(/Recipe Name/);
+    fireEvent.change(name, { target: { value: '' } });
+    submit();
+
+    expect(updateMutate).not.toHaveBeenCalled();
+    await waitFor(() => expect(document.activeElement).toBe(name));
+    expect(name.getAttribute('aria-invalid')).toBe('true');
   });
 });

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { onlineManager, useIsRestoring, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSnackbar } from '@chefer/ui-mobile';
 import { trpc } from '../../../lib/trpc';
 import { startRestNotifications } from '../rest-timer';
 import { reconcileActiveSession } from '../use-active-workout';
@@ -8,6 +9,14 @@ import { startCheckpointing } from './checkpoint';
 import { outbox, type SendDocs } from './outbox';
 import { getConfirmedGymOwner, invalidateGymOwnerConfirmation, setGymOwner } from './owner';
 import { clearGymQueries } from './query-persistence';
+import {
+  clearTargetNoticeFor,
+  dropHardDeletes,
+  markHardDeletesAcked,
+  markTargetNoticeSynced,
+  processPendingHardDeletes,
+  takeCorrectedIds,
+} from './session-corrections';
 import { startOutboxTriggers } from './sync-triggers';
 
 /** Non-reversible 32-bit FNV-1a fingerprint — distinguishes tokens, reveals nothing. */
@@ -39,6 +48,7 @@ export function GymSyncProvider({
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
   const isRestoring = useIsRestoring();
+  const snackbar = useSnackbar();
 
   // A new token (sign-in, sign-out) must be re-confirmed before uploads.
   useEffect(() => {
@@ -65,8 +75,12 @@ export function GymSyncProvider({
     const { changed } = setGymOwner(userId);
     if (changed) clearGymQueries(queryClient);
     reconcileActiveSession(userId);
-    void outbox.flush({ force: true });
-  }, [userId, isRestoring, queryClient]);
+    void outbox
+      .flush({ force: true })
+      .then(() =>
+        processPendingHardDeletes((id) => utils.client.gym.session.delete.mutate({ id })),
+      );
+  }, [userId, isRestoring, queryClient, utils]);
 
   // Signed out: drop cached gym reads (the outbox and active session stay —
   // they upload when their owner signs back in).
@@ -80,8 +94,23 @@ export function GymSyncProvider({
       (await utils.client.gym.session.upsertMany.mutate({ docs })).results;
     outbox.configure({
       send,
-      onSynced: () => {
+      onSynced: (ids) => {
+        // UX-44: a corrected session's "Next time changed" clock starts at the ack, and a
+        // deleted one's tombstone is hard-deleted now that it is safely on the server (Q-30).
+        markTargetNoticeSynced(ids);
+        markHardDeletesAcked(ids);
         void utils.gym.bootstrap.invalidate();
+        void processPendingHardDeletes((id) => utils.client.gym.session.delete.mutate({ id }));
+      },
+      onStale: (ids) => {
+        // Another device's newer copy won (last write wins): our edit/delete did not apply.
+        dropHardDeletes(ids);
+        clearTargetNoticeFor(ids);
+        if (takeCorrectedIds(ids).length > 0) {
+          snackbar.show({
+            message: 'This workout was changed on another device. Showing the latest.',
+          });
+        }
       },
     });
     const stopTriggers = startOutboxTriggers();
@@ -99,7 +128,7 @@ export function GymSyncProvider({
       stopCheckpoint();
       stopRestNotifications();
     };
-  }, [token, utils]);
+  }, [token, utils, snackbar]);
 
   return children;
 }

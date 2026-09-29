@@ -8,6 +8,10 @@ import {
   verifyEmailUrl,
   type UnsubscribeScope,
 } from '../../lib/email/tokens.js';
+import { consentService } from '../privacy/consent.service.js';
+
+/** 'web' | 'mobile' | 'migration' — see ConsentService.record. */
+export type ConsentSource = 'web' | 'mobile' | 'migration';
 
 // ─── Weekly-email preferences, confirmation and unsubscribe (audit P2-5) ─────
 // Weekly emails only go to a CONFIRMED address. Chefer had no confirmation
@@ -58,12 +62,31 @@ export class EmailPreferencesService {
   async set(
     userId: string,
     input: { weekReady?: boolean | undefined; weeklyRecap?: boolean | undefined },
+    source: ConsentSource = 'web',
   ): Promise<EmailPreferencesDto> {
     const prefs = await this.repo.setPreferences(userId, {
       ...(input.weekReady !== undefined && { weeklyEmailReady: input.weekReady }),
       ...(input.weeklyRecap !== undefined && { weeklyEmailRecap: input.weeklyRecap }),
     });
     if (!prefs) throw new TRPCError({ code: 'NOT_FOUND', message: 'Account not found' });
+    // §2.13: every email-preference write is a consent event — the digest
+    // itself is the "product", so switching it off IS withdrawing consent.
+    if (input.weekReady !== undefined) {
+      await consentService.record({
+        userId,
+        kind: 'EMAIL_WEEK_READY',
+        granted: input.weekReady,
+        source,
+      });
+    }
+    if (input.weeklyRecap !== undefined) {
+      await consentService.record({
+        userId,
+        kind: 'EMAIL_RECAP',
+        granted: input.weeklyRecap,
+        source,
+      });
+    }
     return toDto(prefs);
   }
 

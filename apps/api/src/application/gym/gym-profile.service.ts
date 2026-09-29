@@ -196,6 +196,9 @@ export class GymProfileService {
         data.reminderEnabled = false;
       }
     }
+    // T-36.2 (bug B-40): per-day reminder times and the quiet-days nudge.
+    if (input.reminderTimes !== undefined) data.reminderTimes = toJson(input.reminderTimes);
+    if (input.quietNudgeDays !== undefined) data.quietNudgeDays = input.quietNudgeDays;
     if (input.weeklyGoal !== undefined && input.weeklyGoal !== row.weeklyGoal) {
       const fromWeek = weekStartOf(today);
       const history = readGoalHistory(row.goalHistory).filter((g) => g.fromWeek !== fromWeek);
@@ -279,6 +282,7 @@ export class GymProfileService {
     userId: string,
     input: CompleteSetupInput,
     today: string = serverToday(),
+    level = 0,
   ): Promise<GymBootstrap> {
     await this.ensure();
     const draft = templateToDays(input.templateKey, input.equipmentAccess);
@@ -306,10 +310,15 @@ export class GymProfileService {
         }
       : defaultInventory(input.unit);
 
+    // B-18 (UX-05 B, AC4): the weekly goal is the days the user CHOSE on step
+    // 1 (`input.days`), not the resulting template's own day count — a
+    // recommended template can have fewer days than requested (5 chosen days
+    // → ul4's 4, plus an "Optional 5th day"), and the goal must still read 5.
+    const weeklyGoal = input.days;
     const fromWeek = weekStartOf(today);
     const goalHistory: GoalHistoryEntry[] = [
       ...readGoalHistory(existing?.goalHistory ?? []).filter((g) => g.fromWeek < fromWeek),
-      { fromWeek, goal: draft.weeklyGoal },
+      { fromWeek, goal: weeklyGoal },
     ];
     const knownWeightsKg = Object.fromEntries(
       Object.entries(input.knownWeightsKg ?? {}).map(([id, kg]) => [id, round2(kg)]),
@@ -346,7 +355,7 @@ export class GymProfileService {
         experience: input.experience,
         equipmentAccess: input.equipmentAccess,
         unit: input.unit,
-        weeklyGoal: draft.weeklyGoal,
+        weeklyGoal,
         goalHistory: toJson(goalHistory),
         barWeightKg: inventory.barWeightKg,
         platePairsKg: inventory.platePairsKg,
@@ -357,6 +366,8 @@ export class GymProfileService {
         microPlates: inventory.microPlates,
         reminderEnabled: input.reminderTime !== null,
         reminderTime: input.reminderTime,
+        // T-36.2: new setups default the quiet-days nudge on at 5 days.
+        quietNudgeDays: 5,
         offerState: toJson({
           ...offerState,
           knownWeightsKg: { ...(offerState.knownWeightsKg ?? {}), ...knownWeightsKg },
@@ -374,7 +385,7 @@ export class GymProfileService {
     // The unit picked in setup becomes the global preference (P2-6).
     if (existing?.unit !== input.unit) await this.syncPreferredUnits(userId, input.unit);
 
-    return this.bootstrap.get(userId, { today });
+    return this.bootstrap.get(userId, { today }, level);
   }
 }
 

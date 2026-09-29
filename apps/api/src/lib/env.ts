@@ -52,6 +52,9 @@ const envSchema = z.object({
   // Rate Limiting
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  // Per-IP register/login attempts per 15 min. Raised only for the contract
+  // suite (CI + local), which registers one throwaway account per file.
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
 
   // AI — mock is enabled by default so local dev never calls real LLM endpoints
   AI_MOCK_ENABLED: z
@@ -59,6 +62,13 @@ const envSchema = z.object({
     .default('true')
     .transform((val) => val === 'true'),
   AI_MOCK_DELAY_MS: z.coerce.number().int().nonnegative().default(0),
+  // Premium generation: 'true' (default) returns a curated week instantly and
+  // the chef tailors it day by day in the background (PlanTailoringWorker);
+  // 'false' is the kill switch back to the blocking AI week.
+  AI_PLAN_TAILORING: z
+    .string()
+    .default('true')
+    .transform((val) => val !== 'false'),
   AI_PROVIDER: z.enum(['gemini', 'openai']).default('gemini'),
   // Provider keys + model names, shared with the eval harness (ai/env-schema.ts).
   ...aiProviderEnvShape,
@@ -173,6 +183,37 @@ const envSchema = z.object({
 
   // Unsplash (optional — ingredient images fall back to category images without this)
   UNSPLASH_ACCESS_KEY: z.string().optional(),
+
+  // Feature flags (§2.9, T-00.8) — comma list of enabled keys, e.g.
+  // "trainingBumpFree,ownTargetsFree". Unknown/misspelled keys are dropped
+  // (never crash startup over a typo); a missing key means OFF. Parsed set
+  // lives in lib/flags.ts.
+  FEATURE_FLAGS: z.string().default(''),
+
+  // Health-data consent enforcement (§2.8, T-26.1). `off` records nothing;
+  // `declared` rejects un-consented health writes only from clients that
+  // declare `x-chefer-api-level >= 1`; `all` rejects from every client. Old
+  // binaries (no header) are NEVER rejected under `declared`. Every wave-0
+  // deploy stays `off` — flipping modes is a later, explicit rollout step
+  // (§2.8 "rollout").
+  HEALTH_CONSENT_ENFORCE: z.enum(['off', 'declared', 'all']).default('off'),
+
+  // Grocery store search (lib/grocery-ai): mock is enabled by default so
+  // local dev never calls the real store-search AI. T-BUG-X6: this used to
+  // be a direct `process.env['GROCERY_AI_MOCK_ENABLED']` read in
+  // lib/grocery-ai/index.ts (the one exception to "env vars go through
+  // env.ts") — preserved semantics: only the literal "false" disables the
+  // mock, same as before.
+  GROCERY_AI_MOCK_ENABLED: z
+    .string()
+    .default('true')
+    .transform((val) => val !== 'false'),
+
+  // PostHog admin API (T-12.5): deletes a person's linked analytics events on
+  // account deletion. Both optional — absent = skip + log (most deployments,
+  // and any account that never linked, never need this).
+  POSTHOG_PERSONAL_API_KEY: z.preprocess(emptyAsUnset, z.string().optional()),
+  POSTHOG_PROJECT_ID: z.preprocess(emptyAsUnset, z.string().optional()),
 });
 
 type EnvSchema = z.infer<typeof envSchema>;

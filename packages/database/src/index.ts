@@ -22,6 +22,15 @@ export {
   type CreateRecipeData,
   type CreateMealPlanData,
   type PlanMealSlotJson,
+  // Instant week, then live tailoring (premium)
+  MealPlanTailoringRepository,
+  mealPlanTailoringRepository,
+  stableSlotsJson,
+  type IMealPlanTailoringRepository,
+  type CreateTailoringData,
+  type TailoringProgressPatch,
+  type TailoringSnapshots,
+  type TailoringUserGate,
   FavouriteRecipeRepository,
   favouriteRecipeRepository,
   type IFavouriteRecipeRepository,
@@ -107,6 +116,23 @@ export {
   type WeeklyEmailRecipient,
   type WeeklyEmailPreferences,
   type WeekLogRow,
+  // Wave-0 schema contracts (T-00.10)
+  SafetyReportRepository,
+  safetyReportRepository,
+  type ISafetyReportRepository,
+  type CreateSafetyReportData,
+  TargetChangeRepository,
+  targetChangeRepository,
+  type ITargetChangeRepository,
+  type CreateTargetChangeData,
+  IngredientPriceRepository,
+  ingredientPriceRepository,
+  type IIngredientPriceRepository,
+  type IngredientCatalogRow,
+  ConsentEventRepository,
+  consentEventRepository,
+  type IConsentEventRepository,
+  type RecordConsentEventData,
 } from './repositories/index';
 
 // Re-export Prisma types for convenience
@@ -123,6 +149,7 @@ export type {
   Recipe,
   MealPlan,
   MealPlanDay,
+  MealPlanTailoring,
   FavouriteRecipe,
   MealRating,
   DailyLog,
@@ -143,6 +170,10 @@ export type {
   ExerciseProgression,
   TrainingPause,
   EmailSend,
+  // Wave-0 schema contracts (T-00.10)
+  SafetyReport,
+  TargetChange,
+  ConsentEvent,
 } from '@prisma/client';
 export {
   AiCallType,
@@ -152,5 +183,11 @@ export {
   BiologicalSex,
   MealPlanStatus,
   MealPlanOrigin,
+  MealPlanTailoringStatus,
   ImageStatus,
+  OnboardingIntent,
+  OnboardingJob,
+  TargetMode,
+  TargetChangeKind,
+  ConsentKind,
 } from '@prisma/client';

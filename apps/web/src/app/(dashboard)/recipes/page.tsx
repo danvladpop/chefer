@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ImportRecipeSheet } from '@/features/recipes/components/ImportRecipeSheet';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
+import { FilteredForLine } from '@/features/safety/components/FilteredForLine';
+import { WhatWeCheckSheet } from '@/features/safety/components/WhatWeCheckSheet';
 import { trpc } from '@/lib/trpc';
 import { Clock, Compass, Flame, Heart, Link2, Pencil, Plus, Search } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
@@ -62,6 +64,20 @@ export default function RecipesPage() {
   const [mealFilter, setMealFilter] = useState<MealFilter | null>(null);
   const [quickOnly, setQuickOnly] = useState(false);
 
+  // bug B-09: the post-upgrade activation sheet's "Cheferize a favourite
+  // recipe" step used to just link here and stop — the user still had to
+  // find and click "Import a recipe" themselves. `?import=1` opens the
+  // sheet on arrival, fires once, then strips the param (same pattern as
+  // meal-plan/page.tsx's `?generate=1`).
+  const importAutoOpenFired = useRef(false);
+  useEffect(() => {
+    if (importAutoOpenFired.current || searchParams.get('import') !== '1') return;
+    importAutoOpenFired.current = true;
+    setImportOpen(true);
+    router.replace('/recipes', { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once trigger on arrival
+  }, [searchParams]);
+
   // Debounce search
   const handleSearch = (value: string) => {
     setSearch(value);
@@ -95,6 +111,19 @@ export default function RecipesPage() {
   const cards: CardRecipe[] | undefined = tab === 'discover' ? discover.data : recipes;
   const cardsLoading = tab === 'discover' ? discover.isLoading : isLoading;
   const cardsError = tab === 'discover' ? discover.isError : isError;
+
+  // T-02.5/T-01.4: Discover says what it filtered — a separate, additive
+  // query so `discover` itself keeps returning a plain array.
+  const discoverMeta = trpc.recipe.discoverHiddenCount.useQuery(
+    {
+      search: debouncedSearch || undefined,
+      mealType: mealFilter ?? undefined,
+      maxTotalMins: quickOnly ? QUICK_MINS : undefined,
+    },
+    { enabled: tab === 'discover', staleTime: 60_000 },
+  );
+  const { data: table } = trpc.safety.getTable.useQuery();
+  const [whatWeCheckOpen, setWhatWeCheckOpen] = useState(false);
 
   const utils = trpc.useUtils();
   const toggleFav = trpc.recipe.toggleFavourite.useMutation({
@@ -229,6 +258,17 @@ export default function RecipesPage() {
         </div>
       )}
 
+      {/* T-02.5/T-01.4: Discover says what it filtered */}
+      {tab === 'discover' && discoverMeta.data && discoverMeta.data.hiddenCount > 0 && (
+        <div className="-mt-4 mb-4">
+          <FilteredForLine
+            filters={discoverMeta.data.filteredFor.join(' + ')}
+            hiddenCount={discoverMeta.data.hiddenCount}
+            onOpenSheet={() => setWhatWeCheckOpen(true)}
+          />
+        </div>
+      )}
+
       {/* Content */}
       {cardsLoading ? (
         <RecipeGridSkeleton />
@@ -320,6 +360,13 @@ export default function RecipesPage() {
             );
           })}
         </div>
+      )}
+      {table && (
+        <WhatWeCheckSheet
+          open={whatWeCheckOpen}
+          onClose={() => setWhatWeCheckOpen(false)}
+          table={table}
+        />
       )}
     </div>
   );

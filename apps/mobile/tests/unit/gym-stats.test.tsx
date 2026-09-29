@@ -9,13 +9,17 @@ import {
   topCompoundsByFrequency,
 } from '../../src/features/gym/stats/local-engine';
 import { PrTimelineView } from '../../src/features/gym/stats/pr-timeline-view';
+import { StatsTab } from '../../src/features/gym/stats/stats-tab';
 import { StrengthTrendView } from '../../src/features/gym/stats/strength-trend-view';
+import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { makeBootstrap, makeExercise } from './gym-fixtures';
 import { makeGymQueryClient, renderWithGym } from './gym-screen-test-utils';
 
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 jest.mock('expo-router', () => ({
   router: { replace: jest.fn(), push: jest.fn(), back: jest.fn(), canGoBack: () => false },
+  usePathname: () => '/stats',
+  useLocalSearchParams: () => ({}),
 }));
 
 function session(overrides: Partial<SessionSummaryDto> & { id: string }): SessionSummaryDto {
@@ -151,6 +155,41 @@ describe('Stats empty states', () => {
 
     await user.press(await screen.findByTestId('stats-strength-bodyweight-toggle'));
     expect(await screen.findByTestId('stats-strength-log-weight')).toBeTruthy();
+  });
+
+  it('B-42 (T-BUG-42): the Stats "More" card never leaks internal spec copy ("research §…")', async () => {
+    const user = userEvent.setup();
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ library: [bench], recentSessions: SESSIONS }),
+    );
+    await renderWithGym(<StatsTab />, queryClient);
+
+    await user.press(await screen.findByTestId('gym-stats-more-toggle'));
+    const more = await screen.findByTestId('gym-stats-more');
+    expect(more).toBeTruthy();
+    expect(screen.queryByText(/§/)).toBeNull();
+    expect(screen.queryByText(/research/i)).toBeNull();
+  });
+
+  it('T-36.5: the History segment lists sessions and hides the overview views', async () => {
+    const user = userEvent.setup();
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ library: [bench], recentSessions: SESSIONS }),
+    );
+    await renderWithGym(<StatsTab />, queryClient);
+
+    expect(screen.getByTestId('gym-stats-scroll')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('gym-stats-segment-history'));
+
+    expect(screen.queryByTestId('gym-stats-scroll')).not.toBeOnTheScreen();
+    expect(await screen.findByTestId('gym-history')).toBeOnTheScreen();
+
+    await user.press(screen.getByTestId('gym-stats-segment-overview'));
+    expect(await screen.findByTestId('gym-stats-scroll')).toBeOnTheScreen();
   });
 
   it('PR timeline: "No PRs yet" for a user with no personal records', async () => {

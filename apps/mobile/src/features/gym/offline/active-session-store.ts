@@ -14,12 +14,21 @@ export interface ActiveSessionRecord {
   /** gym owner (user id) when the session started; null if unknown then. */
   ownerId: string | null;
   doc: WorkoutSessionDoc;
+  /**
+   * "Save for later" (UX-36 A1/T-36.3): device-only, never uploaded — the
+   * instant the session was paused, or null while active/backfilling. Kept
+   * across every `set()` (a dispatch never clears a pause); only
+   * `setPausedAt` changes it.
+   */
+  pausedAt: string | null;
 }
 
 export interface ActiveSessionStore {
   get: () => ActiveSessionRecord | null;
-  /** Persist synchronously, then notify subscribers. */
+  /** Persist synchronously, then notify subscribers. Preserves any existing `pausedAt`. */
   set: (doc: WorkoutSessionDoc, ownerId: string | null) => void;
+  /** "Save for later" / resume: sets or clears `pausedAt` on the current record (no-op if none). */
+  setPausedAt: (pausedAt: string | null) => void;
   clear: () => void;
   subscribe: (listener: () => void) => () => void;
 }
@@ -39,7 +48,10 @@ export function createActiveSessionStore(key: string = KV_KEYS.activeSession): A
     if (raw === null) return null;
     try {
       const parsed: unknown = JSON.parse(raw);
-      if (isRecord(parsed)) return parsed;
+      if (isRecord(parsed)) {
+        // Older stored payloads (pre-T-36.A1.1) have no `pausedAt` — default null.
+        return { ...parsed, pausedAt: parsed.pausedAt ?? null };
+      }
     } catch {
       // fall through to quarantine
     }
@@ -54,7 +66,15 @@ export function createActiveSessionStore(key: string = KV_KEYS.activeSession): A
   return {
     get: store.get,
     set(doc, ownerId) {
-      const record: ActiveSessionRecord = { v: 1, ownerId, doc };
+      const pausedAt = store.get()?.pausedAt ?? null;
+      const record: ActiveSessionRecord = { v: 1, ownerId, doc, pausedAt };
+      getKvBackend().setItemSync(key, JSON.stringify(record));
+      store.set(record);
+    },
+    setPausedAt(pausedAt) {
+      const current = store.get();
+      if (!current) return;
+      const record: ActiveSessionRecord = { ...current, pausedAt };
       getKvBackend().setItemSync(key, JSON.stringify(record));
       store.set(record);
     },
@@ -72,4 +92,12 @@ export const activeSessionStore = createActiveSessionStore();
 /** The in-progress session doc (null when no workout is running). */
 export function useActiveSessionRecord(): ActiveSessionRecord | null {
   return useSyncExternalStore(activeSessionStore.subscribe, activeSessionStore.get);
+}
+
+/** "Save for later" instant of the active session, or null (T-36.A1.1/T-36.3). */
+export function useActiveSessionPausedAt(): string | null {
+  return useSyncExternalStore(
+    activeSessionStore.subscribe,
+    () => activeSessionStore.get()?.pausedAt ?? null,
+  );
 }

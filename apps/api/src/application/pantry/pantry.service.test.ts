@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { prisma } from '@chefer/database';
+import { dietaryPreferencesRepository, prisma } from '@chefer/database';
 import type { IMealPlanRepository, IPantryItemRepository, PantryItem } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { PantryService } from './pantry.service.js';
@@ -12,6 +12,16 @@ vi.mock('@chefer/database', async (importOriginal) => {
     ...mod,
     prisma: {
       ingredientPrice: { findMany: vi.fn().mockResolvedValue([]) },
+    },
+    // Default: no allergies/restrictions/household — whatCanIMake's B-34/B-46
+    // safety filter (T-00.11/T-01.2) is a no-op unless a test overrides these.
+    dietaryPreferencesRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
+    householdMemberRepository: { findByUserId: vi.fn().mockResolvedValue([]) },
+    // SafetyService.loadContext also reads reported-recipe ids (T-01.2).
+    safetyReportRepository: {
+      findRecipeIdsByUser: vi.fn().mockResolvedValue([]),
+      create: vi.fn(),
+      findAllByUser: vi.fn(),
     },
   };
 });
@@ -196,6 +206,53 @@ describe('PantryService', () => {
     // Fully covered (staples assumed on hand) → it must top the answer.
     expect(answer.split('\n')[1]).toContain('Halloumi Couscous Bowl');
     expect(answer).toContain('everything on hand');
+  });
+
+  it('whatCanIMake never ranks a recipe unsafe for an egg-allergic vegetarian (B-34, B-46, T-00.11)', async () => {
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValueOnce({
+      allergies: ['egg'],
+      dietaryRestrictions: ['vegetarian'],
+      dislikedIngredients: [],
+    } as never);
+    const repo = makeRepo([pantryRow('egg'), pantryRow('spinach'), pantryRow('feta')]);
+    const planRepo = makePlanRepo({
+      findActiveWithDays: vi.fn().mockResolvedValue({
+        id: 'plan1',
+        days: [
+          { meals: [{ type: 'breakfast', recipeId: 'r-egg' }] },
+          { meals: [{ type: 'breakfast', recipeId: 'r-safe' }] },
+        ],
+      }),
+      findRecipesByIds: vi.fn().mockResolvedValue([
+        {
+          id: 'r-egg',
+          name: 'Spinach Feta Omelette',
+          ingredients: [
+            { name: 'egg', quantity: 3, unit: 'pcs' },
+            { name: 'spinach', quantity: 50, unit: 'g' },
+            { name: 'feta', quantity: 30, unit: 'g' },
+          ],
+          instructions: ['Whisk eggs', 'Cook with spinach and feta'],
+          dietaryTags: ['vegetarian'],
+        },
+        {
+          id: 'r-safe',
+          name: 'Spinach Feta Wrap',
+          ingredients: [
+            { name: 'spinach', quantity: 50, unit: 'g' },
+            { name: 'feta', quantity: 30, unit: 'g' },
+            { name: 'tortilla', quantity: 1, unit: 'pcs' },
+          ],
+          instructions: ['Fill a tortilla with spinach and feta'],
+          dietaryTags: ['vegetarian'],
+        },
+      ]),
+    });
+    const service = new PantryService(repo, planRepo);
+    const answer = await service.whatCanIMake(premiumUser);
+    // The egg dish is a perfect pantry match (would otherwise top the
+    // ranking) but must never appear — it's unsafe for this table.
+    expect(answer).not.toContain('Spinach Feta Omelette');
   });
 
   // ── Week savings (list header + ChefReview.savedEur seam) ─────────────────

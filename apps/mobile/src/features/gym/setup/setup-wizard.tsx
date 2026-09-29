@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import type {
   GymEquipmentAccess,
+  GymSplitPreference,
   TrainingExperience,
   VolumeGroup,
   WeightUnit,
@@ -25,6 +26,7 @@ import {
 } from '@chefer/ui-mobile';
 import { cn, unitLabel, unitToKg, VOLUME_GROUP_LABELS, weightUnitForSystem } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { ExerciseNameLink } from '../components/exercise-name-link';
 import { ensureGymReminderPermission } from '../reminders/permission';
 import { gymBootstrapQueryKey } from '../use-gym-bootstrap';
 import { defaultUnitFromLocale } from './locale-unit';
@@ -79,12 +81,38 @@ function StepHeader({ title, description }: { title: string; description: string
   );
 }
 
+/** "0,2,4" → [0, 2, 4] (weekday indices, Mon = 0), invalid/out-of-range entries dropped. */
+function parseWeekdaysParam(raw: string | undefined): number[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+}
+
 export function SetupWizard() {
   const queryClient = useQueryClient();
 
-  const [step, setStep] = useState(1);
-  const [days, setDays] = useState(3);
+  // T-03.4 (UX-03 AC2/AC3): L-HOME's onboarding hands off to gym setup with
+  // `?from=onboarding&days=0,2,4` when the user picked Train + a food job —
+  // step 1 (count) and step 4 (weekdays) come pre-filled and the wizard
+  // opens straight at step 2, skipping the now-redundant count question.
+  // Train-only unchanged (no params, AC2): opens at step 1 as it always has.
+  const params = useLocalSearchParams<{ from?: string; days?: string }>();
+  const fromOnboarding = params.from === 'onboarding';
+  const initialWeekdays = useMemo(
+    () => (fromOnboarding ? parseWeekdaysParam(params.days) : []),
+    [fromOnboarding, params.days],
+  );
+  const firstStep = fromOnboarding && initialWeekdays.length > 0 ? 2 : 1;
+
+  const [step, setStep] = useState(firstStep);
+  const [days, setDays] = useState(initialWeekdays.length > 0 ? initialWeekdays.length : 3);
   const [experience, setExperience] = useState<TrainingExperience>('BEGINNER');
+  // UX-05 B (T-05.2): "Do you already follow a split?" — only asked once the
+  // user says they're Experienced. `null` = "Pick one for me" (the default,
+  // and what a "New or returning" answer implies too).
+  const [split, setSplit] = useState<GymSplitPreference | null>(null);
   const [equipmentAccess, setEquipmentAccess] = useState<GymEquipmentAccess>('FULL_GYM');
   const [unit, setUnit] = useState<WeightUnit>(() => defaultUnitFromLocale());
   // One unit preference across Food and Gym (P2-6): once preferences load,
@@ -99,7 +127,7 @@ export function SetupWizard() {
     const preferred = prefs.data?.chefProfile?.preferredUnits;
     if (preferred) setUnit(weightUnitForSystem(preferred));
   }, [prefs.isLoading, prefs.data]);
-  const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [weekdays, setWeekdays] = useState<number[]>(initialWeekdays);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderHour, setReminderHour] = useState(7);
   const [reminderMinute, setReminderMinute] = useState(0);
@@ -117,8 +145,13 @@ export function SetupWizard() {
   };
 
   const recommendInput = useMemo(
-    () => ({ days, experience, equipmentAccess }),
-    [days, experience, equipmentAccess],
+    () => ({
+      days,
+      experience,
+      equipmentAccess,
+      ...(experience === 'INTERMEDIATE' && split ? { split } : {}),
+    }),
+    [days, experience, equipmentAccess, split],
   );
   const recommendQuery = trpc.gym.profile.recommend.useQuery(recommendInput, {
     enabled: step >= 5,
@@ -169,7 +202,10 @@ export function SetupWizard() {
 
   const goBack = () => {
     if (completeSetupMutation.isPending) return;
-    if (step === 1) {
+    // T-03.4: back from the wizard's first visible step — step 1 normally,
+    // or step 2 when onboarding pre-filled step 1 and skipped it — returns
+    // to whatever pushed this screen (onboarding, or Today).
+    if (step === firstStep) {
       if (router.canGoBack()) router.back();
       else router.replace('/today');
       return;
@@ -201,6 +237,7 @@ export function SetupWizard() {
       templateKey,
       plannedWeekdays: [...weekdays].sort((a, b) => a - b),
       reminderTime,
+      ...(experience === 'INTERMEDIATE' && split ? { split } : {}),
       ...(weightsChoice === 'know' && Object.keys(knownWeightsKg).length > 0
         ? { knownWeightsKg }
         : {}),
@@ -303,6 +340,7 @@ export function SetupWizard() {
                 const next = v[0];
                 if (next) {
                   setExperience(next);
+                  if (next === 'BEGINNER') setSplit(null);
                   resetForNewRecommendation();
                 }
               }}
@@ -310,6 +348,37 @@ export function SetupWizard() {
             <Text variant="muted" className="text-xs">
               &quot;New or returning&quot; means under 6 months of consistent lifting.
             </Text>
+
+            {/* UX-05 B (T-05.2): only asked once experienced — a follow-up on
+                the same screen, so step 5 can lead with the matching template. */}
+            {experience === 'INTERMEDIATE' && (
+              <View className="gap-2">
+                <Text variant="label">Do you already follow a split?</Text>
+                <ChipGroup
+                  testID="gym-setup-split"
+                  options={[
+                    {
+                      value: 'PICK_FOR_ME',
+                      label: 'Pick one for me',
+                      testID: 'gym-setup-split-auto',
+                    },
+                    {
+                      value: 'PUSH_PULL_LEGS',
+                      label: 'Push / Pull / Legs',
+                      testID: 'gym-setup-split-ppl',
+                    },
+                    { value: 'UPPER_LOWER', label: 'Upper / Lower', testID: 'gym-setup-split-ul' },
+                    { value: 'FULL_BODY', label: 'Full body', testID: 'gym-setup-split-fb' },
+                  ]}
+                  value={[split ?? 'PICK_FOR_ME']}
+                  onChange={(v) => {
+                    const next = v[0];
+                    setSplit(!next || next === 'PICK_FOR_ME' ? null : next);
+                    resetForNewRecommendation();
+                  }}
+                />
+              </View>
+            )}
           </View>
         )}
 
@@ -466,6 +535,41 @@ export function SetupWizard() {
                     </Text>
                   )}
                 </Card>
+                {/* UX-05 B (T-05.2, AC3): alternatives sit right under the
+                    program card as visible rows — never below the fold —
+                    with the existing "Choose another program" sheet kept as
+                    a second path to the full list. */}
+                {recommendQuery.data && recommendQuery.data.alternatives.length > 0 && (
+                  <View className="gap-2" testID="gym-setup-alternatives-inline">
+                    <Text variant="label">Other programs that fit {days} days</Text>
+                    {recommendQuery.data.alternatives.map((t) => (
+                      <Card
+                        key={t.key}
+                        testID={`gym-setup-alt-inline-${t.key}`}
+                        className="flex-row items-center justify-between gap-2"
+                      >
+                        <View className="min-w-0 flex-1">
+                          <Text className="font-medium">{t.name}</Text>
+                          <Text variant="muted" className="text-xs">
+                            {t.daysPerWeek}× a week · {t.description}
+                          </Text>
+                        </View>
+                        <Button
+                          testID={`gym-setup-alt-use-${t.key}`}
+                          size="sm"
+                          variant="outline"
+                          onPress={() => {
+                            setOverrideKey(t.key);
+                            setWeightsChoice(null);
+                            setKnownWeights({});
+                          }}
+                        >
+                          Use this
+                        </Button>
+                      </Card>
+                    ))}
+                  </View>
+                )}
                 <View className="gap-3">
                   {preview.days.map((day, i) => (
                     <Card
@@ -481,9 +585,14 @@ export function SetupWizard() {
                       </View>
                       {day.exercises.map((ex) => (
                         <View key={ex.exerciseId} className="flex-row items-center justify-between">
-                          <Text numberOfLines={1} className="min-w-0 flex-1 pr-2 text-sm">
-                            {ex.name}
-                          </Text>
+                          <ExerciseNameLink
+                            testID={`gym-setup-preview-exercise-${ex.exerciseId}`}
+                            exerciseId={ex.exerciseId}
+                            name={ex.name}
+                            numberOfLines={1}
+                            className="flex-1 pr-2"
+                            textClassName="text-sm"
+                          />
                           <Text variant="muted" className="text-xs">
                             {ex.sets} ×{' '}
                             {ex.repMin === ex.repMax ? ex.repMin : `${ex.repMin}-${ex.repMax}`}

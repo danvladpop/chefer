@@ -39,16 +39,27 @@ function isWholeNumber(raw: string, min: number): boolean {
   return Number.isInteger(n) && n >= min;
 }
 
-/** Validation shared by the create and edit forms. Page-specific rules are merged on top. */
+/**
+ * Validation shared by the create and edit forms. Page-specific rules (the
+ * ingredients minimum) are merged on top.
+ *
+ * T-40.6 (D-19): only the name is required here — description, prep/cook
+ * time and steps are all optional (a blank time means "unknown", not "0
+ * minutes"). A typed time or servings value is still checked: a stray
+ * "1.5" or "-2" doesn't silently become 0.
+ */
 export function validateRecipeCore(values: RecipeCoreValues): RecipeFormErrors {
   const errs: RecipeFormErrors = {};
   if (!values.name.trim()) errs.name = 'Recipe name is required.';
-  if (!values.description.trim()) errs.description = 'Description is required.';
-  if (!isWholeNumber(values.prepTimeMins, 0)) errs.prepTimeMins = 'Whole minutes, 0 or more.';
-  if (!isWholeNumber(values.cookTimeMins, 0)) errs.cookTimeMins = 'Whole minutes, 0 or more.';
-  if (!isWholeNumber(values.servings, 1)) errs.servings = 'Whole number, 1 or more.';
-  if (values.instructions.every((s) => !s.trim()))
-    errs.instructions = 'Add at least one instruction step.';
+  if (values.prepTimeMins.trim() !== '' && !isWholeNumber(values.prepTimeMins, 0)) {
+    errs.prepTimeMins = 'Whole minutes, 0 or more.';
+  }
+  if (values.cookTimeMins.trim() !== '' && !isWholeNumber(values.cookTimeMins, 0)) {
+    errs.cookTimeMins = 'Whole minutes, 0 or more.';
+  }
+  if (values.servings.trim() !== '' && !isWholeNumber(values.servings, 1)) {
+    errs.servings = 'Whole number, 1 or more.';
+  }
   return errs;
 }
 

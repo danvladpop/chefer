@@ -13,12 +13,18 @@ export {
   type FormatMoneyOptions,
 } from './currency';
 export {
+  CM_PER_IN,
   EUROZONE_REGIONS,
   IMPERIAL_REGIONS,
+  cmToIn,
   defaultsForRegion,
   detectRegion,
+  inToCm,
+  inferUnitsFromInput,
   regionFromLocale,
   type DisplayDefaults,
+  type UnitInferenceInput,
+  type UnitInferenceResult,
 } from './locale';
 
 export {
@@ -55,6 +61,8 @@ export {
   keyBy,
   flattenObject,
 } from './object';
+
+export { isHealthTopic, isSafetyTopic } from './health-topic';
 
 export {
   invariant,
@@ -216,8 +224,14 @@ export {
   type LoggedMealEntryLike,
 } from './tracker';
 
-export { defaultCookServings, guessMealType, parseStepDuration } from './cook-mode';
-export { buildPickerSections, type PickerSection } from './recipe-picker';
+export { defaultCookServings, finishMealCopy, guessMealType, parseStepDuration } from './cook-mode';
+export {
+  buildPickerSections,
+  filterReplaceCandidates,
+  type FilterReplaceCandidatesOptions,
+  type PickerSection,
+  type ReplaceCandidateLike,
+} from './recipe-picker';
 export * from './gym';
 export {
   BODY_WEIGHT_KG_MIN,
@@ -235,9 +249,14 @@ export {
   type WeightParseResult,
 } from './weight';
 export {
+  KCAL_PER_G,
+  MACRO_SANITY_TOLERANCE,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
+  checkMacroSanity,
+  formatQuickAddGrams,
   parseQuickAdd,
+  type MacroSanityResult,
   type QuickAddEntry,
   type QuickAddErrors,
   type QuickAddInput,
@@ -264,13 +283,17 @@ export {
   type PlanStatus,
 } from './day-nutrition';
 export {
+  BMI_ADJUSTED_WEIGHT_THRESHOLD,
+  GOAL_WORDING,
   LIFTER_PROTEIN_G_PER_KG,
   LIFTER_PROTEIN_G_PER_KG_BY_GOAL,
   POST_WORKOUT_PROTEIN_G_PER_KG,
   TRAINING_DAY_KCAL,
   TRAINING_DAY_PROTEIN_G_PER_KG,
+  adjustedProteinWeightKg,
   applyTrainingDayBonus,
   buildTrainingDayNutrition,
+  goalWording,
   hasTrainingDayBump,
   isLifter,
   lifterProteinGPerKg,
@@ -281,6 +304,7 @@ export {
   trainingDayLine,
   trainingWeekdays,
   withLifterProtein,
+  withLifterProteinDetailed,
   type ResolvedTrainingDay,
   type TrainingDayBonus,
 } from './training-nutrition';
@@ -366,3 +390,141 @@ export {
   type VideoDraftFormValues,
   type VideoDraftLike,
 } from './video-import';
+
+// ─── Wave-0 shared contracts (T-00.5, T-00.7) ─────────────────────────────────
+export {
+  glossaryDefinition,
+  GLOSSARY,
+  type GlossaryDefinition,
+  type GlossaryTermId,
+} from './glossary';
+export { defaultWeekOffset, getWeekStartDate } from './week-default';
+export { defaultMealSlot } from './meal-slot';
+export {
+  canShowNudge,
+  INITIAL_NUDGE_CAP_STATE,
+  markNudgeDismissed,
+  markNudgeShown,
+  NUDGE_DISMISS_COOLDOWN_MS,
+  type NudgeCapState,
+} from './nudge-cap';
+export {
+  effectiveJobs,
+  legacyIntentForJobs,
+  TRACK_INFERENCE_MIN_DAYS,
+  type EffectiveJobsInput,
+} from './effective-jobs';
+export { priceRange, formatPriceRange, PRICE_RANGE_BAND, type PriceRange } from './price-range';
+export { pickProteinSnacks, PROTEIN_SNACKS, type ProteinSnack } from './protein-snacks';
+export { homeCardOrder, HOME_CARD_IDS, type HomeCardId } from './home-cards';
+export { landingFor, type LandingInput, type LandingSurface } from './landing';
+export {
+  explainCarbsFatSentence,
+  explainKcalSentence,
+  explainProteinSentence,
+  missingMetricsSentence,
+  ownTargetSentence,
+} from './explain-targets';
+export {
+  isValidPlanShape,
+  planButtonLabel,
+  planShapeSummary,
+  resolvePlanDays,
+  resolvePlanSlots,
+} from './plan-shape';
+export { recogniseSafetyTerm, type SafetyRecogniseOutcome } from './safety-recognise';
+export {
+  classifySafetyValue,
+  serialiseSafetyPickerValue,
+  BASE_DIET_IDS,
+  DIET_MODIFIER_IDS,
+  type SafetyPickerValue,
+  type ClassifiedSafetyValue,
+  type BaseDietId,
+  type DietModifierId,
+} from './safety-classify';
+export {
+  formatDinnersForSharing,
+  formatListForSharing,
+  shareListFooter,
+  SHARE_LIST_FOOTER_TEMPLATE,
+  type ShareDinner,
+  type ShareListItem,
+  type ShareListOptions,
+  type ShareListScope,
+} from './share-list';
+
+export {
+  SAFETY_COPY,
+  type SafetyCopyKey,
+  type CheckedRuleLike,
+  checkedForLineText,
+  checkedForChipText,
+  checkedForChipA11yLabel,
+  cantCheckLine,
+  filteredForLineText,
+  pickerFooterText,
+  checkedForListHeaderText,
+  tableSummaryLine,
+  conflictConfirmTitle,
+  conflictConfirmBody,
+  checkLabelChipText,
+  labelCaveatLineText,
+  labelCaveatCompactText,
+  reportSentSnackbarText,
+  recognisedAddedText,
+  recognisedDietSetText,
+  recognisedModifierAddedText,
+  recognisedDislikeAddedText,
+  unrecognisedNoticeText,
+  conditionNoticeText,
+  migrationMappingText,
+  migrationMappingUncheckedText,
+  memberSummaryLine,
+  allergiesAndDietForText,
+} from './safety-copy';
+export { WELLNESS_COPY, type WellnessCopyKey } from './wellness-copy';
+export {
+  allPitchStrings,
+  downgradeLosses,
+  hasFoodJob,
+  isBulletAvailable,
+  PREMIUM_PITCH_COPY,
+  premiumJobFor,
+  premiumPitchFor,
+  showSnapTaste,
+  type DowngradeUsage,
+  type PremiumPitch,
+  type PremiumPitchContext,
+  type PremiumPitchCopyKey,
+  type PremiumPitchOptions,
+} from './premium-pitch';
+export { tagConflicts, type RecipeTagConflict } from './recipe-tags';
+export {
+  formatFractionalQuantity,
+  formatScaledQuantity,
+  formatServingsPair,
+  isUnscalableUnit,
+} from './scaled-quantity';
+export {
+  parseQuantity,
+  recipeMissingFields,
+  firstIncompleteIngredientLineIndex,
+  missingSummary,
+  type RecipeFormIngredientLike,
+  type RecipeFormMinimum,
+  type RecipeFormMissingField,
+} from './recipe-form';
+export {
+  PLAN_TAILORING_COPY,
+  isTailoringRunning,
+  newlyTailoredDays,
+  shouldShowTailoringBanner,
+  tailoringBannerText,
+  tailoringDayLabel,
+  tailoringDayState,
+  tailoringProgress,
+  type PlanTailoringCopyKey,
+  type TailoringBannerText,
+  type TailoringDayState,
+} from './plan-tailoring';

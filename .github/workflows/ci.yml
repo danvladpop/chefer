@@ -152,6 +152,54 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
+  # ─── UTC-day guard (§2.12, T-21.1/T-00.10) ───────────────────────────────────
+  # Grep-based lint: fails on a server-UTC "day" derivation in
+  # apps/api/src/application/** outside the allowlist (scripts/check-utc-days.mjs).
+  utc-day-guard:
+    name: UTC Day Guard
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Check for server-UTC day derivation
+        run: node scripts/check-utc-days.mjs
+
+  # ─── Safety regression (§2.1, T-01.1) ────────────────────────────────────────
+  # Every curated recipe x a fixture matrix of safety profiles — the B-26
+  # evidence artefact. Wave 0 (T-00.10) scaffolds the job: it runs today with
+  # --passWithNoTests (green, no test file yet) and starts enforcing the
+  # moment T-01.1 adds apps/api/src/application/safety/safety.regression.test.ts.
+  safety-regression:
+    name: Safety Regression
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run safety regression suite
+        working-directory: apps/api
+        run: npx vitest run --passWithNoTests src/application/safety/safety.regression.test.ts
+
   # ─── Mobile Bundle ────────────────────────────────────────────────────────────
   # Headless Metro export of the Expo app — catches monorepo-resolution breakage
   # and RN-incompatible imports without any simulator. Maestro E2E stays
@@ -209,6 +257,10 @@ jobs:
       REFRESH_TOKEN_SECRET: ci-only-refresh-secret-0123456789abcdef012345
       AI_MOCK_ENABLED: 'true'
       EMAIL_MOCK_ENABLED: 'true'
+      # The whole suite runs against one API from one IP; the default
+      # 100 requests/min limiter returns 429s once the suite grows.
+      RATE_LIMIT_MAX: '3000'
+      AUTH_RATE_LIMIT_MAX: '200'
     steps:
       - name: Checkout
         uses: actions/checkout@v4

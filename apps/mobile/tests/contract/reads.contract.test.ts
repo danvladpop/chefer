@@ -37,6 +37,35 @@ describe('protected reads via Bearer', () => {
     expect(page).toBeTruthy();
   });
 
+  it('recipe.list({ forTable: true }) drops rows unsafe for the allergy just set (B-34/B-46, T-00.11)', async () => {
+    const before = await client.preferences.get.query();
+    const originalPrefs = {
+      dietaryRestrictions: before.dietaryPreferences?.dietaryRestrictions ?? [],
+      allergies: before.dietaryPreferences?.allergies ?? [],
+      dislikedIngredients: before.dietaryPreferences?.dislikedIngredients ?? [],
+    };
+    try {
+      const unfiltered = await client.recipe.list.query({ limit: 50 });
+      const eggRecipe = unfiltered.find((r) =>
+        (r.ingredients as { name: string }[]).some((i) => /\begg\b/i.test(i.name)),
+      );
+      if (!eggRecipe) {
+        console.warn(
+          '[reads.contract] no egg recipe in the catalog — forTable filter not exercised',
+        );
+        return;
+      }
+      await client.preferences.updateSafety.mutate({
+        ...originalPrefs,
+        allergies: [...originalPrefs.allergies, 'egg'],
+      });
+      const filtered = await client.recipe.list.query({ limit: 50, forTable: true });
+      expect(filtered.some((r) => r.id === eggRecipe.id)).toBe(false);
+    } finally {
+      await client.preferences.updateSafety.mutate(originalPrefs);
+    }
+  });
+
   it('recipe detail queries respond for a listed recipe (M2-3)', async () => {
     const page = await client.recipe.list.query({ limit: 1 });
     const first = page.at(0);
@@ -79,5 +108,27 @@ describe('protected reads via Bearer', () => {
     expect(summary).toBeTruthy();
     const dates = JSON.stringify(summary).length;
     expect(dates).toBeGreaterThan(2);
+  });
+
+  it('user.dismissEmailDefaultsNotice is idempotent and reflected on user.me (T-39.3)', async () => {
+    const first = await client.user.dismissEmailDefaultsNotice.mutate();
+    expect(first.emailDefaultsNoticeAt).toBeTruthy();
+
+    const second = await client.user.dismissEmailDefaultsNotice.mutate();
+    expect(second.emailDefaultsNoticeAt).toEqual(first.emailDefaultsNoticeAt);
+
+    const me = await client.user.me.query();
+    expect(me.emailDefaultsNoticeAt).toEqual(first.emailDefaultsNoticeAt);
+  });
+
+  it('privacy.getConsentHistory + recordAnalyticsConsent round-trip over Bearer (T-39.2)', async () => {
+    const before = await client.privacy.getConsentHistory.query();
+    await client.privacy.recordAnalyticsConsent.mutate({ anonymous: true, linked: false });
+    const after = await client.privacy.getConsentHistory.query();
+    // Two new rows (ANALYTICS_ANON + ANALYTICS_LINKED), both from this call.
+    expect(after.length).toBe(before.length + 2);
+    const newRows = after.slice(0, 2);
+    expect(newRows.map((r) => r.kind).sort()).toEqual(['ANALYTICS_ANON', 'ANALYTICS_LINKED']);
+    expect(newRows.every((r) => r.source === 'mobile')).toBe(true);
   });
 });

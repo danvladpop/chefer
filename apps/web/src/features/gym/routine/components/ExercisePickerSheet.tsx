@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { ExerciseImage } from '@/features/gym/library/ExerciseImage';
 import { exerciseImageUrl } from '@/features/gym/use-gym-bootstrap';
-import { Search } from 'lucide-react';
-import type { ExerciseDto, VolumeGroup } from '@chefer/types';
+import { Search, X } from 'lucide-react';
+import { HIDDEN_EXERCISE_IMAGE_IDS, type ExerciseDto, type VolumeGroup } from '@chefer/types';
 import { Badge, Sheet } from '@chefer/ui';
 import { cn, VOLUME_GROUP_LABELS } from '@chefer/utils';
 import { filterExercises, sortBySwapGroupFirst } from '../exercise-filter';
@@ -61,8 +62,21 @@ export function ExercisePickerSheet({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search exercises"
-            className="h-11 w-full rounded-lg border border-gray-200 pl-9 pr-3 text-base focus:border-gray-400 focus:outline-none sm:h-10 sm:text-sm"
+            className={cn(
+              'h-11 w-full rounded-lg border border-gray-200 pl-9 text-base focus:border-gray-400 focus:outline-none sm:h-10 sm:text-sm',
+              query ? 'pr-9' : 'pr-3',
+            )}
           />
+          {query ? (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setQuery('')}
+              className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
 
         <div
@@ -116,15 +130,17 @@ export function ExercisePickerSheet({
               onClick={() => handlePick(exercise)}
               className="flex min-h-14 w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-gray-50"
             >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
-                {image ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- picker thumbnails, dozens per open; next/image adds no benefit here
-                  <img src={image} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-lg" aria-hidden="true">
-                    🏋️
-                  </span>
-                )}
+              <div className="w-16 shrink-0">
+                <ExerciseImage
+                  uri={image}
+                  equipment={exercise.equipment}
+                  name={exercise.name}
+                  size="thumb"
+                  hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(exercise.id)}
+                  analyticsExerciseId={exercise.ownerId ? 'custom' : exercise.id}
+                  className="rounded-lg"
+                  testId={`exercise-picker-item-${exercise.id}-image`}
+                />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-gray-900">{exercise.name}</p>

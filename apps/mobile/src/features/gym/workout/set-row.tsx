@@ -10,6 +10,7 @@ import type {
 } from '@chefer/types';
 import { Text, ValueStepper } from '@chefer/ui-mobile';
 import { cn, formatLoad, formatLoadNumber, unitLabel } from '@chefer/utils';
+import { SwipeToRemove } from '../../../components/swipe-to-remove';
 import { nextLoad, PR_LABELS, type WeightMode } from './workout-model';
 
 // One set: `label | last time (muted) | [− weight +] | [− reps +] | ✓`
@@ -110,92 +111,114 @@ function SetRowImpl({
       : '';
 
   return (
-    // accessible={false}: the steppers and ✓ stay individually reachable by
-    // screen readers (the exercise ⋯ menu also offers "Remove set").
-    <Pressable
-      testID={testID}
-      accessible={false}
-      onLongPress={longPress}
-      className={cn(
-        'gap-0.5 rounded-lg border px-1 py-1',
-        done
-          ? 'border-transparent bg-emerald-50'
-          : focused
-            ? 'border-primary/40'
-            : 'border-transparent',
-      )}
-    >
-      <View className="min-h-5 flex-row items-center gap-2 px-1">
-        <Text testID={`${testID}-label`} className="text-xs font-semibold text-foreground">
-          {label}
-        </Text>
-        <Text
-          testID={`${testID}-last`}
-          numberOfLines={1}
-          className="min-w-0 flex-1 text-xs text-muted-foreground"
-        >
-          {lastText}
-        </Text>
-        {prKind ? (
-          <View className="rounded-full bg-amber-100 px-2 py-0.5">
-            <RNText testID={`${testID}-pr`} className="text-xs font-bold text-amber-800">
-              {PR_LABELS[prKind]}
-            </RNText>
-          </View>
-        ) : null}
-      </View>
-      <View className="flex-row items-center gap-1">
-        {weightMode === 'none' ? (
-          <View className="min-h-11 flex-1 items-center justify-center">
-            <Text testID={`${testID}-weight-value`} className="text-base font-semibold">
-              BW
-            </Text>
-          </View>
-        ) : (
+    // T-05.A1.2 (PAT-16, Δ2.6): swipe left removes the set, same path as the
+    // ⋯/long-press options below — SwipeToRemove is progressive enhancement,
+    // never the only way to remove it (AC14).
+    <SwipeToRemove testID={`${testID}-swipe`} onRemove={longPress}>
+      {/* accessible={false}: the steppers and ✓ stay individually reachable by
+          screen readers (the exercise ⋯ menu also offers "Remove set"). */}
+      <Pressable
+        testID={testID}
+        accessible={false}
+        onLongPress={longPress}
+        className={cn(
+          'gap-0.5 rounded-lg border px-1 py-1',
+          done
+            ? 'border-transparent bg-emerald-50'
+            : focused
+              ? 'border-primary/40'
+              : 'border-transparent',
+        )}
+      >
+        <View className="min-h-5 flex-row items-center gap-2 px-1">
+          <Text testID={`${testID}-label`} className="text-xs font-semibold text-foreground">
+            {label}
+          </Text>
+          <Text
+            testID={`${testID}-last`}
+            numberOfLines={1}
+            className="min-w-0 flex-1 text-xs text-muted-foreground"
+          >
+            {lastText}
+          </Text>
+          {prKind ? (
+            <View className="rounded-full bg-amber-100 px-2 py-0.5">
+              <RNText testID={`${testID}-pr`} className="text-xs font-bold text-amber-800">
+                {PR_LABELS[prKind]}
+              </RNText>
+            </View>
+          ) : null}
+          {/* UX-05 A1 (T-05.A1.2, PAT-16): a visible ⋯ on every set's label
+            line, opening the same remove options as long-press. */}
+          <Pressable
+            testID={`${testID}-menu`}
+            accessibilityRole="button"
+            accessibilityLabel={`Options for ${label}`}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={longPress}
+            className="h-11 w-11 items-center justify-center"
+          >
+            <RNText className="text-lg font-bold text-muted-foreground">⋯</RNText>
+          </Pressable>
+        </View>
+        {/* UX-05 A1 (T-05.A1.1, O-05/O-06): grouped kg/reps containers 8 pt
+          apart, and before the ✓, which is now a round 48 pt control — one
+          filled shape per control, not seven equal tiles. */}
+        <View className="flex-row items-center gap-2">
+          {weightMode === 'none' ? (
+            <View className="min-h-11 flex-1 items-center justify-center">
+              <Text testID={`${testID}-weight-value`} className="text-base font-semibold">
+                BW
+              </Text>
+            </View>
+          ) : (
+            <ValueStepper
+              className="flex-1"
+              testID={`${testID}-weight`}
+              variant="grouped"
+              name="Weight"
+              value={set.weightKg}
+              next={nextWeight}
+              onChange={setWeight}
+              format={formatWeight}
+              caption={weightCaption(meta, unit)}
+              onPressValue={openWeight}
+              done={done}
+            />
+          )}
           <ValueStepper
             className="flex-1"
-            testID={`${testID}-weight`}
-            name="Weight"
-            value={set.weightKg}
-            next={nextWeight}
-            onChange={setWeight}
-            format={formatWeight}
-            caption={weightCaption(meta, unit)}
-            onPressValue={openWeight}
+            testID={`${testID}-reps`}
+            variant="grouped"
+            name={timed ? 'Seconds' : 'Reps'}
+            value={set.reps}
+            next={nextReps}
+            onChange={setReps}
+            format={formatReps}
+            caption={repsCaption}
+            onPressValue={openReps}
             done={done}
           />
-        )}
-        <ValueStepper
-          className="flex-1"
-          testID={`${testID}-reps`}
-          name={timed ? 'Seconds' : 'Reps'}
-          value={set.reps}
-          next={nextReps}
-          onChange={setReps}
-          format={formatReps}
-          caption={repsCaption}
-          onPressValue={openReps}
-          done={done}
-        />
-        <Pressable
-          testID={`${testID}-check`}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: done }}
-          accessibilityLabel={done ? `${summary}. Logged, tap to undo` : `Log ${summary}`}
-          onPress={() => onTick(seId, set.id)}
-          className={cn(
-            'h-14 w-14 items-center justify-center rounded-xl border-2 active:opacity-70',
-            done ? 'border-emerald-600 bg-emerald-600' : 'border-border bg-background',
-          )}
-        >
-          <RNText
-            className={cn('text-2xl font-bold', done ? 'text-white' : 'text-muted-foreground')}
+          <Pressable
+            testID={`${testID}-check`}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: done }}
+            accessibilityLabel={done ? `${summary}. Logged, tap to undo` : `Log ${summary}`}
+            onPress={() => onTick(seId, set.id)}
+            className={cn(
+              'h-12 w-12 items-center justify-center rounded-full border-2 active:opacity-70',
+              done ? 'border-emerald-600 bg-emerald-600' : 'border-primary/40 bg-background',
+            )}
           >
-            ✓
-          </RNText>
-        </Pressable>
-      </View>
-    </Pressable>
+            <RNText
+              className={cn('text-2xl font-bold', done ? 'text-white' : 'text-muted-foreground')}
+            >
+              ✓
+            </RNText>
+          </Pressable>
+        </View>
+      </Pressable>
+    </SwipeToRemove>
   );
 }
 

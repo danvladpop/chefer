@@ -6,6 +6,7 @@ import {
   buildCheferizeUserPrompt,
   buildExtractRecipeUserPrompt,
   buildIngredientPricesPrompt,
+  buildMealPlanDayChunkPrompt,
   buildMealPlanUserPrompt,
   buildReviewUserPrompt,
   buildShoppingListPrompt,
@@ -17,6 +18,7 @@ import {
   INGREDIENT_PRICES_SYSTEM_PROMPT,
   MEAL_PHOTO_SYSTEM_PROMPT,
   MEAL_PHOTO_USER_PROMPT,
+  MEAL_PLAN_DAY_CHUNK_RULES,
   MEAL_PLAN_SYSTEM_PROMPT,
   REVIEW_SYSTEM_PROMPT,
   SHOPPING_LIST_SYSTEM_PROMPT,
@@ -25,6 +27,7 @@ import {
 import {
   annotatedExtractionSchema,
   cheferizedRecipeSchema,
+  dayPlanSchema,
   extractedRecipeSchema,
   ingredientPricesResponseSchema,
   parseMealPhotoResponse,
@@ -39,10 +42,12 @@ import type {
   CheferizedRecipe,
   CheferizeInput,
   CoachReviewInput,
+  DayPlan,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
   MealPhotoEstimate,
+  MealPlanDayRequest,
   MealPlanInput,
   RecipeData,
   RecipeExtractionSource,
@@ -132,32 +137,35 @@ const RECIPE_SCHEMA: Schema = {
   ],
 };
 
+/** One plan day — the week's item schema, also used alone for live tailoring. */
+const DAY_PLAN_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    dayOfWeek: { type: Type.INTEGER },
+    meals: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          type: {
+            type: Type.STRING,
+            enum: ['breakfast', 'lunch', 'dinner', 'snack'],
+          },
+          recipe: RECIPE_SCHEMA,
+        },
+        required: ['type', 'recipe'],
+      },
+    },
+  },
+  required: ['dayOfWeek', 'meals'],
+};
+
 const WEEK_PLAN_SCHEMA: Schema = {
   type: Type.OBJECT,
   properties: {
     days: {
       type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          dayOfWeek: { type: Type.INTEGER },
-          meals: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                type: {
-                  type: Type.STRING,
-                  enum: ['breakfast', 'lunch', 'dinner', 'snack'],
-                },
-                recipe: RECIPE_SCHEMA,
-              },
-              required: ['type', 'recipe'],
-            },
-          },
-        },
-        required: ['dayOfWeek', 'meals'],
-      },
+      items: DAY_PLAN_SCHEMA,
     },
   },
   required: ['days'],
@@ -454,6 +462,49 @@ export class GeminiAIService implements IAIService {
     }
 
     return parsed.data;
+  }
+
+  /** Live tailoring: one day, with the same prompt rules as the chunked week. */
+  async generateMealPlanDay(input: MealPlanInput, request: MealPlanDayRequest): Promise<DayPlan> {
+    const response = await this.generateWithRetry(
+      {
+        model: this.models.main,
+        contents: buildMealPlanDayChunkPrompt(input, request.dayOfWeek, request.alreadyPlanned),
+        config: {
+          systemInstruction: MEAL_PLAN_SYSTEM_PROMPT + MEAL_PLAN_DAY_CHUNK_RULES,
+          responseMimeType: 'application/json',
+          responseSchema: DAY_PLAN_SCHEMA,
+          temperature: 0.7,
+          maxOutputTokens: 4096,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      },
+      'generateMealPlanDay',
+    );
+    let raw: string | null | undefined;
+    try {
+      raw = response.text;
+    } catch (err) {
+      throw new Error(
+        `GeminiAIService: could not read response text — ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (!raw) throw new Error('GeminiAIService: empty response from generateMealPlanDay');
+    let parsed;
+    try {
+      parsed = dayPlanSchema.safeParse(JSON.parse(raw));
+    } catch (err) {
+      throw new Error(
+        `GeminiAIService: day plan JSON is malformed — ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (!parsed.success) {
+      throw new Error(`GeminiAIService: day plan failed validation — ${parsed.error.message}`);
+    }
+    // The position is authoritative; images come from our own pipeline.
+    const day: DayPlan = { ...parsed.data, dayOfWeek: request.dayOfWeek };
+    for (const meal of day.meals) meal.recipe.imageUrl = null;
+    return day;
   }
 
   async generateRecipeSwap(input: SwapInput): Promise<RecipeData> {

@@ -91,6 +91,150 @@ describe('onboardingSteps', () => {
       'cuisine',
     ]);
   });
+
+  describe('v2 (jobs-based routing, T-00.7)', () => {
+    it('an empty jobs array keeps v1 behaviour exactly', () => {
+      expect(
+        onboardingSteps({ intent: 'HOUSEHOLD', askIntent: true, isPremium: false, jobs: [] }),
+      ).toEqual(onboardingSteps({ intent: 'HOUSEHOLD', askIntent: true, isPremium: false }));
+    });
+
+    it('stops after the question for TRAIN-only jobs', () => {
+      expect(
+        onboardingSteps({ intent: null, askIntent: true, isPremium: false, jobs: ['TRAIN'] }),
+      ).toEqual(['intent']);
+    });
+
+    it('adds the table step for HOUSEHOLD jobs', () => {
+      expect(
+        onboardingSteps({
+          intent: null,
+          askIntent: false,
+          isPremium: false,
+          jobs: ['HOUSEHOLD'],
+        }),
+      ).toEqual(['table', 'diet', 'goal', 'metrics']);
+    });
+
+    it('adds the targets step for a TRACK job', () => {
+      expect(
+        onboardingSteps({ intent: null, askIntent: false, isPremium: false, jobs: ['TRACK'] }),
+      ).toEqual(['diet', 'goal', 'metrics', 'targets']);
+    });
+
+    it('combines HOUSEHOLD + TRACK', () => {
+      expect(
+        onboardingSteps({
+          intent: null,
+          askIntent: false,
+          isPremium: true,
+          jobs: ['HOUSEHOLD', 'TRACK'],
+        }),
+      ).toEqual(['table', 'goal', 'metrics', 'diet', 'cuisine', 'targets']);
+    });
+  });
+
+  describe('v3 (jobs-based UI, T-03.2/T-03.7)', () => {
+    const base = { intent: null, askIntent: true, isPremium: false, askJobs: true } as const;
+
+    it('shows only the jobs step while unanswered', () => {
+      expect(onboardingSteps({ ...base, jobs: [] })).toEqual(['jobs']);
+    });
+
+    it('Train only stops after the jobs step (AC2 — gym setup unchanged)', () => {
+      expect(onboardingSteps({ ...base, jobs: ['TRAIN'] })).toEqual(['jobs']);
+    });
+
+    it('any food job, no Train: diet → howYouCook → goal → metrics (AC3 table)', () => {
+      expect(onboardingSteps({ ...base, jobs: ['PLAN_MEALS'] })).toEqual([
+        'jobs',
+        'diet',
+        'howYouCook',
+        'goal',
+        'metrics',
+      ]);
+    });
+
+    it('Feed my household adds the table step before diet (AC4)', () => {
+      expect(onboardingSteps({ ...base, jobs: ['HOUSEHOLD'] })).toEqual([
+        'jobs',
+        'table',
+        'diet',
+        'howYouCook',
+        'goal',
+        'metrics',
+      ]);
+    });
+
+    it('Use what I have still gets How you cook (edge case: plans use the kitchen)', () => {
+      expect(onboardingSteps({ ...base, jobs: ['USE_WHAT_I_HAVE'] })).toEqual([
+        'jobs',
+        'diet',
+        'howYouCook',
+        'goal',
+        'metrics',
+      ]);
+    });
+
+    it('Train + a food job: trainingDays → diet → howYouCook → goal → metrics (AC3)', () => {
+      expect(onboardingSteps({ ...base, jobs: ['TRAIN', 'PLAN_MEALS'] })).toEqual([
+        'jobs',
+        'trainingDays',
+        'diet',
+        'howYouCook',
+        'goal',
+        'metrics',
+      ]);
+    });
+
+    it('Train + a food job + a numeric goal adds targets before the gym hand-off', () => {
+      expect(
+        onboardingSteps({ ...base, jobs: ['TRAIN', 'PLAN_MEALS'], hasNumericGoal: true }),
+      ).toEqual(['jobs', 'trainingDays', 'diet', 'howYouCook', 'goal', 'metrics', 'targets']);
+    });
+
+    it('Track alone: diet → goal → metrics → targets, no How you cook (AC10)', () => {
+      expect(onboardingSteps({ ...base, jobs: ['TRACK'] })).toEqual([
+        'jobs',
+        'diet',
+        'goal',
+        'metrics',
+        'targets',
+      ]);
+    });
+
+    it('Track + a plan job adds How you cook after targets (T-03.7)', () => {
+      expect(onboardingSteps({ ...base, jobs: ['TRACK', 'PLAN_MEALS'] })).toEqual([
+        'jobs',
+        'diet',
+        'goal',
+        'metrics',
+        'targets',
+        'howYouCook',
+      ]);
+    });
+
+    it('premium adds cuisine at the end, same order otherwise (collapses into one builder)', () => {
+      expect(onboardingSteps({ ...base, isPremium: true, jobs: ['PLAN_MEALS'] })).toEqual([
+        'jobs',
+        'diet',
+        'howYouCook',
+        'goal',
+        'metrics',
+        'cuisine',
+      ]);
+    });
+
+    it('omitting askJobs keeps exact v1/v2 behaviour (web, until its own migration)', () => {
+      expect(onboardingSteps({ intent: 'HOUSEHOLD', askIntent: true, isPremium: false })).toEqual([
+        'intent',
+        'table',
+        'diet',
+        'goal',
+        'metrics',
+      ]);
+    });
+  });
 });
 
 describe('householdGhostSample', () => {

@@ -6,23 +6,98 @@ import {
   mealPlanRepository,
   mealRatingRepository,
   type LoggedMealEntry,
+  type TargetChange,
 } from '@chefer/database';
-import type { NutritionTargets, TrainingDayNutrition, UserProfile } from '@chefer/types';
-import { MEAL_ORDER, MEAL_WINDOW_END, resolveTodayMeals, slotPortion } from '@chefer/utils';
+import type {
+  NutritionTargets,
+  OnboardingJob,
+  SafetyChecks,
+  TrainingDayNutrition,
+  UserProfile,
+} from '@chefer/types';
+import {
+  effectiveJobs,
+  isSlotEaten,
+  MEAL_ORDER,
+  MEAL_WINDOW_END,
+  resolveTodayMeals,
+  slotPortion,
+  TRACK_INFERENCE_MIN_DAYS,
+} from '@chefer/utils';
 import type { NutritionInfo } from '../../lib/ai/index.js';
+import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
 import { hasFeature, isPremiumUser } from '../../lib/entitlements.js';
 import type { DailyTargets } from '../preferences/preferences.service.js';
+import { safetyService } from '../safety/safety.service.js';
 import {
   trainingDayFields,
   trainingNutritionService,
   type TrainingDayResult,
 } from '../training-nutrition/training-nutrition.service.js';
 
+// ─── T-04.2 additive types ──────────────────────────────────────────────────────
+
+/** `dashboard.summary({ include })` — the extra, opt-in reads (T-04.2). */
+export type DashboardIncludeOption =
+  | 'tonight'
+  | 'tomorrow'
+  | 'shopDue'
+  | 'safetyChecks'
+  | 'targets';
+
+export interface DashboardHeroMeal {
+  planId: string;
+  dayOfWeek: number;
+  slotIndex: number;
+  mealType: string;
+  done: boolean;
+  recipe: {
+    id: string;
+    name: string;
+    description: string;
+    imageUrl: string | null;
+    kcal: number;
+    servings: number;
+    prepTimeMins: number;
+    cookTimeMins?: number;
+  };
+  /**
+   * T-11 placement (Tonight hero only): the table's safety chip, decorated
+   * read-only from `SafetyService` — never written back into the stored plan
+   * JSON. Present only when `include` asked for it AND the table has rules
+   * (`CheckedForChip` renders nothing otherwise).
+   */
+  safetyChecks?: SafetyChecks;
+}
+
+export interface DashboardShopDue {
+  count: number;
+  sample: string[];
+  forDate: string;
+}
+
+export interface DashboardPlanVsTarget {
+  plannedKcal: number;
+  targetKcal: number;
+  status: 'under' | 'over' | 'on_target';
+}
+
+export interface DashboardPendingTargetChange {
+  id: string;
+  kind: string;
+  reason: string;
+  fields: { field: string; before: number; after: number }[];
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface DashboardSummary {
   user: { firstName: string | null; displayName: string | null };
   today: { date: string; dayOfWeek: number };
+  /** §2.4, T-04.2: the active plan's id, or null with no plan for this week — additive. */
+  planId: string | null;
+  /** §2.4, T-03.1/T-04.1: the effective jobs list (`effectiveJobs()`) — additive. */
+  jobs: OnboardingJob[];
   weekPlan: {
     dayOfWeek: number;
     meals: {
@@ -46,6 +121,13 @@ export interface DashboardSummary {
      * snacks logs as its own entry. Additive.
      */
     slotIndex?: number;
+    /**
+     * §2.4, T-04.2: which plan day this slot is on (0=Mon…6=Sun) — today's
+     * for `nextMeal`, tomorrow's for `tomorrowFirstMeal`. Paired with the
+     * top-level `planId`, lets Tonight's `Swap` sheet address the exact
+     * slot. Additive.
+     */
+    dayOfWeek?: number;
     recipe: {
       id: string;
       name: string;
@@ -60,6 +142,37 @@ export interface DashboardSummary {
   } | null;
   /** Set when every meal window today has passed — tomorrow's first meal. */
   tomorrowFirstMeal: DashboardSummary['nextMeal'];
+  /**
+   * §2.4, T-04.2: today's DINNER slot specifically (not "the next open
+   * meal") — the Tonight card. `include: ['tonight']` only; absent
+   * otherwise, `null` with no dinner planned or no active plan. `done`
+   * reflects today's log, independent of the meal-window clock (a dinner
+   * logged early is still "done", not "next").
+   */
+  tonight?: DashboardHeroMeal | null;
+  /**
+   * §2.4, T-04.2: tomorrow's first planned meal (dinner for a dinners-only
+   * plan). `include: ['tomorrow']` only.
+   */
+  tomorrow?: DashboardHeroMeal | null;
+  /**
+   * §2.4, T-04.2: unticked shopping-list lines used by tomorrow's planned
+   * meals. `include: ['shopDue']` only; `null` when nothing is due (hidden
+   * card) or there is no plan/list.
+   */
+  shopDue?: DashboardShopDue | null;
+  /**
+   * T-11 placement: today's planned kcal against the resolved target, for
+   * the ring's neutral status chip (UX-11 §3, `Plan: {planned} of {target}
+   * kcal`, never a warning on open). `include: ['targets']` only.
+   */
+  planVsTarget?: DashboardPlanVsTarget;
+  /**
+   * T-11 placement: the most recently detected unresolved `TargetChange`,
+   * for `ChangeNoticeCard` — read-only via `TargetsService` (owned by
+   * L-TRACK). `include: ['targets']` only; `null` when there is none.
+   */
+  pendingTargetChange?: DashboardPendingTargetChange | null;
   restOfToday: {
     mealType: string;
     scheduledLabel: string;
@@ -106,6 +219,23 @@ export interface DashboardSummary {
    * "your week is ready" at the start of the week.
    */
   weekReady: { preparedAt: Date; ratedCount: number } | null;
+  /**
+   * B-31 interim (T-00.12): the calorie ring, weight card, profile nudge and
+   * Snap-to-log assume a goal — meaningless (and once, embarrassing) for a
+   * user who never set one, e.g. someone who only wants to log what they
+   * ate. True when `chefProfile.goal` is set, OR the user already tracks
+   * (logged on ≥ 3 of the last 7 days — the ring stays home for them too,
+   * rev 2). No persisted field yet (that's wave 1's
+   * `ChefProfile.showNutritionOnToday`) — derived fresh every call.
+   */
+  showNutritionCards: boolean;
+  /**
+   * §2.4, T-04.1: the real successor to `showNutritionCards` above (kept
+   * for older clients) — an explicit `ChefProfile.showNutritionOnToday`
+   * wins either way (a goal-having user may still turn the ring off), else
+   * the same goal-or-tracks derivation. Additive.
+   */
+  showNutrition: boolean;
 }
 
 // ─── Meal type schedules ───────────────────────────────────────────────────────
@@ -170,10 +300,15 @@ export class DashboardService {
   async getSummary(
     userId: string,
     firstName: string | null,
-    local?: { localDate?: string | undefined; localHour?: number | undefined },
+    local?: {
+      localDate?: string | undefined;
+      localHour?: number | undefined;
+      include?: readonly DashboardIncludeOption[] | undefined;
+    },
     /** The viewer, for tier-gated extras (training-day bump). Optional for tests. */
     viewer?: UserProfile,
   ): Promise<DashboardSummary> {
+    const include = new Set(local?.include ?? []);
     // "Today" is the client's calendar day when it tells us; server time is
     // the fallback for older clients. A local date is kept as UTC midnight so
     // the weekday and label below read it without any time-zone shift.
@@ -184,12 +319,45 @@ export class DashboardService {
     const todayIndex = jsDay === 0 ? 6 : jsDay - 1; // convert to Mon=0
     const currentHourLocal = local?.localHour ?? new Date().getHours();
 
-    const [chefProfile, plan, favourites, todayLog] = await Promise.all([
+    // B-13/T-00.15: "Today" reads the plan whose WEEK matches `now`, not
+    // whichever plan happens to be ACTIVE — findActiveWithDays could return
+    // a different (e.g. next) week's plan once that week became the sole
+    // active one, showing tomorrow's-week meals as today's on the dashboard.
+    const monday = new Date(now);
+    if (useUtc) {
+      monday.setUTCDate(now.getUTCDate() - todayIndex);
+      monday.setUTCHours(0, 0, 0, 0);
+    } else {
+      monday.setDate(now.getDate() - todayIndex);
+      monday.setHours(0, 0, 0, 0);
+    }
+
+    const [chefProfile, plan, favourites, todayLog, recentLogs] = await Promise.all([
       chefProfileRepository.findByUserId(userId),
-      mealPlanRepository.findActiveWithDays(userId),
+      mealPlanRepository.findForWeek(userId, monday),
       favouriteRecipeRepository.findByUserId(userId, 4),
       dailyLogRepository.findByDate(userId, local?.localDate ? now : new Date()),
+      // B-31 interim (T-00.12): "tracks" = logged on ≥ 3 of the last 7 days.
+      dailyLogRepository.findLastN(userId, 7),
     ]);
+    // A DailyLog row survives with an empty loggedMeals after the user
+    // removes every entry for that day (mutateDay upserts the row rather
+    // than deleting it) — count only days that still have >= 1 entry, else
+    // logged-then-cleared days would wrongly count as "tracks".
+    const daysWithEntries = recentLogs.filter(
+      (log) => ((log.loggedMeals as unknown as LoggedMealEntry[] | null) ?? []).length > 0,
+    ).length;
+    const showNutritionCards =
+      chefProfile?.goal != null || daysWithEntries >= TRACK_INFERENCE_MIN_DAYS;
+    // §2.4, T-04.1: an explicit override (Settings toggle) always wins, in
+    // either direction, over the goal/tracks derivation above.
+    const showNutrition = chefProfile?.showNutritionOnToday ?? showNutritionCards;
+    // §2.4, T-03.1/T-04.1: the jobs every jobs-aware Today surface reads.
+    const jobs = effectiveJobs({
+      jobs: chefProfile?.onboardingJobs ?? [],
+      intent: chefProfile?.onboardingIntent ?? null,
+      loggedDaysLast7: daysWithEntries,
+    });
 
     // Lifters get protein from bodyweight; on a training day the bump is
     // applied for premium and previewed for free (audit P2-4). The tracker
@@ -217,6 +385,10 @@ export class DashboardService {
         favourites,
         eaten,
         training,
+        showNutritionCards,
+        showNutrition,
+        jobs,
+        include,
       );
     }
 
@@ -283,7 +455,10 @@ export class DashboardService {
     const loggedToday = (todayLog?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
     const resolved = resolveTodayMeals(orderedMeals, currentHourLocal, loggedToday);
 
-    const toHeroMeal = (slot: MealSlot & { slotIndex?: number }): DashboardSummary['nextMeal'] => {
+    const toHeroMeal = (
+      slot: MealSlot & { slotIndex?: number },
+      dayOfWeek?: number,
+    ): DashboardSummary['nextMeal'] => {
       const recipe = recipeMap.get(slot.recipeId);
       if (!recipe) return null;
       const n = recipe.nutritionInfo as unknown as NutritionInfo;
@@ -292,6 +467,7 @@ export class DashboardService {
         mealType: slot.type,
         ...(portion !== 1 && { portion }),
         ...(slot.slotIndex !== undefined && { slotIndex: slot.slotIndex }),
+        ...(dayOfWeek !== undefined && { dayOfWeek }),
         recipe: {
           id: recipe.id,
           name: recipe.name,
@@ -305,7 +481,9 @@ export class DashboardService {
       };
     };
 
-    const nextMeal: DashboardSummary['nextMeal'] = resolved.next ? toHeroMeal(resolved.next) : null;
+    const nextMeal: DashboardSummary['nextMeal'] = resolved.next
+      ? toHeroMeal(resolved.next, todayIndex)
+      : null;
     const restOfToday: DashboardSummary['restOfToday'] = resolved.later.flatMap((slot) => {
       const recipe = recipeMap.get(slot.recipeId);
       if (!recipe) return [];
@@ -324,18 +502,89 @@ export class DashboardService {
     // Late evening (every window has passed) or everything left today is
     // already eaten — surface tomorrow's first meal so the hero card is never
     // blank while an active plan exists.
+    const tomorrowIndex = (todayIndex + 1) % 7;
+    const tomorrowDay = plan.days.find((d: { dayOfWeek: number }) => d.dayOfWeek === tomorrowIndex);
+    const tomorrowMeals = tomorrowDay ? (tomorrowDay.meals as MealSlot[]) : [];
     let tomorrowFirstMeal: DashboardSummary['tomorrowFirstMeal'] = null;
     if (!nextMeal) {
-      const tomorrowIndex = (todayIndex + 1) % 7;
-      const tomorrowDay = plan.days.find(
-        (d: { dayOfWeek: number }) => d.dayOfWeek === tomorrowIndex,
-      );
-      const tomorrowMeals = tomorrowDay ? (tomorrowDay.meals as MealSlot[]) : [];
       const firstSlot = MEAL_ORDER.map((type) => tomorrowMeals.find((m) => m.type === type)).find(
         (slot) => slot !== undefined,
       );
-      if (firstSlot) tomorrowFirstMeal = toHeroMeal(firstSlot);
+      if (firstSlot) tomorrowFirstMeal = toHeroMeal(firstSlot, tomorrowIndex);
     }
+
+    // §2.4, T-04.2: today's DINNER slot specifically — the Tonight card.
+    // `done` reflects the log, not the meal-window clock (an early-logged
+    // dinner is still "done").
+    let tonight: DashboardHeroMeal | null | undefined;
+    if (include.has('tonight')) {
+      const dinnerIndex = todayMeals.findIndex((m) => m.type === 'dinner');
+      const dinnerSlot = dinnerIndex === -1 ? undefined : todayMeals[dinnerIndex];
+      const hero = dinnerSlot ? toHeroMeal({ ...dinnerSlot, slotIndex: dinnerIndex }) : null;
+      tonight =
+        hero && dinnerSlot
+          ? {
+              planId: plan.id,
+              dayOfWeek: todayIndex,
+              slotIndex: dinnerIndex,
+              mealType: hero.mealType,
+              done: isSlotEaten(
+                { type: dinnerSlot.type, recipeId: dinnerSlot.recipeId },
+                loggedToday,
+              ),
+              recipe: hero.recipe,
+            }
+          : null;
+      if (tonight && include.has('safetyChecks')) {
+        const recipe = recipeMap.get(tonight.recipe.id);
+        if (recipe) {
+          const table = await safetyService.getTable(userId);
+          if (table.hasRules) {
+            tonight = {
+              ...tonight,
+              safetyChecks: safetyService.check(recipe as unknown as SafetyCheckable, table),
+            };
+          }
+        }
+      }
+    }
+
+    // §2.4, T-04.2: tomorrow's first planned meal — same slot the
+    // tomorrowFirstMeal fallback above resolves, always computed (not only
+    // in the late-evening fallback case) when the caller asked for it.
+    let tomorrow: DashboardHeroMeal | null | undefined;
+    if (include.has('tomorrow')) {
+      // Same priority as the tomorrowFirstMeal fallback above: the first
+      // MEAL_ORDER type this day actually has, not array position (a
+      // dinners-only plan's single slot still resolves correctly).
+      const firstType = MEAL_ORDER.find((type) => tomorrowMeals.some((m) => m.type === type));
+      const firstIndex =
+        firstType === undefined ? -1 : tomorrowMeals.findIndex((m) => m.type === firstType);
+      const firstSlot = firstIndex === -1 ? undefined : tomorrowMeals[firstIndex];
+      const hero = firstSlot ? toHeroMeal({ ...firstSlot, slotIndex: firstIndex }) : null;
+      tomorrow =
+        hero && firstSlot
+          ? {
+              planId: plan.id,
+              dayOfWeek: tomorrowIndex,
+              slotIndex: firstIndex,
+              mealType: hero.mealType,
+              // Tomorrow hasn't happened yet — never "done" from today's read.
+              done: false,
+              recipe: hero.recipe,
+            }
+          : null;
+    }
+
+    // §2.4, T-04.2: unticked shopping-list lines used by tomorrow's meals.
+    let shopDue: DashboardShopDue | null | undefined;
+    if (include.has('shopDue') && viewer) {
+      shopDue = await this.shopDueFor(viewer, plan.id, tomorrowMeals, recipeMap, now, useUtc);
+    }
+
+    const targetsExtras = include.has('targets')
+      ? await this.targetsExtrasFor(userId, Math.round(plannedKcal), targets.dailyCalorieTarget)
+      : undefined;
 
     // PW-5: did the Sunday worker prepare this week? Only WEEKLY_AUTO plans —
     // a carry-forward copy or a manual plan made early used to claim "the
@@ -356,11 +605,19 @@ export class DashboardService {
         date: formatDayLabel(now),
         dayOfWeek: todayIndex,
       },
+      planId: plan.id,
+      jobs,
       weekPlan,
       nextMeal,
       tomorrowFirstMeal,
+      ...(tonight !== undefined && { tonight }),
+      ...(tomorrow !== undefined && { tomorrow }),
+      ...(shopDue !== undefined && { shopDue }),
+      ...(targetsExtras ?? {}),
       restOfToday,
       weekReady,
+      showNutritionCards,
+      showNutrition,
       recentFavourites: favourites.map((f) => ({
         id: f.recipe.id,
         name: f.recipe.name,
@@ -384,8 +641,90 @@ export class DashboardService {
     };
   }
 
-  private emptyDashboard(
-    _userId: string,
+  /**
+   * T-11 placement: `planVsTarget` (today's planned kcal vs the resolved
+   * target) and `pendingTargetChange` (the most recent unresolved
+   * `TargetChange`) — read-only via `TargetsService` (L-TRACK). Called only
+   * when `include` asks for it. Dynamic import (not a top-level one):
+   * `targets.service.ts` pulls in `lib/flags.ts` → `lib/env.ts`, which
+   * validates its env vars at import time — several dashboard unit tests
+   * import only pure helpers from this module with zero env/DB mocking, so
+   * a static import here would break every one of them for a field most
+   * callers never ask for (the same reason `coach.service.ts` hit this
+   * before, per its own import comment).
+   */
+  private async targetsExtrasFor(
+    userId: string,
+    plannedKcal: number,
+    targetKcal: number,
+  ): Promise<Pick<DashboardSummary, 'planVsTarget' | 'pendingTargetChange'>> {
+    const planVsTarget: DashboardPlanVsTarget = {
+      plannedKcal,
+      targetKcal,
+      status: plannedKcal < targetKcal ? 'under' : plannedKcal > targetKcal ? 'over' : 'on_target',
+    };
+    const { targetsService } = await import('../targets/targets.service.js');
+    const changes = await targetsService.listMyUnresolvedChanges(userId);
+    const change: TargetChange | undefined = changes[0];
+    const pendingTargetChange: DashboardPendingTargetChange | null = change
+      ? {
+          id: change.id,
+          kind: change.kind,
+          reason: change.reason,
+          fields: change.fields as unknown as { field: string; before: number; after: number }[],
+        }
+      : null;
+    return { planVsTarget, pendingTargetChange };
+  }
+
+  /**
+   * §2.4, T-04.2: unticked shopping-list lines used by tomorrow's planned
+   * meals. Reuses `ShoppingListService.getForWeek` (this week, offset 0) —
+   * the same pricing/image-resolved list the Shop tab shows — filtered to
+   * lines whose `recipeNames` include one of tomorrow's planned recipes and
+   * whose key isn't already checked off. A future optimisation could skip
+   * the pricing/image resolution for this read-only summary; left as-is for
+   * now since it's opt-in (`include: ['shopDue']`) and reuses tested logic
+   * rather than duplicating the list-building rules.
+   */
+  private async shopDueFor(
+    viewer: UserProfile,
+    planId: string,
+    tomorrowMeals: { type: string; recipeId: string }[],
+    recipeMap: Map<string, { name: string }>,
+    now: Date,
+    useUtc: boolean,
+  ): Promise<DashboardShopDue | null> {
+    if (tomorrowMeals.length === 0) return null;
+    // Dynamic import (not a top-level one): shopping-list.service.ts pulls in
+    // the AI service module, which validates its env vars at import time —
+    // a static import here would force every dashboard.summary caller (and
+    // every dashboard unit test) to pay for that, just for an opt-in field
+    // most callers never ask for.
+    const { shoppingListService } = await import('../shopping-list/shopping-list.service.js');
+    const list = await shoppingListService.getForWeek(viewer, 0);
+    if (list.planId !== planId) return null; // clock/week mismatch — skip rather than show the wrong week
+    const tomorrowRecipeNames = new Set(
+      tomorrowMeals.map((m) => recipeMap.get(m.recipeId)?.name).filter((n): n is string => !!n),
+    );
+    const due = list.items.filter(
+      (item) =>
+        !list.checkedKeys.includes(item.key) &&
+        item.recipeNames.some((name) => tomorrowRecipeNames.has(name)),
+    );
+    if (due.length === 0) return null;
+    const tomorrow = new Date(now);
+    if (useUtc) tomorrow.setUTCDate(now.getUTCDate() + 1);
+    else tomorrow.setDate(now.getDate() + 1);
+    return {
+      count: due.length,
+      sample: due.slice(0, 3).map((item) => item.ingredientName),
+      forDate: toLocalDateString(tomorrow, useUtc),
+    };
+  }
+
+  private async emptyDashboard(
+    userId: string,
     firstName: string | null,
     now: Date,
     todayIndex: number,
@@ -393,18 +732,33 @@ export class DashboardService {
     favourites: Awaited<ReturnType<typeof favouriteRecipeRepository.findByUserId>>,
     eaten: { kcal: number; protein: number; carbs: number; fat: number },
     training: TrainingDayResult | null,
-  ): DashboardSummary {
+    showNutritionCards: boolean,
+    showNutrition: boolean,
+    jobs: OnboardingJob[],
+    include: Set<DashboardIncludeOption>,
+  ): Promise<DashboardSummary> {
+    const targetsExtras = include.has('targets')
+      ? await this.targetsExtrasFor(userId, 0, targets.dailyCalorieTarget)
+      : undefined;
     return {
       user: { firstName, displayName: null },
       today: {
         date: formatDayLabel(now),
         dayOfWeek: todayIndex,
       },
+      planId: null,
+      jobs,
       weekPlan: [],
       nextMeal: null,
       tomorrowFirstMeal: null,
+      ...(include.has('tonight') && { tonight: null }),
+      ...(include.has('tomorrow') && { tomorrow: null }),
+      ...(include.has('shopDue') && { shopDue: null }),
+      ...(targetsExtras ?? {}),
       restOfToday: [],
       weekReady: null,
+      showNutritionCards,
+      showNutrition,
       recentFavourites: favourites.map((f) => ({
         id: f.recipe.id,
         name: f.recipe.name,

@@ -51,6 +51,12 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
           headers() {
             return {
               'x-trpc-source': 'nextjs-react',
+              // §2.8/T-00.8: declares this client understands the
+              // health-consent error and reads `profile.flags`. Bumped to 2
+              // for T-39.1/T-26.5 (wave 1 L-ENTRY) — see trpc-links.ts.
+              // 3 (T-42.5, UX-42): the web now RENDERS cardio sets/exercises
+              // (history, summary); it still never logs or picks them.
+              'x-chefer-api-level': '3',
             };
           },
         }),

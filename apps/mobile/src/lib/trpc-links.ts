@@ -18,6 +18,16 @@ export function buildAuthHeaders(getToken: () => string | null): Record<string, 
   return {
     'x-chefer-client': 'mobile',
     'x-trpc-source': 'mobile-react',
+    // §2.8/T-00.8: declares this client understands the health-consent error
+    // and reads `profile.flags`. Bumped to 2 for T-39.1/T-26.5 (wave 1
+    // L-ENTRY): level 2 is the first to render the sign-up consent
+    // checkboxes, so `AuthService.register` only requires the consent
+    // fields from level >= 2 — a wave-0 client already out on OTA (which
+    // sends level 1, no checkboxes) keeps registering exactly as before.
+    // Bumped to 3 for T-42.3 (this commit ships the cardio entry UI that
+    // reads it — Δ2.1, orchestrator decision 2026-09-28: cardio moved off
+    // level 2 because wave 1 already claimed it, see client-level.ts).
+    'x-chefer-api-level': '3',
     ...(token ? { authorization: `Bearer ${token}` } : {}),
   };
 }
@@ -29,12 +39,50 @@ export function buildAuthHeaders(getToken: () => string | null): Record<string, 
 const EXPECTED_FAILURE =
   /fetch failed|Network request failed|Could not connect|Failed to connect|timed out|UNAUTHORIZED/i;
 
+// bug B-17: a bad import URL / a page over the size cap / "no recipe found"
+// are all EXPECTED user-input outcomes on these two procedures (the form
+// shows its own inline error) — they used to raise the same red LogBox as a
+// real bug. `BAD_REQUEST` and `PRECONDITION_FAILED` (the "page too large"
+// case included) from `recipe.importPreview` / `recipe.importVideoPreview`
+// are logged quietly instead. tRPC's default error shape carries `path` and
+// `code` on `TRPCClientError.data` — that's what's checked, not the
+// logger's already-formatted display string.
+const EXPECTED_IMPORT_PATHS = new Set(['recipe.importPreview', 'recipe.importVideoPreview']);
+const EXPECTED_IMPORT_CODES = new Set(['BAD_REQUEST', 'PRECONDITION_FAILED']);
+
+function isExpectedImportFailure(result: unknown): boolean {
+  if (!(result instanceof Error)) return false;
+  const data = (result as { data?: { code?: unknown; path?: unknown } }).data;
+  const path = typeof data?.path === 'string' ? data.path : undefined;
+  const code = typeof data?.code === 'string' ? data.code : undefined;
+  return Boolean(
+    path && EXPECTED_IMPORT_PATHS.has(path) && code && EXPECTED_IMPORT_CODES.has(code),
+  );
+}
+
+// A signed-out or expired session is expected, not a bug: the server's
+// UNAUTHORIZED message ("You must be logged in…") doesn't contain the code,
+// so it is read from `data.code`. Logged as an error it raised a red LogBox
+// whose badge covered the tab bar in dev builds.
+function isUnauthorized(result: unknown): boolean {
+  if (!(result instanceof Error)) return false;
+  return (result as { data?: { code?: unknown } }).data?.code === 'UNAUTHORIZED';
+}
+
+function isExpectedError(error: Error): boolean {
+  return (
+    EXPECTED_FAILURE.test(error.message) || isExpectedImportFailure(error) || isUnauthorized(error)
+  );
+}
+
 export function isExpectedFailure(args: unknown[]): boolean {
   return args.some((arg) => {
-    if (arg instanceof Error) return EXPECTED_FAILURE.test(arg.message);
+    if (arg instanceof Error) {
+      return isExpectedError(arg);
+    }
     if (arg && typeof arg === 'object' && 'result' in arg) {
       const { result } = arg;
-      return result instanceof Error && EXPECTED_FAILURE.test(result.message);
+      return result instanceof Error && isExpectedError(result);
     }
     return typeof arg === 'string' && EXPECTED_FAILURE.test(arg);
   });

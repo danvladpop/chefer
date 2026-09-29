@@ -25,7 +25,7 @@ vi.mock('@chefer/database', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/database')>()),
   chefProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
   mealPlanRepository: {
-    findActiveWithDays: vi.fn().mockResolvedValue({
+    findForWeek: vi.fn().mockResolvedValue({
       origin: 'MANUAL',
       createdAt: new Date('2026-09-21T08:00:00Z'),
       days: [
@@ -51,7 +51,7 @@ vi.mock('@chefer/database', async (importOriginal) => ({
   },
   favouriteRecipeRepository: { findByUserId: vi.fn().mockResolvedValue([]) },
   mealRatingRepository: { findSignalsForUser: vi.fn().mockResolvedValue([]) },
-  dailyLogRepository: { findByDate: vi.fn() },
+  dailyLogRepository: { findByDate: vi.fn(), findLastN: vi.fn().mockResolvedValue([]) },
   MealPlanOrigin: { WEEKLY_AUTO: 'WEEKLY_AUTO' },
 }));
 
@@ -106,7 +106,7 @@ describe('dashboard summary — next meal skips logged meals', () => {
 
   describe('two identical snacks', () => {
     beforeEach(() => {
-      vi.mocked(mealPlanRepository.findActiveWithDays).mockResolvedValueOnce({
+      vi.mocked(mealPlanRepository.findForWeek).mockResolvedValueOnce({
         origin: 'MANUAL',
         createdAt: new Date('2026-09-21T08:00:00Z'),
         days: [
@@ -134,6 +134,18 @@ describe('dashboard summary — next meal skips logged meals', () => {
       logWith([{ recipeId: 'salad', mealType: 'snack' }]);
       const s = await summaryAt(15);
       expect(s.nextMeal?.slotIndex).toBe(3);
+    });
+  });
+
+  describe('B-13: this week only (T-00.15)', () => {
+    it('only next week planned → Today shows no plan, never leaks it', async () => {
+      // findActiveWithDays would have returned a plan here in the old code
+      // (whichever plan is ACTIVE, any week) — dashboard.summary must read
+      // findForWeek instead, which correctly reports nothing for THIS week.
+      vi.mocked(mealPlanRepository.findForWeek).mockResolvedValueOnce(null);
+      const s = await summaryAt(12);
+      expect(s.nextMeal).toBeNull();
+      expect(s.restOfToday).toEqual([]);
     });
   });
 });

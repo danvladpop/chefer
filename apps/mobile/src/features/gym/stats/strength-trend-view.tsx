@@ -9,13 +9,22 @@ import {
   EmptyState,
   LineChart,
   SegmentedControl,
+  Text,
 } from '@chefer/ui-mobile';
-import { formatLoad, kgToUnit, unitLabel } from '@chefer/utils';
+import { formatLoad, GLOSSARY, kgToUnit, unitLabel } from '@chefer/utils';
+import { GlossaryTerm } from '../../../components/glossary-term';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../library-screens/online-status';
 import { ExercisePicker } from '../library/exercise-picker';
 import { localE1rmSeries, topCompoundsByFrequency } from './local-engine';
 import { LogWeightPrompt } from './log-weight-prompt';
+
+/** "24 Sep 2026" for the tapped-point / latest-point caption. */
+function longDate(localDate: string): string {
+  const d = new Date(`${localDate}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return localDate;
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 // (a) Strength trend (gym_plan.md §1.3 Stats #1): e1RM line for a picked lift,
 // defaulting to the top 3 compounds by frequency, with a range selector, PR
@@ -95,6 +104,9 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
     return series.trend;
   }, [series, relativeStrength]);
 
+  const latestPoint =
+    series && series.points.length > 0 ? series.points[series.points.length - 1] : undefined;
+
   const secondary =
     showBodyweight && !relativeStrength && bodyweightPoints.length > 0
       ? {
@@ -148,6 +160,23 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
         className="mb-3"
       />
 
+      {/* UX-05 F (CI-36): captions the chart so "e1RM" is never unexplained. */}
+      <View className="mb-1 flex-row flex-wrap items-center gap-1">
+        <Text variant="muted" className="text-xs">
+          Estimated 1-rep max
+        </Text>
+        <GlossaryTerm
+          term="(e1RM)"
+          title={GLOSSARY.e1rm?.term ?? 'Estimated 1RM'}
+          definition={
+            GLOSSARY.e1rm?.definition ??
+            'Your estimated one-rep max, worked out from your recent sets.'
+          }
+          testID="stats-strength-e1rm-term"
+          className="text-xs text-muted-foreground"
+        />
+      </View>
+
       <LineChart
         testID="stats-strength-chart"
         data={chartData}
@@ -156,6 +185,16 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
         formatY={(v) => (relativeStrength ? v.toFixed(2) : formatLoad(v, unit))}
         emptyLabel="No sessions with this exercise yet"
       />
+
+      {/* UX-05 F (CI-36): the point detail a tap on the chart would show —
+          the shared LineChart has no tap-tooltip yet, so this names the
+          latest point (usually the one someone wants) until it does. */}
+      {latestPoint ? (
+        <Text testID="stats-strength-point-detail" variant="muted" className="mt-1 text-xs">
+          {longDate(latestPoint.localDate)} · {formatLoad(latestPoint.weightKg, unit)} ×{' '}
+          {latestPoint.reps} → e1RM {formatLoad(latestPoint.e1rmKg, unit)}
+        </Text>
+      ) : null}
 
       <View className="mt-3 flex-row flex-wrap gap-2">
         <Chip
@@ -166,7 +205,7 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
         />
         <Chip
           testID="stats-strength-relative-toggle"
-          label="Relative strength"
+          label="Strength per kg of body weight"
           selected={relativeStrength}
           onPress={() => setRelativeStrength((v) => !v)}
         />

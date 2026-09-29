@@ -19,3 +19,17 @@ export * from './reasons';
 export * from './offers';
 // Superset grouping (routine editors) and round logic (active workout), G4-B.
 export * from './supersets';
+// Carry-over + short-version types (T-00.7 scaffold for T-36.3/T-36.6).
+export * from './carry-over';
+export * from './short-version';
+// Resume card summary (T-36.A1.1) and Recent-workouts grouping (T-36.A2.1).
+export * from './resume';
+export * from './recent';
+// Stats › History week-grouping (T-36.5).
+export * from './history';
+// Tracking-type helpers (S18, T-42.0): cardio-as-first-class-type contracts.
+export * from './tracking';
+// Cardio rules — duration/distance/pace/effort/next-time (T-42.4).
+export * from './cardio';
+// Correcting a past session: delete preview + target-change diff (T-44.2/T-44.4).
+export * from './session-edit';

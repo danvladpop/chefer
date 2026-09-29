@@ -15,18 +15,29 @@ import {
 import { libraryLookup } from '../use-gym-bootstrap';
 
 // "Log a past workout" (gym_plan.md §1.4 "Repair", research §4.2 #5): pick a
-// date in the current or previous week — never the future — then a routine
+// date in the current or previous week (today included) — never the future — then a routine
 // day or freestyle. Mirrors apps/mobile/src/features/gym/today/log-past-workout.tsx.
 
-/** Every date from the Monday of the PREVIOUS week through yesterday, newest first. */
+/**
+ * Every date from the Monday of the PREVIOUS week through today, newest first.
+ * Today is included (owner dogfood 2026-09-29): a session already done
+ * without the app — or one that isn't the planned day — must be loggable
+ * the same day. It starts now, not backdated (see `backfillDateFor`).
+ */
 function eligibleBackfillDates(today: string): string[] {
   const start = weekStartOf(addDaysLocal(today, -7));
   const dates: string[] = [];
-  for (let d = start; d < today; d = addDaysLocal(d, 1)) dates.push(d);
+  for (let d = start; d <= today; d = addDaysLocal(d, 1)) dates.push(d);
   return dates.reverse();
 }
 
+/** Today logs as a normal session (an 18:00 start could be in the future). */
+export function backfillDateFor(date: string, today: string): string | undefined {
+  return date === today ? undefined : date;
+}
+
 function formatDateLabel(date: string, today: string): string {
+  if (date === today) return 'Today';
   if (date === addDaysLocal(today, -1)) return 'Yesterday';
   const d = new Date(`${date}T00:00:00`);
   return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });

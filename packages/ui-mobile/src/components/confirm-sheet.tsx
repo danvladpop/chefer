@@ -1,7 +1,15 @@
-import { View } from 'react-native';
+import { Switch, View } from 'react-native';
 import { Button } from './button';
 import { Sheet } from './sheet';
 import { Text } from './text';
+import { colors } from './theme';
+
+export interface ConfirmSheetOption {
+  label: string;
+  detail?: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}
 
 export interface ConfirmSheetProps {
   visible: boolean;
@@ -13,6 +21,13 @@ export interface ConfirmSheetProps {
   onConfirm: () => void;
   /** Red confirm button (discard, remove…). */
   destructive?: boolean;
+  /**
+   * PAT-5 — "keep my changes": one or more switches between the body and the
+   * buttons (Regenerate's "Keep the 4 meals you chose", downgrade's "you'll
+   * keep / you'll lose"). Each gets `${testID}-option-{i}`, the switch
+   * `${testID}-option-{i}-switch`.
+   */
+  options?: ConfirmSheetOption[];
   /** Children get `${testID}-body`, `-confirm`, `-cancel` (plus Sheet's `-title`, `-close`). */
   testID: string;
 }
@@ -31,11 +46,39 @@ export function ConfirmSheet({
   cancelLabel,
   onConfirm,
   destructive = false,
+  options,
   testID,
 }: ConfirmSheetProps) {
   return (
     <Sheet visible={visible} onClose={onClose} title={title} testID={testID}>
       <Text testID={`${testID}-body`}>{body}</Text>
+      {options && options.length > 0 ? (
+        <View className="gap-3 py-1">
+          {options.map((option, i) => (
+            <View
+              key={option.label}
+              testID={`${testID}-option-${i}`}
+              className="flex-row items-center justify-between gap-3"
+            >
+              <View className="min-w-0 flex-1">
+                <Text className="text-sm font-medium">{option.label}</Text>
+                {option.detail ? (
+                  <Text variant="muted" className="text-xs">
+                    {option.detail}
+                  </Text>
+                ) : null}
+              </View>
+              <Switch
+                testID={`${testID}-option-${i}-switch`}
+                accessibilityLabel={option.label}
+                value={option.value}
+                onValueChange={option.onChange}
+                trackColor={{ true: colors.primary, false: colors.neutral }}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
       <View className="gap-2 pt-2">
         <Button
           testID={`${testID}-confirm`}

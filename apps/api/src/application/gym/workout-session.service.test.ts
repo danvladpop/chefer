@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   Prisma,
+  type GymProfile,
   type IExerciseRepository,
+  type IGymProfileRepository,
   type IRoutineRepository,
   type IWorkoutSessionRepository,
 } from '@chefer/database';
@@ -9,11 +11,17 @@ import { nextDayIdAfter, toSessionSummary } from '@chefer/utils';
 import {
   exerciseRow,
   makeMemorySessionRepo,
+  profileRow,
   routineRow,
   sessionDoc,
   sessionRow,
 } from './__test__/fixtures.js';
 import { WorkoutSessionService } from './workout-session.service.js';
+
+// WorkoutSessionService transitively imports client-level.ts → lib/flags.ts
+// → lib/env.ts, which validates the full env schema at import time — mock
+// it (the targets.service.test.ts pattern) so this file needs no real env vars.
+vi.mock('../../lib/flags.js', () => ({ isFlagEnabled: () => false }));
 
 // The service reports sync rejections via logger + Sentry. The real logger
 // validates env at import (JWT_SECRET etc.), which a clean CI env lacks.
@@ -48,7 +56,20 @@ function makeRoutineRepo(): IRoutineRepository {
   } as unknown as IRoutineRepository;
 }
 
-function setup(sessionRepo?: IWorkoutSessionRepository) {
+function makeProfileRepo(row: GymProfile | null = profileRow()): Pick<
+  IGymProfileRepository,
+  'findByUserId' | 'update'
+> & {
+  update: ReturnType<typeof vi.fn>;
+} {
+  const update = vi.fn().mockResolvedValue(row);
+  return { findByUserId: vi.fn().mockResolvedValue(row), update };
+}
+
+function setup(
+  sessionRepo?: IWorkoutSessionRepository,
+  profileRepo: ReturnType<typeof makeProfileRepo> = makeProfileRepo(),
+) {
   const memory = makeMemorySessionRepo(new Map([['r1', 'day-a']]));
   const progression = { recompute: vi.fn().mockResolvedValue(undefined) };
   const routineRepo = makeRoutineRepo();
@@ -57,8 +78,9 @@ function setup(sessionRepo?: IWorkoutSessionRepository) {
     routineRepo,
     makeExerciseRepo(),
     progression,
+    profileRepo,
   );
-  return { service, memory, progression, routineRepo };
+  return { service, memory, progression, routineRepo, profileRepo };
 }
 
 beforeEach(() => {
@@ -286,6 +308,84 @@ describe('WorkoutSessionService.upsertMany', () => {
 
     expect(memory.writes[0]?.exercises[0]?.sets[0]?.weightKg).toBe(61.23);
   });
+
+  describe('T-36.3 carry-over (CI-49)', () => {
+    it('writes GymProfile.carryOver for a COMPLETED doc with carryOverExerciseIds', async () => {
+      const profileRepo = makeProfileRepo(profileRow({ carryOver: [] }));
+      const { service } = setup(undefined, profileRepo);
+      const doc = sessionDoc({ carryOverExerciseIds: ['squat'] });
+
+      await service.upsertMany(USER, [doc]);
+
+      expect(profileRepo.update).toHaveBeenCalledWith('u1', {
+        carryOver: [{ exerciseId: 'squat', fromSessionId: doc.id, routineDayId: 'day-a' }],
+      });
+    });
+
+    it('is a no-op write when nothing changes (no carryOverExerciseIds, nothing stored)', async () => {
+      const profileRepo = makeProfileRepo(profileRow({ carryOver: [] }));
+      const { service } = setup(undefined, profileRepo);
+
+      await service.upsertMany(USER, [sessionDoc()]);
+
+      expect(profileRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('consumes a stored carry-over item once the doc addresses that exercise again', async () => {
+      const profileRepo = makeProfileRepo(
+        profileRow({
+          carryOver: [{ exerciseId: 'bench', fromSessionId: 'old', routineDayId: 'day-a' }],
+        }),
+      );
+      const { service } = setup(undefined, profileRepo);
+      // The default sessionDoc() fixture's only exercise is 'bench'.
+      await service.upsertMany(USER, [sessionDoc()]);
+
+      expect(profileRepo.update).toHaveBeenCalledWith('u1', { carryOver: [] });
+    });
+
+    it('never writes carry-over for a re-send that changes nothing (idempotent)', async () => {
+      const profileRepo = makeProfileRepo(profileRow({ carryOver: [] }));
+      const { service } = setup(undefined, profileRepo);
+      const doc = sessionDoc({ carryOverExerciseIds: ['squat'] });
+
+      await service.upsertMany(USER, [doc]);
+      profileRepo.update.mockClear();
+      // Same doc's row is already persisted (findByUserId keeps returning the
+      // ORIGINAL fixture here since it's a stub) — resending must not throw
+      // and, once the stub reflects the stored value, would no-op.
+      profileRepo.findByUserId = vi.fn().mockResolvedValue(
+        profileRow({
+          carryOver: [{ exerciseId: 'squat', fromSessionId: doc.id, routineDayId: 'day-a' }],
+        }),
+      );
+      await service.upsertMany(USER, [doc]);
+
+      expect(profileRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('never carries over a freestyle session (no routineDayId)', async () => {
+      const profileRepo = makeProfileRepo(profileRow({ carryOver: [] }));
+      const { service } = setup(undefined, profileRepo);
+      const doc = sessionDoc({ routineDayId: null, carryOverExerciseIds: ['squat'] });
+
+      await service.upsertMany(USER, [doc]);
+
+      expect(profileRepo.update).not.toHaveBeenCalled();
+    });
+
+    it("doesn't fail the sync when the carry-over write throws", async () => {
+      const profileRepo = makeProfileRepo(profileRow({ carryOver: [] }));
+      profileRepo.update.mockRejectedValueOnce(new Error('db down'));
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const { service } = setup(undefined, profileRepo);
+
+      const res = await service.upsertMany(USER, [sessionDoc({ carryOverExerciseIds: ['squat'] })]);
+
+      expect(res.results[0]?.status).toBe('applied');
+      errSpy.mockRestore();
+    });
+  });
 });
 
 describe('WorkoutSessionService delete / discard / get / list', () => {
@@ -335,7 +435,8 @@ describe('WorkoutSessionService delete / discard / get / list', () => {
     ];
     const repo = makeMemorySessionRepo().repo;
     vi.mocked(repo.listForUser).mockResolvedValue(docs.map((d) => sessionRow(d)));
-    vi.mocked(toSessionSummary).mockImplementation((d) => ({ id: d.id }) as never);
+    // T-42.2: list() runs each summary through filterSessionExercisesForLevel.
+    vi.mocked(toSessionSummary).mockImplementation((d) => ({ id: d.id, exercises: [] }) as never);
     const { service } = setup(repo);
 
     const page = await service.list(USER, { limit: 2 });

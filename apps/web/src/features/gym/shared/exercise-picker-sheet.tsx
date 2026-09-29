@@ -1,12 +1,19 @@
 'use client';
 
-/* eslint-disable @next/next/no-img-element -- exercise photos are API-hosted WebPs, not optimisable by next/image */
 import { useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
-import { MUSCLE_LABELS, VOLUME_GROUPS, type ExerciseDto, type VolumeGroup } from '@chefer/types';
+import { Search, X } from 'lucide-react';
+import {
+  HIDDEN_EXERCISE_IMAGE_IDS,
+  MUSCLE_LABELS,
+  VOLUME_GROUPS,
+  type ExerciseDto,
+  type VolumeGroup,
+} from '@chefer/types';
 import { Input, Sheet } from '@chefer/ui';
 import { cn, VOLUME_GROUP_LABELS } from '@chefer/utils';
+import { ExerciseImage } from '../library/ExerciseImage';
 import { exerciseImageUrl } from '../use-gym-bootstrap';
+import { isCardioExercise } from './cardio';
 
 // Exercise picker (swap / add in the workout). Mirrors the phone's
 // apps/mobile/src/features/gym/library/exercise-picker.tsx: search, a muscle
@@ -24,15 +31,18 @@ export function filterExercises(
   opts: { query: string; group: VolumeGroup | null; excludeIds?: readonly string[] },
 ): ExerciseDto[] {
   const q = opts.query.trim().toLowerCase();
-  return library
-    .filter((e) => !e.archived && !(opts.excludeIds ?? []).includes(e.id))
-    .filter((e) => (opts.group ? matchesGroup(e, opts.group) : true))
-    .filter((e) =>
-      q.length === 0
-        ? true
-        : e.name.toLowerCase().includes(q) || e.aliases.some((a) => a.toLowerCase().includes(q)),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    library
+      // T-42.5 (Q-31): the web renders cardio but never logs it — pickers exclude it.
+      .filter((e) => !e.archived && !(opts.excludeIds ?? []).includes(e.id) && !isCardioExercise(e))
+      .filter((e) => (opts.group ? matchesGroup(e, opts.group) : true))
+      .filter((e) =>
+        q.length === 0
+          ? true
+          : e.name.toLowerCase().includes(q) || e.aliases.some((a) => a.toLowerCase().includes(q)),
+      )
+      .sort((a, b) => a.name.localeCompare(b.name))
+  );
 }
 
 export function ExercisePickerSheet({
@@ -79,9 +89,19 @@ export function ExercisePickerSheet({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search exercises"
-            className="h-11 pl-9"
+            className={cn('h-11 pl-9', query && 'pr-9')}
             data-testid="exercise-picker-search"
           />
+          {query ? (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setQuery('')}
+              className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : null}
         </label>
         <div role="group" aria-label="Muscle group" className="scroll-rail -mx-5 gap-1.5 px-5">
           {GROUPS.map((g) => {
@@ -117,16 +137,18 @@ export function ExercisePickerSheet({
                 data-testid={`exercise-picker-item-${item.id}`}
                 className="flex min-h-14 w-full items-center gap-3 border-b px-5 py-2 text-left hover:bg-gray-50"
               >
-                {img ? (
-                  <img
-                    src={img}
-                    alt=""
-                    loading="lazy"
-                    className="h-11 w-11 shrink-0 rounded-lg bg-gray-100 object-cover"
+                <div className="w-16 shrink-0">
+                  <ExerciseImage
+                    uri={img}
+                    equipment={item.equipment}
+                    name={item.name}
+                    size="thumb"
+                    hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(item.id)}
+                    analyticsExerciseId={item.ownerId ? 'custom' : item.id}
+                    className="rounded-lg"
+                    testId={`exercise-picker-item-${item.id}-image`}
                   />
-                ) : (
-                  <span className="h-11 w-11 shrink-0 rounded-lg bg-gray-100" aria-hidden="true" />
-                )}
+                </div>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-gray-900">
                     {item.name}

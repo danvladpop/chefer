@@ -34,6 +34,17 @@ export {
 } from './meal-plan.repository';
 
 export {
+  MealPlanTailoringRepository,
+  mealPlanTailoringRepository,
+  stableSlotsJson,
+  type IMealPlanTailoringRepository,
+  type CreateTailoringData,
+  type TailoringProgressPatch,
+  type TailoringSnapshots,
+  type TailoringUserGate,
+} from './meal-plan-tailoring.repository';
+
+export {
   FavouriteRecipeRepository,
   favouriteRecipeRepository,
   type IFavouriteRecipeRepository,
@@ -165,3 +176,33 @@ export {
   type WeeklyEmailPreferences,
   type WeekLogRow,
 } from './weekly-email.repository';
+
+// ─── Wave-0 schema contracts (T-00.10) ─────────────────────────────────────────
+
+export {
+  SafetyReportRepository,
+  safetyReportRepository,
+  type ISafetyReportRepository,
+  type CreateSafetyReportData,
+} from './safety-report.repository';
+
+export {
+  TargetChangeRepository,
+  targetChangeRepository,
+  type ITargetChangeRepository,
+  type CreateTargetChangeData,
+} from './target-change.repository';
+
+export {
+  IngredientPriceRepository,
+  ingredientPriceRepository,
+  type IIngredientPriceRepository,
+  type IngredientCatalogRow,
+} from './ingredient-price.repository';
+
+export {
+  ConsentEventRepository,
+  consentEventRepository,
+  type IConsentEventRepository,
+  type RecordConsentEventData,
+} from './consent-event.repository';

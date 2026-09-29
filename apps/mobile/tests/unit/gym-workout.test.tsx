@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, userEvent, within } from '@testing-library/react-native';
 import type { GymBootstrap, WorkoutSessionDoc } from '@chefer/types';
+import { resetSnackbarForTests, Snackbar } from '@chefer/ui-mobile';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { outbox } from '../../src/features/gym/offline/outbox';
@@ -88,6 +89,7 @@ async function renderWorkout(doc: WorkoutSessionDoc, bootstrap: GymBootstrap = m
   await render(
     <Providers queryClient={queryClient} bootstrap={bootstrap}>
       <WorkoutScreen />
+      <Snackbar />
     </Providers>,
   );
   return queryClient;
@@ -98,6 +100,7 @@ beforeEach(() => {
   resetGymOwnerForTests();
   resetRestTimerForTests();
   resetFinishedForTests();
+  resetSnackbarForTests();
   outbox.reload();
   outbox.configure(null);
   activeSessionStore.clear();
@@ -145,7 +148,11 @@ describe('WorkoutScreen — set rows', () => {
     expect(getRestTimer()).toMatchObject({ durationSec: 120, seId: SE_ID });
     expect(screen.getByTestId('rest-timer')).toBeOnTheScreen();
     expect(screen.getByTestId('workout-progress')).toHaveTextContent(/1\/3 sets/);
-    expect(haptics.impactAsync).toHaveBeenCalledTimes(1);
+    // T-05.6 (UX-05 F): this is the very first logged set ever for this
+    // exercise (no prior sessions, no olderBests) — it now counts as a PR,
+    // so it gets the success haptic instead of a plain tick.
+    expect(haptics.notificationAsync).toHaveBeenCalledWith('success');
+    expect(haptics.impactAsync).not.toHaveBeenCalled();
 
     // A second tap un-ticks it.
     await user.press(screen.getByTestId('exercise-0-set-1-check'));
@@ -182,6 +189,31 @@ describe('WorkoutScreen — set rows', () => {
     expect(workingSet(1).reps).toBe(11);
   });
 
+  // T-05.7 (bug B-20): reps propagate to later unticked sets exactly like
+  // weight already does.
+  it('a typed/stepped reps change carries to later unticked sets that matched (B-20)', async () => {
+    const user = userEvent.setup();
+    await renderWorkout(activeDoc());
+    expect(workingSet(0).reps).toBe(10);
+    expect(workingSet(1).reps).toBe(10);
+    expect(workingSet(2).reps).toBe(10);
+
+    await user.press(screen.getByTestId('exercise-0-set-1-reps-inc'));
+    expect(workingSet(0).reps).toBe(11);
+    expect(workingSet(1).reps).toBe(11);
+    expect(workingSet(2).reps).toBe(11);
+
+    // A set that had already diverged (or is done) is left alone.
+    await user.press(screen.getByTestId('exercise-0-set-3-reps-dec'));
+    expect(workingSet(2).reps).toBe(10);
+    expect(workingSet(1).reps).toBe(11);
+
+    await user.press(screen.getByTestId('exercise-0-set-1-check'));
+    await user.press(screen.getByTestId('exercise-0-set-2-reps-inc'));
+    expect(workingSet(0).reps).toBe(11); // ticked set 1 untouched
+    expect(workingSet(1).reps).toBe(12);
+  });
+
   it('a machine stepper uses the profile stack step and snaps odd weights onto it', async () => {
     const user = userEvent.setup();
     const bootstrap = makeBootstrap({ library: [machine()] });
@@ -194,6 +226,25 @@ describe('WorkoutScreen — set rows', () => {
     await user.press(screen.getByTestId('exercise-0-set-2-weight-dec'));
     await user.press(screen.getByTestId('exercise-0-set-2-weight-dec'));
     expect(workingSet(1).weightKg).toBe(55);
+  });
+
+  // Q-28 (T-05.7): a held load (Back Extension) logs added weight without a
+  // dip belt — the weight stepper shows instead of the plain "BW" label.
+  it('a held-load exercise (Back Extension) shows the weight stepper without a dip belt', async () => {
+    const user = userEvent.setup();
+    const backExtension = {
+      ...makeExercise('back-extension', 'Back Extension'),
+      equipment: 'BODYWEIGHT' as const,
+      loadType: 'BODYWEIGHT_PLUS' as const,
+      heldLoad: true,
+    };
+    const bootstrap = makeBootstrap({ library: [backExtension] });
+    const doc = activeDoc({ exerciseId: 'back-extension' });
+    await renderWorkout(doc, bootstrap);
+
+    expect(screen.getByTestId('exercise-0-set-1-weight-value')).not.toHaveTextContent('BW');
+    await user.press(screen.getByTestId('exercise-0-set-1-weight-inc'));
+    expect(workingSet(0).weightKg).toBeGreaterThan(0);
   });
 
   it('tapping a barbell weight opens the plate calculator', async () => {
@@ -462,37 +513,66 @@ describe('WorkoutScreen — supersets', () => {
   });
 });
 
+// UX-05 amendment A1 (T-05.A1.2, PAT-16): no confirm dialog — the row exits
+// immediately (long-press or the row's ⋯) and a snackbar offers Undo.
 describe('WorkoutScreen — remove a set', () => {
-  it('long-press a working set → confirm → removed, positions stay contiguous', async () => {
-    const user = userEvent.setup();
+  it('long-press a working set → removed immediately, positions stay contiguous, no confirm dialog', async () => {
     await renderWorkout(activeDoc());
 
     await fireEvent(screen.getByTestId('exercise-0-set-2'), 'longPress');
-    expect(screen.getByTestId('workout-remove-set-sheet-title')).toHaveTextContent('Remove set 2?');
-    await user.press(screen.getByTestId('workout-remove-set-sheet-confirm'));
 
+    expect(screen.queryByTestId('workout-remove-set-sheet-title')).toBeNull();
     const sets = currentDoc().exercises[0]?.sets ?? [];
     expect(sets.map((s) => s.id)).toEqual([WARMUP_ID, SET_IDS[0], SET_IDS[2]]);
     expect(sets.map((s) => s.position)).toEqual([0, 1, 2]);
     expect(screen.getByTestId('workout-progress')).toHaveTextContent(/0\/2 sets/);
+    expect(screen.getByTestId('snackbar-message')).toHaveTextContent('Removed set 2');
   });
 
-  it('warm-ups can be removed too; "Keep it" changes nothing', async () => {
+  it('the row ⋯ removes a set the same way as long-press', async () => {
+    const user = userEvent.setup();
+    await renderWorkout(activeDoc());
+    await user.press(screen.getByTestId('exercise-0-set-2-menu'));
+    const sets = currentDoc().exercises[0]?.sets ?? [];
+    expect(sets.map((s) => s.id)).toEqual([WARMUP_ID, SET_IDS[0], SET_IDS[2]]);
+  });
+
+  it('Undo restores the removed set at its original position, with its values and tick', async () => {
+    const user = userEvent.setup();
+    await renderWorkout(activeDoc());
+    await user.press(screen.getByTestId('exercise-0-set-2-check'));
+    const before = currentDoc().exercises[0]?.sets.find((s) => s.id === SET_IDS[1]);
+    expect(before?.completedAt).not.toBeNull();
+
+    await fireEvent(screen.getByTestId('exercise-0-set-2'), 'longPress');
+    expect(currentDoc().exercises[0]?.sets.some((s) => s.id === SET_IDS[1])).toBe(false);
+
+    await user.press(screen.getByTestId('snackbar-action'));
+    const sets = currentDoc().exercises[0]?.sets ?? [];
+    expect(sets.map((s) => s.id)).toEqual([WARMUP_ID, SET_IDS[0], SET_IDS[1], SET_IDS[2]]);
+    const restored = sets.find((s) => s.id === SET_IDS[1]);
+    expect(restored?.completedAt).toBe(before?.completedAt);
+  });
+
+  it('every set row is wrapped for swipe-to-remove (T-05.A1.2, Δ2.6)', async () => {
+    await renderWorkout(activeDoc());
+    // The gesture thresholds themselves (claim / remove) are pure functions
+    // tested directly in gym-swipe-to-remove.test.ts — PanResponder's native
+    // touch-responder lifecycle can't be driven end-to-end here. This just
+    // confirms the row is actually wrapped, alongside the always-present ⋯
+    // path exercised by the tests around this one.
+    expect(screen.getByTestId('exercise-0-set-2-swipe')).toBeTruthy();
+  });
+
+  it('warm-ups can be removed too, immediately', async () => {
     const user = userEvent.setup();
     await renderWorkout(activeDoc());
     await user.press(screen.getByTestId('exercise-0-warmups-toggle'));
 
     await fireEvent(screen.getByTestId('exercise-0-warmup-1'), 'longPress');
-    await user.press(screen.getByTestId('workout-remove-set-sheet-cancel'));
-    expect(currentDoc().exercises[0]?.sets).toHaveLength(4);
-
-    await fireEvent(screen.getByTestId('exercise-0-warmup-1'), 'longPress');
-    expect(screen.getByTestId('workout-remove-set-sheet-title')).toHaveTextContent(
-      'Remove warm-up 1?',
-    );
-    await user.press(screen.getByTestId('workout-remove-set-sheet-confirm'));
     const sets = currentDoc().exercises[0]?.sets ?? [];
     expect(sets.map((s) => s.id)).toEqual([...SET_IDS]);
     expect(sets.map((s) => s.position)).toEqual([0, 1, 2]);
+    expect(screen.getByTestId('snackbar-message')).toHaveTextContent('Removed warm-up 1');
   });
 });
