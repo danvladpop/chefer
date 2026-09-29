@@ -44,7 +44,9 @@ test.describe('/premium', () => {
 
   test('the FAQ promises notice, a choice and no automatic change', async ({ page }) => {
     await gotoAndSettle(page, '/premium');
-    await expect(page.getByText('at least 30 days ahead')).toBeVisible();
-    await expect(page.getByText('nothing changes automatically')).toBeVisible();
+    // The terms paragraph above also says "at least 30 days ahead" — assert
+    // that the FAQ itself (its last occurrence) promises it.
+    await expect(page.getByText('at least 30 days ahead').last()).toBeVisible();
+    await expect(page.getByText('nothing changes automatically').last()).toBeVisible();
   });
 });

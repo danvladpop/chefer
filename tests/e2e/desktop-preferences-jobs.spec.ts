@@ -73,9 +73,16 @@ test.describe('Preferences — "What you use Chefer for" (T-03.5, UX-03)', () =>
       }
     }
 
-    const wasSelected = originallySelected.includes('TRACK');
-    await trackCard.click();
-    await expect(trackCard).toHaveAttribute('aria-checked', wasSelected ? 'false' : 'true');
+    // Toggle TRACK — unless it is the only selected job, where deselecting it
+    // would leave zero jobs (Save is disabled at zero): toggle another job on.
+    const targetJob =
+      originallySelected.length === 1 && originallySelected[0] === 'TRACK'
+        ? ALL_JOB_IDS.find((j) => j !== 'TRACK')!
+        : 'TRACK';
+    const target = page.getByTestId(`onboarding-job-${targetJob}`);
+    const wasSelected = originallySelected.includes(targetJob);
+    await target.click();
+    await expect(target).toHaveAttribute('aria-checked', wasSelected ? 'false' : 'true');
 
     const saveResponse = page.waitForResponse(
       (r) => r.url().includes('preferences.setJobs') && r.status() === 200,
@@ -85,7 +92,7 @@ test.describe('Preferences — "What you use Chefer for" (T-03.5, UX-03)', () =>
 
     // Persisted — a reload shows the same selection, not the pre-save one.
     await gotoAndSettle(page, '/preferences');
-    await expect(page.getByTestId('onboarding-job-TRACK')).toHaveAttribute(
+    await expect(page.getByTestId(`onboarding-job-${targetJob}`)).toHaveAttribute(
       'aria-checked',
       wasSelected ? 'false' : 'true',
     );
@@ -98,7 +105,7 @@ test.describe('Preferences — "What you use Chefer for" (T-03.5, UX-03)', () =>
     // real selection has been saved, on web or mobile, so this is not
     // something the test can or should restore.
     if (originallySelected.length > 0) {
-      await page.getByTestId('onboarding-job-TRACK').click();
+      await page.getByTestId(`onboarding-job-${targetJob}`).click();
       const restoreResponse = page.waitForResponse(
         (r) => r.url().includes('preferences.setJobs') && r.status() === 200,
       );

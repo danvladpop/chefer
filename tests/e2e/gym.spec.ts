@@ -197,7 +197,10 @@ test.describe('past workouts (web)', () => {
   }) => {
     await gotoAndSettle(page, '/gym');
     await expect(recentRows(page).first()).toBeVisible({ timeout: 15_000 });
-    const before = await recentRows(page).count();
+    // Recent is capped, so an older session moves up when one goes — track the
+    // deleted row itself, not the row count.
+    const rowId = await recentRows(page).first().getAttribute('data-testid');
+    const row = page.getByTestId(rowId!).filter({ visible: true });
 
     await page
       .locator('[data-testid^="gym-recent-options-"]')
@@ -213,20 +216,20 @@ test.describe('past workouts (web)', () => {
 
     const toast = page.getByRole('status').filter({ hasText: 'Workout deleted' });
     await expect(toast).toBeVisible();
-    await expect(recentRows(page)).toHaveCount(Math.max(0, before - 1));
+    await expect(row).toHaveCount(0);
     await toast.getByRole('button', { name: 'Undo' }).click();
-    await expect(recentRows(page)).toHaveCount(before);
+    await expect(row).toHaveCount(1);
 
     // Still there after a reload: Undo sent nothing.
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(recentRows(page)).toHaveCount(before, { timeout: 15_000 });
+    await expect(row).toHaveCount(1, { timeout: 15_000 });
   });
 
   test('deleting for real: after the 8 s window it syncs and stays gone', async ({ page }) => {
     test.setTimeout(60_000);
     await gotoAndSettle(page, '/gym');
     await expect(recentRows(page).first()).toBeVisible({ timeout: 15_000 });
-    const before = await recentRows(page).count();
+    const rowId = await recentRows(page).first().getAttribute('data-testid');
 
     await page
       .locator('[data-testid^="gym-recent-options-"]')
@@ -242,8 +245,8 @@ test.describe('past workouts (web)', () => {
       timeout: 30_000,
     });
     await page.reload({ waitUntil: 'domcontentloaded' });
-    if (before > 1)
-      await expect(recentRows(page)).toHaveCount(Math.min(before - 1, 3), { timeout: 15_000 });
+    await expect(recentRows(page).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId(rowId!)).toHaveCount(0);
   });
 
   test('cardio renders as time · distance · effort in history, when the account has any', async ({
