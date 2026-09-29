@@ -8,7 +8,7 @@ import {
   type VolumeGroup,
 } from '@chefer/types';
 import { ChipGroup, Sheet, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, isStrengthTrackingType, trackingTypeOf } from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
 import { CollapsibleChipFilters } from './collapsible-chip-filters';
 import { exerciseImageUrl } from './exercise-image';
@@ -27,8 +27,13 @@ export interface ExercisePickerProps {
   preferSwapGroup?: string | null;
   /** Hidden from the list (e.g. the exercise being swapped out). */
   excludeIds?: readonly string[];
+  /** T-42.3: show a "Cardio" filter chip first (behind cardioLogging — the caller decides). */
+  showCardioFilter?: boolean;
   testID?: string;
 }
+
+/** T-42.3: the picker's group filter is a VolumeGroup, or the special "Cardio" bucket. */
+export type PickerFilter = VolumeGroup | 'CARDIO';
 
 const GROUP_FILTERS: { value: VolumeGroup; label: string }[] = (
   Object.keys(VOLUME_GROUPS) as VolumeGroup[]
@@ -37,6 +42,8 @@ const GROUP_FILTERS: { value: VolumeGroup; label: string }[] = (
   label: (MUSCLE_LABELS as Record<string, string | undefined>)[group] ?? 'Back',
 }));
 
+const CARDIO_FILTER: { value: PickerFilter; label: string } = { value: 'CARDIO', label: 'Cardio' };
+
 function matchesGroup(exercise: ExerciseDto, group: VolumeGroup): boolean {
   const muscles = VOLUME_GROUPS[group] as readonly string[];
   return exercise.primaryMuscles.some((m) => muscles.includes(m));
@@ -44,12 +51,15 @@ function matchesGroup(exercise: ExerciseDto, group: VolumeGroup): boolean {
 
 export function filterExercises(
   library: ExerciseDto[],
-  opts: { query: string; group: VolumeGroup | null; excludeIds?: readonly string[] },
+  opts: { query: string; group: PickerFilter | null; excludeIds?: readonly string[] },
 ): ExerciseDto[] {
   const q = opts.query.trim().toLowerCase();
   return library
     .filter((e) => !e.archived && !(opts.excludeIds ?? []).includes(e.id))
-    .filter((e) => (opts.group ? matchesGroup(e, opts.group) : true))
+    .filter((e) => {
+      if (opts.group === 'CARDIO') return !isStrengthTrackingType(trackingTypeOf(e));
+      return opts.group ? matchesGroup(e, opts.group) : true;
+    })
     .filter((e) =>
       q.length === 0
         ? true
@@ -66,11 +76,13 @@ export function ExercisePicker({
   title = 'Choose an exercise',
   preferSwapGroup,
   excludeIds,
+  showCardioFilter = false,
   testID = 'exercise-picker',
 }: ExercisePickerProps) {
   const [query, setQuery] = useState('');
-  const [group, setGroup] = useState<VolumeGroup | null>(null);
+  const [group, setGroup] = useState<PickerFilter | null>(null);
   const keyboardVisible = useKeyboardVisible();
+  const filterOptions = showCardioFilter ? [CARDIO_FILTER, ...GROUP_FILTERS] : GROUP_FILTERS;
 
   const rows = useMemo(() => {
     const all = filterExercises(library, { query, group, excludeIds });
@@ -119,7 +131,7 @@ export function ExercisePicker({
             <ChipGroup
               key="group"
               testID={`${testID}-groups`}
-              options={GROUP_FILTERS}
+              options={filterOptions}
               value={group ? [group] : []}
               onChange={(v) => setGroup(v[0] ?? null)}
               allowEmpty

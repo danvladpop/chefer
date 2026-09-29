@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
+import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
+import { FilteredForLine } from '@/features/safety/components/FilteredForLine';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { trpc } from '@/lib/trpc';
 import { Heart, Wand2 } from 'lucide-react';
@@ -79,6 +81,12 @@ export function ReplaceMealSheet({
   );
   const allQuery = trpc.recipe.list.useQuery(
     { search: searchInput, limit: 30, forTable: true },
+    { enabled: open },
+  );
+  // T-02.5/AC7: how many `all` results the table's safety filter hid —
+  // mirrors the Discover/cookbook `FilteredForLine` footer.
+  const hiddenQuery = trpc.recipe.listHiddenCount.useQuery(
+    { search: searchInput },
     { enabled: open },
   );
   // The recipe the sheet last attempted — "Use anyway" retries this one id.
@@ -207,67 +215,90 @@ export function ReplaceMealSheet({
           </div>
         )}
 
+        {/* T-02.5/AC7: how many `forTable` results the safety filter hid. */}
+        {hiddenQuery.data && hiddenQuery.data.hiddenCount > 0 && (
+          <FilteredForLine
+            filters={hiddenQuery.data.filteredFor.join(' + ')}
+            hiddenCount={hiddenQuery.data.hiddenCount}
+          />
+        )}
+
         {isLoading ? (
           <p className="py-8 text-center text-sm text-gray-500">Loading recipes…</p>
         ) : sections.length === 0 ? (
           <p className="py-8 text-center text-sm text-gray-500">No recipes match your search.</p>
         ) : (
-          sections.map((section) => (
-            <div key={section.title}>
-              <h3 className="pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                {section.title}
-              </h3>
-              <ul className="flex flex-col gap-2">
-                {section.data.map((recipe) => {
-                  const n = recipe.nutritionInfo as { calories: number };
-                  return (
-                    <li key={recipe.id}>
-                      <button
-                        type="button"
-                        data-testid={`picker-recipe-${recipe.id}`}
-                        aria-label={`Use ${recipe.name}`}
-                        disabled={busy}
-                        onClick={() => {
-                          if (!target) return;
-                          setLastAttemptedId(recipe.id);
-                          replaceMutation.mutate({
-                            planId: target.planId,
-                            dayOfWeek: target.dayOfWeek,
-                            mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
-                            slotIndex: target.slotIndex,
-                            recipeId: recipe.id,
-                          });
-                        }}
-                        className="flex w-full items-center gap-3 rounded-xl border p-2 text-left transition-colors hover:border-[#944a00]/40 hover:bg-orange-50/40 disabled:opacity-50"
-                      >
-                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg">
-                          <RecipeImage
-                            imageUrl={recipe.imageUrl ?? null}
-                            imageStatus={recipe.imageStatus ?? 'DONE'}
-                            recipeName={recipe.name}
-                            cuisineType={recipe.cuisineType}
-                            className="h-full w-full"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-gray-900">
-                            {recipe.name}
-                          </p>
-                          <p className="text-xs text-gray-500">{n.calories} kcal</p>
-                        </div>
-                        {recipe.isFavourite && (
-                          <Heart
-                            className="h-3.5 w-3.5 shrink-0 fill-[#944a00] text-[#944a00]"
-                            aria-hidden="true"
-                          />
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))
+          sections.map((section) => {
+            // T-02.4: "Checked for …" only applies to the broader/curated
+            // list — "Your recipes" can include the user's own unsafe dish
+            // (kept visible on purpose, see mineQuery's comment above).
+            const isAllSection = section.title === 'All recipes';
+            return (
+              <div key={section.title}>
+                <h3 className="pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  {section.title}
+                </h3>
+                <ul className="flex flex-col gap-2">
+                  {section.data.map((recipe) => {
+                    const n = recipe.nutritionInfo as { calories: number };
+                    return (
+                      <li key={recipe.id}>
+                        <button
+                          type="button"
+                          data-testid={`picker-recipe-${recipe.id}`}
+                          aria-label={`Use ${recipe.name}`}
+                          disabled={busy}
+                          onClick={() => {
+                            if (!target) return;
+                            setLastAttemptedId(recipe.id);
+                            replaceMutation.mutate({
+                              planId: target.planId,
+                              dayOfWeek: target.dayOfWeek,
+                              mealType: target.mealType as
+                                | 'breakfast'
+                                | 'lunch'
+                                | 'dinner'
+                                | 'snack',
+                              slotIndex: target.slotIndex,
+                              recipeId: recipe.id,
+                            });
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl border p-2 text-left transition-colors hover:border-[#944a00]/40 hover:bg-orange-50/40 disabled:opacity-50"
+                        >
+                          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg">
+                            <RecipeImage
+                              imageUrl={recipe.imageUrl ?? null}
+                              imageStatus={recipe.imageStatus ?? 'DONE'}
+                              recipeName={recipe.name}
+                              cuisineType={recipe.cuisineType}
+                              className="h-full w-full"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-gray-900">
+                              {recipe.name}
+                            </p>
+                            <p className="text-xs text-gray-500">{n.calories} kcal</p>
+                          </div>
+                          {recipe.isFavourite && (
+                            <Heart
+                              className="h-3.5 w-3.5 shrink-0 fill-[#944a00] text-[#944a00]"
+                              aria-hidden="true"
+                            />
+                          )}
+                          {isAllSection && (
+                            <CheckedForChip
+                              labels={recipe.safetyChecks?.checked.map((c) => c.label) ?? []}
+                            />
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })
         )}
       </div>
     </Sheet>

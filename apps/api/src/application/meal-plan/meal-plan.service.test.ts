@@ -41,6 +41,9 @@ vi.mock('@chefer/database', async (importOriginal) => {
       findByUserId: vi.fn().mockResolvedValue([]),
       migrateLegacyServingSize: vi.fn().mockResolvedValue(0),
     },
+    // T-01.5/delta-4: SafetyService.loadContext (now called throughout this
+    // file) reads reported recipes too — nobody has reported anything here.
+    safetyReportRepository: { findRecipeIdsByUser: vi.fn().mockResolvedValue([]) },
     // F3 wiring: generate loads use-first items + computes usedPantryItems —
     // empty pantry keeps every existing expectation identical.
     pantryItemRepository: { findByUser: vi.fn().mockResolvedValue([]) },
@@ -772,8 +775,10 @@ describe('MealPlanService — household context (F2)', () => {
 
     const input = vi.mocked(aiService.generateMealPlan).mock.calls[0]![0];
     expect(input.servingSize).toBe(2); // ceil(1 + 0.5)
-    // A legacy "cooking for N" is converted into members BEFORE they're read.
-    expect(order).toEqual(['migrate', 'find']);
+    // A legacy "cooking for N" is converted into members BEFORE they're read
+    // (the second "find" is SafetyService's own household read, T-01.5/
+    // delta-4 — it now also carries this generation's hidden-recipe ids).
+    expect(order).toEqual(['migrate', 'find', 'find']);
     // The week cost is sized for the same table.
     const { estimatePlanCostEur } = await import('../shared/plan-cost.js');
     expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({ portions: 2 });
@@ -807,6 +812,9 @@ describe('MealPlanService — household context (F2)', () => {
       allergies: ['shellfish', 'peanuts'],
       dietaryRestrictions: ['Vegan'],
       dislikedIngredients: ['okra'],
+      // T-01.5/delta-4: SafetyService.loadContext (buildCuratedWeek's new
+      // safety read, for reported-recipe exclusion) carries this through.
+      excludeLabelDependent: false,
     });
   });
 });
@@ -2272,6 +2280,83 @@ describe('MealPlanService.tailorDay (one live-tailored day)', () => {
     expect(dinner.recipeId).toBe('swap'); // pickRandomCurated mock
     // Lunch the AI didn't provide keeps its curated slot.
     expect(result.meals.find((m) => m.type === 'lunch')?.recipeId).toBe('cur-l');
+  });
+
+  it('delta-4: a day replaced by tailorDay shows the CORRECT Checked/conflict state on a later read', async () => {
+    // Same setup as "an unsafe AI dish is swapped…" above: the household has
+    // an egg allergy, and the AI's dinner pick is rejected and swapped for a
+    // safe curated dish at tailor time.
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue({
+      allergies: ['Eggs'],
+      dietaryRestrictions: [],
+      dislikedIngredients: [],
+    } as never);
+    const repo = makeRepo();
+    vi.mocked(aiService.generateMealPlanDay).mockResolvedValue({
+      dayOfWeek: 2,
+      meals: [
+        {
+          type: 'dinner',
+          recipe: dish('llm-d', 'Omelette', 2000, {
+            ingredients: [{ name: 'eggs', quantity: 3, unit: 'piece' }],
+          }),
+        },
+      ],
+    } as never);
+    const service = new MealPlanService(repo);
+
+    const tailored = await service.tailorDay({
+      userId: 'user1',
+      plan,
+      dayOfWeek: 2,
+      slotTypes: ['breakfast', 'lunch', 'dinner'],
+      deadline: Date.now() + 60_000,
+    });
+    if (!('meals' in tailored)) throw new Error('expected meals');
+
+    // Simulate the compare-and-set write: day 2 now holds tailorDay's
+    // output — breakfast is the pinned slot tailoring left untouched
+    // ("kept-pick", deliberately given egg ingredients below to prove a
+    // conflict is still caught for a slot tailoring never touched), dinner
+    // is the curated dish tailoring swapped in ("swap", egg-free).
+    repo.findByIdForUser.mockResolvedValue({
+      id: 'plan1',
+      weekStartDate: plan.weekStartDate,
+      days: [{ dayOfWeek: 2, meals: tailored.meals }, planDays[1]],
+    });
+    repo.findRecipesByIds.mockResolvedValue([
+      {
+        ...dish('kept-pick', 'Egg Fried Rice', 500, {
+          ingredients: [{ name: 'egg', quantity: 2, unit: 'piece' }],
+        }),
+        imageStatus: 'DONE',
+      },
+      {
+        ...dish('swap', 'Chicken Skewers', 500, {
+          ingredients: [{ name: 'chicken', quantity: 200, unit: 'g' }],
+        }),
+        imageStatus: 'DONE',
+      },
+      {
+        ...dish('cur-l', 'Curated Lunch', 500, {
+          ingredients: [{ name: 'rice', quantity: 200, unit: 'g' }],
+        }),
+        imageStatus: 'DONE',
+      },
+      { ...dish('other-day', 'Thai Curry', 500), imageStatus: 'DONE' },
+    ] as never);
+
+    // The read is what matters (delta-4): every recipe on the tailored day
+    // gets its OWN fresh safety verdict from the CURRENT table, regardless
+    // of how it got into the slot or what tailorDay's own safety pass
+    // already knew about it.
+    const dto = await service.getById('user1', 'plan1');
+    const day2 = dto.days.find((d) => d.dayOfWeek === 2)!;
+    const dinnerMeal = day2.meals.find((m) => m.type === 'dinner')!;
+    expect(dinnerMeal.recipe.safetyChecks?.checked.map((c) => c.label)).toEqual(['Eggs']);
+    expect(dinnerMeal.recipe.safetyChecks?.conflicts ?? []).toEqual([]);
+    const breakfastMeal = day2.meals.find((m) => m.type === 'breakfast')!;
+    expect(breakfastMeal.recipe.safetyChecks?.conflicts).toEqual(['Eggs']);
   });
 
   it('an off-target day gets one corrective retry carrying its numbers (budget permitting)', async () => {

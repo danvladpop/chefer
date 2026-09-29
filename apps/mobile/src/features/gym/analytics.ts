@@ -37,6 +37,17 @@ export interface GymEventMap {
   training_paused: { weeks: number; reason: string | null };
   sync_failed: { reason: string };
   video_opened: { fallback: boolean };
+  // UX-44: correcting a past workout — counts and booleans only.
+  session_edited: {
+    setsChanged: number;
+    exercisesReplaced: number;
+    exercisesRemoved: number;
+    dateChanged: boolean;
+  };
+  session_deleted: { from: 'recent' | 'history' | 'detail' };
+  session_delete_undone: Record<string, never>;
+  session_edit_discarded: Record<string, never>;
+  target_notice_answered: { choice: 'new' | 'keep'; source: 'session_edit' };
 }
 
 /** Re-exports through the shared JS transport — respects the same consent switches. */

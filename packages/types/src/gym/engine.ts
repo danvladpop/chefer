@@ -8,6 +8,7 @@ import type {
   ExerciseCategory,
   ExerciseEquipment,
   ExerciseLoadType,
+  ExerciseTrackingType,
   Muscle,
   Rir,
   TrainingExperience,
@@ -40,6 +41,13 @@ export interface ExerciseMeta {
    * `BODYWEIGHT_PLUS` exercises need before "+ weight" is offered at all.
    */
   heldLoad?: boolean;
+  /**
+   * S18 (T-42.0): how the exercise is logged. Optional — older cached rows
+   * and catalogue entries predating W2 never set it; derive it with
+   * `trackingTypeOf()` (`@chefer/utils` gym/tracking.ts) instead of reading
+   * this field directly.
+   */
+  trackingType?: ExerciseTrackingType;
 }
 
 /** One exercise slot as prescribed (routine exercise or its session snapshot). */

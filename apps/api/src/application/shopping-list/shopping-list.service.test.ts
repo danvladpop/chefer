@@ -59,6 +59,25 @@ vi.mock('../household/household.service.js', () => ({
   householdService: { scalingPortions: vi.fn().mockResolvedValue(null) },
 }));
 
+// T-01.9/T-02.1: `getForWeek` reads the table once for `tableSafety` +
+// per-item `labelCheck` — a rule-less table (the default here) leaves every
+// item unchanged, same as `safety.service.test.ts`'s own coverage of the
+// label-caveat matcher itself.
+vi.mock('../safety/safety.service.js', () => ({
+  safetyService: {
+    loadContext: vi.fn().mockResolvedValue({
+      prefs: {
+        allergies: [],
+        dietaryRestrictions: [],
+        dislikedIngredients: [],
+        excludeLabelDependent: false,
+      },
+      hiddenRecipeIds: [],
+      table: { people: [], hasRules: false, needsReview: false },
+    }),
+  },
+}));
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const freeUser: UserProfile = {

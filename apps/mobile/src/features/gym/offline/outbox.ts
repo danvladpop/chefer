@@ -29,6 +29,14 @@ export interface OutboxEntry {
   lastAttemptAt: string | null;
   /** Set ⇒ "needs attention": never sent automatically until retried. */
   parkedReason?: string;
+  /**
+   * T-44.2: ISO time before which this entry is held back from flushing — the
+   * 8 s "Undo" snackbar on a session delete (Δ2.3): the delete is enqueued
+   * immediately (offline-safe) but not sent while the hold is live, so
+   * `cancelHeld` can remove it before anything reaches the server. Additive;
+   * `v` stays 1 — an entry without it flushes exactly as before.
+   */
+  holdUntil?: string;
 }
 
 export interface OutboxState {
@@ -70,6 +78,12 @@ export interface OutboxConfig {
   send: SendDocs;
   /** Called after any entry was acked (invalidate gym.bootstrap here). */
   onSynced?: (ids: string[]) => void;
+  /**
+   * UX-44 (T-44.4): the subset of acked ids the server answered `stale` — a
+   * newer copy (another device's edit) won, so this device's version was NOT
+   * applied. Also part of `onSynced`'s ids.
+   */
+  onStale?: (ids: string[]) => void;
 }
 
 export const OUTBOX_BATCH_SIZE = 20;
@@ -111,7 +125,8 @@ function chunk<T>(items: T[], size: number): T[][] {
 
 export function createOutbox(deps: OutboxDeps = {}) {
   const key = deps.storageKey ?? KV_KEYS.outbox;
-  const now = deps.now ?? Date.now;
+  // A thunk, not `Date.now` itself: the reference must follow a faked clock in tests.
+  const now = deps.now ?? (() => Date.now());
   const isOnline = deps.isOnline ?? (() => true);
   const getOwnerId = deps.getOwnerId ?? (() => null);
   const getStampOwnerId = deps.getStampOwnerId ?? getOwnerId;
@@ -158,9 +173,15 @@ export function createOutbox(deps: OutboxDeps = {}) {
       }),
     }));
 
+  const isHeld = (entry: OutboxEntry) =>
+    entry.holdUntil !== undefined && Date.parse(entry.holdUntil) > now();
+
   const sendable = (state: OutboxState, owner: string): OutboxEntry[] =>
     state.entries.filter(
-      (entry) => !entry.parkedReason && (entry.ownerId === owner || entry.ownerId === null),
+      (entry) =>
+        !entry.parkedReason &&
+        (entry.ownerId === owner || entry.ownerId === null) &&
+        !isHeld(entry),
     );
 
   /** One pass over the current snapshot. Returns false when a batch failed. */
@@ -239,6 +260,7 @@ export function createOutbox(deps: OutboxDeps = {}) {
 
     const byId = new Map(results.map((r) => [r.id, r]));
     const acked: string[] = [];
+    const staleIds: string[] = [];
     patchEntries(ids, (entry) => {
       const ack = byId.get(entry.doc.id);
       if (!ack) {
@@ -252,7 +274,10 @@ export function createOutbox(deps: OutboxDeps = {}) {
       }
       if (ack.status === 'applied' || ack.status === 'stale') {
         if (ack.status === 'applied') result.applied++;
-        else result.stale++;
+        else {
+          result.stale++;
+          staleIds.push(entry.doc.id);
+        }
         acked.push(entry.doc.id);
         return null;
       }
@@ -277,6 +302,13 @@ export function createOutbox(deps: OutboxDeps = {}) {
         config?.onSynced?.(acked);
       } catch {
         // A cache-invalidation hiccup must not undo a successful sync.
+      }
+    }
+    if (staleIds.length > 0) {
+      try {
+        config?.onStale?.(staleIds);
+      } catch {
+        // Informational only.
       }
     }
     return true;
@@ -321,8 +353,13 @@ export function createOutbox(deps: OutboxDeps = {}) {
       config = next;
     },
 
-    /** Queue a doc (replaces a queued copy of the same session if not older). */
-    enqueue(doc: WorkoutSessionDoc, options: { ownerId?: string | null } = {}) {
+    /**
+     * Queue a doc (replaces a queued copy of the same session if not older).
+     * `holdUntil` (T-44.2): an ISO time to hold the entry back from flushing
+     * until — the delete Undo window. Omitted ⇒ sendable immediately, same
+     * as before this option existed.
+     */
+    enqueue(doc: WorkoutSessionDoc, options: { ownerId?: string | null; holdUntil?: string } = {}) {
       const ownerId = options.ownerId !== undefined ? options.ownerId : getStampOwnerId();
       update((state) => {
         const existing = state.entries.find((e) => e.doc.id === doc.id);
@@ -334,6 +371,7 @@ export function createOutbox(deps: OutboxDeps = {}) {
             attempts: 0,
             lastError: null,
             lastAttemptAt: null,
+            ...(options.holdUntil !== undefined && { holdUntil: options.holdUntil }),
           };
           return { ...state, entries: [...state.entries, entry] };
         }
@@ -344,9 +382,15 @@ export function createOutbox(deps: OutboxDeps = {}) {
           ...state,
           entries: state.entries.map((e) => {
             if (e.doc.id !== doc.id) return e;
-            // A fresh copy gets a fresh chance: drop the parked flag.
-            const { parkedReason: _dropped, ...rest } = e;
-            return { ...rest, doc, ownerId: ownerId ?? e.ownerId };
+            // A fresh copy gets a fresh chance: drop the parked flag and any
+            // stale hold from a previous enqueue of this same session.
+            const { parkedReason: _dropped, holdUntil: _dropped2, ...rest } = e;
+            return {
+              ...rest,
+              doc,
+              ownerId: ownerId ?? e.ownerId,
+              ...(options.holdUntil !== undefined && { holdUntil: options.holdUntil }),
+            };
           }),
         };
       });
@@ -384,6 +428,20 @@ export function createOutbox(deps: OutboxDeps = {}) {
     /** User "Discard" on a parked entry — the ONLY way data leaves unacked. */
     discardParked(id: string): OutboxEntry | null {
       const entry = store.get().entries.find((e) => e.doc.id === id && e.parkedReason);
+      if (!entry) return null;
+      patchEntries(new Set([id]), () => null);
+      return entry;
+    },
+
+    /**
+     * User "Undo" on the 8 s delete snackbar (T-44.2, Δ2.3, AC4): removes a
+     * still-held entry before it is ever sent. Returns null (a no-op) once
+     * the hold has already expired — by then the flush may already be in
+     * flight or acked, so Undo silently does nothing rather than risk
+     * un-deleting a session the server has already discarded.
+     */
+    cancelHeld(id: string): OutboxEntry | null {
+      const entry = store.get().entries.find((e) => e.doc.id === id && isHeld(e));
       if (!entry) return null;
       patchEntries(new Set([id]), () => null);
       return entry;

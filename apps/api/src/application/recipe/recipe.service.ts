@@ -6,7 +6,8 @@ import {
   type IMealRatingRepository,
   type Recipe,
 } from '@chefer/database';
-import type { SafetyChecks } from '@chefer/types';
+import type { SafetyChecks, TableSafety } from '@chefer/types';
+import type { RecipeData } from '../../lib/ai/types.js';
 import { ensureCuratedRecipes, safeCuratedPools } from '../../lib/curated-recipes/index.js';
 import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
@@ -14,6 +15,26 @@ import { selectDiscoverRecipes, type DiscoverFilters, type DiscoverRecipeDto } f
 import { findRecipeVisibleTo } from './recipe-access.js';
 
 type UpdateManualRecipeData = Partial<CreateManualRecipeData>;
+
+/**
+ * `SafetyService.check` assumes a full `SafetyCheckable` row (ingredients +
+ * instructions) — a partial/summary shape (e.g. `DiscoverRecipeDto`, which
+ * carries neither) makes `ingredients.map` throw. Every caller here must
+ * pass the full shape (fixed below), but a read must never 500 just because
+ * one row's decoration failed — omit `safetyChecks` for that row instead.
+ */
+function safeCheck(
+  safety: SafetyService,
+  data: SafetyCheckable,
+  table: TableSafety,
+): SafetyChecks | undefined {
+  try {
+    return safety.check(data, table);
+  } catch (err) {
+    console.error('[recipe] safetyChecks failed for a row — omitting it', err);
+    return undefined;
+  }
+}
 
 /** T-40.3 (D-19): an empty cuisine (the widened minimum omits it) is stored as "International". */
 function normaliseCuisine<T extends { cuisineType?: string }>(data: T): T {
@@ -52,7 +73,7 @@ export class RecipeService {
        */
       forTable?: boolean | undefined;
     },
-  ): Promise<(Recipe & { isFavourite: boolean })[]> {
+  ): Promise<(Recipe & { isFavourite: boolean; safetyChecks?: SafetyChecks })[]> {
     const { forTable, ...listOpts } = opts;
     const [recipes, savedIds] = await Promise.all([
       favouriteRecipeRepository.findAllRecipesForUser(userId, listOpts),
@@ -69,7 +90,41 @@ export class RecipeService {
     // goes through the ONE SafetyService filter — reported recipes excluded,
     // dislikes hard, taxonomy-recognised legacy terms included.
     const ctx = await this.safety.loadContext(userId);
-    return this.safety.filter(withFavourite, ctx);
+    const visible = this.safety.filter(withFavourite, ctx);
+    // T-02.1/T-02.4: picker rows get their Checked chip from the same
+    // payload the plan surfaces use — only attached when the table has
+    // rules (UX-02 AC1: no false "Checked" claim on a rule-less table).
+    if (!ctx.table.hasRules) return visible;
+    // `visible` rows are full Prisma `Recipe` rows (findAllRecipesForUser
+    // does a plain findMany, no narrowing `select`) — ingredients/
+    // instructions/dietaryTags are all present, so this cast is safe.
+    return visible.map((r) => {
+      const checks = safeCheck(this.safety, r as unknown as SafetyCheckable, ctx.table);
+      return checks ? { ...r, safetyChecks: checks } : r;
+    });
+  }
+
+  /**
+   * T-02.5 (rev 2): the Replace picker's `Filtered for …` count + active
+   * rule labels — mirrors `discoverHiddenCount` for `list({ forTable: true
+   * })`'s search results (AC7). A separate query so an old client that only
+   * calls `list` is unaffected.
+   */
+  async listHiddenCount(
+    userId: string,
+    opts: {
+      search?: string | undefined;
+      savedOnly?: boolean | undefined;
+      myRecipesOnly?: boolean | undefined;
+    },
+  ): Promise<{ hiddenCount: number; filteredFor: string[] }> {
+    const [ctx, recipes] = await Promise.all([
+      this.safety.loadContext(userId),
+      favouriteRecipeRepository.findAllRecipesForUser(userId, opts),
+    ]);
+    const visible = this.safety.filter(recipes, ctx);
+    const filteredFor = [...ctx.prefs.allergies, ...ctx.prefs.dietaryRestrictions];
+    return { hiddenCount: recipes.length - visible.length, filteredFor };
   }
 
   async create(userId: string, data: CreateManualRecipeData): Promise<Recipe> {
@@ -169,7 +224,10 @@ export class RecipeService {
    * meal-type, search and time filters. Every tier; no AI. Rows are upserted
    * first so each result opens, saves and cooks like any other recipe.
    */
-  async discover(userId: string, filters: DiscoverFilters): Promise<DiscoverRecipeDto[]> {
+  async discover(
+    userId: string,
+    filters: DiscoverFilters,
+  ): Promise<(DiscoverRecipeDto & { safetyChecks?: SafetyChecks })[]> {
     const [ctx, savedIds] = await Promise.all([
       this.safety.loadContext(userId),
       favouriteRecipeRepository.findSavedRecipeIds(userId),
@@ -179,12 +237,26 @@ export class RecipeService {
     // only allergies and diet restrictions hard-exclude here; reported
     // recipes are still removed either way.
     const searchPrefs = { ...ctx.prefs, dislikedIngredients: [] };
-    const results = selectDiscoverRecipes(
-      safeCuratedPools(searchPrefs),
-      filters,
-      new Set(savedIds),
+    const pools = safeCuratedPools(searchPrefs);
+    const results = selectDiscoverRecipes(pools, filters, new Set(savedIds));
+    const visible = results.filter((r) => !ctx.hiddenRecipeIds.includes(r.id));
+    // T-02.1: Discover rows get the same Checked chip as every other surface.
+    if (!ctx.table.hasRules) return visible;
+    // Bug fix: `DiscoverRecipeDto` is a SUMMARY shape — it carries neither
+    // `ingredients` nor `instructions`, so casting a row straight into
+    // `check()` crashed (`ingredients.map` on `undefined`) for any user with
+    // a rule. `check()` needs the full `RecipeData` the pool itself already
+    // has — look each row up there by id instead of casting the summary.
+    const fullById = new Map<string, RecipeData>(
+      Object.values(pools)
+        .flat()
+        .map((r) => [r.id, r]),
     );
-    return results.filter((r) => !ctx.hiddenRecipeIds.includes(r.id));
+    return visible.map((r) => {
+      const full = fullById.get(r.id);
+      const checks = full ? safeCheck(this.safety, full, ctx.table) : undefined;
+      return checks ? { ...r, safetyChecks: checks } : r;
+    });
   }
 
   /**
@@ -205,7 +277,8 @@ export class RecipeService {
     }
     const ctx = await this.safety.loadContext(userId);
     if (!ctx.table.hasRules) return { safetyChecks: null };
-    const checks = this.safety.check(recipe as unknown as SafetyCheckable, ctx.table);
+    const checks = safeCheck(this.safety, recipe as unknown as SafetyCheckable, ctx.table);
+    if (!checks) return { safetyChecks: null };
     const nothingToShow =
       checks.checked.length === 0 && checks.unchecked.length === 0 && checks.conflicts.length === 0;
     if (nothingToShow) return { safetyChecks: null };

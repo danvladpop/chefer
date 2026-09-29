@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { AutoPlanToggle } from '@/features/preferences/components/auto-plan-toggle';
+import { HomeDisplayToggle } from '@/features/preferences/components/home-display-toggle';
+import { JobsSection } from '@/features/preferences/components/jobs-section';
 import { PreferencesForm } from '@/features/preferences/components/preferences-form';
 import {
   WeeklyEmailToggles,
@@ -10,6 +12,7 @@ import {
 import type { ChefProfileData, DietaryPreferencesData } from '@/features/preferences/types';
 import { createServerClient } from '@/lib/trpc-server';
 import { Users } from 'lucide-react';
+import type { OnboardingJob } from '@chefer/types';
 import { ErrorState } from '@chefer/ui';
 
 export const metadata: Metadata = {
@@ -28,6 +31,9 @@ export default async function PreferencesPage() {
   let autoPlanWeekly = true;
   let emailPrefs: WeeklyEmailPreferences | null = null;
   let loadFailed = false;
+  let jobs: OnboardingJob[] = [];
+  // T-04.5/T-04.7: an explicit choice overrides the goal-derived B-31 default.
+  let showNutritionOnToday = true;
 
   try {
     const headerStore = await headers();
@@ -38,6 +44,7 @@ export default async function PreferencesPage() {
     isPremium = me.planTier === 'PREMIUM' || me.role === 'ADMIN';
 
     const result = await client.preferences.get.query();
+    jobs = result.jobs;
 
     // Weekly emails (P2-5) — optional: a failure here hides the section
     // instead of failing the whole page.
@@ -45,6 +52,8 @@ export default async function PreferencesPage() {
 
     if (result.chefProfile) {
       autoPlanWeekly = result.chefProfile.autoPlanWeekly;
+      showNutritionOnToday =
+        result.chefProfile.showNutritionOnToday ?? result.chefProfile.goal != null;
       chefProfile = {
         goal: result.chefProfile.goal,
         biologicalSex: result.chefProfile.biologicalSex,
@@ -124,6 +133,8 @@ export default async function PreferencesPage() {
       />
       {/* Every tier since P2-5: free users get a curated Sunday week */}
       <AutoPlanToggle initialEnabled={autoPlanWeekly} isPremium={isPremium} />
+      <HomeDisplayToggle initialEnabled={showNutritionOnToday} />
+      <JobsSection initialJobs={jobs} />
       {emailPrefs && <WeeklyEmailToggles initial={emailPrefs} />}
     </div>
   );

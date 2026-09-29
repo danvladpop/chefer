@@ -36,6 +36,7 @@ import {
   RefreshCw,
   Repeat,
   Settings2,
+  ShieldCheck,
   Sparkles,
   Wallet,
   Wand2,
@@ -52,6 +53,7 @@ import {
   perPortionCost,
   planButtonLabel,
   planShapeSummary,
+  SAFETY_COPY,
   tailoringDayLabel,
   tailoringDayState,
   toDisplayCurrency,
@@ -486,6 +488,14 @@ export default function MealPlanPage() {
             Continued from your last plan
           </span>
         )}
+        {/* PAT-2 week card (UX-02 §3, T-02.2): the table has ≥ 1 safety rule
+            checked against this week's plan. */}
+        {plan?.tableSafety?.hasRules && (
+          <span className="flex items-center gap-1 rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-xs font-medium text-[#944a00]">
+            <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+            {SAFETY_COPY.weekCardTitle}
+          </span>
+        )}
         {/* Estimated week cost (P2-4) — the priced-list wedge, on the plan */}
         {weekCost !== null && (
           <span
@@ -709,7 +719,7 @@ export default function MealPlanPage() {
           <p className="flex items-start gap-2 text-xs text-amber-900">
             <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
             You&apos;re on the free plan: chef-picked recipes that respect your allergies and
-            restrictions. Upgrade for AI plans tailored to your goals and taste.
+            restrictions. Premium generates your week from your goals and preferences.
           </p>
           <UpgradeButton className="w-full sm:w-auto sm:shrink-0" source="meal-plan-banner" />
         </div>

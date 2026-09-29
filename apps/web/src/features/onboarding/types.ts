@@ -1,4 +1,4 @@
-import type { OnboardingIntent } from '@chefer/types';
+import type { OnboardingIntent, OnboardingJob } from '@chefer/types';
 
 // Mirror of the Prisma enums — kept here so client components don't need
 // to import @chefer/database (which pulls in the Prisma server runtime).
@@ -79,6 +79,13 @@ export interface SavedPreferences {
     cuisinePreferences: string[];
     mealsPerDay: number;
   } | null;
+  /** §2.4, T-03.1: effectiveJobs() — additive, absent on older API responses. */
+  jobs?: OnboardingJob[];
+}
+
+/** The saved effective jobs list, or [] when never answered (§2.4, T-03.6). */
+export function savedJobs(saved: SavedPreferences | null): OnboardingJob[] {
+  return saved?.jobs ?? [];
 }
 
 /**

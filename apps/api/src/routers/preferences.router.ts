@@ -4,6 +4,8 @@ import {
   goalSchema,
   LEVEL_0_UNKNOWN_GOALS,
   setDisplayPreferencesInputSchema,
+  setHomeDisplayInputSchema,
+  setJobsInputSchema,
   setOnboardingIntentInputSchema,
 } from '@chefer/types';
 import {
@@ -134,6 +136,25 @@ export const preferencesRouter = router({
     .input(setOnboardingIntentInputSchema)
     .mutation(async ({ input, ctx }) => {
       return preferencesService.setIntent(ctx.user.id, input.intent);
+    }),
+
+  /**
+   * "What should Chefer help with?" (§2.4, T-03.1) — free for every tier,
+   * the multi-select onboarding-by-job question and its Settings ›
+   * "What you use Chefer for" screen (T-03.5).
+   */
+  setJobs: protectedProcedure.input(setJobsInputSchema).mutation(async ({ input, ctx }) => {
+    return preferencesService.setJobs(ctx.user.id, input, ctx.isMobileClient ? 'mobile' : 'web');
+  }),
+
+  /**
+   * "Show calories and macros on Today" (§2.4, T-04.1) — free for every
+   * tier. Overrides the goal-derived default either way.
+   */
+  setHomeDisplay: protectedProcedure
+    .input(setHomeDisplayInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      return preferencesService.setHomeDisplay(ctx.user.id, input.showNutritionOnToday);
     }),
 
   /** Allergies, restrictions, dislikes — free for every account (P1-2). */

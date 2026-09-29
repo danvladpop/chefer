@@ -6,6 +6,11 @@ import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
 import { Button, EmptyState, Text } from '@chefer/ui-mobile';
 import { collectPrs, groupSessionsByWeek, weekdayDateLabel } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import {
+  SessionOptionsButton,
+  sessionRowAccessibilityActions,
+  useSessionActions,
+} from '../history/use-session-actions';
 
 // T-36.5 (bug B-41's home): Stats › History — every completed session,
 // week-grouped, newest first. First page from the cached
@@ -43,6 +48,7 @@ export interface HistoryViewProps {
 
 export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewProps) {
   const utils = trpc.useUtils();
+  const actions = useSessionActions({ bootstrap, source: 'history', testIDPrefix: testID });
   const cached = useMemo(
     () => bootstrap.recentSessions.filter((s) => s.status === 'COMPLETED'),
     [bootstrap.recentSessions],
@@ -116,24 +122,34 @@ export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewPr
             const sets = workingSetCount(session);
             const hasPr = prSessionIds.has(session.id);
             return (
-              <Pressable
+              <View
                 key={session.id}
-                testID={`${testID}-row-${session.id}`}
-                accessibilityRole="button"
-                accessibilityLabel={`${session.name}, ${weekdayDateLabel(session.localDate)}, ${min} minutes, ${sets} sets${hasPr ? ', personal record' : ''}`}
-                onPress={() =>
-                  router.push({ pathname: '/gym/session/[id]', params: { id: session.id } })
-                }
-                className="min-h-11 flex-row items-center justify-between gap-2 rounded-lg border border-border px-4 py-3"
+                className="min-h-11 flex-row items-center rounded-lg border border-border"
               >
-                <View className="min-w-0 flex-1">
-                  <Text className="text-sm font-medium">{session.name}</Text>
-                  <Text variant="muted" className="text-xs">
-                    {`${weekdayDateLabel(session.localDate)} · ${min} min · ${sets} sets${hasPr ? ' · PR' : ''}`}
-                  </Text>
-                </View>
-                <Text className="text-primary">›</Text>
-              </Pressable>
+                <Pressable
+                  testID={`${testID}-row-${session.id}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${session.name}, ${weekdayDateLabel(session.localDate)}, ${min} minutes, ${sets} sets${hasPr ? ', personal record' : ''}`}
+                  {...sessionRowAccessibilityActions(actions, session)}
+                  onPress={() =>
+                    router.push({ pathname: '/gym/session/[id]', params: { id: session.id } })
+                  }
+                  className="min-h-11 min-w-0 flex-1 flex-row items-center justify-between gap-2 py-3 pl-4"
+                >
+                  <View className="min-w-0 flex-1">
+                    <Text className="text-sm font-medium">{session.name}</Text>
+                    <Text variant="muted" className="text-xs">
+                      {`${weekdayDateLabel(session.localDate)} · ${min} min · ${sets} sets${hasPr ? ' · PR' : ''}`}
+                    </Text>
+                  </View>
+                  <Text className="text-primary">›</Text>
+                </Pressable>
+                <SessionOptionsButton
+                  testID={`${testID}-row-${session.id}-options`}
+                  session={session}
+                  onPress={() => actions.openMenu(session)}
+                />
+              </View>
             );
           })}
         </View>
@@ -161,6 +177,8 @@ export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewPr
           Load more
         </Button>
       ) : null}
+
+      {actions.sheets}
     </View>
   );
 }

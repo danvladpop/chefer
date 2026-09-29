@@ -12,6 +12,11 @@ import {
 import { GymProfileService } from './gym-profile.service.js';
 import { templateToDays } from './routine.service.js';
 
+// GymProfileService transitively imports client-level.ts → lib/flags.ts →
+// lib/env.ts, which validates the full env schema at import time — mock it
+// (the targets.service.test.ts pattern) so this file needs no real env vars.
+vi.mock('../../lib/flags.js', () => ({ isFlagEnabled: () => false }));
+
 const ACCESS: GymEquipmentAccess[] = ['FULL_GYM', 'DUMBBELLS', 'BODYWEIGHT'];
 const EXPERIENCE: TrainingExperience[] = ['BEGINNER', 'INTERMEDIATE'];
 const DAYS = [2, 3, 4, 5, 6];

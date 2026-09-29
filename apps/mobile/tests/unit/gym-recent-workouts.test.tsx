@@ -1,9 +1,11 @@
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager } from '@tanstack/react-query';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { SessionSummaryDto } from '@chefer/types';
 import { localDate } from '../../src/features/gym/offline/ids';
 import { RecentWorkouts } from '../../src/features/gym/today/recent-workouts';
 import { makeBootstrap } from './gym-fixtures';
+import { safeAreaMetrics } from './gym-workout-helpers';
 
 // T-36.A2.1 (UX-36 A2, AC12-14): the `Recent` section, built on
 // `groupRecentSessions()` (pure + already tested). These tests cover the
@@ -250,5 +252,47 @@ describe('RecentWorkouts', () => {
 
     await user.press(screen.getByTestId('gym-today-recent-all-history'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/stats', params: { tab: 'history' } });
+  });
+
+  // ── UX-44 (T-44.1, AC1, AC7) ───────────────────────────────────────────────
+  it('AC1: ⋯ → Edit workout opens edit mode in two taps, and the row exposes Edit/Delete actions', async () => {
+    const user = userEvent.setup();
+    const sessions = [session({ id: 's1', localDate: today, name: 'Full Body A' })];
+    await render(
+      <SafeAreaProvider initialMetrics={safeAreaMetrics}>
+        <RecentWorkouts bootstrap={makeBootstrap({ recentSessions: sessions })} />
+      </SafeAreaProvider>,
+    );
+
+    const row = screen.getByTestId('gym-today-recent-row-s1');
+    expect(row.props.accessibilityActions).toEqual(
+      expect.arrayContaining([
+        { name: 'edit', label: 'Edit' },
+        { name: 'delete', label: 'Delete' },
+      ]),
+    );
+    const options = screen.getByTestId('gym-today-recent-row-s1-options');
+    expect(options.props.accessibilityLabel).toMatch(/^Options for Full Body A, /);
+
+    await user.press(options); // tap 1
+    await user.press(await screen.findByTestId('gym-today-recent-menu-edit')); // tap 2
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/gym/workout',
+      params: { edit: 's1' },
+    });
+  });
+
+  it('⋯ → Delete workout opens the confirm (no native Alert)', async () => {
+    const user = userEvent.setup();
+    const sessions = [session({ id: 's1', localDate: today, name: 'Full Body A' })];
+    await render(
+      <SafeAreaProvider initialMetrics={safeAreaMetrics}>
+        <RecentWorkouts bootstrap={makeBootstrap({ recentSessions: sessions })} />
+      </SafeAreaProvider>,
+    );
+    await user.press(screen.getByTestId('gym-today-recent-row-s1-options'));
+    await user.press(await screen.findByTestId('gym-today-recent-menu-delete'));
+    expect(await screen.findByText('Delete this workout?')).toBeOnTheScreen();
+    expect(screen.getByText('Keep it')).toBeOnTheScreen();
   });
 });

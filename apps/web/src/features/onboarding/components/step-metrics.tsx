@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { WELLNESS_COPY } from '@chefer/utils';
+import { LB_PER_KG } from '@chefer/types';
+import { inferUnitsFromInput, inToCm, WELLNESS_COPY, type UnitSystem } from '@chefer/utils';
 import type { ActivityLevel, BiologicalSex } from '../types';
 
 // ─── Calorie estimate ─────────────────────────────────────────────────────────
@@ -126,6 +127,20 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
   });
   const [localWeight, setLocalWeight] = useState(value.weightKg?.toString() ?? '');
 
+  // §2.4, T-03.8 (bug B-43, AC11): after a height/weight field changes, check
+  // whether the typed digits fit the OTHER unit system far better than the
+  // one currently selected (e.g. "69" typed into the cm field is nonsense
+  // for cm but a plausible height in inches) — if so, flip that field's
+  // toggle and re-interpret the SAME typed digits under the new unit, so
+  // heightCm/weightKg are never briefly nonsense mid-switch. Mirrors
+  // mobile's onboarding-wizard.tsx checkUnitSwitch/undoUnitSwitch, adapted
+  // to web's independent height/weight toggles (mobile has one shared units
+  // toggle for both).
+  const [unitSwitchNotice, setUnitSwitchNotice] = useState<{
+    field: 'height' | 'weight';
+    from: 'cm' | 'ft' | 'kg' | 'lbs';
+  } | null>(null);
+
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   function handleAgeChange(raw: string) {
@@ -134,10 +149,89 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
     onChange({ ...value, age: raw === '' || isNaN(n) ? null : n });
   }
 
+  function checkHeightUnitSwitch(typedValue: number | null, currentUnit: 'cm' | 'ft') {
+    if (typedValue === null) return;
+    const currentUnits: UnitSystem = currentUnit === 'cm' ? 'METRIC' : 'IMPERIAL';
+    const result = inferUnitsFromInput({
+      heightValue: typedValue,
+      weightValue: null,
+      currentUnits,
+    });
+    if (!result.shouldSwitch) return;
+    if (result.suggestedUnits === 'IMPERIAL') {
+      // Same digits, now read as total inches.
+      const newHeightCm = inToCm(typedValue);
+      setLocalFeet(Math.floor(typedValue / 12).toString());
+      setLocalInches(Math.round(typedValue % 12).toString());
+      setHeightUnit('ft');
+      onChange({ ...value, heightCm: newHeightCm });
+    } else {
+      // Same digits, now read directly as cm.
+      setLocalHeightCm(typedValue.toString());
+      setHeightUnit('cm');
+      onChange({ ...value, heightCm: typedValue });
+    }
+    setUnitSwitchNotice({ field: 'height', from: currentUnit });
+  }
+
+  function checkWeightUnitSwitch(typedValue: number | null, currentUnit: 'kg' | 'lbs') {
+    if (typedValue === null) return;
+    const currentUnits: UnitSystem = currentUnit === 'kg' ? 'METRIC' : 'IMPERIAL';
+    const result = inferUnitsFromInput({
+      heightValue: null,
+      weightValue: typedValue,
+      currentUnits,
+    });
+    if (!result.shouldSwitch) return;
+    if (result.suggestedUnits === 'IMPERIAL') {
+      // Same digits, now read as lb.
+      setWeightUnit('lbs');
+      onChange({ ...value, weightKg: typedValue / LB_PER_KG });
+    } else {
+      // Same digits, now read directly as kg.
+      setWeightUnit('kg');
+      onChange({ ...value, weightKg: typedValue });
+    }
+    setUnitSwitchNotice({ field: 'weight', from: currentUnit });
+  }
+
+  function undoUnitSwitch() {
+    if (!unitSwitchNotice) return;
+    const { field, from } = unitSwitchNotice;
+    if (field === 'height') {
+      if (from === 'cm') {
+        // Was cm, we auto-switched to ft — revert to cm with the same digits.
+        const inches = parseInt(localFeet, 10) * 12 + (parseInt(localInches, 10) || 0);
+        setLocalHeightCm(inches.toString());
+        setHeightUnit('cm');
+        onChange({ ...value, heightCm: inches });
+      } else {
+        // Was ft, we auto-switched to cm — revert to ft with the same digits.
+        const cm = parseFloat(localHeightCm);
+        setLocalFeet(Math.floor(cm / 12).toString());
+        setLocalInches(Math.round(cm % 12).toString());
+        setHeightUnit('ft');
+        onChange({ ...value, heightCm: inToCm(cm) });
+      }
+    } else {
+      const w = parseFloat(localWeight);
+      if (from === 'kg') {
+        setWeightUnit('kg');
+        onChange({ ...value, weightKg: w });
+      } else {
+        setWeightUnit('lbs');
+        onChange({ ...value, weightKg: w / LB_PER_KG });
+      }
+    }
+    setUnitSwitchNotice(null);
+  }
+
   function handleHeightCmChange(raw: string) {
     setLocalHeightCm(raw);
     const n = parseFloat(raw);
-    onChange({ ...value, heightCm: raw === '' || isNaN(n) ? null : n });
+    const value_ = raw === '' || isNaN(n) ? null : n;
+    onChange({ ...value, heightCm: value_ });
+    checkHeightUnitSwitch(value_, 'cm');
   }
 
   function handleFeetChange(raw: string) {
@@ -148,6 +242,7 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
       onChange({ ...value, heightCm: null });
     } else {
       onChange({ ...value, heightCm: ftInToCm(feet, inches) });
+      checkHeightUnitSwitch(feet * 12 + inches, 'ft');
     }
   }
 
@@ -159,6 +254,7 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
       onChange({ ...value, heightCm: null });
     } else {
       onChange({ ...value, heightCm: ftInToCm(feet, inches) });
+      checkHeightUnitSwitch(feet * 12 + inches, 'ft');
     }
   }
 
@@ -169,6 +265,7 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
       onChange({ ...value, weightKg: null });
     } else {
       onChange({ ...value, weightKg: weightUnit === 'kg' ? n : lbsToKg(n) });
+      checkWeightUnitSwitch(n, weightUnit);
     }
   }
 
@@ -401,6 +498,33 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
             className={inputCls}
           />
         </div>
+
+        {unitSwitchNotice && (
+          <div
+            data-testid="metrics-units-switch-notice"
+            className="flex flex-wrap items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground"
+          >
+            <span className="flex-1">
+              Switched {unitSwitchNotice.field} to{' '}
+              {unitSwitchNotice.field === 'height'
+                ? unitSwitchNotice.from === 'cm'
+                  ? 'ft / in'
+                  : 'cm'
+                : unitSwitchNotice.from === 'kg'
+                  ? 'lbs'
+                  : 'kg'}{' '}
+              because you entered a value that looked like it.
+            </span>
+            <button
+              type="button"
+              data-testid="metrics-units-switch-undo"
+              onClick={undoUnitSwitch}
+              className="min-h-11 px-2 text-xs font-semibold text-primary underline-offset-2 hover:underline"
+            >
+              Undo
+            </button>
+          </div>
+        )}
 
         {/* Activity level */}
         <fieldset className="space-y-1.5">

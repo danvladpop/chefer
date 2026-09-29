@@ -119,6 +119,25 @@ describe('RecipeService.list({ forTable }) — B-34/B-46, T-00.11', () => {
     expect(rows.map((r) => r.id)).toEqual(['r-safe']);
   });
 
+  it('attaches safetyChecks to a visible row instead of throwing (bug fix, T-02.1)', async () => {
+    findAllRecipesForUser.mockResolvedValue([
+      recipe({
+        id: 'r-safe',
+        name: 'Veggie Fried Rice',
+        ingredients: [{ name: 'rice', quantity: 200, unit: 'g' }],
+      }),
+    ]);
+    findByUserId.mockResolvedValueOnce({
+      allergies: ['egg'],
+      dietaryRestrictions: [],
+      dislikedIngredients: [],
+    });
+    const service = new RecipeService();
+    const rows = await service.list('u1', { forTable: true });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.safetyChecks?.checked).toEqual([{ label: 'Eggs', who: 'you' }]);
+  });
+
   it('unions a household member allergy into the forTable filter', async () => {
     findAllRecipesForUser.mockResolvedValue([
       recipe({
@@ -195,6 +214,32 @@ describe('RecipeService.getSafetyChecks (T-02.3)', () => {
     findRecipeById.mockResolvedValue(null);
     const service = new RecipeService();
     await expect(service.getSafetyChecks('u1', 'missing')).rejects.toThrow('Recipe not found.');
+  });
+});
+
+describe('RecipeService.discover (T-01.2/T-02.1) — bug fix: summary rows must never crash safetyChecks', () => {
+  it('returns 200-worthy rows with safetyChecks when the table has an allergy, instead of throwing', async () => {
+    // `discover` maps the curated pool through `selectDiscoverRecipes`,
+    // whose `DiscoverRecipeDto` is a SUMMARY shape (no `ingredients`/
+    // `instructions`) — the real regression: `safetyChecks` used to be
+    // computed by casting that summary row straight into
+    // `SafetyService.check`, whose `ingredients.map` then threw
+    // (INTERNAL_SERVER_ERROR) for any signed-in user with a rule. This test
+    // exercises the REAL curated pool end to end, so it produces the exact
+    // summary-row shape that used to crash.
+    findByUserId.mockResolvedValueOnce({
+      allergies: ['Tree nuts'],
+      dietaryRestrictions: [],
+      dislikedIngredients: [],
+    });
+    const service = new RecipeService();
+    const rows = await service.discover('u1', {});
+    expect(rows.length).toBeGreaterThan(0);
+    const withChecks = rows.filter((r) => r.safetyChecks !== undefined);
+    expect(withChecks.length).toBeGreaterThan(0);
+    expect(withChecks[0]?.safetyChecks?.checked.map((c) => c.label)).toContain('Tree nuts');
+    // None of Discover's own results conflict — it already excludes them.
+    expect(rows.every((r) => (r.safetyChecks?.conflicts ?? []).length === 0)).toBe(true);
   });
 });
 

@@ -78,8 +78,40 @@ export const ExerciseEquipment = {
   KETTLEBELL: 'KETTLEBELL',
   BAND: 'BAND',
   ASSISTED: 'ASSISTED',
+  // S19 (T-42.0, 06 §5.3) — cardio equipment. Never sent to a level < 2
+  // client (Δ2.1).
+  TREADMILL: 'TREADMILL',
+  BIKE: 'BIKE',
+  ROWER: 'ROWER',
+  ELLIPTICAL: 'ELLIPTICAL',
+  STAIR_CLIMBER: 'STAIR_CLIMBER',
+  SKI_ERG: 'SKI_ERG',
+  ASSAULT_BIKE: 'ASSAULT_BIKE',
+  JUMP_ROPE: 'JUMP_ROPE',
+  POOL: 'POOL',
+  OUTDOOR: 'OUTDOOR',
 } as const;
 export type ExerciseEquipment = (typeof ExerciseEquipment)[keyof typeof ExerciseEquipment];
+
+/**
+ * S18 (T-42.0, 06 §5.1) — how an exercise is logged. All six land at once;
+ * `INTERVALS` is unused until W5. Additive: `renderableTrackingTypes()`
+ * (`apps/api/src/application/gym/client-level.ts`) gates which types an old
+ * client is ever sent (Δ2.1).
+ */
+export const ExerciseTrackingType = {
+  WEIGHT_REPS: 'WEIGHT_REPS',
+  BODYWEIGHT_REPS: 'BODYWEIGHT_REPS',
+  DURATION: 'DURATION',
+  DURATION_DISTANCE: 'DURATION_DISTANCE',
+  DISTANCE: 'DISTANCE',
+  INTERVALS: 'INTERVALS',
+} as const;
+export type ExerciseTrackingType = (typeof ExerciseTrackingType)[keyof typeof ExerciseTrackingType];
+
+/** S21 (T-42.0) — `GymProfile.distanceUnit`; null ⇒ derived from `unit` (Δ2.2). */
+export const DistanceUnit = { KM: 'KM', MI: 'MI' } as const;
+export type DistanceUnit = (typeof DistanceUnit)[keyof typeof DistanceUnit];
 
 export const ExerciseLoadType = {
   WEIGHTED: 'WEIGHTED',

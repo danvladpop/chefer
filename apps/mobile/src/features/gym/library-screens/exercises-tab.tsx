@@ -2,15 +2,22 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS, type VolumeGroup } from '@chefer/types';
+import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS } from '@chefer/types';
 import { Button, Chip, ChipGroup, EmptyState, Input, Screen, Text } from '@chefer/ui-mobile';
+import { useFlags } from '../../../hooks/use-flags';
 import { ExerciseImage } from '../components/exercise-image';
 import { ModeSwitch } from '../components/mode-switch';
 import { CollapsibleChipFilters } from '../library/collapsible-chip-filters';
 import { exerciseImageUrl } from '../library/exercise-image';
+import type { PickerFilter } from '../library/exercise-picker';
 import { useKeyboardVisible } from '../library/use-keyboard-visible';
 import { useGymBootstrap } from '../use-gym-bootstrap';
-import { EQUIPMENT_FILTERS, filterExercisesForTab, MUSCLE_GROUP_FILTERS } from './exercise-filters';
+import {
+  EQUIPMENT_FILTERS,
+  filterExercisesForTab,
+  MUSCLE_GROUP_FILTERS,
+  MUSCLE_GROUP_FILTERS_WITH_CARDIO,
+} from './exercise-filters';
 
 // Exercises tab (gym_plan.md §1.3): search + muscle/equipment/mine filters
 // over the offline-cached library, plus a low-priority background prefetch
@@ -20,11 +27,15 @@ const PREFETCH_DELAY_MS = 300;
 
 export function ExercisesTab() {
   const { data: bootstrap, isLoading } = useGymBootstrap();
+  const { cardioLogging } = useFlags();
   const [query, setQuery] = useState('');
-  const [group, setGroup] = useState<VolumeGroup | null>(null);
+  const [group, setGroup] = useState<PickerFilter | null>(null);
   const [equipment, setEquipment] = useState<string | null>(null);
   const [mineOnly, setMineOnly] = useState(false);
   const keyboardVisible = useKeyboardVisible();
+  const groupFilterOptions = cardioLogging
+    ? MUSCLE_GROUP_FILTERS_WITH_CARDIO
+    : MUSCLE_GROUP_FILTERS;
 
   const library = useMemo(() => bootstrap?.library ?? [], [bootstrap]);
 
@@ -105,7 +116,7 @@ export function ExercisesTab() {
             <ChipGroup
               key="group"
               testID="exercises-group-filters"
-              options={MUSCLE_GROUP_FILTERS}
+              options={groupFilterOptions}
               value={group ? [group] : []}
               onChange={(v) => setGroup(v[0] ?? null)}
               allowEmpty

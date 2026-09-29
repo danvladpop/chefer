@@ -86,6 +86,21 @@ const motionBase = {
   fat: { planned: 91, targetG: 91, eaten: 148 },
 };
 
+describe('NutritionSummary — ring label (§2.11, T-35.5)', () => {
+  it('shows no target-mode label when it is unknown', () => {
+    render(<NutritionSummary nutrition={base} />);
+    expect(screen.queryByTestId('target-mode-label')).toBeNull();
+  });
+
+  it.each([
+    ['OWN' as const, 'Your target'],
+    ['SUGGESTED' as const, 'Suggested'],
+  ])('labels the ring %s -> "%s"', (mode, label) => {
+    render(<NutritionSummary nutrition={base} targetMode={mode} />);
+    expect(screen.getByTestId('target-mode-label')).toHaveTextContent(label);
+  });
+});
+
 describe('NutritionSummary (MO-06)', () => {
   it('marks the calorie ring and only the over-target macro bar as over', () => {
     render(<NutritionSummary nutrition={motionBase} />);

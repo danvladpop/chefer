@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { SessionOptionsMenu } from '@/features/gym/history/SessionOptionsMenu';
+import { useDeleteWorkout } from '@/features/gym/history/use-delete-workout';
+import { cardioSetText, isCardioExercise, profileDistanceUnit } from '@/features/gym/shared/cardio';
 import { libraryLookup, useGymBootstrap } from '@/features/gym/use-gym-bootstrap';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
-import { ArrowLeft, Clock, Trash2 } from 'lucide-react';
-import { formatLoad } from '@chefer/utils';
+import { ArrowLeft, Clock } from 'lucide-react';
+import { formatLoad, toSessionSummary } from '@chefer/utils';
 
 const RIR_LABEL: Record<number, string> = { 0: '0 RIR', 1: '1 RIR', 2: '2 RIR', 3: '3+ RIR' };
 
@@ -25,22 +27,20 @@ export default function GymHistoryDetailPage() {
   const id = params.id;
   const router = useRouter();
   const hasMounted = useHasMounted();
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const { data: session, isLoading, error } = trpc.gym.session.get.useQuery({ id });
   const { data: bootstrap } = useGymBootstrap();
 
-  const utils = trpc.useUtils();
-  const deleteMutation = trpc.gym.session.delete.useMutation({
-    onSuccess: () => {
-      void utils.gym.bootstrap.invalidate();
-      void utils.gym.session.invalidate();
-      void utils.gym.stats.invalidate();
-      router.push('/gym/exercises');
-    },
+  // UX-44 (T-44.5): delete = a named confirm, then an 8 s Undo toast that
+  // outlives this page (the delete is held in the outbox, not in this component).
+  const { ask: askDelete, sheet: deleteSheet } = useDeleteWorkout({
+    bootstrap,
+    source: 'detail',
+    onDeleted: () => router.push('/gym'),
   });
 
   const unit = bootstrap?.profile?.unit ?? 'KG';
+  const distanceUnit = profileDistanceUnit(bootstrap?.profile);
   const lookup = bootstrap ? libraryLookup(bootstrap) : () => undefined;
 
   if (!hasMounted || isLoading) {
@@ -96,46 +96,24 @@ export default function GymHistoryDetailPage() {
             )}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setConfirmingDelete(true)}
-          className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-red-200 px-3 text-sm font-medium text-red-600 hover:bg-red-50"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          Delete
-        </button>
+        <SessionOptionsMenu
+          testId="gym-history-options"
+          label={`${session.name}, ${format(parseISO(session.localDate), 'EEE d MMM')}`}
+          onDelete={() =>
+            askDelete(
+              bootstrap?.recentSessions.find((s) => s.id === id) ?? toSessionSummary(session),
+            )
+          }
+        />
       </div>
-
-      {confirmingDelete && (
-        <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">
-            Delete this session? Progression will be recalculated from your remaining history.
-          </p>
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              onClick={() => deleteMutation.mutate({ id })}
-              disabled={deleteMutation.isPending}
-              className="min-h-11 rounded-lg bg-red-600 px-3 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {deleteMutation.isPending ? 'Deleting…' : 'Delete session'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmingDelete(false)}
-              className="min-h-11 rounded-lg border border-neutral-200 px-3 text-sm text-neutral-600 hover:bg-neutral-100"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="space-y-4">
         {session.exercises.map((ex) => {
           const meta = lookup(ex.exerciseId);
           const working = ex.sets.filter((s) => !s.isWarmup);
           const warmups = ex.sets.filter((s) => s.isWarmup);
+          // T-42.5: cardio is rendered as time · distance · effort, never "0 kg × 0".
+          const cardio = isCardioExercise(meta);
           return (
             <div key={ex.id} className="rounded-2xl border bg-white p-4 shadow-sm">
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -151,7 +129,22 @@ export default function GymHistoryDetailPage() {
                   </span>
                 )}
               </div>
-              {ex.skipped ? null : (
+              {ex.skipped ? null : cardio ? (
+                <div className="flex flex-wrap gap-1.5" data-testid="gym-history-cardio">
+                  {working.map((set) => (
+                    <span
+                      key={set.id}
+                      className={`rounded-lg px-2.5 py-1 text-sm ${
+                        set.completedAt
+                          ? 'bg-neutral-50 text-neutral-800'
+                          : 'bg-neutral-50 text-neutral-300 line-through'
+                      }`}
+                    >
+                      {cardioSetText(set, ex.exerciseId, distanceUnit)}
+                    </span>
+                  ))}
+                </div>
+              ) : (
                 <>
                   {warmups.length > 0 && (
                     <p className="mb-1.5 text-xs text-neutral-400">
@@ -191,6 +184,8 @@ export default function GymHistoryDetailPage() {
           {session.notes}
         </div>
       )}
+
+      {deleteSheet}
     </div>
   );
 }

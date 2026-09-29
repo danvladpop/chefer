@@ -31,7 +31,7 @@ const GROUPS: SettingsGroup[] = [
   {
     title: 'You',
     rows: [
-      { label: 'What you use Chefer for', testID: 'settings-jobs', href: '/preferences' },
+      { label: 'What you use Chefer for', testID: 'settings-jobs', href: '/settings/jobs' },
       { label: 'Goal & body', testID: 'settings-goal-body', href: '/preferences' },
       { label: 'Your targets', testID: 'settings-targets', href: '/preferences' },
     ],

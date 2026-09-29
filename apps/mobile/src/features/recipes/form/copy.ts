@@ -88,6 +88,8 @@ export const recipeFormCopy = {
     dontAddUp: (grams: number, macro: string, kcal: number) =>
       `These don't add up: ${grams} g ${macro} is about ${kcal} kcal.`,
     notAdded: 'Nutrition not added',
+    // T-40.9 (UX-40 slice 2): the manual fields' way back to the computed card.
+    useCalculated: 'Use calculated numbers',
   },
   loadError: {
     title: "Couldn't load your recipe",

@@ -3,9 +3,16 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { trpc } from '@/lib/trpc';
+import { showGymToast } from '../shared/gym-toast';
 import { activeSessionStore } from './active-session-store';
 import { outbox, type SendDocs } from './outbox';
 import { invalidateGymOwnerConfirmation, setGymOwner } from './owner';
+import {
+  dropHardDeletes,
+  markHardDeletesAcked,
+  processPendingHardDeletes,
+  takeCorrectedIds,
+} from './session-corrections';
 import { GYM_KEYS } from './storage';
 import { reconcileActiveSession } from './use-active-workout';
 
@@ -31,10 +38,23 @@ export function GymSync() {
   useEffect(() => {
     const send: SendDocs = async (docs) =>
       (await utils.client.gym.session.upsertMany.mutate({ docs })).results;
+    const hardDelete = (id: string) => utils.client.gym.session.delete.mutate({ id });
     outbox.configure({
       send,
-      onSynced: () => {
+      onSynced: (ids) => {
+        // UX-44: a deleted session's tombstone is hard-deleted once the server has acked it.
+        markHardDeletesAcked(ids);
         void utils.gym.bootstrap.invalidate();
+        void processPendingHardDeletes(hardDelete);
+      },
+      onStale: (ids) => {
+        // Another device's newer copy won (last write wins): our delete did not apply.
+        dropHardDeletes(ids);
+        if (takeCorrectedIds(ids).length > 0) {
+          showGymToast({
+            message: 'This workout was changed on another device. Showing the latest.',
+          });
+        }
       },
     });
 
@@ -71,8 +91,12 @@ export function GymSync() {
     }
     setGymOwner(userId);
     reconcileActiveSession(userId);
-    void outbox.flush({ force: true });
-  }, [userId]);
+    void outbox
+      .flush({ force: true })
+      .then(() =>
+        processPendingHardDeletes((id) => utils.client.gym.session.delete.mutate({ id })),
+      );
+  }, [userId, utils]);
 
   return null;
 }

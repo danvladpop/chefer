@@ -38,6 +38,7 @@ import {
   unitToKg,
 } from '@chefer/utils';
 import { captureGymEvent } from '../analytics';
+import { cardioSetText, isCardioExercise, profileDistanceUnit } from '../shared/cardio';
 import { KIND_ARROW, KIND_TONE, prescriptionText, repsText } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
 import { Stepper } from '../shared/stepper';
@@ -178,22 +179,32 @@ export function SummaryView({ id }: { id: string }) {
         <GymCard data-testid="gym-next-time">
           <CardLabel>Next time</CardLabel>
           <ul className="mt-3 divide-y">
-            {exercises.map((se) => (
-              <NextTimeRow
-                key={se.id}
-                se={se}
-                meta={lookup(se.exerciseId)}
-                progression={
-                  data.progressions.find(
-                    (p) =>
-                      p.exerciseId === se.exerciseId &&
-                      p.repBucket === repBucket(se.repMin, se.repMax),
-                  ) ?? null
-                }
-                profile={inventory}
-                unit={unit}
-              />
-            ))}
+            {exercises.map((se) =>
+              isCardioExercise(lookup(se.exerciseId)) ? (
+                // T-42.5: cardio has no Next-time target on web; it reads time · distance · effort.
+                <CardioRow
+                  key={se.id}
+                  se={se}
+                  name={lookup(se.exerciseId)?.name ?? 'Exercise'}
+                  distanceUnit={profileDistanceUnit(data.profile)}
+                />
+              ) : (
+                <NextTimeRow
+                  key={se.id}
+                  se={se}
+                  meta={lookup(se.exerciseId)}
+                  progression={
+                    data.progressions.find(
+                      (p) =>
+                        p.exerciseId === se.exerciseId &&
+                        p.repBucket === repBucket(se.repMin, se.repMax),
+                    ) ?? null
+                  }
+                  profile={inventory}
+                  unit={unit}
+                />
+              ),
+            )}
             {exercises.length === 0 && (
               <li className="py-3 text-sm text-gray-500">No exercises were logged.</li>
             )}
@@ -276,6 +287,28 @@ function Stat({ icon: Icon, label, value }: { icon: typeof Clock; label: string;
       </dt>
       <dd className="mt-1 text-2xl font-bold tabular-nums text-gray-900">{value}</dd>
     </div>
+  );
+}
+
+function CardioRow({
+  se,
+  name,
+  distanceUnit,
+}: {
+  se: SessionExerciseDoc;
+  name: string;
+  distanceUnit: ReturnType<typeof profileDistanceUnit>;
+}) {
+  const logged = se.sets.filter((s) => !s.isWarmup && s.completedAt !== null);
+  return (
+    <li className="py-3" data-testid="gym-summary-cardio-row">
+      <p className="truncate text-sm font-medium text-gray-900">{name}</p>
+      <p className="text-xs text-gray-500">
+        {logged.length > 0
+          ? logged.map((s) => cardioSetText(s, se.exerciseId, distanceUnit)).join(' · ')
+          : 'Not logged'}
+      </p>
+    </li>
   );
 }
 

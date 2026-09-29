@@ -48,6 +48,10 @@ export interface GymEventMap {
   sync_failed: { reason: string };
   /** The exercise technique video sheet was opened. */
   video_opened: { fallback: boolean };
+  /** UX-44 (T-44.5): a past workout was deleted (counts and enums only). */
+  session_deleted: { from: 'recent' | 'history' | 'detail' };
+  /** The 8 s Undo took a deleted workout back before anything was sent. */
+  session_delete_undone: Record<string, never>;
 }
 
 /** Fires a gym PostHog event with compile-time-checked properties. */

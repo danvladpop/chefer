@@ -17,7 +17,7 @@ import { trpc } from '../../lib/trpc';
 // sending a user who already has a profile to onboarding. Ordering + copy
 // are shared (@chefer/utils premium-activation); only the routes are ours.
 
-const HREFS: Record<ActivationStepKey, Href> = {
+export const ACTIVATION_HREFS: Record<ActivationStepKey, Href> = {
   profile: '/onboarding',
   household: '/household',
   regenerate: '/meal-plan',
@@ -46,7 +46,7 @@ export function PostUpgradeSheet({
 
   const go = (key: ActivationStepKey) => {
     onClose();
-    router.push(HREFS[key]);
+    router.push(ACTIVATION_HREFS[key]);
   };
 
   return (

@@ -16,6 +16,7 @@ import type {
   Rir,
   RoutineDto,
   RoutineExerciseDto,
+  SessionSetDoc,
   SessionSummaryDto,
   TrainingProfileFacts,
   WorkoutSessionDoc,
@@ -417,6 +418,28 @@ export function exposuresFromSession(
     }));
 }
 
+/**
+ * S20 (T-42.2): a wire set's cardio fields are optional (undefined for a
+ * strength set); `exactOptionalPropertyTypes` means the key must be OMITTED
+ * rather than set to `undefined`, hence the conditional spread per field
+ * instead of a plain object literal.
+ */
+function toSummarySet(s: SessionSetDoc): SessionSummaryDto['exercises'][number]['sets'][number] {
+  return {
+    weightKg: s.weightKg,
+    reps: s.reps,
+    isWarmup: s.isWarmup,
+    completed: s.completedAt !== null,
+    ...(s.durationSec !== undefined && { durationSec: s.durationSec }),
+    ...(s.distanceM !== undefined && { distanceM: s.distanceM }),
+    ...(s.intensityRpe !== undefined && { intensityRpe: s.intensityRpe }),
+    ...(s.resistanceLevel !== undefined && { resistanceLevel: s.resistanceLevel }),
+    ...(s.inclinePct !== undefined && { inclinePct: s.inclinePct }),
+    ...(s.caloriesKcal !== undefined && { caloriesKcal: s.caloriesKcal }),
+    ...(s.avgHeartRateBpm !== undefined && { avgHeartRateBpm: s.avgHeartRateBpm }),
+  };
+}
+
 export function toSessionSummary(doc: WorkoutSessionDoc): SessionSummaryDto {
   return {
     id: doc.id,
@@ -434,14 +457,7 @@ export function toSessionSummary(doc: WorkoutSessionDoc): SessionSummaryDto {
         skipped: se.skipped,
         lastSetRir: toRir(se.lastSetRir),
         notes: se.notes,
-        sets: [...se.sets]
-          .sort((a, b) => a.position - b.position)
-          .map((s) => ({
-            weightKg: s.weightKg,
-            reps: s.reps,
-            isWarmup: s.isWarmup,
-            completed: s.completedAt !== null,
-          })),
+        sets: [...se.sets].sort((a, b) => a.position - b.position).map(toSummarySet),
       })),
   };
 }

@@ -6,9 +6,11 @@
 import { z } from 'zod';
 import { REASON_CODES } from './engine';
 import {
+  DistanceUnit,
   ExerciseCategory,
   ExerciseEquipment,
   ExerciseLoadType,
+  ExerciseTrackingType,
   GymEquipmentAccess,
   MUSCLES,
   TrainingExperience,
@@ -33,6 +35,10 @@ export const trainingExperienceSchema = z.enum(values(TrainingExperience));
 export const gymEquipmentAccessSchema = z.enum(values(GymEquipmentAccess));
 export const weightUnitSchema = z.enum(values(WeightUnit));
 export const workoutStatusSchema = z.enum(values(WorkoutStatus));
+/** S18 (T-42.0). */
+export const exerciseTrackingTypeSchema = z.enum(values(ExerciseTrackingType));
+/** S21 (T-42.0). */
+export const distanceUnitSchema = z.enum(values(DistanceUnit));
 
 // ─── Suggestion (stored on every session exercise) ────────────────────────────
 
@@ -57,6 +63,18 @@ export const sessionSetDocSchema = z.object({
   reps: z.number().int().min(0).max(3600),
   isWarmup: z.boolean(),
   completedAt: isoDateTimeSchema.nullable(),
+  // S20 (T-42.0, 06 §5.2) — cardio fields, all additive/optional. schemaVersion
+  // stays 1 (Δ2.2): an old server strips unknown keys, and the API deploys
+  // first anyway. A cardio entry is ONE row with weightKg: 0, reps: 0,
+  // isWarmup: false; INTERVALS (W5) is one row per work/rest segment, with
+  // `position` as the segment index.
+  durationSec: z.number().int().min(0).max(10_800).optional(),
+  distanceM: z.number().min(0).max(1_000_000).optional(),
+  intensityRpe: z.number().int().min(1).max(10).optional(),
+  resistanceLevel: z.number().int().min(0).max(100).optional(),
+  inclinePct: z.number().min(0).max(50).optional(),
+  caloriesKcal: z.number().min(0).max(10_000).optional(),
+  avgHeartRateBpm: z.number().int().min(0).max(300).optional(),
 });
 export type SessionSetDoc = z.infer<typeof sessionSetDocSchema>;
 
@@ -207,6 +225,8 @@ export const saveGymProfileInputSchema = z.object({
   // T-36.2 (bug B-40): per-day reminder times and the quiet-days nudge.
   reminderTimes: reminderTimesSchema.optional(),
   quietNudgeDays: quietNudgeDaysSchema.optional(),
+  // S21 (T-42.0): null clears the override (falls back to unit-derived default).
+  distanceUnit: distanceUnitSchema.nullable().optional(),
 });
 export type SaveGymProfileInput = z.infer<typeof saveGymProfileInputSchema>;
 
@@ -223,6 +243,13 @@ export const customExerciseInputSchema = z
     restSec: z.number().int().min(15).max(900),
     isTimed: z.boolean(),
     cues: z.array(z.string().min(1).max(120)).max(6),
+    /**
+     * S18 (T-42.0, UX-42 (7)): "How do you track it?" — replaces the
+     * `Timed exercise` checkbox once the client's custom form ships it.
+     * Optional so old clients keep sending `isTimed` alone; the API derives
+     * the same default (`trackingTypeOf`) when omitted.
+     */
+    trackingType: exerciseTrackingTypeSchema.optional(),
   })
   .refine((e) => e.repMin <= e.repMax, { message: 'repMin must be ≤ repMax' });
 export type CustomExerciseInput = z.infer<typeof customExerciseInputSchema>;

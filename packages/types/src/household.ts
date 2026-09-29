@@ -32,6 +32,22 @@ export type OnboardingJob = z.infer<typeof onboardingJobSchema>;
 export const setOnboardingIntentInputSchema = z.object({ intent: onboardingIntentSchema });
 export type SetOnboardingIntentInput = z.infer<typeof setOnboardingIntentInputSchema>;
 
+/**
+ * preferences.setJobs (§2.4, T-03.1) — free for every tier. `jobs` replaces
+ * the single legacy intent for clients built against it; the service still
+ * writes `onboardingIntent` (the first job with a legacy equivalent) so web
+ * and older binaries keep working unchanged. `trainingWeekdays` (T-03.3/09)
+ * is the onboarding "which days do you train" answer, stored on the profile
+ * until a gym routine has planned weekdays of its own. `autoPlanWeekly`
+ * (T-03.9) is the Sunday auto-plan question asked once in How you cook.
+ */
+export const setJobsInputSchema = z.object({
+  jobs: z.array(onboardingJobSchema).min(1),
+  trainingWeekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+  autoPlanWeekly: z.boolean().optional(),
+});
+export type SetJobsInput = z.infer<typeof setJobsInputSchema>;
+
 /** Relative portion sizes offered in every member editor (0.5 = a kid). */
 export const HOUSEHOLD_PORTION_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5] as const;
 
