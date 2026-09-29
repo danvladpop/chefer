@@ -155,9 +155,43 @@ describe('todayStatus (bug B-15)', () => {
     expect(todayStatus({ bootstrap: boot, today: MONDAY })).toEqual({ kind: 'training' });
   });
 
-  it('rest: nothing done today, but the next day is due a different weekday', () => {
+  it('rest: nothing done today, and the next day is due later this week', () => {
+    const lowerNext = bootstrapFor(TUESDAY);
+    const boot = {
+      ...lowerNext,
+      nextWorkout: lowerNext.nextWorkout && {
+        ...lowerNext.nextWorkout,
+        dayId: 'dB',
+        dayName: 'Lower',
+      },
+      // Monday's Upper was trained, so the rotation moved on to Thursday's Lower.
+      recentSessions: [summary('s1', MONDAY, 'barbell-bench-press', [[60, 8, true]])],
+    };
+    expect(todayStatus({ bootstrap: boot, today: TUESDAY })).toEqual({
+      kind: 'rest',
+      dayName: 'Lower',
+      weekday: 3,
+    });
+  });
+
+  it("training (overdue): the next day was pinned earlier this week and hasn't happened", () => {
+    // Monday's Upper was missed; on Tuesday it is today's workout, not next Monday's.
     const boot = bootstrapFor(TUESDAY);
     expect(todayStatus({ bootstrap: boot, today: TUESDAY })).toEqual({
+      kind: 'training',
+      overdueFrom: 0,
+    });
+  });
+
+  it('rest: the next day was pinned earlier this week but was already trained this week', () => {
+    // Both days done by Thursday → the rotation wraps to Upper, due next Monday.
+    const boot = bootstrapFor('2026-09-11', {
+      recentSessions: [
+        summary('s1', MONDAY, 'barbell-bench-press', [[60, 8, true]]),
+        summary('s2', THURSDAY, 'barbell-bench-press', [[60, 8, true]], { routineDayId: 'dB' }),
+      ],
+    });
+    expect(todayStatus({ bootstrap: boot, today: '2026-09-11' })).toEqual({
       kind: 'rest',
       dayName: 'Upper',
       weekday: 0,
