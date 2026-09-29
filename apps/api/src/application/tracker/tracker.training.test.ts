@@ -46,6 +46,11 @@ vi.mock('@chefer/database', async (importOriginal) => ({
   },
   workoutSessionRepository: { findCompleted: vi.fn().mockResolvedValue([]) },
   trainingPauseRepository: { listForUser: vi.fn().mockResolvedValue([]) },
+  // UX-06: a lifter's summary also reads the safety context for the refuel
+  // snacks (T-06.3) — no prefs, no household, nothing reported.
+  dietaryPreferencesRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
+  householdMemberRepository: { findByUserId: vi.fn().mockResolvedValue([]) },
+  safetyReportRepository: { findRecipeIdsByUser: vi.fn().mockResolvedValue([]) },
   MealPlanOrigin: { WEEKLY_AUTO: 'WEEKLY_AUTO' },
 }));
 
