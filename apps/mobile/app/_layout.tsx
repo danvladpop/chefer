@@ -14,6 +14,7 @@ import {
   createGymPersistOptions,
 } from '../src/features/gym/offline/query-persistence';
 import { useNotificationLinks } from '../src/features/notifications/use-notification-links';
+import { PremiumHost } from '../src/features/premium/premium-host';
 import { initAnalytics, track } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
@@ -122,6 +123,8 @@ export default function RootLayout() {
               <Stack.Screen name="legal/[doc]" />
             </Stack>
             <AiConsentHost />
+            {/* T-10.2: renders the job-led premium sheet for openPremium(source). */}
+            <PremiumHost />
             {/* T-39.1: re-accept sheet for an existing account whose stored
                 Terms/Privacy acceptance predates a document version bump. */}
             <TermsReacceptSheet signedIn={token !== null} />

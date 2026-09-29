@@ -17,6 +17,7 @@ import type {
   SafetyValue,
 } from '../src/features/preferences/types';
 import { WeeklyUpdatesCard } from '../src/features/preferences/weekly-updates-card';
+import { openPremium } from '../src/features/premium/open-premium';
 import { MigrationCard } from '../src/features/safety/migration-card';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc } from '../src/lib/trpc';
@@ -365,9 +366,17 @@ export default function PreferencesScreen() {
             {isPremium === false ? (
               <View className="flex-row items-center gap-1.5">
                 <Ionicons name="lock-closed" size={14} color="#9ca3af" />
-                <Text variant="muted" className="text-xs">
+                <Text variant="muted" className="min-w-0 flex-1 text-xs">
                   Saving a weekly budget is part of Premium.
                 </Text>
+                <Pressable
+                  testID="prefs-budget-premium"
+                  accessibilityRole="button"
+                  onPress={() => openPremium('budget')}
+                  className="min-h-11 justify-center"
+                >
+                  <Text className="text-xs font-semibold text-primary">See what Premium adds</Text>
+                </Pressable>
               </View>
             ) : (
               <Button

@@ -1,3 +1,4 @@
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen } from '@testing-library/react-native';
 import ProfileScreen from '../../app/profile';
 
@@ -13,13 +14,13 @@ jest.mock('../../src/features/privacy/privacy-section', () => ({
   PrivacySection: () => null,
 }));
 
-jest.mock('../../src/features/premium/post-upgrade-sheet', () => ({
-  PostUpgradeSheet: () => null,
+jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
+jest.mock('../../src/features/premium/use-premium-pitch', () => ({
+  usePremiumPitch: () => ({ bullets: [], alsoIncluded: [] }),
 }));
 
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), push: jest.fn() },
-  useLocalSearchParams: () => ({}),
 }));
 
 jest.mock('../../src/lib/trpc', () => ({
@@ -54,7 +55,16 @@ jest.mock('../../src/lib/trpc', () => ({
 
 describe('Profile household row (T-21.13)', () => {
   it('never caps the household summary to one line', async () => {
-    await render(<ProfileScreen />);
+    await render(
+      <SafeAreaProvider
+        initialMetrics={{
+          frame: { x: 0, y: 0, width: 390, height: 844 },
+          insets: { top: 47, left: 0, right: 0, bottom: 34 },
+        }}
+      >
+        <ProfileScreen />
+      </SafeAreaProvider>,
+    );
 
     const summary = screen.getByText(/at the table: you, Alice, Bob, Carol, Dave/);
     expect(summary.props.numberOfLines).toBeUndefined();

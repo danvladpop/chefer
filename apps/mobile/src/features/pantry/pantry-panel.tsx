@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import type { DisplayCurrency } from '@chefer/types';
 import { Button, Card, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { trpc } from '../../lib/trpc';
+import { openPremium } from '../premium/open-premium';
 import { PantryCheckBanner } from './pantry-check-banner';
 import { PantryGhostBanner } from './pantry-ghost-banner';
 
@@ -123,9 +123,9 @@ export function PantryPanel({
             variant="outline"
             size="sm"
             className="mt-3 self-start"
-            onPress={() => router.push({ pathname: '/profile', params: { source: 'pantry' } })}
+            onPress={() => openPremium('pantry')}
           >
-            See Premium
+            Plan my week around these
           </Button>
         </Card>
       )}

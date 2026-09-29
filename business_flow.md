@@ -473,13 +473,16 @@ UpgradeButton (ONE shared surface; every touchpoint passes a `source`)
            chat-quota (the widget swaps its input for the shared surface when
            the API answers with X-Chat-Quota-Exhausted; upgrading re-enables
            the chat in place)
-  → capture('upgrade_prompt_shown' { source })
-  → Sheet dialog ("free during the beta") → capture('upgrade_clicked')
+  → capture('upgrade_prompt_shown' { source, job })
+  → Sheet dialog headlined by the JOB the source unlocks, with the
+    "FREE FOR NOW" terms (T-10.5) → capture('upgrade_clicked')
   → user.upgradePlan (protected) → planTier = PREMIUM
   → capture('upgrade_completed') → full cache invalidate + router.refresh
 
 DowngradeButton (profile page, premium users)
-  → inline confirm → user.downgradePlan → planTier = FREE
+  → sheet: "Switch back to Free?" — what you keep (plans, recipes, ratings,
+    logs, workouts) and what you lose (only the Premium jobs used); "Keep
+    Premium" cancels → user.downgradePlan → planTier = FREE
   → capture('downgrade_completed')
 
 Admin (/admin/users, adminProcedure-gated)
@@ -513,6 +516,56 @@ Admin (/admin/users, adminProcedure-gated)
   renders `UpgradeCard perkDisplay="carousel"` beneath the optional form: the same feature-card
   registry as `/premium`, horizontally scrollable, plus the comparison-table
   link. Source stays `onboarding`.
+
+**A paywall that names the job (UX-10, L-MONEY wave 2, mobile + web):**
+
+- **One pitch registry.** `premiumPitchFor(source, { jobs, flags, context })`
+  (`packages/utils/src/premium-pitch.ts`) maps every upgrade `source` to the
+  job it unlocks — headline, lede and at most three bullets — and is the only
+  place paywall copy lives (web dialog, `/premium` hero, mobile sheet, Profile
+  "What you have"). A bullet whose feature is not live (`feature: 'planned'`,
+  or a `PLAN_FEATURES` tier that does not grant it, or a flag that has made it
+  free) is never rendered. A user whose jobs include Train gets the gym-first
+  default (`Food that fits your training week`) on a default source; the gym
+  itself is never pitched as Premium (D-11). `ingredient-autofill` is the
+  source behind "Fill in for me" on the custom-ingredient sheet (T-40.11).
+- **Terms on every open.** The sheet/dialog shows the FREE FOR NOW paragraph
+  (`Premium costs nothing for now, and we won't ask for a card. Before it has a
+price, we'll tell you in the app at least 30 days ahead and you choose
+whether to keep it. Nothing changes automatically.`) — never "beta" (App
+  Review 2.2) — and carries no price, currency, checkout or purchase link on
+  any platform (App Review 3.1.1): "Turn on Premium" is the same free
+  `user.upgradePlan` toggle.
+- **Mobile mechanics.** `openPremium(source)` (`apps/mobile/src/features/premium/
+open-premium.ts`) opens the sheet in a `PremiumHost` (the root layout mounts
+  one; a Sheet that can open Premium mounts its own nested one). Locks are
+  `LockedFeatureCard`s or inline buttons and never replace a screen: recipe
+  import keeps its form on free with `Or type it in yourself` (pasted content
+  survives the sheet); pantry `Plan my week around these`; training-day `Fit
+meals to my training days`; household and the AI chef open their job.
+  Success shows `Premium is on`, what you now have and the job's next step —
+  for a household with members that is `Scale next week to {n} portions`
+  (AI consent first, then `mealPlan.generate({ weekOffset: 1, keepPinned })`).
+- **Snap taste (B-35).** On a free plan the Snap card is a labelled static
+  example + `See what Premium adds` (source `snap-scan`) for users with a food
+  job; a gym-only user, and a user whose jobs are still unknown, never see it.
+  It sends nothing, so it asks no AI consent (the real scan still does).
+- **Profile › Plan & Premium.** `Your plan: Free` (what Free includes) +
+  `See what Premium adds`, or `Your plan: Premium` · `Free for now` · `What you
+have` · `Switch back to Free`. The downgrade sheet names what you keep and
+  lists only the Premium jobs this user has used (`downgradeLosses`); cancel
+  keeps Premium.
+- **Nudge cap.** All unprompted nudges go through the pure rule in
+  `packages/utils/src/nudge-cap.ts` (one per calendar day, 7-day cooldown per
+  dismissed source) — web `localStorage` adapter, mobile KV adapter
+  (`features/premium/nudge-cap.ts`). A user-initiated open is never capped.
+- **Honest allowances.** Profile › Daily AI allowances counts what
+  `lib/quotas.ts` reserves (`profile.getAiUsage`, infrastructure.md §8): a plan
+  from our recipes uses no AI (free cap 3/day, `curatedPlans`); a Premium
+  generate is ONE AI reservation (`aiMealPlans`, its instant curated week is not
+  a second count); `mealPlan.resumeTailoring` reserves nothing; an import's AI
+  cost is the preview (counted when read), and `importsSaved` says how many
+  ended as a saved recipe. No copy says curated plans are unlimited (Q-18).
 
 The `source`-tagged events are the input to the PW-3 funnel (prompt → click →
 complete conversion by touchpoint). PW-3 adds per-feature usage events

@@ -1,15 +1,16 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import type { TrainingDayNutrition } from '@chefer/types';
 import { colors, Text } from '@chefer/ui-mobile';
 import { cn, trainingDayLine } from '@chefer/utils';
+import { openPremium } from '../../premium/open-premium';
 
 /**
  * Training-aware nutrition (audit P2-4), mirrors web's TrainingDayNote and is
  * shared by Today (nutrition summary) and the tracker: on a lifter's training
  * day, premium sees the bump applied to the targets; free sees the same
- * numbers locked, with the upgrade path (Profile).
+ * numbers locked, with a `Fit meals to my training days` lock that opens the
+ * premium sheet (T-10.2).
  *
  * `isToday` = false on the tracker's other days: the copy then says "this
  * day" instead of "today".
@@ -67,12 +68,12 @@ export function TrainingDayNote({
           <Pressable
             testID="training-day-upgrade"
             accessibilityRole="button"
-            onPress={() =>
-              router.push({ pathname: '/profile', params: { source: 'training-day' } })
-            }
+            onPress={() => openPremium('training-day')}
             className="min-h-11 justify-center"
           >
-            <Text className="text-xs font-semibold text-primary">Upgrade from your Profile →</Text>
+            <Text className="text-xs font-semibold text-primary">
+              Fit meals to my training days
+            </Text>
           </Pressable>
         </>
       )}

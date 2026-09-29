@@ -1,9 +1,9 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
 import { householdGhostSample, householdPortionSum, type HouseholdGhostKind } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { openPremium } from '../premium/open-premium';
 
 // Free-tier ghost (§6.4, audit F-PM-12) — port of web's HouseholdGhost in
 // features/preferences/components/household-section.tsx. The chip tapped
@@ -72,9 +72,9 @@ export function HouseholdGhost({ kind }: { kind: HouseholdGhostKind }) {
         testID="household-ghost-upgrade"
         variant="outline"
         size="sm"
-        onPress={() => router.push({ pathname: '/profile', params: { source: 'household' } })}
+        onPress={() => openPremium('household')}
       >
-        See Premium
+        See what Premium adds
       </Button>
     </Card>
   );

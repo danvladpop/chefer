@@ -484,7 +484,21 @@ export {
   allergiesAndDietForText,
 } from './safety-copy';
 export { WELLNESS_COPY, type WellnessCopyKey } from './wellness-copy';
-export { PREMIUM_PITCH_COPY, type PremiumPitchCopyKey } from './premium-pitch';
+export {
+  allPitchStrings,
+  downgradeLosses,
+  hasFoodJob,
+  isBulletAvailable,
+  PREMIUM_PITCH_COPY,
+  premiumJobFor,
+  premiumPitchFor,
+  showSnapTaste,
+  type DowngradeUsage,
+  type PremiumPitch,
+  type PremiumPitchContext,
+  type PremiumPitchCopyKey,
+  type PremiumPitchOptions,
+} from './premium-pitch';
 export { tagConflicts, type RecipeTagConflict } from './recipe-tags';
 export {
   formatFractionalQuantity,
