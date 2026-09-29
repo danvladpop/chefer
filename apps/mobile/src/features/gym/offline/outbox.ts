@@ -78,6 +78,12 @@ export interface OutboxConfig {
   send: SendDocs;
   /** Called after any entry was acked (invalidate gym.bootstrap here). */
   onSynced?: (ids: string[]) => void;
+  /**
+   * UX-44 (T-44.4): the subset of acked ids the server answered `stale` — a
+   * newer copy (another device's edit) won, so this device's version was NOT
+   * applied. Also part of `onSynced`'s ids.
+   */
+  onStale?: (ids: string[]) => void;
 }
 
 export const OUTBOX_BATCH_SIZE = 20;
@@ -119,7 +125,8 @@ function chunk<T>(items: T[], size: number): T[][] {
 
 export function createOutbox(deps: OutboxDeps = {}) {
   const key = deps.storageKey ?? KV_KEYS.outbox;
-  const now = deps.now ?? Date.now;
+  // A thunk, not `Date.now` itself: the reference must follow a faked clock in tests.
+  const now = deps.now ?? (() => Date.now());
   const isOnline = deps.isOnline ?? (() => true);
   const getOwnerId = deps.getOwnerId ?? (() => null);
   const getStampOwnerId = deps.getStampOwnerId ?? getOwnerId;
@@ -253,6 +260,7 @@ export function createOutbox(deps: OutboxDeps = {}) {
 
     const byId = new Map(results.map((r) => [r.id, r]));
     const acked: string[] = [];
+    const staleIds: string[] = [];
     patchEntries(ids, (entry) => {
       const ack = byId.get(entry.doc.id);
       if (!ack) {
@@ -266,7 +274,10 @@ export function createOutbox(deps: OutboxDeps = {}) {
       }
       if (ack.status === 'applied' || ack.status === 'stale') {
         if (ack.status === 'applied') result.applied++;
-        else result.stale++;
+        else {
+          result.stale++;
+          staleIds.push(entry.doc.id);
+        }
         acked.push(entry.doc.id);
         return null;
       }
@@ -291,6 +302,13 @@ export function createOutbox(deps: OutboxDeps = {}) {
         config?.onSynced?.(acked);
       } catch {
         // A cache-invalidation hiccup must not undo a successful sync.
+      }
+    }
+    if (staleIds.length > 0) {
+      try {
+        config?.onStale?.(staleIds);
+      } catch {
+        // Informational only.
       }
     }
     return true;

@@ -398,3 +398,44 @@ describe('gym outbox — holdUntil / Undo (T-44.2, Δ2.3)', () => {
     expect(result.applied).toBe(1);
   });
 });
+
+describe('gym outbox — correcting a past session (UX-44)', () => {
+  it('a DISCARDED tombstone for an already-sent COMPLETED session is applied and leaves the queue', async () => {
+    const { outbox, advance } = setup();
+    const completed = makeDoc(3);
+    const tombstone = makeDoc(3, {
+      status: 'DISCARDED',
+      exercises: [],
+      clientUpdatedAt: '2026-09-24T10:00:00.000Z',
+    });
+    const send = acking('applied');
+    const onSynced = jest.fn();
+    outbox.configure({ send, onSynced });
+
+    outbox.enqueue(completed);
+    await outbox.flush({ force: true });
+    outbox.enqueue(tombstone, { holdUntil: new Date(1_000_000 + 8_000).toISOString() });
+    await outbox.flush({ force: true }); // held: nothing goes out yet
+    expect(send).toHaveBeenCalledTimes(1);
+
+    advance(9_000);
+    const result = await outbox.flush({ force: true });
+    expect(result.applied).toBe(1);
+    expect(send).toHaveBeenLastCalledWith([expect.objectContaining({ status: 'DISCARDED' })]);
+    expect(ids(outbox)).toEqual([]);
+    expect(onSynced).toHaveBeenLastCalledWith([tombstone.id]);
+  });
+
+  it("reports a stale ack (another device's newer copy won) through onStale as well as onSynced", async () => {
+    const { outbox } = setup();
+    const doc = makeDoc(4);
+    const onSynced = jest.fn();
+    const onStale = jest.fn();
+    outbox.configure({ send: acking('stale'), onSynced, onStale });
+    outbox.enqueue(doc);
+    await outbox.flush({ force: true });
+    expect(onStale).toHaveBeenCalledWith([doc.id]);
+    expect(onSynced).toHaveBeenCalledWith([doc.id]);
+    expect(ids(outbox)).toEqual([]);
+  });
+});

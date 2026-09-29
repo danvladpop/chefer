@@ -6,6 +6,11 @@ import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
 import { Button, Text } from '@chefer/ui-mobile';
 import { collectPrs, groupRecentSessions } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import {
+  SessionOptionsButton,
+  sessionRowAccessibilityActions,
+  useSessionActions,
+} from '../history/use-session-actions';
 import { localDate } from '../offline/ids';
 
 // UX-36 amendment A2 (T-36.A2.1, O-10/O-11): the `Recent` section on Gym
@@ -30,6 +35,7 @@ export interface RecentWorkoutsProps {
 
 export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: RecentWorkoutsProps) {
   const utils = trpc.useUtils();
+  const actions = useSessionActions({ bootstrap, source: 'recent', testIDPrefix: testID });
   const today = localDate();
   const cached = useMemo(
     () => bootstrap.recentSessions.filter((s) => s.status === 'COMPLETED'),
@@ -103,25 +109,38 @@ export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: Recen
             const showTime = group.rows.length >= 2;
             const detail = `${row.durationMin} min · ${row.workingSets} sets${row.hasPr ? ' · PR' : ''}`;
             const a11yLabel = `${row.name}, ${group.heading}${showTime ? ` at ${row.startTime}` : ''}, ${row.durationMin} minutes, ${row.workingSets} sets${row.hasPr ? ', personal record' : ''}`;
+            const session = combined.find((s) => s.id === row.id);
             return (
-              <Pressable
+              <View
                 key={row.id}
-                testID={`${testID}-row-${row.id}`}
-                accessibilityRole="button"
-                accessibilityLabel={a11yLabel}
-                onPress={() =>
-                  router.push({ pathname: '/gym/session/[id]', params: { id: row.id } })
-                }
-                className="min-h-11 flex-row items-center justify-between gap-2 rounded-lg border border-border px-4 py-3"
+                className="min-h-11 flex-row items-center rounded-lg border border-border"
               >
-                <View className="min-w-0 flex-1 gap-0.5">
-                  <Text className="text-sm font-medium">{row.name}</Text>
-                  <Text variant="muted" className="text-xs">
-                    {showTime ? `${row.startTime} · ${detail}` : detail}
-                  </Text>
-                </View>
-                <Text className="text-primary">›</Text>
-              </Pressable>
+                <Pressable
+                  testID={`${testID}-row-${row.id}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={a11yLabel}
+                  {...(session ? sessionRowAccessibilityActions(actions, session) : {})}
+                  onPress={() =>
+                    router.push({ pathname: '/gym/session/[id]', params: { id: row.id } })
+                  }
+                  className="min-h-11 min-w-0 flex-1 flex-row items-center justify-between gap-2 py-3 pl-4"
+                >
+                  <View className="min-w-0 flex-1 gap-0.5">
+                    <Text className="text-sm font-medium">{row.name}</Text>
+                    <Text variant="muted" className="text-xs">
+                      {showTime ? `${row.startTime} · ${detail}` : detail}
+                    </Text>
+                  </View>
+                  <Text className="text-primary">›</Text>
+                </Pressable>
+                {session ? (
+                  <SessionOptionsButton
+                    testID={`${testID}-row-${row.id}-options`}
+                    session={session}
+                    onPress={() => actions.openMenu(session)}
+                  />
+                ) : null}
+              </View>
             );
           })}
         </View>
@@ -169,6 +188,8 @@ export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: Recen
           <Text className="text-sm font-medium text-primary">All history ›</Text>
         </Pressable>
       </View>
+
+      {actions.sheets}
     </View>
   );
 }
