@@ -54,7 +54,7 @@ vi.mock('@/lib/trpc', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  window.scrollTo = vi.fn(); // the Sheet's scroll lock (jsdom has none)
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined); // the Sheet's scroll lock (jsdom has none)
   mocks.jobs = ['PLAN_MEALS'];
   mocks.members = [];
   mocks.memberCount = 0;
