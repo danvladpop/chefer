@@ -163,3 +163,107 @@ test.describe('mode switch', () => {
     await page.waitForURL(SETUP_OR_TODAY);
   });
 });
+
+// ─── Past workouts: Recent, History, delete + Undo (UX-36 A2, UX-44 / T-44.5) ─
+// Runs after the loop above, so the throwaway E2E account has finished
+// sessions. The second test really deletes the newest one (after the 8 s Undo
+// window, then through the outbox and `gym.session.delete`) — throwaway
+// account only, like the loop.
+
+test.describe('past workouts (web)', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  const recentRows = (page: Page) =>
+    page.locator('[data-testid^="gym-recent-row-"]').filter({ visible: true });
+
+  test('Recent groups sessions under day headers and opens the full history', async ({ page }) => {
+    await gotoAndSettle(page, '/gym');
+    await ensureSetUp(page);
+    await expect(page.getByTestId('gym-recent')).toBeVisible({ timeout: 15_000 });
+    // A day header, never an ISO date.
+    await expect(page.getByTestId('gym-recent').getByRole('heading').first()).not.toHaveText(
+      /\d{4}-\d{2}-\d{2}/,
+    );
+    await page.getByTestId('gym-recent-all-history').click();
+    await page.waitForURL(/\/gym\/history$/);
+    await expect(page.getByTestId('gym-history')).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.locator('[data-testid^="gym-history-row-"]').filter({ visible: true }).first(),
+    ).toBeVisible();
+  });
+
+  test('⋯ → Delete workout names it, Undo brings it back and nothing is deleted', async ({
+    page,
+  }) => {
+    await gotoAndSettle(page, '/gym');
+    await expect(recentRows(page).first()).toBeVisible({ timeout: 15_000 });
+    const before = await recentRows(page).count();
+
+    await page
+      .locator('[data-testid^="gym-recent-options-"]')
+      .filter({ visible: true })
+      .first()
+      .click();
+    await page.getByRole('menuitem', { name: 'Delete workout' }).click();
+    // The confirm says what changes, then a sheet button confirms (no window.confirm).
+    await expect(page.getByTestId('gym-delete-body')).toContainText(
+      'Next time targets for its exercises are worked out again.',
+    );
+    await page.getByTestId('gym-delete-confirm').click();
+
+    const toast = page.getByRole('status').filter({ hasText: 'Workout deleted' });
+    await expect(toast).toBeVisible();
+    await expect(recentRows(page)).toHaveCount(Math.max(0, before - 1));
+    await toast.getByRole('button', { name: 'Undo' }).click();
+    await expect(recentRows(page)).toHaveCount(before);
+
+    // Still there after a reload: Undo sent nothing.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(recentRows(page)).toHaveCount(before, { timeout: 15_000 });
+  });
+
+  test('deleting for real: after the 8 s window it syncs and stays gone', async ({ page }) => {
+    test.setTimeout(60_000);
+    await gotoAndSettle(page, '/gym');
+    await expect(recentRows(page).first()).toBeVisible({ timeout: 15_000 });
+    const before = await recentRows(page).count();
+
+    await page
+      .locator('[data-testid^="gym-recent-options-"]')
+      .filter({ visible: true })
+      .first()
+      .click();
+    await page.getByRole('menuitem', { name: 'Delete workout' }).click();
+    await page.getByTestId('gym-delete-confirm').click();
+    await expect(page.getByRole('status').filter({ hasText: 'Workout deleted' })).toBeVisible();
+
+    // Hold (8 s) → outbox → server; then a reload shows one fewer.
+    await expect(page.getByTestId('gym-sync-indicator')).toContainText('synced', {
+      timeout: 30_000,
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    if (before > 1)
+      await expect(recentRows(page)).toHaveCount(Math.min(before - 1, 3), { timeout: 15_000 });
+  });
+
+  test('cardio renders as time · distance · effort in history, when the account has any', async ({
+    page,
+  }) => {
+    await gotoAndSettle(page, '/gym/history');
+    const rows = page.locator('[data-testid^="gym-history-row-"] a').filter({ visible: true });
+    const count = Math.min(await rows.count(), 8);
+    let found = false;
+    for (let i = 0; i < count && !found; i++) {
+      await gotoAndSettle(page, '/gym/history');
+      await rows.nth(i).click();
+      await page.waitForURL(/\/gym\/history\/[0-9a-f-]{36}$/);
+      const cardio = page.getByTestId('gym-history-cardio').first();
+      if (await cardio.isVisible().catch(() => false)) {
+        found = true;
+        await expect(cardio).toContainText(/min/);
+        await expect(page.getByText(/\b0 kg × 0\b/)).toHaveCount(0);
+      }
+    }
+    test.skip(!found, 'no cardio session on this account (the flag is off / none logged yet)');
+  });
+});
