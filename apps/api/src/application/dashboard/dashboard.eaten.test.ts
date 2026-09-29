@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { dailyLogRepository } from '@chefer/database';
+import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
 import { dashboardService } from './dashboard.service.js';
+
+// UX-06: the training-week read (routine, sessions, pauses) is out of scope
+// here — these users have no training days, so the summary has no extras.
+vi.spyOn(trainingNutritionService, 'trainingWeek').mockResolvedValue({
+  trainingDays: [],
+  basis: null,
+});
 
 // Audit F-DASH-1-2: the home ring showed planned food only ("540 remaining"
 // with 6,070 kcal eaten). The summary now carries what was logged today.
