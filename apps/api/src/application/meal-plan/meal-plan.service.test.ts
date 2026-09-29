@@ -27,6 +27,8 @@ vi.mock('@chefer/database', async (importOriginal) => {
     ...mod,
     prisma: {
       aiCallLog: { create: vi.fn().mockResolvedValue({}) },
+      // UX-06: reads without a view resolve the viewer's tier for the training payload.
+      user: { findUnique: vi.fn().mockResolvedValue(null) },
       // Macro vocabulary (macro-reconcile) — empty: AI numbers stay as stated.
       ingredientPrice: { findMany: vi.fn().mockResolvedValue([]) },
     },
@@ -51,6 +53,9 @@ vi.mock('@chefer/database', async (importOriginal) => {
     gymProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
     weightEntryRepository: { findLatest: vi.fn().mockResolvedValue(null) },
     routineRepository: { findActive: vi.fn().mockResolvedValue(null) },
+    // UX-06 (T-06.2): every plan response reads the week's training days.
+    workoutSessionRepository: { findCompleted: vi.fn().mockResolvedValue([]) },
+    trainingPauseRepository: { listForUser: vi.fn().mockResolvedValue([]) },
     mealPlanRepository: {},
     // Live tailoring: no jobs unless a test queues one.
     mealPlanTailoringRepository: {
@@ -1416,6 +1421,8 @@ describe('MealPlanService — training days (audit P2-4)', () => {
       { plannedWeekday: 0, name: 'Full Body A' },
       { plannedWeekday: 3, name: 'Full Body B' },
     ]),
+    isBumpWidened: vi.fn().mockResolvedValue(false),
+    trainingWeek: vi.fn().mockResolvedValue({ trainingDays: [], basis: null }),
   };
 
   beforeEach(() => {
@@ -1447,6 +1454,8 @@ describe('MealPlanService — training days (audit P2-4)', () => {
     const service = new MealPlanService(makeRepo(), undefined, {
       loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: null }),
       trainingSchedule: vi.fn(),
+      isBumpWidened: vi.fn().mockResolvedValue(false),
+      trainingWeek: vi.fn().mockResolvedValue({ trainingDays: [], basis: null }),
     });
     vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
     vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
@@ -1507,6 +1516,8 @@ describe('MealPlanService — curated slot portions (P1-1)', () => {
   const noLifter = {
     loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: null }),
     trainingSchedule: vi.fn().mockResolvedValue([]),
+    isBumpWidened: vi.fn().mockResolvedValue(false),
+    trainingWeek: vi.fn().mockResolvedValue({ trainingDays: [], basis: null }),
   };
 
   beforeEach(() => {
@@ -1603,6 +1614,8 @@ describe('MealPlanService — curated slot portions (P1-1)', () => {
     const lifter = {
       loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: 80 }),
       trainingSchedule: vi.fn().mockResolvedValue([{ plannedWeekday: 0, name: 'Full Body A' }]),
+      isBumpWidened: vi.fn().mockResolvedValue(false),
+      trainingWeek: vi.fn().mockResolvedValue({ trainingDays: [], basis: null }),
     };
     const expected = resolveDailyTargets(LIFTER, 80);
     expect(expected.proteinG).toBe(144); // 1.8 g/kg

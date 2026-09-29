@@ -18,9 +18,17 @@ import {
   type PlanMealSlotJson,
   type Recipe,
 } from '@chefer/database';
-import type { PlanTailoring, SafetyChecks, TableSafety } from '@chefer/types';
+import type {
+  PlanTailoring,
+  PlanTrainingBasis,
+  PlanTrainingDay,
+  SafetyChecks,
+  TableSafety,
+  UserProfile,
+} from '@chefer/types';
 import {
   applyTrainingDayBonus,
+  buildPremiumChanges,
   hasTrainingDayBump,
   householdPortionSum,
   PLAN_PORTION_STEPS,
@@ -50,6 +58,7 @@ import {
   type SafetyCheckable,
   type SafetyPrefs,
 } from '../../lib/curated-recipes/index.js';
+import { hasFeature } from '../../lib/entitlements.js';
 import { normalizeIngredientName } from '../../lib/ingredient-prices/index.js';
 import { notifyTailoringQueued } from '../../lib/plan-tailoring-signal.js';
 import { PoolExhaustedCause } from '../../lib/pool-exhausted.js';
@@ -273,7 +282,31 @@ export interface WeekPlanDto {
     lines: string[];
     targetHits: number;
     missDays: number;
+    /** Days outside the ±15 % band, with how far off (negative = under) — feeds the card's `Fix it`. */
+    misses?: { dayOfWeek: number; deltaKcal: number }[];
   };
+  /**
+   * §2.6 / T-06.2 (UX-06): this week's training days — lift days from the
+   * routine (or a completed workout) and user-set run kinds — with the bump
+   * for this viewer. Present whenever the week has any training day, on every
+   * tier and goal (markers are universal; kcal is zero where the goal gets no
+   * bump). Additive.
+   */
+  trainingDays?: PlanTrainingDay[];
+  /** T-06.4: the rest-day target and protein basis the Explain sheet quotes. */
+  trainingBasis?: PlanTrainingBasis;
+  /**
+   * T-06.7: present (true) only on a `generate` response that built the week
+   * around the routine's training days — the premium `Fit meals to my
+   * training days` state. Absent on later reads.
+   */
+  fitTrainingDays?: boolean;
+  /**
+   * T-10.4 (D-7, flag `householdFirstWeekFree`): true when this week is the
+   * free user's household-scaled first week (the cost and list are sized for
+   * the table). Additive; absent otherwise.
+   */
+  firstScaledWeek?: boolean;
   /**
    * Live tailoring (premium "instant week"): present while the chef is
    * replacing this plan's curated days with AI days, and after it finished
@@ -313,6 +346,18 @@ export type GenerateOptions = {
    */
   keepPinned?: boolean;
   /**
+   * §T-06.7: `Fit meals to my training days`. `false` turns the training-day
+   * bias off for this call; `undefined` keeps today's behaviour (on for
+   * lifters whose goal gets the bump). The router only forwards it for
+   * premium users.
+   */
+  fitTrainingDays?: boolean;
+  /**
+   * The caller's `trainingDayTargets` entitlement, for the `trainingDays`
+   * payload on this response. Set by `generate` from the tier.
+   */
+  trainingAccess?: boolean;
+  /**
    * Premium only: return a complete curated week at once and let the chef
    * tailor it day by day in the background (live tailoring) instead of
    * blocking on the whole AI week. The router and the Sunday worker set it
@@ -338,6 +383,8 @@ export interface PlanViewOptions {
    * the viewer's tier.
    */
   householdScaling?: boolean;
+  /** UX-06 (T-06.1): the viewer's `trainingDayTargets` entitlement (the bump is applied, not previewed). */
+  trainingAccess?: boolean;
 }
 
 // ─── Week helper ──────────────────────────────────────────────────────────────
@@ -377,7 +424,7 @@ export class MealPlanService {
     private readonly householdRepo: IHouseholdMemberRepository = householdMemberRepository,
     private readonly training: Pick<
       TrainingNutritionService,
-      'loadLifter' | 'trainingSchedule'
+      'loadLifter' | 'trainingSchedule' | 'trainingWeek' | 'isBumpWidened'
     > = trainingNutritionService,
     private readonly tailoringRepo: IMealPlanTailoringRepository = mealPlanTailoringRepository,
   ) {}
@@ -399,13 +446,47 @@ export class MealPlanService {
     premium = false,
     options: GenerateOptions = {},
   ): Promise<WeekPlanDto> {
+    // T-06.1: the tier's `trainingDayTargets` entitlement (premium-only in the
+    // matrix); the flag `trainingBumpFree` is ORed on inside the training service.
+    const withAccess: GenerateOptions = { ...options, trainingAccess: premium };
     if (!premium) {
-      return this.generateCurated(userId, weekOffset, options);
+      return this.generateCurated(userId, weekOffset, withAccess);
     }
     if (options.instant) {
-      return this.generateInstant(userId, weekOffset, options);
+      return this.generateInstant(userId, weekOffset, withAccess);
     }
-    return this.generateBlocking(userId, weekOffset, options);
+    return this.generateBlocking(userId, weekOffset, withAccess);
+  }
+
+  /**
+   * §2.6 / T-06.2: the `trainingDays` + `trainingBasis` payload for the week
+   * starting `weekStart` (one training read for every response that shows the
+   * plan). Empty for a user with no training days — the fields stay absent.
+   */
+  private async trainingPayload(
+    userId: string,
+    weekStart: Date,
+    /** The viewer's `trainingDayTargets` entitlement; undefined = look the tier up. */
+    access: boolean | undefined,
+  ): Promise<Pick<WeekPlanDto, 'trainingDays' | 'trainingBasis'>> {
+    const profile = await chefProfileRepository.findByUserId(userId);
+    if (access === undefined) {
+      // Mutation responses (swap, replace, scale, restore…) carry no view:
+      // resolve the tier from the account rather than previewing for a premium user.
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { planTier: true, role: true },
+      });
+      access = user ? hasFeature(user as UserProfile, 'trainingDayTargets') : false;
+    }
+    const { trainingDays, basis } = await this.training.trainingWeek(
+      userId,
+      profile ?? null,
+      weekStart,
+      access,
+    );
+    if (trainingDays.length === 0) return {};
+    return { trainingDays, ...(basis && { trainingBasis: basis }) };
   }
 
   /**
@@ -414,7 +495,10 @@ export class MealPlanService {
    * implementation behind the blocking week and every live-tailored day, so
    * a tailored day sees exactly what a whole AI week would have.
    */
-  private async loadPremiumContext(userId: string, options: { leftovers?: boolean } = {}) {
+  private async loadPremiumContext(
+    userId: string,
+    options: { leftovers?: boolean; fitTrainingDays?: boolean } = {},
+  ) {
     // 1. Load user preferences + learning signals (P1-1: pinned favourites
     // and recent ratings feed the generation) + household members (F2). A
     // legacy "cooking for N" becomes members first — the household is the
@@ -465,10 +549,14 @@ export class MealPlanService {
     const { lifterBodyweightKg } = await this.training.loadLifter(userId, chefProfile ?? null);
     const liveTargets = resolveDailyTargets(chefProfile ?? null, lifterBodyweightKg);
     const liveCalorieTarget = liveTargets.dailyCalorieTarget;
-    // Training days (and their bump) are GAIN_MUSCLE-only; other lifters
-    // get the g/kg protein base alone.
+    // Lift-day bump: GAIN_MUSCLE-only unless the widened gate is on (Q-3,
+    // `trainingBumpFree`); other lifters get the g/kg protein base alone.
+    // `fitTrainingDays: false` (T-06.7) turns the bias off for this call.
+    const widened = await this.training.isBumpWidened();
     const trainingDays =
-      lifterBodyweightKg && hasTrainingDayBump(chefProfile?.goal)
+      options.fitTrainingDays !== false &&
+      lifterBodyweightKg &&
+      hasTrainingDayBump(chefProfile?.goal, 'lift', widened)
         ? trainingWeekdays(await this.training.trainingSchedule(userId))
         : [];
     const trainingBonus =
@@ -771,34 +859,31 @@ export class MealPlanService {
     });
     const previousPlanId = plan.previousPlanId ?? undefined;
 
+    // §T-06.2: the week's training days — one read for the response and for
+    // the kind-aware `What Premium changed` lines below.
+    const training = await this.trainingPayload(userId, weekStartDate, options.trainingAccess);
+
     // §T-10.7 ("What Premium changed", rev 2): only on a regeneration (a
     // same-week plan existed to replace) — kind-aware lines from what this
     // generation actually did, plus how many days landed on target.
     let premiumChanges: WeekPlanDto['premiumChanges'];
     if (previousPlanId) {
       const dayKcalTotals = planDayKcalTotals(weekPlan);
-      const targetHits = weekPlan.days.filter((d, i) => {
-        const target = trainingDayTargets.get(d.dayOfWeek)?.dailyCalorieTarget ?? liveCalorieTarget;
-        return (
-          target > 0 && Math.abs((dayKcalTotals[i] ?? 0) - target) / target <= PLAN_KCAL_TOLERANCE
-        );
-      }).length;
-      const lines: string[] = [];
-      if (trainingBonus && trainingDays.length > 0) {
-        lines.push(
-          `${trainingDays.length} training day${trainingDays.length === 1 ? '' : 's'} get extra calories and protein to fuel the work.`,
-        );
-      }
-      if (options.leftovers) {
-        lines.push('Dinners are paired with next-day lunches so you cook less.');
-      }
-      if (placedPinNames.length > 0) {
-        lines.push(
-          `${placedPinNames.length} of your favourite${placedPinNames.length === 1 ? '' : 's'} made it into the week.`,
-        );
-      }
-      lines.push(`Hit your calorie target on ${targetHits} of ${weekPlan.days.length} days.`);
-      premiumChanges = { lines, targetHits, missDays: weekPlan.days.length - targetHits };
+      premiumChanges = buildPremiumChanges({
+        days: weekPlan.days
+          .map((d, i) => ({ dayOfWeek: d.dayOfWeek, kcal: dayKcalTotals[i] ?? 0 }))
+          .filter((d, i) => (weekPlan.days[i]?.meals.length ?? 0) > 0 || d.kcal > 0),
+        targetFor: (dow) =>
+          training.trainingDays?.find((t) => t.dayOfWeek === dow)?.targetKcal ??
+          trainingDayTargets.get(dow)?.dailyCalorieTarget ??
+          liveCalorieTarget,
+        baseKcal: liveCalorieTarget,
+        trainingDays: training.trainingDays ?? [],
+        fitLift: Boolean(trainingBonus) && trainingDays.length > 0,
+        leftovers: options.leftovers === true,
+        pinCount: placedPinNames.length,
+        tolerance: PLAN_KCAL_TOLERANCE,
+      });
     }
 
     // 8. Start image generation immediately — don't wait for the worker's poll
@@ -849,6 +934,8 @@ export class MealPlanService {
       },
       ...(previousPlanId && { previousPlanId }),
       ...(premiumChanges && { premiumChanges }),
+      ...training,
+      ...(trainingBonus && trainingDays.length > 0 && { fitTrainingDays: true }),
     };
   }
 
@@ -919,8 +1006,35 @@ export class MealPlanService {
 
     const likedCount = ratingSignals.filter((r) => r.rating >= 4).length;
     const dislikedCount = ratingSignals.filter((r) => r.rating <= 2).length;
+    // §T-10.7: the instant week is what production premium users get — a
+    // regeneration states what Premium did and whether the week meets target.
+    const dto = built.dto;
+    const premiumChanges = dto.previousPlanId
+      ? buildPremiumChanges({
+          days: built.days
+            .filter((d) => d.meals.length > 0)
+            .map((d) => ({
+              dayOfWeek: d.dayOfWeek,
+              kcal: d.meals.reduce(
+                (sum, m) => sum + (m.recipe.nutritionInfo?.calories ?? 0) * slotPortion(m.portion),
+                0,
+              ),
+            })),
+          targetFor: (dow) =>
+            dto.trainingDays?.find((t) => t.dayOfWeek === dow)?.targetKcal ??
+            dto.calorieTarget ??
+            0,
+          baseKcal: dto.calorieTarget ?? 0,
+          trainingDays: dto.trainingDays ?? [],
+          fitLift: dto.fitTrainingDays === true,
+          leftovers: options.leftovers === true,
+          pinCount: built.placedPinNames.length,
+          tolerance: PLAN_KCAL_TOLERANCE,
+        })
+      : undefined;
     return {
-      ...built.dto,
+      ...dto,
+      ...(premiumChanges && { premiumChanges }),
       personalisation: {
         pinnedDishNames: built.placedPinNames,
         likedCount,
@@ -1250,6 +1364,8 @@ export class MealPlanService {
       origin?: MealPlanOrigin;
       shape?: Partial<CuratedShapeOptions>;
       keepPinned?: boolean;
+      fitTrainingDays?: boolean;
+      trainingAccess?: boolean;
     } = {},
   ): Promise<WeekPlanDto> {
     return (await this.buildCuratedWeek(userId, weekOffset, options)).dto;
@@ -1269,6 +1385,8 @@ export class MealPlanService {
       origin?: MealPlanOrigin;
       shape?: Partial<CuratedShapeOptions>;
       keepPinned?: boolean;
+      fitTrainingDays?: boolean;
+      trainingAccess?: boolean;
     },
     premium?: {
       pinnedFavourites: FavouriteRecipeWithRecipe[];
@@ -1335,8 +1453,11 @@ export class MealPlanService {
     const profile = await chefProfileRepository.findByUserId(userId);
     const { lifterBodyweightKg } = await this.training.loadLifter(userId, profile ?? null);
     const targets = resolveDailyTargets(profile ?? null, lifterBodyweightKg);
+    const widened = await this.training.isBumpWidened();
     const trainingDays =
-      lifterBodyweightKg && hasTrainingDayBump(profile?.goal)
+      options.fitTrainingDays !== false &&
+      lifterBodyweightKg &&
+      hasTrainingDayBump(profile?.goal, 'lift', widened)
         ? trainingWeekdays(await this.training.trainingSchedule(userId)).map((d) => d.dayOfWeek)
         : [];
     const weekStartDate = getMondayOfWeek(weekOffset);
@@ -1485,6 +1606,8 @@ export class MealPlanService {
       tableSafety: ctx.table,
       ...(plan.previousPlanId && { previousPlanId: plan.previousPlanId }),
       ...(options.keepPinned && { droppedPinned }),
+      ...(await this.trainingPayload(userId, weekStartDate, options.trainingAccess)),
+      ...(premium && trainingDays.length > 0 && { fitTrainingDays: true }),
     };
     return { dto, planId: plan.id, days, storedDays, shape, placedPinNames };
   }
@@ -1698,6 +1821,7 @@ export class MealPlanService {
       }),
       ...(tailoring && { tailoring }),
       ...(safetyCtx && { tableSafety: safetyCtx.table }),
+      ...(userId && (await this.trainingPayload(userId, plan.weekStartDate, view.trainingAccess))),
     };
   }
 
@@ -2176,8 +2300,9 @@ export class MealPlanService {
     const profile = await chefProfileRepository.findByUserId(userId);
     const { lifterBodyweightKg } = await this.training.loadLifter(userId, profile ?? null);
     const targets = resolveDailyTargets(profile ?? null, lifterBodyweightKg);
+    const widened = await this.training.isBumpWidened();
     const trainingDays =
-      lifterBodyweightKg && hasTrainingDayBump(profile?.goal)
+      lifterBodyweightKg && hasTrainingDayBump(profile?.goal, 'lift', widened)
         ? trainingWeekdays(await this.training.trainingSchedule(userId)).map((d) => d.dayOfWeek)
         : [];
 

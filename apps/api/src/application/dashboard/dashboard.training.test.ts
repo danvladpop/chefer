@@ -43,6 +43,19 @@ vi.mock('@chefer/database', async (importOriginal) => ({
   },
   workoutSessionRepository: { findCompleted: vi.fn().mockResolvedValue([]) },
   trainingPauseRepository: { listForUser: vi.fn().mockResolvedValue([]) },
+  // UX-06 (T-06.3): the refuel snacks run through the safety filter, which
+  // reads the owner's rules, the household and reported recipes.
+  dietaryPreferencesRepository: {
+    findByUserId: vi.fn().mockResolvedValue({
+      allergies: ['dairy'],
+      dietaryRestrictions: [],
+      dislikedIngredients: [],
+      excludeLabelDependent: false,
+      safetyReviewedAt: null,
+    }),
+  },
+  householdMemberRepository: { findByUserId: vi.fn().mockResolvedValue([]) },
+  safetyReportRepository: { findRecipeIdsByUser: vi.fn().mockResolvedValue([]) },
   MealPlanOrigin: { WEEKLY_AUTO: 'WEEKLY_AUTO' },
 }));
 
@@ -111,5 +124,37 @@ describe('dashboard summary — training-aware nutrition', () => {
     );
     expect(s.nutrition.trainingDay).toMatchObject({ isTrainingDay: false, kcalBonus: 0 });
     expect(s.nutrition.adjustedTargets).toBeUndefined();
+  });
+
+  it('T-06.3: a lifter gets a 7-column week glance with the routine days marked', async () => {
+    const s = await dashboardService.getSummary(
+      'u1',
+      'Ana',
+      { localDate: '2026-09-30' },
+      user('FREE'),
+    );
+    expect(s.weekGlance).toHaveLength(7);
+    expect(s.weekGlance?.map((d) => d.dayOfWeek)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    const trained = s.weekGlance?.filter((d) => d.training).map((d) => d.dayOfWeek);
+    expect(trained).toEqual([0, 2]);
+    expect(s.weekGlance?.[0]?.training).toMatchObject({
+      kind: 'lift',
+      status: 'planned',
+      workoutName: 'Full Body A',
+    });
+  });
+
+  it('T-06.3 / AC4: refuel snacks are two, and none is dairy for a dairy allergy', async () => {
+    const s = await dashboardService.getSummary(
+      'u1',
+      'Ana',
+      { localDate: '2026-09-30' },
+      user('FREE'),
+    );
+    expect(s.refuelSnacks).toHaveLength(2);
+    const ids = s.refuelSnacks?.map((x) => x.id) ?? [];
+    expect(ids).not.toContain('greek-yogurt');
+    expect(ids).not.toContain('cottage-cheese');
+    expect(ids).not.toContain('protein-shake');
   });
 });

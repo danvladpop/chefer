@@ -196,7 +196,12 @@ describe('resolveTrainingDay', () => {
         completed: [],
         paused: false,
       }),
-    ).toEqual({ isTrainingDay: true, reason: 'SCHEDULED', workoutName: 'Full Body A' });
+    ).toEqual({
+      isTrainingDay: true,
+      reason: 'SCHEDULED',
+      workoutName: 'Full Body A',
+      kind: 'lift',
+    });
   });
 
   it('a completed workout wins, even off-schedule', () => {
@@ -208,7 +213,7 @@ describe('resolveTrainingDay', () => {
         completed: [{ localDate: '2026-09-29', name: 'Freestyle' }],
         paused: false,
       }),
-    ).toEqual({ isTrainingDay: true, reason: 'COMPLETED', workoutName: 'Freestyle' });
+    ).toEqual({ isTrainingDay: true, reason: 'COMPLETED', workoutName: 'Freestyle', kind: 'lift' });
   });
 
   it('a pause cancels the schedule but not a completed workout', () => {
@@ -241,7 +246,7 @@ describe('resolveTrainingDay', () => {
         completed: [],
         paused: false,
       }),
-    ).toEqual({ isTrainingDay: false, reason: null, workoutName: null });
+    ).toEqual({ isTrainingDay: false, reason: null, workoutName: null, kind: null });
   });
 });
 
@@ -318,5 +323,118 @@ describe('copy + nudges', () => {
       { dayOfWeek: 0, label: 'Mon', workoutName: 'A' },
       { dayOfWeek: 4, label: 'Fri', workoutName: 'B' },
     ]);
+  });
+});
+
+// ─── UX-06: weekday kinds (T-06.10) ─────────────────────────────────────────────
+
+describe('hasTrainingDayBump — kinds and the widened gate (Q-3)', () => {
+  it('unwidened (default): GAIN_MUSCLE lift days only — today', () => {
+    expect(hasTrainingDayBump('GAIN_MUSCLE')).toBe(true);
+    expect(hasTrainingDayBump('GAIN_MUSCLE', 'lift', false)).toBe(true);
+    expect(hasTrainingDayBump('RECOMP', 'lift', false)).toBe(false);
+    expect(hasTrainingDayBump('PERFORMANCE', 'lift', false)).toBe(false);
+    expect(hasTrainingDayBump('GAIN_MUSCLE', 'run', false)).toBe(false);
+    expect(hasTrainingDayBump('PERFORMANCE', 'long_run', false)).toBe(false);
+  });
+
+  it('widened: lift for GAIN_MUSCLE / RECOMP / PERFORMANCE, runs for every goal but LOSE_WEIGHT', () => {
+    for (const goal of ['GAIN_MUSCLE', 'RECOMP', 'PERFORMANCE']) {
+      expect(hasTrainingDayBump(goal, 'lift', true)).toBe(true);
+    }
+    expect(hasTrainingDayBump('MAINTAIN', 'lift', true)).toBe(false);
+    expect(hasTrainingDayBump('LOSE_WEIGHT', 'lift', true)).toBe(false);
+    for (const goal of ['GAIN_MUSCLE', 'MAINTAIN', 'EAT_HEALTHIER', 'RECOMP', 'PERFORMANCE']) {
+      expect(hasTrainingDayBump(goal, 'run', true)).toBe(true);
+      expect(hasTrainingDayBump(goal, 'long_run', true)).toBe(true);
+    }
+    expect(hasTrainingDayBump('LOSE_WEIGHT', 'run', true)).toBe(false);
+    expect(hasTrainingDayBump('LOSE_WEIGHT', 'long_run', true)).toBe(false);
+  });
+
+  it('rest and no goal never bump', () => {
+    expect(hasTrainingDayBump('GAIN_MUSCLE', 'rest', true)).toBe(false);
+    expect(hasTrainingDayBump(null, 'run', true)).toBe(false);
+  });
+});
+
+describe('trainingDayBonus by kind', () => {
+  it('lift is unchanged (protein-led)', () => {
+    expect(trainingDayBonus(2980, 80)).toEqual(trainingDayBonus(2980, 80, 'lift'));
+    expect(trainingDayBonus(2980, 80, 'lift').proteinBonus).toBe(32);
+  });
+
+  it('run and long run are carb-led: kcal only, no protein, all to carbs', () => {
+    const run = trainingDayBonus(2500, 70, 'run');
+    const long = trainingDayBonus(2500, 70, 'long_run');
+    expect(run.proteinBonus).toBe(0);
+    expect(long.proteinBonus).toBe(0);
+    expect(run.carbsBonus).toBe(Math.round(run.kcalBonus / 4));
+    expect(long.kcalBonus).toBeGreaterThan(run.kcalBonus);
+  });
+
+  it('clamps: a tiny base still gets the minimum, a huge one the cap', () => {
+    expect(trainingDayBonus(1200, 60, 'long_run').kcalBonus).toBe(200);
+    expect(trainingDayBonus(6000, 60, 'long_run').kcalBonus).toBe(450);
+    expect(trainingDayBonus(1200, 60, 'run').kcalBonus).toBe(100);
+    expect(trainingDayBonus(6000, 60, 'run').kcalBonus).toBe(250);
+  });
+
+  it('rest is zero', () => {
+    expect(trainingDayBonus(2500, 70, 'rest')).toEqual({
+      kcalBonus: 0,
+      proteinBonus: 0,
+      carbsBonus: 0,
+    });
+  });
+});
+
+describe('resolveTrainingDay — kinds', () => {
+  const input = {
+    localDate: '2026-10-03',
+    weekday: 5,
+    scheduled: [{ plannedWeekday: 0, name: 'Upper A' }],
+    completed: [],
+    paused: false,
+  };
+
+  it('a stored long run on a non-lift weekday is a run day', () => {
+    expect(resolveTrainingDay({ ...input, kinds: { '5': 'long_run' } })).toEqual({
+      isTrainingDay: true,
+      reason: 'SCHEDULED',
+      workoutName: null,
+      kind: 'long_run',
+    });
+  });
+
+  it('a pause cancels run kinds too; rest kinds and unset weekdays stay rest', () => {
+    expect(
+      resolveTrainingDay({ ...input, paused: true, kinds: { '5': 'run' } }).isTrainingDay,
+    ).toBe(false);
+    expect(resolveTrainingDay({ ...input, kinds: { '5': 'rest' } }).isTrainingDay).toBe(false);
+    expect(resolveTrainingDay(input).kind).toBeNull();
+  });
+
+  it('a completed workout is a lift even on a run weekday', () => {
+    const r = resolveTrainingDay({
+      ...input,
+      completed: [{ localDate: '2026-10-03', name: 'Freestyle' }],
+      kinds: { '5': 'long_run' },
+    });
+    expect(r).toMatchObject({ reason: 'COMPLETED', kind: 'lift' });
+  });
+});
+
+describe('trainingDayLine — kinds', () => {
+  it('lift keeps the protein-led line; runs read "mostly carbs"', () => {
+    expect(trainingDayLine({ kcalBonus: 300, proteinBonus: 32 })).toBe(
+      'Training day · +300 kcal, +32 g protein',
+    );
+    expect(trainingDayLine({ kcalBonus: 350, proteinBonus: 0, kind: 'long_run' })).toBe(
+      'Long run day · +350 kcal, mostly carbs',
+    );
+    expect(trainingDayLine({ kcalBonus: 150, proteinBonus: 0, kind: 'run' })).toBe(
+      'Run day · +150 kcal, mostly carbs',
+    );
   });
 });

@@ -11,11 +11,14 @@ import {
 import type {
   NutritionTargets,
   OnboardingJob,
+  RefuelSnackDto,
   SafetyChecks,
   TrainingDayNutrition,
   UserProfile,
+  WeekGlanceDay,
 } from '@chefer/types';
 import {
+  buildWeekGlance,
   effectiveJobs,
   isSlotEaten,
   MEAL_ORDER,
@@ -214,6 +217,19 @@ export interface DashboardSummary {
     adjustedTargets?: NutritionTargets;
   };
   /**
+   * UX-06 (T-06.3): the Mon–Sun glance for the week glance card — meals per
+   * day plus the training session (planned / done) per day. Always seven
+   * entries. Present only for users who train (a routine or a set run kind);
+   * absent for everyone else and on older clients, which ignore it.
+   */
+  weekGlance?: WeekGlanceDay[];
+  /**
+   * UX-06 (T-06.3): two curated refuel snacks after the table's safety rules
+   * (`isRecipeSafe` — no yogurt for a dairy allergy, no eggs for egg-free).
+   * Present for users who train; the gym summary caches it with the summary.
+   */
+  refuelSnacks?: RefuelSnackDto[];
+  /**
    * Set when the active plan was created BEFORE its week began (PW-5 Sunday
    * auto-generation, or planning ahead by hand) — the dashboard celebrates
    * "your week is ready" at the start of the week.
@@ -366,7 +382,22 @@ export class DashboardService {
       userId,
       chefProfile,
       { localDate: toLocalDateString(now, useUtc), weekday: todayIndex },
-      viewer ? hasFeature(viewer, 'trainingNutrition') : false,
+      // T-06.1: the bump's gate is `trainingDayTargets` (the service ORs the
+      // `trainingBumpFree` flag on); `trainingNutrition` now means "week built
+      // around training".
+      viewer ? hasFeature(viewer, 'trainingDayTargets') : false,
+    );
+    // T-06.3: the week glance + refuel snacks, for users who train.
+    const trainingExtras = await this.trainingExtrasFor(
+      userId,
+      chefProfile,
+      monday,
+      useUtc,
+      viewer ? hasFeature(viewer, 'trainingDayTargets') : false,
+      (plan?.days ?? []).map((d: { dayOfWeek: number; meals: unknown }) => ({
+        dayOfWeek: d.dayOfWeek,
+        meals: (d.meals as unknown[]).length,
+      })),
     );
     const eaten = {
       kcal: todayLog?.totalKcal ?? 0,
@@ -389,6 +420,7 @@ export class DashboardService {
         showNutrition,
         jobs,
         include,
+        trainingExtras,
       );
     }
 
@@ -638,6 +670,39 @@ export class DashboardService {
         fat: { planned: Math.round(plannedFat), targetG: targets.fatG, eaten: eaten.fat },
         ...trainingDayFields(training),
       },
+      ...trainingExtras,
+    };
+  }
+
+  /**
+   * UX-06 (T-06.3): the Mon–Sun `weekGlance` (meals + training session per
+   * day) and the safety-filtered `refuelSnacks`, for users who train — a
+   * routine or a set run kind. Everyone else gets neither (no extra payload,
+   * and the week outlook stays as it was).
+   */
+  private async trainingExtrasFor(
+    userId: string,
+    chefProfile: Parameters<typeof trainingNutritionService.trainingWeek>[1],
+    monday: Date,
+    utc: boolean,
+    access: boolean,
+    mealsByDay: { dayOfWeek: number; meals: number }[],
+  ): Promise<Pick<DashboardSummary, 'weekGlance' | 'refuelSnacks'>> {
+    const { trainingDays } = await trainingNutritionService.trainingWeek(
+      userId,
+      chefProfile,
+      monday,
+      access,
+      utc,
+    );
+    if (trainingDays.length === 0) return {};
+    const safety = await safetyService.loadContext(userId);
+    return {
+      weekGlance: buildWeekGlance({
+        mealsByDay: new Map(mealsByDay.map((d) => [d.dayOfWeek, d.meals])),
+        training: trainingDays,
+      }),
+      refuelSnacks: trainingNutritionService.refuelSnacks(safety.prefs),
     };
   }
 
@@ -736,6 +801,7 @@ export class DashboardService {
     showNutrition: boolean,
     jobs: OnboardingJob[],
     include: Set<DashboardIncludeOption>,
+    trainingExtras: Pick<DashboardSummary, 'weekGlance' | 'refuelSnacks'>,
   ): Promise<DashboardSummary> {
     const targetsExtras = include.has('targets')
       ? await this.targetsExtrasFor(userId, 0, targets.dailyCalorieTarget)
@@ -775,6 +841,7 @@ export class DashboardService {
         fat: { planned: 0, targetG: targets.fatG, eaten: eaten.fat },
         ...trainingDayFields(training),
       },
+      ...trainingExtras,
     };
   }
 }
