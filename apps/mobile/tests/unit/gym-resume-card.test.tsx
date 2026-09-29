@@ -61,9 +61,12 @@ describe('ResumeCard', () => {
   });
 
   it('paused: shows the static minutes-in time, "Next", Finish-with and the keep-until time', async () => {
-    const startedAt = '2026-09-28T12:00:00.000Z';
-    const pausedAt = '2026-09-28T12:23:00.000Z'; // 23 min in
-    const keepsUntilIso = '2026-09-29T12:23:00.000Z';
+    // Relative to the real clock: "tomorrow" is computed against now, so the
+    // fixed 2026-09-28 dates this used to hardcode turned "today" a day later.
+    const now = Date.now();
+    const startedAt = new Date(now - 23 * 60_000).toISOString(); // 23 min in
+    const pausedAt = new Date(now).toISOString();
+    const keepsUntilIso = new Date(now + 24 * 60 * 60_000).toISOString();
     const session = { ...activeDoc(), localDate: localDate(), startedAt };
     await render(<ResumeCard bootstrap={BOOTSTRAP} session={session} pausedAt={pausedAt} />);
 
