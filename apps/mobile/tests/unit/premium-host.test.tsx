@@ -12,11 +12,19 @@ import { PremiumHost } from '../../src/features/premium/premium-host';
 // over the job's next step. Every open starts on the offer (AC1, AC2).
 
 const mockPush = jest.fn();
-jest.mock('expo-router', () => ({ router: { push: (...a: unknown[]) => mockPush(...a) } }));
+jest.mock('expo-router', () => ({
+  router: {
+    push: (...a: unknown[]) => {
+      mockPush(...a);
+    },
+  },
+}));
 
 const mockTrack = jest.fn();
 jest.mock('../../src/lib/analytics', () => ({
-  track: (...args: unknown[]) => mockTrack(...args),
+  track: (...args: unknown[]) => {
+    mockTrack(...args);
+  },
 }));
 
 let mockJobs: string[] = ['PLAN_MEALS'];
@@ -93,7 +101,9 @@ describe('PremiumHost', () => {
   it('renders nothing until a lock opens it, then headlines the source’s job', async () => {
     await renderHost();
     expect(screen.queryByTestId('premium-sheet-title')).toBeNull();
-    await act(async () => openPremium('recipe-import'));
+    await act(() => {
+      openPremium('recipe-import');
+    });
     expect(screen.getByTestId('premium-sheet-title')).toHaveTextContent(
       'Turn your saved links and videos into recipes',
     );
@@ -111,14 +121,20 @@ describe('PremiumHost', () => {
       { name: 'Mia', isKid: false },
     ];
     await renderHost();
-    await act(async () => openPremium('household'));
+    await act(() => {
+      openPremium('household');
+    });
     expect(screen.getByTestId('premium-sheet-title')).toHaveTextContent(
       'Keep portions for your table of 4',
     );
-    await act(async () => closePremium());
+    await act(() => {
+      closePremium();
+    });
 
     mockJobs = ['TRAIN'];
-    await act(async () => openPremium('profile'));
+    await act(() => {
+      openPremium('profile');
+    });
     expect(screen.getByTestId('premium-sheet-title')).toHaveTextContent(
       'Food that fits your training week',
     );
@@ -128,7 +144,9 @@ describe('PremiumHost', () => {
   it('Turn on Premium flips the plan, then shows Premium is on with the job’s next step', async () => {
     const user = userEvent.setup();
     await renderHost();
-    await act(async () => openPremium('household'));
+    await act(() => {
+      openPremium('household');
+    });
     await user.press(screen.getByTestId('premium-sheet-turn-on'));
     expect(mockUpgrade).toHaveBeenCalledTimes(1);
     expect(mockTrack).toHaveBeenCalledWith('upgrade_clicked', {
@@ -136,7 +154,9 @@ describe('PremiumHost', () => {
       job: 'household',
     });
 
-    await act(async () => upgradeOpts.onSuccess?.());
+    await act(() => {
+      upgradeOpts.onSuccess?.();
+    });
     expect(screen.getByTestId('premium-sheet-title')).toHaveTextContent('Premium is on');
     expect(mockInvalidate).toHaveBeenCalled();
     expect(mockTrack).toHaveBeenCalledWith('upgrade_completed', {
@@ -157,9 +177,13 @@ describe('PremiumHost', () => {
     ];
     const user = userEvent.setup();
     await renderHost();
-    await act(async () => openPremium('household'));
+    await act(() => {
+      openPremium('household');
+    });
     await user.press(screen.getByTestId('premium-sheet-turn-on'));
-    await act(async () => upgradeOpts.onSuccess?.());
+    await act(() => {
+      upgradeOpts.onSuccess?.();
+    });
 
     expect(screen.getByText('Scale next week to 3 portions')).toBeOnTheScreen();
     await user.press(screen.getByTestId('premium-sheet-action'));
@@ -168,7 +192,9 @@ describe('PremiumHost', () => {
     // ... and the week is built for next week, keeping the user's picks.
     expect(mockGenerate).toHaveBeenCalledWith({ weekOffset: 1, keepPinned: true });
 
-    await act(async () => generateOpts.onSuccess?.());
+    await act(() => {
+      generateOpts.onSuccess?.();
+    });
     expect(mockPush).toHaveBeenCalledWith('/meal-plan');
   });
 
@@ -177,8 +203,12 @@ describe('PremiumHost', () => {
     mockConsentAllows = false;
     const user = userEvent.setup();
     await renderHost();
-    await act(async () => openPremium('household'));
-    await act(async () => upgradeOpts.onSuccess?.());
+    await act(() => {
+      openPremium('household');
+    });
+    await act(() => {
+      upgradeOpts.onSuccess?.();
+    });
     await user.press(screen.getByTestId('premium-sheet-action'));
     expect(mockRequestConsent).toHaveBeenCalledTimes(1);
     expect(mockGenerate).not.toHaveBeenCalled();
@@ -187,9 +217,15 @@ describe('PremiumHost', () => {
   it('a failed week build says so and keeps the action', async () => {
     mockMembers = [{ name: 'Luca', isKid: true }];
     await renderHost();
-    await act(async () => openPremium('household'));
-    await act(async () => upgradeOpts.onSuccess?.());
-    await act(async () => generateOpts.onError?.(new Error('Something went wrong')));
+    await act(() => {
+      openPremium('household');
+    });
+    await act(() => {
+      upgradeOpts.onSuccess?.();
+    });
+    await act(() => {
+      generateOpts.onError?.(new Error('Something went wrong'));
+    });
     expect(screen.getByTestId('premium-sheet-action-error')).toHaveTextContent(
       'Something went wrong',
     );
@@ -198,8 +234,12 @@ describe('PremiumHost', () => {
 
   it('an error keeps the offer, says nothing changed and offers Try again', async () => {
     await renderHost();
-    await act(async () => openPremium('pantry'));
-    await act(async () => upgradeOpts.onError?.());
+    await act(() => {
+      openPremium('pantry');
+    });
+    await act(() => {
+      upgradeOpts.onError?.();
+    });
     expect(screen.getByTestId('premium-sheet-error')).toBeOnTheScreen();
     expect(screen.getByText('FREE FOR NOW')).toBeOnTheScreen();
     expect(screen.getByText('Try again')).toBeOnTheScreen();
@@ -208,16 +248,22 @@ describe('PremiumHost', () => {
   it('each open starts on the offer again', async () => {
     const user = userEvent.setup();
     await renderHost();
-    await act(async () => openPremium('pantry'));
-    await act(async () => upgradeOpts.onSuccess?.());
+    await act(() => {
+      openPremium('pantry');
+    });
+    await act(() => {
+      upgradeOpts.onSuccess?.();
+    });
     expect(screen.getByTestId('premium-sheet-title')).toHaveTextContent('Premium is on');
     await user.press(screen.getByTestId('premium-sheet-later'));
-    await act(async () => openPremium('chat-locked'));
+    await act(() => {
+      openPremium('chat-locked');
+    });
     expect(screen.getByTestId('premium-sheet-title')).toHaveTextContent('Ask the chef');
     expect(screen.getByTestId('premium-sheet-turn-on')).toBeOnTheScreen();
   });
 
-  it('is a quiet no-op when no host is mounted', async () => {
+  it('is a quiet no-op when no host is mounted', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     expect(() => openPremium('pantry')).not.toThrow();
     warn.mockRestore();

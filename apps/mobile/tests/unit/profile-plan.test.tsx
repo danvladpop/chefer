@@ -29,10 +29,14 @@ jest.mock('../../src/features/premium/use-premium-pitch', () => ({
     alsoIncluded: ['Recipe import (daily allowance)'],
   }),
 }));
-jest.mock('../../src/lib/analytics', () => ({ track: (...a: unknown[]) => mockTrack(...a) }));
+jest.mock('../../src/lib/analytics', () => ({
+  track: (...a: unknown[]) => {
+    mockTrack(...a);
+  },
+}));
 jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn() } }));
 jest.mock('@chefer/ui-mobile', () => ({
-  ...jest.requireActual('@chefer/ui-mobile'),
+  ...jest.requireActual<Record<string, unknown>>('@chefer/ui-mobile'),
   useSnackbar: () => ({ show: mockShow }),
 }));
 jest.mock('../../src/lib/trpc', () => ({
@@ -156,7 +160,9 @@ describe('downgrade summary (AC7)', () => {
     const user = await open();
     await user.press(screen.getByTestId('downgrade-confirm-confirm'));
     expect(mockDowngrade).toHaveBeenCalledTimes(1);
-    await act(async () => downgradeOpts.onSuccess?.());
+    await act(() => {
+      downgradeOpts.onSuccess?.();
+    });
     expect(mockShow).toHaveBeenCalledWith(
       expect.objectContaining({ message: "You're on Free. Your data is all still here." }),
     );

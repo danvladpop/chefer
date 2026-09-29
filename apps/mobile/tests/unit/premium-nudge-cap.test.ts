@@ -8,7 +8,9 @@ import { dismissNudge, readNudgeState, tryShowNudge } from '../../src/features/p
 
 const mockTrack = jest.fn();
 jest.mock('../../src/lib/analytics', () => ({
-  track: (...args: unknown[]) => mockTrack(...args),
+  track: (...args: unknown[]) => {
+    mockTrack(...args);
+  },
 }));
 
 beforeEach(() => {

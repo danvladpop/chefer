@@ -6,7 +6,6 @@ import { openPremium } from '../../src/features/premium/open-premium';
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
-const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
 
 const nutrition = (plannedKcal: number, eatenKcal = 0) => ({
   dailyCalorieTarget: 2000,

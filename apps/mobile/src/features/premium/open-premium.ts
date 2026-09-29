@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { type PremiumSource } from '@chefer/types';
+import type { PremiumSource } from '@chefer/types';
 
 // ─── openPremium(source) — the one way to offer Premium (T-10.2, PAT-3) ────────
 // Every lock, nudge and the Profile plan section calls this with the `source`

@@ -96,8 +96,8 @@ describe('gym-first default for Train users (D-11)', () => {
   it('retires the training bump bullet when the flag makes it free', () => {
     const on = premiumPitchFor('training-day', { flags: { trainingBumpFree: true } });
     const off = premiumPitchFor('training-day', { flags: {} });
-    expect(on.bullets.some((t) => /More calories and protein/.test(t))).toBe(false);
-    expect(off.bullets.some((t) => /More calories and protein/.test(t))).toBe(true);
+    expect(on.bullets.some((t) => t.includes('More calories and protein'))).toBe(false);
+    expect(off.bullets.some((t) => t.includes('More calories and protein'))).toBe(true);
   });
 });
 

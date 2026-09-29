@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { type PremiumSource } from '@chefer/types';
+import type { PremiumSource } from '@chefer/types';
 import {
   canShowNudge,
   INITIAL_NUDGE_CAP_STATE,
@@ -23,7 +23,7 @@ const NUDGE_KEY = 'premium.nudge-cap';
 
 function isState(value: unknown): value is NudgeCapState {
   if (typeof value !== 'object' || value === null) return false;
-  const v = value as Partial<NudgeCapState>;
+  const v = value as { lastShownDay?: unknown; dismissedAt?: unknown };
   return (
     (v.lastShownDay === null || typeof v.lastShownDay === 'string') &&
     typeof v.dismissedAt === 'object' &&

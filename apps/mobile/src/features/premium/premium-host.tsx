@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { router } from 'expo-router';
-import { type PremiumSource } from '@chefer/types';
+import type { PremiumSource } from '@chefer/types';
 import { ACTIVATION_STEP_COPY, activationStepKeys } from '@chefer/utils';
 import { track } from '../../lib/analytics';
 import { trpc } from '../../lib/trpc';

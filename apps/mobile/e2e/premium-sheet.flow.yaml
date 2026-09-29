@@ -1,0 +1,101 @@
+# Premium sheet E2E — UX-10 (T-10.2, T-10.3). Opens the job-led premium sheet
+# from two locks on a FREE account (bob@chefer.dev — no planTier in the seed
+# means Free; alice is an ADMIN and sees no locks) and closes it again.
+# NEVER taps "Turn on Premium" (premium-sheet-turn-on): the dev/E2E accounts
+# are shared and this flow must leave them on Free. Never run against
+# production. It does its own sign-in as bob (clearState) instead of using
+# common/connect.yaml, which signs in alice.
+appId: dev.chefer.app.dev
+---
+- launchApp:
+    clearState: true
+- runFlow: common/launch.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-title'
+    timeout: 60000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-title'
+    commands:
+      - tapOn:
+          id: 'welcome-sign-in'
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 30000
+- tapOn:
+    id: 'login-email'
+- inputText: 'bob@chefer.dev'
+- tapOn:
+    id: 'login-password'
+- inputText: 'User@123!'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'login-submit'
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 8000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 60000
+
+# ── Lock 1: Profile › Plan & Premium → "See what Premium adds" ──────────────
+- tapOn: '.*More.*'
+- tapOn:
+    id: 'more-profile'
+- extendedWaitUntil:
+    visible:
+      id: 'profile-plan-title'
+    timeout: 15000
+- assertVisible: 'Your plan: Free'
+- tapOn:
+    id: 'profile-upgrade'
+# The sheet is headlined by a job (the default pitch for a food user) and
+# carries the free-for-now terms; there is no price and no checkout.
+- extendedWaitUntil:
+    visible:
+      id: 'premium-sheet-title'
+    timeout: 10000
+- assertVisible: 'FREE FOR NOW'
+- assertVisible: 'Premium costs nothing for now.*'
+- assertNotVisible: '.*[€$£].*'
+- tapOn:
+    id: 'premium-sheet-not-now'
+- assertNotVisible:
+    id: 'premium-sheet-title'
+- assertVisible: 'Your plan: Free'
+- tapOn: 'Back'
+
+# ── Lock 2: the AI chef's locked preview ────────────────────────────────────
+- tapOn: '.*More.*'
+- tapOn:
+    id: 'more-ai chef'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-locked-upgrade'
+    timeout: 15000
+- tapOn:
+    id: 'chat-locked-upgrade'
+- extendedWaitUntil:
+    visible:
+      id: 'premium-sheet-title'
+    timeout: 10000
+- assertVisible: 'Ask the chef'
+- assertVisible: 'FREE FOR NOW'
+# Close with ✕ (the kit Sheet's close button) — still never turning it on.
+- tapOn:
+    id: 'premium-sheet-close'
+- assertNotVisible:
+    id: 'premium-sheet-title'
