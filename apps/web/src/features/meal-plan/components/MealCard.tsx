@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { AllergenWarningChip } from '@/features/recipes/components/AllergenWarning';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
@@ -203,9 +204,7 @@ export function MealCard({
             <p className="mt-1 line-clamp-2 text-sm font-semibold leading-snug text-gray-900">
               {recipe.name}
             </p>
-            {/* TODO(W3 integration): mount L-CONSENT's <AiGeneratedChip recipe={recipe} />
-                here (features/privacy/components/AiGeneratedChip.tsx, only on
-                feat/ux-now/consent). The API already sends `recipe.aiGenerated` (T-26.6). */}
+            <AiGeneratedChip recipe={recipe} className="mt-1" />
             <AllergenWarningChip warnings={recipe.allergenWarnings} className="mt-1" />
             <CheckedForChip
               labels={recipe.safetyChecks?.checked.map((c) => c.label) ?? []}

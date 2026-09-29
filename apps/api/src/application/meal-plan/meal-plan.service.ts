@@ -1706,14 +1706,20 @@ export class MealPlanService {
     hiddenIds: string[] = [],
   ): Promise<{ plan: WeekPlanResponse; curatedIds: Set<string> }> {
     const curatedIds = new Set<string>();
-    // TODO(W3 integration): T-26.7 — L-CONSENT's `safetyService.logFilterAudit({ surface:
-    // 'plan.generate', poolSize, kept, prefs: safety })` (one structured line per plan
-    // generation) is wired here at integration; it exists only on feat/ux-now/consent.
+    // T-26.7: one structured `safety.filter` line per plan generation (counts
+    // and taxonomy rule ids only — the evidence trail, never names).
+    const poolSize = plan.days.reduce((n, d) => n + d.meals.length, 0);
     if (
       safety.allergies.length === 0 &&
       safety.dietaryRestrictions.length === 0 &&
       hiddenIds.length === 0
     ) {
+      safetyService.logFilterAudit({
+        surface: 'plan.generate',
+        poolSize,
+        kept: poolSize,
+        prefs: safety,
+      });
       return { plan, curatedIds };
     }
     let replaced = 0;
@@ -1744,6 +1750,12 @@ export class MealPlanService {
       );
       if (replaced > 0) await ensureCuratedRecipes();
     }
+    safetyService.logFilterAudit({
+      surface: 'plan.generate',
+      poolSize,
+      kept: poolSize - replaced - dropped,
+      prefs: safety,
+    });
     return { plan: { ...plan, days }, curatedIds };
   }
 
