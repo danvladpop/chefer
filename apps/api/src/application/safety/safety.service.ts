@@ -305,7 +305,11 @@ export class SafetyService {
     // Lazy: lib/logger.js pulls in lib/env.js, which validates the process
     // environment at import time — a static import would break every test
     // that imports this service without secrets.
-    void import('../../lib/logger.js').then(({ logger }) => logger.info(audit, 'safety.filter'));
+    // Without a valid env (unit tests) the logger can't load — the audit
+    // record is still returned, it just isn't printed.
+    void import('../../lib/logger.js')
+      .then(({ logger }) => logger.info(audit, 'safety.filter'))
+      .catch(() => undefined);
     return audit;
   }
 
