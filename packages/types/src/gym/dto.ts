@@ -59,6 +59,12 @@ export interface GymProfileDto {
   /** null = never (quiet-days nudge off). */
   quietNudgeDays: number | null;
   /**
+   * T-36.6: "How long can a session usually be?" (minutes), null = not set.
+   * Optional so older constructors of this DTO keep compiling; older clients
+   * ignore it.
+   */
+  sessionLengthMins?: number | null;
+  /**
    * S21 (T-42.0): null/absent = derived from `unit` (MI when unit = LB, else
    * KM). Optional (not just nullable) so existing constructors of this DTO
    * outside this lane's ownership (mappers, fixtures, web/mobile settings)

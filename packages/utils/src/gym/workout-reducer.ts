@@ -116,6 +116,21 @@ export function plannedSets(
   return out;
 }
 
+/**
+ * Union of the ids seeded at start (a short version's dropped exercises) and
+ * those chosen at finish — order kept, no duplicates. A seeded exercise the
+ * user added back into the session is done/addressed, so it isn't carried.
+ */
+function mergedCarryOverIds(
+  doc: WorkoutSessionDoc,
+  chosen: string[] | undefined,
+): { carryOverExerciseIds?: string[] } {
+  const inSession = new Set(doc.exercises.map((se) => se.exerciseId));
+  const seeded = (doc.carryOverExerciseIds ?? []).filter((id) => !inSession.has(id));
+  const ids = [...new Set([...seeded, ...(chosen ?? [])])];
+  return ids.length > 0 ? { carryOverExerciseIds: ids } : {};
+}
+
 /** New IN_PROGRESS session from a planned day (warm-up + working sets pre-filled from suggestions). */
 export function startSession(input: {
   id: string;
@@ -127,6 +142,11 @@ export function startSession(input: {
   name: string;
   isDeload: boolean;
   exercises: NextWorkoutExerciseDto[];
+  /**
+   * T-36.6: exercises a short version dropped at Start. Stored on the doc so
+   * they carry over to the next session at Finish (omit for a full-length day).
+   */
+  carryOverExerciseIds?: string[];
 }): WorkoutSessionDoc {
   const exercises: SessionExerciseDoc[] = [...input.exercises]
     .sort((a, b) => a.position - b.position)
@@ -166,6 +186,9 @@ export function startSession(input: {
     clientUpdatedAt: input.now,
     engineVersion: ENGINE_VERSION,
     exercises,
+    ...(input.carryOverExerciseIds && input.carryOverExerciseIds.length > 0
+      ? { carryOverExerciseIds: input.carryOverExerciseIds }
+      : {}),
   };
 }
 
@@ -370,14 +393,18 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
         return stamp({ notes: action.notes });
       }
       return withExercises(mapExercise(doc, action.seId, (se) => ({ ...se, notes: action.notes })));
-    case 'finish':
-      return stamp({
+    case 'finish': {
+      // T-36.6: a short version seeds the doc with the exercises it dropped at
+      // Start; the ids chosen at Finish add to them (never replace them).
+      const { carryOverExerciseIds: _seeded, ...rest } = doc;
+      return {
+        ...rest,
         status: 'COMPLETED',
         finishedAt: action.at,
-        ...(action.carryOverExerciseIds && action.carryOverExerciseIds.length > 0
-          ? { carryOverExerciseIds: action.carryOverExerciseIds }
-          : {}),
-      });
+        clientUpdatedAt: action.at,
+        ...mergedCarryOverIds(doc, action.carryOverExerciseIds),
+      };
+    }
     case 'discard':
       return stamp({ status: 'DISCARDED' });
   }

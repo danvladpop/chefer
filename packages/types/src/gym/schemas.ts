@@ -181,6 +181,13 @@ export const recommendInputSchema = z.object({
 });
 export type RecommendInput = z.infer<typeof recommendInputSchema>;
 
+/**
+ * T-36.6 (UX-36 (6)): "How long can a session usually be?" in minutes (the
+ * setup chips are 30 / 45 / 60 / 75+). `null` = no preference. Additive and
+ * optional everywhere — installed binaries never send it.
+ */
+export const sessionLengthMinsSchema = z.number().int().min(10).max(240).nullable();
+
 export const completeSetupInputSchema = recommendInputSchema.extend({
   unit: weightUnitSchema,
   templateKey: z.string().min(1).max(40),
@@ -191,6 +198,8 @@ export const completeSetupInputSchema = recommendInputSchema.extend({
     .nullable(),
   /** "I know my weights": exerciseId → working weight (kg). Omit to calibrate. */
   knownWeightsKg: z.record(weightKgSchema).optional(),
+  /** T-36.6: omit to leave an existing preference untouched. */
+  sessionLengthMins: sessionLengthMinsSchema.optional(),
 });
 export type CompleteSetupInput = z.infer<typeof completeSetupInputSchema>;
 
@@ -225,6 +234,8 @@ export const saveGymProfileInputSchema = z.object({
   // T-36.2 (bug B-40): per-day reminder times and the quiet-days nudge.
   reminderTimes: reminderTimesSchema.optional(),
   quietNudgeDays: quietNudgeDaysSchema.optional(),
+  // T-36.6: null clears the preference.
+  sessionLengthMins: sessionLengthMinsSchema.optional(),
   // S21 (T-42.0): null clears the override (falls back to unit-derived default).
   distanceUnit: distanceUnitSchema.nullable().optional(),
 });

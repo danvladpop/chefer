@@ -132,6 +132,7 @@ export function toProfileDto(row: GymProfile): GymProfileDto {
     setupCompletedAt: row.setupCompletedAt?.toISOString() ?? null,
     reminderTimes: readReminderTimes(row.reminderTimes),
     quietNudgeDays: row.quietNudgeDays ?? null,
+    sessionLengthMins: row.sessionLengthMins ?? null,
     // S21 (T-42.0/T-42.2): null/absent lets the client derive KM/MI from `unit`.
     distanceUnit: row.distanceUnit,
   };
