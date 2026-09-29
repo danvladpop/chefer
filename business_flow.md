@@ -2099,8 +2099,17 @@ Mon}`, never an ISO date), with a start time shown only when two sessions
     rows inline; beyond that only `All history` (→ Stats) remains. Hidden
     entirely when there are no completed sessions.
 
-Web parity: not yet built this wave — see `mobile_parity_backlog.md` (planned
-for W2 alongside the web today-view rework).
+Web parity (W2, T-36.A1.3/T-36.A2.2): web Gym Today has the same two
+components. `today/ResumeBanner.tsx` is built on the same `resumeSummary()`
+(live elapsed time, `{e} of {E} exercises · {s} of {S} sets`, `Now:` focus,
+backfill and all-logged variants); web has no "Save for later", so its
+`paused` state never occurs (a web session simply stays open in that
+browser). `today/RecentWorkouts.tsx` replaces the old single "Last session"
+link with the same grouped list (`groupRecentSessions()`, `Show more` cache
+first then `gym.session.list`, `All history ›` → `/gym/history`) and a `⋯`
+per row (see "Correcting a past workout" below). The week card also has a
+`How this works` link opening the same four-row kind-mechanics sheet
+(`today/HowThisWorksSheet.tsx`).
 
 ### Save for later / carry the rest (UX-36 (3), T-36.3, CI-49)
 
@@ -2211,6 +2220,73 @@ connection) spun forever. `useTimedRefresh()`
 spinner always drops after 10 s, whether or not the refetch itself ever
 settles.
 
+### Correcting a past workout (UX-44, T-44.1–T-44.5, D-21 a: any past session)
+
+Any completed session can be corrected from where it is listed. No API change
+(see §22.1); the client does the work through the outbox.
+
+- **Entry points (mobile).** A `⋯` (44 pt, labelled `Options for {name}, {weekday
+d Mon}`) on every completed row of Gym Today `Recent` and Stats › History,
+  with `Edit workout` · `Delete workout`; rows also expose `accessibilityActions`
+  `Edit` / `Delete`. The session detail header has `Edit` and a `⋯` menu; the
+  old bottom-of-screen native `Alert` delete is gone (no `Alert` anywhere in the
+  path). One shared hook (`history/use-session-actions.tsx`) owns the menu, the
+  confirm and the Undo for all three places.
+- **Edit mode (mobile).** `Edit workout` opens `/gym/workout?edit={id}`
+  (`workout/edit-session-screen.tsx`): the logger over a **draft** held in
+  `use-edit-session.ts` — never the live `activeSessionStore`, so a workout in
+  progress is untouched (AC3). No clock, rest timer, auto-advance or
+  Why?/Next-time banners. `Cancel · Editing {weekday d Mon} · Save` header with a
+  `Change ›` sheet (date chips from Monday of last week to today plus the
+  session's own day, and the kit `TimePicker`; `rescheduleSession()` clamps to
+  now so the date is never in the future, AC6). Exercise `⋯`: `Replace exercise`
+  (straight to the picker, this workout only — the logged numbers carry over,
+  the routine link is untouched and no routine option is ever offered, AC5;
+  candidates stay in the same family: strength/cardio and timed/untimed),
+  `Remove from this workout` (the new reducer action `removeExercise`), add
+  set, remove last set, move up/down, note. Sets show as logged; ticking one
+  stamps the session's own time. Save: nothing ticked → `Nothing is ticked.
+Delete this workout?`; otherwise `saveEditedSession()` re-sends the doc with a
+  `clientUpdatedAt` newer than the original (`bumpClientUpdatedAt`) through the
+  outbox (offline-safe), updates the cached lists at once
+  (`applySessionEdited`), and shows `Workout updated`. Cancel with edits asks
+  `Discard your edits?`. Sessions older than the cached 12 weeks open only online
+  the first time; a session opened once is in the persisted query cache and
+  opens offline; an edit still waiting in the outbox is what re-opening shows.
+- **Delete with Undo.** `Delete workout` opens a `ConfirmSheet` that names the
+  workout, its sets and — only when they change — this week's count and the
+  streak (`sessionDeletePreview()`), plus `Next time targets for its exercises
+are worked out again.` Confirming removes the row now (list, week count and
+  streak via `applySessionDeleted`), then `Workout deleted` + `Undo` for 8 s. The
+  delete is a childless `DISCARDED` tombstone (`discardedTombstone()`) enqueued
+  with `holdUntil` = now + 8 s: **Undo within the window sends nothing**
+  (`outbox.cancelHeld`); after it the outbox flushes it like any entry, also
+  when started offline. Once acked online the client hard-deletes with
+  `gym.session.delete` (Q-30) — the pending ids live in KV
+  (`gym.pending-hard-deletes`) so a kill between the ack and the delete still
+  finishes on the next sync/launch, and a `stale` ack never hard-deletes over
+  another device's newer copy (that shows `This workout was changed on another
+device. Showing the latest.`). A refetch during the hold or before the sync
+  cannot bring the row back: `reconcileWithPending` re-applies queued
+  corrections (`applyPendingCorrections`).
+- **Next time changed after your edit (PAT-14).** Before enqueueing, the client
+  snapshots `bootstrap.progressions[].suggestion` for the touched exercises
+  (`snapshotTargets`, KV `gym.target-notice`). Once the outbox acks that session
+  and the bootstrap is refetched, Gym Today shows one `ChangeNoticeCard`
+  (`today/target-change-notice.tsx`): up to 3 rows before → after, `and {n} more`,
+  `Because you edited {weekday}'s sets.` / `Because you deleted {weekday}'s
+workout.` `Use the new targets` dismisses; `Keep the old ones` writes the old
+  values back as the user's overrides (`gym.progression.setOverride`, needs a
+  connection). No card when nothing moved.
+- **Web (T-44.5).** `gym/history/[id]` and the rows of the web `Recent` list and
+  `/gym/history` list have a `⋯` menu: `Delete workout` opens a sheet with the
+  same named confirm, then a toast `Workout deleted` + `Undo` (8 s) that lives in
+  the gym layout so it outlives the page. It uses the web outbox
+  (`holdUntil`/`cancelHeld`, `workout/session-corrections.ts`) exactly like the
+  phone, including the hard delete after the ack. `Edit workout` is shown
+  disabled (`In the phone app for now`); web edit mode and the web target-change
+  notice are reverse rows in `mobile_parity_backlog.md`.
+
 ### Stats › History and set numbering (bug B-41, T-36.5)
 
 Stats gains a `History` segment (a `Chip` toggle next to the 5 default
@@ -2221,7 +2297,9 @@ with the same cache-then-cursor `Load more` as Gym Today's `Recent`
 exhausted). Gym Today's `Recent` section's `All history` link opens straight
 into it via `router.push({ pathname: '/stats', params: { tab: 'history' } })`
 — `stats-tab.tsx` reads it with `useLocalSearchParams` to pick the initial
-segment.
+segment. Web (T-36.7): `/gym/history` is the same list
+(`history/HistoryList.tsx`, week-grouped, cache-then-cursor `Load more`),
+reached from `Recent` → `All history ›`, each row linking to `/gym/history/[id]`.
 
 **Bug B-41** (session detail numbered sets by their position in the WHOLE
 list, so a working set after 2 warm-ups read "Set 3"): `session-detail-
@@ -2603,6 +2681,17 @@ Workout (offline on the phone) → Finish → outbox → gym.session.upsertMany(
 
 Edit and delete both ride the existing `gym.session.upsertMany` sync path above; nothing new was
 added to the API for this.
+
+> Built (W2 L-GYM part 2): mobile edit mode + delete, web delete. The client-side
+> pieces are in `apps/mobile/src/features/gym/offline/session-corrections.ts`
+> (`deleteSessionWithUndo`, `saveEditedSession`, pending hard deletes, the
+> target-notice snapshot) and its web twin
+> `apps/web/src/features/gym/workout/session-corrections.ts`. The tombstone is
+> sent childless (`discardedTombstone()`): the server replaces children and
+> recomputes from the exercises it stored before, so it works without the full
+> doc (offline, sessions older than the cache). Both platforms' outboxes take
+> `holdUntil` (an entry is not sendable until then) and report `stale` acks via
+> `onStale`.
 
 ```
 Edit a completed session:
