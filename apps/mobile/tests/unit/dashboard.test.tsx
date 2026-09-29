@@ -2,9 +2,10 @@ import { render, screen, userEvent } from '@testing-library/react-native';
 import type { TrainingDayNutrition } from '@chefer/types';
 import { NutritionSummary } from '../../src/features/dashboard/components/nutrition-summary';
 import { WeekOutlook } from '../../src/features/dashboard/components/week-outlook';
+import { openPremium } from '../../src/features/premium/open-premium';
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
-const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
+jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
 
 const nutrition = (plannedKcal: number, eatenKcal = 0) => ({
   dailyCalorieTarget: 2000,
@@ -25,6 +26,19 @@ describe('NutritionSummary', () => {
   ])('%i kcal planned → "%s"', async (planned, label) => {
     await render(<NutritionSummary nutrition={nutrition(planned)} />);
     expect(screen.getByTestId('nutrition-status')).toHaveTextContent(label);
+  });
+
+  it('shows no target-mode label when it is unknown', async () => {
+    await render(<NutritionSummary nutrition={nutrition(1900, 800)} />);
+    expect(screen.queryByTestId('target-mode-label')).toBeNull();
+  });
+
+  it.each([
+    ['OWN' as const, 'Your target'],
+    ['SUGGESTED' as const, 'Suggested'],
+  ])('labels the ring %s -> "%s" (§2.11, T-35.5)', async (mode, label) => {
+    await render(<NutritionSummary nutrition={nutrition(1900, 800)} targetMode={mode} />);
+    expect(screen.getByTestId('target-mode-label')).toHaveTextContent(label);
   });
 
   it('the ring shows what was EATEN against the target (audit F-DASH-1-2)', async () => {
@@ -116,7 +130,7 @@ describe('NutritionSummary — training day (audit P2-4)', () => {
     expect(screen.queryByTestId('training-day-upgrade')).toBeNull();
   });
 
-  it('free: the same line locked, base targets kept, upgrade via Profile', async () => {
+  it('free: the same line locked, base targets kept, the lock opens the premium sheet', async () => {
     const user = userEvent.setup();
     await render(
       <NutritionSummary nutrition={{ ...nutrition(1900, 800), trainingDay: trainingDay(false) }} />,
@@ -126,10 +140,7 @@ describe('NutritionSummary — training day (audit P2-4)', () => {
     );
     expect(screen.getByText('of 2,000 kcal eaten')).toBeOnTheScreen();
     await user.press(screen.getByTestId('training-day-upgrade'));
-    expect(router.push).toHaveBeenCalledWith({
-      pathname: '/profile',
-      params: { source: 'training-day' },
-    });
+    expect(openPremium).toHaveBeenCalledWith('training-day');
   });
 });
 

@@ -11,17 +11,37 @@ import type {
 } from '@chefer/types';
 import { ENGINE_VERSION } from './progression';
 
+/**
+ * T-42.3 (S20, Δ2.2): the optional cardio fields a `completeSet`/`editSet`
+ * action may carry — a cardio "Log it" is just completing the exercise's one
+ * set with these instead of weightKg/reps. Additive; a strength set never
+ * sets any of them.
+ */
+export interface CardioSetFields {
+  durationSec?: number;
+  distanceM?: number;
+  intensityRpe?: number;
+  resistanceLevel?: number;
+}
+
 export type WorkoutAction =
-  | {
+  | ({
       type: 'completeSet';
       seId: string;
       setId: string;
       weightKg?: number;
       reps?: number;
       at: string;
-    }
+    } & CardioSetFields)
   | { type: 'uncompleteSet'; seId: string; setId: string; at: string }
-  | { type: 'editSet'; seId: string; setId: string; weightKg?: number; reps?: number; at: string }
+  | ({
+      type: 'editSet';
+      seId: string;
+      setId: string;
+      weightKg?: number;
+      reps?: number;
+      at: string;
+    } & CardioSetFields)
   | { type: 'setRir'; seId: string; rir: Rir | null; at: string }
   | { type: 'addSet'; seId: string; newSetId: string; at: string }
   | { type: 'removeSet'; seId: string; setId: string; at: string }
@@ -43,6 +63,9 @@ export type WorkoutAction =
       at: string;
     }
   | { type: 'skipExercise'; seId: string; skipped: boolean; at: string }
+  // UX-44 (T-44.3): edit mode's `Remove from this workout` — drops the whole
+  // exercise (the routine is never touched). Live workouts use Skip instead.
+  | { type: 'removeExercise'; seId: string; at: string }
   | {
       type: 'addExercise';
       newSeId: string;
@@ -182,6 +205,21 @@ function sortedByPosition<T extends { position: number }>(items: T[]): T[] {
 }
 
 /**
+ * Overlays only the cardio fields the action actually set (exactOptionalPropertyTypes
+ * forbids assigning `undefined` to an optional key — omit it instead of the
+ * usual `??` fallback, so a strength set never gains an undefined-valued key).
+ */
+function withCardioFields(s: SessionSetDoc, action: CardioSetFields): SessionSetDoc {
+  return {
+    ...s,
+    ...(action.durationSec !== undefined && { durationSec: action.durationSec }),
+    ...(action.distanceM !== undefined && { distanceM: action.distanceM }),
+    ...(action.intensityRpe !== undefined && { intensityRpe: action.intensityRpe }),
+    ...(action.resistanceLevel !== undefined && { resistanceLevel: action.resistanceLevel }),
+  };
+}
+
+/**
  * Apply one action. Unknown exercise/set ids are a no-op (the doc is returned
  * untouched, not even re-stamped). Positions stay contiguous (0…n-1).
  */
@@ -197,12 +235,17 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
   switch (action.type) {
     case 'completeSet':
       return withExercises(
-        mapSet(doc, action.seId, action.setId, (s) => ({
-          ...s,
-          weightKg: action.weightKg ?? s.weightKg,
-          reps: action.reps ?? s.reps,
-          completedAt: action.at,
-        })),
+        mapSet(doc, action.seId, action.setId, (s) =>
+          withCardioFields(
+            {
+              ...s,
+              weightKg: action.weightKg ?? s.weightKg,
+              reps: action.reps ?? s.reps,
+              completedAt: action.at,
+            },
+            action,
+          ),
+        ),
       );
     case 'uncompleteSet':
       return withExercises(
@@ -210,11 +253,16 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
       );
     case 'editSet':
       return withExercises(
-        mapSet(doc, action.seId, action.setId, (s) => ({
-          ...s,
-          weightKg: action.weightKg ?? s.weightKg,
-          reps: action.reps ?? s.reps,
-        })),
+        mapSet(doc, action.seId, action.setId, (s) =>
+          withCardioFields(
+            {
+              ...s,
+              weightKg: action.weightKg ?? s.weightKg,
+              reps: action.reps ?? s.reps,
+            },
+            action,
+          ),
+        ),
       );
     case 'setRir':
       return withExercises(
@@ -276,6 +324,12 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
       return withExercises(
         mapExercise(doc, action.seId, (se) => ({ ...se, skipped: action.skipped })),
       );
+    case 'removeExercise': {
+      if (!doc.exercises.some((se) => se.id === action.seId)) return doc;
+      return stamp({
+        exercises: reindex(sortedByPosition(doc.exercises).filter((se) => se.id !== action.seId)),
+      });
+    }
     case 'addExercise': {
       const exercises = sortedByPosition(doc.exercises);
       const added: SessionExerciseDoc = {

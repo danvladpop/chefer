@@ -13,6 +13,7 @@ import { Input, Sheet } from '@chefer/ui';
 import { cn, VOLUME_GROUP_LABELS } from '@chefer/utils';
 import { ExerciseImage } from '../library/ExerciseImage';
 import { exerciseImageUrl } from '../use-gym-bootstrap';
+import { isCardioExercise } from './cardio';
 
 // Exercise picker (swap / add in the workout). Mirrors the phone's
 // apps/mobile/src/features/gym/library/exercise-picker.tsx: search, a muscle
@@ -30,15 +31,18 @@ export function filterExercises(
   opts: { query: string; group: VolumeGroup | null; excludeIds?: readonly string[] },
 ): ExerciseDto[] {
   const q = opts.query.trim().toLowerCase();
-  return library
-    .filter((e) => !e.archived && !(opts.excludeIds ?? []).includes(e.id))
-    .filter((e) => (opts.group ? matchesGroup(e, opts.group) : true))
-    .filter((e) =>
-      q.length === 0
-        ? true
-        : e.name.toLowerCase().includes(q) || e.aliases.some((a) => a.toLowerCase().includes(q)),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    library
+      // T-42.5 (Q-31): the web renders cardio but never logs it — pickers exclude it.
+      .filter((e) => !e.archived && !(opts.excludeIds ?? []).includes(e.id) && !isCardioExercise(e))
+      .filter((e) => (opts.group ? matchesGroup(e, opts.group) : true))
+      .filter((e) =>
+        q.length === 0
+          ? true
+          : e.name.toLowerCase().includes(q) || e.aliases.some((a) => a.toLowerCase().includes(q)),
+      )
+      .sort((a, b) => a.name.localeCompare(b.name))
+  );
 }
 
 export function ExercisePickerSheet({

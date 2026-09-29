@@ -41,14 +41,18 @@ Device ID, Usage Data, Diagnostics, Sensitive Info, Audio.
   Performance Data (App Functionality, not linked)_.
 - **Sensitive Info:** Chefer has no halal/kosher or similar options that would reveal religion,
   so nothing to declare. Revisit if such diet options are added.
-- **Third-party AI (Google Gemini):** Apple's label has no separate AI row. Data sent to
-  Gemini is covered by the rows above ("collected … by you or your third-party partners").
-  The in-app consent sheet and the privacy policy name Gemini, as Guideline 5.1.2(i) requires.
-  Background jobs send nothing for users who haven't consented: the weekly auto-plan skips them, and the weekly coach review uses fixed template wording instead of AI text.
-- **Backup AI provider (checked 26 Sep 2026):** production sets `AI_SECONDARY_API_KEY` with
-  `api.groq.com` (model `openai/gpt-oss-120b`). When Gemini is overloaded, text-only requests
-  fall back to **Groq**. The consent sheet and privacy page name Groq. If the prod key is
-  removed, drop those sentences.
+- **Third-party AI (Groq, with Cloudflare Workers AI as the fallback):** Apple's label has no
+  separate AI row. Data sent to these providers is covered by the rows above ("collected … by
+  you or your third-party partners"). The in-app consent sheet and the privacy policy name
+  Groq and Cloudflare Workers AI, as Guideline 5.1.2(i) requires. Background jobs send nothing
+  for users who haven't consented: the weekly auto-plan skips them, and the weekly coach review
+  uses fixed template wording instead of AI text.
+- **Provider config (checked 28 Sep 2026):** production runs `AI_FREE_ONLY=true`, which routes
+  every AI workload `groq > cloudflare` (Groq primary, Cloudflare Workers AI as the automatic
+  fallback when Groq is unavailable) — **Gemini is not used in production**, even though the
+  codebase still supports it as a provider option (`GEMINI_API_KEY`/`AI_PROVIDER=gemini`) for
+  non-production use. If production config changes back to Gemini, update this section, the
+  in-app consent copy and the privacy policy together.
 - **YouTube embeds** on exercise detail screens load YouTube's own web player; this is covered
   by YouTube's own privacy terms, and Chefer does not receive that data.
 
@@ -105,7 +109,7 @@ encryption for each build. If it still asks, answer: **"None of the algorithms m
 
 ## Paid features: keep it that way until In-App Purchase exists
 
-Premium is currently a free toggle ("Upgrade — free for now"). That's fine for review. **When
+Premium is currently a free toggle ("Turn on Premium", under a "FREE FOR NOW" note). That's fine for review. **When
 real payments arrive (P2-1 Stripe), digital features sold inside the iOS app must go through
 Apple In-App Purchase** (Guideline 3.1.1). A Stripe checkout or a link to one in the iOS app
 will be rejected (US storefront link-out rules differ, but don't count on them).

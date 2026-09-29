@@ -1,10 +1,10 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import type { DisplayCurrency } from '@chefer/types';
 import { Button, Card, Text } from '@chefer/ui-mobile';
 import { formatMoney } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { openPremium } from '../premium/open-premium';
 
 // Pantry ghost state (F3, §6.4) — port of web's
 // features/pantry/components/PantryGhostBanner.tsx. Free tier, after any
@@ -48,9 +48,9 @@ export function PantryGhostBanner({
             variant="outline"
             size="sm"
             className="mt-2 self-start"
-            onPress={() => router.push({ pathname: '/profile', params: { source: 'pantry' } })}
+            onPress={() => openPremium('pantry')}
           >
-            See Premium
+            Plan my week around these
           </Button>
         </View>
       </View>

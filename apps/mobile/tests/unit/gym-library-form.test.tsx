@@ -1,8 +1,15 @@
 import { screen, userEvent } from '@testing-library/react-native';
+import { getQueryKey } from '@trpc/react-query';
 import { ExerciseFormScreen } from '../../src/features/gym/library-screens/exercise-form-screen';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
+import { trpc } from '../../src/lib/trpc';
 import { makeBootstrap, makeExercise } from './gym-fixtures';
 import { makeGymQueryClient, renderWithGym } from './gym-screen-test-utils';
+
+// T-42.3 follow-up: useFlags() reads `profile.flags` — pre-seed it so a test
+// can force cardioLogging on (default/unseeded reads as every flag off, the
+// same "failed or absent response = all-off" fallback useFlags documents).
+const flagsQueryKey = getQueryKey(trpc.profile.flags, undefined, 'query');
 
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 
@@ -93,5 +100,26 @@ describe('ExerciseFormScreen', () => {
     await renderWithGym(<ExerciseFormScreen exerciseId="missing" />, queryClient);
 
     expect(await screen.findByTestId('exercise-form-not-found')).toBeTruthy();
+  });
+
+  describe('cardioLogging gate (2026-09-28 follow-up)', () => {
+    it('flag off (default): shows the old single "Timed exercise" checkbox, not the tracking-type chips', async () => {
+      const queryClient = makeGymQueryClient();
+      queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+      await renderWithGym(<ExerciseFormScreen />, queryClient);
+
+      expect(screen.getByTestId('exercise-form-timed')).toBeTruthy();
+      expect(screen.queryByTestId('exercise-form-tracking-type')).toBeNull();
+    });
+
+    it('flag on: shows the "How do you track it?" chips, not the old checkbox', async () => {
+      const queryClient = makeGymQueryClient();
+      queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+      queryClient.setQueryData(flagsQueryKey, { cardioLogging: true });
+      await renderWithGym(<ExerciseFormScreen />, queryClient);
+
+      expect(await screen.findByTestId('exercise-form-tracking-type')).toBeTruthy();
+      expect(screen.queryByTestId('exercise-form-timed')).toBeNull();
+    });
   });
 });

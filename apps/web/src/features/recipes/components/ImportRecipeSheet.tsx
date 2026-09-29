@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
@@ -21,7 +22,7 @@ import {
 } from 'lucide-react';
 import { VIDEO_IMPORT_COPY } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { cn, isSupportedVideoUrl } from '@chefer/utils';
+import { cn, isSupportedVideoUrl, PREMIUM_PITCH_COPY, premiumPitchFor } from '@chefer/utils';
 import {
   VideoDraftForm,
   type VideoDraftRecipe,
@@ -29,10 +30,10 @@ import {
 } from './VideoDraftForm';
 
 // ─── Cheferize Anything (F5) — import + diff sheet ───────────────────────────
-// Free tier gets the real extraction preview (1/day, the §6.4 ghost state);
-// the Cheferize diff renders blurred with the adaptation count visible and
-// the upgrade CTA (source `recipe-import`). Premium sees the full diff and
-// can save either variant. Copyright stance: personal collection only — the
+// Per-user AI is premium-only (owner decision 2026-09-25): a free user keeps
+// the form (T-10.4) with a lock card above it and the job-led premium dialog
+// behind "Preview import" (source `recipe-import`) — no API call, so no daily
+// preview is burned. Premium sees the full diff and can save either variant. Copyright stance: personal collection only — the
 // import keeps its source link and is never shown to other users.
 //
 // Video links (2026-09-26) take a different path: the API reads the video's
@@ -77,6 +78,7 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
   const router = useRouter();
   const utils = trpc.useUtils();
   const { isPremium } = useEntitlement('recipeImport');
+  const importPitch = premiumPitchFor('recipe-import');
 
   const [tab, setTab] = useState<SourceTab>('url');
   const [url, setUrl] = useState('');
@@ -224,7 +226,11 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
       size="lg"
       footer={
         isPremium === false ? (
-          <UpgradeButton className="min-h-11 w-full" source="recipe-import" />
+          <UpgradeButton
+            className="min-h-11 w-full"
+            source="recipe-import"
+            label="Preview import"
+          />
         ) : videoPreview ? undefined : preview ? (
           isPremium ? (
             <div className="flex w-full items-center gap-3">
@@ -265,9 +271,7 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
         )
       }
     >
-      {isPremium === false ? (
-        <ImportLockedDemo />
-      ) : videoPreview ? (
+      {videoPreview ? (
         <VideoDraftForm
           preview={videoPreview}
           saving={saveMutation.isPending}
@@ -286,6 +290,29 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
         />
       ) : (
         <div>
+          {/* T-10.4/T-10.5 (UX-10 §5): on free the form stays — the lock is one
+              card above it, "Preview import" opens the job-led premium dialog
+              instead of calling the API, and what was pasted is still here
+              afterwards. "Or type it in yourself" is the free path. */}
+          {isPremium === false && (
+            <div
+              data-testid="import-locked"
+              className="mb-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3"
+            >
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#944a00]">
+                {PREMIUM_PITCH_COPY.eyebrow}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-gray-900">{importPitch.headline}</p>
+              <p className="mt-0.5 text-sm text-gray-600">{importPitch.lede}</p>
+              <Link
+                href="/recipes/new"
+                onClick={onClose}
+                className="mt-1 flex min-h-11 items-center text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
+              >
+                {PREMIUM_PITCH_COPY.importFreePath}
+              </Link>
+            </div>
+          )}
           {/* Source tabs */}
           <div className="mb-4 grid grid-cols-4 gap-1 rounded-xl bg-gray-100 p-1">
             {(
@@ -380,46 +407,6 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
         </div>
       )}
     </Sheet>
-  );
-}
-
-// ─── Locked demo (free tier) ──────────────────────────────────────────────────
-// Recipe import is per-user AI, so it is premium-only (owner decision
-// 2026-09-25). Free users see a clearly labelled, canned example of what the
-// chef does — no AI call, no daily preview to burn.
-
-const DEMO_CHANGES = [
-  'Swapped peanut butter for toasted sunflower seed butter',
-  'Swapped chicken for extra-firm tofu (vegetarian)',
-  'Rescaled from 4 servings to 2',
-];
-
-function ImportLockedDemo() {
-  return (
-    <div className="space-y-4" data-testid="import-locked">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Example</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border bg-gray-50 p-3">
-          <p className="text-xs font-semibold text-gray-500">Original</p>
-          <p className="mt-1 text-sm font-semibold text-gray-900">Chicken Peanut Satay</p>
-          <p className="mt-1 text-xs text-gray-600">From a food blog · serves 4</p>
-        </div>
-        <div className="rounded-xl border border-[#944a00]/30 bg-[#fff8f0] p-3">
-          <p className="text-xs font-semibold text-[#944a00]">Cheferized for you</p>
-          <p className="mt-1 text-sm font-semibold text-gray-900">Tofu Satay</p>
-          <ul className="mt-1 space-y-0.5 text-xs text-gray-700">
-            {DEMO_CHANGES.map((c) => (
-              <li key={c}>· {c}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
-      <p className="flex items-start gap-2 text-sm text-gray-700">
-        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
-        Premium imports any recipe from a link, pasted text, a cookbook photo or a cooking video,
-        adapts it to your allergies and household, and saves it to your collection.
-      </p>
-    </div>
   );
 }
 

@@ -28,6 +28,9 @@ vi.mock('@chefer/database', async (importOriginal) => {
           count: vi.fn().mockResolvedValue(0),
           create: vi.fn().mockResolvedValue({ id: 'log1' }),
           delete: vi.fn().mockResolvedValue({}),
+          // T-10.8: `save` marks the day's newest import preview as saved.
+          findFirst: vi.fn().mockResolvedValue({ id: 'log1' }),
+          update: vi.fn().mockResolvedValue({}),
         },
         ingredientPrice: { findMany: vi.fn().mockResolvedValue([]) },
       };
@@ -303,6 +306,15 @@ describe('RecipeImportService.save — fail closed', () => {
     })) as unknown as { sourceUrl: string; imageUrl: string };
     expect(saved.sourceUrl).toBe('https://blog.example.com/satay');
     expect(saved.imageUrl).toContain('image.pollinations.ai');
+  });
+
+  it("marks the day's newest import preview as saved (T-10.8 importsSaved)", async () => {
+    const service = new RecipeImportService(makeAi(), recipeRepo(), prefsRepo(peanutVegetarian));
+    await service.save(premiumUser, { recipe: goodAdaptation.adapted, variant: 'adapted' });
+    expect(vi.mocked(prisma.aiCallLog.update)).toHaveBeenCalledWith({
+      where: { id: 'log1' },
+      data: { saved: true },
+    });
   });
 
   it('uses the og:image only when the HEAD check confirms it serves an image', async () => {

@@ -16,14 +16,29 @@ import { WeightCard } from '../../src/features/coach/weight-card';
 import { HeroMealCard } from '../../src/features/dashboard/components/hero-meal-card';
 import { MealTypeBadge } from '../../src/features/dashboard/components/meal-type-badge';
 import { NutritionSummary } from '../../src/features/dashboard/components/nutrition-summary';
+import { ShopDueCard } from '../../src/features/dashboard/components/shop-due-card';
+import { TomorrowCard } from '../../src/features/dashboard/components/tomorrow-card';
+import {
+  NothingTonightCard,
+  TonightCard,
+} from '../../src/features/dashboard/components/tonight-card';
 import { WeekOutlook } from '../../src/features/dashboard/components/week-outlook';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { TodaysWorkoutCard } from '../../src/features/gym/today/todays-workout-card';
+import { MigrationCard } from '../../src/features/safety/migration-card';
 import { QuickAddSheet } from '../../src/features/tracker/quick-add-sheet';
 import { ScanMealCard } from '../../src/features/tracker/scan-meal-card';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
+
+// UX-04 §2: which moment band the clock is in, deciding the hero card.
+type Moment = 'morning' | 'evening' | 'late';
+function momentFor(hour: number): Moment {
+  if (hour >= 16 && hour < 21.5) return 'evening';
+  if (hour >= 21.5 || hour < 4) return 'late';
+  return 'morning';
+}
 
 // Today tab — port of apps/web (dashboard)/dashboard/page.tsx (M2-1, P2-2).
 // Home and the Tracker merged into one daily surface: what you ate against
@@ -41,6 +56,7 @@ export default function HomeScreen() {
   } = trpc.dashboard.summary.useQuery({
     localDate: localDateStr(),
     localHour: new Date().getHours(),
+    include: ['tonight', 'tomorrow', 'shopDue', 'safetyChecks'],
   });
 
   // Tab screens stay mounted, so without this the dashboard shows stale data
@@ -59,6 +75,8 @@ export default function HomeScreen() {
   });
   const showProfileNudge = isPremium === true && hasProfile === false;
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  // §2.11, T-35.5: the ring's "Your target" / "Suggested" label.
+  const { data: targetsData } = trpc.targets.get.useQuery();
 
   // B-13 (T-00.15): Today has no week selector, so the server's fix (reading
   // findForWeek, never findActiveWithDays) is the whole guarantee here —
@@ -102,13 +120,27 @@ export default function HomeScreen() {
   }
 
   const hasPlan = d.weekPlan.length > 0;
-  const heroMeal = d.nextMeal ?? d.tomorrowFirstMeal;
-  const heroIsTomorrow = !d.nextMeal && d.tomorrowFirstMeal !== null;
-  // B-31 interim (T-00.12): the ring, weight card, profile nudge and
-  // Snap-to-log all assume a goal — meaningless for someone who only wants
-  // to log what they ate. `dashboard.summary` derives this from
-  // chefProfile.goal OR the user already tracking (≥ 3 of the last 7 days).
-  const showNutritionCards = d.showNutritionCards;
+  // B-31 (T-04.4): the ring, weight card, profile nudge and Snap-to-log all
+  // assume a goal — meaningless for someone who only wants to log what they
+  // ate. `showNutrition` is the explicit-override-aware successor to the
+  // interim `showNutritionCards` (T-00.12): a goal, `Track what I eat`, or
+  // the Settings toggle.
+  const showNutritionCards = d.showNutrition;
+
+  // UX-04 §2/§3: which hero card leads — Tonight (today's dinner) in the
+  // evening band, its done collapse once dinner is logged, Tomorrow once
+  // dinner is done or it's late (AC5: never "NEXT UP · BREAKFAST" at
+  // 22:00), else the existing "next up" hero (today's next open window).
+  const moment = momentFor(new Date().getHours());
+  const dinnerDone = d.tonight?.done === true;
+  const showTonightCard = moment === 'evening' && !!d.tonight && !dinnerDone;
+  const showTonightDoneRow = dinnerDone;
+  const showNothingTonight = moment === 'evening' && !d.tonight && !dinnerDone;
+  const showTomorrowCard = (moment === 'late' || dinnerDone) && !!d.tomorrow;
+  const heroMeal =
+    !showTonightCard && !showTonightDoneRow && !showNothingTonight && !showTomorrowCard
+      ? d.nextMeal
+      : null;
 
   return (
     <Screen className="px-0">
@@ -157,6 +189,10 @@ export default function HomeScreen() {
           </Card>
         )}
 
+        {/* T-01.3: the legacy free-text safety review, read back once —
+            self-gated, renders nothing once confirmed or never needed. */}
+        <MigrationCard />
+
         {/* F1 Adaptive Chef: weekly review (full for premium, teaser for free) */}
         <ChefReviewBanner />
 
@@ -181,7 +217,9 @@ export default function HomeScreen() {
             fields, so server-side target changes flow straight through.
             B-31 interim (T-00.12): hidden for a goal-less, non-tracking
             user — a ring/target against nothing set is meaningless. */}
-        {showNutritionCards && <NutritionSummary nutrition={d.nutrition} />}
+        {showNutritionCards && (
+          <NutritionSummary nutrition={d.nutrition} targetMode={targetsData?.targetMode} />
+        )}
 
         {/* Off-plan logging: free quick add + premium Snap-to-log. Quick add
             stays available to everyone; Snap-to-log is nutrition-tracking
@@ -196,17 +234,35 @@ export default function HomeScreen() {
           <ScanMealCard date={localDateStr()} onLogged={() => void refetch()} />
         )}
 
-        {heroMeal ? (
-          <HeroMealCard meal={heroMeal} isTomorrow={heroIsTomorrow} />
-        ) : (
-          <Card testID="today-no-meal">
-            <Text variant="muted">
-              {hasPlan
-                ? "You're all caught up for today."
-                : 'No meals planned yet. Head to the Plan tab to get started.'}
-            </Text>
-          </Card>
+        {/* UX-04 §3: Tonight (evening, AC3) → its done collapse → Tomorrow
+            (late/AC5, never "NEXT UP · BREAKFAST" at 22:00) → the existing
+            "next up" hero for the daytime band. */}
+        {(showTonightCard || showTonightDoneRow) && d.tonight && (
+          <TonightCard
+            meal={d.tonight}
+            showNutrition={showNutritionCards}
+            onLogged={() => void refetch()}
+          />
         )}
+        {showNothingTonight && <NothingTonightCard />}
+        {showTomorrowCard && d.tomorrow && <TomorrowCard meal={d.tomorrow} />}
+        {heroMeal && <HeroMealCard meal={heroMeal} isTomorrow={false} />}
+        {!heroMeal &&
+          !showTonightCard &&
+          !showTonightDoneRow &&
+          !showNothingTonight &&
+          !showTomorrowCard && (
+            <Card testID="today-no-meal">
+              <Text variant="muted">
+                {hasPlan
+                  ? "You're all caught up for today."
+                  : 'No meals planned yet. Head to the Plan tab to get started.'}
+              </Text>
+            </Card>
+          )}
+
+        {/* Shop-due (T-04.2/T-04.4): tomorrow's unticked shopping-list lines. */}
+        {d.shopDue && <ShopDueCard shopDue={d.shopDue} />}
 
         {/* Rest of today */}
         {d.restOfToday.length > 0 && (

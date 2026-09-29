@@ -8,6 +8,10 @@ export const KV_KEYS = {
   activeSessionQuarantine: 'gym.active-session.quarantine',
   outbox: 'gym.outbox',
   outboxQuarantine: 'gym.outbox.quarantine',
+  /** UX-44: ids of deleted sessions whose DISCARDED tombstone was queued — hard-deleted once acked (Q-30). */
+  pendingHardDeletes: 'gym.pending-hard-deletes',
+  /** UX-44 (T-44.4): the "Next time changed after your edit" snapshot, one at a time. */
+  targetNotice: 'gym.target-notice',
   restTimer: 'gym.rest-timer',
   queryCache: 'gym.query-cache',
   /** Dismissed weekly-balance hints per routine (research §2.3), G2-C. */

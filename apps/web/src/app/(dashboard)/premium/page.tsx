@@ -4,11 +4,13 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { PremiumComparisonTable } from '@/features/premium/components/PremiumComparisonTable';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { usePremiumPitch } from '@/features/premium/lib/use-premium-pitch';
 import { COMING_SOON_KEYS, PREMIUM_FEATURE_CARDS } from '@/features/premium/premium-features';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
-import { BadgeCheck, ChefHat, Sparkles } from 'lucide-react';
+import { BadgeCheck, Check, ChefHat, Sparkles } from 'lucide-react';
 import { PLAN_FEATURES } from '@chefer/types';
+import { PREMIUM_PITCH_COPY } from '@chefer/utils';
 
 // ─── /premium showcase page (premium_plan.md §6.2, wave 0) ────────────────────
 // The full pitch, one URL every touchpoint can deep-link to while preserving
@@ -17,7 +19,8 @@ import { PLAN_FEATURES } from '@chefer/types';
 //
 // Deliberately NO future-price promise yet — exact price and early-bird
 // wording are the product owner's call (§6.1 principle 5). The euro anchor
-// stack (principle 4) carries the value story until then.
+// stack (principle 4) carries the value story until then. The free-for-now
+// terms (PREMIUM_PITCH_COPY) are the only wording about what comes later.
 
 // The apps a Chefer premium user would otherwise stack (research doc:
 // docs/premium-feature-ideas.md — MacroFactor + MyFitnessPal + Samsung Food).
@@ -29,16 +32,16 @@ const ANCHOR_STACK = [
 
 const FAQ: { q: string; a: string }[] = [
   {
-    q: 'What does premium cost?',
-    a: 'Nothing right now — one click activates it, no payment details asked, ever.',
+    q: 'What does Premium cost?',
+    a: 'Nothing for now — one click turns it on, and we never ask for a card to do it.',
   },
   {
-    q: 'What happens if I downgrade?',
-    a: 'Nothing is deleted. Your plans, recipes, ratings and logs all stay — you just go back to the free tier’s curated plans and daily limits. You can switch back any time from your profile.',
+    q: 'What happens if I switch back to Free?',
+    a: 'Nothing is deleted. Your plans, recipes, ratings, logs and workouts all stay — you just go back to plans from our recipes and the free daily limits. You can switch back any time from your profile, and it asks first.',
   },
   {
     q: 'Will Chefer stay free?',
-    a: 'The free tier stays free. Premium will eventually have a price — you will hear about it well in advance, directly in the app.',
+    a: 'The free plan stays free, gym included. Premium may get a price one day: we will tell you in the app at least 30 days ahead, you choose whether to keep it, and nothing changes automatically.',
   },
 ];
 
@@ -46,6 +49,9 @@ export default function PremiumPage() {
   const searchParams = useSearchParams();
   const source = searchParams.get('source') ?? 'direct';
   const isPremium = useIsPremium();
+  // T-10.5: the hero is headlined by the JOB that linked here (the same
+  // registry as the app's dialog), not a generic pitch.
+  const pitch = usePremiumPitch(source === 'direct' ? 'profile' : source);
 
   // One view event per mount, tagged with the surface that linked here.
   useEffect(() => {
@@ -65,11 +71,28 @@ export default function PremiumPage() {
           <ChefHat className="h-7 w-7" />
         </div>
         <h1 className="font-serif text-3xl font-bold text-neutral-900 sm:text-4xl">
-          A chef that knows you — and your week
+          {pitch.headline}
         </h1>
-        <p className="mx-auto mt-3 max-w-xl text-neutral-600">
-          Premium turns Chefer from a recipe book into a personal chef: plans built around your
-          body, your budget and your taste, that keep getting better every week.
+        <p className="mx-auto mt-3 max-w-xl text-neutral-600">{pitch.lede}</p>
+        <ul
+          className="mx-auto mt-4 max-w-md space-y-1.5 text-left"
+          data-testid="premium-hero-bullets"
+        >
+          {pitch.bullets.map((bullet) => (
+            <li key={bullet} className="flex items-start gap-2 text-sm text-neutral-700">
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden="true" />
+              <span className="min-w-0">{bullet}</span>
+            </li>
+          ))}
+        </ul>
+        <p
+          data-testid="premium-terms"
+          className="mx-auto mt-4 max-w-xl rounded-xl bg-neutral-50 p-3 text-left text-xs text-neutral-600"
+        >
+          <span className="block font-semibold uppercase tracking-widest text-neutral-500">
+            {pitch.terms.heading}
+          </span>
+          {pitch.terms.body}
         </p>
         <div className="mt-6 flex justify-center">
           {isPremium ? (
@@ -133,7 +156,9 @@ export default function PremiumPage() {
             <span className="min-w-0 font-semibold text-neutral-900">
               Chefer Premium, all in one place
             </span>
-            <span className="shrink-0 font-bold text-emerald-600">Free for now</span>
+            <span className="shrink-0 font-bold text-emerald-600">
+              {PREMIUM_PITCH_COPY.planPremiumNote}
+            </span>
           </li>
         </ul>
       </div>

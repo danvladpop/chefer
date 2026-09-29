@@ -15,6 +15,7 @@ import { Card, Screen, Text } from '@chefer/ui-mobile';
 import { cn, WELLNESS_COPY } from '@chefer/utils';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { LockedChatPreview } from '../src/features/chat/locked-chat-preview';
+import { openPremium } from '../src/features/premium/open-premium';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { getApiBaseUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
@@ -193,9 +194,16 @@ export default function ChatScreen() {
               You&apos;ve used today&apos;s chat messages
             </Text>
             <Text className="mt-1 text-xs text-primary/80">
-              Premium raises every daily limit — upgrade from your Profile. Allowances reset at
-              midnight.
+              Premium raises the daily limit. Allowances reset at midnight UTC.
             </Text>
+            <Pressable
+              testID="chat-quota-upgrade"
+              accessibilityRole="button"
+              onPress={() => openPremium('chat-quota')}
+              className="min-h-11 justify-center"
+            >
+              <Text className="text-xs font-semibold text-primary">See what Premium adds</Text>
+            </Pressable>
           </Card>
         ) : (
           <View className="flex-row items-end gap-2 border-t border-border px-4 py-3">

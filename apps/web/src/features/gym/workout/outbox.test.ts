@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SyncResultDto, WorkoutSessionDoc } from '@chefer/types';
 import { startSession, workoutReducer } from '@chefer/utils';
-import { createOutbox, pendingFinishedDocs, selectOutboxStatus, type SendDocs } from './outbox';
+import {
+  createOutbox,
+  pendingDocs,
+  pendingFinishedDocs,
+  selectOutboxStatus,
+  type SendDocs,
+} from './outbox';
 import { createMemoryStorage, GYM_KEYS, type KvStorage } from './storage';
 
 let seq = 0;
@@ -238,5 +244,62 @@ describe('web outbox', () => {
     );
     box.enqueue(discarded, { ownerId: 'user-a' });
     expect(pendingFinishedDocs(box.getState(), 'user-a').map((d) => d.id)).toEqual([done.id]);
+  });
+});
+
+describe('web outbox — hold / Undo / stale (UX-44, T-44.5)', () => {
+  it('a held entry is not flushed before holdUntil, even when forced; then it goes out', async () => {
+    const { box, advance } = setup();
+    const send = vi.fn(ack('applied'));
+    box.configure({ send });
+    const doc = finishedDoc();
+    box.enqueue(doc, {
+      holdUntil: new Date(Date.parse('2026-09-24T12:00:00.000Z') + 8_000).toISOString(),
+    });
+
+    expect((await box.flush({ force: true })).reason).toBe('empty');
+    expect(send).not.toHaveBeenCalled();
+
+    advance(9_000);
+    expect((await box.flush({ force: true })).applied).toBe(1);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancelHeld (Undo) removes a held entry so nothing is ever sent, and is a no-op after the hold', async () => {
+    const { box, advance } = setup();
+    const send = vi.fn(ack('applied'));
+    box.configure({ send });
+    const doc = finishedDoc();
+    box.enqueue(doc, {
+      holdUntil: new Date(Date.parse('2026-09-24T12:00:00.000Z') + 8_000).toISOString(),
+    });
+    expect(box.cancelHeld(doc.id)?.doc.id).toBe(doc.id);
+    expect(box.getState().entries).toHaveLength(0);
+    advance(20_000);
+    await box.flush({ force: true });
+    expect(send).not.toHaveBeenCalled();
+
+    const later = finishedDoc();
+    box.enqueue(later, {
+      holdUntil: new Date(Date.parse('2026-09-24T12:00:00.000Z') + 28_000).toISOString(),
+    });
+    advance(30_000);
+    expect(box.cancelHeld(later.id)).toBeNull();
+  });
+
+  it('pendingDocs includes a DISCARDED tombstone (pendingFinishedDocs does not); a stale ack reaches onStale and onSynced', async () => {
+    const { box } = setup();
+    const doc = finishedDoc();
+    const tomb = { ...doc, status: 'DISCARDED' as const, exercises: [] };
+    box.enqueue(tomb);
+    expect(pendingDocs(box.getState(), 'user-a').map((d) => d.status)).toEqual(['DISCARDED']);
+    expect(pendingFinishedDocs(box.getState(), 'user-a')).toEqual([]);
+
+    const onSynced = vi.fn();
+    const onStale = vi.fn();
+    box.configure({ send: ack('stale'), onSynced, onStale });
+    await box.flush({ force: true });
+    expect(onStale).toHaveBeenCalledWith([tomb.id]);
+    expect(onSynced).toHaveBeenCalledWith([tomb.id]);
   });
 });

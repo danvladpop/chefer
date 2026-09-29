@@ -1,5 +1,5 @@
 import { forwardRef, useRef, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { RECIPE_UNIT_GROUPS, type RecipeFormIngredientLine } from '@chefer/types';
 import {
   haptics,
@@ -9,12 +9,18 @@ import {
   useScrollFieldIntoView,
   type SelectOption,
 } from '@chefer/ui-mobile';
+import { SwipeToRemove } from '../../../components/swipe-to-remove';
+import { IngredientPickerField } from '../../ingredients/ingredient-picker-field';
 import { recipeFormCopy } from './copy';
 import { RowMenu } from './row-menu';
 
 const UNIT_OPTIONS: SelectOption[] = RECIPE_UNIT_GROUPS.flatMap((g) =>
   g.units.map((u) => ({ value: u, label: u, group: g.label })),
 );
+
+/** The unit a fresh line starts with (recipe-form.tsx's `{ unit: 'g' }`) — T-40.7
+ * only swaps in a catalogue row's natural unit while the line is still at this default. */
+const DEFAULT_UNIT = 'g';
 
 /** ¼ ½ ¾ 1 1½ 2 — the fraction chip row shown while the quantity field has focus. */
 const FRACTION_CHIPS: { label: string; value: number }[] = [
@@ -38,30 +44,33 @@ export interface IngredientLineProps {
 
 /**
  * One ingredient row: qty (decimal-pad, `NumericReturnBar` on iOS — its
- * "Next" focuses the name field, standing in for "Next → the unit, then the
- * name" since the unit is a sheet trigger rather than a text field), unit
- * (`SelectField`, PAT-15), name. Reads as one sentence group for a screen
- * reader ("Ingredient {n}: {qty} {unit} {name}"), each control individually
- * reachable. The fraction chip row (a `radiogroup`, "Common amounts")
- * appears only while the quantity field has focus.
+ * "Done" dismisses the pad, since neither the unit nor the name is a text
+ * field to chain to any more), unit (`SelectField`, PAT-15), name (T-40.7:
+ * `IngredientPickerField`, a combobox TRIGGER that opens the ingredient
+ * search sheet rather than a free-text field). Reads as one sentence group
+ * for a screen reader ("Ingredient {n}: {qty} {unit} {name}"), each control
+ * individually reachable. The fraction chip row (a `radiogroup`, "Common
+ * amounts") appears only while the quantity field has focus.
  *
- * The forwarded ref reaches the NAME `TextInput`, so a parent can chain
- * "next ingredient" navigation across rows.
+ * The forwarded ref reaches the QUANTITY `TextInput` — the field D-19's
+ * `incompleteLine` error actually means (a named line missing its amount),
+ * and what the blocked-tap scroll-and-focus path (PAT-17, `recipe-form.tsx`)
+ * lands on. The name field is no longer a `TextInput` (T-40.7: it opens the
+ * ingredient search sheet instead), so it can't be that ref any more.
  */
 export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(function IngredientLine(
   { index, line, error, onChange, onRemove, nativeIDPrefix },
-  nameRef,
+  qtyRef,
 ) {
   const [qtyFocused, setQtyFocused] = useState(false);
   const qtyInputRef = useRef<TextInput>(null);
-  const localNameRef = useRef<TextInput>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
   const accessoryID = `${nativeIDPrefix}-qty-${index}`;
 
-  const setNameRef = (el: TextInput | null) => {
-    localNameRef.current = el;
-    if (typeof nameRef === 'function') nameRef(el);
-    else if (nameRef) nameRef.current = el;
+  const setQtyRef = (el: TextInput | null) => {
+    qtyInputRef.current = el;
+    if (typeof qtyRef === 'function') qtyRef(el);
+    else if (qtyRef) qtyRef.current = el;
   };
 
   return (
@@ -73,66 +82,72 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
       }`}
       className="gap-1.5"
     >
-      <View className="flex-row items-end gap-2">
-        <View className="w-[72px] gap-1">
-          <Text variant="label" accessibilityElementsHidden>
-            Qty
-          </Text>
-          <TextInput
-            ref={qtyInputRef}
-            testID={`rf-ingredient-qty-${index}`}
-            value={line.quantity}
-            onChangeText={(v) => onChange({ quantity: v })}
-            onFocus={() => {
-              setQtyFocused(true);
-              scrollFieldIntoView(qtyInputRef.current);
-            }}
-            onBlur={() => setQtyFocused(false)}
-            keyboardType="decimal-pad"
-            inputAccessoryViewID={accessoryID}
-            placeholder="200 or ½"
-            placeholderTextColor="#9ca3af"
-            accessibilityLabel={`Quantity for ingredient ${index + 1}`}
-            className="h-11 rounded-md border border-input bg-background px-2 text-center text-base text-foreground"
-          />
-        </View>
-        <View className="w-[88px]">
-          <SelectField
-            testID={`rf-ingredient-unit-${index}`}
-            label="Unit"
-            value={line.unit || 'g'}
-            options={UNIT_OPTIONS}
-            onChange={(unit) => onChange({ unit })}
-            allowOther={{ inputLabel: 'Unit' }}
-          />
-        </View>
-        <View className="min-w-0 flex-1">
-          <TextInput
-            ref={setNameRef}
+      {/* T-40.10 (PAT-16, Δ2.6): swipe left removes the line, same path as
+          the ⋯ menu below — progressive enhancement, never the only way. */}
+      <SwipeToRemove testID={`rf-ingredient-${index}-swipe`} onRemove={onRemove}>
+        <View className="flex-row items-end gap-2">
+          <View className="w-[72px] gap-1">
+            <Text variant="label" accessibilityElementsHidden>
+              Qty
+            </Text>
+            <TextInput
+              ref={setQtyRef}
+              testID={`rf-ingredient-qty-${index}`}
+              value={line.quantity}
+              onChangeText={(v) => onChange({ quantity: v })}
+              onFocus={() => {
+                setQtyFocused(true);
+                scrollFieldIntoView(qtyInputRef.current);
+              }}
+              onBlur={() => setQtyFocused(false)}
+              keyboardType="decimal-pad"
+              inputAccessoryViewID={accessoryID}
+              placeholder="200 or ½"
+              placeholderTextColor="#9ca3af"
+              accessibilityLabel={`Quantity for ingredient ${index + 1}`}
+              className="h-11 rounded-md border border-input bg-background px-2 text-center text-base text-foreground"
+            />
+          </View>
+          <View className="w-[88px]">
+            <SelectField
+              testID={`rf-ingredient-unit-${index}`}
+              label="Unit"
+              value={line.unit || DEFAULT_UNIT}
+              options={UNIT_OPTIONS}
+              onChange={(unit) => onChange({ unit })}
+              allowOther={{ inputLabel: 'Unit' }}
+            />
+          </View>
+          <IngredientPickerField
             testID={`rf-ingredient-name-${index}`}
-            value={line.name}
-            onChangeText={(v) => onChange({ name: v })}
-            onFocus={() => scrollFieldIntoView(localNameRef.current)}
-            returnKeyType="next"
+            name={line.name}
+            linked={line.linked ?? false}
             placeholder="flour"
-            placeholderTextColor="#9ca3af"
             accessibilityLabel={`Name for ingredient ${index + 1}`}
-            className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+            onPick={(patch) =>
+              onChange({
+                name: patch.name,
+                linked: patch.linked,
+                ...(patch.naturalUnit && (line.unit || DEFAULT_UNIT) === DEFAULT_UNIT
+                  ? { unit: patch.naturalUnit }
+                  : {}),
+              })
+            }
+          />
+          <RowMenu
+            testID={`rf-ingredient-menu-${index}`}
+            accessibilityLabel={`Options for ingredient ${index + 1}`}
+            actions={[
+              {
+                label: recipeFormCopy.buttons.removeIngredient,
+                destructive: true,
+                testID: `rf-ingredient-menu-${index}-remove`,
+                onPress: onRemove,
+              },
+            ]}
           />
         </View>
-        <RowMenu
-          testID={`rf-ingredient-menu-${index}`}
-          accessibilityLabel={`Options for ingredient ${index + 1}`}
-          actions={[
-            {
-              label: recipeFormCopy.buttons.removeIngredient,
-              destructive: true,
-              testID: `rf-ingredient-menu-${index}-remove`,
-              onPress: onRemove,
-            },
-          ]}
-        />
-      </View>
+      </SwipeToRemove>
       {error ? (
         <Text testID={`rf-ingredient-error-${index}`} className="text-xs text-destructive">
           {error}
@@ -162,11 +177,9 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
           ))}
         </View>
       ) : null}
-      <NumericReturnBar
-        nativeID={accessoryID}
-        label="Next"
-        onPress={() => localNameRef.current?.focus()}
-      />
+      {/* No next text field on this row any more (T-40.7: the name field
+          opens a sheet instead) — the accessory just dismisses the pad. */}
+      <NumericReturnBar nativeID={accessoryID} label="Done" onPress={() => Keyboard.dismiss()} />
     </View>
   );
 });

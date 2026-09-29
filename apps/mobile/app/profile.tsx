@@ -1,19 +1,34 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { PLAN_FEATURES } from '@chefer/types';
-import { Button, Card, PressableScale, Screen, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
-import { PostUpgradeSheet } from '../src/features/premium/post-upgrade-sheet';
+import {
+  Button,
+  Card,
+  ConfirmSheet,
+  PressableScale,
+  Screen,
+  Text,
+  useSnackbar,
+} from '@chefer/ui-mobile';
+import { cn, downgradeLosses, PREMIUM_PITCH_COPY } from '@chefer/utils';
+import { openPremium } from '../src/features/premium/open-premium';
+import { usePremiumPitch } from '../src/features/premium/use-premium-pitch';
 import { PrivacySection } from '../src/features/privacy/privacy-section';
+import { track } from '../src/lib/analytics';
 import { trpc } from '../src/lib/trpc';
 
 // Profile — port of apps/web (dashboard)/profile/page.tsx (M2-8). Same
-// PW-2 semantics: upgrade/downgrade flip planTier directly (free beta);
-// Stripe replaces only how the flag is set (P2-1). Upsells open this screen
-// with `?source=` (e.g. household); a successful upgrade shows the
-// source-aware "You're premium" sheet (F-PREM-1-5, F-PM-9).
+// PW-2 semantics: upgrade/downgrade flip planTier directly (free for now);
+// Stripe would replace only how the flag is set (P2-1).
+//
+// T-10.3 (UX-10 §3–4): the "Go Premium" card is now "Plan & Premium" — what
+// the plan is and includes, a job-led premium sheet (`openPremium('profile')`,
+// which carries the free-for-now terms; no price and no checkout on any
+// platform, delta rule 2), and a downgrade that says what you keep and what
+// you lose before it acts. "Daily AI allowances" sit under it and count only
+// what the server reserves (T-10.8, Q-18, Q-19).
 
 function StatRow({ label, used, limit }: { label: string; used: number; limit: number | null }) {
   const pct = limit ? Math.min(Math.round((used / limit) * 100), 100) : 0;
@@ -84,20 +99,39 @@ export default function ProfileScreen() {
     void utils.user.me.invalidate();
     void utils.auth.me.invalidate();
   };
-  const { source } = useLocalSearchParams<{ source?: string }>();
-  const [activationOpen, setActivationOpen] = useState(false);
-  const upgradeMutation = trpc.user.upgradePlan.useMutation({
+  const snackbar = useSnackbar();
+  const [confirmingDowngrade, setConfirmingDowngrade] = useState(false);
+  const downgradeMutation = trpc.user.downgradePlan.useMutation({
     onSuccess: () => {
+      track('downgrade_completed', {});
       invalidateUser();
-      setActivationOpen(true);
+      setConfirmingDowngrade(false);
+      snackbar.show({ message: PREMIUM_PITCH_COPY.downgradeDone, tone: 'success' });
     },
   });
-  const downgradeMutation = trpc.user.downgradePlan.useMutation({ onSuccess: invalidateUser });
+  const { data: members = [] } = trpc.household.list.useQuery(undefined, { staleTime: 60_000 });
+  const pitch = usePremiumPitch('profile');
 
   const displayName = user?.firstName
     ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
     : (user?.name ?? user?.email ?? '—');
   const isPremiumTier = user?.planTier === 'PREMIUM';
+
+  // "You'll lose:" names only the Premium jobs this user has used (T-10.3);
+  // their plans, recipes, ratings, logs and workouts are never on it.
+  const losses = downgradeLosses({
+    members: members.length,
+    aiMealPlans: usage?.aiMealPlans ?? 0,
+    imports: usage?.today.RECIPE_IMPORT ?? 0,
+    chatMessages: usage?.today.CHAT ?? 0,
+    scans: usage?.today.SCAN ?? 0,
+  });
+  const downgradeBody = [
+    PREMIUM_PITCH_COPY.downgradeKeep,
+    ...(losses.length > 0
+      ? ['', PREMIUM_PITCH_COPY.downgradeLose, ...losses.map((line) => `• ${line}`)]
+      : []),
+  ].join('\n');
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
@@ -155,44 +189,68 @@ export default function ProfileScreen() {
 
         <HouseholdRow />
 
-        {/* Upgrade / downgrade (PW-2 free-beta semantics) */}
-        {user && !isPremiumTier && user.role !== 'ADMIN' && (
-          <Card className="border-primary/20 bg-accent">
-            <Text className="font-semibold text-primary">Go Premium</Text>
-            <Text className="mb-3 mt-1 text-xs text-primary/80">
-              Unlock AI meal plans tailored to your goals, AI-powered swaps, and your personal
-              nutrition profile.
+        {/* Plan & Premium (T-10.3). Admins have Premium access without a plan card. */}
+        {user && user.role !== 'ADMIN' && (
+          <Card
+            testID="profile-plan"
+            className={cn(!isPremiumTier && 'border-primary/20 bg-accent')}
+          >
+            <Text testID="profile-plan-title" className="font-semibold text-primary">
+              {isPremiumTier
+                ? PREMIUM_PITCH_COPY.planPremiumTitle
+                : PREMIUM_PITCH_COPY.planFreeTitle}
             </Text>
-            <Button
-              testID="profile-upgrade"
-              loading={upgradeMutation.isPending}
-              onPress={() => upgradeMutation.mutate()}
-            >
-              Upgrade — free for now
-            </Button>
+            {isPremiumTier ? (
+              <>
+                <Text className="mt-0.5 text-xs font-semibold uppercase tracking-widest text-primary/80">
+                  {PREMIUM_PITCH_COPY.planPremiumNote}
+                </Text>
+                <Text className="mt-3 text-xs font-semibold text-gray-700">
+                  {PREMIUM_PITCH_COPY.planWhatYouHave}
+                </Text>
+                <View testID="profile-plan-have" className="mt-1 gap-1">
+                  {[...pitch.bullets, ...pitch.alsoIncluded].map((line) => (
+                    <View key={line} className="flex-row items-start gap-2">
+                      <Ionicons name="checkmark" size={14} color="#944a00" />
+                      <Text className="min-w-0 flex-1 text-xs text-gray-700">{line}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Button
+                  testID="profile-downgrade"
+                  variant="ghost"
+                  className="mt-2 self-start"
+                  onPress={() => setConfirmingDowngrade(true)}
+                >
+                  <Text variant="muted" className="text-xs">
+                    {PREMIUM_PITCH_COPY.switchBackToFree}
+                  </Text>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Text className="mb-3 mt-1 text-xs text-primary/80">
+                  {PREMIUM_PITCH_COPY.planFreeBody}
+                </Text>
+                <Button testID="profile-upgrade" onPress={() => openPremium('profile')}>
+                  {PREMIUM_PITCH_COPY.seeWhatPremiumAdds}
+                </Button>
+              </>
+            )}
           </Card>
         )}
-        {user && isPremiumTier && (
-          <Button
-            testID="profile-downgrade"
-            variant="ghost"
-            loading={downgradeMutation.isPending}
-            onPress={() => downgradeMutation.mutate()}
-          >
-            <Text variant="muted" className="text-xs">
-              Switch back to the free plan
-            </Text>
-          </Button>
-        )}
 
-        {/* AI usage — product quotas only (vendor telemetry is admin-only) */}
+        {/* Daily AI allowances — product quotas only (vendor telemetry is admin-only).
+            Counts what the server reserves: a plan from our recipes uses no AI, a
+            premium plan is ONE AI reservation, an import counts when it is read
+            (saving is free) — T-10.8, Q-18, Q-19. */}
         {isLoading ? (
           <ActivityIndicator color="#944a00" />
         ) : usage && user && user.role !== 'ADMIN' ? (
           <Card testID="profile-usage">
-            <Text variant="heading">Today&apos;s AI usage</Text>
+            <Text variant="heading">{PREMIUM_PITCH_COPY.allowancesTitle}</Text>
             <Text variant="muted" className="text-xs">
-              Daily allowances reset at midnight. Upgrading raises every limit.
+              Allowances reset at midnight UTC.
             </Text>
             {(() => {
               const tier = isPremiumTier ? 'premium' : 'free';
@@ -204,18 +262,40 @@ export default function ProfileScreen() {
                 return typeof access === 'number' ? access : null;
               };
               const rows = [
-                {
-                  label: 'Meal plans generated',
-                  used: usage.today.MEAL_PLAN,
-                  limit: lim('planGenerationsPerDay'),
-                },
+                // Free: the daily cap counts plans from our recipes (no AI).
+                // Premium: the AI plans are the ones that count; recipe-built
+                // ones (Plan this day) show only once used.
+                ...(isPremiumTier
+                  ? [
+                      {
+                        label: 'AI meal plans',
+                        used: usage.aiMealPlans,
+                        limit: lim('planGenerationsPerDay'),
+                      },
+                      ...(usage.curatedPlans > 0
+                        ? [
+                            {
+                              label: 'Plans from our recipes',
+                              used: usage.curatedPlans,
+                              limit: lim('planGenerationsPerDay'),
+                            },
+                          ]
+                        : []),
+                    ]
+                  : [
+                      {
+                        label: 'Plans from our recipes',
+                        used: usage.curatedPlans,
+                        limit: lim('planGenerationsPerDay'),
+                      },
+                    ]),
                 {
                   label: 'Chat messages',
                   used: usage.today.CHAT,
                   limit: lim('chatMessagesPerDay'),
                 },
                 {
-                  label: 'Recipe imports',
+                  label: 'Recipe imports read',
                   used: usage.today.RECIPE_IMPORT,
                   limit: lim('recipeImportsPerDay'),
                 },
@@ -231,16 +311,30 @@ export default function ProfileScreen() {
                   <StatRow key={r.label} label={r.label} used={r.used} limit={r.limit} />
                 ));
             })()}
+            <Text testID="profile-usage-helper" variant="muted" className="mt-3 text-xs">
+              {isPremiumTier
+                ? 'Plans from our recipes use no AI. An import counts when we read it; saving it is free'
+                : 'Plans from our recipes use no AI, and free accounts can build a few a day'}
+              {isPremiumTier && usage.importsSaved > 0
+                ? ` (${usage.importsSaved} saved today).`
+                : '.'}
+            </Text>
           </Card>
         ) : null}
         {/* T-39.4: AI & your data, Usage analytics, Consent history, Gym
             settings, Download my data / Delete account — all in one section. */}
         <PrivacySection />
       </ScrollView>
-      <PostUpgradeSheet
-        visible={activationOpen}
-        onClose={() => setActivationOpen(false)}
-        source={typeof source === 'string' && source !== '' ? source : null}
+      <ConfirmSheet
+        testID="downgrade-confirm"
+        visible={confirmingDowngrade}
+        onClose={() => setConfirmingDowngrade(false)}
+        title={PREMIUM_PITCH_COPY.downgradeTitle}
+        body={downgradeBody}
+        confirmLabel={PREMIUM_PITCH_COPY.downgradeConfirm}
+        cancelLabel={PREMIUM_PITCH_COPY.downgradeCancel}
+        destructive
+        onConfirm={() => downgradeMutation.mutate()}
       />
     </Screen>
   );

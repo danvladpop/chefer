@@ -21,6 +21,8 @@ export const GYM_KEYS = {
   /** The last finished doc, so its summary still renders after the outbox acked it. */
   lastFinished: 'chefer.gym.last-finished',
   pauses: 'chefer.gym.pauses',
+  /** UX-44: ids of deleted sessions whose DISCARDED tombstone was queued — hard-deleted once acked. */
+  pendingHardDeletes: 'chefer.gym.pending-hard-deletes',
 } as const;
 
 export function createMemoryStorage(): KvStorage {

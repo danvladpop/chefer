@@ -7,6 +7,7 @@ import { activeSessionStore } from '../../src/features/gym/offline/active-sessio
 import { localDate } from '../../src/features/gym/offline/ids';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { TodaysWorkoutCard } from '../../src/features/gym/today/todays-workout-card';
+import { saveForLater, startWorkout } from '../../src/features/gym/use-active-workout';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { makeBootstrap } from './gym-fixtures';
 
@@ -191,5 +192,51 @@ describe('TodaysWorkoutCard', () => {
     await user.press(screen.getByTestId('todays-workout-card-train-anyway'));
     expect(getMode()).toBe('gym');
     expect(router.push).toHaveBeenCalledWith('/today');
+  });
+
+  // T-36.A1.2: the resume line, built on the same resumeSummary() the gym
+  // Today Resume card and the logger itself use (UX-36 A1, AC9) — it
+  // outranks the done/rest/training states above.
+  describe('an in-progress or paused session (T-36.A1.2)', () => {
+    beforeEach(() => {
+      startWorkout({ kind: 'planned', workout: NEXT_WORKOUT });
+    });
+
+    it('shows "Workout in progress · N of M exercises" and a Resume button', async () => {
+      const user = userEvent.setup();
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: routineFor(weekdayOf(localDate())),
+          nextWorkout: NEXT_WORKOUT,
+        }),
+      );
+      await renderCard(queryClient);
+
+      expect(screen.getByTestId('todays-workout-card-resume-label')).toHaveTextContent(
+        'Workout in progress · 0 of 1 exercises',
+      );
+      await user.press(screen.getByTestId('todays-workout-card-resume-button'));
+      expect(getMode()).toBe('gym');
+      expect(router.push).toHaveBeenCalledWith('/gym/workout');
+    });
+
+    it('shows "Workout paused" once saved for later', async () => {
+      saveForLater();
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: routineFor(weekdayOf(localDate())),
+          nextWorkout: NEXT_WORKOUT,
+        }),
+      );
+      await renderCard(queryClient);
+
+      expect(screen.getByTestId('todays-workout-card-resume-label')).toHaveTextContent(
+        'Workout paused · 0 of 1 exercises',
+      );
+    });
   });
 });

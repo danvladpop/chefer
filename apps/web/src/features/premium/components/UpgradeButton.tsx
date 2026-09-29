@@ -7,54 +7,49 @@ import {
   ACTIVATION_EVENT,
   ACTIVATION_FLAG,
 } from '@/features/premium/components/PostUpgradeActivation';
-import {
-  PREMIUM_FEATURE_CARDS,
-  SOURCE_FEATURE_PRIORITY,
-} from '@/features/premium/premium-features';
+import { usePremiumPitch } from '@/features/premium/lib/use-premium-pitch';
+import { PREMIUM_FEATURE_CARDS } from '@/features/premium/premium-features';
+import { useHousehold } from '@/hooks/useHousehold';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Check, Sparkles } from 'lucide-react';
-import { PLAN_FEATURES, PREMIUM_PERK_KEYS, type PlanFeatureKey } from '@chefer/types';
+import { PLAN_FEATURES, PREMIUM_PERK_KEYS } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { cn } from '@chefer/utils';
+import { cn, downgradeLosses, PREMIUM_PITCH_COPY } from '@chefer/utils';
 
 // ─── Upgrade button + confirmation dialog (PW-2) ──────────────────────────────
 // The one shared upgrade surface. Every touchpoint passes a `source` so the
 // PW-3 funnel can answer "which gate converts": upgrade_prompt_shown →
 // upgrade_clicked → upgrade_completed, all tagged with it.
 //
-// Soft-paywall phase: one confirmed click flips planTier to PREMIUM — free
-// during the beta, no payment. Stripe (roadmap P2-1) replaces only how the
-// flag gets set.
+// Soft-paywall phase: one confirmed click flips planTier to PREMIUM — free for
+// now, no payment. Stripe (roadmap P2-1) replaces only how the flag gets set.
 //
-// The perk list renders from the PLAN_FEATURES matrix (launch plan PW-1), so
-// marketing copy and enforcement share one source of truth.
+// T-10.5 (UX-10): the dialog is headlined by the JOB the source unlocks
+// (packages/utils premium-pitch.ts — the same registry the mobile sheet reads),
+// shows only live bullets, and carries the free-for-now terms every time it
+// opens. The trigger is "See what Premium adds", not a generic upgrade.
+//
+// The perk list on UpgradeCard still renders from the PLAN_FEATURES matrix
+// (launch plan PW-1), so marketing copy and enforcement share one truth.
 
 const PREMIUM_PERKS = PREMIUM_PERK_KEYS.map((key) => PLAN_FEATURES[key].label);
-
-/**
- * Dialog v2 (premium_plan.md §6.3): the perk that triggered this dialog comes
- * first with its description expanded; the rest collapse to compact rows.
- * Pure presentation — same matrix, keyed off the existing `source` prop.
- */
-function orderedPerkKeys(source: string): { expanded: PlanFeatureKey[]; rest: PlanFeatureKey[] } {
-  const priority = (SOURCE_FEATURE_PRIORITY[source] ?? []).filter((key) =>
-    PREMIUM_PERK_KEYS.includes(key),
-  );
-  return {
-    expanded: priority,
-    rest: PREMIUM_PERK_KEYS.filter((key) => !priority.includes(key)),
-  };
-}
 
 export interface UpgradeButtonProps {
   className?: string;
   /** Which touchpoint rendered this button — feeds the PW-3 funnel. */
   source: string;
+  /** The trigger's text; defaults to `See what Premium adds`. */
+  label?: string;
 }
 
-export function UpgradeButton({ className, source }: UpgradeButtonProps) {
+export function UpgradeButton({
+  className,
+  source,
+  label = PREMIUM_PITCH_COPY.seeWhatPremiumAdds,
+}: UpgradeButtonProps) {
   const [open, setOpen] = useState(false);
+  const pitch = usePremiumPitch(source, open);
   const utils = trpc.useUtils();
   const router = useRouter();
 
@@ -81,7 +76,7 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
     <>
       <button
         onClick={() => {
-          capture('upgrade_prompt_shown', { source });
+          capture('upgrade_prompt_shown', { source, job: pitch.job });
           setOpen(true);
         }}
         className={cn(
@@ -90,7 +85,7 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
         )}
       >
         <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-        Upgrade plan
+        {label}
       </button>
 
       {/* Sheet (bottom sheet on phones, dialog at sm+) supplies scroll lock,
@@ -99,63 +94,78 @@ export function UpgradeButton({ className, source }: UpgradeButtonProps) {
       <Sheet
         open={open}
         onClose={() => setOpen(false)}
-        title="Go Premium"
-        description="Unlock the personal AI chef. Premium is free for now — it activates instantly, no payment needed."
+        title={pitch.headline}
+        description={pitch.lede}
         size="sm"
         footer={
-          <button
-            onClick={() => {
-              capture('upgrade_clicked', { source });
-              upgradeMutation.mutate();
-            }}
-            disabled={upgradeMutation.isPending}
-            className="min-h-11 w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            {upgradeMutation.isPending ? 'Upgrading…' : 'Upgrade — free for now'}
-          </button>
+          <div className="flex w-full flex-col gap-2">
+            <button
+              onClick={() => {
+                capture('upgrade_clicked', { source, job: pitch.job });
+                upgradeMutation.mutate();
+              }}
+              disabled={upgradeMutation.isPending}
+              className="min-h-11 w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {upgradeMutation.isPending
+                ? 'Turning on…'
+                : upgradeMutation.isError
+                  ? PREMIUM_PITCH_COPY.tryAgain
+                  : PREMIUM_PITCH_COPY.turnOn}
+            </button>
+            <button
+              onClick={() => setOpen(false)}
+              className="min-h-11 w-full rounded-xl border px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              {PREMIUM_PITCH_COPY.notNow}
+            </button>
+          </div>
         }
       >
-        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white">
-          <Sparkles className="h-5 w-5" />
+        <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[#944a00]">
+          {PREMIUM_PITCH_COPY.eyebrow}
+        </p>
+        <ul className="space-y-2" data-testid="premium-bullets">
+          {pitch.bullets.map((bullet) => (
+            <li key={bullet} className="flex items-start gap-2 text-sm text-gray-800">
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden="true" />
+              <span className="min-w-0">{bullet}</span>
+            </li>
+          ))}
+        </ul>
+
+        {pitch.alsoIncluded.length > 0 && (
+          <details className="mt-3">
+            <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-gray-800">
+              {PREMIUM_PITCH_COPY.alsoIncluded}
+            </summary>
+            <ul className="space-y-1 pb-1 pl-1 text-sm text-gray-600">
+              {pitch.alsoIncluded.map((line) => (
+                <li key={line}>· {line}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        <Link
+          href={`/premium?source=${encodeURIComponent(source)}`}
+          onClick={() => setOpen(false)}
+          className="flex min-h-11 items-center text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
+        >
+          See everything Premium does →
+        </Link>
+
+        {/* The terms are plain text, read before the button — on every open. */}
+        <div data-testid="premium-terms" className="mt-2 rounded-xl bg-gray-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+            {pitch.terms.heading}
+          </p>
+          <p className="mt-1 text-xs text-gray-600">{pitch.terms.body}</p>
         </div>
 
-        {(() => {
-          // Top-3 pitch (review P-5): the source's own perks first, filled
-          // from the matrix — ten equal checkmarks read as marketing, three
-          // read as reasons. The rest collapse into the /premium link.
-          const { expanded, rest } = orderedPerkKeys(source);
-          const visible = [...expanded, ...rest].slice(0, 3);
-          const hiddenCount = PREMIUM_PERK_KEYS.length - visible.length;
-          return (
-            <>
-              <ul className="space-y-2">
-                {visible.map((key) => (
-                  <li
-                    key={key}
-                    className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-sm"
-                  >
-                    <span className="flex items-start gap-2 font-semibold text-gray-900">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                      {PLAN_FEATURES[key].label}
-                    </span>
-                    <p className="mt-1 pl-6 text-gray-600">{PLAN_FEATURES[key].description}</p>
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href={`/premium?source=${encodeURIComponent(source)}`}
-                onClick={() => setOpen(false)}
-                className="mt-2 flex min-h-11 items-center text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
-              >
-                …and {hiddenCount} more — see everything premium does →
-              </Link>
-            </>
-          );
-        })()}
-
         {upgradeMutation.isError && (
-          <p className="mt-3 text-sm text-red-600">
-            Upgrade failed: {upgradeMutation.error.message}
+          <p role="alert" className="mt-3 text-sm text-red-600">
+            {PREMIUM_PITCH_COPY.errorBody}
           </p>
         )}
       </Sheet>
@@ -229,25 +239,40 @@ export function UpgradeCard({
 }
 
 /**
- * Self-service downgrade (PW-2) — honest during a free beta, and the only way
- * to test both sides of every gate without an admin.
+ * Self-service downgrade (PW-2) — honest while Premium is free, and the only
+ * way to test both sides of every gate without an admin. T-10.3/T-10.5: it asks
+ * first and says what you keep and what you lose — only the Premium jobs this
+ * user has used — and "Keep Premium" leaves everything as it was.
  */
 export function DowngradeButton({ className }: { className?: string }) {
   const [confirming, setConfirming] = useState(false);
   const utils = trpc.useUtils();
   const router = useRouter();
+  const { memberCount } = useHousehold();
+  const { data: usage } = trpc.profile.getAiUsage.useQuery(undefined, {
+    enabled: confirming,
+    staleTime: 30_000,
+  });
 
   const downgradeMutation = trpc.user.downgradePlan.useMutation({
     onSuccess: () => {
-      capture('downgrade_completed');
+      capture('downgrade_completed', {});
       void utils.invalidate();
       router.refresh();
       setConfirming(false);
     },
   });
 
-  if (!confirming) {
-    return (
+  const losses = downgradeLosses({
+    members: memberCount,
+    aiMealPlans: usage?.aiMealPlans ?? 0,
+    imports: usage?.today.RECIPE_IMPORT ?? 0,
+    chatMessages: usage?.today.CHAT ?? 0,
+    scans: usage?.today.SCAN ?? 0,
+  });
+
+  return (
+    <>
       <button
         onClick={() => setConfirming(true)}
         className={cn(
@@ -255,27 +280,50 @@ export function DowngradeButton({ className }: { className?: string }) {
           className,
         )}
       >
-        Switch back to the free plan
+        {PREMIUM_PITCH_COPY.switchBackToFree}
       </button>
-    );
-  }
-
-  return (
-    <span className={cn('flex items-center gap-2 text-xs text-gray-600', className)}>
-      Lose AI plans, swaps and auto-generation?
-      <button
-        onClick={() => downgradeMutation.mutate()}
-        disabled={downgradeMutation.isPending}
-        className="min-h-11 px-1 font-semibold text-red-600 hover:underline disabled:opacity-50"
+      <Sheet
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        title={PREMIUM_PITCH_COPY.downgradeTitle}
+        description={PREMIUM_PITCH_COPY.downgradeKeep}
+        size="sm"
+        footer={
+          <div className="flex w-full flex-col gap-2 sm:flex-row-reverse">
+            <button
+              onClick={() => downgradeMutation.mutate()}
+              disabled={downgradeMutation.isPending}
+              className="min-h-11 w-full rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {downgradeMutation.isPending ? 'Switching…' : PREMIUM_PITCH_COPY.downgradeConfirm}
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              className="min-h-11 w-full rounded-xl border px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              {PREMIUM_PITCH_COPY.downgradeCancel}
+            </button>
+          </div>
+        }
       >
-        {downgradeMutation.isPending ? 'Switching…' : 'Yes, downgrade'}
-      </button>
-      <button
-        onClick={() => setConfirming(false)}
-        className="min-h-11 px-1 text-gray-600 hover:underline"
-      >
-        Keep premium
-      </button>
-    </span>
+        {losses.length > 0 && (
+          <div data-testid="downgrade-losses">
+            <p className="text-sm font-semibold text-gray-900">
+              {PREMIUM_PITCH_COPY.downgradeLose}
+            </p>
+            <ul className="mt-1 space-y-1 text-sm text-gray-700">
+              {losses.map((line) => (
+                <li key={line}>· {line}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {downgradeMutation.isError && (
+          <p role="alert" className="mt-3 text-sm text-red-600">
+            {downgradeMutation.error.message}
+          </p>
+        )}
+      </Sheet>
+    </>
   );
 }

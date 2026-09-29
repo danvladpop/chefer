@@ -37,7 +37,18 @@ function localTime(iso: string): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-beforeEach(() => jest.clearAllMocks());
+// Pinned clock: the card reads the real clock (`localDate()`, "tomorrow" label),
+// so an unpinned suite rots as the calendar moves. Local noon on Mon 28 Sep 2026
+// keeps the pinned day stable in every timezone. `advanceTimers` lets the
+// card's elapsed ticker keep running as it would on a device.
+const NOW = new Date(2026, 8, 28, 12, 0, 0);
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.useFakeTimers({ now: NOW, advanceTimers: true });
+});
+
+afterEach(() => jest.useRealTimers());
 
 describe('ResumeCard', () => {
   it('active: shows elapsed time, exercise/set progress and the current focus', async () => {
@@ -61,12 +72,9 @@ describe('ResumeCard', () => {
   });
 
   it('paused: shows the static minutes-in time, "Next", Finish-with and the keep-until time', async () => {
-    // Relative to the real clock: "tomorrow" is computed against now, so the
-    // fixed 2026-09-28 dates this used to hardcode turned "today" a day later.
-    const now = Date.now();
-    const startedAt = new Date(now - 23 * 60_000).toISOString(); // 23 min in
-    const pausedAt = new Date(now).toISOString();
-    const keepsUntilIso = new Date(now + 24 * 60 * 60_000).toISOString();
+    const pausedAt = new Date(NOW.getTime() - 10 * 60_000).toISOString(); // paused 10 min ago
+    const startedAt = new Date(NOW.getTime() - 33 * 60_000).toISOString(); // 23 min in
+    const keepsUntilIso = new Date(NOW.getTime() + (24 * 60 - 10) * 60_000).toISOString(); // +24h
     const session = { ...activeDoc(), localDate: localDate(), startedAt };
     await render(<ResumeCard bootstrap={BOOTSTRAP} session={session} pausedAt={pausedAt} />);
 

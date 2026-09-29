@@ -677,6 +677,32 @@ describe('exposuresFromSession / toSessionSummary', () => {
     const odd = toSessionSummary({ ...doc, exercises: [{ ...firstEx, lastSetRir: 7 }] });
     expect(odd.exercises[0]?.lastSetRir).toBeNull();
   });
+
+  it("T-42.2: carries a cardio set's S20 fields through to the summary, and omits them (not `undefined`) for a strength set", () => {
+    const firstEx = doc.exercises[0];
+    const firstSet = firstEx?.sets[0];
+    if (!firstEx || !firstSet) throw new Error('no exercises/sets');
+    const cardioDoc = {
+      ...doc,
+      exercises: [
+        {
+          ...firstEx,
+          sets: [{ ...firstSet, durationSec: 1200, distanceM: 5000, intensityRpe: 6 }],
+        },
+      ],
+    };
+    const s = toSessionSummary(cardioDoc);
+    expect(s.exercises[0]?.sets[0]).toMatchObject({
+      durationSec: 1200,
+      distanceM: 5000,
+      intensityRpe: 6,
+    });
+
+    // A strength set (the fixture's default) never gained the keys at all.
+    const strength = toSessionSummary(doc);
+    expect(strength.exercises[0]?.sets[0]).not.toHaveProperty('durationSec');
+    expect('durationSec' in (strength.exercises[0]?.sets[0] ?? {})).toBe(false);
+  });
 });
 
 describe('applyFinishedSession — the offline optimistic fold', () => {

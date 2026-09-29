@@ -3,6 +3,7 @@ import {
   recommendInputSchema,
   saveGymProfileInputSchema,
 } from '@chefer/types';
+import { effectiveLevel } from '../../application/gym/client-level.js';
 import { gymProfileService } from '../../application/gym/gym-profile.service.js';
 import { assertWithinRateLimit } from '../../lib/rate-limit.js';
 import { protectedProcedure, router } from '../../lib/trpc.js';
@@ -19,6 +20,11 @@ export const gymProfileRouter = router({
   /** Creates profile + active routine + initial progressions; returns a fresh bootstrap. */
   completeSetup: protectedProcedure.input(completeSetupInputSchema).mutation(({ ctx, input }) => {
     assertWithinRateLimit('gym.completeSetup', ctx.user.id, 20, 60 * 60 * 1000);
-    return gymProfileService.completeSetup(ctx.user.id, input);
+    return gymProfileService.completeSetup(
+      ctx.user.id,
+      input,
+      undefined,
+      effectiveLevel(ctx.clientApiLevel),
+    );
   }),
 });

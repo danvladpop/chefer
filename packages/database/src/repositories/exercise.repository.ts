@@ -3,6 +3,7 @@ import type {
   ExerciseCategory,
   ExerciseEquipment,
   ExerciseLoadType,
+  ExerciseTrackingType,
 } from '@prisma/client';
 import { prisma } from '../client';
 
@@ -27,6 +28,13 @@ export interface ExerciseWriteData {
   perHand: boolean;
   isLowerBody: boolean;
   isTimed: boolean;
+  /**
+   * S18 (T-42.0): optional so existing callers (catalogue sync, pre-W2 code
+   * paths) keep compiling unchanged — Prisma's column default (WEIGHT_REPS)
+   * applies on create, and omitting it on update leaves the stored value
+   * alone.
+   */
+  trackingType?: ExerciseTrackingType;
   swapGroup: string | null;
   cues: string[];
   mistakes: string[];
@@ -40,6 +48,17 @@ export interface ExerciseWriteData {
 export interface CuratedExerciseUpdate extends ExerciseWriteData {
   contentVersion: number;
   archivedAt: Date | null;
+}
+
+/**
+ * S18 (T-42.0, Δ2.2) — one candidate row for the idempotent boot backfill:
+ * a custom exercise still at the trackingType column default that carries
+ * enough legacy signal (isTimed / loadType) to derive a better one.
+ */
+export interface TrackingTypeBackfillCandidate {
+  id: string;
+  isTimed: boolean;
+  loadType: ExerciseLoadType;
 }
 
 export interface IExerciseRepository {
@@ -57,6 +76,13 @@ export interface IExerciseRepository {
   findAllCurated(): Promise<Exercise[]>;
   createCurated(id: string, data: ExerciseWriteData): Promise<void>;
   updateCurated(id: string, data: Partial<CuratedExerciseUpdate>): Promise<void>;
+
+  // S18 (T-42.0) boot backfill: customs with isTimed → DURATION, loadType
+  // BODYWEIGHT → BODYWEIGHT_REPS (Δ2.2). Idempotent — once a row's
+  // trackingType is set, the WHERE clause behind this query stops matching
+  // it, so a repeated boot finds nothing left to do.
+  findTrackingTypeBackfillCandidates(batchSize: number): Promise<TrackingTypeBackfillCandidate[]>;
+  setTrackingType(id: string, trackingType: ExerciseTrackingType): Promise<void>;
 }
 
 export class ExerciseRepository implements IExerciseRepository {
@@ -110,6 +136,24 @@ export class ExerciseRepository implements IExerciseRepository {
 
   async updateCurated(id: string, data: Partial<CuratedExerciseUpdate>): Promise<void> {
     await prisma.exercise.update({ where: { id }, data });
+  }
+
+  async findTrackingTypeBackfillCandidates(
+    batchSize: number,
+  ): Promise<TrackingTypeBackfillCandidate[]> {
+    return prisma.exercise.findMany({
+      where: {
+        ownerId: { not: null },
+        trackingType: 'WEIGHT_REPS',
+        OR: [{ isTimed: true }, { loadType: 'BODYWEIGHT' }],
+      },
+      select: { id: true, isTimed: true, loadType: true },
+      take: batchSize,
+    });
+  }
+
+  async setTrackingType(id: string, trackingType: ExerciseTrackingType): Promise<void> {
+    await prisma.exercise.update({ where: { id }, data: { trackingType } });
   }
 }
 

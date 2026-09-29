@@ -13,7 +13,7 @@ TestFlight build) before submitting. Do it yourself; don't reuse your own accoun
    meal plan so the reviewer sees real content immediately. Generating the plan shows the
    AI consent sheet once; tap Allow. The reviewer can still see the consent sheet by
    switching off Profile → "AI & your data", and the notes below tell them where.
-3. Profile → Upgrade (free) so every feature is unlocked for review.
+3. Profile → Your plan: Free → "See what Premium adds" → "Turn on Premium" (free) so every feature is unlocked for review.
 4. Save one recipe, log one meal in Tracker, log one weight entry, and in Gym mode run setup and
    finish one short workout, so no screen is empty.
 5. Keep this account untouched until the review is approved. Apple may sign in again for
@@ -38,13 +38,13 @@ a phone number you'll answer while the app is in review.
 Chefer is a meal-planning and strength-training app. An account is required because plans, recipes, shopping lists and workouts sync between the iOS app and the web app (chefer.duckdns.org).
 
 DEMO ACCOUNT
-The account above already has a meal plan, recipes and a logged workout. Premium features are enabled on it. Premium is currently free for everyone: the Profile "Upgrade" button just switches the account's tier, and no payment is taken anywhere in the app. There are no in-app purchases.
+The account above already has a meal plan, recipes and a logged workout. Premium features are enabled on it. Premium is currently free for everyone: the "Turn on Premium" button (Profile → Plan & Premium, or the premium sheet any locked feature opens) just switches the account's tier, and no payment is taken anywhere in the app. There are no in-app purchases.
 
 WHERE THINGS ARE
-- Food mode (default): Home, Plan, Recipes, Shopping, More tabs.
+- Food mode (default): Today, Plan, Shop, Cookbook, More tabs.
 - Gym mode: use the Food/Gym switch in the header of the Food tabs. Gym works offline.
 - Account deletion: More → Profile → "Delete account" (last card). It asks for the password and for DELETE to be typed, then permanently deletes the account and all its data and signs out everywhere.
-- AI data consent: the first time an AI feature is used (plan generation, meal-photo scan, recipe import, chat) the app explains what is sent to Google Gemini and asks for permission (Allow / Not now; "Not now" sends nothing). It can be withdrawn under More → Profile → "AI & your data". To see the consent sheet on the demo account, switch that toggle off and tap Generate on the Plan tab.
+- AI data consent: the first time an AI feature is used (plan generation, meal-photo scan, recipe import, chat) the app explains what is sent to Groq and Cloudflare Workers AI and asks for permission (Allow / Not now; "Not now" sends nothing). It can be withdrawn under More → Profile → "AI & your data". To see the consent sheet on the demo account, switch that toggle off and tap Generate on the Plan tab.
 
 PERMISSIONS
 - Camera / Photos: only when the user chooses to scan a meal (Tracker → Snap to log) or add a photo to a recipe.

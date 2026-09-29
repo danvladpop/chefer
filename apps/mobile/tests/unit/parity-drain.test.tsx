@@ -9,10 +9,16 @@ import { PostUpgradeSheet } from '../../src/features/premium/post-upgrade-sheet'
 // the free pantry ghost banner (F3 §6.4) — each mirrors its web component.
 
 const mockPush = jest.fn();
+const mockOpenPremium = jest.fn();
 const mockSubmit = jest.fn();
 let mockHasProfile: boolean | undefined = true;
 let mockPantryCount = 0;
 
+jest.mock('../../src/features/premium/open-premium', () => ({
+  openPremium: (...args: unknown[]) => {
+    mockOpenPremium(...args);
+  },
+}));
 jest.mock('expo-router', () => ({
   router: {
     push: (...args: unknown[]) => {
@@ -118,6 +124,6 @@ describe('PantryGhostBanner (F3 §6.4)', () => {
     expect(screen.getByTestId('pantry-ghost')).toHaveTextContent(/You now have 3 items/);
     expect(screen.getByTestId('pantry-ghost-saved')).toHaveTextContent(/saved ~€4\.50/);
     await user.press(screen.getByTestId('pantry-ghost-upgrade'));
-    expect(mockPush).toHaveBeenCalledWith({ pathname: '/profile', params: { source: 'pantry' } });
+    expect(mockOpenPremium).toHaveBeenCalledWith('pantry');
   });
 });

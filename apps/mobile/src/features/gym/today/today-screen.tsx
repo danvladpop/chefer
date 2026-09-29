@@ -48,6 +48,7 @@ import { LogPastWorkoutAction } from './log-past-workout';
 import { dismissMissedDay, isMissedDayDismissed } from './missed-day-dismissed';
 import { RecentWorkouts } from './recent-workouts';
 import { ResumeCard } from './resume-card';
+import { TargetChangeNotice } from './target-change-notice';
 import {
   computeWeekStrip,
   formatStreakLine,
@@ -363,6 +364,9 @@ export function TodayScreen() {
         }
       >
         {header}
+
+        {/* UX-44 (T-44.4, PAT-14): targets that moved after a correction synced. */}
+        <TargetChangeNotice bootstrap={bootstrap} dataUpdatedAt={bootstrapQuery.dataUpdatedAt} />
 
         {activeWorkout.isActive && activeWorkout.session && (
           <ResumeCard bootstrap={bootstrap} session={activeWorkout.session} pausedAt={pausedAt} />

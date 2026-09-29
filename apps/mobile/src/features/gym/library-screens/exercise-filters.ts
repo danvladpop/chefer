@@ -5,7 +5,7 @@ import {
   type ExerciseDto,
   type VolumeGroup,
 } from '@chefer/types';
-import { filterExercises } from '../library/exercise-picker';
+import { filterExercises, type PickerFilter } from '../library/exercise-picker';
 
 // Exercises-tab-specific filtering on top of the shared `filterExercises`
 // (query + muscle group): equipment and "Mine" (custom exercises), which the
@@ -17,6 +17,12 @@ export const MUSCLE_GROUP_FILTERS: { value: VolumeGroup; label: string }[] = (
   value: group,
   label: (MUSCLE_LABELS as Record<string, string | undefined>)[group] ?? group,
 }));
+
+/** T-42.3 (AC9): "Cardio" first, ahead of every muscle group — behind cardioLogging (the caller gates it). */
+export const MUSCLE_GROUP_FILTERS_WITH_CARDIO: { value: PickerFilter; label: string }[] = [
+  { value: 'CARDIO', label: 'Cardio' },
+  ...MUSCLE_GROUP_FILTERS,
+];
 
 const EQUIPMENT_LABELS: Record<string, string> = {
   BARBELL: 'Barbell',
@@ -37,7 +43,7 @@ export const EQUIPMENT_FILTERS: { value: string; label: string }[] = Object.valu
 
 export interface ExercisesTabFilters {
   query: string;
-  group: VolumeGroup | null;
+  group: PickerFilter | null;
   equipment: string | null;
   mineOnly: boolean;
 }

@@ -38,6 +38,18 @@ export const EQUIPMENT_LABELS: Record<ExerciseEquipment, string> = {
   KETTLEBELL: 'Kettlebell',
   BAND: 'Band',
   ASSISTED: 'Assisted',
+  // S19 (T-42.0): cardio equipment (06 §5.3). Never sent to a level < 2
+  // client, so these labels are inert until T-42.5 (web cardio render).
+  TREADMILL: 'Treadmill',
+  BIKE: 'Bike',
+  ROWER: 'Rower',
+  ELLIPTICAL: 'Elliptical',
+  STAIR_CLIMBER: 'Stair climber',
+  SKI_ERG: 'Ski erg',
+  ASSAULT_BIKE: 'Assault bike',
+  JUMP_ROPE: 'Jump rope',
+  POOL: 'Pool',
+  OUTDOOR: 'Outdoor',
 };
 
 export const EQUIPMENT_OPTIONS: { value: ExerciseEquipment; label: string }[] = Object.values(

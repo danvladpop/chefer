@@ -7,7 +7,7 @@
 
 import type { ExerciseMeta } from './engine';
 import { EXERCISE_CONTENT, type ExerciseContent } from './exercise-content';
-import type { Muscle } from './vocab';
+import { ExerciseTrackingType, type Muscle } from './vocab';
 
 export interface ExerciseCatalogEntry extends ExerciseMeta {
   aliases: string[];
@@ -76,6 +76,55 @@ const L = { isLowerBody: true } as const;
 const PH = { perHand: true } as const;
 /** Reps-only progression (loadModel NONE): no load, so no belt / plates. */
 const BW = { loadType: 'BODYWEIGHT' } as const;
+
+/**
+ * T-42.1 (06 §6, Δ2.2): a cardio catalogue entry, beside ex(). No weight/reps
+ * progression exists for these (progression.service.ts recompute skips
+ * non-strength tracking types), so repMin/repMax/incrementKg are unused
+ * placeholders kept only so ExerciseMeta stays one shape — the client never
+ * renders them for a cardio trackingType. Empty muscle lists are deliberate:
+ * cardio contributes no fractional set to volumeByGroup (V1–V11 stay
+ * strength-only), matching "PR, e1RM and volume code skip cardio" (T-42.2).
+ */
+function cardio(
+  id: string,
+  name: string,
+  equipment: ExerciseCatalogEntry['equipment'],
+  trackingType:
+    | typeof ExerciseTrackingType.DURATION
+    | typeof ExerciseTrackingType.DURATION_DISTANCE,
+  opts: Partial<Struct> = {},
+): Struct {
+  return {
+    id,
+    name,
+    category: C,
+    movementPattern: 'cardio',
+    equipment,
+    // WEIGHTED (not BODYWEIGHT): the loadType↔equipment invariant
+    // (catalog.test.ts "tag bodyweight moves consistently") reserves
+    // `loadType: 'BODYWEIGHT'` for `equipment: 'BODYWEIGHT'` rows. No load is
+    // tracked for cardio either way — the field is unused once trackingType
+    // isn't a strength type.
+    loadType: 'WEIGHTED',
+    primaryMuscles: [],
+    secondaryMuscles: [],
+    repMin: 1,
+    repMax: 1,
+    restSec: 0,
+    incrementKg: 0,
+    perHand: false,
+    isLowerBody: false,
+    // Every W2 slice type (DURATION, DURATION_DISTANCE) is time-based
+    // (isTimedFor, `@chefer/utils` gym/tracking.ts) — a level-0/1 client that
+    // never sees this row anyway (Δ2.1) would still read a seconds label if
+    // it somehow did.
+    isTimed: true,
+    swapGroup: null,
+    trackingType,
+    ...opts,
+  };
+}
 
 /** Structural definitions — content is merged in below from EXERCISE_CONTENT. */
 const STRUCTURE: Struct[] = [
@@ -1124,6 +1173,46 @@ const STRUCTURE: Struct[] = [
     2.5,
     { ...BW, swapGroup: 'vertical-press', aliases: ['Pike Press-Up'] },
   ),
+
+  // ─── Cardio (T-42.1, 06 §6) — the 12-entry W2 minimal slice. The other 18
+  // (incl. every INTERVALS entry) land in W5 (T-42.6). ───────────────────────
+  cardio('treadmill-walk', 'Treadmill Walk', 'TREADMILL', ExerciseTrackingType.DURATION_DISTANCE),
+  cardio(
+    'treadmill-incline-walk',
+    'Treadmill Incline Walk',
+    'TREADMILL',
+    ExerciseTrackingType.DURATION_DISTANCE,
+  ),
+  cardio('treadmill-run', 'Treadmill Run', 'TREADMILL', ExerciseTrackingType.DURATION_DISTANCE),
+  cardio('outdoor-walk', 'Outdoor Walk', 'OUTDOOR', ExerciseTrackingType.DURATION_DISTANCE),
+  cardio('outdoor-run', 'Outdoor Run', 'OUTDOOR', ExerciseTrackingType.DURATION_DISTANCE),
+  cardio('outdoor-cycle', 'Outdoor Cycle', 'OUTDOOR', ExerciseTrackingType.DURATION_DISTANCE),
+  cardio(
+    'stationary-bike-upright',
+    'Stationary Bike (Upright)',
+    'BIKE',
+    ExerciseTrackingType.DURATION_DISTANCE,
+    { aliases: ['Upright Bike', 'Exercise Bike'] },
+  ),
+  cardio(
+    'stationary-bike-recumbent',
+    'Stationary Bike (Recumbent)',
+    'BIKE',
+    ExerciseTrackingType.DURATION_DISTANCE,
+    { aliases: ['Recumbent Bike'] },
+  ),
+  cardio('spin-class', 'Spin Class', 'BIKE', ExerciseTrackingType.DURATION, {
+    aliases: ['Indoor Cycling Class'],
+  }),
+  cardio('elliptical', 'Elliptical', 'ELLIPTICAL', ExerciseTrackingType.DURATION_DISTANCE, {
+    aliases: ['Cross-Trainer'],
+  }),
+  cardio('rowing-machine', 'Rowing Machine', 'ROWER', ExerciseTrackingType.DURATION_DISTANCE, {
+    aliases: ['Indoor Row', 'Erg'],
+  }),
+  cardio('stair-climber', 'Stair Climber', 'STAIR_CLIMBER', ExerciseTrackingType.DURATION, {
+    aliases: ['Stepmill', 'StairMaster'],
+  }),
 ];
 
 const EMPTY: ExerciseContent = {

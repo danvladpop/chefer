@@ -1,15 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { DowngradeButton, UpgradeCard } from '@/features/premium/components/UpgradeButton';
+import { DowngradeButton, UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { usePremiumPitch } from '@/features/premium/lib/use-premium-pitch';
 import { AccountDataCard } from '@/features/profile/components/AccountDataCard';
 import { AiConsentCard } from '@/features/profile/components/AiConsentCard';
 import { AnalyticsConsentCard } from '@/features/profile/components/AnalyticsConsentCard';
 import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
-import { ChevronRight, Users } from 'lucide-react';
+import { Check, ChevronRight, Users } from 'lucide-react';
 import { PLAN_FEATURES } from '@chefer/types';
-import { WELLNESS_COPY } from '@chefer/utils';
+import { PREMIUM_PITCH_COPY, WELLNESS_COPY } from '@chefer/utils';
 
 // ─── Usage bar ────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,51 @@ function Card({
   );
 }
 
+// ─── Plan & Premium (T-10.3, T-10.5) ──────────────────────────────────────────
+// Free: what Free includes + "See what Premium adds" (the job-led dialog, with
+// the free-for-now terms). Premium: "Free for now", what you have, and a
+// switch back that says what you keep and lose before it acts.
+
+function PlanCard({ isPremium }: { isPremium: boolean }) {
+  const pitch = usePremiumPitch('profile');
+  return (
+    <div
+      data-testid="profile-plan"
+      className="mb-6 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-4 sm:p-5"
+    >
+      <h2 data-testid="profile-plan-title" className="font-semibold text-gray-900">
+        {isPremium ? PREMIUM_PITCH_COPY.planPremiumTitle : PREMIUM_PITCH_COPY.planFreeTitle}
+      </h2>
+      {isPremium ? (
+        <>
+          <p className="mt-0.5 text-xs font-semibold uppercase tracking-widest text-[#944a00]">
+            {PREMIUM_PITCH_COPY.planPremiumNote}
+          </p>
+          <p className="mt-3 text-xs font-semibold text-gray-700">
+            {PREMIUM_PITCH_COPY.planWhatYouHave}
+          </p>
+          <ul className="mt-1 space-y-1" data-testid="profile-plan-have">
+            {[...pitch.bullets, ...pitch.alsoIncluded].map((line) => (
+              <li key={line} className="flex items-start gap-2 text-sm text-gray-700">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden="true" />
+                <span className="min-w-0">{line}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2 flex justify-end">
+            <DowngradeButton />
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="mb-3 mt-1 text-sm text-gray-600">{PREMIUM_PITCH_COPY.planFreeBody}</p>
+          <UpgradeButton className="w-full" source="profile" />
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
@@ -166,23 +212,8 @@ export default function ProfilePage() {
 
       <HouseholdCard />
 
-      {/* Upgrade CTA for free users (admins are implicitly premium) */}
-      {user && user.planTier !== 'PREMIUM' && user.role !== 'ADMIN' && (
-        <div className="mb-6">
-          <UpgradeCard
-            source="profile-page"
-            title="Go Premium"
-            description="Unlock AI meal plans tailored to your goals, AI-powered swaps, and your personal nutrition profile."
-          />
-        </div>
-      )}
-
-      {/* Self-service downgrade (PW-2) — honest during the free beta */}
-      {user?.planTier === 'PREMIUM' && (
-        <div className="mb-6 flex justify-end">
-          <DowngradeButton />
-        </div>
-      )}
+      {/* Plan & Premium (T-10.3, T-10.5) — admins are implicitly premium. */}
+      {user && user.role !== 'ADMIN' && <PlanCard isPremium={user.planTier === 'PREMIUM'} />}
 
       {/* AI usage. Users see THEIR daily product quotas; the provider/vendor
           telemetry (AI provider free-tier caps, Pollinations) is admin-only —
@@ -196,14 +227,13 @@ export default function ProfilePage() {
       ) : usage && user && user.role !== 'ADMIN' ? (
         <div className="space-y-4">
           <Card
-            title="Today's AI usage"
+            title={PREMIUM_PITCH_COPY.allowancesTitle}
             badge={user.planTier === 'PREMIUM' ? 'Premium' : 'Free plan'}
           >
-            <p className="text-xs text-gray-500">
-              Daily allowances reset at midnight. Upgrading raises every limit.
-            </p>
+            <p className="text-xs text-gray-500">Allowances reset at midnight UTC.</p>
             {(() => {
-              const tier = user.planTier === 'PREMIUM' ? 'premium' : 'free';
+              const isPremiumTier = user.planTier === 'PREMIUM';
+              const tier = isPremiumTier ? 'premium' : 'free';
               // false = no access on this tier → 0, and the row is hidden below.
               // It used to map to null and render "0 / ∞" (audit F-PROF-1-2).
               const lim = (key: keyof typeof PLAN_FEATURES): number | null => {
@@ -211,19 +241,41 @@ export default function ProfilePage() {
                 if (access === false) return 0;
                 return typeof access === 'number' ? access : null;
               };
+              // T-10.8 (Q-18, Q-19): count what the server reserves. Free: the daily
+              // cap counts plans from our recipes (no AI). Premium: AI plans count;
+              // recipe-built ones show only once used. An import counts when read.
               const rows: { label: string; used: number; limit: number | null }[] = [
-                {
-                  label: 'Meal plans generated',
-                  used: usage.today.MEAL_PLAN,
-                  limit: lim('planGenerationsPerDay'),
-                },
+                ...(isPremiumTier
+                  ? [
+                      {
+                        label: 'AI meal plans',
+                        used: usage.aiMealPlans,
+                        limit: lim('planGenerationsPerDay'),
+                      },
+                      ...(usage.curatedPlans > 0
+                        ? [
+                            {
+                              label: 'Plans from our recipes',
+                              used: usage.curatedPlans,
+                              limit: lim('planGenerationsPerDay'),
+                            },
+                          ]
+                        : []),
+                    ]
+                  : [
+                      {
+                        label: 'Plans from our recipes',
+                        used: usage.curatedPlans,
+                        limit: lim('planGenerationsPerDay'),
+                      },
+                    ]),
                 {
                   label: 'Chat messages',
                   used: usage.today.CHAT,
                   limit: lim('chatMessagesPerDay'),
                 },
                 {
-                  label: 'Recipe imports',
+                  label: 'Recipe imports read',
                   used: usage.today.RECIPE_IMPORT,
                   limit: lim('recipeImportsPerDay'),
                 },
@@ -239,6 +291,14 @@ export default function ProfilePage() {
                   <StatRow key={r.label} label={r.label} used={r.used} limit={r.limit} />
                 ));
             })()}
+            <p data-testid="profile-usage-helper" className="text-xs text-gray-500">
+              {user.planTier === 'PREMIUM'
+                ? 'Plans from our recipes use no AI. An import counts when we read it; saving it is free'
+                : 'Plans from our recipes use no AI, and free accounts can build a few a day'}
+              {user.planTier === 'PREMIUM' && usage.importsSaved > 0
+                ? ` (${usage.importsSaved} saved today).`
+                : '.'}
+            </p>
           </Card>
         </div>
       ) : usage ? (

@@ -24,6 +24,19 @@ const EQUIPMENT_ICON: Record<ExerciseEquipment, typeof Dumbbell> = {
   BAND: Activity,
   ASSISTED: Activity,
   BODYWEIGHT: PersonStanding,
+  // S19 (T-42.0): cardio equipment (06 §5.3). Placeholder — same generic
+  // icon as the other machine/misc equipment; T-42.5 (web cardio render)
+  // picks real per-equipment icons (UX-42 §Flow (1) has the mobile set).
+  TREADMILL: Activity,
+  BIKE: Activity,
+  ROWER: Activity,
+  ELLIPTICAL: Activity,
+  STAIR_CLIMBER: Activity,
+  SKI_ERG: Activity,
+  ASSAULT_BIKE: Activity,
+  JUMP_ROPE: Activity,
+  POOL: Activity,
+  OUTDOOR: Activity,
 };
 
 export interface ExerciseImageProps {

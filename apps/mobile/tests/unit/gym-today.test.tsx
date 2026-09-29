@@ -130,8 +130,15 @@ function makeClient() {
   return new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
 }
 
+// Pinned clock: the fixtures assume a Monday (`d1.plannedWeekday: 0`), while the
+// screen reads the real clock, so an unpinned suite rots as the calendar moves.
+// Local noon on Mon 28 Sep 2026 keeps the pinned day stable in every timezone.
+// `advanceTimers` keeps react-query, animations and `setTimeout` working.
+const NOW = new Date(2026, 8, 28, 12, 0, 0);
+
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.useFakeTimers({ now: NOW, advanceTimers: true });
   setKvBackendForTests(createMemoryKvBackend());
   activeSessionStore.clear();
   resetGymOwnerForTests();
@@ -142,6 +149,8 @@ beforeEach(() => {
   trpc.gym.progression.startDeload.useMutation.mockReturnValue(mutationResult());
   trpc.gym.pause.end.useMutation.mockReturnValue(mutationResult());
 });
+
+afterEach(() => jest.useRealTimers());
 
 describe('TodayScreen', () => {
   it('shows the next-up card and starts the planned workout', async () => {
@@ -640,11 +649,15 @@ describe('TodayScreen', () => {
 
   // Only meaningful once at least one weekday has already passed this week
   // (Monday itself can never have a "missed" day yet — session.test.ts covers
-  // the pure function's Monday edge case directly).
-  const todayWeekday = weekdayOf(localDate());
-  (todayWeekday === 0 ? describe.skip : describe)('Still time this week (T-04.8, UX-04 §7)', () => {
-    // A day pinned to yesterday's weekday is always "earlier this week" here.
-    const missedWeekday = todayWeekday - 1;
+  // the pure function's Monday edge case directly), so this block pins the
+  // clock to a Wednesday instead of the suite-wide Monday.
+  describe('Still time this week (T-04.8, UX-04 §7)', () => {
+    beforeEach(() => {
+      jest.setSystemTime(new Date(2026, 8, 30, 12, 0, 0)); // Wed 30 Sep 2026, local noon
+    });
+
+    // A day pinned to yesterday's weekday (Tuesday) is always "earlier this week" here.
+    const missedWeekday = 1;
     const missedRoutine: RoutineDto = {
       ...ROUTINE,
       days: ROUTINE.days.map((d) => (d.id === 'd1' ? { ...d, plannedWeekday: missedWeekday } : d)),

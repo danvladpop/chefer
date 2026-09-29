@@ -282,6 +282,7 @@ export class GymProfileService {
     userId: string,
     input: CompleteSetupInput,
     today: string = serverToday(),
+    level = 0,
   ): Promise<GymBootstrap> {
     await this.ensure();
     const draft = templateToDays(input.templateKey, input.equipmentAccess);
@@ -384,7 +385,7 @@ export class GymProfileService {
     // The unit picked in setup becomes the global preference (P2-6).
     if (existing?.unit !== input.unit) await this.syncPreferredUnits(userId, input.unit);
 
-    return this.bootstrap.get(userId, { today });
+    return this.bootstrap.get(userId, { today }, level);
   }
 }
 

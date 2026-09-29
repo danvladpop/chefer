@@ -6,6 +6,7 @@ import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import { gymTrackingBackfillService } from './application/gym/tracking-backfill.service.js';
 import { householdService } from './application/household/household.service.js';
 import { consentBackfillService } from './application/privacy/consent-backfill.service.js';
 import {
@@ -278,6 +279,20 @@ const server = app.listen(env.PORT, env.HOST, () => {
     })
     .catch((err: unknown) => {
       logger.error({ err }, 'ConsentEvent AI backfill failed at boot');
+    });
+
+  // Exercise.trackingType boot backfill (S18, T-42.0, Δ2.2): customs with
+  // isTimed → DURATION, loadType BODYWEIGHT → BODYWEIGHT_REPS. Idempotent —
+  // a failure here only delays it to the next boot.
+  gymTrackingBackfillService
+    .backfillTrackingTypes()
+    .then((result) => {
+      if (result.duration > 0 || result.bodyweightReps > 0) {
+        logger.info(result, 'Exercise trackingType backfilled from isTimed/loadType');
+      }
+    })
+    .catch((err: unknown) => {
+      logger.error({ err }, 'Exercise trackingType backfill failed at boot');
     });
 });
 
