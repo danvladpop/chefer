@@ -80,19 +80,27 @@ export function reconcileWithPending(
   return current;
 }
 
-/**
- * Finished docs in the outbox that belong to the signed-in user and will be
- * sent — plus (UX-44) DISCARDED tombstones, which `reconcileWithPending` uses
- * to keep a held/unsynced delete out of the lists.
- */
+/** Finished docs in the outbox that belong to the signed-in user and will be sent. */
 export function pendingFinishedDocs(): WorkoutSessionDoc[] {
+  return pendingOutboxDocs(['COMPLETED']);
+}
+
+/**
+ * UX-44: also DISCARDED tombstones — a held or unsynced delete must stay out of
+ * the lists when a bootstrap fetched before it synced arrives.
+ */
+export function pendingCorrectionDocs(): WorkoutSessionDoc[] {
+  return pendingOutboxDocs(['COMPLETED', 'DISCARDED']);
+}
+
+function pendingOutboxDocs(statuses: readonly WorkoutSessionDoc['status'][]): WorkoutSessionDoc[] {
   const owner = getGymOwner();
   return outbox
     .getState()
     .entries.filter(
       (e) =>
         !e.parkedReason &&
-        (e.doc.status === 'COMPLETED' || e.doc.status === 'DISCARDED') &&
+        statuses.includes(e.doc.status) &&
         (e.ownerId === null || owner === null || e.ownerId === owner),
     )
     .map((e) => e.doc);
@@ -107,7 +115,7 @@ export function gymBootstrapQueryOptions(queryClient: QueryClient, fetcher: Boot
       const today = localDate();
       const next = await fetcher(since ? { today, librarySince: since } : { today });
       const merged = mergeBootstrap(prev, next, since !== undefined);
-      return reconcileWithPending(merged, pendingFinishedDocs(), today);
+      return reconcileWithPending(merged, pendingCorrectionDocs(), today);
     },
     staleTime: 60_000,
     gcTime: GYM_QUERY_GC_TIME,

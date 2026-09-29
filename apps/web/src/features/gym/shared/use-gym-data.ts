@@ -10,7 +10,7 @@ import {
 } from '@chefer/types';
 import { equipmentProfileOf, type ExerciseLookup } from '@chefer/utils';
 import { libraryLookup, localDate, useGymBootstrap } from '../use-gym-bootstrap';
-import { pendingFinishedDocs, useOutboxState } from '../workout/outbox';
+import { pendingDocs, useOutboxState } from '../workout/outbox';
 import { getGymOwner, subscribeGymOwner } from '../workout/owner';
 import { reconcileWithPending } from '../workout/use-active-workout';
 
@@ -51,7 +51,7 @@ export function useGymData(opts: { enabled?: boolean } = {}) {
 
   const data = useMemo(() => {
     if (!query.data || !today) return undefined;
-    return reconcileWithPending(query.data, pendingFinishedDocs(outboxState, owner), today);
+    return reconcileWithPending(query.data, pendingDocs(outboxState, owner), today);
   }, [query.data, outboxState, owner, today]);
 
   const lookup = useMemo(() => lookupWithCatalog(data), [data]);
