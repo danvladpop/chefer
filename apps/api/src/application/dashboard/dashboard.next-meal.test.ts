@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dailyLogRepository, mealPlanRepository } from '@chefer/database';
+import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
 import { dashboardService } from './dashboard.service.js';
+
+// UX-06: the training-week read (routine, sessions, pauses) is out of scope
+// here — these users have no training days, so the summary has no extras.
+vi.spyOn(trainingNutritionService, 'trainingWeek').mockResolvedValue({
+  trainingDays: [],
+  basis: null,
+});
 
 // Audit F-PM-10: after "Made it!" on dinner the dashboard still offered the
 // same dinner as "NEXT MEAL · Start cooking". Logged meals are now skipped.
