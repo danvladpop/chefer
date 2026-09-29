@@ -34,6 +34,7 @@ jest.mock('expo-router', () => ({
   },
 }));
 
+jest.mock('../../src/features/premium/premium-host', () => ({ PremiumHost: () => null }));
 jest.mock('../../src/features/premium/open-premium', () => ({
   openPremium: (...args: unknown[]) => {
     mockOpenPremium(...args);

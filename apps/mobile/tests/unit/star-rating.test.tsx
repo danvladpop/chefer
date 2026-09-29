@@ -1,4 +1,6 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { setKvBackendForTests } from '../../src/features/gym/offline/kv';
+import { openPremium } from '../../src/features/premium/open-premium';
 import { StarRating } from '../../src/features/recipes/star-rating';
 
 // P1-7: star rating on recipe detail + cook-mode finish — 44pt stars with
@@ -15,6 +17,8 @@ const mockRateState: {
   onSuccess?: (data: { rating: number; notes: string | null }) => void;
 } = { isError: false, error: null };
 
+jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
+jest.mock('../../src/lib/analytics', () => ({ track: jest.fn() }));
 jest.mock('../../src/hooks/use-is-premium', () => ({
   useIsPremium: () => mockIsPremium,
 }));
@@ -39,6 +43,7 @@ jest.mock('../../src/lib/trpc', () => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  setKvBackendForTests(undefined);
   mockExisting = null;
   mockMembers = [];
   mockIsPremium = false;
@@ -96,5 +101,53 @@ describe('StarRating', () => {
     mockRateState.error = { message: 'Recipe not found.' };
     await render(<StarRating recipeId="r1" />);
     expect(screen.getByTestId('star-rating-error')).toHaveTextContent('Recipe not found.');
+  });
+});
+
+describe('post-rating nudge (UX-10, AC8)', () => {
+  const rate = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.press(screen.getByLabelText('Rate 4 stars'));
+    await act(() => {
+      mockRateState.onSuccess?.({ rating: 4, notes: null });
+    });
+  };
+
+  it('a free user who just rated sees it once, and it opens the premium sheet', async () => {
+    const user = userEvent.setup();
+    await render(<StarRating recipeId="r1" />);
+    expect(screen.queryByTestId('star-rating-nudge')).toBeNull();
+    await rate(user);
+    expect(screen.getByTestId('star-rating-nudge')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('star-rating-nudge-open'));
+    expect(openPremium).toHaveBeenCalledWith('post-rating');
+    expect(screen.queryByText(/from your Profile/)).toBeNull();
+  });
+
+  it('at most one nudge a day: a second rating the same day shows none', async () => {
+    const user = userEvent.setup();
+    const first = await render(<StarRating recipeId="r1" />);
+    await rate(user);
+    expect(screen.getByTestId('star-rating-nudge')).toBeOnTheScreen();
+    await first.unmount();
+
+    await render(<StarRating recipeId="r2" />);
+    await rate(user);
+    expect(screen.queryByTestId('star-rating-nudge')).toBeNull();
+  });
+
+  it('dismissing keeps the source quiet, and premium never sees it', async () => {
+    const user = userEvent.setup();
+    await render(<StarRating recipeId="r1" />);
+    await rate(user);
+    await user.press(screen.getByTestId('star-rating-nudge-dismiss'));
+    expect(screen.queryByTestId('star-rating-nudge')).toBeNull();
+  });
+
+  it('premium users get no nudge', async () => {
+    mockIsPremium = true;
+    const user = userEvent.setup();
+    await render(<StarRating recipeId="r1" />);
+    await rate(user);
+    expect(screen.queryByTestId('star-rating-nudge')).toBeNull();
   });
 });

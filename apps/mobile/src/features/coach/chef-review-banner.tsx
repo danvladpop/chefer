@@ -5,6 +5,7 @@ import { Card, Text } from '@chefer/ui-mobile';
 import { formatWeightTrend } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
+import { openPremium } from '../premium/open-premium';
 
 // Port of web features/coach/ChefReviewBanner (wave-2b). Renders nothing
 // until a fresh review exists. Free = blurred-style teaser (placeholder
@@ -36,8 +37,16 @@ export function ChefReviewBanner() {
             {/* Locked lines — placeholder text, deliberately NOT the review. */}
             <Text className="mt-1 text-sm text-gray-400 opacity-50">{TEASER_PLACEHOLDER}</Text>
             <Text className="mt-2 text-xs text-gray-500">
-              🔒 Full review + auto-adjusting targets are premium — upgrade from your Profile.
+              🔒 The full review and auto-adjusting targets are part of Premium.
             </Text>
+            <Pressable
+              testID="coach-teaser-upgrade"
+              accessibilityRole="button"
+              onPress={() => openPremium('coach-review')}
+              className="min-h-11 justify-center"
+            >
+              <Text className="text-xs font-semibold text-primary">See what Premium adds</Text>
+            </Pressable>
           </View>
         </View>
       </Card>
