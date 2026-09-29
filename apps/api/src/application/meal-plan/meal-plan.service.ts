@@ -130,6 +130,8 @@ export interface RecipeDto {
   servings: number;
   imageUrl: string | null;
   imageStatus: 'PENDING' | 'GENERATING' | 'DONE' | 'FAILED';
+  /** UX-26 (T-26.6): true when the recipe row's source is 'AI' (additive; absent = not AI). */
+  aiGenerated?: boolean;
   /**
    * The viewer's allergies and dietary restrictions (household union) this
    * recipe conflicts with. Present only when non-empty; additive, so older
@@ -491,8 +493,7 @@ export class MealPlanService {
   /** Read-only: whether `weekStart` is this user's household-scaled first week. */
   private async firstScaledWeekPortions(userId: string, weekStart: Date): Promise<number | null> {
     const profile = await chefProfileRepository.findByUserId(userId);
-    const claimed = profile?.freeScaledWeekStart ?? null;
-    if (!claimed || claimed.getTime() !== weekStart.getTime()) return null;
+    if (profile?.freeScaledWeekStart?.getTime() !== weekStart.getTime()) return null;
     return this.householdPortions(userId);
   }
 
@@ -1705,6 +1706,9 @@ export class MealPlanService {
     hiddenIds: string[] = [],
   ): Promise<{ plan: WeekPlanResponse; curatedIds: Set<string> }> {
     const curatedIds = new Set<string>();
+    // TODO(W3 integration): T-26.7 — L-CONSENT's `safetyService.logFilterAudit({ surface:
+    // 'plan.generate', poolSize, kept, prefs: safety })` (one structured line per plan
+    // generation) is wired here at integration; it exists only on feat/ux-now/consent.
     if (
       safety.allergies.length === 0 &&
       safety.dietaryRestrictions.length === 0 &&
@@ -2970,6 +2974,7 @@ function rowToRecipeDto(row: {
   servings: number;
   imageUrl: string | null;
   imageStatus?: unknown;
+  source?: string;
 }): RecipeDto {
   return {
     id: row.id,
@@ -2985,5 +2990,6 @@ function rowToRecipeDto(row: {
     servings: row.servings,
     imageUrl: row.imageUrl,
     imageStatus: (row.imageStatus as 'PENDING' | 'GENERATING' | 'DONE' | 'FAILED') ?? 'DONE',
+    ...(row.source === 'AI' && { aiGenerated: true }),
   };
 }
