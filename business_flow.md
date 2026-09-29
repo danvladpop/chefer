@@ -2590,6 +2590,27 @@ is ready — about {min} min.`), never during a pause, never late if it's
   everything else in `useGymReminders()`, independent of the main
   `reminderEnabled` toggle. Web parity: not built this wave —
   `mobile_parity_backlog.md`.
+- **"How long have you got?" — short version (T-36.6, UX-36 (6), mobile):**
+  setup step 1 asks an optional `How long can a session usually be?` (`30` /
+  `45` / `60` / `75+ min` → `GymProfile.sessionLengthMins`, also editable in
+  gym settings; step 5's preview flags a day longer than the answer). On Gym
+  Today's next-up card a `Time today:` row (`20` · `30` · `45` · `Full`,
+  default `Full`, remembered per weekday in the gym KV store, never sent to
+  the server) sits above `Start workout`. A shorter choice runs
+  `shortVersionOfWorkout()` (`packages/utils/src/gym/short-version.ts`): if
+  the day already fits (estimate ≤ chosen + 2 min) nothing is cut; otherwise
+  every compound plus the first accessory per muscle are kept, then the last
+  accessories and finally the last compounds are dropped until the estimate
+  is ≤ chosen + 2 (a 30-minute choice previews ≤ 32 min, AC7; always ≥ 1
+  exercise). The card previews `Short version · ~{min} min · {n} exercises`
+  and starts the trimmed session. The dropped exercises ride the session
+  doc's `carryOverExerciseIds` (seeded at start; Finish merges the ids chosen
+  there — `workoutReducer`'s `finish` adds, never replaces, and skips any
+  seeded exercise the user added back), so the T-36.3 mechanism moves them to
+  the head of the next session marked `From last time`. Exercises already
+  `From last time` are not re-carried (they stay on the profile list). `Full`
+  produces a session doc identical to before. Web parity: not built —
+  `mobile_parity_backlog.md`.
 - **Rest-timer permission rationale (bug B-40):** the rest-timer's own
   background-notification permission used to be requested cold, at workout
   start (`use-active-workout.ts`'s `startWorkout()`). It's now asked with a
