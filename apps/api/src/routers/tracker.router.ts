@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { BODY_WEIGHT_KG_MAX, BODY_WEIGHT_KG_MIN } from '@chefer/utils';
 import { trackerService } from '../application/tracker/tracker.service.js';
-import { protectedProcedure, router } from '../lib/trpc.js';
+import { protectedProcedure, requireHealthConsent, router } from '../lib/trpc.js';
 
 // Planned recipes carry recipeId; custom entries (photo scans, quick-adds —
 // F4) carry `custom` instead. Exactly one of the two must be present.
@@ -240,6 +240,7 @@ export const trackerRouter = router({
         date: weightDateSchema.optional(),
       }),
     )
+    .use(requireHealthConsent()) // T-26.3: a weigh-in is health data
     .mutation(async ({ ctx, input }) => {
       return trackerService.logWeight(ctx.user.id, input.weightKg, input.date);
     }),
@@ -254,6 +255,7 @@ export const trackerRouter = router({
         date: weightDateSchema.optional(),
       }),
     )
+    .use(requireHealthConsent())
     .mutation(async ({ ctx, input }) => {
       return trackerService.updateWeight(ctx.user.id, input.id, input.weightKg, input.date);
     }),

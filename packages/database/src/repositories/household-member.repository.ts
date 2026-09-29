@@ -101,6 +101,18 @@ export class HouseholdMemberRepository implements IHouseholdMemberRepository {
     return prisma.householdMember.findUnique({ where: { id: memberId } });
   }
 
+  /**
+   * Health-consent withdrawal (T-26.1): empties every member's allergies,
+   * diets and dislikes but keeps the people (name, portion, kid flag), so the
+   * table stays sized correctly. Un-awaited — see chef-profile.repository.
+   */
+  clearHealthData(userId: string): Prisma.PrismaPromise<Prisma.BatchPayload> {
+    return prisma.householdMember.updateMany({
+      where: { userId },
+      data: { allergies: [], dietaryRestrictions: [], dislikedIngredients: [] },
+    });
+  }
+
   async delete(userId: string, memberId: string): Promise<boolean> {
     const result = await prisma.householdMember.deleteMany({
       where: { id: memberId, userId },

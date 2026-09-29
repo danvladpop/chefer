@@ -52,6 +52,19 @@ export class DietaryPreferencesRepository implements IDietaryPreferencesReposito
   async delete(userId: string): Promise<void> {
     await prisma.dietaryPreferences.delete({ where: { userId } });
   }
+
+  clearHealthData(userId: string): Prisma.PrismaPromise<Prisma.BatchPayload> {
+    return prisma.dietaryPreferences.updateMany({
+      where: { userId },
+      data: {
+        allergies: [],
+        dietaryRestrictions: [],
+        dislikedIngredients: [],
+        safetyReviewedAt: null,
+        excludeLabelDependent: false,
+      },
+    });
+  }
 }
 
 export const dietaryPreferencesRepository = new DietaryPreferencesRepository();

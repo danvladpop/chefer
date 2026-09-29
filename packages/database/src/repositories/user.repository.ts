@@ -57,6 +57,34 @@ export class UserRepository implements IUserRepository {
   }
 
   /**
+   * The health-consent cache (T-26.3): read by the `requireHealthConsent`
+   * middleware. null = not given / withdrawn (or no such user).
+   */
+  async findHealthConsentAt(id: string): Promise<Date | null> {
+    const row = await prisma.user.findUnique({
+      where: { id },
+      select: { healthDataConsentAt: true },
+    });
+    return row?.healthDataConsentAt ?? null;
+  }
+
+  /**
+   * Refreshes the health-consent cache columns (T-26.1). Un-awaited so a
+   * grant/withdrawal runs in one `$transaction` with its ConsentEvent row
+   * (and, for a withdrawal, the deletes). `null` clears the cache.
+   */
+  setHealthConsent(
+    id: string,
+    at: Date | null,
+    version: string | null,
+  ): Prisma.PrismaPromise<User> {
+    return prisma.user.update({
+      where: { id },
+      data: { healthDataConsentAt: at, healthDataConsentVersion: version },
+    });
+  }
+
+  /**
    * Finds a user by their email address.
    */
   async findByEmail(email: string): Promise<User | null> {

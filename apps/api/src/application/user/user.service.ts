@@ -54,6 +54,8 @@ export interface UserDto {
   emailVerified: Date | null;
   /** When the user allowed AI features to process their data (null = not yet / revoked). */
   aiDataConsentAt: Date | null;
+  /** T-26.1: when the user allowed Chefer to store health information (null = not yet / withdrawn). */
+  healthDataConsentAt: Date | null;
   /** T-39.3: when the one-time "emails changed" notice was shown (null = not yet). */
   emailDefaultsNoticeAt: Date | null;
   createdAt: Date;
@@ -297,6 +299,7 @@ export class UserService {
     image: string | null;
     emailVerified: Date | null;
     aiDataConsentAt?: Date | null;
+    healthDataConsentAt?: Date | null;
     emailDefaultsNoticeAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
@@ -312,6 +315,7 @@ export class UserService {
       image: user.image,
       emailVerified: user.emailVerified,
       aiDataConsentAt: user.aiDataConsentAt ?? null,
+      healthDataConsentAt: user.healthDataConsentAt ?? null,
       emailDefaultsNoticeAt: user.emailDefaultsNoticeAt ?? null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
