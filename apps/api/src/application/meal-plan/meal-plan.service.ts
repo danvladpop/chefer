@@ -1455,6 +1455,16 @@ export class MealPlanService {
       dinner: excludeHidden(rawPools.dinner, ctx.hiddenRecipeIds),
       snack: excludeHidden(rawPools.snack, ctx.hiddenRecipeIds),
     };
+    // T-26.7: the curated/instant paths' `safety.filter` evidence line (the AI
+    // path logs its own in enforcePlanSafety) — counts and rule ids only.
+    const poolTotal = (p: Partial<Record<MealType, unknown[]>> | undefined) =>
+      Object.values(p ?? {}).reduce((n, list) => n + (list?.length ?? 0), 0);
+    safetyService.logFilterAudit({
+      surface: 'plan.curated',
+      poolSize: poolTotal(safeCuratedPools(null)),
+      kept: poolTotal(pools),
+      prefs: safety,
+    });
 
     // §2.3, T-07.1/T-07.2: the stored "how you cook" shape, with this call's
     // one-off override (e.g. `Plan this day` sends `{ days: [d] }`) merged

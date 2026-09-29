@@ -11,6 +11,7 @@ import {
 import { aiService } from '../../lib/ai/index.js';
 import { pickRandomCurated, safeCuratedPools } from '../../lib/curated-recipes/index.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
+import { safetyService } from '../safety/safety.service.js';
 import {
   dayImagePriority,
   MealPlanService,
@@ -240,10 +241,19 @@ describe('MealPlanService.generate', () => {
       dislikedIngredients: [],
     } as never);
 
+    const audit = vi.spyOn(safetyService, 'logFilterAudit');
+
     await service.generate('user1', 0, false);
 
     expect(curated.safeCuratedPools).toHaveBeenCalledWith(
       expect.objectContaining({ allergies: ['peanuts'], dietaryRestrictions: ['Vegan'] }),
+    );
+    // T-26.7: one `safety.filter` evidence line per curated generation.
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        surface: 'plan.curated',
+        prefs: expect.objectContaining({ allergies: ['peanuts'] }),
+      }),
     );
   });
 
