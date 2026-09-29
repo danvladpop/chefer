@@ -128,12 +128,40 @@ describe('SetupWizard', () => {
     expect(payload.experience).toBe('BEGINNER');
     expect(payload.plannedWeekdays).toEqual([]);
     expect(payload.reminderTime).toBeNull();
+    // T-36.6: the session-length question is optional — unanswered sends nothing
+    // (same payload as an installed binary's).
+    expect(payload).not.toHaveProperty('sessionLengthMins');
     const knownWeightsKg = payload.knownWeightsKg ?? {};
     expect(Object.keys(knownWeightsKg)).toHaveLength(1);
     const [kg] = Object.values(knownWeightsKg);
     // 135 lb → ~61.2 kg
     expect(kg).toBeGreaterThan(61);
     expect(kg).toBeLessThan(61.5);
+  });
+
+  it('T-36.6: "How long can a session usually be?" is sent as sessionLengthMins (75+ → 75)', async () => {
+    const mutate = jest.fn();
+    trpc.gym.profile.completeSetup.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const user = userEvent.setup();
+    await renderWizard();
+
+    expect(screen.getByText('How long can a session usually be?')).toBeOnTheScreen();
+    expect(screen.getByText('75+ min')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('gym-setup-length-45'));
+    // Tapping the selected chip clears it again (the question is optional)…
+    await user.press(screen.getByTestId('gym-setup-length-45'));
+    // …and a different answer replaces it.
+    await user.press(screen.getByTestId('gym-setup-length-75'));
+
+    await goToPreview(user);
+    await waitFor(() => expect(screen.getByTestId('gym-setup-preview-day-0')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('gym-setup-next')); // 5 → 6
+    await user.press(screen.getByTestId('gym-setup-next')); // 6 → 7
+    await user.press(screen.getByTestId('gym-setup-finish'));
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    const calls = mutate.mock.calls as [CompleteSetupInput][];
+    expect(calls[0]?.[0].sessionLengthMins).toBe(75);
   });
 
   it('writes the fresh bootstrap into the cache and navigates to Today on success', async () => {

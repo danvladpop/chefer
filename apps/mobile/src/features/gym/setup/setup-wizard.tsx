@@ -24,8 +24,16 @@ import {
   useFieldChain,
   useScrollFieldIntoView,
 } from '@chefer/ui-mobile';
-import { cn, unitLabel, unitToKg, VOLUME_GROUP_LABELS, weightUnitForSystem } from '@chefer/utils';
+import {
+  cn,
+  SESSION_LENGTH_OPTIONS,
+  unitLabel,
+  unitToKg,
+  VOLUME_GROUP_LABELS,
+  weightUnitForSystem,
+} from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { captureGymEvent } from '../analytics';
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { ensureGymReminderPermission } from '../reminders/permission';
 import { gymBootstrapQueryKey } from '../use-gym-bootstrap';
@@ -108,6 +116,9 @@ export function SetupWizard() {
 
   const [step, setStep] = useState(firstStep);
   const [days, setDays] = useState(initialWeekdays.length > 0 ? initialWeekdays.length : 3);
+  // T-36.6 (UX-36 (6)): "How long can a session usually be?" — optional;
+  // null = not answered (nothing is sent, and Start offers `Full` by default).
+  const [sessionLengthMins, setSessionLengthMins] = useState<number | null>(null);
   const [experience, setExperience] = useState<TrainingExperience>('BEGINNER');
   // UX-05 B (T-05.2): "Do you already follow a split?" — only asked once the
   // user says they're Experienced. `null` = "Pick one for me" (the default,
@@ -229,6 +240,9 @@ export function SetupWizard() {
     const reminderTime = reminderEnabled
       ? `${String(reminderHour).padStart(2, '0')}:${String(reminderMinute).padStart(2, '0')}`
       : null;
+    if (sessionLengthMins !== null) {
+      captureGymEvent('session_time_chosen', { minutes: sessionLengthMins, where: 'setup' });
+    }
     completeSetupMutation.mutate({
       days,
       experience,
@@ -237,6 +251,7 @@ export function SetupWizard() {
       templateKey,
       plannedWeekdays: [...weekdays].sort((a, b) => a - b),
       reminderTime,
+      ...(sessionLengthMins !== null ? { sessionLengthMins } : {}),
       ...(experience === 'INTERMEDIATE' && split ? { split } : {}),
       ...(weightsChoice === 'know' && Object.keys(knownWeightsKg).length > 0
         ? { knownWeightsKg }
@@ -312,6 +327,25 @@ export function SetupWizard() {
                 }
               }}
             />
+            <View className="gap-2">
+              <Text testID="gym-setup-length-title" className="font-semibold">
+                How long can a session usually be?
+              </Text>
+              <Text variant="muted" className="text-sm">
+                Optional. On a short day, Start can trim the workout to fit.
+              </Text>
+              <ChipGroup
+                testID="gym-setup-length"
+                allowEmpty
+                options={SESSION_LENGTH_OPTIONS.map((n) => ({
+                  value: n,
+                  label: n === 75 ? '75+ min' : `${String(n)} min`,
+                  testID: `gym-setup-length-${String(n)}`,
+                }))}
+                value={sessionLengthMins === null ? [] : [sessionLengthMins]}
+                onChange={(v) => setSessionLengthMins(v[0] ?? null)}
+              />
+            </View>
           </View>
         )}
 
@@ -583,6 +617,15 @@ export function SetupWizard() {
                           ~{day.estimatedMin} min
                         </Text>
                       </View>
+                      {sessionLengthMins !== null && day.estimatedMin > sessionLengthMins ? (
+                        <Text
+                          testID={`gym-setup-preview-day-${i}-long`}
+                          variant="muted"
+                          className="text-xs"
+                        >
+                          {`Longer than your ${String(sessionLengthMins)} min — pick a shorter time at Start and we’ll trim it.`}
+                        </Text>
+                      ) : null}
                       {day.exercises.map((ex) => (
                         <View key={ex.exerciseId} className="flex-row items-center justify-between">
                           <ExerciseNameLink

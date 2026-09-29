@@ -20,4 +20,6 @@ export const KV_KEYS = {
   missedDayDismissed: 'gym.today.missed-dismissed',
   /** Rationale sheet for the rest-timer background permission shown once (T-36.2, B-40). */
   restPermissionRationaleShown: 'gym.rest-timer.rationale-shown',
+  /** `Time today:` choice remembered per weekday (T-36.6): `{ "0": 30 }`; absent = Full. */
+  timeToday: 'gym.today.time-today',
 } as const;
