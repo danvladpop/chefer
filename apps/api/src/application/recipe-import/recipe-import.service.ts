@@ -46,6 +46,7 @@ import {
   findNotFoundFields,
   unverifiedQuantityIndexes,
 } from '../../lib/video-import/index.js';
+import { markLatestImportSaved } from '../profile/ai-usage.service.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import {
   videoRecipeService,
@@ -400,13 +401,17 @@ export class RecipeImportService {
       );
     }
 
-    return this.recipeRepo.createManualRecipe(user.id, {
+    const saved = await this.recipeRepo.createManualRecipe(user.id, {
       ...recipe,
       ingredients: recipe.ingredients,
       nutritionInfo: recipe.nutritionInfo,
       imageUrl,
       sourceUrl: input.sourceUrl ?? null,
     });
+    // T-10.8: the import's AI cost is its preview (already reserved); this
+    // only lets Profile say how many of today's previews were saved.
+    await markLatestImportSaved(user.id);
+    return saved;
   }
 
   /** Vocabulary lookup + pure cross-check (lib/recipe-import/macro-check). */
