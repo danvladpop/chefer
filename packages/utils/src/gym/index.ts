@@ -22,6 +22,8 @@ export * from './supersets';
 // Carry-over + short-version types (T-00.7 scaffold for T-36.3/T-36.6).
 export * from './carry-over';
 export * from './short-version';
+// The shared minutes estimate (`~{min} min`) behind session length + short version.
+export { estimateMinutes } from './duration';
 // Resume card summary (T-36.A1.1) and Recent-workouts grouping (T-36.A2.1).
 export * from './resume';
 export * from './recent';

@@ -166,6 +166,22 @@ describe('GymProfileService.completeSetup', () => {
     expect(bootstrap.get).toHaveBeenCalledWith(USER, { today: '2026-09-24' }, 0);
   });
 
+  it('T-36.6: setup stores sessionLengthMins only when the client sent it', async () => {
+    const { service, repo } = setup();
+
+    await service.completeSetup(USER, setupInput({ sessionLengthMins: 60 }), '2026-09-24');
+    expect(vi.mocked(repo.completeSetup).mock.calls[0]![1].profile).toMatchObject({
+      sessionLengthMins: 60,
+    });
+
+    // An installed binary omits the field: the key is not written at all, so a
+    // stored preference (or the column default) is untouched.
+    await service.completeSetup(USER, setupInput(), '2026-09-24');
+    expect(vi.mocked(repo.completeSetup).mock.calls[1]![1].profile).not.toHaveProperty(
+      'sessionLengthMins',
+    );
+  });
+
   it('honours "I know my weights" in the initial states and keeps them for recomputes', async () => {
     const { service, repo } = setup();
 
@@ -264,6 +280,20 @@ describe('GymProfileService.save / recommend', () => {
 
     await service.save(USER, { quietNudgeDays: null });
     expect(repo.update).toHaveBeenLastCalledWith(USER, { quietNudgeDays: null });
+  });
+
+  it('T-36.6: saves the session length preference (null clears it)', async () => {
+    const { service, repo } = setup(profileRow());
+
+    await service.save(USER, { sessionLengthMins: 45 });
+    expect(repo.update).toHaveBeenLastCalledWith(USER, { sessionLengthMins: 45 });
+
+    await service.save(USER, { sessionLengthMins: null });
+    expect(repo.update).toHaveBeenLastCalledWith(USER, { sessionLengthMins: null });
+
+    // An old binary's save (no field) leaves it alone.
+    await service.save(USER, { weeklyGoal: 3 });
+    expect(vi.mocked(repo.update).mock.calls.at(-1)![1]).not.toHaveProperty('sessionLengthMins');
   });
 
   it('a unit change re-folds every progression onto the new inventory (F-GYM-11-2)', async () => {

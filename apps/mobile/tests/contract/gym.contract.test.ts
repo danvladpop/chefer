@@ -420,4 +420,46 @@ describe('gym setup → bootstrap → sync (ENGINE-DEPENDENT)', () => {
     expect(after.recentSessions.map((s) => s.id)).toContain(doc.id);
     expect(after.streak.thisWeekSessions).toBeGreaterThanOrEqual(1);
   });
+  it('T-36.6: sessionLengthMins is additive — saved, kept by a save without it, cleared with null; a short version carries the dropped exercises over', async () => {
+    if (!engineReady) return;
+
+    // Profile field: old binaries never send it, so nothing else may touch it.
+    const saved = await client.gym.profile.save.mutate({ sessionLengthMins: 45 });
+    expect(saved.sessionLengthMins).toBe(45);
+    const untouched = await client.gym.profile.save.mutate({ weeklyGoal: 3 });
+    expect(untouched.sessionLengthMins).toBe(45);
+    const boot0 = await client.gym.bootstrap.query({ today: localDate });
+    expect(boot0.profile?.sessionLengthMins).toBe(45);
+    const cleared = await client.gym.profile.save.mutate({ sessionLengthMins: null });
+    expect(cleared.sessionLengthMins).toBeNull();
+
+    // A short version: the session has only the kept exercises and lists the
+    // dropped one in `carryOverExerciseIds` (seeded at Start by the client).
+    const next = boot0.nextWorkout;
+    const routine = boot0.activeRoutine;
+    if (!next || !routine || next.exercises.length < 2) {
+      throw new Error('expected a next workout with at least two exercises');
+    }
+    const dropped = next.exercises[next.exercises.length - 1];
+    if (!dropped) throw new Error('expected a droppable last exercise');
+    const kept: NextWorkoutDto = { ...next, exercises: next.exercises.slice(0, -1) };
+    const doc = {
+      ...docFromNextWorkout(kept, -30),
+      carryOverExerciseIds: [dropped.exerciseId],
+    };
+    const res = await client.gym.session.upsertMany.mutate({ docs: [doc] });
+    expect(res.results[0]?.status).toBe('applied');
+
+    const after = await client.gym.bootstrap.query({ today: localDate });
+    expect(after.carryOver.map((i) => i.exerciseId)).toContain(dropped.exerciseId);
+    // The next session leads with it (`From last time`) unless the next day
+    // already contains that exercise itself.
+    const nextHas = after.activeRoutine?.days
+      .find((d) => d.id === after.nextWorkout?.dayId)
+      ?.exercises.some((e) => e.exerciseId === dropped.exerciseId);
+    if (!nextHas && after.nextWorkout) {
+      expect(after.nextWorkout.exercises[0]?.exerciseId).toBe(dropped.exerciseId);
+      expect(after.nextWorkout.exercises[0]?.fromLastTime).toBe(true);
+    }
+  });
 });

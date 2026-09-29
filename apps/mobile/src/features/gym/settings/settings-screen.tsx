@@ -22,6 +22,7 @@ import {
   addDaysLocal,
   formatLoadNumber,
   kgToUnit,
+  SESSION_LENGTH_OPTIONS,
   unitLabel,
   unitToKg,
   weekStartOf,
@@ -523,6 +524,20 @@ export function GymSettingsScreen() {
                   const chip = v[0] ?? 'never';
                   saveMutation.mutate({ quietNudgeDays: QUIET_NUDGE_DAYS[chip] });
                 }}
+              />
+            </View>
+            <View className="gap-1.5">
+              <Text variant="label">How long can a session usually be?</Text>
+              <ChipGroup
+                testID="gym-settings-session-length"
+                allowEmpty
+                options={SESSION_LENGTH_OPTIONS.map((n) => ({
+                  value: n,
+                  label: n === 75 ? '75+ min' : `${String(n)} min`,
+                  testID: `gym-settings-session-length-${String(n)}`,
+                }))}
+                value={profile.sessionLengthMins ? [profile.sessionLengthMins] : []}
+                onChange={(v) => saveMutation.mutate({ sessionLengthMins: v[0] ?? null })}
               />
             </View>
           </Card>

@@ -47,6 +47,8 @@ export interface GymEventMap {
   session_deleted: { from: 'recent' | 'history' | 'detail' };
   session_delete_undone: Record<string, never>;
   session_edit_discarded: Record<string, never>;
+  // T-36.6: `minutes` null = Full / no preference. Counts only.
+  session_time_chosen: { minutes: number | null; where: 'setup' | 'start' };
   target_notice_answered: { choice: 'new' | 'keep'; source: 'session_edit' };
 }
 

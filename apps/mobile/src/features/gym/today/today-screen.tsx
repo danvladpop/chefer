@@ -27,6 +27,7 @@ import {
   equipmentProfileOf,
   missedPlannedDays,
   progressionKey,
+  shortVersionOfWorkout,
   supersetRuns,
   supersetSlot,
   todayStatus,
@@ -34,6 +35,7 @@ import {
   type ProgressionEntry,
 } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { captureGymEvent } from '../analytics';
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { ModeSwitch } from '../components/mode-switch';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
@@ -49,6 +51,8 @@ import { dismissMissedDay, isMissedDayDismissed } from './missed-day-dismissed';
 import { RecentWorkouts } from './recent-workouts';
 import { ResumeCard } from './resume-card';
 import { TargetChangeNotice } from './target-change-notice';
+import { getTimeToday, setTimeToday } from './time-today';
+import { TimeTodayChips } from './time-today-chips';
 import {
   computeWeekStrip,
   formatStreakLine,
@@ -105,6 +109,8 @@ export function TodayScreen() {
   const snackbar = useSnackbar();
   const [dayPickerVisible, setDayPickerVisible] = useState(false);
   const [howThisWorksVisible, setHowThisWorksVisible] = useState(false);
+  // T-36.6: `Time today:` — remembered per weekday on-device, null = Full.
+  const [timeToday, setTimeTodayState] = useState<number | null>(() => getTimeToday(localDate()));
   // Bumped on "Not this week" so the dismissed KV write is reflected without
   // waiting for an unrelated re-render (dismissal is local-only, D22).
   const [missedDismissTick, setMissedDismissTick] = useState(0);
@@ -140,9 +146,19 @@ export function TodayScreen() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey }),
   });
 
-  const startPlanned = (workout: NextWorkoutDto) => {
-    activeWorkout.start({ kind: 'planned', workout });
+  const startPlanned = (workout: NextWorkoutDto, carryOverExerciseIds?: string[]) => {
+    activeWorkout.start({
+      kind: 'planned',
+      workout,
+      ...(carryOverExerciseIds?.length ? { carryOverExerciseIds } : {}),
+    });
     router.push('/gym/workout');
+  };
+
+  const handleTimeTodayChange = (minutes: number | null) => {
+    setTimeTodayState(minutes);
+    setTimeToday(localDate(), minutes);
+    captureGymEvent('session_time_chosen', { minutes, where: 'start' });
   };
 
   const startFreestyle = () => {
@@ -334,6 +350,13 @@ export function TodayScreen() {
   const firstMissed = missed[0] ?? null;
   const doneToday = status.kind === 'done';
 
+  // T-36.6: the short version of the next workout for the chosen `Time today:`
+  // (null = Full → `shownWorkout` is `nextWorkout` itself, nothing changes).
+  const short = nextWorkout
+    ? shortVersionOfWorkout(nextWorkout, libraryLookup(bootstrap), timeToday)
+    : null;
+  const shownWorkout = short?.workout ?? nextWorkout;
+
   const handleMissedPrimary = (day: { dayId: string; dayName: string }) => {
     if (!doneToday) {
       startDay(day.dayId);
@@ -511,12 +534,12 @@ export function TodayScreen() {
               </Text>
             </Pressable>
           </Card>
-        ) : nextWorkout ? (
+        ) : nextWorkout && short && shownWorkout ? (
           <Card testID="gym-today-next-up" className="gap-3">
             <View className="flex-row items-center justify-between">
-              <Text className="font-semibold">{nextWorkout.dayName}</Text>
+              <Text className="font-semibold">{shownWorkout.dayName}</Text>
               <Text variant="muted" className="text-xs">
-                ~{nextWorkout.estimatedMin} min
+                ~{shownWorkout.estimatedMin} min
               </Text>
             </View>
             {status.kind === 'training' && status.overdueFrom !== undefined ? (
@@ -526,11 +549,11 @@ export function TodayScreen() {
             ) : null}
             <View className="gap-1.5">
               {(() => {
-                const runs = supersetRuns(nextWorkout.exercises);
-                return nextWorkout.exercises.map((ex, i) => {
-                  const slot = supersetSlot(nextWorkout.exercises, i);
+                const runs = supersetRuns(shownWorkout.exercises);
+                return shownWorkout.exercises.map((ex, i) => {
+                  const slot = supersetSlot(shownWorkout.exercises, i);
                   const run = slot?.position === 0 ? runs.find((r) => r.start === i) : undefined;
-                  const lastRest = run ? nextWorkout.exercises[run.end]?.restSec : undefined;
+                  const lastRest = run ? shownWorkout.exercises[run.end]?.restSec : undefined;
                   return (
                     <View key={ex.routineExerciseId} className="gap-1">
                       {run && slot ? (
@@ -586,7 +609,19 @@ export function TodayScreen() {
                 });
               })()}
             </View>
-            <Button testID="gym-today-start" onPress={() => startPlanned(nextWorkout)}>
+            <TimeTodayChips
+              value={timeToday}
+              onChange={handleTimeTodayChange}
+              preview={
+                short.isShort
+                  ? { minutes: short.minutes, exerciseCount: short.exerciseCount }
+                  : null
+              }
+            />
+            <Button
+              testID="gym-today-start"
+              onPress={() => startPlanned(shownWorkout, short.carryOverExerciseIds)}
+            >
               Start workout
             </Button>
             <Text variant="muted" className="text-xs">

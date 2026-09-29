@@ -71,8 +71,6 @@ appId: dev.chefer.app.dev
 # the next ✓. Routines have 2–5 working sets; the later ones are optional.
 - tapOn:
     id: 'exercise-0-set-1-check'
-- assertVisible:
-    id: 'rest-timer-remaining'
 # B-40 (T-36.2): the first rest ever started on this device shows the
 # rest-timer permission rationale sheet in front of the timer bar — never a
 # cold OS prompt at workout start. Accept it, then the OS dialog it triggers.
@@ -91,6 +89,9 @@ appId: dev.chefer.app.dev
 - tapOn:
     text: 'Allow'
     optional: true
+# The sheet is modal, so the timer bar is only in the tree once it's gone.
+- assertVisible:
+    id: 'rest-timer-remaining'
 - tapOn:
     id: 'rest-timer-skip'
 

@@ -199,6 +199,8 @@ export class GymProfileService {
     // T-36.2 (bug B-40): per-day reminder times and the quiet-days nudge.
     if (input.reminderTimes !== undefined) data.reminderTimes = toJson(input.reminderTimes);
     if (input.quietNudgeDays !== undefined) data.quietNudgeDays = input.quietNudgeDays;
+    // T-36.6: "How long can a session usually be?" (null clears it).
+    if (input.sessionLengthMins !== undefined) data.sessionLengthMins = input.sessionLengthMins;
     if (input.weeklyGoal !== undefined && input.weeklyGoal !== row.weeklyGoal) {
       const fromWeek = weekStartOf(today);
       const history = readGoalHistory(row.goalHistory).filter((g) => g.fromWeek !== fromWeek);
@@ -368,6 +370,11 @@ export class GymProfileService {
         reminderTime: input.reminderTime,
         // T-36.2: new setups default the quiet-days nudge on at 5 days.
         quietNudgeDays: 5,
+        // T-36.6: only written when the client sent it (an old binary — or a
+        // re-run of setup that skips the question — keeps what's stored).
+        ...(input.sessionLengthMins !== undefined && {
+          sessionLengthMins: input.sessionLengthMins,
+        }),
         offerState: toJson({
           ...offerState,
           knownWeightsKg: { ...(offerState.knownWeightsKg ?? {}), ...knownWeightsKg },
