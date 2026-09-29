@@ -3,13 +3,33 @@
 # means Free; alice is an ADMIN and sees no locks) and closes it again.
 # NEVER taps "Turn on Premium" (premium-sheet-turn-on): the dev/E2E accounts
 # are shared and this flow must leave them on Free. Never run against
-# production. It does its own sign-in as bob (clearState) instead of using
+# production. It does its own sign-in as bob (signing out first) instead of using
 # common/connect.yaml, which signs in alice.
 appId: dev.chefer.app.dev
 ---
-- launchApp:
-    clearState: true
+# No clearState: on the dev client it also forgets the Metro URL and lands on
+# the launcher. Sign out instead if a previous flow left a session behind.
 - runFlow: common/launch.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mode-switch-food'
+    timeout: 60000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'mode-switch-food'
+    commands:
+      - tapOn:
+          id: 'mode-switch-food'
+      - tapOn: '.*More.*'
+      - scrollUntilVisible:
+          element:
+            id: 'logout-button'
+          direction: DOWN
+          centerElement: true
+      - tapOn:
+          id: 'logout-button'
 - extendedWaitUntil:
     visible:
       id: 'welcome-title'
