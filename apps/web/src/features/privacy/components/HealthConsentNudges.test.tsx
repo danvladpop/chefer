@@ -13,7 +13,7 @@ import {
 
 const m = vi.hoisted(() => ({
   user: { healthDataConsentAt: null as Date | null },
-  prefs: undefined,
+  prefs: undefined as unknown,
   grant: vi.fn(),
 }));
 
