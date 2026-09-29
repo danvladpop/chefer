@@ -2049,13 +2049,25 @@ completed session is "missed" — `missedPlannedDays({ activeRoutine,
 recentSessions, today })` (`packages/utils/src/gym/session.ts`), pure and
 unit-tested for every weekday including the Monday edge case (nothing can be
 missed on the first day of the week) and the Sunday edge case (every
-undone planned day of the week is still open to move). Gym Today shows a
-`Still time this week` card (hidden during a pause — already excused) with:
+undone planned day of the week is still open to move).
 
-- **`Move it to {day}`** (or **`Start it now`** on a Sunday) — both call
-  `gym.routine.setNextDay(routineId, missedDayId)`, the same rotation-pointer
-  mutation "Skip this day" and the day-picker use; the next workout becomes
-  that missed day.
+When the missed day **is** the rotation's next day (the usual case — the
+rotation doesn't advance until you train), it isn't a separate card at all:
+`todayStatus()` returns `training` with `overdueFrom` and the main card offers
+it as today's workout, `Planned for {weekday} — today works just as well.`
+(owner dogfood 2026-09-29: the old card's `Move it to {day}` was a
+`setNextDay` to the day that was already next — a silent no-op — while the
+main card said `Rest day` and pointed at next week).
+
+For a missed day the rotation has already moved past (e.g. Lower was done
+instead of Monday's Upper), Gym Today shows a `Still time this week` card
+(hidden during a pause — already excused) with:
+
+- **`Do it today`** — builds that day locally and starts it (same path as the
+  day picker). After a session was already finished today it becomes
+  **`Make it next`**, which calls `gym.routine.setNextDay(routineId,
+missedDayId)` and confirms with a `{dayName} is up next.` snackbar (needs a
+  connection, like Skip).
 - **`Not this week`** — no mutation at all (D22: half sessions count, never
   red, no nagging — missing a session changes nothing): the day is dismissed
   for the current week only (`today/missed-day-dismissed.ts`, KV-keyed by
@@ -2081,12 +2093,22 @@ against `recentSessions` and the next day's `plannedWeekday`:
   no Start button. `See summary` opens that session; `Train again today? Pick
 a day` reuses the existing day-picker sheet.
 - **`rest`** — nothing done today, and the next day's `plannedWeekday`
-  (looked up on `activeRoutine`) doesn't match `weekdayOf(today)`. Gym Today
-  shows `Rest day` and a secondary `Start {dayName} anyway`, which starts that
-  day exactly like the normal Start button.
-- **`training`** — nothing done today and the next day IS due today (or has
-  no fixed weekday / nothing is planned at all): the existing "Next up" card,
-  unchanged.
+  (looked up on `activeRoutine`) is later in the week, or earlier but already
+  trained this week. Gym Today shows `Rest day`, a secondary `Start {dayName}
+anyway`, which starts that day exactly like the normal Start button, and
+  `Train something else? Pick a day or freestyle` (the day-picker sheet).
+- **`training`** — nothing done today and the next day IS due today, is
+  overdue (pinned earlier this week, not trained yet — `overdueFrom`), or has
+  no fixed weekday / nothing is planned at all: the "Next up" card.
+
+The day-picker sheet (from `Do another day instead`, `Train again today?` and
+the rest card) lists every routine day plus `Freestyle`, and **starts** the
+picked day immediately — built locally by `buildNextWorkout()` (the server's
+`nextWorkout` is reused when the pick is the next day, so carry-over is
+kept), online or offline. It no longer moves the rotation pointer; finishing
+the session advances the rotation from the day actually trained. Exercise-level
+changes (swap, skip, add, extra/fewer sets — this session only or the routine)
+live in each exercise's `⋯` menu during the workout; the Next-up card says so.
 
 The Food Today dashboard card (`TodaysWorkoutCard`,
 `src/features/gym/today/todays-workout-card.tsx`, UX-04 §5 — placed on the
@@ -2340,9 +2362,11 @@ your rest is over, even with the phone locked?` / `Allow notifications` /
   `Not now`) shown once, in context, the first time a rest actually begins
   (`workout/rest-timer-bar.tsx`) — never cold, never more than once per
   device.
-- **Streak repair — "Log a past workout" (mobile + web, G4-A):** pick a date
-  in the current or previous week (never the future), then a routine day or
-  freestyle. Starts a session backdated to that date's `localDate` with
+- **Streak repair — "Log a workout you already did" (mobile + web, G4-A;
+  was "Log a past workout"):** pick a date in the current or previous week,
+  today included (never the future), then a routine day or freestyle. Today
+  starts a normal session now (an 18:00 backdate could be in the future);
+  an earlier date starts a session backdated to that date's `localDate` with
   `startedAt` at 18:00 local (`use-active-workout.ts`'s `backfillDate`); the
   user logs the actual sets in the normal workout screen and finishes like
   any other session. The engine folds it into `summarizeWeeks` by the week it
