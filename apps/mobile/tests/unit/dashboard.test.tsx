@@ -2,8 +2,10 @@ import { render, screen, userEvent } from '@testing-library/react-native';
 import type { TrainingDayNutrition } from '@chefer/types';
 import { NutritionSummary } from '../../src/features/dashboard/components/nutrition-summary';
 import { WeekOutlook } from '../../src/features/dashboard/components/week-outlook';
+import { openPremium } from '../../src/features/premium/open-premium';
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
 const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
 
 const nutrition = (plannedKcal: number, eatenKcal = 0) => ({
@@ -129,7 +131,7 @@ describe('NutritionSummary — training day (audit P2-4)', () => {
     expect(screen.queryByTestId('training-day-upgrade')).toBeNull();
   });
 
-  it('free: the same line locked, base targets kept, upgrade via Profile', async () => {
+  it('free: the same line locked, base targets kept, the lock opens the premium sheet', async () => {
     const user = userEvent.setup();
     await render(
       <NutritionSummary nutrition={{ ...nutrition(1900, 800), trainingDay: trainingDay(false) }} />,
@@ -139,10 +141,7 @@ describe('NutritionSummary — training day (audit P2-4)', () => {
     );
     expect(screen.getByText('of 2,000 kcal eaten')).toBeOnTheScreen();
     await user.press(screen.getByTestId('training-day-upgrade'));
-    expect(router.push).toHaveBeenCalledWith({
-      pathname: '/profile',
-      params: { source: 'training-day' },
-    });
+    expect(openPremium).toHaveBeenCalledWith('training-day');
   });
 });
 

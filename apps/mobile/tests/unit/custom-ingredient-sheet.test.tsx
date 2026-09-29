@@ -19,6 +19,7 @@ let mockPremiumUser: { planTier: string; role: string } | undefined = {
 const mockCreateCustom = jest.fn();
 const mockEstimate = jest.fn();
 const mockPush = jest.fn();
+const mockOpenPremium = jest.fn();
 let mockEstimateState: {
   isPending: boolean;
   isError: boolean;
@@ -33,6 +34,11 @@ jest.mock('expo-router', () => ({
   },
 }));
 
+jest.mock('../../src/features/premium/open-premium', () => ({
+  openPremium: (...args: unknown[]) => {
+    mockOpenPremium(...args);
+  },
+}));
 jest.mock('../../src/hooks/use-is-premium', () => ({
   useIsPremium: () =>
     mockPremiumUser && (mockPremiumUser.planTier === 'PREMIUM' || mockPremiumUser.role === 'ADMIN'),
@@ -123,7 +129,7 @@ describe('CustomIngredientSheet', () => {
     await fireEvent.press(screen.getByTestId('custom-sheet-fill-in'));
 
     expect(mockEstimate).toHaveBeenCalledWith({ name: 'oat bran' });
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockOpenPremium).not.toHaveBeenCalled();
     expect(screen.getByTestId('custom-sheet-kcal').props.value).toBe('379');
     expect(screen.getByTestId('custom-sheet-protein').props.value).toBe('13');
   });
@@ -134,10 +140,7 @@ describe('CustomIngredientSheet', () => {
     await fireEvent.press(screen.getByTestId('custom-sheet-fill-in'));
 
     expect(mockEstimate).not.toHaveBeenCalled();
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: '/profile',
-      params: { source: 'ingredient-autofill' },
-    });
+    expect(mockOpenPremium).toHaveBeenCalledWith('ingredient-autofill');
   });
 
   it('free: no price or checkout copy appears anywhere on the locked path (delta rule 2)', async () => {

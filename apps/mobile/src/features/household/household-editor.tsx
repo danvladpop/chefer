@@ -1,7 +1,6 @@
 import { Fragment, useState } from 'react';
 import { ActivityIndicator, Pressable, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { findSafetyTaxonomyEntry, HOUSEHOLD_PORTION_OPTIONS } from '@chefer/types';
 import { Button, Card, Input, PressableScale, Sheet, Text } from '@chefer/ui-mobile';
 import {
@@ -16,6 +15,7 @@ import {
 } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { trpc } from '../../lib/trpc';
+import { openPremium } from '../premium/open-premium';
 import { SafetyPicker } from '../safety/safety-picker';
 import { HouseholdGhost } from './household-ghost';
 
@@ -508,9 +508,9 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
             variant="outline"
             size="sm"
             className="mt-3"
-            onPress={() => router.push({ pathname: '/profile', params: { source: 'household' } })}
+            onPress={() => openPremium('household')}
           >
-            See Premium
+            See what Premium adds
           </Button>
         </Card>
       )}

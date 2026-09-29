@@ -94,7 +94,7 @@ export interface EventMap {
   upgrade_prompt_shown: { source: PremiumSource; job: PremiumJobId };
   upgrade_clicked: { source: PremiumSource; job: PremiumJobId };
   upgrade_completed: { source: PremiumSource; job: PremiumJobId };
-  downgrade_completed: { daysSinceUpgrade: number };
+  downgrade_completed: Record<string, never>;
   /** The once-a-day nudge cap swallowed a nudge (§2.7). */
   nudge_suppressed: { source: PremiumSource };
 

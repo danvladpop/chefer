@@ -1,6 +1,8 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { router } from 'expo-router';
 import ImportRecipeScreen from '../../app/import-recipe';
+import { openPremium } from '../../src/features/premium/open-premium';
 import {
   VideoDraftForm,
   type VideoImportPreview,
@@ -16,6 +18,7 @@ const mockIsPremium = jest.fn<boolean | undefined, []>(() => true);
 let mockVideoPreview: VideoImportPreview | null = null;
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
+jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
 jest.mock('../../src/hooks/use-is-premium', () => ({ useIsPremium: () => mockIsPremium() }));
 jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
   useAiConsent: () => (_feature: string, run: () => void) => run(),
@@ -134,11 +137,40 @@ describe('Import screen — video source', () => {
     expect(mockVideoMutate).not.toHaveBeenCalled();
   });
 
-  it('free users get a locked card, not the form (per-user AI is premium)', async () => {
+  it('free users keep the form; Import opens the premium sheet and what was pasted survives (T-10.4)', async () => {
     mockIsPremium.mockReturnValue(false);
     await renderScreen();
+    // A lock card sits above the form — it never replaces it.
     expect(screen.getByTestId('import-locked')).toBeTruthy();
-    expect(screen.queryByTestId('import-tab-video')).toBeNull();
+    expect(screen.getByText('Turn your saved links and videos into recipes')).toBeTruthy();
+    expect(screen.getByTestId('import-tab-video')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('import-tab-video'));
+    await fireEvent.changeText(
+      screen.getByTestId('import-video-url'),
+      'https://youtu.be/abcdef123',
+    );
+    await fireEvent.press(screen.getByTestId('import-preview'));
+
+    // No request is made on a free plan: the sheet opens instead.
+    expect(mockVideoMutate).not.toHaveBeenCalled();
+    expect(openPremium).toHaveBeenCalledWith('recipe-import');
+    // The pasted link is still there after the sheet.
+    expect(screen.getByTestId('import-video-url').props.value).toBe('https://youtu.be/abcdef123');
+  });
+
+  it('free users have "Or type it in yourself" — the manual recipe form', async () => {
+    mockIsPremium.mockReturnValue(false);
+    await renderScreen();
+    await fireEvent.press(screen.getByTestId('import-locked-free-action'));
+    expect(router.push).toHaveBeenCalledWith('/recipe-form');
+    expect(screen.getByText('Or type it in yourself')).toBeTruthy();
+  });
+
+  it('premium users see no lock card', async () => {
+    mockIsPremium.mockReturnValue(true);
+    await renderScreen();
+    expect(screen.queryByTestId('import-locked')).toBeNull();
   });
 });
 
