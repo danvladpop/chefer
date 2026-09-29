@@ -211,6 +211,40 @@ describe('gym storage + sync (no engine needed)', () => {
     await client.gym.session.delete.mutate({ id: doc.id });
   });
 
+  it('T-44.2: the childless DISCARDED tombstone the clients send drops it from the lists, re-folds progression, and the hard delete then finds the row', async () => {
+    const doc = freestyleDoc();
+    await client.gym.session.upsertMany.mutate({ docs: [doc] });
+
+    // What `discardedTombstone()` sends: same id + times, no children, a newer clientUpdatedAt.
+    const tombstone: WorkoutSessionDoc = {
+      ...doc,
+      status: 'DISCARDED',
+      exercises: [],
+      clientUpdatedAt: iso(1),
+    };
+    const res = await client.gym.session.upsertMany.mutate({ docs: [tombstone] });
+    expect(res.results).toEqual([{ id: doc.id, status: 'applied' }]);
+
+    const listed = await client.gym.session.list.query({ limit: 50 });
+    expect(listed.items.map((i) => i.id)).not.toContain(doc.id);
+    const boot = await client.gym.bootstrap.query({ today: localDate });
+    expect(boot.recentSessions.map((s) => s.id)).not.toContain(doc.id);
+
+    // A re-send of the tombstone (the outbox retries) is idempotent, and an OLDER copy of the
+    // completed doc (a stale device) never resurrects it.
+    const again = await client.gym.session.upsertMany.mutate({ docs: [tombstone, doc] });
+    expect(again.results).toEqual([
+      { id: doc.id, status: 'applied' },
+      { id: doc.id, status: 'stale' },
+    ]);
+
+    // Q-30: the hard delete after the ack works once, then the row is gone (NOT_FOUND is fine to the client).
+    await client.gym.session.delete.mutate({ id: doc.id });
+    await expect(client.gym.session.delete.mutate({ id: doc.id })).rejects.toMatchObject({
+      data: { code: 'NOT_FOUND' },
+    });
+  });
+
   it('routine save uses optimistic concurrency and returns the current doc on CONFLICT', async () => {
     const blank = await client.gym.routine.createBlank.mutate({ name: 'Contract split', days: 2 });
     expect(blank.version).toBe(1);
