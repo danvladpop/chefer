@@ -1,0 +1,135 @@
+# UX-44 (T-44.1–T-44.4): correct a past workout from Gym Today `Recent` —
+# ⋯ → Edit workout in two taps, change a weight (60 → 50), Save, see the
+# "Next time changed after your edit" notice; then delete → Undo (nothing is
+# sent and the row comes back). Both OSes; run once more in airplane mode
+# (edits save offline and the notice appears after the sync).
+# Preconditions: signed-in session with a gym profile and at least one
+# COMPLETED gym session that was opened online at least once (seed data);
+# the first Recent row's first exercise is a weighted lift.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+
+- tapOn:
+    id: 'mode-switch-gym'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 15000
+
+# A resumable/paused session left by an earlier run must not sit on top.
+- runFlow:
+    when:
+      visible:
+        id: 'gym-today-resume'
+    commands:
+      - tapOn:
+          id: 'gym-today-resume-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'workout-title'
+          timeout: 15000
+      - scrollUntilVisible:
+          element:
+            id: 'workout-discard'
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          id: 'workout-discard'
+      - tapOn:
+          id: 'workout-discard-sheet-confirm'
+      - extendedWaitUntil:
+          visible:
+            id: 'gym-today-title'
+          timeout: 15000
+
+# ── Edit: ⋯ → Edit workout (2 taps, AC1) ─────────────────────────────────────
+- scrollUntilVisible:
+    element:
+      id: 'gym-today-recent-row-.*-options'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'gym-today-recent-row-.*-options'
+- tapOn:
+    id: 'gym-today-recent-menu-edit'
+- extendedWaitUntil:
+    visible:
+      id: 'edit-session-title'
+    timeout: 15000
+# No live-workout chrome in edit mode: no rest timer, no Finish.
+- assertNotVisible:
+    id: 'workout-finish'
+- assertNotVisible:
+    id: 'rest-timer'
+
+# 60 → 50 kg on the first set (the keypad's first key replaces the value).
+- tapOn:
+    id: 'exercise-0-set-1-weight-value'
+- tapOn:
+    id: 'number-sheet-key-5'
+- tapOn:
+    id: 'number-sheet-key-0'
+- tapOn:
+    id: 'number-sheet-save'
+- assertVisible:
+    id: 'exercise-0-set-1-weight-value'
+    text: '50.*'
+- tapOn:
+    id: 'edit-session-save'
+
+# Saved: back where we came from, with the snackbar.
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 15000
+- assertVisible: 'Workout updated'
+
+# The notice appears once the edit synced and Next time moved (PAT-14).
+- runFlow:
+    when:
+      visible:
+        id: 'gym-today-target-notice'
+    commands:
+      - assertVisible: 'Next time changed after your edit'
+      - assertVisible: 'Keep the old ones'
+      - tapOn:
+          id: 'gym-today-target-notice-primary'
+
+# ── Delete → Undo (AC4) ──────────────────────────────────────────────────────
+- scrollUntilVisible:
+    element:
+      id: 'gym-today-recent-row-.*-options'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'gym-today-recent-row-.*-options'
+- tapOn:
+    id: 'gym-today-recent-menu-delete'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-recent-delete-confirm-confirm'
+    timeout: 10000
+# The confirm names the workout, its sets and (when they change) week/streak.
+- assertVisible: 'Delete this workout?'
+- assertVisible: 'Next time targets for its exercises are worked out again.'
+- tapOn:
+    id: 'gym-today-recent-delete-confirm-confirm'
+- assertVisible: 'Workout deleted'
+- tapOn: 'Undo'
+- scrollUntilVisible:
+    element:
+      id: 'gym-today-recent-row-.*-options'
+    direction: DOWN
+    timeout: 20000
+
+- tapOn:
+    id: 'mode-switch-food'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000

@@ -169,6 +169,13 @@ export interface ExerciseMenuProps {
   onRemoveSet: () => void;
   onMove: (direction: 'up' | 'down') => void;
   onSaveNote: (note: string | null) => void;
+  /**
+   * UX-44 (T-44.3): `edit` is a past workout — `Replace exercise` goes straight
+   * to the picker (this workout only, never the routine: no scope page),
+   * `Remove from this workout` drops the exercise, and Skip is hidden.
+   */
+  mode?: 'live' | 'edit';
+  onRemoveExercise?: () => void;
 }
 
 type MenuPage = 'actions' | 'swap' | 'note' | 'history';
@@ -214,6 +221,7 @@ function MenuRow({
 
 export function ExerciseMenuSheet(props: ExerciseMenuProps) {
   const { visible, onClose, exercise, name, isFirst, isLast, routineBlockedReason } = props;
+  const editing = props.mode === 'edit';
   const [page, setPage] = useState<MenuPage>('actions');
   const [note, setNote] = useState(exercise?.notes ?? '');
   // UX-05 A1 (T-05.A1.2): renamed "Remove last set" — it removes the last
@@ -238,13 +246,32 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
     >
       {page === 'actions' && exercise ? (
         <View>
-          <MenuRow testID="menu-swap" label="Swap exercise" onPress={() => setPage('swap')} />
-          <MenuRow
-            testID="menu-skip"
-            label={exercise.skipped ? 'Unskip exercise' : 'Skip exercise'}
-            hint={exercise.skipped ? undefined : 'Skipping never counts as a miss.'}
-            onPress={props.onSkip}
-          />
+          {editing ? (
+            <>
+              <MenuRow
+                testID="menu-replace"
+                label="Replace exercise"
+                hint="Changes this workout only."
+                onPress={() => props.onSwap('today')}
+              />
+              <MenuRow
+                testID="menu-remove-exercise"
+                label="Remove from this workout"
+                destructive
+                onPress={() => props.onRemoveExercise?.()}
+              />
+            </>
+          ) : (
+            <>
+              <MenuRow testID="menu-swap" label="Swap exercise" onPress={() => setPage('swap')} />
+              <MenuRow
+                testID="menu-skip"
+                label={exercise.skipped ? 'Unskip exercise' : 'Skip exercise'}
+                hint={exercise.skipped ? undefined : 'Skipping never counts as a miss.'}
+                onPress={props.onSkip}
+              />
+            </>
+          )}
           <MenuRow testID="menu-add-set" label="Add set" onPress={props.onAddSet} />
           <MenuRow
             testID="menu-remove-set"
