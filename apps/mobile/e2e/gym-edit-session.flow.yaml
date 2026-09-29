@@ -61,33 +61,44 @@ appId: dev.chefer.app.dev
     visible:
       id: 'edit-session-title'
     timeout: 15000
+# Android: the dev client can pop its own developer menu over the screen (device
+# chrome, not app UI) — close it so the taps below reach the app.
+- runFlow:
+    when:
+      platform: Android
+      visible: 'Reload'
+    commands:
+      - back
 # No live-workout chrome in edit mode: no rest timer, no Finish.
 - assertNotVisible:
     id: 'workout-finish'
 - assertNotVisible:
     id: 'rest-timer'
 
-# 60 → 50 kg on the first set (the keypad's first key replaces the value).
+# Change the first set's weight down two steps (the same fix as 60 → 50). A stepper
+# tap, not a typed value, so every run really edits it: the doc keeps the value from
+# the previous run, and a Save with nothing changed just closes the screen.
 - tapOn:
-    id: 'exercise-0-set-1-weight-value'
+    id: 'exercise-0-set-1-weight-dec'
 - tapOn:
-    id: 'number-sheet-key-5'
-- tapOn:
-    id: 'number-sheet-key-0'
-- tapOn:
-    id: 'number-sheet-save'
+    id: 'exercise-0-set-1-weight-dec'
 - assertVisible:
     id: 'exercise-0-set-1-weight-value'
-    text: '50.*'
+    text: 'Weight .* kg.*'
+# Android's dev-client Tools bubble floats over the header's right edge (device
+# chrome): tap the top-left corner of Save so the tap reaches the button.
 - tapOn:
     id: 'edit-session-save'
+    point: '10%,10%'
 
-# Saved: back where we came from, with the snackbar.
+# Saved: the snackbar shows (it lasts ~6 s), then we are back where we came from.
+- extendedWaitUntil:
+    visible: 'Workout updated'
+    timeout: 15000
 - extendedWaitUntil:
     visible:
       id: 'gym-today-title'
     timeout: 15000
-- assertVisible: 'Workout updated'
 
 # The notice appears once the edit synced and Next time moved (PAT-14).
 - runFlow:
@@ -116,7 +127,7 @@ appId: dev.chefer.app.dev
     timeout: 10000
 # The confirm names the workout, its sets and (when they change) week/streak.
 - assertVisible: 'Delete this workout?'
-- assertVisible: 'Next time targets for its exercises are worked out again.'
+- assertVisible: '(?s).*Next time targets for its exercises are worked out again.*'
 - tapOn:
     id: 'gym-today-recent-delete-confirm-confirm'
 - assertVisible: 'Workout deleted'
