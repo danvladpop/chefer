@@ -1,10 +1,19 @@
-import { consentEventRepository, type ConsentEvent } from '@chefer/database';
+import {
+  chefProfileRepository,
+  consentEventRepository,
+  dietaryPreferencesRepository,
+  householdMemberRepository,
+  prisma,
+  userRepository,
+  weightEntryRepository,
+  type ConsentEvent,
+} from '@chefer/database';
+import { HEALTH_CONSENT_VERSION } from '@chefer/types';
 import { consentService } from './consent.service.js';
 
-// ─── Privacy service (§2.8, §2.13, T-39.2) ─────────────────────────────────────
-// `grantHealthConsent` / `withdrawHealthData` (§2.8, T-26.1) are wave 3
-// (L-CONSENT); this wave adds the consent log surface (T-39.2) and the
-// analytics-consent write path (T-12.3).
+// ─── Privacy service (§2.8, §2.13, T-26.1, T-39.2) ─────────────────────────────
+// The consent-log surface (T-39.2), the analytics-consent write path (T-12.3)
+// and the health-information consent (T-26.1: grant + withdraw-and-delete).
 
 export type ConsentSource = 'web' | 'mobile' | 'migration';
 
@@ -22,6 +31,13 @@ export interface AcceptTermsInput {
   documentVersion: string;
   /** "I'm 16 or older" — logged as a separate AGE consent event when present. */
   ageConfirmed?: boolean | undefined;
+}
+
+export interface HealthConsentInput {
+  userId: string;
+  source: ConsentSource;
+  /** Copy version the user saw (recorded on the grant). */
+  version?: string | undefined;
 }
 
 export class PrivacyService {
@@ -64,6 +80,84 @@ export class PrivacyService {
       );
     }
     return events;
+  }
+
+  /**
+   * T-26.1: records the user's consent to store health information —
+   * `ConsentEvent` kind HEALTH plus the `User.healthDataConsentAt` cache the
+   * `requireHealthConsent` middleware reads, in ONE transaction. Idempotent:
+   * granting again keeps the original timestamp (a double tap is a no-op).
+   * Separate from the AI data consent (`user.grantAiDataConsent`).
+   */
+  async grantHealthConsent(input: HealthConsentInput): Promise<{ healthDataConsentAt: Date }> {
+    const existing = await userRepository.findHealthConsentAt(input.userId);
+    if (existing) return { healthDataConsentAt: existing };
+    const at = new Date();
+    const version = input.version ?? HEALTH_CONSENT_VERSION;
+    // The event is written here (not through ConsentService.record) so it can
+    // share the transaction with the cache column.
+    await prisma.$transaction([
+      userRepository.setHealthConsent(input.userId, at, version),
+      prisma.consentEvent.create({
+        data: {
+          userId: input.userId,
+          kind: 'HEALTH',
+          granted: true,
+          source: input.source,
+          documentVersion: version,
+          providers: [],
+          createdAt: at,
+        },
+      }),
+    ]);
+    return { healthDataConsentAt: at };
+  }
+
+  /**
+   * T-26.1 / UX-26 AC3: withdraws health consent AND deletes the health
+   * information — allergies, diets and dislikes (owner + every household
+   * member), goal, body metrics and own targets, every weigh-in — then
+   * records the withdrawal. One transaction: all or nothing. The account, its
+   * household members (as people) and non-health data stay. Plans stop
+   * carrying `safetyChecks` on their own: they are computed on read from the
+   * (now empty) rules.
+   *
+   * Also cleared, because they hold copies of the same data:
+   * - `target_changes` (before/after of goal and targets);
+   * - `safety_reports.rulesSnapshot` (the allergy list in force when a recipe
+   *   was reported) — the report rows themselves are kept as the evidence
+   *   trail (T-26.7). PENDING COUNSEL: retention of the report rows.
+   *
+   * Runs whether or not a consent record exists: data saved before consent
+   * existed (Q-7, PENDING COUNSEL) must be deletable too. Keep in step with
+   * `application/user/account-data.service.ts` (`exportAccountData` lists the
+   * same tables; `deleteAccount` cascades them all).
+   */
+  async withdrawHealthData(input: HealthConsentInput): Promise<{ healthDataConsentAt: null }> {
+    const at = new Date();
+    await prisma.$transaction([
+      dietaryPreferencesRepository.clearHealthData(input.userId),
+      householdMemberRepository.clearHealthData(input.userId),
+      chefProfileRepository.clearHealthData(input.userId),
+      weightEntryRepository.deleteAllForUser(input.userId),
+      prisma.targetChange.deleteMany({ where: { userId: input.userId } }),
+      prisma.safetyReport.updateMany({
+        where: { userId: input.userId },
+        data: { rulesSnapshot: {} },
+      }),
+      userRepository.setHealthConsent(input.userId, null, null),
+      prisma.consentEvent.create({
+        data: {
+          userId: input.userId,
+          kind: 'HEALTH',
+          granted: false,
+          source: input.source,
+          providers: [],
+          createdAt: at,
+        },
+      }),
+    ]);
+    return { healthDataConsentAt: null };
   }
 
   /**

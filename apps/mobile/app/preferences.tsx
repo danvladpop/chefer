@@ -18,6 +18,8 @@ import type {
 } from '../src/features/preferences/types';
 import { WeeklyUpdatesCard } from '../src/features/preferences/weekly-updates-card';
 import { openPremium } from '../src/features/premium/open-premium';
+import { HealthDeclinedNotice } from '../src/features/privacy/health-notices';
+import { useHealthConsent } from '../src/features/privacy/use-health-consent';
 import { MigrationCard } from '../src/features/safety/migration-card';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc } from '../src/lib/trpc';
@@ -42,6 +44,9 @@ export default function PreferencesScreen() {
   const isPremium = useIsPremium();
   const { data, isLoading, isError, refetch } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
+  // T-26.2: allergies/diets/dislikes are health information — asked once, on the first save.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
+  const [safetyDeclined, setSafetyDeclined] = useState(false);
 
   // ── Safety (free) ──────────────────────────────────────────────────────────
   const [safety, setSafety] = useState<SafetyValue>({
@@ -137,7 +142,19 @@ export default function PreferencesScreen() {
   }, [targetsMutation.isSuccess, safetyLoaded]);
   const budgetDirty = savedBudget !== null && savedBudget !== budget;
 
-  const saveSafety = () => safetyMutation.mutate(safety);
+  const saveSafety = () => {
+    setSafetyDeclined(false);
+    requestHealthConsent(() => safetyMutation.mutate(safety), {
+      // Clearing every list stores nothing health-related — no consent needed.
+      hasHealthData:
+        safety.allergies.length +
+          safety.dietaryRestrictions.length +
+          safety.dislikedIngredients.length >
+        0,
+      // "Don't save it": nothing health-related is stored; say what that means.
+      onDeclined: () => setSafetyDeclined(true),
+    });
+  };
 
   const saveDisplay = () => displayMutation.mutate({ preferredUnits: units, currency });
 
@@ -212,6 +229,7 @@ export default function PreferencesScreen() {
             {safetyMutation.isError && (
               <Text className="text-xs text-red-600">{safetyMutation.error.message}</Text>
             )}
+            {safetyDeclined && <HealthDeclinedNotice testID="prefs-safety-declined" />}
           </Card>
 
           {/* Goal & body — every tier (dogfood feedback #6) */}
@@ -394,6 +412,7 @@ export default function PreferencesScreen() {
           </Card>
         </ScrollView>
       )}
+      {healthConsentSheet}
     </Screen>
   );
 }

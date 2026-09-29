@@ -15,6 +15,10 @@ import {
   ReplaceMealSheet,
   type ReplaceTarget,
 } from '@/features/meal-plan/components/ReplaceMealSheet';
+import {
+  HealthConsentLaunchPrompt,
+  HealthConsentTodayNotice,
+} from '@/features/privacy/components/HealthConsentNudges';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
 import { useIsPremium } from '@/hooks/useIsPremium';
@@ -202,6 +206,10 @@ export default function DashboardPage() {
             </Link>
           </div>
         )}
+
+        {/* UX-26: Q-7 launch prompt (pending counsel) + the "Plans aren't being checked" nudge. */}
+        <HealthConsentLaunchPrompt />
+        <HealthConsentTodayNotice />
 
         {/* Header */}
         <div className="flex items-end justify-between gap-3">

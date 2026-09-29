@@ -123,6 +123,9 @@ export interface EventMap {
   // ─── L-DATA's own events (T-12.4) ────────────────────────────────────────────
   app_opened: Record<string, never>;
   analytics_consent_changed: { anonymous: boolean; linked: boolean };
+  // ─── L-CONSENT (T-26.2/T-26.4) — counts only ─────────────────────────────────
+  health_consent_answered: { allowed: boolean };
+  health_consent_withdrawn: Record<string, never>;
   /** Richer replacement for the wave-0 funnel `meal_logged { source: 'today', mealType: string }`. */
   meal_logged: { source: 'today' | 'plan' | 'log'; mealType: PlanSlot };
 }

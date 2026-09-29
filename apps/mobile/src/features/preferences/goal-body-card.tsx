@@ -4,6 +4,9 @@ import { skipToken } from '@tanstack/react-query';
 import { Button, Card, Text } from '@chefer/ui-mobile';
 import { lifterProteinNote } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { HEALTH_DECLINED_BODY_NOTICE } from '../privacy/copy';
+import { HealthDeclinedNotice } from '../privacy/health-notices';
+import { useHealthConsent } from '../privacy/use-health-consent';
 import { GoalStep } from './components/goal-step';
 import { MetricsStep } from './components/metrics-step';
 import type { ActivityLevel, BiologicalSex, Goal, MetricsValue } from './types';
@@ -62,6 +65,9 @@ export function GoalBodyCard({
   const [heightText, setHeightText] = useState(initial.heightCm?.toString() ?? '');
   const [weightText, setWeightText] = useState(initial.weightKg?.toString() ?? '');
   const [loaded, setLoaded] = useState(false);
+  // T-26.2: goal + body metrics are health information — asked once, on the first save.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
+  const [declined, setDeclined] = useState(false);
 
   // Bug B-38: "Saved ✓" used to stick regardless of edits made after the
   // save. Captured synchronously at the moment `handleSave` is pressed (not
@@ -165,10 +171,20 @@ export function GoalBodyCard({
       ...(metrics.weightKg !== null && metrics.weightKg > 0 && { weightKg: metrics.weightKg }),
       ...(metrics.activityLevel !== null && { activityLevel: metrics.activityLevel }),
     };
-    // Bug B-38: snapshot exactly what's being sent, so a later edit is judged
-    // against it — not against whatever the server eventually echoes back.
-    setSavedSnapshot({ goal, metrics });
-    onSave(payload);
+    setDeclined(false);
+    requestHealthConsent(
+      () => {
+        // Bug B-38: snapshot exactly what's being sent, so a later edit is judged
+        // against it — not against whatever the server eventually echoes back.
+        setSavedSnapshot({ goal, metrics });
+        onSave(payload);
+      },
+      {
+        hasHealthData: Object.keys(payload).length > 0,
+        // "Don't save it": nothing goes to the server; the fields stay on screen.
+        onDeclined: () => setDeclined(true),
+      },
+    );
   }
 
   return (
@@ -203,6 +219,13 @@ export function GoalBodyCard({
         {isSaved && !dirty ? 'Saved ✓' : 'Save goal & body'}
       </Button>
       {errorMessage && <Text className="text-xs text-red-600">{errorMessage}</Text>}
+      {declined && (
+        <HealthDeclinedNotice
+          testID="prefs-goal-body-declined"
+          message={HEALTH_DECLINED_BODY_NOTICE}
+        />
+      )}
+      {healthConsentSheet}
     </Card>
   );
 }

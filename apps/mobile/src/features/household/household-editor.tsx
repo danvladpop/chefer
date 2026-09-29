@@ -16,6 +16,8 @@ import {
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { trpc } from '../../lib/trpc';
 import { openPremium } from '../premium/open-premium';
+import { HealthDeclinedNotice } from '../privacy/health-notices';
+import { useHealthConsent } from '../privacy/use-health-consent';
 import { SafetyPicker } from '../safety/safety-picker';
 import { HouseholdGhost } from './household-ghost';
 
@@ -91,6 +93,9 @@ function YouCard() {
   const utils = trpc.useUtils();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [draft, setDraft] = useState<SafetyPickerValue>(EMPTY_SAFETY);
+  // T-26.2: your own allergies/diets are health information — asked once, on the first save.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
+  const [declined, setDeclined] = useState(false);
 
   const ownSafety: SafetyPickerValue = {
     dietaryRestrictions: data?.dietaryPreferences?.dietaryRestrictions ?? [],
@@ -135,13 +140,27 @@ function YouCard() {
           <Button
             testID="household-you-save"
             loading={saveMutation.isPending}
-            onPress={() => saveMutation.mutate(draft)}
+            onPress={() => {
+              setDeclined(false);
+              requestHealthConsent(() => saveMutation.mutate(draft), {
+                hasHealthData:
+                  draft.allergies.length +
+                    draft.dietaryRestrictions.length +
+                    draft.dislikedIngredients.length >
+                  0,
+                // "Don't save it": nothing is stored; the sheet stays open with the notice.
+                onDeclined: () => setDeclined(true),
+              });
+            }}
           >
             Save changes
           </Button>
         }
       >
         <SafetyPicker value={draft} onChange={setDraft} testIDPrefix="household-you" />
+        {declined && <HealthDeclinedNotice testID="household-you-declined" />}
+        {/* Nested in the open Sheet: iOS can't present a Modal over a presenting one. */}
+        {healthConsentSheet}
       </Sheet>
     </>
   );
@@ -163,6 +182,9 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
   const [editing, setEditing] = useState<Member | null>(null);
   /** The chip the free ghost is showing (F-PM-12). */
   const [ghostKind, setGhostKind] = useState<HouseholdGhostKind | null>(null);
+  // T-26.2: a member's allergies/diets are health information — asked once, on the first save.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
+  const [safetyDeclined, setSafetyDeclined] = useState(false);
 
   // Member changes move plan warnings, list sizes and costs.
   const invalidate = () => {
@@ -230,17 +252,29 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
     if (!name.trim() || isSaving || atCap) {
       return;
     }
-    const payload = {
-      name: name.trim(),
-      portionFactor,
-      isKid,
-      ...memberSafety,
+    const base = { name: name.trim(), portionFactor, isKid };
+    const save = (payload: typeof base & Partial<SafetyPickerValue>) => {
+      if (editing) {
+        updateMutation.mutate({ id: editing.id, ...payload });
+      } else {
+        addMutation.mutate(payload);
+      }
     };
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, ...payload });
-    } else {
-      addMutation.mutate(payload);
-    }
+    setSafetyDeclined(false);
+    requestHealthConsent(() => save({ ...base, ...memberSafety }), {
+      // A member with only a name and a portion stores nothing health-related.
+      hasHealthData:
+        memberSafety.allergies.length +
+          memberSafety.dietaryRestrictions.length +
+          memberSafety.dislikedIngredients.length >
+        0,
+      // "Don't save it": keep the name/portion/kid answers, leave the allergy
+      // lists out (an edit keeps what is stored; an add stores none).
+      onDeclined: () => {
+        setSafetyDeclined(true);
+        save(base);
+      },
+    });
   };
 
   // Table summary (UX-02, CI-41): "{n} at the table · we'll check for …".
@@ -371,11 +405,13 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
         </>
       )}
       {saveError && <Text className="text-xs text-red-600">{saveError.message}</Text>}
+      {safetyDeclined && <HealthDeclinedNotice testID="household-member-declined" />}
     </Card>
   );
 
   return (
     <View className="gap-4">
+      {healthConsentSheet}
       {/* "You" card — always first (UX-01) */}
       {variant === 'screen' && <YouCard />}
 

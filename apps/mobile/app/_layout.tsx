@@ -15,6 +15,7 @@ import {
 } from '../src/features/gym/offline/query-persistence';
 import { useNotificationLinks } from '../src/features/notifications/use-notification-links';
 import { PremiumHost } from '../src/features/premium/premium-host';
+import { HealthConsentLaunchPrompt } from '../src/features/privacy/health-consent-launch-prompt';
 import { initAnalytics, track } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
@@ -123,6 +124,9 @@ export default function RootLayout() {
               <Stack.Screen name="legal/[doc]" />
             </Stack>
             <AiConsentHost />
+            {/* UX-26, Q-7 (pending counsel): data saved before health consent existed
+                is kept; the signed-in user is asked once per launch. */}
+            <HealthConsentLaunchPrompt signedIn={token !== null} />
             {/* T-10.2: renders the job-led premium sheet for openPremium(source). */}
             <PremiumHost />
             {/* T-39.1: re-accept sheet for an existing account whose stored

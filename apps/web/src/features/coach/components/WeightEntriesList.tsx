@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { trpc } from '@/lib/trpc';
 import { format } from 'date-fns';
@@ -27,6 +28,8 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
   const [value, setValue] = useState(shown);
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
+  // T-26.2: correcting a weigh-in stores health information too.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
 
   const invalidate = () => {
     void utils.tracker.weightHistory.invalidate();
@@ -55,7 +58,9 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
       return;
     }
     setError(null);
-    update.mutate({ id: entry.id, weightKg: parsed.kg });
+    requestHealthConsent(() => update.mutate({ id: entry.id, weightKg: parsed.kg }), {
+      onDeclined: () => setMode('view'),
+    });
   };
 
   const iconButton =
@@ -145,6 +150,7 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
           {error}
         </p>
       )}
+      {healthConsentSheet}
     </li>
   );
 }

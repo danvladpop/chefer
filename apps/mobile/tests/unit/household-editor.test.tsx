@@ -32,6 +32,16 @@ let mockTable: { people: unknown[]; hasRules: boolean; needsReview: boolean } = 
   needsReview: false,
 };
 
+// T-26.2: these tests are about the save itself — the health-consent guard is
+// covered in health-consent.test.tsx, so here consent is always on record.
+jest.mock('../../src/features/privacy/use-health-consent', () => ({
+  useHealthConsent: () => ({
+    consented: true,
+    requestHealthConsent: (run: () => void) => run(),
+    healthConsentSheet: null,
+  }),
+}));
+
 jest.mock('../../src/hooks/use-is-premium', () => ({
   useIsPremium: () => mockIsPremium,
 }));

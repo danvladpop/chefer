@@ -13,6 +13,16 @@ import { mutationResult, queryResult } from './onboarding-trpc-mock';
 // Both screens transitively import `../../src/lib/trpc` before this file's
 // own mock import would run, so the factory has to `require()` lazily — same
 // reasoning as gym-setup.test.tsx.
+// T-26.2: these tests are about the save itself — the health-consent guard is
+// covered in health-consent.test.tsx, so here consent is always on record.
+jest.mock('../../src/features/privacy/use-health-consent', () => ({
+  useHealthConsent: () => ({
+    consented: true,
+    requestHealthConsent: (run: () => void) => run(),
+    healthConsentSheet: null,
+  }),
+}));
+
 jest.mock('../../src/lib/trpc', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- see comment above
   const mock = require('./onboarding-trpc-mock') as typeof import('./onboarding-trpc-mock');

@@ -1,0 +1,172 @@
+# Health-information consent E2E (UX-26, T-26.2/T-26.4) — first allergy save asks,
+# "Don't save it" stores nothing, "Allow and save" stores it, Withdraw deletes.
+# Registers a throwaway account (1 register of the 10/15min per-IP budget).
+# Needs the dev app on a booted simulator, Metro up, and the local API up.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+
+# Whoever is signed in, sign out — this flow registers its own account.
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-title'
+    commands:
+      - tapOn: '.*More.*'
+      - scrollUntilVisible:
+          element:
+            id: 'logout-button'
+          direction: DOWN
+          centerElement: true
+      - tapOn:
+          id: 'logout-button'
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-title'
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-title'
+    commands:
+      - tapOn:
+          id: 'welcome-sign-in'
+
+# ── Register (age + terms boxes ticked — auth.flow.yaml covers the negative) ──
+- evalScript: ${output.email = 'maestro-privacy-' + Date.now() + '@e2e.chefer.dev'}
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 30000
+- tapOn:
+    id: 'login-to-register'
+- tapOn:
+    id: 'register-email'
+- inputText: ${output.email}
+- tapOn:
+    id: 'register-password'
+- inputText: 'Maestro@123!'
+- tapOn:
+    id: 'register-confirm-password'
+- inputText: 'Maestro@123!'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'register-accept-terms'
+- tapOn:
+    id: 'register-age-confirm'
+- tapOn:
+    id: 'register-submit'
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-skip'
+    timeout: 15000
+- tapOn:
+    id: 'onboarding-skip'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+
+# ── First allergy save asks for consent (AC1) ─────────────────────────────────
+- tapOn: '.*More.*'
+- tapOn:
+    id: 'more-settings'
+- tapOn:
+    id: 'settings-safety'
+- extendedWaitUntil:
+    visible:
+      id: 'preferences-safety'
+    timeout: 15000
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: 'Tree nuts'
+- tapOn: 'Tree nuts'
+- scrollUntilVisible:
+    element:
+      id: 'prefs-save-safety'
+- tapOn:
+    id: 'prefs-save-safety'
+- extendedWaitUntil:
+    visible:
+      id: 'health-consent-allow'
+    timeout: 10000
+- assertVisible: 'Can Chefer use this to plan your food?'
+
+# ── "Don't save it": nothing stored, amber notice (AC2) ───────────────────────
+- tapOn:
+    id: 'health-consent-decline'
+- extendedWaitUntil:
+    visible:
+      id: 'prefs-safety-declined'
+    timeout: 10000
+- assertVisible: 'Without this, Chefer can’t check plans for allergies.'
+- assertNotVisible: 'Saved ✓'
+
+# ── "Allow and save": consent recorded, the save goes through ─────────────────
+- tapOn:
+    id: 'prefs-save-safety'
+- extendedWaitUntil:
+    visible:
+      id: 'health-consent-allow'
+    timeout: 10000
+- tapOn:
+    id: 'health-consent-allow'
+- extendedWaitUntil:
+    visible: 'Saved ✓'
+    timeout: 15000
+- tapOn:
+    text: 'Back'
+    optional: true
+- swipe:
+    start: 1%, 50%
+    end: 85%, 50%
+    duration: 400
+
+# ── Profile › Privacy & data › Health information (T-26.4) ────────────────────
+- tapOn: '.*More.*'
+- tapOn:
+    id: 'more-profile'
+- extendedWaitUntil:
+    visible:
+      id: 'profile-title'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'profile-health-consent-status'
+    direction: DOWN
+    centerElement: true
+- assertVisible: 'Allowed on.*'
+
+# ── Withdraw and delete (AC3) ─────────────────────────────────────────────────
+- tapOn:
+    id: 'profile-health-withdraw'
+- extendedWaitUntil:
+    visible: 'Delete your health information?'
+    timeout: 10000
+- tapOn: 'Withdraw and delete'
+- extendedWaitUntil:
+    visible: 'Not allowed.*'
+    timeout: 15000
+- assertVisible:
+    id: 'profile-health-allow'

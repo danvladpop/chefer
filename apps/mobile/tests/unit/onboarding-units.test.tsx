@@ -8,6 +8,16 @@ import { OnboardingWizard } from '../../src/features/onboarding/onboarding-wizar
 // weight on the metrics step and checks it switches to metric with the
 // notice + Undo (AC11).
 
+// T-26.2: these tests are about the save itself — the health-consent guard is
+// covered in health-consent.test.tsx, so here consent is always on record.
+jest.mock('../../src/features/privacy/use-health-consent', () => ({
+  useHealthConsent: () => ({
+    consented: true,
+    requestHealthConsent: (run: () => void) => run(),
+    healthConsentSheet: null,
+  }),
+}));
+
 jest.mock('expo-router', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't close over top-of-file imports
   const { createElement } = require('react') as typeof import('react');

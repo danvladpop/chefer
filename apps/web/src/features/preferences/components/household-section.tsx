@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { StepDiet } from '@/features/onboarding/components/step-diet';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { HealthDeclinedNotice } from '@/features/privacy/components/HealthDeclinedNotice';
+import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { useEntitlement } from '@/hooks/useEntitlement';
 import { useHousehold, type HouseholdMemberDto } from '@/hooks/useHousehold';
 import { capture } from '@/lib/analytics';
@@ -134,111 +136,143 @@ export function MemberEditorSheet({
   const updateMutation = trpc.household.update.useMutation({ onSuccess: onSaved });
   const isSaving = addMutation.isPending || updateMutation.isPending;
   const error = addMutation.error ?? updateMutation.error;
+  // T-26.2: a member's allergies/diets are health information — asked once, on the first save.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
+  const [safetyDeclined, setSafetyDeclined] = useState(false);
 
   function handleSave() {
     if (!form.name.trim() || isSaving) return;
-    const payload = { ...form, name: form.name.trim() };
-    if (editing) updateMutation.mutate({ id: editing.id, ...payload });
-    else addMutation.mutate(payload);
+    const { dietaryRestrictions, allergies, dislikedIngredients, ...rest } = form;
+    const base = { ...rest, name: form.name.trim() };
+    const send = (
+      payload: typeof base &
+        Partial<Pick<MemberFormState, 'allergies' | 'dietaryRestrictions' | 'dislikedIngredients'>>,
+    ) => {
+      if (editing) updateMutation.mutate({ id: editing.id, ...payload });
+      else addMutation.mutate(payload);
+    };
+    setSafetyDeclined(false);
+    requestHealthConsent(
+      () => send({ ...base, dietaryRestrictions, allergies, dislikedIngredients }),
+      {
+        // A member with only a name and a portion stores nothing health-related.
+        hasHealthData:
+          allergies.length + dietaryRestrictions.length + dislikedIngredients.length > 0,
+        // "Don't save it": keep name/portion/kid, leave the allergy lists out
+        // (an edit keeps what is stored; an add stores none).
+        onDeclined: () => {
+          setSafetyDeclined(true);
+          send(base);
+        },
+      },
+    );
   }
 
   return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      title={editing ? `Edit ${editing.name}` : 'Add someone to your table'}
-      description="Their allergies and restrictions become hard rules for every plan. Portion size sets how much of each dish is theirs."
-      size="lg"
-      footer={
-        <div className="flex flex-col gap-2">
-          {error && <p className="text-sm text-red-600">{error.message}</p>}
-          <button
-            onClick={handleSave}
-            disabled={!form.name.trim() || isSaving}
-            className="min-h-11 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
-          >
-            {isSaving ? 'Saving…' : editing ? 'Save changes' : 'Add to my table'}
-          </button>
-        </div>
-      }
-    >
-      {/* The Sheet body has no padding of its own (audit F-ONB-3-3). */}
-      <div className="space-y-6 px-5 pb-4">
-        {/* Name */}
-        <div>
-          <label htmlFor="member-name" className="mb-1 block text-sm font-medium">
-            Name
-          </label>
-          <input
-            id="member-name"
-            type="text"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder={form.isKid ? 'e.g. Sam' : 'e.g. Maria'}
-            maxLength={60}
-            className="min-h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
+    <>
+      <Sheet
+        open={open}
+        onClose={onClose}
+        title={editing ? `Edit ${editing.name}` : 'Add someone to your table'}
+        description="Their allergies and restrictions become hard rules for every plan. Portion size sets how much of each dish is theirs."
+        size="lg"
+        footer={
+          <div className="flex flex-col gap-2">
+            {error && <p className="text-sm text-red-600">{error.message}</p>}
+            {safetyDeclined && <HealthDeclinedNotice testId="household-member-declined" />}
+            <button
+              onClick={handleSave}
+              disabled={!form.name.trim() || isSaving}
+              className="min-h-11 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+            >
+              {isSaving ? 'Saving…' : editing ? 'Save changes' : 'Add to my table'}
+            </button>
+          </div>
+        }
+      >
+        {/* The Sheet body has no padding of its own (audit F-ONB-3-3). */}
+        <div className="space-y-6 px-5 pb-4">
+          {/* Name */}
+          <div>
+            <label htmlFor="member-name" className="mb-1 block text-sm font-medium">
+              Name
+            </label>
+            <input
+              id="member-name"
+              type="text"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder={form.isKid ? 'e.g. Sam' : 'e.g. Maria'}
+              maxLength={60}
+              className="min-h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
 
-        {/* Portion */}
-        <div>
-          <p id="member-portion-label" className="mb-1 text-sm font-medium">
-            Portion size
-          </p>
-          <p className="mb-2 text-xs text-muted-foreground">
-            Relative to one standard serving — a kid eats about half.
-          </p>
-          <div role="group" aria-labelledby="member-portion-label" className="flex flex-wrap gap-2">
-            {PORTION_OPTIONS.map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, portionFactor: value }))}
-                aria-pressed={form.portionFactor === value}
-                className={`min-h-11 rounded-xl border px-3 py-1.5 text-sm font-medium transition ${
-                  form.portionFactor === value
-                    ? 'border-primary bg-primary/5 text-primary'
-                    : 'border-input text-muted-foreground hover:border-primary/40'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+          {/* Portion */}
+          <div>
+            <p id="member-portion-label" className="mb-1 text-sm font-medium">
+              Portion size
+            </p>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Relative to one standard serving — a kid eats about half.
+            </p>
+            <div
+              role="group"
+              aria-labelledby="member-portion-label"
+              className="flex flex-wrap gap-2"
+            >
+              {PORTION_OPTIONS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, portionFactor: value }))}
+                  aria-pressed={form.portionFactor === value}
+                  className={`min-h-11 rounded-xl border px-3 py-1.5 text-sm font-medium transition ${
+                    form.portionFactor === value
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-input text-muted-foreground hover:border-primary/40'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Kid toggle — the whole row is the 44px target */}
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={form.isKid}
+              onChange={(e) => {
+                const isKid = e.target.checked;
+                setForm((f) => ({
+                  ...f,
+                  isKid,
+                  // Ticking "kid" on a standard portion is almost always ½.
+                  portionFactor: isKid && f.portionFactor === 1 ? 0.5 : f.portionFactor,
+                }));
+              }}
+              className="h-5 w-5 accent-[#944a00]"
+            />
+            This is a kid
+          </label>
+
+          {/* Safety — the same editor onboarding uses (per-member) */}
+          <div className="rounded-xl border bg-muted/30 p-4">
+            <StepDiet
+              value={{
+                dietaryRestrictions: form.dietaryRestrictions,
+                allergies: form.allergies,
+                dislikedIngredients: form.dislikedIngredients,
+              }}
+              onChange={(diet) => setForm((f) => ({ ...f, ...diet }))}
+            />
           </div>
         </div>
-
-        {/* Kid toggle — the whole row is the 44px target */}
-        <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
-          <input
-            type="checkbox"
-            checked={form.isKid}
-            onChange={(e) => {
-              const isKid = e.target.checked;
-              setForm((f) => ({
-                ...f,
-                isKid,
-                // Ticking "kid" on a standard portion is almost always ½.
-                portionFactor: isKid && f.portionFactor === 1 ? 0.5 : f.portionFactor,
-              }));
-            }}
-            className="h-5 w-5 accent-[#944a00]"
-          />
-          This is a kid
-        </label>
-
-        {/* Safety — the same editor onboarding uses (per-member) */}
-        <div className="rounded-xl border bg-muted/30 p-4">
-          <StepDiet
-            value={{
-              dietaryRestrictions: form.dietaryRestrictions,
-              allergies: form.allergies,
-              dislikedIngredients: form.dislikedIngredients,
-            }}
-            onChange={(diet) => setForm((f) => ({ ...f, ...diet }))}
-          />
-        </div>
-      </div>
-    </Sheet>
+      </Sheet>
+      {healthConsentSheet}
+    </>
   );
 }
 
@@ -406,6 +440,10 @@ function YouRow() {
     ...classified.dietModifierIds,
   ].map(labelFor);
 
+  // T-26.2: your own allergies/diets are health information — asked once, on the first save.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
+  const [declined, setDeclined] = useState(false);
+
   const saveMutation = trpc.preferences.updateSafety.useMutation({
     onSuccess: () => {
       setOpen(false);
@@ -445,7 +483,18 @@ function YouRow() {
         size="lg"
         footer={
           <button
-            onClick={() => saveMutation.mutate(draft)}
+            onClick={() => {
+              setDeclined(false);
+              requestHealthConsent(() => saveMutation.mutate(draft), {
+                hasHealthData:
+                  draft.allergies.length +
+                    draft.dietaryRestrictions.length +
+                    draft.dislikedIngredients.length >
+                  0,
+                // "Don't save it": nothing is stored; the sheet stays open with the notice.
+                onDeclined: () => setDeclined(true),
+              });
+            }}
             disabled={saveMutation.isPending}
             className="min-h-11 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
           >
@@ -455,8 +504,14 @@ function YouRow() {
       >
         <div className="px-5 pb-4">
           <StepDiet value={draft} onChange={setDraft} />
+          {declined && (
+            <div className="mt-3">
+              <HealthDeclinedNotice testId="household-you-declined" />
+            </div>
+          )}
         </div>
       </Sheet>
+      {healthConsentSheet}
     </>
   );
 }
