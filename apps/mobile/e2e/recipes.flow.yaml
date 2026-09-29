@@ -15,7 +15,7 @@ appId: dev.chefer.app.dev
       visible:
         id: 'home-title'
     commands:
-      - tapOn: '.*More.*'
+      - tapOn: 'More(, tab.*)?'
       # Sign out sits low on More — on a 16e its centre is under the tab bar.
       - scrollUntilVisible:
           element:

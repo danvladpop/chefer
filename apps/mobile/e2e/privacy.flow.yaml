@@ -17,7 +17,7 @@ appId: dev.chefer.app.dev
       visible:
         id: 'home-title'
     commands:
-      - tapOn: '.*More.*'
+      - tapOn: 'More(, tab.*)?'
       - scrollUntilVisible:
           element:
             id: 'logout-button'
@@ -85,7 +85,7 @@ appId: dev.chefer.app.dev
     timeout: 15000
 
 # ── First allergy save asks for consent (AC1) ─────────────────────────────────
-- tapOn: '.*More.*'
+- tapOn: 'More(, tab.*)?'
 - tapOn:
     id: 'more-settings'
 - tapOn:
@@ -144,7 +144,7 @@ appId: dev.chefer.app.dev
     duration: 400
 
 # ── Profile › Privacy & data › Health information (T-26.4) ────────────────────
-- tapOn: '.*More.*'
+- tapOn: 'More(, tab.*)?'
 - tapOn:
     id: 'more-profile'
 - extendedWaitUntil:
@@ -179,7 +179,7 @@ appId: dev.chefer.app.dev
     visible:
       id: 'home-title'
     timeout: 30000
-- tapOn: '.*More.*'
+- tapOn: 'More(, tab.*)?'
 - scrollUntilVisible:
     element:
       id: 'logout-button'

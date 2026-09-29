@@ -8,7 +8,7 @@ appId: dev.chefer.app.dev
     visible:
       id: 'home-title'
     timeout: 30000
-- tapOn: '.*More.*'
+- tapOn: 'More(, tab.*)?'
 - tapOn:
     id: 'more-ai chef'
 - extendedWaitUntil:

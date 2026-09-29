@@ -68,7 +68,7 @@ appId: dev.chefer.app.dev
         id: 'home-title'
     commands:
       # Tab items expose labels like "More, tab, 5 of 5" — match loosely.
-      - tapOn: '.*More.*'
+      - tapOn: 'More(, tab.*)?'
       # Sign out sits low on More — on a 16e its centre is under the tab bar.
       - scrollUntilVisible:
           element:
@@ -176,7 +176,7 @@ appId: dev.chefer.app.dev
     visibilityPercentage: 50
 
 # ── Sign out from the More tab ───────────────────────────────────────────────
-- tapOn: '.*More.*'
+- tapOn: 'More(, tab.*)?'
 # Sign out sits low on More — on a 16e its centre is under the tab bar.
 - scrollUntilVisible:
     element:
@@ -222,7 +222,7 @@ appId: dev.chefer.app.dev
 # UX-25 (T-25.1, AC2): this device HAS signed in now, so Sign in reads
 # "Welcome back" — never the first-timer "Sign in" title, regardless of
 # whether Welcome showed at the top of this run.
-- tapOn: '.*More.*'
+- tapOn: 'More(, tab.*)?'
 # Sign out sits low on More — on a 16e its centre is under the tab bar.
 - scrollUntilVisible:
     element:
