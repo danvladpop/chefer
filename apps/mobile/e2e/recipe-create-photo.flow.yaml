@@ -43,13 +43,13 @@ appId: dev.chefer.app.dev
 - runFlow: common/pick-latest-photo.yaml
 # The result renders under the button, which can sit below the fold (Android).
 - scrollUntilVisible:
-    element: 'Remove photo'
+    element: 'Remove'
     direction: DOWN
     timeout: 60000
 - assertNotVisible: 'That photo is too big.*'
 - assertNotVisible: '.*\[object Object\].*'
 - assertNotVisible: '.*\b(413|500)\b.*'
-- tapOn: 'Remove photo'
+- tapOn: 'Remove'
 
 # ── Over the old 5 MB limit: uploads ──
 - addMedia:
