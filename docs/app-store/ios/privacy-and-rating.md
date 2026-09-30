@@ -1,12 +1,15 @@
 # App Privacy, age rating, export compliance
 
 Answers for the questionnaires in App Store Connect. They describe the **iOS app as it is on
-branch `feat/app-store-readiness`**: no analytics or crash SDK in the mobile app (the gym
-analytics module is a no-op stub, and Sentry for mobile has not been set up yet), and AI
-features run only after the user gives consent.
+`master` at wave 4 (30 Sep 2026)**: no third-party analytics or crash SDK in the binary; a small
+pure-JS usage-analytics transport that is **switched off in every build until a PostHog key is
+configured** (see "Usage analytics" below); a
+health-information consent (wave 3) and an AI data consent; and AI features that run only after
+the user gives consent.
 
-> **Re-check this page when anything below changes.** Adding Sentry or PostHog to the mobile
-> app, adding ads, adding Sign in with Google/Apple, or adding payments each changes the answers.
+> **Re-check this page when anything below changes.** Configuring a PostHog key for the mobile
+> app, adding Sentry to it, adding ads, adding Sign in with Google/Apple, or adding payments each
+> changes the answers.
 
 ---
 
@@ -36,15 +39,17 @@ For **every** data type below, answer:
 **Do not declare:** Location, Contacts, Financial Info, Purchases, Browsing/Search History,
 Device ID, Usage Data, Diagnostics, Sensitive Info, Audio.
 
-- **Usage Data / Diagnostics:** the web app uses PostHog and Sentry, but the iOS app ships
-  neither. When mobile Sentry lands (plan task M1-6), add _Diagnostics → Crash Data +
-  Performance Data (App Functionality, not linked)_.
+- **Usage Data / Diagnostics:** today, **do not declare either** (see the next section for why
+  and for the exact change the day a key is configured). The web app uses PostHog and Sentry,
+  but the iOS app ships neither SDK. When mobile Sentry lands (plan task M1-6), add
+  _Diagnostics → Crash Data + Performance Data (App Functionality, not linked)_.
 - **Health information consent (wave 3, UX-26):** the Health row above is unchanged (same data
   types, same purposes, still linked, not tracking). What changed is that the app now asks for
   the user's permission before storing any of it (a consent sheet on the first allergy, diet,
   goal, measurement or weigh-in save; separate from the AI consent) and Profile → Privacy & data
   → "Health information" lets the user withdraw it, which deletes that data. No change to the
-  App Store Connect answers is required. Copy and legal ground are pending counsel review.
+  App Store Connect answers is required. Copy and legal ground are pending counsel review
+  (tracked in [release-1-checklist.md](../release-1-checklist.md)).
 - **Sensitive Info:** Chefer has no halal/kosher or similar options that would reveal religion,
   so nothing to declare. Revisit if such diet options are added.
 - **Third-party AI (Groq, with Cloudflare Workers AI as the fallback):** Apple's label has no
@@ -61,6 +66,47 @@ Device ID, Usage Data, Diagnostics, Sensitive Info, Audio.
   in-app consent copy and the privacy policy together.
 - **YouTube embeds** on exercise detail screens load YouTube's own web player; this is covered
   by YouTube's own privacy terms, and Chefer does not receive that data.
+
+### Usage analytics (mobile JS transport, T-12 / T-39.6)
+
+Verified from code on `master` (wave 4):
+
+| Question                              | Answer from the code                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| What is it?                           | `apps/mobile/src/lib/analytics-transport.ts`: an in-memory queue and `fetch` to `https://eu.i.posthog.com/batch/` every 30 s and when the app goes to the background. No PostHog SDK, no native module, no advertising id, no ATT prompt.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Does it send anything in a build?     | **Only if `EXPO_PUBLIC_POSTHOG_KEY` and `EXPO_PUBLIC_POSTHOG_HOST` are both set at bundle time.** Unset = `enabled` is false, `enqueue` stores nothing and `fetch` is never called (unit test `no key configured…` in `apps/mobile/tests/unit/analytics.test.ts`). The host must be exactly `eu.i.posthog.com` or the app fails at startup.                                                                                                                                                                                                                                                                                                                                                                                        |
+| Are the variables set for production? | **No, not in anything the repository controls.** `apps/mobile/eas.json` → `build.production.env` sets only `APP_VARIANT` and `EXPO_PUBLIC_API_URL`; `apps/mobile/scripts/common.sh` (`use_production`) sets only `APP_VARIANT`, `EXPO_PUBLIC_API_URL`, `NODE_ENV`; the `mobile-update` job in `.github/workflows/deploy.yml` sets only `EXPO_TOKEN` and `EXPO_APPLE_TEAM_ID`. The owner's local `apps/mobile/.env` (sourced by the build scripts) has no PostHog variable on this machine (checked 30 Sep 2026, names only). **Owner must also confirm the EAS server-side environment variables** (expo.dev → project → Environment variables, or `eas env:list production`), which `eas build` injects and this repo cannot see. |
+| Opt-in or opt-out?                    | **Opt-out for anonymous counts, opt-in for linking.** Defaults are `anonymous: true`, `linked: false` (Q-8 default in `src/lib/analytics.ts`). Profile → Privacy & data → "Usage analytics" has two switches: "Send anonymous usage counts" (on by default) and "Link usage to my account" (off by default, disabled while the first is off). Turning the first off stops every network call at once (AC3) and turns linking off. Sign-out resets linking to off. Each change is also logged server-side (`privacy.recordAnalyticsConsent`, shown in Consent history).                                                                                                                                                             |
+| Distinct id                           | Unlinked: a random UUID created in memory at every cold start and never stored, so it is not a persistent device or user identifier. Linked: the account id (never name or email). **Known gap:** `setCurrentUserId()` is never called from the app (only defined in `analytics.ts`), so today even "Link usage to my account" still sends the random session id. Linking is therefore inert until that call is wired.                                                                                                                                                                                                                                                                                                             |
+| Properties sent                       | Only the typed `EventMap` (`packages/types/src/analytics-events.ts`) and the gym event map: counts, booleans and string-literal enums. A unit test fails if any event declares a free-text `string`, so no allergy, diet, weight, food name or message can be sent. No app version, OS, screen size or IP is added by the app; PostHog itself sees the request IP (see the PostHog project setting in the release checklist).                                                                                                                                                                                                                                                                                                      |
+
+**Answers for the build as it ships today (no key configured):** as in the table above. Do **not**
+declare Usage Data. Nothing is collected, so a "Yes" would be an over-declaration, and the
+privacy policy says the same.
+
+**The change to make the day a PostHog key is configured for a mobile build** (do it before the
+build that carries the key is submitted, and re-check on every later build):
+
+1. App Store Connect → App Privacy → Edit → Data Types → **Usage Data → Product Interaction** →
+   tick it.
+2. Purposes: **Analytics** only.
+3. **Linked to the user's identity:**
+   - **No** while `setCurrentUserId()` is not wired (every event carries a random per-launch id).
+   - **Yes** the day it is wired, because "Link usage to my account" then ties events to the
+     account id when the user opts in (Apple counts optional linking as linked).
+4. **Used for tracking:** **No** (no ads, no data brokers, no combining with third-party data).
+5. Leave Device ID, Advertising Data, Diagnostics and Other Usage Data unticked.
+6. Update the privacy policy's "In the app" paragraph (already written to cover both states; see
+   `apps/web/src/app/privacy/page.tsx`) and [android/data-safety.md](../android/data-safety.md).
+
+### Native modules added since 1.0.0 (5): no data collection
+
+- `expo-image-manipulator` (on-device photo resize, #65, already in 1.0.0 (5)): resizes a photo
+  the user picked, on the phone. Collects and sends nothing.
+- `expo-sharing` (wave 4 native release): opens the system share sheet for the data-export JSON
+  and the gym CSV as a named file (Android). Collects and sends nothing; the file goes only where
+  the user sends it.
+- Neither changes any answer on this page.
 
 ---
 
