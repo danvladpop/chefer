@@ -170,7 +170,8 @@ cd apps/mobile && npx eas-cli build --platform ios --profile production
   `EXPO_ASC_API_KEY_PATH`, `EXPO_ASC_KEY_ID`, `EXPO_ASC_ISSUER_ID` and `EXPO_APPLE_TEAM_ID`
   first, and there's no Apple ID prompt.
 - `autoIncrement` + `appVersionSource: remote` bump the build number on each build; the
-  marketing version comes from `app.config.js` (`1.0.0`).
+  marketing version comes from `app.config.js` (`1.0.1` since wave 4's native release; 1.0.0 (5) was
+  the first submission).
 
 Then upload it to App Store Connect:
 

@@ -2164,7 +2164,7 @@ App launch (production binary) → expo-updates asks u.expo.dev for the newest
 
 The first planned native change (named export files on Android, T-39.5). Installed
 binaries have the OLD runtime (iOS `3b4fb9f1…`, Android `d2efdaa7…`); the merge makes
-the JS require the NEW one (iOS `d221539b…`, Android `85dfe300…`), so the order matters:
+the JS require the NEW one (version 1.0.1: iOS `5d826a15…`, Android `d331c597…`), so the order matters:
 
 ```
 1. Merge the wave-4 PR to master → Deploy → API/web live → the mobile-update job

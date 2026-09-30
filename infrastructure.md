@@ -2586,14 +2586,16 @@ account needed. All scripts live in `apps/mobile/scripts/`, export
   through the scripts (same `.env`, same variant).
 - **Native release 1 (wave 4, T-39.5): `expo-sharing`.** The one planned native change of
   the persona-study programme (contents = `expo-sharing` 57.0.22 only; no config plugin, no
-  `ios/`/`android/` edit, no other native dependency). It changes the runtime fingerprint on
-  purpose (computed with `expo-updates runtimeversion:resolve`, production variant, before →
-  after the change):
+  `ios/`/`android/` edit, no other native dependency), shipped as marketing version **1.0.1**
+  (`app.config.js` `version`, also part of the fingerprint — 1.0.0 (5) was still in App Review,
+  so the next store build is 1.0.1, submitted after 1.0.0 is approved). It changes the runtime
+  fingerprint on purpose (computed with `expo-updates runtimeversion:resolve`, production variant,
+  `EXPO_APPLE_TEAM_ID=45TS85YK89`, before → after):
 
   | Platform | Old runtime (App Store 1.0.0 (5) / current Android binary) | New runtime                                |
   | -------- | ---------------------------------------------------------- | ------------------------------------------ |
-  | iOS      | `3b4fb9f10a9a3f8292903ff4f8281f0da8a2f286`                 | `d221539bc97aa211789366157b499613507e1690` |
-  | Android  | `d2efdaa7480aa779bbb5b6182216877bc1a2921c`                 | `85dfe3006e0a21c050a6e6505b4aa21b4466cfaf` |
+  | iOS      | `3b4fb9f10a9a3f8292903ff4f8281f0da8a2f286`                 | `5d826a157927348d77472c29e4bcdb7c8323e814` |
+  | Android  | `d2efdaa7480aa779bbb5b6182216877bc1a2921c`                 | `d331c597216501c67ad252bc620aa45b2b6b244b` |
 
   **Consequence:** every OTA published after this change merges (the deploy's `mobile-update`
   job included) targets ONLY the new runtime. It does **not** reach installed 1.0.0 (5) or the
