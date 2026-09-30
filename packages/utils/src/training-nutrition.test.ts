@@ -338,18 +338,15 @@ describe('hasTrainingDayBump — kinds and the widened gate (Q-3)', () => {
     expect(hasTrainingDayBump('PERFORMANCE', 'long_run', false)).toBe(false);
   });
 
-  it('widened: lift for GAIN_MUSCLE / RECOMP / PERFORMANCE, runs for every goal but LOSE_WEIGHT', () => {
-    for (const goal of ['GAIN_MUSCLE', 'RECOMP', 'PERFORMANCE']) {
-      expect(hasTrainingDayBump(goal, 'lift', true)).toBe(true);
+  it('Q-3 (owner, 2026-09-30): the flag no longer widens — runs never bump, other goals never bump', () => {
+    for (const goal of ['RECOMP', 'PERFORMANCE', 'MAINTAIN', 'LOSE_WEIGHT']) {
+      expect(hasTrainingDayBump(goal, 'lift', true)).toBe(false);
     }
-    expect(hasTrainingDayBump('MAINTAIN', 'lift', true)).toBe(false);
-    expect(hasTrainingDayBump('LOSE_WEIGHT', 'lift', true)).toBe(false);
     for (const goal of ['GAIN_MUSCLE', 'MAINTAIN', 'EAT_HEALTHIER', 'RECOMP', 'PERFORMANCE']) {
-      expect(hasTrainingDayBump(goal, 'run', true)).toBe(true);
-      expect(hasTrainingDayBump(goal, 'long_run', true)).toBe(true);
+      expect(hasTrainingDayBump(goal, 'run', true)).toBe(false);
+      expect(hasTrainingDayBump(goal, 'long_run', true)).toBe(false);
     }
-    expect(hasTrainingDayBump('LOSE_WEIGHT', 'run', true)).toBe(false);
-    expect(hasTrainingDayBump('LOSE_WEIGHT', 'long_run', true)).toBe(false);
+    expect(hasTrainingDayBump('GAIN_MUSCLE', 'lift', true)).toBe(true);
   });
 
   it('rest and no goal never bump', () => {
@@ -364,20 +361,10 @@ describe('trainingDayBonus by kind', () => {
     expect(trainingDayBonus(2980, 80, 'lift').proteinBonus).toBe(32);
   });
 
-  it('run and long run are carb-led: kcal only, no protein, all to carbs', () => {
-    const run = trainingDayBonus(2500, 70, 'run');
-    const long = trainingDayBonus(2500, 70, 'long_run');
-    expect(run.proteinBonus).toBe(0);
-    expect(long.proteinBonus).toBe(0);
-    expect(run.carbsBonus).toBe(Math.round(run.kcalBonus / 4));
-    expect(long.kcalBonus).toBeGreaterThan(run.kcalBonus);
-  });
-
-  it('clamps: a tiny base still gets the minimum, a huge one the cap', () => {
-    expect(trainingDayBonus(1200, 60, 'long_run').kcalBonus).toBe(200);
-    expect(trainingDayBonus(6000, 60, 'long_run').kcalBonus).toBe(450);
-    expect(trainingDayBonus(1200, 60, 'run').kcalBonus).toBe(100);
-    expect(trainingDayBonus(6000, 60, 'run').kcalBonus).toBe(250);
+  it('Q-3: run and long run never change the targets', () => {
+    const zero = { kcalBonus: 0, proteinBonus: 0, carbsBonus: 0 };
+    expect(trainingDayBonus(2500, 70, 'run')).toEqual(zero);
+    expect(trainingDayBonus(6000, 70, 'long_run')).toEqual(zero);
   });
 
   it('rest is zero', () => {

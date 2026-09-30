@@ -220,7 +220,7 @@ describe('TrainingNutritionService.targetsForDay — the bump gate (T-06.1, T-06
     expect(training?.trainingDay.applied).toBe(true);
   });
 
-  it('a long run is carb-led: kcal up, protein unchanged, kind reported (flag on)', async () => {
+  it('Q-3 (owner, 2026-09-30): a long run never moves the targets, even with the flag on', async () => {
     const { svc } = service({ ...lifter, days, kinds: { '5': 'long_run' }, widened: true });
     const { targets, training } = await svc.targetsForDay(
       'u1',
@@ -228,10 +228,8 @@ describe('TrainingNutritionService.targetsForDay — the bump gate (T-06.1, T-06
       { localDate: '2026-10-03', weekday: 5 },
       false,
     );
-    expect(training?.trainingDay.kind).toBe('long_run');
-    expect(training?.trainingDay.proteinBonus).toBe(0);
-    expect(training?.trainingDay.kcalBonus).toBeGreaterThanOrEqual(200);
-    expect(training?.adjustedTargets?.proteinG).toBe(targets.proteinG);
+    expect(training?.trainingDay.isTrainingDay).toBe(false);
+    expect(training?.adjustedTargets?.calories ?? targets.calories).toBe(targets.calories);
   });
 
   it('run kinds do nothing while the widened gate is off (today)', async () => {
@@ -256,7 +254,7 @@ describe('TrainingNutritionService.targetsForDay — the bump gate (T-06.1, T-06
     expect(training).toBeNull();
   });
 
-  it('a runner with no gym profile still gets the run bump when widened', async () => {
+  it('Q-3: a runner with no gym profile gets no run bump, even with the flag on', async () => {
     const { svc } = service({ kinds: { '5': 'run' }, widened: true });
     const { training } = await svc.targetsForDay(
       'u1',
@@ -264,8 +262,8 @@ describe('TrainingNutritionService.targetsForDay — the bump gate (T-06.1, T-06
       { localDate: '2026-10-03', weekday: 5 },
       false,
     );
-    expect(training?.trainingDay.kind).toBe('run');
-    expect(training?.trainingDay.applied).toBe(true);
+    expect(training?.trainingDay.applied ?? false).toBe(false);
+    expect(training?.trainingDay.kcalBonus ?? 0).toBe(0);
   });
 });
 
@@ -318,7 +316,7 @@ describe('TrainingNutritionService.trainingWeek (T-06.2)', () => {
     expect(trainingDays[0]).toMatchObject({ kcalBonus: 0, proteinBonus: 0, applied: false });
   });
 
-  it('a Saturday long run reports its kind and the Friday snack idea (flag on)', async () => {
+  it('a Saturday long run reports its kind and the Friday snack idea, no bonus (flag on)', async () => {
     const { svc } = service({ kinds: { '5': 'long_run' }, widened: true });
     const { trainingDays } = await svc.trainingWeek(
       'u1',
@@ -327,7 +325,8 @@ describe('TrainingNutritionService.trainingWeek (T-06.2)', () => {
       false,
     );
     expect(trainingDays).toHaveLength(1);
-    expect(trainingDays[0]).toMatchObject({ dayOfWeek: 5, kind: 'long_run', applied: true });
+    // Q-3: a marker only — no bonus.
+    expect(trainingDays[0]).toMatchObject({ dayOfWeek: 5, kind: 'long_run', kcalBonus: 0 });
     expect(trainingDays[0]?.preRunSnack).toBeTruthy();
   });
 

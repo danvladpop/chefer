@@ -34,10 +34,9 @@ import type {
 //    target (rounded to 10, kept within 150–300 kcal); the kcal not covered
 //    by the extra protein goes to carbs.
 //    UX-06 (rev 2) adds weekday KINDS: `lift` keeps the protein-led bump above;
-//    `run` and `long_run` get carb-led bumps (RUN_DAY_KCAL / LONG_RUN_DAY_KCAL),
-//    and a long run adds an evening-before carb snack idea. The widened goal
-//    gate (Q-3) sits behind the `trainingBumpFree` flag — see
-//    `hasTrainingDayBump`.
+//    `run` and `long_run` are markers only (owner decision Q-3, 2026-09-30:
+//    they never change calorie or protein targets); a long run adds an
+//    evening-before carb snack idea. See `hasTrainingDayBump`.
 // 3. Post-workout meal (every tier): ~0.4 g protein per kg (per-meal dose
 //    from Schoenfeld & Aragon 2018), rounded to 5 g, 20–45 g; 30 g when
 //    bodyweight is unknown.
@@ -125,24 +124,17 @@ export function lifterProteinGPerKg(goal: string | null | undefined): number | n
 
 /**
  * Whether a user with this goal gets the training-day bump on a day of this
- * kind. Unwidened (the default, `trainingBumpFree` off): GAIN_MUSCLE lift days
- * only — exactly today's behaviour. Widened (Q-3, behind the flag): lift days
- * for GAIN_MUSCLE / RECOMP / PERFORMANCE, and run / long-run days for every
- * goal except LOSE_WEIGHT (eating training calories back would erode a cut's
- * deficit). placeholder pending dietitian review (Q-3): the widened gate and
- * the run-day numbers below are unreviewed.
+ * kind: GAIN_MUSCLE lift days only. Owner decision 2026-09-30 (Q-3): run and
+ * long-run days are markers only — they never change calorie or protein
+ * targets, and the bump is not widened to other goals. `widened` is kept for
+ * call-site compatibility and ignored.
  */
 export function hasTrainingDayBump(
   goal: string | null | undefined,
   kind: DayKind = 'lift',
-  widened = false,
+  _widened = false,
 ): boolean {
-  if (!goal || kind === 'rest') return false;
-  if (kind === 'lift') {
-    if (goal === 'GAIN_MUSCLE') return true;
-    return widened && (goal === 'RECOMP' || goal === 'PERFORMANCE');
-  }
-  return widened && goal !== 'LOSE_WEIGHT';
+  return kind === 'lift' && goal === 'GAIN_MUSCLE';
 }
 
 /** `run` and `long_run` — the carb-led kinds. */
@@ -207,32 +199,17 @@ export interface TrainingDayBonus {
 }
 
 /**
- * Run-day bumps are carb-led: kcal only, no extra protein, every extra kcal
- * goes to carbs. placeholder pending dietitian review (Q-3): these shares and
- * clamps are engineering placeholders, not reviewed nutrition advice.
- */
-export const RUN_DAY_KCAL = { share: 0.08, min: 100, max: 250 } as const;
-/** A long run fuels more: a larger carb-led bump. placeholder pending dietitian review (Q-3). */
-export const LONG_RUN_DAY_KCAL = { share: 0.15, min: 200, max: 450 } as const;
-
-/**
  * The training-day bump for this base calorie target. `lift` (default) is
- * the protein-led bump for a lifter with this bodyweight; `run` / `long_run`
- * are carb-led (no protein bonus, kcal share of the base, all to carbs);
- * `rest` is zero.
+ * the protein-led bump for a lifter with this bodyweight; `rest`, `run` and
+ * `long_run` are zero (Q-3: run days never change the targets).
  */
 export function trainingDayBonus(
   baseKcal: number,
   bodyweightKg: number,
   kind: DayKind = 'lift',
 ): TrainingDayBonus {
-  if (kind === 'rest') return { kcalBonus: 0, proteinBonus: 0, carbsBonus: 0 };
-  if (isRunKind(kind)) {
-    const rule = kind === 'long_run' ? LONG_RUN_DAY_KCAL : RUN_DAY_KCAL;
-    const raw = Math.round((baseKcal * rule.share) / 10) * 10;
-    const kcalBonus = Math.min(rule.max, Math.max(rule.min, raw));
-    return { kcalBonus, proteinBonus: 0, carbsBonus: Math.round(kcalBonus / 4) };
-  }
+  // Q-3 (owner, 2026-09-30): rest and run days never move the targets.
+  if (kind === 'rest' || isRunKind(kind)) return { kcalBonus: 0, proteinBonus: 0, carbsBonus: 0 };
   const raw = Math.round((baseKcal * TRAINING_DAY_KCAL.share) / 10) * 10;
   const kcalBonus = Math.min(TRAINING_DAY_KCAL.max, Math.max(TRAINING_DAY_KCAL.min, raw));
   const proteinBonus = Math.round(

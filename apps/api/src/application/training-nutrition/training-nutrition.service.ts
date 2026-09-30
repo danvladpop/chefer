@@ -232,7 +232,7 @@ export class TrainingNutritionService {
     };
   }
 
-  /** Whether the Q-3 widened bump gate is on (`trainingBumpFree`, off by default). */
+  /** Whether `trainingBumpFree` is on (D-2: free users get the lift bump; off by default). */
   isBumpWidened(): Promise<boolean> {
     return this.bumpFlag();
   }

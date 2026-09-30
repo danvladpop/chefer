@@ -1337,14 +1337,11 @@ stored kind. `TrainingNutritionService.trainingWeek` resolves them for the
 plan week.
 
 **Bumps by kind (deterministic, no AI).** `lift` keeps the protein-led bump
-(§10.1). `run` and `long_run` are carb-led: kcal only (`RUN_DAY_KCAL` 8 %,
-100–250; `LONG_RUN_DAY_KCAL` 15 %, 200–450), no extra protein, everything to
-carbs; a long run adds an evening-before carb snack idea shown on the
-previous day. **The numbers are placeholders pending dietitian review
-(Q-3).** Who gets what: unwidened (default) — GAIN_MUSCLE lift days only, as
-before; widened (Q-3, behind the server flag `trainingBumpFree`, off by
-default) — lift for GAIN_MUSCLE / RECOMP / PERFORMANCE, run and long run for
-every goal except LOSE_WEIGHT.
+(§10.1) for GAIN_MUSCLE lifters only. `run` and `long_run` are **markers only**:
+they show a glyph, a header and the Explain sheet but never change calorie or
+protein targets (owner decision Q-3, 2026-09-30 — no widening to other goals,
+no run-day numbers). A long run still adds an evening-before carb snack idea
+on the previous day.
 
 **Free vs premium (D-2).** The bump on Today, the tracker and the plan's day
 targets is gated by `trainingDayTargets` (premium) OR the flag
@@ -1403,7 +1400,8 @@ dinners` (planned dinners only). Sharing is not an AI call.
 
 ### 10.5 Household first week free and the pool-exhausted card (T-10.4, D-7)
 
-Flag `householdFirstWeekFree` (off by default): the first curated week
+Flag `householdFirstWeekFree` (off; **owner decision 2026-09-30 (Q-2/D-7): no free
+week — household scaling stays premium-only, the flag stays off**): the first curated week
 generated for a free household is sized for the table (plan cost and the
 `Sized for your table of {n} — free for your first week` line, `firstScaledWeek`
 on the plan); `ChefProfile.freeScaledWeekStart` records it once. From week 2 the
@@ -3950,9 +3948,12 @@ allergy lists; onboarding's other steps; preferences' units/cuisine). An amber n
 dismissible `Plans aren’t being checked for allergies` / `Allow health information` card
 (`HealthConsentTodayNotice`, mounted by the dashboard lane).
 
-**4. Existing data (Q-7, owner default, PENDING COUNSEL).** Data stored before this consent existed is kept; on the
+**4. Existing data (Q-7 — owner chose (a) keep + ask, 2026-09-30; wording still PENDING COUNSEL).** Data stored before this consent existed is kept; on the
 next launch `HealthConsentLaunchPrompt` opens the sheet once per launch/session if health data exists but consent
 doesn't. "Don't save it" changes nothing stored.
+
+**5. Enforcement (Q-10, owner 2026-09-30).** `HEALTH_CONSENT_ENFORCE` goes to `declared` (wave 4, after both
+installed builds show the wave-3 OTA) and stays there — `all` is not planned.
 
 **5. Withdraw (Profile › Privacy & data › Health information).** Shows `Allowed on {date}`; `Withdraw and delete` →
 confirm (`Delete your health information?`) → `privacy.withdrawHealthData({ confirm: 'WITHDRAW' })`: one transaction

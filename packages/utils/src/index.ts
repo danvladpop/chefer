@@ -297,8 +297,6 @@ export {
   hasTrainingDayBump,
   isLifter,
   isRunKind,
-  LONG_RUN_DAY_KCAL,
-  RUN_DAY_KCAL,
   lifterProteinGPerKg,
   lifterProteinNote,
   postWorkoutProteinG,

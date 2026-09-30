@@ -1777,14 +1777,10 @@ Read-only bridge from the gym to the food side; the rules are pure functions in
   server flag `trainingBumpFree` onto it (`bumpFlag`, lazy `lib/flags` import
   so pure unit tests never load env), so the flag opens the bump to free
   users at every call site. `trainingNutrition` now means only "build the
-  week around training days". **Widened gate (Q-3, same flag, off by
-  default):** `hasTrainingDayBump(goal, kind, widened)` — unwidened =
-  GAIN_MUSCLE lift days only (today); widened = lift for GAIN_MUSCLE /
-  RECOMP / PERFORMANCE and run / long-run days for every goal except
-  LOSE_WEIGHT. The run-day carb numbers (`RUN_DAY_KCAL`, `LONG_RUN_DAY_KCAL`)
-  are placeholders pending dietitian review (Q-3). A runner without a gym
-  profile gets the run bump (no bodyweight needed — carb-led, protein
-  unchanged).
+  week around training days". **Q-3 (owner decision 2026-09-30): no widening.**
+  `hasTrainingDayBump(goal, kind)` is true for GAIN_MUSCLE lift days only;
+  `run` / `long_run` days are markers (glyph, header, Explain) and
+  `trainingDayBonus` returns zero for them — they never change targets.
 - `trainingWeek(userId, profile, weekStart, access, utc?)` →
   `{ trainingDays: PlanTrainingDay[], basis }` (UX-06, T-06.2) — one entry per
   weekday that is a lift day (routine weekday or a completed workout that
@@ -1801,7 +1797,7 @@ Read-only bridge from the gym to the food side; the rules are pure functions in
   names and honest diet tags) run through the one safety filter
   (`isRecipeSafe`, owner + household union): no yogurt for a dairy allergy, no
   eggs for egg-free.
-- `isBumpWidened()` — whether the Q-3 widened gate is on.
+- `isBumpWidened()` — whether `trainingBumpFree` is on (D-2 free access; Q-3 widening was declined).
 - `previewTargets(userId, metrics)` → `MacroTargets & { lifter }` — backs
   `preferences.computeTargets` (the preferences-form macro preview): the goal
   split for the typed metrics, with the lifter protein rule applied (and
@@ -1955,7 +1951,7 @@ in ONE `prisma.$transaction`: the repositories expose un-awaited operations — 
 `ConsentEvent` create (written directly, not through `ConsentService.record`, so it can share the transaction).
 `userRepository.findHealthConsentAt` is the read `requireHealthConsent` uses. **Consistency with
 `account-data.service.ts`:** `exportAccountData` now includes `user.healthDataConsentAt`; `deleteAccount` needs no change
-(every health table cascades from `User`; no new table). **Q-7 default (PENDING COUNSEL):** data saved before the consent existed is kept,
+(every health table cascades from `User`; no new table). **Q-7 (owner chose (a), 2026-09-30; wording PENDING COUNSEL):** data saved before the consent existed is kept,
 clients ask on next launch (`HealthConsentLaunchPrompt`), consent-based ground for all health fields.
 
 `SafetyService.logFilterAudit` / `buildFilterAudit` (T-26.7) build the `safety.filter` evidence line (pool size, kept,
@@ -2187,7 +2183,8 @@ training? { kind, status: planned|done, workoutName } }`) and `refuelSnacks?`
   `nutrition.trainingDay` gains `kind?` and `carbsBonus?`; its `applied` is
   true for free users when the server flag `trainingBumpFree` is on.
 - Plan responses gain `firstScaledWeek?: true` (T-10.4, D-7): with the flag
-  `householdFirstWeekFree` on (off by default), the first curated week
+  `householdFirstWeekFree` on (off — owner decision 2026-09-30, Q-2/D-7: stays off,
+  household scaling is premium-only), the first curated week
   generated for a free household is sized for the table
   (`ChefProfile.freeScaledWeekStart` records it once per account; the plan cost
   reads the table's portion sum for that week). The shopping-list quantities

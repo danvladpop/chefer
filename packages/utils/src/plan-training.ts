@@ -74,7 +74,7 @@ export function buildPlanTrainingDays(input: {
   base: NutritionTargets;
   bodyweightKg: number | null;
   goal: string | null;
-  /** The Q-3 widened gate (`trainingBumpFree`). */
+  /** `trainingBumpFree` (D-2). Since Q-3 (2026-09-30) it no longer widens who gets a bump. */
   widened: boolean;
   /** Whether the lifter rules apply (set-up gym profile + bodyweight + goal rule). */
   lifter: boolean;
@@ -306,10 +306,9 @@ export function trainingExplainCopy(input: {
   }
   return {
     eyebrow: 'Why this target',
-    title:
-      runs.length + longRuns.length > 0 && lifts.length === 0
-        ? 'More food on run days'
-        : 'More food on training days',
+    // Q-3 (owner, 2026-09-30): run days never raise targets, so only a week
+    // with a real bonus may promise more food.
+    title: days.some((d) => d.kcalBonus > 0) ? 'More food on training days' : 'Your training days',
     sentence: parts.join(' '),
     rows,
     footnote: 'Change your training days in Gym settings.',

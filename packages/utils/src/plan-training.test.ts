@@ -69,7 +69,7 @@ describe('buildPlanTrainingDays', () => {
     expect(d).toMatchObject({ kcalBonus: 0, proteinBonus: 0, applied: false });
   });
 
-  it('AC0: a Saturday long run is carb-led and carries the Friday snack idea (widened)', () => {
+  it('AC0: a Saturday long run is a marker with the Friday snack idea — no target change (Q-3)', () => {
     const [d] = buildPlanTrainingDays({
       ...input,
       goal: 'PERFORMANCE',
@@ -77,8 +77,7 @@ describe('buildPlanTrainingDays', () => {
       lifter: false,
       days: week({ 5: longRun }),
     });
-    expect(d).toMatchObject({ dayOfWeek: 5, kind: 'long_run', applied: true, proteinBonus: 0 });
-    expect(d?.kcalBonus).toBeGreaterThanOrEqual(200);
+    expect(d).toMatchObject({ dayOfWeek: 5, kind: 'long_run', kcalBonus: 0, proteinBonus: 0 });
     expect(d?.preRunSnack).toBeTruthy();
   });
 
@@ -139,10 +138,11 @@ describe('copy', () => {
     expect(h.a11yLabel).toContain('Explains why.');
   });
 
-  it('AC0: the long-run header reads "Long run day · +N kcal, mostly carbs"', () => {
+  it('AC0: the long-run header names the day and never quotes kcal (Q-3)', () => {
     const h = trainingDayHeaderCopy(must(runDay));
-    expect(h.title).toMatch(/^Long run day · \+\d+ kcal, mostly carbs$/);
+    expect(h.title).toBe('Long run day · Saturday');
     expect(h.bonusLine).toBeNull();
+    expect(JSON.stringify(h)).not.toMatch(/kcal/);
   });
 
   it('a non-goal user sees the title only — no kcal (T-06.4)', () => {
@@ -198,14 +198,14 @@ describe('copy', () => {
     expect(e.sentence).not.toContain('Chefer adds');
   });
 
-  it('run-only weeks say run days', () => {
+  it('run-only weeks never promise more food (Q-3)', () => {
     const days = buildPlanTrainingDays({
       ...input,
       goal: 'PERFORMANCE',
       widened: true,
       days: week({ 1: { ...longRun, kind: 'run' } }),
     });
-    expect(trainingExplainCopy({ days, basis: null }).title).toBe('More food on run days');
+    expect(trainingExplainCopy({ days, basis: null }).title).toBe('Your training days');
   });
 });
 
@@ -230,7 +230,8 @@ describe('buildPremiumChanges (T-10.7)', () => {
       tolerance: 0.15,
     });
     expect(r.lines[0]).toBe('Built around your lift day (Tue)');
-    expect(r.lines.some((l) => l.includes('long run (Sat)'))).toBe(true);
+    // Q-3: run days never raise targets, so there is no run line.
+    expect(r.lines.some((l) => l.includes('long run'))).toBe(false);
     expect(r.lines).toContain('2 of your favourites made it into the week');
     expect(r.lines[r.lines.length - 1]).toMatch(/^Meets your 2,500 kcal target on \d of 7 days$/);
     expect(r.targetHits + r.missDays).toBe(7);
