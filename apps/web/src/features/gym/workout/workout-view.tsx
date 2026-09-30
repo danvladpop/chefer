@@ -74,6 +74,12 @@ export function WorkoutView() {
   // UX-05 A1 (T-05.A1.2 web parity): the set-number menu already removed a
   // set with no confirm; this adds the same 8 s Undo the mobile long-press/⋯
   // path has, restoring the set at its original position with its values.
+  // Owner dogfood 2026-09-30 (mobile parity): `Remove exercise`, undone in place.
+  const [undoRemoveExercise, setUndoRemoveExercise] = useState<{
+    exercise: WorkoutSessionDoc['exercises'][number];
+    index: number;
+    name: string;
+  } | null>(null);
   const [undoRemove, setUndoRemove] = useState<{
     seId: string;
     set: SessionSetDoc;
@@ -475,6 +481,20 @@ export function WorkoutView() {
               }}
             />
             <ActionItem
+              icon={Trash2}
+              label="Remove exercise"
+              onClick={() => {
+                const index = exercises.findIndex((e) => e.id === actionsSe.id);
+                act({ type: 'removeExercise', seId: actionsSe.id });
+                setUndoRemoveExercise({
+                  exercise: actionsSe,
+                  index,
+                  name: lookup(actionsSe.exerciseId)?.name ?? 'exercise',
+                });
+                setActionsFor(null);
+              }}
+            />
+            <ActionItem
               icon={Plus}
               label="Add set"
               onClick={() => {
@@ -631,6 +651,25 @@ export function WorkoutView() {
                 index: undoRemove.index,
               });
               setUndoRemove(null);
+            },
+          }}
+        />
+      )}
+
+      {undoRemoveExercise && (
+        <Toast
+          message={`Removed ${undoRemoveExercise.name}`}
+          onClose={() => setUndoRemoveExercise(null)}
+          duration={8000}
+          action={{
+            label: 'Undo',
+            onClick: () => {
+              act({
+                type: 'restoreExercise',
+                exercise: undoRemoveExercise.exercise,
+                index: undoRemoveExercise.index,
+              });
+              setUndoRemoveExercise(null);
             },
           }}
         />

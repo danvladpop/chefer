@@ -2436,10 +2436,13 @@ d Mon}`) on every completed row of Gym Today `Recent` and Stats › History,
   (`workout/edit-session-screen.tsx`): the logger over a **draft** held in
   `use-edit-session.ts` — never the live `activeSessionStore`, so a workout in
   progress is untouched (AC3). No clock, rest timer, auto-advance or
-  Why?/Next-time banners. `Cancel · Editing {weekday d Mon} · Save` header with a
-  `Change ›` sheet (date chips from Monday of last week to today plus the
-  session's own day, and the kit `TimePicker`; `rescheduleSession()` clamps to
-  now so the date is never in the future, AC6). Exercise `⋯`: `Replace exercise`
+  Why?/Next-time banners. `Cancel · Editing {weekday d Mon} · Save` header over
+  `{name} · {weekday d Mon} · {n} min` with a `Change ›` sheet — since owner
+  dogfood 2026-09-30 just a `‹ date ›` stepper (Monday of last week → today,
+  plus the session's own day) and a duration in minutes
+  (`workout/session-when-fields.tsx`); no clock time — the start keeps the
+  original time of day. `retimeSession()` pulls a session that would end after
+  now back to end at now, so it is never in the future (AC6). Exercise `⋯`: `Replace exercise`
   (straight to the picker, this workout only — the logged numbers carry over,
   the routine link is untouched and no routine option is ever offered, AC5;
   candidates stay in the same family: strength/cardio and timed/untimed),
@@ -2602,7 +2605,8 @@ Finish → confirm if working sets are unticked → finish() → summary
   stay ± only on both platforms (adjusting a whole set of reps at once by typing
   one number is not obviously the right UI, and the ± range is small)
 Android back / ⌄ → minimise (the session stays resumable from Today); Discard is confirmed
-Remove any set (logged or not) → mobile: long-press its row, its ⋯, or swipe the row left
+Remove any set (logged or not) → mobile: long-press its row, its ✕ (an ⋯ until owner dogfood
+  2026-09-30 — it never opened a menu, so it now looks like what it does), or swipe the row left
   (`SwipeToRemove`, PAT-16, Δ2.6 — PanResponder + Reanimated, no native gesture-handler dep;
   claims the gesture only on clear horizontal intent so it never fights the workout
   `ScrollView`, and is always paired with the ⋯/long-press path, which alone satisfies every
@@ -2611,6 +2615,10 @@ Remove any set (logged or not) → mobile: long-press its row, its ⋯, or swipe
   at its position with its values and tick (`restoreSet`, UX-05 A1/T-05.A1.2). Warm-ups and
   working sets alike; positions stay contiguous. The exercise ⋯ menu's "Remove last set" removes
   the last unlogged set, or the last set once every set is logged.
+Remove an exercise → exercise ⋯ → "Remove exercise" (mobile + web, owner dogfood 2026-09-30):
+  drops it from this workout only (never the routine), no confirm; `Undo` for 8 s puts it back
+  at its position with its sets and ticks (`restoreExercise` reducer action). "Skip exercise"
+  stays for "not today".
 ```
 
 ### Progression: the working weight and "next time" (T-05.1, B-07/B-08)
@@ -2745,16 +2753,35 @@ your rest is over, even with the phone locked?` / `Allow notifications` /
   (`workout/rest-timer-bar.tsx`) — never cold, never more than once per
   device.
 - **Streak repair — "Log a workout you already did" (mobile + web, G4-A;
-  was "Log a past workout"):** pick a date in the current or previous week,
-  today included (never the future), then a routine day or freestyle. Today
-  starts a normal session now (an 18:00 backdate could be in the future);
-  an earlier date starts a session backdated to that date's `localDate` with
-  `startedAt` at 18:00 local (`use-active-workout.ts`'s `backfillDate`); the
-  user logs the actual sets in the normal workout screen and finishes like
-  any other session. The engine folds it into `summarizeWeeks` by the week it
-  happened in and into progression by `performedAt` — never by upload order —
-  so a backfill logged after today's session still lands in the right place
-  chronologically.
+  was "Log a past workout"):**
+  - **Mobile (owner dogfood 2026-09-30): log mode, no timer.** One sheet —
+    `Which workout did you do?` (routine days + Freestyle); it navigates only
+    after the sheet has fully closed (`Sheet.onExited`). The old two-sheet
+    flow (date, then day) closed one Modal and opened the next in the same
+    frame, which iOS refuses — the invisible Modal swallowed every tap (the
+    iPhone "app freezes" report). The pick opens
+    `/gym/workout?log={YYYY-MM-DD}[&day={routineDayId}]`: the past-workout
+    logger (`LogSessionScreen`, same editor as edit mode) over a NEW draft
+    (`use-log-session.ts`) — the day's exercises at their target numbers
+    (warm-ups left out) or an empty freestyle, never the live
+    `activeSessionStore`. `Cancel · Log workout · Save`, with the date
+    (`‹ date ›`, Monday of last week → today, starts on today) and a duration
+    (defaults to the day's estimate, else 60 min) inline. Sets have no ✓:
+    every listed set counts; ✕ removes one. Save (`saveLoggedSession()`)
+    completes every listed strength set at its numbers (`completeLoggedSession`),
+    stamps the session start at 18:00 on that day (pulled back so it never
+    ends after now) → outbox → optimistic fold, exactly like a finished
+    workout. An empty log can't be saved.
+  - **Web (unchanged, ported later — `mobile_parity_backlog.md`):** pick a
+    date in the current or previous week, today included (never the future),
+    then a routine day or freestyle. Today starts a normal session now (an
+    18:00 backdate could be in the future); an earlier date starts a session
+    backdated to that date's `localDate` with `startedAt` at 18:00 local
+    (`use-active-workout.ts`'s `backfillDate`); the user logs the actual sets
+    in the normal workout screen and finishes like any other session. The engine folds it into `summarizeWeeks` by the week it
+    happened in and into progression by `performedAt` — never by upload order —
+    so a backfill logged after today's session still lands in the right place
+    chronologically.
 - **Contextual offers:** at most one of comeback / deload / stall / recap is
   shown at a time, in that priority order (`pickOffer` in `@chefer/utils`,
   shared by mobile and web so they never disagree — the web previously just

@@ -1,5 +1,6 @@
 import { memo, useCallback } from 'react';
 import { Pressable, Text as RNText, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type {
   EquipmentProfile,
   ExerciseMeta,
@@ -25,7 +26,7 @@ export interface SetRowHandlers {
   onReps: (seId: string, setId: string, reps: number) => void;
   onOpenWeight: (seId: string, setId: string) => void;
   onOpenReps: (seId: string, setId: string) => void;
-  /** Long-press on the row: set options (remove). */
+  /** Long-press / swipe / ✕ on the row: remove the set (Undo in the snackbar). */
   onLongPress: (seId: string, setId: string) => void;
 }
 
@@ -42,10 +43,14 @@ export interface SetRowProps {
   prKind: PrKind | null;
   /** The set to do next (the workout's focus): outlined. */
   focused?: boolean;
+  /** False in log mode, where every listed set counts (no ✓ to tick). */
+  showCheck?: boolean;
   handlers: SetRowHandlers;
   testID: string;
 }
 
+/** muted-foreground — Ionicons takes a colour, not a class. */
+const MUTED_ICON = '#6b7280';
 const MAX_REPS = 100;
 const MAX_SECONDS = 3600;
 const TIMED_STEP = 5;
@@ -70,6 +75,7 @@ function SetRowImpl({
   weightMode,
   prKind,
   focused = false,
+  showCheck = true,
   handlers,
   testID,
 }: SetRowProps) {
@@ -148,17 +154,19 @@ function SetRowImpl({
               </RNText>
             </View>
           ) : null}
-          {/* UX-05 A1 (T-05.A1.2, PAT-16): a visible ⋯ on every set's label
-            line, opening the same remove options as long-press. */}
+          {/* UX-05 A1 (T-05.A1.2, PAT-16): a visible remove control on every
+            set's label line, same path as long-press/swipe. An ✕, not a ⋯
+            (owner dogfood 2026-09-30): it removes the set outright — Undo is
+            in the snackbar — so it must not look like a menu. */}
           <Pressable
             testID={`${testID}-menu`}
             accessibilityRole="button"
-            accessibilityLabel={`Options for ${label}`}
+            accessibilityLabel={`Remove ${label}`}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             onPress={longPress}
             className="h-11 w-11 items-center justify-center"
           >
-            <RNText className="text-lg font-bold text-muted-foreground">⋯</RNText>
+            <Ionicons name="close" size={18} color={MUTED_ICON} />
           </Pressable>
         </View>
         {/* UX-05 A1 (T-05.A1.1, O-05/O-06): grouped kg/reps containers 8 pt
@@ -199,23 +207,25 @@ function SetRowImpl({
             onPressValue={openReps}
             done={done}
           />
-          <Pressable
-            testID={`${testID}-check`}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: done }}
-            accessibilityLabel={done ? `${summary}. Logged, tap to undo` : `Log ${summary}`}
-            onPress={() => onTick(seId, set.id)}
-            className={cn(
-              'h-12 w-12 items-center justify-center rounded-full border-2 active:opacity-70',
-              done ? 'border-emerald-600 bg-emerald-600' : 'border-primary/40 bg-background',
-            )}
-          >
-            <RNText
-              className={cn('text-2xl font-bold', done ? 'text-white' : 'text-muted-foreground')}
+          {showCheck ? (
+            <Pressable
+              testID={`${testID}-check`}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: done }}
+              accessibilityLabel={done ? `${summary}. Logged, tap to undo` : `Log ${summary}`}
+              onPress={() => onTick(seId, set.id)}
+              className={cn(
+                'h-12 w-12 items-center justify-center rounded-full border-2 active:opacity-70',
+                done ? 'border-emerald-600 bg-emerald-600' : 'border-primary/40 bg-background',
+              )}
             >
-              ✓
-            </RNText>
-          </Pressable>
+              <RNText
+                className={cn('text-2xl font-bold', done ? 'text-white' : 'text-muted-foreground')}
+              >
+                ✓
+              </RNText>
+            </Pressable>
+          ) : null}
         </View>
       </Pressable>
     </SwipeToRemove>

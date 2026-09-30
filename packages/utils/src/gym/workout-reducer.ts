@@ -66,6 +66,10 @@ export type WorkoutAction =
   // UX-44 (T-44.3): edit mode's `Remove from this workout` — drops the whole
   // exercise (the routine is never touched). Live workouts use Skip instead.
   | { type: 'removeExercise'; seId: string; at: string }
+  // Undoes a `removeExercise` (live workouts' `Remove exercise`, owner
+  // dogfood 2026-09-30): re-inserts the same exercise (id, sets and all) at
+  // its original index. A no-op if it is already there (a stale Undo tap).
+  | { type: 'restoreExercise'; exercise: SessionExerciseDoc; index: number; at: string }
   | {
       type: 'addExercise';
       newSeId: string;
@@ -351,6 +355,14 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
       if (!doc.exercises.some((se) => se.id === action.seId)) return doc;
       return stamp({
         exercises: reindex(sortedByPosition(doc.exercises).filter((se) => se.id !== action.seId)),
+      });
+    }
+    case 'restoreExercise': {
+      if (doc.exercises.some((se) => se.id === action.exercise.id)) return doc;
+      const exercises = sortedByPosition(doc.exercises);
+      const at = Math.max(0, Math.min(action.index, exercises.length));
+      return stamp({
+        exercises: reindex([...exercises.slice(0, at), action.exercise, ...exercises.slice(at)]),
       });
     }
     case 'addExercise': {

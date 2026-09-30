@@ -1,80 +1,69 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { Button, Chip, Sheet, Text, TimePicker, type TimeOfDay } from '@chefer/ui-mobile';
+import { Button, Sheet, Text } from '@chefer/ui-mobile';
 import { addDaysLocal, weekdayDateLabel, weekStartOf } from '@chefer/utils';
 import { localDate } from '../offline/ids';
-import { localInstant } from '../reminders/schedule';
+import { SessionWhenFields } from './session-when-fields';
 
-// Edit mode's header (UX-44, T-44.3): `Cancel · Editing {weekday d Mon} · Save`
-// over the workout's name, date and time with a `Change ›` sheet. The sheet
-// offers the dates `Log a past workout` offers (Monday of last week → today)
-// plus the session's own date, and the kit TimePicker — never a future time.
+// The header of the logger over a past workout.
+// - Edit mode (UX-44, T-44.3): `Cancel · Editing {weekday d Mon} · Save` over
+//   the workout's name, date and duration with a `Change ›` sheet.
+// - Log mode (owner dogfood 2026-09-30, "log a workout you already did"):
+//   `Cancel · Log workout · Save`, with the date and duration inline.
+// Either way the `When` is just a day (Monday of last week → today, never the
+// future — the same range `Log a past workout` offers, plus the session's own
+// date) and a duration in minutes: no clock time.
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
-/** Monday of last week through today, newest first, always including `current`. */
-export function editableDates(today: string, current: string): string[] {
+/** The earliest day a past workout can be moved to or logged on. */
+export function earliestWhenDate(today: string, current: string): string {
   const start = weekStartOf(addDaysLocal(today, -7));
-  const dates: string[] = [];
-  for (let d = today; d >= start; d = addDaysLocal(d, -1)) dates.push(d);
-  if (!dates.includes(current)) dates.push(current);
-  return dates.sort().reverse();
+  return current < start ? current : start;
 }
 
-function timeOf(iso: string): TimeOfDay {
-  const d = new Date(iso);
-  return { hour: d.getHours(), minute: d.getMinutes() };
-}
-
-export function formatTime(iso: string): string {
-  const { hour, minute } = timeOf(iso);
-  return `${pad2(hour)}:${pad2(minute)}`;
-}
-
-function dateChipLabel(date: string, today: string): string {
-  if (date === today) return 'Today';
-  if (date === addDaysLocal(today, -1)) return 'Yesterday';
-  return weekdayDateLabel(date);
+export interface WhenValue {
+  localDate: string;
+  durationMin: number;
 }
 
 export interface EditSessionHeaderProps {
+  mode: 'edit' | 'log';
   name: string;
   localDate: string;
-  startedAt: string;
+  durationMin: number;
   saving?: boolean;
   onCancel: () => void;
   onSave: () => void;
-  onChangeWhen: (input: { localDate: string; startedAt: string }) => void;
+  onChangeWhen: (input: WhenValue) => void;
 }
 
 export function EditSessionHeader({
+  mode,
   name,
   localDate: sessionDate,
-  startedAt,
+  durationMin,
   saving = false,
   onCancel,
   onSave,
   onChangeWhen,
 }: EditSessionHeaderProps) {
   const [open, setOpen] = useState(false);
-  const [pickedDate, setPickedDate] = useState(sessionDate);
-  const [pickedTime, setPickedTime] = useState<TimeOfDay>(timeOf(startedAt));
+  const [picked, setPicked] = useState<WhenValue>({ localDate: sessionDate, durationMin });
   const today = localDate();
-  const dates = editableDates(today, sessionDate);
+  const logging = mode === 'log';
+  // The session's ORIGINAL date stays reachable even if it's older than the range.
+  const [minDate] = useState(() => earliestWhenDate(today, sessionDate));
 
   const openSheet = () => {
-    setPickedDate(sessionDate);
-    setPickedTime(timeOf(startedAt));
+    setPicked({ localDate: sessionDate, durationMin });
     setOpen(true);
   };
 
   const apply = () => {
     setOpen(false);
-    onChangeWhen({
-      localDate: pickedDate,
-      startedAt: localInstant(pickedDate, `${pad2(pickedTime.hour)}:${pad2(pickedTime.minute)}`),
-    });
+    onChangeWhen(picked);
   };
+
+  const title = logging ? 'Log workout' : `Editing · ${weekdayDateLabel(sessionDate)}`;
 
   return (
     <View className="border-b border-border px-2 pb-2 pt-1">
@@ -90,64 +79,79 @@ export function EditSessionHeader({
         <Text
           testID="edit-session-title"
           accessibilityRole="header"
-          accessibilityLabel={`Editing ${name}, ${weekdayDateLabel(sessionDate)}`}
+          accessibilityLabel={
+            logging ? `Log ${name}` : `Editing ${name}, ${weekdayDateLabel(sessionDate)}`
+          }
           className="min-w-0 flex-1 text-center text-base font-semibold"
           numberOfLines={1}
         >
-          {`Editing · ${weekdayDateLabel(sessionDate)}`}
+          {title}
         </Text>
         <Button testID="edit-session-save" size="sm" loading={saving} onPress={onSave}>
           Save
         </Button>
       </View>
-      <View className="flex-row items-center justify-between gap-2 px-2">
-        <Text
-          testID="edit-session-subtitle"
-          variant="muted"
-          className="min-w-0 flex-1"
-          numberOfLines={1}
-        >
-          {`${name} · ${weekdayDateLabel(sessionDate)} · ${formatTime(startedAt)}`}
-        </Text>
-        <Pressable
-          testID="edit-session-change-when"
-          accessibilityRole="button"
-          accessibilityLabel="Change date and time"
-          onPress={openSheet}
-          className="min-h-11 justify-center pl-2"
-        >
-          <Text className="text-sm font-medium text-primary">Change ›</Text>
-        </Pressable>
-      </View>
 
-      <Sheet
-        visible={open}
-        onClose={() => setOpen(false)}
-        title="When was this workout?"
-        testID="edit-session-when-sheet"
-        footer={
-          <Button testID="edit-session-when-done" size="lg" onPress={apply}>
-            Done
-          </Button>
-        }
-      >
-        <Text variant="label">Day</Text>
-        <View className="flex-row flex-wrap gap-2">
-          {dates.map((d) => (
-            <Chip
-              key={d}
-              testID={`edit-session-when-date-${d}`}
-              label={dateChipLabel(d, today)}
-              selected={pickedDate === d}
-              onPress={() => setPickedDate(d)}
-            />
-          ))}
+      {logging ? (
+        <View className="gap-2 px-2 pt-2">
+          <Text testID="edit-session-subtitle" variant="muted" numberOfLines={1}>
+            {name}
+          </Text>
+          <SessionWhenFields
+            testID="edit-session-when"
+            localDate={sessionDate}
+            durationMin={durationMin}
+            minDate={minDate}
+            today={today}
+            onChangeDate={(d) => onChangeWhen({ localDate: d, durationMin })}
+            onChangeDuration={(m) => onChangeWhen({ localDate: sessionDate, durationMin: m })}
+          />
         </View>
-        <Text variant="label" className="mt-2">
-          Time
-        </Text>
-        <TimePicker testID="edit-session-when-time" value={pickedTime} onChange={setPickedTime} />
-      </Sheet>
+      ) : (
+        <View className="flex-row items-center justify-between gap-2 px-2">
+          <Text
+            testID="edit-session-subtitle"
+            variant="muted"
+            className="min-w-0 flex-1"
+            numberOfLines={1}
+          >
+            {`${name} · ${weekdayDateLabel(sessionDate)} · ${durationMin} min`}
+          </Text>
+          <Pressable
+            testID="edit-session-change-when"
+            accessibilityRole="button"
+            accessibilityLabel="Change date and duration"
+            onPress={openSheet}
+            className="min-h-11 justify-center pl-2"
+          >
+            <Text className="text-sm font-medium text-primary">Change ›</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {logging ? null : (
+        <Sheet
+          visible={open}
+          onClose={() => setOpen(false)}
+          title="When was this workout?"
+          testID="edit-session-when-sheet"
+          footer={
+            <Button testID="edit-session-when-done" size="lg" onPress={apply}>
+              Done
+            </Button>
+          }
+        >
+          <SessionWhenFields
+            testID="edit-session-when"
+            localDate={picked.localDate}
+            durationMin={picked.durationMin}
+            minDate={minDate}
+            today={today}
+            onChangeDate={(d) => setPicked((p) => ({ ...p, localDate: d }))}
+            onChangeDuration={(m) => setPicked((p) => ({ ...p, durationMin: m }))}
+          />
+        </Sheet>
+      )}
     </View>
   );
 }

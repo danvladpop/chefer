@@ -460,6 +460,20 @@ describe('WorkoutScreen — exercise menu', () => {
     expect(currentDoc().exercises[0]?.skipped).toBe(false);
   });
 
+  it('Remove exercise drops it from this workout, and Undo puts it back with its ticks (owner dogfood 2026-09-30)', async () => {
+    const user = userEvent.setup();
+    await renderWorkout(activeDoc());
+    await user.press(screen.getByTestId('exercise-0-set-1-check'));
+    const before = currentDoc().exercises[0];
+
+    await user.press(screen.getByTestId('exercise-0-menu'));
+    await user.press(screen.getByTestId('menu-remove-exercise'));
+    expect(currentDoc().exercises).toHaveLength(0);
+
+    await user.press(await screen.findByTestId('snackbar-action'));
+    expect(currentDoc().exercises[0]).toEqual(before);
+  });
+
   it('"Update routine" on a swap is disabled with a reason when the exercise has no routine slot', async () => {
     const user = userEvent.setup();
     await renderWorkout(activeDoc());
@@ -529,7 +543,7 @@ describe('WorkoutScreen — remove a set', () => {
     expect(screen.getByTestId('snackbar-message')).toHaveTextContent('Removed set 2');
   });
 
-  it('the row ⋯ removes a set the same way as long-press', async () => {
+  it('the row ✕ removes a set the same way as long-press', async () => {
     const user = userEvent.setup();
     await renderWorkout(activeDoc());
     await user.press(screen.getByTestId('exercise-0-set-2-menu'));

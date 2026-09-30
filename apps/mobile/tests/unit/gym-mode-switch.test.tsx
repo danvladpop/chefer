@@ -7,9 +7,20 @@ import { render, screen, userEvent, waitFor } from '@testing-library/react-nativ
 import { httpBatchLink } from '@trpc/client';
 import superjson from 'superjson';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
-import { getMode, resetModeForTests, setMode } from '../../src/features/gym/mode-store';
+import {
+  getMode,
+  hasChosenMode,
+  resetModeForTests,
+  setMode,
+} from '../../src/features/gym/mode-store';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
+import {
+  resetLandingCacheForTests,
+  setCachedHasGymProfile,
+  setCachedJobs,
+} from '../../src/features/navigation/landing-cache';
+import { landingSurfaceSync } from '../../src/features/navigation/use-landing';
 import { trpc } from '../../src/lib/trpc';
 import { makeBootstrap } from './gym-fixtures';
 
@@ -70,6 +81,7 @@ function makeClient() {
 beforeEach(() => {
   setKvBackendForTests(createMemoryKvBackend());
   resetModeForTests();
+  resetLandingCacheForTests();
   router.replace.mockClear();
   router.push.mockClear();
   __setPathname('/');
@@ -113,6 +125,25 @@ describe('ModeSwitch', () => {
     await user.press(screen.getByTestId('mode-switch-food'));
     expect(getMode()).toBe('food');
     expect(router.replace).toHaveBeenCalledWith('/(food)');
+  });
+
+  // Owner dogfood 2026-09-30 (iPhone): a TRAIN-only account lands on Gym by
+  // the jobs default while the stored mode is still the implicit 'food' — so
+  // tapping Food must still record the choice, and the choice must win.
+  it('Food on a jobs-based Gym landing is recorded as an explicit choice that wins the landing', async () => {
+    const user = userEvent.setup();
+    setCachedJobs(['TRAIN']);
+    setCachedHasGymProfile(true);
+    expect(hasChosenMode()).toBe(false);
+    expect(landingSurfaceSync()).toBe('gym');
+
+    __setPathname('/today');
+    await renderSwitch(makeClient());
+    await user.press(screen.getByTestId('mode-switch-food'));
+
+    expect(router.replace).toHaveBeenCalledWith('/(food)');
+    expect(hasChosenMode()).toBe(true);
+    expect(landingSurfaceSync()).toBe('food');
   });
 
   describe('bug B-14: the pill reflects the route, not the persisted mode', () => {

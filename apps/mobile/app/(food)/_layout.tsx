@@ -1,7 +1,7 @@
-import { useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs, usePathname } from 'expo-router';
 import { landingSurfaceSync, useSyncLandingCache } from '../../src/features/navigation/use-landing';
+import { getToken } from '../../src/lib/auth-store';
 import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
 
 // Food mode tab bar. Mirrors PRIMARY_NAV_ITEMS + "More" from
@@ -10,20 +10,28 @@ import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
 // pantry; Cookbook is the old Recipes tab plus Discover). (Renamed from
 // `(tabs)` for the Food / Gym mode switch — gym_plan.md §5.1; URLs are
 // unchanged.)
+
+/**
+ * ONE-SHOT per sign-in (per launch), not per mount: switching to Gym replaces
+ * this group in the root Stack (it unmounts), so a per-mount check re-ran on
+ * every switch back to Food and, for a TRAIN-only account, redirected
+ * straight to /today again — Food was unreachable (owner dogfood 2026-09-30,
+ * iPhone). Keyed by the token so a fresh sign-in still gets its landing.
+ */
+let landingCheckedForToken: string | null = null;
+
 export default function FoodTabsLayout() {
   // "/" is home; where home opens is `landingSurfaceSync()` (UX-04 §1,
   // T-04.3) — the persisted mode (today's behaviour, gym_plan.md D3) plus,
   // for an account that's never explicitly switched, a jobs-based default
-  // (TRAIN-only lands on Gym once it's set up). ONE-SHOT per mount: this
-  // layout stays mounted behind the gym tabs, so a sticky decision would
-  // bounce every later switch back to Food onto /today (caught by
-  // e2e/gym-mode.flow.yaml, 2026-09-25) — a landing never re-applies once
-  // the app is open, and never writes the persisted mode.
+  // (TRAIN-only lands on Gym once it's set up). A landing never re-applies
+  // once the app is open (caught by e2e/gym-mode.flow.yaml, 2026-09-25),
+  // and never writes the persisted mode.
   const pathname = usePathname();
-  const launchChecked = useRef(false);
   useSyncLandingCache();
-  if (!launchChecked.current) {
-    launchChecked.current = true;
+  const token = getToken();
+  if (landingCheckedForToken !== token) {
+    landingCheckedForToken = token;
     if (pathname === '/' && landingSurfaceSync() === 'gym') {
       return <Redirect href="/today" />;
     }

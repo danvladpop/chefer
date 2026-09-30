@@ -22,9 +22,17 @@ export function getMode(): AppMode {
 }
 
 export function setMode(mode: AppMode): void {
-  if (modeStore.get() === mode) return;
+  // Written even when unchanged: the KV entry also records THAT the user has
+  // chosen (`hasChosenMode`) — 'food' is the default, so tapping Food on a
+  // jobs-based Gym landing must still persist (owner dogfood 2026-09-30).
+  if (modeStore.get() === mode && kv.getString(KV_KEYS.mode) === mode) return;
   kv.setString(KV_KEYS.mode, mode);
   modeStore.set(mode);
+}
+
+/** Whether the user (or a flow they started) has ever picked a mode on this device. */
+export function hasChosenMode(): boolean {
+  return isMode(kv.getString(KV_KEYS.mode));
 }
 
 export const subscribeMode = modeStore.subscribe;

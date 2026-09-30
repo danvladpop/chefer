@@ -95,7 +95,7 @@ appId: dev.chefer.app.dev
 - tapOn:
     id: 'rest-timer-skip'
 
-# ── Remove a set via its ⋯, then Undo (UX-05 A1, T-05.A1.2, PAT-16) ──────────
+# ── Remove a set via its ✕, then Undo (UX-05 A1, T-05.A1.2, PAT-16) ──────────
 # No confirm dialog: the row leaves immediately and a snackbar offers Undo.
 - tapOn:
     id: 'exercise-0-set-2-menu'

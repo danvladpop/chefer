@@ -12,18 +12,20 @@ import {
   Text,
   useSnackbar,
 } from '@chefer/ui-mobile';
-import { nothingTicked, toSessionSummary } from '@chefer/utils';
+import { hasLoggableSet, nothingTicked, sessionDurationMin, toSessionSummary } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
 import { captureGymEvent } from '../analytics';
 import { ExercisePicker } from '../library/exercise-picker';
 import { newId } from '../offline/ids';
 import { deleteSessionWithUndo, saveEditedSession } from '../offline/session-corrections';
+import { saveLoggedSession } from '../use-active-workout';
 import { useGymBootstrap } from '../use-gym-bootstrap';
 import { EditSessionHeader } from './edit-session-header';
 import { ExerciseCard, type WorkoutContext, type WorkoutSheetRequest } from './exercise-card';
 import { NumberSheet } from './number-sheet';
 import type { SetRowHandlers } from './set-row';
-import { useEditSession } from './use-edit-session';
+import { useEditSession, type EditSession } from './use-edit-session';
+import { useLogSession, type LogSessionParams } from './use-log-session';
 import {
   byPosition,
   defaultSlotParams,
@@ -47,6 +49,11 @@ import { ExerciseMenuSheet, TechniqueSheet } from './workout-sheets';
 // re-sends the corrected doc through the offline outbox; Replace changes this
 // workout only and never offers the routine (AC5); the date can never move
 // into the future (AC6).
+//
+// Log mode (owner dogfood 2026-09-30): the same screen over a NEW past
+// workout (`use-log-session.ts`) — "Log a workout you already did" used to
+// start a live, timed workout. You set the date, the duration, the exercises
+// and each set's numbers, then Save: every listed set counts (no ✓ to tick).
 
 type SheetState =
   | WorkoutSheetRequest
@@ -65,6 +72,16 @@ function leave(): void {
 
 export function EditSessionScreen({ sessionId }: { sessionId: string }) {
   const edit = useEditSession(sessionId);
+  return <SessionEditor edit={edit} mode="edit" />;
+}
+
+export function LogSessionScreen(params: LogSessionParams) {
+  const edit = useLogSession(params);
+  return <SessionEditor edit={edit} mode="log" />;
+}
+
+function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log' }) {
+  const logging = mode === 'log';
   const { data: bootstrap } = useGymBootstrap();
   const queryClient = useQueryClient();
   const snackbar = useSnackbar();
@@ -98,6 +115,7 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
   }, [bootstrap?.library]);
   // "Last time" for an edited session means the sessions before IT.
   const startedAt = draft?.startedAt ?? null;
+  const sessionId = draft?.id ?? '';
   const prior = useMemo(
     () =>
       priorSessions(bootstrap?.recentSessions ?? [], sessionId).filter(
@@ -144,7 +162,7 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
   );
 
   // ── Set handlers (stable; read the live draft) ─────────────────────────────
-  const { dispatch, getDraft, replaceExercise, reschedule } = edit;
+  const { dispatch, getDraft, replaceExercise, retime } = edit;
   /** Ticks inside a past session are stamped with that session's own time, not "now". */
   const tickAt = useCallback(() => {
     const doc = getDraft();
@@ -197,7 +215,7 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
   const [expandOverride, setExpandOverride] = useState<Record<string, boolean>>({});
   const ctx = useMemo<WorkoutContext>(
     () => ({
-      mode: 'edit',
+      mode,
       unit,
       profile,
       lookup,
@@ -217,13 +235,42 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
           { at: tickAt() },
         ),
     }),
-    [unit, profile, lookup, prior, bootstrap?.olderBests, handlers, openSheet, dispatch, tickAt],
+    [
+      mode,
+      unit,
+      profile,
+      lookup,
+      prior,
+      bootstrap?.olderBests,
+      handlers,
+      openSheet,
+      dispatch,
+      tickAt,
+    ],
   );
 
   // ── Save / cancel / delete ─────────────────────────────────────────────────
+  const isCardio = useCallback((id: string) => isCardioMeta(lookup(id)), [lookup]);
+
   const onSave = useCallback(async () => {
     const doc = getDraft();
     if (!doc || !ready) return;
+    if (logging) {
+      if (!hasLoggableSet(doc, isCardio)) {
+        snackbar.show({ message: 'Add at least one exercise with a set to save.' });
+        return;
+      }
+      setSaving(true);
+      try {
+        await saveLoggedSession(queryClient, doc, isCardio);
+        haptics.success();
+        snackbar.show({ message: 'Workout logged', tone: 'success' });
+        leave();
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     if (!dirtyRef.current) {
       leave();
       return;
@@ -241,7 +288,7 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
     } finally {
       setSaving(false);
     }
-  }, [getDraft, openSheet, queryClient, ready, snackbar]);
+  }, [getDraft, isCardio, logging, openSheet, queryClient, ready, snackbar]);
 
   const onCancel = useCallback(() => {
     if (dirtyRef.current) openSheet({ kind: 'discard' });
@@ -250,9 +297,9 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
 
   const onDiscard = useCallback(() => {
     closeSheet();
-    captureGymEvent('session_edit_discarded', {});
+    if (!logging) captureGymEvent('session_edit_discarded', {});
     leave();
-  }, [closeSheet]);
+  }, [closeSheet, logging]);
 
   const onDeleteInstead = useCallback(() => {
     closeSheet();
@@ -293,7 +340,7 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
       }
       const params = defaultSlotParams(picked);
       const position = doc.exercises.length;
-      const { prescription, warmups } = prescribeFor({
+      const planned = prescribeFor({
         meta: picked,
         params,
         bootstrap,
@@ -302,6 +349,9 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
         isDeload: doc.isDeload,
         isFirstForPattern: isFirstForPattern(doc, picked, position, lookup),
       });
+      const { prescription } = planned;
+      // A log records work sets only (no warm-ups), like its starting draft.
+      const warmups = logging ? [] : planned.warmups;
       dispatch({
         type: 'addExercise',
         newSeId: newId(),
@@ -315,7 +365,7 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
         newSetIds: Array.from({ length: warmups.length + prescription.sets }, () => newId()),
       });
     },
-    [bootstrap, closeSheet, dispatch, getDraft, lookup, profile, replaceExercise],
+    [bootstrap, closeSheet, dispatch, getDraft, logging, lookup, profile, replaceExercise],
   );
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -375,13 +425,14 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
       <EditSessionHeader
+        mode={mode}
         name={draft.name}
         localDate={draft.localDate}
-        startedAt={draft.startedAt}
+        durationMin={sessionDurationMin(draft)}
         saving={saving}
         onCancel={onCancel}
         onSave={() => void onSave()}
-        onChangeWhen={reschedule}
+        onChangeWhen={retime}
       />
 
       <ScrollView
@@ -392,7 +443,9 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
       >
         {exercises.length === 0 ? (
           <Text variant="muted" className="px-2 py-6 text-center">
-            No exercises left. Add one, or delete this workout from its menu.
+            {logging
+              ? 'Add the exercises you did, with their sets and weights.'
+              : 'No exercises left. Add one, or delete this workout from its menu.'}
           </Text>
         ) : null}
         {exercises.map((se, index) => (
@@ -428,7 +481,7 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
         history={contentSe ? exerciseHistory(contentSe.exerciseId, prior, 5) : []}
         unit={unit}
         loadType={contentMeta?.loadType ?? 'WEIGHTED'}
-        mode="edit"
+        mode={mode}
         onSwap={() => {
           if (contentSe) openSheet({ kind: 'picker', mode: 'replace', seId: contentSe.id });
         }}
@@ -502,9 +555,9 @@ export function EditSessionScreen({ sessionId }: { sessionId: string }) {
         visible={active?.kind === 'discard'}
         onClose={closeSheet}
         testID="edit-session-discard-sheet"
-        title="Discard your edits?"
-        body="Your workout stays as it was."
-        confirmLabel="Discard edits"
+        title={logging ? 'Discard this workout?' : 'Discard your edits?'}
+        body={logging ? 'Nothing will be saved.' : 'Your workout stays as it was.'}
+        confirmLabel={logging ? 'Discard' : 'Discard edits'}
         cancelLabel="Keep editing"
         destructive
         onConfirm={onDiscard}
