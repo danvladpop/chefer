@@ -229,7 +229,9 @@ describe('TrainingNutritionService.targetsForDay — the bump gate (T-06.1, T-06
       false,
     );
     expect(training?.trainingDay.isTrainingDay).toBe(false);
-    expect(training?.adjustedTargets?.calories ?? targets.calories).toBe(targets.calories);
+    expect(training?.adjustedTargets?.dailyCalorieTarget ?? targets.dailyCalorieTarget).toBe(
+      targets.dailyCalorieTarget,
+    );
   });
 
   it('run kinds do nothing while the widened gate is off (today)', async () => {
