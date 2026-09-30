@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 // in infrastructure.md §15, "Privacy & analytics consent"). Bump
 // EFFECTIVE_DATE on every material change.
 
-const EFFECTIVE_DATE = '26 September 2026';
+const EFFECTIVE_DATE = '30 September 2026';
 
 const linkClass = 'touch-target relative text-[#944a00] underline underline-offset-4';
 
@@ -144,10 +144,18 @@ export default async function PrivacyPage() {
           </p>
           <p>
             Under the GDPR this can be special-category data (Art. 9), so we process it only with
-            your explicit consent. All of it is optional. You give that consent when you choose to
-            enter it, and you can withdraw it at any time by deleting the entries or your whole
-            account. Withdrawing does not affect what we did with the data before. We use it only to
-            run the features you use, such as working out your targets, filtering recipes and
+            your explicit consent. All of it is optional. The website and the app ask for that
+            consent before the first time you save any of it, in a sheet that is separate from the
+            AI permission below. If you choose <em>Don&apos;t save it</em>, none of it is stored.
+            You can withdraw the consent at any time: on the website in{' '}
+            <em>Profile → Health information</em>, in the app in{' '}
+            <em>Profile → Privacy &amp; data → Health information</em>, using{' '}
+            <em>Withdraw and delete</em>. That deletes the allergies, diets, dislikes, goal,
+            measurements and weigh-ins stored for you and your household. You can also delete
+            individual entries or your whole account. Withdrawing does not affect what we did with
+            the data before. If you already had an account before this consent existed, we keep what
+            you entered and ask you the next time you open the app or website. We use the data only
+            to run the features you use, such as working out your targets, filtering recipes and
             planning your training. We never use it for advertising.
           </p>
           <p>When you add a household member, only add details they are happy for you to share.</p>
@@ -227,8 +235,9 @@ export default async function PrivacyPage() {
               The data is stored in Sentry&apos;s EU region (Germany); Sentry is a US company.
             </li>
             <li>
-              <strong>PostHog</strong> provides usage analytics for the website, stored in
-              PostHog&apos;s EU cloud; PostHog is a US company. See{' '}
+              <strong>PostHog</strong> provides usage analytics for the website and, in app versions
+              that have analytics switched on, for the app, stored in PostHog&apos;s EU cloud;
+              PostHog is a US company. See{' '}
               <a href="#analytics" className={linkClass}>
                 Cookies and analytics
               </a>
@@ -316,7 +325,12 @@ export default async function PrivacyPage() {
             <li>access your data and get a copy (Profile → Your data, or email us);</li>
             <li>have wrong data corrected (you can edit most of it in the app);</li>
             <li>have your data erased (Profile → Delete account, or email us);</li>
-            <li>get your data in a portable, machine-readable format (the download is JSON);</li>
+            <li>
+              get your data in a portable, machine-readable format (the download is a JSON file with
+              your account, plans, recipes, logs, workouts, consent history and a log of the AI
+              requests made for you; your workouts can also be exported as a CSV from the Gym
+              settings);
+            </li>
             <li>restrict how we use your data in some cases;</li>
             <li>
               object to processing based on legitimate interest, such as weekly emails or anonymous
@@ -324,8 +338,8 @@ export default async function PrivacyPage() {
             </li>
             <li>
               withdraw any consent at any time: AI in Profile → AI &amp; your data, analytics in
-              Profile → Usage analytics, health data by deleting it. This does not affect what we
-              did before.
+              Profile → Usage analytics, health information in Profile → Health information
+              (Withdraw and delete). This does not affect what we did before.
             </li>
           </ul>
           <p>
@@ -371,8 +385,17 @@ export default async function PrivacyPage() {
             sends a &ldquo;Do Not Track&rdquo; signal, we send no analytics at all.
           </p>
           <p>
-            <strong>In the app.</strong> The iOS and Android app sends no analytics and shows no
-            ads. It keeps your sign-in in the device&apos;s secure storage and saves workouts on the
+            <strong>In the app.</strong> The iOS and Android app shows no ads and uses no
+            advertising identifier. It can send the same kind of anonymous usage counts to PostHog
+            (EU) as the website, but only in app versions that have analytics switched on; where
+            they do, <em>Profile → Privacy &amp; data → Usage analytics</em> has two switches.
+            &ldquo;Send anonymous usage counts&rdquo; is on by default and sends counts of which
+            screens and features are used, tagged with a random identifier made each time the app
+            starts and never stored, with no name, email or health information. &ldquo;Link usage to
+            my account&rdquo; is off unless you turn it on; when it is on, the counts can carry your
+            account ID instead (never your name or email). Turning the first switch off stops all
+            analytics requests from the app at once. The choice applies to the phone you set it on.
+            The app keeps your sign-in in the device&apos;s secure storage and saves workouts on the
             device until they sync. Reminders are scheduled on your device.
           </p>
         </Section>

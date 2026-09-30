@@ -1,7 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 import type { EventMap } from '@chefer/types';
 import { kv } from '../features/gym/offline/kv';
-import { enqueue, isTransportEnabled, startTransport } from './analytics-transport';
+import { clearQueue, enqueue, isTransportEnabled, startTransport } from './analytics-transport';
 
 // ─── Mobile analytics wrapper (T-12.2, T-12.3, §5.10) ──────────────────────────
 // `track<E extends keyof EventMap>` is the typed entry point every mobile
@@ -78,6 +78,9 @@ export function setAnalyticsConsent(next: Partial<AnalyticsConsent>): AnalyticsC
   // Turning anonymous counting off disables linking too — "sends nothing at
   // all" per the design (§ Flow & states).
   consent = merged.anonymous ? merged : { anonymous: false, linked: false };
+  // Events queued while counting was on must not leave the device after the
+  // opt-out either (AC3) — drop them before the next 30s/background flush.
+  if (!consent.anonymous) clearQueue();
   kv.setJSON(CONSENT_KEY, consent);
   return consent;
 }

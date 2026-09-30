@@ -57,7 +57,7 @@ const config = {
   // App Store / Play marketing version. Part of the runtime fingerprint, so
   // bumping it gives a new runtime: OTA updates reach only binaries built
   // from this version on (a store binary is a new build anyway).
-  version: '1.0.0',
+  version: '1.0.1',
   // Explicit, not auto-detected: "web" is added only when react-native-web
   // resolves, which differs between pnpm's `expo` shim (NODE_PATH) and the
   // bare node calls in Gradle/Xcode — that flipped the runtime fingerprint

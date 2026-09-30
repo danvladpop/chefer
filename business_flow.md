@@ -87,10 +87,12 @@ free workout log too, not meal planning alone (CI-16/CI-25).
        /terms /privacy in a new tab) and "I'm 16 or older" (P0-6 — minimum
        age 16, Romania's age of digital consent). The submit button stays
        enabled either way; an unticked box shows an inline error instead.
-       acceptedTermsVersion is LEGAL_VERSIONS.terms (@chefer/types).
+       acceptedTermsVersion is CURRENT_TERMS_VERSION (@chefer/types) — the
+       later of the Terms and Privacy dates in LEGAL_VERSIONS.
    └── Re-accept sheet (TermsReacceptGate web, TermsReacceptSheet mobile,
        mounted in the signed-in shell): fires for a signed-in account whose
-       latest recorded TERMS version is OLDER than LEGAL_VERSIONS.terms. A
+       latest recorded TERMS version is OLDER than CURRENT_TERMS_VERSION (so a
+       Terms OR Privacy update re-prompts; wave 4 bumped privacy to 2026-09-30). A
        MISSING record (every account from before this wave) is treated as
        "not yet applicable", not "stale" — the sheet does not mass-prompt
        the entire existing user base the moment this ships; it only fires
@@ -2158,6 +2160,37 @@ App launch (production binary) → expo-updates asks u.expo.dev for the newest
 - Dev builds (`Chefer Dev`) keep loading JS from Metro on the Mac; they
   never receive production updates.
 
+### Worked example: native release 1 (wave 4 — `expo-sharing`)
+
+The first planned native change (named export files on Android, T-39.5). Installed
+binaries have the OLD runtime (iOS `3b4fb9f1…`, Android `d2efdaa7…`); the merge makes
+the JS require the NEW one (version 1.0.1: iOS `5d826a15…`, Android `d331c597…`), so the order matters:
+
+```
+1. Merge the wave-4 PR to master → Deploy → API/web live → the mobile-update job
+   publishes the JS on the NEW runtime only. Installed 1.0.0 (5) / current Android
+   binaries match no update: they keep running their embedded bundle + the last
+   update published on the old runtime (wave 3). Nothing breaks; they just stop
+   receiving new JS.
+2. Owner builds both platforms by hand (never automated): iOS EAS production
+   build, Android `pnpm mobile:release:android` (or a store build). Check the
+   build's runtime equals the NEW one printed by `pnpm mobile:update`.
+3. Owner installs them (iOS: TestFlight/store build; Android: adb install -r / store).
+   On first launch each downloads the update already waiting on its runtime and runs
+   it on the next cold launch — the OTA channel reaches both platforms again.
+4. Owner submits the new iOS build to App Store review (and the Android store
+   build); export files are now named on Android.
+5. Last: HEALTH_CONSENT_ENFORCE → `declared` (Q-10; an ops step via
+   infrastructure/scripts/env.sh, not a code change), only after the owner confirms
+   both installed builds show the wave-3 update id (or a later one) in More's footer.
+   `declared` only rejects un-consented health writes from clients sending
+   x-chefer-api-level ≥ 4, i.e. JS that already has the consent sheet; `all` is not planned.
+```
+
+The export code is also safe on a binary without the module (e.g. a dev client built
+before the merge): `shareExportFile` and the gym CSV export detect the missing module and
+fall back to the titled text share instead of throwing at import time.
+
 ---
 
 ## 21. Gym Training Flow
@@ -3498,8 +3531,13 @@ Profile → Your data → "Download my data" / "Export my data"
   └─ mobile: shareExportFile() (src/lib/share-file.ts)
         iOS:     expo-file-system writes the named file to the cache dir,
                  then Share.share({ url }) — a real, named, saveable file
-        Android: Share.share({ title, message }) — same content, titled
-                 text share until expo-sharing lands (wave 4, T-39.5)
+        Android: expo-sharing (native release 1, wave 4): the file is written
+                 to the cache dir under its real name, then
+                 Sharing.shareAsync(uri, { mimeType: application/json,
+                 dialogTitle: filename }) — a real, named, saveable file.
+                 A binary built before expo-sharing (feature-detected with
+                 requireOptionalNativeModule('ExpoSharing')) keeps the titled
+                 Share.share({ title, message }) text share.
         then the Snackbar "Your export is ready."
 ```
 
