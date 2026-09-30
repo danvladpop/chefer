@@ -438,6 +438,19 @@ API, Maestro E2E in `e2e/`).
   expo-secure-store (session token), expo-image-picker + expo-image-manipulator
   (photos are shrunk on the device before upload/scan — `src/lib/prepare-photo.ts`,
   T-BUG-O1.2), tRPC + TanStack Query + superjson at the same versions as web
+- **Native modules that decide the runtime fingerprint** (§11): `expo-image-manipulator`
+  (shipped in the App Store 1.0.0 (5) binary), `expo-file-system` (direct dependency,
+  pinned at exactly `57.0.6`) and **`expo-sharing` (pinned at exactly `57.0.22`; native
+  release 1, wave 4, T-39.5 — no config-plugin entry needed)**. `expo-sharing` shares a
+  generated file as a real, named file on Android: `src/lib/share-file.ts`
+  `shareExportFile(filename, contents, mimeType)` writes it to the cache dir with
+  `expo-file-system/legacy`, then `Sharing.shareAsync(uri, { mimeType, dialogTitle, UTI })`
+  (account-data JSON `application/json`, gym CSV `text/csv` from `gym.export.csv`). iOS keeps
+  `Share.share({ url })`. The module is feature-detected with
+  `requireOptionalNativeModule('ExpoSharing')` and lazily `require`d (same pattern as
+  `prepare-photo.ts`), so the same JS still runs on a binary built before it — Android then
+  falls back to the titled text share. `react-native-gesture-handler` is **not** a direct
+  dependency (transitive only; swipe-to-remove is PanResponder-based, Q-17)
 - **Monorepo:** `metro.config.js` watches the workspace root so `@chefer/types`,
   `@chefer/utils`, `@chefer/tokens` and `@chefer/ui-mobile` (raw-TS exports) resolve
   (Jest maps them to source in `jest.config.js`); `@chefer/ui` and
@@ -2571,6 +2584,27 @@ account needed. All scripts live in `apps/mobile/scripts/`, export
   — but the phones need `release:*` over the cable before they see new JS.
   The fingerprint includes the app config, so builds and updates must run
   through the scripts (same `.env`, same variant).
+- **Native release 1 (wave 4, T-39.5): `expo-sharing`.** The one planned native change of
+  the persona-study programme (contents = `expo-sharing` 57.0.22 only; no config plugin, no
+  `ios/`/`android/` edit, no other native dependency). It changes the runtime fingerprint on
+  purpose (computed with `expo-updates runtimeversion:resolve`, production variant, before →
+  after the change):
+
+  | Platform | Old runtime (App Store 1.0.0 (5) / current Android binary) | New runtime                                |
+  | -------- | ---------------------------------------------------------- | ------------------------------------------ |
+  | iOS      | `3b4fb9f10a9a3f8292903ff4f8281f0da8a2f286`                 | `d221539bc97aa211789366157b499613507e1690` |
+  | Android  | `d2efdaa7480aa779bbb5b6182216877bc1a2921c`                 | `85dfe3006e0a21c050a6e6505b4aa21b4466cfaf` |
+
+  **Consequence:** every OTA published after this change merges (the deploy's `mobile-update`
+  job included) targets ONLY the new runtime. It does **not** reach installed 1.0.0 (5) or the
+  current Android binaries until the owner installs a build made after the merge — those keep
+  running their embedded bundle plus the last update published on the old runtime (the wave-3
+  one). Re-install: iOS = EAS cloud build (`--profile production`) → `eas submit` / TestFlight
+  (docs/app-store/ios/README.md), Android = `pnpm mobile:release:android` (or a store build).
+  After installing, check that the build's runtime equals what `pnpm mobile:update` prints (the
+  script refuses to publish otherwise; `ALLOW_RUNTIME_MISMATCH=1` overrides). Worked sequence:
+  `business_flow.md` §20.
+
 - **API compatibility:** web/API deploy on push to master; an OTA update
   goes live when published. Publish only after the API it depends on is
   deployed, and keep API changes additive (CLAUDE.md — installed binaries and
