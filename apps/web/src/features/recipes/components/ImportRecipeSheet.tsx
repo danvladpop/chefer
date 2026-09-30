@@ -499,6 +499,14 @@ function PreviewStep({
         </p>
       )}
 
+      {/* Owner dogfood 2026-09-30 (mobile parity): the full chosen version —
+          every ingredient and step — so the extraction can be checked before
+          Save. Free users can only save the original. */}
+      <FullRecipePreview
+        recipe={isPremium && variant === 'adapted' ? preview.adapted : preview.original}
+        label={isPremium && variant === 'adapted' ? 'Cheferized for you' : 'Original'}
+      />
+
       {preview.sourceUrl && (
         <p className="truncate text-xs text-gray-400">
           Source: {preview.sourceUrl} — imported to your private collection only.
@@ -507,6 +515,57 @@ function PreviewStep({
 
       {saveError && <p className="text-sm text-red-600">{saveError}</p>}
     </div>
+  );
+}
+
+function FullRecipePreview({ recipe, label }: { recipe: RecipePayload; label: string }) {
+  const n = recipe.nutritionInfo;
+  return (
+    <section
+      data-testid="import-full-preview"
+      className="space-y-3 rounded-2xl border border-gray-200 bg-white p-4"
+      aria-label={`Preview of ${recipe.name}`}
+    >
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+          Preview · {label}
+        </p>
+        <h3 className="font-serif text-base font-bold text-gray-900">{recipe.name}</h3>
+        <p className="text-sm text-gray-600">{recipe.description}</p>
+        <p className="mt-1 text-xs text-gray-500">
+          {recipe.servings} servings · {n.calories} kcal · P {Math.round(n.protein)}g · C{' '}
+          {Math.round(n.carbs)}g · F {Math.round(n.fat)}g
+        </p>
+      </div>
+      <div>
+        <h4 className="text-sm font-semibold text-gray-800">
+          Ingredients ({recipe.ingredients.length})
+        </h4>
+        <ul className="mt-1 space-y-0.5 text-sm text-gray-700">
+          {recipe.ingredients.map((ing, i) => (
+            <li key={i}>
+              <span className="font-semibold">
+                {ing.quantity} {ing.unit}
+              </span>{' '}
+              {ing.name}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <h4 className="text-sm font-semibold text-gray-800">
+          Steps ({recipe.instructions.length})
+        </h4>
+        <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+          {recipe.instructions.map((step, i) => (
+            <li key={i}>{step}</li>
+          ))}
+        </ol>
+      </div>
+      <p className="text-xs text-gray-500">
+        Something off? Start over, or save it and fix it with Edit on the recipe.
+      </p>
+    </section>
   );
 }
 

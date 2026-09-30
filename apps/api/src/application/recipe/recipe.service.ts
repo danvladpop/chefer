@@ -170,9 +170,18 @@ export class RecipeService {
   async getFavouriteState(
     userId: string,
     recipeId: string,
-  ): Promise<{ isSaved: boolean; useInNextPlan: boolean }> {
-    const favourite = await favouriteRecipeRepository.findFavourite(userId, recipeId);
-    return { isSaved: favourite !== null, useInNextPlan: favourite?.useInNextPlan ?? false };
+  ): Promise<{ isSaved: boolean; useInNextPlan: boolean; canEdit: boolean }> {
+    const [favourite, own] = await Promise.all([
+      favouriteRecipeRepository.findFavourite(userId, recipeId),
+      // Owner dogfood 2026-09-30: the recipe page offers Edit on the user's
+      // own recipes — the same ownership rule `update` enforces.
+      favouriteRecipeRepository.findManualRecipeById(userId, recipeId),
+    ]);
+    return {
+      isSaved: favourite !== null,
+      useInNextPlan: favourite?.useInNextPlan ?? false,
+      canEdit: own !== null,
+    };
   }
 
   async toggleUseInNextPlan(

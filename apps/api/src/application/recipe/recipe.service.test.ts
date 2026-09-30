@@ -13,7 +13,11 @@ const {
   findRecipeById,
   isRecipeInUserPlans,
   upsertRecipes,
+  findFavourite,
+  findManualRecipeById,
 } = vi.hoisted(() => ({
+  findFavourite: vi.fn(),
+  findManualRecipeById: vi.fn(),
   findAllRecipesForUser: vi.fn(),
   findSavedRecipeIds: vi.fn().mockResolvedValue([]),
   findByUserId: vi.fn().mockResolvedValue(null),
@@ -36,6 +40,8 @@ vi.mock('@chefer/database', async (importOriginal) => {
     favouriteRecipeRepository: {
       findAllRecipesForUser,
       findSavedRecipeIds,
+      findFavourite,
+      findManualRecipeById,
     },
     dietaryPreferencesRepository: { findByUserId },
     householdMemberRepository: { findByUserId: findHouseholdByUserId },
@@ -56,6 +62,8 @@ beforeEach(() => {
   findHouseholdByUserId.mockReset().mockResolvedValue([]);
   findRecipeIdsByUser.mockReset().mockResolvedValue([]);
   findRecipeById.mockReset();
+  findFavourite.mockReset().mockResolvedValue(null);
+  findManualRecipeById.mockReset().mockResolvedValue(null);
   isRecipeInUserPlans.mockReset().mockResolvedValue(false);
 });
 
@@ -265,5 +273,28 @@ describe('RecipeService.discoverHiddenCount (T-02.5/T-01.4)', () => {
     const result = await service.discoverHiddenCount('u1', {});
     expect(result.filteredFor).toEqual(['Tree nuts']);
     expect(result.hiddenCount).toBeGreaterThan(0);
+  });
+});
+
+describe('RecipeService.getFavouriteState — canEdit (owner dogfood 2026-09-30)', () => {
+  it("is true only for the user's own manual recipe", async () => {
+    findManualRecipeById.mockResolvedValueOnce(
+      recipe({ id: 'r1', name: 'Mine', source: 'MANUAL' }),
+    );
+    await expect(new RecipeService().getFavouriteState('u1', 'r1')).resolves.toEqual({
+      isSaved: false,
+      useInNextPlan: false,
+      canEdit: true,
+    });
+    expect(findManualRecipeById).toHaveBeenCalledWith('u1', 'r1');
+  });
+
+  it("is false for anyone else's recipe, saved or not", async () => {
+    findFavourite.mockResolvedValueOnce({ useInNextPlan: true });
+    await expect(new RecipeService().getFavouriteState('u1', 'r2')).resolves.toEqual({
+      isSaved: true,
+      useInNextPlan: true,
+      canEdit: false,
+    });
   });
 });

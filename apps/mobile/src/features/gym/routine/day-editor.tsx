@@ -216,6 +216,7 @@ export function ExerciseRow({
               numberOfLines={nameLines}
               className="min-w-0 flex-1"
               textClassName="font-medium"
+              underline={false}
             />
           </View>
           <Pressable
@@ -431,6 +432,16 @@ export function DayEditor({
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [menuKey, setMenuKey] = useState<string | null>(null);
   const [dayMenuOpen, setDayMenuOpen] = useState(false);
+  // iOS refuses to present a Modal (the exercise picker) or an Alert while
+  // a sheet is still dismissing — the invisible sheet then swallows every
+  // tap ("Swap exercise freezes", owner dogfood 2026-09-30). Actions that
+  // open something run from the sheet's onExited instead.
+  const afterSheetExit = useRef<(() => void) | null>(null);
+  const runAfterSheetExit = () => {
+    const next = afterSheetExit.current;
+    afterSheetExit.current = null;
+    next?.();
+  };
 
   // A newly added exercise opens expanded.
   const prevKeys = useRef<string[]>(day.exercises.map((e) => e.key));
@@ -584,6 +595,7 @@ export function DayEditor({
       <Sheet
         visible={menuKey !== null}
         onClose={() => setMenuKey(null)}
+        onExited={runAfterSheetExit}
         title={menuName}
         testID={`${testIDBase}-exercise-menu`}
       >
@@ -624,7 +636,8 @@ export function DayEditor({
             testID={`${testIDBase}-menu-swap`}
             label="Swap exercise"
             onPress={() => {
-              if (menuExercise) onSwapExercise(day.key, menuExercise.key);
+              const key = menuExercise?.key;
+              if (key) afterSheetExit.current = () => onSwapExercise(day.key, key);
               setMenuKey(null);
             }}
           />
@@ -644,6 +657,7 @@ export function DayEditor({
       <Sheet
         visible={dayMenuOpen}
         onClose={() => setDayMenuOpen(false)}
+        onExited={runAfterSheetExit}
         title={day.name}
         testID={`${testIDBase}-day-menu-sheet`}
       >
@@ -667,15 +681,20 @@ export function DayEditor({
             label="Delete day"
             destructive
             onPress={() => {
+              afterSheetExit.current = () =>
+                Alert.alert(
+                  'Delete this day?',
+                  `"${day.name}" and its exercises will be removed.`,
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: () => dispatch({ type: 'deleteDay', dayKey: day.key }),
+                    },
+                  ],
+                );
               setDayMenuOpen(false);
-              Alert.alert('Delete this day?', `"${day.name}" and its exercises will be removed.`, [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete',
-                  style: 'destructive',
-                  onPress: () => dispatch({ type: 'deleteDay', dayKey: day.key }),
-                },
-              ]);
             }}
           />
         </View>

@@ -1861,6 +1861,19 @@ recipe.importSave { recipe, variant, sourceUrl?, ogImageUrl? }   (premium)
        → rateable + pinnable → flows into P1-1 generation placement
 ```
 
+**Preview before Save (owner dogfood 2026-09-30, web + mobile):** under the Original /
+Cheferized cards, the chosen version is shown in full — name, description, servings,
+times, kcal/macros, EVERY ingredient and EVERY step (mobile
+`features/recipes/imported-recipe-preview.tsx`, web `FullRecipePreview` in
+`ImportRecipeSheet.tsx`) — so a bad extraction is caught before it lands in the
+cookbook. Previously only a one-line summary (mobile) / the first 8 ingredients (web).
+
+**Edit your own recipe from the recipe page (owner dogfood 2026-09-30, web + mobile):**
+`recipe.isSaved` also returns `canEdit` (the same ownership rule `recipe.update`
+enforces: `creatorId` = viewer and `source: MANUAL`, which includes imports). When true
+the recipe page shows Edit (mobile: a pencil next to ⋯; web: an Edit button) → the
+existing recipe form. Before, only the Cookbook "Mine" card had it.
+
 **Free tier (premium-only since 2026-09-25):** the Import button is visible to everyone;
 free users see a clearly labelled canned example (web) or a locked card (mobile) with
 the upgrade CTA (`source: recipe-import`) — no AI call, the API answers FORBIDDEN. Events: `recipe_imported {via}`,
@@ -2582,8 +2595,13 @@ Set row: [− weight +] [− reps +] ✓  (prefilled from the suggestion)
           pattern in `workout-model.ts`)
   tap weight → plate calculator (barbell/smith) or keypad; tap reps → keypad
   Held loads (Back Extension, BODYWEIGHT_PLUS with `heldLoad: true`) offer the
-    weight stepper without a dip belt (Q-28, T-05.7) — a real belt/vest exercise
-    (weighted dip/pull-up) still needs one
+    weight stepper without a dip belt (Q-28, T-05.7). Since owner dogfood 2026-09-30
+    a belt/vest exercise (pull-up, chin-up, dip) ALSO always shows a "+kg" stepper
+    when logging — `loggingProfile()` (@chefer/utils) steps/snaps it through belt
+    loads whatever the setting (web + mobile, live, log, edit and summary). The
+    dip-belt setting now only decides what the ENGINE prescribes: the first time
+    added weight is logged without it, a snackbar offers "Suggest weighted sets
+    next time?" → `Yes` saves `hasDipBelt: true` (never flipped silently)
 Last working set ticked → optional RIR chips (0/1/2/3+), highlighted while calibrating;
   the finished exercise stays open until answered / "Not now" / ticking elsewhere
 ⋯ menu → swap (just today | today + routine), skip, add/remove set, move, note, history

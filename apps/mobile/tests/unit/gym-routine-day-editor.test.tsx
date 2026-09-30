@@ -1,6 +1,7 @@
 import { useReducer } from 'react';
+import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { RoutineDto } from '@chefer/types';
 import { resetSnackbarForTests, Snackbar } from '@chefer/ui-mobile';
 import { DayEditor } from '../../src/features/gym/routine/day-editor';
@@ -169,8 +170,13 @@ describe('routine editor exercise cards', () => {
     expect(latest?.days[0]?.exercises.map((e) => e.key)).toEqual(['e1', 'e3', 'e2']);
 
     await user.press(screen.getByTestId(`${row('e3')}-menu`));
+    // The picker opens only once the sheet is gone (iOS can't present over a
+    // dismissing Modal). The test renderer never fires iOS's onDismiss, so
+    // this runs Android's path (the Modal unmounting).
+    const platform = jest.replaceProperty(Platform, 'OS', 'android');
     await user.press(screen.getByTestId(`${dayBase}-menu-swap`));
-    expect(onSwapExercise).toHaveBeenCalledWith('d1', 'e3');
+    await waitFor(() => expect(onSwapExercise).toHaveBeenCalledWith('d1', 'e3'));
+    platform.restore();
 
     await user.press(screen.getByTestId(`${row('e2')}-menu`));
     await user.press(screen.getByTestId(`${dayBase}-menu-remove`));

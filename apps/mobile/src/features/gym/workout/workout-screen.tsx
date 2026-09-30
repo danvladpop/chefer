@@ -32,6 +32,7 @@ import { ElapsedTime, RestTimerBar } from './rest-timer-bar';
 import type { SetRowHandlers } from './set-row';
 import { useIsOnline } from './use-is-online';
 import { ROUTINE_SWAP_NOTICE, useRoutineSwap } from './use-routine-swap';
+import { useWeightedBodyweightOffer } from './use-weighted-offer';
 import {
   byPosition,
   currentFocus,
@@ -41,6 +42,7 @@ import {
   fallbackMeta,
   isFirstForPattern,
   livePr,
+  loggingProfile,
   prescribeFor,
   priorSessions,
   setLabelOf,
@@ -206,6 +208,7 @@ export function WorkoutScreen() {
   const rirPendingRef = useRef<string | null>(null);
 
   // ── Set handlers (stable; read the live doc) ───────────────────────────────
+  const offerWeighted = useWeightedBodyweightOffer();
   const handlers = useMemo<SetRowHandlers>(
     () => ({
       onTick: (seId, setId) => {
@@ -246,6 +249,7 @@ export function WorkoutScreen() {
         if (!se || !set) return;
         const old = set.weightKg;
         dispatchWorkout({ type: 'editSet', seId, setId, weightKg: kg });
+        offerWeighted(lookup(se.exerciseId), profile, kg);
         if (set.isWarmup) return;
         // Carry a weight change to the later unticked sets that still had the
         // old weight — changing set 1 almost always means the rest too.
@@ -304,7 +308,7 @@ export function WorkoutScreen() {
         });
       },
     }),
-    [openSheet, snackbar],
+    [openSheet, snackbar, offerWeighted, lookup, profile],
   );
 
   // ── Expansion + auto-scroll to the current exercise ────────────────────────
@@ -787,7 +791,7 @@ export function WorkoutScreen() {
           title={`${contentMeta.name} · ${content?.kind === 'reps' ? (contentMeta.isTimed ? 'Seconds' : 'Reps') : 'Weight'}`}
           unit={unit}
           meta={contentMeta}
-          profile={profile}
+          profile={loggingProfile(contentMeta, profile)}
           showPlates={weightModeOf(contentMeta, profile) === 'plates'}
           timed={contentMeta.isTimed}
           onSubmit={(value) => {

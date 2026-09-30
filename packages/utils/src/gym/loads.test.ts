@@ -13,6 +13,7 @@ import {
   isAchievable,
   kgToUnit,
   loadModel,
+  loggingProfile,
   platesPerSide,
   roundNearestUp,
   roundToAchievable,
@@ -242,5 +243,22 @@ describe('units and display', () => {
     expect(formatLoad(10, 'KG', 'BODYWEIGHT_PLUS')).toBe('BW + 10 kg');
     expect(formatLoad(25, 'KG', 'ASSISTED')).toBe('25 kg assist');
     expect(formatLoad(0, 'KG', 'ASSISTED')).toBe('BW');
+  });
+});
+
+describe('loggingProfile (owner dogfood 2026-09-30)', () => {
+  it('lets a logger add weight to a pull-up without the dip-belt setting', () => {
+    const noBelt = { ...P, hasDipBelt: false };
+    expect(stepUp(0, pullUp, noBelt)).toBe(0);
+    expect(stepUp(0, pullUp, loggingProfile(pullUp, noBelt))).toBe(1.25);
+    expect(stepUp(1.25, pullUp, loggingProfile(pullUp, noBelt))).toBe(2.5);
+  });
+
+  it('leaves every other exercise (and a profile that already has the belt) untouched', () => {
+    const noBelt = { ...P, hasDipBelt: false };
+    expect(loggingProfile(bench, noBelt)).toBe(noBelt);
+    expect(loggingProfile(pushUp, noBelt)).toBe(noBelt);
+    const belt = { ...P, hasDipBelt: true };
+    expect(loggingProfile(pullUp, belt)).toBe(belt);
   });
 });

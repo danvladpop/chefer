@@ -124,17 +124,32 @@ export default function RecipeDetailScreen() {
           >
             <Ionicons name="arrow-back" size={20} color="#1f2937" />
           </Pressable>
-          {/* UX-01 (d), T-01.5: report a safety problem — hides this recipe
-              from the reporter's plans, swaps and suggestions at once. */}
-          <Pressable
-            testID="recipe-report-overflow"
-            accessibilityRole="button"
-            accessibilityLabel="Report a safety problem"
-            onPress={() => setReportOpen(true)}
-            className="absolute right-3 top-3 h-11 w-11 items-center justify-center rounded-full bg-white/90"
-          >
-            <Ionicons name="ellipsis-horizontal" size={20} color="#1f2937" />
-          </Pressable>
+          <View className="absolute right-3 top-3 flex-row gap-2">
+            {/* Owner dogfood 2026-09-30: your own recipes are editable from
+                the recipe itself, not only from the Cookbook "Mine" card. */}
+            {savedData?.canEdit ? (
+              <Pressable
+                testID="recipe-edit"
+                accessibilityRole="button"
+                accessibilityLabel="Edit recipe"
+                onPress={() => router.push({ pathname: '/recipe-form', params: { id: recipe.id } })}
+                className="h-11 w-11 items-center justify-center rounded-full bg-white/90"
+              >
+                <Ionicons name="pencil" size={18} color="#944a00" />
+              </Pressable>
+            ) : null}
+            {/* UX-01 (d), T-01.5: report a safety problem — hides this recipe
+                from the reporter's plans, swaps and suggestions at once. */}
+            <Pressable
+              testID="recipe-report-overflow"
+              accessibilityRole="button"
+              accessibilityLabel="Report a safety problem"
+              onPress={() => setReportOpen(true)}
+              className="h-11 w-11 items-center justify-center rounded-full bg-white/90"
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color="#1f2937" />
+            </Pressable>
+          </View>
         </View>
 
         <View className="gap-4 px-4 pt-4">
