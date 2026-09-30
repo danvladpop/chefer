@@ -2178,9 +2178,11 @@ the JS require the NEW one (iOS `d221539b…`, Android `85dfe300…`), so the or
    it on the next cold launch — the OTA channel reaches both platforms again.
 4. Owner submits the new iOS build to App Store review (and the Android store
    build); export files are now named on Android.
-5. Only once both installed builds run the wave-3 code (health-consent sheet) on the
-   new runtime does the owner flip HEALTH_CONSENT_ENFORCE to `declared` (an ops
-   step, not a code change).
+5. Last: HEALTH_CONSENT_ENFORCE → `declared` (Q-10; an ops step via
+   infrastructure/scripts/env.sh, not a code change), only after the owner confirms
+   both installed builds show the wave-3 update id (or a later one) in More's footer.
+   `declared` only rejects un-consented health writes from clients sending
+   x-chefer-api-level ≥ 4, i.e. JS that already has the consent sheet; `all` is not planned.
 ```
 
 The export code is also safe on a binary without the module (e.g. a dev client built
