@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { Alert, Share } from 'react-native';
+import { Alert } from 'react-native';
 import { Button, Card, Text } from '@chefer/ui-mobile';
+import { CSV_MIME, shareExportFile } from '../../../lib/share-file';
 import { trpc } from '../../../lib/trpc';
 
 // ─── Gym data export (gym_plan.md §4.2 gym.export.csv, research §5.2 #5) ─────
-// "Offer CSV export of the full history from day one." Shared through the
-// OS share sheet (Share.share) — no new native module, no file-system write.
-// A large history shares fine (it is just text), but the OS share sheet gets
-// unwieldy past a few thousand lines in some target apps (Mail, Notes), so we
-// nudge the user toward the web export instead of silently truncating data.
+// "Offer CSV export of the full history from day one." Shared as a named
+// `text/csv` file through the shared shareExportFile helper (T-39.5, UX-39
+// AC5) — the same path as the account-data export; binaries without the
+// expo-sharing native module fall back to a titled text share there.
+// A large history shares fine, but the OS share sheet gets unwieldy past a few
+// thousand lines in some target apps (Mail, Notes), so we nudge the user
+// toward the web export instead of silently truncating data.
 
 const LARGE_EXPORT_ROW_THRESHOLD = 2000;
 
@@ -27,7 +30,7 @@ export function GymExportRow() {
 
   const share = async (filename: string, csv: string) => {
     try {
-      await Share.share({ message: csv, title: filename });
+      await shareExportFile(filename, csv, CSV_MIME);
     } catch {
       // The user dismissing the share sheet also lands here on some OSes —
       // not worth surfacing as an error.
