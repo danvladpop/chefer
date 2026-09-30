@@ -3,7 +3,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { View, type TextInput } from 'react-native';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from 'expo-router';
-import { LEGAL_VERSIONS } from '@chefer/types';
+import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { Button, Input, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { detectRegion } from '@chefer/utils';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
@@ -114,7 +114,7 @@ function RegisterForm() {
       ...(values.firstName ? { firstName: values.firstName } : {}),
       acceptedTerms: values.acceptedTerms,
       ageConfirmed: values.ageConfirmed,
-      acceptedTermsVersion: LEGAL_VERSIONS.terms,
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       // Location defaults (P2-6): the device region seeds units + currency.
       // Intl only — Hermes ships it, no native dependency.
       ...withRegion(detectRegion()),

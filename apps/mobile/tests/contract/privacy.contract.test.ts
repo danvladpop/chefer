@@ -2,7 +2,7 @@ import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import superjson from 'superjson';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { AppRouter } from '@chefer/api';
-import { HEALTH_CONSENT_API_LEVEL, LEGAL_VERSIONS } from '@chefer/types';
+import { CURRENT_TERMS_VERSION, HEALTH_CONSENT_API_LEVEL } from '@chefer/types';
 import { API_URL, CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './client';
 
 // UX-26 (T-26.1, T-26.3) through the real API. HEALTH_CONSENT_ENFORCE is `off`
@@ -160,7 +160,7 @@ describe('privacy.withdrawHealthData deletes everything listed and records it (A
 
 describe('registration needs the 16+ confirmation (AC4, server side)', () => {
   it('a level >= 2 client without ageConfirmed is rejected; an installed binary without the header still registers', async () => {
-    const noAge = { acceptedTerms: true, acceptedTermsVersion: LEGAL_VERSIONS.terms } as const;
+    const noAge = { acceptedTerms: true, acceptedTermsVersion: CURRENT_TERMS_VERSION } as const;
     await expect(
       client.auth.register.mutate({
         email: uniqueEmail('privacy-age'),

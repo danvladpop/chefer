@@ -1,6 +1,6 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
-import { LEGAL_VERSIONS } from '@chefer/types';
+import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import ForgotPasswordScreen from '../../app/(auth)/forgot-password';
 import LoginScreen from '../../app/(auth)/login';
 import RegisterScreen from '../../app/(auth)/register';
@@ -185,7 +185,7 @@ describe('Register', () => {
         password: 'Password123!',
         acceptedTerms: true,
         ageConfirmed: true,
-        acceptedTermsVersion: LEGAL_VERSIONS.terms,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       }),
     );
   });
@@ -207,7 +207,7 @@ describe('Register', () => {
         password: 'Password123!',
         acceptedTerms: true,
         ageConfirmed: true,
-        acceptedTermsVersion: LEGAL_VERSIONS.terms,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
         region: 'US',
       }),
     );

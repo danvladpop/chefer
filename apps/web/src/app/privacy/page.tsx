@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 // in infrastructure.md §15, "Privacy & analytics consent"). Bump
 // EFFECTIVE_DATE on every material change.
 
-const EFFECTIVE_DATE = '26 September 2026';
+const EFFECTIVE_DATE = '30 September 2026';
 
 const linkClass = 'touch-target relative text-[#944a00] underline underline-offset-4';
 

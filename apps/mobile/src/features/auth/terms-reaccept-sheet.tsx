@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Linking, View } from 'react-native';
-import { LEGAL_VERSIONS } from '@chefer/types';
+import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
 import { getWebUrl } from '../../lib/api-url';
 import { trpc } from '../../lib/trpc';
@@ -27,7 +27,7 @@ import { trpc } from '../../lib/trpc';
 // this sheet.
 function isStale(latestVersion: string | null): boolean {
   if (!latestVersion) return false;
-  return latestVersion < LEGAL_VERSIONS.terms;
+  return latestVersion < CURRENT_TERMS_VERSION;
 }
 
 export function TermsReacceptSheet({ signedIn }: { signedIn: boolean }) {
@@ -77,7 +77,7 @@ export function TermsReacceptSheet({ signedIn }: { signedIn: boolean }) {
         <Button
           testID="terms-reaccept-agree"
           loading={acceptTerms.isPending}
-          onPress={() => acceptTerms.mutate({ documentVersion: LEGAL_VERSIONS.terms })}
+          onPress={() => acceptTerms.mutate({ documentVersion: CURRENT_TERMS_VERSION })}
         >
           I agree
         </Button>

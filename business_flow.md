@@ -87,10 +87,12 @@ free workout log too, not meal planning alone (CI-16/CI-25).
        /terms /privacy in a new tab) and "I'm 16 or older" (P0-6 — minimum
        age 16, Romania's age of digital consent). The submit button stays
        enabled either way; an unticked box shows an inline error instead.
-       acceptedTermsVersion is LEGAL_VERSIONS.terms (@chefer/types).
+       acceptedTermsVersion is CURRENT_TERMS_VERSION (@chefer/types) — the
+       later of the Terms and Privacy dates in LEGAL_VERSIONS.
    └── Re-accept sheet (TermsReacceptGate web, TermsReacceptSheet mobile,
        mounted in the signed-in shell): fires for a signed-in account whose
-       latest recorded TERMS version is OLDER than LEGAL_VERSIONS.terms. A
+       latest recorded TERMS version is OLDER than CURRENT_TERMS_VERSION (so a
+       Terms OR Privacy update re-prompts; wave 4 bumped privacy to 2026-09-30). A
        MISSING record (every account from before this wave) is treated as
        "not yet applicable", not "stale" — the sheet does not mass-prompt
        the entire existing user base the moment this ships; it only fires

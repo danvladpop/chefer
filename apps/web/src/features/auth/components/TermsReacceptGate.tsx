@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { trpc } from '@/lib/trpc';
-import { LEGAL_VERSIONS } from '@chefer/types';
+import { CURRENT_TERMS_VERSION } from '@chefer/types';
 
 // T-39.1: the "re-accept sheet" for an existing, signed-in account whose
 // stored Terms/Privacy acceptance predates a document version bump. Reads
@@ -27,7 +27,7 @@ function isStale(latestVersion: string | null): boolean {
   if (!latestVersion) return false;
   // Version strings are `YYYY-MM-DD` — string comparison already orders
   // them correctly.
-  return latestVersion < LEGAL_VERSIONS.terms;
+  return latestVersion < CURRENT_TERMS_VERSION;
 }
 
 export function TermsReacceptGate() {
@@ -79,7 +79,7 @@ export function TermsReacceptGate() {
           disabled={acceptTerms.isPending}
           onClick={() =>
             acceptTerms.mutate(
-              { documentVersion: LEGAL_VERSIONS.terms },
+              { documentVersion: CURRENT_TERMS_VERSION },
               { onSuccess: () => setDismissedThisSession(true) },
             )
           }

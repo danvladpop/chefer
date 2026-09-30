@@ -2266,7 +2266,7 @@ Every consent field actually sent is logged via `ConsentService.record` (§2.13;
 never actually agreed to anything. The `EMAIL_WEEK_READY`/`EMAIL_RECAP`/`AUTO_PLAN` defaults a
 brand-new account starts with (`false`, T-39.3) ARE logged for every registration regardless of
 level, since the column defaults apply unconditionally. Existing accounts whose stored
-`termsAcceptedVersion` predates the current `LEGAL_VERSIONS.terms` (`@chefer/types`) get a
+`termsAcceptedVersion` predates the current `CURRENT_TERMS_VERSION` (`@chefer/types`; the later of `LEGAL_VERSIONS.terms`/`.privacy` — wave 4 bumped privacy to `2026-09-30`, so a Terms **or** Privacy update re-prompts; the server accepts any version string, so older binaries keep registering) get a
 re-accept sheet (`privacy.acceptTerms`) — mounted this wave (`TermsReacceptGate` in
 `apps/web/src/app/(dashboard)/layout.tsx`, `TermsReacceptSheet` next to `<AiConsentHost />` in
 `apps/mobile/app/_layout.tsx`). The sheet treats a **missing** TERMS record as "not yet

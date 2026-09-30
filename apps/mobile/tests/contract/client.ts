@@ -1,6 +1,6 @@
 import { createTRPCClient } from '@trpc/client';
 import type { AppRouter } from '@chefer/api';
-import { LEGAL_VERSIONS } from '@chefer/types';
+import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { buildTrpcLinks } from '../../src/lib/trpc-links';
 
 export const API_URL = process.env.CHEFER_API_URL ?? 'http://localhost:3001';
@@ -52,5 +52,5 @@ export function uniqueEmail(prefix: string): string {
 export const CONTRACT_CONSENT = {
   acceptedTerms: true,
   ageConfirmed: true,
-  acceptedTermsVersion: LEGAL_VERSIONS.terms,
+  acceptedTermsVersion: CURRENT_TERMS_VERSION,
 } as const;

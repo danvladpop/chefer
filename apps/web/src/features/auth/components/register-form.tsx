@@ -7,7 +7,7 @@ import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { LEGAL_VERSIONS } from '@chefer/types';
+import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { detectRegion } from '@chefer/utils';
 
 // UX-25 (T-25.2) / UX-26 (T-26.5) / UX-39 (T-39.1) / B-25.
@@ -97,7 +97,7 @@ export function RegisterForm() {
       lastName: data.lastName,
       acceptedTerms: data.acceptedTerms,
       ageConfirmed: data.ageConfirmed,
-      acceptedTermsVersion: LEGAL_VERSIONS.terms,
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       ...(region && { region }),
     });
   };
