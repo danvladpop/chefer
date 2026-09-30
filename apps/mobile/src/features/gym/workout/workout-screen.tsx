@@ -722,6 +722,23 @@ export function WorkoutScreen() {
           }
           closeSheet();
         }}
+        onRemoveExercise={() => {
+          // No confirm: Undo puts it back in place with its sets and ticks.
+          if (contentSe) {
+            const exercise = contentSe;
+            dispatchWorkout({ type: 'removeExercise', seId: exercise.id });
+            haptics.warning();
+            snackbar.show({
+              message: `Removed ${contentMeta?.name ?? 'exercise'}`,
+              actionLabel: 'Undo',
+              durationMs: 8000,
+              onAction: () => {
+                dispatchWorkout({ type: 'restoreExercise', exercise, index: contentIndex });
+              },
+            });
+          }
+          closeSheet();
+        }}
         onAddSet={() => {
           if (contentSe) dispatchWorkout({ type: 'addSet', seId: contentSe.id, newSetId: newId() });
           closeSheet();

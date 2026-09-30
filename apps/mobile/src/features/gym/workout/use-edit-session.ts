@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { WorkoutSessionDoc } from '@chefer/types';
-import {
-  hasEdits,
-  replaceExerciseKeepingSets,
-  rescheduleSession,
-  workoutReducer,
-} from '@chefer/utils';
+import { hasEdits, replaceExerciseKeepingSets, retimeSession, workoutReducer } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { nowIso } from '../offline/ids';
 import { outbox } from '../offline/outbox';
+import { localInstant } from '../reminders/schedule';
 import type { WorkoutActionInput } from '../use-active-workout';
 import { useIsOnline } from './use-is-online';
 
@@ -37,8 +33,34 @@ export interface EditSession {
   dispatch: (action: WorkoutActionInput, options?: { at?: string }) => void;
   /** Replace an exercise, keeping its logged sets' numbers (this workout only). */
   replaceExercise: (seId: string, exerciseId: string) => void;
-  /** Move the session to another day/time (never the future). */
-  reschedule: (input: { localDate: string; startedAt: string }) => void;
+  /**
+   * Set the session's day and duration (never the future). The start keeps a
+   * stable time of day: the original session's for edit mode, 18:00 for log mode.
+   */
+  retime: (input: { localDate: string; durationMin: number }) => void;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** `HH:MM` (device-local) of an instant. */
+export function localTimeOf(iso: string): string {
+  const d = new Date(iso);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/** The pure part of `retime`, shared by edit and log mode. */
+export function retimeDraft(
+  doc: WorkoutSessionDoc,
+  input: { localDate: string; durationMin: number },
+  startTime: string,
+): WorkoutSessionDoc {
+  const now = nowIso();
+  return retimeSession(doc, {
+    ...input,
+    startedAt: localInstant(input.localDate, startTime),
+    now,
+    at: now,
+  });
 }
 
 /** The outbox's copy of a session, when an earlier correction hasn't synced yet. */
@@ -93,9 +115,13 @@ export function useEditSession(sessionId: string): EditSession {
     [apply],
   );
 
-  const reschedule = useCallback<EditSession['reschedule']>(
-    (input) => apply((doc) => rescheduleSession(doc, { ...input, now: nowIso(), at: nowIso() })),
-    [apply],
+  // The original's time of day, so moving the day never moves the clock time.
+  const startTime = original ? localTimeOf(original.startedAt) : null;
+  const retime = useCallback<EditSession['retime']>(
+    (input) => {
+      if (startTime) apply((doc) => retimeDraft(doc, input, startTime));
+    },
+    [apply, startTime],
   );
 
   const getDraft = useCallback(() => draftRef.current, []);
@@ -113,5 +139,5 @@ export function useEditSession(sessionId: string): EditSession {
     state = { status: 'loading' };
   }
 
-  return { state, getDraft, dispatch, replaceExercise, reschedule };
+  return { state, getDraft, dispatch, replaceExercise, retime };
 }

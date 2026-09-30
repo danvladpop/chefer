@@ -342,6 +342,83 @@ export function rescheduleSession(
   };
 }
 
+/** Minutes between start and finish (0 for an unfinished session). */
+export function sessionDurationMin(
+  doc: Pick<WorkoutSessionDoc, 'startedAt' | 'finishedAt'>,
+): number {
+  if (!doc.finishedAt) return 0;
+  return Math.max(0, Math.round((Date.parse(doc.finishedAt) - Date.parse(doc.startedAt)) / 60_000));
+}
+
+/**
+ * Set a session's day and length (the `When` fields of edit and log mode —
+ * owner dogfood 2026-09-30: a date and a duration, no clock time). The caller
+ * picks the start on that day (`startedAt`, e.g. the session's original time
+ * of day, or 18:00 for a new log); if the session would then end after `now`
+ * it is pulled back to end at `now` — never in the future (AC6).
+ */
+export function retimeSession(
+  doc: WorkoutSessionDoc,
+  input: { localDate: string; startedAt: string; durationMin: number; now: string; at: string },
+): WorkoutSessionDoc {
+  const nowMs = Date.parse(input.now);
+  const durationMs = Math.max(0, Math.round(input.durationMin)) * 60_000;
+  const startMs = Math.min(Date.parse(input.startedAt), nowMs - durationMs);
+  return {
+    ...doc,
+    localDate: input.localDate,
+    startedAt: new Date(startMs).toISOString(),
+    finishedAt: new Date(startMs + durationMs).toISOString(),
+    clientUpdatedAt: input.at,
+  };
+}
+
+/**
+ * Log mode's Save (owner dogfood 2026-09-30, "log a workout you already
+ * did"): every set still listed IS a set the user did, so each open working
+ * or warm-up set of a non-skipped exercise is completed at its current
+ * numbers, stamped at the session's end, and the session is COMPLETED. Cardio
+ * sets are left alone — they only count once their own `Log it` filled them.
+ * The doc must already carry its `finishedAt` (see `retimeSession`).
+ */
+export function completeLoggedSession(
+  doc: WorkoutSessionDoc,
+  input: { isCardio: (exerciseId: string) => boolean; at: string },
+): WorkoutSessionDoc {
+  const finishedAt = doc.finishedAt ?? input.at;
+  const { carryOverExerciseIds: _none, ...rest } = doc;
+  return {
+    ...rest,
+    status: 'COMPLETED',
+    finishedAt,
+    clientUpdatedAt: input.at,
+    exercises: doc.exercises.map((se) =>
+      se.skipped || input.isCardio(se.exerciseId)
+        ? se
+        : {
+            ...se,
+            sets: se.sets.map((set) =>
+              set.completedAt === null ? { ...set, completedAt: finishedAt } : set,
+            ),
+          },
+    ),
+  };
+}
+
+/** Log mode: can this be saved — at least one set (or logged cardio) left? */
+export function hasLoggableSet(
+  doc: WorkoutSessionDoc,
+  isCardio: (exerciseId: string) => boolean,
+): boolean {
+  return doc.exercises.some(
+    (se) =>
+      !se.skipped &&
+      (isCardio(se.exerciseId)
+        ? se.sets.some((s) => s.completedAt !== null)
+        : se.sets.some((s) => !s.isWarmup)),
+  );
+}
+
 // ─── Edit-mode bookkeeping ────────────────────────────────────────────────────
 
 function deepEqual(a: unknown, b: unknown): boolean {

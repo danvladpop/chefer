@@ -2,6 +2,7 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { NextWorkoutDto, WorkoutSessionDoc } from '@chefer/types';
 import {
+  completeLoggedSession,
   setTickOutcome,
   startSession,
   unstartedExercises,
@@ -177,6 +178,24 @@ export async function finishWorkout(
   skipRest();
   await applyFinishedLocally(queryClient, finished);
   return finished;
+}
+
+/**
+ * Log mode's Save (owner dogfood 2026-09-30, "log a workout you already
+ * did"): the draft never lived in the active-session store, so this is
+ * `finishWorkout` minus the store — every listed set is completed
+ * (`completeLoggedSession`), then outbox.enqueue (durable FIRST) → optimistic
+ * fold into the cached bootstrap. Returns the saved doc.
+ */
+export async function saveLoggedSession(
+  queryClient: QueryClient,
+  draft: WorkoutSessionDoc,
+  isCardio: (exerciseId: string) => boolean,
+): Promise<WorkoutSessionDoc> {
+  const saved = completeLoggedSession(draft, { isCardio, at: nowIso() });
+  outbox.enqueue(saved, { ownerId: getGymOwner() });
+  await applyFinishedLocally(queryClient, saved);
+  return saved;
 }
 
 /** 24 h "Save for later" window (UX-36 (3)) — kept in one place with `resume.ts`'s copy of it. */

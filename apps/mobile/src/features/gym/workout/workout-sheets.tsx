@@ -174,7 +174,8 @@ export interface ExerciseMenuProps {
    * to the picker (this workout only, never the routine: no scope page),
    * `Remove from this workout` drops the exercise, and Skip is hidden.
    */
-  mode?: 'live' | 'edit';
+  mode?: 'live' | 'edit' | 'log';
+  /** `Remove exercise` (live) / `Remove from this workout` (edit). */
   onRemoveExercise?: () => void;
 }
 
@@ -221,7 +222,9 @@ function MenuRow({
 
 export function ExerciseMenuSheet(props: ExerciseMenuProps) {
   const { visible, onClose, exercise, name, isFirst, isLast, routineBlockedReason } = props;
-  const editing = props.mode === 'edit';
+  // Log mode (a new past workout) is edit mode where every listed set counts.
+  const logging = props.mode === 'log';
+  const editing = props.mode === 'edit' || logging;
   const [page, setPage] = useState<MenuPage>('actions');
   const [note, setNote] = useState(exercise?.notes ?? '');
   // UX-05 A1 (T-05.A1.2): renamed "Remove last set" — it removes the last
@@ -270,6 +273,15 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
                 hint={exercise.skipped ? undefined : 'Skipping never counts as a miss.'}
                 onPress={props.onSkip}
               />
+              {/* Owner dogfood 2026-09-30: an exercise added by mistake must be
+                  removable, not just skippable. Undo comes from the snackbar. */}
+              <MenuRow
+                testID="menu-remove-exercise"
+                label="Remove exercise"
+                hint="Removes it from this workout only."
+                destructive
+                onPress={() => props.onRemoveExercise?.()}
+              />
             </>
           )}
           <MenuRow testID="menu-add-set" label="Add set" onPress={props.onAddSet} />
@@ -277,11 +289,13 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             testID="menu-remove-set"
             label="Remove last set"
             hint={
-              hasOpenSet
-                ? 'Removes the last set you haven’t logged.'
-                : hasWorkingSet
-                  ? 'Removes the last set.'
-                  : 'No sets to remove.'
+              logging && hasWorkingSet
+                ? 'Removes the last set.'
+                : hasOpenSet
+                  ? 'Removes the last set you haven’t logged.'
+                  : hasWorkingSet
+                    ? 'Removes the last set.'
+                    : 'No sets to remove.'
             }
             disabled={!hasWorkingSet}
             onPress={props.onRemoveSet}

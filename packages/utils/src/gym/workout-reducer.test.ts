@@ -326,6 +326,50 @@ describe('workoutReducer', () => {
     expect(floor.exercises[2]?.sets[0]?.reps).toBe(8);
   });
 
+  // Owner dogfood 2026-09-30: live workouts can remove an exercise, with Undo.
+  it('restoreExercise (Undo) re-inserts a removed exercise at its original index, sets and all', () => {
+    let doc = start();
+    const target = doc.exercises[0];
+    const firstSet = target?.sets[0];
+    if (!target || !firstSet || doc.exercises.length < 2) {
+      throw new Error('fixture');
+    }
+    doc = workoutReducer(doc, {
+      type: 'completeSet',
+      seId: target.id,
+      setId: firstSet.id,
+      at: at(1),
+    });
+    const ticked = doc.exercises[0];
+    if (!ticked) {
+      throw new Error('fixture');
+    }
+    const order = doc.exercises.map((e) => e.id);
+
+    const removed = workoutReducer(doc, { type: 'removeExercise', seId: target.id, at: at(2) });
+    expect(removed.exercises.some((e) => e.id === target.id)).toBe(false);
+    expect(removed.exercises.map((e) => e.position)).toEqual(removed.exercises.map((_, i) => i));
+
+    const restored = workoutReducer(removed, {
+      type: 'restoreExercise',
+      exercise: ticked,
+      index: 0,
+      at: at(3),
+    });
+    expect(restored.exercises.map((e) => e.id)).toEqual(order);
+    expect(restored.exercises[0]?.sets[0]?.completedAt).toBe(at(1));
+    expect(restored.exercises.map((e) => e.position)).toEqual(restored.exercises.map((_, i) => i));
+
+    // A stale/duplicate Undo is a no-op.
+    const again = workoutReducer(restored, {
+      type: 'restoreExercise',
+      exercise: ticked,
+      index: 0,
+      at: at(4),
+    });
+    expect(again).toBe(restored);
+  });
+
   // UX-05 A1 (T-05.A1.2, PAT-16): Undo after removing any set re-inserts it
   // at the same index with the same id, values and completedAt.
   it('restoreSet (Undo) re-inserts a removed set at its original index, with its values and tick', () => {

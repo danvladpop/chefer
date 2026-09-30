@@ -53,8 +53,10 @@ export interface WorkoutContext {
    * UX-44 (T-44.3): `edit` is the logger over a past session — no Why?/Next-time
    * banner (they describe the future; the notice on Gym Today covers it) and the
    * reps-left row is a collapsed `Change` line instead of a prompt. Omitted = live.
+   * `log` (owner dogfood 2026-09-30) is edit mode over a NEW past workout:
+   * every listed set counts, so the sets have no ✓ and no done count.
    */
-  mode?: 'live' | 'edit';
+  mode?: 'live' | 'edit' | 'log';
   handlers: SetRowHandlers;
   onSheet: (request: WorkoutSheetRequest) => void;
   onToggle: (seId: string) => void;
@@ -131,15 +133,18 @@ function ExerciseCardImpl({
   const warmupsDone = warmups.filter(isDone).length;
   const range = se.repMin === se.repMax ? `${se.repMin}` : `${se.repMin}–${se.repMax}`;
   const cardio = isCardioMeta(meta);
+  const logging = ctx.mode === 'log';
   // AC1: a cardio card never shows kg/sets/RIR — just done/not-done.
   const subtitle = cardio
     ? working[0] && isDone(working[0])
       ? 'Logged'
       : 'Not logged yet'
-    : `${working.length} × ${range}${meta.isTimed ? ' s' : ''} · ${done}/${working.length} done`;
+    : logging
+      ? `${working.length} × ${range}${meta.isTimed ? ' s' : ''}`
+      : `${working.length} × ${range}${meta.isTimed ? ' s' : ''} · ${done}/${working.length} done`;
   const imageUri = exerciseImageUrl(meta);
   const calibrating = isCalibrating(se.prescription);
-  const editing = ctx.mode === 'edit';
+  const editing = ctx.mode === 'edit' || logging;
   const showRir = !se.skipped && (editing ? working.length > 0 : lastWorkingSetDone(se));
   const rirExpanded = rirOpen ?? (!editing && se.lastSetRir === null);
 
@@ -307,6 +312,7 @@ function ExerciseCardImpl({
                       prKind={null}
                       focused={focusSetId === s.id}
                       handlers={ctx.handlers}
+                      showCheck={!logging}
                       testID={`${base}-warmup-${i + 1}`}
                     />
                   ))
@@ -328,6 +334,7 @@ function ExerciseCardImpl({
               prKind={pr?.setId === s.id ? pr.kind : null}
               focused={focusSetId === s.id}
               handlers={ctx.handlers}
+              showCheck={!logging}
               testID={`${base}-set-${i + 1}`}
             />
           ))}

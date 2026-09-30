@@ -1,8 +1,13 @@
 import { onlineManager } from '@tanstack/react-query';
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { GymBootstrap, SessionSummaryDto, WorkoutSessionDoc } from '@chefer/types';
 import { resetSnackbarForTests, Snackbar } from '@chefer/ui-mobile';
-import { addDaysLocal, toSessionSummary } from '@chefer/utils';
+import {
+  addDaysLocal,
+  sessionDurationMin,
+  toSessionSummary,
+  weekdayDateLabel,
+} from '@chefer/utils';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
 import { localDate } from '../../src/features/gym/offline/ids';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
@@ -14,13 +19,17 @@ import {
 } from '../../src/features/gym/offline/session-corrections';
 import * as activeWorkout from '../../src/features/gym/use-active-workout';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
-import { EditSessionScreen } from '../../src/features/gym/workout/edit-session-screen';
+import {
+  EditSessionScreen,
+  LogSessionScreen,
+} from '../../src/features/gym/workout/edit-session-screen';
 import { makeBootstrap, makeDoc, makeExercise } from './gym-fixtures';
 import {
   activeDoc,
   Providers,
   recordingLink,
   suggestion,
+  supersetRoutine,
   testQueryClient,
   type LinkCall,
 } from './gym-workout-helpers';
@@ -246,22 +255,33 @@ describe('EditSessionScreen', () => {
     expect(calls.some((c) => c.path.startsWith('gym.routine'))).toBe(false);
   });
 
-  it('AC6: the date chips run from last Monday to today, never into the future', async () => {
+  it('AC6 + owner dogfood 2026-09-30: Change is a date stepper and a duration — never into the future', async () => {
     const user = userEvent.setup();
     await renderEdit(pastDoc());
-    await user.press(await screen.findByTestId('edit-session-change-when'));
-    expect(await screen.findByTestId(`edit-session-when-date-${TODAY}`)).toBeOnTheScreen();
-    expect(screen.queryByTestId(`edit-session-when-date-${addDaysLocal(TODAY, 1)}`)).toBeNull();
-    expect(screen.getByTestId(`edit-session-when-date-${SESSION_DAY}`)).toBeOnTheScreen();
+    expect(await screen.findByTestId('edit-session-subtitle')).toHaveTextContent(/45 min/);
+    await user.press(screen.getByTestId('edit-session-change-when'));
+    expect(await screen.findByTestId('edit-session-when-date')).toHaveTextContent(
+      weekdayDateLabel(SESSION_DAY),
+    );
+    // No clock time any more.
+    expect(screen.queryByTestId('edit-session-when-time')).toBeNull();
 
-    // Move it to yesterday and save: the doc lands on that day, not after "now".
-    const yesterday = addDaysLocal(TODAY, -1);
-    await user.press(screen.getByTestId(`edit-session-when-date-${yesterday}`));
+    // Two days ago → yesterday → today, and no further.
+    await user.press(screen.getByTestId('edit-session-when-date-next'));
+    expect(screen.getByTestId('edit-session-when-date')).toHaveTextContent(/Yesterday/);
+    await user.press(screen.getByTestId('edit-session-when-date-next'));
+    expect(screen.getByTestId('edit-session-when-date')).toHaveTextContent(/Today/);
+    expect(screen.getByTestId('edit-session-when-date-next')).toBeDisabled();
+    await user.press(screen.getByTestId('edit-session-when-date-prev'));
+
+    await fireEvent.changeText(screen.getByTestId('edit-session-when-duration'), '70');
     await user.press(screen.getByTestId('edit-session-when-done'));
     await user.press(screen.getByTestId('edit-session-save'));
+
     const saved = outbox.getState().entries[0]?.doc;
+    const yesterday = addDaysLocal(TODAY, -1);
     expect(saved?.localDate).toBe(yesterday);
-    expect(Date.parse(saved?.startedAt ?? '')).toBeLessThanOrEqual(Date.now());
+    expect(sessionDurationMin(saved ?? pastDoc())).toBe(70);
     expect(Date.parse(saved?.finishedAt ?? '')).toBeLessThanOrEqual(Date.now());
   });
 
@@ -307,5 +327,82 @@ describe('EditSessionScreen', () => {
     );
     expect(await screen.findByTestId('edit-session-unavailable')).toBeOnTheScreen();
     expect(screen.getByText('Connect to load older workouts.')).toBeOnTheScreen();
+  });
+});
+
+// Owner dogfood 2026-09-30: "Log a workout you already did" opens log mode —
+// a NEW past workout with no timer and no ticks, saved with Save.
+describe('LogSessionScreen', () => {
+  const YESTERDAY = addDaysLocal(TODAY, -1);
+
+  async function renderLog(dayId: string | null) {
+    const bootstrap = makeBootstrap({
+      activeRoutine: supersetRoutine(),
+      library: [makeExercise('bench'), makeExercise('squat'), makeExercise('row')],
+    });
+    const queryClient = testQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, bootstrap);
+    await render(
+      <Providers
+        queryClient={queryClient}
+        bootstrap={bootstrap}
+        link={recordingLink([], (path) => (path === 'profile.flags' ? {} : bootstrap))}
+      >
+        <LogSessionScreen date={YESTERDAY} dayId={dayId} />
+        <Snackbar />
+      </Providers>,
+    );
+  }
+
+  it('opens the routine day as a new workout — working sets, no ✓, no timer — and Save logs every set', async () => {
+    const user = userEvent.setup();
+    await renderLog('day-1');
+    expect(await screen.findByTestId('edit-session-title')).toHaveTextContent('Log workout');
+    expect(await screen.findByTestId('exercise-0-set-1-weight-value')).toBeOnTheScreen();
+    expect(screen.queryByTestId('exercise-0-set-1-check')).toBeNull();
+    expect(screen.queryByTestId('rest-timer')).toBeNull();
+    expect(screen.getByTestId('edit-session-when-date')).toHaveTextContent(/Yesterday/);
+
+    // ✕ on set 3 of the first exercise: it's left out of the log.
+    await user.press(screen.getByTestId('exercise-0-set-3-menu'));
+    await user.press(screen.getByTestId('edit-session-save'));
+
+    const saved = outbox.getState().entries[0]?.doc;
+    expect(saved?.status).toBe('COMPLETED');
+    expect(saved?.localDate).toBe(YESTERDAY);
+    expect(saved?.routineDayId).toBe('day-1');
+    expect(saved?.exercises.map((e) => e.sets.length)).toEqual([2, 3, 3]);
+    expect(saved?.exercises.flatMap((e) => e.sets).every((x) => x.completedAt !== null)).toBe(true);
+    expect(saved?.exercises.flatMap((e) => e.sets).some((x) => x.isWarmup)).toBe(false);
+    expect(activeSessionStore.get()).toBeNull();
+    expect(router.back).toHaveBeenCalled();
+  });
+
+  it('sets the date and duration inline, never past today', async () => {
+    const user = userEvent.setup();
+    await renderLog('day-1');
+    await user.press(await screen.findByTestId('edit-session-when-date-next'));
+    expect(screen.getByTestId('edit-session-when-date')).toHaveTextContent(/Today/);
+    expect(screen.getByTestId('edit-session-when-date-next')).toBeDisabled();
+    await user.press(screen.getByTestId('edit-session-when-date-prev'));
+    await user.press(screen.getByTestId('edit-session-when-date-prev'));
+    await fireEvent.changeText(screen.getByTestId('edit-session-when-duration'), '50');
+    await user.press(screen.getByTestId('edit-session-save'));
+
+    const saved = outbox.getState().entries[0]?.doc;
+    expect(saved?.localDate).toBe(addDaysLocal(TODAY, -2));
+    expect(sessionDurationMin(saved ?? pastDoc())).toBe(50);
+  });
+
+  it('an empty freestyle log is not saved', async () => {
+    const user = userEvent.setup();
+    await renderLog(null);
+    expect(await screen.findByTestId('edit-session-subtitle')).toHaveTextContent(
+      'Freestyle workout',
+    );
+    await user.press(screen.getByTestId('edit-session-save'));
+    expect(await screen.findByTestId('snackbar-message')).toHaveTextContent(/at least one/);
+    expect(outbox.getState().entries).toHaveLength(0);
+    expect(router.back).not.toHaveBeenCalled();
   });
 });

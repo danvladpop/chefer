@@ -1,109 +1,46 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import type { GymBootstrap } from '@chefer/types';
 import { Sheet, Text } from '@chefer/ui-mobile';
-import {
-  addDaysLocal,
-  buildNextWorkout,
-  equipmentProfileOf,
-  progressionKey,
-  weekStartOf,
-  type ProgressionEntry,
-} from '@chefer/utils';
 import { localDate } from '../offline/ids';
-import { useActiveWorkout } from '../use-active-workout';
-import { libraryLookup } from '../use-gym-bootstrap';
 
-// "Log a past workout" (gym_plan.md §1.4 "Repair", research §4.2 #5): pick a
-// date in the current or previous week (today included) — never the future — then a routine
-// day or freestyle. Starts a session backdated to that day at 18:00 local
-// (use-active-workout.ts's `backfillDate`); the user logs the actual sets in
-// the normal workout screen and finishes exactly like any other session.
+// "Log a workout you already did" (gym_plan.md §1.4 "Repair", research §4.2
+// #5). Owner dogfood 2026-09-30 reworked it:
+// - It opens LOG MODE (`/gym/workout?log=…`), not a live, timed workout: the
+//   user sets the date, the duration, the exercises and each set's numbers,
+//   then Save (`use-log-session.ts`).
+// - One sheet, one question — which workout? The day is picked on the log
+//   screen itself (it starts on today). The old two-step flow closed one
+//   Modal and opened the next in the same frame, which iOS refuses: the
+//   second sheet never appeared and its invisible Modal swallowed every tap
+//   (the "app freezes" report, iPhone only).
+// - Navigation waits for the sheet to be fully gone (`onExited`) for the same
+//   reason.
 // Showing this path is what weakens the "broken streak" effect (research
 // §4.1): a missed day is repairable, not a permanent gap.
 
-/**
- * Every date from the Monday of the PREVIOUS week through today, newest first.
- * Today is included (owner dogfood 2026-09-29): a session already done
- * without the app — or one that isn't the planned day — must be loggable
- * the same day. It starts now, not backdated (see `backfillDateFor`).
- */
-function eligibleBackfillDates(today: string): string[] {
-  const start = weekStartOf(addDaysLocal(today, -7));
-  const dates: string[] = [];
-  for (let d = start; d <= today; d = addDaysLocal(d, 1)) dates.push(d);
-  return dates.reverse();
-}
-
-/** Today logs as a normal session (an 18:00 start could be in the future). */
-function backfillDateFor(date: string, today: string): string | undefined {
-  return date === today ? undefined : date;
-}
-
-function formatDateLabel(date: string, today: string): string {
-  if (date === today) return 'Today';
-  if (date === addDaysLocal(today, -1)) return 'Yesterday';
-  const d = new Date(`${date}T00:00:00`);
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+function logHref(date: string, dayId: string | null): Href {
+  return dayId
+    ? { pathname: '/gym/workout', params: { log: date, day: dayId } }
+    : { pathname: '/gym/workout', params: { log: date } };
 }
 
 export function LogPastWorkoutAction({ bootstrap }: { bootstrap: GymBootstrap }) {
-  const activeWorkout = useActiveWorkout();
-  const [step, setStep] = useState<'closed' | 'date' | 'day'>('closed');
-  const [date, setDate] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const pending = useRef<Href | null>(null);
 
-  const today = localDate();
-  const close = () => {
-    setStep('closed');
-    setDate(null);
+  const pick = (dayId: string | null) => {
+    pending.current = logHref(localDate(), dayId);
+    setOpen(false);
   };
 
-  const pickDate = (d: string) => {
-    setDate(d);
-    setStep('day');
+  const onExited = () => {
+    const href = pending.current;
+    pending.current = null;
+    if (href) router.push(href);
   };
 
-  const goToWorkout = () => {
-    close();
-    router.push('/gym/workout');
-  };
-
-  const startFreestyle = () => {
-    if (!date) return;
-    const backfillDate = backfillDateFor(date, today);
-    activeWorkout.start(
-      backfillDate
-        ? { kind: 'freestyle', name: 'Backfilled workout', backfillDate }
-        : { kind: 'freestyle' },
-    );
-    goToWorkout();
-  };
-
-  const startDay = (dayId: string) => {
-    if (!date || !bootstrap.activeRoutine || !bootstrap.profile) return;
-    const progressions = new Map<string, ProgressionEntry>(
-      bootstrap.progressions.map((p) => [
-        progressionKey(p.exerciseId, p.repBucket),
-        { state: p.state, override: p.override },
-      ]),
-    );
-    const workout = buildNextWorkout({
-      routine: bootstrap.activeRoutine,
-      dayId,
-      lookup: libraryLookup(bootstrap),
-      progressions,
-      profile: equipmentProfileOf(bootstrap.profile),
-      facts: { experience: bootstrap.profile.experience, ageYears: null },
-      today: date,
-      recentSessions: bootstrap.recentSessions,
-      isDeload: false,
-    });
-    activeWorkout.start({ kind: 'planned', workout, backfillDate: backfillDateFor(date, today) });
-    goToWorkout();
-  };
-
-  const dates = eligibleBackfillDates(today);
   const sortedDays = [...(bootstrap.activeRoutine?.days ?? [])].sort(
     (a, b) => a.position - b.position,
   );
@@ -113,41 +50,20 @@ export function LogPastWorkoutAction({ bootstrap }: { bootstrap: GymBootstrap })
       <Pressable
         testID="gym-today-log-past"
         accessibilityRole="button"
-        onPress={() => setStep('date')}
+        onPress={() => {
+          pending.current = null;
+          setOpen(true);
+        }}
         className="min-h-11 justify-center"
       >
         <Text className="text-sm font-medium text-primary">Log a workout you already did</Text>
       </Pressable>
 
       <Sheet
-        visible={step === 'date'}
-        onClose={close}
-        title="Which day?"
-        testID="gym-today-backfill-date-picker"
-      >
-        {dates.length === 0 ? (
-          <Text variant="muted" className="px-1 py-3">
-            No eligible days yet — check back after your first week.
-          </Text>
-        ) : (
-          dates.map((d) => (
-            <Pressable
-              key={d}
-              testID={`gym-today-backfill-date-${d}`}
-              accessibilityRole="button"
-              onPress={() => pickDate(d)}
-              className="min-h-11 justify-center border-b border-border py-3"
-            >
-              <Text className="font-medium">{formatDateLabel(d, today)}</Text>
-            </Pressable>
-          ))
-        )}
-      </Sheet>
-
-      <Sheet
-        visible={step === 'day'}
-        onClose={close}
-        title="Which routine day?"
+        visible={open}
+        onClose={() => setOpen(false)}
+        onExited={onExited}
+        title="Which workout did you do?"
         testID="gym-today-backfill-day-picker"
       >
         <View className="gap-0">
@@ -156,7 +72,7 @@ export function LogPastWorkoutAction({ bootstrap }: { bootstrap: GymBootstrap })
               key={day.id}
               testID={`gym-today-backfill-day-${day.id}`}
               accessibilityRole="button"
-              onPress={() => startDay(day.id)}
+              onPress={() => pick(day.id)}
               className="min-h-11 justify-center border-b border-border py-3"
             >
               <Text className="font-medium">{day.name}</Text>
@@ -165,12 +81,18 @@ export function LogPastWorkoutAction({ bootstrap }: { bootstrap: GymBootstrap })
           <Pressable
             testID="gym-today-backfill-freestyle"
             accessibilityRole="button"
-            onPress={startFreestyle}
+            onPress={() => pick(null)}
             className="min-h-11 justify-center py-3"
           >
             <Text className="font-medium text-primary">Freestyle</Text>
+            <Text variant="muted" className="text-xs">
+              Pick the exercises yourself.
+            </Text>
           </Pressable>
         </View>
+        <Text variant="muted" className="text-xs">
+          You&apos;ll set the day, how long it took and your sets next.
+        </Text>
       </Sheet>
     </>
   );

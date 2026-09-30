@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { landingFor, type LandingSurface } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
-import { getMode } from '../gym/mode-store';
+import { getMode, hasChosenMode } from '../gym/mode-store';
 import {
   getCachedHasGymProfile,
   getCachedJobs,
@@ -21,8 +21,14 @@ import {
 // The foreground-after-30-minutes re-application (the other half of T-04.3)
 // isn't wired either; only the cold-start read is.
 
-/** Synchronous: the surface a plain cold-start launch should open. */
+/**
+ * Synchronous: the surface a plain cold-start launch should open. An explicit
+ * Food/Gym choice always wins — the jobs-based default only decides for
+ * someone who has never picked (owner dogfood 2026-09-30: a TRAIN-only
+ * account tapping Food was sent straight back to Gym).
+ */
 export function landingSurfaceSync(): LandingSurface {
+  if (hasChosenMode()) return getMode();
   return landingFor({
     jobs: getCachedJobs(),
     persistedMode: getMode(),

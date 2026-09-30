@@ -14,13 +14,17 @@ import {
   applySessionDeleted,
   applySessionEdited,
   bumpClientUpdatedAt,
+  completeLoggedSession,
   discardedTombstone,
   editSummary,
   hasEdits,
+  hasLoggableSet,
   nothingTicked,
   replaceExerciseKeepingSets,
   rescheduleSession,
+  retimeSession,
   sessionDeletePreview,
+  sessionDurationMin,
   snapshotTargets,
   targetDiff,
   touchedExerciseIds,
@@ -493,5 +497,75 @@ describe('UX-44 AC8 — a progression after an edit equals a fresh fold over the
     });
     expect(fold([fixedByEdit])).toEqual(fold([alwaysRight]));
     expect(fold([typo])).not.toEqual(fold([alwaysRight]));
+  });
+});
+
+describe('log mode + When fields (owner dogfood 2026-09-30)', () => {
+  const NOW = `${TODAY}T20:00:00.000Z`;
+  const noCardio = () => false;
+
+  it('retimeSession sets the day and the length, keeping the chosen start', () => {
+    const moved = retimeSession(doc(), {
+      localDate: '2026-09-22',
+      startedAt: '2026-09-22T17:00:00.000Z',
+      durationMin: 70,
+      now: NOW,
+      at: NOW,
+    });
+    expect(moved.localDate).toBe('2026-09-22');
+    expect(moved.startedAt).toBe('2026-09-22T17:00:00.000Z');
+    expect(moved.finishedAt).toBe('2026-09-22T18:10:00.000Z');
+    expect(sessionDurationMin(moved)).toBe(70);
+  });
+
+  it('retimeSession never ends in the future: a late start today is pulled back to end now', () => {
+    const today = retimeSession(doc(), {
+      localDate: TODAY,
+      startedAt: `${TODAY}T19:30:00.000Z`,
+      durationMin: 60,
+      now: NOW,
+      at: NOW,
+    });
+    expect(today.finishedAt).toBe(NOW);
+    expect(today.startedAt).toBe(`${TODAY}T19:00:00.000Z`);
+  });
+
+  it('completeLoggedSession completes every listed set at the end time, leaving cardio and ticks alone', () => {
+    const base = doc({ status: 'IN_PROGRESS' });
+    const first = base.exercises[0];
+    if (!first) throw new Error('fixture');
+    const open = doc({
+      status: 'IN_PROGRESS',
+      exercises: [
+        { ...first, sets: first.sets.map((s, i) => (i === 1 ? { ...s, completedAt: null } : s)) },
+        {
+          ...first,
+          id: 'se2',
+          exerciseId: 'bike',
+          position: 1,
+          sets: first.sets.map((s) => ({ ...s, id: `c-${s.id}`, completedAt: null })),
+        },
+      ],
+    });
+    const saved = completeLoggedSession(open, { isCardio: (id) => id === 'bike', at: NOW });
+    expect(saved.status).toBe('COMPLETED');
+    expect(saved.finishedAt).toBe(open.finishedAt);
+    expect(saved.exercises[0]?.sets.map((s) => s.completedAt)).toEqual([
+      '2026-09-24T18:10:00.000Z',
+      open.finishedAt,
+    ]);
+    expect(saved.exercises[1]?.sets.every((s) => s.completedAt === null)).toBe(true);
+  });
+
+  it('hasLoggableSet needs a listed set (or a logged cardio entry)', () => {
+    expect(hasLoggableSet(doc(), noCardio)).toBe(true);
+    expect(hasLoggableSet(doc({ exercises: [] }), noCardio)).toBe(false);
+    const first = doc().exercises[0];
+    if (!first) throw new Error('fixture');
+    const emptyCardio = doc({
+      exercises: [{ ...first, sets: first.sets.map((s) => ({ ...s, completedAt: null })) }],
+    });
+    expect(hasLoggableSet(emptyCardio, () => true)).toBe(false);
+    expect(hasLoggableSet(emptyCardio, noCardio)).toBe(true);
   });
 });
