@@ -21,7 +21,10 @@ export const LEGAL_VERSIONS = {
 } as const;
 
 /** The combined version string clients send/compare (`YYYY-MM-DD`, the later document date). */
-export const CURRENT_TERMS_VERSION: string =
-  LEGAL_VERSIONS.privacy > LEGAL_VERSIONS.terms ? LEGAL_VERSIONS.privacy : LEGAL_VERSIONS.terms;
+function laterOf(a: string, b: string): string {
+  return a > b ? a : b;
+}
+
+export const CURRENT_TERMS_VERSION: string = laterOf(LEGAL_VERSIONS.terms, LEGAL_VERSIONS.privacy);
 
 export type LegalDoc = 'terms' | 'privacy';
