@@ -2,14 +2,10 @@
 // AC3 says: with anonymous counting off, no network call is made. The existing
 // analytics.test.ts covers "off before the event is tracked". This file covers
 // the other order: an event is tracked while counting is on, then the user
-// turns it off before the 30 s flush. `flush()` in analytics-transport.ts only
-// checks `enabled` and the queue length, not consent, and `setAnalyticsConsent`
-// does not clear the queue, so that already-queued batch is still sent.
-//
-// `it.failing` records the gap without turning CI red: it passes while the gap
-// exists and starts FAILING the day the queue is dropped on opt-out, which is
-// the cue to change it to a plain `it`. Fixing it is app code (owned by the
-// analytics lane), not part of the store lane.
+// turns it off before the 30 s flush. `flush()` only checks `enabled` and the
+// queue length, not consent, so `setAnalyticsConsent({ anonymous: false })`
+// clears the transport queue (`clearQueue()`) — without that, the
+// already-queued batch was still sent (fixed in wave 4).
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'session-1' }));
 
@@ -37,7 +33,7 @@ describe('analytics opt-out with a non-empty queue', () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it.failing('drops events queued before the user turned counting off', async () => {
+  it('drops events queued before the user turned counting off', async () => {
     process.env = {
       ...ORIGINAL_ENV,
       EXPO_PUBLIC_POSTHOG_KEY: 'test-key',

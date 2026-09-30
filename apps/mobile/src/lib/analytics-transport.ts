@@ -59,6 +59,14 @@ export async function flush(): Promise<void> {
   }
 }
 
+/**
+ * Drops every queued, unsent event. Called when the user turns counting off,
+ * so events tracked before the opt-out never go out at the next flush (AC3).
+ */
+export function clearQueue(): void {
+  queue = [];
+}
+
 let appStateSubscription: { remove: () => void } | null = null;
 
 /** Starts the 30s timer and the background-flush listener. Call once at launch. */

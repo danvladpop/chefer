@@ -65,14 +65,14 @@ requests to `eu.i.posthog.com`.
 - Off before the event: `track()` returns before `enqueue` when `consent.anonymous` is false. Test:
   same file, "AC3: turning anonymous counting off means fetch is never called".
 - Off also turns linking off, and sign-out resets linking: same file.
-- **Gap found, not fixed (app code):** if an event is queued while counting is on and the user then
-  turns it off, the queued batch is still sent at the next 30 s flush or when the app goes to the
-  background, because `flush()` does not check consent and `setAnalyticsConsent()` does not clear
-  the queue. Recorded as `it.failing` in `apps/mobile/tests/unit/analytics-optout-queue.test.ts`
-  (it passes while the gap exists and fails the day the queue is dropped on opt-out; then change it
-  to a plain `it`). The proxy run below includes a step that shows it on a real phone.
-- **Second gap:** `setCurrentUserId()` is never called, so "Link usage to my account" has no effect
-  today (events always carry the random session id).
+- **Off after events were queued (gap found and fixed in wave 4):** `setAnalyticsConsent({ anonymous:
+false })` now clears the transport queue (`clearQueue()`), so a batch queued while counting was on
+  is not sent at the next 30 s / background flush. Test:
+  `apps/mobile/tests/unit/analytics-optout-queue.test.ts`. The proxy run below includes a step that
+  checks it on a real phone.
+- **Open gap:** `setCurrentUserId()` is never called, so "Link usage to my account" has no effect
+  today (events always carry the random session id). The privacy page says linked counts "can carry"
+  the account ID, which stays true either way.
 - The build carrying the check needs a **test** PostHog key. On a normal production build the
   variables are unset and the result is trivially zero; that is the current state of the store build.
 

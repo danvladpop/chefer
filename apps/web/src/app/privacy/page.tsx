@@ -392,7 +392,7 @@ export default async function PrivacyPage() {
             &ldquo;Send anonymous usage counts&rdquo; is on by default and sends counts of which
             screens and features are used, tagged with a random identifier made each time the app
             starts and never stored, with no name, email or health information. &ldquo;Link usage to
-            my account&rdquo; is off unless you turn it on; when it is on, the counts carry your
+            my account&rdquo; is off unless you turn it on; when it is on, the counts can carry your
             account ID instead (never your name or email). Turning the first switch off stops all
             analytics requests from the app at once. The choice applies to the phone you set it on.
             The app keeps your sign-in in the device&apos;s secure storage and saves workouts on the
