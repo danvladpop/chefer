@@ -15,10 +15,10 @@ to "live on the App Store", in order. Companion files:
 
 ## 0. Checklist
 
-**Code (done on branch `feat/app-store-readiness`, not pushed; merge and deploy it):**
+**Code (done; merged to `master` in #45, per the waves README):**
 
 - [x] In-app **account deletion** on iOS and web (Guideline 5.1.1(v); missing = certain rejection)
-- [x] **AI data consent** before the first call to Google Gemini (Guideline 5.1.2(i))
+- [x] **AI data consent** before the first call to an AI provider (Guideline 5.1.2(i)); plus, since wave 3, a separate **health information consent**
 - [x] "Beta" wording removed from the app (Guideline 2.2 rejects apps that look like betas)
 - [x] Public **/support** page; **/privacy** updated (deletion, consent, contact)
 - [x] Support email: `cheferapp.help@gmail.com` (`SUPPORT_EMAIL` in `packages/types/src/support.ts`)
@@ -229,9 +229,9 @@ reply to the reviewer that it's fixed. Native changes need a new `eas build` + `
 
 | Guideline | Risk                                                 | Status                                                                                                                                                                                                                                   |
 | --------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 5.1.1(v)  | Account creation without in-app deletion             | Fixed on `feat/app-store-readiness`                                                                                                                                                                                                      |
-| 5.1.2(i)  | Personal data sent to third-party AI without consent | Fixed on `feat/app-store-readiness`                                                                                                                                                                                                      |
-| 2.2       | App labelled "beta"                                  | Copy fixed on `feat/app-store-readiness`                                                                                                                                                                                                 |
+| 5.1.1(v)  | Account creation without in-app deletion             | Fixed (merged to `master`, #45)                                                                                                                                                                                                          |
+| 5.1.2(i)  | Personal data sent to third-party AI without consent | Fixed (merged to `master`, #45)                                                                                                                                                                                                          |
+| 2.2       | App labelled "beta"                                  | Copy fixed (merged to `master`, #45)                                                                                                                                                                                                     |
 | 2.1       | Crash on launch or on a screen                       | Root error boundary added; a render error now shows "Something went wrong / Try again" instead of killing the release app. Deploy the API **before** the build goes to review: an app newer than its API crashed on Home before this fix |
 | 2.1       | Reviewer can't sign in / empty screens               | Demo account with data (review-notes.md)                                                                                                                                                                                                 |
 | 5.1.1     | Permission prompts without a clear purpose           | Camera/photo strings already specific                                                                                                                                                                                                    |
