@@ -206,3 +206,64 @@ export {
   type IConsentEventRepository,
   type RecordConsentEventData,
 } from './consent-event.repository';
+
+// ─── Following (docs/friends/implementation-plan.md §2.4) ──────────────────────
+
+export {
+  SocialProfileRepository,
+  socialProfileRepository,
+  socialUserSelect,
+  type ISocialProfileRepository,
+  type SocialDbClient,
+  type SocialKeysetCursor,
+  type SocialUserRow,
+  type SocialProfileWithUser,
+  type SocialSearchCursor,
+  type PopularProfileRow,
+  type CreateSocialProfileData,
+  type UpdateSocialProfileData,
+  type DeleteCascadeSocialResult,
+} from './social-profile.repository';
+
+export {
+  FollowRepository,
+  followRepository,
+  type IFollowRepository,
+  type CreateFollowData,
+  type FollowPair,
+  type FollowCounts,
+  type MutualCandidateRow,
+  type ExpiredFollowRequest,
+} from './follow.repository';
+
+export { BlockRepository, blockRepository, type IBlockRepository } from './block.repository';
+
+export {
+  SuggestionDismissalRepository,
+  suggestionDismissalRepository,
+  type ISuggestionDismissalRepository,
+} from './suggestion-dismissal.repository';
+
+export {
+  UserReportRepository,
+  userReportRepository,
+  type IUserReportRepository,
+  type CreateUserReportData,
+  type ReportCountsSince,
+} from './user-report.repository';
+
+export {
+  ModerationRepository,
+  moderationRepository,
+  type IModerationRepository,
+  type ModerationLogEntry,
+  type ModerationWeeklyCounts,
+  type FilterableRecipeRow,
+} from './moderation.repository';
+
+export {
+  NotificationRepository,
+  notificationRepository,
+  type INotificationRepository,
+  type SocialNotificationData,
+} from './notification.repository';
