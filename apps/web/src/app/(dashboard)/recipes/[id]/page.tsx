@@ -26,6 +26,7 @@ import {
   Flame,
   Heart,
   Library,
+  Pencil,
   Pin,
   RefreshCw,
   Search,
@@ -379,6 +380,19 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             <Heart className={`h-3.5 w-3.5 ${isSaved ? 'fill-[#944a00]' : ''}`} />
             {isSaved ? 'Saved' : 'Save'}
           </button>
+
+          {/* Owner dogfood 2026-09-30: your own recipes are editable from
+              the recipe page itself. */}
+          {savedData?.canEdit ? (
+            <Link
+              href={`/recipes/${id}/edit`}
+              data-testid="recipe-edit"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00]"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </Link>
+          ) : null}
 
           {/* UX-01 (d), T-01.5: report a safety problem — hides this recipe
               from the reporter's plans, swaps and suggestions at once. */}

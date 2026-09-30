@@ -18,6 +18,12 @@ export interface ExerciseNameLinkProps {
   textClassName?: string;
   numberOfLines?: number;
   testID?: string;
+  /**
+   * The dotted underline marks a name inside running copy. Off where the
+   * name is a row title (Edit Routine, owner dogfood 2026-09-30) — it still
+   * opens the exercise.
+   */
+  underline?: boolean;
 }
 
 export function ExerciseNameLink({
@@ -27,6 +33,7 @@ export function ExerciseNameLink({
   textClassName,
   numberOfLines,
   testID,
+  underline = true,
 }: ExerciseNameLinkProps) {
   return (
     <Pressable
@@ -39,7 +46,7 @@ export function ExerciseNameLink({
     >
       <Text
         numberOfLines={numberOfLines}
-        className={cn('underline decoration-dotted', textClassName)}
+        className={cn(underline && 'underline decoration-dotted', textClassName)}
       >
         {name}
       </Text>

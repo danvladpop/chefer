@@ -8,6 +8,7 @@ import { cn, isSupportedVideoUrl, PREMIUM_PITCH_COPY } from '@chefer/utils';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { LockedFeatureCard } from '../src/features/premium/locked-feature-card';
 import { openPremium } from '../src/features/premium/open-premium';
+import { ImportedRecipePreview } from '../src/features/recipes/imported-recipe-preview';
 import {
   VideoDraftForm,
   type VideoDraftRecipe,
@@ -366,6 +367,14 @@ export default function ImportRecipeScreen() {
                   : 'No changes needed — already fits your profile.'
               }
             />
+
+            {chosen ? (
+              <ImportedRecipePreview
+                recipe={chosen}
+                label={variant === 'adapted' ? 'Cheferized for you' : 'Original'}
+                imageUrl={preview.ogImageUrl}
+              />
+            ) : null}
 
             <Button
               testID="import-save"

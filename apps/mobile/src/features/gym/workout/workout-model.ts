@@ -28,6 +28,7 @@ import {
   isAssisted,
   isStrengthTrackingType,
   loadModel,
+  loggingProfile as loggingProfileFor,
   prescribe,
   repBucket,
   sessionSupersets,
@@ -336,11 +337,31 @@ export function weightModeOf(
 ): WeightMode {
   if (meta.isTimed && !hasLoggedLoad) return 'none';
   const model = loadModel({ exercise: meta });
-  // Q-28: a held load (Back Extension) needs no belt/vest.
-  if (model === 'NONE' || (model === 'BELT' && !profile.hasDipBelt && !meta.heldLoad)) {
-    return 'none';
-  }
+  if (model === 'NONE') return 'none';
+  // Owner dogfood 2026-09-30: pull-ups, chin-ups and dips always offer "+kg"
+  // when logging — added weight must be recordable whatever the dip-belt
+  // setting (which only decides whether the ENGINE suggests added weight).
   return model === 'PLATES' ? 'plates' : 'keypad';
+}
+
+/**
+ * The equipment profile the LOGGER steps and snaps with: a bodyweight-plus
+ * exercise (BELT model) gets the belt loads even when `hasDipBelt` is off,
+ * so "+2.5 kg" is reachable. Prescriptions keep using the real profile.
+ */
+export function loggingProfile(meta: ExerciseMeta, profile: EquipmentProfile): EquipmentProfile {
+  return loggingProfileFor({ exercise: meta }, profile);
+}
+
+/** Added weight logged on a bodyweight-plus exercise the engine can't load yet (no belt set). */
+export function addsUnsuggestedLoad(
+  meta: ExerciseMeta,
+  profile: EquipmentProfile,
+  kg: number,
+): boolean {
+  return (
+    kg > 0 && !profile.hasDipBelt && !meta.heldLoad && loadModel({ exercise: meta }) === 'BELT'
+  );
 }
 
 /**
@@ -355,8 +376,9 @@ export function nextLoad(
   profile: EquipmentProfile,
 ): number {
   const slot = { exercise: meta };
+  const p = loggingProfile(meta, profile);
   const harder = direction === 1 ? !isAssisted(slot) : isAssisted(slot);
-  return harder ? stepUp(kg, slot, profile) : stepDown(kg, slot, profile);
+  return harder ? stepUp(kg, slot, p) : stepDown(kg, slot, p);
 }
 
 // ─── Prescriptions for swapped / added exercises ─────────────────────────────

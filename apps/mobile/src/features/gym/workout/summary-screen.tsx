@@ -35,6 +35,7 @@ import {
   equipmentOf,
   fallbackMeta,
   formatDuration,
+  loggingProfile,
   nextLoad,
   unitOf,
   weightModeOf,
@@ -489,7 +490,7 @@ function AdjustSheet({
         title={`${meta.name} · ${editing === 'reps' ? (meta.isTimed ? 'Seconds' : 'Reps') : 'Weight'}`}
         unit={unit}
         meta={meta}
-        profile={profile}
+        profile={loggingProfile(meta, profile)}
         showPlates={editing === 'weight' && weightModeOf(meta, profile) === 'plates'}
         timed={meta.isTimed}
         onSubmit={(value) => {

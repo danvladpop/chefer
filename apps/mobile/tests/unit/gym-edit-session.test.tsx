@@ -394,6 +394,21 @@ describe('LogSessionScreen', () => {
     expect(sessionDurationMin(saved ?? pastDoc())).toBe(50);
   });
 
+  it('a weight change carries to the later sets that still matched (log mode only)', async () => {
+    const user = userEvent.setup();
+    await renderLog('day-1');
+    // The value's accessibility label reads e.g. "Weight 60 kg, tap to type".
+    const label = (id: string): string =>
+      String(screen.getByTestId(id).props.accessibilityLabel ?? '');
+    await screen.findByTestId('exercise-0-set-1-weight-value');
+    const start = label('exercise-0-set-1-weight-value');
+    await user.press(screen.getByTestId('exercise-0-set-1-weight-inc'));
+    const after = label('exercise-0-set-1-weight-value');
+    expect(after).not.toBe(start);
+    expect(label('exercise-0-set-2-weight-value')).toBe(after);
+    expect(label('exercise-0-set-3-weight-value')).toBe(after);
+  });
+
   it('an empty freestyle log is not saved', async () => {
     const user = userEvent.setup();
     await renderLog(null);

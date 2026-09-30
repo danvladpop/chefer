@@ -30,6 +30,7 @@ import {
   isHarder,
   kgToUnit,
   localDateStr,
+  loggingProfile,
   postWorkoutProteinG,
   repBucket,
   stepDown,
@@ -401,8 +402,12 @@ function NextTimeRow({
                 valueLabel={`Next weight, ${formatLoad(weightKg, unit, meta?.loadType)}`}
                 rawValue={kgToUnit(weightKg, unit)}
                 onValueChange={(v) => setWeightKg(unitToKg(v, unit))}
-                onDecrement={() => setWeightKg((w) => stepDown(w, slot, profile))}
-                onIncrement={() => setWeightKg((w) => stepUp(w, slot, profile))}
+                onDecrement={() =>
+                  setWeightKg((w) => stepDown(w, slot, loggingProfile(slot, profile)))
+                }
+                onIncrement={() =>
+                  setWeightKg((w) => stepUp(w, slot, loggingProfile(slot, profile)))
+                }
                 testId="adjust-weight-stepper"
               />
             )}

@@ -10,7 +10,7 @@ import type {
   WeightUnit,
 } from '@chefer/types';
 import { pressControl } from '@chefer/ui';
-import { cn, formatLoad, formatLoadNumber, stepDown, stepUp } from '@chefer/utils';
+import { cn, formatLoad, formatLoadNumber, loggingProfile, stepDown, stepUp } from '@chefer/utils';
 import { Stepper } from '../../shared/stepper';
 import { loadSlotOf } from '../workout-model';
 
@@ -108,11 +108,18 @@ export const SetRow = memo(function SetRow({
             label="weight"
             value={formatLoadNumber(set.weightKg, unit)}
             valueLabel={`${formatLoad(set.weightKg, unit, loadType)}${barbell ? ', open plate calculator' : ''}`}
+            // Owner dogfood 2026-09-30 (mobile parity): pull-ups, chin-ups
+            // and dips step through belt loads even with the dip-belt
+            // setting off, so added weight can always be logged.
             onDecrement={() =>
-              onEdit(seId, set.id, { weightKg: stepDown(set.weightKg, slot, profile) })
+              onEdit(seId, set.id, {
+                weightKg: stepDown(set.weightKg, slot, loggingProfile(slot, profile)),
+              })
             }
             onIncrement={() =>
-              onEdit(seId, set.id, { weightKg: stepUp(set.weightKg, slot, profile) })
+              onEdit(seId, set.id, {
+                weightKg: stepUp(set.weightKg, slot, loggingProfile(slot, profile)),
+              })
             }
             {...(barbell ? { onValueClick: () => onOpenPlates(set.weightKg) } : {})}
             className="sm:flex-1"

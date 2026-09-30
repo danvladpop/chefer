@@ -63,6 +63,19 @@ export function loadModel(slot: LoadSlot): LoadModel {
   return 'STACK';
 }
 
+/**
+ * The equipment profile a set LOGGER steps and snaps weights with (owner
+ * dogfood 2026-09-30): a bodyweight-plus exercise (pull-up, chin-up, dip —
+ * the BELT model) gets the belt loads even with `hasDipBelt` off, so added
+ * weight can always be recorded. The dip-belt setting keeps deciding only
+ * what the engine PRESCRIBES — prescriptions use the real profile.
+ */
+export function loggingProfile<P extends EquipmentProfile>(slot: LoadSlot, profile: P): P {
+  return !profile.hasDipBelt && loadModel(slot) === 'BELT'
+    ? { ...profile, hasDipBelt: true }
+    : profile;
+}
+
 export function isAssisted(slot: LoadSlot): boolean {
   return loadModel(slot) === 'ASSISTED';
 }

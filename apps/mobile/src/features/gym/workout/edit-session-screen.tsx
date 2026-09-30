@@ -12,7 +12,13 @@ import {
   Text,
   useSnackbar,
 } from '@chefer/ui-mobile';
-import { hasLoggableSet, nothingTicked, sessionDurationMin, toSessionSummary } from '@chefer/utils';
+import {
+  hasLoggableSet,
+  nothingTicked,
+  sameKg,
+  sessionDurationMin,
+  toSessionSummary,
+} from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
 import { captureGymEvent } from '../analytics';
 import { ExercisePicker } from '../library/exercise-picker';
@@ -26,6 +32,7 @@ import { NumberSheet } from './number-sheet';
 import type { SetRowHandlers } from './set-row';
 import { useEditSession, type EditSession } from './use-edit-session';
 import { useLogSession, type LogSessionParams } from './use-log-session';
+import { useWeightedBodyweightOffer } from './use-weighted-offer';
 import {
   byPosition,
   defaultSlotParams,
@@ -34,6 +41,7 @@ import {
   fallbackMeta,
   isCardioMeta,
   isFirstForPattern,
+  loggingProfile,
   prescribeFor,
   priorSessions,
   setLabelOf,
@@ -169,6 +177,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
     return doc ? (doc.finishedAt ?? doc.startedAt) : undefined;
   }, [getDraft]);
 
+  const offerWeighted = useWeightedBodyweightOffer();
   const handlers = useMemo<SetRowHandlers>(
     () => ({
       onTick: (seId, setId) => {
@@ -188,8 +197,44 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
       },
       // Unlike the live logger, a change never carries to the later sets: this is
       // history, and each set is what it was.
-      onWeight: (seId, setId, kg) => dispatch({ type: 'editSet', seId, setId, weightKg: kg }),
-      onReps: (seId, setId, reps) => dispatch({ type: 'editSet', seId, setId, reps }),
+      // Edit mode: each past set is what it was — a change stays on that set.
+      // Log mode (a NEW workout): like the live logger, a change carries to
+      // the later sets that still had the old value (owner dogfood
+      // 2026-09-30) — setting set 1 almost always means the rest too.
+      onWeight: (seId, setId, kg) => {
+        const se = getDraft()?.exercises.find((e) => e.id === seId);
+        const set = se?.sets.find((s) => s.id === setId);
+        dispatch({ type: 'editSet', seId, setId, weightKg: kg });
+        if (!se || !set) return;
+        offerWeighted(lookup(se.exerciseId), profile, kg);
+        if (!logging || set.isWarmup) return;
+        for (const later of se.sets) {
+          if (
+            !later.isWarmup &&
+            later.position > set.position &&
+            later.completedAt === null &&
+            sameKg(later.weightKg, set.weightKg)
+          ) {
+            dispatch({ type: 'editSet', seId, setId: later.id, weightKg: kg });
+          }
+        }
+      },
+      onReps: (seId, setId, reps) => {
+        const se = getDraft()?.exercises.find((e) => e.id === seId);
+        const set = se?.sets.find((s) => s.id === setId);
+        dispatch({ type: 'editSet', seId, setId, reps });
+        if (!logging || !se || !set || set.isWarmup) return;
+        for (const later of se.sets) {
+          if (
+            !later.isWarmup &&
+            later.position > set.position &&
+            later.completedAt === null &&
+            later.reps === set.reps
+          ) {
+            dispatch({ type: 'editSet', seId, setId: later.id, reps });
+          }
+        }
+      },
       onOpenWeight: (seId, setId) => openSheet({ kind: 'weight', seId, setId }),
       onOpenReps: (seId, setId) => openSheet({ kind: 'reps', seId, setId }),
       // UX-05 A1 rows: remove any set with no confirm, restored by Undo.
@@ -209,7 +254,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
         });
       },
     }),
-    [dispatch, getDraft, openSheet, snackbar, tickAt],
+    [dispatch, getDraft, logging, lookup, offerWeighted, openSheet, profile, snackbar, tickAt],
   );
 
   const [expandOverride, setExpandOverride] = useState<Record<string, boolean>>({});
@@ -529,7 +574,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
           title={`${contentMeta.name} · ${content?.kind === 'reps' ? (contentMeta.isTimed ? 'Seconds' : 'Reps') : 'Weight'}`}
           unit={unit}
           meta={contentMeta}
-          profile={profile}
+          profile={loggingProfile(contentMeta, profile)}
           showPlates={weightModeOf(contentMeta, profile) === 'plates'}
           timed={contentMeta.isTimed}
           onSubmit={(value) => {
