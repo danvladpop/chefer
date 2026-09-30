@@ -1,15 +1,21 @@
-# Chefer Friends: follow people, see their week, cook their recipes
+# Chefer Following: follow people, see their week, cook their recipes
 
-**Product requirements document (PRD) · rev 1 · 2026-09-30**
+**Product requirements document (PRD) · rev 2 · 2026-09-30**
 
-| Field          | Value                                                                                                                                                                     |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status         | Draft for owner review. Everything marked ⚖ needs an owner answer; the doc ships a recommended default for each (§20), and the design makes either answer a small switch. |
-| Author         | Product (PO/PM), written for the owner and for the implementing agents                                                                                                    |
-| Build read     | `master` @ `9dd93f3a` (API level 4 live, app version 1.0.1, OTA on runtime fingerprint)                                                                                   |
-| Companion docs | [`ux-design.md`](./ux-design.md) (screens, states, copy) · [`implementation-plan.md`](./implementation-plan.md) (schema, API, waves, agent tasks)                         |
-| Governing docs | [`CLAUDE.md`](../../CLAUDE.md) (Platform Parity, architecture rules) · [`infrastructure.md`](../../infrastructure.md) · [`business_flow.md`](../../business_flow.md)      |
-| IDs            | Decisions `FD-n`, user stories `FR-nn` with acceptance criteria `FR-nn.m`, open questions `Q-F-n`. IDs are stable; never renumber, only append.                           |
+| Field          | Value                                                                                                                                                                |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status         | **All owner decisions applied (2026-09-30), §5. No open questions.** Push is out of this program (Q-F-14; appendix A). The whole feature ships over the air.         |
+| Author         | Product (PO/PM), written for the owner and for the implementing agents                                                                                               |
+| Build read     | `master` @ `9dd93f3a` (API level 4 live, app version 1.0.1, OTA on runtime fingerprint)                                                                              |
+| Companion docs | [`ux-design.md`](./ux-design.md) (screens, states, copy) · [`implementation-plan.md`](./implementation-plan.md) (schema, API, waves, agent tasks)                    |
+| Governing docs | [`CLAUDE.md`](../../CLAUDE.md) (Platform Parity, architecture rules) · [`infrastructure.md`](../../infrastructure.md) · [`business_flow.md`](../../business_flow.md) |
+| IDs            | Decisions `FD-n`, owner answers `Q-F-n`, user stories `FR-nn` with acceptance criteria `FR-nn.m`. IDs are stable. Rev 2 retired some; retired IDs are never reused.  |
+
+**Naming convention (Q-F-3).** Everything a user reads says **Following**: the More entry, screen titles, buttons and
+copy. Everything in code keeps the internal name **`friends`**: the feature flag `friends`, the tRPC router
+`friends.*`, the database and service names, the folders `features/friends`, the route paths `/friends/...`, and the
+analytics event prefixes `friends_`/`friend_`. These docs use "Following" for the product and "friends" only for code
+identifiers. In prose, "a person you follow" or "the owner" replaces the old "friend".
 
 ---
 
@@ -29,137 +35,157 @@
 > new favorited recipe to your week. On the gym page, you should be able to see their routine and also their last (n)
 > workouts with possibility to load more.
 
+The owner's answers of 2026-09-30 (§5.1) refine this. Where they differ from the request, the answers win: no email
+search, no "load more", and the section is called Following.
+
 ## 1. Summary
 
-Chefer becomes lightly social. People you know can follow you, see **this week's meals** (with calories and macros),
-browse **your own recipes**, and see **your routine and recent workouts**. You can do the same for them, heart their
-recipes into your Saved list and put one on your week in two taps.
+Chefer becomes lightly social, **on mobile first**. People you know can follow you. They can see **this week's
+meals** (with calories and macros), browse **your own recipes** (including ones you imported, with their source
+shown), and see **your routine and your workouts from the last 7 days**. You can do the same for them, heart their
+recipes into your Saved list, and put one on your week in two taps.
 
-The model is **followers/following**, as on Instagram. Follows are one-way, and following back is optional. The
-section is still called **Friends**, because that is the word the owner used and the one people search for.
-**Profiles are private by default.** A private profile's content is only visible to followers the owner has
-approved. A public profile can be followed without approval, but its meals, recipes and workouts are still only
-shown to followers. Nothing is ever visible to people who don't follow you. No one becomes findable until they
-**turn on Friends** themselves, with a clear consent step.
+The model is **followers/following, as on Instagram**:
 
-It ships on **mobile and web**, following the parity rule, behind one feature flag. Push notifications need new
-native infrastructure: a push-token table, the Expo Push API, APNs/FCM credentials, and a **new store build**. The
-feature therefore works first through an **in-app Activity inbox** plus a badge, and push switches on once the new
-binaries are installed.
+- A **public** profile can be followed at once.
+- A **private** profile needs the owner to accept a request.
+- **Private is the default.**
+- Only followers see content. Anyone else sees just the profile header.
+- No one is findable until they **turn on Following** themselves, with a clear consent step.
+- Search is **by name only**.
+
+Safety is **fully automatic**. There is no human review queue:
+
+- Report is one tap and also blocks, so the reporter never sees that person or recipe again.
+- A recipe reported by 3 different accounts is hidden for everyone.
+- An account reported by 5 different accounts is forced private and removed from search.
+- A bundled word list rejects offensive display names and shared-recipe text.
+
+Notifications are an **in-app Activity inbox with a badge**. There is no push in this program (Q-F-14; appendix A
+says what it would take). Nothing native changes, so **the whole feature ships over the air** (OTA JavaScript
+updates on the current 1.0.1 runtime) with no new store build. **Web comes later**, in a separate phase (§16). The API
+is platform-neutral from day one.
 
 ## 2. Problem and opportunity
 
 - **Motivation is social.** Adherence to meal plans and training improves with accountability and inspiration.
   Chefer users already tell each other what they're cooking and lifting, outside the app, by screenshot.
-- **Recipes are trapped.** A user's own recipes (`Recipe.source = MANUAL`) are strictly private today
-  (`apps/api/src/application/recipe/recipe-access.ts` → `isRecipeOpenTo`). The best recipes in the product can't
-  travel between the people who'd cook them.
-- **Growth loop.** A friend graph gives Chefer its first organic acquisition loop ("follow me on Chefer") and a
-  retention hook (people come back to see what friends cook and lift).
-- **Risk.** Chefer holds health-related data: calorie and macro targets, body metrics, allergies, logged meals and
-  workouts. Showing any of it to other people is a new kind of processing. It must be opt-in, minimal, reversible
-  and documented (§14).
+- **Recipes are trapped.** A user's own recipes (`Recipe.source = MANUAL`, which includes imported ones) are strictly
+  private today (`apps/api/src/application/recipe/recipe-access.ts` → `isRecipeOpenTo`).
+- **Growth loop.** A follow graph gives Chefer its first organic acquisition loop ("follow me on Chefer") and a
+  retention hook.
+- **Risk.** Chefer holds health-related data. Showing any of it to other people is a new kind of processing. It must
+  be opt-in, minimal, reversible and documented (§14). Opening user content to other users also brings App Store
+  guideline 1.2 obligations. They are met by automatic moderation (§9), because the owner won't review reports by
+  hand.
 
 ## 3. Goals and non-goals
 
-### 3.1 Goals (v1)
+### 3.1 Goals (v1, mobile)
 
-| #   | Goal                                                                                                                 | Measured by (§15)                                      |
-| --- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| G1  | Let a user find people they know by name or exact email, and follow them (or request to).                            | Search success rate; follows per activated user        |
-| G2  | Let a user see a followed person's **current week** of meals, with calories and macros per meal and per day.         | Profile views (Food tab)                               |
-| G3  | Let a user browse a followed person's **own recipes**, heart them into Saved, and add one to their own week.         | Friend-recipe favourites; friend-recipe add-to-week    |
-| G4  | Let a user see a followed person's **active routine** and **recent workouts**, with Load more.                       | Profile views (Gym tab); Load more usage               |
-| G5  | Tell users about follow requests, new followers and accepted requests (in-app always; push once the build ships).    | Request response time; notification open rate          |
-| G6  | Keep every user in control: private by default, per-section sharing switches, remove follower, block, report, leave. | Block/report rate (guardrail); privacy-setting changes |
-| G7  | Stay compliant: explicit consent before sharing, updated privacy policy, App Store UGC rules (1.2), GDPR rights.     | Release checklist signed off                           |
+| #   | Goal                                                                                                                                  | Measured by (§15)                                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| G1  | Let a user find people they know **by name** and follow them (instantly if public, by request if private).                            | Search success rate; follows per activated user      |
+| G2  | Let a user see a followed person's **current week** of meals, with calories and macros per meal and per day.                          | Profile views (Food tab)                             |
+| G3  | Let a user browse a followed person's **own recipes**, heart them into Saved, and add one to their own week.                          | Hearts; add-to-week from another user's recipe       |
+| G4  | Let a user see a followed person's **active routine** and **workouts from the last 7 days**.                                          | Profile views (Gym tab)                              |
+| G5  | Tell users about follow requests, new followers and accepted requests, through an in-app inbox and badge (no push).                   | Request response time                                |
+| G6  | Keep every user in control: private by default, per-section sharing switches, remove follower, block, report, leave.                  | Privacy-setting changes; block/report rate           |
+| G7  | Stay compliant **without a human moderator**: explicit consent, updated policy and terms, automatic moderation meeting App Store 1.2. | Release checklist signed off; moderation log metrics |
 
-### 3.2 Non-goals (v1): explicitly out of scope
+### 3.2 Non-goals (explicitly out of scope)
 
-- **Feeds, likes, comments, direct messages, stories.** There is no activity feed. You look at a profile.
-  Messaging would bring moderation and App Store "chat" obligations Chefer isn't staffed for.
-- **Usernames/handles and public web profile pages.** Profiles are only visible to signed-in Chefer users, inside
-  the app and the web app. There is no SEO or public URL.
-- **Contact-book import and "find friends from contacts".** This adds the Contacts permission and a new App Privacy
-  data type.
-- **Profile photos.** Chefer has no avatar upload UI today (`User.image` is only written by the unused
-  `user.updateProfile`). Avatars are initials on a colour derived from the user id. A photo upload would add image
-  moderation to the UGC surface, so it is listed under Later (§19). If `User.image` is ever set, it is shown.
+- **Web** in this program. Web is a later phase (§16). The API stays platform-neutral.
+- **Email search** of any kind (Q-F-5). Users are found by name only.
+- **Email notifications** for this feature, ever (Q-F-9).
+- **Push notifications** (Q-F-14): no Firebase, no APNs key, no `aps-environment` change, no native build. Appendix A
+  describes what adding them later would take.
+- **Any native change.** No new native module and no `app.config.js` change that would alter the runtime fingerprint:
+  the feature ships entirely by OTA.
+- **Human moderation**: no review queue, no admin reports page, no support-inbox triage (Q-F-13).
+- **Feeds, likes, comments, direct messages, stories.** Messaging would add moderation and chat obligations.
+- **Usernames/handles and public profile pages.** Profiles are only visible to signed-in Chefer users.
+- **Contact-book import.** This adds the Contacts permission and a new App Privacy data type.
+- **Profile photos.** Chefer has no avatar upload UI (`User.image` is only written by the unused
+  `user.updateProfile`). Avatars are initials on a colour derived from the user id. If `User.image` is ever set,
+  it's shown. Uploading is under Later, because it would add image moderation.
 - **Sharing health data beyond the plan:** allergies, diets, dislikes, household members, body metrics, weight log,
-  logged meals (tracker), calorie and macro **targets** (unless the owner opts in, FR-12.4), budget, shopping list,
-  pantry, AI chat, and coach reviews.
-- **Seeing other weeks** (past or next) of a friend's plan, their "My weeks" templates, or their stats and PRs pages.
-- **Copying a friend's whole week or routine.** Only single recipes cross over in v1. Routine copy is listed under
-  Later (§19).
-- **Web push and email notifications** for social events (Q-F-9).
-- **Groups, challenges, leaderboards.**
+  logged meals, calorie and macro **targets** (unless the owner opts in, FR-04.3), budget, shopping list, pantry, AI
+  chat and coach reviews.
+- **Other weeks** of someone's plan (Q-F-12), their "My weeks" templates, their stats or PRs.
+- **Workout history older than 7 days**, and paging through it (Q-F-10).
+- **Copying a whole week or routine.** Only single recipes cross over.
 
 ## 4. Personas
 
-Drawn from the persona study (`docs/persona-study-2026-09/personas.md` on the study branch) and the owner's request.
+| Persona                         | Who                                                                      | What they need from Following                                                                                                     | Watch-outs                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **Andrei, the gym pair**        | 29, lifts 4× a week with a friend who also uses Chefer. Mostly Gym mode. | See his friend's routine and this week's sessions ("what did you bench Tuesday?"), follow each other in one tap each.             | Doesn't want to share food. Needs the per-section switches.                         |
+| **Maria, the home cook**        | 34, plans dinners for a family, writes and imports recipes.              | Her sister and two friends want her recipes, including ones she imported from blogs, with the source shown.                       | Private person: approves every follower. Doesn't want her targets visible.          |
+| **Elena, the popular creator**  | 27, personal trainer, shares a public plan and routine with clients.     | A **public** profile clients can follow instantly, and being suggested as "Popular on Chefer".                                    | Needs remove-follower and block. Abuse must be handled without anyone reviewing it. |
+| **Priya, the privacy-cautious** | 41, tracks calories for a medical reason. Uses Chefer alone.             | **Nothing changes for her** unless she opts in. She must never appear in search or suggestions because a feature launched.        | Any leak of her plan or targets is a serious incident.                              |
+| **Chris, the newcomer**         | 22, registered because a friend said "follow me on Chefer".              | Find the friend by name fast, follow, and see useful content on day one. Suggestions (incl. Chefer Kitchen) when he knows nobody. | Cold start.                                                                         |
 
-| Persona                         | Who                                                                       | What they need from Friends                                                                                                  | Watch-outs                                                                                            |
-| ------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **Andrei, the gym pair**        | 29, lifts 4× a week with a friend who also uses Chefer. Mostly Gym mode.  | See his friend's routine and last sessions ("what did you bench Tuesday?"), follow each other in one tap each.               | Doesn't care about food sharing; wants Gym only. Needs the per-section switches.                      |
-| **Maria, the home cook**        | 34, plans dinners for a family, writes her own recipes in Chefer.         | Her sister and two friends want her recipes. She wants them to heart them and cook them without her re-typing into WhatsApp. | Private person: wants approval of every follower. Doesn't want her weight target visible.             |
-| **Elena, the popular creator**  | 27, personal trainer, shares a public meal plan and routine with clients. | A **public** profile that clients can follow instantly; being suggested as "popular" so new users find her.                  | Needs remove-follower and block; receives many requests, so no push storm.                            |
-| **Priya, the privacy-cautious** | 41, tracks calories for a medical reason. Uses Chefer alone.              | **Nothing changes for her** unless she opts in. She must never appear in search or suggestions because a feature launched.   | Health-data sensitivity: any leak of her plan or targets is a serious incident.                       |
-| **Chris, the newcomer**         | 22, just registered because a friend said "follow me on Chefer".          | Find the friend fast (exact email or name), follow, and see useful content on day one. Suggestions when he knows nobody yet. | Cold start: no connections, so suggestions must still show something useful or a clear invite action. |
+## 5. Decisions
 
-## 5. Decision record (recommended; ⚖ = owner confirms)
+### 5.1 Owner decisions (2026-09-30)
 
-| #     | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                   | Why                                                                                                                                                                                                                                                                                                                                        |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| FD-1  | ⚖ **Follow model = Instagram model.** Public profile → **Follow** takes effect at once (the owner is told). Private profile → **Follow** sends a **request** the owner accepts or declines. Following is one-way; "follow back" is a separate follow. See §6.1 for the tension in the request and the alternative (Q-F-1).                                                                                                                 | "Same as insta" is the owner's explicit reference model. With private as the default (FD-2), the common case of two friends connecting always goes through an accept step, which honours "they need to accept". The literal alternative (only public profiles can be followed, and every follow needs approval) is a config switch (§6.1). |
-| FD-2  | **Private by default.** Every profile starts `PRIVATE`. Going public is a deliberate choice behind a consent sheet that says exactly what becomes visible and to whom.                                                                                                                                                                                                                                                                     | Health-related data (GDPR Art. 9); privacy by default (GDPR Art. 25); design principle P13 of the persona study ("Privacy by default is part of the product").                                                                                                                                                                             |
-| FD-3  | **Opt-in to exist socially.** No user is searchable, suggestible or followable until they open Friends and **turn it on** (a social profile is created, and a `SOCIAL_SHARING` consent event is logged). Existing users are unaffected by the launch.                                                                                                                                                                                      | Users signed up for a private planner. Silently making them discoverable at launch would be a material change to how their data is processed. It's also what Priya needs.                                                                                                                                                                  |
-| FD-4  | **Content is for followers only, even on public profiles.** A non-follower sees a profile header only: name, avatar, counts, and public/private status. Meals, recipes, routine and workouts need an accepted follow.                                                                                                                                                                                                                      | Keeps each disclosure to people the owner can see in their Followers list and remove. "Public" means "anyone can follow me without asking", not "anyone can read my plan".                                                                                                                                                                 |
-| FD-5  | **"Friends" is the section; the model is follow.** There is no separate mutual-friend concept. The section has **Following** and **Followers** lists; a person who follows you back shows a `Follows you` tag.                                                                                                                                                                                                                             | Resolves the owner's "friends or maybe followers/following". One model, words people already know.                                                                                                                                                                                                                                         |
-| FD-6  | **Search = one bar, names by prefix, email only by exact full address.** Names are matched case- and accent-insensitively ("stefan" finds "Ștefan"). An email only matches when the whole address is typed. **An email is never shown** in any result, including the one that matched.                                                                                                                                                     | Owner asked for name + email in one bar. Substring email search would let anyone harvest addresses ("@gmail"), so exact-only is the privacy-safe reading.                                                                                                                                                                                  |
-| FD-7  | **Favourite = live reference; add to week = your own copy.** Hearting a friend's recipe saves a reference: it shows in your Saved list with `From {first name}` and stays in sync with their edits. **Adding it to your week** makes a private copy owned by you (made once per recipe, then reused) and puts the copy in your plan, so your week, shopping list and food log never change or break because of what the friend later does. | Plans and logs must be stable: today a plan slot whose recipe row is gone throws `INTERNAL_SERVER_ERROR` in `MealPlanService.assemblePlanDto`, and `DailyLog.loggedMeals` reference recipe ids. Favourites are a light "remember this" and benefit from staying live. Details and alternatives are in §13.                                 |
-| FD-8  | **Friends see only what the plan shows, never the reasons behind it.** The week view carries meals, portions, kcal, protein, carbs and fat. It never carries targets (unless the owner opts in), allergy or safety checks, household members, budget, pantry, logged meals, weight or notes.                                                                                                                                               | Data minimisation. The owner asked for "calories, macros included", meaning the numbers of the meals. Targets are derived from body metrics, which are health data.                                                                                                                                                                        |
-| FD-9  | **Three sharing switches, all on when you turn on Friends:** `Meal plan`, `My recipes`, `Workouts` (routine plus history). A fourth, `Show my daily targets`, is **off**. Imported recipes (from a link or video) are **never** shared (Q-F-7).                                                                                                                                                                                            | Andrei wants gym only; Maria wants recipes but not targets. Imported recipes reproduce third-party content; the code already treats their `sourceUrl` as "never rendered as a republished page".                                                                                                                                           |
-| FD-10 | **Remove follower, block and report ship in v1.**                                                                                                                                                                                                                                                                                                                                                                                          | Apple Guideline 1.2 (user-generated content) requires a way to block abusive users and report content before an app with UGC is approved. It is also basic safety for Elena.                                                                                                                                                               |
-| FD-11 | **Notifications:** three events: follow request received, new follower (public profiles), request accepted. In-app Activity inbox and badge **always**; push when the device has a push token and the per-event switch is on. No notification for unfollow, decline, removal or block. Nothing health-related is ever in a push payload.                                                                                                   | The owner asked for push; the inbox makes the feature complete before the new binary is installed, and on web.                                                                                                                                                                                                                             |
-| FD-12 | ⚖ **Platform scope: mobile + web in the same program**, mobile first by one wave, released together behind the `friends` flag (§16). Web gets the same screens at `/friends` and `/friends/[userId]`.                                                                                                                                                                                                                                      | CLAUDE.md Platform Parity rule. The API is platform-neutral, so web mostly reuses components. If the owner prefers a gym-style "mobile first, web later" (gym_plan.md D7), that is an explicit scoping and adds `mobile_parity_backlog.md` rows.                                                                                           |
-| FD-13 | **No new API level.** Everything is new procedures or additive optional fields. Installed binaries never see a breaking change. The only visible change to old clients is that friends' recipes you heart on web appear in Saved (with a creator line only on new clients).                                                                                                                                                                | CLAUDE.md "never break shipped mobile clients"; level 5 is already reserved for W5 intervals.                                                                                                                                                                                                                                              |
-| FD-14 | **Leaving Friends is total and immediate.** `Turn off Friends` deletes your social profile, every follow in both directions, pending requests, blocks you made, suggestion dismissals and your social notifications. Friends' references to your recipes vanish from their Saved lists. Copies they already put in their week stay theirs. It is logged as a withdrawal of `SOCIAL_SHARING`.                                               | GDPR withdrawal of consent must be as easy as giving it (Art. 7(3)). The copies are the other user's own records (FD-7). The privacy policy says so.                                                                                                                                                                                       |
+| #      | Question                       | Owner answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Where it lands                        |
+| ------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Q-F-1  | Follow model                   | **Instagram.** Public = follow instantly. Private = the owner accepts a request. **Private is the default.**                                                                                                                                                                                                                                                                                                                                                                                    | §6; FR-12                             |
+| Q-F-2  | Platforms                      | **Mobile first, web later** (the gym precedent). Web is out of this program's waves. A `mobile_parity_backlog.md` reverse row ("mobile → web") is written when the feature ships. The API stays platform-neutral.                                                                                                                                                                                                                                                                               | §16; implementation plan §11, §12     |
+| Q-F-3  | Name                           | The section is **"Following"**, not "Friends". Internal code names may stay `friends`.                                                                                                                                                                                                                                                                                                                                                                                                          | Naming convention (top); UX copy deck |
+| Q-F-4  | Public profile content         | Public: no acceptance, and once you follow, you see the content. Private: acceptance first. **Non-followers see only the header** (name, avatar, counts, Follow button), public or private.                                                                                                                                                                                                                                                                                                     | §7; FR-14                             |
+| Q-F-5  | Search                         | **No email search at all.** Name only (first and last name), prefix match, case- and accent-insensitive.                                                                                                                                                                                                                                                                                                                                                                                        | §10; FR-08                            |
+| Q-F-6  | Hearting another user's recipe | As recommended. **Heart = live reference. Add to week = private copy.**                                                                                                                                                                                                                                                                                                                                                                                                                         | §13; FR-17                            |
+| Q-F-7  | Imported recipes               | **Shareable** like any own recipe. They already sit under "Mine" (`source: MANUAL` with a `sourceUrl`). When a recipe has a `sourceUrl`, show the **source attribution** (domain, linking to the source) to followers.                                                                                                                                                                                                                                                                          | §7, §13; FR-16, FR-17                 |
+| Q-F-8  | Cold start                     | **Yes**, seed a public "Chefer Kitchen" profile.                                                                                                                                                                                                                                                                                                                                                                                                                                                | §11; owner steps                      |
+| Q-F-9  | Email notifications            | **Never**, for this feature.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | §3.2, §12                             |
+| Q-F-10 | Workout history                | **Only the last week. No "Load more", no pagination.** Defined as the last 7 days (FD-15).                                                                                                                                                                                                                                                                                                                                                                                                      | FR-19                                 |
+| Q-F-11 | Sharing daily targets          | As recommended. **Opt-in, off by default.**                                                                                                                                                                                                                                                                                                                                                                                                                                                     | FR-04.3                               |
+| Q-F-12 | Which weeks of the meal plan   | **Current week only.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | §7.3; FR-15                           |
+| Q-F-13 | Moderation                     | **Approved as proposed.** No manual review, no human queue. Fully automatic: instant mutual block; one-tap report that also blocks; reports from 3 distinct accounts hide a recipe for everyone; reports from 5 distinct accounts force the account private and drop it from search and suggestions; reports count only from accounts at least 24 h old with a verified email; a bundled word-list text filter; an append-only moderation log with a weekly metrics line; an optional ops undo. | §9; FR-13                             |
+| Q-F-14 | Push notifications             | **Build without push.** Push is out of this program: no Firebase, no APNs key, no `aps-environment` change, no native build. The in-app Activity inbox plus a badge is the notification mechanism. The owner follows up on push separately.                                                                                                                                                                                                                                                     | FD-11, §12, appendix A                |
 
-## 6. Concepts and the follow model
+### 5.2 Decision record
 
-### 6.1 The tension in the request, and how either answer works
+| #     | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Why                                                                                                                                                                                                   |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FD-1  | **Follow model = Instagram** (Q-F-1). Public → **Follow** takes effect at once (the owner is told). Private → **Follow** sends a request the owner accepts or declines. Follows are one-way; following back is a separate follow.                                                                                                                                                                                                                                | Owner decision.                                                                                                                                                                                       |
+| FD-2  | **Private by default.** Going public is a deliberate choice behind a confirmation that says exactly what changes.                                                                                                                                                                                                                                                                                                                                                | Health-related data (GDPR Art. 9); privacy by default (Art. 25); owner decision.                                                                                                                      |
+| FD-3  | **Opt-in to exist socially.** No user is searchable, suggestible or followable until they open Following and **turn it on**. That creates a social profile and logs a `SOCIAL_SHARING` consent event. Existing users are unaffected by the launch.                                                                                                                                                                                                               | Users signed up for a private planner.                                                                                                                                                                |
+| FD-4  | **Content is for followers only** (Q-F-4). Non-followers see the header only: name, avatar, counts, the Follow button, and the overflow with Report and block.                                                                                                                                                                                                                                                                                                   | Owner decision. Each disclosure goes to people the owner can see in their Followers list and remove.                                                                                                  |
+| FD-5  | **User-facing name "Following"; code name `friends`** (Q-F-3). Inside the section the lists are `You follow` and `Followers`, and a person who follows you back shows a `Follows you` tag.                                                                                                                                                                                                                                                                       | Avoids a screen titled "Following" with a tab also called "Following".                                                                                                                                |
+| FD-6  | **Search by name only** (Q-F-5): word-prefix match on first and last name, case- and accent-insensitive ("stefan" finds "Ștefan").                                                                                                                                                                                                                                                                                                                               | Owner decision. It also removes email-enumeration risk entirely.                                                                                                                                      |
+| FD-7  | **Heart = live reference; add to week = your own copy** (Q-F-6). Details in §13.                                                                                                                                                                                                                                                                                                                                                                                 | Plans and food logs must be stable. A plan slot whose recipe row is gone throws `INTERNAL_SERVER_ERROR` in `MealPlanService.assemblePlanDto` today, and `DailyLog.loggedMeals` references recipe ids. |
+| FD-8  | **Followers see what the plan shows, never the reasons behind it:** meals, portions, kcal, protein, carbs and fat. Never targets (unless opted in), safety checks, household, budget, pantry, logged meals, weight or notes.                                                                                                                                                                                                                                     | Data minimisation.                                                                                                                                                                                    |
+| FD-9  | **Sharing switches:** `Meal plan`, `My recipes`, `Workouts` (on when you turn on Following), and `Show my daily targets` (off; Q-F-11). **Imported recipes are shared like any own recipe, with source attribution** (Q-F-7).                                                                                                                                                                                                                                    | Owner decisions.                                                                                                                                                                                      |
+| FD-10 | **Automatic moderation, no human queue** (Q-F-13). Policy in §9.                                                                                                                                                                                                                                                                                                                                                                                                 | Owner decision. It meets App Store guideline 1.2 (filter, report, block, timely action) without anyone reviewing reports.                                                                             |
+| FD-11 | **Notifications:** three events (follow request, new follower, request accepted), delivered **only through the in-app Activity inbox and badges** (Q-F-14). No push, no email. No notification for unfollow, decline, removal, block or report.                                                                                                                                                                                                                  | Owner decision. Push needs Apple/Google credentials and a native build, both out of scope.                                                                                                            |
+| FD-12 | **Mobile first, web later** (Q-F-2). This program builds the API (platform-neutral) and the mobile app. Web is §16. When the feature ships, `mobile_parity_backlog.md` gets its reverse ("mobile → web") rows.                                                                                                                                                                                                                                                   | Owner decision, using the explicit-scoping exception of the CLAUDE.md parity rule (as `gym_plan.md` D7 did).                                                                                          |
+| FD-13 | **No new API level.** New procedures and additive optional fields only. Installed binaries never see a breaking change.                                                                                                                                                                                                                                                                                                                                          | CLAUDE.md "never break shipped mobile clients".                                                                                                                                                       |
+| FD-14 | **Leaving Following is total and immediate.** `Turn off Following` deletes your social profile, every follow both ways, pending requests, blocks you made, suggestion dismissals and your Activity items. Others' hearts on your recipes stop showing. Copies they already put in their weeks stay theirs. It's logged as a withdrawal of `SOCIAL_SHARING`. Reports and moderation log rows about you are kept, so leaving and rejoining can't reset moderation. | GDPR Art. 7(3). The moderation carve-out prevents evasion.                                                                                                                                            |
+| FD-15 | **"Last week" of workouts = the last 7 days** (Q-F-10): completed workouts whose `localDate` (the owner's device-local date stored on the session) is between the owner's today − 6 days and today, inclusive, with the owner's today computed in `ChefProfile.timeZone` (UTC fallback). At most 30 sessions. One request, no cursor.                                                                                                                            | A rolling window always shows the most recent training, even on a Monday. "Current + previous training week" would show up to 13 days and depends on the routine's week shape.                        |
+| FD-16 | **Over-the-air only.** The feature adds no native module and changes nothing in `apps/mobile/app.config.js`, so the runtime fingerprint stays the same and every piece ships as an OTA update to installed 1.0.1 binaries. It uses only what the binary already has: RN core `Share` (invite) and `Linking` (source links), `react-native-reanimated`, `expo-router`, `expo-haptics`, `expo-image`.                                                              | Consequence of Q-F-14; the owner builds binaries by hand, and nothing here should need one.                                                                                                           |
 
-The request says both _"you can request to follow someone and they need to accept … (same as insta)"_ and _"you can
-only follow public profiles"_. On Instagram, acceptance is only needed for **private** profiles, and anyone can
-follow a public one. Read literally, the request means public profiles still need acceptance and private profiles
-can't be followed at all.
+## 6. The follow model
 
-| Policy                         | Public profile                    | Private profile                                                       | Consequence                                                                                                                                                                              |
-| ------------------------------ | --------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A: Instagram (recommended)** | Follow is instant; owner notified | Follow = request; owner accepts/declines                              | Private-by-default users can still connect (by request). Public profiles like Elena's grow without effort. Matches "same as insta".                                                      |
-| **B: Literal**                 | Follow = request; owner accepts   | Not followable; not in search or suggestions; existing followers kept | Every follower is always approved. But with private as the default, nobody can follow anybody until they switch to public. Public then just means "discoverable and accepting requests". |
-
-**Recommendation: A**, with private as the default. The behaviour sits in one pure function,
-`followPolicy(targetVisibility, policy)` → `'instant' | 'request' | 'not_allowed'` in `@chefer/utils`, with the
-policy as a server constant. Switching to B changes that constant, the search/suggestion filter (B hides private
-profiles) and three strings. The data model, state machine and screens are identical because both policies use
-`Requested`.
-
-### 6.2 Terms
+### 6.1 Terms (user-facing words in `code`)
 
 | Term                                 | Meaning                                                                                                                           |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Friends**                          | The section (More → Friends; web nav → Friends). Not a relationship type.                                                         |
-| **Turn on Friends / social profile** | The opt-in. Creates the user's social profile with a visibility and sharing switches. Without it the user doesn't exist socially. |
-| **Follow / following**               | A one-way accepted relation _viewer → owner_. Grants the viewer the owner's shared content.                                       |
-| **Follower**                         | Someone who follows you.                                                                                                          |
-| **Request**                          | A pending follow to a private profile. Grants nothing until accepted.                                                             |
-| **Public / private**                 | The profile's visibility setting (§6.1). Default private.                                                                         |
-| **Sharing switches**                 | `Meal plan`, `My recipes`, `Workouts`, `Show my daily targets`: which sections followers can see.                                 |
-| **Block**                            | Removes every relation between two users both ways and makes each invisible to the other in Friends. The blocked user isn't told. |
-| **Activity**                         | The in-app notification inbox for social events.                                                                                  |
+| `Following` (the section)            | More → Following. Code name `friends`.                                                                                            |
+| `Turn on Following` / social profile | The opt-in. Creates the user's social profile with a visibility and sharing switches. Without it the user doesn't exist socially. |
+| Follow / `You follow`                | A one-way accepted relation _viewer → owner_. It grants the viewer the owner's shared content.                                    |
+| `Followers`                          | People who follow you.                                                                                                            |
+| Request (`Requested`)                | A pending follow to a private profile. It grants nothing until accepted.                                                          |
+| `Public` / `Private`                 | Profile visibility. Default private.                                                                                              |
+| Sharing switches                     | `This week’s meal plan`, `Recipes you’ve written or imported`, `Your routine and workouts`, `Your daily targets`.                 |
+| Block                                | Removes every relation both ways and hides each person from the other everywhere. The blocked user isn't told.                    |
+| `Report and block`                   | One action: files a report and blocks. It feeds the automatic thresholds (§9).                                                    |
+| `Activity`                           | The in-app notification inbox.                                                                                                    |
 
-### 6.3 Follow lifecycle (state machine, per ordered pair viewer → owner)
+### 6.2 Follow lifecycle (per ordered pair viewer → owner)
 
 ```
                       follow (owner PUBLIC)                       ┌──────────────┐
@@ -168,571 +194,651 @@ profiles) and three strings. The data model, state machine and screens are ident
    ┌──────┴─────┐   follow (owner PRIVATE)   ┌─────────────┐  accept     │  ▲
    │    NONE    │───────────────────────────▶│  REQUESTED  │─────────────┘  │
    └────────────┘◀───────────────────────────└─────────────┘                │
-     ▲   ▲   ▲      cancel (viewer) / decline (owner)                       │
+     ▲   ▲   ▲      cancel (viewer) / decline (owner) / 90-day expiry        │
      │   │   └────────── unfollow (viewer) / remove follower (owner) ◀──────┘
      │   │
-     │   └── block (either side) from ANY state → NONE both directions + BLOCKED overlay
+     │   └── block or report (either side) from ANY state → NONE both directions + BLOCKED
      └────── unblock → NONE (nothing restored)
 
-   Owner switches PRIVATE → PUBLIC: every REQUESTED to them → FOLLOWING (confirm sheet states the count)
-   Owner switches PUBLIC → PRIVATE: existing FOLLOWING kept; new follows become requests
-   Either side turns Friends off: every pair involving them → NONE (rows deleted)
-   Either account deleted: rows cascade away
+   Owner switches PRIVATE → PUBLIC: every REQUESTED to them → FOLLOWING (the confirmation states the count)
+   Owner switches PUBLIC → PRIVATE, or is forced private (§9): existing FOLLOWING kept; new follows become requests
+   Either side turns Following off, or an account is deleted: every pair involving them → NONE
 ```
 
-| Transition            | Actor                              | Notification to the other side                        | Rate limit / guard                                                                          |
-| --------------------- | ---------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| NONE → FOLLOWING      | viewer                             | `NEW_FOLLOWER` to owner                               | 60 follow actions/hour/user; cannot follow self, blocked or un-activated users              |
-| NONE → REQUESTED      | viewer                             | `FOLLOW_REQUEST` to owner                             | Same, plus max **3 requests to the same person per 7 days** (stops decline–re-request spam) |
-| REQUESTED → FOLLOWING | owner                              | `REQUEST_ACCEPTED` to viewer                          | Idempotent                                                                                  |
-| REQUESTED → NONE      | owner (decline) / viewer (cancel)  | none (the `FOLLOW_REQUEST` notification is withdrawn) | Idempotent                                                                                  |
-| FOLLOWING → NONE      | viewer (unfollow) / owner (remove) | none                                                  | Idempotent; the viewer's Saved references to the owner's recipes become hidden (FD-7)       |
-| any → blocked         | either                             | none                                                  | 30 blocks/day/user                                                                          |
-
-The viewer needs no separate state for "follows me". It is the mirrored pair and is shown as a tag.
+| Transition            | Actor                              | In-app notification to the other side                | Rate limit / guard                                                         |
+| --------------------- | ---------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------- |
+| NONE → FOLLOWING      | viewer                             | `NEW_FOLLOWER`                                       | 60 follow actions/hour/user. Not self, blocked or un-activated users       |
+| NONE → REQUESTED      | viewer                             | `FOLLOW_REQUEST`                                     | Same, plus at most 3 requests to the same person per 7 days                |
+| REQUESTED → FOLLOWING | owner                              | `REQUEST_ACCEPTED`                                   | Idempotent                                                                 |
+| REQUESTED → NONE      | owner (decline) / viewer (cancel)  | none; the pending `FOLLOW_REQUEST` item is withdrawn | Idempotent                                                                 |
+| FOLLOWING → NONE      | viewer (unfollow) / owner (remove) | none                                                 | Idempotent. The viewer's hearts on the owner's recipes stop showing (FD-7) |
+| any → blocked         | either (block, or report)          | none                                                 | 30 blocks/day/user                                                         |
 
 ## 7. Privacy model
 
 ### 7.1 Who can see what
 
-Rows are the viewer's relation to the profile owner. "Header" means: display name, avatar (initials; there is no profile-photo upload in Chefer today), follower and following
-**counts**, the public/private badge and the viewer's relation (`Follows you`, `Requested`). Emails are never shown to
-anyone but the account owner.
+"Header" means: display name, avatar (initials), follower and following **counts**, the `Follow` / `Requested` /
+`Following` / `Follow back` button, the `Follows you` tag, and the overflow (`Report and block`). Emails are never
+shown to anyone.
 
-| Viewer ↓ / Owner's profile →                     | Header                                                                          | Food: week plan (meals, kcal, macros) | Food: daily targets                | Food: own recipes (not imported) | Gym: active routine | Gym: recent workouts | Owner's follower/following **lists** |
-| ------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------- | -------------------------------- | ------------------- | -------------------- | ------------------------------------ |
-| Owner (self)                                     | ✓                                                                               | ✓                                     | ✓                                  | ✓                                | ✓                   | ✓                    | ✓                                    |
-| Accepted follower, **public or private** profile | ✓                                                                               | ✓ if `Meal plan` on                   | only if `Show my daily targets` on | ✓ if `My recipes` on             | ✓ if `Workouts` on  | ✓ if `Workouts` on   | ✗ (counts only, v1)                  |
-| Non-follower, **public** profile                 | ✓                                                                               | ✗: "Follow {name} to see their meals" | ✗                                  | ✗                                | ✗                   | ✗                    | ✗                                    |
-| Pending requester, **private** profile           | ✓                                                                               | ✗: locked state, `Requested`          | ✗                                  | ✗                                | ✗                   | ✗                    | ✗                                    |
-| Non-follower, **private** profile                | ✓                                                                               | ✗: locked state                       | ✗                                  | ✗                                | ✗                   | ✗                    | ✗                                    |
-| Blocked (either direction)                       | ✗: "Profile not available" (same as not found)                                  | ✗                                     | ✗                                  | ✗                                | ✗                   | ✗                    | ✗                                    |
-| User who hasn't turned on Friends (as viewer)    | Only after turning on Friends. The Friends home shows the turn-on screen first. | ✗                                     | ✗                                  | ✗                                | ✗                   | ✗                    | ✗                                    |
-| Any user, **owner hasn't turned on Friends**     | ✗: not found                                                                    | ✗                                     | ✗                                  | ✗                                | ✗                   | ✗                    | ✗                                    |
+| Viewer ↓ / Owner's profile →                     | Header                                         | Week plan (meals, kcal, macros)                      | Daily targets                      | Own recipes (written + imported, with source)        | Active routine     | Workouts, last 7 days | Owner's follower/following **lists** |
+| ------------------------------------------------ | ---------------------------------------------- | ---------------------------------------------------- | ---------------------------------- | ---------------------------------------------------- | ------------------ | --------------------- | ------------------------------------ |
+| Owner (self, preview)                            | ✓                                              | ✓                                                    | ✓                                  | ✓                                                    | ✓                  | ✓                     | ✓ (own lists)                        |
+| Accepted follower (public or private profile)    | ✓                                              | ✓ if `Meal plan` on                                  | only if `Show my daily targets` on | ✓ if `My recipes` on (auto-hidden ones excluded, §9) | ✓ if `Workouts` on | ✓ if `Workouts` on    | ✗ (counts only)                      |
+| Non-follower, public profile                     | ✓                                              | ✗: `Follow {first} to see their meals and workouts.` | ✗                                  | ✗                                                    | ✗                  | ✗                     | ✗                                    |
+| Pending requester, private profile               | ✓ (`Requested`)                                | ✗: locked                                            | ✗                                  | ✗                                                    | ✗                  | ✗                     | ✗                                    |
+| Non-follower, private profile                    | ✓                                              | ✗: locked                                            | ✗                                  | ✗                                                    | ✗                  | ✗                     | ✗                                    |
+| Blocked (either direction, incl. after a report) | ✗: `Profile not available` (same as not found) | ✗                                                    | ✗                                  | ✗                                                    | ✗                  | ✗                     | ✗                                    |
+| Owner hasn't turned on Following                 | ✗: not found                                   | ✗                                                    | ✗                                  | ✗                                                    | ✗                  | ✗                     | ✗                                    |
 
-Under policy B (§6.1), the "Non-follower, private profile" row can't reach the profile at all: it isn't in search or
-suggestions, and a direct link shows "Profile not available".
+A viewer must have turned on Following themselves to see any profile.
 
-### 7.2 What is never shared (any relation, any setting)
+### 7.2 What is never shared
 
-Email address · allergies, diets, dislikes and safety checks ("Checked for…") · household members and portions for
-them · body metrics, weight log and goal · logged meals (tracker) and snap-to-log photos · budget, prices, shopping
-list and pantry · AI chat · coach reviews · workout **notes**, exercise notes, heart rate, deload flags and progression
-overrides · "My weeks" templates and other weeks · imported recipes (link or video) · consent and privacy settings.
+Email address · allergies, diets, dislikes and safety checks · household members · body metrics, weight log and goal ·
+logged meals and snap-to-log photos · budget, prices, shopping list and pantry · AI chat · coach reviews · workout and
+exercise **notes**, heart rate, deload flags, progression overrides · "My weeks" templates and other weeks · consent
+and privacy settings · workouts older than 7 days.
 
 ### 7.3 What a follower's meal plan view contains
 
-The owner's **current week** (Monday–Sunday in the owner's time zone, `ChefProfile.timeZone`, falling back to UTC) as
-the owner would see it right now, **read-only and without side effects**. Viewing must not create a carried-forward
-plan for the owner. For every day: planned meals (type, recipe name, photo, portion), per-meal kcal/protein/carbs/fat
-for that portion, and day totals. For the week: average kcal per planned day. If the owner has no plan for this week
-and nothing to carry forward: "{First name} hasn’t planned this week yet."
+The owner's **current week only** (Q-F-12): Monday–Sunday in the owner's time zone (`ChefProfile.timeZone`, UTC
+fallback), as the owner would see it right now, **read-only and without side effects**. Viewing must not create a
+carried-forward plan for the owner.
+
+- For every day: planned meals (type, recipe name, photo, portion), per-meal kcal/protein/carbs/fat for that portion,
+  and day totals.
+- For the week: the average kcal per planned day.
+- A meal whose recipe was auto-hidden (§9) shows as `Hidden recipe` with its numbers, and can't be opened.
+- No plan and nothing to carry forward: `{first} hasn’t planned this week yet.`
 
 ## 8. User stories and acceptance criteria
 
-Priority: **P0** = v1 launch blocker; **P1** = v1, may trail the first internal build; **P2** = nice-to-have. Every
-criterion applies to mobile and web unless marked. Copy in `code quotes` is exact and owned by `ux-design.md` (the
-copy deck there wins on conflict).
+Priority: **P0** = v1 launch blocker; **P1** = v1, may trail; **P2** = nice-to-have. Everything is mobile unless
+marked. Copy in `code quotes` is exact and owned by `ux-design.md` §12 (the deck wins on conflict).
 
-### E1 Turn on Friends and privacy settings
+Retired in rev 2: FR-08.2, FR-08.3 (email search), FR-13.5 old (admin report page, replaced), FR-19.3 (Load more),
+FR-21 (push, Q-F-14), FR-22.3 (folded into §14).
 
-**FR-01 (P0): Discover the section.** As any signed-in user I see **Friends** in More, directly below Profile, and
-in the web navigation (§16), when the `friends` flag is on.
+### E1 Turn on Following and privacy settings
 
-- FR-01.1 Mobile More lists `Profile` then `Friends` (icon `people-outline`), with a count badge when there are
-  pending requests or unread Activity items (max display `9+`).
-- FR-01.2 With the flag off (and the user not allow-listed, §17), the row and the web nav item are absent. A deep link to
-  `/friends*` shows `Friends isn’t available right now.` with a way back.
-- FR-01.3 Gym mode has no More tab, so Friends must also be reachable there. The Settings hub
-  (`apps/mobile/src/features/settings/settings-screen.tsx`, reached from the `ModeSwitch` gear in both modes) gains
-  an Account-group row `Friends` → `/friends`. On web, `Friends` sits directly after `Profile` in the secondary
-  navigation (desktop sidebar below the divider, mobile-web More drawer) and is also added to the gym secondary
-  navigation. `/friends` is a mode-neutral "account page", like `/profile`.
-- FR-01.4 The badge also appears on the mobile More tab icon (food mode), so a pending request is noticed without
-  opening More.
+**FR-01 (P0): Discover the section.** When Following is available to me (flag or allow-list, §17), More shows
+**Following** directly below **Profile**.
 
-**FR-02 (P0): Turn on Friends (opt-in and consent).** As a user opening Friends for the first time, I see what
-Friends does and what will be shared before anything is created.
+- FR-01.1 The More row is `Following` (icon `people-outline`). It shows a count pill when there are pending requests
+  or unread Activity items (display capped at `9+`).
+- FR-01.2 When unavailable, the row is absent, and a deep link to a Following screen shows `Following isn’t available
+right now.` with a way back.
+- FR-01.3 Gym mode has no More tab. The Settings hub (reached from the `ModeSwitch` gear in both modes) gets an
+  Account-group row `Following`.
+- FR-01.4 The badge also appears on the More tab icon in Food mode.
 
-- FR-02.1 The intro screen explains, in plain words: who can find me (people who search my name or my exact email),
-  who can see my content (only followers I approve, or anyone who follows me if I'm public), what is shared (the
-  three sections) and what is never shared (§7.2 summary).
-- FR-02.2 Choosing `Turn on Friends` with `Private` (preselected) creates my social profile, logs a `SOCIAL_SHARING`
-  consent event (granted, document version = the current privacy version, source web/mobile) and lands me on
-  Friends home.
-- FR-02.3 Choosing `Public` on the intro shows the public-profile confirmation (FR-03.2) before creating anything.
-- FR-02.4 Until I turn it on, I don't appear in anyone's search or suggestions, and following me is impossible
-  (API returns NOT_FOUND for my id).
-- FR-02.5 `Not now` leaves nothing stored; the next open shows the intro again.
-- FR-02.6 The intro shows **how others will see me**: an avatar and my first and last name, prefilled from
-  `User.firstName`/`lastName` (fallback: `User.name`). I can correct them here. There is no name-editing screen in
-  Chefer today, and a user registered without a last name may want one. Both are required (1–50 chars each, trimmed)
-  to turn Friends on, so every discoverable profile has a searchable name. Saving updates `firstName`, `lastName`
-  and `name` (`"{first} {last}"`), which is the same rule `AuthService.register` uses.
+**FR-02 (P0): Turn on Following (opt-in and consent).**
 
-**FR-03 (P0): Public/private setting.** As a user I can change my profile visibility in Friends settings and in
-Profile › Privacy & data.
+- FR-02.1 The intro explains in plain words:
+  - who can find me: people who search my name;
+  - who can see my content: followers I approve, or anyone who follows me if I'm public;
+  - what is shared: the three sections;
+  - what is never shared (§7.2 summary);
+  - that reported content is hidden automatically.
+- FR-02.2 `Turn on Following` with `Private` (preselected) creates my social profile. It logs a `SOCIAL_SHARING`
+  consent event (granted, the current privacy version, source mobile) and lands me on the Following home.
+- FR-02.3 Choosing `Public` first shows the public confirmation (FR-03.2).
+- FR-02.4 Until I turn it on, I'm absent from search and suggestions, and following me is impossible (API NOT_FOUND).
+- FR-02.5 `Not now` stores nothing.
+- FR-02.6 The intro shows how others will see me: an avatar and first and last name, prefilled from
+  `User.firstName`/`lastName` (fallback `User.name`) and editable.
+  - Both are required, 1–50 chars each, trimmed.
+  - Saving updates `firstName`, `lastName` and `name` (`"{first} {last}"`), the same rule `AuthService.register`
+    uses.
+  - Names are checked by the word filter (§9.4). A match is rejected with `Please choose a different name. Some words
+aren’t allowed on Chefer profiles.`
+- FR-02.7 Turning on runs the word filter over my existing recipes once. Matches are auto-hidden from followers
+  (§9.4) and I'm told how many: `{n} of your recipes won’t be shown to followers because of words in their name or
+description.`
 
-- FR-03.1 The setting is a two-option control: `Private: you approve each follower` / `Public: anyone on Chefer
-can follow you`.
-- FR-03.2 Switching to Public shows a confirmation naming what followers see and, if I have N pending requests,
-  `{N} pending requests will be accepted`. Confirming accepts them all and logs a consent event.
-- FR-03.3 Switching to Private keeps existing followers; the confirmation says so and links to the Followers list.
-- FR-03.4 The change is effective on the next request anywhere (no caching of access decisions beyond one request).
+**FR-03 (P0): Public/private setting,** in Following's `Sharing & privacy` and in Profile › Privacy & data.
 
-**FR-04 (P0): Sharing switches.** As a user I choose which sections followers can see: `Meal plan`, `My recipes`,
-`Workouts` (default on), `Show my daily targets` (default off).
+- FR-03.1 Two options: `Private — you approve each follower` / `Public — anyone on Chefer can follow you`.
+- FR-03.2 Switching to Public shows a confirmation naming what followers see. If there are N pending requests, it adds
+  `Your {n} pending requests will be accepted.` Confirming accepts them all and logs a consent event.
+- FR-03.3 Switching to Private keeps existing followers. The confirmation says so and links to the Followers list.
+- FR-03.4 The change is effective on the next request. Access decisions are not cached across requests.
+- FR-03.5 A profile forced private by moderation (§9.3) can't be made public. The control is disabled and explains
+  why.
 
-- FR-04.1 Turning a section off makes it disappear for followers on their next load, replaced by
-  `{First name} isn’t sharing {their meal plan|their recipes|their workouts}`.
-- FR-04.2 Turning `My recipes` off hides my recipes from followers' Saved lists (references hidden, not deleted).
-  Copies they already added to their weeks are unaffected.
-- FR-04.3 `Show my daily targets` adds my kcal and macro targets to the week view for followers. Turning it on shows
-  a one-line consent: `Followers will see your daily calorie and macro targets.`
+**FR-04 (P0): Sharing switches.** `This week’s meal plan`, `Recipes you’ve written or imported`, `Your routine and
+workouts` (default on), `Your daily targets` (default off).
 
-**FR-05 (P0): Turn off Friends.** As a user I can leave Friends entirely.
+- FR-04.1 Turning a section off replaces it for followers with `{first} isn’t sharing {their meal plan | their
+recipes | their workouts}`.
+- FR-04.2 Turning `My recipes` off hides my recipes from followers' Saved lists (the references are hidden, not
+  deleted). Copies already in their weeks are unaffected.
+- FR-04.3 Turning on `Your daily targets` asks for confirmation (`Followers will see your daily calorie and macro
+targets next to your meal plan.`) and logs a consent event.
 
-- FR-05.1 `Turn off Friends` sits at the bottom of Friends settings. Its confirmation lists the consequences (FD-14).
-- FR-05.2 Confirming deletes my social profile and every related row (follows both ways, requests, my blocks, my
-  dismissals, my social notifications and their push deliveries) in one transaction, and logs the `SOCIAL_SHARING`
-  withdrawal.
-- FR-05.3 Afterwards I'm not findable, and former followers see "Profile not available". Turning Friends on again
-  starts from zero.
+**FR-05 (P0): Turn off Following.**
 
-### E2 Friends home and lists
+- FR-05.1 `Turn off Following` sits at the bottom of `Sharing & privacy`. Its confirmation lists the consequences
+  (FD-14).
+- FR-05.2 Confirming deletes my social data per FD-14 in one transaction and logs the withdrawal.
+- FR-05.3 Afterwards I'm not findable, and former followers see `Profile not available`.
 
-**FR-06 (P0): Friends home.** As an activated user, Friends shows (top to bottom): search bar; **Requests** (only if
-any); a `Following` / `Followers` switch with the selected list; **Suggested for you**.
+### E2 Following home and lists
 
-- FR-06.1 Requests show up to 3 inline with `Accept` / `Decline`, then `See all {N}`.
-- FR-06.2 Following rows: avatar, name, `Follows you` tag if mutual, and a `Following` button that unfollows after
-  confirmation. Pending rows show `Requested` (tap = cancel request, with confirmation).
-- FR-06.3 Followers rows: avatar, name, `Follow back` (or `Requested`/`Following`), and an overflow with
-  `Remove follower` and `Block`.
-- FR-06.4 Lists are paginated (20 per page, infinite scroll), newest relation first.
-- FR-06.5 Tapping any row opens that person's profile (FR-14).
-- FR-06.6 Empty Following: `Find people you know` plus the suggestions. Empty Followers: `No followers yet` /
-  `Share Chefer with friends so they can find you.` with `Invite a friend` (FR-11).
+**FR-06 (P0): Home.** The home shows, top to bottom: the search bar; **Requests** (only if any); a `You follow` /
+`Followers` switch with the selected list; **Suggested for you**.
 
-**FR-07 (P0): Requests.** As a private user I can accept or decline each request, and see all of them.
+- FR-06.1 Requests: up to 3 inline with `Accept` / `Decline`, then `See all {n}`.
+- FR-06.2 `You follow` rows: avatar, name, a `Follows you` tag if mutual, and a `Following` button (unfollow after
+  confirmation). Pending rows show `Requested`; tapping cancels, after confirmation.
+- FR-06.3 `Followers` rows: avatar, name, `Follow back` / `Requested` / `Following`, and an overflow with `Remove
+follower` and `Block`.
+- FR-06.4 20 per page with infinite scroll, newest relation first.
+- FR-06.5 Tapping a row opens the profile (FR-14).
+- FR-06.6 Empty `You follow`: `Find people you know` plus suggestions. Empty `Followers`: `No followers yet` / `Share
+Chefer with people you know so they can find you.` with `Invite someone` (FR-11).
 
-- FR-07.1 Accept moves the requester into Followers at once and notifies them (`REQUEST_ACCEPTED`). The row then
-  offers `Follow back`.
-- FR-07.2 Decline removes the request silently.
-- FR-07.3 Requests older than 90 days expire silently (row deleted by a nightly sweep).
+**FR-07 (P0): Requests.** Accept (→ `REQUEST_ACCEPTED` to the requester, the row then offers `Follow back`) or decline
+(silent). Requests older than 90 days expire silently.
 
-### E3 Search
+### E3 Search (name only)
 
-**FR-08 (P0): One search bar for names and email.** (Full spec in §10.)
+**FR-08 (P0): One search bar, by name.** (Spec in §10.)
 
-- FR-08.1 Typing 2+ characters searches names (first, last, display name) by word prefix, case- and
-  accent-insensitive, with results after a 250 ms pause.
-- FR-08.2 Typing a complete email address (contains `@` and a dot after it) also finds the one activated account
-  with exactly that email. The result shows name and avatar only, never the email.
-- FR-08.3 A partial email (`maria@`, `@gmail.com`) returns name matches only, never an email match.
-- FR-08.4 Results exclude me, users who haven't turned on Friends, and anyone I blocked or who blocked me. Under
-  policy B they also exclude private profiles.
-- FR-08.5 Each result shows the relation button (`Follow` / `Requested` / `Following`) and opens the profile on tap.
-- FR-08.6 No results: `No one found for “{query}”` / `They may not have turned on Friends yet.` plus the invite
-  action (FR-11).
-- FR-08.7 More than 60 searches a minute (or 20 exact-email lookups an hour) returns `Too many searches. Try again in
-a minute.` and doesn't query.
+- FR-08.1 Typing 2+ characters searches first and last names by word prefix, ignoring case and accents, after a
+  250 ms pause.
+- FR-08.4 Results exclude me, users without Following, anyone blocked either way, and accounts removed from search by
+  moderation (§9.3).
+- FR-08.5 Each result shows the relation button and opens the profile.
+- FR-08.6 No results: `No one found for “{query}”` / `They may not have turned on Following yet.` plus `Invite
+someone`.
+- FR-08.7 More than 60 searches a minute returns `Too many searches. Try again in a minute.`
 
 ### E4 Suggestions
 
 **FR-09 (P1): Suggested for you.** (Algorithm in §11.)
 
-- FR-09.1 Up to 10 suggestions on Friends home, each with a reason line: `Followed by {name}`, `Followed by {name}
-and {N} others`, `Follows you` or `Popular on Chefer`, plus `Follow` and a dismiss `×`.
-- FR-09.2 Dismissing removes the person and they aren't suggested again for 90 days.
-- FR-09.3 A new user with no connections sees popular public profiles, or, if there are none, the invite card only.
-  The section is never an empty box.
+- FR-09.1 Up to 5 on the home (30 under `See all`), each with a reason line (`Followed by {name}`, `Followed by {name}
+and {n} others`, `Follows you`, `Popular on Chefer`), plus `Follow` and a dismiss `×`.
+- FR-09.2 A dismissed person isn't suggested again for 90 days.
+- FR-09.3 A new user with no connections sees popular public profiles, including the seeded **Chefer Kitchen** (Q-F-8).
+  If there are none, they see the invite card.
 
-**FR-10 (P1): Follow from anywhere.** Follow/Requested/Following buttons behave identically in search, suggestions,
-lists and profiles, and update everywhere at once (optimistic, rolled back with a snackbar on error).
+**FR-10 (P0): Follow from anywhere.** Relation buttons behave identically in search, suggestions, lists, Activity and
+profiles, and update everywhere at once (optimistic, rolled back with a snackbar on error).
 
-**FR-11 (P2): Invite.** `Invite a friend` opens the OS share sheet (mobile) / copies a link (web) with
-`I’m using Chefer to plan meals and workouts. Find me in Friends: {my full name}. {app link}`. No email is sent by
-Chefer. No referral tracking in v1.
+**FR-11 (P2): Invite.** `Invite someone` opens the OS share sheet with `I’m using Chefer to plan meals and workouts.
+Follow me in Chefer: {my full name}. {app link}`. Chefer sends nothing itself.
 
 ### E5 Follow lifecycle
 
-**FR-12 (P0): Follow, request, cancel, unfollow, remove.** Implements §6.3.
+**FR-12 (P0): Follow, request, cancel, unfollow, remove.** Implements §6.2.
 
-- FR-12.1 Following a public profile shows `Following` at once. The owner gets `NEW_FOLLOWER`.
-- FR-12.2 Following a private profile shows `Requested`. The owner gets `FOLLOW_REQUEST`.
-- FR-12.3 Unfollowing asks `Unfollow {first}?` with, for private profiles, `You’ll need to ask again to see their
-meals and workouts.`
-- FR-12.4 Remove follower asks `Remove {first} as a follower?` / `They won’t be told. They can follow you again, or
-ask to if your profile is private.`
-- FR-12.5 All transitions are idempotent. Double taps and retries never create duplicates or errors.
-- FR-12.6 Following yourself, a blocked user or a user without Friends is rejected by the API (NOT_FOUND) regardless
-  of the client.
+- FR-12.1 Public: `Following` at once. The owner gets `NEW_FOLLOWER`.
+- FR-12.2 Private: `Requested`. The owner gets `FOLLOW_REQUEST`.
+- FR-12.3 Unfollow asks `Unfollow {first}?`. For private profiles it adds `You’ll need to ask again to see their meals
+and workouts.`
+- FR-12.4 Remove follower asks `Remove {first} as a follower?` / `They won’t be told. They can follow you again, or ask
+to if your profile is private.`
+- FR-12.5 Everything is idempotent.
+- FR-12.6 Following yourself, a blocked user or a user without Following is rejected server-side (NOT_FOUND).
 
-### E6 Safety: block and report
+### E6 Safety (automatic, §9)
 
-**FR-13 (P0): Block and report** (App Store 1.2).
+**FR-13 (P0): Block, report, automatic hiding, word filter.**
 
-- FR-13.1 `Block` is available on every other user's profile (overflow) and on follower rows. Confirmation: `Block
-{first}?` / `They won’t be able to find you or see your profile, and you won’t see theirs. Any follows between you
-are removed. They won’t be told.`
-- FR-13.2 Blocking deletes follows and requests both ways, withdraws pending social notifications between the two,
-  hides each from the other's search and suggestions, and makes each other's profile "Profile not available".
-- FR-13.3 Blocked users are listed in Friends settings › `Blocked people` with `Unblock`. Unblocking restores
-  nothing.
-- FR-13.4 `Report` is available on profiles and on friends' recipes. Reasons: `Inappropriate name or recipe`,
-  `Spam or fake account`, `Harassment`, `Unsafe or harmful content`, `Something else` (+ optional note, 500 chars).
-  It creates a report row, emails the support address (`cheferapp.help@gmail.com`, the existing support channel)
-  with ids only, and shows `Thanks. We’ll look into it within 24 hours.` Reporting offers `Also block {name}`.
-- FR-13.5 An admin can see reports (P1: web `/admin/reports` list, read-only with resolve).
+- FR-13.1 `Block` on every other user's profile (overflow) and on follower rows. Confirmation: `Block {first}?` /
+  `They won’t be able to find you or see your profile, and you won’t see theirs or their recipes. Any follows between
+you are removed. They won’t be told.`
+- FR-13.2 Blocking is instant and mutual:
+  - It deletes follows and requests both ways and withdraws pending Activity items between the two.
+  - It hides each person from the other in search, suggestions, profiles, Activity and recipe surfaces.
+  - The blocked person's recipes disappear from the blocker's Saved list. Copies already in the blocker's own week
+    stay, because they are the blocker's own rows.
+- FR-13.3 `Blocked people` in `Sharing & privacy` lists blocks with `Unblock`. Unblocking restores nothing.
+- FR-13.4 **Report is one tap and also blocks.**
+  - A profile's overflow has `Report and block {first}`. A recipe's overflow has `Report recipe`.
+  - Either opens a sheet of reasons. Tapping a reason submits the report **and** blocks the person at once. There is
+    no free-text note (no human reads it).
+  - Confirmation snackbar: `Reported and blocked. You won’t see {first} or their recipes again.`
+- FR-13.5 A recipe reported by **3** distinct eligible accounts is hidden automatically for everyone except its owner
+  (§9.3).
+- FR-13.6 An account whose content (the profile, or any of their recipes) is reported by **5** distinct eligible
+  accounts is automatically forced private and removed from search and suggestions (§9.3).
+- FR-13.7 Word filter: display names and the name and description of **shared** recipes are checked on save. A match
+  is rejected with a friendly message (§9.4).
+- FR-13.8 An owner whose recipe was auto-hidden sees, on that recipe, `Hidden from people who follow you` / `Several
+people reported this recipe, so it’s no longer shown to others.` An owner forced private sees the reason in
+  `Sharing & privacy`. There is no appeal flow (Q-F-13). The ops undo exists for the owner of Chefer to use at their
+  discretion (§9.5).
 
 ### E7 Viewing a profile
 
-**FR-14 (P0): Profile header and Food | Gym switch.** As a viewer, opening a profile shows a header (avatar,
-name, counts, badge, relation button, overflow) and the **same `Food | Gym` switch** as the app header. It opens on
-the viewer's current mode.
+**FR-14 (P0): Header and Food | Gym switch.** The header (avatar, name, counts, relation button, overflow) sits above
+the same `Food | Gym` switch as the app header. The switch opens on the viewer's current mode.
 
-- FR-14.1 The header's primary button shows `Follow`, `Requested`, `Following` or `Follow back` per relation.
-- FR-14.2 Locked (non-follower): below the switch, a lock panel: private: `This profile is private` / `Follow
-{first name} to see their meals and workouts.`; public: `Follow {first name} to see their meals and workouts.`
-- FR-14.3 Blocked / not found / Friends turned off: a full-screen `Profile not available` with a back action.
-- FR-14.4 The switch value is local to the profile screen. It never changes the app's own mode (`mode-store`).
-- FR-14.5 Viewing your own profile from a list or link shows the same screen with `Edit sharing` instead of a follow
-  button, as a preview of what followers see.
+- FR-14.1 The button shows `Follow`, `Requested`, `Following` or `Follow back`.
+- FR-14.2 Non-followers, public or private (Q-F-4), see the header and a locked panel instead of content:
+  - private: `This profile is private` / `Follow {first} to see their meals and workouts.`
+  - after requesting: `Request sent` / `You’ll see their meals and workouts once {first} accepts.`
+  - public: `Follow {first} to see their meals and workouts.`
+- FR-14.3 Blocked, not found or Following turned off: a full-screen `Profile not available`.
+- FR-14.4 The switch is local to the profile screen. It never changes the app's mode.
+- FR-14.5 Viewing yourself shows a preview of what followers see, with `Edit sharing` instead of a follow button.
 
 ### E8 Food tab
 
 **FR-15 (P0): Their current week.** Implements §7.3.
 
-- FR-15.1 Day chips Mon–Sun with today highlighted in the owner's time zone. The selected day lists meals with photo,
-  name, portion and `{kcal} kcal · P {g} · C {g} · F {g}`, then the day total.
-- FR-15.2 A week strip shows average kcal per planned day. If targets are shared, it shows `Target {kcal} kcal`
-  next to the total, with no judgement colours.
-- FR-15.3 Tapping a meal opens the recipe (FR-17).
-- FR-15.4 States: no plan: `{First name} hasn’t planned this week yet.`; section off: FR-04.1 copy; loading
-  skeleton; error with retry; offline shows the last loaded copy with `Offline · showing what was saved {time}`
-  (mobile).
-- FR-15.5 Viewing never modifies the owner's data (no carry-forward write, no tailoring, no image generation
-  priority change).
+- FR-15.1 Mon–Sun chips with today highlighted (owner's time zone). The selected day lists meals (photo, name,
+  portion, `{kcal} kcal · P {g} g · C {g} g · F {g} g`) and the day total.
+- FR-15.2 A week line shows the average kcal per planned day. Shared targets appear as `Target {kcal} kcal · P {g} g`,
+  with no judgement colours.
+- FR-15.3 Tapping a meal opens the recipe (FR-17), except for `Hidden recipe`.
+- FR-15.4 States: no plan, section off, loading, error, offline (last loaded copy).
+- FR-15.5 Viewing never modifies the owner's data.
 
-**FR-16 (P0): Their recipes.** Below the week (mobile: a `Week` / `Recipes` sub-switch), a grid of the owner's own
-non-imported recipes, newest first, 20 per page, with search when there are more than 12.
+**FR-16 (P0): Their recipes.** A grid of the owner's own recipes (`source: MANUAL`, written **or imported**,
+excluding copies of other people's recipes and auto-hidden ones), newest first, 20 per page, with search when there
+are more than 12.
 
-- FR-16.1 Each card: photo, name, kcal per serving, total time, heart.
-- FR-16.2 Empty: `{First name} hasn’t shared any recipes yet.`
+- FR-16.1 Card: photo, name, kcal per serving, total time, heart. Imported recipes add a small `{domain}` line
+  (e.g. `bbcgoodfood.com`, `youtube.com`).
+- FR-16.2 Empty: `{first} hasn’t shared any recipes yet.`
 
-**FR-17 (P0): Open, heart and add a friend's recipe.**
+**FR-17 (P0): Open, heart and add another user's recipe.**
 
-- FR-17.1 A friend's recipe opens in the normal recipe detail with a `By {name}` line (tap → their profile), the
-  viewer's own safety checks ("Checked for…" / conflict banner against **the viewer's** table, as today), heart,
-  `Add to my week`, `Cook`, and `Report` in the overflow. No edit.
-- FR-17.2 Heart saves a reference. The recipe appears in my Cookbook › Saved with `From {first name}`. Un-heart
-  removes it.
-- FR-17.3 If I lose access (unfollow, removal, block, owner turns off `My recipes` or Friends, owner deletes the
-  account), the recipe disappears from my Saved list. If I regain access it comes back (hearts are kept and only hidden; they're deleted only when the
-  recipe or its owner's account is deleted).
-- FR-17.4 `Add to my week` opens a day + meal picker for my current week (next week also offered from Thursday on).
-  Choosing a slot either fills an empty slot or replaces the meal there, after confirmation (`Replace {current meal}?`).
-  It uses my copy of the recipe (FD-7). Result: snackbar `Added to {Tue} dinner` with `Undo`.
-- FR-17.5 If the recipe conflicts with my table's allergies or diets, the picker shows the existing conflict
-  treatment and requires `Use anyway`, as for my own recipes.
-- FR-17.6 My copy appears under Cookbook › Mine with `From {first name}` and is fully editable by me. Editing it
-  never affects the original.
-- FR-17.7 Adding the same friend recipe again reuses my existing copy (no duplicates), unless the original changed
-  since my copy was made. Then the picker offers `Use their latest version` (P2) or keeps my copy.
+- FR-17.1 The recipe opens in the normal recipe detail with:
+  - a `By {name}` line (tap → their profile);
+  - for imported recipes, a `Source: {domain}` link that opens `sourceUrl` in the browser (Q-F-7);
+  - the **viewer's** own safety checks (as today);
+  - heart, `Add to my week` and `Cook`;
+  - `Report recipe` in the overflow.
+
+  There is no edit.
+
+- FR-17.2 The heart saves a reference. The recipe appears in my Cookbook › Saved with `From {first}`.
+- FR-17.3 If I lose access (unfollow, removal, block, the owner turns off `My recipes` or Following, the owner deletes
+  the account), the recipe disappears from my Saved list. The heart row is kept and returns if access returns. It is
+  deleted only when the recipe or its owner's account is deleted.
+  - Auto-hidden recipes stay in the Saved lists of people who hearted them before the hide (the reference keeps
+    working for them, per the owner's rule). New hearts are impossible, because the recipe is no longer listed.
+- FR-17.4 `Add to my week` opens a day + meal picker for my current week (next week too, from Thursday on). An empty
+  slot is filled; a filled slot is replaced after a confirmation. It uses my private copy (FD-7). A snackbar offers
+  `Undo`.
+- FR-17.5 A conflict with my table's allergies or diets shows the existing conflict treatment and needs `Use anyway`.
+- FR-17.6 My copy appears under Cookbook › Mine with `From {first}` (and keeps the source attribution for imported
+  recipes). It's fully editable by me.
+- FR-17.7 Adding the same recipe again reuses my copy.
 
 ### E9 Gym tab
 
-**FR-18 (P0): Their routine.** The owner's **active** routine: name, days in order with planned weekday, and
-exercises with `sets × reps` range and rest. No progression weights.
+**FR-18 (P0): Their routine.** The active routine: name, days in order with planned weekday, and exercises with
+`sets × reps` and rest. There are no progression weights. Curated exercises open their detail; custom ones show
+`(custom)`. Empty: `{first} doesn’t have a routine yet.`
 
-- FR-18.1 Exercise names come from the server (including the owner's custom exercises by name). Tapping a curated
-  exercise opens the normal exercise detail (photos, cues). Custom ones aren't tappable.
-- FR-18.2 No active routine: `{First name} doesn’t have a routine yet.`
+**FR-19 (P0): Their workouts from the last 7 days** (FD-15). All completed workouts in the window, newest first, in
+one list, with **no Load more and no pagination**.
 
-**FR-19 (P0): Their last workouts with Load more.** Completed workouts, newest first, **5 per page**, with `Load
-more`.
-
-- FR-19.1 Each workout card: name, date (`Tue 29 Sep`), duration, exercise count, and the top set per exercise
-  (`Bench press · 80 kg × 8`) in the **viewer's** unit. Expanding shows every completed working set. Cardio shows
-  duration and distance.
-- FR-19.2 Never shown: notes, heart rate, discarded/in-progress sessions, deload marks, warm-up sets (P1: warm-ups
-  behind `Show warm-ups`).
-- FR-19.3 `Load more` fetches the next 5 by cursor. At the end: `That’s everything from the last {N} weeks.`
-  (history window: 26 weeks, Q-F-10).
-- FR-19.4 Nothing from a friend's gym data is persisted to the device's offline gym cache.
+- FR-19.1 Card: name, date (`Tue 29 Sep`), duration, exercise count, and the top set per exercise in the **viewer's**
+  unit. `Show sets` expands every completed working set. Cardio shows duration and distance.
+- FR-19.2 Never shown: notes, heart rate, discarded or in-progress sessions, deload marks, warm-up sets.
+- FR-19.4 Empty: `No workouts in the last 7 days.`
+- FR-19.5 Nothing from another user's gym data is persisted to the device's offline gym cache.
 
 ### E10 Notifications
 
-**FR-20 (P0): Activity inbox.** Friends home shows a bell with an unread count. Activity lists social notifications
-newest first: `{Name} wants to follow you` (with inline Accept/Decline while pending), `{Name} started following you`
-(with `Follow back`), `{Name} accepted your request`.
+**FR-20 (P0): Activity inbox and badge.** The Following header has a bell with an unread count. Activity lists, newest
+first:
 
-- FR-20.1 Opening Activity marks everything visible as read.
-- FR-20.2 Items whose request was since answered or cancelled update in place (no stale Accept buttons).
-- FR-20.3 90-day retention, then deleted.
+- `{name} wants to follow you`, with inline Accept/Decline while pending;
+- `{name} started following you`, with `Follow back`;
+- `{name} accepted your request`.
 
-**FR-21 (P0 once the new build is installed; P1 overall): Push.**
+Opening Activity marks it read. Answered or cancelled requests update in place. Items are kept for 90 days. **This is
+the complete notification experience** (Q-F-14): the badge on More, the More tab and the bell is how people notice
+new activity.
 
-- FR-21.1 The push permission is requested **in context**, the first time the user follows someone or turns on
-  Friends, never on launch. It reuses the existing permission helper pattern
-  (`apps/mobile/src/features/gym/reminders/permission.ts`).
-- FR-21.2 Events and copy per §12. Tapping a push opens Activity (requests) or the actor's profile.
-- FR-21.3 Per-event switches in Friends settings › Notifications: `Follow requests`, `New followers`, `Accepted
-requests` (all on). Turning the OS permission off is respected; the settings row says `Notifications are off in
-your phone’s settings` with a link.
-- FR-21.4 At most one push per actor→recipient pair per 24 h (follow/unfollow loops can't spam). At most 20 social
-  pushes per recipient per day. Beyond that the inbox still updates.
-- FR-21.5 A push never contains health data, recipe names or anything but the actor's display name.
-- FR-21.6 Installed binaries without push support still get the inbox and badge. Nothing errors.
+FR-21 (push) is retired by Q-F-14. See appendix A.
 
 ### E11 Data rights
 
 **FR-22 (P0): Export and deletion.**
 
-- FR-22.1 `user.exportData` adds `social`: my social profile settings, following, followers, pending requests (both
-  ways), blocks I made, reports I filed, notifications, push tokens (masked) and my `SOCIAL_SHARING` consent events.
-- FR-22.2 Account deletion removes everything above (cascades). Others' references to my recipes vanish. Their
-  copies stay theirs.
-- FR-22.3 The privacy policy, App Store privacy answers, age-rating answers and Play Data safety form are updated
-  before the flag is switched on for everyone (§14).
+- FR-22.1 `user.exportData` adds `social`: settings, the lists, pending requests both ways, blocks made, reports
+  filed, Activity items, and `SOCIAL_SHARING` consent events.
+- FR-22.2 Account deletion removes all of it. Others' references to my recipes vanish. Their copies stay theirs.
 
-## 9. Non-functional requirements
+## 9. Moderation policy (automatic, Q-F-13)
 
-| Area          | Requirement                                                                                                                                                                                                                         |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Authorization | Every read of another user's data is authorised **server-side** by one access resolver (implementation plan §4.3). Clients never decide visibility. Denials are indistinguishable from not-found where existence itself is private. |
-| Data shape    | Other-user responses are built by **allow-list mappers** into friend-specific DTOs, never by trimming the owner's own DTOs. A test asserts the exact key set of every friend DTO.                                                   |
-| Performance   | Friends home P95 < 400 ms server time at 10k users; profile Food tab < 500 ms; search < 250 ms. No N+1: lists hydrate users in one query.                                                                                           |
-| Abuse         | Rate limits in §6.3 and FR-08.7; the in-memory limiter (`apps/api/src/lib/rate-limit.ts`) is acceptable while the API is a single process.                                                                                          |
-| Offline       | Mobile caches the last loaded friend screens in memory (TanStack Query) only. Nothing is written to the gym offline store.                                                                                                          |
-| Accessibility | 44 pt targets, text ≥ 12 px, every icon button labelled, relation buttons announce state (`Following, button, double-tap to unfollow`), Dynamic Type to 1.8×.                                                                       |
-| Compatibility | Additive API only (FD-13). Installed 1.0.x binaries keep working unchanged.                                                                                                                                                         |
-| Copy          | British spelling, sentence case, curly apostrophes, no exclamation marks, no diet-culture words (persona-study copy rules).                                                                                                         |
+There is no human review. Every action below is automatic, deterministic and logged.
 
-## 10. Search specification
+### 9.1 Block
 
-| Aspect         | Rule                                                                                                                                                                                                                                                                             |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Input          | One field, trimmed, 2–100 chars. Placeholder `Search by name or email`.                                                                                                                                                                                                          |
-| Name matching  | The query is normalised (lowercase, diacritics stripped via NFD, whitespace collapsed) and split into tokens. A profile matches when **every** query token is a prefix of some token of its normalised search name (first + last + `name`). "ana pop" finds "Ana-Maria Popescu". |
-| Email matching | Only when the whole query is a syntactically valid email: exact, case-insensitive equality with `User.email` (registration already stores it lowercased and trimmed). At most one result, merged at the top of the name results.                                                 |
-| Never          | Substring or prefix email matching; returning or rendering an email; matching users without Friends; matching blocked pairs. Admin accounts are ordinary users here: findable only once they turn Friends on.                                                                    |
-| Ranking        | (1) exact email match; (2) people I follow / who follow me; (3) mutual-connection count; (4) exact full-name match; (5) follower count; (6) name A–Z.                                                                                                                            |
-| Paging         | 20 per page, cursor-based.                                                                                                                                                                                                                                                       |
-| Rate limits    | 60 searches/min/user; 20 exact-email lookups/hour/user (counted only when the query is an email). On limit: `TOO_MANY_REQUESTS`, friendly copy.                                                                                                                                  |
-| Enumeration    | An exact-email hit only reveals that an **activated** user has that email. The intro screen and privacy policy say "people who know your email can find you". Non-activated accounts are indistinguishable from non-existent ones.                                               |
-| Logging        | Queries are never logged or sent to analytics. Analytics gets `{ kind: 'name' \| 'email', resultBucket: '0' \| '1' \| '2-5' \| '6+' }` only.                                                                                                                                     |
+Block is instant and mutual (FR-13.1–13.3). It is the primary safety tool and the fastest possible "action" for the
+person affected.
+
+### 9.2 Report
+
+Report is one tap on a reason and **always blocks** (FR-13.4). The reporter never sees that person or their recipes
+again, so, from the reporter's side, action is immediate.
+
+| Reason (enum)   | Label                       |
+| --------------- | --------------------------- |
+| `INAPPROPRIATE` | `Offensive name or recipe`  |
+| `SPAM`          | `Spam or fake account`      |
+| `HARASSMENT`    | `Harassment`                |
+| `UNSAFE`        | `Unsafe or harmful content` |
+| `OTHER`         | `Something else`            |
+
+### 9.3 Automatic thresholds
+
+| Constant (in `@chefer/types`, `MODERATION`) | Value | Effect                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RECIPE_HIDE_REPORTERS`                     | 3     | A recipe with reports (recipe reports) from 3 distinct eligible accounts gets `Recipe.hiddenAt`. It disappears from the owner's profile grid, from search results inside that grid, and from other viewers' access. Existing hearts (references) and copies keep working for their holders. The owner sees FR-13.8.                           |
+| `ACCOUNT_RESTRICT_REPORTERS`                | 5     | Distinct eligible accounts that reported the user or any of their recipes. At 5, the profile is **forced private** (`SocialProfile.forcedPrivateAt`, visibility `PRIVATE`, can't be switched back) and **removed from search and suggestions**. Existing followers stay (a forced-private profile behaves like any private profile for them). |
+| `REPORTER_MIN_ACCOUNT_AGE_HOURS`            | 24    | A report counts toward a threshold only if the reporter's account is at least 24 h old…                                                                                                                                                                                                                                                       |
+| `REPORTER_REQUIRES_VERIFIED_EMAIL`          | true  | …and has a confirmed email (`User.emailVerified` set; the confirmation link is sent at registration). Ineligible reports still block and are logged, but don't count. This makes brigading with throwaway accounts harder.                                                                                                                    |
+
+Thresholds are evaluated synchronously when a report is filed. Counting is by **distinct reporter**. Reports are
+append-only. A report doesn't count after an ops undo of the action it triggered (§9.5).
+
+**Trade-off to watch:** many existing accounts never confirmed their email, so early on few reports will be
+eligible, and the thresholds may rarely fire. Blocking still protects each reporter at once. If the weekly metrics
+show many ineligible reports, flip `REPORTER_REQUIRES_VERIFIED_EMAIL` (a constant, one-line change).
+
+### 9.4 Word filter (write time)
+
+- A deterministic, bundled word list in `@chefer/utils` (`moderation/blocked-terms.ts`). No AI cost and no network.
+  It covers English and Romanian slurs, sexual terms and severe profanity, curated from the open LDNOOBW lists
+  (CC-BY 4.0, attributed in the file header).
+- Matching is on normalised text: lowercase, diacritics stripped, common character substitutions (`0→o`, `1→i`,
+  `3→e`, `4→a`, `5→s`, `@→a`, `$→s`), and **whole-word** matching, so "Scunthorpe", "assessment" or "cocktail"
+  don't match.
+- Checked on:
+  - the display name (first + last) at turn-on and on name change: rejected;
+  - the name and description of a recipe when it is **shared**, meaning the author has turned on Following with
+    `My recipes` on. This covers create, edit and import: a match is rejected with `Some words in this recipe’s name
+or description aren’t allowed on shared recipes. Change them, or turn off recipe sharing.`
+  - existing recipes at turn-on, and when `My recipes` is switched on: matches are auto-hidden (`hiddenReason:
+FILTER`) instead of blocking the action (FR-02.7).
+- There is no bio in v1 (`UserProfile.bio` has no UI and isn't shown), so there's nothing to check there.
+
+### 9.5 Log, metrics and undo (no human queue)
+
+- **Append-only moderation log** (`ModerationLog`): every automatic action (recipe auto-hidden, account forced
+  private, filter rejection, filter auto-hide, ops undo), with the reason, the count and the actor (`system` /
+  `ops`). Reports themselves are rows in `UserReport`. There is no review UI.
+- **Weekly metrics line:** the maintenance worker writes one structured log line every Monday: reports, eligible
+  reports, auto-hidden recipes, forced-private accounts, filter rejections, undos. It needs no action.
+- **Optional ops undo:** `apps/api/src/scripts/moderation-undo.ts --log=<id>` reverses one automatic action (clears
+  `hiddenAt` or `forcedPrivateAt`), marks the reports that triggered it as discounted, and writes an `UNDO` log row.
+  It's for the rare case the owner chooses to use it. Nothing depends on it.
+
+### 9.6 Why this meets App Store guideline 1.2
+
+1.2 requires, for apps with user-generated content:
+
+1. a method for filtering objectionable material: the word filter (§9.4) plus automatic threshold hiding (§9.3);
+2. a mechanism to report offensive content, with timely responses: one-tap report (§9.2);
+3. the ability to block abusive users: instant mutual block (§9.1);
+4. published contact information: the existing support page `https://chefer.duckdns.org/support`.
+
+"Timely" is met by the **instant** block and hide for the reporter, plus the **automatic** threshold hide for
+everyone, without waiting for a person. The App Review notes (§14) say this explicitly.
+
+## 10. Search specification (name only)
+
+| Aspect     | Rule                                                                                                                                                                                                                                                                                   |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Input      | One field, trimmed, 2–100 chars. Placeholder `Search by name`.                                                                                                                                                                                                                         |
+| Matching   | The query and each profile's first + last name are normalised (lowercase, NFD diacritics stripped, punctuation → space, whitespace collapsed) and split into tokens. A profile matches when **every** query token is a prefix of some name token. "ana pop" finds "Ana-Maria Popescu". |
+| Excluded   | Me; users without Following; blocked pairs (either direction); accounts removed from search by moderation (§9.3). Any `@` in the query is treated as ordinary text. There is no email matching of any kind.                                                                            |
+| Ranking    | (1) people I follow or who follow me; (2) mutual-connection count; (3) exact full-name match; (4) follower count; (5) name A–Z.                                                                                                                                                        |
+| Paging     | 20 per page, cursor-based.                                                                                                                                                                                                                                                             |
+| Rate limit | 60 searches/min/user.                                                                                                                                                                                                                                                                  |
+| Logging    | Queries are never logged or sent to analytics. Analytics gets `{ resultBucket }` only.                                                                                                                                                                                                 |
 
 ## 11. Suggestions algorithm
 
-Computed on read by the API, cached per user for 10 minutes. Candidates are activated users only.
+Computed on read, cached per user for 10 minutes. Candidates are activated users who haven't been removed from
+suggestions by moderation.
 
-1. **Mutual connections (friends of friends):** people followed by people I follow (accepted edges only). Score
-   `10 × mutualCount`. Reason `Followed by {most-recently-followed mutual}` (+ `and {N} others`). Private profiles are
-   eligible (following them sends a request) under policy A; excluded under B.
-2. **Follows you:** my followers I don't follow back. Score `+25`. Reason `Follows you`.
-3. **Popular:** public profiles ranked by accepted follower count, minimum 3 followers, owner active in the last 30
-   days (any session or plan write, `User.updatedAt` or the latest `Session.expires` as a cheap proxy). Score
-   `2 × ln(1 + followers)`. Reason `Popular on Chefer`.
-4. **Exclusions:** me; anyone I follow or have requested; blocked either way; dismissed in the last 90 days; users
-   without Friends; policy-B private profiles.
-5. **Ordering:** score descending, ties by follower count, then most recent activity. Top 10 (home), up to 30 (See
-   all).
-6. **Cold start:** no follows and no followers → only the Popular list. If that's empty too (early launch), show the
-   invite card instead of the section. Mutual scoring kicks in with the first accepted follow.
-7. **Privacy:** a suggestion never reveals a private relation the viewer couldn't otherwise see. "Followed by X" only
-   names X if the viewer follows X (true by construction: X is someone the viewer follows).
+1. **Mutual connections:** people followed by people I follow (accepted edges). Score `10 × mutualCount`. Reason
+   `Followed by {most recently followed mutual}` (+ `and {n} others`). Private profiles are eligible (following sends
+   a request).
+2. **Follows you:** my followers I don't follow back. `+25`. Reason `Follows you`.
+3. **Popular:** public profiles ranked by accepted follower count, with at least 3 followers and the owner active in
+   the last 30 days. Score `2 × ln(1 + followers)`. Reason `Popular on Chefer`. **Chefer Kitchen** (Q-F-8) is
+   always eligible for Popular while it has fewer than 3 followers (a `SocialProfile.featured` flag set only by the
+   ops script that creates it), so the cold start is never empty.
+4. **Exclusions:** me; anyone I follow or have requested; blocked either way; dismissed in the last 90 days;
+   moderation-restricted accounts.
+5. **Ordering:** score, then followers, then recent activity. Top 5 on the home, 30 under See all.
+6. **Cold start:** no connections → Popular (incl. Chefer Kitchen). Empty → the invite card.
 
-## 12. Notifications
+## 12. Notifications (in-app only)
 
-| Event              | Recipient     | In-app Activity text           | Push title / body (lock-screen safe)                                                | Tap opens          | Default |
-| ------------------ | ------------- | ------------------------------ | ----------------------------------------------------------------------------------- | ------------------ | ------- |
-| `FOLLOW_REQUEST`   | private owner | `{Name} wants to follow you`   | `{Name} wants to follow you` / `Open Chefer to accept or decline.`                  | Friends › Requests | On      |
-| `NEW_FOLLOWER`     | public owner  | `{Name} started following you` | `{Name} started following you` / `See their profile or follow back.`                | Actor's profile    | On      |
-| `REQUEST_ACCEPTED` | requester     | `{Name} accepted your request` | `{Name} accepted your follow request` / `You can now see their meals and workouts.` | Actor's profile    | On      |
+| Event              | Recipient     | Activity text                  | Tap opens            |
+| ------------------ | ------------- | ------------------------------ | -------------------- |
+| `FOLLOW_REQUEST`   | private owner | `{name} wants to follow you`   | Following › Requests |
+| `NEW_FOLLOWER`     | public owner  | `{name} started following you` | Actor's profile      |
+| `REQUEST_ACCEPTED` | requester     | `{name} accepted your request` | Actor's profile      |
 
-- Not notified: unfollow, decline, cancel, removal, block, unblock, suggestion.
-- A request that is cancelled or declined before it's seen is removed from Activity. Its push, if already delivered,
-  opens Requests, which then no longer lists it.
-- Push delivery: Expo Push API (FCM v1 on Android, APNs on iOS through EAS-managed credentials); the API sends
-  after the database transaction commits, never inside it; receipts are checked later and dead tokens pruned
-  (implementation plan §6).
-- Web: inbox and nav badge only.
-- Email: none in v1 (Q-F-9).
+- Not notified: unfollow, decline, cancel, removal, block, report, moderation actions.
+- The inbox and badges (on the More row, the More tab icon and the Following bell) are the whole mechanism. The badge
+  count comes from `friends.me` and refreshes on app focus and every 60 s while the app is in the foreground.
+- **No push** (Q-F-14; appendix A) and **no email, ever** (Q-F-9).
 
-## 13. Favouriting another user's recipe: reference vs copy
+## 13. Another user's recipe: reference vs copy (decided, Q-F-6)
 
-| Option                                                             | Pros                                                                                                                                                                                  | Cons                                                                                                                                                                                                                                                                                                |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (a) Reference everywhere (heart + plan slot point at their recipe) | No duplication; edits propagate; smallest change                                                                                                                                      | Plans, shopping lists, cook mode and **food logs** point at a row someone else controls. Owner deletes the account → `assemblePlanDto` throws for every follower who planned it. Owner edits → a follower's past week and log totals change silently (violates P9 "never change numbers silently"). |
-| (b) Copy on heart                                                  | Everything downstream is own data; works with all existing code                                                                                                                       | Saved fills with copies; un-heart semantics get murky (delete the copy?); the friend's later fixes never arrive; "favourite" stops meaning favourite.                                                                                                                                               |
-| **(c) Heart = reference; add to week = own copy (recommended)**    | Saved stays live and reversible; the week, shopping list, cook mode and logs only ever reference the viewer's rows; one copy per source recipe; the copy is editable ("make it mine") | Two concepts to explain (handled with `From {name}` on both); a small `Recipe.originRecipeId` addition; the copy may drift from the original (P2 `Use their latest version`).                                                                                                                       |
+**Heart = live reference; add to week = own copy.**
 
-**Decision (FD-7): (c).** Rules:
-
-- The copy is a `MANUAL` recipe owned by the viewer, with `originRecipeId` and `originCreatorId` set (both nulled
-  if the source or its owner disappears; the `From {name}` line then reads `From a Chefer friend`). It is created
-  inside the add-to-week transaction, at most one per viewer and source (unique index), and reused afterwards.
-- The copy carries the recipe's text, ingredients, nutrition and photo URL (the uploaded file is shared by URL;
-  account deletion of the original owner deletes the file, so the copy's photo falls back to the placeholder;
-  P2: duplicate the file).
-- Copies are private to the viewer like any `MANUAL` recipe and are **not** re-shared to the viewer's own followers
-  (`originRecipeId != null` excludes them from "My recipes" as seen by others). This avoids laundering someone
-  else's recipe through a public profile.
-- The existing rule that a recipe in one of your own plans stays visible (`isRecipeInUserPlans`) keeps working and
-  becomes mostly moot for friend recipes, because plans hold copies.
+- The copy is a `MANUAL` recipe owned by the viewer, with `originRecipeId` and `originCreatorId` set. Both are nulled
+  if the source or its owner disappears, and `From {first}` then reads `From another Chefer cook`.
+- The copy is made inside the add-to-week transaction, at most once per viewer and source, and reused after that.
+- The copy carries the text, ingredients, nutrition, photo URL **and `sourceUrl`**, so an imported recipe keeps its
+  attribution (Q-F-7).
+- Copies are never re-shared to the viewer's own followers (`originRecipeId != null` excludes them), so nobody can
+  launder someone else's recipe through a public profile. An imported recipe, by contrast, **is** shared by the person
+  who imported it, with attribution. The owner decided that (Q-F-7).
+- Every path that writes a recipe id into the viewer's own records (plan slots, pinned favourites at generation,
+  food log) resolves another user's recipe to the viewer's copy first.
+- Auto-hidden recipes: existing hearts and copies keep working for their holders (§9.3). The recipe can't be newly
+  hearted or added from a profile.
+- The existing "never rendered as a republished page" rule for `sourceUrl` still holds: Chefer shows the recipe
+  content the user saved (as the user already sees it in Mine), plus the source domain and link, never a copy of the
+  source page.
 
 ## 14. Privacy, legal and store compliance
 
-**Legal basis.** Chefer already treats calorie and macro targets, body metrics, allergies and logged meals as health
-data (wave 3 health consent, `privacy.grantHealthConsent`). A meal plan with calories, and a workout log, shown to
-other people is a disclosure of data that may reveal health information. Basis: **explicit consent** (GDPR Art.
-9(2)(a)), captured when Friends is turned on and again when going public or sharing targets, logged in the existing
-append-only consent log as a new `ConsentKind.SOCIAL_SHARING` (additive enum value). Withdrawal = `Turn off Friends`
-(FR-05) or turning a sharing switch off, each immediately effective.
+**Legal basis.** Explicit consent (GDPR Art. 9(2)(a)). It is captured when Following is turned on, when going public,
+and when sharing targets, and logged as `ConsentKind.SOCIAL_SHARING` (additive enum value). Withdrawal is `Turn off
+Following` or a sharing switch, each immediately effective.
 
-**Policy and store updates (release blockers, owner/counsel):**
+**Updates (release blockers; owner/counsel approve):**
 
-1. **Privacy policy** (`apps/web/src/app/privacy/page.tsx`): new section "Friends and what others can see". It covers
-   what is shared and with whom, public vs private, that people who know your email can find you once you turn
-   Friends on, blocking and reporting, copies of recipes that friends add to their weeks, push tokens (a device
-   token stored to deliver notifications, sent to Apple/Google via Expo), retention (Activity 90 days, requests 90
-   days), and how to withdraw. Bump `LEGAL_VERSIONS.privacy` (`packages/types/src/legal.ts`) and the page's
-   `EFFECTIVE_DATE`. The existing re-accept sheet asks signed-in users to accept the new version.
-2. **Terms** (`apps/web/src/app/terms/page.tsx`): user-content rules (no offensive names, photos or recipes), the
-   right to remove content and suspend accounts, and the report route. Bump `LEGAL_VERSIONS.terms`.
-3. **App Store** (`docs/app-store/ios/privacy-and-rating.md`): the age-rating answer "User-generated content shared
-   with other users" changes **No → Yes** (the rating may rise; accept what Apple computes). App Privacy: no new
-   data type. Push tokens are not "Device ID" in Apple's taxonomy, but counsel should confirm. Review notes
-   (`docs/app-store/ios/review-notes.md`) must explain where block and report are, and give the reviewer a second
-   demo account to follow. Guideline 1.2 checklist: report, block, a contact address and timely action.
-4. **Google Play** (`docs/app-store/android/data-safety.md`): data visible to other users at the user's own
-   initiative is not "shared" under Play's definition. Confirm with counsel. Add "Push notifications" to the app's
-   declared features if asked.
-5. **DPIA-lite:** a one-page assessment in `docs/friends/` before launch (processing, risks, mitigations = this
-   PRD's §7, §10, FR-13). Owner/counsel action.
+1. **Privacy policy** (`apps/web/src/app/privacy/page.tsx`, the policy page both apps link to). Add a new section,
+   "Following and what others can see", covering:
+   - what is shared and with whom, and public vs private;
+   - that people who search your name can find you once you turn Following on;
+   - imported recipes are shown with their source;
+   - automatic moderation (reports, thresholds, word filter), and that moderation records are kept after you leave
+     Following;
+   - copies of recipes others add to their weeks;
+   - retention: Activity and requests 90 days;
+   - how to withdraw.
+
+   Then bump `LEGAL_VERSIONS.privacy` and `EFFECTIVE_DATE`, which triggers the existing re-accept sheet.
+
+2. **Terms** (`apps/web/src/app/terms/page.tsx`): user-content rules and the automatic enforcement (hiding, forced
+   private, filter). Bump `LEGAL_VERSIONS.terms`.
+3. **App Store** (`docs/app-store/ios/privacy-and-rating.md`, `review-notes.md`):
+   - Age rating: "User-generated content shared with other users" changes **No → Yes**.
+   - App Privacy: no new data type.
+   - **Review notes:** where block and report are; that reporting blocks instantly; that content reported by 3
+     accounts is hidden automatically, and accounts reported by 5 are restricted automatically; that a word filter
+     applies to names and shared recipes; the support URL; and two demo accounts that follow each other.
+   - Guideline 1.2 is met as described in §9.6.
+4. **Google Play** (`docs/app-store/android/data-safety.md`): user-initiated sharing with other users isn't "shared"
+   under Play's definition (counsel to confirm). Complete the UGC section of the Play content questionnaire the same
+   way.
+5. **DPIA-lite** (`docs/friends/dpia.md`), for owner/counsel.
 6. **Export and deletion:** FR-22.
 
 ## 15. Metrics and analytics
 
-**Success metrics (30 days after 100% rollout):**
+**Success metrics** (30 days after launch):
 
-| Metric                                                           | Target                                |
-| ---------------------------------------------------------------- | ------------------------------------- |
-| Activation: weekly-active users who turn on Friends              | ≥ 25%                                 |
-| Connected: activated users with ≥ 1 accepted follow (either way) | ≥ 60%                                 |
-| Request acceptance rate (answered requests)                      | ≥ 70%                                 |
-| Median time to answer a request                                  | < 24 h (with push) / < 72 h (without) |
-| Friend-recipe hearts per connected user                          | ≥ 1                                   |
-| Connected users who add a friend's recipe to their week          | ≥ 20%                                 |
-| Search success (searches followed by a follow within 2 min)      | ≥ 40%                                 |
+| Metric                                                  | Target |
+| ------------------------------------------------------- | ------ |
+| Weekly-active users who turn on Following               | ≥ 25%  |
+| Activated users with ≥ 1 accepted follow (either way)   | ≥ 60%  |
+| Request acceptance rate (answered)                      | ≥ 70%  |
+| Hearts on others' recipes per connected user            | ≥ 1    |
+| Connected users who add another user's recipe to a week | ≥ 20%  |
+| Searches followed by a follow within 2 min              | ≥ 40%  |
 
-**Guardrails:** blocks + reports < 1% of follow actions; push opt-out (per-event switch off) < 30%; no rise in
-account deletions or health-consent withdrawals vs the prior 30 days; zero authorization incidents (§9).
+**Guardrails:**
 
-**Events** (added to `EventMap` in `packages/types/src/analytics-events.ts`; enums, counts and booleans only; **no
-user ids of other people, no names, no queries, no recipe names**):
+- Reports < 1% of follow actions.
+- Auto-hidden recipes and forced-private accounts are reviewed as a trend in the weekly line (no action required).
+- Word-filter rejections < 2% of shared-recipe saves (higher means false positives; tune the list).
+- No rise in account deletions or health-consent withdrawals.
+- Zero authorization incidents.
 
-| Event                                | Properties                                                                                                        |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `friends_opened`                     | `source: 'more' \| 'settings' \| 'push' \| 'link' \| 'nav'`                                                       |
-| `friends_activated`                  | `visibility: 'public' \| 'private'`                                                                               |
-| `friends_deactivated`                | `followingCount: number, followerCount: number`                                                                   |
-| `friends_visibility_changed`         | `to: 'public' \| 'private', autoAccepted: number`                                                                 |
-| `friends_sharing_changed`            | `section: 'plan' \| 'recipes' \| 'workouts' \| 'targets', on: boolean`                                            |
-| `friends_search`                     | `kind: 'name' \| 'email', resultBucket: '0' \| '1' \| '2-5' \| '6+'`                                              |
-| `friend_follow`                      | `source: 'search' \| 'suggestion' \| 'followers' \| 'profile' \| 'activity', outcome: 'following' \| 'requested'` |
-| `friend_request_answered`            | `action: 'accept' \| 'decline', via: 'home' \| 'requests' \| 'activity'`                                          |
-| `friend_unfollowed`                  | `wasMutual: boolean`                                                                                              |
-| `follower_removed`                   | none                                                                                                              |
-| `friend_blocked` / `friend_reported` | `from: 'profile' \| 'followers' \| 'recipe'`; reported adds `reason` enum                                         |
-| `friend_suggestion_dismissed`        | `reason: 'mutual' \| 'follows_you' \| 'popular'`                                                                  |
-| `friend_profile_viewed`              | `tab: 'food' \| 'gym', relation: 'self' \| 'following' \| 'locked'`                                               |
-| `friend_recipe_favourited`           | `on: boolean`                                                                                                     |
-| `friend_recipe_added_to_week`        | `replaced: boolean, reusedCopy: boolean`                                                                          |
-| `friend_workouts_load_more`          | `page: number`                                                                                                    |
-| `push_permission_result`             | `granted: boolean, context: 'follow' \| 'activate' \| 'settings'`                                                 |
-| `notification_opened`                | `kind: 'follow_request' \| 'new_follower' \| 'request_accepted', via: 'push' \| 'inbox'`                          |
+**Events** (in `EventMap`, `packages/types/src/analytics-events.ts`): enums, counts and booleans only; no other
+user's ids, no names, no queries.
 
-Server-side counts for the success metrics come from the database (follows, requests, copies), not from client
-analytics, so they don't depend on analytics consent.
+| Event                         | Properties                                                                                                        |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `friends_opened`              | `source: 'more' \| 'settings' \| 'link'`                                                                          |
+| `friends_activated`           | `visibility: 'public' \| 'private'`                                                                               |
+| `friends_deactivated`         | `followingCount: number, followerCount: number`                                                                   |
+| `friends_visibility_changed`  | `to: 'public' \| 'private', autoAccepted: number`                                                                 |
+| `friends_sharing_changed`     | `section: 'plan' \| 'recipes' \| 'workouts' \| 'targets', on: boolean`                                            |
+| `friends_search`              | `resultBucket: '0' \| '1' \| '2-5' \| '6+'`                                                                       |
+| `friend_follow`               | `source: 'search' \| 'suggestion' \| 'followers' \| 'profile' \| 'activity', outcome: 'following' \| 'requested'` |
+| `friend_request_answered`     | `action: 'accept' \| 'decline', via: 'home' \| 'requests' \| 'activity'`                                          |
+| `friend_unfollowed`           | `wasMutual: boolean`                                                                                              |
+| `follower_removed`            | none                                                                                                              |
+| `friend_blocked`              | `from: 'profile' \| 'followers'`                                                                                  |
+| `friend_reported`             | `target: 'profile' \| 'recipe', reason: 'inappropriate' \| 'spam' \| 'harassment' \| 'unsafe' \| 'other'`         |
+| `friend_suggestion_dismissed` | `reason: 'mutual' \| 'follows_you' \| 'popular'`                                                                  |
+| `friend_profile_viewed`       | `tab: 'food' \| 'gym', relation: 'self' \| 'following' \| 'locked'`                                               |
+| `friend_recipe_favourited`    | `on: boolean, imported: boolean`                                                                                  |
+| `friend_recipe_added_to_week` | `replaced: boolean, reusedCopy: boolean`                                                                          |
+| `friend_text_rejected`        | `field: 'name' \| 'recipe'`                                                                                       |
+| `notification_opened`         | `kind: 'follow_request' \| 'new_follower' \| 'request_accepted'` (from Activity)                                  |
 
-## 16. Platform scope and phasing
+## 16. Platform scope and the web phase
 
-Per CLAUDE.md, a new user-facing feature lands on **every platform** unless the owner scopes it. Recommendation
-(FD-12): one program, both platforms, one flag.
+**This program: API + mobile (iOS and Android, one Expo codebase).** The owner scoped web out explicitly (Q-F-2),
+using the exception clause of the CLAUDE.md parity rule, as the gym feature did (`gym_plan.md` D7).
 
-| Surface                     | Mobile (`apps/mobile`, iOS + Android)                       | Web (`apps/web`)                                                                                             |
-| --------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Entry                       | More → `Friends` directly below `Profile`; Settings hub row | Sidebar/nav item `Friends` directly after `Profile` (desktop) and in the mobile-web More menu, same position |
-| Friends home, search, lists | Stack route `/friends`                                      | `/friends`                                                                                                   |
-| Profile with Food \| Gym    | Stack route `/friends/[userId]`                             | `/friends/[userId]`                                                                                          |
-| Activity inbox              | `/friends/activity`                                         | `/friends/activity`                                                                                          |
-| Settings                    | `/friends/settings` + Profile › Privacy & data row          | `/friends/settings` + Profile privacy card row                                                               |
-| Push                        | Yes (needs the new native build)                            | No (inbox + badge)                                                                                           |
+- The API is platform-neutral. Nothing in it assumes mobile.
+- **When the feature ships** (the launch wave), the docs task **must** add `mobile_parity_backlog.md` reverse rows
+  ("mobile → web"), one per surface in the list below. That is a launch blocker for the docs task, per CLAUDE.md
+  ("a knowingly unported change with no backlog entry is a bug in the session").
+- **Side effects on web today** (acceptable, and listed so nobody is surprised):
+  - Recipes hearted on mobile appear in web's Saved list without the `From` line.
+  - Web's recipe detail opens them (server access rules apply).
+  - An activated user editing a shared recipe on web gets the word-filter rejection message from the API.
+  - The legal pages and re-accept sheet are web-served and are updated in this program. They are legal documents,
+    not web feature work.
 
-If the owner prefers the gym precedent (mobile first, web later), web becomes a later wave and every mobile
-change adds a reverse row to `mobile_parity_backlog.md`. That is a one-line owner decision (Q-F-2).
+**Web phase (later): what web will need**
 
-## 17. Rollout
+1. Entry points:
+   - `Following` in the secondary nav directly after `Profile` (`apps/web/src/features/nav/nav-items.ts`, food and
+     gym secondary lists) and in the header `UserMenu`;
+   - routes `/friends/*` in `src/middleware.ts` (`PROTECTED_ROUTES` + `config.matcher`), `TITLE_MAP`, `APP_ROUTES`;
+   - `nav-items.test.ts` and `tests/e2e/mobile-nav.spec.ts` updates.
+2. Screens: the home (search, requests, lists, suggestions), Activity, Requests, Suggestions, `Sharing & privacy`,
+   Blocked people, and the profile with Food | Gym (week, recipes, routine, last-7-days workouts).
+3. Recipe detail and Cookbook: the `By` line, `Source:` link, `Add to my week`, `Report recipe`, and the `From` chips.
+4. Shared kit additions in `@chefer/ui`: `Avatar`, `SearchInput`, `Skeleton`, `SegmentedControl`, `CountPill`.
+5. The responsive rules in `ux-design.md` §15, and a Playwright mobile sweep of the new routes.
+6. Notifications on web: the same inbox and a nav badge.
 
-1. **Flags.** `friends` (`FEATURE_FLAGS`, `packages/types/src/feature-flags.ts`) gates every `friends.*` procedure
-   and the entry points on both clients. `friendsPush` gates push sending, so the inbox can launch before push.
-   Flags are an env change plus an API restart, no deploy. Because `profile.flags` is global and unauthenticated,
-   clients gate on a new per-user `friends.availability` query instead: `enabled = flag on OR user id in
-FRIENDS_ALLOWLIST` (implementation plan §9).
-2. **Code lands dark.** API, web and the mobile JS merge to `master` with both flags off. The mobile JS reaches
-   installed 1.0.1 binaries by OTA and shows nothing.
-3. **Internal:** the owner's and test accounts are added to `FRIENDS_ALLOWLIST` on production.
-4. **App Review first, then everyone.** Adding a user-generated-content feature to an approved app by OTA alone is a
-   grey zone under App Review guidelines (2.5.2, and the age-rating answer in §14). The push work needs a new binary
-   anyway (1.0.2). So Friends goes to users **after** the 1.0.2 build, with Friends and push, is approved: the review
-   demo accounts are allow-listed during review, and the reviewer notes say where block and report are. Android
-   follows the same order with its store build.
-5. **Launch:** `friends` on for everyone once 1.0.2 is live in the stores. `friendsPush` goes on at the same time,
-   since only 1.0.2+ binaries register tokens. Older binaries still get the full feature through OTA JS, with the
-   inbox instead of push.
-6. **Kill switch:** turning `friends` off hides the feature and stops all disclosure at once. Data is kept, so turning
-   it back on restores the graph.
+## 17. Rollout (over the air)
+
+1. **Flags.** `friends` gates every `friends.*` procedure and the mobile entry points. Clients ask the per-user
+   `friends.availability` query (`flag on OR user id in FRIENDS_ALLOWLIST`), because `profile.flags` is global and
+   unauthenticated.
+2. **Code lands dark.** The API deploys, and the mobile JS is auto-published as an OTA update on the current 1.0.1
+   runtime by the deploy workflow. With the flag off, installed apps show nothing new. **No store build is needed at
+   any point** (FD-16).
+3. **Internal:** the owner's and test accounts go on `FRIENDS_ALLOWLIST`. The owner creates the **Chefer Kitchen**
+   profile with the provided script and fills it with recipes, a routine and a week.
+4. **Store metadata (owner, recommended before launch):**
+   - update the age-rating answer ("User-generated content shared with other users" → Yes) and the review notes
+     (§14) in App Store Connect, and the Play content questionnaire;
+   - they apply with the next store submission, whenever that happens.
+
+   The feature itself doesn't wait for a binary. All the 1.2 mechanisms (report, block, filter, automatic action)
+   are in the OTA JavaScript and the API.
+
+5. **Launch:** `friends` on for everyone (an env change via `infrastructure/scripts/env.sh` plus an API restart).
+6. **Kill switch:** `friends` off hides the feature and stops all disclosure at once. The data is kept.
 
 ## 18. Risks and mitigations
 
-| Risk                                                                             | Likelihood                       | Impact   | Mitigation                                                                                                                                                                                                       |
-| -------------------------------------------------------------------------------- | -------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Authorization bug leaks a private plan or targets                                | Medium                           | Critical | One access resolver + middleware; allow-list DTOs; exhaustive authorization tests (implementation plan §10); security review task (Opus) before launch                                                           |
-| Email enumeration / harvesting                                                   | Medium                           | High     | Exact-match only, activated users only, 20/h limit, never displayed                                                                                                                                              |
-| Harassment (unwanted follow requests, offensive names/photos)                    | Low–Medium                       | High     | Private by default, block, report, per-pair request cap, support SLA in the Terms                                                                                                                                |
-| App Store rejection (Guideline 1.2 UGC)                                          | Medium                           | High     | FR-13 complete before submission; review notes; age-rating update                                                                                                                                                |
-| Push infra delays (credentials, new build review)                                | High                             | Medium   | Inbox-first; `friendsPush` is a separate flag. If credentials slip, 1.0.2 ships without push (the entitlement strip stays) and push follows in 1.0.3. The launch waits for a reviewed binary (§17), not for push |
-| Friend's recipe breaks a viewer's plan                                           | Medium (without FD-7)            | High     | FD-7 copy-on-add; `assemblePlanDto` also made tolerant of a missing recipe (defensive, implementation plan)                                                                                                      |
-| Viewing a friend's week writes to their account (carry-forward is write-on-read) | High if reused naively           | High     | Read-only week resolver; test asserts no writes                                                                                                                                                                  |
-| Friend gym data persisted on device for 30 days via the gym query cache          | High if namespaced under `gym.*` | Medium   | Router is `friends.*`, outside the persisted `gym` key space; test on `isGymQueryKey`                                                                                                                            |
-| Cold start: nobody to follow                                                     | High early                       | Medium   | Invite card; popular list; owner seeds a public demo profile (Q-F-8)                                                                                                                                             |
-| Scale of suggestions/search queries                                              | Low now                          | Medium   | Indexed queries; 10-min cache; `pg_trgm` path documented for later                                                                                                                                               |
+| Risk                                                                          | Likelihood            | Impact   | Mitigation                                                                                                                                  |
+| ----------------------------------------------------------------------------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Authorization bug leaks a private plan or targets                             | Medium                | Critical | One access resolver + middleware; allow-list DTOs; access-matrix tests; an Opus security review before launch                               |
+| Report brigading hides legitimate content                                     | Low–Medium            | Medium   | Distinct eligible reporters only (24 h age + verified email); thresholds as constants; the ops undo discounts the triggering reports        |
+| Thresholds rarely fire because few emails are verified                        | Medium                | Low      | Block still protects each reporter instantly; the weekly metrics show ineligible counts; a one-line constant flip                           |
+| Word-filter false positives / misses                                          | Medium                | Low–Med  | Whole-word, normalised matching with a Scunthorpe test list; the rejection says what to do; the list is a data file that is easy to tune    |
+| App Store rejection (1.2)                                                     | Low–Medium            | High     | §9.6 mapping in the review notes; block/report are reachable in two taps; demo accounts provided                                            |
+| Imported-recipe attribution/copyright complaints                              | Low                   | Medium   | Source domain and link always shown; shared only by the person who imported it (owner decision); report reason `Something else` + auto-hide |
+| People miss requests without push                                             | Medium                | Low      | Badges on the More row, the More tab icon and the Following bell; requests wait 90 days before expiring                                     |
+| App Review objects to a user-content feature added by OTA                     | Low–Medium            | Medium   | Every 1.2 mechanism ships in the same OTA; the age rating and review notes are updated with the next submission; the kill switch is instant |
+| Another user's recipe breaks a viewer's plan                                  | Medium w/o FD-7       | High     | Copy on add; `assemblePlanDto` made tolerant of a missing recipe                                                                            |
+| Viewing a week writes to the owner's account (carry-forward is write-on-read) | High if naive         | High     | Read-only week resolver; a test asserts no writes                                                                                           |
+| Another user's gym data persisted on device via the gym query cache           | High if under `gym.*` | Medium   | Router is `friends.*`; a test on `isGymQueryKey`                                                                                            |
+| Cold start                                                                    | High early            | Medium   | Chefer Kitchen (featured), invite card                                                                                                      |
 
-## 19. Later (not v1)
+## 19. Later (not this program)
 
-Profile photo upload (with moderation) · followers/following lists of other people · activity feed ("Maria planned a new week") · comments and reactions on
-recipes · copy a friend's routine into Gym (a routine template) · copy a friend's whole week · per-recipe "hide from
-friends" · `Use their latest version` for copies (FR-17.7) · email notifications · web push · contact import ·
-handles and shareable profile links · close-friends lists · weekly "what your friends cooked" digest.
+The **web phase** (§16) · push notifications (appendix A) · profile photo upload (with moderation) · other
+people's follower/following lists · an activity feed · comments and reactions · copying a routine or a whole week ·
+per-recipe "hide from followers" · `Use their latest version` for copies · handles and shareable profile links ·
+contact import · a weekly "what the people you follow cooked" digest (in-app only; never email).
 
-## 20. Open questions for the owner (recommended defaults ship if unanswered)
+## 20. Open questions for the owner
 
-| #      | Question                                                                                                                                | Recommended default                                                        | Switch cost if changed later                        |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------- |
-| Q-F-1  | Follow model: Instagram (public = instant, private = request) or literal (only public can be followed, every follow needs acceptance)?  | **Instagram model (A)**, private by default                                | One constant + filter + 3 strings (§6.1)            |
-| Q-F-2  | Ship web in the same release, or mobile first with web as a later wave (gym precedent)?                                                 | **Same program, mobile one wave ahead, both before the flag goes on**      | Wave plan change + parity backlog rows              |
-| Q-F-3  | Section name: `Friends` (your wording) or `Following`?                                                                                  | **`Friends`** for the entry; follow language inside                        | Copy only                                           |
-| Q-F-4  | Should public profiles' content be visible to non-followers (true Instagram)?                                                           | **No.** Content needs a follow even when public (FD-4)                     | Access resolver rule + locked-state copy            |
-| Q-F-5  | Email search: exact full address only, or also partial?                                                                                 | **Exact only**, never displayed                                            | Search service                                      |
-| Q-F-6  | Heart a friend's recipe: reference, with a private copy only when added to your week?                                                   | **Yes (FD-7)**                                                             | Moderate (copy logic lives in one service method)   |
-| Q-F-7  | Share imported recipes (from a website/video link) with followers?                                                                      | **No.** Only recipes you wrote                                             | One filter                                          |
-| Q-F-8  | Seed a public "Chefer Kitchen" profile (owner-run) so new users have someone to follow?                                                 | **Yes**, owner-created account, public, a few recipes and a routine        | Ops only                                            |
-| Q-F-9  | Email notifications for requests (for web-only users)?                                                                                  | **No in v1**                                                               | New email kind in `WeeklyEmailService`-style sender |
-| Q-F-10 | How far back can followers load workouts, and page size?                                                                                | **26 weeks, 5 per page**                                                   | Constants                                           |
-| Q-F-11 | Show a friend's daily targets at all (even with their opt-in)?                                                                          | **Yes, opt-in switch, default off**                                        | Remove the switch                                   |
-| Q-F-12 | Should friends see **next** week's plan too?                                                                                            | **No, current week only**                                                  | Add `weekOffset` 0–1 to the read                    |
-| Q-F-13 | Who handles reports, and what's the response time promise?                                                                              | **Owner via the support inbox, "within 24 hours"** (needed for App Review) | Copy + Terms                                        |
-| Q-F-14 | Apple team / Firebase project for push: OK to create a Firebase project for FCM and upload the APNs key to EAS under team `45TS85YK89`? | **Yes.** Owner steps in the implementation plan §12                        | n/a                                                 |
+None. Every question from rev 1 is answered (§5.1).
+
+## Appendix A. Later: push notifications (out of this program, Q-F-14)
+
+What it would take, for when the owner picks it up:
+
+1. **Credentials.**
+   - **iOS:** an APNs key from the Apple Developer account (team `45TS85YK89`), with Push Notifications enabled on the
+     `com.popdan.chefer` App ID, uploaded to EAS (`eas credentials -p ios`).
+   - **Android:** a Firebase project with `dev.chefer.app` registered for Firebase Cloud Messaging (FCM). Its
+     `google-services.json` goes to the build (as an EAS file environment variable, since the repo is public), and
+     its FCM V1 service-account key is uploaded to EAS.
+2. **Native change and a new build (1.0.2).**
+   - Stop stripping `aps-environment` in `apps/mobile/app.config.js` (the `withoutPushEntitlement` plugin, commits
+     `10d5ac18`/`dc36aa58`) for the production variant.
+   - Add `android.googleServicesFile`.
+   - This changes the runtime fingerprint, so it needs a store build and review. OTA can't deliver it.
+3. **Server.**
+   - A `PushToken` table (one row per install, re-assigned on account switch).
+   - Push state on `Notification`, so the Activity rows double as the outbox.
+   - `expo-server-sdk` sending through the Expo Push API.
+   - A dispatch worker (send after commit, per-pair and daily caps) and a receipt worker (prune `DeviceNotRegistered`
+     tokens).
+   - Per-event preferences on `SocialProfile`.
+4. **Mobile JS.**
+   - `expo-notifications` push-token registration (`getExpoPushTokenAsync` with the EAS project id) on sign-in, and
+     unregistration on sign-out.
+   - An in-context permission primer, an Android `friends` channel, and `friends` routes in `useNotificationLinks`.
+5. **Policy.** Mention push tokens in the privacy policy, and confirm the App Privacy answers.
+
+The data model in this program (the `Notification` rows) is designed so push can be added without migrating existing
+rows.
