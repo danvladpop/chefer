@@ -1,8 +1,16 @@
-import { Pressable, Switch, View } from 'react-native';
+import { Pressable, Share, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { DisplayCurrency } from '@chefer/types';
-import { Button, DENSE_MAX_FONT_SCALE, Sheet, Text } from '@chefer/ui-mobile';
-import { cn, formatMoney } from '@chefer/utils';
+import type { DayKind, DisplayCurrency } from '@chefer/types';
+import { Button, colors, DENSE_MAX_FONT_SCALE, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
+import {
+  cn,
+  formatDinnersForSharing,
+  formatMoney,
+  trainingDaysChip,
+  trainingGlyph,
+  type ShareDinner,
+} from '@chefer/utils';
+import { getWebUrl } from '../../lib/api-url';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
 
 // Week summary sheet — opened by tapping the week label on the Plan tab.
@@ -15,6 +23,8 @@ export interface DaySummary {
   mealsCount: number;
   totalKcal: number;
   isToday: boolean;
+  /** T-06.4: a training day — its glyph and workout name show on the row. */
+  training?: { kind: DayKind; workoutName: string | null } | undefined;
 }
 
 interface WeekSummarySheetProps {
@@ -34,6 +44,8 @@ interface WeekSummarySheetProps {
   onClose: () => void;
   /** Display currency for the EUR cost estimate (P2-6); EUR when omitted. */
   currency?: DisplayCurrency;
+  /** T-13.2: the week's planned dinners for `Share this week’s dinners`. */
+  dinners?: readonly ShareDinner[];
 }
 
 export function WeekSummarySheet({
@@ -52,7 +64,27 @@ export function WeekSummarySheet({
   onSelectDay,
   onClose,
   currency = 'EUR',
+  dinners = [],
 }: WeekSummarySheetProps) {
+  const { show: showSnackbar } = useSnackbar();
+  const trainingChip = trainingDaysChip(days.filter((d) => d.training).length);
+
+  // T-13.2: plain text through the OS share sheet — not an AI call, so no
+  // consent. The snackbar only follows an actual share, not a dismissed sheet.
+  const shareDinners = async () => {
+    if (dinners.length === 0) return;
+    try {
+      const result = await Share.share({
+        message: formatDinnersForSharing(dinners, getWebUrl('/')),
+      });
+      if (result.action !== Share.dismissedAction) {
+        showSnackbar({ message: 'List ready to send.', tone: 'success' });
+      }
+    } catch {
+      // The OS share sheet failed to open: nothing was sent, nothing to report.
+    }
+  };
+
   const weekKcal = days.reduce((sum, d) => sum + d.totalKcal, 0);
   const plannedDays = days.filter((d) => d.mealsCount > 0).length;
 
@@ -101,6 +133,11 @@ export function WeekSummarySheet({
             </Text>
           </View>
         )}
+        {trainingChip !== null && (
+          <View testID="week-summary-training-chip" className="rounded-full bg-accent px-3 py-1">
+            <Text className="text-xs font-medium text-primary">{trainingChip}</Text>
+          </View>
+        )}
         {weekCostEur !== null && (
           <View className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
             <Text className="text-xs font-medium text-emerald-700">
@@ -124,7 +161,7 @@ export function WeekSummarySheet({
               d.isToday ? 'bg-accent' : 'bg-gray-50',
             )}
           >
-            <View className="flex-row items-center gap-2">
+            <View className="min-w-0 flex-shrink flex-row items-center gap-2">
               {/* T-21.13 (bug CI-43): the 3-letter day label is capped at
                   DENSE_MAX_FONT_SCALE so it never wraps or overflows its
                   fixed-width column at large accessibility text sizes,
@@ -141,6 +178,23 @@ export function WeekSummarySheet({
               <Text variant="muted" className="text-xs">
                 {d.mealsCount === 0 ? 'no meals' : `${d.mealsCount} meals`}
               </Text>
+              {d.training && (
+                <View
+                  testID={`week-summary-training-${d.dayIndex}`}
+                  className="min-w-0 flex-shrink flex-row items-center gap-1"
+                >
+                  <Ionicons
+                    name={trainingGlyph(d.training.kind)}
+                    size={12}
+                    color={colors.primary}
+                  />
+                  {d.training.workoutName ? (
+                    <Text numberOfLines={1} className="min-w-0 flex-shrink text-xs text-primary">
+                      {d.training.workoutName}
+                    </Text>
+                  ) : null}
+                </View>
+              )}
             </View>
             <View className="flex-row items-center gap-1.5">
               {d.totalKcal > 0 && (
@@ -153,6 +207,14 @@ export function WeekSummarySheet({
           </Pressable>
         ))}
       </View>
+      <Button
+        testID="week-summary-share-dinners"
+        variant="outline"
+        disabled={dinners.length === 0}
+        onPress={() => void shareDinners()}
+      >
+        Share this week’s dinners
+      </Button>
       {/* Its AI action's consent sheet nests here (iOS can't stack root Modals). */}
       <AiConsentHost />
     </Sheet>

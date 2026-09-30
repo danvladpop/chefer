@@ -1,17 +1,28 @@
 import { useState } from 'react';
 import { Image, Pressable, ScrollView, View } from 'react-native';
+import type { WeekGlanceDay } from '@chefer/types';
 import { Card, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import type { RouterOutputs } from '../../../lib/trpc';
 import { MealTypeBadge } from './meal-type-badge';
+import { WeekGlance } from './week-glance';
 
 // Port of the web dashboard's "Weekly Outlook" card: seven day chips (today
 // highlighted, dot = has meals) with a tappable per-day meal list.
 
 type WeekPlan = RouterOutputs['dashboard']['summary']['weekPlan'];
 
-export function WeekOutlook({ weekPlan }: { weekPlan: WeekPlan }) {
+// T-06.5: people who train get `weekGlance` (always 7 columns with training
+// glyphs) instead of the scrolling strip; the tap-to-expand meal list below is
+// shared.
+export function WeekOutlook({
+  weekPlan,
+  weekGlance,
+}: {
+  weekPlan: WeekPlan;
+  weekGlance?: WeekGlanceDay[] | undefined;
+}) {
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
 
   const today = new Date();
@@ -36,54 +47,65 @@ export function WeekOutlook({ weekPlan }: { weekPlan: WeekPlan }) {
 
   return (
     <Card testID="week-outlook">
-      <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
-        Weekly Outlook
-      </Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerClassName="gap-1.5"
-      >
-        {days.map((day) => {
-          const isToday = day.idx === todayIdx;
-          const isSelected = selectedDayIdx === day.idx;
-          return (
-            <Pressable
-              key={day.idx}
-              testID={`day-chip-${day.idx}`}
-              accessibilityRole="button"
-              onPress={() => setSelectedDayIdx(isSelected ? null : day.idx)}
-              className={cn(
-                'w-[52px] items-center gap-1 rounded-xl py-3',
-                isToday ? 'bg-primary' : isSelected ? 'bg-accent' : 'bg-gray-50',
-              )}
-            >
-              <Text
-                className={cn(
-                  'text-[12px] font-semibold uppercase',
-                  isToday ? 'text-primary-foreground' : 'text-gray-600',
-                )}
-              >
-                {day.label}
-              </Text>
-              <Text
-                className={cn(
-                  'text-sm font-bold',
-                  isToday ? 'text-primary-foreground' : 'text-gray-700',
-                )}
-              >
-                {day.num}
-              </Text>
-              <View
-                className={cn(
-                  'h-1.5 w-1.5 rounded-full',
-                  !day.hasMeals ? 'bg-transparent' : isToday ? 'bg-white/70' : 'bg-primary',
-                )}
-              />
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {weekGlance ? (
+        <WeekGlance
+          days={weekGlance}
+          selectedDayIdx={selectedDayIdx}
+          onSelectDay={(idx) => setSelectedDayIdx(selectedDayIdx === idx ? null : idx)}
+          todayIdx={todayIdx}
+        />
+      ) : (
+        <>
+          <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
+            Weekly Outlook
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerClassName="gap-1.5"
+          >
+            {days.map((day) => {
+              const isToday = day.idx === todayIdx;
+              const isSelected = selectedDayIdx === day.idx;
+              return (
+                <Pressable
+                  key={day.idx}
+                  testID={`day-chip-${day.idx}`}
+                  accessibilityRole="button"
+                  onPress={() => setSelectedDayIdx(isSelected ? null : day.idx)}
+                  className={cn(
+                    'w-[52px] items-center gap-1 rounded-xl py-3',
+                    isToday ? 'bg-primary' : isSelected ? 'bg-accent' : 'bg-gray-50',
+                  )}
+                >
+                  <Text
+                    className={cn(
+                      'text-[12px] font-semibold uppercase',
+                      isToday ? 'text-primary-foreground' : 'text-gray-600',
+                    )}
+                  >
+                    {day.label}
+                  </Text>
+                  <Text
+                    className={cn(
+                      'text-sm font-bold',
+                      isToday ? 'text-primary-foreground' : 'text-gray-700',
+                    )}
+                  >
+                    {day.num}
+                  </Text>
+                  <View
+                    className={cn(
+                      'h-1.5 w-1.5 rounded-full',
+                      !day.hasMeals ? 'bg-transparent' : isToday ? 'bg-white/70' : 'bg-primary',
+                    )}
+                  />
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </>
+      )}
 
       {selected && (
         <View className="mt-4 border-t border-border pt-4">

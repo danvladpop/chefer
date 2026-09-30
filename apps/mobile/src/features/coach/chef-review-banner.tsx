@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, Text } from '@chefer/ui-mobile';
+import { Card, ExplainSheet, Text } from '@chefer/ui-mobile';
 import { formatWeightTrend } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
@@ -15,10 +15,47 @@ import { openPremium } from '../premium/open-premium';
 const TEASER_PLACEHOLDER =
   'The rest of the review covers your protein pattern, the two dinners worth repeating, and one change for next week.';
 
+type Review = {
+  adherencePct: number;
+  avgDailyKcal: number;
+  adjustmentKcal: number;
+};
+
+/** T-11.6: days with a log out of the 7 the review looked at. */
+function loggedDaysOf7(r: Review): number {
+  return Math.round((r.adherencePct / 100) * 7);
+}
+
+function reviewExplainSentence(r: Review): string {
+  const days = loggedDaysOf7(r);
+  const base = `Your chef looked at the last 7 days: you logged ${days} of them, averaging ${r.avgDailyKcal.toLocaleString('en-US')} kcal on those days.`;
+  if (r.adjustmentKcal === 0) return base;
+  const sign = r.adjustmentKcal > 0 ? '+' : '';
+  return `${base} Your daily budget moved by ${sign}${r.adjustmentKcal} kcal, one small step per review and only when at least half your days were logged.`;
+}
+
+function reviewExplainRows(r: Review, trend: string | null): { label: string; value: string }[] {
+  const rows = [
+    { label: 'Days logged', value: `${loggedDaysOf7(r)} of 7 (${r.adherencePct} %)` },
+    { label: 'Average on logged days', value: `${r.avgDailyKcal.toLocaleString('en-US')} kcal` },
+  ];
+  if (trend) rows.push({ label: 'Weight trend', value: trend });
+  if (r.adjustmentKcal !== 0) {
+    rows.push({
+      label: 'Daily budget change',
+      value: `${r.adjustmentKcal > 0 ? '+' : ''}${r.adjustmentKcal} kcal`,
+    });
+  }
+  return rows;
+}
+
 export function ChefReviewBanner() {
   const { data } = trpc.coach.currentReview.useQuery(undefined, { staleTime: 60_000 });
   const system = useUnitSystem();
   const [expanded, setExpanded] = useState(false);
+  const [explainOpen, setExplainOpen] = useState(false);
+  // Mounted on first open and kept, so the sheet still plays its exit motion.
+  const [explainMounted, setExplainMounted] = useState(false);
 
   if (!data || data.status === 'none') {
     return null;
@@ -37,7 +74,7 @@ export function ChefReviewBanner() {
             {/* Locked lines — placeholder text, deliberately NOT the review. */}
             <Text className="mt-1 text-sm text-gray-400 opacity-50">{TEASER_PLACEHOLDER}</Text>
             <Text className="mt-2 text-xs text-gray-500">
-              🔒 The full review and auto-adjusting targets are part of Premium.
+              The full review and auto-adjusting targets are part of Premium.
             </Text>
             <Pressable
               testID="coach-teaser-upgrade"
@@ -83,16 +120,42 @@ export function ChefReviewBanner() {
               </Text>
             )}
           </View>
-          <Pressable
-            testID="coach-review-toggle"
-            accessibilityRole="button"
-            onPress={() => setExpanded((e) => !e)}
-            className="mt-1 min-h-11 justify-center"
-          >
-            <Text className="text-sm font-semibold text-emerald-700">
-              {expanded ? 'Show less' : 'See full review →'}
-            </Text>
-          </Pressable>
+          <View className="flex-row flex-wrap items-center gap-x-4">
+            <Pressable
+              testID="coach-review-why"
+              accessibilityRole="button"
+              accessibilityLabel="Why these numbers"
+              onPress={() => {
+                setExplainMounted(true);
+                setExplainOpen(true);
+              }}
+              className="mt-1 min-h-11 justify-center"
+            >
+              <Text className="text-sm font-semibold text-emerald-700">Why?</Text>
+            </Pressable>
+            <Pressable
+              testID="coach-review-toggle"
+              accessibilityRole="button"
+              onPress={() => setExpanded((e) => !e)}
+              className="mt-1 min-h-11 justify-center"
+            >
+              <Text className="text-sm font-semibold text-emerald-700">
+                {expanded ? 'Show less' : 'See full review →'}
+              </Text>
+            </Pressable>
+          </View>
+          {explainMounted && (
+            <ExplainSheet
+              visible={explainOpen}
+              onClose={() => setExplainOpen(false)}
+              eyebrow="Your weekly review"
+              title="Where these numbers come from"
+              sentence={reviewExplainSentence(r)}
+              rows={reviewExplainRows(r, trend)}
+              footnote="Averages only count the days you logged."
+              testID="coach-review-explain"
+            />
+          )}
         </View>
       </View>
     </Card>

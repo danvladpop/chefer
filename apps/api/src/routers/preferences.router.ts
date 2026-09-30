@@ -13,7 +13,8 @@ import {
   type UpdatePreferencesInput,
 } from '../application/preferences/preferences.service.js';
 import { trainingNutritionService } from '../application/training-nutrition/training-nutrition.service.js';
-import { premiumProcedure, protectedProcedure, router } from '../lib/trpc.js';
+import { writesBodyMetrics, writesSafetyTerms } from '../lib/health-consent.js';
+import { premiumProcedure, protectedProcedure, requireHealthConsent, router } from '../lib/trpc.js';
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -122,11 +123,15 @@ export const preferencesRouter = router({
   // Personalisation depth (goal, body metrics, cadence) is premium — free
   // users use the curated plans and are prompted to upgrade. Reads stay open
   // so the locked UI can still render existing state.
-  setup: premiumProcedure.input(setupSchema).mutation(async ({ input, ctx }) => {
-    const capped = capSetupSafetyArrays(input, ctx.clientApiLevel);
-    await preferencesService.setup(ctx.user.id, capped);
-    return { success: true as const };
-  }),
+  // T-26.3: goal + body metrics + safety lists are health data — gated per HEALTH_CONSENT_ENFORCE.
+  setup: premiumProcedure
+    .input(setupSchema)
+    .use(requireHealthConsent())
+    .mutation(async ({ input, ctx }) => {
+      const capped = capSetupSafetyArrays(input, ctx.clientApiLevel);
+      await preferencesService.setup(ctx.user.id, capped);
+      return { success: true as const };
+    }),
 
   /**
    * "What brings you here?" — onboarding step 0 (backlog P2-3, audit
@@ -158,9 +163,12 @@ export const preferencesRouter = router({
     }),
 
   /** Allergies, restrictions, dislikes — free for every account (P1-2). */
-  updateSafety: protectedProcedure.input(safetySchema).mutation(async ({ input, ctx }) => {
-    return preferencesService.update(ctx.user.id, input);
-  }),
+  updateSafety: protectedProcedure
+    .input(safetySchema)
+    .use(requireHealthConsent(writesSafetyTerms)) // T-26.3 — clearing lists needs no consent
+    .mutation(async ({ input, ctx }) => {
+      return preferencesService.update(ctx.user.id, input);
+    }),
 
   /**
    * Unit system + currency — free for every tier (backlog P2-6, audit
@@ -174,9 +182,12 @@ export const preferencesRouter = router({
     }),
 
   /** Goal, body metrics, cuisine and cadence — premium personalisation. */
-  updateTargets: premiumProcedure.input(targetsSchema).mutation(async ({ input, ctx }) => {
-    return preferencesService.update(ctx.user.id, input as UpdatePreferencesInput);
-  }),
+  updateTargets: premiumProcedure
+    .input(targetsSchema)
+    .use(requireHealthConsent(writesBodyMetrics)) // T-26.3 — body fields only
+    .mutation(async ({ input, ctx }) => {
+      return preferencesService.update(ctx.user.id, input as UpdatePreferencesInput);
+    }),
 
   /**
    * "Plan my week every Sunday" (audit F-PLAN-4-3). Only premium accounts get
@@ -211,6 +222,7 @@ export const preferencesRouter = router({
         })
         .partial(),
     )
+    .use(requireHealthConsent(writesBodyMetrics)) // T-26.3
     .mutation(async ({ input, ctx }) => {
       return preferencesService.update(ctx.user.id, input as UpdatePreferencesInput);
     }),

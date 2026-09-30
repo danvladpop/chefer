@@ -20,6 +20,16 @@ appId: dev.chefer.app.dev
       - assertVisible:
           id: 'add-item-input'
 
+# UX-13 (T-13.2): the header share button exists once there is a list. The
+# sheet and text builder are covered by Jest; the OS share sheet is never opened.
+- runFlow:
+    when:
+      notVisible:
+        id: 'shopping-empty'
+    commands:
+      - assertVisible:
+          id: 'share-list'
+
 # Bug B-28 regression: ticking an item must not make the category header or
 # a sibling item disappear/jump out of reach (the header's own label text
 # used to be able to wrap and reflow everything below it on every tick —

@@ -10,12 +10,14 @@ import { PantryGhostBanner } from '@/features/pantry/components/PantryGhostBanne
 import { PantryPanel } from '@/features/pantry/components/PantryPanel';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { LabelCaveat } from '@/features/safety/components/LabelCaveat';
+import { ShareListDialog } from '@/features/shopping-list/components/ShareListDialog';
 import {
   ShopSegments,
   shopViewFromParam,
   shopViewHref,
 } from '@/features/shopping-list/components/ShopSegments';
 import { WeekNavigator } from '@/features/shopping-list/components/WeekNavigator';
+import { CATEGORY_LABELS, CATEGORY_ORDER } from '@/features/shopping-list/share-list';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useHousehold } from '@/hooks/useHousehold';
@@ -35,6 +37,7 @@ import {
   RefreshCw,
   Refrigerator,
   RotateCcw,
+  Share2,
   ShoppingCart,
   Smartphone,
   X,
@@ -67,16 +70,6 @@ const PRINT_STYLES = `
 
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=120&h=120&fit=crop&q=80';
-
-const CATEGORY_ORDER = ['produce', 'proteins', 'dairy', 'grains', 'frozen', 'other'] as const;
-const CATEGORY_LABELS: Record<string, string> = {
-  produce: 'Produce',
-  proteins: 'Proteins',
-  dairy: 'Dairy & Eggs',
-  grains: 'Grains & Pantry',
-  frozen: 'Frozen',
-  other: 'Other',
-};
 
 // Bug B-32 (T-BUG-32): a bare number with no unit word used to fall through
 // with no `unit` at all, and the pantry/list UI then defaulted THAT to
@@ -118,6 +111,8 @@ export default function ShoppingListPage() {
   // Overflow menu: keyboard + outside-click handling from the shared hook
   // (was a hand-rolled `fixed inset-0` click-catcher).
   const listMenu = useMenu();
+  // T-13.3: `Send the list` dialog, opened from the overflow menu.
+  const [shareOpen, setShareOpen] = useState(false);
   const isPremium = useIsPremium();
   const { memberCount } = useHousehold();
   const unitSystem = useUnitSystem();
@@ -149,6 +144,14 @@ export default function ShoppingListPage() {
     capture('plan_shown', { surface: 'shop', weekMatches });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per load, not on every render
   }, [weekList?.planId, weekList?.weekStartDate, listLoading, weekOffset]);
+
+  // T-10.4 (D-7): the household first-week line reads the plan's flag; only a
+  // free user with a plan can be on that week, so nobody else pays for the query.
+  const { data: weekPlan } = trpc.mealPlan.getForWeek.useQuery(
+    { weekOffset },
+    { enabled: isPremium === false && weekList?.hasPlan === true, staleTime: 60_000 },
+  );
+  const firstScaledWeek = isPremium === false && weekPlan?.firstScaledWeek === true;
 
   const utils = trpc.useUtils();
 
@@ -395,6 +398,20 @@ export default function ShoppingListPage() {
                     type="button"
                     role="menuitem"
                     tabIndex={-1}
+                    data-testid="shop-menu-share"
+                    disabled={totalItems === 0}
+                    onClick={() => {
+                      listMenu.setOpen(false);
+                      setShareOpen(true);
+                    }}
+                    className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm text-neutral-700 hover:bg-neutral-50 disabled:text-neutral-400 disabled:hover:bg-transparent"
+                  >
+                    <Share2 className="h-4 w-4 text-neutral-500" aria-hidden="true" /> Share
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    tabIndex={-1}
                     onClick={() => {
                       listMenu.setOpen(false);
                       window.print();
@@ -514,6 +531,15 @@ export default function ShoppingListPage() {
               Sized for 1 portion
             </Link>
           )
+        )}
+
+        {/* T-10.4: the free household's sized first week says so */}
+        {firstScaledWeek && (
+          <p data-testid="shop-first-scaled-week" className="basis-full text-xs text-neutral-600">
+            Sized for your table of{' '}
+            {weekList?.portions ?? weekPlan.estimatedCost?.portions ?? memberCount} — free for your
+            first week
+          </p>
         )}
 
         {/* bug B-33 (T-08.9): the "Saved ~X this week" chip is removed until
@@ -834,6 +860,18 @@ export default function ShoppingListPage() {
           </div>
         </div>
       )}
+
+      <ShareListDialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        items={items}
+        checkedKeys={checkedItems}
+        weekOffset={weekOffset}
+        weekStart={weekStart}
+        fromDayOfWeek={weekList?.fromDayOfWeek}
+        portions={weekList?.portions}
+        unitSystem={unitSystem}
+      />
 
       {/* Item detail — bottom sheet on phones, centred dialog at sm+ */}
       <Sheet

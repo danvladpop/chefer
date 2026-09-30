@@ -3,10 +3,11 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { ActivityLevel, BiologicalSex, Goal } from '@/features/onboarding/types';
+import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { SafetyReviewCard } from '@/features/safety/components/SafetyReviewCard';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import type { DisplayCurrency } from '@chefer/types';
+import { HEALTH_CONSENT_COPY, type DisplayCurrency } from '@chefer/types';
 import { Toast } from '@chefer/ui';
 import { fromEur, toDisplayCurrency, toEur } from '@chefer/utils';
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
@@ -87,6 +88,9 @@ export function PreferencesForm({
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const utils = trpc.useUtils();
   const router = useRouter();
+  // T-26.2: allergies/diets, goal and body metrics are health information — asked
+  // once, on the first save. "Don't save it" still saves everything else.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
 
   // Safety (allergies/restrictions/dislikes) and display units/currency save
   // through free procedures; everything else is premium-only updateTargets.
@@ -96,9 +100,14 @@ export function PreferencesForm({
   const isSaving =
     safetyMutation.isPending || displayMutation.isPending || targetsMutation.isPending;
 
-  function onSaved() {
+  function onSaved(healthSkipped = false) {
     capture('preferences_saved', { premium: isPremium });
-    setToast({ message: 'Preferences saved — taking you to your dashboard…', type: 'success' });
+    setToast({
+      message: healthSkipped
+        ? `Preferences saved, except your health information. ${HEALTH_CONSENT_COPY.declinedNotice}`
+        : 'Preferences saved — taking you to your dashboard…',
+      type: 'success',
+    });
     // Unit system, calorie target etc. are read elsewhere (shopping list,
     // recipe pages) via preferences.get — refresh those caches immediately
     void utils.preferences.get.invalidate();
@@ -107,9 +116,12 @@ export function PreferencesForm({
     // A unit change also moves the gym's kg/lb (one preference, P2-6).
     if (data.preferredUnits !== initialUnits) void utils.gym.invalidate();
     // Brief pause so the confirmation is seen before leaving the page.
-    setTimeout(() => {
-      router.push('/dashboard');
-    }, 900);
+    setTimeout(
+      () => {
+        router.push('/dashboard');
+      },
+      healthSkipped ? 3500 : 900,
+    );
   }
 
   // ── Profile completeness (informational only — see handleSave) ──────────────
@@ -135,14 +147,35 @@ export function PreferencesForm({
   // changing only a cuisine or the budget no longer demands a full body
   // profile. The old all-or-nothing gate blocked exactly those small edits.
 
-  async function handleSave() {
+  function handleSave() {
+    if (isSaving) return;
+    const hasSafetyTerms =
+      data.allergies.length + data.dietaryRestrictions.length + data.dislikedIngredients.length > 0;
+    const hasBodyData =
+      isPremium &&
+      (data.goal !== null ||
+        data.biologicalSex !== null ||
+        (data.age !== null && data.age > 0) ||
+        (data.heightCm !== null && data.heightCm > 0) ||
+        (data.weightKg !== null && data.weightKg > 0) ||
+        data.activityLevel !== null);
+    requestHealthConsent(() => void save(true), {
+      hasHealthData: hasSafetyTerms || hasBodyData,
+      // "Don't save it": every other field is still saved, nothing health-related is sent.
+      onDeclined: () => void save(false),
+    });
+  }
+
+  async function save(includeHealth: boolean) {
     if (isSaving) return;
     try {
-      await safetyMutation.mutateAsync({
-        dietaryRestrictions: data.dietaryRestrictions,
-        allergies: data.allergies,
-        dislikedIngredients: data.dislikedIngredients,
-      });
+      if (includeHealth) {
+        await safetyMutation.mutateAsync({
+          dietaryRestrictions: data.dietaryRestrictions,
+          allergies: data.allergies,
+          dislikedIngredients: data.dislikedIngredients,
+        });
+      }
       // Units + currency are free on every tier (audit F-DASH-3-2).
       if (data.preferredUnits !== initialUnits || data.deliveryCurrency !== initialCurrency) {
         await displayMutation.mutateAsync({
@@ -152,12 +185,18 @@ export function PreferencesForm({
       }
       if (isPremium) {
         await targetsMutation.mutateAsync({
-          ...(data.goal !== null && { goal: data.goal }),
-          ...(data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
-          ...(data.age !== null && data.age > 0 && { age: data.age }),
-          ...(data.heightCm !== null && data.heightCm > 0 && { heightCm: data.heightCm }),
-          ...(data.weightKg !== null && data.weightKg > 0 && { weightKg: data.weightKg }),
-          ...(data.activityLevel !== null && { activityLevel: data.activityLevel }),
+          ...(includeHealth && data.goal !== null && { goal: data.goal }),
+          ...(includeHealth &&
+            data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
+          ...(includeHealth && data.age !== null && data.age > 0 && { age: data.age }),
+          ...(includeHealth &&
+            data.heightCm !== null &&
+            data.heightCm > 0 && { heightCm: data.heightCm }),
+          ...(includeHealth &&
+            data.weightKg !== null &&
+            data.weightKg > 0 && { weightKg: data.weightKg }),
+          ...(includeHealth &&
+            data.activityLevel !== null && { activityLevel: data.activityLevel }),
           cuisinePreferences: data.cuisinePreferences,
           mealsPerDay: data.mealsPerDay,
           deliveryAddress: data.deliveryAddress || null,
@@ -166,7 +205,7 @@ export function PreferencesForm({
             : null,
         });
       }
-      onSaved();
+      onSaved(!includeHealth);
     } catch (err) {
       setToast({
         message: err instanceof Error ? err.message : 'Failed to save preferences.',
@@ -257,7 +296,7 @@ export function PreferencesForm({
           )}
           <button
             type="button"
-            onClick={() => void handleSave()}
+            onClick={handleSave}
             disabled={isSaving}
             className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10"
           >
@@ -267,6 +306,7 @@ export function PreferencesForm({
       </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {healthConsentSheet}
     </>
   );
 }

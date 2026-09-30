@@ -35,8 +35,12 @@ describe('renderableTrackingTypes', () => {
     ]);
   });
 
-  it('level 4 adds INTERVALS on top of level 3', () => {
-    expect(renderableTrackingTypes(4)).toEqual([
+  it('level 4 (health consent, W3) renders the same as level 3', () => {
+    expect(renderableTrackingTypes(4)).toEqual(renderableTrackingTypes(3));
+  });
+
+  it('level 5 adds INTERVALS on top of level 3', () => {
+    expect(renderableTrackingTypes(5)).toEqual([
       'WEIGHT_REPS',
       'BODYWEIGHT_REPS',
       'DURATION',
@@ -91,9 +95,9 @@ describe('isTrackingTypeRenderable', () => {
     expect(isTrackingTypeRenderable('DURATION_DISTANCE', 3)).toBe(true);
   });
 
-  it('INTERVALS is not renderable below level 4', () => {
-    expect(isTrackingTypeRenderable('INTERVALS', 3)).toBe(false);
-    expect(isTrackingTypeRenderable('INTERVALS', 4)).toBe(true);
+  it('INTERVALS is not renderable below level 5', () => {
+    expect(isTrackingTypeRenderable('INTERVALS', 4)).toBe(false);
+    expect(isTrackingTypeRenderable('INTERVALS', 5)).toBe(true);
   });
 
   it('DURATION (a timed hold) is renderable at every level, incl. 0', () => {

@@ -10,6 +10,7 @@ import {
   type SafetyPickerValue,
 } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useHealthConsent } from '../privacy/use-health-consent';
 import { SafetyPicker } from './safety-picker';
 
 // T-01.3 — the one-time free-text migration card (UX-01 (b)). Exported for
@@ -33,6 +34,8 @@ export function MigrationCard({ testID = 'safety-migration-card' }: { testID?: s
   const { data: prefsData } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
   const [changeOpen, setChangeOpen] = useState(false);
+  // T-26.2: re-saving the allergy lists stores health information.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
 
   const ownSafety: SafetyPickerValue = {
     allergies: prefsData?.dietaryPreferences?.allergies ?? [],
@@ -108,13 +111,24 @@ export function MigrationCard({ testID = 'safety-migration-card' }: { testID?: s
           <Button
             testID={`${testID}-change-save`}
             loading={updateSafetyMutation.isPending}
-            onPress={() => updateSafetyMutation.mutate(draft)}
+            onPress={() =>
+              requestHealthConsent(() => updateSafetyMutation.mutate(draft), {
+                hasHealthData:
+                  draft.allergies.length +
+                    draft.dietaryRestrictions.length +
+                    draft.dislikedIngredients.length >
+                  0,
+                onDeclined: () => setChangeOpen(false),
+              })
+            }
           >
             Save changes
           </Button>
         }
       >
         <SafetyPicker value={draft} onChange={setDraft} testIDPrefix={`${testID}-picker`} />
+        {/* Nested in the open Sheet: iOS can't present a Modal over a presenting one. */}
+        {healthConsentSheet}
       </Sheet>
     </>
   );

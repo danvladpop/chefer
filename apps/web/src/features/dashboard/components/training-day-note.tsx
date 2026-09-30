@@ -1,31 +1,44 @@
 'use client';
 
+import { useState } from 'react';
+import { TrainingExplainSheet } from '@/features/meal-plan/components/TrainingExplainSheet';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
-import { Dumbbell, Lock } from 'lucide-react';
-import type { TrainingDayNutrition } from '@chefer/types';
-import { cn, trainingDayLine } from '@chefer/utils';
+import { trpc } from '@/lib/trpc';
+import { Dumbbell, Footprints, Lock } from 'lucide-react';
+import type { PlanTrainingBasis, PlanTrainingDay, TrainingDayNutrition } from '@chefer/types';
+import { cn, trainingDayLine, trainingGlyph } from '@chefer/utils';
 
 /**
- * Training-aware nutrition (audit P2-4): the line on a lifter's training day,
- * shared by Today (nutrition summary) and the tracker. Premium sees the bump
- * applied to the targets; free sees the same numbers locked, with the
- * upgrade one tap away.
+ * Training-aware nutrition (audit P2-4, UX-06 T-06.8): the line on a training
+ * day, shared by Today (nutrition summary) and the tracker. When the bump is
+ * applied (premium, or free while the server flag is on) it shows the glyph,
+ * the bonus and a `Why?` button that opens the explain dialog; when it is not
+ * applied the same numbers are locked with the upgrade one tap away.
  *
  * `isToday` = false on the tracker's other days: the copy then says "this
- * day" instead of "today".
+ * day" instead of "today". `date` names the weekday for the explain dialog;
+ * without it the dialog is only offered for today.
  */
 export function TrainingDayNote({
   t,
   isToday = true,
+  date,
   className,
 }: {
   t: TrainingDayNutrition;
   isToday?: boolean;
+  date?: Date;
   className?: string;
 }) {
+  const [whyOpen, setWhyOpen] = useState(false);
   if (!t.isTrainingDay) return null;
+  const kind = t.kind ?? 'lift';
+  const isRun = trainingGlyph(kind) === 'walk-outline';
+  const Glyph = isRun ? Footprints : Dumbbell;
   const workout = t.workoutName ?? 'Your workout';
   const when = t.reason === 'COMPLETED' ? 'done' : isToday ? 'today' : 'planned';
+  const addedTo = isToday ? 'today' : 'this day';
+  const explainDate = date ?? (isToday ? new Date() : null);
   return (
     <div
       data-testid="training-day"
@@ -41,23 +54,86 @@ export function TrainingDayNote({
           t.applied ? 'text-[#944a00]' : 'text-gray-700',
         )}
       >
-        <Dumbbell className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <Glyph className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span className="min-w-0">{trainingDayLine(t)}</span>
       </p>
       {t.applied ? (
-        <p className="mt-0.5 text-xs text-[#944a00]/80">
-          {workout} {when} · protein at {t.basis.trainingDayProteinGPerKg} g/kg, added to{' '}
-          {isToday ? 'today' : 'this day'}
-        </p>
+        <div className="mt-0.5 flex flex-wrap items-center justify-between gap-x-2">
+          <p className="min-w-0 text-xs text-[#944a00]/80">
+            {isRun
+              ? `Mostly carbs, added to ${addedTo}`
+              : `${workout} ${when} · protein at ${t.basis.trainingDayProteinGPerKg} g/kg, added to ${addedTo}`}
+          </p>
+          {explainDate && (
+            <button
+              type="button"
+              onClick={() => setWhyOpen(true)}
+              className="inline-flex min-h-11 items-center px-1 text-xs font-semibold text-[#944a00] underline-offset-2 hover:underline"
+            >
+              Why?
+            </button>
+          )}
+        </div>
       ) : (
         <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
             <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            Premium adds this to {isToday ? 'today' : 'this day'}&apos;s targets
+            Premium adds this to {addedTo}&apos;s targets
           </span>
           <UpgradeButton source="training-day" />
         </div>
       )}
+      {whyOpen && explainDate && (
+        <TrainingWhy t={t} date={explainDate} open={whyOpen} onClose={() => setWhyOpen(false)} />
+      )}
     </div>
   );
+}
+
+/** JS weekday (0 = Sun) → the plan's 0 = Monday. */
+function planDayOf(date: Date): number {
+  const js = date.getDay();
+  return js === 0 ? 6 : js - 1;
+}
+
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/**
+ * Mounted only once `Why?` is tapped, so the targets query never runs (or
+ * needs a provider) for a note nobody asked about. The rest-day numbers come
+ * from the resolved targets; the training day is the one this note describes.
+ */
+function TrainingWhy({
+  t,
+  date,
+  open,
+  onClose,
+}: {
+  t: TrainingDayNutrition;
+  date: Date;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { data: view } = trpc.targets.get.useQuery(undefined, { staleTime: 60_000 });
+  const dayOfWeek = planDayOf(date);
+  const day: PlanTrainingDay = {
+    dayOfWeek,
+    dayName: DAY_NAMES[dayOfWeek] ?? '',
+    kind: t.kind ?? 'lift',
+    workoutName: t.workoutName,
+    kcalBonus: t.kcalBonus,
+    proteinBonus: t.proteinBonus,
+    carbsBonus: t.carbsBonus ?? 0,
+    done: t.reason === 'COMPLETED',
+    applied: t.applied,
+  };
+  const basis: PlanTrainingBasis | null = view
+    ? {
+        restKcal: view.effective.dailyCalorieTarget,
+        restProteinG: view.effective.proteinG,
+        proteinGPerKg: t.basis.proteinGPerKg,
+        bodyweightKg: t.basis.bodyweightKg,
+      }
+    : null;
+  return <TrainingExplainSheet open={open} onClose={onClose} days={[day]} basis={basis} />;
 }

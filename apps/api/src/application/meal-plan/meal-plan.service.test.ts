@@ -11,6 +11,7 @@ import {
 import { aiService } from '../../lib/ai/index.js';
 import { pickRandomCurated, safeCuratedPools } from '../../lib/curated-recipes/index.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
+import { safetyService } from '../safety/safety.service.js';
 import {
   dayImagePriority,
   MealPlanService,
@@ -27,6 +28,8 @@ vi.mock('@chefer/database', async (importOriginal) => {
     ...mod,
     prisma: {
       aiCallLog: { create: vi.fn().mockResolvedValue({}) },
+      // UX-06: reads without a view resolve the viewer's tier for the training payload.
+      user: { findUnique: vi.fn().mockResolvedValue(null) },
       // Macro vocabulary (macro-reconcile) — empty: AI numbers stay as stated.
       ingredientPrice: { findMany: vi.fn().mockResolvedValue([]) },
     },
@@ -51,6 +54,9 @@ vi.mock('@chefer/database', async (importOriginal) => {
     gymProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
     weightEntryRepository: { findLatest: vi.fn().mockResolvedValue(null) },
     routineRepository: { findActive: vi.fn().mockResolvedValue(null) },
+    // UX-06 (T-06.2): every plan response reads the week's training days.
+    workoutSessionRepository: { findCompleted: vi.fn().mockResolvedValue([]) },
+    trainingPauseRepository: { listForUser: vi.fn().mockResolvedValue([]) },
     mealPlanRepository: {},
     // Live tailoring: no jobs unless a test queues one.
     mealPlanTailoringRepository: {
@@ -235,10 +241,19 @@ describe('MealPlanService.generate', () => {
       dislikedIngredients: [],
     } as never);
 
+    const audit = vi.spyOn(safetyService, 'logFilterAudit');
+
     await service.generate('user1', 0, false);
 
     expect(curated.safeCuratedPools).toHaveBeenCalledWith(
       expect.objectContaining({ allergies: ['peanuts'], dietaryRestrictions: ['Vegan'] }),
+    );
+    // T-26.7: one `safety.filter` evidence line per curated generation.
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        surface: 'plan.curated',
+        prefs: expect.objectContaining({ allergies: ['peanuts'] }),
+      }),
     );
   });
 
@@ -861,6 +876,49 @@ describe('MealPlanService.getForWeek carry-forward', () => {
     vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(null);
   });
 
+  it('UX-06 (T-06.2): a read carries trainingDays + trainingBasis from the training service', async () => {
+    const repo = makeRepo();
+    repo.findForWeek.mockResolvedValue(CLONED_PLAN);
+    repo.findRecipesByIds.mockResolvedValue([DB_RECIPE]);
+    const trainingDays = [
+      {
+        dayOfWeek: 0,
+        dayName: 'Monday',
+        kind: 'lift',
+        workoutName: 'Upper A',
+        kcalBonus: 250,
+        proteinBonus: 32,
+        carbsBonus: 30,
+        done: false,
+        applied: true,
+      },
+    ];
+    const basis = { restKcal: 2500, restProteinG: 144, proteinGPerKg: 1.8, bodyweightKg: 80 };
+    const training = {
+      loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: null }),
+      trainingSchedule: vi.fn().mockResolvedValue([]),
+      isBumpWidened: vi.fn().mockResolvedValue(false),
+      trainingWeek: vi.fn().mockResolvedValue({ trainingDays, basis }),
+    };
+    const service = new MealPlanService(repo, undefined, training);
+
+    const result = await service.getForWeek('u1', 0, { trainingAccess: true });
+
+    expect(result?.trainingDays).toEqual(trainingDays);
+    expect(result?.trainingBasis).toEqual(basis);
+    expect(training.trainingWeek).toHaveBeenCalledWith('u1', null, expect.any(Date), true);
+  });
+
+  it('UX-06: a user with no training days gets neither field', async () => {
+    const repo = makeRepo();
+    repo.findForWeek.mockResolvedValue(CLONED_PLAN);
+    repo.findRecipesByIds.mockResolvedValue([DB_RECIPE]);
+    const result = await new MealPlanService(repo).getForWeek('u1', 0);
+    expect(result?.trainingDays).toBeUndefined();
+    expect(result?.trainingBasis).toBeUndefined();
+    expect(result?.firstScaledWeek).toBeUndefined();
+  });
+
   it('clones the most recent plan into an empty next week and flags it', async () => {
     const repo = makeRepo();
     repo.findForWeek.mockResolvedValueOnce(null).mockResolvedValueOnce(CLONED_PLAN);
@@ -1416,6 +1474,8 @@ describe('MealPlanService — training days (audit P2-4)', () => {
       { plannedWeekday: 0, name: 'Full Body A' },
       { plannedWeekday: 3, name: 'Full Body B' },
     ]),
+    isBumpWidened: vi.fn().mockResolvedValue(false),
+    trainingWeek: vi.fn().mockResolvedValue({ trainingDays: [], basis: null }),
   };
 
   beforeEach(() => {
@@ -1447,6 +1507,8 @@ describe('MealPlanService — training days (audit P2-4)', () => {
     const service = new MealPlanService(makeRepo(), undefined, {
       loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: null }),
       trainingSchedule: vi.fn(),
+      isBumpWidened: vi.fn().mockResolvedValue(false),
+      trainingWeek: vi.fn().mockResolvedValue({ trainingDays: [], basis: null }),
     });
     vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
     vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
@@ -1507,6 +1569,8 @@ describe('MealPlanService — curated slot portions (P1-1)', () => {
   const noLifter = {
     loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: null }),
     trainingSchedule: vi.fn().mockResolvedValue([]),
+    isBumpWidened: vi.fn().mockResolvedValue(false),
+    trainingWeek: vi.fn().mockResolvedValue({ trainingDays: [], basis: null }),
   };
 
   beforeEach(() => {
@@ -1603,6 +1667,8 @@ describe('MealPlanService — curated slot portions (P1-1)', () => {
     const lifter = {
       loadLifter: vi.fn().mockResolvedValue({ lifterBodyweightKg: 80 }),
       trainingSchedule: vi.fn().mockResolvedValue([{ plannedWeekday: 0, name: 'Full Body A' }]),
+      isBumpWidened: vi.fn().mockResolvedValue(false),
+      trainingWeek: vi.fn().mockResolvedValue({ trainingDays: [], basis: null }),
     };
     const expected = resolveDailyTargets(LIFTER, 80);
     expect(expected.proteinG).toBe(144); // 1.8 g/kg

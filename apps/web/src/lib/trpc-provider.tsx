@@ -56,7 +56,9 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
               // for T-39.1/T-26.5 (wave 1 L-ENTRY) — see trpc-links.ts.
               // 3 (T-42.5, UX-42): the web now RENDERS cardio sets/exercises
               // (history, summary); it still never logs or picks them.
-              'x-chefer-api-level': '3',
+              // 4 (T-26.2/T-26.3, L-CONSENT): the web shows the health consent
+              // sheet before any health save — see mobile trpc-links.ts.
+              'x-chefer-api-level': '4',
             };
           },
         }),

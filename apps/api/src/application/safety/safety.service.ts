@@ -114,6 +114,47 @@ function classifyPerson(
   return { who, isOwner, items, notes };
 }
 
+/** One `safety.filter` audit record (T-26.7): counts and rule ids — never names or terms. */
+export interface SafetyFilterAudit {
+  event: 'safety.filter';
+  surface: string;
+  poolSize: number;
+  kept: number;
+  removed: number;
+  /** Taxonomy ids of the rules in force (`unrecognised` for free text) — no names, no user text. */
+  ruleIds: string[];
+}
+
+/**
+ * Builds the evidence-trail record for one filter pass (T-26.7). Pure: the
+ * caller decides where to log it. Rule ids come from the taxonomy, so a
+ * user's free text never reaches a log line.
+ */
+export function buildFilterAudit(input: {
+  surface: string;
+  poolSize: number;
+  kept: number;
+  prefs: Pick<SafetyPrefs, 'allergies' | 'dietaryRestrictions' | 'dislikedIngredients'>;
+}): SafetyFilterAudit {
+  const ids = new Set<string>();
+  for (const term of [
+    ...input.prefs.allergies,
+    ...input.prefs.dietaryRestrictions,
+    ...input.prefs.dislikedIngredients,
+  ]) {
+    const recognised = recogniseSafetyTerm(term);
+    ids.add(recognised.kind === 'unrecognised' ? 'unrecognised' : recognised.id);
+  }
+  return {
+    event: 'safety.filter',
+    surface: input.surface,
+    poolSize: input.poolSize,
+    kept: input.kept,
+    removed: Math.max(0, input.poolSize - input.kept),
+    ruleIds: [...ids].sort(),
+  };
+}
+
 export class SafetyService {
   constructor(
     private readonly prefsRepo: IDietaryPreferencesRepository = dietaryPreferencesRepository,
@@ -246,6 +287,30 @@ export class SafetyService {
       if (ctx.hiddenRecipeIds.includes(recipe.id)) return false;
       return !checkSafety || isRecipeSafe(recipe as unknown as SafetyCheckable, prefs);
     });
+  }
+
+  /**
+   * T-26.7 evidence trail: ONE structured log line per plan generation
+   * (`safety.filter`: pool size, removed, rule ids — no names). The plan
+   * generation path (`application/meal-plan/**`) calls this once after its
+   * safety pass; retention of these lines is per counsel.
+   */
+  logFilterAudit(input: {
+    surface: string;
+    poolSize: number;
+    kept: number;
+    prefs: Pick<SafetyPrefs, 'allergies' | 'dietaryRestrictions' | 'dislikedIngredients'>;
+  }): SafetyFilterAudit {
+    const audit = buildFilterAudit(input);
+    // Lazy: lib/logger.js pulls in lib/env.js, which validates the process
+    // environment at import time — a static import would break every test
+    // that imports this service without secrets.
+    // Without a valid env (unit tests) the logger can't load — the audit
+    // record is still returned, it just isn't printed.
+    void import('../../lib/logger.js')
+      .then(({ logger }) => logger.info(audit, 'safety.filter'))
+      .catch(() => undefined);
+    return audit;
   }
 
   /**

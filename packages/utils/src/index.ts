@@ -296,6 +296,7 @@ export {
   goalWording,
   hasTrainingDayBump,
   isLifter,
+  isRunKind,
   lifterProteinGPerKg,
   lifterProteinNote,
   postWorkoutProteinG,
@@ -308,6 +309,26 @@ export {
   type ResolvedTrainingDay,
   type TrainingDayBonus,
 } from './training-nutrition';
+export {
+  buildPlanTrainingDays,
+  buildPremiumChanges,
+  buildWeekGlance,
+  joinDayNames,
+  preRunNote,
+  preRunSnackIdea,
+  PRE_RUN_SNACK_IDEAS,
+  trainingChipA11y,
+  trainingDayHeaderCopy,
+  trainingDaysChip,
+  trainingExplainCopy,
+  trainingGlyph,
+  trainingKindLabel,
+  weekdayLongName,
+  weekdayShortName,
+  type PremiumChangesResult,
+  type TrainingDayHeaderCopy,
+  type TrainingExplainCopy,
+} from './plan-training';
 export {
   choosePortions,
   formatPortion,
@@ -415,7 +436,7 @@ export {
   type EffectiveJobsInput,
 } from './effective-jobs';
 export { priceRange, formatPriceRange, PRICE_RANGE_BAND, type PriceRange } from './price-range';
-export { pickProteinSnacks, PROTEIN_SNACKS, type ProteinSnack } from './protein-snacks';
+export { pickProteinSnacks, PROTEIN_SNACKS, takeSnacks, type ProteinSnack } from './protein-snacks';
 export { homeCardOrder, HOME_CARD_IDS, type HomeCardId } from './home-cards';
 export { landingFor, type LandingInput, type LandingSurface } from './landing';
 export {
@@ -444,9 +465,14 @@ export {
   type DietModifierId,
 } from './safety-classify';
 export {
+  dinnersFromPlan,
   formatDinnersForSharing,
   formatListForSharing,
+  SHARE_DINNERS_HEADING,
+  shareableItems,
   shareListFooter,
+  shareListSubtitle,
+  shareListTitle,
   SHARE_LIST_FOOTER_TEMPLATE,
   type ShareDinner,
   type ShareListItem,

@@ -196,9 +196,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # T-26.7 evidence trail: the run (incl. the printed pool-size report) is
+      # kept as a build artefact per commit, so "what did the allergen filter
+      # do at release X" can be answered later. Retention: PENDING COUNSEL
+      # (DPIA / product-liability period) — 400 days is a placeholder.
       - name: Run safety regression suite
         working-directory: apps/api
-        run: npx vitest run --passWithNoTests src/application/safety/safety.regression.test.ts
+        run: |
+          {
+            echo "Chefer safety regression report"
+            echo "commit: ${{ github.sha }}"
+            echo "ref: ${{ github.ref_name }}"
+            echo "run: ${{ github.run_id }}"
+            echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+          } > safety-regression-report.txt
+          npx vitest run --passWithNoTests --reporter=verbose src/application/safety/safety.regression.test.ts 2>&1 | tee -a safety-regression-report.txt
+
+      - name: Archive safety regression report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: safety-regression-report-${{ github.sha }}
+          path: apps/api/safety-regression-report.txt
+          if-no-files-found: warn
+          retention-days: 400
 
   # ─── Mobile Bundle ────────────────────────────────────────────────────────────
   # Headless Metro export of the Expo app — catches monorepo-resolution breakage

@@ -19,7 +19,8 @@ import { isFlagEnabled } from '../../lib/flags.js';
 //   3  W2 L-GYM's OTA (D-20 b) or W5               — renders DURATION_DISTANCE, DISTANCE, cardio
 //                                                     SessionSet fields and cardio equipment values;
 //                                                     logs cardio as one entry
-//   4  W5 L-GYMDATA's OTA                          — also renders INTERVALS, requested exercises
+//   4  W3 OTA (L-CONSENT, T-26.3)                  — shows the health-consent sheet (not gym)
+//   5  W5 L-GYMDATA's OTA                          — also renders INTERVALS, requested exercises
 //                                                     and routine cardio slots
 //
 // Why cardio is level 3, not 2: `x-chefer-api-level` is a single shared
@@ -34,16 +35,17 @@ import { isFlagEnabled } from '../../lib/flags.js';
 // This helper answers exactly one question — "which ExerciseTrackingType
 // values may this level be sent" — so every gym read path applies the same
 // rule (L-GYM's T-42.2 wires it into gym.bootstrap, gym.library.list,
-// gym.session.get, gym.session.list; a routine returned to a level < 4
+// gym.session.get, gym.session.list; a routine returned to a level < 5
 // client has its cardio slots removed the same way, W5).
 
 /**
  * Tracking types renderable at `level` (Δ2.1, revised 2026-09-28 — cardio
- * moved from level 2 to level 3, INTERVALS from 3 to 4; see the note above).
+ * moved from level 2 to level 3, INTERVALS from 3 to 4, then to 5 on 2026-09-29
+ * because wave 3's health consent claimed 4; see the note above).
  * Strength types and `DURATION` are always included — a timed exercise
  * (plank, carries) already renders on every shipped client, since it
  * predates this enum. `DURATION_DISTANCE` and `DISTANCE` need level 3 (the
- * cardio entry UI, T-42.3); `INTERVALS` needs level 4 (the interval timer, W5).
+ * cardio entry UI, T-42.3); `INTERVALS` needs level 5 (the interval timer, W5).
  */
 export function renderableTrackingTypes(level: number): ExerciseTrackingType[] {
   const types: ExerciseTrackingType[] = [
@@ -54,7 +56,7 @@ export function renderableTrackingTypes(level: number): ExerciseTrackingType[] {
   if (level >= 3) {
     types.push(ExerciseTrackingType.DURATION_DISTANCE, ExerciseTrackingType.DISTANCE);
   }
-  if (level >= 4) {
+  if (level >= 5) {
     types.push(ExerciseTrackingType.INTERVALS);
   }
   return types;

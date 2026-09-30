@@ -1,4 +1,5 @@
-import type { ActivityLevel, BiologicalSex, ChefProfile, Goal, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { ActivityLevel, BiologicalSex, ChefProfile, Goal } from '@prisma/client';
 import { prisma } from '../client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -48,6 +49,8 @@ export interface UpsertChefProfileData {
   customTrainingProteinG?: number | null;
   addTrainingBonus?: boolean;
   targetSnapshot?: Prisma.InputJsonValue | typeof Prisma.JsonNull;
+  /** S10 (T-10.4, D-7): the week start whose household scaling was free (first week). */
+  freeScaledWeekStart?: Date | null;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────
@@ -79,6 +82,31 @@ export class ChefProfileRepository implements IChefProfileRepository {
 
   async delete(userId: string): Promise<void> {
     await prisma.chefProfile.delete({ where: { userId } });
+  }
+
+  clearHealthData(userId: string): Prisma.PrismaPromise<Prisma.BatchPayload> {
+    return prisma.chefProfile.updateMany({
+      where: { userId },
+      data: {
+        goal: null,
+        biologicalSex: null,
+        age: null,
+        heightCm: null,
+        weightKg: null,
+        activityLevel: null,
+        dailyCalorieTarget: null,
+        targetAdjustmentKcal: 0,
+        targetMode: 'SUGGESTED',
+        customKcal: null,
+        customProteinG: null,
+        customCarbsG: null,
+        customFatG: null,
+        customTrainingKcal: null,
+        customTrainingProteinG: null,
+        // The last targets the user saw derive from the metrics just erased.
+        targetSnapshot: Prisma.DbNull,
+      },
+    });
   }
 }
 

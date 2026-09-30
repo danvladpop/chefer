@@ -10,6 +10,7 @@ import {
 } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
+import { useHealthConsent } from '../privacy/use-health-consent';
 
 // Correct or remove weigh-ins (audit F-DASH-3-1) — mobile counterpart of web
 // features/coach/WeightEntriesList. Hosted on /progress (as on web) and, for
@@ -25,6 +26,8 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
   const [value, setValue] = useState(shown);
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
+  // T-26.2: correcting a weigh-in stores health information too.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
 
   const invalidate = () => {
     void utils.tracker.weightHistory.invalidate();
@@ -56,7 +59,9 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
       return;
     }
     setError(null);
-    update.mutate({ id: entry.id, weightKg: parsed.kg });
+    requestHealthConsent(() => update.mutate({ id: entry.id, weightKg: parsed.kg }), {
+      onDeclined: () => setEditing(false),
+    });
   };
 
   const confirmDelete = () =>
@@ -113,6 +118,7 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
         </Pressable>
       </View>
       {error && <Text className="text-xs text-red-600">{error}</Text>}
+      {healthConsentSheet}
     </View>
   );
 }

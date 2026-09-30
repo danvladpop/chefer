@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Text } from '@chefer/ui-mobile';
 import { formatPortion, slotPortion } from '@chefer/utils';
+import { AiGeneratedChip } from '../../components/ai-generated-chip';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import type { RouterOutputs } from '../../lib/trpc';
 import { MealTypeBadge } from '../dashboard/components/meal-type-badge';
@@ -94,6 +95,7 @@ export function PlanMealCard({
           <Text numberOfLines={2} className="text-sm font-semibold text-gray-900">
             {meal.recipe.name}
           </Text>
+          <AiGeneratedChip recipe={meal.recipe} />
           <AllergenWarningChip warnings={meal.recipe.allergenWarnings} />
           {/* T-02.4/AC3: a recipe that fails the table's rules never claims
               "Checked" — a conflict pill takes the Checked chip's place. */}

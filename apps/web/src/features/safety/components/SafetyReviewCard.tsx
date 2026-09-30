@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { StepDiet } from '@/features/onboarding/components/step-diet';
+import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { trpc } from '@/lib/trpc';
 import { ShieldQuestion } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
@@ -37,6 +38,8 @@ export function SafetyReviewCard() {
   const { data: prefsData } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
   const [changeOpen, setChangeOpen] = useState(false);
+  // T-26.2: re-saving the allergy lists stores health information.
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
 
   const ownSafety: SafetyPickerValue = {
     allergies: prefsData?.dietaryPreferences?.allergies ?? [],
@@ -106,7 +109,16 @@ export function SafetyReviewCard() {
         size="lg"
         footer={
           <button
-            onClick={() => updateSafetyMutation.mutate(draft)}
+            onClick={() =>
+              requestHealthConsent(() => updateSafetyMutation.mutate(draft), {
+                hasHealthData:
+                  draft.allergies.length +
+                    draft.dietaryRestrictions.length +
+                    draft.dislikedIngredients.length >
+                  0,
+                onDeclined: () => setChangeOpen(false),
+              })
+            }
             disabled={updateSafetyMutation.isPending}
             className="min-h-11 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
           >
@@ -118,6 +130,7 @@ export function SafetyReviewCard() {
           <StepDiet value={draft} onChange={setDraft} />
         </div>
       </Sheet>
+      {healthConsentSheet}
     </div>
   );
 }

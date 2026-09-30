@@ -25,6 +25,7 @@ import {
 import { WeekOutlook } from '../../src/features/dashboard/components/week-outlook';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { TodaysWorkoutCard } from '../../src/features/gym/today/todays-workout-card';
+import { HealthConsentTodayNotice } from '../../src/features/privacy/health-consent-notice';
 import { MigrationCard } from '../../src/features/safety/migration-card';
 import { QuickAddSheet } from '../../src/features/tracker/quick-add-sheet';
 import { ScanMealCard } from '../../src/features/tracker/scan-meal-card';
@@ -151,6 +152,9 @@ export default function HomeScreen() {
         }
       >
         <ModeSwitch />
+
+        {/* UX-26 AC2: after "Don't save it", plans aren't being checked for allergies. */}
+        <HealthConsentTodayNotice />
 
         {/* Header */}
         <View className="flex-row items-end justify-between gap-3">
@@ -296,7 +300,7 @@ export default function HomeScreen() {
           </Card>
         )}
 
-        <WeekOutlook weekPlan={d.weekPlan} />
+        <WeekOutlook weekPlan={d.weekPlan} weekGlance={d.weekGlance} />
 
         {/* B-31 interim (T-00.12): weight tracking assumes a goal. */}
         {showNutritionCards && <WeightCard />}

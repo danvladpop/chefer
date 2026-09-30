@@ -39,6 +39,12 @@ Device ID, Usage Data, Diagnostics, Sensitive Info, Audio.
 - **Usage Data / Diagnostics:** the web app uses PostHog and Sentry, but the iOS app ships
   neither. When mobile Sentry lands (plan task M1-6), add _Diagnostics → Crash Data +
   Performance Data (App Functionality, not linked)_.
+- **Health information consent (wave 3, UX-26):** the Health row above is unchanged (same data
+  types, same purposes, still linked, not tracking). What changed is that the app now asks for
+  the user's permission before storing any of it (a consent sheet on the first allergy, diet,
+  goal, measurement or weigh-in save; separate from the AI consent) and Profile → Privacy & data
+  → "Health information" lets the user withdraw it, which deletes that data. No change to the
+  App Store Connect answers is required. Copy and legal ground are pending counsel review.
 - **Sensitive Info:** Chefer has no halal/kosher or similar options that would reveal religion,
   so nothing to declare. Revisit if such diet options are added.
 - **Third-party AI (Groq, with Cloudflare Workers AI as the fallback):** Apple's label has no

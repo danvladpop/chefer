@@ -172,6 +172,16 @@ appId: dev.chefer.app.dev
     id: 'goal-LOSE_WEIGHT'
 - tapOn:
     id: 'onboarding-continue'
+# UX-26 (T-26.2): a goal is health information — the consent sheet appears once
+# (a fresh throwaway account has none); allow it and the step advances.
+- extendedWaitUntil:
+    visible:
+      id: 'health-consent-allow'
+    timeout: 3000
+    optional: true
+- tapOn:
+    id: 'health-consent-allow'
+    optional: true
 
 # ── Body metrics — optional, Continue works empty ────────────────────────────
 - extendedWaitUntil:

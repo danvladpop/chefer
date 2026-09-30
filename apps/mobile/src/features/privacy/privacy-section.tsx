@@ -6,13 +6,15 @@ import { AccountDataCard } from '../profile/account-data-card';
 import { AiConsentCard } from '../profile/ai-consent-card';
 import { AnalyticsConsentCard } from '../profile/analytics-consent-card';
 import { ConsentHistory } from './consent-history';
+import { HealthConsentCard } from './health-consent-card';
 
 // ─── Profile › Privacy & data (T-39.4) ─────────────────────────────────────────
 // Hosts every privacy/data surface in one section: AI & your data (T-26),
 // Usage analytics (T-12.3), Consent history (T-39.2), a Gym settings row
 // (T-36.1 — routes here since gym has its own settings screen, not a
 // Profile toggle), and Download my data / Delete account (T-39.5).
-// L-CONSENT adds health-consent rows here in wave 3.
+// Health information (T-26.4): consent status + Withdraw and delete, above the
+// AI consent (which stays separate).
 
 function GymSettingsRow() {
   return (
@@ -40,6 +42,7 @@ export function PrivacySection() {
       <Text testID="profile-privacy-heading" variant="title" className="text-lg">
         Privacy & data
       </Text>
+      <HealthConsentCard />
       <AiConsentCard />
       <AnalyticsConsentCard />
       <ConsentHistory />

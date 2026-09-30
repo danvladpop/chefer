@@ -1,4 +1,10 @@
-import type { NutritionTargets, TrainingDayNutrition, TrainingDayReason } from '@chefer/types';
+import type {
+  DayKind,
+  NutritionTargets,
+  TrainingDayKinds,
+  TrainingDayNutrition,
+  TrainingDayReason,
+} from '@chefer/types';
 
 // ─── Training-aware nutrition (audit P2-4, gym_plan.md D11 follow-up) ─────────
 // Deterministic rules that connect the gym to the food side. No AI.
@@ -27,6 +33,10 @@ import type { NutritionTargets, TrainingDayNutrition, TrainingDayReason } from '
 //    workout, protein rises to 2.2 g/kg and calories by 10% of the base
 //    target (rounded to 10, kept within 150–300 kcal); the kcal not covered
 //    by the extra protein goes to carbs.
+//    UX-06 (rev 2) adds weekday KINDS: `lift` keeps the protein-led bump above;
+//    `run` and `long_run` are markers only (owner decision Q-3, 2026-09-30:
+//    they never change calorie or protein targets); a long run adds an
+//    evening-before carb snack idea. See `hasTrainingDayBump`.
 // 3. Post-workout meal (every tier): ~0.4 g protein per kg (per-meal dose
 //    from Schoenfeld & Aragon 2018), rounded to 5 g, 20–45 g; 30 g when
 //    bodyweight is unknown.
@@ -112,9 +122,24 @@ export function lifterProteinGPerKg(goal: string | null | undefined): number | n
   return goal ? (LIFTER_PROTEIN_G_PER_KG_BY_GOAL[goal] ?? null) : null;
 }
 
-/** Whether a lifter with this goal gets the training-day bump (GAIN_MUSCLE only). */
-export function hasTrainingDayBump(goal: string | null | undefined): boolean {
-  return goal === 'GAIN_MUSCLE';
+/**
+ * Whether a user with this goal gets the training-day bump on a day of this
+ * kind: GAIN_MUSCLE lift days only. Owner decision 2026-09-30 (Q-3): run and
+ * long-run days are markers only — they never change calorie or protein
+ * targets, and the bump is not widened to other goals. `widened` is kept for
+ * call-site compatibility and ignored.
+ */
+export function hasTrainingDayBump(
+  goal: string | null | undefined,
+  kind: DayKind = 'lift',
+  _widened = false,
+): boolean {
+  return kind === 'lift' && goal === 'GAIN_MUSCLE';
+}
+
+/** `run` and `long_run` — the carb-led kinds. */
+export function isRunKind(kind: DayKind | null | undefined): kind is 'run' | 'long_run' {
+  return kind === 'run' || kind === 'long_run';
 }
 
 /** Whether the lifter rules apply: set-up gym profile + a goal with a g/kg rule + bodyweight. */
@@ -173,8 +198,18 @@ export interface TrainingDayBonus {
   carbsBonus: number;
 }
 
-/** The training-day bump for a lifter with this base calorie target and bodyweight. */
-export function trainingDayBonus(baseKcal: number, bodyweightKg: number): TrainingDayBonus {
+/**
+ * The training-day bump for this base calorie target. `lift` (default) is
+ * the protein-led bump for a lifter with this bodyweight; `rest`, `run` and
+ * `long_run` are zero (Q-3: run days never change the targets).
+ */
+export function trainingDayBonus(
+  baseKcal: number,
+  bodyweightKg: number,
+  kind: DayKind = 'lift',
+): TrainingDayBonus {
+  // Q-3 (owner, 2026-09-30): rest and run days never move the targets.
+  if (kind === 'rest' || isRunKind(kind)) return { kcalBonus: 0, proteinBonus: 0, carbsBonus: 0 };
   const raw = Math.round((baseKcal * TRAINING_DAY_KCAL.share) / 10) * 10;
   const kcalBonus = Math.min(TRAINING_DAY_KCAL.max, Math.max(TRAINING_DAY_KCAL.min, raw));
   const proteinBonus = Math.round(
@@ -201,12 +236,16 @@ export interface ResolvedTrainingDay {
   isTrainingDay: boolean;
   reason: TrainingDayReason | null;
   workoutName: string | null;
+  /** The day's kind (`lift` / `run` / `long_run`); null on a rest day. */
+  kind: DayKind | null;
 }
 
 /**
- * Is `localDate` a training day? A workout COMPLETED that day always counts
- * (even off-schedule); otherwise a routine day planned for that weekday
- * counts unless a training pause covers the date.
+ * Is `localDate` a training day, and of which kind? A workout COMPLETED that
+ * day always counts (even off-schedule) as a `lift`; otherwise a routine day
+ * planned for that weekday is a `lift` day, and — when the weekday is not a
+ * lift day — a user-set `run` / `long_run` kind (`ChefProfile.trainingDayKinds`)
+ * makes it a run day. A training pause covers all scheduled kinds on its dates.
  *
  * @param weekday Monday = 0 … Sunday = 6 (RoutineDay.plannedWeekday).
  */
@@ -216,14 +255,23 @@ export function resolveTrainingDay(input: {
   scheduled: { plannedWeekday: number | null; name: string }[];
   completed: { localDate: string; name: string }[];
   paused: boolean;
+  /** User-set kinds by weekday ("0"–"6"); only `run` / `long_run` count here. */
+  kinds?: TrainingDayKinds | undefined;
 }): ResolvedTrainingDay {
   const done = input.completed.find((s) => s.localDate === input.localDate);
-  if (done) return { isTrainingDay: true, reason: 'COMPLETED', workoutName: done.name };
+  if (done)
+    return { isTrainingDay: true, reason: 'COMPLETED', workoutName: done.name, kind: 'lift' };
   if (!input.paused) {
     const planned = input.scheduled.find((d) => d.plannedWeekday === input.weekday);
-    if (planned) return { isTrainingDay: true, reason: 'SCHEDULED', workoutName: planned.name };
+    if (planned) {
+      return { isTrainingDay: true, reason: 'SCHEDULED', workoutName: planned.name, kind: 'lift' };
+    }
+    const stored = input.kinds?.[String(input.weekday)];
+    if (isRunKind(stored)) {
+      return { isTrainingDay: true, reason: 'SCHEDULED', workoutName: null, kind: stored };
+    }
   }
-  return { isTrainingDay: false, reason: null, workoutName: null };
+  return { isTrainingDay: false, reason: null, workoutName: null, kind: null };
 }
 
 /**
@@ -234,19 +282,24 @@ export function resolveTrainingDay(input: {
 export function buildTrainingDayNutrition(input: {
   base: NutritionTargets;
   bodyweightKg: number;
-  day: ResolvedTrainingDay;
+  /** `kind` is optional so pre-kinds callers keep working (absent = `lift`). */
+  day: Omit<ResolvedTrainingDay, 'kind'> & { kind?: DayKind | null };
   premium: boolean;
 }): { trainingDay: TrainingDayNutrition; adjustedTargets: NutritionTargets | null } {
+  const kind: DayKind = input.day.kind ?? 'lift';
   const bonus = input.day.isTrainingDay
-    ? trainingDayBonus(input.base.dailyCalorieTarget, input.bodyweightKg)
+    ? trainingDayBonus(input.base.dailyCalorieTarget, input.bodyweightKg, kind)
     : { kcalBonus: 0, proteinBonus: 0, carbsBonus: 0 };
   const applied = input.premium && input.day.isTrainingDay;
   return {
     trainingDay: {
-      ...input.day,
+      isTrainingDay: input.day.isTrainingDay,
+      reason: input.day.reason,
+      workoutName: input.day.workoutName,
       kcalBonus: bonus.kcalBonus,
       proteinBonus: bonus.proteinBonus,
       applied,
+      ...(input.day.isTrainingDay && { kind, carbsBonus: bonus.carbsBonus }),
       basis: {
         bodyweightKg: Math.round(input.bodyweightKg * 10) / 10,
         proteinGPerKg: LIFTER_PROTEIN_G_PER_KG,
@@ -258,8 +311,15 @@ export function buildTrainingDayNutrition(input: {
 }
 
 /** "Training day · +250 kcal, +30 g protein" — one line for both platforms. */
-export function trainingDayLine(t: { kcalBonus: number; proteinBonus: number }): string {
-  return `Training day · +${t.kcalBonus.toLocaleString('en-US')} kcal, +${t.proteinBonus} g protein`;
+export function trainingDayLine(t: {
+  kcalBonus: number;
+  proteinBonus: number;
+  kind?: DayKind | null | undefined;
+}): string {
+  const kcal = t.kcalBonus.toLocaleString('en-US');
+  if (t.kind === 'long_run') return `Long run day · +${kcal} kcal, mostly carbs`;
+  if (t.kind === 'run') return `Run day · +${kcal} kcal, mostly carbs`;
+  return `Training day · +${kcal} kcal, +${t.proteinBonus} g protein`;
 }
 
 /**

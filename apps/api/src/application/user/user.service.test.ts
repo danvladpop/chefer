@@ -172,6 +172,21 @@ describe('UserService.findById', () => {
     expect(dto).not.toHaveProperty('passwordHash');
   });
 
+  it('exposes healthDataConsentAt on the current-user DTO, separate from the AI consent (T-26.1)', async () => {
+    const grantedAt = new Date('2026-10-02T10:00:00Z');
+    repo.findById.mockResolvedValue({ ...baseUser, healthDataConsentAt: grantedAt });
+
+    const dto = await service.findById('u1');
+
+    expect(dto?.healthDataConsentAt).toEqual(grantedAt);
+    expect(dto?.aiDataConsentAt).toBeNull();
+  });
+
+  it('reports healthDataConsentAt as null until the user consents', async () => {
+    repo.findById.mockResolvedValue(baseUser);
+    expect((await service.findById('u1'))?.healthDataConsentAt).toBeNull();
+  });
+
   it('exposes emailDefaultsNoticeAt on the current-user DTO (T-39.3)', async () => {
     const shownAt = new Date('2026-09-28T10:00:00Z');
     repo.findById.mockResolvedValue({ ...baseUser, emailDefaultsNoticeAt: shownAt });

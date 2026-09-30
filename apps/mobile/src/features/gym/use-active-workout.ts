@@ -34,7 +34,18 @@ export type WorkoutActionInput = DistributiveOmit<
 >;
 
 export type StartWorkoutInput =
-  | { kind: 'planned'; workout: NextWorkoutDto; backfillDate?: string }
+  | {
+      kind: 'planned';
+      workout: NextWorkoutDto;
+      backfillDate?: string;
+      /**
+       * T-36.6: exercises a short version dropped ("Time today: 30"). Stored
+       * on the session doc, so Finish carries them to the next session
+       * (`From last time`) exactly like T-36.3's "Move them to next time".
+       * Omit for the full-length path — the doc is then byte-for-byte as before.
+       */
+      carryOverExerciseIds?: string[];
+    }
   | { kind: 'freestyle'; name?: string; backfillDate?: string };
 
 export const FREESTYLE_NAME = 'Freestyle workout';
@@ -80,6 +91,9 @@ export function startWorkout(input: StartWorkoutInput): WorkoutSessionDoc {
         : FREESTYLE_NAME,
     isDeload: planned?.isDeload ?? false,
     exercises: planned?.exercises ?? [],
+    ...(input.kind === 'planned' && input.carryOverExerciseIds?.length
+      ? { carryOverExerciseIds: input.carryOverExerciseIds }
+      : {}),
   });
   activeSessionStore.set(doc, getGymOwner());
   // B-40: the rest-timer background-notification permission used to be asked

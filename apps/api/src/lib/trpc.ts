@@ -6,6 +6,7 @@ import type { UserProfile } from '@chefer/types';
 import { runWithAiCallContext } from './ai/call-context.js';
 import { ConflictCause } from './conflict.js';
 import { isPremiumUser } from './entitlements.js';
+import { assertHealthConsent, HealthConsentRequiredCause } from './health-consent.js';
 import { logger } from './logger.js';
 import { PoolExhaustedCause } from './pool-exhausted.js';
 
@@ -54,6 +55,9 @@ const t = initTRPC.context<Context>().create({
         zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
         // CONFLICT errors that carry the server's current version (lib/conflict.ts).
         conflict: error.cause instanceof ConflictCause ? error.cause.payload : null,
+        // T-26.3: an un-consented health write from a client that declared
+        // it understands the error (lib/health-consent.ts).
+        healthConsentRequired: error.cause instanceof HealthConsentRequiredCause,
         // T-10.4: the free curated pool can't cover this plan (lib/pool-exhausted.ts).
         poolExhausted:
           error.cause instanceof PoolExhaustedCause
@@ -164,6 +168,29 @@ const isAdmin = t.middleware(({ ctx, next }) => {
     },
   });
 });
+
+/**
+ * Health-consent gate (§2.8, T-26.3) — a factory because some procedures only
+ * need consent when the input actually carries health data (`touchesHealthData`;
+ * omitted = always). Behaviour per `HEALTH_CONSENT_ENFORCE` and
+ * `ctx.clientApiLevel` lives in lib/health-consent.ts: under `off` nothing is
+ * rejected, under `declared` only clients declaring the new API level are, and
+ * installed binaries (no header) are never rejected. Attach AFTER `.input()`.
+ */
+export function requireHealthConsent(touchesHealthData?: (input: unknown) => boolean) {
+  return t.middleware(async ({ ctx, next, input }) => {
+    if (!ctx.user) {
+      throw new TRPCError({
+        code: 'UNAUTHORIZED',
+        message: 'You must be logged in to perform this action',
+      });
+    }
+    if (!touchesHealthData || touchesHealthData(input)) {
+      await assertHealthConsent({ userId: ctx.user.id, clientApiLevel: ctx.clientApiLevel });
+    }
+    return next({ ctx: { ...ctx, user: ctx.user } });
+  });
+}
 
 // ─── Exports ──────────────────────────────────────────────────────────────────
 

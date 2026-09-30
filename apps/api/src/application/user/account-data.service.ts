@@ -47,6 +47,8 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
         firstName: true,
         lastName: true,
         planTier: true,
+        // T-26.1: when the user allowed health information (the log is in consentHistory).
+        healthDataConsentAt: true,
         createdAt: true,
       },
     }),

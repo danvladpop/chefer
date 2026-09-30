@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { chefProfileRepository, dailyLogRepository } from '@chefer/database';
+import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
 import { dashboardService } from './dashboard.service.js';
+
+// UX-06: the training-week read (routine, sessions, pauses) is out of scope
+// here — these users have no training days, so the summary has no extras.
+vi.spyOn(trainingNutritionService, 'trainingWeek').mockResolvedValue({
+  trainingDays: [],
+  basis: null,
+});
 
 // B-31 interim (T-00.12): the ring, weight card, profile nudge and Snap-to-log
 // assume a goal. A user who never set one and never logs anything is shown a

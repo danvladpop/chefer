@@ -9,6 +9,16 @@ import {
 // the "just saved, then edited" transition is explicit and doesn't depend on
 // a parent screen's mutation-mock plumbing.
 
+// T-26.2: these tests are about the save itself — the health-consent guard is
+// covered in health-consent.test.tsx, so here consent is always on record.
+jest.mock('../../src/features/privacy/use-health-consent', () => ({
+  useHealthConsent: () => ({
+    consented: true,
+    requestHealthConsent: (run: () => void) => run(),
+    healthConsentSheet: null,
+  }),
+}));
+
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     preferences: {

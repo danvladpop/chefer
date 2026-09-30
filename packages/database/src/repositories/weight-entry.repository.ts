@@ -1,4 +1,4 @@
-import type { WeightEntry } from '@prisma/client';
+import type { Prisma, WeightEntry } from '@prisma/client';
 import { prisma } from '../client';
 
 export interface CreateWeightEntryData {
@@ -73,6 +73,10 @@ export class WeightEntryRepository implements IWeightEntryRepository {
       where: { userId, recordedAt: { lte: readCeiling() } },
       orderBy: { recordedAt: 'desc' },
     });
+  }
+
+  deleteAllForUser(userId: string): Prisma.PrismaPromise<Prisma.BatchPayload> {
+    return prisma.weightEntry.deleteMany({ where: { userId } });
   }
 
   async findInRange(userId: string, from: Date | null, to: Date): Promise<WeightEntry[]> {

@@ -10,8 +10,10 @@ TestFlight build) before submitting. Do it yourself; don't reuse your own accoun
 1. Register with an address you control, e.g. `appreview.chefer@<your-domain-or-gmail-alias>`,
    and a strong password that is used nowhere else.
 2. Go through onboarding: pick a goal, add an allergy (e.g. peanuts), and generate the first
-   meal plan so the reviewer sees real content immediately. Generating the plan shows the
-   AI consent sheet once; tap Allow. The reviewer can still see the consent sheet by
+   meal plan so the reviewer sees real content immediately. Saving the allergy or goal shows
+   the health-information consent sheet once (Allow and save); generating the plan shows the
+   AI consent sheet once; tap Allow. (An account created before the health consent existed
+   is asked once on the next launch — tap Allow and save.) The reviewer can still see the consent sheet by
    switching off Profile → "AI & your data", and the notes below tell them where.
 3. Profile → Your plan: Free → "See what Premium adds" → "Turn on Premium" (free) so every feature is unlocked for review.
 4. Save one recipe, log one meal in Tracker, log one weight entry, and in Gym mode run setup and
@@ -44,6 +46,7 @@ WHERE THINGS ARE
 - Food mode (default): Today, Plan, Shop, Cookbook, More tabs.
 - Gym mode: use the Food/Gym switch in the header of the Food tabs. Gym works offline.
 - Account deletion: More → Profile → "Delete account" (last card). It asks for the password and for DELETE to be typed, then permanently deletes the account and all its data and signs out everywhere.
+- Health information consent: the first time allergies, a diet, a goal, body measurements or a weigh-in are saved, the app asks for permission to store them (Allow and save / Don't save it; "Don't save it" stores none of it). It is separate from the AI consent below. It can be withdrawn, deleting that data, under More → Profile → "Health information" → "Withdraw and delete".
 - AI data consent: the first time an AI feature is used (plan generation, meal-photo scan, recipe import, chat) the app explains what is sent to Groq and Cloudflare Workers AI and asks for permission (Allow / Not now; "Not now" sends nothing). It can be withdrawn under More → Profile → "AI & your data". To see the consent sheet on the demo account, switch that toggle off and tap Generate on the Plan tab.
 
 PERMISSIONS

@@ -43,6 +43,12 @@ vi.mock('@/lib/trpc', () => ({
   },
 }));
 
+vi.mock('@/features/premium/components/UpgradeButton', () => ({
+  UpgradeButton: ({ source }: { source: string }) => (
+    <button data-source={source}>See what Premium adds</button>
+  ),
+}));
+
 beforeEach(() => {
   mocks.setShapeMutate.mockClear();
   mocks.shapeData = LEGACY_SHAPE;
@@ -160,5 +166,43 @@ describe('PlanSettingsSheet', () => {
       />,
     );
     expect(screen.queryByTestId('plan-settings-leftovers')).toBeNull();
+  });
+
+  // T-06.8 (UX-06 §4): `Fit meals to my training days` is a premium switch and
+  // a locked preview for free.
+  it('premium: the fit-training-days switch reports its change to the page', () => {
+    const onFit = vi.fn();
+    render(
+      <PlanSettingsSheet
+        open
+        onClose={vi.fn()}
+        hasPlan={false}
+        weekLabel="this week"
+        isPremium
+        onSaved={vi.fn()}
+        fitTrainingDays
+        onFitTrainingDaysChange={onFit}
+      />,
+    );
+    const sw = screen.getByRole('switch', { name: 'Fit meals to my training days' });
+    expect((sw as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(sw);
+    expect(onFit).toHaveBeenCalledWith(false);
+  });
+
+  it('free: the switch is disabled with a lock and a See what Premium adds link', () => {
+    render(
+      <PlanSettingsSheet
+        open
+        onClose={vi.fn()}
+        hasPlan={false}
+        weekLabel="this week"
+        isPremium={false}
+        onSaved={vi.fn()}
+      />,
+    );
+    const sw = screen.getByRole('switch', { name: 'Fit meals to my training days' });
+    expect((sw as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'See what Premium adds' })).toBeTruthy();
   });
 });

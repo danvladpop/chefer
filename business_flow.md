@@ -38,6 +38,7 @@
 30. [Food Logging: Search, Edit, Undo, Copy Day Flow](#30-food-logging-search-edit-undo-copy-day-flow)
 31. [Manual Recipe Create and Edit](#31-manual-recipe-create-and-edit-ux-40-slices-12-t-401t-4010-t-bug-o3)
 32. [Terms Acceptance & Email Defaults Flow](#32-terms-acceptance--email-defaults-flow-t-391t-393)
+33. [Health Information Consent Flow](#33-health-information-consent-flow-ux-26-t-261t-264-wave-3)
 
 ---
 
@@ -294,6 +295,14 @@ during render. A successful login overwrites it via `Set-Cookie`.
 | ADMIN             | Everything, incl. `user.list`, `user.getById`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure`           |
 
 ---
+
+### 4.9 Health-consent gate (T-26.3, wave 3)
+
+Health writes (`preferences.updateSafety/setup/saveProfileBasics/updateTargets`, `household.add/update`,
+`tracker.logWeight/updateWeight`) pass `requireHealthConsent`. `HEALTH_CONSENT_ENFORCE=off` (all envs, wave 3): never
+rejects. `declared`: an un-consented write is rejected (`PRECONDITION_FAILED` / `HEALTH_CONSENT_REQUIRED`) only from a
+client sending `x-chefer-api-level >= 4`; a request WITHOUT the header (installed binary) is always accepted. See
+§33 and `infrastructure.md` §9.
 
 ## 5. View User Profile Flow
 
@@ -1317,6 +1326,89 @@ protein line.
 protein in your next meal" — linking the next planned meal (from
 `dashboard.summary`, recipe page) or, offline / without a plan, the tracker's
 quick add.
+
+### 10.2 Food that follows training (UX-06, wave 3 — persona study)
+
+**Weekday kinds.** Each weekday is `lift` (from the routine's planned
+weekdays, or a workout completed that date), `run` or `long_run` (set by the
+user in Gym settings › Training days & reminders or onboarding, stored on
+`ChefProfile.trainingDayKinds`) or `rest`. A lift weekday always wins over a
+stored kind. `TrainingNutritionService.trainingWeek` resolves them for the
+plan week.
+
+**Bumps by kind (deterministic, no AI).** `lift` keeps the protein-led bump
+(§10.1) for GAIN_MUSCLE lifters only. `run` and `long_run` are **markers only**:
+they show a glyph, a header and the Explain sheet but never change calorie or
+protein targets (owner decision Q-3, 2026-09-30 — no widening to other goals,
+no run-day numbers). A long run still adds an evening-before carb snack idea
+on the previous day.
+
+**Free vs premium (D-2).** The bump on Today, the tracker and the plan's day
+targets is gated by `trainingDayTargets` (premium) OR the flag
+`trainingBumpFree` (free). Flag off → a free user sees the same numbers as a
+locked preview and the target does not move. `trainingNutrition` (premium)
+means "Fit meals to my training days" — the AI/curated week is built around
+the lift days; the switch is in the Plan settings sheet and is sent as
+`generate.fitTrainingDays`.
+
+**Plan (web + mobile).** Day chips carry a barbell (lift) or walk (run) glyph
+on exactly the training weekdays; the day view gets a header (`Training day ·
+Upper A`, `Target today … kcal · … g protein`, `(+300 kcal, +31 g protein for
+training)`, or `Long run day · +N kcal, mostly carbs`) that opens an Explain
+sheet (`Why this target`, rest-day target, bonus, protein basis, `Change
+training days`); a user whose goal gets no bump sees the marker and title but
+no kcal. The week summary shows `3 training days`. The day before a long run
+shows the pre-run snack idea.
+
+**Today.** `training-day-note` renders the applied state for free (flag on)
+and premium with a `Why?` link; the locked variant only when the bump is not
+applied. For users who train, the week outlook becomes the week glance: seven
+equal columns (Mon–Sun, never a scroll), each with the meal count and a
+barbell / walk glyph (filled = done, outline = planned, never red).
+`dashboard.summary.refuelSnacks` carries two allergy-safe snacks for the gym
+summary's refuel card.
+
+**Known gap.** A change of weekday kinds moves training-day targets, not the
+base targets `TargetsService` snapshots, so it does not yet raise a `DAY_KIND`
+change notice; the run kinds are behind the off-by-default flag until that
+hook lands (see the wave report).
+
+### 10.3 What Premium changed, miss sheet, re-plan banner (T-10.7, T-11.3)
+
+After a premium regeneration the Plan shows a one-time `What Premium changed`
+card from `premiumChanges` (lines, `Meets your … target on X of Y days`, a
+`Fix it` for days outside ±15 %) with `Compare with your free week`
+(`mealPlan.getById(previousPlanId)`). A day under or over its target opens
+`PlanMissSheet`: `Bigger portions` (preview via `mealPlan.scaleDay`, 0.75–1.5×),
+`Add a snack` (never for LOSE_WEIGHT), `Keep it`. When the live target moved
+≥ 5 % since the week was planned, a banner offers `Re-plan with {new}?`.
+
+### 10.4 Sharing the list and the dinners (UX-13, T-13.1–T-13.3)
+
+The Shop header (mobile) / overflow menu (web) offers `Share`: a `Send the
+list` sheet with scope (`What’s left to buy · n items` / `Everything · n
+items`), `Include amounts` and `Add this week’s dinners`, remembered per
+device. The text is built by the shared `formatListForSharing`: title
+(`Shopping list · 28 Sep – 4 Oct`, or `· Fri–Sun` mid-week), aisles in the
+list's order in capitals, `- ` bullets, custom lines under their aisle, ticked
+and pantry-covered lines omitted from "What's left" (pantry-covered marked
+`(have it)` in "Everything"), no emoji or markdown, the dinners block, and one
+`Made with Chefer · {url}` line. Mobile uses React Native's `Share.share`; web
+uses `navigator.share` with a `Copy list` clipboard fallback. The button is
+disabled on an empty list. The week-summary sheet has `Share this week’s
+dinners` (planned dinners only). Sharing is not an AI call.
+
+### 10.5 Household first week free and the pool-exhausted card (T-10.4, D-7)
+
+Flag `householdFirstWeekFree` (off; **owner decision 2026-09-30 (Q-2/D-7): no free
+week — household scaling stays premium-only, the flag stays off**): the first curated week
+generated for a free household is sized for the table (plan cost and the
+`Sized for your table of {n} — free for your first week` line, `firstScaledWeek`
+on the plan); `ChefProfile.freeScaledWeekStart` records it once. From week 2 the
+list says `Sized for 1 portion` with a `Keep portions for your table of {n}`
+row. When the free pool cannot fill the week the Plan shows `Our recipes can’t
+fill this week around your restrictions.` with `Pick recipes yourself` and
+`Premium builds a plan around them` (never a suggestion to relax safety).
 
 ---
 
@@ -2590,6 +2682,27 @@ is ready — about {min} min.`), never during a pause, never late if it's
   everything else in `useGymReminders()`, independent of the main
   `reminderEnabled` toggle. Web parity: not built this wave —
   `mobile_parity_backlog.md`.
+- **"How long have you got?" — short version (T-36.6, UX-36 (6), mobile):**
+  setup step 1 asks an optional `How long can a session usually be?` (`30` /
+  `45` / `60` / `75+ min` → `GymProfile.sessionLengthMins`, also editable in
+  gym settings; step 5's preview flags a day longer than the answer). On Gym
+  Today's next-up card a `Time today:` row (`20` · `30` · `45` · `Full`,
+  default `Full`, remembered per weekday in the gym KV store, never sent to
+  the server) sits above `Start workout`. A shorter choice runs
+  `shortVersionOfWorkout()` (`packages/utils/src/gym/short-version.ts`): if
+  the day already fits (estimate ≤ chosen + 2 min) nothing is cut; otherwise
+  every compound plus the first accessory per muscle are kept, then the last
+  accessories and finally the last compounds are dropped until the estimate
+  is ≤ chosen + 2 (a 30-minute choice previews ≤ 32 min, AC7; always ≥ 1
+  exercise). The card previews `Short version · ~{min} min · {n} exercises`
+  and starts the trimmed session. The dropped exercises ride the session
+  doc's `carryOverExerciseIds` (seeded at start; Finish merges the ids chosen
+  there — `workoutReducer`'s `finish` adds, never replaces, and skips any
+  seeded exercise the user added back), so the T-36.3 mechanism moves them to
+  the head of the next session marked `From last time`. Exercises already
+  `From last time` are not re-carried (they stay on the profile list). `Full`
+  produces a session doc identical to before. Web parity: not built —
+  `mobile_parity_backlog.md`.
 - **Rest-timer permission rationale (bug B-40):** the rest-timer's own
   background-notification permission used to be requested cold, at workout
   start (`use-active-workout.ts`'s `startWorkout()`). It's now asked with a
@@ -3807,3 +3920,49 @@ the condition above only fires for an account whose values predate the
 change and are still on. L-ENTRY's registration flow (§27 above) is
 expected to set `emailDefaultsNoticeAt` explicitly for accounts created
 through it, so a new sign-up never sees the notice either way.
+
+---
+
+## 33. Health Information Consent Flow (UX-26, T-26.1–T-26.4, wave 3)
+
+_(Numbered §33 because §28 is the consent log flow.)_ Allergies, diets, dislikes, goal, body metrics and weigh-ins —
+for the user and every household member — are health information under GDPR Art. 9. **Separate from the AI data
+consent (§25):** this one is about STORING the data, that one about SENDING it to an AI provider. A save that also
+triggers AI asks health consent first for the save; the AI consent still guards the AI call.
+**PENDING COUNSEL REVIEW:** all copy, and the legal ground (explicit consent for every health field, incl. allergies).
+
+**1. First save.** `useHealthConsent().requestHealthConsent(run, { hasHealthData, onDeclined })` wraps every health save on
+web and mobile: safety picker saves (Preferences, household "You", safety migration card), household member save,
+onboarding diet/goal/metrics steps (asked when leaving the step; again at Finish if needed), goal & body card, preferences
+form, weigh-in log/edit. Consent on record, or nothing health-related being stored (empty lists, a member with only a
+name), runs the save at once. Otherwise the `HealthDataConsentSheet` opens (What/Why/Where/Your choice; two buttons,
+nothing pre-selected).
+
+**2. Allow and save.** `privacy.grantHealthConsent({ version })` → one transaction: `HEALTH` `ConsentEvent`
+(`granted:true`, copy version) + `User.healthDataConsentAt/Version`; then the original save runs (after the sheet has
+fully closed on mobile, so a following modal can present). Idempotent.
+
+**3. Don't save it.** Nothing health-related is sent or stored (AC2). Other answers are kept (a household member without
+allergy lists; onboarding's other steps; preferences' units/cuisine). An amber notice says what that means
+(`Without this, Chefer can’t check plans for allergies.`); the device remembers the answer and Food Today shows a
+dismissible `Plans aren’t being checked for allergies` / `Allow health information` card
+(`HealthConsentTodayNotice`, mounted by the dashboard lane).
+
+**4. Existing data (Q-7 — owner chose (a) keep + ask, 2026-09-30; wording still PENDING COUNSEL).** Data stored before this consent existed is kept; on the
+next launch `HealthConsentLaunchPrompt` opens the sheet once per launch/session if health data exists but consent
+doesn't. "Don't save it" changes nothing stored.
+
+**5. Enforcement (Q-10, owner 2026-09-30).** `HEALTH_CONSENT_ENFORCE` goes to `declared` (wave 4, after both
+installed builds show the wave-3 OTA) and stays there — `all` is not planned.
+
+**5. Withdraw (Profile › Privacy & data › Health information).** Shows `Allowed on {date}`; `Withdraw and delete` →
+confirm (`Delete your health information?`) → `privacy.withdrawHealthData({ confirm: 'WITHDRAW' })`: one transaction
+deletes allergies/diets/dislikes (owner + household), goal/metrics/own targets, weigh-ins, target-change history, blanks
+the allergy snapshot in safety reports, clears the consent cache and logs the withdrawal (AC3). The account and the
+household people stay. Plans stop showing `Checked for` because the rules are gone. Then all caches are invalidated. Not
+allowed → the row offers `Allow health information`.
+
+**6. Server gate.** §4.x above. **7. AI label (T-26.6).** `RecipeDto.aiGenerated` (additive) → `AiGeneratedChip` on AI plan
+meals, imported drafts and swap proposals; chat carries its own "AI Chef" label. **8. Evidence trail (T-26.7).** CI archives
+the safety regression report per commit; `SafetyReport` rows; one `safety.filter` log line per plan generation.
+Analytics (counts only): `health_consent_answered { allowed }`, `health_consent_withdrawn {}`.
