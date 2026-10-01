@@ -51,7 +51,7 @@ describe('SearchField', () => {
     expect(onDebouncedChange).toHaveBeenCalledTimes(1);
     expect(onDebouncedChange).toHaveBeenLastCalledWith('');
     expect(onClear).toHaveBeenCalledTimes(1);
-    await act(async () => {
+    await act(() => {
       jest.advanceTimersByTime(1000);
     });
     expect(onDebouncedChange).toHaveBeenCalledTimes(1); // "ana" never fires
@@ -63,15 +63,15 @@ describe('SearchField', () => {
     await render(<SearchField accessibilityLabel="Search" onDebouncedChange={onDebouncedChange} />);
     const input = screen.getByLabelText('Search');
     await fireEvent.changeText(input, 'a');
-    await act(async () => {
+    await act(() => {
       jest.advanceTimersByTime(200);
     });
     await fireEvent.changeText(input, 'an');
-    await act(async () => {
+    await act(() => {
       jest.advanceTimersByTime(249);
     });
     expect(onDebouncedChange).not.toHaveBeenCalled();
-    await act(async () => {
+    await act(() => {
       jest.advanceTimersByTime(1);
     });
     expect(onDebouncedChange).toHaveBeenCalledTimes(1);
@@ -94,7 +94,7 @@ describe('SearchField', () => {
     expect(onDebouncedChange).toHaveBeenCalledTimes(1);
     expect(onDebouncedChange).toHaveBeenCalledWith('ana');
     expect(onSubmitEditing).toHaveBeenCalledTimes(1);
-    await act(async () => {
+    await act(() => {
       jest.advanceTimersByTime(1000);
     });
     expect(onDebouncedChange).toHaveBeenCalledTimes(1); // no second fire
@@ -124,7 +124,7 @@ describe('SearchField', () => {
     );
     await fireEvent.changeText(screen.getByLabelText('Search'), 'ana');
     await view.unmount();
-    await act(async () => {
+    await act(() => {
       jest.advanceTimersByTime(1000);
     });
     expect(onDebouncedChange).not.toHaveBeenCalled();
