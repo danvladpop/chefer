@@ -1797,6 +1797,8 @@ grams row (50/100/150/200 g + live kcal).
 - **Ownership:** only rows the owner may see are considered (I4).
 - **Shared rules:** the same key rules drive the catalog build's coverage report and the shopping list's `canonicalIngredientName`, so the duplicate normalizer there is gone.
 
+**Legacy migration** (`legacy-line-policy.ts` + `src/scripts/ingredients-migrate.ts`, plan §7, P8). A one-off, idempotent script. It links global price rows, forces private twins, then plans every non-curated recipe without catalog lines: exact/alias, then `data/ingredients/legacy-mapping.json`, then the legacy unit policy (migration only, never on live saves). It computes through `RecipeNutritionService` and writes through `RecipeLineRepository.writeLines`. The JSON mirror keeps the author's names and units. `ingredients:verify` re-checks I1/I3. Always run `--dry-run` with `--report-dir` first; the report has per-source status counts, the kcal-change distribution by month, and every non-COMPUTED recipe with its lines.
+
 **RecipeNutritionService** (`recipe-nutrition.service.ts`). `compute(lines, ownerId, servings)` runs the shared engine over the rows the owner may see. `recomputeRecipesUsing(ingredientId)` rewrites every recipe with a line on that ingredient through `RecipeLineRepository.writeLines`. A USER_ENTERED recipe whose lines still don't all resolve keeps its typed numbers (D4). Private-ingredient edits trigger it; the recipe write paths adopt it in P6.
 
 **IngredientRepository** (`packages/database`, `ingredient.repository.ts`). Every read is scoped to global rows plus the owner's private rows:
@@ -3429,6 +3431,8 @@ pnpm db:migrate       # Create a named migration
 pnpm db:migrate:prod  # Apply migrations (production)
 pnpm db:seed          # Seed development data
 pnpm ingredients:sync # Upsert catalog.json into the global ingredient rows (also runs on every deploy)
+pnpm --filter @chefer/api ingredients:migrate --dry-run  # One-off: move every recipe to catalog lines (report only)
+pnpm --filter @chefer/api ingredients:verify            # Check every COMPUTED recipe recomputes identically (I1/I3)
 pnpm db:studio        # Prisma Studio at localhost:5555
 pnpm db:generate      # Regenerate Prisma client after schema change
 ```

@@ -541,6 +541,32 @@ Write one idempotent script, `pnpm ingredients:migrate [--dry-run] [--env prod]`
    - the 20 largest changes, for the owner to sanity-check. A large change is expected wherever the old AI guess was wrong. A wildly implausible one points to a bad mapping.
 8. **History is untouched.** `DailyLog` stores its own totals and is never rewritten. Active meal plans read recipe nutrition live, so recomputed values appear in the _planned_ view. That is intended.
 
+### 7.9 As built (P8, 2026-10-01)
+
+Scripts: `pnpm --filter @chefer/api ingredients:migrate [--dry-run] [--report-dir DIR] [--limit N] [--force]` and `ingredients:verify`. The pure policy lives in `apps/api/src/application/ingredients/legacy-line-policy.ts` (tested); the mapping is `packages/database/data/ingredients/legacy-mapping.json` (81 names).
+
+Deviations from the plan text above:
+
+- **The JSON mirror keeps what the author wrote** (names and units), not catalog display names (step 5). Old binaries show the recipe exactly as before, and the migration stays idempotent because it always replans from the mirror. Split lines are the exception: the mirror shows each part.
+- **Step 2 is lazy** (`ensurePrivateTwins`, P5); the script only forces it for every owner up front.
+- **`partial` instead of `DROP_LINE`.** No line is dropped. Leftovers ("leftover pork chops"), whole dishes as one line, catalog gaps (collagen, coconut flour) and proxies more than 1.5× off in kcal (vegan feta, cashew cream, tahini dressing) are left unresolved on purpose, with the reason in the report.
+- **Proxies.** 37 names map to the nearest catalog food with `proxy: true` (mostly spice blends and sauces used by the teaspoon, where the kcal error is negligible). They are listed in the file for review.
+- **Legacy unit policy (migration only).** When a line's unit has no portion on its row: a size stated in the unit text ("can (13.5 oz)"), a bare count or prep word → the row's whole-unit portion, a size word the row lacks → its piece, stalk/strip/slice/leaf equivalents, and zest measured in fruit → 1 tbsp per fruit. Each use is recorded in the line note and counted in the report. A bare "can", scoop, block, inch or head is never given a default weight (I6).
+- **MANUAL recipes that don't fully resolve keep their typed numbers** as USER_ENTERED (D4), instead of PARTIAL.
+
+Results:
+
+| Run                                                                     | Recipes | COMPUTED    | Not computed                         | kcal change (median, p10 / p90) |
+| ----------------------------------------------------------------------- | ------- | ----------- | ------------------------------------ | ------------------------------- |
+| dev clone (applied; `ingredients:verify` 0 problems; re-run is a no-op) | 591     | 515 (87.1%) | AI 72 PARTIAL, MANUAL 4 USER_ENTERED | −2%, −54% / +50%                |
+| prod snapshot 2026-10-01 (dry run)                                      | 487     | 413 (84.8%) | AI 69 PARTIAL, MANUAL 5 USER_ENTERED | −28%, −61% / +16%               |
+
+**Exit criterion "≥ 99% COMPUTED" is not met.** The prod remainder by cause (lines): NO_PORTION 33 (mostly bare "can", "scoop", "bunch", "head"), deliberate partials 32, NO_DENSITY 9 (parmesan/sage by the spoon, frozen mixed vegetables by the cup), BAD_UNIT 9 (block, inch, thick-cut), no match 10. 62 of the 74 recipes have exactly one bad line. On dev, 300 of the 314 "no match" lines are one MANUAL stress-test recipe.
+
+**The prod kcal drop is a correction, not a bug.** By creation month the median change is −24% (Mar), −35% (Apr), −43% (Jul), −36% (Aug) and −8% (Sep). Older generator eras stated slot-target calories that their quantities did not support. Spot checks agree: an "Avocado Lentil Bowl" with 180 g dry lentils and 270 g rice was stored at 589 kcal and computes to 1,240. Active meal plans read recipe nutrition live, so planned days built from old recipes will show lower totals after the prod run.
+
+Open before the prod run (owner): a can-size decision (closes most NO_PORTION lines), whether to accept about 15% PARTIAL legacy AI recipes or regenerate them, and the go-ahead itself. Take a fresh backup first.
+
 ---
 
 ## 8. Private ingredients and the weekly review

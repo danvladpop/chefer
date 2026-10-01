@@ -18,7 +18,9 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "clean": "rm -rf dist",
-    "ai:eval": "tsx src/lib/ai/eval/run-eval.ts"
+    "ai:eval": "tsx src/lib/ai/eval/run-eval.ts",
+    "ingredients:migrate": "tsx src/scripts/ingredients-migrate.ts",
+    "ingredients:verify": "tsx src/scripts/ingredients-verify.ts"
   },
   "dependencies": {
     "@chefer/database": "workspace:*",

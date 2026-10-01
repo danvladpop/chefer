@@ -1,0 +1,508 @@
+{
+  "version": 1,
+  "about": "plan-ingredient-catalog §7 step 3: legacy recipe-line names that do not resolve exact/alias, mapped for the one-off migration. Keys are normalized names (normalizeIngredientKey). Kinds: slug (one row; proxy=true marks a nearest-food stand-in for review), split (a compound line becomes several rows; share = fraction of the quantity), partial (left unresolved on purpose: a prepared dish, a leftover, or a name with no honest catalog equivalent). Names, slugs and shares only — never nutrition numbers. Names that occur only in users' own MANUAL recipes are not listed here (repo is public).",
+  "names": {
+    "almond flour tortilla": {
+      "partial": true,
+      "reason": "prepared product, no catalog row"
+    },
+    "balsamic glaze": {
+      "slug": "vinegar-balsamic",
+      "proxy": true,
+      "note": "balsamic glaze"
+    },
+    "beef stir fry": {
+      "partial": true,
+      "reason": "a whole dish as one line"
+    },
+    "berries": {
+      "split": [
+        {
+          "slug": "strawberries-raw",
+          "name": "Strawberries",
+          "share": 0.34
+        },
+        {
+          "slug": "blueberries-raw",
+          "name": "Blueberries",
+          "share": 0.33
+        },
+        {
+          "slug": "raspberries-raw",
+          "name": "Raspberries",
+          "share": 0.33
+        }
+      ]
+    },
+    "biryani spice mix": {
+      "slug": "curry-powder",
+      "proxy": true,
+      "note": "biryani spice mix"
+    },
+    "canned mixed beans": {
+      "slug": "black-beans-canned",
+      "proxy": true,
+      "note": "mixed beans"
+    },
+    "cashew cream": {
+      "partial": true,
+      "reason": "no catalog row; the nearest food is more than 1.5× off in kcal"
+    },
+    "cauliflower mash": {
+      "partial": true,
+      "reason": "prepared dish"
+    },
+    "cauliflower pizza crust": {
+      "partial": true,
+      "reason": "prepared product, no catalog row"
+    },
+    "chana masala spice blend": {
+      "slug": "curry-powder",
+      "proxy": true,
+      "note": "chana masala spice blend"
+    },
+    "chicken and veggie stir fry": {
+      "partial": true,
+      "reason": "a whole dish as one line"
+    },
+    "cilantro lime dressing": {
+      "slug": "salad-dressing-creamy",
+      "proxy": true,
+      "note": "cilantro lime dressing"
+    },
+    "coconut aminos": {
+      "slug": "tamari",
+      "proxy": true,
+      "note": "coconut aminos"
+    },
+    "coconut aminos sauce": {
+      "slug": "tamari",
+      "proxy": true,
+      "note": "coconut aminos"
+    },
+    "coconut flour": {
+      "partial": true,
+      "reason": "neither FDC nor CIQUAL has coconut flour (catalog gap)"
+    },
+    "collagen peptides": {
+      "partial": true,
+      "reason": "no collagen row in the catalog (gap)"
+    },
+    "creamy tomato pasta": {
+      "partial": true,
+      "reason": "a whole dish as one line"
+    },
+    "curry paste": {
+      "slug": "curry-powder",
+      "proxy": true,
+      "note": "curry paste"
+    },
+    "curry spices blend": {
+      "slug": "curry-powder",
+      "proxy": true
+    },
+    "edamame beans in pods": {
+      "slug": "edamame-frozen",
+      "quantityFactor": 0.5,
+      "note": "weighed in pods; about half is beans"
+    },
+    "everything bagel seasoning": {
+      "slug": "sesame-seeds",
+      "proxy": true,
+      "note": "everything bagel seasoning"
+    },
+    "fajita seasoning": {
+      "slug": "chili-seasoning-mix",
+      "proxy": true,
+      "note": "fajita seasoning"
+    },
+    "fajita seasoning paleo": {
+      "slug": "chili-seasoning-mix",
+      "proxy": true,
+      "note": "fajita seasoning"
+    },
+    "frozen mixed berries": {
+      "split": [
+        {
+          "slug": "strawberries-frozen",
+          "name": "Frozen strawberries",
+          "share": 0.34
+        },
+        {
+          "slug": "blueberries-frozen",
+          "name": "Frozen blueberries",
+          "share": 0.33
+        },
+        {
+          "slug": "raspberries-frozen",
+          "name": "Frozen raspberries",
+          "share": 0.33
+        }
+      ]
+    },
+    "garam masala": {
+      "slug": "curry-powder",
+      "proxy": true,
+      "note": "garam masala"
+    },
+    "garam masala spice blend": {
+      "slug": "curry-powder",
+      "proxy": true,
+      "note": "garam masala"
+    },
+    "ginger dressing": {
+      "slug": "sesame-dressing",
+      "proxy": true,
+      "note": "ginger dressing"
+    },
+    "ginger garlic paste": {
+      "split": [
+        {
+          "slug": "ginger-root-raw",
+          "name": "Ginger",
+          "share": 0.5
+        },
+        {
+          "slug": "garlic-raw",
+          "name": "Garlic",
+          "share": 0.5
+        }
+      ]
+    },
+    "green curry paste": {
+      "slug": "curry-powder",
+      "proxy": true,
+      "note": "green curry paste"
+    },
+    "green curry paste paleo": {
+      "slug": "curry-powder",
+      "proxy": true,
+      "note": "green curry paste"
+    },
+    "halloumi": {
+      "slug": "cheese-average",
+      "proxy": true,
+      "note": "halloumi"
+    },
+    "halloumi cheese": {
+      "slug": "cheese-average",
+      "proxy": true,
+      "note": "halloumi"
+    },
+    "halloumi cheese sliced": {
+      "slug": "cheese-average",
+      "proxy": true,
+      "note": "halloumi, sliced"
+    },
+    "herbs de provence": {
+      "slug": "thyme-dried",
+      "proxy": true,
+      "note": "herbes de Provence"
+    },
+    "italian seasoning": {
+      "slug": "oregano-dried",
+      "proxy": true,
+      "note": "Italian seasoning"
+    },
+    "jalape": {
+      "slug": "jalapeno-raw",
+      "note": "name truncated in the source"
+    },
+    "leftover beef stir fry": {
+      "partial": true,
+      "reason": "leftover of another dish"
+    },
+    "leftover chicken and vegetable skillet": {
+      "partial": true,
+      "reason": "leftover of another dish"
+    },
+    "leftover chicken fajitas": {
+      "partial": true,
+      "reason": "leftover of another dish"
+    },
+    "leftover green curry": {
+      "partial": true,
+      "reason": "leftover of another dish"
+    },
+    "leftover lamb kofta": {
+      "partial": true,
+      "reason": "leftover of another dish"
+    },
+    "leftover pork chops": {
+      "partial": true,
+      "reason": "leftover of another dish"
+    },
+    "leftover thai chicken curry soup": {
+      "partial": true,
+      "reason": "leftover of another dish"
+    },
+    "leftover turkey meatballs": {
+      "partial": true,
+      "reason": "leftover of another dish"
+    },
+    "leftover turkey meatloaf": {
+      "partial": true,
+      "reason": "leftover of another dish"
+    },
+    "leftover turkey skillet": {
+      "partial": true,
+      "reason": "leftover of another dish"
+    },
+    "lemon tahini dressing": {
+      "split": [
+        {
+          "slug": "tahini",
+          "name": "Tahini",
+          "share": 0.67
+        },
+        {
+          "slug": "lemon-juice",
+          "name": "Lemon juice",
+          "share": 0.33
+        }
+      ]
+    },
+    "low fat feta cheese": {
+      "slug": "feta",
+      "proxy": true,
+      "note": "low-fat"
+    },
+    "marinade": {
+      "partial": true,
+      "reason": "unspecified marinade"
+    },
+    "mint chutney": {
+      "slug": "mint-fresh",
+      "proxy": true,
+      "note": "mint chutney"
+    },
+    "mixed berries": {
+      "split": [
+        {
+          "slug": "strawberries-raw",
+          "name": "Strawberries",
+          "share": 0.34
+        },
+        {
+          "slug": "blueberries-raw",
+          "name": "Blueberries",
+          "share": 0.33
+        },
+        {
+          "slug": "raspberries-raw",
+          "name": "Raspberries",
+          "share": 0.33
+        }
+      ]
+    },
+    "mixed berries frozen": {
+      "split": [
+        {
+          "slug": "strawberries-frozen",
+          "name": "Frozen strawberries",
+          "share": 0.34
+        },
+        {
+          "slug": "blueberries-frozen",
+          "name": "Frozen blueberries",
+          "share": 0.33
+        },
+        {
+          "slug": "raspberries-frozen",
+          "name": "Frozen raspberries",
+          "share": 0.33
+        }
+      ]
+    },
+    "mixed berries strawberries blueberries raspberries": {
+      "split": [
+        {
+          "slug": "strawberries-raw",
+          "name": "Strawberries",
+          "share": 0.34
+        },
+        {
+          "slug": "blueberries-raw",
+          "name": "Blueberries",
+          "share": 0.33
+        },
+        {
+          "slug": "raspberries-raw",
+          "name": "Raspberries",
+          "share": 0.33
+        }
+      ]
+    },
+    "mixed herbs rosemary thyme": {
+      "split": [
+        {
+          "slug": "rosemary-fresh",
+          "name": "Rosemary",
+          "share": 0.5
+        },
+        {
+          "slug": "thyme-fresh",
+          "name": "Thyme",
+          "share": 0.5
+        }
+      ]
+    },
+    "mixed seeds pumpkin sunflower": {
+      "split": [
+        {
+          "slug": "pumpkin-seeds",
+          "name": "Pumpkin seeds",
+          "share": 0.5
+        },
+        {
+          "slug": "sunflower-seeds",
+          "name": "Sunflower seeds",
+          "share": 0.5
+        }
+      ]
+    },
+    "olive oil and herbs": {
+      "slug": "olive-oil",
+      "proxy": true,
+      "note": "with herbs"
+    },
+    "olive oil lemon dressing": {
+      "split": [
+        {
+          "slug": "olive-oil",
+          "name": "Olive oil",
+          "share": 0.67
+        },
+        {
+          "slug": "lemon-juice",
+          "name": "Lemon juice",
+          "share": 0.33
+        }
+      ]
+    },
+    "pad thai sauce": {
+      "slug": "tamari",
+      "proxy": true,
+      "note": "pad thai sauce"
+    },
+    "red curry paste": {
+      "slug": "curry-powder",
+      "proxy": true,
+      "note": "red curry paste"
+    },
+    "red curry paste paleo": {
+      "slug": "curry-powder",
+      "proxy": true,
+      "note": "red curry paste"
+    },
+    "salt and black pepper": {
+      "split": [
+        {
+          "slug": "salt",
+          "name": "Salt",
+          "share": 1
+        },
+        {
+          "slug": "black-pepper",
+          "name": "Black pepper",
+          "share": 1
+        }
+      ]
+    },
+    "salt and pepper": {
+      "split": [
+        {
+          "slug": "salt",
+          "name": "Salt",
+          "share": 1
+        },
+        {
+          "slug": "black-pepper",
+          "name": "Black pepper",
+          "share": 1
+        }
+      ]
+    },
+    "shepherds pie": {
+      "partial": true,
+      "reason": "a whole dish as one line"
+    },
+    "soba noodles": {
+      "slug": "buckwheat-groats-dry",
+      "proxy": true,
+      "note": "soba noodles"
+    },
+    "soba noodles cooked": {
+      "slug": "buckwheat-cooked",
+      "proxy": true,
+      "note": "soba noodles, cooked"
+    },
+    "soy sauce alternative": {
+      "slug": "tamari",
+      "proxy": true,
+      "note": "soy sauce alternative"
+    },
+    "soy sauce marinade": {
+      "slug": "soy-sauce",
+      "proxy": true,
+      "note": "marinade"
+    },
+    "spices": {
+      "partial": true,
+      "reason": "unspecified spices"
+    },
+    "stir fry sauce": {
+      "slug": "soy-sauce",
+      "proxy": true,
+      "note": "stir-fry sauce"
+    },
+    "sunflower or vegetable oil": {
+      "slug": "sunflower-oil"
+    },
+    "taco seasoning": {
+      "slug": "chili-seasoning-mix",
+      "proxy": true,
+      "note": "taco seasoning"
+    },
+    "tagine spice blend": {
+      "slug": "cumin",
+      "proxy": true,
+      "note": "tagine spice blend"
+    },
+    "tahini dressing": {
+      "partial": true,
+      "reason": "no catalog row; the nearest food is more than 1.5× off in kcal"
+    },
+    "tamari ginger sauce": {
+      "slug": "tamari",
+      "proxy": true,
+      "note": "tamari-ginger sauce"
+    },
+    "thai green curry": {
+      "partial": true,
+      "reason": "a whole dish as one line"
+    },
+    "tikka masala spice blend": {
+      "slug": "curry-powder",
+      "proxy": true,
+      "note": "tikka masala spice blend"
+    },
+    "toasted sunflower seeds": {
+      "slug": "sunflower-seeds-roasted"
+    },
+    "turkey meatloaf": {
+      "partial": true,
+      "reason": "a whole dish as one line"
+    },
+    "tzatziki sauce": {
+      "slug": "tzatziki"
+    },
+    "vegan feta": {
+      "partial": true,
+      "reason": "no catalog row; the nearest food is more than 1.5× off in kcal"
+    },
+    "water or vegetable broth": {
+      "slug": "vegetable-broth"
+    }
+  }
+}
