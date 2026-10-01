@@ -423,6 +423,16 @@ These tests are the core quality gate:
 2. Look up in order: exact slug, then global alias, then the owner's private alias or name.
 3. Otherwise return ranked **candidates**: trigram similarity via `pg_trgm` on name and aliases, which needs a migration-free `CREATE EXTENSION` in the sync script. Fuzzy candidates are **never auto-applied on write**. They are only suggestions for a human or for the LLM repair round.
 
+### 6.1.1 As built in P5 (2026-10-01)
+
+- **Code.** The resolver is `apps/api/src/application/ingredients/ingredient-resolver.ts`. Reads go through `IngredientRepository` in `packages/database`, and the lookup keys come from `ingredientLookupKeys` / `ingredientBaseKey` in `@chefer/utils` (`nutrition/ingredient-name.ts`).
+- **One set of name rules.** The shopping list's `canonicalIngredientName` now delegates to `ingredientBaseKey`, and the catalog build's coverage report uses the same functions. An API test keeps the key form identical to the catalog's `normalizeAlias`.
+- **Fuzzy candidates use no trigram index yet.** At about 4.4k aliases a sequential `similarity()` scan is fast. Prisma can declare a `gin_trgm_ops` index, but `db push` would fail on a database without the extension, and the extension is only created by the sync that runs after `db push`.
+- **`ingredients.search` name field.** Its legacy `name` is the alias the query matched, so an old client's free-text line resolves back to the same row.
+- **Private ingredients created before the catalog** get their `Ingredient` twin lazily per user (`ensurePrivateTwins`). That covers §7 step 2 for anyone who opens search, resolve or compute; P8 still runs it for everyone.
+- **`createCustom`** keeps writing the linked legacy price row while that name is free, so the price consumers keep working. A name taken by another row no longer blocks creation (F7).
+- **D7 for global rows.** `update` changes only price and image; macro fields in the input are ignored.
+
 ### 6.2 Where resolution is applied
 
 | Write path                                                                           | Behaviour                                                                                                                                                                                                                                                                                                                                      |

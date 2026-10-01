@@ -8,6 +8,9 @@ const computed = {
   unmatched: [] as string[],
   matchedCount: 6,
   totalCount: 6,
+  // Additive response fields (plan-ingredient-catalog §9); unused by the line.
+  status: 'COMPUTED' as const,
+  lines: [],
 };
 
 describe('computedNutritionCoverageLine', () => {

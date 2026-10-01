@@ -1069,10 +1069,21 @@ Ingredient catalog permissions
   +- /ingredients page: All / My Ingredients tabs, search, add/edit/delete
 
 Recipe creation (revamped form)
-  +- ingredients.search picks from the catalog; ingredients.createCustom adds
-  |    private ingredients (manual macros, uploaded or AI-generated image)
-  +- ingredients.computeNutrition auto-fills per-serving nutrition from
-  |    ingredient quantities (unit conversion x per-100g macros)
+  +- ingredients.search picks from the ingredient CATALOG (USDA/CIQUAL rows +
+  |    own private rows; any alias, Romanian names, diacritic-free)
+  +- ingredients.createCustom adds a private ingredient (the 5 core macros
+  |    from the label, uploaded or AI-generated image). If Chefer already has
+  |    it (exact name or alias) -> CONFLICT "Chefer already has X", unless the
+  |    user confirms theirs is different (confirmDifferent)
+  +- ingredients.computeNutrition: shared engine, grams x catalog per-100 g.
+  |    Lines carry ingredientId (picked) or are resolved by name (exact /
+  |    alias only). A line it cannot convert (unknown name, cup without a
+  |    density, "clove" without a portion) is listed as unmatched and the
+  |    result is PARTIAL -- nothing is guessed
+  +- ingredients.resolve: free text -> catalog row (exact / alias), or fuzzy
+  |    candidates the user must pick from (never auto-applied)
+  +- editing a private ingredient recomputes the owner's recipes that use it;
+  |    deleting one deprecates it (existing recipes keep their numbers)
   +- recipe photo: device upload (POST /api/uploads/image, <=10 MB since
   |    T-BUG-O1/Q-22; the mobile app first shrinks the photo to <= 2048 px,
   |    JPEG 0.8 — T-BUG-O1.2) or deterministic AI image (recipe.aiImageUrl); a failed
