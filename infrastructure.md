@@ -864,6 +864,10 @@ Pure, side-effect-free utilities. Dependencies: `clsx`, `tailwind-merge`, `date-
   - `edibleFraction` scales mass and volume quantities only, because portion grams are already edible.
   - `computeRecipeNutrition(lines, lookup, servings)` returns `COMPUTED` or `PARTIAL`, the full-precision `total`, a rounded `perServing` and per-line grams and facts. Optional lines are reported but left out of totals.
 - **`rounding.ts`.** `roundNutritionFacts` rounds kcal to an integer and macros to 1 decimal, half up, never -0.
+- **`picker.ts` (P9, plan §10).** What the web and mobile recipe forms share around the ingredient picker:
+  - `ingredientUnitOptions(row)` lists the units a line on that row converts without guessing: mass always, the row's portions, volume only with a density, and the tiny units. `isUnitAllowedFor` and `unitForPickedIngredient` (keep the current unit if it converts, else `g`) build on it.
+  - Copy: `nutritionComputedCopy(n)` ("Nutrition is computed from N ingredients"), `nutritionIncompleteCopy(n)` ("Incomplete — N ingredients need data"), `NUTRITION_USER_ENTERED_COPY` ("Entered by you") and `lineProblemCopy(problem)`.
+  - Labels: `nutritionSourceLabel(source, owner)` (USDA / CIQUAL / Label / Mine), `INGREDIENT_CATEGORY_LABELS` and `PICKER_CATEGORY_CHIPS`.
 - **Tests.**
   - `golden.test.ts`: 16 recipes over USDA FDC SR Legacy values, each within ±0.5 of an independent hand computation.
   - `units.test.ts`: 1 cup flour ≈ 125 g, 1 tbsp oil ≈ 13.5 g, 2 garlic cloves = 6 g.
