@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { AI_REVIEW_A11Y_LABEL } from '@chefer/types';
 import { Card, ExplainSheet, Text } from '@chefer/ui-mobile';
 import { formatWeightTrend } from '@chefer/utils';
+import { AiGeneratedChip } from '../../components/ai-generated-chip';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
 import { openPremium } from '../premium/open-premium';
@@ -101,6 +103,12 @@ export function ChefReviewBanner() {
           <Text className="text-sm font-semibold text-emerald-900">
             Your chef&apos;s weekly review
           </Text>
+          {/* R-14 (Art. 50): only when the model wrote the text, not the template. */}
+          <AiGeneratedChip
+            recipe={r}
+            testID="coach-review-ai-chip"
+            a11yLabel={AI_REVIEW_A11Y_LABEL}
+          />
           <Text className="mt-0.5 text-xs text-emerald-800">
             {expanded ? r.reviewText : r.reviewText.split('\n')[0]}
           </Text>

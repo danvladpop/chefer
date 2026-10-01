@@ -164,7 +164,8 @@ free workout log too, not meal planning alone (CI-16/CI-25).
    │     pre-selected from the device region, CI-24, and the once-only
    │     "Plan my next week automatically every Sunday?" switch, default
    │     off, T-03.9) → Your goal (adds a "Just good food" card — no
-   │     calorie target, ever, AC6) → Body metrics (optional).
+   │     calorie target, ever, AC6) → Body metrics (optional; age must be 16+
+   │     — see "Body-metric age and calorie-target safety rules" below).
    ├── Feed my household also adds "Who's at your table?" before Diet.
    ├── Train + a food job also adds "Which days do you train?" before Diet
    │     (weekday chips + a per-day Lift/Run/Long run row via
@@ -626,7 +627,8 @@ mealPlan.generate { weekOffset }
        ├─ calorie + macro targets from resolveDailyTargets()
        │   (preferences.service — THE single source: live Mifflin-St Jeor
        │   TDEE ± goal adjustment when metrics are complete, else the stored
-       │   snapshot. The dashboard ring and tracker read the same resolver,
+       │   snapshot; no deficit under 18, sex-specific floor — see "Body-metric
+       │   age and calorie-target safety rules". The dashboard ring and tracker read the same resolver,
        │   so a goal change moves all three together.)
        ├─ IAIService.generateMealPlan (Gemini) → 21 personalised recipes
        │   (prompt carries "Liked recently (4-5★)…" / "Disliked recently
@@ -1593,6 +1595,17 @@ blood pressure, pregnancy, medication) instead of answering. Both prompts
 share one string so they can't drift apart; a snapshot test
 (`prompts.chat-guardrail.test.ts`) locks the wording in.
 
+**Unsafe weight-loss guardrail (App Review R-14, Guideline 1.4.1).** The chat
+prompt also carries `DISORDERED_EATING_RULE`: never endorse very-low-calorie
+diets (below about 1,200 kcal a day), crash diets, fasting to lose weight,
+purging or other disordered eating — say so kindly, suggest a doctor or
+dietitian, offer a balanced meal idea, and for signs of an eating disorder or
+self-harm point to professional help or local emergency services.
+`isHealthTopic` also matches "very low calorie", "crash diet", "starve myself",
+purging/laxatives and a stated daily intake under 1,200 kcal ("800 calories a
+day"), so the "Not medical advice" footer appears on those replies; a per-meal
+figure ("a 500 calorie dinner") is deliberately not matched.
+
 **Header flags + footer disclaimers (UX-22, T-22.2, wave 1 L-ENTRY).** The
 chat header always shows the subtitle `AI · answers can be wrong`, and the
 empty thread shows a chef-not-a-doctor line (`WELLNESS_COPY` in
@@ -1710,7 +1723,13 @@ the adjusted target must shape next week's budget)
   fresh (≤14 days after its weekStart), shaped by entitlement:
   `full` for `adaptiveCoaching` accounts; `teaser` (FIRST line only +
   `lockedLineCount` — the full text never leaves the server) for free;
-  `none` with `loggedDaysThisWeek`/`daysNeeded` otherwise.
+  `none` with `loggedDaysThisWeek`/`daysNeeded` otherwise. The `full` review
+  carries an additive `aiGenerated` flag (R-14, EU AI Act Art. 50): true only
+  when the model wrote the text (`ChefReview.aiGenerated`, set by
+  `generateReviewTextWithSource`; the template, mock mode and failure
+  fallbacks are false). Web and mobile show the "AI-generated" chip next to
+  the review title only when it is true. Reviews written before the column
+  existed read false until the next weekly review.
 - Dashboard banner (`ChefReviewBanner`): premium sees summary chips + a
   full-review Sheet (`chef_review_viewed`); free sees the blurred-teaser ghost
   state (`upgrade_prompt_shown {source: 'coach-review'}` on impression,
@@ -3741,6 +3760,40 @@ Profile → Your data → "Download my data" / "Export my data"
 
 ## 29. Your Own Targets & Change Notices Flow
 
+### Body-metric age and calorie-target safety rules (App Review R-02)
+
+Guideline 1.4.1 (physical harm): a diet app must not hand a child a weight-loss
+target. Chefer is 16+ (sign-up checkbox, Terms), and these rules enforce it
+where body metrics are entered:
+
+- **Minimum age 16** for body metrics. `MIN_BODY_METRICS_AGE` / `MIN_AGE_MESSAGE`
+  ("Chefer is for people aged 16 and over.") live in `@chefer/types`
+  (`body-metrics.ts`); `bodyMetricsAgeSchema` is the zod rule on every API write
+  (`preferences.setup`, `saveProfileBasics`, `computeTargets`) and
+  `bodyMetricsAgeError` drives the web and mobile forms (error under the Age
+  field, no calorie estimate, Continue/Save disabled until fixed or cleared).
+  Installed clients that send an age under 16 get a normal `BAD_REQUEST`
+  carrying that message. Stored ages under 16 are never re-validated on read:
+  reads, plan generation and targets keep working for those rows.
+- **No deficit under 18.** `goalAdjustmentKcal` (`calorie-target.ts`,
+  `@chefer/utils`) turns a negative goal adjustment (LOSE_WEIGHT) into 0 for
+  anyone under 18, so the suggested target is maintenance. The forms show
+  `MINOR_NO_DEFICIT_NOTE` ("Under 18 we don't set a calorie deficit — your
+  target is maintenance. Talk to a doctor before trying to lose weight."), the
+  Explain sheet's rate reads "Maintenance calories (no calorie deficit under
+  18)", a negative coach dial is ignored and the coach never proposes a trim
+  (`decideAdjustmentKcal` returns 0).
+- **Sex-specific floor.** `calorieFloor`: 1,500 kcal for male, 1,200 for female
+  or unknown, applied to the computed target, the coach's dial and the coach's
+  BMR×1.1 safety bound. Own targets (`targets.set`) keep their 1,200–5,000
+  validation: they are a deliberate user choice, not a suggestion.
+- **One implementation.** The API (`computeCalorieTarget`, `computeBmrTdee`
+  re-exported from `preferences.service.ts`), the web preview (onboarding
+  `StepMetrics`, preferences `TargetsSection`) and the mobile preview
+  (`MetricsStep`, `estimateCalorieTarget`) all call `@chefer/utils`
+  `calorie-target.ts`, so the number typed into a form is the number the planner
+  uses.
+
 **§2.11 (UX-35 "Set my own targets", UX-11 "Never change it silently"), wave 1
 (L-TRACK).** One resolver, an own-target override that nothing can move
 silently, and a provable change log.
@@ -3749,7 +3802,10 @@ silently, and a provable change log.
 resolveTargets(profile, lifterBodyweightKg?)      [preferences.service.ts]
   ├─ suggested = live Mifflin-St Jeor TDEE ± goal adjustment ± the coach's
   │    cumulative dial, macros from the goal's split; lifter g/kg protein +
-  │    BMI ≥ 30 adjusted-weight rule when lifterBodyweightKg is given
+  │    BMI ≥ 30 adjusted-weight rule when lifterBodyweightKg is given.
+  │    R-02: under 18 a deficit goal resolves to maintenance (and a negative
+  │    dial is ignored); the floor is 1,500 kcal male / 1,200 female or
+  │    unknown (`calorie-target.ts` in @chefer/utils — shared with web+mobile)
   ├─ effective = profile.targetMode === 'OWN'
   │      ? { customKcal, customProteinG, customCarbsG, customFatG }
   │          (falling back per-field to `suggested`)

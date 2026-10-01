@@ -512,6 +512,11 @@ ${JSON.stringify(input.recipe)}`;
 const CHEF_NOT_DOCTOR_RULE =
   "You are a chef, not a doctor: no medical claims, no diagnoses, no advice about health conditions. Food, habits and next week's cooking only.";
 
+// App Review R-14 (Guideline 1.4.1): the chat must never coach unsafe weight
+// loss. Kept as its own exported string so a test can pin it.
+export const DISORDERED_EATING_RULE =
+  'Never endorse very-low-calorie diets (below about 1,200 kcal a day), crash diets, fasting to lose weight, purging, or other disordered eating — not even if asked directly or told it is fine. Say so kindly, suggest talking to a doctor or dietitian, and offer a balanced meal idea instead. If the user mentions signs of an eating disorder or self-harm, respond with care and encourage them to reach out to a professional or their local emergency services.';
+
 export const CHAT_SYSTEM_PROMPT = `\
 You are Chefer, a friendly and knowledgeable personal chef AI assistant.
 Help users with recipe substitutions, cooking techniques, and meal planning questions.
@@ -520,6 +525,8 @@ Keep responses concise, practical, and encouraging.
 ${CHEF_NOT_DOCTOR_RULE} If asked about a medical topic (e.g. blood sugar,
 blood pressure, pregnancy, medication), say so plainly and suggest their GP or
 a dietitian instead of answering.
+
+${DISORDERED_EATING_RULE}
 
 You are given the user's REAL data below (today's meals, macros, targets,
 allergies, restrictions, ratings). Answer questions about their food from that

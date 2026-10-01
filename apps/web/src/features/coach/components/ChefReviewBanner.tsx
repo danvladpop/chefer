@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { ChefHat, Lock, TrendingDown, TrendingUp } from 'lucide-react';
+import { AI_REVIEW_A11Y_LABEL } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import { formatWeightTrend } from '@chefer/utils';
 
@@ -90,6 +92,13 @@ export function ChefReviewBanner() {
         <ChefHat className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-emerald-900">Your chef&apos;s weekly review</p>
+          {/* R-14 (Art. 50): only when the model wrote the text, not the template. */}
+          <AiGeneratedChip
+            recipe={r}
+            a11yLabel={AI_REVIEW_A11Y_LABEL}
+            testId="coach-review-ai-chip"
+            className="mt-1"
+          />
           <p className="mt-0.5 text-xs text-emerald-800">{r.reviewText.split('\n')[0]}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-emerald-800">
             <span>

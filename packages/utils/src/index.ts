@@ -65,6 +65,20 @@ export {
 export { isHealthTopic, isSafetyTopic } from './health-topic';
 
 export {
+  ACTIVITY_MULTIPLIERS,
+  CALORIE_FLOOR_FEMALE,
+  CALORIE_FLOOR_MALE,
+  GOAL_ADJUSTMENTS,
+  calorieFloor,
+  computeBmrTdee,
+  computeCalorieTarget,
+  goalAdjustmentKcal,
+  isDeficitBlockedForAge,
+  isMinorAge,
+  previewCalorieTarget,
+} from './calorie-target';
+
+export {
   invariant,
   assertDefined,
   assertString,

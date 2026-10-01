@@ -220,6 +220,63 @@ describe('preferences.setup — safety array caps (T-BUG-X4)', () => {
   });
 });
 
+// R-02 (Guideline 1.4.1): body metrics need age >= 16 on every write path.
+// Stored ages below 16 are never re-validated on read — only new writes.
+describe('preferences body-metric age validation (R-02)', () => {
+  const SETUP_BASE = {
+    goal: 'LOSE_WEIGHT' as const,
+    biologicalSex: 'FEMALE' as const,
+    age: 13,
+    heightCm: 152,
+    weightKg: 44,
+    activityLevel: 'SEDENTARY' as const,
+    dietaryRestrictions: [] as string[],
+    allergies: [] as string[],
+    dislikedIngredients: [] as string[],
+    cuisinePreferences: [] as string[],
+    mealsPerDay: 3,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    svc.setup.mockResolvedValue(undefined);
+    svc.update.mockResolvedValue(undefined);
+  });
+
+  it('setup rejects age 13 with the friendly message', async () => {
+    await expect(premiumCaller.setup(SETUP_BASE)).rejects.toThrow(
+      'Chefer is for people aged 16 and over.',
+    );
+    expect(svc.setup).not.toHaveBeenCalled();
+  });
+
+  it('saveProfileBasics rejects age 15 but accepts 16', async () => {
+    await expect(premiumCaller.saveProfileBasics({ age: 15 })).rejects.toThrow(
+      'Chefer is for people aged 16 and over.',
+    );
+    await premiumCaller.saveProfileBasics({ age: 16 });
+    expect(svc.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('computeTargets rejects age 13', async () => {
+    await expect(
+      premiumCaller.computeTargets({
+        goal: 'LOSE_WEIGHT',
+        biologicalSex: 'FEMALE',
+        age: 13,
+        heightCm: 152,
+        weightKg: 44,
+        activityLevel: 'SEDENTARY',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('setup still accepts age 16 (adults unchanged)', async () => {
+    await premiumCaller.setup({ ...SETUP_BASE, age: 16 });
+    expect(svc.setup).toHaveBeenCalledTimes(1);
+  });
+});
+
 // §2.11, T-35.2: RECOMP/PERFORMANCE are additive goals. A level-0 client
 // renders a fixed GOALS list that predates them.
 describe('preferences.get — RECOMP/PERFORMANCE level-0 downgrade (T-35.2)', () => {
