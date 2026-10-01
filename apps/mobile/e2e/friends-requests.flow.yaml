@@ -26,7 +26,7 @@ appId: dev.chefer.app.dev
       visible:
         id: 'home-title'
     commands:
-      - tapOn: 'More(, tab.*)?'
+      - tapOn: 'More(, .*)?'
       - scrollUntilVisible:
           element:
             id: 'logout-button'
@@ -87,7 +87,7 @@ appId: dev.chefer.app.dev
     timeout: 15000
 
 # ── More → Following → Activity ──────────────────────────────────────────────
-- tapOn: 'More(, tab.*)?'
+- tapOn: 'More(, .*)?'
 - tapOn:
     id: 'more-friends'
 # A turned Following on in the setup, so this is the home, not the intro.

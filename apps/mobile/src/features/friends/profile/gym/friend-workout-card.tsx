@@ -85,6 +85,8 @@ export function FriendWorkoutCard({
         <Pressable
           testID={`${testID}-toggle`}
           accessibilityRole="button"
+          // Explicit: iOS would otherwise fold the chevron glyph into the label.
+          accessibilityLabel={open ? FRIENDS_COPY.gym.hideSets : FRIENDS_COPY.gym.showSets}
           accessibilityState={{ expanded: open }}
           onPress={() => setOpen((v) => !v)}
           className="min-h-11 flex-row items-center justify-end gap-1"

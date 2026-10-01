@@ -16,7 +16,7 @@ appId: dev.chefer.app.dev
       visible:
         id: 'home-title'
     commands:
-      - tapOn: 'More(, tab.*)?'
+      - tapOn: 'More(, .*)?'
       # Sign out sits low on More — on a 16e its centre is under the tab bar.
       - scrollUntilVisible:
           element:
@@ -56,7 +56,7 @@ appId: dev.chefer.app.dev
     timeout: 15000
 
 # ── T-01.7: SafetyPicker — set Tree nuts, see the read-back within 150ms (AC1) ──
-- tapOn: 'More(, tab.*)?'
+- tapOn: 'More(, .*)?'
 - tapOn:
     id: 'more-settings'
 - extendedWaitUntil:

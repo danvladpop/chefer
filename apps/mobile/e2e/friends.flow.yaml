@@ -33,7 +33,7 @@ env:
       RECIPE_ID: ${SHAKSHUKA_ID}
 
 # The entry point: More → Following (directly under Profile).
-- tapOn: 'More(, tab.*)?'
+- tapOn: 'More(, .*)?'
 - extendedWaitUntil:
     visible:
       id: 'more-friends'

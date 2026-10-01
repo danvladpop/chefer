@@ -22,7 +22,14 @@ export function LockedPanel({
   testID = 'friends-locked-panel',
 }: LockedPanelProps) {
   return (
-    <View testID={testID} accessible className="items-center gap-2 px-6 py-10">
+    // One accessibility element with an explicit label: an `accessible` View
+    // without one exposes no text to iOS (XCUITest, and some VoiceOver paths).
+    <View
+      testID={testID}
+      accessible
+      accessibilityLabel={title ? `${title}. ${body}` : body}
+      className="items-center gap-2 px-6 py-10"
+    >
       <Ionicons name={icon} size={36} color="#8a7560" />
       {title ? (
         <Text variant="heading" className="text-center">

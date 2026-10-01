@@ -332,6 +332,7 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
         <PressableScale
           testID="friends-intro-policy"
           accessibilityRole="link"
+          accessibilityLabel={FRIENDS_COPY.intro.policy}
           onPress={() => void Linking.openURL(getWebUrl('/privacy'))}
           className="min-h-11 flex-row items-center gap-1 self-start"
         >

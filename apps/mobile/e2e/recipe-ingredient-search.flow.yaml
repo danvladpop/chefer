@@ -16,7 +16,7 @@ appId: dev.chefer.app.dev
       visible:
         id: 'home-title'
     commands:
-      - tapOn: 'More(, tab.*)?'
+      - tapOn: 'More(, .*)?'
       - scrollUntilVisible:
           element:
             id: 'logout-button'
