@@ -32,13 +32,15 @@
 24. [Account Deletion Flow (App Store 5.1.1(v))](#24-account-deletion-flow-app-store-511v)
 25. [AI Data Consent Flow (App Store 5.1.2(i))](#25-ai-data-consent-flow-app-store-512i)
 26. [Usage Analytics Consent Flow (P0-6)](#26-usage-analytics-consent-flow-p0-6)
-27. _(reserved — another wave-1 lane)_
-28. _(reserved — another wave-1 lane)_
+27. [Safety Filter & Reporting Flow](#27-safety-filter--reporting-flow-ux-01ux-02-t-011t-0110-t-021t-025-t-221)
+28. [Consent Log & Data Export Flow](#28-consent-log--data-export-flow-213-t-392t-395)
 29. [Your Own Targets & Change Notices Flow](#29-your-own-targets--change-notices-flow)
 30. [Food Logging: Search, Edit, Undo, Copy Day Flow](#30-food-logging-search-edit-undo-copy-day-flow)
 31. [Manual Recipe Create and Edit](#31-manual-recipe-create-and-edit-ux-40-slices-12-t-401t-4010-t-bug-o3)
 32. [Terms Acceptance & Email Defaults Flow](#32-terms-acceptance--email-defaults-flow-t-391t-393)
 33. [Health Information Consent Flow](#33-health-information-consent-flow-ux-26-t-261t-264-wave-3)
+34. [Following: Follow, See, Save](#34-following-follow-see-save-docsfriends-f1d)
+35. [Automatic Moderation](#35-automatic-moderation-following-prd-9-q-f-13-f1d)
 
 ---
 
@@ -3167,6 +3169,14 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
 portion, allergies) — no other account is linked to them, so they are simply
 deleted with the owner. There is no ownership to transfer.
 
+**Following (F1.5, PRD FR-22.2):** needs no explicit step in `deleteAccount` — every Following table cascades from
+the `users` row: the social profile, follows both ways, blocks both ways, suggestion dismissals, reports **filed and received**,
+the moderation log, and Activity items received and caused. `account-data.service.test.ts` pins the schema's `onDelete` rules,
+so a new Following table can't forget the cascade. Deleting the MANUAL recipes above deletes the **originals** of other
+people's copies: those copies stay theirs (in their plans, logs and Saved) with `originRecipeId` / `originCreatorId` set to
+**null** (`SetNull`), so the copy reads as the viewer's own recipe; hearts on the deleted originals cascade away. Turning
+Following off (§34.1) is different: it keeps reports and the moderation log about the user (§35.2).
+
 **Kept:** AI-generated recipe rows (shared recipe content, no personal data)
 remain with `creatorId` nulled. Backups roll off within about 30 days: the VM
 keeps 14 nightly dumps and the off-site mirror keeps 30 (`/privacy`, P0-6). Admins deleting a user (`user.delete`) run the same purge.
@@ -3570,6 +3580,14 @@ Profile → Your data → "Download my data" / "Export my data"
         feedback
         privacy (consentHistory — every ConsentEvent; emailPreferences;
                  aiCallLog — type/provider/time only, never model output)
+        social (Following, F1.5, PRD FR-22.1 — additive; `null`/empty when never turned on)
+                settings (visibility, the four sharing switches, activatedAt, forcedPrivateAt),
+                following / followers (display NAMES + since — never another user's email, id or profile),
+                pendingRequests { sent, received }, blocksMade, activity (kind, name, createdAt, readAt),
+                reportsFiled (reason, about-name, recipeId, reportedAt — only reports YOU filed, never reports
+                about you, and not `eligible`/`discountedAt`, which are moderation bookkeeping),
+                recipeCopies (the copies you made: name, original id, original creator's name),
+                consentHistory (the `SOCIAL_SHARING` events)
   │
   ├─ web:    Blob download, filename chefer-export-YYYY-MM-DD.json,
              then a Toast "Your export is ready."
@@ -4049,3 +4067,260 @@ allowed → the row offers `Allow health information`.
 meals, imported drafts and swap proposals; chat carries its own "AI Chef" label. **8. Evidence trail (T-26.7).** CI archives
 the safety regression report per commit; `SafetyReport` rows; one `safety.filter` log line per plan generation.
 Analytics (counts only): `health_consent_answered { allowed }`, `health_consent_withdrawn {}`.
+
+---
+
+## 34. Following: follow, see, save (`docs/friends/`, F1.D)
+
+> **Status:** API implemented (Following program, wave 1) and **dark**: every `friends.*` procedure sits behind the `friends`
+> flag or `FRIENDS_ALLOWLIST` (`infrastructure.md` §9). Mobile screens land in wave 2 (OTA only, no native change); there is no
+> web UI in this program (the platform parity ledger records the "mobile → web" rows when the feature ships). User-facing name
+> **Following**; code name `friends` (router `friends.*`, flag `friends`, folders `features/friends`). Every user-visible string is
+> `FRIENDS_COPY` (`@chefer/types`). Product decisions: `docs/friends/prd.md` §5.1 (Q-F-1…14), binding.
+
+Following lets a user follow other users, see what they eat and train, and cook their recipes. It adds **no push and no email**
+(Q-F-9, Q-F-14): the in-app Activity inbox and a badge are the only notification mechanism.
+
+### 34.1 Turn on Following (opt-in) and turn it off
+
+```
+More → Following   (hidden unless friends.availability → { enabled: true })
+  │
+  ├─ friends.me → { activated: false, firstName, lastName (prefilled from the account), … }   → the intro screen
+  │
+  └─ "Turn on Following"  → friends.activate { visibility, firstName, lastName }      PRIVATE is the default
+        ├─ the name goes through the word filter (§35.4): a hit → BAD_REQUEST + data.textRejected: 'name'
+        │    (a NAME_REJECTED log row — never the name itself)
+        └─ one transaction: User.firstName/lastName/name + SocialProfile (searchName, sharing switches)
+           then ConsentService.record(SOCIAL_SHARING)  — explicit consent (GDPR Art. 9), source mobile
+           then moderationService.hideFilteredRecipes → my existing recipes that trip the word filter are hidden
+           (FILTER), and a forced-private restriction already earned is re-applied (§35.2)
+        → ActivateResultDto { …friends.me, filterHiddenRecipes }          idempotent
+
+Settings (friends.updateSettings, partial):
+  visibility PUBLIC | PRIVATE · sharePlan ("This week's meal plan") · shareRecipes · shareWorkouts · shareTargets (off by default)
+  Private → Public  accepts EVERY pending request (REQUEST_ACCEPTED items) and returns autoAccepted: n
+  forced private    refuses Public (FORBIDDEN, FRIENDS_COPY.settings.forcedPrivate)
+  going public / sharing targets log a SOCIAL_SHARING consent event; recipes off → on re-runs the word filter
+
+Turn off (friends.deactivate { confirm: 'TURN_OFF' }) — total and immediate (FD-14)
+  consent withdrawal logged, then ONE transaction deletes: my SocialProfile, every follow both ways (incl. pending), blocks I made,
+  suggestion dismissals, Activity items sent and received. Reports and moderation-log rows ABOUT me are kept, so leaving and
+  rejoining cannot reset moderation (§35.2). Others' hearts on my recipes stop showing; copies they made stay theirs.
+```
+
+Without a social profile a user doesn't exist socially: not searchable, not followable, and they can't see any profile
+(SocialAccess rule 0).
+
+### 34.2 The follow state machine (Instagram model, Q-F-1)
+
+Per ordered pair viewer → owner. `friends.follow` needs only that the owner's header is visible (`requireSocialAccess('header')`).
+
+```
+                follow (owner PUBLIC)
+   NONE ───────────────────────────────────────▶ FOLLOWING        item NEW_FOLLOWER → owner
+    │  ▲                                              ▲
+    │  │ cancel (viewer: unfollow) / decline (owner)  │ accept (owner)   item REQUEST_ACCEPTED → requester
+    │  │ / expiry after 90 days                       │
+    │  └────────────── REQUESTED ─────────────────────┘
+    └─ follow (owner PRIVATE, or FORCED private) ──▶ REQUESTED      item FOLLOW_REQUEST → owner
+
+ FOLLOWING → NONE : unfollow (viewer) or removeFollower (owner) — silent
+ any state → NONE both ways + a Block : friends.block, or friends.report (§35)
+ unblock → NONE (nothing is restored)
+ Owner Private → Public : every REQUESTED to them → FOLLOWING        Owner Public → Private, or forced private:
+                          existing FOLLOWING is kept; NEW follows become requests
+ Either side turns Following off / deletes the account : every pair involving them → NONE
+```
+
+- Every transition is idempotent (following twice returns the current relation; accepting, declining or removing something
+  that isn't there is `ok`). Following yourself is `BAD_REQUEST`.
+- A **forced-private** profile (§35.2) always answers a follow with a request, whatever `visibility` says.
+- At most **3 requests per target per 7 days** (`REQUEST_CAP`), because a declined or cancelled request deletes its row; the
+  fourth attempt is `TOO_MANY_REQUESTS`. Also 60 follow actions per hour per user.
+- Pending requests older than 90 days are deleted by the maintenance worker, which also withdraws their `FOLLOW_REQUEST` item
+  (§34.8). A decline is silent and the owner's item stays and reads "You declined".
+- Unfollow, decline, cancel, removal, block and report notify nobody.
+
+### 34.3 What a viewer can see (the access matrix)
+
+One decision, `SocialAccessService` (`infrastructure.md` §9). The header is name, initials avatar, follower/following **counts**,
+the follow button and the `Follows you` tag. **Emails are never shown to anyone.**
+
+| Viewer ↓ / Owner's profile →                                                       | Header                                                               | Week plan                          | Daily targets                      | Own recipes                                   | Routine + last-7-day workouts          |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------- | ---------------------------------- | --------------------------------------------- | -------------------------------------- |
+| Owner (self)                                                                       | yes                                                                  | yes                                | yes                                | yes                                           | yes                                    |
+| Accepted follower (public OR private owner)                                        | yes                                                                  | if `sharePlan`                     | if plan visible AND `shareTargets` | if `shareRecipes` (auto-hidden ones excluded) | if `shareWorkouts` (else `not_shared`) |
+| Non-follower or pending requester (any owner)                                      | yes                                                                  | locked (`friendsLocked: 'locked'`) | no                                 | locked                                        | locked                                 |
+| Blocked either way / owner not on Following / viewer not on Following / unknown id | `Profile not available` (NOT_FOUND, identical in every case — INV-3) | no                                 | no                                 | no                                            | no                                     |
+
+- **Week** (`friends.week`): the owner's CURRENT week only (Q-F-12), Monday–Sunday in the owner's `ChefProfile.timeZone` (UTC
+  fallback), read-only and without side effects (INV-4): a carried-forward template is rebuilt in memory, never created. Per meal:
+  type, portion, recipe card, kcal/macros for that portion; per day totals; the weekly average. A meal whose recipe was
+  auto-hidden shows as "Hidden recipe" with its numbers and can't be opened. No plan and nothing to carry forward → `null`.
+- **Recipes** (`friends.recipes`): the owner's own written or imported recipes (imported ones show the source domain and link,
+  Q-F-7), newest first, searchable by name; never copies of someone else's recipe, never auto-hidden ones.
+- **Routine** and **workouts** (`friends.routine`, `friends.workouts`): the active routine, and the last 7 days of completed
+  workouts (owner's today − 6 … today, at most 30, no "load more", Q-F-10). Notes, deload, heart rate, RPE, prescription, swaps and
+  warm-up sets are never sent. Cardio/tracking types follow the caller's gym API level like `gym.*`.
+- **Never shared** (PRD §7.2): email, allergies/diets/dislikes and safety checks, household, body metrics and weight log, logged
+  meals and photos, budget, shopping list and pantry, AI chat, coach reviews, consent settings, workout notes, other weeks.
+- All five reads are rate-limited (300/h per procedure) before the access check, so probing costs the same as reading.
+
+### 34.4 Finding people: search and suggestions
+
+- **Search is by name only** (`friends.search`, Q-F-5): 2–100 characters, tokens case- and accent-insensitive, every query token
+  must be a prefix of some name token ("ana pop" finds "Ana-Maria Popescu"); an `@` is ordinary text — there is **no email
+  matching of any kind** and the query is never logged. Excluded: me, people not on Following, blocked pairs (either way),
+  forced-private accounts. Ranking: people I follow or who follow me → mutual connections → exact full-name match → follower count
+  → name A–Z (the first 200 matches are ranked, then paged). 60 searches a minute.
+- **Suggestions** (`friends.suggestions`, top 5 on the home, 30 under See all): mutual connections ("Followed by …"), "Follows
+  you" (people who follow me that I don't follow back), and Popular (public profiles with ≥ 3 followers active in the last 30
+  days; **Chefer Kitchen**, the seeded `featured` account, is always eligible so the cold start is never empty). Excluded: me, anyone
+  I follow or requested, blocked pairs, people I dismissed in the last 90 days (`friends.dismissSuggestion`), forced-private accounts.
+  Computed on read, cached 10 minutes per viewer; my own follow/unfollow/dismiss/block refreshes it at once.
+
+### 34.5 Activity inbox and badge (the only notification mechanism)
+
+| Event                                                           | Item (`NotificationKind`) | Goes to       | Tap opens            |
+| --------------------------------------------------------------- | ------------------------- | ------------- | -------------------- |
+| Someone asked to follow my private profile                      | `FOLLOW_REQUEST`          | the owner     | Following › Requests |
+| Someone followed my public profile                              | `NEW_FOLLOWER`            | the owner     | the actor's profile  |
+| My request was accepted (incl. auto-accept on Private → Public) | `REQUEST_ACCEPTED`        | the requester | the actor's profile  |
+
+`friends.activity` lists them newest first (each carries `requestState` read from the live follow: pending / accepted / declined);
+`friends.markActivityRead { upTo }` marks read and returns `{ unreadActivity }`. The badge is `friends.me.badgeCount` =
+pending requests + unread Activity (the More row, the More tab icon and the Following bell); the app refreshes it on focus and
+every 60 s in the foreground. A re-sent request re-uses its row (fresh `createdAt`, unread again). Items older than 90 days are
+pruned, and a block withdraws every item between the two people. **No push, no email — ever.**
+
+### 34.6 Heart = live reference, "Add to my week" = private copy (Q-F-6, INV-5)
+
+```
+Another user's recipe (visible to me: I follow them, they share recipes, not auto-hidden — or I hearted it before the hide)
+  │
+  ├─ HEART (recipe.toggleFavourite)  — a live reference to THEIR recipe.
+  │     It shows in my Saved/All (recipe.list: creator "By {name}"). If I unfollow, or they stop sharing, I get blocked or they turn
+  │     Following off, the heart stops showing (access is re-checked on every read). Nothing of theirs is copied.
+  │
+  └─ ADD TO MY WEEK  friends.addRecipeToWeek { recipeId, weekOffset 0|1, dayOfWeek, mealType, mode: add|replace, slotIndex? }
+        ├─ my table's allergies/restrictions conflict → FORBIDDEN + data.unsafeForTable { issues }  (the "Use anyway" sheet;
+        │    acknowledgeConflict: true overrides it for MANUAL recipes only — never for an open AI/curated recipe)
+        ├─ my own PLAN for that week must exist (else NOT_FOUND)
+        └─ RecipeCopyService.ownedRecipeFor: ONE private copy per viewer and source (text, ingredients, nutrition, photo URL, sourceUrl,
+           originRecipeId/originCreatorId — "From {first}"), made once and reused; the slot is "Your pick" (pinned)
+        → { planId, dayOfWeek, mealType, slotIndex, addedRecipeId, copiedFromId, previousRecipeId? }
+        → snackbar "Undo" → friends.undoAddToWeek (my own plan only; a stale Undo is a no-op; the copy stays)
+```
+
+- **Plans and food logs stay stable**: every path that writes a recipe id into MY records resolves another user's recipe to my
+  copy first — `mealPlan.replaceRecipe`, `mealPlan.generate` placing a pinned favourite, `tracker.logRecipe`, and the add above. The
+  original's owner can edit, hide, delete the recipe or leave, and my week doesn't change.
+- **Copies are never re-shared** (`originRecipeId != null` excludes them from `friends.recipes`), so nobody launders someone
+  else's recipe through a public profile. An imported recipe, by contrast, is shared by the person who imported it, with its source.
+- A copy whose original's owner deleted their account survives with its origin links set to null (§24).
+- A plan slot whose recipe row is missing is dropped from the response (and logged) instead of throwing.
+- A recipe auto-hidden by moderation (§35) can't be newly hearted or added from a profile, but existing hearts and copies keep working.
+
+### 34.7 Block
+
+`friends.block { userId }` is instant and mutual and **tells nobody**: ONE transaction deletes follows and requests both ways,
+withdraws every Activity item between the two, clears suggestion dismissals both ways and writes the `Block`. From then on each
+person is `Profile not available` to the other, search and suggestions exclude the pair, and the blocked person's recipes leave
+the blocker's Saved list. Re-blocking is a no-op; blocking an unknown id answers the same `ok` (INV-3). `friends.unblock` removes
+only my own block and restores nothing. `friends.blocked` lists mine. 30 blocks a day.
+
+### 34.8 Maintenance (`FriendsMaintenanceWorker`)
+
+An hourly tick; once per UTC day it expires `PENDING` requests older than 90 days (and withdraws their `FOLLOW_REQUEST` item),
+prunes Activity items older than 90 days and prunes suggestion dismissals older than 90 days; on the first tick of each ISO week
+it logs the `moderation.weekly` line (§35.5). Every step is idempotent; see `infrastructure.md` §7.
+
+---
+
+## 35. Automatic moderation (Following, PRD §9, Q-F-13, F1.D)
+
+> **Status:** Implemented (Following program, wave 1; behind the `friends` flag). **There is no human review: no queue, no
+> review screen, no appeal, no email.** Every action is automatic, deterministic and logged
+> (`ModerationService`, `application/friends/moderation.service.ts`). It is what meets App Store guideline 1.2 for
+> user-generated content: a word filter, a one-tap report, an instant block and timely automatic action (PRD §9.6).
+
+### 35.1 Report and block (`friends.report`)
+
+```
+Profile / recipe overflow → "Report and block" → a reason (INAPPROPRIATE · SPAM · HARASSMENT · UNSAFE · OTHER)
+  └─ friends.report { userId, recipeId?, reason }          activeFriendsProcedure · 20 per day per user
+        1. self → BAD_REQUEST. The target must be header-visible to me OR tied to me (a follow either way, or an Activity item
+           from them) — anything else (blocked, not on Following, unknown) is the one NOT_FOUND `Profile not available` (INV-3).
+           A recipeId must be that person's own shared MANUAL recipe (not a copy), else NOT_FOUND.
+        2. eligible = my account is ≥ 24 h old AND my email is confirmed — decided now, at report time, and stored on the report.
+        3. ONE SERIALIZABLE transaction (retried on P2034 and P2002):
+              UserReport.create  →  blockService.blockInTx (the §34.7 block)  →  recipe threshold  →  account threshold
+        → { ok: true }.  Nobody is notified: not the reported person, not the reporter.
+```
+
+Report **always blocks**, so from the reporter's side the action is immediate: they never see that person or their recipes again.
+Ineligible reports (a new or unconfirmed account) still block and are kept and logged; they just never count toward a threshold,
+which makes brigading with throwaway accounts harder. Reports are append-only.
+
+### 35.2 Thresholds (`MODERATION` in `@chefer/types`; evaluated synchronously on every report)
+
+Counting is by **distinct eligible reporter** (a reporter counts once; discounted reports never count).
+
+| Threshold (constant)               | Value | Action                                                                                                                                                                                                                                                                                                                                                         | Logged as                |
+| ---------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `RECIPE_HIDE_REPORTERS`            | 3     | A recipe reported by 3 distinct eligible accounts gets `Recipe.hiddenAt` (`hiddenReason: REPORTS`): it leaves the owner's profile grid and every other viewer's access; existing hearts and copies keep working for their holders; the owner sees a banner                                                                                                     | `RECIPE_AUTO_HIDDEN`     |
+| `ACCOUNT_RESTRICT_REPORTERS`       | 5     | 5 distinct eligible accounts that reported the user OR any of their recipes (together): the profile is **forced private** (`forcedPrivateAt`, visibility `PRIVATE`, can't be switched back), removed from search and suggestions (every suggestion cache is cleared). Existing followers stay (a forced-private profile behaves like any private one for them) | `ACCOUNT_FORCED_PRIVATE` |
+| `REPORTER_MIN_ACCOUNT_AGE_HOURS`   | 24    | Eligibility: account age                                                                                                                                                                                                                                                                                                                                       | —                        |
+| `REPORTER_REQUIRES_VERIFIED_EMAIL` | true  | Eligibility: `User.emailVerified` set. Many accounts never confirmed their email, so early on few reports may be eligible; if the weekly line shows many ineligible reports, flipping this constant is a one-line change                                                                                                                                       | —                        |
+
+Every action writes one `ModerationLog` row **in the same transaction** as the action (INV-10), and acts at most once
+(`hideRecipe` / `forcePrivate` are conditional writes, so concurrent reports can't double-act or both miss).
+
+**Leaving and rejoining cannot reset moderation.** Turning Following off deletes the `SocialProfile` (and with it
+`forcedPrivateAt`) but keeps the reports and the log; at the next turn-on `hideFilteredRecipes` re-evaluates the account
+threshold and re-applies forced private if it still holds (logged as `ACCOUNT_FORCED_PRIVATE`, "re-applied at turn-on").
+
+### 35.3 What the reported person sees
+
+Nothing is sent. A hidden recipe shows the owner a banner in the recipe detail (`mealPlan.getRecipe` → `hidden { reason }`,
+only to the owner); a forced-private account sees the Private setting locked with the plain-language reason
+(`FRIENDS_COPY.settings.forcedPrivate`). There is no appeal channel in v1; the support page is the contact point, and the
+owner can undo an action (§35.6).
+
+### 35.4 Word filter (write time, English + Romanian)
+
+A deterministic bundled word list (`@chefer/utils` `moderation/`; no AI, no network): normalised text (lowercase, accents
+stripped, common character substitutions like `0→o`, `@→a`) and **whole-word** matching, so "Scunthorpe" or "cocktail" don't match.
+It checks:
+
+| Where                                                                               | When                                                                                     | A hit                                                                                                         |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Display name (first, last, both) — `friends.activate`, `friends.updateSettings`     | turn-on and every name change                                                            | BAD_REQUEST + `data.textRejected: 'name'` + a `NAME_REJECTED` row                                             |
+| Recipe name and description — `recipe.create`, `recipe.update`, `recipe.importSave` | only when the author turned Following on with `shareRecipes` on (otherwise not filtered) | BAD_REQUEST + `data.textRejected: 'recipe'` + a `RECIPE_TEXT_REJECTED` row; message = the plain-language copy |
+| Existing recipes — `hideFilteredRecipes`                                            | at turn-on, and when `shareRecipes` goes off → on                                        | NOT rejected: the recipe is auto-hidden (`hiddenReason: FILTER`) + a `RECIPE_FILTER_HIDDEN` row each          |
+
+`recipe.importSave` runs the check first, so a rejected import touches nothing else. Editing a recipe so its text passes lifts a
+`FILTER` hide (no log row) — never a `REPORTS` hide. A copy of someone else's recipe is never shared, so it isn't filtered. Log
+rows never contain the offending text.
+
+### 35.5 Log and weekly metrics
+
+`ModerationLog` is append-only: every automatic action and every ops undo, with the reason, the distinct-reporter count and the
+actor (`system` / `ops`). Reports themselves are `UserReport` rows. On the first tick of each ISO week the maintenance worker
+logs one structured line, `moderation.weekly { reports, eligibleReports, recipeAutoHidden, accountForcedPrivate, nameRejected,
+recipeTextRejected, recipeFilterHidden, undo }`. Nothing acts on it; it is how the owner notices, for example, many ineligible
+reports.
+
+### 35.6 Ops undo and the Chefer Kitchen script (optional, owner-run)
+
+From `apps/api`, with `pnpm exec tsx --env-file=.env src/scripts/<name>.ts …`:
+
+- `moderation-undo.ts --log=<moderation log id> [--dry-run]` reverses ONE automatic action: `RECIPE_AUTO_HIDDEN` → un-hide the
+  recipe and discount its reports; `ACCOUNT_FORCED_PRIVATE` → clear the lock (visibility stays `PRIVATE`, the user may switch it)
+  and discount every report about the user; `RECIPE_FILTER_HIDDEN` → un-hide. It writes an `UNDO` row (`actor: 'ops'`); a
+  row already undone is refused. Discounted reports never count again. `--dry-run` writes nothing.
+- `create-chefer-kitchen.ts --email=<address> [--dry-run]` — the cold-start profile (PRD Q-F-8): turns Following on for an
+  account the owner registered in the app as PUBLIC with `featured: true` (idempotent; refuses a forced-private account).
+
+There is deliberately no API procedure, screen or queue for either. Nothing depends on them.
