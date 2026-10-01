@@ -1,3 +1,4 @@
+import { Keyboard } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
@@ -15,6 +16,12 @@ const metrics = {
 const mockShareExportFile = jest.fn((_filename: string, _contents: string) => Promise.resolve());
 const mockShow = jest.fn();
 const mockExportFetch = jest.fn(() => Promise.resolve({ user: { id: 'u1' } }));
+const mockDeleteMutate = jest.fn();
+const mockResetMutate = jest.fn();
+let mockResetState: { isSuccess: boolean; isPending: boolean } = {
+  isSuccess: false,
+  isPending: false,
+};
 
 // The wrapper (not a direct reference) is deliberate: jest.mock() factories
 // run at first `require`, which happens at import time — BEFORE this file's
@@ -38,7 +45,13 @@ jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({ user: { exportData: { fetch: mockExportFetch } } }),
     user: {
-      deleteSelf: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
+      deleteSelf: { useMutation: () => ({ mutate: mockDeleteMutate, isPending: false }) },
+    },
+    auth: {
+      me: { useQuery: () => ({ data: { email: 'alice@chefer.dev' } }) },
+      requestPasswordReset: {
+        useMutation: () => ({ mutate: mockResetMutate, isError: false, ...mockResetState }),
+      },
     },
   },
 }));
@@ -49,6 +62,9 @@ beforeEach(() => {
   mockShareExportFile.mockClear();
   mockShow.mockClear();
   mockExportFetch.mockClear();
+  mockDeleteMutate.mockClear();
+  mockResetMutate.mockClear();
+  mockResetState = { isSuccess: false, isPending: false };
   queryClient = new QueryClient();
 });
 
@@ -84,5 +100,59 @@ describe('mobile AccountDataCard export (T-39.5)', () => {
       expect(screen.getByText("Couldn't prepare your data. Please try again.")).toBeTruthy(),
     );
     expect(mockShow).not.toHaveBeenCalled();
+  });
+});
+
+describe('mobile DeleteAccountSheet (App Review R-03 / R-17 / R-24)', () => {
+  async function openSheet() {
+    await renderCard();
+    await fireEvent.press(screen.getByTestId('profile-delete-account'));
+  }
+
+  it('R-03: the footer sits in a keyboard-persisting scroll view and deletes on the first press', async () => {
+    await openSheet();
+    expect(screen.getByTestId('delete-account-footer').props.keyboardShouldPersistTaps).toBe(
+      'handled',
+    );
+
+    await fireEvent.changeText(screen.getByTestId('delete-account-password'), 'Secret1!');
+    await fireEvent.changeText(screen.getByTestId('delete-account-confirm-text'), 'delete');
+    await fireEvent.press(screen.getByTestId('delete-account-confirm'));
+
+    expect(mockDeleteMutate).toHaveBeenCalledTimes(1);
+    expect(mockDeleteMutate).toHaveBeenCalledWith({ password: 'Secret1!', confirm: 'DELETE' });
+  });
+
+  it('R-03: the DELETE field shows Done and dismisses the keyboard on submit', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    await openSheet();
+    const field = screen.getByTestId('delete-account-confirm-text');
+    expect(field.props.returnKeyType).toBe('done');
+    await fireEvent(field, 'submitEditing');
+    expect(dismiss).toHaveBeenCalled();
+    dismiss.mockRestore();
+  });
+
+  it('R-17: the password field opts out of the iOS save-password prompt', async () => {
+    await openSheet();
+    const field = screen.getByTestId('delete-account-password');
+    expect(field.props.autoComplete).toBe('off');
+    expect(field.props.textContentType).toBe('oneTimeCode');
+    expect(field.props.secureTextEntry).toBe(true);
+  });
+
+  it('R-24: "Forgot your password?" requests a reset link for the signed-in email', async () => {
+    await openSheet();
+    await fireEvent.press(screen.getByTestId('delete-account-forgot-password'));
+    expect(mockResetMutate).toHaveBeenCalledWith({ email: 'alice@chefer.dev' });
+  });
+
+  it('R-24: confirms where the link was sent', async () => {
+    mockResetState = { isSuccess: true, isPending: false };
+    await openSheet();
+    expect(screen.getByTestId('delete-account-reset-sent')).toHaveTextContent(
+      /We sent a reset link to alice@chefer\.dev/,
+    );
+    expect(screen.queryByTestId('delete-account-forgot-password')).toBeNull();
   });
 });

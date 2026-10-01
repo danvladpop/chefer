@@ -18,6 +18,7 @@ import {
   type TextInput,
 } from 'react-native';
 import { cn } from '@chefer/utils';
+import { KeyboardPersistFooter } from './keyboard-persist-footer';
 
 // Gym dogfood #2 ("the number keyboard covers the bottom of the screen while
 // you type — you can't see the field you're typing in or what comes next").
@@ -165,7 +166,7 @@ export function KeyboardAwareScrollView({
           {children}
         </ScrollFieldContext.Provider>
       </ScrollView>
-      {footer}
+      {footer ? <KeyboardPersistFooter>{footer}</KeyboardPersistFooter> : null}
     </KeyboardAvoidingView>
   );
 }
