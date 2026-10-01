@@ -376,6 +376,14 @@ These tests are the core quality gate:
 
 ---
 
+### 5.6 As built in P2 (2026-10-01)
+
+- **Location and names.** `packages/utils/src/nutrition/` exports `normalizeRecipeUnit`, `lineGrams`, `computeRecipeNutrition` and `roundNutritionFacts`. Names carry the nutrition prefix because `@chefer/utils` already exports a generic `round`.
+- **Edible fraction (clarifies §3 vs §5.2).** §3 defines `IngredientPortion.grams` as edible grams, so the engine applies `edibleFraction` to mass and volume quantities only. Applying it to portions as well would count it twice.
+- **Empty unit.** A bare count with an empty unit ("2 eggs", 73 prod lines) normalizes to `piece`. Its grams still come only from the ingredient's `piece` portion, otherwise the line is `NO_PORTION`.
+- **Ingredient-defined portions.** A unit outside the shared portion list, such as `serving` or `bar`, resolves only when that ingredient defines a portion of exactly that name. Otherwise it is `BAD_UNIT`.
+- **Golden data.** The golden tests use FDC SR Legacy values extracted by `scripts/ingredients/golden-fixture.mjs`, and 16 recipes are covered.
+
 ## 6. Resolution (free text → catalog row)
 
 ### 6.1 Resolver
