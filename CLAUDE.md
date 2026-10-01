@@ -213,8 +213,13 @@ Scope examples: `api`, `web`, `database`, `ui`, `types`, `utils`, `infra`
 
 After running `pnpm db:seed`:
 
-| Email            | Password   | Role      |
-| ---------------- | ---------- | --------- |
-| admin@chefer.dev | Admin@123! | ADMIN     |
-| alice@chefer.dev | User@123!  | ADMIN     |
-| bob@chefer.dev   | User@123!  | MODERATOR |
+| Email              | Password   | Role      |
+| ------------------ | ---------- | --------- |
+| admin@chefer.dev   | Admin@123! | ADMIN     |
+| alice@chefer.dev   | User@123!  | ADMIN     |
+| bob@chefer.dev     | User@123!  | MODERATOR |
+| carol@chefer.dev   | User@123!  | USER      |
+| dave@chefer.dev    | User@123!  | USER      |
+| kitchen@chefer.dev | User@123!  | USER      |
+
+The last three are the **Following** accounts (`docs/friends/`): carol has a PUBLIC Following profile (recipes, a routine, recent workouts, a current-week plan), dave is PRIVATE with a pending follow request to alice, and kitchen is "Chefer Kitchen" (PUBLIC, featured). alice is deliberately not activated so the turn-on flow can be tested; Following is dark behind the `friends` flag / `FRIENDS_ALLOWLIST`.

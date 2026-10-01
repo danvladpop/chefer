@@ -2175,6 +2175,16 @@ App launch (production binary) → expo-updates asks u.expo.dev for the newest
 - Dev builds (`Chefer Dev`) keep loading JS from Metro on the Mac; they
   never receive production updates.
 
+### Following shipped over the air (no runtime change)
+
+Following (§34, §35; `docs/friends/`) is the first big feature that shipped as pure OTA JavaScript. The runtime fingerprint did
+not change: no native module was added, and nothing in `apps/mobile/package.json` dependencies, `app.config.js`, `eas.json`,
+`ios/` or `android/` changed, and there is no config plugin (everything it needs, from `expo-router` to RN core `Share` and
+`Linking`, was already in the binary: `docs/friends/implementation-plan.md` §6). Installed builds therefore receive it through the
+normal publish-after-deploy path above, and it stays dark behind the `friends` flag + `FRIENDS_ALLOWLIST` until the owner enables
+it. Because installed bundles can be older than the API, every Following API addition is backward-compatible (new procedures and
+optional fields only).
+
 ### Worked example: native release 1 (wave 4 — `expo-sharing`)
 
 The first planned native change (named export files on Android, T-39.5). Installed
@@ -4073,8 +4083,8 @@ Analytics (counts only): `health_consent_answered { allowed }`, `health_consent_
 ## 34. Following: follow, see, save (`docs/friends/`, F1.D)
 
 > **Status:** API implemented (Following program, wave 1) and **dark**: every `friends.*` procedure sits behind the `friends`
-> flag or `FRIENDS_ALLOWLIST` (`infrastructure.md` §9). Mobile screens land in wave 2 (OTA only, no native change); there is no
-> web UI in this program (the platform parity ledger records the "mobile → web" rows when the feature ships). User-facing name
+> flag or `FRIENDS_ALLOWLIST` (`infrastructure.md` §9). Mobile screens ship in wave 2 (OTA only, no native change — see §34.9 for
+> where each step lives); there is no web UI in this program (`mobile_parity_backlog.md` records the "mobile → web" rows). User-facing name
 > **Following**; code name `friends` (router `friends.*`, flag `friends`, folders `features/friends`). Every user-visible string is
 > `FRIENDS_COPY` (`@chefer/types`). Product decisions: `docs/friends/prd.md` §5.1 (Q-F-1…14), binding.
 
@@ -4242,6 +4252,37 @@ only my own block and restores nothing. `friends.blocked` lists mine. 30 blocks 
 An hourly tick; once per UTC day it expires `PENDING` requests older than 90 days (and withdraws their `FOLLOW_REQUEST` item),
 prunes Activity items older than 90 days and prunes suggestion dismissals older than 90 days; on the first tick of each ISO week
 it logs the `moderation.weekly` line (§35.5). Every step is idempotent; see `infrastructure.md` §7.
+
+### 34.9 Where each step lives in the mobile app (F2.D)
+
+Mobile only (`apps/mobile`, OTA, no web UI in this program); routes and files are in `infrastructure.md` §4.3, copy and
+layout in `docs/friends/ux-design.md`.
+
+| Flow step                                               | Where in the app                                                                                                                                                                                                                    |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Getting in (§34.1)                                      | More › `Following` (under Profile, with a count pill), the Settings hub › Account › `Following` (Gym mode's way in), Profile › Privacy & data › `Profile visibility`. None render unless `friends.availability` says yes            |
+| Turn on                                                 | `/friends` while `friends.me.activated === false`: the intro (name fields, Private preselected, `Turn on Following`, `Not now`). Choosing Public asks the Public confirm first                                                      |
+| Settings, visibility, sharing switches, targets confirm | `/friends/settings` (`Sharing & privacy`); switches save on change and roll back on error                                                                                                                                           |
+| Private → Public / Public → Private                     | Confirm sheets in `Sharing & privacy`. The Private confirm has a `Review followers` link: it closes the sheet and, from the sheet's `onExited`, opens `/friends?list=followers` (the home on its Followers list)                    |
+| Turn off                                                | `Turn off Following` in `Sharing & privacy` (a destructive confirm); afterwards back to More with `Following is off.`                                                                                                               |
+| Search, suggestions (§34.4)                             | The home's `Search by name` field (name only, ≥ 2 characters, 250 ms debounce) and `Suggested for you` (5 on the home, `See all` → `/friends/suggestions`, each with a dismiss `×`)                                                 |
+| Follow, request, unfollow (§34.2)                       | `RelationButton` everywhere a person appears (search, suggestions, lists, Activity, profile); optimistic, rolled back on error                                                                                                      |
+| Requests                                                | The home's Requests block (≤ 3) → `See all` → `/friends/requests`; Accept / Decline remove the row, Accept shows `{first} can now see your meals and workouts.` with `Follow back`                                                  |
+| Remove follower, block (§34.7), report (§35.1)          | Followers row `…` (`Remove follower`, `Block`); the profile `…` (`Report and block`, `Block`, `Remove follower`); `Report recipe` on someone's recipe. Blocked people and `Unblock` live in `Sharing & privacy`                     |
+| Seeing someone (§34.3)                                  | `/friends/[userId]`: the header, then a Food or Gym switch (Food: this week and recipes; Gym: routine and last 7 days); a locked or not-shared section shows the matching panel; blocked, off or unknown is `Profile not available` |
+| Heart / Add to my week (§34.6)                          | The recipes grid and `recipe/[id]` for another person's recipe; `Add to my week` opens a sheet and then shows an Undo snackbar                                                                                                      |
+
+**The badge is the only notification mechanism (§34.5; PRD Q-F-14).** The count `friends.me.badgeCount` (pending requests +
+unread Activity) shows on the More tab icon, on the More `Following` row and on the home's bell. The app refreshes it when it
+returns to the foreground, when a badge-showing screen gains focus, and every 60 seconds while it is in the foreground. Nothing
+is pushed, nothing is emailed, and nothing is scheduled while the app is closed; a person sees new requests the next time they open Chefer.
+
+**Activity (`/friends/activity`) marks as read on open.** The first fresh load of the screen freezes which items were unread
+(`New`) versus the rest (`Earlier`) and then calls `friends.markActivityRead { upTo: newest item }`; once that succeeds
+`friends.me` is refetched and the badge clears. The `New` section keeps its rows for as long as the screen stays open (it doesn't
+empty itself as they are marked read). A pending request row keeps `Accept` / `Decline`, then reads `You accepted` / `You declined`
+(the live `requestState`); `NEW_FOLLOWER` rows carry a `RelationButton`; `REQUEST_ACCEPTED` rows have no control. Items for a
+cancelled request or a blocked person never arrive (the server withdraws them).
 
 ---
 

@@ -624,6 +624,82 @@ this week` (`today/missed-day-dismissed.ts`, KV-dismissed for the week,
   count), reached from the Gym Today week card and the Stats consistency
   legend.
 
+**Following (code name `friends`; `docs/friends/`, F2.0–F2.3, OTA only).** Mobile only — there is no web UI in
+this program (the web phase is the reverse rows in [`mobile_parity_backlog.md`](./mobile_parity_backlog.md)). Every
+`friends.*` procedure is dark behind the `friends` flag + `FRIENDS_ALLOWLIST` (§9); all user-visible copy is
+`FRIENDS_COPY` (`@chefer/types`) and the product name is **Following** (the word "Friends" is never user-visible).
+
+| Route                 | Screen                                                                                                                                                                                                                                                            |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `friends/index`       | Intro (`friends.me.activated === false`: name, visibility, what is shared, `Turn on Following`) or the home: search, Requests (≤ 3), You follow / Followers, Suggested. `?list=followers` opens on Followers (the `Review followers` link of the Private confirm) |
+| `friends/requests`    | All incoming follow requests (`RequestRow`, infinite scroll)                                                                                                                                                                                                      |
+| `friends/activity`    | The Activity inbox: `New` / `Earlier`, opening it calls `friends.markActivityRead`                                                                                                                                                                                |
+| `friends/settings`    | `Sharing & privacy`: visibility (Private/Public, forced-private note), the four sharing switches, `See what followers see`, Blocked people, `Turn off Following`                                                                                                  |
+| `friends/blocked`     | Blocked people (`PersonRow` + `Unblock`)                                                                                                                                                                                                                          |
+| `friends/suggestions` | `Suggested for you` (See all, 30)                                                                                                                                                                                                                                 |
+| `friends/[userId]`    | Someone's profile (or the owner's own preview): header, `Food \| Gym` switch (provisional until M-PROFILE is merged and re-checked, see below)                                                                                                                    |
+
+All seven are registered as `Stack.Screen`s in `app/_layout.tsx` inside the signed-in `Stack.Protected`.
+
+`src/features/friends/**` (the Following feature):
+
+- `api/` — the data layer. `use-friends-availability.ts` (`friends.availability`, 5 min stale, `retry: false`; a failed,
+  pending or absent answer means OFF), `use-friends-me.ts` / `use-friends-badge.ts` (`friends.me` + the badge), `use-relation-actions.ts`
+  (`follow` / `unfollow`), `use-answer-request.ts` (`accept` / `decline`), `use-is-online.ts`, `friends-errors.ts` (readers for
+  `data.textRejected`, `friendsUnavailable`, not-activated, profile-not-available), `query-keys.ts` (`friendsQueryKey`,
+  `isFriendsQueryKey`), `relation-cache.ts` (optimistic `applyRelation` / `removePerson` / `answerActivityRequest` + rollback) and
+  `invalidate.ts` (`invalidateAfterRelationChange` / `…RequestAnswer` / `…RemoveFollower` / `…Block`). People lists are only marked
+  stale after a mutation (`refetchType: 'none'`), so a row keeps its place until the next refresh (UX §5.1).
+- `components/` — `FriendsGate` + `FriendsUnavailableScreen`, `RelationButton` (UX §3.3 state table), `PersonRow`, `RequestRow`,
+  `FollowingHeader`, `FriendsScreenHeader`, `LockedPanel`, `InviteButton` / `InviteCard` / `useInvite()` (RN core `Share`),
+  `SourceLink` (RN core `Linking`), `screen-titles.ts`.
+- `safety/` — `ReportSheet` (one tap: reports **and** blocks), `BlockConfirmSheet`, `RemoveFollowerConfirmSheet`,
+  `UnblockConfirmSheet`, `use-block` / `use-unblock` / `use-remove-follower` / `use-report`. A follow-up sheet or navigation is
+  always chained from the sheet's `onDone` / `onExited`, never in the tick it closes (iOS freezes when a Modal is presented
+  during a dismiss).
+- `home/` — the intro, home, search results, requests, Activity, suggestions (and `useDismissSuggestion`), `follower-actions`
+  (the Followers-row overflow: `Remove follower`, `Block`), skeletons.
+- `settings/` — `Sharing & privacy` (visibility section + its confirm sheets, sharing switches with the filter snackbar and the
+  targets confirm), Blocked people, the `Turn off Following` sheet, `use-update-settings`.
+- `profile/`, `add-to-week/` — the profile screen (header, `Food | Gym`, week, recipes grid, routine, last 7 days) and the
+  `AddToWeekSheet` (`friends.addRecipeToWeek` / `undoAddToWeek`). _Provisional: documented from `docs/friends/ux-design.md`
+  §8–§10 while M-PROFILE (F2.2) is in flight; the merge step corrects this to the shipped code._
+
+**Entry points** (all gated on `friends.availability`; with it off nothing renders and `availability` is the only friends
+query that ever runs):
+
+| Entry                                                                          | Where                                                                                                                                          |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| More tab › `Following` row, directly under `Profile` (`more-friends`)          | `app/(food)/more.tsx`; a `CountPill` (`more-friends-badge`, cap `9+`) when `badgeCount > 0`                                                    |
+| More tab icon badge                                                            | `app/(food)/_layout.tsx` `tabBarBadge` = `badgeCount`; this always-mounted layout is what keeps the poll running                               |
+| Settings hub › Account › `Following` (`settings-friends`)                      | `src/features/settings/settings-screen.tsx` — **Gym mode's way in** (Gym has no More tab; the `ModeSwitch` gear opens the hub)                 |
+| Profile › Privacy & data › `Profile visibility` (`profile-friends-visibility`) | `src/features/privacy/privacy-section.tsx`; value `Private` / `Public` / `Off` → `/friends/settings`, or `/friends` (intro) when not activated |
+| Consent history label                                                          | `src/features/privacy/consent-history.tsx` names the `SOCIAL_SHARING` events (turned on, made public, targets shared)                          |
+
+**The badge is the only notification mechanism (no push, no email — PRD Q-F-14).** `badgeCount` is
+`friends.me.badgeCount` = pending requests + unread Activity. `useFriendsMe()` polls `friends.me` every 60 s
+(`FRIENDS_BADGE_POLL_MS`) while the app is in the foreground and refetches when the app returns to the foreground
+(`refetchOnWindowFocus: 'always'`; AppState feeds TanStack's `focusManager`, background polling is off);
+`useFriendsBadge()` also refetches when a screen regains focus. After `markActivityRead`, `updateSettings`, `activate` and
+`deactivate` the screen invalidates `friends.me` itself so the badge reacts at once.
+
+**Rules specific to this feature**
+
+- **INV-7: never a `gym*` query key for friend data.** Only `trpc.friends.*` keys (all prefixed by `FRIENDS_QUERY_KEY_PREFIX`).
+  The persisted offline gym cache (`query-persistence.ts`) only stores `gym.*` queries, so friend data is never persisted into the
+  gym store, and nothing under `friends/` reads or writes `useGymBootstrap` or the gym KV store.
+- **`FriendsGate`** wraps every `/friends/*` screen: while the availability answer is pending it renders an empty
+  `Screen`, and when it is off (or the answer failed) the full-screen `Following isn’t available right now.` + `Go back`.
+  A query that fails with `data.friendsUnavailable` mid-session (kill switch) shows the same screen.
+- **Units are the viewer's** (a followed person's workouts show in the viewer's gym unit, falling back to the food units).
+- **Extractions** (so the profile reuses the owner's visuals read-only instead of duplicating them): `MealCardView` out of
+  `src/features/meal-plan/plan-meal-card.tsx` and `DayCardView` out of `src/features/gym/routine/` — _provisional until M-PROFILE
+  merges_. The existing meal-plan and gym-routine screens render through them unchanged.
+- **Tests:** `tests/unit/friends-core-*.test.tsx` (harness `friends-core-harness.tsx`: the real tRPC React client over a
+  recording fake link), `friends-home-*`, `friends-settings-*`; Maestro `e2e/friends-requests.flow.yaml`.
+- **OTA only:** the whole feature is JavaScript on the current runtime — no native module, no `app.config.js`, `eas.json`,
+  `ios/`, `android/` or dependency change (`business_flow.md` §20; `docs/friends/implementation-plan.md` §6).
+
 ---
 
 ## 5. Packages
