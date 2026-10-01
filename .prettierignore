@@ -9,3 +9,6 @@ public
 .env*
 prisma/migrations
 next-env.d.ts
+
+# One catalog row per line keeps review diffs readable (scripts/ingredients)
+scripts/ingredients/catalog-draft.json

@@ -106,20 +106,43 @@ export function resolveName(
 
 export type MissClass = 'compound' | 'prepared' | 'junk' | 'gap';
 
-/** Heuristic classification of a demand name that resolves to no row. */
+/**
+ * Heuristic classification of a demand name that resolves to no row:
+ *   junk      fuzz / truncated / non-ingredient text ("spices", "marinade")
+ *   compound  several ingredients in one line ("salt and pepper", "mixed berries")
+ *   prepared  a dish or a homemade mixture (dressings, leftovers, mash, crusts)
+ *   gap       a real single ingredient the catalog lacks (needs a row or a label)
+ * Compound and prepared lines are expected misses: the §7 legacy mapping splits
+ * or maps them. Patterns only — no demand names are hard-coded here.
+ */
 export function classifyMiss(raw: string): MissClass {
   const n = normalizeAlias(raw);
   if (
-    /\b(leftover|stir fry|skillet|curry soup|meatballs|meatloaf|kofta|fajitas|shepherds pie|creamy tomato pasta|green curry|thai green curry)\b/.test(
-      n,
+    n.length < 4 ||
+    /^(spices|marinade|ice|seasoning)$/.test(n) ||
+    /[^\x20-\x7e]/.test(
+      raw
+        .replace(/[\u2010-\u2011]/g, '-')
+        .normalize('NFKD')
+        .replace(/\p{M}/gu, ''),
     )
   )
-    return 'prepared';
+    return 'junk';
+  if (/\b(blend|seasoning|spice mix)\b/.test(n)) return 'gap';
+  if (
+    /\b(leftover|stir fry|skillet|soup|meatballs|meatloaf|kofta|fajitas|pie|pasta|curry|mash|pizza crust|cream|dressing|marinade|chutney|tortilla)\b/.test(
+      n,
+    ) &&
+    !/\b(curry paste|curry powder)\b/.test(n)
+  )
+    return /\b(and|or|with)\b|&/.test(n) && !/\b(leftover|stir fry|skillet)\b/.test(n)
+      ? 'compound'
+      : 'prepared';
   if (
     /\b(and|or|with)\b|&|\//.test(raw.toLowerCase()) ||
-    /^mixed\b.*\(.*,.*\)/.test(raw.toLowerCase())
+    /^mixed\b/.test(n) ||
+    /^(berries|frozen mixed berries|canned mixed beans)$/.test(n)
   )
     return 'compound';
-  if (/^(ice|ice cubes|spices|marinade|broth)$/.test(n)) return 'junk';
   return 'gap';
 }
