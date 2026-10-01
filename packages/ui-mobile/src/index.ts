@@ -1,3 +1,10 @@
+export {
+  Avatar,
+  AVATAR_COLORS,
+  AVATAR_SIZES,
+  type AvatarProps,
+  type AvatarSize,
+} from './components/avatar';
 export { Badge, type BadgeProps } from './components/badge';
 export { Button, type ButtonProps } from './components/button';
 export { Card, CardTitle, type CardProps } from './components/card';
@@ -28,6 +35,7 @@ export {
   type ChipProps,
 } from './components/chip';
 export { EmptyState, type EmptyStateProps } from './components/empty-state';
+export { CountPill, countPillText, type CountPillProps } from './components/count-pill';
 export { ErrorState, type ErrorStateProps } from './components/error-state';
 export { Input, type InputProps } from './components/input';
 export {
@@ -47,7 +55,19 @@ export {
   type SegmentedControlProps,
   type SegmentedOption,
 } from './components/segmented-control';
+export {
+  SearchField,
+  SEARCH_DEBOUNCE_MS,
+  SEARCH_TARGET_PT,
+  type SearchFieldProps,
+} from './components/search-field';
 export { Sheet, type SheetProps } from './components/sheet';
+export {
+  Skeleton,
+  SKELETON_CYCLE_MS,
+  SKELETON_LOW_OPACITY,
+  type SkeletonProps,
+} from './components/skeleton';
 export {
   Snackbar,
   resetSnackbarForTests,

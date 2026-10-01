@@ -74,3 +74,78 @@ build (today they are not; see the iOS page for how this was verified). Then:
 | Government apps, financial features, news | No                                                                                                                                                                                                                                                               |
 | Data used for AI                          | The app sends user data to Groq and Cloudflare Workers AI only after the in-app AI consent; it is not used to train models. Mirror the wording in the store description and privacy policy.                                                                      |
 | Permissions declaration                   | Camera and photo access (only when the user scans a meal or adds a recipe photo) and local notifications (workout reminders, rest timer). No push, no location, no contacts. Confirm against the merged Android manifest of the release build before submitting. |
+
+---
+
+## At Following launch (draft)
+
+**Do not apply this to the form that matches the build you submit first.** Everything above describes the
+Android app as it is on `master` at wave 4. This section is what changes when Following is switched on
+for everyone (plan §14 steps 5 and 6). It comes from [`docs/friends/prd.md`](../../friends/prd.md) §14 item 4 and
+the iOS equivalent in [../ios/privacy-and-rating.md](../ios/privacy-and-rating.md#at-following-launch-draft-do-not-apply-to-the-101-submission).
+Counsel review pending. Following ships over the air, so the Data safety form and the content rating must be
+correct before `friends` is switched on, not only at the next store build. The Play account does not exist yet, so
+fill the form with these answers from the start.
+
+### Data safety: what changes
+
+**No new data type.** The types Following touches are already ticked above. Only the descriptions change:
+
+| Play data type                              | Change to "What it is in Chefer"                                                                                                                                            |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Personal info → Name                        | Add: "also shown to other users, with the first and last name editable, when the user turns on Following"                                                                   |
+| App activity → Other user-generated content | Add: "recipes shared with followers; who the user follows and blocks; follow requests; reports the user files"                                                              |
+| Health info, Fitness info                   | Add: "the meal plan with calories and macros, the routine and the last 7 days of workouts can be seen by followers the user approved (or anyone, if the profile is Public)" |
+
+**Do not tick:** Contacts (no import), Photos and videos (no profile photo upload), Location, Search history (names
+typed in the search box are never logged or sent to analytics), Messages (there is no messaging).
+
+**"Shared" stays No, recommended, but counsel must confirm.** Play's definition of sharing excludes a transfer the
+user starts and expects. Showing the user's own content to the people they chose to share it with, after an explicit
+opt-in with a clear intro screen, fits that reading. A reader could also say other users are third parties.
+**Fallback if counsel says so:** mark **Name, Health info, Fitness info and Other user-generated content** as
+**Collected: Yes, Shared: Yes**, purpose **App functionality**, optional, with the note "Shown to other users of the
+app that the user chooses". Nothing else in the form changes. The privacy policy carries the detail either way.
+
+| Question                             | At Following launch                                                                                                                                                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Is the data encrypted in transit     | Yes, unchanged                                                                                                                                                                                          |
+| Can users ask for deletion           | Yes. Account deletion removes all of it. **Partial deletion** row: add "Following → Sharing & privacy → Turn off Following removes the social profile, follows, blocks, requests and Activity at once". |
+| Is any of it required                | No. Following is optional and off until the user turns it on, so every Following item is **Optional**                                                                                                   |
+| Data used for tracking / advertising | No, unchanged                                                                                                                                                                                           |
+| Push, device or ad identifiers       | None. Following adds no permission, no push registration and no new SDK.                                                                                                                                |
+
+### Content rating (IARC questionnaire)
+
+Use the same answers as the iOS age rating ([../ios/privacy-and-rating.md](../ios/privacy-and-rating.md#age-rating-at-launch)),
+with these changes:
+
+| Question (wording varies by IARC version)                                                          | Answer                                                                                                           |
+| -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Can users interact or exchange content with each other? (user interaction, user-generated content) | **Yes.** Users see each other's shared recipes, meal plans and workouts. There is no chat, comment or messaging. |
+| Is a user's personal information visible to other users?                                           | **Yes**, a first and last name and what the user chooses to share. No location, no email address.                |
+| Is the user's location shared with others                                                          | No                                                                                                               |
+| Is there unrestricted internet access or an in-app browser                                         | No. A recipe's source link opens in the phone's browser.                                                         |
+| Digital purchases, gambling                                                                        | No, unchanged                                                                                                    |
+
+The rating may rise. Accept what it calculates; the Terms already require 16+.
+
+### Google Play "User Generated Content" policy
+
+Play requires an app with user-generated content to have all of the following. Each one is in the app.
+
+| Play requirement                                                                   | Chefer                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User terms that define objectionable content and require acceptance before posting | The Terms (draft section "Following and shared content", [`legal-drafts.md`](../../friends/legal-drafts.md) §2.2). Every user accepts Terms at sign-up, and re-accepts after the version bump at launch.                                                                                                                                                      |
+| An in-app system to report objectionable content and users                         | "Report and block" on a profile, "Report recipe" on a recipe. One tap on a reason (five reasons).                                                                                                                                                                                                                                                             |
+| Moderation, removal and blocking of abusive users and content                      | Automatic and immediate: a recipe reported by 3 different eligible accounts is hidden for everyone, an account reported by 5 is forced private and removed from search, a word filter rejects offensive names and shared-recipe text, and every user can block anyone instantly. There is no manual queue (owner decision); every automatic action is logged. |
+| Safeguards for user content that can be monetised or shared widely                 | Not applicable: no payments, no ads, no public web pages. Profiles are visible only to signed-in Chefer users who turned Following on, and a profile is Private by default.                                                                                                                                                                                   |
+
+### Other Play forms
+
+| Form                    | Change at launch                                                                                                     |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Target audience         | Unchanged: 16 and over. Following adds no feature aimed at children and no age check beyond the existing 16+ gate.   |
+| Health apps declaration | Unchanged. Following shows the user's own meal plan and workouts to people they choose, and gives no medical advice. |
+| Permissions declaration | Unchanged: no new permission. "Invite someone" uses the system share sheet.                                          |
+| Store listing text      | Mention Following only in the same wording as the iOS metadata, and say it is optional.                              |

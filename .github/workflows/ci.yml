@@ -283,6 +283,8 @@ jobs:
       # 100 requests/min limiter returns 429s once the suite grows.
       RATE_LIMIT_MAX: '3000'
       AUTH_RATE_LIMIT_MAX: '200'
+      # Following ships dark; turn it on so friends.contract.test.ts runs (it skips itself when off).
+      FEATURE_FLAGS: 'friends'
     steps:
       - name: Checkout
         uses: actions/checkout@v4

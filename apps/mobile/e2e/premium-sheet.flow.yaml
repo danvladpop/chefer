@@ -22,7 +22,7 @@ appId: dev.chefer.app.dev
     commands:
       - tapOn:
           id: 'mode-switch-food'
-      - tapOn: 'More(, tab.*)?'
+      - tapOn: 'More(, .*)?'
       - scrollUntilVisible:
           element:
             id: 'logout-button'
@@ -72,7 +72,7 @@ appId: dev.chefer.app.dev
     timeout: 60000
 
 # ── Lock 1: Profile › Plan & Premium → "See what Premium adds" ──────────────
-- tapOn: 'More(, tab.*)?'
+- tapOn: 'More(, .*)?'
 - tapOn:
     id: 'more-profile'
 - extendedWaitUntil:
@@ -99,7 +99,7 @@ appId: dev.chefer.app.dev
 - tapOn: 'Back'
 
 # ── Lock 2: the AI chef's locked preview ────────────────────────────────────
-- tapOn: 'More(, tab.*)?'
+- tapOn: 'More(, .*)?'
 - tapOn:
     id: 'more-ai chef'
 - extendedWaitUntil:

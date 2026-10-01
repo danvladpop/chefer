@@ -18,6 +18,8 @@ export * from './feature-flags';
 export * from './analytics-events';
 export * from './targets';
 export * from './legal';
+export * from './friends';
+export * from './friends-copy';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

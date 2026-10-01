@@ -166,6 +166,8 @@ function makeRepo() {
     setFollowedTemplate: vi.fn().mockResolvedValue(undefined),
     findFollowedTemplate: vi.fn().mockResolvedValue(null),
     hasShoppingProgress: vi.fn().mockResolvedValue(false),
+    appendDayMeal: vi.fn().mockResolvedValue(0),
+    removeDayMealIfMatches: vi.fn().mockResolvedValue(true),
   };
 }
 
@@ -2571,6 +2573,525 @@ describe('MealPlanService.resumeTailoring ("Tailor the rest")', () => {
     const service = new MealPlanService(repoWithPlan());
     await expect(service.resumeTailoring('user1', 'plan1', true)).rejects.toMatchObject({
       code: 'CONFLICT',
+    });
+  });
+});
+
+// ─── Following: another user's recipe into your week (L-XRECIPE) ─────────────
+
+describe('MealPlanService — Following (PRD §13, FR-17, INV-5)', () => {
+  const ME = 'me';
+  const THEIRS = {
+    ...AI_RECIPE,
+    id: 'theirs',
+    name: 'Lentil dal',
+    ingredients: [{ name: 'lentils', quantity: 200, unit: 'g' }],
+    imageStatus: 'DONE',
+    source: 'MANUAL',
+    sourceUrl: 'https://www.bbcgoodfood.com/recipes/dal',
+    creatorId: 'maria',
+    originRecipeId: null,
+    originCreatorId: null,
+    hiddenAt: null,
+    hiddenReason: null,
+  };
+  const MY_COPY = {
+    ...THEIRS,
+    id: 'my-copy',
+    creatorId: ME,
+    originRecipeId: 'theirs',
+    originCreatorId: 'maria',
+  };
+  const WEEK = {
+    id: 'plan-me',
+    userId: ME,
+    weekStartDate: new Date('2026-09-28'),
+    days: [
+      {
+        dayOfWeek: 1,
+        meals: [
+          { type: 'breakfast', recipeId: 'ai-r1' },
+          { type: 'lunch', recipeId: 'old-lunch', portion: 1.5 },
+        ],
+      },
+    ],
+  };
+  const EGG_ALLERGY = { allergies: ['egg'], dietaryRestrictions: [], dislikedIngredients: [] };
+
+  const copiesStub = () => ({
+    ownedRecipeFor: vi.fn(
+      async (_viewer: string, recipe: { id: string; source: string; creatorId: string | null }) =>
+        recipe.source === 'MANUAL' && recipe.creatorId !== ME
+          ? { recipe: MY_COPY, copiedFromId: recipe.id, created: true }
+          : { recipe, copiedFromId: null, created: false },
+    ),
+  });
+  const socialStub = (visible = true) => ({
+    isEnabled: vi.fn().mockResolvedValue(true),
+    recipesAccess: vi.fn().mockResolvedValue(visible ? 'visible' : 'locked'),
+    hasHearted: vi.fn().mockResolvedValue(false),
+  });
+  const serviceWith = (
+    repo: ReturnType<typeof makeRepo>,
+    copies = copiesStub(),
+    social = socialStub(),
+  ) => new MealPlanService(repo, undefined, undefined, undefined, copies as never, social);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+  });
+
+  describe('addRecipeToSlot', () => {
+    it("add: another user's recipe goes in as YOUR copy, appended as your pick", async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue(THEIRS);
+      repo.findForWeek.mockResolvedValue(WEEK);
+      repo.appendDayMeal.mockResolvedValue(2);
+      const copies = copiesStub();
+
+      const result = await serviceWith(repo, copies).addRecipeToSlot(ME, {
+        recipeId: 'theirs',
+        weekOffset: 0,
+        dayOfWeek: 1,
+        mealType: 'dinner',
+        mode: 'add',
+      });
+
+      expect(copies.ownedRecipeFor).toHaveBeenCalledWith(ME, THEIRS);
+      expect(repo.appendDayMeal).toHaveBeenCalledWith('plan-me', 1, 'dinner', 'my-copy', {
+        pinned: true,
+      });
+      expect(repo.updateDayMeal).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        planId: 'plan-me',
+        dayOfWeek: 1,
+        mealType: 'dinner',
+        slotIndex: 2,
+        addedRecipeId: 'my-copy',
+        copiedFromId: 'theirs',
+      });
+    });
+
+    it('replace: swaps that slot, keeps its portion, returns previousRecipeId for Undo', async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue(THEIRS);
+      repo.findForWeek.mockResolvedValue(WEEK);
+
+      const result = await serviceWith(repo).addRecipeToSlot(ME, {
+        recipeId: 'theirs',
+        weekOffset: 0,
+        dayOfWeek: 1,
+        mealType: 'lunch',
+        mode: 'replace',
+        slotIndex: 1,
+      });
+
+      expect(repo.updateDayMeal).toHaveBeenCalledWith(
+        'plan-me',
+        1,
+        'lunch',
+        'my-copy',
+        1.5,
+        1,
+        true,
+      );
+      expect(result).toMatchObject({
+        slotIndex: 1,
+        previousRecipeId: 'old-lunch',
+        previousPinned: false, // F3.1: the replaced slot wasn't a pick
+      });
+    });
+
+    it('replace without a slotIndex, or at a slot of another type → BAD_REQUEST', async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue(THEIRS);
+      repo.findForWeek.mockResolvedValue(WEEK);
+      const base = { recipeId: 'theirs', weekOffset: 0, dayOfWeek: 1, mealType: 'lunch' as const };
+      await expect(
+        serviceWith(repo).addRecipeToSlot(ME, { ...base, mode: 'replace' }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      await expect(
+        serviceWith(repo).addRecipeToSlot(ME, { ...base, mode: 'replace', slotIndex: 0 }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      expect(repo.updateDayMeal).not.toHaveBeenCalled();
+    });
+
+    it('an open (AI/curated) recipe needs no copy', async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue({ ...AI_RECIPE, source: 'AI', creatorId: null });
+      repo.findForWeek.mockResolvedValue(WEEK);
+      const result = await serviceWith(repo).addRecipeToSlot(ME, {
+        recipeId: 'ai-r1',
+        weekOffset: 1,
+        dayOfWeek: 3,
+        mealType: 'dinner',
+        mode: 'add',
+      });
+      expect(result).toMatchObject({ addedRecipeId: 'ai-r1', copiedFromId: null });
+    });
+
+    it("NOT_FOUND for a recipe you can't see — nothing copied, nothing written", async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue(THEIRS);
+      repo.findForWeek.mockResolvedValue(WEEK);
+      const copies = copiesStub();
+      await expect(
+        serviceWith(repo, copies, socialStub(false)).addRecipeToSlot(ME, {
+          recipeId: 'theirs',
+          weekOffset: 0,
+          dayOfWeek: 1,
+          mealType: 'dinner',
+          mode: 'add',
+        }),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+      expect(copies.ownedRecipeFor).not.toHaveBeenCalled();
+      expect(repo.appendDayMeal).not.toHaveBeenCalled();
+    });
+
+    it('no plan for that week → NOT_FOUND with the sheet copy; never a carry-forward write', async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue(THEIRS);
+      repo.findForWeek.mockResolvedValue(null);
+      await expect(
+        serviceWith(repo).addRecipeToSlot(ME, {
+          recipeId: 'theirs',
+          weekOffset: 1,
+          dayOfWeek: 1,
+          mealType: 'dinner',
+          mode: 'add',
+        }),
+      ).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+        message: 'You don’t have a plan for this week yet.',
+      });
+      expect(repo.createPlan).not.toHaveBeenCalled();
+    });
+
+    it('conflict with your table → FORBIDDEN + unsafeForTable cause; Use anyway places it', async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue({
+        ...THEIRS,
+        ingredients: [{ name: 'egg', quantity: 2, unit: 'pcs' }],
+      });
+      repo.findForWeek.mockResolvedValue(WEEK);
+      vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(EGG_ALLERGY as never);
+      const input = {
+        recipeId: 'theirs',
+        weekOffset: 0,
+        dayOfWeek: 1,
+        mealType: 'dinner' as const,
+        mode: 'add' as const,
+      };
+      const copies = copiesStub();
+      const err = await serviceWith(repo, copies)
+        .addRecipeToSlot(ME, input)
+        .catch((e: unknown) => e);
+      expect(err).toMatchObject({
+        code: 'FORBIDDEN',
+        message: expect.stringMatching(/UNSAFE_FOR_TABLE.*egg/),
+      });
+      expect((err as { cause?: { issues?: string[] } }).cause?.issues).toEqual(['egg']);
+      expect(copies.ownedRecipeFor).not.toHaveBeenCalled();
+
+      await serviceWith(repo, copies).addRecipeToSlot(ME, { ...input, acknowledgeConflict: true });
+      expect(repo.appendDayMeal).toHaveBeenCalledTimes(1);
+    });
+
+    it('an open AI recipe that conflicts is refused even when acknowledged (no Use anyway data)', async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue({
+        ...AI_RECIPE,
+        ingredients: [{ name: 'egg', quantity: 2, unit: 'pcs' }],
+        source: 'AI',
+        creatorId: null,
+      });
+      repo.findForWeek.mockResolvedValue(WEEK);
+      vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(EGG_ALLERGY as never);
+      const err = await serviceWith(repo)
+        .addRecipeToSlot(ME, {
+          recipeId: 'ai-r1',
+          weekOffset: 0,
+          dayOfWeek: 1,
+          mealType: 'dinner',
+          mode: 'add',
+          acknowledgeConflict: true,
+        })
+        .catch((e: unknown) => e);
+      expect(err).toMatchObject({ code: 'FORBIDDEN' });
+      expect((err as { cause?: unknown }).cause).toBeUndefined();
+      expect(repo.appendDayMeal).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('undoAddToSlot', () => {
+    it("only on the caller's own plan", async () => {
+      const repo = makeRepo();
+      repo.findByIdForUser.mockResolvedValue(null);
+      await expect(
+        serviceWith(repo).undoAddToSlot(ME, {
+          planId: 'someone-elses',
+          dayOfWeek: 1,
+          mealType: 'dinner',
+          slotIndex: 2,
+          addedRecipeId: 'my-copy',
+        }),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      expect(repo.findByIdForUser).toHaveBeenCalledWith(ME, 'someone-elses');
+      expect(repo.removeDayMealIfMatches).not.toHaveBeenCalled();
+    });
+
+    it('add → removes the slot only while it still holds the added recipe', async () => {
+      const repo = makeRepo();
+      repo.findByIdForUser.mockResolvedValue(WEEK);
+      await expect(
+        serviceWith(repo).undoAddToSlot(ME, {
+          planId: 'plan-me',
+          dayOfWeek: 1,
+          mealType: 'dinner',
+          slotIndex: 2,
+          addedRecipeId: 'my-copy',
+        }),
+      ).resolves.toEqual({ ok: true });
+      expect(repo.removeDayMealIfMatches).toHaveBeenCalledWith(
+        'plan-me',
+        1,
+        2,
+        'my-copy',
+        'dinner',
+      );
+    });
+
+    it('replace → puts the previous recipe back, keeping the portion', async () => {
+      const repo = makeRepo();
+      repo.findByIdForUser.mockResolvedValue({
+        ...WEEK,
+        days: [
+          {
+            dayOfWeek: 1,
+            meals: [
+              { type: 'breakfast', recipeId: 'ai-r1' },
+              { type: 'lunch', recipeId: 'my-copy', portion: 1.5, pinned: true },
+            ],
+          },
+        ],
+      });
+      repo.findRecipeById.mockResolvedValue({ ...AI_RECIPE, id: 'old-lunch', source: 'AI' });
+      await serviceWith(repo).undoAddToSlot(ME, {
+        planId: 'plan-me',
+        dayOfWeek: 1,
+        mealType: 'lunch',
+        slotIndex: 1,
+        addedRecipeId: 'my-copy',
+        previousRecipeId: 'old-lunch',
+      });
+      expect(repo.updateDayMeal).toHaveBeenCalledWith(
+        'plan-me',
+        1,
+        'lunch',
+        'old-lunch',
+        1.5,
+        1,
+        true,
+      );
+    });
+
+    it('F3.1: replace → restores the previous slot’s own pick flag when Undo passes it', async () => {
+      const repo = makeRepo();
+      repo.findByIdForUser.mockResolvedValue({
+        ...WEEK,
+        days: [{ dayOfWeek: 1, meals: [{ type: 'lunch', recipeId: 'my-copy', pinned: true }] }],
+      });
+      repo.findRecipeById.mockResolvedValue({ ...AI_RECIPE, id: 'old-lunch', source: 'AI' });
+      await serviceWith(repo).undoAddToSlot(ME, {
+        planId: 'plan-me',
+        dayOfWeek: 1,
+        mealType: 'lunch',
+        slotIndex: 0,
+        addedRecipeId: 'my-copy',
+        previousRecipeId: 'old-lunch',
+        previousPinned: false,
+      });
+      expect(repo.updateDayMeal).toHaveBeenCalledWith(
+        'plan-me',
+        1,
+        'lunch',
+        'old-lunch',
+        undefined,
+        0,
+        false,
+      );
+    });
+
+    it('a stale Undo (the slot changed since) is a no-op', async () => {
+      const repo = makeRepo();
+      repo.findByIdForUser.mockResolvedValue(WEEK); // slot 1 holds old-lunch, not my-copy
+      await expect(
+        serviceWith(repo).undoAddToSlot(ME, {
+          planId: 'plan-me',
+          dayOfWeek: 1,
+          mealType: 'lunch',
+          slotIndex: 1,
+          addedRecipeId: 'my-copy',
+          previousRecipeId: 'old-lunch',
+        }),
+      ).resolves.toEqual({ ok: true });
+      expect(repo.updateDayMeal).not.toHaveBeenCalled();
+    });
+
+    it("Undo can't smuggle a recipe you can't see into your plan", async () => {
+      const repo = makeRepo();
+      repo.findByIdForUser.mockResolvedValue({
+        ...WEEK,
+        days: [{ dayOfWeek: 1, meals: [{ type: 'lunch', recipeId: 'my-copy' }] }],
+      });
+      repo.findRecipeById.mockResolvedValue({
+        ...THEIRS,
+        id: 'victim-private',
+        creatorId: 'victim',
+      });
+      await expect(
+        serviceWith(repo, copiesStub(), socialStub(false)).undoAddToSlot(ME, {
+          planId: 'plan-me',
+          dayOfWeek: 1,
+          mealType: 'lunch',
+          slotIndex: 0,
+          addedRecipeId: 'my-copy',
+          previousRecipeId: 'victim-private',
+        }),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      expect(repo.updateDayMeal).not.toHaveBeenCalled();
+    });
+  });
+
+  it("replaceRecipe (INV-5): another user's recipe is written as your copy", async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(WEEK);
+    repo.findRecipeById.mockResolvedValue(THEIRS);
+    const dto = await serviceWith(repo).replaceRecipe(ME, 'plan-me', 1, 'lunch', 'theirs', 1);
+    expect(repo.updateDayMeal).toHaveBeenCalledWith('plan-me', 1, 'lunch', 'my-copy', 1.5, 1, true);
+    expect(dto).toMatchObject({ id: 'my-copy', previousRecipeId: 'old-lunch' });
+  });
+
+  it('generate (INV-5): a pinned favourite of someone you follow is placed as your copy', async () => {
+    const repo = makeRepo();
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([
+      { recipe: THEIRS } as never,
+    ]);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+    const copies = copiesStub();
+
+    await serviceWith(repo, copies).generate(ME, 0, true);
+
+    expect(copies.ownedRecipeFor).toHaveBeenCalledWith(ME, THEIRS);
+    const created = vi.mocked(repo.createPlan).mock.calls[0]![0] as {
+      days: { meals: { recipeId: string }[] }[];
+    };
+    const ids = created.days.flatMap((d) => d.meals.map((m) => m.recipeId));
+    expect(ids).toContain('my-copy');
+    expect(ids).not.toContain('theirs');
+  });
+
+  it('F3.1 generate: a pin on an auto-hidden recipe (hearted before the hide) is skipped, never copied', async () => {
+    const repo = makeRepo();
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([
+      { recipe: { ...THEIRS, hiddenAt: new Date('2026-09-30'), hiddenReason: 'REPORTS' } } as never,
+    ]);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+    const copies = copiesStub();
+    const social = socialStub();
+    social.hasHearted.mockResolvedValue(true); // the heart still opens it
+
+    await serviceWith(repo, copies, social).generate(ME, 0, true);
+
+    expect(copies.ownedRecipeFor).not.toHaveBeenCalled();
+    const created = vi.mocked(repo.createPlan).mock.calls[0]![0] as {
+      days: { meals: { recipeId: string }[] }[];
+    };
+    const ids = created.days.flatMap((d) => d.meals.map((m) => m.recipeId));
+    expect(ids).not.toContain('my-copy');
+    expect(ids).not.toContain('theirs');
+  });
+
+  it('assemblePlanDto: a slot whose recipe row is gone is dropped, the week still loads', async () => {
+    const repo = makeRepo();
+    repo.findForWeek.mockResolvedValue({
+      id: 'plan-me',
+      weekStartDate: new Date('2026-09-28'),
+      days: [
+        {
+          dayOfWeek: 0,
+          meals: [
+            { type: 'lunch', recipeId: 'deleted-with-its-owner' },
+            { type: 'dinner', recipeId: 'ai-r1' },
+          ],
+        },
+      ],
+    });
+    repo.findRecipesByIds.mockResolvedValue([{ ...AI_RECIPE, imageStatus: 'DONE' }]);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const week = await new MealPlanService(repo).getForWeek(ME, 0);
+
+    expect(week?.days[0]?.meals.map((m) => m.recipe.id)).toEqual(['ai-r1']);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('deleted-with-its-owner'));
+    warn.mockRestore();
+  });
+
+  describe('getRecipe attribution (additive, plan §4.2)', () => {
+    const MARIA = { id: 'maria', firstName: 'Maria', lastName: 'Pop', name: null };
+    const people = vi.fn();
+    beforeEach(() => {
+      people.mockReset().mockResolvedValue([MARIA]);
+      (favouriteRecipeRepository as unknown as Record<string, unknown>)['findPeopleByIds'] = people;
+    });
+
+    it("another user's recipe: creator + sourceUrl", async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue(THEIRS);
+      const dto = await serviceWith(repo).getRecipe(ME, 'theirs');
+      expect(dto.creator).toEqual({ id: 'maria', displayName: 'Maria Pop', firstName: 'Maria' });
+      expect(dto.sourceUrl).toBe('https://www.bbcgoodfood.com/recipes/dal');
+      expect(dto).not.toHaveProperty('origin');
+      expect(dto).not.toHaveProperty('hidden');
+    });
+
+    it('your copy: origin with the original creator’s first name', async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue(MY_COPY);
+      const dto = await serviceWith(repo).getRecipe(ME, 'my-copy');
+      expect(dto.origin).toEqual({ creatorFirstName: 'Maria' });
+      expect(dto).not.toHaveProperty('creator');
+    });
+
+    it('your own auto-hidden recipe: hidden { reason }', async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue({
+        ...THEIRS,
+        creatorId: ME,
+        hiddenAt: new Date(),
+        hiddenReason: 'REPORTS',
+      });
+      const dto = await serviceWith(repo).getRecipe(ME, 'theirs');
+      expect(dto.hidden).toEqual({ reason: 'REPORTS' });
+      expect(people).not.toHaveBeenCalled();
+    });
+
+    it('an open recipe gets no new key and no extra query', async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue({
+        ...AI_RECIPE,
+        source: 'AI',
+        creatorId: null,
+        sourceUrl: null,
+      });
+      const dto = await serviceWith(repo).getRecipe(ME, 'ai-r1');
+      for (const k of ['creator', 'origin', 'hidden', 'sourceUrl'])
+        expect(dto).not.toHaveProperty(k);
+      expect(people).not.toHaveBeenCalled();
     });
   });
 });

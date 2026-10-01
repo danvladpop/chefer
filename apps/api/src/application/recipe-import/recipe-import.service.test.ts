@@ -340,6 +340,60 @@ describe('RecipeImportService.save — fail closed', () => {
   });
 });
 
+describe('RecipeImportService.save — Following word filter (PRD §9.4, plan §4.2 importSave)', () => {
+  // ModerationService.checkRecipeText decides (only an author who shares
+  // recipes is filtered — moderation.service.test.ts covers the condition);
+  // here: importSave asks it with the saved text, and a rejection stops the
+  // save before anything is written.
+  const moderation = (impl?: () => Promise<void>) => ({
+    checkRecipeText: vi.fn(impl ?? (() => Promise.resolve())),
+  });
+
+  it('checks the name and description that will be saved', async () => {
+    const mod = moderation();
+    const repo = recipeRepo();
+    const service = new RecipeImportService(
+      makeAi(),
+      repo,
+      prefsRepo(peanutVegetarian),
+      undefined,
+      undefined,
+      mod,
+    );
+    await service.save(premiumUser, {
+      recipe: { ...extracted, name: '  Peanut Chicken Satay  ' },
+      variant: 'original',
+    });
+    expect(mod.checkRecipeText).toHaveBeenCalledWith(premiumUser.id, {
+      name: 'Peanut Chicken Satay',
+      description: 'Skewers with peanut sauce.',
+    });
+    expect(
+      (repo as unknown as { createManualRecipe: ReturnType<typeof vi.fn> }).createManualRecipe,
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  it('a rejection (BAD_REQUEST + textRejected) saves nothing', async () => {
+    const rejected = new Error('textRejected');
+    const mod = moderation(() => Promise.reject(rejected));
+    const repo = recipeRepo();
+    const service = new RecipeImportService(
+      makeAi(),
+      repo,
+      prefsRepo(peanutVegetarian),
+      undefined,
+      undefined,
+      mod,
+    );
+    await expect(
+      service.save(premiumUser, { recipe: extracted, variant: 'original' }),
+    ).rejects.toBe(rejected);
+    expect(
+      (repo as unknown as { createManualRecipe: ReturnType<typeof vi.fn> }).createManualRecipe,
+    ).not.toHaveBeenCalled();
+  });
+});
+
 describe('RecipeImportService — the whole table (P2-3)', () => {
   const household = (members: unknown[]) => ({ findByUserId: vi.fn().mockResolvedValue(members) });
   const noSafety = { allergies: [], dietaryRestrictions: [], dislikedIngredients: [] };

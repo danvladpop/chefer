@@ -31,12 +31,15 @@ export function VideoDraftForm({
   preview,
   saving,
   saveError,
+  nameError = null,
   onBack,
   onSave,
 }: {
   preview: VideoImportPreview;
   saving: boolean;
   saveError: string | null;
+  /** A server rejection of the name (Following word filter, `data.textRejected`), shown under the field. */
+  nameError?: string | null;
   onBack: () => void;
   onSave: (recipe: VideoDraftRecipe) => void;
 }) {
@@ -117,8 +120,17 @@ export function VideoDraftForm({
           value={form.name}
           maxLength={120}
           onChangeText={(name) => update({ name })}
-          className={cn(nameMissing && 'border-red-400')}
+          className={cn((nameMissing || nameError) && 'border-red-400')}
         />
+        {nameError ? (
+          <Text
+            testID="video-draft-name-error"
+            nativeID="video-draft-name-error"
+            className="mt-1 text-sm text-red-700"
+          >
+            {nameError}
+          </Text>
+        ) : null}
       </View>
 
       <View className="flex-row gap-2">

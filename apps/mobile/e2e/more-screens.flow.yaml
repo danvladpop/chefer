@@ -9,7 +9,7 @@ appId: dev.chefer.app.dev
     visible:
       id: 'home-title'
     timeout: 30000
-- tapOn: 'More(, tab.*)?'
+- tapOn: 'More(, .*)?'
 
 - tapOn:
     id: 'more-profile'

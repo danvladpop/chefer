@@ -1,4 +1,4 @@
-import type { FavouriteRecipe, Recipe } from '@prisma/client';
+import type { FavouriteRecipe, Prisma, Recipe } from '@prisma/client';
 import { RecipeSource } from '@prisma/client';
 import { prisma } from '../client';
 
@@ -20,7 +20,35 @@ export interface CreateManualRecipeData {
   imageUrl?: string | null;
   /** Provenance of imported recipes (Cheferize F5) — never rendered as a republished page. */
   sourceUrl?: string | null;
+  /**
+   * Following (PRD §13): set only on a viewer's private copy of another
+   * user's recipe (`findOrCreateCopy`). Never taken from client input.
+   */
+  originRecipeId?: string | null;
+  originCreatorId?: string | null;
 }
+
+/** The name parts a recipe's creator / origin creator is shown with (Following). */
+export type RecipePersonName = {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  name: string | null;
+};
+
+/**
+ * A `findAllRecipesForUser` row: the full recipe plus the people it is
+ * attributed to (Following: `By {name}` on someone else's recipe, `From
+ * {first}` on your copy). The service maps these to optional DTO fields and
+ * strips the raw relations, so old clients see the same row keys.
+ */
+export type RecipeWithPeople = Recipe & {
+  creator: RecipePersonName | null;
+  originCreator: RecipePersonName | null;
+};
+
+/** `findOrCreateCopy`'s result: the viewer's copy, and whether this call made it. */
+export type RecipeCopyResult = { recipe: Recipe; created: boolean };
 
 export interface IFavouriteRecipeRepository {
   findByUserId(userId: string, limit?: number): Promise<FavouriteRecipeWithRecipe[]>;
@@ -44,9 +72,27 @@ export interface IFavouriteRecipeRepository {
       myRecipesOnly?: boolean | undefined;
       cursor?: string | undefined;
       limit?: number | undefined;
+      /**
+       * Following (plan §2.4): creators whose recipes the viewer may see
+       * (accepted follows sharing recipes). Their own originals (not copies)
+       * that the viewer hearted join Saved/All — imported ones included,
+       * auto-hidden ones too (Saved is heart-driven: a heart made before the
+       * hide keeps working). Omitted/empty = today's rows exactly.
+       */
+      visibleCreatorIds?: string[] | undefined;
     },
-  ): Promise<Recipe[]>;
+  ): Promise<RecipeWithPeople[]>;
   createManualRecipe(userId: string, data: CreateManualRecipeData): Promise<Recipe>;
+  /**
+   * Following (PRD §13, plan §4.4): the viewer's private copy of `source`
+   * (another user's MANUAL recipe) — the existing one, or a new one carrying
+   * the text, ingredients, nutrition, photo URL, `sourceUrl` and origins.
+   * At most one per viewer and source: there is no DB unique (plan §2.3), so
+   * this is a SERIALIZABLE find-or-create that retries on P2034.
+   */
+  findOrCreateCopy(viewerId: string, source: Recipe): Promise<RecipeCopyResult>;
+  /** Name parts for the given user ids (recipe attribution). Unknown ids are skipped. */
+  findPeopleByIds(ids: string[]): Promise<RecipePersonName[]>;
   updateManualRecipe(
     userId: string,
     recipeId: string,
@@ -56,6 +102,17 @@ export interface IFavouriteRecipeRepository {
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
+
+/** Serializable find-or-create attempts before the conflict is surfaced. */
+const COPY_ATTEMPTS = 6;
+
+const PERSON_NAME = { id: true, firstName: true, lastName: true, name: true } as const;
+
+/** `include` for `RecipeWithPeople` — name parts only, never email or anything else. */
+const RECIPE_PEOPLE = {
+  creator: { select: PERSON_NAME },
+  originCreator: { select: PERSON_NAME },
+} as const;
 
 export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
   async findByUserId(userId: string, limit = 4): Promise<FavouriteRecipeWithRecipe[]> {
@@ -146,9 +203,23 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
       myRecipesOnly?: boolean | undefined;
       cursor?: string | undefined;
       limit?: number | undefined;
+      visibleCreatorIds?: string[] | undefined;
     } = {},
-  ): Promise<Recipe[]> {
+  ): Promise<RecipeWithPeople[]> {
     const { search, savedOnly = false, myRecipesOnly = false, cursor, limit = 20 } = opts;
+    const visibleCreatorIds = opts.visibleCreatorIds ?? [];
+
+    // Never list another user's private (MANUAL) recipe, even if it was
+    // favourited by id before saves checked visibility (audit F-REC-2-2) —
+    // except, with Following, the originals of people the viewer may see
+    // (never their copies of someone else's recipe: no laundering, PRD §13).
+    const favouriteRecipeVisible: Prisma.RecipeWhereInput[] = [
+      { source: { not: RecipeSource.MANUAL } },
+      { creatorId: userId },
+      ...(visibleCreatorIds.length > 0
+        ? [{ creatorId: { in: visibleCreatorIds }, originRecipeId: null }]
+        : []),
+    ];
 
     if (myRecipesOnly) {
       return prisma.recipe.findMany({
@@ -157,6 +228,7 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
           source: RecipeSource.MANUAL,
           ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
         },
+        include: RECIPE_PEOPLE,
         orderBy: { createdAt: 'desc' },
         take: limit,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -167,20 +239,18 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
       const query = {
         where: {
           userId,
-          // Never list another user's private (MANUAL) recipe, even if it was
-          // favourited by id before saves checked visibility (audit F-REC-2-2).
           recipe: {
-            OR: [{ source: { not: RecipeSource.MANUAL } }, { creatorId: userId }],
+            OR: favouriteRecipeVisible,
             ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
           },
         },
-        include: { recipe: true as const },
+        include: { recipe: { include: RECIPE_PEOPLE } },
         orderBy: { savedAt: 'desc' as const },
         take: limit,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       };
       const favourites = await prisma.favouriteRecipe.findMany(query);
-      return favourites.map((f: { recipe: Recipe }) => f.recipe);
+      return favourites.map((f) => f.recipe);
     }
 
     // bug B-11: "All" = plan recipes ∪ own MANUAL recipes ∪ favourites,
@@ -200,18 +270,16 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
       }),
       prisma.recipe.findMany({
         where: { creatorId: userId, source: RecipeSource.MANUAL, ...searchFilter },
+        include: RECIPE_PEOPLE,
         orderBy: { createdAt: 'desc' },
         take: 200,
       }),
       prisma.favouriteRecipe.findMany({
         where: {
           userId,
-          recipe: {
-            OR: [{ source: { not: RecipeSource.MANUAL } }, { creatorId: userId }],
-            ...searchFilter,
-          },
+          recipe: { OR: favouriteRecipeVisible, ...searchFilter },
         },
-        include: { recipe: true as const },
+        include: { recipe: { include: RECIPE_PEOPLE } },
         orderBy: { savedAt: 'desc' as const },
         take: 200,
       }),
@@ -228,11 +296,12 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
       planRecipeIds.size > 0
         ? await prisma.recipe.findMany({
             where: { id: { in: [...planRecipeIds] }, ...searchFilter },
+            include: RECIPE_PEOPLE,
             take: 200,
           })
         : [];
 
-    const merged = new Map<string, Recipe>();
+    const merged = new Map<string, RecipeWithPeople>();
     for (const recipe of [...planRecipes, ...ownRecipes, ...favourites.map((f) => f.recipe)]) {
       if (!merged.has(recipe.id)) merged.set(recipe.id, recipe);
     }
@@ -262,10 +331,71 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
         servings: data.servings,
         imageUrl: data.imageUrl ?? null,
         sourceUrl: data.sourceUrl ?? null,
+        ...(data.originRecipeId && { originRecipeId: data.originRecipeId }),
+        ...(data.originCreatorId && { originCreatorId: data.originCreatorId }),
         source: RecipeSource.MANUAL,
         creatorId: userId,
       },
     });
+  }
+
+  async findOrCreateCopy(viewerId: string, source: Recipe): Promise<RecipeCopyResult> {
+    // Two concurrent "Add to my week" taps (or a tap racing a generation that
+    // places the same pinned favourite) both read "no copy" and both insert —
+    // the index is not unique (plan §2.3). SERIALIZABLE turns that into a
+    // read/write conflict: Postgres aborts one transaction (P2034) and the
+    // retry finds the winner's copy.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await prisma.$transaction(
+          async (tx: Prisma.TransactionClient) => {
+            const existing = await tx.recipe.findFirst({
+              where: {
+                creatorId: viewerId,
+                originRecipeId: source.id,
+                source: RecipeSource.MANUAL,
+              },
+              orderBy: { createdAt: 'asc' },
+            });
+            if (existing) return { recipe: existing, created: false };
+            const recipe = await tx.recipe.create({
+              data: {
+                name: source.name,
+                description: source.description,
+                ingredients: source.ingredients as Prisma.InputJsonValue,
+                instructions: source.instructions,
+                nutritionInfo: source.nutritionInfo as Prisma.InputJsonValue,
+                cuisineType: source.cuisineType,
+                dietaryTags: source.dietaryTags,
+                prepTimeMins: source.prepTimeMins,
+                cookTimeMins: source.cookTimeMins,
+                servings: source.servings,
+                imageUrl: source.imageUrl,
+                // Q-F-7: an imported recipe keeps its attribution on the copy.
+                sourceUrl: source.sourceUrl,
+                source: RecipeSource.MANUAL,
+                creatorId: viewerId,
+                originRecipeId: source.id,
+                originCreatorId: source.creatorId,
+              },
+            });
+            return { recipe, created: true };
+          },
+          { isolationLevel: 'Serializable' },
+        );
+      } catch (err) {
+        const conflict =
+          typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2034';
+        if (!conflict || attempt >= COPY_ATTEMPTS) throw err;
+        await new Promise((r) => setTimeout(r, 10 * attempt + Math.random() * 25));
+      }
+    }
+  }
+
+  async findPeopleByIds(ids: string[]): Promise<RecipePersonName[]> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return [];
+    return prisma.user.findMany({ where: { id: { in: unique } }, select: PERSON_NAME });
   }
 
   /**

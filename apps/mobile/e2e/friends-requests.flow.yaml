@@ -1,0 +1,175 @@
+# Following requests E2E (F2.1, plan §9): a `runScript` setup registers two
+# throwaway users over HTTP (B asks to follow the private user A); the flow
+# signs in as A, opens More → Following → Activity, accepts B's request, then
+# opens B's profile `…` → Report and block (ONE tap on a reason) and asserts B
+# is gone from Activity and Followers.
+#
+# Needs: the dev app on a booted simulator/emulator, Metro up, the local API up
+# with Following on (FEATURE_FLAGS=friends) — pass `-e API_URL=http://localhost:<port>`
+# when the API is not on :3001. Costs 2 registers + 1 login of the per-IP auth
+# budget. The profile steps use the profile screen's own labels
+# (`More options for {name}`, `Report and block {first}`, the reason
+# `Harassment`), so they follow the F2.2 profile.
+appId: dev.chefer.app.dev
+---
+- runScript: scripts/friends-setup.js
+- runFlow: common/connect.yaml
+
+# Whoever is signed in, sign out — this flow signs in as the new user A.
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-title'
+    commands:
+      - tapOn: 'More(, .*)?'
+      - scrollUntilVisible:
+          element:
+            id: 'logout-button'
+          direction: DOWN
+          centerElement: true
+      - tapOn:
+          id: 'logout-button'
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-title'
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-title'
+    commands:
+      - tapOn:
+          id: 'welcome-sign-in'
+
+# ── Sign in as A (the account with the pending request) ──────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 30000
+- tapOn:
+    id: 'login-email'
+- inputText: ${output.aEmail}
+- tapOn:
+    id: 'login-password'
+- inputText: ${output.aPassword}
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'login-submit'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-skip'
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'onboarding-skip'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+
+# ── More → Following → Activity ──────────────────────────────────────────────
+- tapOn: 'More(, .*)?'
+- tapOn:
+    id: 'more-friends'
+# A turned Following on in the setup, so this is the home, not the intro.
+- extendedWaitUntil:
+    visible:
+      id: 'friends-home'
+    timeout: 20000
+- assertVisible: 'Requests · 1'
+- tapOn:
+    id: 'friends-header-activity'
+- extendedWaitUntil:
+    visible:
+      id: 'friends-activity-header-title'
+    timeout: 15000
+- assertVisible: 'New'
+# A row is one accessible element labelled `{name}, {sentence} · {time}`.
+- assertVisible: '.*wants to follow you.*'
+- assertVisible: '${output.bName}.*'
+
+# ── Accept ───────────────────────────────────────────────────────────────────
+- tapOn:
+    id: 'friends-activity-request-${output.bId}-accept'
+- extendedWaitUntil:
+    visible: 'You accepted'
+    timeout: 15000
+- assertNotVisible:
+    id: 'friends-activity-request-${output.bId}-accept'
+
+# ── B's profile → … → Report and block (one tap) ─────────────────────────────
+- tapOn: '${output.bName}.*'
+- extendedWaitUntil:
+    visible: 'More options for ${output.bName}'
+    timeout: 15000
+- tapOn: 'More options for ${output.bName}'
+- extendedWaitUntil:
+    visible: 'Report and block ${output.bFirst}'
+    timeout: 10000
+- tapOn: 'Report and block ${output.bFirst}'
+- extendedWaitUntil:
+    visible: 'Harassment'
+    timeout: 10000
+# One tap on a reason reports AND blocks: no note, no second confirm.
+- tapOn: 'Harassment'
+- extendedWaitUntil:
+    visible: 'Reported and blocked.*'
+    timeout: 15000
+
+# ── B is gone ────────────────────────────────────────────────────────────────
+# Back on Activity (the previous non-profile screen) B no longer appears …
+- extendedWaitUntil:
+    visible:
+      id: 'friends-activity-header-title'
+    timeout: 15000
+- assertNotVisible: '${output.bName}.*'
+# … nor in Followers on the home (B followed A until the block removed it).
+- tapOn: 'Back'
+- extendedWaitUntil:
+    visible:
+      id: 'friends-home'
+    timeout: 15000
+- tapOn:
+    id: 'friends-segment-followers'
+- assertNotVisible: '${output.bName}.*'
+
+# ── Sign the throwaway account out ───────────────────────────────────────────
+# Later flows sign in as alice only when nobody is signed in (connect.yaml), so
+# leaving A signed in would run them against an empty account.
+# Back from the Following home returns to More, where the flow came in.
+- tapOn: 'Back'
+- extendedWaitUntil:
+    visible:
+      id: 'more-friends'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'logout-button'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'logout-button'
+- extendedWaitUntil:
+    notVisible:
+      id: 'logout-button'
+    timeout: 15000
+- assertVisible: 'Welcome.*|Sign in.*'

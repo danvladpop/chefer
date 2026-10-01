@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import {
   CUISINE_PRESETS,
+  FRIENDS_COPY,
   type RecipeFormIngredientLine,
   type RecipeNutritionSource,
 } from '@chefer/types';
@@ -31,6 +32,7 @@ import {
   recipeMissingFields,
   tagConflicts,
 } from '@chefer/utils';
+import { textRejectedOf } from '../src/features/friends/api/friends-errors';
 import { ComputedNutritionCard } from '../src/features/ingredients/computed-nutrition-card';
 import { useComputedNutrition } from '../src/features/ingredients/use-computed-nutrition';
 import { recipeFormCopy } from '../src/features/recipes/form/copy';
@@ -305,6 +307,10 @@ export default function RecipeFormScreen() {
   const createMutation = trpc.recipe.create.useMutation({ onSuccess: onDone });
   const updateMutation = trpc.recipe.update.useMutation({ onSuccess: onDone });
   const mutation = isEdit ? updateMutation : createMutation;
+  // Following (PRD §9.4): a shared recipe whose name/description trips the
+  // word filter comes back BAD_REQUEST + `data.textRejected: 'recipe'`. Show
+  // the plain message under the name field instead of the footer.
+  const textRejected = mutation.isError && textRejectedOf(mutation.error) === 'recipe';
 
   const validIngredients = ingredients
     .filter((i) => i.name.trim() && parseQuantity(i.quantity) > 0 && i.unit.trim())
@@ -518,7 +524,9 @@ export default function RecipeFormScreen() {
             missingText={missingText}
             offline={offline}
             saving={mutation.isPending}
-            saveError={mutation.isError ? friendlySaveError(mutation.error.message) : null}
+            saveError={
+              mutation.isError && !textRejected ? friendlySaveError(mutation.error.message) : null
+            }
             onPress={save}
           />
         }
@@ -527,7 +535,11 @@ export default function RecipeFormScreen() {
           label={recipeFormCopy.fields.name}
           required
           error={
-            attemptedSave && missing.includes('name') ? recipeFormCopy.missing.fieldName : undefined
+            attemptedSave && missing.includes('name')
+              ? recipeFormCopy.missing.fieldName
+              : textRejected
+                ? FRIENDS_COPY.recipe.textRejected
+                : undefined
           }
           testID="rf-name"
         >

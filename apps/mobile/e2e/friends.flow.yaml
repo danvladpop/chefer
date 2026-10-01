@@ -1,0 +1,139 @@
+# Following profile E2E (F2.2 M-PROFILE, UX §8–§10): open the seeded PUBLIC
+# profile of carol@chefer.dev, follow her, then her Food week, her Recipes
+# (an imported one shows its source domain) with a heart, and her Gym tab's
+# last 7 days. Signed in as alice (common/connect.yaml).
+#
+# Setup (scripts/friends-profile-setup.js, raw HTTP to the API): turns
+# Following on for alice if needed (the seed leaves her off for M-HOME's intro
+# flow), unfollows carol and un-hearts her Shakshuka, so every run starts from
+# `Follow`. Override the API with `maestro test -e API_URL=http://localhost:<port>`.
+# The profile opens through a deep link, so this flow doesn't depend on the
+# home screen's (M-HOME) testIDs beyond the More row.
+appId: dev.chefer.app.dev
+env:
+  API_URL: http://localhost:3001
+  CAROL_ID: cseedcarol000000000000001
+  # carol's 3rd seeded recipe (fid('rcp', 103)): Shakshuka, imported from
+  # https://www.seed-recipes.example.com/shakshuka.
+  SHAKSHUKA_ID: cseedrcp00000000000000103
+---
+- runFlow: common/connect.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+
+- runScript:
+    file: scripts/friends-profile-setup.js
+    env:
+      API_URL: ${API_URL}
+      EMAIL: alice@chefer.dev
+      PASSWORD: User@123!
+      TARGET_ID: ${CAROL_ID}
+      RECIPE_ID: ${SHAKSHUKA_ID}
+
+# The entry point: More → Following (directly under Profile).
+- tapOn: 'More(, .*)?'
+- extendedWaitUntil:
+    visible:
+      id: 'more-friends'
+    timeout: 15000
+
+# Carol's profile.
+- openLink: chefer-dev://friends/${CAROL_ID}
+- extendedWaitUntil:
+    visible:
+      id: 'friends-profile-header-name'
+    timeout: 20000
+- assertVisible: 'Carol Reyes'
+# Not following yet: header + locked panel only (UX §8.2, public profile).
+- assertVisible:
+    id: 'friends-profile-locked'
+- assertVisible: 'Follow Carol to see their meals and workouts.'
+
+# Follow: public, so it settles on `Following` and the content loads in place.
+# (iOS reads the button by its label: `Following Carol Reyes. Double-tap to unfollow`.)
+- tapOn:
+    id: 'friends-profile-relation'
+- extendedWaitUntil:
+    visible: 'Following( Carol Reyes.*)?'
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: 'friends-profile-locked'
+    timeout: 10000
+
+# Food is the viewer's mode (connect.yaml leaves the app in Food), so the
+# Food tab is first; select it explicitly anyway — the switch is local only.
+- tapOn:
+    id: 'profile-mode-food'
+- extendedWaitUntil:
+    visible:
+      id: 'friends-food-switch'
+    timeout: 10000
+
+# This week: the week line (seeded current-week plan).
+- tapOn:
+    id: 'friends-food-week'
+- extendedWaitUntil:
+    visible:
+      id: 'friends-week-week-of'
+    timeout: 15000
+- assertVisible: 'Week of .*'
+
+# Recipes: the imported Shakshuka shows its domain; heart it.
+- tapOn:
+    id: 'friends-food-recipes'
+- extendedWaitUntil:
+    visible:
+      id: 'friends-recipes'
+    timeout: 15000
+# The card is one accessible element (iOS hides its children), so its label
+# carries the domain: `Shakshuka, 420 kcal · 30 min, seed-recipes.example.com`.
+- scrollUntilVisible:
+    element:
+      id: 'friends-recipes-card-${SHAKSHUKA_ID}'
+    direction: DOWN
+    visibilityPercentage: 100
+    centerElement: true
+- assertVisible: 'Shakshuka, .*seed-recipes\.example\.com'
+- tapOn:
+    id: 'friends-recipes-card-${SHAKSHUKA_ID}-heart'
+- extendedWaitUntil:
+    visible: '.*Saved to your cookbook.*'
+    timeout: 10000
+
+# Gym: the routine and every workout of the last 7 days (no Load more).
+- scrollUntilVisible:
+    element:
+      id: 'profile-mode-gym'
+    direction: UP
+    visibilityPercentage: 100
+- tapOn:
+    id: 'profile-mode-gym'
+- extendedWaitUntil:
+    visible:
+      id: 'friends-profile-gym'
+    timeout: 15000
+- assertVisible: 'Routine'
+- scrollUntilVisible:
+    element: 'Last 7 days'
+    direction: DOWN
+    centerElement: true
+- scrollUntilVisible:
+    element: 'Show sets'
+    direction: DOWN
+    centerElement: true
+- tapOn: 'Show sets'
+- extendedWaitUntil:
+    visible: 'Hide sets'
+    timeout: 5000
+- assertNotVisible: '(?i)load more'
+
+# Back out with the in-screen Back button.
+- scrollUntilVisible:
+    element:
+      id: 'friends-profile-nav-back'
+    direction: UP
+- tapOn:
+    id: 'friends-profile-nav-back'

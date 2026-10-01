@@ -15,9 +15,17 @@ const {
   upsertRecipes,
   findFavourite,
   findManualRecipeById,
+  createManualRecipe,
+  updateManualRecipe,
+  isSaved,
+  save,
 } = vi.hoisted(() => ({
   findFavourite: vi.fn(),
   findManualRecipeById: vi.fn(),
+  createManualRecipe: vi.fn(),
+  updateManualRecipe: vi.fn(),
+  isSaved: vi.fn(),
+  save: vi.fn(),
   findAllRecipesForUser: vi.fn(),
   findSavedRecipeIds: vi.fn().mockResolvedValue([]),
   findByUserId: vi.fn().mockResolvedValue(null),
@@ -42,6 +50,10 @@ vi.mock('@chefer/database', async (importOriginal) => {
       findSavedRecipeIds,
       findFavourite,
       findManualRecipeById,
+      createManualRecipe,
+      updateManualRecipe,
+      isSaved,
+      save,
     },
     dietaryPreferencesRepository: { findByUserId },
     householdMemberRepository: { findByUserId: findHouseholdByUserId },
@@ -65,6 +77,15 @@ beforeEach(() => {
   findFavourite.mockReset().mockResolvedValue(null);
   findManualRecipeById.mockReset().mockResolvedValue(null);
   isRecipeInUserPlans.mockReset().mockResolvedValue(false);
+  createManualRecipe
+    .mockReset()
+    .mockImplementation((_u: string, d: object) => ({ id: 'new', ...d }));
+  updateManualRecipe.mockReset().mockImplementation((_u: string, id: string, d: object) => ({
+    id,
+    ...d,
+  }));
+  isSaved.mockReset().mockResolvedValue(false);
+  save.mockReset().mockResolvedValue({});
 });
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -296,5 +317,275 @@ describe('RecipeService.getFavouriteState — canEdit (owner dogfood 2026-09-30)
       useInNextPlan: true,
       canEdit: false,
     });
+  });
+});
+
+// ─── Following (L-XRECIPE, implementation-plan §4.2 "Existing procedures") ────
+
+/**
+ * The `recipe.list` row keys on master (before Following): every Recipe
+ * column at the time + `isFavourite`. Old binaries in the field were built
+ * against exactly this shape (INV-8) — a non-Following user's row must keep
+ * it, with no new key at all (not even `null`).
+ */
+const MASTER_LIST_ROW_KEYS = [
+  'cookTimeMins',
+  'createdAt',
+  'creatorId',
+  'cuisineType',
+  'description',
+  'dietaryTags',
+  'id',
+  'imagePriority',
+  'imageRetries',
+  'imageStatus',
+  'imageUrl',
+  'ingredients',
+  'instructions',
+  'isFavourite',
+  'name',
+  'nutritionInfo',
+  'prepTimeMins',
+  'servings',
+  'source',
+  'sourceUrl',
+].sort();
+
+/** A repository row as `findAllRecipesForUser` returns it now (new columns + people). */
+const repoRow = (
+  over: Partial<Recipe> & { id: string; name: string },
+  people: { creator?: object | null; originCreator?: object | null } = {},
+) => ({
+  ...recipe(over),
+  originRecipeId: null,
+  originCreatorId: null,
+  hiddenAt: null,
+  hiddenReason: null,
+  creator: null,
+  originCreator: null,
+  ...over,
+  ...people,
+});
+
+const MARIA = { id: 'maria', firstName: 'Maria', lastName: 'Pop', name: null };
+
+const listSocial = (o: { enabled?: boolean; activated?: boolean; ids?: string[] } = {}) => ({
+  isEnabled: vi.fn().mockResolvedValue(o.enabled ?? true),
+  isActivated: vi.fn().mockResolvedValue(o.activated ?? true),
+  visibleCreatorIds: vi.fn().mockResolvedValue(o.ids ?? []),
+});
+
+const moderation = () => ({ checkRecipeText: vi.fn().mockResolvedValue(undefined) });
+
+describe('RecipeService.list — old clients keep their row shape (INV-8)', () => {
+  it("a non-Following user's row has exactly master's key set", async () => {
+    findAllRecipesForUser.mockResolvedValue([
+      repoRow({ id: 'own', name: 'Mine', source: 'MANUAL', creatorId: 'u1' }),
+      repoRow({ id: 'ai', name: 'AI dish' }),
+      repoRow({ id: 'cur', name: 'Curated', source: 'CURATED' }),
+    ]);
+    const rows = await new RecipeService().list('u1', {});
+    for (const r of rows) expect(Object.keys(r).sort()).toEqual(MASTER_LIST_ROW_KEYS);
+    // Not a single key is null-filled for the new features.
+    expect(rows.some((r) => 'creator' in r || 'origin' in r || 'hiddenAt' in r)).toBe(false);
+  });
+
+  it('Following off (kill switch): no social lookup and the repo gets no visibleCreatorIds', async () => {
+    findAllRecipesForUser.mockResolvedValue([]);
+    const social = listSocial({ enabled: false, ids: ['maria'] });
+    await new RecipeService(undefined, undefined, moderation(), social).list('u1', {
+      savedOnly: true,
+    });
+    expect(social.isActivated).not.toHaveBeenCalled();
+    expect(social.visibleCreatorIds).not.toHaveBeenCalled();
+    expect(findAllRecipesForUser.mock.calls[0]![1]).not.toHaveProperty('visibleCreatorIds');
+  });
+
+  it('Following on but not turned on by the viewer: no visible creators', async () => {
+    findAllRecipesForUser.mockResolvedValue([]);
+    const social = listSocial({ activated: false, ids: ['maria'] });
+    await new RecipeService(undefined, undefined, moderation(), social).list('u1', {});
+    expect(social.visibleCreatorIds).not.toHaveBeenCalled();
+    expect(findAllRecipesForUser.mock.calls[0]![1]).not.toHaveProperty('visibleCreatorIds');
+  });
+});
+
+describe('RecipeService.list — Following rows', () => {
+  it('passes the visible creators and attributes their recipes and your copies', async () => {
+    findAllRecipesForUser.mockResolvedValue([
+      repoRow(
+        { id: 'theirs', name: 'Dal', source: 'MANUAL', creatorId: 'maria' },
+        { creator: MARIA },
+      ),
+      repoRow(
+        {
+          id: 'copy',
+          name: 'Dal',
+          source: 'MANUAL',
+          creatorId: 'u1',
+          originRecipeId: 'theirs',
+          originCreatorId: 'maria',
+        },
+        {
+          creator: { id: 'u1', firstName: 'Ana', lastName: null, name: null },
+          originCreator: MARIA,
+        },
+      ),
+      repoRow({ id: 'own', name: 'Mine', source: 'MANUAL', creatorId: 'u1' }),
+    ]);
+    findSavedRecipeIds.mockResolvedValue(['theirs']);
+    const social = listSocial({ ids: ['maria'] });
+    const rows = await new RecipeService(undefined, undefined, moderation(), social).list('u1', {
+      savedOnly: true,
+    });
+
+    expect(findAllRecipesForUser).toHaveBeenCalledWith('u1', {
+      savedOnly: true,
+      visibleCreatorIds: ['maria'],
+    });
+    const [theirs, copy, own] = rows;
+    expect(theirs).toMatchObject({
+      id: 'theirs',
+      isFavourite: true,
+      creator: { id: 'maria', displayName: 'Maria Pop', firstName: 'Maria' },
+    });
+    expect(theirs).not.toHaveProperty('origin');
+    expect(copy).toMatchObject({ id: 'copy', origin: { creatorFirstName: 'Maria' } });
+    expect(copy).not.toHaveProperty('creator');
+    // Raw relations / Following columns never leak, even for Following users.
+    for (const r of rows) {
+      for (const k of ['originCreator', 'originRecipeId', 'originCreatorId', 'hiddenAt']) {
+        expect(r).not.toHaveProperty(k);
+      }
+    }
+    expect(Object.keys(own!).sort()).toEqual(MASTER_LIST_ROW_KEYS);
+  });
+});
+
+describe('RecipeService word filter on writes (PRD §9.4, stub until L-MODERATION)', () => {
+  const BODY = {
+    name: 'Dal',
+    description: 'Lentils',
+    ingredients: [{ name: 'lentils', quantity: 200, unit: 'g' }],
+    instructions: [],
+    nutritionInfo: { calories: 400, protein: 20, carbs: 50, fat: 8, fiber: 9 },
+    cuisineType: 'Indian',
+    dietaryTags: [],
+    prepTimeMins: 5,
+    cookTimeMins: 30,
+    servings: 2,
+  };
+
+  it('create checks the name + description first; a rejection writes nothing', async () => {
+    const mod = moderation();
+    await new RecipeService(undefined, undefined, mod).create('u1', BODY);
+    expect(mod.checkRecipeText).toHaveBeenCalledWith('u1', { name: 'Dal', description: 'Lentils' });
+
+    mod.checkRecipeText.mockRejectedValueOnce(new Error('textRejected'));
+    createManualRecipe.mockClear();
+    await expect(new RecipeService(undefined, undefined, mod).create('u1', BODY)).rejects.toThrow(
+      'textRejected',
+    );
+    expect(createManualRecipe).not.toHaveBeenCalled();
+  });
+
+  it('create never takes origins from input (only RecipeCopyService sets them)', async () => {
+    await new RecipeService(undefined, undefined, moderation()).create('u1', {
+      ...BODY,
+      originRecipeId: 'x',
+      originCreatorId: 'y',
+    });
+    expect(createManualRecipe.mock.calls[0]![1]).not.toHaveProperty('originRecipeId');
+    expect(createManualRecipe.mock.calls[0]![1]).not.toHaveProperty('originCreatorId');
+  });
+
+  it('update checks the text as it will be after the edit, with the recipe id', async () => {
+    findManualRecipeById.mockResolvedValueOnce(
+      recipe({ id: 'r1', name: 'Old name', description: 'Old desc', source: 'MANUAL' }),
+    );
+    const mod = moderation();
+    await new RecipeService(undefined, undefined, mod).update('u1', 'r1', { name: 'New name' });
+    expect(mod.checkRecipeText).toHaveBeenCalledWith(
+      'u1',
+      { name: 'New name', description: 'Old desc' },
+      'r1',
+    );
+    expect(updateManualRecipe).toHaveBeenCalled();
+  });
+
+  it("update of your copy of someone's recipe skips the filter (copies are never shared)", async () => {
+    findManualRecipeById.mockResolvedValueOnce({
+      ...recipe({ id: 'c1', name: 'Dal', source: 'MANUAL', creatorId: 'u1' }),
+      originRecipeId: 'theirs',
+      originCreatorId: 'maria',
+    });
+    const mod = moderation();
+    await new RecipeService(undefined, undefined, mod).update('u1', 'c1', { name: 'My dal' });
+    expect(mod.checkRecipeText).not.toHaveBeenCalled();
+    expect(updateManualRecipe).toHaveBeenCalled();
+  });
+});
+
+describe("RecipeService hearting a followed creator's recipe (FR-17.2)", () => {
+  const recipeSocial = (visible: boolean) => ({
+    isEnabled: vi.fn().mockResolvedValue(true),
+    recipesAccess: vi.fn().mockResolvedValue(visible ? 'visible' : 'locked'),
+    hasHearted: vi.fn().mockResolvedValue(false),
+  });
+
+  it('toggleFavourite / rate succeed for a visible recipe of someone you follow', async () => {
+    findRecipeById.mockResolvedValue(
+      recipe({ id: 'theirs', name: 'Dal', source: 'MANUAL', creatorId: 'maria' }),
+    );
+    const service = new RecipeService(
+      { upsert: vi.fn().mockResolvedValue({ rating: 5, notes: null }) } as never,
+      undefined,
+      moderation(),
+      listSocial(),
+      recipeSocial(true),
+    );
+    await expect(service.toggleFavourite('u1', 'theirs')).resolves.toEqual({ isSaved: true });
+    expect(save).toHaveBeenCalledWith('u1', 'theirs');
+    await expect(service.rate('u1', 'theirs', 5)).resolves.toEqual({ rating: 5, notes: null });
+  });
+
+  it('stays NOT_FOUND once access is gone (no heart on a locked recipe)', async () => {
+    findRecipeById.mockResolvedValue(
+      recipe({ id: 'theirs', name: 'Dal', source: 'MANUAL', creatorId: 'maria' }),
+    );
+    const service = new RecipeService(
+      undefined,
+      undefined,
+      moderation(),
+      listSocial(),
+      recipeSocial(false),
+    );
+    await expect(service.toggleFavourite('u1', 'theirs')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(save).not.toHaveBeenCalled();
+  });
+  it('F3.1: an auto-hidden recipe can’t be newly hearted, or re-hearted after an unheart', async () => {
+    findRecipeById.mockResolvedValue({
+      ...recipe({ id: 'theirs', name: 'Dal', source: 'MANUAL', creatorId: 'maria' }),
+      hiddenAt: new Date('2026-09-30T10:00:00Z'),
+      hiddenReason: 'REPORTS',
+    });
+    // Visible creator, but the viewer never hearted it (hasHearted → false).
+    const service = new RecipeService(
+      undefined,
+      undefined,
+      moderation(),
+      listSocial(),
+      recipeSocial(true),
+    );
+    await expect(service.toggleFavourite('u1', 'theirs')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(service.rate('u1', 'theirs', 1)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(service.getSafetyChecks('u1', 'theirs')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(save).not.toHaveBeenCalled();
   });
 });

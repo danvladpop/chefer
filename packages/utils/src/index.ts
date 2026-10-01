@@ -554,3 +554,20 @@ export {
   type TailoringBannerText,
   type TailoringDayState,
 } from './plan-tailoring';
+
+// ─── Following (code name: friends) — pure helpers, F0.2 ──────────────────────
+export * from './friends/follow-policy';
+export * from './friends/search-name';
+export * from './friends/display-name';
+export * from './friends/suggestions';
+export * from './friends/relation';
+export * from './friends/cursor';
+export * from './friends/owner-week';
+export * from './friends/friend-totals';
+export * from './friends/source-domain';
+export { BLOCKED_TERMS } from './moderation/blocked-terms';
+export {
+  containsBlockedTerm,
+  firstBlockedField,
+  normalizeForFilter,
+} from './moderation/text-filter';

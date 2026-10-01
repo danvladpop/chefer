@@ -1,4 +1,5 @@
 import { ActivityIndicator, View } from 'react-native';
+import { FRIENDS_COPY } from '@chefer/types';
 import { Card, Text } from '@chefer/ui-mobile';
 import { trpc } from '../../lib/trpc';
 
@@ -20,7 +21,8 @@ type ConsentKind =
   | 'EMAIL_WEEK_READY'
   | 'EMAIL_RECAP'
   | 'AUTO_PLAN'
-  | 'HEALTH';
+  | 'HEALTH'
+  | 'SOCIAL_SHARING';
 
 interface ConsentEventRow {
   kind: ConsentKind;
@@ -54,6 +56,10 @@ function describe(event: ConsentEventRow): string {
       return `Plan my week every Sunday: ${event.granted ? 'on' : 'off'}`;
     case 'HEALTH':
       return event.granted ? 'Health information allowed' : 'Health information withdrawn';
+    case 'SOCIAL_SHARING':
+      // Following (code name `friends`): turned on, made public, shared
+      // targets (granted) or turned off (withdrawn) — implementation-plan §7.
+      return FRIENDS_COPY.consent.label(event.granted);
     default:
       return event.kind;
   }
