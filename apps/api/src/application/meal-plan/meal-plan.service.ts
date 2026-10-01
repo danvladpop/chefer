@@ -148,6 +148,12 @@ export interface RecipeDto {
   /** UX-26 (T-26.6): true when the recipe row's source is 'AI' (additive; absent = not AI). */
   aiGenerated?: boolean;
   /**
+   * plan-ingredient-catalog §9: COMPUTED (from catalog data), PARTIAL (some
+   * lines lack data) or USER_ENTERED (typed by the author). Additive; absent on
+   * DTOs not built from a stored row.
+   */
+  nutritionStatus?: 'COMPUTED' | 'PARTIAL' | 'USER_ENTERED';
+  /**
    * The viewer's allergies and dietary restrictions (household union) this
    * recipe conflicts with. Present only when non-empty; additive, so older
    * clients ignore it (audit F-REC-2-3, F-PLAN-1-7).
@@ -3265,6 +3271,7 @@ function rowToRecipeDto(row: {
   imageUrl: string | null;
   imageStatus?: unknown;
   source?: string;
+  nutritionStatus?: string;
 }): RecipeDto {
   return {
     id: row.id,
@@ -3281,5 +3288,8 @@ function rowToRecipeDto(row: {
     imageUrl: row.imageUrl,
     imageStatus: (row.imageStatus as 'PENDING' | 'GENERATING' | 'DONE' | 'FAILED') ?? 'DONE',
     ...(row.source === 'AI' && { aiGenerated: true }),
+    ...(row.nutritionStatus && {
+      nutritionStatus: row.nutritionStatus as 'COMPUTED' | 'PARTIAL' | 'USER_ENTERED',
+    }),
   };
 }

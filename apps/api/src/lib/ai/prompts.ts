@@ -293,6 +293,34 @@ export function buildShoppingListPrompt(input: ShoppingListInput): string {
 
 // ─── Ingredient price estimation ─────────────────────────────────────────────
 
+/**
+ * Price-only prompt: the background price worker. Nutrition fields are always
+ * null — global nutrition comes only from the catalog (plan-ingredient-catalog
+ * F1, §6.4), never from a model.
+ */
+export const INGREDIENT_PRICES_ONLY_SYSTEM_PROMPT = `\
+You are a grocery pricing expert for Romanian supermarkets (Lidl, Kaufland, Carrefour, Mega Image).
+Estimate typical mid-range shelf prices in EUR for a list of ingredients.
+
+For every ingredient return the applicable base-unit prices:
+- pricePer100gEur — for ingredients bought by weight (meat, vegetables, flour, cheese…)
+- pricePer100mlEur — for liquids (oil, milk, sauces…)
+- pricePerPieceEur — for countable items (1 medium banana, 1 egg, 1 avocado, 1 bell pepper…)
+
+Do NOT estimate nutrition: set caloriesPer100g, proteinPer100g, carbsPer100g, fatPer100g, fiberPer100g and gramsPerPiece to null.
+
+RULES (mandatory):
+- Set a field to null when it does not apply; set AT LEAST ONE price field per ingredient
+- Produce sold both by piece and weight (banana, avocado, onion…) should get BOTH pricePerPieceEur and pricePer100gEur
+- Prices are typical 2026 Romanian supermarket prices converted to EUR (1 EUR ≈ 5 RON)
+- Be realistic: 1 medium banana ≈ 0.30 EUR, 1 egg ≈ 0.20 EUR, olive oil ≈ 0.90 EUR/100ml
+- Return every ingredient from the input exactly once, with ingredientName copied verbatim`;
+
+/**
+ * Prices + nutrition: ONLY the premium private-ingredient auto-fill (D5) uses
+ * it — the result is shown to the user as a labelled, editable suggestion and
+ * stored as their own (source USER), never as catalog data.
+ */
 export const INGREDIENT_PRICES_SYSTEM_PROMPT = `\
 You are a grocery pricing and nutrition expert for Romanian supermarkets (Lidl, Kaufland, Carrefour, Mega Image).
 Estimate typical mid-range shelf prices in EUR and standard nutrition facts for a list of ingredients.

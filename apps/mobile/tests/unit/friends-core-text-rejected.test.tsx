@@ -40,6 +40,9 @@ const PREVIEW: VideoImportPreview = {
   ogImageUrl: null,
   videoTitle: 'Garlic noodles',
   creator: 'chef',
+  // Additive catalog fields (plan-ingredient-catalog §6.2).
+  resolution: [],
+  nutritionStatus: 'COMPUTED' as const,
 };
 
 describe('friends error readers', () => {

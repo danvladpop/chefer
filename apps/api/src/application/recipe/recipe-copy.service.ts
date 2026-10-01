@@ -4,6 +4,10 @@ import {
   type IFavouriteRecipeRepository,
   type Recipe,
 } from '@chefer/database';
+import {
+  recipeNutritionService,
+  type RecipeNutritionService,
+} from '../ingredients/recipe-nutrition.service.js';
 import { isHiddenForeignRecipe, isRecipeOpenTo } from './recipe-access.js';
 
 // ─── Following: "add to my week" = your own copy (PRD §13, FD-7, INV-5) ───────
@@ -39,6 +43,11 @@ export class RecipeCopyService {
       IFavouriteRecipeRepository,
       'findOrCreateCopy'
     > = favouriteRecipeRepository,
+    /** Copies the source's catalog lines, recomputed for the viewer (I3/I4). */
+    private readonly nutrition: Pick<
+      RecipeNutritionService,
+      'copyLinesForViewer'
+    > = recipeNutritionService,
   ) {}
 
   /** The recipe id to write into `viewerId`'s own records (INV-5). */
@@ -59,7 +68,12 @@ export class RecipeCopyService {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     }
     const { recipe: copy, created } = await this.repo.findOrCreateCopy(viewerId, recipe);
-    return { recipe: copy, copiedFromId: recipe.id, created };
+    if (!created) return { recipe: copy, copiedFromId: recipe.id, created };
+    // The copy's numbers must come only from data the viewer may see: the
+    // source author's private ingredients drop out (plan-ingredient-catalog I4).
+    await this.nutrition.copyLinesForViewer(recipe, copy, viewerId);
+    const refreshed = await this.repo.findOrCreateCopy(viewerId, recipe);
+    return { recipe: refreshed.recipe, copiedFromId: recipe.id, created };
   }
 }
 

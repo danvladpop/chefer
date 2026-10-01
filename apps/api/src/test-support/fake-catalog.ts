@@ -115,6 +115,14 @@ export function fakeCatalog(
           )
           .slice(0, opts.limit),
       ),
+    findGlobalIdsBySlugs: (slugs) =>
+      Promise.resolve(
+        new Map(
+          rows
+            .filter((r) => r.ownerId === null && slugs.includes(r.slug))
+            .map((r) => [r.slug, r.id]),
+        ),
+      ),
     findPrivateBySlug: (owner, slug) =>
       Promise.resolve(rows.find((r) => r.ownerId === owner && r.slug === slug) ?? null),
     createPrivate: (owner, slug, d) => {

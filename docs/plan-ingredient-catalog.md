@@ -443,6 +443,28 @@ These tests are the core quality gate:
 | **Curated pool** (`lib/curated-recipes`, `lib/ai/fixtures`)                          | Rewrite the fixtures to reference slugs. Nutrition is computed at build/seed time. A unit test asserts every fixture resolves 100%.                                                                                                                                                                                                            |
 | **Video curated dataset** (recipe-dataset workstream)                                | Same as import, with an admin review.                                                                                                                                                                                                                                                                                                          |
 
+### 6.2.1 As built in P6 (2026-10-01)
+
+- **Manual saves.**
+  - `RecipeService.create`/`update` go through `RecipeNutritionService.prepareSave`. D4 is applied as: an old client (no line has an `ingredientId`), an unresolved line, and numbers typed by hand (`nutritionInfo.source` not `computed`/`none`, kcal > 0) → USER_ENTERED. Any other unresolved case → PARTIAL.
+  - The recipe and its lines are written in one transaction (`ManualRecipeLines` on `createManualRecipe`/`updateManualRecipe`). The Json mirror keeps the typed name and unit (`mirrorName`/`mirrorUnit`).
+- **Import and video import.**
+  - The preview's `nutritionInfo` is computed, and `resolution` plus `nutritionStatus` are added. `macroCheck` stays for installed clients (D10), derived from the computation; `crossCheckMacros` is deleted.
+  - Save always computes. `acceptPartial` is tri-state: `false` blocks, while `true` or omitted (old clients) saves PARTIAL, because blocking would break installed binaries.
+  - The video draft goes through the same path.
+- **Copies (I3/I4, not listed in §6.2).** A new "Add to my week" copy gets the source's lines recomputed for the viewer, and links to the source author's private rows are dropped.
+- **Curated pool.**
+  - Every fixture line has a `slug`, and nutrition is computed from `catalog.json` when the module loads; no database is needed.
+  - The curated DB rows get their lines from `ensureCuratedRecipes`. The fixture is authoritative for CURATED rows, the write is idempotent, and it waits if the catalog isn't synced yet.
+  - Test gate: all 64 recipes COMPUTED.
+  - Compared with the old hand-written numbers: median +4%, p10 −17%, p90 +43%, range −54% to +96%. Several recipes are bigger than their labels claimed, for example Red Lentil Curry at 1,176 kcal for `servings: 1` as written. ⚠ Owner decision pending: adjust `servings` on recipes clearly written for two.
+  - Explicit fixture proxies: halloumi → `cheese-average`, Italian seasoning → `oregano-dried`, fajita seasoning → `chili-powder`, ciabatta roll → `kaiser-roll`.
+  - Recipe edits: balsamic glaze → balsamic vinegar; edamame in pods → shelled edamame at half the weight; compound lines split.
+  - Catalog: falafel gained FDC's "patty" portion (17 g) as `piece`.
+- **Price worker (F1).** It prices only names that resolve to a global catalog row, links every price row (`ingredientId`), takes `gramsPerPiece` from the catalog portion, and never creates unknown names or writes macros.
+  - `estimateIngredientPrices` gained `{ nutrition }`. The worker's prompt is price-only; only the premium private-ingredient auto-fill (D5) asks for nutrition.
+- **Not done in P6.** The video curated-dataset script (`recipes:from-video`) still emits drafts without slugs. The curated gate catches any draft promoted into the pool without slugs, and P9's review UI is where slugs will be picked.
+
 ### 6.3 AI generation: strict, catalog-constrained
 
 - **Prompt.**

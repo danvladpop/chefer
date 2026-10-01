@@ -84,6 +84,9 @@ function preview(overrides: Partial<VideoImportPreview> = {}): VideoImportPrevie
     ogImageUrl: null,
     videoTitle: 'Garlic noodles',
     creator: 'chef',
+    // Additive catalog fields (plan-ingredient-catalog §6.2).
+    resolution: [],
+    nutritionStatus: 'COMPUTED' as const,
     ...overrides,
   };
 }

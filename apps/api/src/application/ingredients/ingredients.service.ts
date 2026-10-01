@@ -21,11 +21,13 @@ import {
   type ComputedNutrition,
 } from '../../lib/ingredient-prices/index.js';
 import { reserveNutritionEstimate } from '../../lib/quotas.js';
+import { toRef, type CatalogIngredientRef } from './catalog-dto.js';
 import {
   ingredientResolver,
   type IngredientResolver,
   type ResolveConfidence,
 } from './ingredient-resolver.js';
+import { ensurePrivateTwins, twinForLegacyRow } from './private-twins.js';
 import { recipeNutritionService, type RecipeNutritionService } from './recipe-nutrition.service.js';
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
@@ -55,20 +57,9 @@ export interface IngredientSearchResult {
   nutritionSource?: NutritionSource;
 }
 
-/** A catalog row as search/resolve return it (plan §9). */
-export interface CatalogIngredientRef {
-  id: string;
-  slug: string;
-  /** Display name ("Chicken breast, raw"). */
-  name: string;
-  category: IngredientCategory;
-  owner: 'global' | 'mine';
-  portions: { unit: string; grams: number }[];
-  hasDensity: boolean;
-  nutritionSource: NutritionSource;
-}
-
 /** Full nutrition for client-side live preview with @chefer/utils (`ingredients.getMany`). */
+export type { CatalogIngredientRef };
+
 export interface CatalogIngredientDetail extends CatalogIngredientRef {
   status: 'ACTIVE' | 'MERGED' | 'DEPRECATED';
   per100g: {
@@ -201,19 +192,6 @@ function primaryAlias(row: CatalogIngredientRow): string {
   return (row.aliases.find((a) => a.locale === 'en') ?? row.aliases[0])?.alias ?? row.name;
 }
 
-function toRef(row: CatalogIngredientRow, userId: string | null): CatalogIngredientRef {
-  return {
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    category: row.category,
-    owner: row.ownerId !== null && row.ownerId === userId ? 'mine' : 'global',
-    portions: row.portions.map((p) => ({ unit: p.unit, grams: p.grams })),
-    hasDensity: row.densityGPerMl != null,
-    nutritionSource: row.nutritionSource,
-  };
-}
-
 /** The catalog fields search results add: everything but the display name, since `name` keeps its legacy meaning. */
 function refFields(
   row: CatalogIngredientRow,
@@ -260,47 +238,13 @@ export class IngredientsService {
     private readonly nutrition: RecipeNutritionService = recipeNutritionService,
   ) {}
 
-  /**
-   * Gives each of the user's pre-catalog custom ingredients (legacy price rows)
-   * a private catalog twin, so search, resolve and compute see them (plan §7
-   * step 2, done lazily per user). Rows missing a core macro stay unlinked.
-   */
+  /** Links the user's pre-catalog custom ingredients to private catalog rows (private-twins.ts). */
   async ensurePrivateTwins(userId: string): Promise<void> {
-    const legacy = await ingredientPriceRepository.findUnlinkedPrivate(userId);
-    for (const row of legacy) {
-      const twin = await this.twinFor(userId, row);
-      if (twin) await ingredientPriceRepository.linkIngredient(row.ingredientName, twin.id);
-    }
+    await ensurePrivateTwins(userId, this.catalog);
   }
 
-  private async twinFor(
-    userId: string,
-    row: IngredientPrice,
-  ): Promise<CatalogIngredientRow | null> {
-    const { caloriesPer100g, proteinPer100g, carbsPer100g, fatPer100g } = row;
-    if (
-      caloriesPer100g == null ||
-      proteinPer100g == null ||
-      carbsPer100g == null ||
-      fatPer100g == null
-    )
-      return null;
-    const slug = ingredientSlug(row.ingredientName);
-    if (!slug) return null;
-    const existing = await this.catalog.findPrivateBySlug(userId, slug);
-    if (existing) return existing;
-    return this.catalog.createPrivate(userId, slug, {
-      name: titleCase(row.ingredientName),
-      category: 'OTHER',
-      kcalPer100g: caloriesPer100g,
-      proteinPer100g,
-      carbsPer100g,
-      fatPer100g,
-      fiberPer100g: row.fiberPer100g ?? 0,
-      imageUrl: row.imageUrl,
-      aliases: [normalizeIngredientKey(row.ingredientName)],
-      portions: row.gramsPerPiece ? [{ unit: 'piece', grams: row.gramsPerPiece }] : [],
-    });
+  private twinFor(userId: string, row: IngredientPrice): Promise<CatalogIngredientRow | null> {
+    return twinForLegacyRow(userId, row, this.catalog);
   }
 
   /**
@@ -804,7 +748,8 @@ export class IngredientsService {
     const reservation = await reserveNutritionEstimate(user);
     let estimate;
     try {
-      const estimates = await aiService.estimateIngredientPrices([name]);
+      // The labelled AI pre-fill (D5): the only caller that asks for nutrition.
+      const estimates = await aiService.estimateIngredientPrices([name], { nutrition: true });
       estimate = estimates[0];
     } catch (err) {
       await reservation.release();

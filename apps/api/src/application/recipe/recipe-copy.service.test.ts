@@ -63,3 +63,31 @@ describe('RecipeCopyService.ownedRecipeFor / ownedIdFor', () => {
     await expect(new RecipeCopyService(repo).ownedIdFor('me', mine)).resolves.toBe('r1');
   });
 });
+
+describe('RecipeCopyService — catalog lines on a new copy (plan-ingredient-catalog I3/I4)', () => {
+  it('a newly made copy gets the source lines recomputed for the viewer, then the refreshed row', async () => {
+    const theirs = recipe({ id: 'theirs' });
+    const copy = recipe({ id: 'copy', creatorId: 'me', originRecipeId: 'theirs' });
+    const refreshed = recipe({ id: 'copy', creatorId: 'me', name: 'recomputed' });
+    const repo = {
+      findOrCreateCopy: vi
+        .fn()
+        .mockResolvedValueOnce({ recipe: copy, created: true })
+        .mockResolvedValueOnce({ recipe: refreshed, created: false }),
+    };
+    const nutrition = { copyLinesForViewer: vi.fn().mockResolvedValue(undefined) };
+    const result = await new RecipeCopyService(repo, nutrition).ownedRecipeFor('me', theirs);
+    expect(nutrition.copyLinesForViewer).toHaveBeenCalledWith(theirs, copy, 'me');
+    expect(result).toEqual({ recipe: refreshed, copiedFromId: 'theirs', created: true });
+  });
+
+  it('a reused copy is not recomputed again', async () => {
+    const nutrition = { copyLinesForViewer: vi.fn() };
+    const copy = recipe({ id: 'copy', creatorId: 'me' });
+    await new RecipeCopyService(repoWith(copy, false), nutrition).ownedRecipeFor(
+      'me',
+      recipe({ id: 'theirs' }),
+    );
+    expect(nutrition.copyLinesForViewer).not.toHaveBeenCalled();
+  });
+});

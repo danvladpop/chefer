@@ -41,6 +41,34 @@ vi.mock('@chefer/database', async (importOriginal) => {
   };
 });
 
+// Catalog resolution + computed nutrition (plan-ingredient-catalog §6.2) run
+// for real over a small in-memory catalog (test-support/import-test-catalog).
+vi.mock('../ingredients/private-twins.js', () => ({ ensurePrivateTwins: vi.fn() }));
+vi.mock('../ingredients/ingredient-resolver.js', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../ingredients/ingredient-resolver.js')>();
+  const { IMPORT_TEST_CATALOG } = await import('../../test-support/import-test-catalog.js');
+  return { ...mod, ingredientResolver: new mod.IngredientResolver(IMPORT_TEST_CATALOG) };
+});
+vi.mock('../ingredients/recipe-nutrition.service.js', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../ingredients/recipe-nutrition.service.js')>();
+  const { IngredientResolver } = await import('../ingredients/ingredient-resolver.js');
+  const { IMPORT_TEST_CATALOG } = await import('../../test-support/import-test-catalog.js');
+  const lines = {
+    writeLines: vi.fn(),
+    findByRecipeIds: vi.fn(),
+    findRecipesUsingIngredient: vi.fn(),
+    findNutritionStates: vi.fn(),
+  };
+  return {
+    ...mod,
+    recipeNutritionService: new mod.RecipeNutritionService(
+      IMPORT_TEST_CATALOG,
+      lines,
+      new IngredientResolver(IMPORT_TEST_CATALOG),
+    ),
+  };
+});
+
 // The AI module validates env at import time — mock it; every test injects
 // its own stub IAIService through the constructor anyway.
 vi.mock('../../lib/ai/index.js', () => ({ aiService: {} }));
@@ -652,5 +680,86 @@ describe('RecipeImportService.previewVideo', () => {
     expect(preview.notFound).toContain('instructions');
     expect(preview.draft.name).toContain('imported via video');
     expect(preview.safety.ok).toBe(true);
+  });
+});
+
+describe('RecipeImportService — computed nutrition (plan-ingredient-catalog §6.2, I2)', () => {
+  it('preview replaces the AI’s numbers with catalog-computed ones and reports line resolution', async () => {
+    const service = new RecipeImportService(makeAi(), recipeRepo(), prefsRepo(peanutVegetarian));
+    const preview = await service.preview(premiumUser, { text: 'Peanut chicken satay recipe …' });
+    // original: 500 g chicken (600) + 120 g peanut butter (720) + 200 ml coconut milk (400) = 1720 / 4
+    expect(preview.original.nutritionInfo.calories).toBe(430);
+    expect(preview.nutritionStatus.original).toBe('COMPUTED');
+    expect(preview.resolution.original.map((r) => r.match?.slug)).toEqual([
+      'chicken-breast-raw',
+      'peanut-butter',
+      'coconut-milk-canned',
+    ]);
+    // adapted: sunflower seed butter is not in the catalog → PARTIAL, flagged
+    expect(preview.nutritionStatus.adapted).toBe('PARTIAL');
+    expect(preview.resolution.adapted[1]).toMatchObject({
+      rawName: 'sunflower seed butter',
+      match: null,
+      problem: 'NO_INGREDIENT',
+    });
+    // the legacy macroCheck no longer quotes the AI: stated = computed
+    expect(preview.macroCheck).toMatchObject({
+      status: 'unknown',
+      statedCaloriesPerServing: preview.adapted.nutritionInfo.calories,
+      computedCaloriesPerServing: preview.adapted.nutritionInfo.calories,
+      matchedLines: 2,
+      totalLines: 3,
+    });
+  });
+
+  it('save ignores the nutrition the client sends and stores lines + computed numbers', async () => {
+    const repo = recipeRepo();
+    const service = new RecipeImportService(makeAi(), repo, prefsRepo(peanutVegetarian));
+    const saved = await service.save(premiumUser, {
+      recipe: {
+        ...extracted,
+        nutritionInfo: { calories: 9999, protein: 1, carbs: 1, fat: 1, fiber: 1 },
+      },
+      variant: 'original',
+    });
+    const create = (repo as unknown as { createManualRecipe: ReturnType<typeof vi.fn> })
+      .createManualRecipe;
+    const [, data, lines] = create.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+      Record<string, unknown>,
+    ];
+    expect(data['nutritionInfo']).toMatchObject({ calories: 430 });
+    expect(lines).toMatchObject({ nutrition: { status: 'COMPUTED' } });
+    expect(saved.lines.map((l) => l.ingredientId)).toEqual(['chicken', 'pb', 'cm']);
+  });
+
+  it('a picked catalog id survives sanitizing; acceptPartial:false blocks an incomplete save', async () => {
+    const repo = recipeRepo();
+    const service = new RecipeImportService(
+      makeAi(),
+      repo,
+      prefsRepo({ ...peanutVegetarian, allergies: [] }),
+    );
+    const lines = [
+      { name: 'firm bean curd', quantity: 400, unit: 'g', ingredientId: 'tofu' },
+      { name: 'mystery paste', quantity: 10, unit: 'g' },
+    ];
+    await expect(
+      service.save(premiumUser, {
+        recipe: { ...extracted, ingredients: lines },
+        variant: 'original',
+        acceptPartial: false,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    const ok = await service.save(premiumUser, {
+      recipe: { ...extracted, ingredients: lines },
+      variant: 'original',
+      acceptPartial: true,
+    });
+    expect(ok.lines.map((l) => [l.ingredientId, l.problem])).toEqual([
+      ['tofu', undefined],
+      [null, 'NO_INGREDIENT'],
+    ]);
   });
 });

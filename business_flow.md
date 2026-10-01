@@ -1082,6 +1082,12 @@ Recipe creation (revamped form)
   |    result is PARTIAL -- nothing is guessed
   +- ingredients.resolve: free text -> catalog row (exact / alias), or fuzzy
   |    candidates the user must pick from (never auto-applied)
+  +- recipe.create / recipe.update: the SERVER computes nutrition from the
+  |    lines (picked ingredientId, else the name resolved exact/alias):
+  |      all lines resolve        -> COMPUTED (typed numbers ignored)
+  |      old client, unresolved,
+  |      numbers typed by hand    -> USER_ENTERED ("entered by you", D4)
+  |      otherwise                -> PARTIAL (incomplete numbers, flagged)
   +- editing a private ingredient recomputes the owner's recipes that use it;
   |    deleting one deprecates it (existing recipes keep their numbers)
   +- recipe photo: device upload (POST /api/uploads/image, <=10 MB since
@@ -1864,15 +1870,22 @@ recipe.importPreview { url | text | imageBase64 }   (protected — free gets 1/d
   │    allergy set is the household union (members included)
   ├─ P1-2 allergen matcher RE-VALIDATES the adapted output (AI never trusted for
   │    safety) — surviving terms are listed and the adapted variant is unusable
-  └─ macro cross-check vs the ingredient vocabulary (>25% off → "estimate uncertain")
+  └─ nutrition COMPUTED from the ingredient catalog (never the AI's numbers):
+       each line resolved (exact/alias; fuzzy candidates returned for the
+       review form, never applied) → resolution[] + nutritionStatus;
+       macroCheck kept for old clients (ok = all lines computed)
 
-recipe.importSave { recipe, variant, sourceUrl?, ogImageUrl? }   (premium)
+recipe.importSave { recipe, variant, sourceUrl?, ogImageUrl?, acceptPartial? }   (premium)
+  ├─ nutrition computed on the server from the lines (picked ingredientId or
+  │    resolved name); client/AI numbers dropped. acceptPartial=false + a line
+  │    without data → BAD_REQUEST; omitted (old clients) / true → saved PARTIAL
   ├─ variant=adapted → matcher re-runs server-side on the submitted payload:
   │    a recipe that still violates the user's allergies/restrictions is REJECTED
   │    (fail closed — the "AI missed the peanut" case cannot be saved as adapted)
   ├─ image: og:image only when a guarded HEAD check confirms an image response,
   │    else the deterministic name-seeded Pollinations URL
-  └─ Recipe created with source: MANUAL, creatorId, sourceUrl provenance
+  └─ Recipe created with source: MANUAL, creatorId, sourceUrl provenance and
+       its catalog lines (one transaction)
        → rateable + pinnable → flows into P1-1 generation placement
 ```
 

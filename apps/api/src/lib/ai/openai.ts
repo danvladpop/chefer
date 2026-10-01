@@ -20,6 +20,7 @@ import {
   CHEFERIZE_SYSTEM_PROMPT,
   EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT,
   EXTRACT_RECIPE_SYSTEM_PROMPT,
+  INGREDIENT_PRICES_ONLY_SYSTEM_PROMPT,
   INGREDIENT_PRICES_SYSTEM_PROMPT,
   MEAL_PHOTO_SYSTEM_PROMPT,
   MEAL_PHOTO_USER_PROMPT,
@@ -49,6 +50,7 @@ import type {
   CheferizeInput,
   CoachReviewInput,
   DayPlan,
+  EstimateIngredientPricesOptions,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -896,11 +898,16 @@ export class OpenAICompatibleAIService implements IAIService {
     });
   }
 
-  async estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]> {
+  async estimateIngredientPrices(
+    ingredientNames: string[],
+    opts: EstimateIngredientPricesOptions = {},
+  ): Promise<IngredientPriceEstimate[]> {
     if (ingredientNames.length === 0) return [];
     const parsed = await this.completeJson({
       label: 'estimateIngredientPrices',
-      system: INGREDIENT_PRICES_SYSTEM_PROMPT,
+      system: opts.nutrition
+        ? INGREDIENT_PRICES_SYSTEM_PROMPT
+        : INGREDIENT_PRICES_ONLY_SYSTEM_PROMPT,
       user: buildIngredientPricesPrompt(ingredientNames),
       shape: INGREDIENT_PRICES_SHAPE,
       schema: ingredientPricesResponseSchema,

@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IRecipeLineRepository, RecipeForRecompute } from '@chefer/database';
 import { catalogRow, fakeCatalog } from '../../test-support/fake-catalog.js';
+import { IngredientResolver } from './ingredient-resolver.js';
 import { RecipeNutritionService } from './recipe-nutrition.service.js';
 
 vi.mock('@chefer/database', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/database')>()),
   prisma: {},
+  ingredientPriceRepository: {
+    findUnlinkedPrivate: vi.fn().mockResolvedValue([]),
+    linkIngredient: vi.fn(),
+  },
 }));
 
 const OIL = catalogRow('oil', 'olive-oil', ['olive oil'], {
@@ -46,8 +51,13 @@ function setup() {
     writeLines,
     findByRecipeIds: vi.fn(),
     findRecipesUsingIngredient: vi.fn(),
+    findNutritionStates: vi.fn(),
   };
-  return { service: new RecipeNutritionService(catalog, lines), writeLines, lines };
+  return {
+    service: new RecipeNutritionService(catalog, lines, new IngredientResolver(catalog)),
+    writeLines,
+    lines,
+  };
 }
 
 describe('RecipeNutritionService', () => {
@@ -119,5 +129,156 @@ describe('RecipeNutritionService', () => {
       { ...base, id: 'r2', nutritionStatus: 'USER_ENTERED', lines: [line(0, null, 1, 'g')] },
     ]);
     expect(await service.recomputeRecipesUsing('skyr')).toEqual({ written: 1, kept: 1 });
+  });
+});
+
+describe('RecipeNutritionService.prepareSave (manual saves, plan §6.2 / D4)', () => {
+  const typedByHand = {
+    calories: 999,
+    protein: 9,
+    carbs: 9,
+    fat: 9,
+    fiber: 0,
+    source: 'manual' as const,
+  };
+
+  it('every line resolves → COMPUTED, and the client’s numbers are ignored', async () => {
+    const { service } = setup();
+    const r = await service.prepareSave(
+      'alice',
+      [
+        { name: 'Olive oil', quantity: 10, unit: 'g' },
+        { name: 'whatever I called it', quantity: 100, unit: 'g', ingredientId: 'skyr' },
+      ],
+      1,
+      typedByHand,
+    );
+    expect(r.nutrition).toMatchObject({ status: 'COMPUTED', perServing: { calories: 150 } });
+    expect(r.lines.map((l) => l.ingredientId)).toEqual(['oil', 'skyr']);
+  });
+
+  it('an old client with an unresolved line keeps its hand-typed numbers as USER_ENTERED', async () => {
+    const { service } = setup();
+    const r = await service.prepareSave(
+      'alice',
+      [
+        { name: 'Olive oil', quantity: 10, unit: 'g' },
+        { name: 'mystery spice', quantity: 1, unit: 'g' },
+      ],
+      1,
+      typedByHand,
+    );
+    expect(r.nutrition).toEqual({
+      status: 'USER_ENTERED',
+      perServing: { calories: 999, protein: 9, carbs: 9, fat: 9, fiber: 0 },
+      total: null,
+    });
+    expect(r.report[1]).toMatchObject({ ingredientId: null, problem: 'NO_INGREDIENT' });
+  });
+
+  it('client-computed numbers, or a new client, never become USER_ENTERED (PARTIAL instead)', async () => {
+    const { service } = setup();
+    const lines = [
+      { name: 'Olive oil', quantity: 10, unit: 'g' },
+      { name: 'mystery spice', quantity: 1, unit: 'g' },
+    ];
+    const computed = await service.prepareSave('alice', lines, 1, {
+      ...typedByHand,
+      source: 'computed',
+    });
+    expect(computed.nutrition).toMatchObject({ status: 'PARTIAL', perServing: { calories: 90 } });
+    const newClient = await service.prepareSave(
+      'alice',
+      [{ ...lines[0]!, ingredientId: 'oil' }, lines[1]!],
+      1,
+      typedByHand,
+    );
+    expect(newClient.nutrition.status).toBe('PARTIAL');
+  });
+
+  it("another user's private ingredient id is not used (I3/I4)", async () => {
+    const { service } = setup();
+    const r = await service.prepareSave(
+      'alice',
+      [{ name: 'x', quantity: 100, unit: 'g', ingredientId: 'bob' }],
+      1,
+    );
+    expect(r.nutrition.status).toBe('PARTIAL');
+    expect(r.report[0]?.problem).toBe('NO_INGREDIENT');
+  });
+
+  it('stores canonical units with prep text in note; the Json mirror keeps what was typed', async () => {
+    const { service } = setup();
+    const r = await service.prepareSave(
+      'alice',
+      [{ name: 'Olive oil', quantity: 2, unit: 'Tablespoons, warmed' }],
+      1,
+    );
+    expect(r.lines[0]).toMatchObject({
+      unit: 'tbsp',
+      note: 'warmed',
+      mirrorName: 'Olive oil',
+      mirrorUnit: 'Tablespoons, warmed',
+    });
+    expect(r.lines[0]?.grams).toBeCloseTo(2 * 14.79 * 0.9, 6);
+  });
+});
+
+describe('RecipeNutritionService.copyLinesForViewer (I3/I4)', () => {
+  it("drops links to the source author's private rows and recomputes for the viewer", async () => {
+    const { service, writeLines, lines } = setup();
+    vi.mocked(lines.findByRecipeIds).mockResolvedValue([
+      { ...line(0, 'oil', 10, 'g'), recipeId: 'src' },
+      { ...line(1, 'skyr', 100, 'g'), recipeId: 'src' }, // alice's private row
+    ]);
+    await service.copyLinesForViewer(
+      { id: 'src', nutritionStatus: 'COMPUTED', nutritionInfo: {} },
+      {
+        id: 'copy',
+        servings: 1,
+        ingredients: [
+          { name: 'Oil', unit: 'g' },
+          { name: 'Skyr', unit: 'g' },
+        ],
+      },
+      'bob',
+    );
+    const [copyId, writes, nutrition] = writeLines.mock.calls[0] as [
+      string,
+      { ingredientId: string | null }[],
+      unknown,
+    ];
+    expect(copyId).toBe('copy');
+    expect(writes.map((w) => w.ingredientId)).toEqual(['oil', null]);
+    expect(nutrition).toMatchObject({ status: 'PARTIAL', perServing: { calories: 90 } });
+  });
+
+  it('keeps a USER_ENTERED source’s typed numbers when the copy cannot compute fully', async () => {
+    const { service, writeLines, lines } = setup();
+    vi.mocked(lines.findByRecipeIds).mockResolvedValue([
+      { ...line(0, null, 1, 'g'), recipeId: 'src' },
+    ]);
+    const typed = { calories: 500, protein: 20, carbs: 50, fat: 20, fiber: 5 };
+    await service.copyLinesForViewer(
+      { id: 'src', nutritionStatus: 'USER_ENTERED', nutritionInfo: typed },
+      { id: 'copy', servings: 1, ingredients: [] },
+      'bob',
+    );
+    expect(writeLines.mock.calls[0]?.[2]).toEqual({
+      status: 'USER_ENTERED',
+      perServing: typed,
+      total: null,
+    });
+  });
+
+  it('is a no-op for a source without lines', async () => {
+    const { service, writeLines, lines } = setup();
+    vi.mocked(lines.findByRecipeIds).mockResolvedValue([]);
+    await service.copyLinesForViewer(
+      { id: 'src', nutritionStatus: 'PARTIAL', nutritionInfo: {} },
+      { id: 'copy', servings: 1, ingredients: [] },
+      'bob',
+    );
+    expect(writeLines).not.toHaveBeenCalled();
   });
 });

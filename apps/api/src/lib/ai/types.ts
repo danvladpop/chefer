@@ -12,6 +12,15 @@ export interface Ingredient {
   name: string;
   quantity: number;
   unit: string;
+  /**
+   * Catalog row this line is (plan-ingredient-catalog §6.2). Set on every
+   * curated fixture line, so curated nutrition is computed, never typed.
+   */
+  slug?: string | undefined;
+  /** Prep text kept off the name ("halved", "pitted"). */
+  note?: string | undefined;
+  /** "To serve" / garnish: excluded from nutrition totals. */
+  optional?: boolean | undefined;
 }
 
 export interface RecipeData {
@@ -228,6 +237,11 @@ export interface ShoppingListResponse {
 // At least one price field is set per ingredient; null means the family
 // doesn't apply (e.g. no per-piece price for olive oil).
 
+export interface EstimateIngredientPricesOptions {
+  /** Also estimate per-100 g nutrition and piece weight (labelled AI pre-fill only). */
+  nutrition?: boolean;
+}
+
 export interface IngredientPriceEstimate {
   ingredientName: string;
   pricePer100gEur: number | null;
@@ -324,7 +338,15 @@ export interface IAIService {
   generateMealPlanDay(input: MealPlanInput, request: MealPlanDayRequest): Promise<DayPlan>;
   generateRecipeSwap(input: SwapInput): Promise<RecipeData>;
   generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse>;
-  estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]>;
+  /**
+   * Store-agnostic EUR prices. Nutrition fields come back null unless
+   * `opts.nutrition` (the premium private-ingredient auto-fill, D5): the price
+   * worker never asks for or stores AI nutrition (plan-ingredient-catalog F1).
+   */
+  estimateIngredientPrices(
+    ingredientNames: string[],
+    opts?: EstimateIngredientPricesOptions,
+  ): Promise<IngredientPriceEstimate[]>;
   chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream>;
   /** F4 Snap-to-Log — Gemini implementation lands with feat/snap (wave 1). */
   analyzeMealPhoto(imageBase64: string, mimeType: string): Promise<MealPhotoEstimate>;

@@ -15,6 +15,7 @@ import {
   CHEFERIZE_SYSTEM_PROMPT,
   EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT,
   EXTRACT_RECIPE_SYSTEM_PROMPT,
+  INGREDIENT_PRICES_ONLY_SYSTEM_PROMPT,
   INGREDIENT_PRICES_SYSTEM_PROMPT,
   MEAL_PHOTO_SYSTEM_PROMPT,
   MEAL_PHOTO_USER_PROMPT,
@@ -43,6 +44,7 @@ import type {
   CheferizeInput,
   CoachReviewInput,
   DayPlan,
+  EstimateIngredientPricesOptions,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -584,7 +586,10 @@ export class GeminiAIService implements IAIService {
     return parsed.data;
   }
 
-  async estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]> {
+  async estimateIngredientPrices(
+    ingredientNames: string[],
+    opts: EstimateIngredientPricesOptions = {},
+  ): Promise<IngredientPriceEstimate[]> {
     if (ingredientNames.length === 0) return [];
 
     const response = await this.generateWithRetry(
@@ -592,7 +597,9 @@ export class GeminiAIService implements IAIService {
         model: this.models.main,
         contents: buildIngredientPricesPrompt(ingredientNames),
         config: {
-          systemInstruction: INGREDIENT_PRICES_SYSTEM_PROMPT,
+          systemInstruction: opts.nutrition
+            ? INGREDIENT_PRICES_SYSTEM_PROMPT
+            : INGREDIENT_PRICES_ONLY_SYSTEM_PROMPT,
           responseMimeType: 'application/json',
           responseSchema: INGREDIENT_PRICES_RESPONSE_SCHEMA,
           temperature: 0.1, // prices should be as deterministic as possible

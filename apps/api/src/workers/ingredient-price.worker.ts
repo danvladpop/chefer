@@ -1,13 +1,13 @@
-import { prisma } from '@chefer/database';
+import { prisma, type CatalogIngredientRow } from '@chefer/database';
+import {
+  ingredientResolver,
+  type IngredientResolver,
+} from '../application/ingredients/ingredient-resolver.js';
 import { runOutsideAiCallContext } from '../lib/ai/call-context.js';
 import { isAiCapacityFailure } from '../lib/ai/friendly-error.js';
 import { aiService } from '../lib/ai/index.js';
 import type { Ingredient } from '../lib/ai/index.js';
-import {
-  kcalFromMacros,
-  macrosAreConsistent,
-  normalizeIngredientName,
-} from '../lib/ingredient-prices/index.js';
+import { normalizeIngredientName } from '../lib/ingredient-prices/index.js';
 
 // How often the worker looks for work. The vocabulary changes rarely, so this
 // is a discovery interval, not a refresh cadence.
@@ -33,16 +33,37 @@ export function capacityRetryDelayMs(failures: number): number {
 // output while pricing a whole vocabulary in a handful of calls.
 const BATCH_SIZE = 40;
 
+/** Per-piece weight for price conversion, from the catalog row's FDC portions. */
+const PIECE_UNITS = ['piece', 'medium', 'large', 'small'] as const;
+function catalogGramsPerPiece(row: CatalogIngredientRow): number | null {
+  for (const unit of PIECE_UNITS) {
+    const p = row.portions.find((x) => x.unit === unit);
+    if (p) return p.grams;
+  }
+  return null;
+}
+
 /**
- * Builds and maintains the store-agnostic ingredient price vocabulary.
+ * Maintains store-agnostic PRICES for catalog ingredients
+ * (plan-ingredient-catalog §6.4, F1).
  *
  * - On start (and every sweep): collects the distinct ingredient names used by
- *   ALL recipes in the DB, prices any that are missing from IngredientPrice,
- *   and re-estimates entries older than PRICE_REFRESH_DAYS.
+ *   ALL recipes, keeps only those that resolve (exact/alias) to a GLOBAL
+ *   catalog row, prices the missing ones and re-prices entries older than
+ *   PRICE_REFRESH_DAYS. Each price row is linked to its catalog row
+ *   (`IngredientPrice.ingredientId`).
+ * - It never creates a row for a name the catalog doesn't know, and never asks
+ *   for or writes nutrition: global nutrition comes only from catalog.json.
+ *   `gramsPerPiece` (count-unit price conversion) comes from the catalog row's
+ *   FDC portion.
  * - `wake()` lets the shopping-list service trigger an immediate pass when it
  *   serves a list containing unpriced ingredients.
  */
 export class IngredientPriceWorker {
+  constructor(
+    private readonly resolver: Pick<IngredientResolver, 'resolveMany'> = ingredientResolver,
+  ) {}
+
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   /** Consecutive capacity failures (for the back-off); 0 after a clean pass. */
@@ -83,8 +104,10 @@ export class IngredientPriceWorker {
     if (this.running) return;
     this.running = true;
     try {
-      const vocabulary = await this.collectVocabulary();
-      const toEstimate = await this.findStaleOrMissing(vocabulary);
+      const names = await this.collectVocabulary();
+      const catalog = await this.resolveToCatalog(names);
+      await this.linkExisting(catalog);
+      const toEstimate = await this.findStaleOrMissing([...catalog.keys()]);
       if (toEstimate.length === 0) {
         this.capacityFailures = 0;
         return;
@@ -92,7 +115,7 @@ export class IngredientPriceWorker {
 
       console.log(`[IngredientPriceWorker] estimating ${toEstimate.length} ingredient prices…`);
       for (let i = 0; i < toEstimate.length; i += BATCH_SIZE) {
-        await this.estimateBatch(toEstimate.slice(i, i + BATCH_SIZE));
+        await this.estimateBatch(catalog, toEstimate.slice(i, i + BATCH_SIZE));
       }
       this.capacityFailures = 0;
     } catch (err) {
@@ -133,6 +156,42 @@ export class IngredientPriceWorker {
     return [...names];
   }
 
+  /** name → the GLOBAL catalog row it resolves to (exact/alias only); unknown names drop out. */
+  async resolveToCatalog(names: string[]): Promise<Map<string, CatalogIngredientRow>> {
+    const out = new Map<string, CatalogIngredientRow>();
+    for (let i = 0; i < names.length; i += 200) {
+      const batch = names.slice(i, i + 200);
+      const results = await this.resolver.resolveMany(
+        batch.map((rawName) => ({ rawName })),
+        null,
+        { candidates: false },
+      );
+      results.forEach((r, k) => {
+        const name = batch[k];
+        if (name && r.match) out.set(name, r.match);
+      });
+    }
+    return out;
+  }
+
+  /** Links existing unlinked price rows to the catalog row their name resolves to. */
+  private async linkExisting(catalog: Map<string, CatalogIngredientRow>): Promise<void> {
+    if (catalog.size === 0) return;
+    const unlinked = await prisma.ingredientPrice.findMany({
+      where: { ingredientName: { in: [...catalog.keys()] }, ingredientId: null, creatorId: null },
+      select: { ingredientName: true },
+    });
+    for (const { ingredientName } of unlinked) {
+      const row = catalog.get(ingredientName);
+      if (row) {
+        await prisma.ingredientPrice.update({
+          where: { ingredientName },
+          data: { ingredientId: row.id, gramsPerPiece: catalogGramsPerPiece(row) },
+        });
+      }
+    }
+  }
+
   private async findStaleOrMissing(vocabulary: string[]): Promise<string[]> {
     if (vocabulary.length === 0) return [];
     const cutoff = new Date(Date.now() - PRICE_REFRESH_DAYS * 24 * 60 * 60 * 1000);
@@ -140,8 +199,8 @@ export class IngredientPriceWorker {
       where: {
         ingredientName: { in: vocabulary },
         OR: [
-          // Recently estimated AND already carrying macros
-          { estimatedAt: { gte: cutoff }, caloriesPer100g: { not: null } },
+          // Recently priced
+          { estimatedAt: { gte: cutoff } },
           // Manually maintained rows (USER customs, ADMIN-edited globals)
           // are never AI-refreshed — human edits always win.
           { source: { not: 'AI_ESTIMATE' } },
@@ -153,7 +212,11 @@ export class IngredientPriceWorker {
     return vocabulary.filter((name) => !freshSet.has(name));
   }
 
-  private async estimateBatch(names: string[]): Promise<void> {
+  private async estimateBatch(
+    catalog: Map<string, CatalogIngredientRow>,
+    names: string[],
+  ): Promise<void> {
+    // Price-only call: the model is never asked for nutrition (F1).
     const estimates = await aiService.estimateIngredientPrices(names);
     // Not logged to aiCallLog: that table is per-user (FK) and this is a
     // system-wide background job. AiCallType.INGREDIENT_PRICES exists for
@@ -169,24 +232,15 @@ export class IngredientPriceWorker {
       ) {
         continue;
       }
-      // Calories that contradict the row's own macros are recomputed from
-      // them (4/4/9) before saving — the stored vocabulary feeds the plan's
-      // macro reconciliation and manual-recipe nutrition (audit F-PAN-2-1).
-      const derivedKcal = kcalFromMacros(est);
-      const caloriesPer100g =
-        derivedKcal != null && !macrosAreConsistent(est)
-          ? Math.round(derivedKcal)
-          : est.caloriesPer100g;
+      // Only names that resolve to the catalog are ever written (F1).
+      const row = catalog.get(name);
+      if (!row) continue;
       const fields = {
         pricePer100gEur: est.pricePer100gEur,
         pricePer100mlEur: est.pricePer100mlEur,
         pricePerPieceEur: est.pricePerPieceEur,
-        caloriesPer100g,
-        proteinPer100g: est.proteinPer100g,
-        carbsPer100g: est.carbsPer100g,
-        fatPer100g: est.fatPer100g,
-        fiberPer100g: est.fiberPer100g,
-        gramsPerPiece: est.gramsPerPiece,
+        gramsPerPiece: catalogGramsPerPiece(row),
+        ingredientId: row.id,
       };
       await prisma.ingredientPrice.upsert({
         where: { ingredientName: name },

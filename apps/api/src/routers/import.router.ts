@@ -40,6 +40,11 @@ const extractedRecipeSchema = z.object({
         name: z.string().min(1).max(80),
         quantity: z.number().positive(),
         unit: z.string().min(1).max(20),
+        // plan-ingredient-catalog §6.2 (additive): the catalog row the review
+        // form matched the line to, prep text, garnish lines.
+        ingredientId: z.string().min(1).max(40).optional(),
+        note: z.string().max(200).optional(),
+        optional: z.boolean().optional(),
       }),
     )
     .min(1)
@@ -106,6 +111,9 @@ export const importRouter = router({
         variant: z.enum(['original', 'adapted']),
         sourceUrl: z.string().url().max(2048).nullish(),
         ogImageUrl: z.string().url().max(2048).nullish(),
+        // plan-ingredient-catalog §6.2: false blocks a save whose lines don't
+        // all compute; true saves it PARTIAL. Omitted (old clients) → PARTIAL.
+        acceptPartial: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

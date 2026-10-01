@@ -8,6 +8,7 @@ import type {
   CheferizeInput,
   CoachReviewInput,
   DayPlan,
+  EstimateIngredientPricesOptions,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -195,11 +196,14 @@ export class ChainAIService implements IAIService {
     );
   }
 
-  estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]> {
+  estimateIngredientPrices(
+    ingredientNames: string[],
+    opts?: EstimateIngredientPricesOptions,
+  ): Promise<IngredientPriceEstimate[]> {
     return this.run(
       'estimateIngredientPrices',
       'prices',
-      (s) => s.estimateIngredientPrices(ingredientNames),
+      (s) => s.estimateIngredientPrices(ingredientNames, opts),
       ingredientNames,
     );
   }
