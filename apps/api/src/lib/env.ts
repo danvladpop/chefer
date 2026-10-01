@@ -190,6 +190,23 @@ const envSchema = z.object({
   // lives in lib/flags.ts.
   FEATURE_FLAGS: z.string().default(''),
 
+  // Following dark launch (docs/friends/implementation-plan.md §8, PRD §17):
+  // comma-separated user ids that get Following while the `friends` flag is
+  // off. Empty (the default) = nobody. Read through isFriendsEnabledFor
+  // (lib/friends-middleware.ts), never directly.
+  FRIENDS_ALLOWLIST: z
+    .string()
+    .default('')
+    .transform(
+      (val) =>
+        new Set(
+          val
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id.length > 0),
+        ),
+    ),
+
   // Health-data consent enforcement (§2.8, T-26.1). `off` records nothing;
   // `declared` rejects un-consented health writes only from clients that
   // declare `x-chefer-api-level >= 1`; `all` rejects from every client. Old

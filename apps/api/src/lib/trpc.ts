@@ -6,6 +6,13 @@ import type { UserProfile } from '@chefer/types';
 import { runWithAiCallContext } from './ai/call-context.js';
 import { ConflictCause } from './conflict.js';
 import { isPremiumUser } from './entitlements.js';
+import {
+  FriendsLockedCause,
+  FriendsNotActivatedCause,
+  FriendsUnavailableCause,
+  TextRejectedCause,
+  UnsafeForTableCause,
+} from './friends-errors.js';
 import { assertHealthConsent, HealthConsentRequiredCause } from './health-consent.js';
 import { logger } from './logger.js';
 import { PoolExhaustedCause } from './pool-exhausted.js';
@@ -63,6 +70,14 @@ const t = initTRPC.context<Context>().create({
           error.cause instanceof PoolExhaustedCause
             ? { cause: 'POOL_EXHAUSTED' as const, message: shape.message }
             : null,
+        // Following (docs/friends/implementation-plan.md §4.1, lib/friends-errors.ts).
+        // Additive: every other error carries false/null.
+        friendsUnavailable: error.cause instanceof FriendsUnavailableCause,
+        friendsNotActivated: error.cause instanceof FriendsNotActivatedCause,
+        friendsLocked: error.cause instanceof FriendsLockedCause ? error.cause.reason : null,
+        textRejected: error.cause instanceof TextRejectedCause ? error.cause.field : null,
+        unsafeForTable:
+          error.cause instanceof UnsafeForTableCause ? { issues: [...error.cause.issues] } : null,
       },
     };
   },

@@ -3,6 +3,7 @@ import { authRouter } from './auth.router.js';
 import { coachRouter } from './coach.router.js';
 import { dashboardRouter } from './dashboard.router.js';
 import { feedbackRouter } from './feedback.router.js';
+import { friendsRouter } from './friends/index.js';
 import { gymRouter } from './gym/index.js';
 import { householdRouter } from './household.router.js';
 import { importRouter } from './import.router.js';
@@ -26,6 +27,10 @@ export const appRouter = router({
   coach: coachRouter,
   dashboard: dashboardRouter,
   feedback: feedbackRouter,
+  // Following (docs/friends/implementation-plan.md §4.1) — dark behind the
+  // `friends` flag + FRIENDS_ALLOWLIST; only `friends.availability` answers
+  // while it's off.
+  friends: friendsRouter,
   gym: gymRouter,
   household: householdRouter,
   ingredients: ingredientsRouter,

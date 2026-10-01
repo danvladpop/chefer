@@ -140,3 +140,17 @@ describe('validateEnv — free-only mode (docs/ai-providers.md "Free-only mode")
     );
   });
 });
+
+describe('validateEnv — FRIENDS_ALLOWLIST (Following dark launch, plan §8)', () => {
+  it('defaults to an empty set', () => {
+    expect(validateEnv({ ...BASE }).FRIENDS_ALLOWLIST).toEqual(new Set());
+    expect(validateEnv({ ...BASE, FRIENDS_ALLOWLIST: '' }).FRIENDS_ALLOWLIST.size).toBe(0);
+  });
+
+  it('parses a comma list of user ids, trimming blanks', () => {
+    const env = validateEnv({ ...BASE, FRIENDS_ALLOWLIST: ' cuser1 , cuser2,,cuser1 ' });
+    expect([...env.FRIENDS_ALLOWLIST].sort()).toEqual(['cuser1', 'cuser2']);
+    expect(env.FRIENDS_ALLOWLIST.has('cuser2')).toBe(true);
+    expect(env.FRIENDS_ALLOWLIST.has('cuser3')).toBe(false);
+  });
+});
