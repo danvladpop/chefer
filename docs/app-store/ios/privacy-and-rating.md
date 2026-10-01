@@ -165,3 +165,121 @@ Premium is currently a free toggle ("Turn on Premium", under a "FREE FOR NOW" no
 real payments arrive (P2-1 Stripe), digital features sold inside the iOS app must go through
 Apple In-App Purchase** (Guideline 3.1.1). A Stripe checkout or a link to one in the iOS app
 will be rejected (US storefront link-out rules differ, but don't count on them).
+
+---
+
+## At Following launch (draft: do not apply to the 1.0.1 submission)
+
+**Everything above still describes the build that is being submitted now (1.0.1). Do not change any
+answer above for that submission.** This section is what changes the day Following is switched on for
+everyone (`friends` in `FEATURE_FLAGS`; plan §14 steps 5 and 6). Following ships over the air, so it
+can reach installed apps before a new binary is reviewed. Do the App Store Connect edits below
+**before** flipping the flag if App Store Connect lets you edit them without a new version, and
+otherwise with the next submission. See "Order" at the end. Sources: [`docs/friends/prd.md`](../../friends/prd.md)
+§9, §14 and [`docs/friends/legal-drafts.md`](../../friends/legal-drafts.md). Counsel review pending.
+
+### Age rating at launch
+
+Only one answer changes:
+
+| Topic in the questionnaire                     | Today | **At Following launch** | Why                                                                                                                                                                              |
+| ---------------------------------------------- | ----- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User-generated content shared with other users | No    | **Yes**                 | A user's first and last name, recipes (including imported ones, with a source link), meal plan and workouts become visible to the people who follow them and to others in search |
+
+All other rows stay as above, with these notes for the questions Apple may ask next:
+
+- **Messaging / chat with other users: still No.** Following has no messages, comments, reactions or
+  feed (PRD §3.2).
+- **Unrestricted web access: still No.** A shared recipe can show the website it was imported from
+  (`Source: {domain}`) and the link opens in the phone's browser through the system, not in an in-app
+  web view. The link is user-supplied, so reporting a recipe covers it (PRD FR-17.1).
+- **Expect the calculated rating to rise.** "Yes" to user-generated content usually raises the
+  result. Accept what the questionnaire calculates, and confirm it is not above 16+, which is the age
+  the Terms already require. Run the same answers through the Play IARC questionnaire
+  ([android/data-safety.md](../android/data-safety.md#at-following-launch-draft)).
+- If a question asks whether the app has features for **reporting or blocking** users, answer Yes (see
+  the 1.2 mapping below).
+
+### App Privacy at launch
+
+**Result: no new data type is needed.** Checked against Apple's list of data types, row by row. The
+labels do not ask whether other users of the same app can see your data, so the _types_ stay the same,
+and the Chefer privacy policy (updated at launch) is what says who can see what.
+
+| What Following adds                                                            | Apple data type that already covers it                                                                                                   | Change to the answer                                                                                                                                        |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First and last name shown to other users, editable when Following is turned on | Contact Info → **Name** (declared)                                                                                                       | None. Add "also shown to other users if Following is on" to the "What it is" cell. Purpose stays App Functionality.                                         |
+| Recipes (written and imported) shown to followers, with the source link        | User Content → **Other User Content** (declared)                                                                                         | None. Extend the cell: "...and recipes shared with followers".                                                                                              |
+| Meal plan with calories and macros, workouts and routine shown to followers    | Health & Fitness → **Health**, **Fitness** (declared)                                                                                    | None. Same data, now also visible to followers who the user approved (or anyone, if Public). Still linked, not used for tracking.                           |
+| Follows, follow requests, blocks, suggestion dismissals, Activity items        | User Content → **Other User Content** (no social-graph type exists; the Contacts type is for the address book, which Chefer never reads) | None. Add "who they follow and block" to the cell. Product Personalization is already ticked (the "Suggested for you" list uses follows).                   |
+| Reports filed and the moderation log                                           | User Content → **Other User Content**                                                                                                    | None. Purpose: App Functionality (safety).                                                                                                                  |
+| Name searches typed in the search box                                          | _Search History_ (**do not declare**)                                                                                                    | None. Queries are used only to return results and are never logged or sent to analytics (PRD §10), so they are not retained data. Re-check if that changes. |
+| "Invite someone"                                                               | none                                                                                                                                     | None. It opens the system share sheet with a fixed text. Chefer sends and stores nothing. No Contacts permission, no contact import.                        |
+| Avatar                                                                         | none                                                                                                                                     | None. Avatars are initials on a colour. There is no photo upload, so **Photos or Videos** is unchanged.                                                     |
+
+Still **not** declared: Contacts, Location, Search History, Usage Data and Diagnostics (rules above
+unchanged), Identifiers other than User ID, Financial Info. **Linked to the user's identity: Yes. Used
+for tracking: No** for every row, unchanged. The analytics events for Following hold counts and fixed
+labels only (PRD §15), so the "Usage analytics" section above is not affected.
+
+Privacy policy URL: unchanged (`https://chefer.duckdns.org/privacy`). The updated policy must be live
+first (draft: [legal-drafts.md](../../friends/legal-drafts.md) §3).
+
+### Guideline 1.2 (user-generated content): how Chefer meets each requirement
+
+Chefer has **no human moderation queue**, by the owner's decision (Q-F-13). The answer to App Review
+is that every response is automatic and immediate, and that "timely" is met by the instant block and
+hide for the reporter plus the automatic threshold hide for everyone else (PRD §9.6).
+
+| 1.2 requirement                                                | What Chefer does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Where the reviewer finds it                                                                                                |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| A method for filtering objectionable material                  | A bundled English and Romanian word list is checked on display names and on the name and description of shared recipes, whole-word and accent-insensitive. A match is refused with a message. Content reported by several people is also hidden automatically (below).                                                                                                                                                                                                                                                                                                            | Turn on Following and try a blocked word as a name, or as a recipe name on a shared recipe.                                |
+| A mechanism to report offensive content, with timely responses | One tap on a reason (five reasons: offensive name or recipe, spam or fake account, harassment, unsafe or harmful content, something else). **Reporting also blocks at once**, so the reporter stops seeing that person and their recipes immediately. A recipe reported by 3 different accounts is **hidden for everyone** automatically. An account reported by 5 different accounts is **forced private and removed from search and suggestions** automatically. Reports count only from accounts older than 24 hours with a confirmed email. Every automatic action is logged. | A person's profile: the "..." menu → "Report and block". A recipe: the "..." menu → "Report recipe".                       |
+| The ability to block abusive users                             | Instant and mutual: the blocked person disappears from the blocker everywhere, and any follows are removed. The blocked person is not told. Blocks are listed and can be undone.                                                                                                                                                                                                                                                                                                                                                                                                  | A person's profile or a follower's row: "..." menu → "Block". List: Following → gear → Sharing & privacy → Blocked people. |
+| Published contact information                                  | `https://chefer.duckdns.org/support` (already the Support URL) and the support email in the Terms and Privacy Policy.                                                                                                                                                                                                                                                                                                                                                                                                                                                             | App Store listing, Support URL.                                                                                            |
+
+Also true and useful to say: users can turn Following off at any time (it deletes their social data),
+and account deletion removes all of it.
+
+### Demo accounts for App Review at Following launch
+
+The accounts `carol@chefer.dev`, `dave@chefer.dev` and `kitchen@chefer.dev` (and the shared seed
+passwords) **exist only in the dev database** (`pnpm db:seed`). They do not exist on production, and
+their passwords are in a public repository, so **never create them on production**. The owner must create
+review-visible accounts on production. Do it on the real server, in the app, with addresses you control
+(an email alias is fine):
+
+1. **Chefer Kitchen** (needed anyway for the cold start, plan §14 step 3): register an account, confirm
+   its email, run `apps/api/src/scripts/create-chefer-kitchen.ts --email=<address>` on production, then
+   add a few recipes, a routine and a week.
+2. **"Demo Cook"** (a second, public profile): register, confirm the email, turn on Following with
+   _Public_, and give it 3 recipes (at least one imported, so the `Source:` line shows), a week plan, a
+   routine and one workout completed in the last 7 days. Keep every name and recipe clean, because the
+   word filter applies to them as well.
+3. **The review account** (the one from [review-notes.md](./review-notes.md)): turn on Following with
+   _Private_, then follow Chefer Kitchen and Demo Cook. Have Demo Cook follow it back: Demo Cook sends a
+   request, the review account accepts. The two then follow each other, as the PRD asks.
+4. **Make Following visible to the review account.** Put its user id in `FRIENDS_ALLOWLIST`
+   (`infrastructure/scripts/env.sh`), or flip the `friends` flag. If the flag is off for it, App Review
+   sees no user-generated content, which contradicts the age rating.
+5. **Give the reviewer a spare to report.** Reporting blocks the person, so the review account would
+   lose sight of whoever it reports. Create a third throwaway public profile ("Demo Cook Two") and tell
+   the reviewer in the notes to report that one. Unblocking in Blocked people restores sight.
+6. Keep all demo accounts untouched during review, and keep their emails confirmed (an unconfirmed email
+   makes reports from that account ineligible for the thresholds; that is harmless for the demo).
+
+Only the review account's sign-in goes into App Store Connect. The notes block to paste is in
+[review-notes.md](./review-notes.md#at-following-launch-draft).
+
+### Order for the owner
+
+1. **Now:** submit 1.0.1 with the answers above. Do not touch App Store Connect for Following.
+2. **Before flipping `friends` for everyone** (plan §14 steps 5 and 6): counsel signs off
+   [legal-drafts.md](../../friends/legal-drafts.md) and [dpia.md](../../friends/dpia.md); apply the
+   legal text and the `LEGAL_VERSIONS` bump; create the demo accounts above.
+3. **App Store Connect:** change the age-rating answer to Yes and paste the review notes (edit them
+   now if App Store Connect allows, otherwise with the next version). The 1.2 mechanisms are all in the
+   over-the-air JavaScript and the API, so the feature is compliant from the moment it is on.
+4. **Then** add `friends` to `FEATURE_FLAGS` and restart the API.
+5. If a reviewer ever asks why a user-content feature appeared without a new binary, the answer is the
+   mapping above, and that the kill switch (`friends` off) hides the feature at once.
