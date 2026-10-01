@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FRIENDS_LIMITS } from '@chefer/types';
+import { FRIENDS_LIMITS, MODERATION } from '@chefer/types';
 import { logger } from '../lib/logger.js';
 import {
   FriendsMaintenanceWorker,
   isoWeekMarker,
+  monthsBefore,
   type FriendsMaintenanceDeps,
 } from './friends-maintenance.worker.js';
 
@@ -31,11 +32,15 @@ function makeDeps() {
   const withdraw = vi.fn(async () => 1);
   const notificationsDeleteOlderThan = vi.fn(async () => 0);
   const dismissalsDeleteOlderThan = vi.fn(async () => 0);
+  const reportsDeleteOlderThan = vi.fn(async () => 0);
+  const moderationLogDeleteOlderThan = vi.fn(async () => 0);
   const weeklyMetrics = vi.fn(async () => ZERO_METRICS);
   const deps: FriendsMaintenanceDeps = {
     follows: { expirePendingOlderThan },
     notifications: { withdraw, deleteOlderThan: notificationsDeleteOlderThan },
     dismissals: { deleteOlderThan: dismissalsDeleteOlderThan },
+    reports: { deleteOlderThan: reportsDeleteOlderThan },
+    moderationLog: { deleteOlderThan: moderationLogDeleteOlderThan },
     moderation: { weeklyMetrics },
   };
   return {
@@ -44,6 +49,8 @@ function makeDeps() {
     withdraw,
     notificationsDeleteOlderThan,
     dismissalsDeleteOlderThan,
+    reportsDeleteOlderThan,
+    moderationLogDeleteOlderThan,
     weeklyMetrics,
   };
 }
@@ -64,6 +71,17 @@ describe('isoWeekMarker', () => {
     expect(isoWeekMarker(new Date('2026-10-04T23:59:59Z'))).toBe('2026-09-28'); // Sunday
     expect(isoWeekMarker(new Date('2026-10-05T00:00:00Z'))).toBe('2026-10-05');
     expect(isoWeekMarker(new Date('2027-01-01T12:00:00Z'))).toBe('2026-12-28'); // across years
+  });
+});
+
+describe('monthsBefore', () => {
+  it('goes back whole UTC calendar months', () => {
+    expect(monthsBefore(new Date('2026-10-01T09:00:00Z'), 24).toISOString()).toBe(
+      '2024-10-01T09:00:00.000Z',
+    );
+    expect(monthsBefore(new Date('2026-03-15T00:00:00Z'), 1).toISOString()).toBe(
+      '2026-02-15T00:00:00.000Z',
+    );
   });
 });
 
@@ -129,6 +147,35 @@ describe('FriendsMaintenanceWorker: housekeeping (F1.5)', () => {
     expect(m.withdraw).not.toHaveBeenCalled();
     // Nothing deleted anywhere → no housekeeping line.
     expect(logger.info).not.toHaveBeenCalledWith(expect.anything(), 'friends.housekeeping');
+  });
+
+  it('deletes reports and moderation log rows older than 24 months', async () => {
+    const m = makeDeps();
+    m.reportsDeleteOlderThan.mockResolvedValue(3);
+    m.moderationLogDeleteOlderThan.mockResolvedValue(5);
+
+    await new FriendsMaintenanceWorker(m.deps).tick(NOW);
+
+    expect(MODERATION.RECORD_RETENTION_MONTHS).toBe(24);
+    const cutoff = monthsBefore(NOW, 24);
+    expect(m.reportsDeleteOlderThan).toHaveBeenCalledWith(cutoff);
+    expect(m.moderationLogDeleteOlderThan).toHaveBeenCalledWith(cutoff);
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ prunedReports: 3, prunedModerationLog: 5 }),
+      'friends.housekeeping',
+    );
+  });
+
+  it('a failed retention step retries on the next tick; the other steps still run', async () => {
+    const m = makeDeps();
+    m.reportsDeleteOlderThan.mockRejectedValueOnce(new Error('db down'));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const worker = new FriendsMaintenanceWorker(m.deps);
+
+    await worker.tick(NOW);
+    expect(m.dismissalsDeleteOlderThan).toHaveBeenCalledTimes(1);
+    await worker.tick(new Date(NOW.getTime() + 60 * 60 * 1000));
+    expect(m.reportsDeleteOlderThan).toHaveBeenCalledTimes(2);
   });
 
   it('prunes Activity items and suggestion dismissals older than 90 days', async () => {

@@ -1,12 +1,16 @@
 import {
   followRepository,
+  moderationRepository,
   notificationRepository,
   suggestionDismissalRepository,
+  userReportRepository,
   type IFollowRepository,
+  type IModerationRepository,
   type INotificationRepository,
   type ISuggestionDismissalRepository,
+  type IUserReportRepository,
 } from '@chefer/database';
-import { FRIENDS_LIMITS } from '@chefer/types';
+import { FRIENDS_LIMITS, MODERATION } from '@chefer/types';
 import { moderationService } from '../application/friends/moderation.service.js';
 import { logger } from '../lib/logger.js';
 
@@ -17,7 +21,10 @@ import { logger } from '../lib/logger.js';
 //      keeps its item ("You declined"), so an expired one must not be left
 //      behind to read that way;
 //   2. prune Activity items older than `activityRetentionDays` (90);
-//   3. prune suggestion dismissals older than `dismissalDays` (90).
+//   3. prune suggestion dismissals older than `dismissalDays` (90);
+//   4. retention of reports and the moderation log: delete rows older than
+//      `MODERATION.RECORD_RETENTION_MONTHS` (24), keeping a log row while the
+//      action it explains is still in effect.
 // Once per ISO week (Monday 00:00 UTC) it also logs the `moderation.weekly`
 // metrics line.
 //
@@ -42,10 +49,19 @@ function daysBefore(now: Date, days: number): Date {
   return new Date(now.getTime() - days * DAY_MS);
 }
 
+/** The same UTC day-of-month `months` calendar months earlier (clamped by Date). */
+export function monthsBefore(now: Date, months: number): Date {
+  const d = new Date(now.getTime());
+  d.setUTCMonth(d.getUTCMonth() - months);
+  return d;
+}
+
 export interface FriendsMaintenanceDeps {
   follows: Pick<IFollowRepository, 'expirePendingOlderThan'>;
   notifications: Pick<INotificationRepository, 'withdraw' | 'deleteOlderThan'>;
   dismissals: Pick<ISuggestionDismissalRepository, 'deleteOlderThan'>;
+  reports: Pick<IUserReportRepository, 'deleteOlderThan'>;
+  moderationLog: Pick<IModerationRepository, 'deleteOlderThan'>;
   moderation: Pick<typeof moderationService, 'weeklyMetrics'>;
 }
 
@@ -53,6 +69,8 @@ const defaultDeps: FriendsMaintenanceDeps = {
   follows: followRepository,
   notifications: notificationRepository,
   dismissals: suggestionDismissalRepository,
+  reports: userReportRepository,
+  moderationLog: moderationRepository,
   moderation: moderationService,
 };
 
@@ -60,6 +78,8 @@ export interface HousekeepingResult {
   expiredRequests: number;
   prunedNotifications: number;
   prunedDismissals: number;
+  prunedReports: number;
+  prunedModerationLog: number;
 }
 
 export class FriendsMaintenanceWorker {
@@ -102,7 +122,7 @@ export class FriendsMaintenanceWorker {
 
   /**
    * Expiry and retention, once per UTC day. Each step runs even when an
-   * earlier one failed; the day is only marked done when all three succeeded.
+   * earlier one failed; the day is only marked done when all of them succeeded.
    */
   private async housekeeping(now: Date): Promise<void> {
     const day = now.toISOString().slice(0, 10);
@@ -112,6 +132,8 @@ export class FriendsMaintenanceWorker {
       expiredRequests: 0,
       prunedNotifications: 0,
       prunedDismissals: 0,
+      prunedReports: 0,
+      prunedModerationLog: 0,
     };
     let failed = false;
     const step = async (name: string, run: () => Promise<void>): Promise<void> => {
@@ -137,8 +159,14 @@ export class FriendsMaintenanceWorker {
       );
     });
 
+    await step('prune moderation records', async () => {
+      const cutoff = monthsBefore(now, MODERATION.RECORD_RETENTION_MONTHS);
+      result.prunedReports = await this.deps.reports.deleteOlderThan(cutoff);
+      result.prunedModerationLog = await this.deps.moderationLog.deleteOlderThan(cutoff);
+    });
+
     if (!failed) this.lastHousekeepingDay = day;
-    if (result.expiredRequests + result.prunedNotifications + result.prunedDismissals > 0) {
+    if (Object.values(result).some((n) => n > 0)) {
       logger.info({ day, ...result }, 'friends.housekeeping');
     }
   }

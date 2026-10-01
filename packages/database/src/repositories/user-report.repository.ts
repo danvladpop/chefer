@@ -51,6 +51,8 @@ export interface IUserReportRepository {
    * from them in the reporter's inbox.
    */
   hasSocialTie(reporterId: string, targetUserId: string): Promise<boolean>;
+  /** Retention (MODERATION.RECORD_RETENTION_MONTHS): deletes reports filed before `date`. */
+  deleteOlderThan(date: Date): Promise<number>;
 }
 
 export class UserReportRepository implements IUserReportRepository {
@@ -128,6 +130,11 @@ export class UserReportRepository implements IUserReportRepository {
       }),
     ]);
     return follow !== null || item !== null;
+  }
+
+  async deleteOlderThan(date: Date): Promise<number> {
+    const { count } = await prisma.userReport.deleteMany({ where: { createdAt: { lt: date } } });
+    return count;
   }
 }
 
