@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { VIDEO_IMPORT_COPY } from '@chefer/types';
+import { FRIENDS_COPY, VIDEO_IMPORT_COPY } from '@chefer/types';
 import { Button, Card, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
 import { cn, isSupportedVideoUrl, PREMIUM_PITCH_COPY } from '@chefer/utils';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
+import { textRejectedOf } from '../src/features/friends/api/friends-errors';
 import { LockedFeatureCard } from '../src/features/premium/locked-feature-card';
 import { openPremium } from '../src/features/premium/open-premium';
 import { ImportedRecipePreview } from '../src/features/recipes/imported-recipe-preview';
@@ -109,6 +110,10 @@ export default function ImportRecipeScreen() {
   // preferences go to the AI provider — ask before the first import.
   const requestAiConsent = useAiConsent();
   const previewPending = previewMutation.isPending || videoPreviewMutation.isPending;
+  // Following (PRD §9.4): a shared recipe whose name/description trips the
+  // word filter → `data.textRejected: 'recipe'`. The video review shows it
+  // under its name field; the link/text review (no name field) in its card.
+  const saveTextRejected = saveMutation.isError && textRejectedOf(saveMutation.error) === 'recipe';
   const previewError = previewMutation.error ?? videoPreviewMutation.error;
   const videoUrlInvalid =
     tab === 'video' && videoUrl.trim() !== '' && !isSupportedVideoUrl(videoUrl);
@@ -196,7 +201,8 @@ export default function ImportRecipeScreen() {
           <VideoDraftForm
             preview={videoPreview}
             saving={saveMutation.isPending}
-            saveError={saveMutation.error?.message ?? null}
+            saveError={saveTextRejected ? null : (saveMutation.error?.message ?? null)}
+            nameError={saveTextRejected ? FRIENDS_COPY.recipe.textRejected : null}
             onBack={startOver}
             onSave={saveVideoDraft}
           />
@@ -395,7 +401,9 @@ export default function ImportRecipeScreen() {
             </Button>
             {saveMutation.isError && (
               <Card className="border-red-200 bg-red-50">
-                <Text className="text-sm text-red-600">{saveMutation.error.message}</Text>
+                <Text testID="import-save-error" className="text-sm text-red-600">
+                  {saveTextRejected ? FRIENDS_COPY.recipe.textRejected : saveMutation.error.message}
+                </Text>
               </Card>
             )}
 

@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
+import { FRIENDS_COPY } from '@chefer/types';
 import { ConfirmSheet, Screen, Text } from '@chefer/ui-mobile';
 import { WELLNESS_COPY } from '@chefer/utils';
+import { track } from '../../lib/analytics';
 import { clearToken } from '../../lib/auth-store';
 import { trpc } from '../../lib/trpc';
+import { useFriendsAvailability } from '../friends/api/use-friends-availability';
 
 // ─── Settings hub (T-00.9, PAT-9 §2.9) ─────────────────────────────────────────
 // One Settings entry from both modes (the ModeSwitch gear). Every row below
@@ -20,6 +23,7 @@ interface SettingsRow {
   testID: string;
   href: Href;
   destructive?: boolean;
+  onOpen?: () => void;
 }
 
 interface SettingsGroup {
@@ -75,6 +79,23 @@ const GROUPS: SettingsGroup[] = [
   },
 ];
 
+// Following (docs/friends/ux-design.md §2.1): the first Account row, and Gym
+// mode's way in (Gym has no More tab). Only while `friends.availability` says
+// yes — with it off the row doesn't exist and nothing else is queried.
+const FOLLOWING_ROW: SettingsRow = {
+  label: FRIENDS_COPY.nav.label,
+  testID: 'settings-friends',
+  href: '/friends',
+  onOpen: () => track('friends_opened', { source: 'settings' }),
+};
+
+function groupsFor(friendsAvailable: boolean): SettingsGroup[] {
+  if (!friendsAvailable) return GROUPS;
+  return GROUPS.map((group) =>
+    group.title === 'Account' ? { ...group, rows: [FOLLOWING_ROW, ...group.rows] } : group,
+  );
+}
+
 function GroupTitle({ children }: { children: string }) {
   return (
     <Text className="px-4 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -123,6 +144,8 @@ function SettingsRowItem({
 
 export function SettingsScreen() {
   const [signOutVisible, setSignOutVisible] = useState(false);
+  const { enabled: friendsAvailable } = useFriendsAvailability();
+  const groups = groupsFor(friendsAvailable);
   const utils = trpc.useUtils();
   const logout = trpc.auth.logout.useMutation({
     onSettled: async () => {
@@ -141,7 +164,7 @@ export function SettingsScreen() {
         Settings
       </Text>
       <ScrollView contentContainerClassName="gap-2 pb-8">
-        {GROUPS.map((group) => (
+        {groups.map((group) => (
           <View key={group.title}>
             <GroupTitle>{group.title}</GroupTitle>
             <View className="mx-4 overflow-hidden rounded-2xl border border-border bg-card">
@@ -151,7 +174,10 @@ export function SettingsScreen() {
                   label={row.label}
                   testID={row.testID}
                   isFirst={i === 0}
-                  onPress={() => router.push(row.href)}
+                  onPress={() => {
+                    row.onOpen?.();
+                    router.push(row.href);
+                  }}
                 />
               ))}
               {group.title === 'Account' && (

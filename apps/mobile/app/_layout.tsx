@@ -115,6 +115,17 @@ export default function RootLayout() {
                 <Stack.Screen name="gym/exercise/[id]" />
                 <Stack.Screen name="gym/exercise-form" />
                 <Stack.Screen name="gym/settings" />
+                {/* Following (code name `friends`, docs/friends/ux-design.md §2.2).
+                    Every screen gates itself on `friends.availability`
+                    (FriendsGate): reached while the feature is off, it shows
+                    "Following isn’t available right now." */}
+                <Stack.Screen name="friends/index" />
+                <Stack.Screen name="friends/requests" />
+                <Stack.Screen name="friends/activity" />
+                <Stack.Screen name="friends/settings" />
+                <Stack.Screen name="friends/blocked" />
+                <Stack.Screen name="friends/suggestions" />
+                <Stack.Screen name="friends/[userId]" />
               </Stack.Protected>
               <Stack.Protected guard={token === null}>
                 <Stack.Screen name="(auth)" />

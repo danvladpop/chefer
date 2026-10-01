@@ -1,9 +1,12 @@
 import { Linking, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
-import { Button, Screen, Text } from '@chefer/ui-mobile';
+import { FRIENDS_COPY } from '@chefer/types';
+import { Button, CountPill, Screen, Text } from '@chefer/ui-mobile';
 import { FeedbackCard } from '../../src/features/feedback/feedback-card';
+import { useFriendsBadge } from '../../src/features/friends/api/use-friends-badge';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { track } from '../../src/lib/analytics';
 import { getWebUrl } from '../../src/lib/api-url';
 import { clearToken } from '../../src/lib/auth-store';
 import { CURRENT_BUILD } from '../../src/lib/current-build';
@@ -13,12 +16,14 @@ import { trpc } from '../../src/lib/trpc';
 // (SECONDARY_NAV_ITEMS in apps/web/src/features/nav/nav-items.ts). P2-2 /
 // P2-8: Tracker moved into Today ("See full day"), Pantry into Shop ("In my
 // kitchen"), History into My weeks. Their screens still open by route.
-const ITEMS: {
+type MoreItem = {
   href: Href;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   testID: string;
-}[] = [
+};
+
+const ITEMS: MoreItem[] = [
   { href: '/chat', label: 'AI Chef', icon: 'chatbubble-ellipses-outline', testID: 'more-ai chef' },
   { href: '/progress', label: 'Progress', icon: 'stats-chart-outline', testID: 'more-progress' },
   { href: '/my-weeks', label: 'My weeks', icon: 'repeat-outline', testID: 'more-my-weeks' },
@@ -34,7 +39,26 @@ const ITEMS: {
   },
 ];
 
+// Following (docs/friends/ux-design.md §2.1): directly below Profile, only
+// while `friends.availability` says yes — with it off, nothing renders and
+// nothing but `availability` is queried. The pill is pending requests +
+// unread Activity: the in-app notification badge (there is no push).
+const FOLLOWING_ITEM: MoreItem = {
+  href: '/friends',
+  label: FRIENDS_COPY.nav.label,
+  icon: 'people-outline',
+  testID: 'more-friends',
+};
+
+function withFollowing(available: boolean): MoreItem[] {
+  if (!available) return ITEMS;
+  const at = ITEMS.findIndex((item) => item.testID === 'more-profile') + 1;
+  return [...ITEMS.slice(0, at), FOLLOWING_ITEM, ...ITEMS.slice(at)];
+}
+
 export default function MoreScreen() {
+  const { available, badgeCount } = useFriendsBadge();
+  const items = withFollowing(available);
   const utils = trpc.useUtils();
   const logout = trpc.auth.logout.useMutation({
     onSettled: async () => {
@@ -55,23 +79,37 @@ export default function MoreScreen() {
       </Text>
       <ScrollView contentContainerClassName="gap-4 px-4 pb-8">
         <View className="overflow-hidden rounded-2xl border border-border bg-card">
-          {ITEMS.map((item, i) => (
-            <Pressable
-              key={item.label}
-              testID={item.testID}
-              accessibilityRole="button"
-              onPress={() => router.push(item.href)}
-              className={
-                i > 0
-                  ? 'min-h-12 flex-row items-center gap-3 border-t border-border px-4'
-                  : 'min-h-12 flex-row items-center gap-3 px-4'
-              }
-            >
-              <Ionicons name={item.icon} size={20} color="#944a00" />
-              <Text className="flex-1 text-sm font-medium text-gray-800">{item.label}</Text>
-              <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
-            </Pressable>
-          ))}
+          {items.map((item, i) => {
+            const isFollowing = item === FOLLOWING_ITEM;
+            const badge = isFollowing ? badgeCount : 0;
+            return (
+              <Pressable
+                key={item.label}
+                testID={item.testID}
+                accessibilityRole="button"
+                // Same wording as CountPill's own label: the real count, never `9+`.
+                accessibilityLabel={badge > 0 ? `${item.label}, ${badge} new` : undefined}
+                onPress={() => {
+                  if (isFollowing) track('friends_opened', { source: 'more' });
+                  router.push(item.href);
+                }}
+                className={
+                  i > 0
+                    ? 'min-h-12 flex-row items-center gap-3 border-t border-border px-4'
+                    : 'min-h-12 flex-row items-center gap-3 px-4'
+                }
+              >
+                <Ionicons name={item.icon} size={20} color="#944a00" />
+                <Text className="min-w-0 flex-1 text-sm font-medium text-gray-800">
+                  {item.label}
+                </Text>
+                {badge > 0 ? (
+                  <CountPill count={badge} testID="more-friends-badge" className="self-center" />
+                ) : null}
+                <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+              </Pressable>
+            );
+          })}
         </View>
 
         <FeedbackCard />
