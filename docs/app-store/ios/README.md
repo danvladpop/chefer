@@ -41,7 +41,7 @@ to "live on the App Store", in order. Companion files:
 
 - [ ] App record created (§4)
 - [ ] Build uploaded via EAS and tested through TestFlight (§5, §6)
-- [x] Screenshots captured: `screenshots/iphone-6.9/` (8 × 1320 × 2868 JPEG)
+- [x] Screenshots captured: `screenshots/iphone-6.9/` (7 × 1320 × 2868 JPEG, retaken 2 Oct 2026)
 - [ ] Listing text, screenshots, privacy, age rating, review info filled in (§7)
 - [ ] Submitted (§8)
 
