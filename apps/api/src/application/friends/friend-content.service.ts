@@ -39,6 +39,7 @@ import {
   mondayUtcOf,
   ownerLocalDate,
   weekdayIndex,
+  weekStartOf,
 } from '@chefer/utils';
 import { profileNotAvailableError } from '../../lib/friends-errors.js';
 import { renderableTrackingTypes } from '../gym/client-level.js';
@@ -242,7 +243,7 @@ export class FriendContentService {
     });
 
     return toFriendWeekDto({
-      weekStartDate: monday.toISOString().slice(0, 10),
+      weekStartDate: weekStartOf(local), // the owner's local Monday (§2.12)
       todayIndex: weekdayIndex(local),
       ownerId,
       days,
