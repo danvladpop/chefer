@@ -29,12 +29,13 @@ describe('Button at large text (R-20)', () => {
 });
 
 describe('HeaderAvatar at large text (R-20)', () => {
-  it('caps the initials scale and shrinks to fit rather than disappearing', async () => {
+  it('caps the initials scale so they stay inside the circle', async () => {
     await render(<HeaderAvatar />);
     const initials = screen.getByTestId('header-avatar-initials');
     expect(initials).toHaveTextContent('DP');
     expect(initials.props.maxFontSizeMultiplier).toBe(1.2);
-    expect(initials.props.adjustsFontSizeToFit).toBe(true);
+    // No shrink-to-fit: iOS drew it tiny and off-centre (looked like a comma).
+    expect(initials.props.adjustsFontSizeToFit).toBeUndefined();
     expect(initials.props.numberOfLines).toBe(1);
   });
 });

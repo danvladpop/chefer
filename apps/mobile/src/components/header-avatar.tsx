@@ -40,14 +40,14 @@ export function HeaderAvatar() {
     >
       {/* R-20: a fixed 36pt circle with a fixed line-height clipped the initial
           at Accessibility XL. The circle is a plain View now; the initial is
-          capped (1.2x) and shrinks to fit instead of disappearing. */}
+          capped (1.2x), which keeps it inside the circle at every text size.
+          No adjustsFontSizeToFit: on iOS it intermittently drew the initial
+          tiny and dropped to the bottom of the circle (looked like a comma). */}
       <View className="h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-primary">
         <Text
           testID="header-avatar-initials"
           maxFontSizeMultiplier={1.2}
-          adjustsFontSizeToFit
           numberOfLines={1}
-          minimumFontScale={0.7}
           className="text-center text-sm font-semibold text-primary-foreground"
         >
           {initials}
