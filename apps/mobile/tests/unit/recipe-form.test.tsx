@@ -14,10 +14,17 @@ interface RecipePayload {
   name: string;
   description: string;
   cuisineType: string;
-  ingredients: { name: string; quantity: number; unit: string }[];
+  ingredients: { name: string; quantity: number; unit: string; ingredientId?: string }[];
   instructions: string[];
   dietaryTags: string[];
-  nutritionInfo: { calories: number; protein: number; carbs: number; fat: number; fiber: number };
+  nutritionInfo?: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber: number;
+    source?: string;
+  };
   prepTimeMins: number;
   cookTimeMins: number;
   servings: number;
@@ -34,12 +41,84 @@ function renderScreen() {
 
 // UX-40 slice 1 (T-40.4): the recipe form rebuilt as sections. AC1-4, 7, 9, 11.
 
+// ─── Catalog fixtures (getMany detail shape; search rows derive from them) ──
+const mockFlour = {
+  id: 'flour-id',
+  slug: 'wheat-flour',
+  name: 'Wheat flour, white',
+  category: 'FLOUR_BAKING',
+  portions: [] as { unit: string; grams: number }[],
+  densityGPerMl: 0.53,
+  per100g: { calories: 364, protein: 10, carbs: 73, fat: 1, fiber: 3 },
+};
+const mockEgg = {
+  id: 'egg-id',
+  slug: 'egg-whole-raw',
+  name: 'Egg, whole, raw',
+  category: 'EGG',
+  portions: [{ unit: 'piece', grams: 50 }],
+  densityGPerMl: 1.03,
+  per100g: { calories: 148, protein: 12.4, carbs: 1, fat: 10, fiber: 0 },
+};
+const mockSpiceMix = {
+  id: 'spice-id',
+  slug: 'four-spice-mix',
+  name: 'Four-spice mix',
+  category: 'SPICE_DRIED',
+  portions: [] as { unit: string; grams: number }[],
+  densityGPerMl: null,
+  per100g: { calories: 300, protein: 10, carbs: 40, fat: 10, fiber: 20 },
+};
+const mockMine = {
+  id: 'mine-id',
+  slug: 'protein-bar',
+  name: 'Protein bar',
+  category: 'SNACK_PREPARED',
+  portions: [{ unit: 'bar', grams: 45 }],
+  densityGPerMl: null,
+  per100g: { calories: 380, protein: 30, carbs: 35, fat: 12, fiber: 5 },
+};
+type MockRow = typeof mockFlour | typeof mockEgg | typeof mockSpiceMix | typeof mockMine;
+const mockCatalog = [mockFlour, mockEgg, mockSpiceMix].map((r) => ({
+  ...r,
+  owner: 'global',
+  hasDensity: r.densityGPerMl != null,
+  nutritionSource: 'USDA_FDC',
+  status: 'ACTIVE',
+  edibleFraction: 1,
+  sourceRef: 'fdc:1',
+}));
+function mockRef(r: MockRow) {
+  return {
+    id: r.id,
+    slug: r.slug,
+    name: r.name,
+    category: r.category,
+    owner: r === mockMine ? 'mine' : 'global',
+    portions: r.portions,
+    hasDensity: r.densityGPerMl != null,
+    nutritionSource: r === mockMine ? 'USER' : 'USDA_FDC',
+  };
+}
+function mockSearchRow(r: MockRow) {
+  return {
+    ...mockRef(r),
+    name: r.name.toLowerCase(),
+    displayName: r.name,
+    imageUrl: '',
+    hasMacros: true,
+    isCustom: r === mockMine,
+    per100g: r.per100g,
+  };
+}
+
 let mockParams: { id?: string } = {};
 let mockExisting: unknown = null;
 let mockExistingLoading = false;
 let mockExistingError = false;
 let mockSearchResults: unknown[] = [];
-let mockComputedNutrition: unknown;
+let mockResolveResults: unknown[] | undefined;
+const mockResolveArgs: unknown[] = [];
 let mockPremiumUser: { planTier: string; role: string } = { planTier: 'PREMIUM', role: 'USER' };
 const mockCreate = jest.fn();
 const mockUpdate = jest.fn();
@@ -62,6 +141,7 @@ jest.mock('expo-router', () => ({
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
+      ingredients: { resolve: { fetch: () => Promise.resolve([]) } },
       recipe: {
         list: {
           invalidate: () => {
@@ -114,19 +194,32 @@ jest.mock('../../src/lib/trpc', () => ({
         }),
       },
     },
-    // T-40.7–T-40.9 (UX-40 slice 2): the ingredient picker sheet, the custom
-    // ingredient sheet and the computed-nutrition card all live behind this
-    // namespace now — the search/compute results are empty/undefined by
-    // default so the form behaves exactly like slice 1 (free text, manual
-    // numbers) unless a test seeds them.
+    // plan-ingredient-catalog §10 (P9): the catalog picker, the private-
+    // ingredient sheet, the live preview (getMany + the shared engine) and
+    // legacy-line resolution all live behind this namespace.
     ingredients: {
       search: { useQuery: () => ({ data: mockSearchResults, isFetching: false }) },
-      computeNutrition: { useQuery: () => ({ data: mockComputedNutrition, isFetching: false }) },
+      resolve: {
+        useQuery: (args: unknown, opts: { enabled: boolean }) => {
+          if (opts.enabled) mockResolveArgs.push(args);
+          return { data: opts.enabled ? mockResolveResults : undefined, isError: false };
+        },
+      },
+      getMany: {
+        useQuery: (args: { ids: string[] }, opts: { enabled: boolean }) => ({
+          data: opts.enabled ? mockCatalog.filter((r) => args.ids.includes(r.id)) : undefined,
+          isFetching: false,
+        }),
+      },
       createCustom: {
-        useMutation: (opts: { onSuccess?: (data: { displayName: string }) => void }) => ({
+        useMutation: (opts: { onSuccess?: (row: Record<string, unknown>) => void }) => ({
           mutate: (input: { name: string }) => {
             mockCreateCustomIngredient(input);
-            opts.onSuccess?.({ displayName: input.name });
+            opts.onSuccess?.({
+              ...mockSearchRow(mockMine),
+              name: input.name,
+              displayName: input.name,
+            });
           },
           isPending: false,
           isError: false,
@@ -149,26 +242,29 @@ jest.mock('../../src/lib/trpc', () => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockResolveResults = undefined;
+  mockResolveArgs.length = 0;
   resetSnackbarForTests();
   mockParams = {};
   mockExisting = null;
   mockExistingLoading = false;
   mockExistingError = false;
-  mockSearchResults = [];
-  mockComputedNutrition = undefined;
+  mockSearchResults = mockCatalog.map(mockSearchRow);
   mockPremiumUser = { planTier: 'PREMIUM', role: 'USER' };
   onlineManager.setOnline(true);
 });
 
-/** Opens the ingredient picker sheet and commits `text` via "Use as typed" — T-40.7. */
-async function typeIngredientAsFreeText(index: number, text: string) {
+/** Opens the catalog picker on line `index`, searches and picks the row with `slug`. */
+async function pickIngredient(index: number, query: string, slug: string) {
   await fireEvent.press(screen.getByTestId(`rf-ingredient-name-${index}`));
   await fireEvent.changeText(
     screen.getByTestId(`rf-ingredient-name-${index}-search-sheet-input`),
-    text,
+    query,
   );
+  // 250 ms search debounce.
+  await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
   await fireEvent.press(
-    screen.getByTestId(`rf-ingredient-name-${index}-search-sheet-use-as-typed`),
+    screen.getByTestId(`rf-ingredient-name-${index}-search-sheet-result-${slug}`),
   );
 }
 
@@ -182,7 +278,7 @@ describe('RecipeFormScreen — create (AC1, AC2)', () => {
     await renderScreen();
 
     await user.type(screen.getByTestId('rf-name-input'), "Grandma's lasagna");
-    await typeIngredientAsFreeText(0, 'flour');
+    await pickIngredient(0, 'flour', 'wheat-flour');
     await user.type(screen.getByTestId('rf-ingredient-qty-0'), '200');
 
     await fireEvent.press(screen.getByTestId('rf-save'));
@@ -190,11 +286,20 @@ describe('RecipeFormScreen — create (AC1, AC2)', () => {
     expect(mockCreate).toHaveBeenCalledTimes(1);
     const payload = (mockCreate.mock.calls[0] as [RecipePayload])[0];
     expect(payload.name).toBe("Grandma's lasagna");
-    expect(payload.ingredients).toEqual([{ name: 'flour', quantity: 200, unit: 'g' }]);
+    expect(payload.ingredients).toEqual([
+      { name: 'Wheat flour, white', quantity: 200, unit: 'g', ingredientId: 'flour-id' },
+    ]);
     expect(payload.description).toBe('');
     expect(payload.instructions).toEqual([]);
-    expect(payload.nutritionInfo).not.toHaveProperty('fiber', undefined);
-    expect(payload.nutritionInfo.fiber).toBe(0); // D-18: sent, never shown
+    // The live engine's numbers, marked computed (the server recomputes anyway).
+    expect(payload.nutritionInfo).toEqual({
+      calories: 728,
+      protein: 20,
+      carbs: 146,
+      fat: 2,
+      fiber: 6,
+      source: 'computed',
+    });
   });
 
   it('shows "* Required" once and the Name field reads "Name, required" to a screen reader', async () => {
@@ -207,7 +312,7 @@ describe('RecipeFormScreen — create (AC1, AC2)', () => {
 describe('RecipeFormScreen — PAT-17 blocked tap (AC3, AC4)', () => {
   it('with no name, the footer names it and a blocked tap never submits', async () => {
     await renderScreen();
-    await typeIngredientAsFreeText(0, 'flour');
+    await pickIngredient(0, 'flour', 'wheat-flour');
     await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '200');
 
     expect(screen.getByTestId('rf-missing')).toHaveTextContent('Add a name to save.');
@@ -220,7 +325,7 @@ describe('RecipeFormScreen — PAT-17 blocked tap (AC3, AC4)', () => {
   it('a named line with no amount blocks saving with "Finish the ingredient on line {n}."', async () => {
     await renderScreen();
     await fireEvent.changeText(screen.getByTestId('rf-name-input'), 'Bread');
-    await typeIngredientAsFreeText(0, 'flour');
+    await pickIngredient(0, 'flour', 'wheat-flour');
     // No amount typed — this line has a name but quantity is empty (0).
 
     expect(screen.getByTestId('rf-missing')).toHaveTextContent('Finish the ingredient on line 1.');
@@ -235,7 +340,7 @@ describe('RecipeFormScreen — PAT-17 blocked tap (AC3, AC4)', () => {
   it('a fully blank second line does not block saving', async () => {
     await renderScreen();
     await fireEvent.changeText(screen.getByTestId('rf-name-input'), 'Bread');
-    await typeIngredientAsFreeText(0, 'flour');
+    await pickIngredient(0, 'flour', 'wheat-flour');
     await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '200');
     await fireEvent.press(screen.getByTestId('rf-add-ingredient'));
 
@@ -279,7 +384,20 @@ describe('RecipeFormScreen — edit round trip (AC9, T-BUG-O3 C1/C2/C6)', () => 
     cookTimeMins: 30,
     servings: 4,
     nutritionInfo: { calories: 200, protein: 8, carbs: 30, fat: 4, fiber: 3 },
+    nutritionStatus: 'COMPUTED',
     ingredients: [{ name: 'flour', quantity: 500, unit: 'g' }],
+    lines: [
+      {
+        position: 0,
+        ingredientId: 'flour-id',
+        rawName: 'flour',
+        quantity: 500,
+        unit: 'g',
+        grams: 500,
+        note: null,
+        optional: false,
+      },
+    ],
     instructions: ['Mix', 'Bake'],
     dietaryTags: ['vegetarian'],
     imageUrl: 'https://example.com/bread.jpg',
@@ -290,7 +408,7 @@ describe('RecipeFormScreen — edit round trip (AC9, T-BUG-O3 C1/C2/C6)', () => 
     mockExisting = existingRecipe;
   });
 
-  it('saving without changes leaves every field — including fiber and tags — unchanged', async () => {
+  it('saving without changes leaves every field — and the stored catalog link — unchanged', async () => {
     await renderScreen();
     await fireEvent.press(screen.getByTestId('rf-save'));
 
@@ -299,9 +417,14 @@ describe('RecipeFormScreen — edit round trip (AC9, T-BUG-O3 C1/C2/C6)', () => 
     expect(payload.recipeId).toBe('r1');
     expect(payload.name).toBe('Bread');
     expect(payload.dietaryTags).toEqual(['vegetarian']);
-    // C6: fiber isn't shown anywhere but round-trips on edit.
-    expect(payload.nutritionInfo.fiber).toBe(3);
-    expect(payload.ingredients).toEqual([{ name: 'flour', quantity: 500, unit: 'g' }]);
+    // Stored lines come back linked: no resolve call, the id is sent back.
+    expect(mockResolveArgs).toEqual([]);
+    expect(payload.ingredients).toEqual([
+      { name: 'flour', quantity: 500, unit: 'g', ingredientId: 'flour-id' },
+    ]);
+    expect(screen.getByTestId('rf-nutrition-computed-coverage')).toHaveTextContent(
+      'Computed from 1 ingredient',
+    );
   });
 
   it('invalidates getMyRecipe and mealPlan.getRecipe on save, not just recipe.list (C1)', async () => {
@@ -351,95 +474,195 @@ describe('RecipeFormScreen — discard changes (AC9)', () => {
   });
 });
 
-// UX-40 slice 2 (T-40.7/T-40.9, AC12): picking a catalogue ingredient links
-// the line, and the nutrition section defaults to the computed card with an
-// Edit numbers ↔ Use calculated numbers round trip.
-describe('RecipeFormScreen — ingredient search & computed nutrition (AC12)', () => {
-  it('picking a catalogue result links the line ("nutrition known")', async () => {
-    mockSearchResults = [
-      {
-        name: 'rolled oats',
-        displayName: 'Rolled Oats',
-        imageUrl: 'https://img.example/oats.png',
-        hasMacros: true,
-        isCustom: false,
-        per100g: { calories: 379, protein: 13, carbs: 67, fat: 7 },
-      },
-    ];
+// plan-ingredient-catalog §10 (P9): every line is picked from the catalog,
+// the unit list narrows to what the row can weigh, nutrition is computed
+// live, and a legacy recipe's lines are resolved with "Pick a match".
+describe('RecipeFormScreen — catalog lines and computed nutrition (P9)', () => {
+  it('picking a catalog row links the line ("nutrition known") and starts it on its natural unit', async () => {
     await renderScreen();
-    await fireEvent.press(screen.getByTestId('rf-ingredient-name-0'));
-    await fireEvent.changeText(
-      screen.getByTestId('rf-ingredient-name-0-search-sheet-input'),
-      'oat',
-    );
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    await fireEvent.press(
-      screen.getByTestId('rf-ingredient-name-0-search-sheet-result-rolled oats'),
-    );
+    await pickIngredient(0, 'egg', 'egg-whole-raw');
 
     expect(
-      screen.getByLabelText('Name for ingredient 1, Rolled Oats, nutrition known'),
+      screen.getByLabelText('Name for ingredient 1, Egg, whole, raw, nutrition known'),
     ).toBeOnTheScreen();
+    expect(screen.getByTestId('rf-ingredient-unit-0')).toHaveProp(
+      'accessibilityLabel',
+      'Unit, piece',
+    );
   });
 
-  it('"Use as typed" free text is never marked as linked nutrition', async () => {
+  it('the unit list only offers what the row can weigh: no volume without a density', async () => {
     await renderScreen();
-    await typeIngredientAsFreeText(0, 'a very unusual thing');
-    expect(screen.queryByLabelText(/nutrition known/)).toBeNull();
+    await pickIngredient(0, 'spice', 'four-spice-mix');
+    await fireEvent.press(screen.getByTestId('rf-ingredient-unit-0'));
+
+    expect(screen.getByTestId('rf-ingredient-unit-0-sheet-option-g')).toBeOnTheScreen();
+    expect(screen.getByTestId('rf-ingredient-unit-0-sheet-option-pinch')).toBeOnTheScreen();
+    expect(screen.queryByTestId('rf-ingredient-unit-0-sheet-option-tbsp')).toBeNull();
+    expect(screen.queryByTestId('rf-ingredient-unit-0-sheet-option-piece')).toBeNull();
   });
 
-  it('defaults to the computed nutrition card and sends its numbers on save', async () => {
-    mockComputedNutrition = {
-      perServing: { calories: 300, protein: 10, carbs: 40, fat: 5, fiber: 2 },
-      unmatched: [],
-      matchedCount: 1,
-      totalCount: 1,
-    };
+  it('there is no free-text "Use as typed" and no manual nutrition fields any more', async () => {
     await renderScreen();
-    await fireEvent.changeText(screen.getByTestId('rf-name-input'), 'Bread');
-    await typeIngredientAsFreeText(0, 'flour');
-    await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '200');
-
-    expect(screen.getByTestId('rf-nutrition-computed')).toBeOnTheScreen();
-
-    await fireEvent.press(screen.getByTestId('rf-save'));
-    expect(mockCreate).toHaveBeenCalledTimes(1);
-    const payload = (mockCreate.mock.calls[0] as [RecipePayload])[0];
-    expect(payload.nutritionInfo).toMatchObject({
-      calories: 300,
-      protein: 10,
-      carbs: 40,
-      fat: 5,
-      fiber: 2,
-      source: 'computed',
-    });
+    await fireEvent.press(screen.getByTestId('rf-ingredient-name-0'));
+    expect(screen.queryByTestId('rf-ingredient-name-0-search-sheet-use-as-typed')).toBeNull();
+    expect(screen.queryByTestId('rf-kcal')).toBeNull();
+    expect(screen.queryByTestId('rf-nutrition-computed-edit')).toBeNull();
   });
 
-  it('Edit numbers switches to manual, prefilled with the computed values', async () => {
-    mockComputedNutrition = {
-      perServing: { calories: 300, protein: 10, carbs: 40, fat: 5, fiber: 2 },
-      unmatched: ['cinnamon'],
-      matchedCount: 1,
-      totalCount: 2,
-    };
+  it('the live card computes with the shared engine and says what it is computed from', async () => {
     await renderScreen();
-    await fireEvent.changeText(screen.getByTestId('rf-name-input'), 'Bread');
-    await typeIngredientAsFreeText(0, 'flour');
-    await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '200');
-    // use-computed-nutrition.ts debounces the ingredient list by 600ms
-    // before it counts as "has ingredients" and starts computing.
-    await act(() => new Promise((resolve) => setTimeout(resolve, 700)));
+    await pickIngredient(0, 'egg', 'egg-whole-raw');
+    await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '2');
 
     expect(screen.getByTestId('rf-nutrition-computed-coverage')).toHaveTextContent(
-      'From 1 of 2 ingredients · no data for: cinnamon',
+      'Computed from 1 ingredient',
     );
+    expect(screen.getByTestId('rf-nutrition-computed-status')).toHaveTextContent('Calculated');
+  });
 
-    await fireEvent.press(screen.getByTestId('rf-nutrition-computed-edit'));
+  it('a stored line whose unit its row cannot weigh asks for a unit before saving', async () => {
+    mockParams = { id: 'r3' };
+    mockExisting = {
+      id: 'r3',
+      name: 'Spiced rice',
+      description: '',
+      cuisineType: 'International',
+      prepTimeMins: 0,
+      cookTimeMins: 0,
+      servings: 1,
+      nutritionInfo: { calories: 10, protein: 0, carbs: 1, fat: 0, fiber: 0 },
+      nutritionStatus: 'PARTIAL',
+      ingredients: [{ name: 'spice mix', quantity: 1, unit: 'tsp' }],
+      lines: [
+        {
+          position: 0,
+          ingredientId: 'spice-id',
+          rawName: 'spice mix',
+          quantity: 1,
+          unit: 'tsp',
+          grams: null,
+          note: null,
+          optional: false,
+        },
+      ],
+      instructions: [],
+      dietaryTags: [],
+      imageUrl: null,
+    };
+    await renderScreen();
+    expect(screen.getByTestId('rf-ingredient-unit-error-0')).toHaveTextContent(
+      '"tsp" has no weight for Four-spice mix. Pick another unit.',
+    );
+    expect(screen.getByTestId('rf-missing')).toHaveTextContent(
+      'Pick a unit for the ingredient on line 1.',
+    );
+    expect(screen.getByTestId('rf-nutrition-computed-coverage')).toHaveTextContent(
+      'Incomplete — 1 ingredient needs data',
+    );
+    await fireEvent.press(screen.getByTestId('rf-save'));
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
 
-    expect(screen.getByTestId('rf-kcal').props.value).toBe('300');
-    expect(screen.getByTestId('rf-nutrition-use-calculated')).toBeOnTheScreen();
+  describe('editing a recipe from before the catalog', () => {
+    const legacy = {
+      id: 'r2',
+      name: 'Old soup',
+      description: '',
+      cuisineType: 'International',
+      prepTimeMins: 0,
+      cookTimeMins: 0,
+      servings: 2,
+      nutritionInfo: { calories: 300, protein: 10, carbs: 40, fat: 5, fiber: 0 },
+      nutritionStatus: 'USER_ENTERED',
+      ingredients: [
+        { name: 'eggs', quantity: 2, unit: 'pieces' },
+        { name: 'mystery spice blend', quantity: 1, unit: 'tsp' },
+      ],
+      lines: [],
+      instructions: [],
+      dietaryTags: [],
+      imageUrl: null,
+    };
 
-    await fireEvent.press(screen.getByTestId('rf-nutrition-use-calculated'));
-    expect(screen.getByTestId('rf-nutrition-computed')).toBeOnTheScreen();
+    beforeEach(() => {
+      mockParams = { id: 'r2' };
+      mockExisting = legacy;
+      mockResolveResults = [
+        {
+          rawName: 'eggs',
+          unit: 'piece',
+          note: null,
+          confidence: 'ALIAS',
+          match: mockRef(mockEgg),
+          candidates: [],
+        },
+        {
+          rawName: 'mystery spice blend',
+          unit: 'tsp',
+          note: null,
+          confidence: 'CANDIDATES',
+          match: null,
+          candidates: [mockRef(mockSpiceMix)],
+        },
+      ];
+    });
+
+    it('resolves the lines: ALIAS links, CANDIDATES shows "Pick a match" and blocks saving', async () => {
+      await renderScreen();
+      expect(mockResolveArgs[0]).toEqual({
+        lines: [
+          { rawName: 'eggs', unit: 'pieces' },
+          { rawName: 'mystery spice blend', unit: 'tsp' },
+        ],
+      });
+      expect(
+        screen.getByLabelText('Name for ingredient 1, eggs, nutrition known'),
+      ).toBeOnTheScreen();
+      expect(screen.getByTestId('rf-ingredient-match-1')).toHaveTextContent(
+        /"mystery spice blend" isn't linked to an ingredient yet\./,
+      );
+      expect(screen.getByTestId('rf-missing')).toHaveTextContent(
+        'Pick a match for the ingredient on line 2.',
+      );
+      expect(screen.getByTestId('rf-nutrition-computed-was-user-entered')).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByTestId('rf-save'));
+      expect(mockUpdate).not.toHaveBeenCalled();
+      expect(screen.getByTestId('rf-ingredient-error-1')).toHaveTextContent(
+        'Pick this ingredient from the list, or remove the line.',
+      );
+    });
+
+    it('linking lines on open is not an edit: leaving untouched never asks to discard', async () => {
+      await renderScreen();
+      const listener = mockAddListener.mock.calls.at(-1)?.[1] as (e: unknown) => void;
+      const fakeEvent = { preventDefault: jest.fn(), data: { action: { type: 'GO_BACK' } } };
+      await act(() => {
+        listener(fakeEvent);
+      });
+      expect(fakeEvent.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it('a suggestion chip links the line, and the save sends every catalog id', async () => {
+      await renderScreen();
+      await fireEvent.press(screen.getByTestId('rf-ingredient-candidate-1-four-spice-mix'));
+      // tsp can't be weighed for a row with no density: the pick falls back to g
+      // (the amount is never converted) and the cook can choose another unit.
+      expect(screen.getByTestId('rf-ingredient-unit-1')).toHaveProp(
+        'accessibilityLabel',
+        'Unit, g',
+      );
+      await fireEvent.press(screen.getByTestId('rf-ingredient-unit-1'));
+      await fireEvent.press(screen.getByTestId('rf-ingredient-unit-1-sheet-option-pinch'));
+
+      await fireEvent.press(screen.getByTestId('rf-save'));
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      const payload = (mockUpdate.mock.calls[0] as [RecipePayload])[0];
+      expect(payload.ingredients).toEqual([
+        { name: 'eggs', quantity: 2, unit: 'piece', ingredientId: 'egg-id' },
+        { name: 'Four-spice mix', quantity: 1, unit: 'pinch', ingredientId: 'spice-id' },
+      ]);
+    });
   });
 });

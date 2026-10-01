@@ -2,10 +2,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { IngredientSearchSheet } from '../../src/features/ingredients/ingredient-search-sheet';
 
-// T-40.7 (UX-40 slice 2): the ingredient combobox's search sheet, tested in
-// isolation from the recipe form (recipe-form.test.tsx covers the wiring —
-// AC12). Private rows first under "YOUR INGREDIENTS", then "CHEFER
-// CATALOGUE"; "Use as typed" and "Add as my ingredient" always sit below.
+// plan-ingredient-catalog §10 (P9; T-40.7 originally): the catalog picker,
+// tested in isolation from the recipe form. Private rows first under
+// "YOUR INGREDIENTS", then "CHEFER CATALOG"; category chips narrow the
+// search; "Create … as my ingredient" is the only way out — no free text.
 
 const metrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -13,30 +13,54 @@ const metrics = {
 };
 
 let mockResults: unknown[] = [];
+const mockSearchArgs: unknown[] = [];
 
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     ingredients: {
-      search: { useQuery: () => ({ data: mockResults, isFetching: false }) },
+      search: {
+        useQuery: (args: unknown) => {
+          mockSearchArgs.push(args);
+          return { data: mockResults, isFetching: false };
+        },
+      },
     },
   },
 }));
 
 const onPick = jest.fn();
-const onUseAsTyped = jest.fn();
 const onCreateCustom = jest.fn();
 const onClose = jest.fn();
 
-async function renderSheet(visible = true) {
+function row(over: Record<string, unknown>) {
+  return {
+    name: 'oats',
+    displayName: 'Oats, rolled',
+    imageUrl: 'https://img/oats.png',
+    hasMacros: true,
+    isCustom: false,
+    per100g: { calories: 379, protein: 13, carbs: 67, fat: 7 },
+    id: 'oats-id',
+    slug: 'oats-rolled',
+    category: 'GRAIN_CEREAL',
+    owner: 'global',
+    portions: [],
+    hasDensity: true,
+    nutritionSource: 'USDA_FDC',
+    ...over,
+  };
+}
+
+async function renderSheet(props: Partial<Parameters<typeof IngredientSearchSheet>[0]> = {}) {
   await render(
     <SafeAreaProvider initialMetrics={metrics}>
       <IngredientSearchSheet
-        visible={visible}
+        visible
         onClose={onClose}
         onPick={onPick}
-        onUseAsTyped={onUseAsTyped}
         onCreateCustom={onCreateCustom}
         testID="search-sheet"
+        {...props}
       />
     </SafeAreaProvider>,
   );
@@ -44,125 +68,127 @@ async function renderSheet(visible = true) {
 
 async function typeQuery(text: string) {
   await fireEvent.changeText(screen.getByTestId('search-sheet-input'), text);
-  // 250ms debounce (T-40.7) before results/groups are shown.
+  // 250ms debounce before results/groups are shown.
   await act(() => new Promise((resolve) => setTimeout(resolve, 350)));
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockResults = [];
+  mockSearchArgs.length = 0;
 });
 
 describe('IngredientSearchSheet', () => {
-  it('groups private rows under "YOUR INGREDIENTS" and catalogue rows separately', async () => {
+  it('groups private rows under "YOUR INGREDIENTS" and catalog rows separately', async () => {
     mockResults = [
-      {
+      row({
         name: 'my oat bread',
-        displayName: 'My Oat Bread',
-        imageUrl: 'https://img/mine.png',
-        hasMacros: true,
+        displayName: 'My oat bread',
         isCustom: true,
-        per100g: { calories: 250, protein: 8, carbs: 40, fat: 5 },
-      },
-      {
-        name: 'oats, rolled',
-        displayName: 'Oats, Rolled',
-        imageUrl: 'https://img/oats.png',
-        hasMacros: true,
-        isCustom: false,
-        per100g: { calories: 379, protein: 13, carbs: 67, fat: 7 },
-      },
+        owner: 'mine',
+        id: 'mine-id',
+        slug: 'my-oat-bread',
+        nutritionSource: 'USER',
+      }),
+      row({}),
     ];
     await renderSheet();
     await typeQuery('oat');
 
     expect(screen.getByText('YOUR INGREDIENTS')).toBeOnTheScreen();
-    expect(screen.getByText('CHEFER CATALOGUE')).toBeOnTheScreen();
-    expect(screen.getByTestId('search-sheet-result-my oat bread')).toBeOnTheScreen();
-    expect(screen.getByTestId('search-sheet-result-oats, rolled')).toBeOnTheScreen();
+    expect(screen.getByText('CHEFER CATALOG')).toBeOnTheScreen();
+    expect(screen.getByTestId('search-sheet-result-my-oat-bread')).toBeOnTheScreen();
+    expect(screen.getByTestId('search-sheet-result-oats-rolled')).toBeOnTheScreen();
   });
 
-  it('picking a row calls onPick with its display name and natural unit', async () => {
+  it('picking a row hands back its catalog id, portions and density', async () => {
     mockResults = [
-      {
-        name: 'milk',
-        displayName: 'Milk',
-        imageUrl: 'https://img/milk.png',
-        hasMacros: true,
-        isCustom: false,
-        per100g: { calories: 42, protein: 3.4, carbs: 5, fat: 1 },
-      },
+      row({
+        name: 'egg',
+        displayName: 'Egg, whole, raw',
+        id: 'egg-id',
+        slug: 'egg-whole-raw',
+        category: 'EGG',
+        portions: [{ unit: 'piece', grams: 50 }],
+      }),
     ];
     await renderSheet();
-    await typeQuery('mil');
-    await fireEvent.press(screen.getByTestId('search-sheet-result-milk'));
+    await typeQuery('egg');
+    await fireEvent.press(screen.getByTestId('search-sheet-result-egg-whole-raw'));
 
-    expect(onPick).toHaveBeenCalledWith({ name: 'Milk', naturalUnit: 'ml' });
+    expect(onPick).toHaveBeenCalledWith({
+      id: 'egg-id',
+      name: 'Egg, whole, raw',
+      category: 'EGG',
+      owner: 'global',
+      portions: [{ unit: 'piece', grams: 50 }],
+      hasDensity: true,
+    });
   });
 
-  it('a row with no macros shows the "no macros yet" badge instead of kcal', async () => {
-    mockResults = [
-      {
-        name: 'dragon fruit',
-        displayName: 'Dragon Fruit',
-        imageUrl: 'https://img/df.png',
-        hasMacros: false,
-        isCustom: false,
-        per100g: null,
-      },
-    ];
+  it('a legacy row without a catalog id is not offered (it cannot be computed)', async () => {
+    mockResults = [row({ id: undefined, slug: undefined, name: 'old custom' })];
     await renderSheet();
-    await typeQuery('drag');
-    expect(screen.getByText('no macros yet')).toBeOnTheScreen();
+    await typeQuery('old');
+    expect(screen.getByTestId('search-sheet-empty')).toBeOnTheScreen();
   });
 
-  it('"Use as typed" commits the free-typed text with no catalogue link', async () => {
+  it('a category chip narrows the search', async () => {
     await renderSheet();
-    await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'a rare spice');
-    await fireEvent.press(screen.getByTestId('search-sheet-use-as-typed'));
-    expect(onUseAsTyped).toHaveBeenCalledWith('a rare spice');
+    await fireEvent.press(screen.getByTestId('search-sheet-category-POULTRY'));
+    await typeQuery('breast');
+    expect(mockSearchArgs.at(-1)).toEqual({ query: 'breast', category: 'POULTRY' });
   });
 
-  it('"Add as my ingredient" opens the custom-ingredient flow with the typed text', async () => {
+  it('shows the resolver suggestions before any search, and picking one links it', async () => {
+    await renderSheet({
+      initialQuery: '',
+      suggestions: [
+        {
+          id: 'mix-id',
+          slug: 'four-spice-mix',
+          name: 'Four-spice mix',
+          category: 'SPICE_DRIED',
+          owner: 'global',
+          portions: [],
+          hasDensity: false,
+          nutritionSource: 'CIQUAL',
+        },
+      ],
+    });
+    await fireEvent.press(screen.getByTestId('search-sheet-suggestion-four-spice-mix'));
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: 'mix-id' }));
+  });
+
+  it('never offers free text — "Create … as my ingredient" opens the private-ingredient flow', async () => {
     await renderSheet();
     await fireEvent.changeText(screen.getByTestId('search-sheet-input'), 'grandma’s spice mix');
+    expect(screen.queryByTestId('search-sheet-use-as-typed')).toBeNull();
+    expect(screen.getByText('Create "grandma’s spice mix" as my ingredient')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('search-sheet-add-custom'));
     expect(onCreateCustom).toHaveBeenCalledWith('grandma’s spice mix');
   });
 
-  it('shows "No matches in the catalogue." once search settles empty', async () => {
-    mockResults = [];
+  it('shows "No matches in the catalog." once search settles empty', async () => {
     await renderSheet();
     await typeQuery('zzzznomatch');
     expect(screen.getByTestId('search-sheet-empty')).toHaveTextContent(
-      'No matches in the catalogue.',
+      'No matches in the catalog.',
     );
   });
 
   // Regression guard (orchestrator review, Maestro on the iOS simulator):
-  // the sheet used to render as just its header, blank below the title —
-  // the kit Sheet's own ScrollView collapsed, and `autoFocus` on the input
-  // raced the sheet's entrance animation. RNTL doesn't run real Yoga
-  // layout, so it can't assert an actual pixel height; this locks in the
-  // two structural choices the fix depends on instead: exactly ONE
-  // ScrollView in the tree (ours, around the results — never a second one
-  // from the kit Sheet defaulting back to `scrollable: true` and wrapping
-  // everything, which is what collapsed on device), and no `autoFocus`.
-  it("renders only its own results ScrollView (not the kit Sheet's), and never autoFocuses the input", async () => {
-    mockResults = [
-      {
-        name: 'rolled oats',
-        displayName: 'Rolled Oats',
-        imageUrl: 'https://img/oats.png',
-        hasMacros: true,
-        isCustom: false,
-        per100g: { calories: 379, protein: 13, carbs: 67, fat: 7 },
-      },
-    ];
+  // the kit Sheet's own ScrollView collapsed around a dynamic list, and
+  // `autoFocus` raced the entrance animation. RNTL runs no real layout, so
+  // this locks in the structure instead: only OUR two ScrollViews (the
+  // horizontal category row and the results) — never a third from the kit
+  // Sheet defaulting back to `scrollable` — and no `autoFocus`.
+  it("renders only its own ScrollViews (not the kit Sheet's), and never autoFocuses the input", async () => {
+    mockResults = [row({})];
     await renderSheet();
     await typeQuery('oat');
 
-    expect(countScrollViews(screen.toJSON())).toBe(1);
+    expect(countScrollViews(screen.toJSON())).toBe(2);
     expect(screen.getByTestId('search-sheet-input').props.autoFocus).not.toBe(true);
   });
 });

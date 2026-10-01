@@ -20,6 +20,7 @@ import {
   formatPortion,
   formatScaledQuantity,
   labelCaveatLineText,
+  parseNutritionStatus,
   scaleNutrition,
   slotPortion,
 } from '@chefer/utils';
@@ -27,6 +28,10 @@ import { AddToWeekSheet } from '../../src/features/friends/add-to-week/add-to-we
 import { AppealLink } from '../../src/features/friends/components/appeal-link';
 import { SourceLink } from '../../src/features/friends/components/source-link';
 import { ReportSheet } from '../../src/features/friends/safety/report-sheet';
+import {
+  NutritionProvenance,
+  nutritionStatusBadge,
+} from '../../src/features/ingredients/nutrition-provenance';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { StarRating } from '../../src/features/recipes/star-rating';
 import { CheckedForLine } from '../../src/features/safety/checked-for-line';
@@ -125,7 +130,12 @@ export default function RecipeDetailScreen() {
   const n = recipe.nutritionInfo;
   // D-18/UX-40: a blank nutrition section (never filled in, or D-19's
   // minimum-only save) shows "Nutrition not added" instead of "0 kcal".
-  const nutritionAdded = n.calories > 0 || n.protein > 0 || n.carbs > 0 || n.fat > 0;
+  // plan-ingredient-catalog §10: how the numbers were made. A PARTIAL recipe
+  // with nothing resolved still says "Incomplete", never "not added".
+  const nutritionStatus = parseNutritionStatus(recipe.nutritionStatus);
+  const statusBadge = nutritionStatusBadge(nutritionStatus);
+  const nutritionAdded =
+    n.calories > 0 || n.protein > 0 || n.carbs > 0 || n.fat > 0 || nutritionStatus === 'PARTIAL';
   // Opened from a portioned plan slot, quantities start at that portion (P1-1);
   // premium households start from the whole table (P2-3) — the two multiply.
   const selectedServings =
@@ -354,6 +364,17 @@ export default function RecipeDetailScreen() {
                 <View className="items-center">
                   <Text className="text-xs text-gray-500">Energy</Text>
                   <Text className="text-sm font-semibold text-gray-800">{n.calories} kcal</Text>
+                  {statusBadge ? (
+                    <Text
+                      testID="recipe-energy-status"
+                      className={cn(
+                        'text-xs',
+                        nutritionStatus === 'PARTIAL' ? 'text-amber-700' : 'text-gray-500',
+                      )}
+                    >
+                      {statusBadge}
+                    </Text>
+                  ) : null}
                 </View>
               )}
             </View>
@@ -489,6 +510,17 @@ export default function RecipeDetailScreen() {
                     {Math.round(n.calories * selectedServings)} kcal total
                   </Text>
                 )}
+                <NutritionProvenance
+                  status={nutritionStatus}
+                  lines={recipe.nutritionLines ?? []}
+                  ingredientCount={recipe.ingredients.length}
+                  servings={recipe.servings}
+                  onFix={
+                    savedData?.canEdit
+                      ? () => router.push({ pathname: '/recipe-form', params: { id: recipe.id } })
+                      : undefined
+                  }
+                />
               </>
             ) : (
               <Text testID="recipe-nutrition-not-added" variant="muted" className="text-sm">

@@ -1950,7 +1950,8 @@ recipe.importVideoPreview { url }   (protected; RECIPE_IMPORT quota → FREE FOR
   └─ draft + notFound (name / ingredients / steps / servings not stated / time not
        stated) + amounts that appear nowhere in the words + household allergen warning
 
-Review form (web VideoDraftForm, mobile video-draft-form):
+Review form (web VideoDraftForm, mobile video-draft-form; catalog picker per row
+and computed nutrition since P9 — see "Mobile: catalog lines" in §31):
   ├─ "Check the details — we read this from the video's caption / captions / speech"
   ├─ every field editable: name, servings, prep/cook minutes, ingredient rows
   │    (amount, unit, name; add/remove), steps (add/remove)
@@ -3972,6 +3973,11 @@ dependency (plain glyphs), consistent with the rest of the kit.
 
 ### Mobile ingredient search and computed nutrition (slice 2, T-40.7–T-40.10, AC12)
 
+> **Superseded in part by P9 (2026-10-01), see the next section:** there is no
+> "Use as typed" free text, no name-based natural-unit heuristic and no manual
+> `Edit numbers` path any more — every line is picked from the ingredient catalog
+> and nutrition is computed.
+
 Mobile's manual ingredient lines now match the web reference
 (`IngredientPicker` / `IngredientFormModal`), built entirely in NEW
 `apps/mobile/src/features/ingredients/**`:
@@ -4033,6 +4039,67 @@ enhancement, never the only way to remove a line). The ingredient row's
 forwarded ref now targets the QUANTITY field, not the name field — the name
 field is a sheet trigger, not a `TextInput`, and the quantity is what D-19's
 `incompleteLine` error actually means.
+
+### Mobile: catalog lines, computed nutrition and provenance (P9, plan-ingredient-catalog §10)
+
+The owner's rule — a recipe's numbers are computed from its ingredients, never
+estimated — reaches the app (one codebase, iOS + Android). No API change: it uses
+`ingredients.search/getMany/resolve/createCustom` and the P6 write paths.
+
+```
+Recipe form (create or edit)
+  ingredient name ──tap──► catalog picker (IngredientSearchSheet)
+    category chips (Vegetables, Fruit, Poultry, …) narrow ingredients.search
+    YOUR INGREDIENTS (private) first, then CHEFER CATALOG
+    pick a row ──► line.ingredientId = row.id; unit = the row's natural unit
+                   (egg → piece, garlic → clove, milk → ml, oil → tbsp, else g)
+                   unless an amount is typed and its unit still fits
+    "Create "{text}" as my ingredient" ──► private-ingredient sheet
+        kcal, protein, carbs (EU, no fiber), fat, fiber per 100 g — all required (D5)
+        optional: category, one piece weighs (g), 100 ml weighs (g)
+        CONFLICT "Chefer already has X" ──► [Use it] links the catalog row
+                                            [No, mine is different] → confirmDifferent
+  unit picker ──► only what the row can weigh: g/kg, volume units when it has a
+                  density, its own portions, pinch / to taste
+  live card   ──► ingredients.getMany (new ids only) + computeRecipeNutrition
+                  COMPUTED: "Computed from N ingredients"
+                  PARTIAL:  "Incomplete — N ingredients need data"
+  Save        ──► blocked (PAT-17: scroll to the line + its error) while a line is
+                  not linked ("Pick a match for the ingredient on line N") or its
+                  unit can't be weighed; otherwise recipe.create/update with every
+                  ingredientId (+ note/optional round-tripped); the server computes
+
+Editing a recipe from before the catalog
+  stored lines (getMyRecipe.lines) with an id ──► linked as they were
+  lines without one ──► ingredients.resolve (once, on open)
+      EXACT / ALIAS ──► linked (the same rule the server applies on save)
+      CANDIDATES / NONE ──► amber "Pick a match" + up to 3 suggestion chips
+  linking on open is not an edit: leaving untouched never asks to discard
+  a USER_ENTERED recipe shows "You typed these numbers yourself. Saving computes
+  them from the ingredients instead."
+
+Recipe detail
+  Nutrition Facts ──► "Computed from N ingredients" ▸ Show per ingredient
+      (mealPlan.getRecipe nutritionLines: name, amount, grams, source, kcal,
+       protein; someone else's private ingredient shows grams only — I4)
+  PARTIAL ──► "Incomplete — N ingredients need data" + Fix ingredients (owner)
+  USER_ENTERED ──► "Entered by you"
+  Cookbook cards, plan meal cards, the replace picker and quick-add recipe rows
+  add "· Incomplete" / "· Entered by you" next to the kcal
+
+Import review (link / text) and video draft
+  unmatched lines ──► listed with the resolver's candidates, the catalog search
+                      and "Create … as my ingredient" (video: each row's name IS the
+                      catalog picker, matched rows start linked)
+  numbers ──► recomputed live with the shared engine as lines are matched
+  Save ──► importSave with every ingredientId and
+           acceptPartial = false when every line computes
+           acceptPartial = true only after "Save with incomplete nutrition?"
+  the old "the source claims X kcal" macro warning is gone
+```
+
+Deferred: a mobile "My ingredients" screen (list / edit private ingredients) —
+`mobile_parity_backlog.md`.
 
 ---
 

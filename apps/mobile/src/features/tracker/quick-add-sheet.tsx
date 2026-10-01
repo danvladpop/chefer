@@ -15,6 +15,7 @@ import {
 } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
+import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { invalidateDayQueries } from './invalidate';
 import { recordRebalance } from './rebalance-store';
 
@@ -494,9 +495,12 @@ export function QuickAddSheet({
                         <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
                           {recipe.name}
                         </Text>
-                        <Text className="text-xs text-gray-500">
-                          1 portion · {Math.round(kcalPerServing)} kcal
-                        </Text>
+                        <View className="flex-row items-center gap-1">
+                          <Text className="text-xs text-gray-500">
+                            1 portion · {Math.round(kcalPerServing)} kcal
+                          </Text>
+                          <NutritionStatusTag status={recipe.nutritionStatus} />
+                        </View>
                       </View>
                       <Ionicons
                         name={isOpen ? 'chevron-up' : 'chevron-down'}

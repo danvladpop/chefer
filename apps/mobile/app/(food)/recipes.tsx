@@ -14,6 +14,7 @@ import { FRIENDS_COPY } from '@chefer/types';
 import { Button, Chip, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { NutritionStatusTag } from '../../src/features/ingredients/nutrition-provenance';
 import { FilteredForLine } from '../../src/features/safety/filtered-for-line';
 import { WhatWeCheckSheet } from '../../src/features/safety/what-we-check-sheet';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
@@ -52,6 +53,8 @@ interface CardRecipe {
   prepTimeMins: number;
   cookTimeMins: number;
   nutritionInfo: unknown;
+  /** plan-ingredient-catalog §10: PARTIAL / USER_ENTERED get a caveat next to the kcal. */
+  nutritionStatus?: unknown;
   isFavourite: boolean;
   /** Following (UX §9.4): a hearted recipe of someone I follow (`recipe.list` only). */
   creator?: { firstName: string };
@@ -358,6 +361,10 @@ export default function RecipesScreen() {
                     <View className="flex-row items-center gap-1">
                       <Ionicons name="flame-outline" size={12} color="#944a00" />
                       <Text className="text-xs text-gray-500">{n.calories} kcal</Text>
+                      <NutritionStatusTag
+                        status={recipe.nutritionStatus}
+                        testID={`recipe-card-status-${recipe.id}`}
+                      />
                     </View>
                   </View>
                   <View className="flex-row gap-1.5">

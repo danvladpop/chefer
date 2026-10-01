@@ -1,44 +1,47 @@
 import { useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { RecipeUnit } from '@chefer/types';
-import { Text } from '@chefer/ui-mobile';
+import { PressableScale, Text } from '@chefer/ui-mobile';
+import { cn } from '@chefer/utils';
+import type { CatalogRef, PickedIngredient } from './catalog-line';
 import { CustomIngredientSheet } from './custom-ingredient-sheet';
 import { IngredientSearchSheet } from './ingredient-search-sheet';
 
-export interface IngredientPickPatch {
-  name: string;
-  linked: boolean;
-  naturalUnit?: RecipeUnit;
-}
-
 export interface IngredientPickerFieldProps {
+  /** What the row shows: the picked row's name, or a legacy line's typed text. */
   name: string;
+  /** Linked to a catalog row (counted in nutrition). */
   linked: boolean;
-  onPick: (patch: IngredientPickPatch) => void;
+  /** An unlinked line with text: shown in amber as "pick a match". */
+  needsMatch?: boolean;
+  /** Text the search opens with; defaults to `name`. */
+  searchText?: string;
+  /** The resolver's suggestions for an unlinked line. */
+  suggestions?: readonly CatalogRef[] | undefined;
+  onPick: (ingredient: PickedIngredient) => void;
   placeholder: string;
   accessibilityLabel: string;
   testID: string;
 }
 
 /**
- * T-40.7/T-40.8 (UX-40 slice 2): the ingredient line's name field, rebuilt as
- * a combobox TRIGGER (like `SelectField`, PAT-15) instead of a free-text
- * input. Tapping it opens the full-height `IngredientSearchSheet`; picking a
- * row, choosing "Use as typed" or saving a new custom ingredient all funnel
- * back through `onPick`. The line's "missing amount" error still scrolls to
- * and focuses the QUANTITY field (`ingredient-line.tsx`'s forwarded ref) —
- * that field, not this one, is what D-19's `incompleteLine` case is missing.
+ * The ingredient line's name field (plan-ingredient-catalog §10; T-40.7
+ * originally): a combobox TRIGGER (PAT-15) that opens the catalog
+ * `IngredientSearchSheet`. Picking a row, or saving a new private ingredient
+ * from `CustomIngredientSheet`, funnels back through `onPick` with the row's
+ * id, portions and density.
  *
- * The two sheets never animate open and closed at the same time — the
- * custom sheet only opens once the search sheet's `onExited` fires (the kit
- * `Sheet`'s own doc: a Modal must finish dismissing before the next one
- * presents), the same choreography `AiConsentProvider`/`AiConsentHost` uses
- * for nested sheets.
+ * The two sheets never animate at the same time — the private-ingredient
+ * sheet only opens once the search sheet's `onExited` fires (a Modal must
+ * finish dismissing before the next presents), the same choreography
+ * `AiConsentProvider`/`AiConsentHost` uses.
  */
 export function IngredientPickerField({
   name,
   linked,
+  needsMatch = false,
+  searchText,
+  suggestions,
   onPick,
   placeholder,
   accessibilityLabel,
@@ -49,23 +52,40 @@ export function IngredientPickerField({
   const [customPrefill, setCustomPrefill] = useState('');
   const pendingCustomOpen = useRef(false);
 
+  const a11yLabel =
+    linked && name
+      ? `${accessibilityLabel}, ${name}, nutrition known`
+      : needsMatch && name
+        ? `${accessibilityLabel}, ${name}, needs a match`
+        : accessibilityLabel;
+
   return (
     <View className="min-w-0 flex-1">
-      <Pressable
+      {/* MO-01 press feedback on the trigger. */}
+      <PressableScale
         testID={testID}
+        pressScale="control"
         accessibilityRole="button"
-        accessibilityLabel={
-          linked && name ? `${accessibilityLabel}, ${name}, nutrition known` : accessibilityLabel
-        }
+        accessibilityLabel={a11yLabel}
         accessibilityHint="Opens ingredient search"
         onPress={() => setSearchOpen(true)}
-        className="h-11 flex-row items-center gap-1 rounded-md border border-input bg-background px-3"
+        className={cn(
+          'h-11 flex-row items-center gap-1 rounded-md border bg-background px-3',
+          needsMatch ? 'border-amber-400' : 'border-input',
+        )}
       >
         {linked && name ? (
           <Ionicons
             name="nutrition-outline"
             size={14}
             color="#6b7280"
+            accessibilityElementsHidden
+          />
+        ) : needsMatch ? (
+          <Ionicons
+            name="help-circle-outline"
+            size={14}
+            color="#b45309"
             accessibilityElementsHidden
           />
         ) : null}
@@ -77,11 +97,12 @@ export function IngredientPickerField({
         >
           {name || placeholder}
         </Text>
-      </Pressable>
+      </PressableScale>
 
       <IngredientSearchSheet
         visible={searchOpen}
-        initialQuery={name}
+        initialQuery={searchText ?? name}
+        suggestions={suggestions}
         onClose={() => setSearchOpen(false)}
         onExited={() => {
           if (pendingCustomOpen.current) {
@@ -89,13 +110,9 @@ export function IngredientPickerField({
             setCustomOpen(true);
           }
         }}
-        onPick={(result) => {
+        onPick={(ingredient) => {
           setSearchOpen(false);
-          onPick({ name: result.name, linked: true, naturalUnit: result.naturalUnit });
-        }}
-        onUseAsTyped={(text) => {
-          setSearchOpen(false);
-          onPick({ name: text, linked: false });
+          onPick(ingredient);
         }}
         onCreateCustom={(text) => {
           pendingCustomOpen.current = true;
@@ -109,9 +126,9 @@ export function IngredientPickerField({
         visible={customOpen}
         initialName={customPrefill}
         onClose={() => setCustomOpen(false)}
-        onCreated={(displayName) => {
+        onCreated={(ingredient) => {
           setCustomOpen(false);
-          onPick({ name: displayName, linked: true });
+          onPick(ingredient);
         }}
         testID={`${testID}-custom-sheet`}
       />

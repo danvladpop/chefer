@@ -1,118 +1,121 @@
 import { onlineManager } from '@tanstack/react-query';
-import { act, render } from '@testing-library/react-native';
+import { render } from '@testing-library/react-native';
 import { useComputedNutrition } from '../../src/features/ingredients/use-computed-nutrition';
 
-// T-40.9 (UX-40 slice 2): debounces the ingredient list before computing,
-// keeps the last result while offline (query disabled, cached data stays),
-// and never fetches while `enabled` is false (manual mode).
+// plan-ingredient-catalog §10 (P9): the live preview runs the shared engine
+// over `ingredients.getMany` rows. Only ids it hasn't seen are fetched, and
+// a line whose row is unknown makes the result PARTIAL (never a guess).
 
-let mockQueryArgs: unknown;
-let mockQueryOpts: { enabled: boolean } | undefined;
-const mockData = {
-  perServing: { calories: 300, protein: 10, carbs: 40, fat: 5, fiber: 2 },
-  unmatched: [] as string[],
-  matchedCount: 1,
-  totalCount: 1,
+const mockCalls: { ids: string[]; enabled: boolean }[] = [];
+const EGG = {
+  id: 'egg',
+  name: 'Egg, whole, raw',
+  category: 'EGG',
+  owner: 'global',
+  portions: [{ unit: 'piece', grams: 50 }],
+  hasDensity: true,
+  nutritionSource: 'USDA_FDC',
+  status: 'ACTIVE',
+  per100g: {
+    calories: 148,
+    protein: 12.4,
+    carbs: 1,
+    fat: 10,
+    fiber: 0,
+    sugar: null,
+    satFat: null,
+    sodiumMg: null,
+  },
+  densityGPerMl: 1.03,
+  edibleFraction: 1,
+  sourceRef: 'fdc:1',
 };
 
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     ingredients: {
-      computeNutrition: {
-        useQuery: (args: unknown, opts: { enabled: boolean }) => {
-          mockQueryArgs = args;
-          mockQueryOpts = opts;
-          return { data: opts.enabled ? mockData : undefined, isFetching: false };
+      getMany: {
+        useQuery: (args: { ids: string[] }, opts: { enabled: boolean }) => {
+          mockCalls.push({ ids: args.ids, enabled: opts.enabled });
+          return {
+            data: opts.enabled ? [EGG].filter((r) => args.ids.includes(r.id)) : undefined,
+            isFetching: false,
+          };
         },
       },
     },
   },
 }));
 
+type Result = ReturnType<typeof useComputedNutrition>;
 function Probe({
-  ingredients,
+  lines,
   servings,
-  enabled,
   onResult,
 }: {
-  ingredients: { name: string; quantity: number; unit: string }[];
+  lines: { ingredientId: string | null; quantity: number; unit: string }[];
   servings: number;
-  enabled: boolean;
-  onResult: (r: ReturnType<typeof useComputedNutrition>) => void;
+  onResult: (r: Result) => void;
 }) {
-  onResult(useComputedNutrition(ingredients, servings, enabled));
+  onResult(useComputedNutrition(lines, servings));
   return null;
 }
 
 beforeEach(() => {
+  mockCalls.length = 0;
   onlineManager.setOnline(true);
 });
-
-afterEach(() => {
-  onlineManager.setOnline(true);
-});
+afterEach(() => onlineManager.setOnline(true));
 
 describe('useComputedNutrition', () => {
-  it('never fetches when disabled (manual nutrition mode)', async () => {
-    let last: ReturnType<typeof useComputedNutrition> | undefined;
+  it('computes with the shared engine from the fetched rows', async () => {
+    let last: Result | undefined;
     await render(
       <Probe
-        ingredients={[{ name: 'flour', quantity: 200, unit: 'g' }]}
-        servings={2}
-        enabled={false}
+        lines={[{ ingredientId: 'egg', quantity: 2, unit: 'piece' }]}
+        servings={1}
         onResult={(r) => (last = r)}
       />,
     );
-    expect(mockQueryOpts?.enabled).toBe(false);
-    expect(last?.data).toBeUndefined();
+    expect(mockCalls[0]).toEqual({ ids: ['egg'], enabled: true });
+    expect(last?.result?.status).toBe('COMPUTED');
+    expect(last?.result?.perServing.calories).toBe(148);
+    expect(last?.details.get('egg')?.name).toBe('Egg, whole, raw');
   });
 
-  it('does not compute while offline', async () => {
+  it('divides by servings and flags an unlinked line as PARTIAL', async () => {
+    let last: Result | undefined;
+    await render(
+      <Probe
+        lines={[
+          { ingredientId: 'egg', quantity: 2, unit: 'piece' },
+          { ingredientId: null, quantity: 1, unit: 'g' },
+        ]}
+        servings={2}
+        onResult={(r) => (last = r)}
+      />,
+    );
+    expect(last?.result?.status).toBe('PARTIAL');
+    expect(last?.result?.perServing.calories).toBe(74);
+  });
+
+  it('never fetches with no linked lines, and offline it does not fetch', async () => {
+    let last: Result | undefined;
+    await render(<Probe lines={[]} servings={1} onResult={(r) => (last = r)} />);
+    expect(mockCalls.every((c) => !c.enabled)).toBe(true);
+    expect(last?.result).toBeUndefined();
+    expect(last?.hasIngredients).toBe(false);
+
+    mockCalls.length = 0;
     onlineManager.setOnline(false);
-    let last: ReturnType<typeof useComputedNutrition> | undefined;
     await render(
       <Probe
-        ingredients={[{ name: 'flour', quantity: 200, unit: 'g' }]}
-        servings={2}
-        enabled
+        lines={[{ ingredientId: 'egg', quantity: 1, unit: 'piece' }]}
+        servings={1}
         onResult={(r) => (last = r)}
       />,
     );
-    expect(last?.online).toBe(false);
-    expect(mockQueryOpts?.enabled).toBe(false);
-  });
-
-  it('debounces a CHANGE to the ingredient list before it counts as "has ingredients"', async () => {
-    let last: ReturnType<typeof useComputedNutrition> | undefined;
-    const view = await render(
-      <Probe ingredients={[]} servings={2} enabled onResult={(r) => (last = r)} />,
-    );
-    expect(last?.hasIngredients).toBe(false);
-
-    await view.rerender(
-      <Probe
-        ingredients={[{ name: 'flour', quantity: 200, unit: 'g' }]}
-        servings={2}
-        enabled
-        onResult={(r) => (last = r)}
-      />,
-    );
-    // The 600ms debounce hasn't elapsed yet — still reads the old (empty) list.
-    expect(last?.hasIngredients).toBe(false);
-
-    await act(() => new Promise((resolve) => setTimeout(resolve, 700)));
-    await view.rerender(
-      <Probe
-        ingredients={[{ name: 'flour', quantity: 200, unit: 'g' }]}
-        servings={2}
-        enabled
-        onResult={(r) => (last = r)}
-      />,
-    );
-    expect(last?.hasIngredients).toBe(true);
-    expect(mockQueryArgs).toEqual({
-      ingredients: [{ name: 'flour', quantity: 200, unit: 'g' }],
-      servings: 2,
-    });
+    expect(mockCalls.every((c) => !c.enabled)).toBe(true);
+    expect(last?.result?.status).toBe('PARTIAL');
   });
 });
