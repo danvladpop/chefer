@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { shoppingListService } from '../application/shopping-list/shopping-list.service.js';
-import { premiumProcedure, protectedProcedure, router } from '../lib/trpc.js';
+import {
+  aiConsentProcedure,
+  premiumProcedure,
+  protectedProcedure,
+  requireAiConsent,
+  router,
+} from '../lib/trpc.js';
 
 export const shoppingListRouter = router({
   getForWeek: protectedProcedure
@@ -59,13 +65,18 @@ export const shoppingListRouter = router({
       return shoppingListService.removeCustomItem(ctx.user.id, input.planId, input.key);
     }),
 
+  // AI tidy-up of the list (R-10): consent is checked AFTER the tier so a
+  // free user still gets the upgrade message.
   regenerate: premiumProcedure
+    .use(requireAiConsent())
     .input(z.object({ weekOffset: z.number().int().min(-52).max(1).default(0) }))
     .mutation(async ({ ctx, input }) => {
       return shoppingListService.regenerate(ctx.user, input.weekOffset);
     }),
 
-  searchStores: protectedProcedure
+  // The real store search (GROCERY_AI_MOCK_ENABLED=false) sends the list and
+  // the location to the AI provider.
+  searchStores: aiConsentProcedure
     .input(
       z.object({
         planId: z.string().min(1),

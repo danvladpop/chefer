@@ -3287,12 +3287,15 @@ when the account never linked, or when `POSTHOG_PERSONAL_API_KEY` /
 
 ## 25. AI Data Consent Flow (App Store 5.1.2(i))
 
-> **Status:** Implemented on web and mobile 2026-09-26. User-initiated AI
-> procedures are gated in the clients only (the API does not re-check them).
-> Server-initiated jobs check consent themselves: the Sunday auto-plan skips
-> premium users without consent (§9) and the weekly review writes their text
-> from the template instead of the AI (§14). Other background AI calls carry
-> no personal data (recipe images from AI recipe names; the global ingredient
+> **Status:** Implemented on web and mobile 2026-09-26; enforced on the
+> server too since 2026-10-02 (R-10). The clients' sheet asks first; the API
+> then refuses any user-triggered AI action from a user with no consent on
+> record (`AI_CONSENT_ENFORCE`, default on): an old binary, a stale cache or a
+> consent revoked on another device can no longer send data. Server-initiated
+> jobs check consent themselves: the Sunday auto-plan skips premium users
+> without consent (§9) and the weekly review writes their text from the
+> template instead of the AI (§14). Other background AI calls carry no
+> personal data (recipe images from AI recipe names; the global ingredient
 > price vocabulary).
 
 ```
@@ -3305,9 +3308,9 @@ user taps an AI action ──► requestAiConsent(feature, run, { usesAi })
              "Allow AI to use your data?"
              "To <action>, Chefer sends some of your data to <primary>, a
               third-party AI service, which uses it only to produce the result."
-             (<primary>/<backups> from profile.aiProviders — Google Gemini +
-              Groq by default; Groq + Cloudflare Workers AI when the API runs
-              AI_FREE_ONLY=true)
+             (<primary>/<backups> from profile.aiProviders — Groq +
+              Cloudflare Workers AI by default, i.e. what production runs;
+              Google Gemini + Groq only when the API says so)
              What gets sent: <per-feature list, AI_CONSENT_FEATURE_DATA>
              "Your data is not used to train AI models."
              backup-provider line · "You can turn this off at any time in
@@ -3326,14 +3329,46 @@ user taps an AI action ──► requestAiConsent(feature, run, { usesAi })
 | `recipe-import`              | Import recipe sheet preview (URL / text / photo / video)     | Import recipe screen preview (URL / text / video)     |
 | `chat`                       | Chat widget send + suggested prompts                         | AI Chef screen send                                   |
 | `shopping-list`              | Shop "Regenerate list"                                       | Shop "Regenerate with AI"                             |
+| `ingredient-estimate`        | Ingredient form "Fill in for me"                             | Custom ingredient sheet "Fill in for me"              |
 
 The first plan after onboarding is generated from the Plan tab / dashboard
-"Generate my week", so it is covered by `meal-plan`. Not gated (no personal
-data): AI nutrition estimate for a custom ingredient (ingredient name only) and
-recipe image generation.
+"Generate my week", so it is covered by `meal-plan`. The ingredient "Fill in
+for me" used to be exempt (name only); it now asks like the rest, saying that
+the typed name is what is sent. Not gated (no personal data): recipe image
+generation.
+
+**Server-side check (R-10).** Every row above is backed by a check in the API:
+
+```
+AI action ──► API
+  ├─ consent on record (aiDataConsentAt set) ──────────────────► runs
+  ├─ AI_CONSENT_ENFORCE=off ───────────────────────────────────► runs (emergency switch)
+  └─ no consent
+        ├─ tRPC procedure ─► FORBIDDEN, message "Allow AI features in
+        │    Profile → AI & your data to use this.", data.reason =
+        │    'AI_CONSENT_REQUIRED'   (recipe.importPreview/importVideoPreview,
+        │    shoppingList.regenerate/searchStores, premium mealPlan.swapRecipe,
+        │    ingredients.estimateNutrition's AI fallback, mealPlan.resumeTailoring)
+        ├─ /api/chat, /api/scan-meal ─► 403 { error, reason } +
+        │    X-AI-Consent-Required: 1
+        └─ mealPlan.generate ─► never an error over consent: a premium user
+             without consent gets the curated week (no tailoring); the AI
+             fallback for a table the curated pool can't cover is skipped and
+             the existing "not enough recipes" answer is returned instead
+```
+
+On a consent rejection the client (web and mobile) drops its cached consent
+and reopens the consent sheet for that feature instead of a generic error;
+"Allow" records consent and the user repeats the action. Old binaries show the
+same sentence as a normal error.
 
 **Revoking:** Profile → "AI & your data" → "Allow AI features to process my
 data" switch (web + mobile) → `user.revokeAiDataConsent` / `grantAiDataConsent`.
+The switch text lists every feature that may send data (plans, swaps, photo
+scans, recipe and video imports, chat, ingredient fill-in, the AI shopping-list
+tidy-up and the weekly coach review), and a note under it says what the coach
+review sends (weight trend, goal, average calories) and that without consent
+it is written from a template and nothing is sent.
 
 **Who is named (2026-09-26):** the sheet, the Profile switch's "on" text, the
 web privacy page ("AI processing" + "Who receives your data") and the support
@@ -3341,7 +3376,9 @@ FAQ never hard-code a provider. They read `profile.aiProviders` (public), which
 the API derives from its live route table, and fill the shared templates in
 `@chefer/types` `AI_CONSENT_COPY` via `@chefer/utils` (`aiConsentIntro`,
 `aiConsentBackupLine`, `aiConsentToggleOn`). Until it answers, or against an
-API that predates it, clients show the standard set (Gemini, Groq backup).
+API that predates it (or when the request fails — it is retried), clients
+show the set production runs (Groq, Cloudflare Workers AI backup), never the
+legacy Gemini one.
 
 **When the AI is out of capacity** (every provider in a chain busy or past its
 free daily quota): the user sees "The chef is over capacity right now — give it

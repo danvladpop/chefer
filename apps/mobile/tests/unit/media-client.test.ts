@@ -1,3 +1,4 @@
+import { onAiConsentRequired } from '@chefer/utils';
 import {
   PHOTO_TOO_BIG_MESSAGE,
   SCAN_MAX_BYTES,
@@ -206,5 +207,41 @@ describe('T-BUG-O1 scanMealPhoto — client-side size pre-check and error mappin
         'image/jpeg',
       ),
     ).rejects.toThrow('Something went wrong on our side. Try again in a moment.');
+  });
+});
+
+describe('R-10 scanMealPhoto — server-side AI consent rejection', () => {
+  it('reopens the consent sheet and still throws the server sentence', async () => {
+    const listener = jest.fn();
+    const off = onAiConsentRequired(listener);
+    const message = 'Allow AI features in Profile → AI & your data to use this.';
+    const fetchImpl = jest
+      .fn()
+      .mockResolvedValue(jsonResponse(403, { error: message, reason: 'AI_CONSENT_REQUIRED' }));
+
+    await expect(
+      scanMealPhoto(
+        { fetchImpl, apiBaseUrl: 'https://api.test', getToken: () => 'token' },
+        new Uint8Array(10),
+        'image/jpeg',
+      ),
+    ).rejects.toThrow(message);
+    expect(listener).toHaveBeenCalledWith('meal-scan');
+    off();
+  });
+
+  it('a plain 403 without the reason does not touch the consent sheet', async () => {
+    const listener = jest.fn();
+    const off = onAiConsentRequired(listener);
+    const fetchImpl = jest.fn().mockResolvedValue(jsonResponse(403, { error: 'Nope' }));
+    await expect(
+      scanMealPhoto(
+        { fetchImpl, apiBaseUrl: 'https://api.test', getToken: () => 'token' },
+        new Uint8Array(10),
+        'image/jpeg',
+      ),
+    ).rejects.toThrow();
+    expect(listener).not.toHaveBeenCalled();
+    off();
   });
 });

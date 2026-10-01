@@ -5,7 +5,7 @@ import { planShapeService } from '../application/meal-plan/plan-shape.service.js
 import { hasFeature, isPremiumUser } from '../lib/entitlements.js';
 import { env } from '../lib/env.js';
 import { reserveAiSwap, reservePlanGeneration } from '../lib/quotas.js';
-import { protectedProcedure, router } from '../lib/trpc.js';
+import { protectedProcedure, requireAiConsent, router } from '../lib/trpc.js';
 
 // §2.3, T-07.1 (S1): the "how you cook" shape, plus `leftovers` (bug B-27,
 // stored on the same DietaryPreferences row).
@@ -205,8 +205,11 @@ export const mealPlanRouter = router({
   /**
    * Swaps a single meal slot with an AI-generated alternative.
    * Input: planId, dayOfWeek (0=Mon), mealType, optional slotIndex, optional reason.
+   * Only the premium swap reaches the AI (free swaps are curated), so only
+   * that one needs AI-data consent (R-10) — checked before the quota is reserved.
    */
   swapRecipe: protectedProcedure
+    .use(requireAiConsent(({ user }) => isPremiumUser(user)))
     .input(
       z.object({
         planId: z.string().min(1),

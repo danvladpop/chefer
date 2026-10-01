@@ -78,6 +78,8 @@ describe('image upload contract (M3-3)', () => {
 
 describe.skipIf(process.env.CHEFER_CONTRACT_AI !== '1')('meal scan contract (M3-2)', () => {
   it('returns a vision estimate for a photo', async () => {
+    // R-10: the API refuses AI actions without AI-data consent on record.
+    await client.user.grantAiDataConsent.mutate();
     const estimate = await scanMealPhoto(media, base64ToBytes(TINY_PNG_BASE64), 'image/png');
     expect(estimate.dishName).toBeTruthy();
     expect(estimate.kcal).toBeGreaterThanOrEqual(0);

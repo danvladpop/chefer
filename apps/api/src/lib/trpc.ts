@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import superjson from 'superjson';
 import { ZodError } from 'zod';
 import type { UserProfile } from '@chefer/types';
+import { AiConsentRequiredCause, assertAiConsent } from './ai-consent-gate.js';
 import { runWithAiCallContext } from './ai/call-context.js';
 import { ConflictCause } from './conflict.js';
 import { isPremiumUser } from './entitlements.js';
@@ -65,6 +66,10 @@ const t = initTRPC.context<Context>().create({
         // T-26.3: an un-consented health write from a client that declared
         // it understands the error (lib/health-consent.ts).
         healthConsentRequired: error.cause instanceof HealthConsentRequiredCause,
+        // R-10: an AI action from a user with no AI-data consent on record
+        // (lib/ai-consent-gate.ts). Additive — `null` on every other error.
+        reason:
+          error.cause instanceof AiConsentRequiredCause ? ('AI_CONSENT_REQUIRED' as const) : null,
         // T-10.4: the free curated pool can't cover this plan (lib/pool-exhausted.ts).
         poolExhausted:
           error.cause instanceof PoolExhaustedCause
@@ -207,12 +212,40 @@ export function requireHealthConsent(touchesHealthData?: (input: unknown) => boo
   });
 }
 
+/**
+ * AI-data consent gate (App Store 5.1.2(i), R-10) — refuses with FORBIDDEN +
+ * `data.reason = 'AI_CONSENT_REQUIRED'` when `AI_CONSENT_ENFORCE=on` and the
+ * user has no consent on record (lib/ai-consent-gate.ts). `appliesTo` narrows
+ * it for a procedure that only sometimes reaches the AI (e.g. a swap is AI
+ * for premium and curated for free); omitted = always. Put it AFTER the
+ * tier gate (`premiumProcedure.use(requireAiConsent())`) so a free user still
+ * gets the upgrade message, and after `.input()` when `appliesTo` reads input.
+ */
+export function requireAiConsent(
+  appliesTo?: (args: { user: UserProfile; input: unknown }) => boolean,
+) {
+  return t.middleware(async ({ ctx, next, input }) => {
+    if (!ctx.user) {
+      throw new TRPCError({
+        code: 'UNAUTHORIZED',
+        message: 'You must be logged in to perform this action',
+      });
+    }
+    if (!appliesTo || appliesTo({ user: ctx.user, input })) {
+      await assertAiConsent({ userId: ctx.user.id });
+    }
+    return next({ ctx: { ...ctx, user: ctx.user } });
+  });
+}
+
 // ─── Exports ──────────────────────────────────────────────────────────────────
 
 export const router = t.router;
 export const publicProcedure = t.procedure.use(timingMiddleware);
 export const protectedProcedure = t.procedure.use(timingMiddleware).use(isAuthenticated);
 export const premiumProcedure = t.procedure.use(timingMiddleware).use(isPremium);
+/** A signed-in procedure that always sends the user's data to the AI provider. */
+export const aiConsentProcedure = protectedProcedure.use(requireAiConsent());
 export const adminProcedure = t.procedure.use(timingMiddleware).use(isAdmin);
 export const mergeRouters = t.mergeRouters;
 

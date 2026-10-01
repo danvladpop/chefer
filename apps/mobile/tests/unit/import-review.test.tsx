@@ -18,6 +18,7 @@ jest.mock('../../src/features/premium/premium-host', () => ({ PremiumHost: () =>
 jest.mock('../../src/hooks/use-is-premium', () => ({ useIsPremium: () => true }));
 jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
   useAiConsent: () => (_feature: string, run: () => void) => run(),
+  AiConsentHost: () => null,
 }));
 jest.mock('../../src/lib/trpc', () => {
   const detail = (id: string, kcal: number, portions: { unit: string; grams: number }[] = []) => ({

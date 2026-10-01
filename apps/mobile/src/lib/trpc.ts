@@ -2,6 +2,7 @@ import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 import { createTRPCReact } from '@trpc/react-query';
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '@chefer/api';
+import { handleAiConsentRequiredError } from '@chefer/utils';
 import { clearToken, getToken } from './auth-store';
 
 export const trpc = createTRPCReact<AppRouter>();
@@ -34,7 +35,14 @@ function handleUnauthorized(error: unknown): void {
 export function makeQueryClient(): QueryClient {
   return new QueryClient({
     queryCache: new QueryCache({ onError: handleUnauthorized }),
-    mutationCache: new MutationCache({ onError: handleUnauthorized }),
+    mutationCache: new MutationCache({
+      onError: (error, _variables, _context, mutation) => {
+        handleUnauthorized(error);
+        // R-10: the server refused an AI action for missing consent → the
+        // consent provider reopens its sheet instead of a generic error.
+        handleAiConsentRequiredError(error, mutation.options.mutationKey);
+      },
+    }),
     defaultOptions: {
       queries: {
         staleTime: 60 * 1000,

@@ -69,6 +69,19 @@ export class UserRepository implements IUserRepository {
   }
 
   /**
+   * The AI-data consent cache (R-10): read by the server-side AI consent gate
+   * (apps/api/src/lib/ai-consent-gate.ts). null = not given / withdrawn (or no
+   * such user).
+   */
+  async findAiDataConsentAt(id: string): Promise<Date | null> {
+    const row = await prisma.user.findUnique({
+      where: { id },
+      select: { aiDataConsentAt: true },
+    });
+    return row?.aiDataConsentAt ?? null;
+  }
+
+  /**
    * Refreshes the health-consent cache columns (T-26.1). Un-awaited so a
    * grant/withdrawal runs in one `$transaction` with its ConsentEvent row
    * (and, for a withdrawal, the deletes). `null` clears the cache.

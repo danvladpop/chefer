@@ -2,6 +2,9 @@
 // Same raw-body transport as lib/upload-image.ts: the file's bytes go up with
 // their image/* content-type, session cookie included.
 
+import { AI_CONSENT_REQUIRED_REASON } from '@chefer/types';
+import { notifyAiConsentRequired } from '@chefer/utils';
+
 const API_URL = process.env['NEXT_PUBLIC_API_URL'];
 if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set');
 
@@ -94,11 +97,17 @@ export async function scanMealPhoto(file: File): Promise<MealPhotoEstimate> {
     estimate?: MealPhotoEstimate;
     error?: string | { code?: string; message?: string };
     upgradeRequired?: boolean;
+    reason?: string;
   } | null;
 
   if (res.status === 403 && data?.upgradeRequired) {
     const message = typeof data.error === 'string' ? data.error : undefined;
     throw new ScanUpgradeRequiredError(message ?? 'Photo scanning is a premium feature.');
+  }
+  // R-10: the server has no AI consent on record — reopen the sheet (the
+  // thrown message, the same sentence, still shows in the card).
+  if (res.status === 403 && data?.reason === AI_CONSENT_REQUIRED_REASON) {
+    notifyAiConsentRequired('meal-scan');
   }
   if (!res.ok || !data?.estimate) {
     throw scanErrorFrom(res.status, data);

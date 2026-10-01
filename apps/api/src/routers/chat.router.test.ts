@@ -13,6 +13,15 @@ vi.mock('../lib/session-auth.js', () => ({
   resolveRequestAuth: vi.fn().mockResolvedValue({ user: { id: 'u1' }, sessionToken: 't1' }),
 }));
 
+// R-10: the server-side AI consent check — real gate, enforcement on, and a
+// consent cache that each test sets.
+const consent = vi.hoisted(() => ({ at: null as Date | null }));
+vi.mock('../lib/env.js', () => ({ env: { AI_CONSENT_ENFORCE: 'on' } }));
+vi.mock('@chefer/database', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@chefer/database')>();
+  return { ...mod, userRepository: { findAiDataConsentAt: async () => consent.at } };
+});
+
 vi.mock('../application/chat/chat.service.js', () => ({
   chatService: { chat: vi.fn() },
 }));
@@ -45,6 +54,7 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
 beforeEach(() => {
+  consent.at = new Date();
   vi.mocked(chatService.chat).mockReset().mockResolvedValue(textStream('A roux is flour and fat.'));
 });
 
@@ -88,5 +98,25 @@ describe('chatRouter — health/safety topic headers (T-22.2)', () => {
       }),
     });
     expect(res.headers.get('x-chat-safety-topic')).toBeNull();
+  });
+});
+
+describe('chatRouter — AI-data consent (R-10)', () => {
+  it('answers 403 { error, reason } + X-AI-Consent-Required and never calls the chef without consent', async () => {
+    consent.at = null;
+    const res = await post('What should I cook tonight?');
+    expect(res.status).toBe(403);
+    expect(res.headers.get('x-ai-consent-required')).toBe('1');
+    expect(await res.json()).toEqual({
+      error: 'Allow AI features in Profile → AI & your data to use this.',
+      reason: 'AI_CONSENT_REQUIRED',
+    });
+    expect(chatService.chat).not.toHaveBeenCalled();
+  });
+
+  it('streams normally once consent is on record', async () => {
+    const res = await post('What should I cook tonight?');
+    expect(res.status).toBe(200);
+    expect(chatService.chat).toHaveBeenCalledTimes(1);
   });
 });
