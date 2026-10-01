@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { useId, useRef, useState } from 'react';
+import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import { NumericReturnBar, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { cn, parseBodyWeight } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
@@ -13,8 +13,15 @@ import { useHealthConsent } from '../privacy/use-health-consent';
 // the API via the shared parser (audit F-DASH-3-1). The field takes the
 // user's unit (lb for IMPERIAL, backlog P2-6) and sends kg.
 
+// R-21: iOS's decimal-pad has no Return/Done key — the shared accessory bar
+// (the one the onboarding metrics step uses) gives it one. Shared by every
+// WeightLogForm; the id is per instance because the dashboard card and the
+// Progress screen can be mounted at the same time (duplicate native ids would
+// make iOS pick one arbitrarily).
+
 export function WeightLogForm({ placeholder, label }: { placeholder?: string; label?: string }) {
   const system = useUnitSystem();
+  const barId = `weight-log-numeric-bar-${useId()}`;
   const imperial = system === 'IMPERIAL';
   const [value, setValue] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
@@ -71,6 +78,7 @@ export function WeightLogForm({ placeholder, label }: { placeholder?: string; la
             setInputError(null);
           }}
           onSubmitEditing={submit}
+          inputAccessoryViewID={barId}
           keyboardType="decimal-pad"
           placeholder={placeholder ?? `Log today’s weight (${imperial ? 'lb' : 'kg'})`}
           placeholderTextColor="#9ca3af"
@@ -91,6 +99,12 @@ export function WeightLogForm({ placeholder, label }: { placeholder?: string; la
           <Ionicons name={saved ? 'checkmark' : 'add'} size={20} color="white" />
         </Pressable>
       </View>
+      <NumericReturnBar
+        nativeID={barId}
+        testID="weight-numeric-bar"
+        label="Done"
+        onPress={() => Keyboard.dismiss()}
+      />
       {error && (
         <Text testID="weight-error" className="mt-1 text-xs text-red-600">
           {error}

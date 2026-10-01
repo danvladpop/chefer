@@ -253,10 +253,14 @@ describe('householdGhostSample', () => {
 });
 
 describe('onboardingProgress (counter never grows)', () => {
-  it('shows "Step 1" with no total while the intent question is open', () => {
+  it('shows "Getting started" with no total while the first question is open (R-21)', () => {
     for (const intent of [null, 'HOUSEHOLD', 'TRAIN', 'EAT_BETTER'] as const) {
       const steps = onboardingSteps({ intent, askIntent: true, isPremium: false });
-      expect(onboardingProgress(steps, 0)).toEqual({ label: 'Step 1', total: null, percent: null });
+      expect(onboardingProgress(steps, 0)).toEqual({
+        label: 'Getting started',
+        total: null,
+        percent: null,
+      });
     }
   });
 

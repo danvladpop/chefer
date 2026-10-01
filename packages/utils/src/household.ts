@@ -197,8 +197,11 @@ export function householdGhostSample(kind: HouseholdGhostKind): HouseholdGhostSa
 
 // ─── Onboarding progress label (audit: counter grew 4 → 5) ────────────────────
 
+/** The header on the first wizard question, whose answer decides the step total. */
+export const ONBOARDING_FIRST_STEP_LABEL = 'Getting started';
+
 export interface OnboardingProgress {
-  /** "Step 1" on the intent question, else "Step 2 of 5". */
+  /** "Getting started" on the first (intent / jobs) question, else "Step 2 of 5". */
   label: string;
   /** Known once the intent question is behind the user; null before. */
   total: number | null;
@@ -209,8 +212,11 @@ export interface OnboardingProgress {
 /**
  * The step counter for the onboarding wizard. The total depends on the
  * intent answer (households get an extra step, gym-goers stop after it), so
- * while the question is on screen the counter shows "Step 1" with no total
- * and no percentage — it never reads "1 of 4" and then "2 of 5".
+ * while the question is on screen the header reads "Getting started" with no
+ * total and no percentage — it never reads "1 of 4" and then "2 of 5". (R-21:
+ * it used to read a bare "Step 1" followed by "Step 2 of 5 · 40%", which looked
+ * like two different counters; the first question is now plainly unnumbered and
+ * every later step carries the fixed total.)
  * `index` is 0-based into `steps`.
  */
 export function onboardingProgress(
@@ -222,7 +228,7 @@ export function onboardingProgress(
   // 'jobs' (v3) is 'intent's replacement — same "unanswered, total unknown"
   // treatment while it's the step on screen.
   if (steps[i] === 'intent' || steps[i] === 'jobs') {
-    return { label: `Step ${i + 1}`, total: null, percent: null };
+    return { label: ONBOARDING_FIRST_STEP_LABEL, total: null, percent: null };
   }
   return {
     label: `Step ${i + 1} of ${total}`,

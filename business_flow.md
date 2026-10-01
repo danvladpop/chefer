@@ -140,7 +140,13 @@ free workout log too, not meal planning alone (CI-16/CI-25).
              an error response.
    └── the router then emails the address-confirmation link in the
        background (P2-5, §23) — never blocks or fails the signup
-3. Client redirects to /onboarding
+3. Client redirects to /onboarding (mobile, R-18b: as state, not a navigation call —
+   register raises the in-memory `pending-onboarding` flag BEFORE storing the
+   token, and the Food tab layout, the first protected screen the auth-guard flip
+   mounts, renders a `<Redirect href="/onboarding">` while it is up; the
+   onboarding screen clears it. An imperative `router.replace` after the awaited
+   SecureStore writes used to race the navigator on a fresh install, so the
+   first account landed on Today. Every new account now gets the wizard)
 4. Onboarding step 1 — "What should Chefer help with?" (§2.4, T-03.1/T-03.2,
    rev 2 — mobile only; web still runs the v1 single-intent flow below until
    its own migration lands, T-03.6). A multi-select JobsStep (`Train` /
@@ -201,9 +207,13 @@ free workout log too, not meal planning alone (CI-16/CI-25).
    flow). The premium wizard no longer asks "How many people are you
    cooking for?" — the household is the one people model (F-PM-8).
    Step counter (both platforms, shared `onboardingProgress`): while the
-   jobs/intent question is on screen it reads "Step 1" with no total and an
-   empty bar — the answer changes the total, so it never reads "1 of 4" and
-   then "2 of 5"; from step 2 on it is "Step N of M" with a percentage.
+   jobs/intent question is on screen it reads "Getting started" with no total
+   and an empty bar (R-21; it used to read a bare "Step 1") — the answer changes
+   the total, so it never reads "1 of 4" and then "2 of 5"; from step 2 on it is
+   "Step N of M" with a percentage. Finishing a food path generates the first week
+   in the background after navigating to Today; the generate mutation invalidates
+   `mealPlan`, `dashboard` and `shoppingList` when it settles (R-18, mobile and
+   web) so Today never keeps showing "nothing planned".
 ```
 
 Admins can additionally create users via `user.create` (admin-only).
@@ -2477,6 +2487,10 @@ against `recentSessions` and the next day's `plannedWeekday`:
   (checked first, regardless of weekday). Gym Today shows `Done today` with
   the just-finished session's stats (`doneTodayCard()`: duration, working
   sets, PR count via `collectPrs`) and `Next session: {weekday} — {dayName}`;
+  the weekday is `nextSessionWeekday()` (R-19): the next day's own pin when it
+  is still ahead of today, otherwise the next planned training weekday after
+  today (any routine day's pin), wrapping into next week — so an off-schedule
+  Thursday session with Mon/Wed/Fri pinned names Friday, not the past Wednesday;
   no Start button. `See summary` opens that session; `Train again today? Pick
 a day` reuses the existing day-picker sheet.
 - **`rest`** — nothing done today, and the next day's `plannedWeekday`

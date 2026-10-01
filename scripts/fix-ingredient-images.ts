@@ -109,6 +109,11 @@ const FLAGGED: string[] = [
   'pepper', // fresh chili (row is the spice)
   'salt and pepper', // raw steak
   'sesame oil', // sesame seeds
+  // 2026-10-01 simulated App Review (R-21): wrong thumbnails on the shopping list
+  'cucumber', // a lime
+  'cucumbers',
+  'radishes', // a tart
+  'radish',
 ];
 
 // Pollinations rows whose deterministic render came out off-prompt: same
@@ -134,6 +139,12 @@ const PROMPT_OVERRIDES: Record<string, string> = {
   'ground tempeh': 'crumbled tempeh pieces in a small bowl',
   'lean turkey mince': 'raw ground minced turkey meat on butcher paper',
   'green lentils (cooked)': 'cooked green lentils in a small ceramic bowl',
+  // R-21: the generic prompt rendered a lime / a tart. Literal subjects, with
+  // the colour and shape spelled out so the model cannot drift to citrus or pastry.
+  cucumber: 'a whole long dark green cucumber vegetable',
+  cucumbers: 'two whole long dark green cucumber vegetables',
+  radishes: 'a small bunch of fresh round red radish root vegetables with green leaves',
+  radish: 'a few fresh round red radish root vegetables with green leaves',
 };
 
 function productShotUrl(name: string, seedSuffix = ''): string {

@@ -208,7 +208,7 @@ describe('OnboardingWizard — jobs step (UX-03, T-03.2/T-03.3)', () => {
       'What should Chefer help with?',
     );
     // No total until jobs are known — the counter never grows.
-    expect(screen.getByText('Step 1')).toBeTruthy();
+    expect(screen.getByText('Getting started')).toBeTruthy();
   });
 
   it('Feed my household adds "Who\'s at your table?" before the food steps (AC4)', async () => {
@@ -222,7 +222,7 @@ describe('OnboardingWizard — jobs step (UX-03, T-03.2/T-03.3)', () => {
     await renderWithSafeArea(<OnboardingWizard />);
 
     await user.press(screen.getByTestId('onboarding-job-HOUSEHOLD'));
-    expect(screen.getByText('Step 1')).toBeTruthy();
+    expect(screen.getByText('Getting started')).toBeTruthy();
     await user.press(screen.getByTestId('onboarding-continue'));
 
     await waitFor(() =>

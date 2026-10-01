@@ -1,10 +1,10 @@
 import {
   ExerciseEquipment,
-  MUSCLE_LABELS,
   VOLUME_GROUPS,
   type ExerciseDto,
   type VolumeGroup,
 } from '@chefer/types';
+import { VOLUME_GROUP_LABELS } from '@chefer/utils';
 import { filterExercises, type PickerFilter } from '../library/exercise-picker';
 
 // Exercises-tab-specific filtering on top of the shared `filterExercises`
@@ -15,7 +15,9 @@ export const MUSCLE_GROUP_FILTERS: { value: VolumeGroup; label: string }[] = (
   Object.keys(VOLUME_GROUPS) as VolumeGroup[]
 ).map((group) => ({
   value: group,
-  label: (MUSCLE_LABELS as Record<string, string | undefined>)[group] ?? group,
+  // R-21: the volume-group labels (a group like `back` is not a single muscle,
+  // so MUSCLE_LABELS has no entry and the raw key showed up lowercase).
+  label: VOLUME_GROUP_LABELS[group],
 }));
 
 /** T-42.3 (AC9): "Cardio" first, ahead of every muscle group — behind cardioLogging (the caller gates it). */
