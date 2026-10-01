@@ -188,7 +188,18 @@ export function OnboardingWizard() {
     onError: (err) => setError(err.message),
   });
   const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
-  const generateMutation = trpc.mealPlan.generate.useMutation();
+  // R-18: the first week generates in the background AFTER onboarding has
+  // already navigated to Today, so the dashboard cached at navigation time
+  // says "nothing planned". Invalidate everything that reads the plan when the
+  // generation lands (success or failure). These are mutation-level callbacks,
+  // so they still fire after the wizard has unmounted.
+  const generateMutation = trpc.mealPlan.generate.useMutation({
+    onSettled: () => {
+      void utils.mealPlan.invalidate();
+      void utils.dashboard.invalidate();
+      void utils.shoppingList.invalidate();
+    },
+  });
 
   // Bug (UX-03): the ScrollView is one persistent instance across every
   // step, so a step reached scrolled down (e.g. How you cook, which needs

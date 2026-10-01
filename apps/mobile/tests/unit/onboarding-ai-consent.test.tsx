@@ -58,6 +58,13 @@ jest.mock('../../src/features/gym/mode-store', () => ({ setMode: jest.fn() }));
 let mockUser: { aiDataConsentAt: Date | null } | undefined;
 const mockGrant = jest.fn();
 const mockGenerate = jest.fn();
+// R-18: the invalidations the generation fires once it lands.
+const mockInvalidate = {
+  mealPlan: jest.fn(),
+  dashboard: jest.fn(),
+  shoppingList: jest.fn(),
+};
+let mockGenerateOptions: { onSettled?: () => void } | undefined;
 const SHAPE = {
   slots: ['breakfast', 'lunch', 'dinner'],
   days: [0, 1, 2, 3, 4, 5, 6],
@@ -71,7 +78,9 @@ jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
       preferences: { invalidate: jest.fn() },
-      dashboard: { invalidate: jest.fn() },
+      dashboard: { invalidate: mockInvalidate.dashboard },
+      mealPlan: { invalidate: mockInvalidate.mealPlan },
+      shoppingList: { invalidate: mockInvalidate.shoppingList },
       user: { me: { setData: jest.fn() } },
     }),
     preferences: {
@@ -99,7 +108,12 @@ jest.mock('../../src/lib/trpc', () => ({
     mealPlan: {
       setShape: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       getShape: { useQuery: () => ({ data: SHAPE }) },
-      generate: { useMutation: () => ({ mutate: mockGenerate }) },
+      generate: {
+        useMutation: (opts?: { onSettled?: () => void }) => {
+          mockGenerateOptions = opts;
+          return { mutate: mockGenerate };
+        },
+      },
     },
     profile: { aiProviders: { useQuery: () => ({ data: undefined }) } },
     user: {
@@ -174,6 +188,20 @@ describe('Onboarding AC7 — AI consent before the first-week generate', () => {
     await waitFor(() => expect(mockGenerate).toHaveBeenCalledWith({ weekOffset: 0 }));
     expect(screen.queryByTestId('ai-consent-allow')).toBeNull();
     expect(mockReplace).toHaveBeenCalledWith('/(food)');
+  });
+
+  // R-18: Today is already on screen (stale "nothing planned") when the
+  // background generation lands — everything that reads the plan is refreshed.
+  it('refreshes the plan, dashboard and shopping list when the first week lands', async () => {
+    await renderWizard();
+    await driveToFinish();
+    await waitFor(() => expect(mockGenerate).toHaveBeenCalled());
+
+    expect(mockGenerateOptions?.onSettled).toBeDefined();
+    mockGenerateOptions?.onSettled?.();
+    expect(mockInvalidate.mealPlan).toHaveBeenCalled();
+    expect(mockInvalidate.dashboard).toHaveBeenCalled();
+    expect(mockInvalidate.shoppingList).toHaveBeenCalled();
   });
 
   it('premium tier: asks first; "Not now" sends nothing and still finishes onboarding', async () => {
