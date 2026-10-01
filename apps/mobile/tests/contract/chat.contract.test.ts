@@ -17,6 +17,8 @@ describe.skipIf(!aiEnabled)('chat streaming contract (M3-1)', () => {
       throw new Error('mobile login response is missing the session credential');
     }
     setToken(user.session.token);
+    // R-10: the API refuses AI actions without AI-data consent on record.
+    await client.user.grantAiDataConsent.mutate();
 
     const chunks: string[] = [];
     const result = await streamChat({

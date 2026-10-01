@@ -3,6 +3,9 @@
 // tests pass Node's global fetch. Both stream the same wire format: plain
 // text chunks, with X-Chat-Quota-Exhausted: 1 signalling the quota gate.
 
+import { AI_CONSENT_REQUIRED_REASON } from '@chefer/types';
+import { notifyAiConsentRequired } from '@chefer/utils';
+
 export interface ChatMessageInput {
   role: 'user' | 'assistant';
   content: string;
@@ -51,9 +54,13 @@ export async function streamChat({
   if (!res.ok) {
     let message = `Chat failed (${res.status})`;
     try {
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as { error?: string; reason?: string };
       if (data.error) {
         message = data.error;
+      }
+      // R-10: the server has no AI consent on record — reopen the sheet.
+      if (res.status === 403 && data.reason === AI_CONSENT_REQUIRED_REASON) {
+        notifyAiConsentRequired('chat');
       }
     } catch {
       // Non-JSON error body — keep the status message.

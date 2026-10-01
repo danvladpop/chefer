@@ -11,7 +11,12 @@ import {
 import { Linking, View } from 'react-native';
 import { AI_CONSENT_COPY, AI_CONSENT_FEATURE_DATA, type AiConsentFeature } from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
-import { aiConsentBackupLine, aiConsentIntro, needsAiDataConsent } from '@chefer/utils';
+import {
+  aiConsentBackupLine,
+  aiConsentIntro,
+  needsAiDataConsent,
+  onAiConsentRequired,
+} from '@chefer/utils';
 import { getWebUrl } from '../../lib/api-url';
 import { trpc } from '../../lib/trpc';
 import { useAiProviderDisclosure } from './use-ai-providers';
@@ -120,6 +125,23 @@ export function AiConsentProvider({
       else run();
     },
     [me, utils, resetGrant],
+  );
+
+  // R-10: the server refused an AI action for missing consent (revoked on
+  // another device, or this cache is stale). Forget the cached consent and open
+  // the sheet; "Allow" records it, and the user taps the action again.
+  useEffect(
+    () =>
+      onAiConsentRequired((requested) => {
+        utils.user.me.setData(undefined, (prev) =>
+          prev ? { ...prev, aiDataConsentAt: null } : prev,
+        );
+        resetGrant();
+        pendingRun.current = null;
+        setFeature(requested);
+        setOpen(true);
+      }),
+    [utils, resetGrant],
   );
 
   const register = useCallback((hostId: string) => {

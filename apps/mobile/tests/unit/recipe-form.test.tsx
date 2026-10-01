@@ -128,6 +128,13 @@ const mockAddListener = jest.fn((_event: string, _cb: (e: unknown) => void) => (
 const mockDispatch = jest.fn();
 const mockBack = jest.fn();
 
+// R-10: the custom-ingredient sheet inside the form asks for AI consent before
+// "Fill in for me"; the guard is a pass-through here.
+jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
+  useAiConsent: () => (_feature: string, run: () => void) => run(),
+  AiConsentHost: () => null,
+}));
+
 jest.mock('expo-router', () => ({
   router: {
     back: () => {

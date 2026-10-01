@@ -4,6 +4,9 @@
 // bytes with the image's content-type — no multipart (mirrors web's
 // scan-client.ts / upload-image.ts transport).
 
+import { AI_CONSENT_REQUIRED_REASON } from '@chefer/types';
+import { notifyAiConsentRequired } from '@chefer/utils';
+
 export type ImageMime = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic';
 
 export interface MediaClientOptions {
@@ -125,11 +128,17 @@ export async function scanMealPhoto(
     estimate?: MealPhotoEstimate;
     error?: string | { code?: string; message?: string };
     upgradeRequired?: boolean;
+    reason?: string;
   } | null;
 
   if (res.status === 403 && data?.upgradeRequired) {
     const message = typeof data.error === 'string' ? data.error : undefined;
     throw new ScanUpgradeRequiredError(message ?? 'Photo scanning is a premium feature.');
+  }
+  // R-10: the server has no AI consent on record — reopen the sheet (the
+  // thrown message, the same sentence, still shows in the card).
+  if (res.status === 403 && data?.reason === AI_CONSENT_REQUIRED_REASON) {
+    notifyAiConsentRequired('meal-scan');
   }
   if (!res.ok || !data?.estimate) {
     throw uploadErrorFrom(res.status, data, bytes.length);
