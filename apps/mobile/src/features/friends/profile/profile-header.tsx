@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { FRIENDS_COPY, type FriendProfileDto, type FriendsMeDto } from '@chefer/types';
 import { Avatar, Badge, Button, Sheet, Skeleton, Text } from '@chefer/ui-mobile';
+import { AppealLink } from '../components/appeal-link';
 import { RelationButton } from '../components/relation-button';
 import { ReportSheet } from '../safety/report-sheet';
 import { BlockConfirmSheet, RemoveFollowerConfirmSheet } from '../safety/safety-confirm-sheets';
@@ -210,6 +211,11 @@ function PreviewBanners({
           className="w-full rounded-xl bg-amber-50 px-3 py-2"
         >
           <Text className="text-sm text-amber-900">{FRIENDS_COPY.preview.forcedPrivate}</Text>
+          <AppealLink
+            subject="profile"
+            tone="text-amber-900"
+            testID={`${testID}-forced-private-appeal`}
+          />
         </View>
       ) : null}
       <Badge testID={`${testID}-visibility`} variant="outline">
