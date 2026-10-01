@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { consentEventRepository, prisma } from '@chefer/database';
+import { consentEventRepository, Prisma, prisma } from '@chefer/database';
 import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
@@ -25,7 +25,18 @@ vi.mock('@chefer/database', async (importOriginal) => {
       findLatestByKind: vi.fn(async () => null),
     },
     prisma: {
-      user: { findUnique: vi.fn(), delete: vi.fn(op('user.delete')) },
+      user: {
+        findUnique: vi.fn(),
+        findMany: vi.fn(async () => []),
+        delete: vi.fn(op('user.delete')),
+      },
+      // Following (F1.5): the export reads these; deleteAccount must NOT touch
+      // them (they cascade from users) — no delete delegates on purpose.
+      socialProfile: { findUnique: vi.fn(async () => null) },
+      follow: { findMany: emptyFindMany() },
+      block: { findMany: emptyFindMany() },
+      notification: { findMany: emptyFindMany() },
+      userReport: { findMany: emptyFindMany() },
       mealPlan: { findMany: vi.fn(async () => []) },
       shoppingList: {
         findMany: vi.fn(async () => []),
@@ -301,5 +312,314 @@ describe('exportAccountData (T-39.5, bug B-53)', () => {
     vi.mocked(emailPreferencesService.get).mockRejectedValue(new Error('Account not found'));
     const data = await exportAccountData('u1');
     expect((data['privacy'] as { emailPreferences: unknown }).emailPreferences).toBeNull();
+  });
+});
+
+// ─── Following (F1.5, PRD FR-22) ──────────────────────────────────────────────
+
+const FOLLOWING_MODELS = [
+  'SocialProfile',
+  'Follow',
+  'Block',
+  'SuggestionDismissal',
+  'UserReport',
+  'ModerationLog',
+  'Notification',
+];
+
+type RelationField = { name: string; type: string; kind: string; relationOnDelete?: string };
+
+function relationFields(model: string): RelationField[] {
+  const found = Prisma.dmmf.datamodel.models.find((m) => m.name === model);
+  if (!found) throw new Error(`model ${model} not in the schema`);
+  return found.fields.filter((f) => f.kind === 'object');
+}
+
+describe('deleteAccount and Following data (PRD FR-22.2)', () => {
+  it('relies on the schema cascade: every Following table cascades from User (INV: every new user-owned table)', () => {
+    for (const model of FOLLOWING_MODELS) {
+      const userRelations = relationFields(model).filter((f) => f.type === 'User');
+      expect(userRelations.length, `${model} has a relation to User`).toBeGreaterThan(0);
+      for (const rel of userRelations) {
+        expect(rel.relationOnDelete, `${model}.${rel.name}`).toBe('Cascade');
+      }
+    }
+  });
+
+  it("a deleted owner's recipe copies survive: origin pointers are SetNull, not Cascade", () => {
+    const byName = new Map(relationFields('Recipe').map((f) => [f.name, f]));
+    expect(byName.get('originRecipe')?.relationOnDelete).toBe('SetNull');
+    expect(byName.get('originCreator')?.relationOnDelete).toBe('SetNull');
+  });
+
+  it('adds no explicit Following deletes: follows, blocks, reports and notifications in both directions all go with the user row', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: 'a@test.dev' } as never);
+    vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+
+    await deleteAccount('u1');
+
+    // Exactly the pre-Following set: nothing for follows/blocks/reports/
+    // notifications/dismissals/profile — the cascade covers them.
+    expect(transactionOps().map((o) => o.op)).toEqual([
+      'shoppingList.deleteMany',
+      'recipe.deleteMany',
+      'ingredientPrice.deleteMany',
+      'verificationToken.deleteMany',
+      'workoutSession.deleteMany',
+      'routine.deleteMany',
+      'session.deleteMany',
+      'user.delete',
+    ]);
+  });
+
+  it("deletes only the leaver's own MANUAL recipes, so a copy someone else made is never matched", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: 'a@test.dev' } as never);
+    vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+
+    await deleteAccount('u1');
+
+    const recipeDelete = transactionOps().find((o) => o.op === 'recipe.deleteMany');
+    // Scoped by creatorId: the other user's copy (creatorId = them) is outside it.
+    expect(recipeDelete?.args.where).toEqual({ creatorId: 'u1', source: 'MANUAL' });
+  });
+});
+
+describe('exportAccountData social section (PRD FR-22.1)', () => {
+  const at = (iso: string): Date => new Date(iso);
+
+  beforeEach(() => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'u1',
+      email: 'me@test.dev',
+      name: 'Me',
+      firstName: 'Me',
+      lastName: null,
+      planTier: 'FREE',
+      createdAt: at('2026-01-01'),
+    } as never);
+    vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.shoppingList.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.recipe.findMany)
+      .mockReset()
+      .mockResolvedValue([] as never);
+    vi.mocked(prisma.user.findMany)
+      .mockReset()
+      .mockResolvedValue([] as never);
+    vi.mocked(prisma.socialProfile.findUnique).mockReset().mockResolvedValue(null);
+    vi.mocked(prisma.follow.findMany)
+      .mockReset()
+      .mockResolvedValue([] as never);
+    vi.mocked(prisma.block.findMany)
+      .mockReset()
+      .mockResolvedValue([] as never);
+    vi.mocked(prisma.notification.findMany)
+      .mockReset()
+      .mockResolvedValue([] as never);
+    vi.mocked(prisma.userReport.findMany)
+      .mockReset()
+      .mockResolvedValue([] as never);
+    vi.mocked(consentEventRepository.findAllByUser).mockResolvedValue([] as never);
+    vi.mocked(emailPreferencesService.get).mockResolvedValue(null as never);
+  });
+
+  function socialOf(data: Record<string, unknown>): Record<string, unknown> {
+    return data['social'] as Record<string, unknown>;
+  }
+
+  it('is an empty, well-formed section for someone who never turned Following on', async () => {
+    const social = socialOf(await exportAccountData('u1'));
+    expect(social).toEqual({
+      settings: null,
+      following: [],
+      followers: [],
+      pendingRequests: { sent: [], received: [] },
+      blocksMade: [],
+      activity: [],
+      reportsFiled: [],
+      recipeCopies: [],
+      consentHistory: [],
+    });
+    // No names to look up → no user query.
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it('exports settings, both follow lists, requests both ways, blocks, activity, reports filed, copy origins and the sharing consent', async () => {
+    vi.mocked(prisma.socialProfile.findUnique).mockResolvedValue({
+      visibility: 'PUBLIC',
+      sharePlan: true,
+      shareRecipes: true,
+      shareWorkouts: false,
+      shareTargets: false,
+      activatedAt: at('2026-02-01'),
+      forcedPrivateAt: null,
+    } as never);
+    vi.mocked(prisma.follow.findMany).mockResolvedValue([
+      // I follow u2
+      {
+        followerId: 'u1',
+        followeeId: 'u2',
+        status: 'ACCEPTED',
+        createdAt: at('2026-03-01'),
+        acceptedAt: at('2026-03-02'),
+      },
+      // u3 follows me
+      {
+        followerId: 'u3',
+        followeeId: 'u1',
+        status: 'ACCEPTED',
+        createdAt: at('2026-03-03'),
+        acceptedAt: null,
+      },
+      // my pending request to u4
+      {
+        followerId: 'u1',
+        followeeId: 'u4',
+        status: 'PENDING',
+        createdAt: at('2026-03-04'),
+        acceptedAt: null,
+      },
+      // u5's pending request to me
+      {
+        followerId: 'u5',
+        followeeId: 'u1',
+        status: 'PENDING',
+        createdAt: at('2026-03-05'),
+        acceptedAt: null,
+      },
+    ] as never);
+    vi.mocked(prisma.block.findMany).mockResolvedValue([
+      { blockerId: 'u1', blockedId: 'u6', createdAt: at('2026-03-06') },
+    ] as never);
+    vi.mocked(prisma.notification.findMany).mockResolvedValue([
+      { kind: 'NEW_FOLLOWER', actorId: 'u3', createdAt: at('2026-03-03'), readAt: null },
+    ] as never);
+    vi.mocked(prisma.userReport.findMany).mockResolvedValue([
+      {
+        reporterId: 'u1',
+        targetUserId: 'u6',
+        recipeId: 'r9',
+        reason: 'SPAM',
+        eligible: true,
+        discountedAt: null,
+        createdAt: at('2026-03-07'),
+      },
+    ] as never);
+    vi.mocked(prisma.recipe.findMany).mockResolvedValue([
+      {
+        id: 'copy1',
+        name: 'Shakshuka',
+        originRecipeId: 'orig1',
+        originCreatorId: 'u2',
+        createdAt: at('2026-03-08'),
+      },
+    ] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { id: 'u2', firstName: 'Bea', lastName: 'Two', name: null },
+      { id: 'u3', firstName: 'Cy', lastName: 'Three', name: null },
+      { id: 'u4', firstName: null, lastName: null, name: 'Di Four' },
+      { id: 'u5', firstName: 'Ed', lastName: 'Five', name: null },
+      { id: 'u6', firstName: 'Flo', lastName: 'Six', name: null },
+    ] as never);
+    vi.mocked(consentEventRepository.findAllByUser).mockResolvedValue([
+      { id: 'e1', kind: 'SOCIAL_SHARING', granted: true },
+      { id: 'e2', kind: 'AI', granted: true },
+    ] as never);
+
+    const social = socialOf(await exportAccountData('u1'));
+
+    expect(social['settings']).toMatchObject({ visibility: 'PUBLIC', shareWorkouts: false });
+    expect(social['following']).toEqual([{ name: 'Bea Two', since: at('2026-03-02') }]);
+    expect(social['followers']).toEqual([{ name: 'Cy Three', since: at('2026-03-03') }]);
+    expect(social['pendingRequests']).toEqual({
+      sent: [{ name: 'Di Four', requestedAt: at('2026-03-04') }],
+      received: [{ name: 'Ed Five', requestedAt: at('2026-03-05') }],
+    });
+    expect(social['blocksMade']).toEqual([{ name: 'Flo Six', blockedAt: at('2026-03-06') }]);
+    expect(social['activity']).toEqual([
+      { kind: 'NEW_FOLLOWER', name: 'Cy Three', createdAt: at('2026-03-03'), readAt: null },
+    ]);
+    expect(social['reportsFiled']).toEqual([
+      { reason: 'SPAM', about: 'Flo Six', recipeId: 'r9', reportedAt: at('2026-03-07') },
+    ]);
+    expect(social['recipeCopies']).toEqual([
+      {
+        recipeId: 'copy1',
+        name: 'Shakshuka',
+        copiedAt: at('2026-03-08'),
+        originRecipeId: 'orig1',
+        originCreator: 'Bea Two',
+      },
+    ]);
+    // Only the SOCIAL_SHARING events (the whole log is under privacy.consentHistory).
+    expect(social['consentHistory']).toEqual([{ id: 'e1', kind: 'SOCIAL_SHARING', granted: true }]);
+  });
+
+  it("never exports other users' emails or ids, or moderation bookkeeping", async () => {
+    vi.mocked(prisma.follow.findMany).mockResolvedValue([
+      {
+        followerId: 'u1',
+        followeeId: 'u2',
+        status: 'ACCEPTED',
+        createdAt: at('2026-03-01'),
+        acceptedAt: null,
+      },
+    ] as never);
+    vi.mocked(prisma.userReport.findMany).mockResolvedValue([
+      {
+        reporterId: 'u1',
+        targetUserId: 'u2',
+        recipeId: null,
+        reason: 'OTHER',
+        eligible: true,
+        discountedAt: at('2026-03-09'),
+        createdAt: at('2026-03-07'),
+      },
+    ] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { id: 'u2', firstName: 'Bea', lastName: 'Two', name: null },
+    ] as never);
+
+    const social = socialOf(await exportAccountData('u1'));
+    const json = JSON.stringify(social);
+
+    expect(json).not.toContain('@');
+    expect(json).not.toContain('"u2"');
+    expect(json).not.toContain('eligible');
+    expect(json).not.toContain('discountedAt');
+    // The name lookup selects name columns only.
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['u2'] } },
+      select: { id: true, firstName: true, lastName: true, name: true },
+    });
+  });
+
+  it('lists only reports YOU filed, and only blocks YOU made, never those about or against you', async () => {
+    await exportAccountData('u1');
+    expect(prisma.userReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { reporterId: 'u1' } }),
+    );
+    expect(prisma.block.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { blockerId: 'u1' } }),
+    );
+    expect(prisma.notification.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'u1' } }),
+    );
+  });
+
+  it('falls back to a generic name for an account with no name at all', async () => {
+    vi.mocked(prisma.follow.findMany).mockResolvedValue([
+      {
+        followerId: 'u2',
+        followeeId: 'u1',
+        status: 'ACCEPTED',
+        createdAt: at('2026-03-01'),
+        acceptedAt: null,
+      },
+    ] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { id: 'u2', firstName: null, lastName: null, name: null },
+    ] as never);
+    const social = socialOf(await exportAccountData('u1'));
+    expect((social['followers'] as { name: string }[])[0]?.name).toBe('Chefer user');
   });
 });

@@ -27,9 +27,22 @@ export interface FilterableRecipeRow {
   description: string;
 }
 
+/** The fields a report validates a recipe against (plan §4.6 step 1). */
+export interface ReportableRecipeRow {
+  id: string;
+  creatorId: string | null;
+  source: string;
+  originRecipeId: string | null;
+  hiddenAt: Date | null;
+}
+
 export interface IModerationRepository {
   log(entry: ModerationLogEntry, db?: SocialDbClient): Promise<ModerationLog>;
   find(id: string): Promise<ModerationLog | null>;
+  /** The UNDO row written for `logId`, if it was already undone. */
+  findUndoOf(logId: string): Promise<ModerationLog | null>;
+  /** A recipe's owner, source and copy/hidden state, for report validation. */
+  findRecipeForReport(recipeId: string): Promise<ReportableRecipeRow | null>;
   /** Rows per action created at or after `since` (every action present, 0 when none). */
   weeklyCounts(since: Date): Promise<ModerationWeeklyCounts>;
   /** Sets `hiddenAt`/`hiddenReason` unless already hidden. Returns whether it hid the recipe. */
@@ -64,6 +77,17 @@ export class ModerationRepository implements IModerationRepository {
 
   async find(id: string): Promise<ModerationLog | null> {
     return prisma.moderationLog.findUnique({ where: { id } });
+  }
+
+  async findUndoOf(logId: string): Promise<ModerationLog | null> {
+    return prisma.moderationLog.findFirst({ where: { action: 'UNDO', undoOfId: logId } });
+  }
+
+  async findRecipeForReport(recipeId: string): Promise<ReportableRecipeRow | null> {
+    return prisma.recipe.findUnique({
+      where: { id: recipeId },
+      select: { id: true, creatorId: true, source: true, originRecipeId: true, hiddenAt: true },
+    });
   }
 
   async weeklyCounts(since: Date): Promise<ModerationWeeklyCounts> {

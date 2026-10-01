@@ -22,6 +22,12 @@ export interface ReportCountsSince {
   eligibleReports: number;
 }
 
+/** What report eligibility is evaluated from (MODERATION, evaluated at report time). */
+export interface ReporterFacts {
+  createdAt: Date;
+  emailVerified: Date | null;
+}
+
 export interface IUserReportRepository {
   create(data: CreateUserReportData, db?: SocialDbClient): Promise<UserReport>;
   /** Distinct reporters of eligible, not-discounted reports on this recipe. */
@@ -37,6 +43,14 @@ export interface IUserReportRepository {
   discountForUser(targetUserId: string, db?: SocialDbClient): Promise<number>;
   /** Weekly metrics line: reports filed since `date`, and how many were eligible. */
   countSince(date: Date): Promise<ReportCountsSince>;
+  /** The reporter's account age and email confirmation (never the email itself). */
+  reporterFacts(reporterId: string): Promise<ReporterFacts | null>;
+  /**
+   * Whether the reporter has a tie with the target outside the header rule
+   * (plan §4.6 step 1): a follow either way (any status) or an Activity item
+   * from them in the reporter's inbox.
+   */
+  hasSocialTie(reporterId: string, targetUserId: string): Promise<boolean>;
 }
 
 export class UserReportRepository implements IUserReportRepository {
@@ -88,6 +102,32 @@ export class UserReportRepository implements IUserReportRepository {
       prisma.userReport.count({ where: { createdAt: { gte: date }, eligible: true } }),
     ]);
     return { reports, eligibleReports };
+  }
+
+  async reporterFacts(reporterId: string): Promise<ReporterFacts | null> {
+    return prisma.user.findUnique({
+      where: { id: reporterId },
+      select: { createdAt: true, emailVerified: true },
+    });
+  }
+
+  async hasSocialTie(reporterId: string, targetUserId: string): Promise<boolean> {
+    const [follow, item] = await Promise.all([
+      prisma.follow.findFirst({
+        where: {
+          OR: [
+            { followerId: reporterId, followeeId: targetUserId },
+            { followerId: targetUserId, followeeId: reporterId },
+          ],
+        },
+        select: { id: true },
+      }),
+      prisma.notification.findFirst({
+        where: { userId: reporterId, actorId: targetUserId },
+        select: { id: true },
+      }),
+    ]);
+    return follow !== null || item !== null;
   }
 }
 
