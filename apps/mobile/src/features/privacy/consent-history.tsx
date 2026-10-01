@@ -59,7 +59,7 @@ function describe(event: ConsentEventRow): string {
     case 'SOCIAL_SHARING':
       // Following (code name `friends`): turned on, made public, shared
       // targets (granted) or turned off (withdrawn) — implementation-plan §7.
-      return `${FRIENDS_COPY.nav.label} and sharing: ${event.granted ? 'on' : 'off'}`;
+      return FRIENDS_COPY.consent.label(event.granted);
     default:
       return event.kind;
   }

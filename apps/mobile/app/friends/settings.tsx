@@ -1,8 +1,6 @@
-import { FriendsStubScreen } from '../../src/features/friends/components/friends-stub-screen';
-import { FRIENDS_SCREEN_TITLES } from '../../src/features/friends/components/screen-titles';
+import { FriendsSettingsScreen } from '../../src/features/friends/settings/settings-screen';
 
-// STUB (F2.0): header + gate only, so `router.push('/friends/settings')` typechecks
-// for the parallel lanes. The owning lane replaces this body (UX §2.2).
+// Sharing & privacy (UX §11.1). Gated on `friends.availability` inside the screen.
 export default function FriendsSettingsRoute() {
-  return <FriendsStubScreen title={FRIENDS_SCREEN_TITLES.settings} testID="friends-settings" />;
+  return <FriendsSettingsScreen />;
 }
