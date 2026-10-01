@@ -115,6 +115,10 @@ export function AddToWeekSheet({
               slotIndex: result.slotIndex,
               addedRecipeId: result.addedRecipeId,
               ...(result.previousRecipeId ? { previousRecipeId: result.previousRecipeId } : {}),
+              // F3.1: Undo restores the replaced slot's `Your pick` state too.
+              ...(result.previousPinned !== undefined
+                ? { previousPinned: result.previousPinned }
+                : {}),
             })
             .then(
               () => {

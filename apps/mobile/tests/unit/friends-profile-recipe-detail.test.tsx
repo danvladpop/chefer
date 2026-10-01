@@ -1,0 +1,201 @@
+import { Platform } from 'react-native';
+import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { resetSnackbarForTests } from '@chefer/ui-mobile';
+import RecipesScreen from '../../app/(food)/recipes';
+import RecipeDetailScreen from '../../app/recipe/[id]';
+import { renderWithTrpc, type Handlers } from './friends-core-harness';
+import { CAROL_ID, testQueryClient } from './friends-profile-fixtures';
+
+// Recipe detail + cookbook additions (UX §9.4, PRD FR-17): every Following
+// addition renders ONLY when the API sent its field, so a plain recipe —
+// and anyone who never touched Following — sees exactly the old screen.
+
+let mockParams: Record<string, string | undefined> = { id: 'rcp-1' };
+jest.mock('expo-router', () => {
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    router: { push: jest.fn(), back: jest.fn() },
+    useLocalSearchParams: () => mockParams,
+    Link: ({ children }: { children: unknown }) => <Text>{children as string}</Text>,
+  };
+});
+jest.mock('../../src/lib/analytics', () => ({ track: jest.fn() }));
+jest.mock('../../src/features/gym/components/mode-switch', () => ({ ModeSwitch: () => null }));
+const { router } = jest.requireMock<{ router: { push: jest.Mock; back: jest.Mock } }>(
+  'expo-router',
+);
+
+function recipe(more: Record<string, unknown> = {}) {
+  return {
+    id: 'rcp-1',
+    name: 'Lentil Tomato Soup',
+    description: 'A thick red lentil soup.',
+    imageUrl: null,
+    cuisineType: 'Mediterranean',
+    dietaryTags: [],
+    allergenWarnings: [],
+    prepTimeMins: 10,
+    cookTimeMins: 25,
+    servings: 3,
+    nutritionInfo: { calories: 340, protein: 20, carbs: 56, fat: 4 },
+    ingredients: [{ name: 'Red lentils', quantity: 150, unit: 'g' }],
+    instructions: ['Simmer.'],
+    ...more,
+  };
+}
+
+const CREATOR = { id: CAROL_ID, displayName: 'Carol Reyes', firstName: 'Carol' };
+const SOURCE = 'https://www.seed-recipes.example.com/lentil-tomato-soup';
+
+function detailHandlers(r: Record<string, unknown>, canEdit = false): Handlers {
+  return {
+    'mealPlan.getRecipe': () => r,
+    'recipe.isSaved': () => ({ isSaved: false, useInNextPlan: false, canEdit }),
+  };
+}
+
+async function renderDetail(h: Handlers) {
+  return renderWithTrpc(<RecipeDetailScreen />, h, testQueryClient());
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  resetSnackbarForTests();
+  mockParams = { id: 'rcp-1' };
+  jest.replaceProperty(Platform, 'OS', 'android');
+});
+afterEach(() => jest.restoreAllMocks());
+
+describe('recipe detail', () => {
+  it('a plain recipe shows none of the Following additions', async () => {
+    await renderDetail(detailHandlers(recipe({ sourceUrl: SOURCE })));
+    expect(await screen.findByTestId('recipe-name')).toBeTruthy();
+    for (const id of [
+      'recipe-by',
+      'recipe-from',
+      'recipe-source',
+      'recipe-hidden-banner',
+      'recipe-add-to-week',
+    ]) {
+      expect(screen.queryByTestId(id)).toBeNull();
+    }
+    // The overflow still opens the safety report directly.
+    expect(screen.getByTestId('recipe-report-overflow').props.accessibilityLabel).toBe(
+      'Report a safety problem',
+    );
+  });
+
+  it('another person’s recipe: By {name} → profile, Source, Add to my week first', async () => {
+    await renderDetail(detailHandlers(recipe({ creator: CREATOR, sourceUrl: SOURCE })));
+    const by = await screen.findByTestId('recipe-by');
+    expect(by.props.accessibilityLabel).toBe('By Carol Reyes. Open profile');
+    expect(screen.getByText('By Carol Reyes')).toBeTruthy();
+    expect(screen.getByText('Source: seed-recipes.example.com')).toBeTruthy();
+    expect(screen.getByText('Add to my week')).toBeTruthy();
+    expect(screen.getByTestId('recipe-cook')).toBeTruthy();
+    expect(screen.getByTestId('recipe-save')).toBeTruthy();
+    expect(screen.queryByTestId('recipe-edit')).toBeNull();
+    await userEvent.setup().press(by);
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/friends/[userId]',
+      params: { userId: CAROL_ID },
+    });
+  });
+
+  it('Add to my week opens the sheet', async () => {
+    await renderDetail({
+      ...detailHandlers(recipe({ creator: CREATOR })),
+      'mealPlan.getForWeek': () => null,
+      'mealPlan.getShape': () => ({ slots: ['dinner'] }),
+    });
+    await userEvent.setup().press(await screen.findByTestId('recipe-add-to-week'));
+    expect(await screen.findByText('Lentil Tomato Soup · 340 kcal')).toBeTruthy();
+  });
+
+  it('opened from someone’s week (?owner=) offers Add to my week for an open recipe', async () => {
+    mockParams = { id: 'rcp-1', owner: CAROL_ID };
+    await renderDetail(detailHandlers(recipe()));
+    expect(await screen.findByTestId('recipe-add-to-week')).toBeTruthy();
+    expect(screen.queryByTestId('recipe-by')).toBeNull();
+  });
+
+  it('the overflow offers Report recipe, which opens the one-tap report for that recipe', async () => {
+    await renderDetail(detailHandlers(recipe({ creator: CREATOR })));
+    const user = userEvent.setup();
+    await user.press(await screen.findByTestId('recipe-report-overflow'));
+    expect(screen.getByText('Report a safety problem')).toBeTruthy();
+    await user.press(screen.getByText('Report recipe'));
+    expect(await screen.findByText('Report this recipe')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Tap a reason. We’ll block Carol straight away, so you won’t see them or their recipes again.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('my copy reads From {first} (or From another Chefer cook) with its source', async () => {
+    await renderDetail(
+      detailHandlers(recipe({ origin: { creatorFirstName: 'Carol' }, sourceUrl: SOURCE }), true),
+    );
+    expect(await screen.findByText('From Carol')).toBeTruthy();
+    expect(screen.getByText('Source: seed-recipes.example.com')).toBeTruthy();
+    expect(screen.queryByTestId('recipe-add-to-week')).toBeNull();
+  });
+
+  it('a copy whose original is gone reads From another Chefer cook', async () => {
+    await renderDetail(detailHandlers(recipe({ origin: { creatorFirstName: null } }), true));
+    expect(await screen.findByText('From another Chefer cook')).toBeTruthy();
+  });
+
+  it('my auto-hidden recipe shows the owner banner with the reason', async () => {
+    await renderDetail(detailHandlers(recipe({ hidden: { reason: 'REPORTS' } }), true));
+    expect(await screen.findByText('Hidden from people who follow you')).toBeTruthy();
+    expect(
+      screen.getByText('Several people reported this recipe, so it’s no longer shown to others.'),
+    ).toBeTruthy();
+  });
+
+  it('a word-filter hide explains how to share it again', async () => {
+    await renderDetail(detailHandlers(recipe({ hidden: { reason: 'FILTER' } }), true));
+    expect(
+      await screen.findByText(
+        'Some words in its name or description aren’t allowed on shared recipes. Edit it to share it again.',
+      ),
+    ).toBeTruthy();
+  });
+});
+
+describe('cookbook', () => {
+  const row = (id: string, more: Record<string, unknown> = {}) => ({
+    id,
+    name: `Recipe ${id}`,
+    imageUrl: null,
+    cuisineType: 'Italian',
+    prepTimeMins: 5,
+    cookTimeMins: 10,
+    nutritionInfo: { calories: 300, protein: 10, carbs: 30, fat: 10 },
+    isFavourite: false,
+    ...more,
+  });
+
+  it('shows From {first} on others’ hearted recipes and on my copies, and nothing on the rest', async () => {
+    await renderWithTrpc(
+      <RecipesScreen />,
+      {
+        'recipe.list': () => [
+          row('a', { creator: { id: CAROL_ID, displayName: 'Carol Reyes', firstName: 'Carol' } }),
+          row('b', { origin: { creatorFirstName: 'Dave' } }),
+          row('c', { origin: { creatorFirstName: null } }),
+          row('d'),
+        ],
+      },
+      testQueryClient(),
+    );
+    await waitFor(() => expect(screen.getByText('Recipe a')).toBeTruthy());
+    expect(screen.getByTestId('recipe-card-a-from')).toBeTruthy();
+    expect(screen.getByText('From Carol')).toBeTruthy();
+    expect(screen.getByText('From Dave')).toBeTruthy();
+    expect(screen.getByText('From another Chefer cook')).toBeTruthy();
+    expect(screen.queryByTestId('recipe-card-d-from')).toBeNull();
+  });
+});
