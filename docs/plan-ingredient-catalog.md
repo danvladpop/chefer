@@ -608,6 +608,17 @@ Update `infrastructure.md` §8 with every new or changed procedure.
 - **Mobile.** No ingredients page exists today, so add a **`mobile_parity_backlog.md` entry** for a "My ingredients" screen. The picker and the private-ingredient sheet inside the recipe form are **in scope** because the recipe form already exists on mobile.
 - Mobile must handle `PARTIAL` and `USER_ENTERED` recipes.
 
+### 10.1 As built in P9, web half (2026-10-01)
+
+- **One line editor.** `RecipeLinesEditor` (`apps/web/src/features/recipes/components/`) serves the new and edit forms, the video draft and the Cheferize review. The picker is a `Sheet` (`IngredientPickerSheet`) with a search box and category chips; a chip with no query browses that category through `ingredients.catalogList`. The line's units come from `ingredientUnitOptions` (`@chefer/utils` `nutrition/picker.ts`).
+- **Line names.** A line picked through search saves the catalog display name. A legacy or imported line keeps the text it was written with when the user picks one of the resolver's suggestions for it, so `rawName` is never lost.
+- **Edit.** Stored lines come back linked through `getMyRecipe.lines` plus `getMany`. A line without an `ingredientId` goes through `ingredients.resolve`: an EXACT/ALIAS match is linked, as the server would link it on save; anything else shows "pick a match". A recipe with no stored lines yet (pre-§7) falls back to its Json ingredients.
+- **No typed numbers on web.** The new and edit forms send no `nutritionInfo`. Saving a USER_ENTERED recipe from the web editor therefore replaces the typed numbers with computed ones, and the form says so before the save. ⚠ Owner review: an alternative is to keep the typed numbers while lines stay unresolved.
+- **Import review.** The save is blocked client-side while lines need data unless the user ticks "Save with incomplete nutrition", and it sends `acceptPartial` explicitly (`false` by default).
+- **Recipe detail.** A PARTIAL recipe with no stored lines (not migrated yet) says its ingredients aren't linked yet instead of guessing a count. A line on another user's private ingredient shows "Private ingredient", not "needs data".
+- **Ingredients page.** Backed by the new additive `ingredients.catalogList`. Admin price/image edits go through the existing `ingredients.update` by the linked price row's name, so a global row without a linked price row can't be price-edited yet.
+- **Overlay stack.** `@chefer/ui` `useDismissable` now lets only the top-most overlay handle Escape and Tab, because the picker opens inside the import Sheet.
+
 ---
 
 ## 11. Phases and agent assignment
