@@ -166,9 +166,10 @@ export default async function PrivacyPage() {
 
         <Section title="AI processing">
           <p>
-            Plan generation, meal swaps, meal-photo scanning, recipe import, chat and AI
-            shopping-list tidy-up send the relevant data (your preferences and allergies, goals and
-            body metrics, the photo, recipe or message you submitted) to an AI provider — currently{' '}
+            Plan generation, meal swaps, meal-photo scanning, recipe import, chat, AI shopping-list
+            tidy-up, the weekly review and filling in an ingredient&apos;s nutrition send the
+            relevant data (your preferences and allergies, goals, body metrics and weight trend, the
+            photo, recipe, message or ingredient name you submitted) to an AI provider — currently{' '}
             {primary.name}
             {backups.length > 0 && (
               <>
