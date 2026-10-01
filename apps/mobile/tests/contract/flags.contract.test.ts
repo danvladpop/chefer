@@ -15,8 +15,12 @@ describe('profile.flags (T-00.8)', () => {
   it('every flag is off by default', async () => {
     const { client } = makeContractClient();
     const flags = await client.profile.flags.query();
-    for (const value of Object.values(flags)) {
-      expect(value).not.toBe(true);
+    // `friends` (Following) is the one flag CI turns on, so friends.contract
+    // can run (.github/workflows/ci.yml mobile-contract); every other flag
+    // must still default off.
+    for (const [name, value] of Object.entries(flags)) {
+      if (name === 'friends') continue;
+      expect(value, `flag ${name}`).not.toBe(true);
     }
   });
 
