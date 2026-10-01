@@ -14301,7 +14301,14 @@
     "sodiumMgPer100g": 347,
     "nutritionSource": "CIQUAL",
     "sourceRef": "ciqual:25590",
-    "portions": []
+    "sourceNote": "portions from fdc:172455; portion pinned: fdc-portion:90653 = 1 piece",
+    "portions": [
+      {
+        "unit": "piece",
+        "grams": 17,
+        "source": "fdc-portion:90653"
+      }
+    ]
   },
   {
     "slug": "farro-dry",

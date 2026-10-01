@@ -80,6 +80,8 @@ export interface IIngredientRepository {
   ): Promise<{ alias: string; ingredient: CatalogIngredientRow }[]>;
   /** The owner's private row with this slug, if any (any status). */
   findPrivateBySlug(ownerId: string, slug: string): Promise<CatalogIngredientRow | null>;
+  /** slug → id of the GLOBAL rows with these slugs (any status). */
+  findGlobalIdsBySlugs(slugs: string[]): Promise<Map<string, string>>;
   /** Creates a private ingredient with its aliases and portions (nutritionSource USER). */
   createPrivate(
     ownerId: string,
@@ -229,6 +231,15 @@ export class IngredientRepository implements IIngredientRepository {
       const k = `${h.ingredient.id}\u0000${h.alias}`;
       return seen.has(k) ? false : (seen.add(k), true);
     });
+  }
+
+  async findGlobalIdsBySlugs(slugs: string[]): Promise<Map<string, string>> {
+    if (slugs.length === 0) return new Map();
+    const rows = await prisma.ingredient.findMany({
+      where: { ownerId: null, slug: { in: [...new Set(slugs)] } },
+      select: { id: true, slug: true },
+    });
+    return new Map(rows.map((r) => [r.slug, r.id]));
   }
 
   async findPrivateBySlug(ownerId: string, slug: string): Promise<CatalogIngredientRow | null> {

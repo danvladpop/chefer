@@ -33,6 +33,8 @@ export interface RecipeLineWrite {
   optional?: boolean;
   /** Name written to the Json mirror; defaults to `rawName`. */
   mirrorName?: string;
+  /** Unit written to the Json mirror (what the author typed); defaults to `unit`. */
+  mirrorUnit?: string;
 }
 
 export interface RecipeNutritionWrite {
@@ -82,6 +84,15 @@ export interface IRecipeLineRepository {
   findByRecipeIds(recipeIds: string[]): Promise<StoredRecipeLineRow[]>;
   /** Every recipe with at least one line pointing at `ingredientId`, with all its lines. */
   findRecipesUsingIngredient(ingredientId: string): Promise<RecipeForRecompute[]>;
+  /** Stored nutrition state per recipe: status, per-serving Json and line count. */
+  findNutritionStates(recipeIds: string[]): Promise<
+    {
+      id: string;
+      nutritionStatus: NutritionStatus;
+      nutritionInfo: Prisma.JsonValue;
+      lineCount: number;
+    }[]
+  >;
 }
 
 /** The legacy `{name, quantity, unit}[]` mirror of `lines`, in line order. */
@@ -91,7 +102,7 @@ export function toIngredientsMirror(
   return lines.map((l) => ({
     name: l.mirrorName ?? l.rawName,
     quantity: l.quantity,
-    unit: l.unit,
+    unit: l.mirrorUnit ?? l.unit,
   }));
 }
 
@@ -156,6 +167,20 @@ export class RecipeLineRepository implements IRecipeLineRepository {
       where: { recipeId: { in: recipeIds } },
       orderBy: [{ recipeId: 'asc' }, { position: 'asc' }],
     });
+  }
+
+  async findNutritionStates(recipeIds: string[]) {
+    if (recipeIds.length === 0) return [];
+    const rows = await prisma.recipe.findMany({
+      where: { id: { in: recipeIds } },
+      select: {
+        id: true,
+        nutritionStatus: true,
+        nutritionInfo: true,
+        _count: { select: { lines: true } },
+      },
+    });
+    return rows.map(({ _count, ...r }) => ({ ...r, lineCount: _count.lines }));
   }
 
   async findRecipesUsingIngredient(ingredientId: string): Promise<RecipeForRecompute[]> {

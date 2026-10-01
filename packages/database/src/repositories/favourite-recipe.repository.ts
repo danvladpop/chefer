@@ -1,6 +1,11 @@
 import type { FavouriteRecipe, Prisma, Recipe } from '@prisma/client';
 import { RecipeSource } from '@prisma/client';
 import { prisma } from '../client';
+import {
+  recipeLineRepository,
+  type RecipeLineWrite,
+  type RecipeNutritionWrite,
+} from './recipe-line.repository';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +31,16 @@ export interface CreateManualRecipeData {
    */
   originRecipeId?: string | null;
   originCreatorId?: string | null;
+}
+
+/**
+ * Catalog lines for a manual save (plan-ingredient-catalog §3, §6.2): written
+ * with the recipe in ONE transaction; they set `ingredients` (the Json mirror)
+ * and the nutrition columns, overriding those fields of the data.
+ */
+export interface ManualRecipeLines {
+  lines: RecipeLineWrite[];
+  nutrition: RecipeNutritionWrite;
 }
 
 /** The name parts a recipe's creator / origin creator is shown with (Following). */
@@ -82,7 +97,11 @@ export interface IFavouriteRecipeRepository {
       visibleCreatorIds?: string[] | undefined;
     },
   ): Promise<RecipeWithPeople[]>;
-  createManualRecipe(userId: string, data: CreateManualRecipeData): Promise<Recipe>;
+  createManualRecipe(
+    userId: string,
+    data: CreateManualRecipeData,
+    lines?: ManualRecipeLines,
+  ): Promise<Recipe>;
   /**
    * Following (PRD §13, plan §4.4): the viewer's private copy of `source`
    * (another user's MANUAL recipe) — the existing one, or a new one carrying
@@ -97,6 +116,7 @@ export interface IFavouriteRecipeRepository {
     userId: string,
     recipeId: string,
     data: Partial<CreateManualRecipeData>,
+    lines?: ManualRecipeLines,
   ): Promise<Recipe>;
   findManualRecipeById(userId: string, recipeId: string): Promise<Recipe | null>;
 }
@@ -113,6 +133,31 @@ const RECIPE_PEOPLE = {
   creator: { select: PERSON_NAME },
   originCreator: { select: PERSON_NAME },
 } as const;
+
+/** The row a manual create writes (MANUAL, owned by `userId`). */
+function manualCreateData(
+  userId: string,
+  data: CreateManualRecipeData,
+): Prisma.RecipeUncheckedCreateInput {
+  return {
+    name: data.name,
+    description: data.description,
+    ingredients: data.ingredients as Prisma.InputJsonValue,
+    instructions: data.instructions,
+    nutritionInfo: data.nutritionInfo as Prisma.InputJsonValue,
+    cuisineType: data.cuisineType,
+    dietaryTags: data.dietaryTags,
+    prepTimeMins: data.prepTimeMins,
+    cookTimeMins: data.cookTimeMins,
+    servings: data.servings,
+    imageUrl: data.imageUrl ?? null,
+    sourceUrl: data.sourceUrl ?? null,
+    ...(data.originRecipeId && { originRecipeId: data.originRecipeId }),
+    ...(data.originCreatorId && { originCreatorId: data.originCreatorId }),
+    source: RecipeSource.MANUAL,
+    creatorId: userId,
+  };
+}
 
 export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
   async findByUserId(userId: string, limit = 4): Promise<FavouriteRecipeWithRecipe[]> {
@@ -316,27 +361,19 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
   /**
    * Creates a new MANUAL recipe owned by the given user.
    */
-  async createManualRecipe(userId: string, data: CreateManualRecipeData): Promise<Recipe> {
-    return prisma.recipe.create({
-      data: {
-        name: data.name,
-        description: data.description,
-        ingredients: data.ingredients as object,
-        instructions: data.instructions,
-        nutritionInfo: data.nutritionInfo as object,
-        cuisineType: data.cuisineType,
-        dietaryTags: data.dietaryTags,
-        prepTimeMins: data.prepTimeMins,
-        cookTimeMins: data.cookTimeMins,
-        servings: data.servings,
-        imageUrl: data.imageUrl ?? null,
-        sourceUrl: data.sourceUrl ?? null,
-        ...(data.originRecipeId && { originRecipeId: data.originRecipeId }),
-        ...(data.originCreatorId && { originCreatorId: data.originCreatorId }),
-        source: RecipeSource.MANUAL,
-        creatorId: userId,
-      },
-    });
+  async createManualRecipe(
+    userId: string,
+    data: CreateManualRecipeData,
+    lines?: ManualRecipeLines,
+  ): Promise<Recipe> {
+    if (lines) {
+      return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const created = await tx.recipe.create({ data: manualCreateData(userId, data) });
+        await recipeLineRepository.writeLines(created.id, lines.lines, lines.nutrition, tx);
+        return tx.recipe.findUniqueOrThrow({ where: { id: created.id } });
+      });
+    }
+    return prisma.recipe.create({ data: manualCreateData(userId, data) });
   }
 
   async findOrCreateCopy(viewerId: string, source: Recipe): Promise<RecipeCopyResult> {
@@ -414,6 +451,7 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
     userId: string,
     recipeId: string,
     data: Partial<CreateManualRecipeData>,
+    lines?: ManualRecipeLines,
   ): Promise<Recipe> {
     // Verify ownership before updating
     const existing = await prisma.recipe.findFirst({
@@ -423,21 +461,29 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
       throw new Error('Recipe not found or not owned by user.');
     }
 
-    return prisma.recipe.update({
-      where: { id: recipeId },
-      data: {
-        ...(data.name !== undefined && { name: data.name }),
-        ...(data.description !== undefined && { description: data.description }),
-        ...(data.ingredients !== undefined && { ingredients: data.ingredients as object }),
-        ...(data.instructions !== undefined && { instructions: data.instructions }),
-        ...(data.nutritionInfo !== undefined && { nutritionInfo: data.nutritionInfo as object }),
-        ...(data.cuisineType !== undefined && { cuisineType: data.cuisineType }),
-        ...(data.dietaryTags !== undefined && { dietaryTags: data.dietaryTags }),
-        ...(data.prepTimeMins !== undefined && { prepTimeMins: data.prepTimeMins }),
-        ...(data.cookTimeMins !== undefined && { cookTimeMins: data.cookTimeMins }),
-        ...(data.servings !== undefined && { servings: data.servings }),
-        ...('imageUrl' in data && { imageUrl: data.imageUrl ?? null }),
-      },
+    const update = (db: Prisma.TransactionClient | typeof prisma) =>
+      db.recipe.update({
+        where: { id: recipeId },
+        data: {
+          ...(data.name !== undefined && { name: data.name }),
+          ...(data.description !== undefined && { description: data.description }),
+          ...(data.ingredients !== undefined && { ingredients: data.ingredients as object }),
+          ...(data.instructions !== undefined && { instructions: data.instructions }),
+          ...(data.nutritionInfo !== undefined && { nutritionInfo: data.nutritionInfo as object }),
+          ...(data.cuisineType !== undefined && { cuisineType: data.cuisineType }),
+          ...(data.dietaryTags !== undefined && { dietaryTags: data.dietaryTags }),
+          ...(data.prepTimeMins !== undefined && { prepTimeMins: data.prepTimeMins }),
+          ...(data.cookTimeMins !== undefined && { cookTimeMins: data.cookTimeMins }),
+          ...(data.servings !== undefined && { servings: data.servings }),
+          ...('imageUrl' in data && { imageUrl: data.imageUrl ?? null }),
+        },
+      });
+    if (!lines) return update(prisma);
+    // The lines then rewrite `ingredients` and the nutrition columns.
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await update(tx);
+      await recipeLineRepository.writeLines(recipeId, lines.lines, lines.nutrition, tx);
+      return tx.recipe.findUniqueOrThrow({ where: { id: recipeId } });
     });
   }
 }

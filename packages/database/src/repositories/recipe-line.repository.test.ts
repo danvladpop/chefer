@@ -74,6 +74,21 @@ describe('recipe line mirror + rows', () => {
     ]);
   });
 
+  it('mirrors the unit the author typed when given (mirrorUnit)', () => {
+    expect(
+      toIngredientsMirror([
+        {
+          ingredientId: 'g',
+          rawName: 'Garlic',
+          quantity: 3,
+          unit: 'clove',
+          grams: 9,
+          mirrorUnit: 'cloves, minced',
+        },
+      ]),
+    ).toEqual([{ name: 'Garlic', quantity: 3, unit: 'cloves, minced' }]);
+  });
+
   it('numbers positions by index and defaults note/optional', () => {
     const rows = toLineRows('r1', LINES);
     expect(rows.map((r) => r.position)).toEqual([0, 1, 2, 3]);

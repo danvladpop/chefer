@@ -36,6 +36,7 @@ export {
   type IFavouriteRecipeRepository,
   type FavouriteRecipeWithRecipe,
   type CreateManualRecipeData,
+  type ManualRecipeLines,
   MealRatingRepository,
   mealRatingRepository,
   type IMealRatingRepository,
@@ -226,6 +227,8 @@ export {
   type ValidationSeverity,
   type ValidateOptions,
   // Catalog sync (§4.4 step 7): catalog.json → global Ingredient rows
+  readCatalogFile,
+  CATALOG_FILE_PATH,
   applyCatalogSync,
   planCatalogSync,
   loadGlobalIngredients,

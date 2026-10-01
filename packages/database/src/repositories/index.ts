@@ -50,6 +50,7 @@ export {
   type IFavouriteRecipeRepository,
   type FavouriteRecipeWithRecipe,
   type CreateManualRecipeData,
+  type ManualRecipeLines,
 } from './favourite-recipe.repository';
 
 export {

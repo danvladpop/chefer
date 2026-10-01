@@ -5,21 +5,13 @@
  * Exits non-zero on a validator error or a failed write, which fails the deploy
  * the same way a failed `db push` does.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { prisma } from '../client';
+import { readCatalogFile } from './catalog-file';
 import { applyCatalogSync, CatalogValidationError } from './sync';
-import type { CatalogEntry } from './validate';
-
-const CATALOG_PATH = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../data/ingredients/catalog.json',
-);
 
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
-  const entries = JSON.parse(readFileSync(CATALOG_PATH, 'utf8')) as CatalogEntry[];
+  const entries = readCatalogFile();
   const started = Date.now();
   const r = await applyCatalogSync(prisma, entries, { dryRun });
   console.log(
