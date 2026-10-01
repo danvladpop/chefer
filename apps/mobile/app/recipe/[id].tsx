@@ -24,6 +24,7 @@ import {
   scaleNutrition,
   slotPortion,
 } from '@chefer/utils';
+import { AiGeneratedChip } from '../../src/components/ai-generated-chip';
 import { AddToWeekSheet } from '../../src/features/friends/add-to-week/add-to-week-sheet';
 import { AppealLink } from '../../src/features/friends/components/appeal-link';
 import { SourceLink } from '../../src/features/friends/components/source-link';
@@ -216,6 +217,8 @@ export default function RecipeDetailScreen() {
             <Text testID="recipe-name" variant="title">
               {recipe.name}
             </Text>
+            {/* R-14 (Art. 50): AI-generated recipes carry the same label as plan cards. */}
+            <AiGeneratedChip recipe={recipe} />
             {creator ? (
               <PressableScale
                 testID="recipe-by"
