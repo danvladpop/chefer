@@ -9,17 +9,59 @@ Screenshots referenced below are in [`app-review-simulation-2026-10-01/`](./app-
 
 ---
 
+## 0. Fix status (2 Oct 2026)
+
+Every finding was worked on in PR `fix/app-review-2026-10` (plus R-07 in a separate native PR,
+`fix/ios-unused-permission-strings`). "Device" = re-tested on a Release simulator build of the fix
+branch (iPhone 17 Pro Max, iOS 26.5, en_US) against a local API with mock AI.
+
+| ID    | Status                                                                                                                                                                                                   | Verified                                                              |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| R-01  | Fixed: both WebViews only load their own content; every other link opens in Safari (`src/lib/webview-guard.ts`)                                                                                          | Device: YouTube logo → Safari, inline play still works                |
+| R-02  | Fixed: age ≥ 16 on API, mobile and web; no calorie deficit under 18; floors 1,500 (male) / 1,200                                                                                                         | Device: age 13 refused, age 17 → maintenance + note, male floor 1,500 |
+| R-03  | Fixed: typing DELETE closes the keyboard, so one tap deletes; footer taps also persist through the keyboard                                                                                              | Device: one tap deleted the account (0 rows)                          |
+| R-04  | Fixed: "INCLUDED — Premium is included at no cost"; no "for now", price or card wording in app or on web                                                                                                 | Device: Premium sheet                                                 |
+| R-05  | Notes sentence added to `review-notes.md`                                                                                                                                                                | Owner pastes it in App Store Connect                                  |
+| R-06  | Retaken: 7 new shots in `screenshots/iphone-6.9/`                                                                                                                                                        | Owner uploads them                                                    |
+| R-07  | Fixed in the separate native PR (Face ID + microphone strings removed)                                                                                                                                   | `expo config --type introspect`                                       |
+| R-08  | Fixed: the Usage analytics card is hidden while no PostHog key is configured                                                                                                                             | Device                                                                |
+| R-09  | Fixed: network failures read "Can't reach Chefer right now. Check your connection and try again." (mobile + web)                                                                                         | Device: sign-in with API down                                         |
+| R-10  | Fixed: server-side AI consent (`AI_CONSENT_ENFORCE`, default on); clients reopen the consent sheet; ingredient fill-in asks consent; disclosure defaults to Groq/Cloudflare; copy lists the coach review | API tests, contract suite                                             |
+| R-11  | Fixed: snackbar sits above the tab bar; tab taps work while it shows                                                                                                                                     | Device                                                                |
+| R-12  | Fixed: privacy policy and Terms say Smooth Path Digital S.R.L publishes the iOS app on the owner's behalf (legal versions unchanged)                                                                     | Web tests; live after deploy                                          |
+| R-13  | Docs: age rating override 16+                                                                                                                                                                            | Owner sets it in App Store Connect                                    |
+| R-14  | Fixed: chat prompt refuses very-low-calorie / disordered-eating advice; AI label on AI recipes and AI-written weekly reviews (`ChefReview.aiGenerated`, additive)                                        | Unit tests; real-model check still owner's                            |
+| R-15  | Fixed: More shows "Version 1.0.1" (long-press reveals the build/update id); no "USER" badge                                                                                                              | Device                                                                |
+| R-16  | Fixed: in-workout "Watch technique" opens the in-app video sheet                                                                                                                                         | Device                                                                |
+| R-17  | Fixed: the password field is emptied before the sheet closes, so iOS doesn't offer "Save Password?"                                                                                                      | Device                                                                |
+| R-18  | Fixed: Today refreshes when onboarding's first plan lands                                                                                                                                                | Device                                                                |
+| R-18b | Fixed: every new account gets onboarding (register no longer races the navigator)                                                                                                                        | Device: fresh install → wizard                                        |
+| R-19  | Fixed: next session = next planned training day                                                                                                                                                          | Device: Friday done → "Monday"                                        |
+| R-20  | Fixed: buttons grow with Larger Text; avatar initial capped instead of disappearing                                                                                                                      | Device at Accessibility XL                                            |
+| R-21  | Fixed: week strip shows dates + meal dots; "Back" chip; "Getting started" label; Done key on weight fields; cucumber/radish thumbnail SQL prepared                                                       | Device (local DB) — prod SQL is the owner's                           |
+| R-22  | Fixed: support/privacy/terms say "the Chefer app"                                                                                                                                                        | Web tests                                                             |
+| R-23  | Docs: expect the harmless ITMS-90078 email                                                                                                                                                               | —                                                                     |
+| R-24  | Fixed: "Forgot your password?" in the delete sheet (mobile + web)                                                                                                                                        | Device                                                                |
+
+Found and fixed during the re-test: the onboarding progress bar announced 117% to VoiceOver on the last
+step (`min: 1` in its accessibility value), and the header avatar initial sometimes rendered as a tiny
+comma (`adjustsFontSizeToFit`).
+
+Found and **not** fixed (low, for later): the "In my kitchen" list shows grams ("310 g") for a US
+(imperial) account while the shopping list shows ounces; curated recipe steps say "180°C" to US users; the
+Household "Say you add Sam — a kid…" example can reuse the user's own first name.
+
 ## 1. Verdict
 
 **Would it pass today?** Probably yes on a lenient reviewer, but four items are the kind that produce a
 rejection or a "please clarify" message, and two of them are cheap to remove before 1.0.1 is submitted:
 
-| # | What a reviewer would hit | Likely outcome |
-|---|---|---|
+| #    | What a reviewer would hit                                                                                                                     | Likely outcome                                                                               |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | R-01 | Exercise video sheet turns into the **full YouTube website with search**, inside the app; the legal web view can browse the whole website too | Age-rating mismatch ("Unrestricted Web Access: No" is false) → rejection or forced re-rating |
-| R-02 | A **13-year-old** can enter their age and get a **1,200 kcal/day weight-loss target** | Guideline 1.4.1 (physical harm) rejection, common for diet apps |
-| R-03 | On **Delete account**, the first tap on "Delete my account" does nothing (it only closes the keyboard) | Reviewer may report deletion as broken → 5.1.1(v) rejection |
-| R-04 | "Premium", locks, upsells and **"FREE FOR NOW … we won't ask for a card. Before it has a price…"** with no In-App Purchase | 3.1.1 / 2.1 question ("how will users pay?", "is this a placeholder?") |
+| R-02 | A **13-year-old** can enter their age and get a **1,200 kcal/day weight-loss target**                                                         | Guideline 1.4.1 (physical harm) rejection, common for diet apps                              |
+| R-03 | On **Delete account**, the first tap on "Delete my account" does nothing (it only closes the keyboard)                                        | Reviewer may report deletion as broken → 5.1.1(v) rejection                                  |
+| R-04 | "Premium", locks, upsells and **"FREE FOR NOW … we won't ask for a card. Before it has a price…"** with no In-App Purchase                    | 3.1.1 / 2.1 question ("how will users pay?", "is this a placeholder?")                       |
 
 Everything else is a smaller polish or process item. The core flows (sign-up, onboarding, both consent
 sheets, meal plan, recipe, cook mode, shopping list, tracker, gym workout, export, account deletion) all
@@ -29,15 +71,15 @@ work, and they behave well with no network.
 
 ## 2. What was tested, and how
 
-| | |
-|---|---|
-| Code | `master` at `2e7a8663` (version 1.0.1), in a clean worktree |
-| Build | Release configuration, simulator, **ad-hoc signed** (the same JS bundle and native code as the store build; dev variant `dev.chefer.app.dev` so it could point at a local API; the dev launcher and dev menu are compiled out of Release) |
-| Devices | iPhone 17 Pro Max, iOS 26.5 (main pass); iPad Air 11" (M4), iOS 26.5 (compatibility mode, launch only) |
-| Backend | Local API with **mock AI** on a copy of the dev database (no real AI calls, no production writes) |
-| Accounts | Two fresh throwaway accounts registered through the app, used, then **deleted through the app**; deletion confirmed in the database (0 rows left) |
-| Production | Read-only checks of the public URLs a reviewer opens: `/`, `/privacy`, `/terms`, `/support`, `/api/health` all return 200 |
-| Static audit | Permissions, Info.plist, privacy manifests, payments, UGC, AI consent, health, links, notifications, App Privacy answers vs code |
+|              |                                                                                                                                                                                                                                           |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Code         | `master` at `2e7a8663` (version 1.0.1), in a clean worktree                                                                                                                                                                               |
+| Build        | Release configuration, simulator, **ad-hoc signed** (the same JS bundle and native code as the store build; dev variant `dev.chefer.app.dev` so it could point at a local API; the dev launcher and dev menu are compiled out of Release) |
+| Devices      | iPhone 17 Pro Max, iOS 26.5 (main pass); iPad Air 11" (M4), iOS 26.5 (compatibility mode, launch only)                                                                                                                                    |
+| Backend      | Local API with **mock AI** on a copy of the dev database (no real AI calls, no production writes)                                                                                                                                         |
+| Accounts     | Two fresh throwaway accounts registered through the app, used, then **deleted through the app**; deletion confirmed in the database (0 rows left)                                                                                         |
+| Production   | Read-only checks of the public URLs a reviewer opens: `/`, `/privacy`, `/terms`, `/support`, `/api/health` all return 200                                                                                                                 |
+| Static audit | Permissions, Info.plist, privacy manifests, payments, UGC, AI consent, health, links, notifications, App Privacy answers vs code                                                                                                          |
 
 **Not covered** (needs the owner, see §6): the real `com.popdan.chefer` build against production, real AI
 output, interaction on iPad (the automation couldn't tap inside the compatibility window), a real camera,
@@ -53,32 +95,32 @@ Update; "binary" means it needs a new build.
 
 ### Summary
 
-| ID | Sev | Guideline | Finding | How verified | Fix ships via |
-|---|---|---|---|---|---|
-| R-01 | HIGH | Age rating, 4.0 | In-app web views have no navigation limit: YouTube embed becomes youtube.com with search; legal view can browse the whole site | Device + live web + code | OTA |
-| R-02 | HIGH | 1.4.1 | Ages 10+ accepted; a 13-year-old gets a 1,200 kcal weight-loss target | Device | API + OTA |
-| R-03 | HIGH | 5.1.1(v) | "Delete my account" ignores the first tap while the keyboard is open | Device (2 of 2) | OTA |
-| R-04 | HIGH | 3.1.1, 3.1.2, 2.1 | "Premium / FREE FOR NOW / Before it has a price / won't ask for a card" with no IAP; upsells across the app | Device + code | OTA (+ web) |
-| R-05 | HIGH (process) | 2.3.1(a), 2.5.2 | Following (social, UGC) ships dormant in the binary, isn't in the review notes, and the docs plan to enable it over the air | Code + docs | Review notes |
-| R-06 | HIGH (metadata) | 2.3.3, 2.3.7 | 7 of the 8 App Store screenshots show screens that no longer look like that | Docs | Retake |
-| R-07 | MEDIUM | 5.1.1 | Generic, unused **Face ID** and **microphone** purpose strings in the shipped Info.plist | Built app's Info.plist | Binary |
-| R-08 | MEDIUM | 5.1.2, App Privacy | "Send anonymous usage counts" switch is shown **on by default**, but App Privacy declares no Usage Data | Device + code | OTA |
-| R-09 | MEDIUM | 2.1 | Network failures show raw developer text: `fetch failed: UnexpectedException … (at ExpoModulesCore/Promise.swift:56)` | Device | OTA |
-| R-10 | MEDIUM | 5.1.2(i) | AI consent enforced only in the app, not on the server; ingredient "Fill in for me" calls AI with no consent; fallback sheet names Gemini | Code | API + OTA |
-| R-11 | MEDIUM | 2.1 / 4.0 | The "Swapped to … / Undo" snackbar sits on top of the tab bar for 8 s and swallows tab taps | Device | OTA |
-| R-12 | MEDIUM | 5.1.1(i), legal | Privacy policy names an individual as data controller; the App Store seller is Smooth Path Digital S.R.L | Live web | Web |
-| R-13 | MEDIUM | Age rating | Sign-up requires 16+, privacy policy says 16+, planned rating is 4+/9+ | Device + docs | ASC answer |
-| R-14 | LOW | 1.4.1 | Chat system prompt has no rule for very-low-calorie or eating-disorder questions; AI label only on plan cards | Code | API |
-| R-15 | LOW | 2.3 | Internal strings: More footer "Chefer 1.0.1 · production · update …", Profile badge "USER" | Device | OTA |
-| R-16 | LOW | 4.0 | In-workout "Watch technique" throws the user out to Safari/YouTube mid-workout | Device | OTA |
-| R-17 | LOW | 4.0 | iOS offers "Save Password?" right after the account is deleted | Device | OTA |
-| R-18 | LOW | 2.1 | Today says "NOTHING PLANNED" right after "Plan my first week" (stale until revisited) | Device | OTA |
-| R-19 | LOW | 2.1 | Gym "Next session: Wednesday" on a Thursday although Friday is a planned training day | Device | OTA |
-| R-20 | LOW | Accessibility | Larger Text: "Cook it" / "Swap" labels clipped, avatar initial disappears | Device | OTA |
-| R-21 | LOW | 4.0 | Small polish: unlabeled "3" under each weekday, lowercase "back" chip, a few wrong ingredient thumbnails, "Step 1" vs "Step 2 of 5" | Device | OTA / data |
-| R-22 | LOW | 2.3.10 | Support/privacy pages opened from the app say "iOS and Android app" and "Google Play" | Live web | Web |
-| R-23 | LOW | Process | Upload may email ITMS-90078 (push code linked, push entitlement stripped). Warning only | Code | — |
-| R-24 | LOW | 5.1.1(v) | Password reset finishes on the website; deleting needs the password | Device + code | Optional |
+| ID   | Sev             | Guideline          | Finding                                                                                                                                   | How verified             | Fix ships via |
+| ---- | --------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------- |
+| R-01 | HIGH            | Age rating, 4.0    | In-app web views have no navigation limit: YouTube embed becomes youtube.com with search; legal view can browse the whole site            | Device + live web + code | OTA           |
+| R-02 | HIGH            | 1.4.1              | Ages 10+ accepted; a 13-year-old gets a 1,200 kcal weight-loss target                                                                     | Device                   | API + OTA     |
+| R-03 | HIGH            | 5.1.1(v)           | "Delete my account" ignores the first tap while the keyboard is open                                                                      | Device (2 of 2)          | OTA           |
+| R-04 | HIGH            | 3.1.1, 3.1.2, 2.1  | "Premium / FREE FOR NOW / Before it has a price / won't ask for a card" with no IAP; upsells across the app                               | Device + code            | OTA (+ web)   |
+| R-05 | HIGH (process)  | 2.3.1(a), 2.5.2    | Following (social, UGC) ships dormant in the binary, isn't in the review notes, and the docs plan to enable it over the air               | Code + docs              | Review notes  |
+| R-06 | HIGH (metadata) | 2.3.3, 2.3.7       | 7 of the 8 App Store screenshots show screens that no longer look like that                                                               | Docs                     | Retake        |
+| R-07 | MEDIUM          | 5.1.1              | Generic, unused **Face ID** and **microphone** purpose strings in the shipped Info.plist                                                  | Built app's Info.plist   | Binary        |
+| R-08 | MEDIUM          | 5.1.2, App Privacy | "Send anonymous usage counts" switch is shown **on by default**, but App Privacy declares no Usage Data                                   | Device + code            | OTA           |
+| R-09 | MEDIUM          | 2.1                | Network failures show raw developer text: `fetch failed: UnexpectedException … (at ExpoModulesCore/Promise.swift:56)`                     | Device                   | OTA           |
+| R-10 | MEDIUM          | 5.1.2(i)           | AI consent enforced only in the app, not on the server; ingredient "Fill in for me" calls AI with no consent; fallback sheet names Gemini | Code                     | API + OTA     |
+| R-11 | MEDIUM          | 2.1 / 4.0          | The "Swapped to … / Undo" snackbar sits on top of the tab bar for 8 s and swallows tab taps                                               | Device                   | OTA           |
+| R-12 | MEDIUM          | 5.1.1(i), legal    | Privacy policy names an individual as data controller; the App Store seller is Smooth Path Digital S.R.L                                  | Live web                 | Web           |
+| R-13 | MEDIUM          | Age rating         | Sign-up requires 16+, privacy policy says 16+, planned rating is 4+/9+                                                                    | Device + docs            | ASC answer    |
+| R-14 | LOW             | 1.4.1              | Chat system prompt has no rule for very-low-calorie or eating-disorder questions; AI label only on plan cards                             | Code                     | API           |
+| R-15 | LOW             | 2.3                | Internal strings: More footer "Chefer 1.0.1 · production · update …", Profile badge "USER"                                                | Device                   | OTA           |
+| R-16 | LOW             | 4.0                | In-workout "Watch technique" throws the user out to Safari/YouTube mid-workout                                                            | Device                   | OTA           |
+| R-17 | LOW             | 4.0                | iOS offers "Save Password?" right after the account is deleted                                                                            | Device                   | OTA           |
+| R-18 | LOW             | 2.1                | Today says "NOTHING PLANNED" right after "Plan my first week" (stale until revisited)                                                     | Device                   | OTA           |
+| R-19 | LOW             | 2.1                | Gym "Next session: Wednesday" on a Thursday although Friday is a planned training day                                                     | Device                   | OTA           |
+| R-20 | LOW             | Accessibility      | Larger Text: "Cook it" / "Swap" labels clipped, avatar initial disappears                                                                 | Device                   | OTA           |
+| R-21 | LOW             | 4.0                | Small polish: unlabeled "3" under each weekday, lowercase "back" chip, a few wrong ingredient thumbnails, "Step 1" vs "Step 2 of 5"       | Device                   | OTA / data    |
+| R-22 | LOW             | 2.3.10             | Support/privacy pages opened from the app say "iOS and Android app" and "Google Play"                                                     | Live web                 | Web           |
+| R-23 | LOW             | Process            | Upload may email ITMS-90078 (push code linked, push entitlement stripped). Warning only                                                   | Code                     | —             |
+| R-24 | LOW             | 5.1.1(v)           | Password reset finishes on the website; deleting needs the password                                                                       | Device + code            | Optional      |
 
 **Checked and ruled out** (so nobody chases them):
 
@@ -86,7 +128,7 @@ Update; "binary" means it needs a new build.
   the code audit): very likely a non-issue. 1.0.0 (5) was built on the same Expo SDK 57 and was accepted
   and processed by App Store Connect. If an ITMS-91061 email ever arrives, build with precompiled modules
   off (`expo-build-properties` → `ios.usePrecompiledModules: false`).
-- **"Signed out after relaunch"**: seen only on my first, *unsigned* build (no Keychain). With an ad-hoc
+- **"Signed out after relaunch"**: seen only on my first, _unsigned_ build (no Keychain). With an ad-hoc
   signed build the session survives relaunches and server outages. Not an app bug.
 - **Odd AI chef reply**: the local mock AI echoes its context by design. Not representative.
 - **Currency in RON**: the simulator region was `en_RO`; a US reviewer gets USD (`packages/utils/src/locale.ts`).
@@ -146,6 +188,7 @@ The target is −500 kcal with a single 1,200 kcal floor for everyone
 (`apps/api/src/application/preferences/preferences.service.ts:50-57,107`).
 
 **Fix.**
+
 1. Minimum age **16** on the server (`min(16)`) and in the mobile and web forms, with a friendly message.
 2. No deficit goal under 18 (or show "talk to a doctor" and fall back to maintenance).
 3. A sex-specific floor (about 1,500 kcal for men).
@@ -193,6 +236,7 @@ explain it, which helps, but the copy still invites the question.
 **Evidence.** `packages/utils/src/premium-pitch.ts:38-41,55`; `apps/api/src/routers/user.router.ts:223-229`.
 
 **Fix (cheapest first).**
+
 1. iOS copy: drop "for now", "Before it has a price…" and "card". Say "Premium is included at no cost".
 2. Better: on iOS, give every account Premium automatically and hide the lock/upsell UI until a real
    IAP exists.
@@ -206,8 +250,8 @@ on later "over the air". Apple forbids hidden or dormant features (2.3.1(a)) and
 significant features beyond what was reviewed (2.5.2). A social network also changes the age rating
 (UGC → Yes).
 
-**Fix.** Add one sentence to the 1.0.1 notes, e.g. *"The app contains a 'Following' feature that is
-disabled on the server; it will only be enabled together with a future version submitted for review."*
+**Fix.** Add one sentence to the 1.0.1 notes, e.g. _"The app contains a 'Following' feature that is
+disabled on the server; it will only be enabled together with a future version submitted for review."_
 Then turn it on only alongside a submitted version that carries the 1.2 notes and the new age-rating
 answer. Before that launch, the code audit also flagged: no human moderation step, Terms that still say
 recipes "are not shared with other users", and no zero-tolerance clause (details in §7, F-08).
@@ -215,7 +259,7 @@ recipes "are not shared with other users", and no zero-tolerance clause (details
 ### R-06 · HIGH (metadata) · App Store screenshots are out of date (2.3.3, 2.3.7)
 
 `docs/app-store/ios/screenshots/README.md` itself marks 7 of the 8 shots (captured 26 Sep, before waves
-1–3) as **Retake**. `04-home.jpg` even shows *Snap to log*, which is Premium and no longer on Today for a
+1–3) as **Retake**. `04-home.jpg` even shows _Snap to log_, which is Premium and no longer on Today for a
 free user. Screenshots that don't match the app are a frequent metadata rejection. Retake them from the
 1.0.1 build with a free demo account, per that README's shot list.
 
@@ -328,29 +372,29 @@ decline-and-refer rule to the prompt.
 
 ## 4. What a reviewer would find working
 
-| Area | Result |
-|---|---|
-| Launch, welcome | Clean, branded, no dev UI in Release ([01-welcome.jpg](./app-review-simulation-2026-10-01/01-welcome.jpg)) |
-| Sign-up | Field validation, Terms + Privacy links, 16+ checkbox, server re-checks both |
-| Sign-in / sign-out / forgot password | Clear "Invalid email or password"; reset gives a neutral "If an account exists…" message; sign-out returns to Sign in |
-| Onboarding | 5 steps (what you want help with, diet & safety, how you cook, goal, body metrics), all optional ([02-onboarding.jpg](./app-review-simulation-2026-10-01/02-onboarding.jpg)) |
-| Health consent | Appears before the first save of health data; "Allow and save" / "Don't save it" ([04-health-consent.jpg](./app-review-simulation-2026-10-01/04-health-consent.jpg)) |
-| AI consent | Before the first AI call; names Groq + Cloudflare; "Not now" sends nothing |
-| Meal plan | Generated instantly from the curated pool (no AI); swap with Undo; pin; regenerate |
-| Recipe, cook mode | Detail, servings, nutrition, ratings; step-by-step cook mode with progress |
-| Shopping list | Categories, prices, tick-off, share sheet (text) |
-| Tracker | Log a planned meal in one tap with Undo; macros update |
-| Camera | Asked in context with a specific string; denial handled in the UI |
-| Notifications | Local only; a pre-prompt explains why before the system prompt ([17-workout-notification-preprompt.jpg](./app-review-simulation-2026-10-01/17-workout-notification-preprompt.jpg)) |
-| Gym | Setup wizard, recommended routine, workout with prefilled sets, PR, rest timer, summary with "Next time" |
-| Export data | `chefer-export-YYYY-MM-DD.json` via the share sheet |
-| Delete account | Clear list of what is deleted, password + DELETE, works (after R-03's extra tap), signs out, rows gone |
-| No network / server down | Friendly retry states; Gym works offline; session kept |
-| Dark mode | App stays consistently light (deliberate), status bar readable |
-| iPad (compatibility) | Launches and renders correctly in a window (interaction not tested) ([18-ipad-compat.jpg](./app-review-simulation-2026-10-01/18-ipad-compat.jpg)) |
-| Payments | No IAP, StoreKit, Stripe or price code anywhere in the app |
-| Third-party login | None, so Sign in with Apple isn't required |
-| Public URLs | Privacy, Terms and Support load (200); Support has an email and an FAQ that covers deletion |
+| Area                                 | Result                                                                                                                                                                             |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Launch, welcome                      | Clean, branded, no dev UI in Release ([01-welcome.jpg](./app-review-simulation-2026-10-01/01-welcome.jpg))                                                                         |
+| Sign-up                              | Field validation, Terms + Privacy links, 16+ checkbox, server re-checks both                                                                                                       |
+| Sign-in / sign-out / forgot password | Clear "Invalid email or password"; reset gives a neutral "If an account exists…" message; sign-out returns to Sign in                                                              |
+| Onboarding                           | 5 steps (what you want help with, diet & safety, how you cook, goal, body metrics), all optional ([02-onboarding.jpg](./app-review-simulation-2026-10-01/02-onboarding.jpg))       |
+| Health consent                       | Appears before the first save of health data; "Allow and save" / "Don't save it" ([04-health-consent.jpg](./app-review-simulation-2026-10-01/04-health-consent.jpg))               |
+| AI consent                           | Before the first AI call; names Groq + Cloudflare; "Not now" sends nothing                                                                                                         |
+| Meal plan                            | Generated instantly from the curated pool (no AI); swap with Undo; pin; regenerate                                                                                                 |
+| Recipe, cook mode                    | Detail, servings, nutrition, ratings; step-by-step cook mode with progress                                                                                                         |
+| Shopping list                        | Categories, prices, tick-off, share sheet (text)                                                                                                                                   |
+| Tracker                              | Log a planned meal in one tap with Undo; macros update                                                                                                                             |
+| Camera                               | Asked in context with a specific string; denial handled in the UI                                                                                                                  |
+| Notifications                        | Local only; a pre-prompt explains why before the system prompt ([17-workout-notification-preprompt.jpg](./app-review-simulation-2026-10-01/17-workout-notification-preprompt.jpg)) |
+| Gym                                  | Setup wizard, recommended routine, workout with prefilled sets, PR, rest timer, summary with "Next time"                                                                           |
+| Export data                          | `chefer-export-YYYY-MM-DD.json` via the share sheet                                                                                                                                |
+| Delete account                       | Clear list of what is deleted, password + DELETE, works (after R-03's extra tap), signs out, rows gone                                                                             |
+| No network / server down             | Friendly retry states; Gym works offline; session kept                                                                                                                             |
+| Dark mode                            | App stays consistently light (deliberate), status bar readable                                                                                                                     |
+| iPad (compatibility)                 | Launches and renders correctly in a window (interaction not tested) ([18-ipad-compat.jpg](./app-review-simulation-2026-10-01/18-ipad-compat.jpg))                                  |
+| Payments                             | No IAP, StoreKit, Stripe or price code anywhere in the app                                                                                                                         |
+| Third-party login                    | None, so Sign in with Apple isn't required                                                                                                                                         |
+| Public URLs                          | Privacy, Terms and Support load (200); Support has an email and an FAQ that covers deletion                                                                                        |
 
 ---
 
@@ -389,17 +433,17 @@ Resolution Center and ship the fix in 1.0.1.
 The code audit (F-xx IDs, done on the same commit) maps to this report as follows. Findings are merged
 above; nothing was dropped.
 
-| Audit ID | Here | | Audit ID | Here |
-|---|---|---|---|---|
-| F-01, F-02 | R-07 | | F-12 | R-24 |
-| F-03 | R-05 | | F-13 | R-23 |
-| F-04 | R-04 | | F-14 | Ruled out (§3) |
-| F-05 | R-08 | | F-15 | Accepted: account justified by sync (review notes) |
-| F-06, F-07 | R-01 | | F-16 | R-02 |
-| F-08 | R-05 (before Following launch) | | F-17, F-18, F-19 | R-10 |
-| F-09 | R-13 | | F-20 | §6 (health-consent server enforcement is `off` by default; a GDPR item, not App Review) |
-| F-10 | R-22 | | F-21 | R-14 |
-| F-11 | R-15 | | | |
+| Audit ID   | Here                           |     | Audit ID         | Here                                                                                    |
+| ---------- | ------------------------------ | --- | ---------------- | --------------------------------------------------------------------------------------- |
+| F-01, F-02 | R-07                           |     | F-12             | R-24                                                                                    |
+| F-03       | R-05                           |     | F-13             | R-23                                                                                    |
+| F-04       | R-04                           |     | F-14             | Ruled out (§3)                                                                          |
+| F-05       | R-08                           |     | F-15             | Accepted: account justified by sync (review notes)                                      |
+| F-06, F-07 | R-01                           |     | F-16             | R-02                                                                                    |
+| F-08       | R-05 (before Following launch) |     | F-17, F-18, F-19 | R-10                                                                                    |
+| F-09       | R-13                           |     | F-20             | §6 (health-consent server enforcement is `off` by default; a GDPR item, not App Review) |
+| F-10       | R-22                           |     | F-21             | R-14                                                                                    |
+| F-11       | R-15                           |     |                  |                                                                                         |
 
 **Test environment, for reruns:** clean worktree of `origin/master`, `APP_VARIANT=development`,
 `EXPO_PUBLIC_API_URL` set for both `expo prebuild` **and** `xcodebuild` (the JS bundle is built in the
