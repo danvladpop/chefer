@@ -57,6 +57,8 @@ Status: `open` / `sent` / `signed off` / `n/a`. Owner and date are blank until s
 
 **Goal:** prove that with "Send anonymous usage counts" **off**, a full session makes **zero**
 requests to `eu.i.posthog.com`.
+(The Usage analytics card only renders in a build with `EXPO_PUBLIC_POSTHOG_KEY`/`_HOST` set, so run
+this on such a build; the App Store build has no key and shows no card.)
 
 ### What is verified at code and test level
 

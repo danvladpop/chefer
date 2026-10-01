@@ -3393,6 +3393,9 @@ app/_layout.tsx ──► initAnalytics(): starts the 30s flush timer + backgrou
                              next event (AC2); off → sign-out resets it to off
 
 Profile → Privacy & data → "Usage analytics" (AnalyticsConsentCard, mobile)
+  rendered only when the transport is enabled (PostHog key + host set at
+  bundle time — not in the App Store build; R-08), so the app never shows an
+  "on" switch for something that sends nothing;
   same two switches as web; each change also calls
   privacy.recordAnalyticsConsent and fires analytics_consent_changed
 ```
