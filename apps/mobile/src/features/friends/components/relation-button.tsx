@@ -224,7 +224,7 @@ export function RelationButton({
 
   return (
     <>
-      <Animated.View ref={buttonRef} style={[{ width }, shakeStyle]}>
+      <Animated.View ref={buttonRef} testID={`${testID}-frame`} style={[{ width }, shakeStyle]}>
         <Button
           testID={testID}
           size={size === 'md' ? 'default' : 'sm'}
