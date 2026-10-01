@@ -297,4 +297,11 @@ export {
   type CatalogIngredientRow,
   type IngredientKeyMatch,
   type PrivateIngredientData,
+  type PrivateReviewRow,
 } from './ingredient.repository';
+
+export {
+  IngredientNoticeRepository,
+  ingredientNoticeRepository,
+  type IIngredientNoticeRepository,
+} from './ingredient-notice.repository';

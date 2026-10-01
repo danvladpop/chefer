@@ -90,6 +90,7 @@ beforeEach(() => {
     findByRecipeIds: vi.fn().mockResolvedValue([]),
     findRecipesUsingIngredient: vi.fn().mockResolvedValue([]),
     findNutritionStates: vi.fn().mockResolvedValue([]),
+    relinkIngredient: vi.fn().mockResolvedValue(0),
   };
   nutrition = new RecipeNutritionService(catalog, lines);
   service = new IngredientsService(catalog, new IngredientResolver(catalog), nutrition);

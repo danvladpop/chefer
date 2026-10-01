@@ -84,6 +84,8 @@ export interface IRecipeLineRepository {
   findByRecipeIds(recipeIds: string[]): Promise<StoredRecipeLineRow[]>;
   /** Every recipe with at least one line pointing at `ingredientId`, with all its lines. */
   findRecipesUsingIngredient(ingredientId: string): Promise<RecipeForRecompute[]>;
+  /** Points every line on `fromId` at `toId` (weekly review merge). Returns the count. */
+  relinkIngredient(fromId: string, toId: string): Promise<number>;
   /** Stored nutrition state per recipe: status, per-serving Json and line count. */
   findNutritionStates(recipeIds: string[]): Promise<
     {
@@ -195,6 +197,14 @@ export class RecipeLineRepository implements IRecipeLineRepository {
         lines: { orderBy: { position: 'asc' } },
       },
     });
+  }
+
+  async relinkIngredient(fromId: string, toId: string): Promise<number> {
+    const { count } = await prisma.recipeIngredient.updateMany({
+      where: { ingredientId: fromId },
+      data: { ingredientId: toId },
+    });
+    return count;
   }
 }
 

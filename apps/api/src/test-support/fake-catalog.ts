@@ -6,6 +6,7 @@ import type {
   IIngredientRepository,
   IngredientKeyMatch,
   PrivateIngredientData,
+  PrivateReviewRow,
 } from '@chefer/database';
 
 export function catalogRow(
@@ -51,6 +52,14 @@ export function fakeCatalog(
 ): FakeCatalog {
   const rows = [...initial];
   let seq = 0;
+  const merged = new Map<string, string>();
+  const review = (r: CatalogIngredientRow): PrivateReviewRow => ({
+    ...r,
+    mergedIntoId: merged.get(r.id) ?? null,
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    recipeCount: 0,
+  });
   const visible = (r: CatalogIngredientRow, owner: string | null) =>
     r.ownerId === null || r.ownerId === owner;
   const fromData = (
@@ -143,6 +152,18 @@ export function fakeCatalog(
       if (r) {
         r.status = 'DEPRECATED';
         r.aliases = [];
+      }
+      return Promise.resolve();
+    },
+    findPrivateForReview: () =>
+      Promise.resolve(rows.filter((r) => r.ownerId !== null && r.status === 'ACTIVE').map(review)),
+    findForReview: (ids) => Promise.resolve(rows.filter((r) => ids.includes(r.id)).map(review)),
+    markMerged: (id, intoId) => {
+      const r = rows.find((x) => x.id === id);
+      if (r) {
+        r.status = 'MERGED';
+        r.aliases = [];
+        merged.set(id, intoId);
       }
       return Promise.resolve();
     },

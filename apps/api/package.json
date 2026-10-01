@@ -20,7 +20,9 @@
     "clean": "rm -rf dist",
     "ai:eval": "tsx src/lib/ai/eval/run-eval.ts",
     "ingredients:migrate": "tsx src/scripts/ingredients-migrate.ts",
-    "ingredients:verify": "tsx src/scripts/ingredients-verify.ts"
+    "ingredients:verify": "tsx src/scripts/ingredients-verify.ts",
+    "ingredients:review-report": "tsx src/scripts/ingredients-review-report.ts",
+    "ingredients:review-apply": "tsx src/scripts/ingredients-review-apply.ts"
   },
   "dependencies": {
     "@chefer/database": "workspace:*",

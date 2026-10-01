@@ -52,6 +52,7 @@ function setup() {
     findByRecipeIds: vi.fn(),
     findRecipesUsingIngredient: vi.fn(),
     findNutritionStates: vi.fn(),
+    relinkIngredient: vi.fn().mockResolvedValue(0),
   };
   return {
     service: new RecipeNutritionService(catalog, lines, new IngredientResolver(catalog)),
@@ -129,6 +130,33 @@ describe('RecipeNutritionService', () => {
       { ...base, id: 'r2', nutritionStatus: 'USER_ENTERED', lines: [line(0, null, 1, 'g')] },
     ]);
     expect(await service.recomputeRecipesUsing('skyr')).toEqual({ written: 1, kept: 1 });
+  });
+
+  it('relinkIngredient points lines at the global row and recomputes with its numbers', async () => {
+    const { service, lines, writeLines } = setup();
+    vi.mocked(lines.findRecipesUsingIngredient).mockResolvedValue([
+      {
+        id: 'r1',
+        creatorId: 'alice',
+        servings: 1,
+        nutritionStatus: 'COMPUTED',
+        ingredients: [{ name: 'my oil', quantity: 10, unit: 'g' }],
+        lines: [line(0, 'skyr', 10, 'g')],
+      },
+    ]);
+    vi.mocked(lines.findNutritionStates)
+      .mockResolvedValueOnce([
+        { id: 'r1', nutritionStatus: 'COMPUTED', nutritionInfo: { calories: 6 }, lineCount: 1 },
+      ])
+      .mockResolvedValueOnce([
+        { id: 'r1', nutritionStatus: 'COMPUTED', nutritionInfo: { calories: 90 }, lineCount: 1 },
+      ]);
+    const out = await service.relinkIngredient('skyr', 'oil');
+    expect(out).toEqual([{ recipeId: 'r1', outcome: 'written', oldKcal: 6, newKcal: 90 }]);
+    const [, written, nutrition] = writeLines.mock.calls[0] ?? [];
+    expect(written?.[0]).toMatchObject({ ingredientId: 'oil', grams: 10, mirrorName: 'my oil' });
+    expect(nutrition).toMatchObject({ status: 'COMPUTED', perServing: { calories: 90 } });
+    expect(lines.relinkIngredient).toHaveBeenCalledWith('skyr', 'oil');
   });
 });
 

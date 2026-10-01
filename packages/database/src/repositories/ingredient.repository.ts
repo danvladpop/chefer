@@ -96,7 +96,28 @@ export interface IIngredientRepository {
   ): Promise<CatalogIngredientRow>;
   /** Marks a private ingredient DEPRECATED (its recipe lines keep pointing at it). */
   deprecatePrivate(id: string, ownerId: string): Promise<void>;
+  /**
+   * Weekly review (plan §8.2): ACTIVE private rows created or edited since
+   * `since`, or used by a recipe saved since then, with their recipe count.
+   */
+  findPrivateForReview(since: Date): Promise<PrivateReviewRow[]>;
+  /** Rows by id regardless of owner or status (review tooling only). */
+  findForReview(ids: string[]): Promise<PrivateReviewRow[]>;
+  /**
+   * Weekly review merge: the private row becomes MERGED into `intoId`; its
+   * owner aliases and linked price rows move to that row, so the owner's
+   * free text keeps resolving (to the global row now). One transaction.
+   */
+  markMerged(id: string, intoId: string): Promise<void>;
 }
+
+export type PrivateReviewRow = CatalogIngredientRow & {
+  mergedIntoId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  /** Distinct recipes with a line on this row. */
+  recipeCount: number;
+};
 
 const INCLUDE = {
   portions: { select: { unit: true, grams: true, source: true }, orderBy: { unit: 'asc' } },
@@ -300,6 +321,52 @@ export class IngredientRepository implements IIngredientRepository {
     await prisma.$transaction([
       prisma.ingredientAlias.deleteMany({ where: { ingredientId: id, ownerId } }),
       prisma.ingredient.updateMany({ where: { id, ownerId }, data: { status: 'DEPRECATED' } }),
+    ]);
+  }
+
+  async findPrivateForReview(since: Date): Promise<PrivateReviewRow[]> {
+    return this.reviewRows({
+      ownerId: { not: null },
+      status: 'ACTIVE',
+      OR: [
+        { createdAt: { gte: since } },
+        { updatedAt: { gte: since } },
+        { lines: { some: { recipe: { nutritionComputedAt: { gte: since } } } } },
+      ],
+    });
+  }
+
+  async findForReview(ids: string[]): Promise<PrivateReviewRow[]> {
+    if (ids.length === 0) return [];
+    return this.reviewRows({ id: { in: [...new Set(ids)] } });
+  }
+
+  private async reviewRows(where: Prisma.IngredientWhereInput): Promise<PrivateReviewRow[]> {
+    const rows = await prisma.ingredient.findMany({
+      where,
+      include: { ...INCLUDE, lines: { select: { recipeId: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map(({ lines, ...row }) => ({
+      ...row,
+      recipeCount: new Set(lines.map((l) => l.recipeId)).size,
+    }));
+  }
+
+  async markMerged(id: string, intoId: string): Promise<void> {
+    await prisma.$transaction([
+      prisma.ingredientAlias.updateMany({
+        where: { ingredientId: id, ownerId: { not: null } },
+        data: { ingredientId: intoId },
+      }),
+      prisma.ingredientPrice.updateMany({
+        where: { ingredientId: id },
+        data: { ingredientId: intoId },
+      }),
+      prisma.ingredient.update({
+        where: { id },
+        data: { status: 'MERGED', mergedIntoId: intoId },
+      }),
     ]);
   }
 }

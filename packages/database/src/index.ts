@@ -147,6 +147,10 @@ export {
   type CatalogIngredientRow,
   type IngredientKeyMatch,
   type PrivateIngredientData,
+  type PrivateReviewRow,
+  IngredientNoticeRepository,
+  ingredientNoticeRepository,
+  type IIngredientNoticeRepository,
   ConsentEventRepository,
   consentEventRepository,
   type IConsentEventRepository,
@@ -290,6 +294,7 @@ export type {
   Ingredient,
   IngredientAlias,
   IngredientPortion,
+  IngredientNotice,
   RecipeIngredient,
 } from '@prisma/client';
 export {
@@ -297,6 +302,7 @@ export {
   // Ingredient catalog (docs/plan-ingredient-catalog.md §3)
   IngredientCategory,
   IngredientStatus,
+  IngredientNoticeKind,
   NutritionSource,
   NutritionStatus,
   UserRole,

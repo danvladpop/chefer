@@ -58,6 +58,7 @@ vi.mock('../ingredients/recipe-nutrition.service.js', async (importOriginal) => 
     findByRecipeIds: vi.fn(),
     findRecipesUsingIngredient: vi.fn(),
     findNutritionStates: vi.fn(),
+    relinkIngredient: vi.fn(),
   };
   return {
     ...mod,

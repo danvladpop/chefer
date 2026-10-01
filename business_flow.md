@@ -1092,6 +1092,19 @@ Recipe creation (revamped form)
   |      otherwise                -> PARTIAL (incomplete numbers, flagged)
   +- editing a private ingredient recomputes the owner's recipes that use it;
   |    deleting one deprecates it (existing recipes keep their numbers)
+  +- weekly private-ingredient review (plan-ingredient-catalog §8.2, operator
+  |    run, runbook docs/runbooks/ingredient-weekly-review.md):
+  |      ingredients:review-report  -> the week's private rows + global
+  |                                    candidates + nutrition delta (read-only)
+  |      decisions file (MAP / PROMOTE / KEEP / REJECT_DATA)
+  |      ingredients:review-apply   -> MAP/PROMOTE relink the owner's lines to
+  |        the global row, recompute those recipes, row MERGED; refused when
+  |        the user's numbers are >25% kcal / >30% macro away unless forced
+  |      the owner gets ONE in-app notice per review (D6, no email):
+  |        ingredients.notices -> VERIFIED_DATA "N of your ingredients now use
+  |        Chefer's verified data" / CHECK_DATA "please check this
+  |        ingredient"; ingredients.dismissNotice marks it read
+  |      (API only so far: the web/mobile banner is a follow-up)
   +- recipe photo: device upload (POST /api/uploads/image, <=10 MB since
   |    T-BUG-O1/Q-22; the mobile app first shrinks the photo to <= 2048 px,
   |    JPEG 0.8 — T-BUG-O1.2) or deterministic AI image (recipe.aiImageUrl); a failed

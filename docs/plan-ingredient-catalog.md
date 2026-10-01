@@ -610,6 +610,18 @@ It must be idempotent and print a diff summary, e.g. "37 recipes recomputed, max
 
 **Runbook.** `docs/runbooks/ingredient-weekly-review.md` holds the exact commands for prod access, the decision heuristics in §4.1, the PR template for PROMOTE rows, and the verify step (`pnpm ingredients:verify --env prod`, I1).
 
+### 8.3 As built (P10, 2026-10-01)
+
+- **Code.** `apps/api/src/application/ingredients/ingredient-review.service.ts` (report, decisions schema, tolerance guard, apply), scripts `ingredients:review-report` / `ingredients:review-apply`, and runbook [`docs/runbooks/ingredient-weekly-review.md`](./runbooks/ingredient-weekly-review.md).
+- **No `--env prod` flag.** The scripts use whatever `DATABASE_URL` they run with. For prod, the runbook runs them inside the `chefer-api` container over `ssh chefer`.
+- **Apply is a dry run unless `--apply` is passed**, the reverse of the `--dry-run` opt-in above.
+- **One transaction per merged row, not per decision.** The recipes are recomputed one by one (each in its own `writeLines` transaction). The row is marked MERGED only after all of them, so an interrupted run resumes cleanly.
+- **Tolerance floors.** Besides 25% kcal / 30% macro, a difference under 15 kcal or 2 g never fails, so 0.2 g vs 0.5 g fat is not a "150% change".
+- **Merging keeps the owner's free text working.** The private row's owner aliases (and linked price rows) move to the global row. `addAlias` is only reported: global aliases ship through `catalog.json` (D7).
+- **D6 notices** live in a new table, `IngredientNotice` (one row per user, kind, review), served by `ingredients.notices` / `ingredients.dismissNotice`. They don't use the social `Notification` table, whose kinds old mobile binaries render.
+- **Follow-up (not built): the notice UI on web and mobile.** A dismissible banner on the Ingredients page / My ingredients, using the D6 copy. Neither client shows notices yet; until one does, apply's notices are stored but unseen.
+- **First dry run** on a local restore of the 2026-10-01 prod backup: 2 private ingredients. One merged within tolerance; one was refused as outside tolerance; PROMOTE was held until the row is synced; the re-run was a no-op; `ingredients:verify` passed.
+
 ---
 
 ## 9. API surface (all additive)

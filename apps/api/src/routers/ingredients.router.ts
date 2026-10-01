@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ingredientCategorySchema } from '@chefer/types';
+import { ingredientReviewService } from '../application/ingredients/ingredient-review.service.js';
 import { ingredientsService } from '../application/ingredients/ingredients.service.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
 
@@ -177,5 +178,21 @@ export const ingredientsRouter = router({
     )
     .query(async ({ ctx, input }) => {
       return ingredientsService.computeNutrition(ctx.user.id, input.ingredients, input.servings);
+    }),
+
+  /**
+   * The caller's unread notices from the weekly ingredient review (plan §8.2,
+   * D6): "N of your ingredients now use Chefer's verified data" (VERIFIED_DATA)
+   * or "please check this ingredient" (CHECK_DATA).
+   */
+  notices: protectedProcedure.query(async ({ ctx }) => {
+    return ingredientReviewService.listNotices(ctx.user.id);
+  }),
+
+  /** Marks one of the caller's review notices read. */
+  dismissNotice: protectedProcedure
+    .input(z.object({ id: z.string().min(1).max(40) }))
+    .mutation(async ({ ctx, input }) => {
+      return ingredientReviewService.dismissNotice(ctx.user.id, input.id);
     }),
 });

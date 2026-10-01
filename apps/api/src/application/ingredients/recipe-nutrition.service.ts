@@ -27,6 +27,14 @@ import { ensurePrivateTwins } from './private-twins.js';
 // private ingredient is edited (every recipe of that owner using it is
 // recomputed) and, from P6 on, by every recipe write path.
 
+/** One recipe touched by a weekly-review relink, with per-serving kcal before/after. */
+export interface RelinkedRecipe {
+  recipeId: string;
+  outcome: 'written' | 'kept-user-entered';
+  oldKcal: number | null;
+  newKcal: number | null;
+}
+
 /** A line the engine computes and the repository stores. */
 export interface ComputableLine {
   ingredientId: string | null;
@@ -327,6 +335,42 @@ export class RecipeNutritionService {
       else kept += 1;
     }
     return { written, kept };
+  }
+
+  /**
+   * Weekly review merge (plan §8.2): points every line on `fromId` (a private
+   * row) at `toId` (a global row) and recomputes those recipes — grams are
+   * re-derived through the new row's portions and density, and a unit it
+   * can't weigh leaves the recipe PARTIAL. A USER_ENTERED recipe that still
+   * doesn't compute keeps its numbers (D4); its lines are relinked all the same.
+   */
+  async relinkIngredient(fromId: string, toId: string): Promise<RelinkedRecipe[]> {
+    const recipes = await this.lines.findRecipesUsingIngredient(fromId);
+    const ids = recipes.map((r) => r.id);
+    const kcal = async () =>
+      new Map(
+        (await this.lines.findNutritionStates(ids)).map((s) => {
+          const v = (s.nutritionInfo as { calories?: unknown } | null)?.calories;
+          return [s.id, typeof v === 'number' ? v : null] as const;
+        }),
+      );
+    const before = await kcal();
+    const outcomes = new Map<string, RelinkedRecipe['outcome']>();
+    for (const recipe of recipes) {
+      const lines = recipe.lines.map((l) =>
+        l.ingredientId === fromId ? { ...l, ingredientId: toId } : l,
+      );
+      outcomes.set(recipe.id, await this.recompute({ ...recipe, lines }));
+    }
+    // Lines of kept USER_ENTERED recipes were not rewritten above.
+    await this.lines.relinkIngredient(fromId, toId);
+    const after = await kcal();
+    return ids.map((recipeId) => ({
+      recipeId,
+      outcome: outcomes.get(recipeId) ?? 'written',
+      oldKcal: before.get(recipeId) ?? null,
+      newKcal: after.get(recipeId) ?? null,
+    }));
   }
 }
 

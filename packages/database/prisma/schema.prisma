@@ -244,6 +244,7 @@ model User {
 
   // Ingredient catalog (docs/plan-ingredient-catalog.md §3): the user's private ingredients
   privateIngredients Ingredient[]
+  ingredientNotices  IngredientNotice[]
 
   @@index([email])
   @@map("users")
@@ -897,6 +898,33 @@ enum IngredientStatus {
   ACTIVE
   MERGED
   DEPRECATED
+}
+
+enum IngredientNoticeKind {
+  /// "N of your ingredients now use Chefer's verified data" (D6)
+  VERIFIED_DATA
+  /// "Please check this ingredient": a REJECT_DATA review decision
+  CHECK_DATA
+}
+
+/// In-app notices from the weekly ingredient review (plan-ingredient-catalog §8.2, D6).
+/// One row per (user, kind, review): re-applying a review updates it in place.
+model IngredientNotice {
+  id              String               @id @default(cuid())
+  userId          String
+  kind            IngredientNoticeKind
+  /// The review's date, "2026-10-08"
+  review          String
+  /// Display names of the ingredients concerned (the user's own names)
+  ingredientNames String[]
+  createdAt       DateTime             @default(now())
+  readAt          DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, review])
+  @@index([userId, readAt])
+  @@map("ingredient_notices")
 }
 
 enum NutritionSource {
