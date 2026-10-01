@@ -28,7 +28,7 @@ export function useBlock(): {
         return { ok: false, error };
       }
       removePerson(queryClient, userId);
-      invalidateAfterBlock(utils);
+      invalidateAfterBlock(utils, userId);
       return { ok: true };
     },
     isPending: mutation.isPending,

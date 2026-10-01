@@ -43,7 +43,25 @@ export function invalidateAfterRemoveFollower(utils: FriendsUtils, userId: strin
  * everything, including their recipes in the viewer's cookbook (`recipe.list`
  * rows with `creator`), so the whole namespace and the recipe lists refetch.
  */
-export function invalidateAfterBlock(utils: FriendsUtils): void {
-  void utils.friends.invalidate();
+export function invalidateAfterBlock(utils: FriendsUtils, userId: string): void {
+  // The blocked person's own queries (profile, week, recipes, routine,
+  // workouts) are only marked stale: refetching them now answers NOT_FOUND,
+  // which would swap the open profile to "Profile not available" and unmount
+  // the sheet before its onExited runs — no snackbar, no navigation back.
+  // They refetch on the next mount.
+  const isTheirs = (query: { queryKey: readonly unknown[] }) =>
+    queryUserId(query.queryKey) === userId;
+  void utils.friends.invalidate(undefined, { predicate: (query) => !isTheirs(query) });
+  void utils.friends.invalidate(undefined, { predicate: isTheirs, refetchType: 'none' });
   void utils.recipe.list.invalidate();
+}
+
+/** The `userId` input of a tRPC query key (`[path, { input, type }]`), if any. */
+function queryUserId(queryKey: readonly unknown[]): string | undefined {
+  const meta = queryKey[1];
+  if (typeof meta !== 'object' || meta === null || !('input' in meta)) return undefined;
+  const input = (meta as { input?: unknown }).input;
+  if (typeof input !== 'object' || input === null || !('userId' in input)) return undefined;
+  const id = (input as { userId?: unknown }).userId;
+  return typeof id === 'string' ? id : undefined;
 }

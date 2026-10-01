@@ -29,7 +29,7 @@ export function useReport(): {
         return { ok: false, error };
       }
       removePerson(queryClient, input.userId);
-      invalidateAfterBlock(utils);
+      invalidateAfterBlock(utils, input.userId);
       if (input.recipeId) void utils.mealPlan.getRecipe.invalidate({ recipeId: input.recipeId });
       return { ok: true };
     },
