@@ -3,6 +3,15 @@
 **rev 2 · 2026-09-30 · built on [`prd.md`](./prd.md) and [`ux-design.md`](./ux-design.md) rev 2 (all owner decisions
 applied) · build read `master` @ `9dd93f3a`**
 
+> **rev 2.1 (2026-10-01), build-time deviations from rev 2:**
+>
+> - **§2.3:** `Recipe` copy uniqueness `[creatorId, originRecipeId]` is an `@@index`, not an `@@unique`. A new unique on
+>   the populated `recipes` table makes `prisma db push` (run by production's `migrate` service without
+>   `--accept-data-loss`) refuse the deploy.
+> - **§4.4:** so `recipe-copy.service.ts` enforces one copy per viewer and source itself: a SERIALIZABLE find-or-create,
+>   retried on `P2034`, instead of "unique-violation race → re-read".
+> - **Migration:** the schema lands as `20260930120000_friends_schema` (additive: new enums, 7 tables, 4 `recipes` columns).
+
 Role: full-stack engineer/architect, writing for an **orchestrating Claude Code session** that runs AI agents in
 waves. This file is the _how_; the PRD is the _what and why_; the UX spec is the _look, states and copy_. On a
 conflict: the PRD wins on behaviour and privacy, the UX spec on copy and layout, and this file on data, API and task
@@ -288,10 +297,16 @@ model Recipe {
   copies        Recipe[] @relation("RecipeCopies")
   originCreator User?    @relation("RecipeOriginCreator", fields: [originCreatorId], references: [id], onDelete: SetNull)
 
-  @@unique([creatorId, originRecipeId]) // at most one copy per viewer and source (NULLs are distinct)
+  // At most one copy per viewer and source. NOT a @@unique (rev 2.1): see the note below the block.
+  @@index([creatorId, originRecipeId])
   @@index([creatorId, source, createdAt])
 }
 ```
+
+**Why `@@index`, not `@@unique` (rev 2.1).** Adding a unique constraint to the populated `recipes` table makes
+`prisma db push` refuse with a data-loss warning, and production's compose `migrate` service runs `db push` without
+`--accept-data-loss`, so the deploy would stall. The index keeps the lookup fast; `RecipeCopyService` enforces "one copy
+per viewer and source" itself, with a SERIALIZABLE find-or-create and a retry on `P2034` (§4.4).
 
 No `WorkoutSession` index is needed. The last-7-days query uses the existing `@@index([userId, localDate])`.
 
@@ -684,7 +699,7 @@ Imported recipes (`sourceUrl` set) are included (Q-F-7). `isRecipeOpenTo` (sync)
 | `activity.service.ts`                       | `list` (`requestState` from the live `Follow`), `markReadUpTo`, `notify`, `withdraw`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `friend-content.service.ts`                 | `profile`, `week`, `recipes`, `routine`, `workouts` (§5). Read-only, allow-list DTOs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `moderation.service.ts`                     | §4.6: `reportAndBlock`, `evaluateThresholds`, `hideFilteredRecipes`, `checkRecipeText`, `undo(logId)`, `weeklyMetrics()`. **F0.3 creates it as a typed stub** (`hideFilteredRecipes` → 0, a permissive `checkRecipeText`, `weeklyMetrics` → zeros, `reportAndBlock` throws `not implemented`) so batch-A lanes and the F1.5 worker can call it. L-MODERATION implements it.                                                                                                                                                                                                                                   |
-| `application/recipe/recipe-copy.service.ts` | `ownedIdFor(viewerId, recipe)`: open or own → id; another user's MANUAL recipe → the existing copy, or a new copy (text, ingredients, nutrition, photo URL, **`sourceUrl`**, origins). A unique-violation race → re-read.                                                                                                                                                                                                                                                                                                                                                                                     |
+| `application/recipe/recipe-copy.service.ts` | `ownedIdFor(viewerId, recipe)`: open or own → id; another user's MANUAL recipe → the existing copy, or a new copy (text, ingredients, nutrition, photo URL, **`sourceUrl`**, origins). The one-copy rule is enforced here (there is no DB unique, §2.3): a SERIALIZABLE find-or-create, retry on `P2034`.                                                                                                                                                                                                                                                                                                     |
 | Meal-plan / tracker (L-XRECIPE)             | `MealPlanService.addRecipeToSlot` / `undoAddToSlot`; INV-5 in `replaceRecipe`, `generate` pinned placement and `TrackerService.logRecipe`; `assemblePlanDto` drops (logs) a slot whose recipe row is missing instead of throwing.                                                                                                                                                                                                                                                                                                                                                                             |
 
 ### 4.5 Pagination and performance
