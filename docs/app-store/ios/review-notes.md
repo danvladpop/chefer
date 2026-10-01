@@ -15,7 +15,7 @@ TestFlight build) before submitting. Do it yourself; don't reuse your own accoun
    AI consent sheet once; tap Allow. (An account created before the health consent existed
    is asked once on the next launch — tap Allow and save.) The reviewer can still see the consent sheet by
    switching off Profile → "AI & your data", and the notes below tell them where.
-3. Profile → Your plan: Free → "See what Premium adds" → "Turn on Premium" (free) so every feature is unlocked for review.
+3. Profile → Your plan: Free → "See what Premium adds" → "Turn on Premium" (included at no cost) so every feature is unlocked for review.
 4. Save one recipe, log one meal in Tracker (Today → "See full day"), log one weight entry, and in Gym mode run setup and
    finish one short workout, so no screen is empty.
 5. Keep this account untouched until the review is approved. Apple may sign in again for
@@ -40,7 +40,7 @@ a phone number you'll answer while the app is in review.
 Chefer is a meal-planning and strength-training app. An account is required because plans, recipes, shopping lists and workouts sync between the iOS app and the web app (chefer.duckdns.org).
 
 DEMO ACCOUNT
-The account above already has a meal plan, recipes and a logged workout. Premium features are enabled on it. Premium is currently free for everyone: the "Turn on Premium" button (More → Profile → the "Your plan" card → "See what Premium adds", or the same sheet any locked feature opens) just switches the account's tier, and no payment is taken anywhere in the app. There are no in-app purchases.
+The account above already has a meal plan, recipes and a logged workout. Premium features are enabled on it. Premium is included at no cost for everyone: the "Turn on Premium" button (More → Profile → the "Your plan" card → "See what Premium adds", or the same sheet any locked feature opens) just switches the account's tier, and no payment is taken or asked for anywhere in the app. There are no in-app purchases.
 
 WHERE THINGS ARE
 - Food mode (default): Today, Plan, Shop, Cookbook, More tabs.
@@ -57,7 +57,10 @@ HEALTH
 Calorie and macro targets are general guidance computed from the user's own inputs; the app does not diagnose or treat any condition and says so in the App Store description.
 
 CONTENT
-Exercise photos are from free-exercise-db (public domain). Exercise videos are embedded YouTube videos from their original channels. Recipe import reads only the page URL or text the user supplies.
+Exercise photos are from free-exercise-db (public domain). Exercise videos are embedded YouTube videos from their original channels; the player and the Terms/Privacy pages are locked to their own content, and any other link opens in Safari. Recipe import reads only the page URL or text the user supplies.
+
+FOLLOWING
+The app contains a 'Following' feature (following other users) that is switched off on the server for every account. It will only be enabled together with a future app version submitted for review.
 ```
 
 > The paths above were checked against `master` at wave 4 (30 Sep 2026): the tab names (Today,
@@ -82,15 +85,18 @@ approval (and can make sure the production API is up).
 ## At Following launch (draft)
 
 **Do not use this for the 1.0.1 submission.** The notes and sign-in above describe the build being submitted
-now and stay as they are. Use this section when Following is switched on for everyone (the order is in
+now and stay as they are. They already say (R-05 of the [2026-10-01 review simulation](./app-review-simulation-2026-10-01.md))
+that Following exists but is off on the server and will only be enabled with a future version submitted for review. Use this section when Following is switched on for everyone (the order is in
 [privacy-and-rating.md](./privacy-and-rating.md#order-for-the-owner)). Why each line is there:
 [`docs/friends/prd.md`](../../friends/prd.md) §9.6 and §14. Counsel review pending.
 
 ### Notes: add this block
 
-Add it after the `CONTENT` paragraph of the notes above. The existing notes are 2,470 characters and this
-block is 1371, so the total is about 3842, under the 4,000 limit. Check the real total in App Store
-Connect after pasting.
+Add it after the `CONTENT` paragraph of the notes above, and **delete the short `FOLLOWING` paragraph
+("switched off on the server for every account") that the 1.0.x notes now carry**: this block replaces it.
+The 1.0.x notes are 2,804 characters including that paragraph (209), and this block is 1,370, so the total
+is about 3,967, under the 4,000 limit but with little room. Check the real total in App Store Connect after
+pasting.
 
 ```
 FOLLOWING (user-generated content, enabled for the demo account)

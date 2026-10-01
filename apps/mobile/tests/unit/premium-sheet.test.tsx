@@ -9,7 +9,7 @@ import { PremiumSheet, type PremiumSheetProps } from '../../src/features/premium
 
 // PAT-3 / UX-10 (T-10.2): the job-led premium sheet and the lock card. The
 // sheet is presentational — PremiumHost (premium-host.test.tsx) feeds it the
-// pitch for a source. Guards AC1 (job headline), AC2 (the free-for-now terms
+// pitch for a source. Guards AC1 (job headline), AC2 (the included-at-no-cost terms
 // on every open), AC3 (an unavailable bullet never renders) and delta rules 1
 // and 2 (no "beta", no price/checkout on iOS).
 
@@ -53,7 +53,7 @@ describe('PremiumSheet — offer (AC1, AC2)', () => {
     expect(screen.getByText('One shopping list with amounts for everyone')).toBeOnTheScreen();
   });
 
-  it('shows the free-for-now terms paragraph on every open, for every source', async () => {
+  it('shows the included-at-no-cost terms paragraph on every open, for every source', async () => {
     for (const source of PREMIUM_SOURCES) {
       const { unmount } = await render(
         <SafeAreaProvider initialMetrics={metrics}>
@@ -65,7 +65,7 @@ describe('PremiumSheet — offer (AC1, AC2)', () => {
           />
         </SafeAreaProvider>,
       );
-      expect(screen.getByText('FREE FOR NOW')).toBeOnTheScreen();
+      expect(screen.getByText('INCLUDED')).toBeOnTheScreen();
       expect(screen.getByText(PREMIUM_PITCH_COPY.termsBody)).toBeOnTheScreen();
       await unmount();
     }

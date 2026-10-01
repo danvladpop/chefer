@@ -83,13 +83,13 @@ appId: dev.chefer.app.dev
 - tapOn:
     id: 'profile-upgrade'
 # The sheet is headlined by a job (the default pitch for a food user) and
-# carries the free-for-now terms; there is no price and no checkout.
+# carries the included-at-no-cost terms; there is no price and no checkout.
 - extendedWaitUntil:
     visible:
       id: 'premium-sheet-title'
     timeout: 10000
-- assertVisible: 'FREE FOR NOW'
-- assertVisible: 'Premium costs nothing for now.*'
+- assertVisible: 'INCLUDED'
+- assertVisible: 'Premium is included at no cost.*'
 - assertNotVisible: '.*[€$£].*'
 - tapOn:
     id: 'premium-sheet-not-now'
@@ -113,7 +113,7 @@ appId: dev.chefer.app.dev
       id: 'premium-sheet-title'
     timeout: 10000
 - assertVisible: 'Ask the chef'
-- assertVisible: 'FREE FOR NOW'
+- assertVisible: 'INCLUDED'
 # Close with ✕ (the kit Sheet's close button) — still never turning it on.
 - tapOn:
     id: 'premium-sheet-close'

@@ -240,6 +240,26 @@ reply to the reviewer that it's fixed. Native changes need a new `eas build` + `
 | 3.1.1     | Digital upgrades outside IAP                         | Premium is free; no payment in app                                                                                                                                                                                                       |
 | 4.8       | Third-party login without Sign in with Apple         | N/A: email + password only                                                                                                                                                                                                               |
 
+### After the 2026-10-01 review simulation
+
+Findings and fixes: [app-review-simulation-2026-10-01.md](./app-review-simulation-2026-10-01.md). Before
+submitting, tick these off:
+
+- [ ] **R-06 screenshots:** retake the set. The new captures go into `screenshots/iphone-6.9/`; see
+      [screenshots/README.md](./screenshots/README.md) for what changes per shot.
+- [ ] **R-07 permission strings:** the corrected camera/photos/notification purpose strings are a native
+      change. They land in a separate native PR and need a new binary, so don't submit before that build.
+- [ ] **R-13 age rating:** override the calculated rating to **16+** in App Store Connect so it matches the
+      16+ sign-up gate and the Terms ([privacy-and-rating.md](./privacy-and-rating.md#age-rating)).
+- [ ] **R-05 review notes:** paste the current notes from [review-notes.md](./review-notes.md); they now
+      carry the `FOLLOWING` sentence (switched off on the server, enabled only with a future reviewed version).
+- [ ] **R-01 / "Unrestricted web access: No":** re-check on the TestFlight build that the video sheet and
+      Terms/Privacy screens stay on their own content and that other links open in Safari.
+- [ ] **R-08:** confirm `eas env:list production` has no `EXPO_PUBLIC_POSTHOG_*`.
+- [ ] **R-23 (expect, ignore):** after upload App Store Connect may email **ITMS-90078** ("Missing Push
+      Notification Entitlement"). Push code is linked in the binary but `aps-environment` is stripped on
+      purpose, because the app uses local notifications only. It is a warning, not a rejection. No action.
+
 ### After approval
 
 - **Release:** App Store Connect → Release this version.

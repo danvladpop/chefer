@@ -20,12 +20,12 @@ import { track } from '../src/lib/analytics';
 import { trpc } from '../src/lib/trpc';
 
 // Profile — port of apps/web (dashboard)/profile/page.tsx (M2-8). Same
-// PW-2 semantics: upgrade/downgrade flip planTier directly (free for now);
+// PW-2 semantics: upgrade/downgrade flip planTier directly (no payment);
 // Stripe would replace only how the flag is set (P2-1).
 //
 // T-10.3 (UX-10 §3–4): the "Go Premium" card is now "Plan & Premium" — what
 // the plan is and includes, a job-led premium sheet (`openPremium('profile')`,
-// which carries the free-for-now terms; no price and no checkout on any
+// which carries the included-at-no-cost terms; no price and no checkout on any
 // platform, delta rule 2), and a downgrade that says what you keep and what
 // you lose before it acts. "Daily AI allowances" sit under it and count only
 // what the server reserves (T-10.8, Q-18, Q-19).

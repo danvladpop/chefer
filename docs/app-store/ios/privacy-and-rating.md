@@ -84,6 +84,12 @@ Verified from code on `master` (wave 4):
 declare Usage Data. Nothing is collected, so a "Yes" would be an over-declaration, and the
 privacy policy says the same.
 
+**R-08 (2026-10-01 review simulation):** the "Usage analytics" card in Profile → Privacy & data is
+hidden while no PostHog key is configured, so a reviewer never sees an "on by default" analytics switch
+next to an App Privacy label that declares no Usage Data. The card (and the policy's "In the app" text)
+only apply once a key is configured; do the Usage Data change below in the same release that adds it.
+Confirm `eas env:list production` has no `EXPO_PUBLIC_POSTHOG_*` before every submission.
+
 **The change to make the day a PostHog key is configured for a mobile build** (do it before the
 build that carries the key is submitted, and re-check on every later build):
 
@@ -113,24 +119,27 @@ build that carries the key is submitted, and re-check on every later build):
 ## Age rating
 
 App Store Connect → App Information → Age Rating → Edit. Apple's questionnaire changed in 2025;
-answer each question from the facts below and accept the rating it calculates. Expect
-**4+ or 9+**. If it comes out higher, the likely cause is the medical/wellness question
-(answer "Infrequent"), not a problem.
+answer each question from the facts below. The calculated rating will probably be **4+ or 9+**;
+**do not accept it. Use the age-rating override (App Store Connect → Age Rating → "Override age
+rating") to set it to 16+** (R-13 of the [2026-10-01 review simulation](./app-review-simulation-2026-10-01.md)).
+Why: sign-up requires "I'm 16 or older", the Terms say you must be 16 or over, and the privacy policy says
+16+. A 4+/9+ store rating beside a 16+ sign-up gate is a mismatch a reviewer can point at. If the
+questionnaire itself calculates something higher than 16+, stop and check which answer caused it.
 
-| Topic in the questionnaire                          | Answer            | Why                                                                                                          |
-| --------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------ |
-| Violence, horror, sexual content, nudity, profanity | None              |                                                                                                              |
-| Alcohol, tobacco or drug use or references          | None / Infrequent | Recipes can mention wine or beer as an ingredient. Choose **Infrequent** if asked about references           |
-| Simulated gambling, contests, loot boxes            | None / No         |                                                                                                              |
-| Medical or treatment information                    | Infrequent        | Calorie/macro targets and allergy handling; the app gives no diagnosis or treatment                          |
-| Health or wellness topics                           | Yes               | Nutrition, body weight, strength training                                                                    |
-| Unrestricted web access                             | No                | Recipe import fetches one URL server-side; the only web view is an embedded YouTube player for a fixed video |
-| User-generated content shared with other users      | No                | Recipes, chat and household data stay private to the account                                                 |
-| Messaging / chat with other users                   | No                | The AI chef chat is one-to-one with an AI, not with people                                                   |
-| AI-generated content / chatbot (if asked)           | Yes               | Meal plans, recipe adaptations and chat replies are AI-generated                                             |
-| Advertising                                         | No                |                                                                                                              |
-| Age assurance / parental controls                   | No                |                                                                                                              |
-| Made for Kids                                       | No                |                                                                                                              |
+| Topic in the questionnaire                          | Answer            | Why                                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Violence, horror, sexual content, nudity, profanity | None              |                                                                                                                                                                                                                                                                                                 |
+| Alcohol, tobacco or drug use or references          | None / Infrequent | Recipes can mention wine or beer as an ingredient. Choose **Infrequent** if asked about references                                                                                                                                                                                              |
+| Simulated gambling, contests, loot boxes            | None / No         |                                                                                                                                                                                                                                                                                                 |
+| Medical or treatment information                    | Infrequent        | Calorie/macro targets and allergy handling; the app gives no diagnosis or treatment                                                                                                                                                                                                             |
+| Health or wellness topics                           | Yes               | Nutrition, body weight, strength training                                                                                                                                                                                                                                                       |
+| Unrestricted web access                             | No                | Recipe import fetches one URL server-side. The two in-app web views are locked to their content (the YouTube video player, and the Terms/Privacy pages on our own site); every other link opens in Safari. Fixed in this release (R-01), so re-test it on the TestFlight build before answering |
+| User-generated content shared with other users      | No                | Recipes, chat and household data stay private to the account                                                                                                                                                                                                                                    |
+| Messaging / chat with other users                   | No                | The AI chef chat is one-to-one with an AI, not with people                                                                                                                                                                                                                                      |
+| AI-generated content / chatbot (if asked)           | Yes               | Meal plans, recipe adaptations and chat replies are AI-generated                                                                                                                                                                                                                                |
+| Advertising                                         | No                |                                                                                                                                                                                                                                                                                                 |
+| Age assurance / parental controls                   | No                |                                                                                                                                                                                                                                                                                                 |
+| Made for Kids                                       | No                |                                                                                                                                                                                                                                                                                                 |
 
 ---
 
@@ -161,7 +170,9 @@ encryption for each build. If it still asks, answer: **"None of the algorithms m
 
 ## Paid features: keep it that way until In-App Purchase exists
 
-Premium is currently a free toggle ("Turn on Premium", under a "FREE FOR NOW" note). That's fine for review. **When
+Premium is a free toggle ("Turn on Premium", under an "INCLUDED" note: "Premium is included at no cost."). The
+in-app copy deliberately says nothing about a future price, a card or any other payment method (R-04 of the
+2026-10-01 review simulation). That's fine for review. **When
 real payments arrive (P2-1 Stripe), digital features sold inside the iOS app must go through
 Apple In-App Purchase** (Guideline 3.1.1). A Stripe checkout or a link to one in the iOS app
 will be rejected (US storefront link-out rules differ, but don't count on them).

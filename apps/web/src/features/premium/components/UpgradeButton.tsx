@@ -22,12 +22,12 @@ import { cn, downgradeLosses, PREMIUM_PITCH_COPY } from '@chefer/utils';
 // PW-3 funnel can answer "which gate converts": upgrade_prompt_shown →
 // upgrade_clicked → upgrade_completed, all tagged with it.
 //
-// Soft-paywall phase: one confirmed click flips planTier to PREMIUM — free for
-// now, no payment. Stripe (roadmap P2-1) replaces only how the flag gets set.
+// Soft-paywall phase: one confirmed click flips planTier to PREMIUM — no
+// payment. Stripe (roadmap P2-1) replaces only how the flag gets set.
 //
 // T-10.5 (UX-10): the dialog is headlined by the JOB the source unlocks
 // (packages/utils premium-pitch.ts — the same registry the mobile sheet reads),
-// shows only live bullets, and carries the free-for-now terms every time it
+// shows only live bullets, and carries the included-at-no-cost terms every time it
 // opens. The trigger is "See what Premium adds", not a generic upgrade.
 //
 // The perk list on UpgradeCard still renders from the PLAN_FEATURES matrix

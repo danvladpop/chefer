@@ -29,10 +29,10 @@ const faq = (ai: AiProviderDisclosure): { q: string; a: React.ReactNode }[] => [
     q: 'How do I delete my account?',
     a: (
       <>
-        Go to <em>Profile → Delete account</em>, on the web or in the iOS and Android app. Confirm
-        with your password and type DELETE. Your account and all of its data — preferences, plans,
-        logs, recipes, workouts and household — are removed straight away and you are signed out on
-        every device. This can&apos;t be undone. Want a copy first? Use{' '}
+        Go to <em>Profile → Delete account</em>, on the web or in the app. Confirm with your
+        password and type DELETE. Your account and all of its data — preferences, plans, logs,
+        recipes, workouts and household — are removed straight away and you are signed out on every
+        device. This can&apos;t be undone. Want a copy first? Use{' '}
         <em>Profile → Your data → Download my data</em>. See the{' '}
         <Link href="/privacy" className={linkClass}>
           privacy policy
@@ -57,12 +57,7 @@ const faq = (ai: AiProviderDisclosure): { q: string; a: React.ReactNode }[] => [
   },
   {
     q: 'Is Premium free?',
-    a: (
-      <>
-        Yes, for now. Every premium feature is free to use today. If that ever changes, we will tell
-        you well in advance, inside the app — nothing is charged automatically.
-      </>
-    ),
+    a: <>Yes. Every Premium feature is free to use, and Chefer never takes payment details.</>,
   },
 ];
 
@@ -78,8 +73,8 @@ export default async function SupportPage() {
           <h2 className="mb-1 font-semibold text-gray-900">What Chefer is</h2>
           <p>
             Chefer plans a week of meals around your goals and allergies, prices the shopping list,
-            tracks what you eat and plans your gym training. It runs on the web and as an app for
-            iPhone and Android, with one account for both.
+            tracks what you eat and plans your gym training. It runs on the web and in the Chefer
+            app, with one account for both.
           </p>
         </section>
 
@@ -88,7 +83,7 @@ export default async function SupportPage() {
           <ul className="list-disc space-y-1 pl-5">
             <li>
               In the app: <em>Send feedback</em> (in the menu on the web, under <em>More</em> in the
-              iOS and Android app). A person reads every note.
+              app). A person reads every note.
             </li>
             <li>
               By email:{' '}

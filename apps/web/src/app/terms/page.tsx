@@ -45,7 +45,7 @@ export default function TermsPage() {
               It is not medical advice. Targets are estimates, and allergen checks can miss things.
             </li>
             <li>AI can be wrong. Check what it gives you.</li>
-            <li>Premium is free to try for now. We will never charge you without your say-so.</li>
+            <li>Premium is included at no cost, and Chefer never takes payment details.</li>
             <li>You can delete your account at any time.</li>
           </ul>
         </Section>
@@ -54,7 +54,9 @@ export default function TermsPage() {
           <p>
             Chefer is run by Pop Dan-Vlad, an individual based in Romania (&ldquo;we&rdquo;,
             &ldquo;us&rdquo;). These terms are the agreement between you and us when you use the
-            Chefer website or the iOS and Android app. Our{' '}
+            Chefer website or the Chefer app. On the App Store, the iOS app is published by Smooth
+            Path Digital S.R.L on our behalf, which is why Apple shows that company as the seller;
+            Smooth Path Digital S.R.L does not receive or process your Chefer account data. Our{' '}
             <Link href="/privacy" className={linkClass}>
               Privacy Policy
             </Link>{' '}
@@ -160,10 +162,8 @@ export default function TermsPage() {
         <Section title="Free and Premium">
           <p>
             Chefer has a free tier and a Premium tier with more features and higher daily limits.
-            While Chefer is growing, Premium is free to try. If we ever introduce paid plans, we
-            will tell you well in advance, inside the app, with the price and terms before you
-            decide. Nothing will be charged automatically, and you will not be moved to a paid plan
-            without agreeing to it. Daily limits on features may change.
+            Premium is included at no cost, and Chefer never takes payment details. Daily limits on
+            features may change.
           </p>
         </Section>
 
