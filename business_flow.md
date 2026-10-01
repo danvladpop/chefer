@@ -1066,7 +1066,11 @@ Ingredient catalog permissions
   |    (hidden even from admins; others get NOT_FOUND)
   |    and never used for anyone else's numbers: reconcile, import check,
   |    plan cost, shopping-list prices, pantry savings (F6, 2026-10-01)
-  +- /ingredients page: All / My Ingredients tabs, search, add/edit/delete
+  +- /ingredients page (web, P9: ingredients.catalogList): All / My
+  |    ingredients, search (any alias, EN/RO) + category filter; each row shows
+  |    its source (USDA / CIQUAL / Label / Mine), aliases and portions. Global
+  |    nutrition is read-only (D7): the owner edits/deletes private rows, an
+  |    ADMIN edits only a global row's price and image (linked price row)
 
 Recipe creation (revamped form)
   +- ingredients.search picks from the ingredient CATALOG (USDA/CIQUAL rows +
@@ -1090,6 +1094,21 @@ Recipe creation (revamped form)
   |      otherwise                -> PARTIAL (incomplete numbers, flagged)
   +- editing a private ingredient recomputes the owner's recipes that use it;
   |    deleting one deprecates it (existing recipes keep their numbers)
+  +- web form (P9, plan §10): every line -- new, edit, import review, video
+  |    draft -- is picked in the catalog picker sheet (search + category
+  |    chips) and stores its ingredientId; the unit list holds only units that
+  |    convert for that row (grams, its portions, volume only with a
+  |    density). "Create '...' as my ingredient" opens the private-ingredient
+  |    sheet (5 core values required; CONFLICT -> "Use it" / "No, mine is
+  |    different"). Edit: stored lines come back linked; a legacy line is
+  |    resolved -- EXACT/ALIAS linked, else "pick a match" with candidates.
+  |    The nutrition card is a live preview with the shared engine over
+  |    ingredients.getMany ("Incomplete -- N ingredients need data" when
+  |    PARTIAL); web never sends typed numbers, the server computes on save
+  +- recipe detail (mealPlan.getRecipe.nutritionLines): "Nutrition is
+  |    computed from N ingredients" opens the per-line breakdown (grams, kcal,
+  |    protein, source); PARTIAL -> "Incomplete -- N ingredients need data" +
+  |    a fix link for the owner; USER_ENTERED -> "Entered by you"
   +- recipe photo: device upload (POST /api/uploads/image, <=10 MB since
   |    T-BUG-O1/Q-22; the mobile app first shrinks the photo to <= 2048 px,
   |    JPEG 0.8 — T-BUG-O1.2) or deterministic AI image (recipe.aiImageUrl); a failed
@@ -1888,6 +1907,15 @@ recipe.importSave { recipe, variant, sourceUrl?, ogImageUrl?, acceptPartial? }  
        its catalog lines (one transaction)
        → rateable + pinnable → flows into P1-1 generation placement
 ```
+
+**Ingredient review (web, P9 — plan-ingredient-catalog §6.2, §10):** the preview's
+ingredient list is the recipe-line editor. Lines the server matched come back linked;
+an unmatched line shows the resolver's candidates, a catalog search and "Create as my
+ingredient". The nutrition card recomputes live as lines are picked. Save sends the
+picked `ingredientId`s and `acceptPartial: false` — it is blocked while a line needs
+data, unless the user ticks "Save with incomplete nutrition" (`acceptPartial: true`).
+The old "calorie estimate uncertain" banner is gone. The video draft form (§16.1) uses
+the same editor and the same rule.
 
 **Preview before Save (owner dogfood 2026-09-30, web + mobile):** under the Original /
 Cheferized cards, the chosen version is shown in full — name, description, servings,
