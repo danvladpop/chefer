@@ -141,3 +141,23 @@ describe('Onboarding metrics — units follow typed values (bug B-43, AC11)', ()
     expect(screen.queryByTestId('metrics-units-switch-notice')).toBeNull();
   });
 });
+
+// R-02 (Guideline 1.4.1): a 13-year-old can't continue past body metrics.
+describe('Onboarding metrics — minimum age (R-02)', () => {
+  it('blocks Continue and shows the message for age 13; clearing or fixing the age unblocks it', async () => {
+    await driveToMetrics();
+
+    await fireEvent.changeText(screen.getByTestId('metrics-age'), '13');
+    expect(screen.getByTestId('metrics-age-error')).toHaveTextContent(
+      'Chefer is for people aged 16 and over.',
+    );
+    expect(screen.getByTestId('onboarding-continue')).toBeDisabled();
+
+    await fireEvent.changeText(screen.getByTestId('metrics-age'), '16');
+    expect(screen.queryByTestId('metrics-age-error')).toBeNull();
+    expect(screen.getByTestId('onboarding-continue')).toBeEnabled();
+
+    await fireEvent.changeText(screen.getByTestId('metrics-age'), '');
+    expect(screen.getByTestId('onboarding-continue')).toBeEnabled();
+  });
+});

@@ -75,3 +75,62 @@ describe('GoalBodyCard — bug B-38 dirty state', () => {
     expect(screen.getByTestId('prefs-save-goal-body')).toHaveTextContent('Saved ✓');
   });
 });
+
+// R-02 (Guideline 1.4.1): no body metrics under 16, no calorie deficit under 18.
+describe('GoalBodyCard — age rules (R-02)', () => {
+  async function fill(user: ReturnType<typeof userEvent.setup>, age: string) {
+    await user.press(screen.getByTestId('goal-LOSE_WEIGHT'));
+    await user.press(screen.getByTestId('metrics-sex-FEMALE'));
+    await user.type(screen.getByTestId('metrics-age'), age);
+    await user.type(screen.getByTestId('metrics-height'), '152');
+    await user.type(screen.getByTestId('metrics-weight'), '44');
+    await user.press(screen.getByTestId('metrics-activity-SEDENTARY'));
+  }
+
+  it('shows the friendly message, no estimate, and a disabled Save for age 13', async () => {
+    const user = userEvent.setup();
+    const onSave = jest.fn();
+    await render(
+      <GoalBodyCard initial={ALL_NULL} onSave={onSave} isSaving={false} isSaved={false} />,
+    );
+    await fill(user, '13');
+
+    expect(screen.getByTestId('metrics-age-error')).toHaveTextContent(
+      'Chefer is for people aged 16 and over.',
+    );
+    expect(screen.getByTestId('metrics-calorie-preview')).toHaveTextContent(
+      'Chefer is for people aged 16 and over.',
+    );
+    expect(screen.queryByText('1,200')).toBeNull();
+    await user.press(screen.getByTestId('prefs-save-goal-body'));
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('explains maintenance for a 17-year-old on Lose Weight and shows no deficit', async () => {
+    const user = userEvent.setup();
+    await render(
+      <GoalBodyCard initial={ALL_NULL} onSave={jest.fn()} isSaving={false} isSaved={false} />,
+    );
+    await fill(user, '17');
+
+    expect(screen.queryByTestId('metrics-age-error')).toBeNull();
+    expect(screen.getByTestId('metrics-minor-note')).toHaveTextContent(
+      "Under 18 we don't set a calorie deficit — your target is maintenance. Talk to a doctor before trying to lose weight.",
+    );
+    // 17 y/o, 152 cm, 44 kg, sedentary → maintenance 1,373, not 1,373 − 500 (which would be the 1,200 floor).
+    expect(screen.getByTestId('metrics-calorie-preview')).toHaveTextContent(/1,373 maintenance/);
+  });
+
+  it('shows no minor note for an adult and saves normally', async () => {
+    const user = userEvent.setup();
+    const onSave = jest.fn();
+    await render(
+      <GoalBodyCard initial={ALL_NULL} onSave={onSave} isSaving={false} isSaved={false} />,
+    );
+    await fill(user, '30');
+
+    expect(screen.queryByTestId('metrics-minor-note')).toBeNull();
+    await user.press(screen.getByTestId('prefs-save-goal-body'));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ age: 30, goal: 'LOSE_WEIGHT' }));
+  });
+});

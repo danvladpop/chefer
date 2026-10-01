@@ -1,4 +1,5 @@
 import { Pressable, TextInput, View } from 'react-native';
+import { bodyMetricsAgeError, MINOR_NO_DEFICIT_NOTE } from '@chefer/types';
 import {
   Card,
   NumericReturnBar,
@@ -6,14 +7,8 @@ import {
   useFieldChain,
   useScrollFieldIntoView,
 } from '@chefer/ui-mobile';
-import { cn, WELLNESS_COPY } from '@chefer/utils';
-import {
-  ACTIVITY_OPTIONS,
-  estimateCalories,
-  estimateCalorieTarget,
-  type Goal,
-  type MetricsValue,
-} from '../types';
+import { cn, previewCalorieTarget, WELLNESS_COPY } from '@chefer/utils';
+import { ACTIVITY_OPTIONS, type Goal, type MetricsValue } from '../types';
 import { OptionRow } from './option-row';
 
 /**
@@ -24,7 +19,7 @@ import { OptionRow } from './option-row';
 function computeCaloriePreview(
   value: MetricsValue,
   goal: Goal | null | undefined,
-): { maintenance: number; target: number } | null {
+): { maintenance: number; target: number; deficitBlocked: boolean } | null {
   const { age, heightCm, weightKg, activityLevel, biologicalSex } = value;
   if (
     age === null ||
@@ -36,17 +31,18 @@ function computeCaloriePreview(
   ) {
     return null;
   }
-  return {
-    maintenance: estimateCalories(weightKg, heightCm, age, activityLevel, biologicalSex),
-    target: estimateCalorieTarget(
-      weightKg,
-      heightCm,
-      age,
-      activityLevel,
-      biologicalSex,
-      goal ?? null,
-    ),
-  };
+  // Below the minimum age there is no estimate at all (R-02): the form shows
+  // the age message instead of a number.
+  if (bodyMetricsAgeError(age) !== null) return null;
+  const { maintenance, target, deficitBlocked } = previewCalorieTarget(
+    weightKg,
+    heightCm,
+    age,
+    activityLevel,
+    biologicalSex,
+    goal ?? null,
+  );
+  return { maintenance, target, deficitBlocked };
 }
 
 export interface MetricsStepProps {
@@ -104,6 +100,7 @@ export function MetricsStep({
   units = 'METRIC',
 }: MetricsStepProps) {
   const preview = computeCaloriePreview(value, goal);
+  const ageError = bodyMetricsAgeError(value.age);
   const heightLabel = units === 'IMPERIAL' ? 'Height (in)' : 'Height (cm)';
   const weightLabel = units === 'IMPERIAL' ? 'Weight (lb)' : 'Weight (kg)';
   const heightPlaceholder = units === 'IMPERIAL' ? 'e.g. 69' : 'e.g. 175';
@@ -164,7 +161,13 @@ export function MetricsStep({
             keyboardType="number-pad"
             placeholder="e.g. 30"
             placeholderTextColor="#9ca3af"
-            className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+            accessibilityLabel="Age"
+            accessibilityHint={ageError ?? undefined}
+            aria-invalid={ageError !== null}
+            className={cn(
+              'h-11 rounded-md border bg-background px-3 text-base text-foreground',
+              ageError !== null ? 'border-red-600' : 'border-input',
+            )}
           />
         </View>
         <View className="flex-1 gap-1">
@@ -196,6 +199,16 @@ export function MetricsStep({
           />
         </View>
       </View>
+
+      {ageError !== null && (
+        <Text
+          testID="metrics-age-error"
+          accessibilityRole="alert"
+          className="-mt-3 text-xs text-red-600"
+        >
+          {ageError}
+        </Text>
+      )}
 
       <NumericReturnBar
         nativeID={NUMERIC_BAR_ID}
@@ -242,6 +255,14 @@ export function MetricsStep({
                 ? `kcal / day · ${preview.maintenance.toLocaleString('en-US')} maintenance`
                 : 'kcal / day · Mifflin-St Jeor estimate'}
             </Text>
+            {preview.deficitBlocked && (
+              <Text
+                testID="metrics-minor-note"
+                className="mt-1 text-center text-xs text-foreground"
+              >
+                {MINOR_NO_DEFICIT_NOTE}
+              </Text>
+            )}
             {lifterProtein && (
               <View testID="metrics-lifter-protein" className="mt-2 items-center gap-0.5">
                 <Text className="text-base font-semibold text-foreground">
@@ -253,6 +274,10 @@ export function MetricsStep({
               </View>
             )}
           </>
+        ) : ageError !== null ? (
+          <Text variant="muted" className="text-center text-sm">
+            {ageError}
+          </Text>
         ) : (
           <Text variant="muted" className="text-center text-sm">
             Fill in your age, height, and weight to see your estimated daily calorie target.

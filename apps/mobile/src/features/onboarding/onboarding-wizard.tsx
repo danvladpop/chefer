@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { OnboardingJob } from '@chefer/types';
-import { LB_PER_KG } from '@chefer/types';
+import { bodyMetricsAgeError, LB_PER_KG } from '@chefer/types';
 import { Button, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
@@ -352,7 +352,8 @@ export function OnboardingWizard() {
     return {
       ...(!goodFood && goal !== null && { goal }),
       ...(metrics.biologicalSex !== null && { biologicalSex: metrics.biologicalSex }),
-      ...(metrics.age !== null && metrics.age > 0 && { age: metrics.age }),
+      ...(metrics.age !== null &&
+        bodyMetricsAgeError(metrics.age) === null && { age: metrics.age }),
       ...(metrics.heightCm !== null && metrics.heightCm > 0 && { heightCm: metrics.heightCm }),
       ...(metrics.weightKg !== null && metrics.weightKg > 0 && { weightKg: metrics.weightKg }),
       ...(metrics.activityLevel !== null && { activityLevel: metrics.activityLevel }),
@@ -655,7 +656,10 @@ export function OnboardingWizard() {
       ? jobs.length > 0
       : stepKey === 'goal'
         ? goodFood || true // goal is always optional past the jobs step
-        : true;
+        : // R-02: an age under 16 blocks the body-metrics step until fixed or cleared.
+          stepKey === 'metrics'
+          ? bodyMetricsAgeError(metrics.age) === null
+          : true;
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
