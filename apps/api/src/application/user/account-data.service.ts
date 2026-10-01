@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { consentEventRepository, prisma } from '@chefer/database';
+import { displayNameOf } from '@chefer/utils';
 import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
@@ -10,6 +11,118 @@ import { emailPreferencesService } from '../notifications/email-preferences.serv
 // app stores require in-app deletion (F-M-PROF-1-1). T-39.5 (bug B-53): the
 // export was missing the consent log, email preferences, the AI call log and
 // shopping lists — added below, additive to the existing shape.
+
+// ─── Following export (PRD FR-22.1, docs/friends/implementation-plan.md §2.3) ─
+// `social` is an additive section: your own settings, the people on your side
+// of each relationship (display NAMES only — never another user's email, id or
+// profile), requests both ways, blocks you made, your Activity items, the
+// reports YOU filed (never reports about you: that is moderation data about
+// someone else's action) and where your recipe copies came from.
+
+type NameRow = { firstName: string | null; lastName: string | null; name: string | null };
+
+async function exportSocialData(
+  userId: string,
+  consentEvents: { kind: string }[],
+): Promise<Record<string, unknown>> {
+  const [profile, follows, blocks, notifications, reports, copies] = await Promise.all([
+    prisma.socialProfile.findUnique({
+      where: { userId },
+      select: {
+        visibility: true,
+        sharePlan: true,
+        shareRecipes: true,
+        shareWorkouts: true,
+        shareTargets: true,
+        activatedAt: true,
+        forcedPrivateAt: true,
+      },
+    }),
+    prisma.follow.findMany({
+      where: { OR: [{ followerId: userId }, { followeeId: userId }] },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.block.findMany({ where: { blockerId: userId }, orderBy: { createdAt: 'desc' } }),
+    prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
+    prisma.userReport.findMany({ where: { reporterId: userId }, orderBy: { createdAt: 'desc' } }),
+    prisma.recipe.findMany({
+      where: {
+        creatorId: userId,
+        OR: [{ originRecipeId: { not: null } }, { originCreatorId: { not: null } }],
+      },
+      select: {
+        id: true,
+        name: true,
+        originRecipeId: true,
+        originCreatorId: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  // One lookup for every name on the page; only name columns are selected.
+  const otherIds = new Set<string>();
+  for (const f of follows) otherIds.add(f.followerId === userId ? f.followeeId : f.followerId);
+  for (const b of blocks) otherIds.add(b.blockedId);
+  for (const n of notifications) otherIds.add(n.actorId);
+  for (const r of reports) otherIds.add(r.targetUserId);
+  for (const c of copies) if (c.originCreatorId) otherIds.add(c.originCreatorId);
+  otherIds.delete(userId);
+  const people: ({ id: string } & NameRow)[] =
+    otherIds.size === 0
+      ? []
+      : await prisma.user.findMany({
+          where: { id: { in: [...otherIds] } },
+          select: { id: true, firstName: true, lastName: true, name: true },
+        });
+  const nameById = new Map(people.map((p) => [p.id, displayNameOf(p)]));
+  const nameOf = (id: string | null): string | null => (id ? (nameById.get(id) ?? null) : null);
+
+  const outgoing = follows.filter((f) => f.followerId === userId);
+  const incoming = follows.filter((f) => f.followeeId === userId);
+
+  return {
+    settings: profile,
+    following: outgoing
+      .filter((f) => f.status === 'ACCEPTED')
+      .map((f) => ({ name: nameOf(f.followeeId), since: f.acceptedAt ?? f.createdAt })),
+    followers: incoming
+      .filter((f) => f.status === 'ACCEPTED')
+      .map((f) => ({ name: nameOf(f.followerId), since: f.acceptedAt ?? f.createdAt })),
+    pendingRequests: {
+      sent: outgoing
+        .filter((f) => f.status === 'PENDING')
+        .map((f) => ({ name: nameOf(f.followeeId), requestedAt: f.createdAt })),
+      received: incoming
+        .filter((f) => f.status === 'PENDING')
+        .map((f) => ({ name: nameOf(f.followerId), requestedAt: f.createdAt })),
+    },
+    blocksMade: blocks.map((b) => ({ name: nameOf(b.blockedId), blockedAt: b.createdAt })),
+    activity: notifications.map((n) => ({
+      kind: n.kind,
+      name: nameOf(n.actorId),
+      createdAt: n.createdAt,
+      readAt: n.readAt,
+    })),
+    // Reports YOU filed. Whether they counted toward a threshold (`eligible`,
+    // `discountedAt`) is moderation bookkeeping and is not exported.
+    reportsFiled: reports.map((r) => ({
+      reason: r.reason,
+      about: nameOf(r.targetUserId),
+      recipeId: r.recipeId,
+      reportedAt: r.createdAt,
+    })),
+    recipeCopies: copies.map((c) => ({
+      recipeId: c.id,
+      name: c.name,
+      copiedAt: c.createdAt,
+      originRecipeId: c.originRecipeId,
+      originCreator: nameOf(c.originCreatorId),
+    })),
+    consentHistory: consentEvents.filter((e) => e.kind === 'SOCIAL_SHARING'),
+  };
+}
 
 /** Everything Chefer stores about one user, as plain JSON. */
 export async function exportAccountData(userId: string): Promise<Record<string, unknown>> {
@@ -92,6 +205,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
   const shoppingLists = await prisma.shoppingList.findMany({
     where: { planId: { in: mealPlans.map((p) => p.id) } },
   });
+  const social = await exportSocialData(userId, consentEvents);
 
   return {
     exportedAt: new Date().toISOString(),
@@ -119,6 +233,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
       customExercises,
     },
     feedback,
+    social,
     privacy: {
       consentHistory: consentEvents,
       emailPreferences,
@@ -143,6 +258,14 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
  * - workout sessions and routines BEFORE the user row: their exercise FKs
  *   are RESTRICT, and a custom exercise cascading away before the routine
  *   row that uses it could abort the whole delete.
+ * Following (F1.5, PRD FR-22.2): needs no explicit code — the social profile,
+ * follows and blocks (both directions), suggestion dismissals, reports filed
+ * AND received, the moderation log and Activity items (received and caused)
+ * all cascade from the users row. Deleting the MANUAL recipes above
+ * deletes the originals of other people's copies; those copies stay theirs
+ * with `originRecipeId`/`originCreatorId` set to null (SetNull), and hearts on
+ * the deleted originals cascade away. account-data.service.test.ts pins the
+ * schema's onDelete rules so a new Following table can't forget the cascade.
  * Household members are the user's own extra eaters (no other accounts are
  * linked to them), so they simply cascade — there is nothing to hand over.
  * Everything runs in one transaction: all or nothing. After it commits, the
