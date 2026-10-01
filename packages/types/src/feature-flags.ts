@@ -25,6 +25,10 @@ export const featureFlagsSchema = z
     /** Q-24 (T-42.3, UX-42): cardio as a first-class exercise type. Off by
      *  default; the owner flips it after checking the W2 minimal slice. */
     cardioLogging: z.boolean(),
+    /** Following (code name `friends`): follow people, see their shared
+     *  meals/recipes/workouts. Dark by default; ships behind this flag plus
+     *  the FRIENDS_ALLOWLIST env var (implementation-plan §8). */
+    friends: z.boolean(),
   })
   .partial();
 export type FeatureFlags = z.infer<typeof featureFlagsSchema>;

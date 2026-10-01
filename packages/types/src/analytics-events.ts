@@ -128,4 +128,37 @@ export interface EventMap {
   health_consent_withdrawn: Record<string, never>;
   /** Richer replacement for the wave-0 funnel `meal_logged { source: 'today', mealType: string }`. */
   meal_logged: { source: 'today' | 'plan' | 'log'; mealType: PlanSlot };
+
+  // ─── Following (PRD §15) — enums, counts and booleans only ───────────────────
+  // Never another user's id, a name or a search query.
+  friends_opened: { source: 'more' | 'settings' | 'link' };
+  friends_activated: { visibility: 'public' | 'private' };
+  friends_deactivated: { followingCount: number; followerCount: number };
+  friends_visibility_changed: { to: 'public' | 'private'; autoAccepted: number };
+  friends_sharing_changed: { section: 'plan' | 'recipes' | 'workouts' | 'targets'; on: boolean };
+  friends_search: { resultBucket: '0' | '1' | '2-5' | '6+' };
+  friend_follow: {
+    source: 'search' | 'suggestion' | 'followers' | 'profile' | 'activity';
+    outcome: 'following' | 'requested';
+  };
+  friend_request_answered: {
+    action: 'accept' | 'decline';
+    via: 'home' | 'requests' | 'activity';
+  };
+  friend_unfollowed: { wasMutual: boolean };
+  follower_removed: Record<string, never>;
+  friend_blocked: { from: 'profile' | 'followers' };
+  friend_reported: {
+    target: 'profile' | 'recipe';
+    reason: 'inappropriate' | 'spam' | 'harassment' | 'unsafe' | 'other';
+  };
+  friend_suggestion_dismissed: { reason: 'mutual' | 'follows_you' | 'popular' };
+  friend_profile_viewed: {
+    tab: 'food' | 'gym';
+    relation: 'self' | 'following' | 'locked';
+  };
+  friend_recipe_favourited: { on: boolean; imported: boolean };
+  friend_recipe_added_to_week: { replaced: boolean; reusedCopy: boolean };
+  friend_text_rejected: { field: 'name' | 'recipe' };
+  notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
 }
