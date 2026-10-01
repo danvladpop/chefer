@@ -1064,6 +1064,8 @@ Ingredient catalog permissions
   |    (admin edits set source ADMIN -> exempt from weekly AI refresh)
   +- custom rows (creatorId set): visible/editable ONLY by their creator
   |    (hidden even from admins; others get NOT_FOUND)
+  |    and never used for anyone else's numbers: reconcile, import check,
+  |    plan cost, shopping-list prices, pantry savings (F6, 2026-10-01)
   +- /ingredients page: All / My Ingredients tabs, search, add/edit/delete
 
 Recipe creation (revamped form)

@@ -22,6 +22,7 @@ import { resolveIngredientImage } from '../../lib/ingredient-images/index.js';
 import {
   estimateItemPriceEur,
   normalizeIngredientName,
+  visibleToUser,
 } from '../../lib/ingredient-prices/index.js';
 import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js';
 import { householdService } from '../household/household.service.js';
@@ -241,13 +242,16 @@ export class ShoppingListService {
    * contains ingredients the vocabulary hasn't priced yet, so they resolve
    * shortly after (next page load shows them).
    */
-  private async finalizeItems(rawItems: StoredShoppingListItem[]): Promise<{
+  private async finalizeItems(
+    rawItems: StoredShoppingListItem[],
+    userId: string,
+  ): Promise<{
     items: ShoppingListItemForWeek[];
     estimatedTotalEur: number | null;
   }> {
     const normalizedNames = rawItems.map((i) => normalizeIngredientName(i.ingredientName));
     const priceRows = await prisma.ingredientPrice.findMany({
-      where: { ingredientName: { in: normalizedNames } },
+      where: { ingredientName: { in: normalizedNames }, ...visibleToUser(userId) },
     });
     const priceMap = new Map(priceRows.map((p) => [p.ingredientName, p]));
 
@@ -452,10 +456,10 @@ export class ShoppingListService {
     // User-added items overlay whichever list is served (derived or AI).
     const customItems = readCustomItems(stored?.customItems);
     if (stored?.aiGenerated) {
-      const finalized = await this.finalizeItems([
-        ...tidyAiItems(stored.items as unknown as StoredShoppingListItem[]),
-        ...customItems,
-      ]);
+      const finalized = await this.finalizeItems(
+        [...tidyAiItems(stored.items as unknown as StoredShoppingListItem[]), ...customItems],
+        userId,
+      );
       const { items, estimatedTotalEur, pantry } = await this.applyPantry(
         user,
         finalized.items,
@@ -480,7 +484,7 @@ export class ShoppingListService {
     }
 
     const rawItems = await this.buildDerivedRawItems(targetPlan, portions);
-    const finalized = await this.finalizeItems([...rawItems, ...customItems]);
+    const finalized = await this.finalizeItems([...rawItems, ...customItems], userId);
     const { items, estimatedTotalEur, pantry } = await this.applyPantry(
       user,
       finalized.items,
@@ -843,10 +847,10 @@ export class ShoppingListService {
     });
 
     const stored = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
-    const finalized = await this.finalizeItems([
-      ...rawItems,
-      ...readCustomItems(stored?.customItems),
-    ]);
+    const finalized = await this.finalizeItems(
+      [...rawItems, ...readCustomItems(stored?.customItems)],
+      userId,
+    );
     const { items, estimatedTotalEur, pantry } = await this.applyPantry(
       user,
       finalized.items,
