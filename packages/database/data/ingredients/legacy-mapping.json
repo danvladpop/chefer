@@ -7,9 +7,8 @@
       "reason": "prepared product, no catalog row"
     },
     "balsamic glaze": {
-      "slug": "vinegar-balsamic",
-      "proxy": true,
-      "note": "balsamic glaze"
+      "partial": true,
+      "reason": "no catalog row; a reduced glaze is 2–3× balsamic vinegar in kcal"
     },
     "beef stir fry": {
       "partial": true,
@@ -66,9 +65,8 @@
       "reason": "a whole dish as one line"
     },
     "cilantro lime dressing": {
-      "slug": "salad-dressing-creamy",
-      "proxy": true,
-      "note": "cilantro lime dressing"
+      "partial": true,
+      "reason": "recipes range from yogurt- to oil-based (2–4× apart)"
     },
     "coconut aminos": {
       "slug": "tamari",
@@ -85,23 +83,28 @@
       "reason": "neither FDC nor CIQUAL has coconut flour (catalog gap)"
     },
     "collagen peptides": {
-      "partial": true,
-      "reason": "no collagen row in the catalog (gap)"
+      "slug": "gelatin",
+      "proxy": true,
+      "note": "collagen peptides"
     },
     "creamy tomato pasta": {
       "partial": true,
       "reason": "a whole dish as one line"
     },
     "curry paste": {
-      "slug": "curry-powder",
-      "proxy": true,
-      "note": "curry paste"
+      "partial": true,
+      "reason": "ambiguous: Thai and Indian pastes differ 2–3× in kcal"
     },
     "curry spices blend": {
       "slug": "curry-powder",
       "proxy": true
     },
     "edamame beans in pods": {
+      "slug": "edamame-frozen",
+      "quantityFactor": 0.5,
+      "note": "weighed in pods; about half is beans"
+    },
+    "edamame in pods": {
       "slug": "edamame-frozen",
       "quantityFactor": 0.5,
       "note": "weighed in pods; about half is beans"
@@ -151,9 +154,8 @@
       "note": "garam masala"
     },
     "ginger dressing": {
-      "slug": "sesame-dressing",
-      "proxy": true,
-      "note": "ginger dressing"
+      "partial": true,
+      "reason": "no catalog row; the nearest dressing is about 2× in kcal"
     },
     "ginger garlic paste": {
       "split": [
@@ -170,14 +172,12 @@
       ]
     },
     "green curry paste": {
-      "slug": "curry-powder",
-      "proxy": true,
-      "note": "green curry paste"
+      "partial": true,
+      "reason": "no catalog row; Thai curry paste is about a third of curry powder's kcal"
     },
     "green curry paste paleo": {
-      "slug": "curry-powder",
-      "proxy": true,
-      "note": "green curry paste"
+      "partial": true,
+      "reason": "no catalog row; Thai curry paste is about a third of curry powder's kcal"
     },
     "halloumi": {
       "slug": "cheese-average",
@@ -252,20 +252,24 @@
       "split": [
         {
           "slug": "tahini",
-          "name": "Tahini",
-          "share": 0.67
+          "name": "tahini",
+          "share": 0.5
         },
         {
           "slug": "lemon-juice",
-          "name": "Lemon juice",
-          "share": 0.33
+          "name": "lemon juice",
+          "share": 0.25
+        },
+        {
+          "slug": "water",
+          "name": "water",
+          "share": 0.25
         }
       ]
     },
     "low fat feta cheese": {
-      "slug": "feta",
-      "proxy": true,
-      "note": "low-fat"
+      "partial": true,
+      "reason": "no reduced-fat brined-cheese row; feta is about 1.5× in kcal"
     },
     "marinade": {
       "partial": true,
@@ -381,19 +385,16 @@
       ]
     },
     "pad thai sauce": {
-      "slug": "tamari",
-      "proxy": true,
-      "note": "pad thai sauce"
+      "partial": true,
+      "reason": "no catalog row; tamarind/sugar sauce is about 3× soy sauce in kcal"
     },
     "red curry paste": {
-      "slug": "curry-powder",
-      "proxy": true,
-      "note": "red curry paste"
+      "partial": true,
+      "reason": "no catalog row; Thai curry paste is about a third of curry powder's kcal"
     },
     "red curry paste paleo": {
-      "slug": "curry-powder",
-      "proxy": true,
-      "note": "red curry paste"
+      "partial": true,
+      "reason": "no catalog row; Thai curry paste is about a third of curry powder's kcal"
     },
     "salt and black pepper": {
       "split": [
@@ -432,6 +433,11 @@
       "proxy": true,
       "note": "soba noodles"
     },
+    "soba noodles boiled": {
+      "slug": "buckwheat-cooked",
+      "proxy": true,
+      "note": "soba noodles, boiled"
+    },
     "soba noodles cooked": {
       "slug": "buckwheat-cooked",
       "proxy": true,
@@ -452,7 +458,7 @@
       "reason": "unspecified spices"
     },
     "stir fry sauce": {
-      "slug": "soy-sauce",
+      "slug": "teriyaki-sauce",
       "proxy": true,
       "note": "stir-fry sauce"
     },
@@ -499,7 +505,7 @@
     },
     "vegan feta": {
       "partial": true,
-      "reason": "no catalog row; the nearest food is more than 1.5× off in kcal"
+      "reason": "no catalog row; dairy feta matches kcal but not protein (about 15 g vs ~0)"
     },
     "water or vegetable broth": {
       "slug": "vegetable-broth"
