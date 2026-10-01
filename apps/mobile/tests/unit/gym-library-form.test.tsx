@@ -62,7 +62,7 @@ describe('ExerciseFormScreen', () => {
     // unreachable port (gym-screen-test-utils). R-09: shown as the friendly
     // "Can't reach Chefer" line, not the raw transport text.
     expect(await screen.findByTestId('exercise-form-errors')).toHaveTextContent(
-      "Can't reach Chefer right now",
+      /Can't reach Chefer right now/,
     );
   });
 
