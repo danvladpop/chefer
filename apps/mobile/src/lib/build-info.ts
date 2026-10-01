@@ -32,3 +32,12 @@ export function formatBuildInfo(info: BuildInfoInput): string {
   );
   return parts.join(' · ');
 }
+
+/**
+ * What the More footer shows everyone: "Version 1.0.1". The full
+ * `formatBuildInfo` line (variant, OTA update id) stays reachable for support
+ * via a long-press on the footer, but isn't shown by default (App Review R-15).
+ */
+export function formatVersionLabel(appVersion: string | null | undefined): string {
+  return appVersion ? `Version ${appVersion}` : 'Version';
+}

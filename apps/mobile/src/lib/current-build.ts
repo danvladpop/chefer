@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
-import { formatBuildInfo } from './build-info';
+import { formatBuildInfo, formatVersionLabel } from './build-info';
 
 /** The running build, e.g. "Chefer 0.0.1 · production · update 3f2a9c1e". */
 export const CURRENT_BUILD = formatBuildInfo({
@@ -12,3 +12,6 @@ export const CURRENT_BUILD = formatBuildInfo({
   updateId: Updates.updateId,
   isEmbeddedLaunch: Updates.isEmbeddedLaunch,
 });
+
+/** The user-facing line, e.g. "Version 1.0.1". */
+export const CURRENT_VERSION_LABEL = formatVersionLabel(Constants.expoConfig?.version);

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Linking, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
@@ -9,7 +10,7 @@ import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { track } from '../../src/lib/analytics';
 import { getWebUrl } from '../../src/lib/api-url';
 import { clearToken } from '../../src/lib/auth-store';
-import { CURRENT_BUILD } from '../../src/lib/current-build';
+import { CURRENT_BUILD, CURRENT_VERSION_LABEL } from '../../src/lib/current-build';
 import { trpc } from '../../src/lib/trpc';
 
 // Secondary nav hub — the mobile counterpart of web's MobileNavDrawer
@@ -57,6 +58,7 @@ function withFollowing(available: boolean): MoreItem[] {
 }
 
 export default function MoreScreen() {
+  const [showBuildDetails, setShowBuildDetails] = useState(false);
   const { available, badgeCount } = useFriendsBadge();
   const items = withFollowing(available);
   const utils = trpc.useUtils();
@@ -149,9 +151,19 @@ export default function MoreScreen() {
           Sign out
         </Button>
 
-        <Text testID="build-info" className="text-center text-xs text-gray-400">
-          {CURRENT_BUILD}
-        </Text>
+        {/* R-15: users see "Version 1.0.1"; the full build/OTA line (variant,
+            update id) is for support — long-press to reveal it. */}
+        <Pressable
+          testID="build-info"
+          accessibilityLabel={showBuildDetails ? CURRENT_BUILD : CURRENT_VERSION_LABEL}
+          onLongPress={() => setShowBuildDetails((shown) => !shown)}
+          delayLongPress={600}
+          className="min-h-11 items-center justify-center"
+        >
+          <Text className="text-center text-xs text-gray-400">
+            {showBuildDetails ? CURRENT_BUILD : CURRENT_VERSION_LABEL}
+          </Text>
+        </Pressable>
       </ScrollView>
     </Screen>
   );

@@ -21,11 +21,17 @@ jest.mock('expo-router', () => ({
   useIsFocused: () => false,
 }));
 
+// Last props the mocked WebView rendered with (read by the R-01 guard test).
+let mockWebViewProps: Record<string, unknown> = {};
+
 jest.mock('react-native-webview', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     __esModule: true,
-    default: ({ testID }: { testID?: string }) => <RN.View testID={testID} />,
+    default: (props: { testID?: string }) => {
+      mockWebViewProps = props;
+      return <RN.View testID={props.testID} />;
+    },
   };
 });
 
@@ -101,6 +107,46 @@ describe('ExerciseDetailScreen', () => {
 
     await user.press(await screen.findByTestId('exercise-detail-watch'));
     expect(await screen.findByTestId('exercise-video-sheet-webview')).toBeTruthy();
+  });
+
+  it('keeps the player pinned to the embed: other navigation opens in the browser (R-01)', async () => {
+    const user = userEvent.setup();
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ library: [withVideo()] }));
+    await renderWithGym(<ExerciseDetailScreen exerciseId="bench" />, queryClient);
+
+    await user.press(await screen.findByTestId('exercise-detail-watch'));
+    await screen.findByTestId('exercise-video-sheet-webview');
+    const shouldLoad = mockWebViewProps.onShouldStartLoadWithRequest as (req: {
+      url: string;
+      isTopFrame: boolean;
+      navigationType?: string;
+    }) => boolean;
+    expect(mockWebViewProps.setSupportMultipleWindows).toBe(false);
+
+    // The embed itself and its iframe load in place.
+    expect(shouldLoad({ url: 'https://chefer.duckdns.org', isTopFrame: true })).toBe(true);
+    expect(
+      shouldLoad({
+        url: 'https://www.youtube-nocookie.com/embed/abc123?start=30',
+        isTopFrame: false,
+        navigationType: 'other',
+      }),
+    ).toBe(true);
+    expect(openURLSpy).not.toHaveBeenCalled();
+
+    // The logo / "Watch on YouTube" link is cancelled and handed to the browser.
+    expect(
+      shouldLoad({
+        url: 'https://www.youtube.com/watch?v=abc123',
+        isTopFrame: true,
+        navigationType: 'click',
+      }),
+    ).toBe(false);
+    expect(openURLSpy).toHaveBeenCalledWith('https://www.youtube.com/watch?v=abc123');
+    const src = (mockWebViewProps.source as { html: string }).html;
+    expect(src).toContain('modestbranding=1');
+    expect(src).toContain('rel=0');
   });
 
   it('falls back to "Open in YouTube" when offline, and never shows the player', async () => {

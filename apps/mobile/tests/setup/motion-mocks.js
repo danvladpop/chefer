@@ -24,3 +24,11 @@ jest.mock('expo-haptics', () => ({
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));
+
+// react-native-webview has no JS-side fallback for its native module, so any
+// test that merely imports a screen containing a WebView would crash. A plain
+// View stands in; tests that inspect WebView props mock it themselves.
+jest.mock('react-native-webview', () => {
+  const { View } = require('react-native');
+  return { __esModule: true, default: View };
+});
