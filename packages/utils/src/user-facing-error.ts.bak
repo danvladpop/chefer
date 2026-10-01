@@ -22,7 +22,7 @@ type ErrorLike = {
 };
 
 function asErrorLike(error: unknown): ErrorLike | null {
-  return error !== null && typeof error === 'object' ? error : null;
+  return error !== null && typeof error === 'object' ? (error as ErrorLike) : null;
 }
 
 /** True when the request never got an answer from the server. */
