@@ -133,6 +133,25 @@ describe('mobile DeleteAccountSheet (App Review R-03 / R-17 / R-24)', () => {
     dismiss.mockRestore();
   });
 
+  it('R-03: typing DELETE closes the keyboard so the button is one tap away', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    await openSheet();
+    await fireEvent.changeText(screen.getByTestId('delete-account-confirm-text'), 'DELET');
+    expect(dismiss).not.toHaveBeenCalled();
+    await fireEvent.changeText(screen.getByTestId('delete-account-confirm-text'), 'DELETE');
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    dismiss.mockRestore();
+  });
+
+  it('R-17: pressing delete sends the typed password and empties the field', async () => {
+    await openSheet();
+    await fireEvent.changeText(screen.getByTestId('delete-account-password'), 'Secret1!');
+    await fireEvent.changeText(screen.getByTestId('delete-account-confirm-text'), 'DELETE');
+    await fireEvent.press(screen.getByTestId('delete-account-confirm'));
+    expect(mockDeleteMutate).toHaveBeenCalledWith({ password: 'Secret1!', confirm: 'DELETE' });
+    expect(screen.getByTestId('delete-account-password').props.value).toBe('');
+  });
+
   it('R-17: the password field opts out of the iOS save-password prompt', async () => {
     await openSheet();
     const field = screen.getByTestId('delete-account-password');

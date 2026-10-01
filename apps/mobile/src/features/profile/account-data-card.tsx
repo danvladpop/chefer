@@ -87,10 +87,31 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
   const resetMutation = trpc.auth.requestPasswordReset.useMutation();
   const ready = password.length > 0 && confirmText.trim().toUpperCase() === COPY.confirmWord;
 
+  // R-17: iOS offers "Save Password?" when a secure field that still holds
+  // text leaves the screen. Empty it before the sheet goes away (close, or the
+  // delete request — which uses the captured value).
+  const close = () => {
+    setPassword('');
+    onClose();
+  };
+  const submitDelete = () => {
+    const typed = password;
+    setPassword('');
+    deleteMutation.mutate({ password: typed, confirm: COPY.confirmWord });
+  };
+  // R-03: with the keyboard up, the first tap on a footer button only closed
+  // the keyboard (the sheet drops as it hides and the press is cancelled). Once
+  // DELETE is typed there is nothing left to type, so close the keyboard then —
+  // the button settles in place and one tap deletes.
+  const onConfirmTextChange = (text: string) => {
+    setConfirmText(text);
+    if (text.trim().toUpperCase() === COPY.confirmWord) Keyboard.dismiss();
+  };
+
   return (
     <Sheet
       visible={visible}
-      onClose={onClose}
+      onClose={close}
       title={COPY.title}
       testID="delete-account"
       footer={
@@ -101,11 +122,11 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
             size="lg"
             disabled={!ready}
             loading={deleteMutation.isPending}
-            onPress={() => deleteMutation.mutate({ password, confirm: COPY.confirmWord })}
+            onPress={submitDelete}
           >
             {COPY.submit}
           </Button>
-          <Button variant="outline" size="lg" onPress={onClose}>
+          <Button variant="outline" size="lg" onPress={close}>
             {COPY.cancel}
           </Button>
         </View>
@@ -176,7 +197,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
           submitBehavior="blurAndSubmit"
           onSubmitEditing={() => Keyboard.dismiss()}
           value={confirmText}
-          onChangeText={setConfirmText}
+          onChangeText={onConfirmTextChange}
           className="min-h-11 rounded-lg border border-gray-300 px-3 text-base"
         />
         {deleteMutation.isError && (
