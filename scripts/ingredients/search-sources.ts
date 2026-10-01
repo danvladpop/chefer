@@ -32,7 +32,10 @@ function fdcLine(f: FdcFood): string {
     )
     .slice(0, 6)
     .join('; ');
-  return `${f.dataset === 'foundation' ? 'F' : 'S'} ${String(f.fdcId).padEnd(7)} ${fmt(kcal)} ${fmt(g(N.protein))} ${fmt(carbs)} ${fmt(g(N.fat))} ${fmt(fib)} | ${f.description}${portions ? `  [${portions}]` : ''}`;
+  const complete = [kcal, g(N.protein), carbs, g(N.fat), fib].every((v) => v !== undefined)
+    ? '*'
+    : ' ';
+  return `${f.dataset === 'foundation' ? 'F' : 'S'}${complete}${String(f.fdcId).padEnd(7)} ${fmt(kcal)} ${fmt(g(N.protein))} ${fmt(carbs)} ${fmt(g(N.fat))} ${fmt(fib)} | ${f.description}${portions ? `  [${portions}]` : ''}`;
 }
 
 function ciqLine(f: CiqualFood): string {
