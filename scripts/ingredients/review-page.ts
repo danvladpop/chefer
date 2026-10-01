@@ -242,6 +242,7 @@ details{margin:8px 0}summary{cursor:pointer;font-weight:600}
 <div class="card"><div class="v">${pct(cov.resolvedLines, cov.lines)}</div><div class="k">demand lines resolved (${cov.resolvedLines}/${cov.lines})</div></div>
 <div class="card"><div class="v">${pct(cov.resolvedNames, cov.names)}</div><div class="k">demand names resolved (${cov.resolvedNames}/${cov.names})</div></div>
 <div class="card"><div class="v">${cov.top95Resolved}/${cov.top95Names}</div><div class="k">names in the top 95% of lines resolved</div></div>
+<div class="card"><div class="v">${pct(build.vocabulary.resolved, build.vocabulary.names)}</div><div class="k">existing global vocabulary resolved (${build.vocabulary.resolved}/${build.vocabulary.names})</div></div>
 <div class="card"><div class="v">${s.errors} / ${s.warnings} / ${s.infos}</div><div class="k">validator errors / warnings / info</div></div>
 <div class="card"><div class="v">${sampleSize}</div><div class="k">spot-check rows (seed "${SAMPLE_SEED}")</div></div>
 <div class="card"><div class="v">${reviewRows.length}</div><div class="k">rows flagged for owner review</div></div>
@@ -288,6 +289,9 @@ ${[...bySource]
       ' · ',
     )}. <i>compound</i> and <i>prepared</i> lines are expected misses: the §7 legacy mapping splits or maps them. <i>gap</i> means a real ingredient the catalog lacks.</p>
 <div class="wrap"><table style="max-width:760px"><thead><tr><th>Unresolved demand name</th><th class="r">Lines</th><th>Class</th></tr></thead><tbody>${missRows}</tbody></table></div>
+<details><summary>Existing global vocabulary names that resolve to no row (${build.vocabulary.unresolved.length})</summary>
+<p class="small muted">Names of the prod <span class="mono">ingredient_prices</span> global rows (AI-created vocabulary, finding F1). Their AI macros are never read.</p>
+<div class="wrap"><table style="max-width:600px"><thead><tr><th>Name</th><th>Class</th></tr></thead><tbody>${build.vocabulary.unresolved.map((u) => `<tr><td>${esc(u.name)}</td><td><span class="cls ${u.class}">${u.class}</span></td></tr>`).join('')}</tbody></table></div></details>
 <details><summary>Resolved demand names (${cov.resolved.length}): name → matched key → slug</summary>
 <div class="wrap"><table><thead><tr><th>Demand name</th><th class="r">Lines</th><th>Matched key</th><th>Slug</th></tr></thead><tbody>${resolvedRows}</tbody></table></div></details>
 </section>

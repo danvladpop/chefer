@@ -69,12 +69,28 @@ Portions come from FDC `food_portion.csv`, in both Foundation and SR Legacy, for
 - `grams` = `gram_weight / amount`, so it is the edible grams for **one** unit.
 - The row's own food takes priority over `portionsFrom` foods. Within one food, the first record wins, ordered by `seq_num` and then by id.
 - `source` = `fdc-portion:<food_portion.id>`.
-- A draft may pin one FDC record to one unit (`portionAs`). That is used when FDC phrases a common unit as a fraction, for example "0.5 breast" meaning one breast fillet. `sourceNote` records that.
+- A size word after a food-named count becomes the size unit instead of `piece`. For example, "1 fruit small (2-1/2" dia)" → `small`, and "1 pepper, large" → `large`.
+- A draft may pin one FDC record to one unit (`portionAs`). That is used when FDC phrases a common unit as a fraction, for example "0.5 breast" or "0.5 fillet" meaning one breast or fillet as sold. `sourceNote` records that.
+- A draft may drop a mapped unit (`skipPortions`) when the first FDC record for it describes a different item. For example, the tomato record's first "piece" is one cherry tomato.
+- No `edibleFraction` is set in v1. The FDC CSV releases carry no refuse percentages, so every row is an edible-portion row (boneless, peeled), and FDC portion weights are edible weights.
 
 ### Density (`densityGPerMl`)
 
-Density = grams of one FDC volume measure ÷ its volume. The volumes are 1 cup = 236.6 ml, 1 tbsp = 14.79 ml, 1 tsp = 4.93 ml, 1 fl oz = 29.57 ml, and ml/l as stated. The measures are tried in that order. A measure with no qualifier ("1 cup") is preferred over a qualified one ("1 cup, chopped"). The draft's `densityFrom` names the food to use. Otherwise the row's own food is used first, then its `portionsFrom` foods. `sourceNote` records the FDC portion used. No reference-table densities are used in v1. A row in a volume-measured category without FDC volume data is left without density and appears in the gap report.
+Density = grams of one FDC volume measure ÷ its volume. The volumes are 1 cup = 236.6 ml, 1 tbsp = 14.79 ml, 1 tsp = 4.93 ml, 1 fl oz = 29.57 ml, and ml/l as stated. The measures are tried in that order. A measure with no qualifier ("1 cup") is preferred over a qualified one ("1 cup, chopped"). A volume stated inside the description also counts as a qualified measure, for example "1 serving 1/2 cup". The draft's `densityFrom` names the food to use. Otherwise the row's own food is used first, then its `portionsFrom` foods. `sourceNote` records the FDC portion used. No reference-table densities are used in v1. A row in a volume-measured category without FDC volume data is left without density and appears in the gap report.
+
+### Choosing the source record (draft rules)
+
+- **Foundation first.** A Foundation Foods record is used when it publishes all five core values. The animal-origin fiber rule above counts towards that. Otherwise the same food's SR Legacy record is used. Many Foundation records publish only part of their nutrients, for example no energy for oils or no fiber for some vegetables.
+- **CIQUAL** is used for EU and Romanian items that USDA lacks: smântână 12%, urdă, fromage blanc (brânză de vaci), crème fraîche, EU milk fat levels (0.1, 1.5 and 3.5%), lardons, cured ham, feta, telemea proxies, zacuscă proxy, tobă (fromage de tête), salată de icre (tarama) and French flour types (T65).
+- **CIQUAL also replaces FDC where the FDC record publishes Atwater _specific-factor_ energy that fails the EU energy check, and CIQUAL has the same food.** CIQUAL energy is computed under Regulation 1169/2011, which matches D2 and the EU labels users read. This applies to cayenne, cloves, coriander seed, dried dill, chervil, tarragon, spirulina, oat bran, wheat bran and baking powder.
+- **Proxy mappings.** A demand item with no record of its own sometimes resolves to the closest same-class record, for example paneer → queso fresco, telemea → feta-type cow's-milk cheese, or cașcaval → gouda. These rows carry a `review` note in the draft and are listed on the review page under "Rows flagged for owner review". They are not used for a nutritionally different food.
+- Neither dataset has a record for: lovage (leuștean), fresh tarragon, wild garlic (leurdă), sea buckthorn (cătină), mici meat mix, burduf cheese, borș (fermented bran), halloumi, coconut aminos, curry pastes, balsamic glaze, soba noodles (the SR record lacks carbs and fiber), coconut flour, psyllium, creatine, collagen or casein powder, erythritol, coconut sugar and spice blends (garam masala, Italian seasoning, herbes de Provence, everything-bagel). These are left as gaps rather than proxied.
+
+## Demand coverage and the review sample
+
+- **Coverage.** `build-catalog.ts` resolves each prod demand name and each existing global vocabulary name. Each name is normalized with `normalizeAlias`, the shared validator helper: lowercase, NFKD diacritics stripped, punctuation folded. Then the build strips parentheticals, text after the first comma and "for …" tails, removes prep and serving words (chopped, fresh, wedges, …) and singularizes. The result is looked up against slugs and aliases with exact matches only. Unresolved names are classified by pattern as junk, compound, prepared or gap.
+- **Spot-check sample.** `review-page.ts` sorts rows by FNV-1a of `"chefer-catalog-v1" + slug` and takes the lowest ⌈5 %⌉. The sample is stable across runs and changes only when slugs are added or removed.
 
 ## Label rows
 
-None in v1.
+None in v1. Label candidates, ordered by prod demand: paneer (it currently uses the queso fresco proxy), coconut aminos, halloumi, sea buckthorn, red and green curry paste, and balsamic glaze. A label row needs the product page URL, its retrieval date and the per-100 g values exactly as printed. The draft validator refuses a label row without a `review` flag.

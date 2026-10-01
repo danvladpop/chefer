@@ -70,6 +70,7 @@ export type BuildOutput = {
   issues: ValidationIssue[];
   summary: ReturnType<typeof summarizeIssues>;
   coverage: Coverage;
+  vocabulary: VocabularyCoverage;
 };
 
 export type Coverage = {
@@ -317,6 +318,32 @@ function readDemand(): { name: string; lines: number }[] {
     .filter((r) => r.name);
 }
 
+/** Names of the existing global vocabulary (global-prices.tsv). Its AI macros are never read. */
+function readGlobalNames(): string[] {
+  const text = readFileSync(join(OUT_DIR, 'global-prices.tsv'), 'utf8');
+  return text
+    .trim()
+    .split('\n')
+    .slice(1)
+    .map((l) => l.split('\t')[0] ?? '')
+    .filter(Boolean);
+}
+
+export type VocabularyCoverage = {
+  names: number;
+  resolved: number;
+  unresolved: { name: string; class: MissClass }[];
+};
+
+export function computeVocabularyCoverage(entries: CatalogEntry[]): VocabularyCoverage {
+  const idx = buildIndex(entries);
+  const names = readGlobalNames().sort();
+  const unresolved = names
+    .filter((n) => !resolveName(n, idx))
+    .map((name) => ({ name, class: classifyMiss(name) }));
+  return { names: names.length, resolved: names.length - unresolved.length, unresolved };
+}
+
 export function computeCoverage(entries: CatalogEntry[]): Coverage {
   const demand = readDemand().sort((a, b) => b.lines - a.lines || a.name.localeCompare(b.name));
   const idx = buildIndex(entries);
@@ -357,6 +384,7 @@ function main() {
   const issues = validateCatalog(entries);
   const summary = summarizeIssues(issues);
   const coverage = computeCoverage(entries);
+  const vocabulary = computeVocabularyCoverage(entries);
 
   writeFileSync(join(OUT_DIR, 'catalog.candidate.json'), `${JSON.stringify(entries, null, 2)}\n`);
   const out: BuildOutput = {
@@ -370,6 +398,7 @@ function main() {
     issues,
     summary,
     coverage,
+    vocabulary,
   };
   writeFileSync(join(OUT_DIR, 'catalog.build.json'), `${JSON.stringify(out, null, 2)}\n`);
 
@@ -395,6 +424,9 @@ function main() {
   const pct = (a: number, b: number) => `${((100 * a) / b).toFixed(1)}%`;
   console.log(
     `coverage: names ${coverage.resolvedNames}/${coverage.names} (${pct(coverage.resolvedNames, coverage.names)}), lines ${coverage.resolvedLines}/${coverage.lines} (${pct(coverage.resolvedLines, coverage.lines)}), top-95% names ${coverage.top95Resolved}/${coverage.top95Names}`,
+  );
+  console.log(
+    `global vocabulary: ${vocabulary.resolved}/${vocabulary.names} names resolve (${pct(vocabulary.resolved, vocabulary.names)})`,
   );
   if (process.argv.includes('--errors'))
     for (const i of issues.filter((x) => x.severity === 'error'))
