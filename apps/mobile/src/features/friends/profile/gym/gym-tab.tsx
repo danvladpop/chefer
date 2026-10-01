@@ -33,7 +33,10 @@ function GymContent({ userId, firstName }: { userId: string; firstName: string }
 
   return (
     <View testID="friends-profile-gym" className="gap-4">
-      <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+      <Text
+        accessibilityRole="header"
+        className="text-xs font-semibold uppercase tracking-widest text-gray-500"
+      >
         {FRIENDS_COPY.gym.routine}
       </Text>
       {routine.isLoading ? (
@@ -48,7 +51,10 @@ function GymContent({ userId, firstName }: { userId: string; firstName: string }
         <FriendRoutineCard routine={routine.data ?? null} firstName={firstName} />
       )}
 
-      <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+      <Text
+        accessibilityRole="header"
+        className="text-xs font-semibold uppercase tracking-widest text-gray-500"
+      >
         {FRIENDS_COPY.gym.lastSevenDays}
       </Text>
       {workouts.isLoading ? (
