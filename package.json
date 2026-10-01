@@ -34,6 +34,8 @@
     "prepare": "husky",
     "upload:images": "npx tsx --env-file=apps/api/.env scripts/upload-to-cloudinary.ts",
     "recipes:from-video": "apps/api/node_modules/.bin/tsx --env-file=apps/api/.env scripts/extract-video-recipes.ts",
+    "ingredients:fetch": "scripts/ingredients/fetch-sources.sh",
+    "ingredients:search": "apps/api/node_modules/.bin/tsx scripts/ingredients/search-sources.ts",
     "ai:eval": "pnpm --filter @chefer/api ai:eval"
   },
   "devDependencies": {
