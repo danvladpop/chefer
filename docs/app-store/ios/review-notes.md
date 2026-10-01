@@ -76,3 +76,54 @@ deletion screen (don't confirm it). Record on the simulator with
 
 Choose **"Manually release this version"** for 1.0, so you decide when it goes live after
 approval (and can make sure the production API is up).
+
+---
+
+## At Following launch (draft)
+
+**Do not use this for the 1.0.1 submission.** The notes and sign-in above describe the build being submitted
+now and stay as they are. Use this section when Following is switched on for everyone (the order is in
+[privacy-and-rating.md](./privacy-and-rating.md#order-for-the-owner)). Why each line is there:
+[`docs/friends/prd.md`](../../friends/prd.md) §9.6 and §14. Counsel review pending.
+
+### Notes: add this block
+
+Add it after the `CONTENT` paragraph of the notes above. The existing notes are 2,470 characters and this
+block is 1371, so the total is about 3842, under the 4,000 limit. Check the real total in App Store
+Connect after pasting.
+
+```
+FOLLOWING (user-generated content, enabled for the demo account)
+Signed-in users can follow each other and see what each person chooses to share: this week's meals, their own recipes, their routine and last 7 days of workouts. It is off until a user turns it on (More → Following, below Profile; in Gym mode, the gear icon → Following). Names are visible to other users. There is no messaging, comment or feed. Email addresses are never shown, and there is no search by email.
+FILTER: a word filter rejects offensive display names and shared-recipe text.
+REPORT: on a profile, "..." → "Report and block"; on a recipe, "..." → "Report recipe". One tap on a reason.
+BLOCK: "..." → "Block" is instant and works both ways. Reporting also blocks at once. Undo: Following → gear → Sharing & privacy → Blocked people.
+TIMELY ACTION: there is no manual queue; every response is automatic. For the reporter it is immediate. A recipe reported by 3 accounts is hidden for everyone; an account reported by 5 accounts is forced private and removed from search.
+CONTACT: https://chefer.duckdns.org/support
+DEMO: the demo account already follows "Chefer Kitchen" and "Demo Cook" and is followed back by Demo Cook. To try Report and block, use "Demo Cook Two" (Unblock restores it). Following → gear → Turn off Following deletes the user's social data; Delete account removes all of it.
+```
+
+Replace the demo names with the real ones if you choose other names. The paths were taken from the UX
+design (`docs/friends/ux-design.md` §11) and must be re-checked on the TestFlight build, as the paths above
+were.
+
+### Sign-in and demo accounts
+
+- Sign-in fields stay the single review account. The demo profiles it follows ("Chefer Kitchen", "Demo Cook",
+  "Demo Cook Two") need no login for the reviewer. Do not paste their passwords anywhere.
+- The review account must be able to see Following: its user id in `FRIENDS_ALLOWLIST`, or the `friends`
+  flag on. Otherwise App Review sees no user-generated content.
+- How to create the three profiles on **production** (the dev seed accounts do not exist there, and their
+  passwords must never be used there): [privacy-and-rating.md → Demo accounts for App Review at Following
+  launch](./privacy-and-rating.md).
+- Keep the three demo profiles' names and recipes clean. The word filter applies to them too.
+
+### Mapping to Guideline 1.2
+
+The full table (filter, report, block, contact, and how "timely" is met by the instant block and hide for the
+reporter plus the automatic threshold hide) is in [privacy-and-rating.md → Guideline 1.2](./privacy-and-rating.md).
+If App Review asks a follow-up question about moderation, that table is the answer.
+
+### Age rating
+
+Set "User-generated content shared with other users" to **Yes** (see [privacy-and-rating.md](./privacy-and-rating.md)).
