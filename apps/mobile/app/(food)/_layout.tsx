@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs, usePathname } from 'expo-router';
 import { colors, countPillText } from '@chefer/ui-mobile';
+import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
 import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
 import { landingSurfaceSync, useSyncLandingCache } from '../../src/features/navigation/use-landing';
 import { getToken } from '../../src/lib/auth-store';
@@ -46,7 +47,11 @@ export default function FoodTabsLayout() {
   }
 
   return (
-    <Tabs screenOptions={TAB_BAR_SCREEN_OPTIONS}>
+    <Tabs
+      screenOptions={TAB_BAR_SCREEN_OPTIONS}
+      // R-11: lets the global snackbar sit above the tab bar.
+      tabBar={(props) => <SnackbarAwareTabBar {...props} />}
+    >
       <Tabs.Screen
         name="index"
         options={{
