@@ -206,7 +206,13 @@ export function FriendRecipeTile({
         testID={testID}
         pressScale="card"
         accessibilityRole="button"
-        accessibilityLabel={`${recipe.name}, ${FRIENDS_COPY.recipes.perServing(kcal, recipe.totalTimeMins)}`}
+        accessibilityLabel={[
+          recipe.name,
+          FRIENDS_COPY.recipes.perServing(kcal, recipe.totalTimeMins),
+          recipe.sourceDomain,
+        ]
+          .filter(Boolean)
+          .join(', ')}
         onPress={() =>
           router.push({ pathname: '/recipe/[id]', params: { id: recipe.id, owner: ownerId } })
         }
