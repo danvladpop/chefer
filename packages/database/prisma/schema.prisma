@@ -242,6 +242,9 @@ model User {
   notificationsCaused   Notification[]        @relation("NotificationsCaused")
   copiedRecipesOrigin   Recipe[]              @relation("RecipeOriginCreator")
 
+  // Ingredient catalog (docs/plan-ingredient-catalog.md §3): the user's private ingredients
+  privateIngredients Ingredient[]
+
   @@index([email])
   @@map("users")
 }
@@ -429,6 +432,16 @@ model Recipe {
   originRecipe  Recipe?  @relation("RecipeCopies", fields: [originRecipeId], references: [id], onDelete: SetNull)
   copies        Recipe[] @relation("RecipeCopies")
   originCreator User?    @relation("RecipeOriginCreator", fields: [originCreatorId], references: [id], onDelete: SetNull)
+
+  // Ingredient catalog (docs/plan-ingredient-catalog.md §3, additive). `ingredients`
+  // (Json) stays as the {name, quantity, unit} mirror of `lines`, written in the
+  // same transaction by writeRecipeLines. Until a recipe is migrated (§7) it has
+  // no lines and stays PARTIAL.
+  nutritionStatus     NutritionStatus    @default(PARTIAL)
+  nutritionComputedAt DateTime?
+  /// Whole-recipe totals (same shape as nutritionInfo), kept for audit.
+  nutritionTotal      Json?
+  lines               RecipeIngredient[]
 
   // At most one copy per viewer and source. NOT a @@unique: adding a unique
   // constraint to the populated `recipes` table makes `prisma db push` stop
@@ -847,7 +860,7 @@ model IngredientImage {
 // IngredientPriceWorker (source AI_ESTIMATE). Rows with creatorId are a
 // user's private custom ingredients (source USER, never AI-refreshed).
 model IngredientPrice {
-  ingredientName   String   @id // normalized lowercase
+  ingredientName   String      @id // normalized lowercase
   pricePer100gEur  Float?
   pricePer100mlEur Float?
   pricePerPieceEur Float?
@@ -861,11 +874,191 @@ model IngredientPrice {
   gramsPerPiece    Float?
   imageUrl         String?
   creatorId        String? // null = global vocabulary; set = private custom ingredient
-  source           String   @default("AI_ESTIMATE")
-  estimatedAt      DateTime @default(now())
+  source           String      @default("AI_ESTIMATE")
+  estimatedAt      DateTime    @default(now())
+  /// Catalog row this price belongs to (plan-ingredient-catalog §3). The macro
+  /// columns above are deprecated: new code reads nutrition from Ingredient.
+  ingredientId     String?
+  ingredient       Ingredient? @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
 
   @@index([creatorId])
+  @@index([ingredientId])
   @@map("ingredient_prices")
+}
+
+// ─── Ingredient catalog (docs/plan-ingredient-catalog.md §3) ──────────────────
+// Global rows (ownerId null) come only from packages/database/data/ingredients/
+// catalog.json via the sync script; private rows (ownerId set) are user-created
+// and visible to their owner only. Postgres treats NULLs as distinct, so the
+// [ownerId, slug] / [ownerId, alias] uniques do NOT stop two global rows from
+// sharing a slug or alias: the catalog validators and the sync enforce that.
+
+enum IngredientStatus {
+  ACTIVE
+  MERGED
+  DEPRECATED
+}
+
+enum NutritionSource {
+  USDA_FDC
+  CIQUAL
+  LABEL
+  USER
+  ADMIN
+}
+
+enum NutritionStatus {
+  COMPUTED
+  PARTIAL
+  USER_ENTERED
+}
+
+enum IngredientCategory {
+  VEGETABLE
+  FRUIT
+  HERB_FRESH
+  SPICE_DRIED
+  LEGUME
+  GRAIN_CEREAL
+  FLOUR_BAKING
+  PASTA_NOODLE
+  BREAD_BAKERY
+  NUT_SEED
+  BEEF
+  PORK
+  LAMB_GOAT
+  POULTRY
+  GAME
+  PROCESSED_MEAT
+  FISH
+  SEAFOOD
+  EGG
+  DAIRY_MILK
+  DAIRY_CHEESE
+  DAIRY_YOGURT_CREAM
+  PLANT_PROTEIN
+  PLANT_MILK
+  OIL_FAT
+  CONDIMENT_SAUCE
+  VINEGAR
+  SWEETENER
+  CANNED_JARRED
+  PICKLED_FERMENTED
+  STOCK_BROTH
+  BEVERAGE
+  ALCOHOL_COOKING
+  SUPPLEMENT
+  SNACK_PREPARED
+  OTHER
+}
+
+model Ingredient {
+  id              String             @id @default(cuid())
+  /// "chicken-breast-raw"; unique among globals (enforced by sync + validators, see above)
+  slug            String
+  /// Display name: "Chicken breast, raw"
+  name            String
+  category        IngredientCategory
+  status          IngredientStatus   @default(ACTIVE)
+  /// Set when MERGED (a private row relinked to a global one by the weekly review)
+  mergedIntoId    String?
+  /// null = global; set = private to that user
+  ownerId         String?
+  // Nutrition per 100 g EDIBLE portion, EU convention (carbs exclude fiber, D2)
+  kcalPer100g     Float
+  proteinPer100g  Float
+  carbsPer100g    Float
+  fatPer100g      Float
+  fiberPer100g    Float
+  sugarPer100g    Float?
+  satFatPer100g   Float?
+  sodiumMgPer100g Float?
+  // Conversion
+  /// Required when the ingredient may be measured by volume
+  densityGPerMl   Float?
+  /// < 1 only for bone-in / unpeeled purchase-weight rows
+  edibleFraction  Float              @default(1)
+  // Provenance
+  nutritionSource NutritionSource
+  /// "fdc:171077", "ciqual:12345", "label:<url>"
+  sourceRef       String?
+  sourceNote      String?
+  imageUrl        String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  owner      User?               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  mergedInto Ingredient?         @relation("IngredientMerges", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom Ingredient[]        @relation("IngredientMerges")
+  aliases    IngredientAlias[]
+  portions   IngredientPortion[]
+  lines      RecipeIngredient[]
+  prices     IngredientPrice[]
+
+  @@unique([ownerId, slug])
+  @@index([ownerId])
+  @@index([status])
+  @@map("ingredients")
+}
+
+/// Normalized lookup keys → ingredient (plan §6.1 normalization).
+model IngredientAlias {
+  id           String     @id @default(cuid())
+  ingredientId String
+  alias        String
+  /// "en" | "ro"
+  locale       String     @default("en")
+  /// null for global aliases; the private ingredient's owner otherwise
+  ownerId      String?
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, alias])
+  @@index([alias])
+  @@index([ingredientId])
+  @@map("ingredient_aliases")
+}
+
+/// Count / household unit → edible grams for ONE unit, per ingredient.
+model IngredientPortion {
+  id           String     @id @default(cuid())
+  ingredientId String
+  /// Canonical portion unit: "piece", "medium", "clove", "slice", "can", …
+  unit         String
+  grams        Float
+  /// "fdc-portion:<id>", "label", "admin", "user"
+  source       String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([ingredientId, unit])
+  @@map("ingredient_portions")
+}
+
+/// One recipe line, linked to a catalog row. Recipe.ingredients (Json) mirrors these.
+model RecipeIngredient {
+  id           String      @id @default(cuid())
+  recipeId     String
+  position     Int
+  /// null only for unresolved lines (legacy / old-client names, or a deleted private row)
+  ingredientId String?
+  /// What the author, AI or importer wrote; never lost
+  rawName      String
+  quantity     Float
+  /// Canonical unit (plan §5.1)
+  unit         String
+  /// Resolved edible grams; null ⇒ line unresolved
+  grams        Float?
+  /// Prep text: "minced", "diced", "drained"
+  note         String?
+  /// Garnish / "to serve": excluded from totals
+  optional     Boolean     @default(false)
+  recipe       Recipe      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  // SetNull, not Restrict: deleting an account cascades its private ingredients,
+  // and a line that pointed at one must become unresolved, not block the delete.
+  ingredient   Ingredient? @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
+
+  @@index([recipeId])
+  @@index([ingredientId])
+  @@map("recipe_ingredients")
 }
 
 // Persisted (AI-consolidated) shopping list for a meal plan. Written by
@@ -978,7 +1171,7 @@ enum WorkoutStatus {
 }
 
 model Exercise {
-  id               String            @id // curated: stable slug; custom: cuid
+  id               String               @id // curated: stable slug; custom: cuid
   ownerId          String? // null = curated (shared by everyone)
   name             String
   aliases          String[]
@@ -992,9 +1185,9 @@ model Exercise {
   repMax           Int
   restSec          Int
   incrementKg      Float
-  perHand          Boolean           @default(false)
-  isLowerBody      Boolean           @default(false)
-  isTimed          Boolean           @default(false) // reps fields hold SECONDS (plank, carries)
+  perHand          Boolean              @default(false)
+  isLowerBody      Boolean              @default(false)
+  isTimed          Boolean              @default(false) // reps fields hold SECONDS (plank, carries)
   // S18 (T-42.0): additive. `isTimed` stays and is still written (true for
   // every time-based type) so a level-0/1 client keeps its seconds label.
   // Boot backfill (Δ2.2): customs with isTimed → DURATION, loadType
@@ -1008,10 +1201,10 @@ model Exercise {
   videoId          String?
   videoStartSec    Int?
   videoChannel     String?
-  contentVersion   Int               @default(1)
+  contentVersion   Int                  @default(1)
   archivedAt       DateTime?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 
   owner            User?             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   routineExercises RoutineExercise[]

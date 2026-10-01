@@ -274,3 +274,16 @@ export {
   type IFriendRecipeRepository,
   type ListSharedRecipesOptions,
 } from './friend-recipe.repository';
+
+export {
+  RecipeLineRepository,
+  recipeLineRepository,
+  toIngredientsMirror,
+  toLineRows,
+  toNutritionColumns,
+  type IRecipeLineRepository,
+  type RecipeLineWrite,
+  type RecipeNutritionFacts,
+  type RecipeNutritionWrite,
+  type StoredRecipeLineRow,
+} from './recipe-line.repository';

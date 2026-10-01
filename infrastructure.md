@@ -752,6 +752,7 @@ src/
 │   ├── moderation.repository.ts         # Following: moderation log, ops undo, weekly counts
 │   ├── notification.repository.ts       # Following: in-app Activity rows
 │   ├── friend-recipe.repository.ts      # Following: another user's shared recipes (list / count, keyset)
+│   ├── recipe-line.repository.ts        # Ingredient catalog: writeLines (RecipeIngredient rows + Json mirror + nutrition, one transaction)
 │   └── safety-report.repository.ts      # Recipe safety reports (UX-01)
 ├── index.ts           # Public exports
 └── seed.ts            # Development seed script
@@ -760,7 +761,11 @@ prisma/
 └── migrations/        # Auto-generated migration history
 ```
 
-**Exports:** `prisma`, `PrismaClient`, all repository classes, singleton instances, and interfaces; all Prisma model types (`User`, `ChefProfile`, `DietaryPreferences`, `Recipe`, `MealPlan`, `MealPlanDay`, `FavouriteRecipe`, `MealRating`, `DailyLog`, `WeightEntry`, `ChefReview`); enums (`UserRole`, `PostStatus`, `MealPlanStatus`, `BiologicalSex`, `Prisma`).
+**Exports:** `prisma`, `PrismaClient`, all repository classes, singleton instances, and interfaces; all Prisma model types (`User`, `ChefProfile`, `DietaryPreferences`, `Recipe`, `MealPlan`, `MealPlanDay`, `FavouriteRecipe`, `MealRating`, `DailyLog`, `WeightEntry`, `ChefReview`, and for the ingredient catalog `Ingredient`, `IngredientAlias`, `IngredientPortion`, `RecipeIngredient`); enums (`UserRole`, `PostStatus`, `MealPlanStatus`, `BiologicalSex`, `Prisma`, `IngredientCategory`, `IngredientStatus`, `NutritionSource`, `NutritionStatus`).
+
+**Tests:** `pnpm --filter @chefer/database test` (vitest, added with the ingredient catalog). The repositories are tested
+with a mocked client; `recipe-line.repository.test.ts` covers the dual write (order, single transaction, joining a
+caller's transaction, `USER_ENTERED` totals).
 
 ### 5.2 `@chefer/types`
 
@@ -787,6 +792,14 @@ Zero-dependency shared types consumed by all packages and apps.
 - T-40.1: `recipe-form.ts` (**NEW**) — `CUISINE_PRESETS` (moved from web `recipes/new/page.tsx`), `RECIPE_UNITS` /
   `RECIPE_UNIT_GROUPS` (moved from `apps/api/src/lib/ingredient-prices/index.ts`, which re-exports `RECIPE_UNITS` for
   its own callers), `recipeNutritionSourceSchema` (`'manual'|'computed'|'none'`, D-18).
+- Ingredient catalog (`docs/plan-ingredient-catalog.md` §3/§5): `nutrition.ts` (**NEW**). It holds:
+  - the enum mirrors `INGREDIENT_CATEGORIES` / `ingredientCategorySchema`, `ingredientStatusSchema`,
+    `nutritionSourceSchema`, `nutritionStatusSchema` and `lineProblemSchema`;
+  - `nutritionFactsSchema` (the stored `nutritionInfo` shape) and `ingredientNutrientsSchema` (the five required
+    per-100 g fields plus the optional ones, with the §4.5 ranges, D5);
+  - `ingredientPortionSchema` and `ingredientAliasSchema`;
+  - `catalogIngredientSchema` (one `catalog.json` entry, D7);
+  - `recipeLineSchema`, `storedRecipeLineSchema` and `legacyIngredientLineSchema` (the Json mirror).
 
 ### 5.3 `@chefer/utils`
 
@@ -1485,6 +1498,39 @@ re-joining cannot reset moderation. **Account deletion** cascades everything, in
 because every new table has `onDelete: Cascade` from `User` (`account-data.service.ts` needs no explicit step). The
 `recipes.originRecipeId` / `originCreatorId` links on other people's copies go to `NULL`.
 
+### Ingredient catalog schema (P1 of `docs/plan-ingredient-catalog.md`, additive only)
+
+The schema that lets a recipe's nutrition be **computed** from catalog ingredients × quantities (plan §3). Everything is
+additive: nothing is renamed or removed, `IngredientPrice` keeps its name (a rename under `db push` is a drop), and
+installed app binaries keep reading `Recipe.ingredients` / `nutritionInfo` unchanged. Production applies it with
+`prisma db push --skip-generate` (verified on a dev clone: no data-loss prompt). A named migration
+(`packages/database/prisma/migrations/20261001160000_ingredient_catalog/`) keeps the history honest.
+
+**New enums:** `IngredientStatus` (`ACTIVE`, `MERGED`, `DEPRECATED`), `NutritionSource` (`USDA_FDC`, `CIQUAL`, `LABEL`,
+`USER`, `ADMIN`; never an LLM), `NutritionStatus` (`COMPUTED`, `PARTIAL`, `USER_ENTERED`), `IngredientCategory` (36
+values, plan §4.2). `@chefer/types` `nutrition.ts` mirrors them as string unions; `apps/api/src/lib/nutrition-contract.test.ts`
+fails on drift.
+
+| Model (table)                               | Key / relations                                                                                                                                               | Notes                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Ingredient` (`ingredients`)                | cuid PK; `ownerId` → User (cascade; null = global); `mergedIntoId` → Ingredient (self, SetNull, relation `IngredientMerges`)                                  | `slug`, display `name`, `category`, `status`. Per-100 g edible nutrition, EU convention (carbs exclude fiber, D2): `kcal/protein/carbs/fat/fiberPer100g` required, `sugar/satFat/sodiumMgPer100g` optional. `densityGPerMl?`, `edibleFraction` (default 1). Provenance `nutritionSource`, `sourceRef` (`fdc:…`, `ciqual:…`, `label:…`), `sourceNote`. `@@unique([ownerId, slug])` |
+| `IngredientAlias` (`ingredient_aliases`)    | → Ingredient (cascade)                                                                                                                                        | Normalized lookup key → ingredient; `locale` `en`/`ro`; `ownerId` null for global aliases. `@@unique([ownerId, alias])`, index `[alias]`                                                                                                                                                                                                                                          |
+| `IngredientPortion` (`ingredient_portions`) | → Ingredient (cascade)                                                                                                                                        | Count/household unit → edible grams for ONE unit (`clove`, `medium`, `can`, …), `source` (`fdc-portion:…`, `label`, `admin`, `user`). `@@unique([ingredientId, unit])`                                                                                                                                                                                                            |
+| `RecipeIngredient` (`recipe_ingredients`)   | `recipeId` → Recipe (cascade); `ingredientId` → Ingredient (**SetNull**, so an account deletion that cascades a private row unlinks lines instead of failing) | One recipe line: `position`, `rawName` (never lost), `quantity`, canonical `unit`, resolved edible `grams` (null ⇒ unresolved), `note` (prep text), `optional` (excluded from totals). Indexes `[recipeId]`, `[ingredientId]`                                                                                                                                                     |
+
+**`Recipe` additions:** `nutritionStatus` (default `PARTIAL`: every recipe is PARTIAL until the §7 migration writes its
+lines), `nutritionComputedAt?`, `nutritionTotal Json?` (whole-recipe totals, same shape as `nutritionInfo`), back-relation
+`lines`. `Recipe.ingredients` (Json) stays as the `{name, quantity, unit}` **mirror** of `lines`;
+`RecipeLineRepository.writeLines` (§5.1) is the one path that writes rows, mirror and nutrition together.
+**`IngredientPrice` addition:** nullable `ingredientId` → Ingredient (SetNull, indexed). Its macro columns are now
+deprecated: no new code reads them. **`User` addition:** back-relation `privateIngredients`.
+
+**Global slug and alias uniqueness (decision for plan §3's NULL note).** Postgres treats NULLs as distinct, so
+`@@unique([ownerId, slug])` and `@@unique([ownerId, alias])` do not stop two **global** rows sharing a slug or alias.
+Storing `""` for globals would break the `ownerId` foreign key, and Prisma 5 can express neither partial indexes nor
+`NULLS NOT DISTINCT` (and `db push` drops indexes it does not know). So global uniqueness is enforced where global rows
+are written: by the catalog validators (CI) and by `ingredients:sync`, the only writer of global rows (D7).
+
 ## 7. API Layer
 
 ### Layered Architecture
@@ -2053,6 +2099,16 @@ Read-only bridge from the gym to the food side; the rules are pure functions in
 | `claude.ts`                          | `ClaudeGroceryAIService` stub — real Anthropic API call (not yet wired)  |
 | `index.ts`                           | Factory — returns mock when `GROCERY_AI_MOCK_ENABLED=true`               |
 | `fixtures/grocery-stores.fixture.ts` | Static Lidl / Carrefour / Kaufland item data                             |
+
+### RecipeLineRepository (infrastructure layer) — ingredient catalog
+
+`packages/database/src/repositories/recipe-line.repository.ts` (plan-ingredient-catalog §3). `writeLines(recipeId,
+lines, nutrition, tx?)` replaces a recipe's `RecipeIngredient` rows and rewrites its `ingredients` Json mirror
+(`{name, quantity, unit}`, `mirrorName ?? rawName` per line), `nutritionInfo` (rounded per serving), `nutritionTotal`,
+`nutritionStatus` and `nutritionComputedAt` (null for `USER_ENTERED`) in ONE transaction, or inside the caller's `tx`.
+It is the only write path for lines, so rows, mirror and nutrition never disagree; `upsertRecipes` never updates
+ingredients or nutrition on an existing id (F10). `findByRecipeIds` reads lines ordered by recipe and position. Pure
+helpers `toIngredientsMirror`, `toLineRows` and `toNutritionColumns` are exported for tests and scripts.
 
 ### PrismaUserRepository (infrastructure layer)
 

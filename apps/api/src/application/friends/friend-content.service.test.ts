@@ -59,6 +59,9 @@ function recipe(id: string, overrides: Partial<Recipe> = {}): Recipe {
     originCreatorId: null,
     hiddenAt: null,
     hiddenReason: null,
+    nutritionStatus: 'PARTIAL',
+    nutritionComputedAt: null,
+    nutritionTotal: null,
     ...overrides,
   };
 }
