@@ -1,83 +1,19 @@
 /**
- * Demand-name → catalog row resolution used by the coverage report. It mirrors
- * what the P5 resolver will do with EXACT/ALIAS lookups: normalize, drop
- * parentheticals and prep words, singularize. It never fuzzy-matches.
+ * Demand-name → catalog row resolution used by the coverage report: the same
+ * EXACT/ALIAS lookup keys as the API resolver (@chefer/utils ingredient-name).
+ * It never fuzzy-matches.
  */
 import { normalizeAlias } from '../../../packages/database/src/catalog/validate';
+import { ingredientLookupKeys as lookupKeys } from '../../../packages/utils/src/nutrition/ingredient-name';
 
 export { normalizeAlias };
 
-/** Prep / serving words that never change which ingredient a line is. */
-const PREP_WORDS = new Set(
-  (
-    'chopped finely roughly coarsely diced minced sliced thinly thickly grated shredded crumbled halved quartered cubed ' +
-    'peeled deveined pitted rinsed julienned spiralized mashed pressed torn trimmed cut into wedges wedged chunks ' +
-    'optional for garnish to serve serving taste fresh ripe large small medium extra whole packed heaped level ' +
-    'florets spears stalks stalk leaves leaf sprigs sprig cloves clove pieces piece slices slice cups cup ' +
-    'plain natural organic clear of wedge wedges halves hearts and'
-  ).split(/\s+/),
-);
-
-const IRREGULAR: Record<string, string> = {
-  leaves: 'leaf',
-  loaves: 'loaf',
-  halves: 'half',
-  knives: 'knife',
-  potatoes: 'potato',
-  tomatoes: 'tomato',
-  mangoes: 'mango',
-  avocados: 'avocado',
-  radishes: 'radish',
-  peaches: 'peach',
-  dishes: 'dish',
-  sandwiches: 'sandwich',
-  anchovies: 'anchovy',
-  cherries: 'cherry',
-  berries: 'berry',
-  chillies: 'chilli',
-  chilies: 'chili',
-};
-
-/** Singularize one word with a few safe rules. */
-export function singular(word: string): string {
-  if (IRREGULAR[word]) return IRREGULAR[word];
-  if (/ies$/.test(word) && word.length > 4) return word.replace(/ies$/, 'y');
-  if (/(ss|us|is|os)$/.test(word)) return word;
-  if (/(ches|shes|xes|zes)$/.test(word)) return word.replace(/es$/, '');
-  if (/oes$/.test(word)) return word.replace(/es$/, '');
-  if (/[^s]s$/.test(word) && word.length > 3) return word.slice(0, -1);
-  return word;
-}
-
-const singularPhrase = (s: string) => s.split(' ').map(singular).join(' ');
-
-/**
- * Candidate lookup keys for one raw name, most specific first:
- *   exact → without parentheticals → before the first comma → without prep words,
- * each also singularized.
- */
-export function lookupKeys(raw: string): string[] {
-  const keys: string[] = [];
-  const add = (s: string) => {
-    const n = normalizeAlias(s);
-    if (!n) return;
-    for (const k of [n, singularPhrase(n)]) if (!keys.includes(k)) keys.push(k);
-  };
-  add(raw);
-  // "sunflower oil for wiping the pan" → "sunflower oil"
-  const noParen = raw.replace(/\([^)]*\)/g, ' ').replace(/\s+for\s.*$/i, ' ');
-  add(noParen);
-  const beforeComma = noParen.split(',')[0] ?? '';
-  add(beforeComma);
-  for (const base of [noParen, beforeComma]) {
-    const stripped = normalizeAlias(base)
-      .split(' ')
-      .filter((w) => !PREP_WORDS.has(w))
-      .join(' ');
-    add(stripped);
-  }
-  return keys;
-}
+// The lookup-key rules are shared with the API resolver (P5), so the coverage
+// reported here is the coverage the resolver gets.
+export {
+  ingredientLookupKeys as lookupKeys,
+  singularIngredientWord as singular,
+} from '../../../packages/utils/src/nutrition/ingredient-name';
 
 export type AliasIndex = Map<string, string>;
 

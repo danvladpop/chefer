@@ -2,3 +2,4 @@
 export * from './units';
 export * from './compute';
 export * from './rounding';
+export * from './ingredient-name';
