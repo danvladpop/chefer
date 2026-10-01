@@ -1,51 +1,28 @@
 'use client';
 
 import { useState } from 'react';
-import { LB_PER_KG } from '@chefer/types';
-import { inferUnitsFromInput, inToCm, WELLNESS_COPY, type UnitSystem } from '@chefer/utils';
+import {
+  bodyMetricsAgeError,
+  LB_PER_KG,
+  MAX_BODY_METRICS_AGE,
+  MIN_BODY_METRICS_AGE,
+  MINOR_NO_DEFICIT_NOTE,
+} from '@chefer/types';
+import {
+  inferUnitsFromInput,
+  inToCm,
+  previewCalorieTarget,
+  WELLNESS_COPY,
+  type UnitSystem,
+} from '@chefer/utils';
 import type { ActivityLevel, BiologicalSex } from '../types';
 
 // ─── Calorie estimate ─────────────────────────────────────────────────────────
 
-const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
-  SEDENTARY: 1.2,
-  LIGHTLY_ACTIVE: 1.375,
-  MODERATELY_ACTIVE: 1.55,
-  VERY_ACTIVE: 1.725,
-  ATHLETE: 1.9,
-};
-
-/**
- * Mirrors the API's GOAL_ADJUSTMENTS (preferences.service.ts) so the preview
- * shows the SAME number the planner and dashboard will use — showing raw
- * maintenance here while everything else showed target-minus-deficit was
- * review finding P-3.
- */
-const GOAL_ADJUSTMENTS: Record<string, number> = {
-  LOSE_WEIGHT: -500,
-  MAINTAIN: 0,
-  GAIN_MUSCLE: 300,
-  EAT_HEALTHIER: 0,
-};
-
-/**
- * Mifflin-St Jeor.
- * Male: BMR = 10w + 6.25h - 5a + 5
- * Female: BMR = 10w + 6.25h - 5a - 161
- * Unknown: gender-neutral average constant -78
- */
-function estimateCalories(
-  weightKg: number,
-  heightCm: number,
-  age: number,
-  activityLevel: ActivityLevel | null,
-  biologicalSex: BiologicalSex | null,
-): number {
-  const sexConstant = biologicalSex === 'MALE' ? 5 : biologicalSex === 'FEMALE' ? -161 : -78;
-  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + sexConstant;
-  const multiplier = activityLevel ? ACTIVITY_MULTIPLIERS[activityLevel] : 1.55;
-  return Math.round(bmr * multiplier);
-}
+// The calculation (Mifflin-St Jeor, goal adjustment, no deficit under 18,
+// sex-specific floor) is shared with the API and mobile — @chefer/utils
+// calorie-target.ts — so this preview shows the SAME number the planner and
+// dashboard will use (review finding P-3, App Review R-02).
 
 // ─── Activity level options ───────────────────────────────────────────────────
 
@@ -292,27 +269,33 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
 
   // ── Calorie preview ──────────────────────────────────────────────────────────
 
+  const ageError = bodyMetricsAgeError(value.age);
   const canPreview =
     value.age !== null &&
     value.heightCm !== null &&
     value.weightKg !== null &&
     value.age > 0 &&
     value.heightCm > 0 &&
-    value.weightKg > 0;
+    value.weightKg > 0 &&
+    ageError === null;
 
-  const maintenanceEstimate = canPreview
-    ? estimateCalories(
+  const preview = canPreview
+    ? previewCalorieTarget(
         value.weightKg!,
         value.heightCm!,
         value.age!,
         value.activityLevel,
         value.biologicalSex,
+        goal ?? null,
       )
     : null;
-  const goalAdjustment = goal ? (GOAL_ADJUSTMENTS[goal] ?? 0) : 0;
-  // Same floor as the API (computeCalorieTarget): never below 1200 kcal.
-  const calorieEstimate =
-    maintenanceEstimate !== null ? Math.max(1200, maintenanceEstimate + goalAdjustment) : null;
+  const maintenanceEstimate = preview?.maintenance ?? null;
+  const calorieEstimate = preview?.target ?? null;
+  // What the goal actually changed (0 when a minor's deficit was blocked).
+  const goalAdjustment =
+    preview !== null && !preview.deficitBlocked && preview.flooredAt === null
+      ? preview.target - preview.maintenance
+      : 0;
 
   // ── Shared input class ───────────────────────────────────────────────────────
 
@@ -374,13 +357,20 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
             id="age"
             type="number"
             inputMode="numeric"
-            min={10}
-            max={110}
+            min={MIN_BODY_METRICS_AGE}
+            max={MAX_BODY_METRICS_AGE}
             placeholder="e.g. 30"
             value={localAge}
             onChange={(e) => handleAgeChange(e.target.value)}
+            aria-invalid={ageError !== null}
+            aria-describedby={ageError !== null ? 'age-error' : undefined}
             className={inputCls}
           />
+          {ageError !== null && (
+            <p id="age-error" role="alert" className="text-xs text-destructive">
+              {ageError}
+            </p>
+          )}
         </div>
 
         {/* Height */}
@@ -576,13 +566,22 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
               {calorieEstimate.toLocaleString()}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {goalAdjustment !== 0 && maintenanceEstimate !== null
-                ? `kcal / day · ${maintenanceEstimate.toLocaleString()} maintenance ${
-                    goalAdjustment < 0 ? '−' : '+'
-                  } ${Math.abs(goalAdjustment)} for your goal`
-                : 'kcal / day · Mifflin-St Jeor estimate'}
+              {preview?.flooredAt != null && maintenanceEstimate !== null
+                ? `kcal / day · ${maintenanceEstimate.toLocaleString()} maintenance, held at the ${preview.flooredAt.toLocaleString()} kcal minimum`
+                : goalAdjustment !== 0 && maintenanceEstimate !== null
+                  ? `kcal / day · ${maintenanceEstimate.toLocaleString()} maintenance ${
+                      goalAdjustment < 0 ? '−' : '+'
+                    } ${Math.abs(goalAdjustment)} for your goal`
+                  : 'kcal / day · Mifflin-St Jeor estimate'}
             </p>
+            {preview?.deficitBlocked && (
+              <p data-testid="minor-no-deficit-note" className="mt-2 text-xs text-foreground">
+                {MINOR_NO_DEFICIT_NOTE}
+              </p>
+            )}
           </>
+        ) : ageError !== null ? (
+          <p className="text-sm text-muted-foreground">{ageError}</p>
         ) : (
           <p className="text-sm text-muted-foreground">
             Fill in your age, height, and weight to see your estimated daily calorie target.

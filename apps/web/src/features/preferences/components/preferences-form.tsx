@@ -7,7 +7,7 @@ import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { SafetyReviewCard } from '@/features/safety/components/SafetyReviewCard';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import { HEALTH_CONSENT_COPY, type DisplayCurrency } from '@chefer/types';
+import { bodyMetricsAgeError, HEALTH_CONSENT_COPY, type DisplayCurrency } from '@chefer/types';
 import { Toast } from '@chefer/ui';
 import { fromEur, toDisplayCurrency, toEur } from '@chefer/utils';
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
@@ -149,6 +149,14 @@ export function PreferencesForm({
 
   function handleSave() {
     if (isSaving) return;
+    // R-02: no body metrics under 16 — the server would reject it anyway, but
+    // say so here, before the consent sheet, and keep everything else unsaved
+    // until the age is fixed or cleared.
+    const ageError = isPremium ? bodyMetricsAgeError(data.age) : null;
+    if (ageError !== null) {
+      setToast({ message: ageError, type: 'error' });
+      return;
+    }
     const hasSafetyTerms =
       data.allergies.length + data.dietaryRestrictions.length + data.dislikedIngredients.length > 0;
     const hasBodyData =
@@ -188,7 +196,9 @@ export function PreferencesForm({
           ...(includeHealth && data.goal !== null && { goal: data.goal }),
           ...(includeHealth &&
             data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
-          ...(includeHealth && data.age !== null && data.age > 0 && { age: data.age }),
+          ...(includeHealth &&
+            data.age !== null &&
+            bodyMetricsAgeError(data.age) === null && { age: data.age }),
           ...(includeHealth &&
             data.heightCm !== null &&
             data.heightCm > 0 && { heightCm: data.heightCm }),
