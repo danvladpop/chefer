@@ -155,12 +155,12 @@ appId: dev.chefer.app.dev
 # ── Sign the throwaway account out ───────────────────────────────────────────
 # Later flows sign in as alice only when nobody is signed in (connect.yaml), so
 # leaving A signed in would run them against an empty account.
+# Back from the Following home returns to More, where the flow came in.
 - tapOn: 'Back'
 - extendedWaitUntil:
     visible:
-      id: 'home-title'
+      id: 'more-friends'
     timeout: 15000
-- tapOn: 'More(, tab.*)?'
 - scrollUntilVisible:
     element:
       id: 'logout-button'
