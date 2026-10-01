@@ -76,5 +76,5 @@ it('free: "Fill in for me" opens the job-led premium sheet inside the custom she
   expect(screen.getByTestId('premium-sheet-title')).toHaveTextContent(
     'Fill in nutrition in one tap',
   );
-  expect(screen.getByText('FREE FOR NOW')).toBeOnTheScreen();
+  expect(screen.getByText('INCLUDED')).toBeOnTheScreen();
 });

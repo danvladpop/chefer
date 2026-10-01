@@ -2,16 +2,15 @@ import { expect, test } from '@playwright/test';
 import { gotoAndSettle } from './helpers/layout';
 
 // ─── /premium — a paywall that names the job (UX-10, T-10.5) ──────────────────
-// The hero is headlined by the job that linked here, the free-for-now terms
+// The hero is headlined by the job that linked here, the included-at-no-cost terms
 // are plain text, and no page says "beta" (App Review 2.2) or the retired
 // generic pitch (B-32). Read-only: this never turns Premium on — the E2E
 // account is shared, and nothing here needs it to change tier.
 
-const TERMS =
-  "Premium costs nothing for now, and we won't ask for a card. Before it has a price, we'll tell you in the app at least 30 days ahead and you choose whether to keep it. Nothing changes automatically.";
+const TERMS = 'Premium is included at no cost. Turning it on unlocks every feature below.';
 
 test.describe('/premium', () => {
-  test('the hero names the job that linked here, and carries the free-for-now terms', async ({
+  test('the hero names the job that linked here, and carries the included-at-no-cost terms', async ({
     page,
   }) => {
     await gotoAndSettle(page, '/premium?source=recipe-import');
@@ -24,7 +23,7 @@ test.describe('/premium', () => {
     );
 
     const terms = page.getByTestId('premium-terms');
-    await expect(terms).toContainText('FREE FOR NOW');
+    await expect(terms).toContainText('INCLUDED');
     await expect(terms).toContainText(TERMS);
   });
 
@@ -42,11 +41,9 @@ test.describe('/premium', () => {
     }
   });
 
-  test('the FAQ promises notice, a choice and no automatic change', async ({ page }) => {
+  test('the FAQ never implies a future price or payment method', async ({ page }) => {
     await gotoAndSettle(page, '/premium');
-    // The terms paragraph above also says "at least 30 days ahead" — assert
-    // that the FAQ itself (its last occurrence) promises it.
-    await expect(page.getByText('at least 30 days ahead').last()).toBeVisible();
-    await expect(page.getByText('nothing changes automatically').last()).toBeVisible();
+    const text = await page.locator('main').innerText();
+    expect(text).not.toMatch(/for now|\bcard\b|before it has a price|30 days ahead/i);
   });
 });

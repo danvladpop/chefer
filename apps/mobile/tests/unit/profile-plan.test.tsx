@@ -109,11 +109,11 @@ describe('Profile › Plan & Premium', () => {
     expect(openPremium).toHaveBeenCalledWith('profile');
   });
 
-  it('premium: "Free for now", what you have, and a switch back that asks first', async () => {
+  it('premium: "Included", what you have, and a switch back that asks first', async () => {
     mockUser = { ...mockUser, planTier: 'PREMIUM' };
     await renderProfile();
     expect(screen.getByTestId('profile-plan-title')).toHaveTextContent('Your plan: Premium');
-    expect(screen.getByText('Free for now')).toBeOnTheScreen();
+    expect(screen.getByText('Included')).toBeOnTheScreen();
     expect(screen.getByText('What you have')).toBeOnTheScreen();
     expect(screen.getByText('Recipes scaled to everyone at your table')).toBeOnTheScreen();
     expect(screen.queryByText(/beta/i)).toBeNull();

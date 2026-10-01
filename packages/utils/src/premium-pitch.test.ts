@@ -145,14 +145,20 @@ describe('also included', () => {
 });
 
 describe('terms and forbidden copy (rules 1 and 2)', () => {
-  it('every pitch carries the free-for-now terms paragraph', () => {
+  it('every pitch carries the included-at-no-cost terms paragraph', () => {
     for (const source of [...PREMIUM_SOURCES, 'unknown']) {
       const { terms } = premiumPitchFor(source);
-      expect(terms.heading).toBe('FREE FOR NOW');
-      expect(terms.body).toContain('costs nothing for now');
-      expect(terms.body).toContain("won't ask for a card");
-      expect(terms.body).toContain('at least 30 days ahead');
-      expect(terms.body).toContain('Nothing changes automatically.');
+      expect(terms.heading).toBe('INCLUDED');
+      expect(terms.body).toBe(
+        'Premium is included at no cost. Turning it on unlocks every feature below.',
+      );
+    }
+  });
+
+  it('R-04: no copy implies a future price or payment method', () => {
+    const strings = [...Object.values(PREMIUM_PITCH_COPY), ...allPitchStrings()];
+    for (const text of strings) {
+      expect(text).not.toMatch(/for now|\bcard\b|before it has a price|payment|30 days/i);
     }
   });
 

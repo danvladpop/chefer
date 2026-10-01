@@ -488,7 +488,7 @@ UpgradeButton (ONE shared surface; every touchpoint passes a `source`)
            the chat in place)
   → capture('upgrade_prompt_shown' { source, job })
   → Sheet dialog headlined by the JOB the source unlocks, with the
-    "FREE FOR NOW" terms (T-10.5) → capture('upgrade_clicked')
+    "INCLUDED" terms (T-10.5) → capture('upgrade_clicked')
   → user.upgradePlan (protected) → planTier = PREMIUM
   → capture('upgrade_completed') → full cache invalidate + router.refresh
 
@@ -542,10 +542,9 @@ Admin (/admin/users, adminProcedure-gated)
   default (`Food that fits your training week`) on a default source; the gym
   itself is never pitched as Premium (D-11). `ingredient-autofill` is the
   source behind "Fill in for me" on the custom-ingredient sheet (T-40.11).
-- **Terms on every open.** The sheet/dialog shows the FREE FOR NOW paragraph
-  (`Premium costs nothing for now, and we won't ask for a card. Before it has a
-price, we'll tell you in the app at least 30 days ahead and you choose
-whether to keep it. Nothing changes automatically.`) — never "beta" (App
+- **Terms on every open.** The sheet/dialog shows the INCLUDED paragraph
+  (`Premium is included at no cost. Turning it on unlocks every feature
+below.` — no "for now", price, card or payment-method wording, R-04) — never "beta" (App
   Review 2.2) — and carries no price, currency, checkout or purchase link on
   any platform (App Review 3.1.1): "Turn on Premium" is the same free
   `user.upgradePlan` toggle.
@@ -564,7 +563,7 @@ meals to my training days`; household and the AI chef open their job.
   job; a gym-only user, and a user whose jobs are still unknown, never see it.
   It sends nothing, so it asks no AI consent (the real scan still does).
 - **Profile › Plan & Premium.** `Your plan: Free` (what Free includes) +
-  `See what Premium adds`, or `Your plan: Premium` · `Free for now` · `What you
+  `See what Premium adds`, or `Your plan: Premium` · `Included` · `What you
 have` · `Switch back to Free`. The downgrade sheet names what you keep and
   lists only the Premium jobs this user has used (`downgradeLosses`); cancel
   keeps Premium.

@@ -123,7 +123,7 @@ function Card({
 
 // ─── Plan & Premium (T-10.3, T-10.5) ──────────────────────────────────────────
 // Free: what Free includes + "See what Premium adds" (the job-led dialog, with
-// the free-for-now terms). Premium: "Free for now", what you have, and a
+// the included-at-no-cost terms). Premium: "Included", what you have, and a
 // switch back that says what you keep and lose before it acts.
 
 function PlanCard({ isPremium }: { isPremium: boolean }) {

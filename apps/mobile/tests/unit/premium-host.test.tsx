@@ -107,7 +107,7 @@ describe('PremiumHost', () => {
     expect(screen.getByTestId('premium-sheet-title')).toHaveTextContent(
       'Turn your saved links and videos into recipes',
     );
-    expect(screen.getByText('FREE FOR NOW')).toBeOnTheScreen();
+    expect(screen.getByText('INCLUDED')).toBeOnTheScreen();
     expect(mockTrack).toHaveBeenCalledWith('upgrade_prompt_shown', {
       source: 'recipe-import',
       job: 'recipe-import',
@@ -241,7 +241,7 @@ describe('PremiumHost', () => {
       upgradeOpts.onError?.();
     });
     expect(screen.getByTestId('premium-sheet-error')).toBeOnTheScreen();
-    expect(screen.getByText('FREE FOR NOW')).toBeOnTheScreen();
+    expect(screen.getByText('INCLUDED')).toBeOnTheScreen();
     expect(screen.getByText('Try again')).toBeOnTheScreen();
   });
 
