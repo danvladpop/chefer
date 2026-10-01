@@ -6,6 +6,7 @@ import { Text } from '@chefer/ui-mobile';
 import { formatPortion, slotPortion } from '@chefer/utils';
 import { AiGeneratedChip } from '../../components/ai-generated-chip';
 import type { RouterOutputs } from '../../lib/trpc';
+import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { AllergenWarningChip } from '../recipes/allergen-warning';
 import { CheckedForChip } from '../safety/checked-for-chip';
 import { MealCardView } from './meal-card-view';
@@ -92,6 +93,7 @@ export function PlanMealCard({
           <Text className="text-xs text-gray-500">
             {Math.round(meal.recipe.nutritionInfo.calories * portion)} kcal
           </Text>
+          <NutritionStatusTag status={meal.recipe.nutritionStatus} />
         </View>
       }
       trailing={trailing}
