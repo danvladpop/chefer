@@ -282,3 +282,31 @@ describe('RecipeNutritionService.copyLinesForViewer (I3/I4)', () => {
     expect(writeLines).not.toHaveBeenCalled();
   });
 });
+
+describe('RecipeNutritionService.breakdown (recipe detail, plan §10)', () => {
+  it('per-line facts from rows the viewer may see; another user’s private row shows grams only', async () => {
+    const { service, lines } = setup();
+    vi.mocked(lines.findByRecipeIds).mockResolvedValue([
+      { ...line(0, 'oil', 10, 'g'), grams: 10 },
+      { ...line(1, 'skyr', 100, 'g'), grams: 100 }, // alice's private row
+      { ...line(2, null, 1, 'g'), grams: null },
+    ]);
+    const asBob = await service.breakdown('r1', 'bob');
+    expect(asBob.map((l) => [l.ingredientName, l.grams, l.facts?.calories ?? null])).toEqual([
+      ['olive-oil', 10, 90],
+      [null, 100, null],
+      [null, null, null],
+    ]);
+    const asAlice = await service.breakdown('r1', 'alice');
+    expect(asAlice[1]).toMatchObject({
+      ingredientId: 'skyr',
+      facts: { calories: 60, protein: 11 },
+    });
+  });
+
+  it('is empty for a recipe without lines', async () => {
+    const { service, lines } = setup();
+    vi.mocked(lines.findByRecipeIds).mockResolvedValue([]);
+    expect(await service.breakdown('r1', 'bob')).toEqual([]);
+  });
+});

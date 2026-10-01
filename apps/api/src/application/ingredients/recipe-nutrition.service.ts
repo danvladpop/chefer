@@ -62,6 +62,23 @@ export interface SavedLineReport {
   problem?: LineProblem;
 }
 
+/** One line of the recipe-detail nutrition breakdown (whole-recipe facts for the line). */
+export interface NutritionLineDto {
+  position: number;
+  rawName: string;
+  quantity: number;
+  unit: string;
+  note: string | null;
+  optional: boolean;
+  /** Null when the line is unresolved or its row is not visible to the viewer. */
+  ingredientId: string | null;
+  ingredientName: string | null;
+  nutritionSource: CatalogIngredientRow['nutritionSource'] | null;
+  grams: number | null;
+  /** Rounded facts for this line's grams; null when it cannot be shown. */
+  facts: NutritionFacts | null;
+}
+
 export interface PreparedSave {
   lines: RecipeLineWrite[];
   nutrition: { status: NutritionStatus; perServing: NutritionFacts; total: NutritionFacts | null };
@@ -259,6 +276,45 @@ export class RecipeNutritionService {
           }
         : { status: result.status, perServing: result.perServing, total: result.total },
     );
+  }
+
+  /**
+   * The per-line breakdown the recipe detail shows ("computed from N
+   * ingredients", plan §10). Facts come from the rows the VIEWER may see: a
+   * line on someone else's private ingredient keeps its grams but no name or
+   * numbers, so a private row's macros never reach another user (I4).
+   * Empty for a recipe without lines (pre-migration).
+   */
+  async breakdown(recipeId: string, viewerId: string): Promise<NutritionLineDto[]> {
+    const stored = await this.lines.findByRecipeIds([recipeId]);
+    if (stored.length === 0) return [];
+    const { result, rows } = await this.compute(stored, viewerId, 1);
+    const r1 = (v: number) => Math.round(v * 10) / 10;
+    return stored.map((l, i): NutritionLineDto => {
+      const row = l.ingredientId ? rows.get(l.ingredientId) : undefined;
+      const facts = row ? result.lines[i]?.facts : undefined;
+      return {
+        position: l.position,
+        rawName: l.rawName,
+        quantity: l.quantity,
+        unit: l.unit,
+        note: l.note,
+        optional: l.optional,
+        ingredientId: row ? row.id : null,
+        ingredientName: row ? row.name : null,
+        nutritionSource: row ? row.nutritionSource : null,
+        grams: l.grams,
+        facts: facts
+          ? {
+              calories: Math.round(facts.calories),
+              protein: r1(facts.protein),
+              carbs: r1(facts.carbs),
+              fat: r1(facts.fat),
+              fiber: r1(facts.fiber),
+            }
+          : null,
+      };
+    });
   }
 
   /** Recomputes every recipe that uses `ingredientId` (after a private-ingredient edit). */

@@ -73,6 +73,10 @@ import {
   legacyServingSizePlaceholders,
 } from '../household/household.service.js';
 import { loadMacroVocabulary } from '../ingredients/macro-vocabulary.js';
+import {
+  recipeNutritionService,
+  type NutritionLineDto,
+} from '../ingredients/recipe-nutrition.service.js';
 import { pairLeftovers, pairLeftoverSlots } from '../pantry/leftovers.js';
 import { computeUsedPantryItemsForUser, getUseFirstIngredients } from '../pantry/pantry-context.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
@@ -153,6 +157,12 @@ export interface RecipeDto {
    * DTOs not built from a stored row.
    */
   nutritionStatus?: 'COMPUTED' | 'PARTIAL' | 'USER_ENTERED';
+  /**
+   * `mealPlan.getRecipe` only (plan-ingredient-catalog §10): the per-line
+   * breakdown behind the computed nutrition. Absent for a recipe without
+   * catalog lines.
+   */
+  nutritionLines?: NutritionLineDto[];
   /**
    * The viewer's allergies and dietary restrictions (household union) this
    * recipe conflicts with. Present only when non-empty; additive, so older
@@ -2068,14 +2078,16 @@ export class MealPlanService {
     if (!row) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     }
-    const [ctx, attribution] = await Promise.all([
+    const [ctx, attribution, nutritionLines] = await Promise.all([
       this.loadSafetyContext(userId),
       this.attributionFor(userId, row),
+      recipeNutritionService.breakdown(row.id, userId),
     ]);
     return {
       ...decorateRecipeDto(rowToRecipeDto(row), rowToRecipeData(row), ctx),
       ...attribution,
       ...(row.sourceUrl && { sourceUrl: row.sourceUrl }),
+      ...(nutritionLines.length > 0 && { nutritionLines }),
     };
   }
 

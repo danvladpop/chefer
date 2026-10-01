@@ -26,6 +26,8 @@ vi.mock('@chefer/database', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@chefer/database')>();
   return {
     ...mod,
+    // getRecipe's nutrition breakdown (recipe-nutrition.service.test.ts covers it)
+    recipeLineRepository: { findByRecipeIds: vi.fn().mockResolvedValue([]) },
     prisma: {
       aiCallLog: { create: vi.fn().mockResolvedValue({}) },
       // UX-06: reads without a view resolve the viewer's tier for the training payload.
