@@ -46,6 +46,7 @@ import {
   findNotFoundFields,
   unverifiedQuantityIndexes,
 } from '../../lib/video-import/index.js';
+import { moderationService, type ModerationService } from '../friends/moderation.service.js';
 import { markLatestImportSaved } from '../profile/ai-usage.service.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import {
@@ -188,6 +189,8 @@ export class RecipeImportService {
       findByUserId(userId: string): Promise<{ portionFactor: number }[]>;
     } = householdMemberRepository,
     private readonly video: Pick<VideoRecipeService, 'extract'> = videoRecipeService,
+    /** PRD §9.4 word filter on shared recipes (Following, plan §4.2 `recipe.importSave`). */
+    private readonly moderation: Pick<ModerationService, 'checkRecipeText'> = moderationService,
   ) {}
 
   /**
@@ -368,6 +371,14 @@ export class RecipeImportService {
    */
   async save(user: UserProfile, input: ImportSaveInput): Promise<Recipe> {
     const recipe = sanitizeExtracted(input.recipe);
+
+    // PRD §9.4: the same word filter as recipe.create/update — only for an
+    // author who shares recipes on Following (BAD_REQUEST + textRejected
+    // otherwise). First, so a rejected import touches nothing else.
+    await this.moderation.checkRecipeText(user.id, {
+      name: recipe.name,
+      description: recipe.description,
+    });
 
     // T-BUG-X3 (folded into T-01.2): both variants are checked now — the
     // `original` variant's check used to be skipped entirely. The result is
