@@ -12,6 +12,7 @@ export const AI_CONSENT_FEATURES = [
   'recipe-import',
   'chat',
   'shopping-list',
+  'ingredient-estimate',
 ] as const;
 export type AiConsentFeature = (typeof AI_CONSENT_FEATURES)[number];
 
@@ -56,14 +57,37 @@ export const AI_CONSENT_FEATURE_DATA: Record<AiConsentFeature, { action: string;
       action: 'tidy up your shopping list',
       data: ['The ingredients in your meal plan'],
     },
+    'ingredient-estimate': {
+      action: 'fill in the nutrition for your ingredient',
+      data: ['The ingredient name you typed'],
+    },
   };
+
+// ─── Server-side enforcement (R-10) ──────────────────────────────────────────
+// The API refuses an AI action from a user who has no consent on record
+// (AI_CONSENT_ENFORCE, apps/api/src/lib/ai-consent-gate.ts). The rejection is
+// recognisable on every transport: tRPC errors carry `data.reason`, the plain
+// HTTP endpoints (/api/chat, /api/scan-meal) answer 403 with `{ error, reason }`
+// and an `X-AI-Consent-Required: 1` header. Clients that know the reason open
+// the consent sheet; older clients just show the message.
+
+/** `error.data.reason` / JSON `reason` of an AI action rejected for missing consent. */
+export const AI_CONSENT_REQUIRED_REASON = 'AI_CONSENT_REQUIRED';
+
+/** Header set on the plain HTTP endpoints' consent rejection. */
+export const AI_CONSENT_REQUIRED_HEADER = 'x-ai-consent-required';
+
+/** The message of the rejection — copy a user can act on even in an old client. */
+export const AI_CONSENT_REQUIRED_MESSAGE =
+  'Allow AI features in Profile → AI & your data to use this.';
 
 // ─── Who receives the data ───────────────────────────────────────────────────
 // The AI providers are a server setting (AI_FREE_ONLY), so the copy never
 // hard-codes one: the API reports the active set (`profile.aiProviders`) and
 // the helpers in @chefer/utils fill `{primary}` / `{backups}` / `{providers}`
 // from this table. Until that answer arrives (or on an old server) clients
-// use DEFAULT_AI_PROVIDER_DISCLOSURE.
+// use DEFAULT_AI_PROVIDER_DISCLOSURE, which matches production (free-only
+// routing: Groq, with Cloudflare Workers AI as the backup).
 
 /** Every AI provider Chefer can send user data to, with its public-facing facts. */
 export const AI_PROVIDERS = {
@@ -97,7 +121,10 @@ export interface AiProviderDisclosure {
   backups: AiProviderId[];
 }
 
-/** Standard routing: Gemini, with Groq as the backup. */
+/**
+ * Paid routing: Gemini, with Groq as the backup. NOT what production runs
+ * (production is AI_FREE_ONLY) — only shown when the server reports it.
+ */
 export const LEGACY_AI_PROVIDER_DISCLOSURE: AiProviderDisclosure = {
   primary: 'gemini',
   backups: ['groq'],
@@ -109,8 +136,12 @@ export const FREE_ONLY_AI_PROVIDER_DISCLOSURE: AiProviderDisclosure = {
   backups: ['cloudflare'],
 };
 
-/** What clients assume before the server has answered. */
-export const DEFAULT_AI_PROVIDER_DISCLOSURE = LEGACY_AI_PROVIDER_DISCLOSURE;
+/**
+ * What clients assume before the server has answered (or when the request
+ * fails). Matches production: naming a provider that is not used would make
+ * the consent sheet inaccurate (App Store 5.1.2(i)).
+ */
+export const DEFAULT_AI_PROVIDER_DISCLOSURE = FREE_ONLY_AI_PROVIDER_DISCLOSURE;
 
 /**
  * Shared sheet + settings copy. `{action}` is filled from
@@ -137,6 +168,9 @@ export const AI_CONSENT_COPY = {
   cardTitle: 'AI & your data',
   toggleTitle: 'Allow AI features to process my data',
   toggleOn:
-    'Meal plans, swaps, photo scans, recipe imports and chat send the data they need to {providers}. Not used for training.',
+    'Meal plans, meal swaps, photo scans, recipe and video imports, chat, ingredient fill-in, the AI shopping-list tidy-up and the weekly coach review send the data they need to {providers}. Not used for training.',
   toggleOff: 'Off. We’ll ask again before any AI feature sends your data.',
+  /** What the weekly coach review sends (it runs on its own, so it has no sheet of its own). */
+  coachReviewNote:
+    'The weekly coach review (Premium) also uses this: it sends your weight trend, goal and average calories. Without it, the review is written from a template and nothing is sent.',
 } as const;
