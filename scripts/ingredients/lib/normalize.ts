@@ -14,7 +14,7 @@ const PREP_WORDS = new Set(
     'peeled deveined pitted rinsed julienned spiralized mashed pressed torn trimmed cut into wedges wedged chunks ' +
     'optional for garnish to serve serving taste fresh ripe large small medium extra whole packed heaped level ' +
     'florets spears stalks stalk leaves leaf sprigs sprig cloves clove pieces piece slices slice cups cup ' +
-    'plain natural organic clear of wedge wedges halves hearts'
+    'plain natural organic clear of wedge wedges halves hearts and'
   ).split(/\s+/),
 );
 
