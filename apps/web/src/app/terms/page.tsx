@@ -162,8 +162,10 @@ export default function TermsPage() {
         <Section title="Free and Premium">
           <p>
             Chefer has a free tier and a Premium tier with more features and higher daily limits.
-            Premium is included at no cost, and Chefer never takes payment details. Daily limits on
-            features may change.
+            Premium is included at no cost, and Chefer never takes payment details. If paid plans
+            are ever introduced, we will tell you in advance, inside the app, with the price and
+            terms before you decide. Nothing will be charged automatically, and you will not be
+            moved to a paid plan without agreeing to it. Daily limits on features may change.
           </p>
         </Section>
 
