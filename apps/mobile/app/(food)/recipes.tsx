@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
+import { FRIENDS_COPY } from '@chefer/types';
 import { Button, Chip, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
@@ -52,6 +53,21 @@ interface CardRecipe {
   cookTimeMins: number;
   nutritionInfo: unknown;
   isFavourite: boolean;
+  /** Following (UX §9.4): a hearted recipe of someone I follow (`recipe.list` only). */
+  creator?: { firstName: string };
+  /** Following: my copy of someone's recipe (`recipe.list` only). */
+  origin?: { creatorFirstName: string | null };
+}
+
+/** `From {first}` for another person's recipe or my copy of one; null otherwise. */
+function fromChipLabel(recipe: Pick<CardRecipe, 'creator' | 'origin'>): string | null {
+  if (recipe.creator) return FRIENDS_COPY.recipe.from(recipe.creator.firstName);
+  if (recipe.origin) {
+    return recipe.origin.creatorFirstName
+      ? FRIENDS_COPY.recipe.from(recipe.origin.creatorFirstName)
+      : FRIENDS_COPY.recipe.fromGone;
+  }
+  return null;
 }
 
 export default function RecipesScreen() {
@@ -264,6 +280,7 @@ export default function RecipesScreen() {
             ) : null
           }
           renderItem={({ item: recipe }) => {
+            const fromLabel = fromChipLabel(recipe);
             const n = recipe.nutritionInfo as {
               calories: number;
               protein: number;
@@ -313,10 +330,20 @@ export default function RecipesScreen() {
                   </View>
                 </View>
                 <View className="gap-1.5 p-4">
-                  <View className="self-start rounded-full bg-accent px-2 py-0.5">
-                    <Text className="text-[12px] font-medium uppercase tracking-wide text-primary">
-                      {recipe.cuisineType}
-                    </Text>
+                  <View className="flex-row flex-wrap gap-1.5">
+                    <View className="self-start rounded-full bg-accent px-2 py-0.5">
+                      <Text className="text-[12px] font-medium uppercase tracking-wide text-primary">
+                        {recipe.cuisineType}
+                      </Text>
+                    </View>
+                    {fromLabel ? (
+                      <View
+                        testID={`recipe-card-${recipe.id}-from`}
+                        className="self-start rounded-full bg-gray-100 px-2 py-0.5"
+                      >
+                        <Text className="text-[12px] text-gray-700">{fromLabel}</Text>
+                      </View>
+                    ) : null}
                   </View>
                   <Text numberOfLines={1} className="font-semibold text-gray-900">
                     {recipe.name}

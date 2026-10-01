@@ -1,8 +1,18 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button, Card, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
+import { FRIENDS_COPY } from '@chefer/types';
+import {
+  Avatar,
+  Button,
+  Card,
+  KeyboardAwareScrollView,
+  PressableScale,
+  Screen,
+  Sheet,
+  Text,
+} from '@chefer/ui-mobile';
 import {
   cn,
   defaultCookServings,
@@ -13,6 +23,9 @@ import {
   scaleNutrition,
   slotPortion,
 } from '@chefer/utils';
+import { AddToWeekSheet } from '../../src/features/friends/add-to-week/add-to-week-sheet';
+import { SourceLink } from '../../src/features/friends/components/source-link';
+import { ReportSheet } from '../../src/features/friends/safety/report-sheet';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { StarRating } from '../../src/features/recipes/star-rating';
 import { CheckedForLine } from '../../src/features/safety/checked-for-line';
@@ -28,13 +41,27 @@ import { trpc } from '../../src/lib/trpc';
 // Like web, the star rating shows only when opened from a meal-plan day
 // (`day` param) — that's when the user actually ate it. Deviations,
 // deliberate: meal-plan swap context stays on the Plan tab's picker sheet.
+//
+// Following (UX §9.4, PRD FR-17, all additive — every addition renders only
+// when the API sent its field): another person's recipe (`creator`) gets a
+// `By {name}` line to their profile, its `Source: {domain}` link, `Add to my
+// week` as the primary action (Cook and the heart stay) and `Report recipe`
+// in the overflow (next to `Report a safety problem`); a recipe opened from
+// someone's week (`?owner=`) offers `Add to my week` too. My copy of
+// someone's recipe (`origin`) reads `From {first}` (+ its source link); my
+// own auto-hidden recipe (`hidden`) shows the owner-only banner. The viewer's
+// own safety block is unchanged: it answers "can I eat this".
+
+type OverflowChoice = 'safety' | 'report';
 
 export default function RecipeDetailScreen() {
-  const { id, day, meal, portion } = useLocalSearchParams<{
+  const { id, day, meal, portion, owner } = useLocalSearchParams<{
     id: string;
     day?: string;
     meal?: string;
     portion?: string;
+    /** Opened from someone's Following week/recipes (UX §9.2). */
+    owner?: string;
   }>();
   // P1-1: the plan slot's portion (servings of this recipe), when not 1×.
   const planPortion = slotPortion(parseFloat(portion ?? ''));
@@ -58,6 +85,12 @@ export default function RecipeDetailScreen() {
   const [servings, setServings] = useState<number | null>(null);
   const [whatWeCheckOpen, setWhatWeCheckOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  // Following: the overflow menu (another person's recipe), Report recipe and
+  // Add to my week. A follow-up sheet opens from the menu's onExited.
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const overflowChoice = useRef<OverflowChoice | null>(null);
+  const [reportRecipeOpen, setReportRecipeOpen] = useState(false);
+  const [addToWeekOpen, setAddToWeekOpen] = useState(false);
   const { portionSum } = useHousehold();
 
   if (isLoading) {
@@ -83,6 +116,10 @@ export default function RecipeDetailScreen() {
   }
 
   const isSaved = savedData?.isSaved ?? false;
+  const creator = recipe.creator;
+  const origin = recipe.origin;
+  const offerAddToWeek =
+    creator !== undefined || (owner !== undefined && savedData?.canEdit !== true);
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const n = recipe.nutritionInfo;
   // D-18/UX-40: a blank nutrition section (never filled in, or D-19's
@@ -143,8 +180,8 @@ export default function RecipeDetailScreen() {
             <Pressable
               testID="recipe-report-overflow"
               accessibilityRole="button"
-              accessibilityLabel="Report a safety problem"
-              onPress={() => setReportOpen(true)}
+              accessibilityLabel={creator ? 'More options' : 'Report a safety problem'}
+              onPress={() => (creator ? setOverflowOpen(true) : setReportOpen(true))}
               className="h-11 w-11 items-center justify-center rounded-full bg-white/90"
             >
               <Ionicons name="ellipsis-horizontal" size={20} color="#1f2937" />
@@ -168,6 +205,54 @@ export default function RecipeDetailScreen() {
             <Text testID="recipe-name" variant="title">
               {recipe.name}
             </Text>
+            {creator ? (
+              <PressableScale
+                testID="recipe-by"
+                pressScale="control"
+                accessibilityRole="button"
+                accessibilityLabel={FRIENDS_COPY.recipe.byLabel(creator.displayName)}
+                onPress={() =>
+                  router.push({ pathname: '/friends/[userId]', params: { userId: creator.id } })
+                }
+                className="min-h-11 flex-row items-center gap-2 self-start"
+              >
+                <Avatar name={creator.displayName} seed={creator.id} size="sm" />
+                <Text className="text-sm font-medium text-gray-900">
+                  {FRIENDS_COPY.recipe.by(creator.displayName)}
+                </Text>
+              </PressableScale>
+            ) : null}
+            {origin ? (
+              <View
+                testID="recipe-from"
+                className="self-start rounded-full bg-gray-100 px-3 py-0.5"
+              >
+                <Text className="text-xs text-gray-700">
+                  {origin.creatorFirstName
+                    ? FRIENDS_COPY.recipe.from(origin.creatorFirstName)
+                    : FRIENDS_COPY.recipe.fromGone}
+                </Text>
+              </View>
+            ) : null}
+            {(creator || origin) && recipe.sourceUrl ? (
+              <SourceLink testID="recipe-source" url={recipe.sourceUrl} />
+            ) : null}
+            {recipe.hidden ? (
+              <View
+                testID="recipe-hidden-banner"
+                accessibilityRole="summary"
+                className="gap-1 rounded-xl bg-blue-50 px-3 py-2"
+              >
+                <Text className="text-sm font-semibold text-blue-900">
+                  {FRIENDS_COPY.recipe.hidden.title}
+                </Text>
+                <Text className="text-sm text-blue-900">
+                  {recipe.hidden.reason === 'FILTER'
+                    ? FRIENDS_COPY.recipe.hidden.filter
+                    : FRIENDS_COPY.recipe.hidden.reports}
+                </Text>
+              </View>
+            ) : null}
             <Text variant="muted" className="text-sm">
               {recipe.description}
             </Text>
@@ -192,10 +277,23 @@ export default function RecipeDetailScreen() {
             ) : null}
           </View>
 
+          {/* Following (UX §9.4): another person's recipe leads with Add to my week. */}
+          {offerAddToWeek ? (
+            <Button testID="recipe-add-to-week" onPress={() => setAddToWeekOpen(true)}>
+              <View className="flex-row items-center gap-1.5">
+                <Ionicons name="calendar-outline" size={16} color="white" />
+                <Text className="text-sm font-medium text-primary-foreground">
+                  {FRIENDS_COPY.recipe.addToWeek}
+                </Text>
+              </View>
+            </Button>
+          ) : null}
+
           {/* Actions: cook is primary (web P1-3), save secondary */}
           <View className="flex-row gap-2">
             <Button
               testID="recipe-cook"
+              variant={offerAddToWeek ? 'outline' : 'default'}
               className="flex-1"
               onPress={() =>
                 router.push({
@@ -209,8 +307,19 @@ export default function RecipeDetailScreen() {
               }
             >
               <View className="flex-row items-center gap-1.5">
-                <Ionicons name="restaurant-outline" size={16} color="white" />
-                <Text className="text-sm font-medium text-primary-foreground">Cook</Text>
+                <Ionicons
+                  name="restaurant-outline"
+                  size={16}
+                  color={offerAddToWeek ? '#944a00' : 'white'}
+                />
+                <Text
+                  className={cn(
+                    'text-sm font-medium',
+                    offerAddToWeek ? 'text-primary' : 'text-primary-foreground',
+                  )}
+                >
+                  Cook
+                </Text>
               </View>
             </Button>
             <Button
@@ -405,6 +514,64 @@ export default function RecipeDetailScreen() {
         recipeName={recipe.name}
         surface="recipe_detail"
       />
+      {creator ? (
+        <>
+          <Sheet
+            testID="recipe-overflow-menu"
+            visible={overflowOpen}
+            title={recipe.name}
+            onClose={() => {
+              overflowChoice.current = null;
+              setOverflowOpen(false);
+            }}
+            onExited={() => {
+              const choice = overflowChoice.current;
+              overflowChoice.current = null;
+              if (choice === 'safety') setReportOpen(true);
+              if (choice === 'report') setReportRecipeOpen(true);
+            }}
+          >
+            <View className="gap-2">
+              <Button
+                testID="recipe-overflow-safety"
+                variant="outline"
+                className="min-h-12 justify-start"
+                onPress={() => {
+                  overflowChoice.current = 'safety';
+                  setOverflowOpen(false);
+                }}
+              >
+                Report a safety problem
+              </Button>
+              <Button
+                testID="recipe-overflow-report"
+                variant="outline"
+                className="min-h-12 justify-start"
+                onPress={() => {
+                  overflowChoice.current = 'report';
+                  setOverflowOpen(false);
+                }}
+              >
+                {FRIENDS_COPY.recipe.report}
+              </Button>
+            </View>
+          </Sheet>
+          <ReportSheet
+            testID="recipe-report-recipe"
+            visible={reportRecipeOpen}
+            person={creator}
+            recipeId={recipe.id}
+            onClose={() => setReportRecipeOpen(false)}
+            onReported={() => router.back()}
+          />
+        </>
+      ) : null}
+      {addToWeekOpen ? (
+        <AddToWeekSheet
+          recipe={{ id: recipe.id, name: recipe.name, kcal: n.calories }}
+          onDismiss={() => setAddToWeekOpen(false)}
+        />
+      ) : null}
     </Screen>
   );
 }
