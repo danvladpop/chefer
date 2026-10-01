@@ -4103,7 +4103,7 @@ Settings (friends.updateSettings, partial):
   forced private    refuses Public (FORBIDDEN, FRIENDS_COPY.settings.forcedPrivate)
   going public / sharing targets log a SOCIAL_SHARING consent event; recipes off → on re-runs the word filter
 
-Turn off (friends.deactivate { confirm: 'TURN_OFF' }) — total and immediate (FD-14)
+Turn off (friends.deactivate { confirm: 'TURN_OFF' }) — total and immediate (FD-14); turning off again answers ok
   consent withdrawal logged, then ONE transaction deletes: my SocialProfile, every follow both ways (incl. pending), blocks I made,
   suggestion dismissals, Activity items sent and received. Reports and moderation-log rows ABOUT me are kept, so leaving and
   rejoining cannot reset moderation (§35.2). Others' hearts on my recipes stop showing; copies they made stay theirs.
@@ -4209,8 +4209,9 @@ Another user's recipe (visible to me: I follow them, they share recipes, not aut
         ├─ my own PLAN for that week must exist (else NOT_FOUND)
         └─ RecipeCopyService.ownedRecipeFor: ONE private copy per viewer and source (text, ingredients, nutrition, photo URL, sourceUrl,
            originRecipeId/originCreatorId — "From {first}"), made once and reused; the slot is "Your pick" (pinned)
-        → { planId, dayOfWeek, mealType, slotIndex, addedRecipeId, copiedFromId, previousRecipeId? }
-        → snackbar "Undo" → friends.undoAddToWeek (my own plan only; a stale Undo is a no-op; the copy stays)
+        → { planId, dayOfWeek, mealType, slotIndex, addedRecipeId, copiedFromId, previousRecipeId?, previousPinned? }
+        → snackbar "Undo" → friends.undoAddToWeek (my own plan only; a stale Undo is a no-op; the copy stays; previousPinned
+          restores the replaced slot's "Your pick" flag — without it the slot comes back as a pick)
 ```
 
 - **Plans and food logs stay stable**: every path that writes a recipe id into MY records resolves another user's recipe to my
@@ -4221,13 +4222,19 @@ Another user's recipe (visible to me: I follow them, they share recipes, not aut
 - A copy whose original's owner deleted their account survives with its origin links set to null (§24).
 - A plan slot whose recipe row is missing is dropped from the response (and logged) instead of throwing.
 - A recipe auto-hidden by moderation (§35) can't be newly hearted or added from a profile, but existing hearts and copies keep working.
+  A heart made before the hide still OPENS it, but no path makes a NEW copy of it (add to week, replace, food log → `Recipe not
+found.`; a pinned favourite is skipped at generation), so the hidden name and photo can't travel into the copier's week.
+- In someone's week (`friends.week`) a meal shows as `Hidden recipe` (numbers kept, not openable) when the recipe is auto-hidden,
+  is a copy of an auto-hidden original, was written (or originally written) by someone blocked either way with me, or its name or
+  description trips the word filter (a shared plan shows names that never went through the shared-recipe filter).
 
 ### 34.7 Block
 
 `friends.block { userId }` is instant and mutual and **tells nobody**: ONE transaction deletes follows and requests both ways,
 withdraws every Activity item between the two, clears suggestion dismissals both ways and writes the `Block`. From then on each
 person is `Profile not available` to the other, search and suggestions exclude the pair, and the blocked person's recipes leave
-the blocker's Saved list. Re-blocking is a no-op; blocking an unknown id answers the same `ok` (INV-3). `friends.unblock` removes
+the blocker's Saved list. Re-blocking is a no-op; blocking an unknown id, or someone who never turned Following on, answers the same `ok` and writes
+nothing (INV-3 — otherwise `friends.blocked` would name any account id). `friends.unblock` removes
 only my own block and restores nothing. `friends.blocked` lists mine. 30 blocks a day.
 
 ### 34.8 Maintenance (`FriendsMaintenanceWorker`)
@@ -4300,6 +4307,11 @@ It checks:
 | Recipe name and description — `recipe.create`, `recipe.update`, `recipe.importSave` | only when the author turned Following on with `shareRecipes` on (otherwise not filtered) | BAD_REQUEST + `data.textRejected: 'recipe'` + a `RECIPE_TEXT_REJECTED` row; message = the plain-language copy |
 | Existing recipes — `hideFilteredRecipes`                                            | at turn-on, and when `shareRecipes` goes off → on                                        | NOT rejected: the recipe is auto-hidden (`hiddenReason: FILTER`) + a `RECIPE_FILTER_HIDDEN` row each          |
 
+A display name with any word starting "chefer" ("Chefer Kitchen", "Chefer_Team") is rejected the same way (reason `reserved
+name`): it is reserved for the featured Chefer Kitchen profile (`scripts/create-chefer-kitchen.ts`; a featured profile may rename).
+At READ time, what a follower sees is filtered too (F3.1): a week meal whose recipe name/description trips the filter shows as
+`Hidden recipe`, and routine, day, workout and custom-exercise names that trip it show as `Routine` / `Day {n}` / `Workout` /
+`Custom exercise` (`FRIENDS_COPY.gym.filtered`) — free text the write-time filter never sees.
 `recipe.importSave` runs the check first, so a rejected import touches nothing else. Editing a recipe so its text passes lifts a
 `FILTER` hide (no log row) — never a `REPORTS` hide. A copy of someone else's recipe is never shared, so it isn't filtered. Log
 rows never contain the offending text.

@@ -2697,7 +2697,11 @@ describe('MealPlanService — Following (PRD §13, FR-17, INV-5)', () => {
         1,
         true,
       );
-      expect(result).toMatchObject({ slotIndex: 1, previousRecipeId: 'old-lunch' });
+      expect(result).toMatchObject({
+        slotIndex: 1,
+        previousRecipeId: 'old-lunch',
+        previousPinned: false, // F3.1: the replaced slot wasn't a pick
+      });
     });
 
     it('replace without a slotIndex, or at a slot of another type → BAD_REQUEST', async () => {
@@ -2893,6 +2897,33 @@ describe('MealPlanService — Following (PRD §13, FR-17, INV-5)', () => {
       );
     });
 
+    it('F3.1: replace → restores the previous slot’s own pick flag when Undo passes it', async () => {
+      const repo = makeRepo();
+      repo.findByIdForUser.mockResolvedValue({
+        ...WEEK,
+        days: [{ dayOfWeek: 1, meals: [{ type: 'lunch', recipeId: 'my-copy', pinned: true }] }],
+      });
+      repo.findRecipeById.mockResolvedValue({ ...AI_RECIPE, id: 'old-lunch', source: 'AI' });
+      await serviceWith(repo).undoAddToSlot(ME, {
+        planId: 'plan-me',
+        dayOfWeek: 1,
+        mealType: 'lunch',
+        slotIndex: 0,
+        addedRecipeId: 'my-copy',
+        previousRecipeId: 'old-lunch',
+        previousPinned: false,
+      });
+      expect(repo.updateDayMeal).toHaveBeenCalledWith(
+        'plan-me',
+        1,
+        'lunch',
+        'old-lunch',
+        undefined,
+        0,
+        false,
+      );
+    });
+
     it('a stale Undo (the slot changed since) is a no-op', async () => {
       const repo = makeRepo();
       repo.findByIdForUser.mockResolvedValue(WEEK); // slot 1 holds old-lunch, not my-copy
@@ -2960,6 +2991,28 @@ describe('MealPlanService — Following (PRD §13, FR-17, INV-5)', () => {
     };
     const ids = created.days.flatMap((d) => d.meals.map((m) => m.recipeId));
     expect(ids).toContain('my-copy');
+    expect(ids).not.toContain('theirs');
+  });
+
+  it('F3.1 generate: a pin on an auto-hidden recipe (hearted before the hide) is skipped, never copied', async () => {
+    const repo = makeRepo();
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(favouriteRecipeRepository.findPinnedForNextPlan).mockResolvedValue([
+      { recipe: { ...THEIRS, hiddenAt: new Date('2026-09-30'), hiddenReason: 'REPORTS' } } as never,
+    ]);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+    const copies = copiesStub();
+    const social = socialStub();
+    social.hasHearted.mockResolvedValue(true); // the heart still opens it
+
+    await serviceWith(repo, copies, social).generate(ME, 0, true);
+
+    expect(copies.ownedRecipeFor).not.toHaveBeenCalled();
+    const created = vi.mocked(repo.createPlan).mock.calls[0]![0] as {
+      days: { meals: { recipeId: string }[] }[];
+    };
+    const ids = created.days.flatMap((d) => d.meals.map((m) => m.recipeId));
+    expect(ids).not.toContain('my-copy');
     expect(ids).not.toContain('theirs');
   });
 

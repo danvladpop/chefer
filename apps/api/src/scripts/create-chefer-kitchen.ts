@@ -61,10 +61,12 @@ async function main(): Promise<void> {
       `${prefix}turn on Following for ${email} (${user.id}) as "${firstName} ${lastName}", PUBLIC, featured.`,
     );
     if (dryRun) return;
+    // "Chefer …" names are reserved for this profile (F3.1, no impersonation).
     await socialProfileService.activate(
       user.id,
       { visibility: 'PUBLIC', firstName, lastName },
       CONSENT_SOURCE,
+      { allowReservedName: true },
     );
     await socialProfileRepository.update(user.id, { featured: true });
     console.log('Done.');

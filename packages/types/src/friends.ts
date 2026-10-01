@@ -82,6 +82,12 @@ export const undoAddToWeekInputSchema = z.object({
   slotIndex: z.number().int().min(0).max(9),
   addedRecipeId: z.string().min(1),
   previousRecipeId: z.string().min(1).optional(),
+  /**
+   * Whether the replaced slot was `Your pick` (from `addRecipeToWeek`'s
+   * result, F3.1). Optional and additive: without it the restored slot is a
+   * pick, the original behaviour.
+   */
+  previousPinned: z.boolean().optional(),
 });
 export const REPORT_REASONS = ['INAPPROPRIATE', 'SPAM', 'HARASSMENT', 'UNSAFE', 'OTHER'] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];

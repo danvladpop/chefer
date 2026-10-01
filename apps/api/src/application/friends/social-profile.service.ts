@@ -54,6 +54,11 @@ import { suggestionService, type SuggestionInvalidator } from './suggestion.serv
 // Names: the word filter (PRD §9.4) runs on the first name, the last name and
 // the two together; a match logs ONE `NAME_REJECTED` moderation row (never
 // the name itself) and throws BAD_REQUEST + `data.textRejected: 'name'`.
+// The same answer for a name that passes itself off as Chefer (F3.1): any
+// name word starting with "chefer" ("Chefer Kitchen", "Chefer_Team",
+// "CheferSupport") is reserved for the featured profile — the ops script
+// (scripts/create-chefer-kitchen.ts) passes `allowReservedName`, and a
+// featured profile may rename itself.
 //
 // ConsentService.record has no transaction parameter (it isn't this lane's
 // file), so the turn-on consent is written right after the profile
@@ -80,6 +85,16 @@ export type ProfileServiceModerationRepository = Pick<IModerationRepository, 'lo
 
 function isPrismaCode(err: unknown, code: string): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === code;
+}
+
+/** The brand word no ordinary profile may use (F3.1, impersonation of Chefer Kitchen). */
+const RESERVED_NAME_PREFIX = 'chefer';
+
+/** Whether a display name passes itself off as Chefer (any normalised word starting "chefer"). */
+export function isReservedName(firstName: string, lastName: string): boolean {
+  return normalizeSearchName(firstName, lastName)
+    .split(' ')
+    .some((word) => word.startsWith(RESERVED_NAME_PREFIX));
 }
 
 function nonEmpty(value: string | null | undefined): string | null {
@@ -159,13 +174,14 @@ export class SocialProfileService {
     userId: string,
     input: ActivateInput,
     source: ConsentSource,
+    opts: { allowReservedName?: boolean } = {},
   ): Promise<ActivateResultDto> {
     if (await this.profiles.find(userId))
       return { ...(await this.me(userId)), filterHiddenRecipes: 0 };
 
     const firstName = input.firstName.trim();
     const lastName = input.lastName.trim();
-    await this.assertNameAllowed(userId, firstName, lastName);
+    await this.assertNameAllowed(userId, firstName, lastName, opts.allowReservedName === true);
 
     try {
       await this.tx(async (db) => {
@@ -222,7 +238,7 @@ export class SocialProfileService {
         firstName: (input.firstName ?? current.firstName ?? '').trim(),
         lastName: (input.lastName ?? current.lastName ?? '').trim(),
       };
-      await this.assertNameAllowed(userId, names.firstName, names.lastName);
+      await this.assertNameAllowed(userId, names.firstName, names.lastName, profile.featured);
     }
 
     const goingPublic = input.visibility === 'PUBLIC' && profile.visibility === 'PRIVATE';
@@ -287,19 +303,26 @@ export class SocialProfileService {
     });
   }
 
-  /** PRD §9.4: first, last, and the full name. One NAME_REJECTED row, never the text. */
-  private async assertNameAllowed(userId: string, firstName: string, lastName: string) {
-    if (
-      !containsBlockedTerm(firstName) &&
-      !containsBlockedTerm(lastName) &&
-      !containsBlockedTerm(`${firstName} ${lastName}`)
-    ) {
-      return;
-    }
+  /**
+   * PRD §9.4: first, last, and the full name. One NAME_REJECTED row, never the
+   * text. A reserved (Chefer) name is rejected the same way unless `allowReserved`.
+   */
+  private async assertNameAllowed(
+    userId: string,
+    firstName: string,
+    lastName: string,
+    allowReserved: boolean,
+  ) {
+    const blocked =
+      containsBlockedTerm(firstName) ||
+      containsBlockedTerm(lastName) ||
+      containsBlockedTerm(`${firstName} ${lastName}`);
+    const reserved = !allowReserved && isReservedName(firstName, lastName);
+    if (!blocked && !reserved) return;
     await this.moderationLog.log({
       action: 'NAME_REJECTED',
       targetUserId: userId,
-      reason: 'blocked term in name',
+      reason: blocked ? 'blocked term in name' : 'reserved name',
       actor: 'system',
     });
     throw textRejectedError('name');
