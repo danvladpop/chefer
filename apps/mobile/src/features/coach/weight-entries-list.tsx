@@ -6,6 +6,7 @@ import {
   bodyWeightInUnit,
   formatBodyWeight,
   parseBodyWeight,
+  userFacingErrorMessage,
   type UnitSystem,
 } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
@@ -39,11 +40,11 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
       setEditing(false);
       invalidate();
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const remove = trpc.tracker.deleteWeight.useMutation({
     onSuccess: invalidate,
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
 
   const dateLabel = new Date(entry.recordedAt).toLocaleDateString('en-GB', {

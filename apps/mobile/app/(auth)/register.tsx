@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from 'expo-router';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { Button, Input, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
-import { detectRegion } from '@chefer/utils';
+import { detectRegion, userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
 import { ConsentCheckbox } from '../../src/features/auth/consent-checkbox';
 import { AUTH_COPY } from '../../src/features/auth/copy';
@@ -277,7 +277,7 @@ function RegisterForm() {
 
       {register.error && (
         <Text variant="muted" className="text-destructive" testID="register-error">
-          {register.error.message}
+          {userFacingErrorMessage(register.error)}
         </Text>
       )}
 

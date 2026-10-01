@@ -10,6 +10,7 @@ import {
   parseQuickAdd,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
+  userFacingErrorMessage,
   type QuickAddErrors,
   type QuickAddMealType,
 } from '@chefer/utils';
@@ -755,7 +756,7 @@ export function QuickAddSheet({
 
           {logCustomMutation.isError && (
             <Text testID="quick-add-api-error" className="text-sm text-red-600">
-              {logCustomMutation.error.message}
+              {userFacingErrorMessage(logCustomMutation.error)}
             </Text>
           )}
         </View>

@@ -574,3 +574,12 @@ export {
 
 // ─── Computed recipe nutrition (docs/plan-ingredient-catalog.md §5) ───────────
 export * from './nutrition';
+
+export {
+  GENERIC_ERROR_MESSAGE,
+  NETWORK_ERROR_MESSAGE,
+  SERVER_ERROR_MESSAGE,
+  isNetworkError,
+  isServerError,
+  userFacingErrorMessage,
+} from './user-facing-error';

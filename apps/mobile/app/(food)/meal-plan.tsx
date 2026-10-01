@@ -31,6 +31,7 @@ import {
   planShapeSummary,
   SAFETY_COPY,
   sumPlanDay,
+  userFacingErrorMessage,
   weekdayLongName,
   weekdayShortName,
 } from '@chefer/utils';
@@ -281,7 +282,7 @@ export default function MealPlanScreen() {
     onSuccess: (data) => {
       utils.mealPlan.getForWeek.setData({ weekOffset }, data);
     },
-    onError: (err) => showSnackbar({ message: err.message }),
+    onError: (err) => showSnackbar({ message: userFacingErrorMessage(err) }),
   });
   const resumeTailoring = () => {
     if (!plan) return;
@@ -336,7 +337,7 @@ export default function MealPlanScreen() {
     onError: (err) => {
       // SnackbarOptions only has 'success' | 'info' (no error tone) — the
       // default (neutral) styling is used, same as elsewhere in this file.
-      showSnackbar({ message: err.message });
+      showSnackbar({ message: userFacingErrorMessage(err) });
     },
   });
 
@@ -638,7 +639,9 @@ export default function MealPlanScreen() {
 
           {generateMutation.isError && !poolExhaustedMessage && (
             <Card className="border-red-200 bg-red-50">
-              <Text className="text-sm text-red-600">{generateMutation.error.message}</Text>
+              <Text className="text-sm text-red-600">
+                {userFacingErrorMessage(generateMutation.error)}
+              </Text>
             </Card>
           )}
         </ScrollView>
@@ -980,7 +983,11 @@ export default function MealPlanScreen() {
             excludeRecipeId={pickerTarget?.recipeId}
             slotType={pickerTarget?.mealType}
             busy={replaceMutation.isPending || swapMutation.isPending}
-            error={replaceMutation.error?.message ?? swapMutation.error?.message ?? null}
+            error={
+              (replaceMutation.error ? userFacingErrorMessage(replaceMutation.error) : undefined) ??
+              (swapMutation.error ? userFacingErrorMessage(swapMutation.error) : undefined) ??
+              null
+            }
             // T-00.11 (B-34/B-46): replaceRecipe rejects an unsafe recipe with
             // FORBIDDEN — the sheet offers "Use anyway" for the user's own.
             unsafeError={replaceMutation.error?.data?.code === 'FORBIDDEN'}

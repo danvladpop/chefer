@@ -4,7 +4,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { DISPLAY_CURRENCIES, type DisplayCurrency } from '@chefer/types';
 import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { cn, currencySymbol, fromEur, toDisplayCurrency, toEur } from '@chefer/utils';
+import {
+  cn,
+  currencySymbol,
+  fromEur,
+  toDisplayCurrency,
+  toEur,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { AutoPlanToggle } from '../src/features/preferences/auto-plan-toggle';
 import { SafetyStep } from '../src/features/preferences/components/safety-step';
 import { GoalBodyCard, type GoalBodySavePayload } from '../src/features/preferences/goal-body-card';
@@ -227,7 +234,9 @@ export default function PreferencesScreen() {
               {safetyMutation.isSuccess && !safetyDirty ? 'Saved ✓' : 'Save safety preferences'}
             </Button>
             {safetyMutation.isError && (
-              <Text className="text-xs text-red-600">{safetyMutation.error.message}</Text>
+              <Text className="text-xs text-red-600">
+                {userFacingErrorMessage(safetyMutation.error)}
+              </Text>
             )}
             {safetyDeclined && <HealthDeclinedNotice testID="prefs-safety-declined" />}
           </Card>
@@ -245,7 +254,9 @@ export default function PreferencesScreen() {
             onSave={saveGoalBody}
             isSaving={goalBodyMutation.isPending}
             isSaved={goalBodyMutation.isSuccess}
-            errorMessage={goalBodyMutation.error?.message}
+            errorMessage={
+              goalBodyMutation.error ? userFacingErrorMessage(goalBodyMutation.error) : undefined
+            }
           />
 
           {/* §2.11, T-35.3 — Suggested (computed) or My own (never moved
@@ -353,7 +364,9 @@ export default function PreferencesScreen() {
               {displayMutation.isSuccess && !displayDirty ? 'Saved ✓' : 'Save units & currency'}
             </Button>
             {displayMutation.isError && (
-              <Text className="text-xs text-red-600">{displayMutation.error.message}</Text>
+              <Text className="text-xs text-red-600">
+                {userFacingErrorMessage(displayMutation.error)}
+              </Text>
             )}
           </Card>
 
@@ -407,7 +420,9 @@ export default function PreferencesScreen() {
               </Button>
             )}
             {targetsMutation.isError && (
-              <Text className="text-xs text-red-600">{targetsMutation.error.message}</Text>
+              <Text className="text-xs text-red-600">
+                {userFacingErrorMessage(targetsMutation.error)}
+              </Text>
             )}
           </Card>
         </ScrollView>

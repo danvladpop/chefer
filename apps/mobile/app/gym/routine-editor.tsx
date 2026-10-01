@@ -13,7 +13,7 @@ import {
   Text,
   useScrollFieldIntoView,
 } from '@chefer/ui-mobile';
-import { validateRoutine, volumeByGroup } from '@chefer/utils';
+import { userFacingErrorMessage, validateRoutine, volumeByGroup } from '@chefer/utils';
 import { ExercisePicker } from '../../src/features/gym/library/exercise-picker';
 import { newId } from '../../src/features/gym/offline/ids';
 import {
@@ -146,7 +146,7 @@ export default function GymRoutineEditorScreen() {
             setConflict({ current });
             return;
           }
-          Alert.alert('Could not save', error.message);
+          Alert.alert('Could not save', userFacingErrorMessage(error));
         },
       },
     );
@@ -180,7 +180,7 @@ export default function GymRoutineEditorScreen() {
             Edit routine
           </Text>
           <Text variant="muted" className="text-center">
-            {routineQuery.error.message}
+            {userFacingErrorMessage(routineQuery.error)}
           </Text>
           <Button testID="gym-routine-editor-back" onPress={() => router.back()}>
             Back

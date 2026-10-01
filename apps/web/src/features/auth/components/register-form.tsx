@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
-import { detectRegion } from '@chefer/utils';
+import { detectRegion, userFacingErrorMessage } from '@chefer/utils';
 
 // UX-25 (T-25.2) / UX-26 (T-26.5) / UX-39 (T-39.1) / B-25.
 
@@ -49,7 +49,7 @@ export function RegisterForm() {
       router.refresh();
     },
     onError: (err) => {
-      setServerError(err.message ?? 'Registration failed. Please try again.');
+      setServerError(userFacingErrorMessage(err, 'Registration failed. Please try again.'));
     },
   });
 

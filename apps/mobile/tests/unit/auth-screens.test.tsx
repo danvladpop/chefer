@@ -368,3 +368,57 @@ describe('Reset password', () => {
     );
   });
 });
+
+// App Review R-09: a dropped connection used to print the raw transport text
+// (`fetch failed: UnexpectedException … ExpoModulesCore/Promise.swift:56`).
+describe('network failures (R-09)', () => {
+  const RAW =
+    'fetch failed: UnexpectedException: Could not connect to the server. (at ExpoModulesCore/Promise.swift:56)';
+  const FRIENDLY = "Can't reach Chefer right now. Check your connection and try again.";
+  const transportError = () => Object.assign(new Error(RAW), { name: 'TRPCClientError' });
+
+  it('Login shows the friendly line, not the raw text', async () => {
+    trpc.auth.login.useMutation.mockReturnValue(mutationResult({ error: transportError() }));
+    await renderWithSafeArea(<LoginScreen />);
+    expect(screen.getByTestId('login-error')).toHaveTextContent(FRIENDLY);
+    expect(screen.queryByText(/ExpoModulesCore/)).toBeNull();
+  });
+
+  it('Login keeps a real server message ("Invalid email or password")', async () => {
+    const error = Object.assign(new Error('Invalid email or password'), {
+      name: 'TRPCClientError',
+      data: { code: 'UNAUTHORIZED', httpStatus: 401 },
+    });
+    trpc.auth.login.useMutation.mockReturnValue(mutationResult({ error }));
+    await renderWithSafeArea(<LoginScreen />);
+    expect(screen.getByTestId('login-error')).toHaveTextContent('Invalid email or password');
+  });
+
+  it('Register shows the friendly line and keeps the typed passwords', async () => {
+    const mutate = jest.fn();
+    trpc.auth.register.useMutation.mockReturnValue(
+      mutationResult({ mutate, error: transportError() }),
+    );
+    const user = userEvent.setup();
+    await renderWithSafeArea(<RegisterScreen />);
+
+    await user.type(screen.getByTestId('register-email'), 'new@e2e.chefer.dev');
+    await user.type(screen.getByTestId('register-password'), 'Password123!');
+    await user.type(screen.getByTestId('register-confirm-password'), 'Password123!');
+    await checkConsentBoxes(user);
+    await user.press(screen.getByTestId('register-submit'));
+
+    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('register-error')).toHaveTextContent(FRIENDLY);
+    expect(screen.getByTestId('register-password').props.value).toBe('Password123!');
+    expect(screen.getByTestId('register-confirm-password').props.value).toBe('Password123!');
+  });
+
+  it('Forgot password shows the friendly line', async () => {
+    trpc.auth.requestPasswordReset.useMutation.mockReturnValue(
+      mutationResult({ error: transportError() }),
+    );
+    await renderWithSafeArea(<ForgotPasswordScreen />);
+    expect(screen.getByTestId('forgot-password-error')).toHaveTextContent(FRIENDLY);
+  });
+});

@@ -16,6 +16,7 @@ import {
   Text,
   type SelectOption,
 } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
 import { friendsErrorData } from '../friends/api/friends-errors';
@@ -407,7 +408,9 @@ export function CustomIngredientSheet({
 
           {genericError && (
             <Card testID={`${testID}-save-error`} className="border-red-200 bg-red-50">
-              <Text className="text-sm text-red-600">{createMutation.error.message}</Text>
+              <Text className="text-sm text-red-600">
+                {userFacingErrorMessage(createMutation.error)}
+              </Text>
             </Card>
           )}
         </View>

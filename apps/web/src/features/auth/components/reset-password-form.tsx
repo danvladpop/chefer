@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { userFacingErrorMessage } from '@chefer/utils';
 
 const resetSchema = z
   .object({
@@ -35,7 +36,7 @@ export function ResetPasswordForm() {
 
   const resetMutation = trpc.auth.resetPassword.useMutation({
     onSuccess: () => setDone(true),
-    onError: (err) => setServerError(err.message),
+    onError: (err) => setServerError(userFacingErrorMessage(err)),
   });
 
   const {

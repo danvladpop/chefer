@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
-import { cn, parseBodyWeight } from '@chefer/utils';
+import { cn, parseBodyWeight, userFacingErrorMessage } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
 import { HealthDeclinedNotice } from '../privacy/health-notices';
@@ -55,7 +55,8 @@ export function WeightLogForm({ placeholder, label }: { placeholder?: string; la
     });
   };
 
-  const error = inputError ?? logWeight.error?.message ?? null;
+  const error =
+    inputError ?? (logWeight.error ? userFacingErrorMessage(logWeight.error) : undefined) ?? null;
   const disabled = logWeight.isPending || !value.trim();
 
   return (
