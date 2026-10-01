@@ -21,6 +21,7 @@ export * from './legal';
 export * from './friends';
 export * from './friends-copy';
 export * from './nutrition';
+export * from './ingredient-catalog-copy';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
