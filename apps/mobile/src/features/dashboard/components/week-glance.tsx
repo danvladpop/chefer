@@ -5,7 +5,10 @@ import { colors, Text } from '@chefer/ui-mobile';
 import { cn, trainingGlyph, weekdayLongName, weekdayShortName } from '@chefer/utils';
 
 // T-06.5 — Today's `Your week` glance for people who train: seven equal-width
-// columns (weekday, meals, a training glyph). It replaces the horizontally
+// columns (weekday, day-of-month, meal dots, a training glyph). R-21: the
+// column used to show the bare meal COUNT under the weekday, which read like a
+// broken date; it now shows the date (like the Plan strip) and the meals as a
+// row of small dots, with the count spoken in the accessibility label. It replaces the horizontally
 // scrolling day strip, which clipped Sunday. Never a ScrollView: `flex-1`
 // columns always fit 320pt, and text is capped at 1.2x so today's column
 // stays visible at the largest text sizes. Done = filled glyph, planned =
@@ -14,6 +17,9 @@ import { cn, trainingGlyph, weekdayLongName, weekdayShortName } from '@chefer/ut
 
 /** Font-scale cap so seven columns keep fitting at large text sizes. */
 const MAX_FONT_SCALE = 1.2;
+
+/** Most meal dots drawn per column — keeps seven columns fitting at 320pt. */
+const MAX_MEAL_DOTS = 4;
 
 /** `Wednesday: 3 meals, training day, done` — one column's accessibility label. */
 export function weekGlanceA11y(day: WeekGlanceDay): string {
@@ -29,16 +35,26 @@ function todayIndex(): number {
   return jsDay === 0 ? 6 : jsDay - 1;
 }
 
+/** Day-of-month of the Monday-first weekday `dayOfWeek` in the week containing `now`. */
+export function dayOfMonthFor(dayOfWeek: number, todayIdx: number, now: Date): number {
+  const date = new Date(now);
+  date.setDate(now.getDate() - todayIdx + dayOfWeek);
+  return date.getDate();
+}
+
 export function WeekGlance({
   days,
   selectedDayIdx = null,
   onSelectDay,
   todayIdx = todayIndex(),
+  now = new Date(),
 }: {
   days: readonly WeekGlanceDay[];
   selectedDayIdx?: number | null;
   onSelectDay?: (dayOfWeek: number) => void;
   todayIdx?: number;
+  /** The instant "today" is read from (tests pin it); defaults to the device clock. */
+  now?: Date;
 }) {
   return (
     <View testID="week-glance">
@@ -58,6 +74,7 @@ export function WeekGlance({
           const done = training?.status === 'done';
           const inkClass = isToday ? 'text-primary-foreground' : 'text-gray-700';
           const glyphColor = isToday ? '#ffffff' : colors.primary;
+          const dots = Math.min(Math.max(day.meals, 0), MAX_MEAL_DOTS);
           return (
             <Pressable
               key={day.dayOfWeek}
@@ -88,8 +105,25 @@ export function WeekGlance({
                 maxFontSizeMultiplier={MAX_FONT_SCALE}
                 className={cn('text-sm font-bold', inkClass)}
               >
-                {day.meals}
+                {dayOfMonthFor(day.dayOfWeek, todayIdx, now)}
               </Text>
+              {/* Decorative: the meal count is in the column's spoken label. */}
+              <View
+                testID={`week-glance-meals-${day.dayOfWeek}`}
+                accessible={false}
+                importantForAccessibility="no-hide-descendants"
+                className="h-1.5 flex-row items-center justify-center gap-0.5"
+              >
+                {Array.from({ length: dots }, (_, i) => (
+                  <View
+                    key={i}
+                    className={cn(
+                      'h-1.5 w-1.5 rounded-full',
+                      isToday ? 'bg-primary-foreground' : 'bg-gray-400',
+                    )}
+                  />
+                ))}
+              </View>
               <View className="h-5 items-center justify-center">
                 {training ? (
                   <Ionicons

@@ -120,7 +120,16 @@ export function OnboardingWizard({
     onError: (err) => setError(err.message),
   });
   const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
-  const generateMutation = trpc.mealPlan.generate.useMutation();
+  // R-18: the first week generates in the background AFTER the wizard has
+  // navigated away, so the dashboard cached at navigation time says "nothing
+  // planned". Invalidate everything that reads the plan when generation lands.
+  const generateMutation = trpc.mealPlan.generate.useMutation({
+    onSettled: () => {
+      void utils.mealPlan.invalidate();
+      void utils.dashboard.invalidate();
+      void utils.shoppingList.invalidate();
+    },
+  });
 
   const hasTrain = jobs.includes('TRAIN');
 

@@ -2,6 +2,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import LoginScreen from '../../app/(auth)/login';
 import RegisterScreen from '../../app/(auth)/register';
+import {
+  clearPendingOnboarding,
+  isOnboardingPending,
+} from '../../src/features/auth/pending-onboarding';
 import { clearRegisterDraft } from '../../src/features/auth/register-draft';
 import { OnboardingWizard } from '../../src/features/onboarding/onboarding-wizard';
 import type { createTrpcOnboardingMock } from './onboarding-trpc-mock';
@@ -79,10 +83,13 @@ beforeEach(() => {
   // in-app legal screen round trip keeps the form's values) — clear it so
   // one test's typed values never leak into the next screen's mount.
   clearRegisterDraft();
+  clearPendingOnboarding();
 });
 
 describe('Register → onboarding', () => {
-  it('routes a newly registered account to /onboarding', async () => {
+  // R-18b: the redirect is state (read by the Food tab layout on the guard
+  // flip), not an imperative router.replace racing the awaited token writes.
+  it('flags a newly registered account for onboarding before the token is stored', async () => {
     let onSuccess: ((data: { session: { token: string } | null }) => void) | undefined;
     const mutate = jest.fn(() => {
       onSuccess?.({ session: { token: 'tok' } });
@@ -102,7 +109,32 @@ describe('Register → onboarding', () => {
     await user.press(screen.getByTestId('register-age-confirm'));
     await user.press(screen.getByTestId('register-submit'));
 
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/onboarding'));
+    await waitFor(() => expect(isOnboardingPending()).toBe(true));
+    const { setToken } = jest.requireMock<{ setToken: jest.Mock }>('../../src/lib/auth-store');
+    expect(setToken).toHaveBeenCalledWith('tok');
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('does not raise the flag when sign-up returns no session', async () => {
+    let onSuccess: ((data: { session: { token: string } | null }) => void) | undefined;
+    const mutate = jest.fn(() => {
+      onSuccess?.({ session: null });
+    });
+    trpc.auth.register.useMutation.mockImplementation((opts: { onSuccess: typeof onSuccess }) => {
+      onSuccess = opts.onSuccess;
+      return mutationResult({ mutate });
+    });
+    const user = userEvent.setup();
+    await renderWithSafeArea(<RegisterScreen />);
+    await user.type(screen.getByTestId('register-email'), 'new@e2e.chefer.dev');
+    await user.type(screen.getByTestId('register-password'), 'Password123!');
+    await user.type(screen.getByTestId('register-confirm-password'), 'Password123!');
+    await user.press(screen.getByTestId('register-accept-terms'));
+    await user.press(screen.getByTestId('register-age-confirm'));
+    await user.press(screen.getByTestId('register-submit'));
+
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    expect(isOnboardingPending()).toBe(false);
   });
 });
 
@@ -176,7 +208,7 @@ describe('OnboardingWizard — jobs step (UX-03, T-03.2/T-03.3)', () => {
       'What should Chefer help with?',
     );
     // No total until jobs are known — the counter never grows.
-    expect(screen.getByText('Step 1')).toBeTruthy();
+    expect(screen.getByText('Getting started')).toBeTruthy();
   });
 
   it('Feed my household adds "Who\'s at your table?" before the food steps (AC4)', async () => {
@@ -190,7 +222,7 @@ describe('OnboardingWizard — jobs step (UX-03, T-03.2/T-03.3)', () => {
     await renderWithSafeArea(<OnboardingWizard />);
 
     await user.press(screen.getByTestId('onboarding-job-HOUSEHOLD'));
-    expect(screen.getByText('Step 1')).toBeTruthy();
+    expect(screen.getByText('Getting started')).toBeTruthy();
     await user.press(screen.getByTestId('onboarding-continue'));
 
     await waitFor(() =>

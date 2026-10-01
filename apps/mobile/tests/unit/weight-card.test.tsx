@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { Alert, Keyboard } from 'react-native';
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { WeightCard } from '../../src/features/coach/weight-card';
 
@@ -99,6 +99,27 @@ describe('WeightCard', () => {
     const buttons = alert.mock.calls[0]?.[2] ?? [];
     buttons.find((b) => b.text === 'Delete')?.onPress?.();
     expect(mockDeleteMutate).toHaveBeenCalledWith({ id: 'w2' });
+  });
+
+  // R-21: iOS's decimal-pad has no Done key — the shared accessory bar adds one.
+  it('gives the weight field and the entry editor a Done key that dismisses the keyboard', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss');
+    const user = userEvent.setup();
+    await render(<WeightCard />);
+    const input = screen.getByTestId('weight-input');
+    const barId = input.props.inputAccessoryViewID as string;
+    expect(barId).toBeTruthy();
+    const bar = screen.getByTestId('weight-numeric-bar');
+    expect(bar).toHaveTextContent('Done');
+    await user.press(bar);
+    expect(dismiss).toHaveBeenCalled();
+
+    dismiss.mockClear();
+    await user.press(screen.getByTestId('weight-entries-toggle'));
+    await user.press(screen.getByTestId('weight-entry-w2-edit'));
+    expect(screen.getByTestId('weight-entry-w2-input').props.inputAccessoryViewID).toBeTruthy();
+    await user.press(screen.getByTestId('weight-entry-w2-numeric-bar'));
+    expect(dismiss).toHaveBeenCalled();
   });
 
   it('links to the Progress screen', async () => {

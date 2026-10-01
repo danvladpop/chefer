@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Alert, Pressable, TextInput, View } from 'react-native';
+import { Alert, Keyboard, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@chefer/ui-mobile';
+import { NumericReturnBar, Text } from '@chefer/ui-mobile';
 import {
   bodyWeightInUnit,
   formatBodyWeight,
@@ -20,6 +20,9 @@ type Entry = { id: string; weightKg: number; recordedAt: Date };
 
 function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
   const [editing, setEditing] = useState(false);
+  // R-21: iOS's decimal-pad has no Done key — the shared accessory bar gives it
+  // one (unique per row so the native ids never collide).
+  const barId = `weight-entry-numeric-bar-${entry.id}`;
   // Edited in the user's unit (lb for IMPERIAL, backlog P2-6); saved as kg.
   const shown = String(bodyWeightInUnit(entry.weightKg, system));
   const weightLabel = formatBodyWeight(entry.weightKg, system);
@@ -81,6 +84,7 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
             value={value}
             onChangeText={setValue}
             onSubmitEditing={save}
+            inputAccessoryViewID={barId}
             keyboardType="decimal-pad"
             accessibilityLabel={`Weight on ${dateLabel} in ${system === 'IMPERIAL' ? 'pounds' : 'kilograms'}`}
             className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
@@ -117,6 +121,14 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
           <Ionicons name={editing ? 'close' : 'trash-outline'} size={18} color="#4b5563" />
         </Pressable>
       </View>
+      {editing && (
+        <NumericReturnBar
+          nativeID={barId}
+          testID={`weight-entry-${entry.id}-numeric-bar`}
+          label="Done"
+          onPress={() => Keyboard.dismiss()}
+        />
+      )}
       {error && <Text className="text-xs text-red-600">{error}</Text>}
       {healthConsentSheet}
     </View>

@@ -8,7 +8,7 @@ import {
   type VolumeGroup,
 } from '@chefer/types';
 import { ChipGroup, Sheet, Text } from '@chefer/ui-mobile';
-import { cn, isStrengthTrackingType, trackingTypeOf } from '@chefer/utils';
+import { cn, isStrengthTrackingType, trackingTypeOf, VOLUME_GROUP_LABELS } from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
 import { CollapsibleChipFilters } from './collapsible-chip-filters';
 import { exerciseImageUrl } from './exercise-image';
@@ -39,7 +39,7 @@ const GROUP_FILTERS: { value: VolumeGroup; label: string }[] = (
   Object.keys(VOLUME_GROUPS) as VolumeGroup[]
 ).map((group) => ({
   value: group,
-  label: (MUSCLE_LABELS as Record<string, string | undefined>)[group] ?? 'Back',
+  label: VOLUME_GROUP_LABELS[group],
 }));
 
 const CARDIO_FILTER: { value: PickerFilter; label: string } = { value: 'CARDIO', label: 'Cardio' };
