@@ -1673,6 +1673,18 @@ the repository layer) and each result carries `per100g` (calories/protein/
 carbs/fat, `null` when the row has no macro data yet) for the Log sheet's
 grams row (50/100/150/200 g + live kcal).
 
+**Private-row isolation (plan-ingredient-catalog F6, fixed 2026-10-01):** every
+vocabulary load that feeds a user's numbers filters with
+`visibleToUser(userId)` (`lib/ingredient-prices`): global rows plus the
+caller's own private rows, global only when there is no user. That covers plan
+reconcile and swap plus the import cross-check (both through
+`application/ingredients/macro-vocabulary.ts` `loadMacroVocabulary`), plan cost
+(`estimatePlanCostEur({ userId })`), shopping-list pricing and pantry savings.
+Before the fix those loads matched by name only, so one user's private row
+could price or reconcile another user's lines.
+`private-ingredient-isolation.test.ts` and the shopping-list F6 test run these
+paths against an in-memory table (`src/test-support/fake-ingredient-prices.ts`).
+
 ### IngredientPriceWorker (worker)
 
 `apps/api/src/workers/ingredient-price.worker.ts`. Builds and maintains the

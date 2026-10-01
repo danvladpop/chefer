@@ -2,7 +2,6 @@ import { TRPCError } from '@trpc/server';
 import {
   favouriteRecipeRepository,
   householdMemberRepository,
-  prisma,
   type IFavouriteRecipeRepository,
   type Recipe,
 } from '@chefer/database';
@@ -32,7 +31,6 @@ import {
 } from '../../lib/curated-recipes/safety.js';
 import { buildPollinationsUrl } from '../../lib/image-gen/pollinations.js';
 import { buildRecipeImagePrompt } from '../../lib/image-gen/prompt.js';
-import { normalizeIngredientName } from '../../lib/ingredient-prices/index.js';
 import { reserveRecipeImport } from '../../lib/quotas.js';
 import {
   crossCheckMacros,
@@ -47,6 +45,7 @@ import {
   unverifiedQuantityIndexes,
 } from '../../lib/video-import/index.js';
 import { moderationService, type ModerationService } from '../friends/moderation.service.js';
+import { loadMacroVocabulary } from '../ingredients/macro-vocabulary.js';
 import { markLatestImportSaved } from '../profile/ai-usage.service.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import {
@@ -305,7 +304,7 @@ export class RecipeImportService {
     // adaptation; the UI shows a hard warning and importSave rejects it.
     const safety = checkImportSafety(adapted, safetyPrefs);
 
-    const macroCheck = await this.crossCheckAgainstVocabulary(original);
+    const macroCheck = await this.crossCheckAgainstVocabulary(original, user.id);
 
     return {
       via,
@@ -425,21 +424,15 @@ export class RecipeImportService {
     return saved;
   }
 
-  /** Vocabulary lookup + pure cross-check (lib/recipe-import/macro-check). */
-  private async crossCheckAgainstVocabulary(recipe: ExtractedRecipe): Promise<MacroCheckResult> {
-    const names = [...new Set(recipe.ingredients.map((i) => normalizeIngredientName(i.name)))];
-    const rows = await prisma.ingredientPrice.findMany({
-      where: { ingredientName: { in: names } },
-      select: {
-        ingredientName: true,
-        caloriesPer100g: true,
-        proteinPer100g: true,
-        carbsPer100g: true,
-        fatPer100g: true,
-        fiberPer100g: true,
-        gramsPerPiece: true,
-      },
-    });
+  /** Vocabulary lookup (the user's visible rows, F6) + pure cross-check (lib/recipe-import/macro-check). */
+  private async crossCheckAgainstVocabulary(
+    recipe: ExtractedRecipe,
+    userId: string,
+  ): Promise<MacroCheckResult> {
+    const rows = await loadMacroVocabulary(
+      recipe.ingredients.map((i) => i.name),
+      userId,
+    );
     return crossCheckMacros(recipe, rows);
   }
 }

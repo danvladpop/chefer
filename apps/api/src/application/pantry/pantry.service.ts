@@ -15,6 +15,7 @@ import { hasFeature } from '../../lib/entitlements.js';
 import {
   estimateItemPriceEur,
   normalizeIngredientName,
+  visibleToUser,
 } from '../../lib/ingredient-prices/index.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import { buildPantryMatcher, rankRecipesByPantry } from './pantry-match.js';
@@ -294,7 +295,10 @@ export class PantryService {
     if (covered.length === 0) return 0;
 
     const priceRows = await prisma.ingredientPrice.findMany({
-      where: { ingredientName: { in: covered.map((line) => normalizeIngredientName(line.name)) } },
+      where: {
+        ingredientName: { in: covered.map((line) => normalizeIngredientName(line.name)) },
+        ...visibleToUser(userId),
+      },
     });
     const priceMap = new Map(priceRows.map((row) => [row.ingredientName, row]));
     const total = covered.reduce((sum, line) => {

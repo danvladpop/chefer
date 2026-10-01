@@ -64,7 +64,6 @@ import {
 } from '../../lib/curated-recipes/index.js';
 import { hasFeature } from '../../lib/entitlements.js';
 import { unsafeForTableError } from '../../lib/friends-errors.js';
-import { normalizeIngredientName } from '../../lib/ingredient-prices/index.js';
 import { notifyTailoringQueued } from '../../lib/plan-tailoring-signal.js';
 import { PoolExhaustedCause } from '../../lib/pool-exhausted.js';
 import type { MacroVocabularyRow } from '../../lib/recipe-import/macro-check.js';
@@ -73,6 +72,7 @@ import {
   computeHouseholdContext,
   legacyServingSizePlaceholders,
 } from '../household/household.service.js';
+import { loadMacroVocabulary } from '../ingredients/macro-vocabulary.js';
 import { pairLeftovers, pairLeftoverSlots } from '../pantry/leftovers.js';
 import { computeUsedPantryItemsForUser, getUseFirstIngredients } from '../pantry/pantry-context.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
@@ -791,7 +791,7 @@ export class MealPlanService {
     // 3a. Honest numbers first (audit F-REC-2-4): AI recipes whose stated
     // calories drift from their ingredients get resized and restated
     // (macro-reconcile.ts), so the day totals below are real.
-    weekPlan = await this.reconcilePlanMacros(weekPlan);
+    weekPlan = await this.reconcilePlanMacros(weekPlan, userId);
 
     // 3a. Server-side day-total validation (trust P-1): the prompt demands
     // ±5% but models routinely return days 25-45% under target — and, with
@@ -811,6 +811,7 @@ export class MealPlanService {
               previousDayMacros: planDayMacroTotals(weekPlan),
             },
           }),
+          userId,
         );
         if (planOffTargetScore(retryPlan, liveTargets, trainingDayTargets) < firstScore) {
           weekPlan = retryPlan;
@@ -1017,6 +1018,7 @@ export class MealPlanService {
       // Sized for the table (P2-3): premium generation IS household scaling.
       estimatedCost: await estimatePlanCostEur(daysFrom(weekPlan.days, shopFrom), {
         portions: householdContext?.portionSum ?? null,
+        userId,
       }),
       ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
       tableSafety: safetyTable,
@@ -1222,25 +1224,28 @@ export class MealPlanService {
         remaining(),
       );
 
-    let dayPlan = await this.reconcilePlanMacros({ days: [await ask(aiInput)] });
+    let dayPlan = await this.reconcilePlanMacros({ days: [await ask(aiInput)] }, userId);
     const firstScore = planOffTargetScore(dayPlan, dayTargets);
     // Same day-total validation as the week (trust P-1, F-PLAN-1-2): one
     // corrective retry, only when the budget still has room for it; keep
     // the closer attempt. Not logged — the user asked once.
     if (firstScore > 0 && remaining() >= TAILORING_RETRY_MIN_REMAINING_MS) {
       try {
-        const retry = await this.reconcilePlanMacros({
-          days: [
-            await ask({
-              ...aiInput,
-              calorieCorrection: {
-                target: dayTargets.dailyCalorieTarget,
-                previousDayTotals: planDayKcalTotals(dayPlan),
-                previousDayMacros: planDayMacroTotals(dayPlan),
-              },
-            }),
-          ],
-        });
+        const retry = await this.reconcilePlanMacros(
+          {
+            days: [
+              await ask({
+                ...aiInput,
+                calorieCorrection: {
+                  target: dayTargets.dailyCalorieTarget,
+                  previousDayTotals: planDayKcalTotals(dayPlan),
+                  previousDayMacros: planDayMacroTotals(dayPlan),
+                },
+              }),
+            ],
+          },
+          userId,
+        );
         if (planOffTargetScore(retry, dayTargets) < firstScore) dayPlan = retry;
       } catch (err) {
         console.warn('[tailoring] corrective retry failed; keeping the first day:', err);
@@ -1720,9 +1725,11 @@ export class MealPlanService {
       estimatedCost: premium
         ? await estimatePlanCostEur(daysFrom(days, curatedShopFrom), {
             portions: premium.costPortions,
+            userId,
           })
         : await estimatePlanCostEur(daysFrom(days, curatedShopFrom), {
             portions: firstScaledPortions,
+            userId,
           }),
       ...(!premium && firstScaledPortions !== null && { firstScaledWeek: true }),
       ...(curatedShopFrom > 0 && { shoppingFromDay: curatedShopFrom }),
@@ -1749,12 +1756,13 @@ export class MealPlanService {
    */
   private async reconcilePlanMacros<T extends { days: { meals: { recipe: RecipeData }[] }[] }>(
     weekPlan: T,
+    userId: string,
   ): Promise<T> {
     const aiRecipes = weekPlan.days
       .flatMap((d) => d.meals.map((m) => m.recipe))
       .filter((r) => !r.id.startsWith('curated-'));
     if (aiRecipes.length === 0) return weekPlan;
-    const rows = await loadMacroVocabulary(aiRecipes);
+    const rows = await loadRecipeVocabulary(aiRecipes, userId);
     const reconciled = new Map<RecipeData, RecipeData>();
     let scaled = 0;
     for (const recipe of aiRecipes) {
@@ -1965,7 +1973,7 @@ export class MealPlanService {
       weekStartDate: plan.weekStartDate,
       days,
       // Same scaling as the shopping list, so the chip equals the list total.
-      estimatedCost: await estimatePlanCostEur(daysFrom(days, shopFrom), { portions }),
+      estimatedCost: await estimatePlanCostEur(daysFrom(days, shopFrom), { portions, userId }),
       ...(firstScaledWeek && { firstScaledWeek: true }),
       ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
       ...(targets && {
@@ -2155,7 +2163,10 @@ export class MealPlanService {
 
     // Server-minted id, as for generated weeks (recipe-ids.ts).
     newRecipe = { ...newRecipe, id: randomUUID() };
-    newRecipe = reconcileRecipeMacros(newRecipe, await loadMacroVocabulary([newRecipe])).recipe;
+    newRecipe = reconcileRecipeMacros(
+      newRecipe,
+      await loadRecipeVocabulary([newRecipe], userId),
+    ).recipe;
 
     // Usage is logged by the caller's quota reservation (reserveAiSwap).
 
@@ -2995,26 +3006,15 @@ export function nearestPortionStep(ratio: number): number {
   );
 }
 
-/** The macro vocabulary rows for every ingredient in `recipes` (one query). */
-async function loadMacroVocabulary(
+/** The macro vocabulary rows `userId` may read for every ingredient in `recipes` (one query, F6). */
+async function loadRecipeVocabulary(
   recipes: RecipeData[],
+  userId: string,
 ): Promise<Map<string, MacroVocabularyRow>> {
-  const names = [
-    ...new Set(recipes.flatMap((r) => r.ingredients.map((i) => normalizeIngredientName(i.name)))),
-  ];
-  if (names.length === 0) return new Map();
-  const rows = await prisma.ingredientPrice.findMany({
-    where: { ingredientName: { in: names } },
-    select: {
-      ingredientName: true,
-      caloriesPer100g: true,
-      proteinPer100g: true,
-      carbsPer100g: true,
-      fatPer100g: true,
-      fiberPer100g: true,
-      gramsPerPiece: true,
-    },
-  });
+  const rows = await loadMacroVocabulary(
+    recipes.flatMap((r) => r.ingredients.map((i) => i.name)),
+    userId,
+  );
   return new Map(rows.map((r) => [r.ingredientName, r]));
 }
 

@@ -4,6 +4,7 @@ import type { Ingredient } from '../../lib/ai/types.js';
 import {
   estimateItemPriceEur,
   normalizeIngredientName,
+  visibleToUser,
 } from '../../lib/ingredient-prices/index.js';
 import { aggregateIngredientLines, formatLineQuantity } from '../shopping-list/aggregate.js';
 import { householdScaleFactor } from './household-scale.js';
@@ -40,7 +41,8 @@ export async function estimatePlanCostEur(
       portion?: number | undefined;
     }[];
   }[],
-  options: { portions?: number | null } = {},
+  /** `userId`: whose private ingredient rows may price lines (F6); omitted ⇒ global rows only. */
+  options: { portions?: number | null; userId?: string | null | undefined } = {},
 ): Promise<PlanCostEstimate> {
   const portions = options.portions ?? null;
   const lines = aggregateIngredientLines(
@@ -63,7 +65,7 @@ export async function estimatePlanCostEur(
 
   const names = [...new Set(lines.map((l) => normalizeIngredientName(l.name)))];
   const rows = await prisma.ingredientPrice.findMany({
-    where: { ingredientName: { in: names } },
+    where: { ingredientName: { in: names }, ...visibleToUser(options.userId) },
     select: {
       ingredientName: true,
       pricePer100gEur: true,
