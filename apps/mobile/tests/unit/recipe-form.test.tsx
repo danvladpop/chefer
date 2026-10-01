@@ -240,6 +240,11 @@ jest.mock('../../src/lib/trpc', () => ({
   },
 }));
 
+// userEvent typing plus the picker's real 250 ms debounce wait: about 1 s
+// locally, but the first test also absorbs module warm-up and ran past the
+// default 5 s on the shared CI runner (the file took 96 s there).
+jest.setTimeout(20_000);
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockResolveResults = undefined;

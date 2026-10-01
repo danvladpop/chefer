@@ -146,6 +146,7 @@ export interface ReviewCluster {
 }
 
 export interface ReviewReport {
+  /** ISO timestamp of the window start (the CLI's --since, UTC midnight). */
   since: string;
   generatedAt: string;
   items: ReviewItem[];
@@ -262,7 +263,7 @@ export class IngredientReviewService {
       }))
       .sort((a, b) => b.users - a.users || b.recipes - a.recipes || a.key.localeCompare(b.key));
     return {
-      since: since.toISOString().slice(0, 10),
+      since: since.toISOString(),
       generatedAt: new Date().toISOString(),
       items,
       clusters,

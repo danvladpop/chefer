@@ -38,7 +38,7 @@ async function main(): Promise<void> {
   const md: string[] = [
     `# Private-ingredient review ${today}`,
     '',
-    `Since ${report.since}: ${report.items.length} private ingredients, ${report.clusters.length} distinct names.`,
+    `Since ${report.since.slice(0, 10)}: ${report.items.length} private ingredients, ${report.clusters.length} distinct names.`,
     `Decisions go in \`review-${today}.decisions.json\` (runbook: docs/runbooks/ingredient-weekly-review.md).`,
     '',
     '## Clusters (same name across users)',
@@ -76,7 +76,7 @@ async function main(): Promise<void> {
   }
   writeFileSync(`${base}.md`, `${md.join('\n')}\n`);
   console.log(
-    `[ingredients:review-report] ${report.items.length} private ingredients since ${report.since}, ` +
+    `[ingredients:review-report] ${report.items.length} private ingredients since ${report.since.slice(0, 10)}, ` +
       `${report.clusters.filter((c) => c.users > 1).length} names shared by several users → ${base}.md`,
   );
 }
