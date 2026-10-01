@@ -44,4 +44,15 @@ describe('consume (sliding-window rate limiter)', () => {
     }
     expect(consume('k', 1, WINDOW, t0 + WINDOW + 1)).toBe(true);
   });
+
+  it("a sweep triggered by a short limit never drops a longer limit's bucket", () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    // Far enough past module load that the 10-minute sweep interval has elapsed.
+    const t0 = Date.now() + 60 * 60 * 1000;
+    expect(consume('daily', 1, DAY, t0)).toBe(true);
+    // A one-minute limit consumed 11 minutes later triggers the sweep…
+    consume('per-minute', 5, WINDOW, t0 + 11 * 60 * 1000);
+    // …and the daily bucket must still be full.
+    expect(consume('daily', 1, DAY, t0 + 12 * 60 * 1000)).toBe(false);
+  });
 });

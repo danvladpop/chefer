@@ -7,6 +7,8 @@ import { TRPCError } from '@trpc/server';
 
 interface Bucket {
   timestamps: number[];
+  /** The bucket's own window: the sweep must never use another limit's window. */
+  windowMs: number;
 }
 
 const buckets = new Map<string, Bucket>();
@@ -15,11 +17,11 @@ const buckets = new Map<string, Bucket>();
 const SWEEP_INTERVAL_MS = 10 * 60 * 1000;
 let lastSweep = Date.now();
 
-function sweep(now: number, windowMs: number): void {
+function sweep(now: number): void {
   if (now - lastSweep < SWEEP_INTERVAL_MS) return;
   lastSweep = now;
   for (const [key, bucket] of buckets) {
-    if (bucket.timestamps.every((t) => now - t >= windowMs)) buckets.delete(key);
+    if (bucket.timestamps.every((t) => now - t >= bucket.windowMs)) buckets.delete(key);
   }
 }
 
@@ -29,12 +31,13 @@ function sweep(now: number, windowMs: number): void {
  * individually rather than in fixed intervals.
  */
 export function consume(key: string, max: number, windowMs: number, now = Date.now()): boolean {
-  sweep(now, windowMs);
+  sweep(now);
   let bucket = buckets.get(key);
   if (!bucket) {
-    bucket = { timestamps: [] };
+    bucket = { timestamps: [], windowMs };
     buckets.set(key, bucket);
   }
+  bucket.windowMs = windowMs;
   bucket.timestamps = bucket.timestamps.filter((t) => now - t < windowMs);
   if (bucket.timestamps.length >= max) return false;
   bucket.timestamps.push(now);
