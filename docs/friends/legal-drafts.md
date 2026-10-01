@@ -174,15 +174,19 @@ processor and no transfer. Its analytics events are counts and fixed labels only
     <li>
       We keep the reports and the moderation log (what was done, why, and how many accounts
       reported) so that we can check that the system works and to prevent abuse. Our basis is our
-      legitimate interest in keeping Chefer safe (Art. 6(1)(f)). They are kept after you turn
-      Following off and are deleted when you delete your account. Reports that you filed are shown
-      in the download of your data; reports about you and the moderation log are not.
+      legitimate interest in keeping Chefer safe (Art. 6(1)(f)). They are kept for 24 months, also
+      after you turn Following off, and are deleted sooner if you delete your account. A record that
+      explains a step still in effect (a recipe still hidden, a profile still limited) is kept until
+      the step is lifted. Reports that you filed are shown in the download of your data; reports
+      about you and the moderation log are not.
     </li>
   </ul>
   <p>
     These actions are made by software, not by a person, and we do not believe they have legal or
-    similarly significant effects on you. If you think one was a mistake, or you object to the
-    processing, email <Mail /> and we will look at it. We can reverse an automatic action.
+    similarly significant effects on you. <strong>To appeal</strong> an automatic action, or to
+    object to this processing, email <Mail /> (the app links to it next to the action, with the
+    subject &ldquo;Appeal&rdquo;). A person reads every appeal, and we reverse an action that was
+    wrong.
   </p>
   <p>
     <strong>Who receives this data.</strong> Other Chefer users, as described above. They are
@@ -258,8 +262,9 @@ processor and no transfer. Its analytics events are counts and fixed labels only
 
 ```tsx
 <li>
-  <strong>Reports and the moderation log</strong>: kept while your account exists, including after
-  you turn Following off, and deleted with your account.
+  <strong>Reports and the moderation log</strong>: kept for 24 months, including after you turn
+  Following off, and deleted sooner if you delete your account. A record that explains a step still
+  in effect is kept until the step is lifted.
 </li>
 ```
 
@@ -405,13 +410,13 @@ disputes · Changes to these terms · Contact.
     </li>
   </ul>
   <p>
-    Automatic systems make mistakes, and people can also misuse reports. If you think a step was
-    wrong, email{' '}
+    Automatic systems make mistakes, and people can also misuse reports. <strong>To appeal</strong>{' '}
+    a step, email{' '}
     <a href={`mailto:${SUPPORT_EMAIL}`} className={`${linkClass} break-all`}>
       {SUPPORT_EMAIL}
-    </a>
-    .
-    We can reverse an automatic step, but we do not promise a person will look at every message.
+    </a>{' '}
+    (the app links to it next to the step). A person reads every appeal, and we reverse a step
+    that was wrong.
     These steps do not replace our right to suspend or close an account under{' '}
     <em>Ending your account</em>. To tell us about content you think is illegal, email the same
     address with where to find it and why; we will act on clear notices without undue delay.
@@ -516,15 +521,16 @@ tests found none; the tests use the constants).
 
 1. **Legal basis for moderation records.** The draft names legitimate interest (Art. 6(1)(f)) for reports, the log
    and the word filter. The PRD only names consent for the sharing. Confirm, and confirm the balancing test.
-2. **Retention of reports and the moderation log.** Today they have no maximum age: they are kept while the account
-   exists, survive "Turn off Following", and are deleted by the account-deletion cascade. Decide a limit (for example,
-   24 months) or accept that. The weekly metrics line contains counts only.
+2. **Retention of reports and the moderation log. Decided (owner, 2026-10-01): 24 months.** The maintenance
+   worker deletes older rows daily; a log row explaining a step still in effect stays until the step is lifted
+   (`MODERATION.RECORD_RETENTION_MONTHS`). The drafts above say so.
 3. **Reports about a person.** The data export includes reports the user filed but not reports about them or the
    moderation log. The draft says so. Confirm this is acceptable under Art. 15(4) (rights of the reporters, integrity
    of abuse prevention).
-4. **Automated decisions.** Is hiding a recipe or forcing an account private "similarly significant" (Art. 22)? The draft
-   says no and offers email contact with an optional reversal. The PRD has no appeal flow (Q-F-13): is an email route
-   enough, and may the terms say "we can reverse"? The wording is a commitment the owner has to be willing to keep.
+4. **Automated decisions. Decided (owner, 2026-10-01): an appeal route by email.** The app shows "Think this is a
+   mistake? Email cheferapp.help@gmail.com" next to a hidden recipe and a forced-private profile (subject "Appeal: …");
+   a person reads every appeal and the owner reverses a wrong step with `moderation-undo.ts`. The privacy and terms
+   drafts above promise exactly that.
 5. **Digital Services Act.** Chefer hosts user content. Check the hosting-service duties that apply to a micro
    enterprise: a point of contact, terms that describe moderation including automated means (section 2.2 does), a
    notice-and-action route for illegal content (the email address in section 2.2), and a statement of reasons when

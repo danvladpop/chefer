@@ -2199,8 +2199,11 @@ because an owner can delete an original that a copy-less plan still names.
 **`FriendsMaintenanceWorker`** (`apps/api/src/workers/friends-maintenance.worker.ts`, started and stopped in
 `index.ts` with the other workers). An hourly tick; once per UTC day it (1) expires `PENDING` follow requests older than
 `FRIENDS_LIMITS.requestExpiryDays` (90) and withdraws each one's `FOLLOW_REQUEST` item, (2) prunes Activity older than
-90 days and (3) prunes suggestion dismissals older than 90 days — each step runs even if another failed, and the day is
-marked done only when all three succeeded. On the first tick of each ISO week (Monday 00:00 UTC) it logs the
+90 days, (3) prunes suggestion dismissals older than 90 days and (4) deletes reports and moderation log rows older than
+`MODERATION.RECORD_RETENTION_MONTHS` (24) — `userReportRepository.deleteOlderThan` and
+`moderationRepository.deleteOlderThan`, which keeps a log row explaining an action still in effect (recipe still hidden,
+account still forced private) — each step runs even if another failed, and the day is marked done only when all
+succeeded. On the first tick of each ISO week (Monday 00:00 UTC) it logs the
 `moderation.weekly` line (`ModerationService.weeklyMetrics`: `reports`, `eligibleReports`, `recipeAutoHidden`,
 `accountForcedPrivate`, `nameRejected`, `recipeTextRejected`, `recipeFilterHidden`, `undo`). The "already done" guards are
 in-memory markers set only after success, so a restart may repeat a step or the metrics line; both are harmless
