@@ -57,6 +57,12 @@ export interface IFollowRepository {
   acceptAllPendingTo(followeeId: string, db?: SocialDbClient): Promise<string[]>;
   /** Deletes the directed edge (any status). Returns whether a row was deleted. */
   delete(followerId: string, followeeId: string, db?: SocialDbClient): Promise<boolean>;
+  /**
+   * Deletes the edge only while it is PENDING (decline / cancel), so a
+   * stale "decline" can never remove an accepted follower. Returns whether a
+   * row was deleted.
+   */
+  deletePending(followerId: string, followeeId: string, db?: SocialDbClient): Promise<boolean>;
   /** Deletes both directions (block). Returns the number of rows deleted. */
   deleteBothWays(a: string, b: string, db?: SocialDbClient): Promise<number>;
   /** ACCEPTED edges out of `userId`, newest first. */
@@ -91,6 +97,27 @@ export interface IFollowRepository {
     limit: number,
     excludeIds?: string[],
   ): Promise<MutualCandidateRow[]>;
+  /**
+   * Mutual counts for a known set of users (search ranking, PRD §10): how
+   * many of the viewer's accepted followees follow each of `userIds`
+   * (accepted), and the most recent such mutual. Users with no mutual are
+   * absent.
+   */
+  mutualCountsFor(viewerId: string, userIds: string[]): Promise<MutualCandidateRow[]>;
+  /** Accepted follower counts for `userIds` (0 for anyone absent from the map's keys). */
+  followerCounts(userIds: string[]): Promise<Map<string, number>>;
+  /**
+   * "Follows you" suggestions (PRD §11.2): accepted followers of `viewerId`
+   * the viewer has no edge to (neither following nor requested), excluding
+   * forced-private profiles and `excludeIds`. Newest follower first.
+   */
+  followersNotFollowedBack(
+    viewerId: string,
+    limit: number,
+    excludeIds?: string[],
+  ): Promise<string[]>;
+  /** Everyone `userId` follows or has requested (any status). */
+  outgoingIds(userId: string): Promise<string[]>;
   /** Deletes PENDING requests created before `date` (90-day expiry). Returns the deleted pairs. */
   expirePendingOlderThan(date: Date): Promise<ExpiredFollowRequest[]>;
 }
@@ -192,6 +219,17 @@ export class FollowRepository implements IFollowRepository {
     return count > 0;
   }
 
+  async deletePending(
+    followerId: string,
+    followeeId: string,
+    db: SocialDbClient = prisma,
+  ): Promise<boolean> {
+    const { count } = await db.follow.deleteMany({
+      where: { followerId, followeeId, status: 'PENDING' },
+    });
+    return count > 0;
+  }
+
   async deleteBothWays(a: string, b: string, db: SocialDbClient = prisma): Promise<number> {
     const { count } = await db.follow.deleteMany({
       where: {
@@ -289,6 +327,82 @@ export class FollowRepository implements IFollowRepository {
         ? [{ userId: g.followeeId, mutualCount: g._count.followerId, latestMutualId }]
         : [];
     });
+  }
+
+  async mutualCountsFor(viewerId: string, userIds: string[]): Promise<MutualCandidateRow[]> {
+    const targets = [...new Set(userIds)].filter((id) => id !== viewerId);
+    if (targets.length === 0) return [];
+    const mine = await prisma.follow.findMany({
+      where: { followerId: viewerId, status: 'ACCEPTED' },
+      select: { followeeId: true },
+    });
+    const mutualIds = mine.map((f) => f.followeeId);
+    if (mutualIds.length === 0) return [];
+    const where: Prisma.FollowWhereInput = {
+      followerId: { in: mutualIds },
+      followeeId: { in: targets },
+      status: 'ACCEPTED',
+    };
+    const [groups, latest] = await Promise.all([
+      prisma.follow.groupBy({ by: ['followeeId'], where, _count: { followerId: true } }),
+      prisma.follow.findMany({
+        where,
+        select: { followerId: true, followeeId: true },
+        orderBy: [{ acceptedAt: 'desc' }, { createdAt: 'desc' }],
+        distinct: ['followeeId'],
+      }),
+    ]);
+    const latestBy = new Map(latest.map((r) => [r.followeeId, r.followerId]));
+    return groups.flatMap((g) => {
+      const latestMutualId = latestBy.get(g.followeeId);
+      return latestMutualId
+        ? [{ userId: g.followeeId, mutualCount: g._count.followerId, latestMutualId }]
+        : [];
+    });
+  }
+
+  async followerCounts(userIds: string[]): Promise<Map<string, number>> {
+    const ids = [...new Set(userIds)];
+    const counts = new Map<string, number>();
+    if (ids.length === 0) return counts;
+    const groups = await prisma.follow.groupBy({
+      by: ['followeeId'],
+      where: { followeeId: { in: ids }, status: 'ACCEPTED' },
+      _count: { followerId: true },
+    });
+    for (const g of groups) counts.set(g.followeeId, g._count.followerId);
+    return counts;
+  }
+
+  async followersNotFollowedBack(
+    viewerId: string,
+    limit: number,
+    excludeIds: string[] = [],
+  ): Promise<string[]> {
+    if (limit <= 0) return [];
+    const rows = await prisma.follow.findMany({
+      where: {
+        followeeId: viewerId,
+        status: 'ACCEPTED',
+        followerId: { notIn: [...new Set([viewerId, ...excludeIds])] },
+        follower: {
+          socialProfile: { is: { forcedPrivateAt: null } },
+          followsIn: { none: { followerId: viewerId } },
+        },
+      },
+      select: { followerId: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+    });
+    return rows.map((r) => r.followerId);
+  }
+
+  async outgoingIds(userId: string): Promise<string[]> {
+    const rows = await prisma.follow.findMany({
+      where: { followerId: userId },
+      select: { followeeId: true },
+    });
+    return rows.map((r) => r.followeeId);
   }
 
   async expirePendingOlderThan(date: Date): Promise<ExpiredFollowRequest[]> {
