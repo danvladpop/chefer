@@ -26,6 +26,7 @@ describe('friends constants', () => {
       ACCOUNT_RESTRICT_REPORTERS: 5,
       REPORTER_MIN_ACCOUNT_AGE_HOURS: 24,
       REPORTER_REQUIRES_VERIFIED_EMAIL: true,
+      RECORD_RETENTION_MONTHS: 24,
     });
     expect(FRIENDS_LIMITS.workoutsDays).toBe(7);
     expect(FRIENDS_LIMITS.pageSize).toBe(20);

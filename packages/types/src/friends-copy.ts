@@ -502,6 +502,19 @@ export const FRIENDS_COPY = {
     reportedAndBlocked: 'Reported and blocked',
     personRowHint: 'Opens profile',
   },
+
+  /**
+   * Appeal route for an automatic moderation step (PRD §9, terms "Automatic
+   * enforcement"): shown where the owner sees the step — the hidden-recipe
+   * banner and the forced-private note. Opens an email to SUPPORT_EMAIL.
+   */
+  appeal: {
+    prompt: 'Think this is a mistake?',
+    action: (email: string): string => `Email ${email}`,
+    a11y: (email: string): string => `Think this is a mistake? Email ${email} to appeal`,
+    subjectRecipe: 'Appeal: hidden recipe',
+    subjectProfile: 'Appeal: private profile',
+  },
 } as const;
 
 export type FriendsCopy = typeof FRIENDS_COPY;

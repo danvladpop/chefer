@@ -4250,7 +4250,8 @@ only my own block and restores nothing. `friends.blocked` lists mine. 30 blocks 
 ### 34.8 Maintenance (`FriendsMaintenanceWorker`)
 
 An hourly tick; once per UTC day it expires `PENDING` requests older than 90 days (and withdraws their `FOLLOW_REQUEST` item),
-prunes Activity items older than 90 days and prunes suggestion dismissals older than 90 days; on the first tick of each ISO week
+prunes Activity items older than 90 days, prunes suggestion dismissals older than 90 days, and deletes reports and moderation
+log rows older than 24 months (§35.5); on the first tick of each ISO week
 it logs the `moderation.weekly` line (§35.5). Every step is idempotent; see `infrastructure.md` §7.
 
 ### 34.9 Where each step lives in the mobile app (F2.D)
@@ -4333,8 +4334,10 @@ threshold and re-applies forced private if it still holds (logged as `ACCOUNT_FO
 
 Nothing is sent. A hidden recipe shows the owner a banner in the recipe detail (`mealPlan.getRecipe` → `hidden { reason }`,
 only to the owner); a forced-private account sees the Private setting locked with the plain-language reason
-(`FRIENDS_COPY.settings.forcedPrivate`). There is no appeal channel in v1; the support page is the contact point, and the
-owner can undo an action (§35.6).
+(`FRIENDS_COPY.settings.forcedPrivate`). Both places show an **appeal link** ("Think this is a mistake? Email
+cheferapp.help@gmail.com", `AppealLink`, also on the own-profile preview) that opens an email to `SUPPORT_EMAIL` with the
+subject `Appeal: hidden recipe` / `Appeal: private profile`. The owner reads it and can reverse the action with the ops undo
+(§35.6).
 
 ### 35.4 Word filter (write time, English + Romanian)
 
@@ -4364,6 +4367,11 @@ actor (`system` / `ops`). Reports themselves are `UserReport` rows. On the first
 logs one structured line, `moderation.weekly { reports, eligibleReports, recipeAutoHidden, accountForcedPrivate, nameRejected,
 recipeTextRejected, recipeFilterHidden, undo }`. Nothing acts on it; it is how the owner notices, for example, many ineligible
 reports.
+
+**Retention (owner decision 2026-10-01):** reports and log rows are deleted after 24 months
+(`MODERATION.RECORD_RETENTION_MONTHS`) by the daily maintenance step, except a log row that explains an action still in effect
+(a recipe still hidden, an account still forced private), which stays until the action is lifted. A report that ages out no
+longer counts toward a threshold; an action it caused is not lifted by that.
 
 ### 35.6 Ops undo and the Chefer Kitchen script (optional, owner-run)
 

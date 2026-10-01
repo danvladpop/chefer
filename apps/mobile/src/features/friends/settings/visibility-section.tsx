@@ -5,6 +5,7 @@ import { FRIENDS_COPY, type FriendsMeDto } from '@chefer/types';
 import { PressableScale, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
+import { AppealLink } from '../components/appeal-link';
 import { FriendsConfirmSheet, type ConfirmCopy } from '../safety/confirm-copy';
 import { sharedSectionsList } from './shared-sections';
 import { useUpdateSettings } from './use-update-settings';
@@ -120,9 +121,12 @@ export function VisibilitySection({ me, settings }: { me: FriendsMeDto; settings
         onPress={() => choose('PUBLIC')}
       />
       {locked ? (
-        <Text testID="friends-settings-forced-private" variant="muted" className="pl-8">
-          {FRIENDS_COPY.settings.forcedPrivate}
-        </Text>
+        <View className="gap-1 pl-8">
+          <Text testID="friends-settings-forced-private" variant="muted">
+            {FRIENDS_COPY.settings.forcedPrivate}
+          </Text>
+          <AppealLink subject="profile" testID="friends-settings-forced-private-appeal" />
+        </View>
       ) : null}
 
       {pending?.kind === 'public' ? (

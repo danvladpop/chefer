@@ -24,6 +24,7 @@ import {
   slotPortion,
 } from '@chefer/utils';
 import { AddToWeekSheet } from '../../src/features/friends/add-to-week/add-to-week-sheet';
+import { AppealLink } from '../../src/features/friends/components/appeal-link';
 import { SourceLink } from '../../src/features/friends/components/source-link';
 import { ReportSheet } from '../../src/features/friends/safety/report-sheet';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
@@ -251,6 +252,7 @@ export default function RecipeDetailScreen() {
                     ? FRIENDS_COPY.recipe.hidden.filter
                     : FRIENDS_COPY.recipe.hidden.reports}
                 </Text>
+                <AppealLink subject="recipe" tone="text-blue-900" testID="recipe-hidden-appeal" />
               </View>
             ) : null}
             <Text variant="muted" className="text-sm">

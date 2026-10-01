@@ -59,6 +59,13 @@ export interface IModerationRepository {
   ): Promise<boolean>;
   /** The user's own shared recipes the word filter checks: MANUAL, not a copy, not hidden. */
   ownSharedRecipesForFilter(userId: string): Promise<FilterableRecipeRow[]>;
+  /**
+   * Retention (MODERATION.RECORD_RETENTION_MONTHS): deletes log rows written
+   * before `date`, except a row that explains an action still in effect — a
+   * hide of a recipe that is still hidden, or a forced-private of a profile that
+   * is still forced private. Those stay until the action is lifted.
+   */
+  deleteOlderThan(date: Date): Promise<number>;
 }
 
 const MODERATION_ACTIONS: readonly ModerationAction[] = [
@@ -137,6 +144,32 @@ export class ModerationRepository implements IModerationRepository {
       select: { id: true, name: true, description: true },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  async deleteOlderThan(date: Date): Promise<number> {
+    const [hidden, forced] = await Promise.all([
+      prisma.recipe.findMany({ where: { hiddenAt: { not: null } }, select: { id: true } }),
+      prisma.socialProfile.findMany({
+        where: { forcedPrivateAt: { not: null } },
+        select: { userId: true },
+      }),
+    ]);
+    const { count } = await prisma.moderationLog.deleteMany({
+      where: {
+        createdAt: { lt: date },
+        NOT: [
+          {
+            action: { in: ['RECIPE_AUTO_HIDDEN', 'RECIPE_FILTER_HIDDEN'] },
+            recipeId: { in: hidden.map((r) => r.id) },
+          },
+          {
+            action: 'ACCOUNT_FORCED_PRIVATE',
+            targetUserId: { in: forced.map((p) => p.userId) },
+          },
+        ],
+      },
+    });
+    return count;
   }
 }
 

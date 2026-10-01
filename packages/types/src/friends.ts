@@ -31,6 +31,13 @@ export const MODERATION = {
   ACCOUNT_RESTRICT_REPORTERS: 5,
   REPORTER_MIN_ACCOUNT_AGE_HOURS: 24,
   REPORTER_REQUIRES_VERIFIED_EMAIL: true,
+  /**
+   * Retention of reports and the moderation log (owner decision 2026-10-01):
+   * deleted after 24 months by the maintenance worker. A log row that explains
+   * an action still in effect (a recipe still hidden, an account still forced
+   * private) is kept until the action is lifted.
+   */
+  RECORD_RETENTION_MONTHS: 24,
 } as const;
 
 const personName = z.string().trim().min(1).max(50);
