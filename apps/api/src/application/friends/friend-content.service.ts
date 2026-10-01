@@ -1,4 +1,5 @@
 import {
+  blockRepository,
   chefProfileRepository,
   favouriteRecipeRepository,
   followRepository,
@@ -8,6 +9,7 @@ import {
   socialProfileRepository,
   workoutSessionRepository,
   type ChefProfile,
+  type IBlockRepository,
   type IChefProfileRepository,
   type IFavouriteRecipeRepository,
   type IFollowRepository,
@@ -32,6 +34,7 @@ import {
 import {
   decodeCursor,
   encodeCursor,
+  firstBlockedField,
   localDateMinusDays,
   mondayUtcOf,
   ownerLocalDate,
@@ -92,6 +95,7 @@ export interface FriendContentDeps {
   routines: Pick<RoutineRepository, 'findActiveWithExercises'>;
   sessions: Pick<WorkoutSessionRepository, 'listCompletedInLocalDateRange'>;
   targets: FriendTargetsReader;
+  blocks: Pick<IBlockRepository, 'blockedIdsEither'>;
   now: () => Date;
 }
 
@@ -105,6 +109,7 @@ const defaultDeps: FriendContentDeps = {
   routines: routineRepository,
   sessions: workoutSessionRepository,
   targets: readOnlyTargets,
+  blocks: blockRepository,
   now: () => new Date(),
 };
 
@@ -112,6 +117,52 @@ export interface FriendRecipesQuery {
   search?: string | undefined;
   cursor?: string | undefined;
   limit?: number | undefined;
+}
+
+/**
+ * F3.1 — recipe ids whose name, photo and source a follower must not see in
+ * the owner's week, although the row itself isn't hidden:
+ *   - a copy whose ORIGINAL was auto-hidden by moderation (PRD §9.3 hides the
+ *     original; the owner's copy would otherwise carry its name and photo to
+ *     every follower — PRD §13: copies are never re-shared);
+ *   - a recipe written, or originally written, by someone the VIEWER blocked
+ *     or is blocked by (FR-13: "you won’t see … their recipes");
+ *   - a name or description that trips the word filter (PRD §9.4 checks only
+ *     SHARED recipes on write; a shared PLAN shows names of recipes that never
+ *     went through it, e.g. with `My recipes` off, or a renamed copy).
+ * The card keeps its id and numbers, like any `Hidden recipe`.
+ */
+export async function withheldRecipeIds(
+  viewerId: string,
+  ownerId: string,
+  recipes: readonly Recipe[],
+  deps: {
+    findRecipesByIds: (ids: string[]) => Promise<Recipe[]>;
+    blockedIdsEither: (userId: string) => Promise<string[]>;
+  },
+): Promise<Set<string>> {
+  const originIds = [
+    ...new Set(recipes.flatMap((r) => (r.originRecipeId ? [r.originRecipeId] : []))),
+  ];
+  const [origins, blocked] = await Promise.all([
+    originIds.length > 0 ? deps.findRecipesByIds(originIds) : Promise.resolve([]),
+    deps.blockedIdsEither(viewerId),
+  ]);
+  const hiddenOrigins = new Set(origins.filter((o) => o.hiddenAt !== null).map((o) => o.id));
+  const blockedSet = new Set(blocked);
+  const withheld = new Set<string>();
+  for (const r of recipes) {
+    const author = r.source === 'MANUAL' && r.creatorId !== ownerId ? r.creatorId : null;
+    if (
+      (r.originRecipeId !== null && hiddenOrigins.has(r.originRecipeId)) ||
+      (author !== null && blockedSet.has(author)) ||
+      (r.originCreatorId !== null && blockedSet.has(r.originCreatorId)) ||
+      firstBlockedField(r) !== null
+    ) {
+      withheld.add(r.id);
+    }
+  }
+  return withheld;
 }
 
 function hasAnyMeal(days: readonly { meals: unknown }[]): boolean {
@@ -185,6 +236,11 @@ export class FriendContentService {
         : Promise.resolve(null),
     ]);
 
+    const withheldIds = await withheldRecipeIds(viewerId, ownerId, recipes, {
+      findRecipesByIds: (ids) => this.deps.mealPlans.findRecipesByIds(ids),
+      blockedIdsEither: (id) => this.deps.blocks.blockedIdsEither(id),
+    });
+
     return toFriendWeekDto({
       weekStartDate: monday.toISOString().slice(0, 10),
       todayIndex: weekdayIndex(local),
@@ -193,6 +249,7 @@ export class FriendContentService {
       recipesById: new Map(recipes.map((r: Recipe) => [r.id, r])),
       savedIds: new Set(savedIds),
       targets,
+      withheldIds,
     });
   }
 
@@ -224,7 +281,16 @@ export class FriendContentService {
     return {
       items: page
         .filter((r) => r.hiddenAt === null && r.originRecipeId === null)
-        .map((r) => toFriendRecipeCard(r, { ownerId, savedIds: saved })),
+        .map((r) =>
+          // Word filter at read too (F3.1): the blocked-terms list can grow
+          // after a recipe was written; the owner's originals only, so no
+          // origin/blocked-author lookup is needed here.
+          toFriendRecipeCard(r, {
+            ownerId,
+            savedIds: saved,
+            withheld: firstBlockedField(r) !== null,
+          }),
+        ),
       nextCursor: rows.length > limit && last ? encodeCursor(last.createdAt, last.id) : null,
     };
   }

@@ -1,5 +1,5 @@
 import { TRPCError, type TRPCRouterRecord } from '@trpc/server';
-import { reportInputSchema } from '@chefer/types';
+import { FRIENDS_COPY, reportInputSchema } from '@chefer/types';
 import { moderationService } from '../../application/friends/moderation.service.js';
 import { activeFriendsProcedure } from '../../lib/friends-middleware.js';
 import { consume } from '../../lib/rate-limit.js';
@@ -24,7 +24,7 @@ export const safetyProcedures = {
     if (!consume(`friends.report:${ctx.user.id}`, REPORTS_PER_DAY, DAY)) {
       throw new TRPCError({
         code: 'TOO_MANY_REQUESTS',
-        message: 'Too many reports today. Please try again tomorrow.',
+        message: FRIENDS_COPY.server.reportCap,
       });
     }
     return moderationService.reportAndBlock(ctx.user.id, input);

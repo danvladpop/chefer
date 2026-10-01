@@ -79,6 +79,7 @@ import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import {
   defaultRecipeSocialDeps,
   findRecipeVisibleTo,
+  isHiddenForeignRecipe,
   isRecipeOpenTo,
   isRecipeVisibleTo,
   recipeAttribution,
@@ -205,6 +206,8 @@ export interface AddRecipeToWeekResultDto {
   copiedFromId: string | null;
   /** The recipe the slot held before a replace; absent for an add. */
   previousRecipeId?: string;
+  /** Whether that slot was `Your pick` — pass it back to Undo with `previousRecipeId`. */
+  previousPinned?: boolean;
 }
 
 export interface MealSlotDto {
@@ -1394,6 +1397,9 @@ export class MealPlanService {
         if (!(await isRecipeVisibleTo(userId, f.recipe, this.repo, this.recipeSocial))) {
           return null;
         }
+        // F3.1: a pin on an auto-hidden recipe still opens, but generation
+        // never makes a new copy of it (PRD §13) — skip it, don't fail.
+        if (isHiddenForeignRecipe(f.recipe, userId)) return null;
         const owned = await this.copies.ownedRecipeFor(userId, f.recipe);
         return { ...f, recipe: owned.recipe };
       }),
@@ -2434,7 +2440,11 @@ export class MealPlanService {
       slotIndex: index,
       addedRecipeId,
       copiedFromId: owned.copiedFromId,
-      ...(previousRecipeId && previousRecipeId !== addedRecipeId && { previousRecipeId }),
+      ...(previousRecipeId &&
+        previousRecipeId !== addedRecipeId && {
+          previousRecipeId,
+          previousPinned: currentSlot?.pinned === true,
+        }),
     };
   }
 
@@ -2479,9 +2489,10 @@ export class MealPlanService {
       recipe.id,
       portion !== 1 ? portion : undefined,
       slotIndex,
-      // The replaced slot's own pinned flag isn't in the Undo payload; a
-      // dish the user had in this slot is still their pick.
-      true,
+      // The replaced slot's own flag (F3.1: `previousPinned`, from the add's
+      // result); an older client doesn't send it, and then a dish the user
+      // had in this slot is still their pick.
+      input.previousPinned ?? true,
     );
     return { ok: true };
   }

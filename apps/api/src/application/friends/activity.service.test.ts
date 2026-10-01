@@ -4,7 +4,7 @@ import { decodeCursor, encodeCursor } from '@chefer/utils';
 import {
   ActivityService,
   FriendSummaryHydrator,
-  toFriendUserSummary,
+  summaryFromEdges,
   type ActivityNotificationRepository,
 } from './activity.service.js';
 
@@ -90,10 +90,10 @@ function notificationRepo(rows: Notification[]): ActivityNotificationRepository 
   };
 }
 
-describe('toFriendUserSummary (INV-2 / INV-6)', () => {
+describe('summaryFromEdges (INV-2 / INV-6)', () => {
   it('builds exactly the FriendUserSummary keys — an email on the row never leaks', () => {
     const leaky = { ...user(ANA, 'Ana', 'Pop'), email: 'ana@x.dev', passwordHash: 'h' };
-    const summary = toFriendUserSummary(leaky, ME, []);
+    const summary = summaryFromEdges(leaky, ME, []);
     expect(Object.keys(summary).sort()).toEqual(
       [
         'displayName',
@@ -110,31 +110,31 @@ describe('toFriendUserSummary (INV-2 / INV-6)', () => {
 
   it('derives relation, followsYou and requestedYou from the edges both ways', () => {
     const u = user(ANA, 'Ana', 'Pop');
-    expect(toFriendUserSummary(u, ME, [])).toMatchObject({
+    expect(summaryFromEdges(u, ME, [])).toMatchObject({
       displayName: 'Ana Pop',
       firstName: 'Ana',
       relation: 'none',
       followsYou: false,
       requestedYou: false,
     });
-    expect(toFriendUserSummary(u, ME, [edge(ME, ANA, 'PENDING')]).relation).toBe('requested');
-    expect(toFriendUserSummary(u, ME, [edge(ME, ANA, 'ACCEPTED')]).relation).toBe('following');
-    expect(toFriendUserSummary(u, ME, [edge(ANA, ME, 'ACCEPTED')])).toMatchObject({
+    expect(summaryFromEdges(u, ME, [edge(ME, ANA, 'PENDING')]).relation).toBe('requested');
+    expect(summaryFromEdges(u, ME, [edge(ME, ANA, 'ACCEPTED')]).relation).toBe('following');
+    expect(summaryFromEdges(u, ME, [edge(ANA, ME, 'ACCEPTED')])).toMatchObject({
       followsYou: true,
       requestedYou: false,
     });
-    expect(toFriendUserSummary(u, ME, [edge(ANA, ME, 'PENDING')])).toMatchObject({
+    expect(summaryFromEdges(u, ME, [edge(ANA, ME, 'PENDING')])).toMatchObject({
       followsYou: false,
       requestedYou: true,
     });
-    expect(toFriendUserSummary(user(ME, 'Me', 'Self'), ME, []).relation).toBe('self');
+    expect(summaryFromEdges(user(ME, 'Me', 'Self'), ME, []).relation).toBe('self');
   });
 
   it('falls back to the account name, then "Chefer user"', () => {
-    expect(
-      toFriendUserSummary({ ...user(ANA, null, null), name: 'Ana Maria' }, ME, []),
-    ).toMatchObject({ displayName: 'Ana Maria', firstName: 'Ana' });
-    expect(toFriendUserSummary(user(ANA, null, null), ME, []).displayName).toBe('Chefer user');
+    expect(summaryFromEdges({ ...user(ANA, null, null), name: 'Ana Maria' }, ME, [])).toMatchObject(
+      { displayName: 'Ana Maria', firstName: 'Ana' },
+    );
+    expect(summaryFromEdges(user(ANA, null, null), ME, []).displayName).toBe('Chefer user');
   });
 });
 

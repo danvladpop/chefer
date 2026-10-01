@@ -543,6 +543,22 @@ describe('friend DTO key sets (INV-2)', () => {
     expect(dto.exercises[2]!.sets).toEqual([{ weightKg: 100, reps: 5, distanceM: 5000 }]);
   });
 
+  it('F3.1: free-text gym names that trip the word filter reach a follower as neutral labels', () => {
+    const routine = fullRoutine();
+    routine.name = 'fuck legs';
+    routine.days[0]!.name = 'shit day';
+    routine.days[0]!.exercises[0]!.exercise.name = 'bitch press'; // the custom one
+    const r = toFriendRoutineDto(routine, ALL_TYPES);
+    expect(r.name).toBe(FRIENDS_COPY.gym.routine);
+    expect(r.days.find((d) => d.position === 1)?.name).toBe(FRIENDS_COPY.gym.filtered.day(2));
+    expect(r.days.find((d) => d.position === 0)?.name).toBe('Push'); // clean text passes
+    const custom = r.days.flatMap((d) => d.exercises).find((e) => e.isCustom);
+    expect(custom?.name).toBe(FRIENDS_COPY.gym.filtered.exercise);
+
+    const session = { ...fullSession(), name: 'fuck mondays' };
+    expect(toFriendWorkoutDto(session, ALL_TYPES).name).toBe(FRIENDS_COPY.gym.filtered.workout);
+  });
+
   it('workouts apply the tracking-type filter but keep the session', () => {
     const dto = toFriendWorkoutDto(fullSession(), STRENGTH_ONLY);
     expect(dto.exercises.map((e) => e.exerciseId)).toEqual(['plank', 'squat']);

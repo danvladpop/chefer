@@ -50,4 +50,16 @@ describe('RecipeCopyService.ownedRecipeFor / ownedIdFor', () => {
     await expect(service.ownedIdFor('me', theirs)).resolves.toBe('copy');
     expect(repo.findOrCreateCopy).toHaveBeenCalledWith('me', theirs);
   });
+
+  it('F3.1: an auto-hidden recipe of another user is never newly copied (NOT_FOUND)', async () => {
+    const hidden = recipe({ id: 'theirs', hiddenAt: new Date('2026-09-30T10:00:00Z') });
+    const repo = repoWith(recipe({ id: 'never' }));
+    await expect(new RecipeCopyService(repo).ownedRecipeFor('me', hidden)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(repo.findOrCreateCopy).not.toHaveBeenCalled();
+    // The owner's own hidden recipe is still theirs to use.
+    const mine = recipe({ creatorId: 'me', hiddenAt: new Date('2026-09-30T10:00:00Z') });
+    await expect(new RecipeCopyService(repo).ownedIdFor('me', mine)).resolves.toBe('r1');
+  });
 });

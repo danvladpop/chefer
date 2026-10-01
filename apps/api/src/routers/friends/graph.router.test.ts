@@ -46,13 +46,14 @@ vi.mock('@chefer/database', async (importOriginal) => {
 const svc = vi.hoisted(() => ({
   me: vi.fn(() => Promise.resolve({ activated: true })),
   activate: vi.fn(() => Promise.resolve({ activated: true })),
+  deactivate: vi.fn(() => Promise.resolve({ ok: true })),
   search: vi.fn(() => Promise.resolve({ items: [], nextCursor: null })),
   suggestions: vi.fn(() => Promise.resolve([])),
   follow: vi.fn(() => Promise.resolve({ relation: 'following' })),
   block: vi.fn(() => Promise.resolve({ ok: true })),
 }));
 vi.mock('../../application/friends/social-profile.service.js', () => ({
-  socialProfileService: { me: svc.me, activate: svc.activate },
+  socialProfileService: { me: svc.me, activate: svc.activate, deactivate: svc.deactivate },
 }));
 vi.mock('../../application/friends/friend-search.service.js', () => ({
   friendSearchService: { search: svc.search },
@@ -164,6 +165,25 @@ describe('friends graph procedures', () => {
     await expect(caller().follow({ userId: PUB })).rejects.toMatchObject({
       code: 'TOO_MANY_REQUESTS',
     });
+  });
+
+  it('F3.1 follow: probing ids that are not visible counts against the same 60 an hour', async () => {
+    for (let i = 0; i < 60; i++) {
+      await expect(caller().follow({ userId: BLOCKER })).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      });
+    }
+    await expect(caller().follow({ userId: PUB })).rejects.toMatchObject({
+      code: 'TOO_MANY_REQUESTS',
+    });
+    expect(svc.follow).not.toHaveBeenCalled();
+  });
+
+  it('F3.1 deactivate: idempotent — turning off again (no profile) answers ok, not PRECONDITION_FAILED', async () => {
+    await expect(caller().deactivate({ confirm: 'TURN_OFF' })).resolves.toEqual({ ok: true });
+    world.profiles.delete(ME);
+    await expect(caller().deactivate({ confirm: 'TURN_OFF' })).resolves.toEqual({ ok: true });
+    expect(svc.deactivate).toHaveBeenCalledTimes(2);
   });
 
   it('block: 30 a day, no access check (works on someone who blocked me)', async () => {

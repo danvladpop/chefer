@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Block, SocialDbClient, SocialUserRow } from '@chefer/database';
+import type { Block, SocialDbClient, SocialProfile, SocialUserRow } from '@chefer/database';
 import { FriendSummaryHydrator, type SocialTx } from './activity.service.js';
 import { BlockService } from './block.service.js';
 
@@ -11,6 +11,8 @@ import { BlockService } from './block.service.js';
 const ME = 'cme000000000000000000001';
 const BOB = 'cbob00000000000000000001';
 const CAT = 'ccat00000000000000000001';
+/** A Chefer account that never turned Following on (a user row, no SocialProfile). */
+const OFF = 'coff00000000000000000001';
 const T0 = new Date('2026-09-30T10:00:00.000Z');
 
 function makeWorld() {
@@ -54,15 +56,19 @@ function makeWorld() {
   const follows = { deleteBothWays: vi.fn(record('follows.deleteBothWays', 2)) };
   const notifications = { withdrawBetween: vi.fn(record('notifications.withdrawBetween', 1)) };
   const dismissals = { deleteBetween: vi.fn(record('dismissals.deleteBetween', 0)) };
-  const users: SocialUserRow[] = [BOB, CAT].map((id) => ({
+  const users: SocialUserRow[] = [BOB, CAT, OFF].map((id) => ({
     id,
     firstName: id.slice(1, 4),
     lastName: 'X',
     name: null,
     image: null,
   }));
+  const activated = new Set([BOB, CAT]);
   const profiles = {
     findUsers: vi.fn((ids: string[]) => Promise.resolve(users.filter((u) => ids.includes(u.id)))),
+    find: vi.fn((id: string) =>
+      Promise.resolve(activated.has(id) ? ({ userId: id } as SocialProfile) : null),
+    ),
   };
   const suggestions = { invalidate: vi.fn(), invalidateAll: vi.fn() };
   const hydrator = new FriendSummaryHydrator(profiles, {
@@ -122,6 +128,13 @@ describe('block', () => {
     expect((err as TRPCError).code).toBe('BAD_REQUEST');
     await expect(w.service.block(ME, 'cunknown0000000000000001')).resolves.toEqual({ ok: true });
     expect(w.calls).toEqual([]);
+  });
+
+  it('F3.1: a user who never turned Following on can’t be blocked — no row, no name in Blocked people', async () => {
+    await expect(w.service.block(ME, OFF)).resolves.toEqual({ ok: true });
+    expect(w.calls).toEqual([]);
+    const list = await w.service.list(ME, { limit: 20 });
+    expect(list.items).toEqual([]);
   });
 
   it('blockInTx runs inside the caller’s transaction (report-and-block)', async () => {

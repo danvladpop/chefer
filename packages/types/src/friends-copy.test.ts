@@ -53,6 +53,23 @@ describe('FRIENDS_COPY', () => {
     expect(FRIENDS_COPY.turnOff.done).toBe('Following is off.');
   });
 
+  it('carries the Blocked people title and the consent-history label', () => {
+    expect(FRIENDS_COPY.blocked.title).toBe('Blocked people');
+    expect(FRIENDS_COPY.consent.label(true)).toBe('Following and sharing: on');
+    expect(FRIENDS_COPY.consent.label(false)).toBe('Following and sharing: off');
+  });
+
+  it('carries the server error messages (F3.1: no inline strings in friends.*)', () => {
+    expect(FRIENDS_COPY.server.notActivated).toBe('Turn on Following to use this.');
+    expect(FRIENDS_COPY.server.requestCap).toBe(
+      'You’ve asked to follow this person several times this week. Try again later.',
+    );
+    expect(FRIENDS_COPY.server.reportCap).toBe(
+      'Too many reports today. Please try again tomorrow.',
+    );
+    expect(FRIENDS_COPY.server.followSelf).toBe('You can’t follow yourself.');
+  });
+
   it('carries the moderation messages (plan §4.6, UX §4.1)', () => {
     expect(FRIENDS_COPY.recipe.textRejected).toBe(
       'Some words in this recipe’s name or description aren’t allowed on shared recipes. Change them, or turn off recipe sharing.',

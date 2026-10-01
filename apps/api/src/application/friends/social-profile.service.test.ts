@@ -12,6 +12,7 @@ import { FRIENDS_COPY, LEGAL_VERSIONS } from '@chefer/types';
 import { TextRejectedCause } from '../../lib/friends-errors.js';
 import type { SocialTx } from './activity.service.js';
 import {
+  isReservedName,
   prefillNames,
   SocialProfileService,
   type ProfileServiceProfileRepository,
@@ -295,6 +296,45 @@ describe('activate', () => {
       expect(w.profiles.create).not.toHaveBeenCalled();
       expect(w.consent.record).not.toHaveBeenCalled();
     }
+  });
+
+  it('F3.1: a name passing itself off as Chefer is rejected like a blocked word (one NAME_REJECTED row)', async () => {
+    for (const names of [
+      { firstName: 'Chefer', lastName: 'Kitchen' },
+      { firstName: 'Chéfer_Team', lastName: 'Official' },
+      { firstName: 'Maria', lastName: 'CheferSupport' },
+    ]) {
+      w = makeWorld();
+      const err = await rejection(w.service.activate(ME, { ...input, ...names }, 'mobile'));
+      expect(err.code).toBe('BAD_REQUEST');
+      expect(err.message).toBe(FRIENDS_COPY.intro.nameRejected);
+      expect(err.cause).toBeInstanceOf(TextRejectedCause);
+      expect(w.moderationLog.log).toHaveBeenCalledWith({
+        action: 'NAME_REJECTED',
+        targetUserId: ME,
+        reason: 'reserved name',
+        actor: 'system',
+      });
+      expect(w.profiles.create).not.toHaveBeenCalled();
+    }
+    expect(isReservedName('Ana', 'Popescu')).toBe(false);
+    expect(isReservedName('Ana', 'Che Fer')).toBe(false);
+  });
+
+  it('F3.1: the ops script may use the reserved name, and a featured profile may keep renaming', async () => {
+    await expect(
+      w.service.activate(ME, { ...input, firstName: 'Chefer', lastName: 'Kitchen' }, 'mobile', {
+        allowReservedName: true,
+      }),
+    ).resolves.toMatchObject({ activated: true });
+    w.state.profile = profileRow({ featured: true });
+    await expect(
+      w.service.updateSettings(ME, { lastName: 'Kitchen Team' }, 'mobile'),
+    ).resolves.toMatchObject({ activated: true });
+    // Not featured: the rename is refused.
+    w.state.profile = profileRow();
+    const err = await rejection(w.service.updateSettings(ME, { firstName: 'Chefer' }, 'mobile'));
+    expect(err.cause).toBeInstanceOf(TextRejectedCause);
   });
 
   it('Scunthorpe-style names pass', async () => {

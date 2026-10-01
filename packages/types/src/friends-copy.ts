@@ -327,6 +327,15 @@ export const FRIENDS_COPY = {
     showSets: 'Show sets',
     hideSets: 'Hide sets',
     custom: '(custom)',
+    /**
+     * Neutral stand-ins the server sends when a routine, day, workout or custom
+     * exercise name trips the word filter (F3.1 — free text shown to followers).
+     */
+    filtered: {
+      day: (n: number): string => `Day ${num(n)}`,
+      workout: 'Workout',
+      exercise: 'Custom exercise',
+    },
     exercises: (n: number): string => `${num(n)} ${plural(n, 'exercise', 'exercises')}`,
     noRoutine: (first: string): string => `${first} doesn’t have a routine yet.`,
     noWorkouts: 'No workouts in the last 7 days.',
@@ -436,7 +445,13 @@ export const FRIENDS_COPY = {
   },
 
   blocked: {
+    title: 'Blocked people',
     empty: 'You haven’t blocked anyone.',
+  },
+
+  /** Privacy › consent history rows for `ConsentKind.SOCIAL_SHARING` (PRD §14). */
+  consent: {
+    label: (on: boolean): string => `Following and sharing: ${on ? 'on' : 'off'}`,
   },
 
   turnOff: {
@@ -460,6 +475,24 @@ export const FRIENDS_COPY = {
   },
 
   unavailable: 'Following isn’t available right now.',
+
+  /**
+   * Server error messages (the `message` of a friends.* TRPCError). The app
+   * shows them as is when it has nothing more specific, so they follow the
+   * same copy rules as the rest of the deck.
+   */
+  server: {
+    notActivated: 'Turn on Following to use this.',
+    locked: 'Follow this person to see this.',
+    notShared: 'This person isn’t sharing this right now.',
+    followSelf: 'You can’t follow yourself.',
+    blockSelf: 'You can’t block yourself.',
+    reportSelf: 'You can’t report yourself.',
+    requestCap: 'You’ve asked to follow this person several times this week. Try again later.',
+    reportCap: 'Too many reports today. Please try again tomorrow.',
+    recipeNotAvailable: 'Recipe not available.',
+    tooManyAttempts: 'Too many attempts. Please wait a few minutes and try again.',
+  },
 
   /** Screen-reader announcements (UX §13). */
   announce: {
