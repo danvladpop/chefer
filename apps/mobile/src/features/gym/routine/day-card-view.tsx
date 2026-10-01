@@ -32,7 +32,7 @@ export type DayCardViewProps = {
   /** Prefix of each exercise row's testID. */
   exerciseTestIDPrefix: string;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   badge?: ReactNode;
   exercises: readonly DayCardViewExercise[];
   /** Render only the first n exercises (the rest stays behind `footer`'s Show all). */
@@ -61,9 +61,11 @@ export function DayCardView({
           <Text variant="heading" numberOfLines={1}>
             {title}
           </Text>
-          <Text variant="muted" className="text-xs">
-            {subtitle}
-          </Text>
+          {subtitle ? (
+            <Text variant="muted" className="text-xs">
+              {subtitle}
+            </Text>
+          ) : null}
         </View>
         {badge}
       </View>
