@@ -285,5 +285,15 @@ export {
   type RecipeLineWrite,
   type RecipeNutritionFacts,
   type RecipeNutritionWrite,
+  type RecipeForRecompute,
   type StoredRecipeLineRow,
 } from './recipe-line.repository';
+
+export {
+  IngredientRepository,
+  ingredientRepository,
+  type IIngredientRepository,
+  type CatalogIngredientRow,
+  type IngredientKeyMatch,
+  type PrivateIngredientData,
+} from './ingredient.repository';

@@ -1,0 +1,296 @@
+import type { IngredientCategory, NutritionSource, Prisma } from '@prisma/client';
+import { prisma } from '../client';
+
+// ─── Ingredient catalog reads + private-ingredient writes (plan §6, §8, §9) ───
+// Every read is scoped to what `ownerId` may see: global rows (ownerId null)
+// plus that user's own private rows. Another user's private row is never
+// returned (invariant I4). Global rows are written only by the catalog sync.
+
+export interface CatalogIngredientRow {
+  id: string;
+  slug: string;
+  name: string;
+  category: IngredientCategory;
+  status: 'ACTIVE' | 'MERGED' | 'DEPRECATED';
+  ownerId: string | null;
+  kcalPer100g: number;
+  proteinPer100g: number;
+  carbsPer100g: number;
+  fatPer100g: number;
+  fiberPer100g: number;
+  sugarPer100g: number | null;
+  satFatPer100g: number | null;
+  sodiumMgPer100g: number | null;
+  densityGPerMl: number | null;
+  edibleFraction: number;
+  nutritionSource: NutritionSource;
+  sourceRef: string | null;
+  imageUrl: string | null;
+  portions: { unit: string; grams: number; source: string }[];
+  aliases: { alias: string; locale: string }[];
+}
+
+/** One lookup key that hit an ACTIVE row the owner may see. */
+export interface IngredientKeyMatch {
+  key: string;
+  ingredientId: string;
+  /** `slug`: the key is the row's slug as words; `alias`: an alias row. */
+  via: 'slug' | 'alias';
+  /** null for a global row. */
+  ownerId: string | null;
+}
+
+export interface PrivateIngredientData {
+  name: string;
+  category: IngredientCategory;
+  kcalPer100g: number;
+  proteinPer100g: number;
+  carbsPer100g: number;
+  fatPer100g: number;
+  fiberPer100g: number;
+  sugarPer100g?: number | null;
+  satFatPer100g?: number | null;
+  sodiumMgPer100g?: number | null;
+  densityGPerMl?: number | null;
+  imageUrl?: string | null;
+  /** Normalized lookup keys (the name's key at least). */
+  aliases: string[];
+  portions: { unit: string; grams: number }[];
+}
+
+export interface IIngredientRepository {
+  /** Rows by id that `ownerId` may see, in any status (lines can point at a DEPRECATED row). */
+  findVisibleByIds(ids: string[], ownerId: string | null): Promise<CatalogIngredientRow[]>;
+  /** ACTIVE rows hit by any of `keys`: global slugs, global aliases, the owner's aliases. */
+  findKeyMatches(keys: string[], ownerId: string | null): Promise<IngredientKeyMatch[]>;
+  /**
+   * Trigram-similar ACTIVE rows for one key (pg_trgm), best first. Suggestions
+   * only: never applied on write. Empty when pg_trgm is unavailable.
+   */
+  fuzzyCandidates(
+    key: string,
+    ownerId: string | null,
+    limit: number,
+  ): Promise<{ ingredientId: string; score: number }[]>;
+  /** ACTIVE rows with an alias containing `key` (picker search); at most `limit` alias hits. */
+  searchByAlias(
+    key: string,
+    ownerId: string,
+    opts: { category?: IngredientCategory | undefined; limit: number },
+  ): Promise<{ alias: string; ingredient: CatalogIngredientRow }[]>;
+  /** The owner's private row with this slug, if any (any status). */
+  findPrivateBySlug(ownerId: string, slug: string): Promise<CatalogIngredientRow | null>;
+  /** Creates a private ingredient with its aliases and portions (nutritionSource USER). */
+  createPrivate(
+    ownerId: string,
+    slug: string,
+    data: PrivateIngredientData,
+  ): Promise<CatalogIngredientRow>;
+  /** Replaces a private ingredient's nutrition, aliases and portions. */
+  updatePrivate(
+    id: string,
+    ownerId: string,
+    data: PrivateIngredientData,
+  ): Promise<CatalogIngredientRow>;
+  /** Marks a private ingredient DEPRECATED (its recipe lines keep pointing at it). */
+  deprecatePrivate(id: string, ownerId: string): Promise<void>;
+}
+
+const INCLUDE = {
+  portions: { select: { unit: true, grams: true, source: true }, orderBy: { unit: 'asc' } },
+  aliases: { select: { alias: true, locale: true }, orderBy: { alias: 'asc' } },
+} satisfies Prisma.IngredientInclude;
+
+function visibleTo(ownerId: string | null): Prisma.IngredientWhereInput {
+  return ownerId ? { OR: [{ ownerId: null }, { ownerId }] } : { ownerId: null };
+}
+
+function privateColumns(data: PrivateIngredientData) {
+  return {
+    name: data.name,
+    category: data.category,
+    kcalPer100g: data.kcalPer100g,
+    proteinPer100g: data.proteinPer100g,
+    carbsPer100g: data.carbsPer100g,
+    fatPer100g: data.fatPer100g,
+    fiberPer100g: data.fiberPer100g,
+    sugarPer100g: data.sugarPer100g ?? null,
+    satFatPer100g: data.satFatPer100g ?? null,
+    sodiumMgPer100g: data.sodiumMgPer100g ?? null,
+    densityGPerMl: data.densityGPerMl ?? null,
+    imageUrl: data.imageUrl ?? null,
+  };
+}
+
+export class IngredientRepository implements IIngredientRepository {
+  async findVisibleByIds(ids: string[], ownerId: string | null): Promise<CatalogIngredientRow[]> {
+    if (ids.length === 0) return [];
+    return prisma.ingredient.findMany({
+      where: { id: { in: [...new Set(ids)] }, ...visibleTo(ownerId) },
+      include: INCLUDE,
+    });
+  }
+
+  async findKeyMatches(keys: string[], ownerId: string | null): Promise<IngredientKeyMatch[]> {
+    const unique = [...new Set(keys)].filter((k) => k.length > 0);
+    if (unique.length === 0) return [];
+    const slugs = unique.map((k) => k.replace(/ /g, '-'));
+    const [bySlug, byAlias] = await Promise.all([
+      prisma.ingredient.findMany({
+        where: { ownerId: null, status: 'ACTIVE', slug: { in: slugs } },
+        select: { id: true, slug: true },
+      }),
+      prisma.ingredientAlias.findMany({
+        where: {
+          alias: { in: unique },
+          ...(ownerId ? { OR: [{ ownerId: null }, { ownerId }] } : { ownerId: null }),
+          ingredient: { status: 'ACTIVE', ...visibleTo(ownerId) },
+        },
+        select: { alias: true, ingredientId: true, ownerId: true },
+      }),
+    ]);
+    return [
+      ...bySlug.map((r) => ({
+        key: r.slug.replace(/-/g, ' '),
+        ingredientId: r.id,
+        via: 'slug' as const,
+        ownerId: null,
+      })),
+      ...byAlias.map((a) => ({
+        key: a.alias,
+        ingredientId: a.ingredientId,
+        via: 'alias' as const,
+        ownerId: a.ownerId,
+      })),
+    ];
+  }
+
+  async fuzzyCandidates(
+    key: string,
+    ownerId: string | null,
+    limit: number,
+  ): Promise<{ ingredientId: string; score: number }[]> {
+    if (!key) return [];
+    try {
+      // The one raw query in the catalog code: Prisma has no trigram operator
+      // (plan §6.1). Parameters are bound by the tagged template.
+      const rows = await prisma.$queryRaw<{ ingredientId: string; score: number }[]>`
+        SELECT a."ingredientId" AS "ingredientId", MAX(similarity(a.alias, ${key}))::float8 AS score
+        FROM ingredient_aliases a
+        JOIN ingredients i ON i.id = a."ingredientId"
+        WHERE i.status = 'ACTIVE'
+          AND (i."ownerId" IS NULL OR i."ownerId" = ${ownerId})
+          AND (a."ownerId" IS NULL OR a."ownerId" = ${ownerId})
+          AND similarity(a.alias, ${key}) > 0.25
+        GROUP BY a."ingredientId"
+        ORDER BY score DESC
+        LIMIT ${limit}`;
+      return rows;
+    } catch (err) {
+      console.warn('[ingredients] trigram candidates unavailable (pg_trgm missing?):', err);
+      return [];
+    }
+  }
+
+  async searchByAlias(
+    key: string,
+    ownerId: string,
+    opts: { category?: IngredientCategory | undefined; limit: number },
+  ): Promise<{ alias: string; ingredient: CatalogIngredientRow }[]> {
+    if (!key) return [];
+    const where = (alias: Prisma.StringFilter): Prisma.IngredientAliasWhereInput => ({
+      alias,
+      OR: [{ ownerId: null }, { ownerId }],
+      ingredient: {
+        status: 'ACTIVE',
+        OR: [{ ownerId: null }, { ownerId }],
+        ...(opts.category ? { category: opts.category } : {}),
+      },
+    });
+    const select = { alias: true, ingredient: { include: INCLUDE } } as const;
+    // Prefix hits are fetched on their own so an alphabetical cut-off of the
+    // substring hits can never drop them.
+    const [prefix, contains] = await Promise.all([
+      prisma.ingredientAlias.findMany({
+        where: where({ startsWith: key }),
+        select,
+        orderBy: { alias: 'asc' },
+        take: opts.limit,
+      }),
+      prisma.ingredientAlias.findMany({
+        where: where({ contains: key }),
+        select,
+        orderBy: { alias: 'asc' },
+        take: opts.limit,
+      }),
+    ]);
+    const seen = new Set<string>();
+    return [...prefix, ...contains].filter((h) => {
+      const k = `${h.ingredient.id}\u0000${h.alias}`;
+      return seen.has(k) ? false : (seen.add(k), true);
+    });
+  }
+
+  async findPrivateBySlug(ownerId: string, slug: string): Promise<CatalogIngredientRow | null> {
+    return prisma.ingredient.findFirst({ where: { ownerId, slug }, include: INCLUDE });
+  }
+
+  async createPrivate(
+    ownerId: string,
+    slug: string,
+    data: PrivateIngredientData,
+  ): Promise<CatalogIngredientRow> {
+    return prisma.ingredient.create({
+      data: {
+        ...privateColumns(data),
+        slug,
+        ownerId,
+        status: 'ACTIVE',
+        nutritionSource: 'USER',
+        aliases: {
+          create: [...new Set(data.aliases)].map((alias) => ({ alias, ownerId, locale: 'en' })),
+        },
+        portions: {
+          create: data.portions.map((p) => ({ unit: p.unit, grams: p.grams, source: 'user' })),
+        },
+      },
+      include: INCLUDE,
+    });
+  }
+
+  async updatePrivate(
+    id: string,
+    ownerId: string,
+    data: PrivateIngredientData,
+  ): Promise<CatalogIngredientRow> {
+    return prisma.$transaction(async (tx) => {
+      const row = await tx.ingredient.findFirst({ where: { id, ownerId }, select: { id: true } });
+      if (!row) throw new Error(`private ingredient ${id} not found for owner`);
+      await tx.ingredientAlias.deleteMany({ where: { ingredientId: id } });
+      await tx.ingredientPortion.deleteMany({ where: { ingredientId: id } });
+      return tx.ingredient.update({
+        where: { id },
+        data: {
+          ...privateColumns(data),
+          status: 'ACTIVE',
+          aliases: {
+            create: [...new Set(data.aliases)].map((alias) => ({ alias, ownerId, locale: 'en' })),
+          },
+          portions: {
+            create: data.portions.map((p) => ({ unit: p.unit, grams: p.grams, source: 'user' })),
+          },
+        },
+        include: INCLUDE,
+      });
+    });
+  }
+
+  async deprecatePrivate(id: string, ownerId: string): Promise<void> {
+    await prisma.$transaction([
+      prisma.ingredientAlias.deleteMany({ where: { ingredientId: id, ownerId } }),
+      prisma.ingredient.updateMany({ where: { id, ownerId }, data: { status: 'DEPRECATED' } }),
+    ]);
+  }
+}
+
+export const ingredientRepository = new IngredientRepository();

@@ -1,3 +1,4 @@
+import type { IngredientPrice } from '@prisma/client';
 import { prisma } from '../client';
 
 // ─── Ingredient catalog search (T-BUG-X7, T-19.1) ──────────────────────────────
@@ -26,6 +27,13 @@ export interface IIngredientPriceRepository {
    * matches first).
    */
   searchCatalog(query: string, userId: string, limit: number): Promise<IngredientCatalogRow[]>;
+  /**
+   * The user's private custom rows that have no catalog `Ingredient` twin yet
+   * (created before the ingredient catalog, plan-ingredient-catalog §7 step 2).
+   */
+  findUnlinkedPrivate(userId: string): Promise<IngredientPrice[]>;
+  /** Links a price row to its catalog ingredient. */
+  linkIngredient(ingredientName: string, ingredientId: string): Promise<void>;
 }
 
 export class IngredientPriceRepository implements IIngredientPriceRepository {
@@ -51,6 +59,17 @@ export class IngredientPriceRepository implements IIngredientPriceRepository {
         creatorId: true,
       },
     });
+  }
+
+  async findUnlinkedPrivate(userId: string): Promise<IngredientPrice[]> {
+    return prisma.ingredientPrice.findMany({
+      where: { creatorId: userId, ingredientId: null },
+      orderBy: { ingredientName: 'asc' },
+    });
+  }
+
+  async linkIngredient(ingredientName: string, ingredientId: string): Promise<void> {
+    await prisma.ingredientPrice.update({ where: { ingredientName }, data: { ingredientId } });
   }
 }
 

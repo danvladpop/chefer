@@ -56,6 +56,17 @@ export interface StoredRecipeLineRow {
   optional: boolean;
 }
 
+/** What a recompute needs about one recipe. */
+export interface RecipeForRecompute {
+  id: string;
+  creatorId: string | null;
+  servings: number;
+  nutritionStatus: NutritionStatus;
+  /** The current Json mirror, so recomputes keep its display names. */
+  ingredients: Prisma.JsonValue;
+  lines: StoredRecipeLineRow[];
+}
+
 export interface IRecipeLineRepository {
   /**
    * Replaces a recipe's lines and rewrites its Json mirror and nutrition in one
@@ -69,6 +80,8 @@ export interface IRecipeLineRepository {
   ): Promise<void>;
   /** Lines of these recipes, ordered by recipe then position. */
   findByRecipeIds(recipeIds: string[]): Promise<StoredRecipeLineRow[]>;
+  /** Every recipe with at least one line pointing at `ingredientId`, with all its lines. */
+  findRecipesUsingIngredient(ingredientId: string): Promise<RecipeForRecompute[]>;
 }
 
 /** The legacy `{name, quantity, unit}[]` mirror of `lines`, in line order. */
@@ -142,6 +155,20 @@ export class RecipeLineRepository implements IRecipeLineRepository {
     return prisma.recipeIngredient.findMany({
       where: { recipeId: { in: recipeIds } },
       orderBy: [{ recipeId: 'asc' }, { position: 'asc' }],
+    });
+  }
+
+  async findRecipesUsingIngredient(ingredientId: string): Promise<RecipeForRecompute[]> {
+    return prisma.recipe.findMany({
+      where: { lines: { some: { ingredientId } } },
+      select: {
+        id: true,
+        creatorId: true,
+        servings: true,
+        nutritionStatus: true,
+        ingredients: true,
+        lines: { orderBy: { position: 'asc' } },
+      },
     });
   }
 }
