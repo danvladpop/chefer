@@ -136,6 +136,10 @@ export interface IngredientListItem {
 export interface UpdateIngredientInput {
   /** Catalog id of a private ingredient (new clients); `name` addresses the legacy price row. */
   id?: string | undefined;
+  /** Private rows only; ignored for global rows (D7). */
+  category?: IngredientCategory | undefined;
+  /** Private rows only; null clears it. Ignored for global rows (D7). */
+  densityGPerMl?: number | null | undefined;
   name: string;
   imageUrl?: string | null | undefined;
   generateAiImage?: boolean | undefined;

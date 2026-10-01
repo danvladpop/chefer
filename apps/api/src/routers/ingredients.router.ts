@@ -114,6 +114,9 @@ export const ingredientsRouter = router({
     .input(
       z.object({
         id: z.string().min(1).max(40).optional(),
+        // P9 (additive): a private row's category and density are editable too.
+        category: ingredientCategorySchema.optional(),
+        densityGPerMl: z.number().positive().max(3).nullish(),
         name: z.string().min(2).max(60),
         imageUrl: z.string().url().nullish(),
         generateAiImage: z.boolean().optional(),

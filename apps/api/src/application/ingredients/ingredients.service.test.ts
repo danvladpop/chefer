@@ -284,6 +284,21 @@ describe('update and delete', () => {
     expect(recompute).toHaveBeenCalledWith('askyr');
   });
 
+  it('a private edit by id can change the category and density (P9)', async () => {
+    vi.mocked(prisma.ingredientPrice.findFirst).mockResolvedValue(null);
+    await service.update('alice', 'USER', {
+      id: 'askyr',
+      name: 'Lidl skyr',
+      ...macros,
+      category: 'DAIRY_YOGURT_CREAM',
+      densityGPerMl: 1.05,
+    });
+    expect(catalog.rows.find((r) => r.id === 'askyr')).toMatchObject({
+      category: 'DAIRY_YOGURT_CREAM',
+      densityGPerMl: 1.05,
+    });
+  });
+
   it("another user's private id is NOT_FOUND for update and delete", async () => {
     await expect(
       service.update('alice', 'USER', { id: 'bsauce', name: 'x sauce', ...macros }),
