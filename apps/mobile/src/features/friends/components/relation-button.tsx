@@ -70,6 +70,7 @@ export type RelationButtonProps = {
 };
 
 type ButtonVariant = NonNullable<ButtonProps['variant']>;
+type ConfirmKind = 'unfollow' | 'cancelRequest';
 
 type RelationView = {
   label: string;
@@ -134,7 +135,15 @@ export function RelationButton({
     if (!inFlight.current) setShown(relation);
   }, [relation]);
 
-  const [confirm, setConfirm] = useState<'unfollow' | 'cancelRequest' | null>(null);
+  // `confirm` drives visibility; `sheetKind` keeps the sheet mounted (with its
+  // copy) through the exit animation, and unmounts it once it's gone — so a
+  // long list doesn't carry one idle Modal per row.
+  const [confirm, setConfirm] = useState<ConfirmKind | null>(null);
+  const [sheetKind, setSheetKind] = useState<ConfirmKind | null>(null);
+  const openConfirm = (kind: ConfirmKind) => {
+    setSheetKind(kind);
+    setConfirm(kind);
+  };
   const buttonRef = useRef<View>(null);
 
   // MO-08 rollback shake: ±4 pt over 3 × `instant` (300 ms).
@@ -202,10 +211,10 @@ export function RelationButton({
         router.push('/friends/settings');
         return;
       case 'following':
-        setConfirm('unfollow');
+        openConfirm('unfollow');
         return;
       case 'requested':
-        setConfirm('cancelRequest');
+        openConfirm('cancelRequest');
         return;
       case 'none':
       default:
@@ -253,22 +262,27 @@ export function RelationButton({
           </Animated.View>
         </Button>
       </Animated.View>
-      <FriendsConfirmSheet
-        testID={`${testID}-confirm`}
-        visible={confirm !== null}
-        copy={
-          confirm === 'cancelRequest'
-            ? FRIENDS_CONFIRMS.cancelRequest()
-            : FRIENDS_CONFIRMS.unfollow(first, visibility)
-        }
-        onClose={() => setConfirm(null)}
-        onConfirm={() => {
-          // Optimistic: close at once and flip; a failure shakes + snackbars.
-          void run('unfollow');
-          return true;
-        }}
-        onExited={returnFocus}
-      />
+      {sheetKind ? (
+        <FriendsConfirmSheet
+          testID={`${testID}-confirm`}
+          visible={confirm !== null}
+          copy={
+            sheetKind === 'cancelRequest'
+              ? FRIENDS_CONFIRMS.cancelRequest()
+              : FRIENDS_CONFIRMS.unfollow(first, visibility)
+          }
+          onClose={() => setConfirm(null)}
+          onConfirm={() => {
+            // Optimistic: close at once and flip; a failure shakes + snackbars.
+            void run('unfollow');
+            return true;
+          }}
+          onExited={() => {
+            setSheetKind(null);
+            returnFocus();
+          }}
+        />
+      ) : null}
     </>
   );
 }
