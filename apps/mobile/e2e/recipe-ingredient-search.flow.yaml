@@ -1,7 +1,7 @@
-# UX-40 slice 2 (T-40.7/T-40.9, AC12): the ingredient search combobox and
-# computed nutrition on the manual recipe form. Signs in as alice (catalog
-# has real ingredients with macros, e.g. "Rolled Oats" per the UX spec
-# mockup) — costs 1 login of the 10/15min per-IP budget.
+# plan-ingredient-catalog §10 (P9; UX-40 slice 2 originally): the catalog
+# picker and computed nutrition on the manual recipe form. Signs in as alice
+# (the synced catalog has "Oats, rolled / quick, dry", slug oats-rolled) —
+# costs 1 login of the 10/15min per-IP budget.
 appId: dev.chefer.app.dev
 ---
 - runFlow: common/connect.yaml
@@ -85,7 +85,7 @@ appId: dev.chefer.app.dev
       - tapOn: 'Servings'
       - waitForAnimationToEnd
 
-# ── T-40.7: the name field opens the search sheet — type "oat", pick "Rolled Oats" ──
+# ── The name field opens the catalog picker — type "oat", pick oats-rolled ──
 - tapOn:
     id: 'rf-ingredient-name-0'
 - extendedWaitUntil:
@@ -102,9 +102,11 @@ appId: dev.chefer.app.dev
       - hideKeyboard
 # The debounce is 250ms; give the real API a moment to answer.
 - extendedWaitUntil:
-    visible: '.*Rolled Oats.*'
+    visible:
+      id: 'rf-ingredient-name-0-search-sheet-result-oats-rolled'
     timeout: 10000
-- tapOn: '.*Rolled Oats.*'
+- tapOn:
+    id: 'rf-ingredient-name-0-search-sheet-result-oats-rolled'
 # The sheet closes once a row is picked.
 - assertNotVisible:
     id: 'rf-ingredient-name-0-search-sheet-title'
@@ -130,7 +132,7 @@ appId: dev.chefer.app.dev
       - tapOn: 'Steps'
       - waitForAnimationToEnd
 
-# ── T-40.9: the computed nutrition card is the default, with a coverage line ──
+# ── The computed nutrition card (no manual path), with its coverage line ──
 - scrollUntilVisible:
     element:
       id: 'rf-nutrition-computed'
@@ -142,23 +144,8 @@ appId: dev.chefer.app.dev
     timeout: 10000
 - assertVisible:
     id: 'rf-nutrition-computed-kcal'
-# Let the CountUp tween and scroll momentum fully settle before tapping —
-# a tap right after scrollUntilVisible can otherwise race a still-moving
-# target (flaky, not an app bug: confirmed by retrying the same tap alone).
+- assertVisible: 'Computed from 1 ingredient'
 - waitForAnimationToEnd
-
-# ── Edit numbers switches to the manual fields, prefilled ──
-- tapOn:
-    id: 'rf-nutrition-computed-edit'
-- assertVisible:
-    id: 'rf-kcal'
-- assertVisible:
-    id: 'rf-nutrition-use-calculated'
-# Back to the computed card, so this run leaves nothing half-edited.
-- tapOn:
-    id: 'rf-nutrition-use-calculated'
-- assertVisible:
-    id: 'rf-nutrition-computed'
 
 # ── Never save (this is a catalog/search smoke test, not a create test —
 #    recipes.flow.yaml and recipe-create-photo.flow.yaml already cover the

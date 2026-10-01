@@ -141,10 +141,18 @@ appId: dev.chefer.app.dev
           id: 'rf-fraction-0-½'
       - tapOn:
           id: 'rf-fraction-0-½'
+      # plan-ingredient-catalog §10: the name field is the catalog picker.
       - tapOn:
           id: 'rf-ingredient-name-0'
+      - tapOn:
+          id: 'rf-ingredient-name-0-search-sheet-input'
       - inputText: 'flour'
-      - hideKeyboard
+      - extendedWaitUntil:
+          visible:
+            id: 'rf-ingredient-name-0-search-sheet-result-flour-wheat-white'
+          timeout: 10000
+      - tapOn:
+          id: 'rf-ingredient-name-0-search-sheet-result-flour-wheat-white'
       - tapOn:
           id: 'rf-save'
       - extendedWaitUntil:

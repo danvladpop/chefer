@@ -1,26 +1,40 @@
 import { forwardRef, useRef, useState } from 'react';
 import { Keyboard, Pressable, TextInput, View } from 'react-native';
-import { RECIPE_UNIT_GROUPS, type RecipeFormIngredientLine } from '@chefer/types';
+import { INGREDIENT_CATALOG_COPY, RECIPE_UNIT_GROUPS } from '@chefer/types';
 import {
   haptics,
   NumericReturnBar,
+  PressableScale,
   SelectField,
   Text,
   useScrollFieldIntoView,
   type SelectOption,
 } from '@chefer/ui-mobile';
+import { ingredientUnitGroups, parseQuantity, unitForPickedIngredient } from '@chefer/utils';
 import { SwipeToRemove } from '../../../components/swipe-to-remove';
+import {
+  pickedFromRef,
+  type CatalogFormLine,
+  type PickedIngredient,
+} from '../../ingredients/catalog-line';
 import { IngredientPickerField } from '../../ingredients/ingredient-picker-field';
 import { recipeFormCopy } from './copy';
 import { RowMenu } from './row-menu';
 
-const UNIT_OPTIONS: SelectOption[] = RECIPE_UNIT_GROUPS.flatMap((g) =>
+/** Before a line is linked, the unit list is the general one (it narrows once picked). */
+const GENERIC_UNIT_OPTIONS: SelectOption[] = RECIPE_UNIT_GROUPS.flatMap((g) =>
   g.units.map((u) => ({ value: u, label: u, group: g.label })),
 );
 
-/** The unit a fresh line starts with (recipe-form.tsx's `{ unit: 'g' }`) — T-40.7
- * only swaps in a catalogue row's natural unit while the line is still at this default. */
-const DEFAULT_UNIT = 'g';
+const UNIT_GROUP_LABELS = INGREDIENT_CATALOG_COPY.unit.groups;
+
+/** The unit options a linked line may use (plan §10): only what the engine can weigh. */
+function unitOptionsFor(ingredient: UnitSource | undefined): SelectOption[] {
+  if (!ingredient) return GENERIC_UNIT_OPTIONS;
+  return ingredientUnitGroups(ingredient).flatMap((g) =>
+    g.units.map((u) => ({ value: u, label: u, group: UNIT_GROUP_LABELS[g.label] })),
+  );
+}
 
 /** ¼ ½ ¾ 1 1½ 2 — the fraction chip row shown while the quantity field has focus. */
 const FRACTION_CHIPS: { label: string; value: number }[] = [
@@ -32,45 +46,72 @@ const FRACTION_CHIPS: { label: string; value: number }[] = [
   { label: '2', value: 2 },
 ];
 
+type UnitSource = Pick<PickedIngredient, 'portions' | 'hasDensity' | 'category'> & {
+  name?: string;
+};
+
 export interface IngredientLineProps {
   index: number;
-  line: RecipeFormIngredientLine;
-  /** Row error, e.g. "Add an amount, or remove this line." — a named line with no amount. */
+  line: CatalogFormLine;
+  /** Best-known data of the linked row (getMany detail or the picked snapshot). */
+  ingredient?: UnitSource | undefined;
+  /** Row error, e.g. "Add an amount, or remove this line." */
   error?: string;
-  onChange: (patch: Partial<RecipeFormIngredientLine>) => void;
+  /** The unit can't be weighed for this row — shown under the unit field. */
+  unitError?: string | undefined;
+  onChange: (patch: Partial<CatalogFormLine>) => void;
   onRemove: () => void;
   nativeIDPrefix: string;
 }
 
 /**
- * One ingredient row: qty (decimal-pad, `NumericReturnBar` on iOS — its
- * "Done" dismisses the pad, since neither the unit nor the name is a text
- * field to chain to any more), unit (`SelectField`, PAT-15), name (T-40.7:
- * `IngredientPickerField`, a combobox TRIGGER that opens the ingredient
- * search sheet rather than a free-text field). Reads as one sentence group
- * for a screen reader ("Ingredient {n}: {qty} {unit} {name}"), each control
- * individually reachable. The fraction chip row (a `radiogroup`, "Common
- * amounts") appears only while the quantity field has focus.
+ * One ingredient row: qty (decimal-pad, `NumericReturnBar` on iOS), unit
+ * (`SelectField`, PAT-15) and name (`IngredientPickerField`, the catalog
+ * combobox). Reads as one sentence group for a screen reader
+ * ("Ingredient {n}: {qty} {unit} {name}"), each control reachable.
  *
- * The forwarded ref reaches the QUANTITY `TextInput` — the field D-19's
- * `incompleteLine` error actually means (a named line missing its amount),
- * and what the blocked-tap scroll-and-focus path (PAT-17, `recipe-form.tsx`)
- * lands on. The name field is no longer a `TextInput` (T-40.7: it opens the
- * ingredient search sheet instead), so it can't be that ref any more.
+ * plan-ingredient-catalog §10: once linked, the unit list holds only what the
+ * shared engine can weigh for THAT row — g/kg, volume units when it has a
+ * density, its own portions, pinch / to taste. Picking a row keeps a unit the
+ * row can measure and otherwise switches to its natural unit; a typed amount
+ * is never converted. A legacy line that isn't linked shows the resolver's
+ * suggestions under it ("Pick a match").
+ *
+ * The forwarded ref reaches the QUANTITY `TextInput` — what the blocked-tap
+ * scroll-and-focus path (PAT-17, `recipe-form.tsx`) lands on.
  */
 export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(function IngredientLine(
-  { index, line, error, onChange, onRemove, nativeIDPrefix },
+  { index, line, ingredient, error, unitError, onChange, onRemove, nativeIDPrefix },
   qtyRef,
 ) {
   const [qtyFocused, setQtyFocused] = useState(false);
   const qtyInputRef = useRef<TextInput>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
   const accessoryID = `${nativeIDPrefix}-qty-${index}`;
+  const linked = Boolean(line.ingredientId);
+  const needsMatch = !linked && !line.resolving && (line.name.trim() !== '' || !!line.rawName);
+  const linkedName = ingredient?.name ?? line.ingredient?.name;
+  const showLinkedName =
+    linked && linkedName && linkedName.toLowerCase() !== line.name.trim().toLowerCase();
 
   const setQtyRef = (el: TextInput | null) => {
     qtyInputRef.current = el;
     if (typeof qtyRef === 'function') qtyRef(el);
     else if (qtyRef) qtyRef.current = el;
+  };
+
+  const pick = (picked: PickedIngredient) => {
+    onChange({
+      name: picked.name,
+      ingredientId: picked.id,
+      ingredient: picked,
+      linked: true,
+      candidates: undefined,
+      unit: unitForPickedIngredient(line.unit || 'g', picked, {
+        // A typed amount keeps its unit when the new row can measure it.
+        keepDefault: parseQuantity(line.quantity) > 0,
+      }),
+    });
   };
 
   return (
@@ -112,27 +153,21 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
             <SelectField
               testID={`rf-ingredient-unit-${index}`}
               label="Unit"
-              value={line.unit || DEFAULT_UNIT}
-              options={UNIT_OPTIONS}
+              value={line.unit || 'g'}
+              options={unitOptionsFor(linked ? (ingredient ?? line.ingredient) : undefined)}
               onChange={(unit) => onChange({ unit })}
-              allowOther={{ inputLabel: 'Unit' }}
             />
           </View>
           <IngredientPickerField
             testID={`rf-ingredient-name-${index}`}
             name={line.name}
-            linked={line.linked ?? false}
-            placeholder="flour"
+            linked={linked}
+            needsMatch={needsMatch}
+            searchText={line.rawName ?? line.name}
+            suggestions={line.candidates}
+            placeholder="Search, e.g. flour"
             accessibilityLabel={`Name for ingredient ${index + 1}`}
-            onPick={(patch) =>
-              onChange({
-                name: patch.name,
-                linked: patch.linked,
-                ...(patch.naturalUnit && (line.unit || DEFAULT_UNIT) === DEFAULT_UNIT
-                  ? { unit: patch.naturalUnit }
-                  : {}),
-              })
-            }
+            onPick={pick}
           />
           <RowMenu
             testID={`rf-ingredient-menu-${index}`}
@@ -148,6 +183,48 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
           />
         </View>
       </SwipeToRemove>
+      {showLinkedName || line.note ? (
+        <Text testID={`rf-ingredient-linked-${index}`} variant="muted" className="text-xs">
+          {[showLinkedName ? linkedName : null, line.note].filter(Boolean).join(' · ')}
+        </Text>
+      ) : null}
+      {needsMatch ? (
+        <View testID={`rf-ingredient-match-${index}`} className="gap-1">
+          <Text className="text-xs text-amber-800">
+            {line.candidates && line.candidates.length > 0
+              ? INGREDIENT_CATALOG_COPY.picker.pickMatchHint(line.rawName ?? line.name)
+              : INGREDIENT_CATALOG_COPY.picker.noMatchFound(line.rawName ?? line.name)}
+          </Text>
+          {line.candidates && line.candidates.length > 0 ? (
+            <View className="flex-row flex-wrap gap-1.5">
+              {line.candidates.slice(0, 3).map((c) => (
+                // MO-01 press feedback on each suggestion.
+                <PressableScale
+                  key={c.id}
+                  pressScale="control"
+                  testID={`rf-ingredient-candidate-${index}-${c.slug}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${INGREDIENT_CATALOG_COPY.picker.pickMatch}: ${c.name}`}
+                  onPress={() => {
+                    haptics.selection();
+                    pick(pickedFromRef(c));
+                  }}
+                  className="min-h-11 justify-center rounded-full border border-amber-300 bg-amber-50 px-3"
+                >
+                  <Text numberOfLines={1} className="text-xs font-medium text-amber-900">
+                    {c.name}
+                  </Text>
+                </PressableScale>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+      {unitError ? (
+        <Text testID={`rf-ingredient-unit-error-${index}`} className="text-xs text-destructive">
+          {unitError}
+        </Text>
+      ) : null}
       {error ? (
         <Text testID={`rf-ingredient-error-${index}`} className="text-xs text-destructive">
           {error}
@@ -177,8 +254,8 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
           ))}
         </View>
       ) : null}
-      {/* No next text field on this row any more (T-40.7: the name field
-          opens a sheet instead) — the accessory just dismisses the pad. */}
+      {/* No next text field on this row (the name field opens a sheet) —
+          the accessory just dismisses the pad. */}
       <NumericReturnBar nativeID={accessoryID} label="Done" onPress={() => Keyboard.dismiss()} />
     </View>
   );
