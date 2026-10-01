@@ -163,11 +163,14 @@ export default function ProfileScreen() {
               {user?.email}
             </Text>
             <View className="mt-1 flex-row gap-1.5">
-              <View className="rounded-full bg-gray-100 px-2 py-0.5">
-                <Text className="text-[12px] font-medium uppercase text-gray-500">
-                  {user?.role ?? '…'}
-                </Text>
-              </View>
+              {/* R-15: "USER" means nothing to a person; staff roles only. */}
+              {user && (user.role === 'ADMIN' || user.role === 'MODERATOR') ? (
+                <View testID="profile-role-badge" className="rounded-full bg-gray-100 px-2 py-0.5">
+                  <Text className="text-[12px] font-medium uppercase text-gray-500">
+                    {user.role}
+                  </Text>
+                </View>
+              ) : null}
               <View
                 className={cn(
                   'rounded-full px-2 py-0.5',

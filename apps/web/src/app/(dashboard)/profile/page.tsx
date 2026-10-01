@@ -193,9 +193,14 @@ export default function ProfilePage() {
           <p className="font-semibold text-gray-900">{displayName}</p>
           <p className="text-sm text-gray-500">{user?.email}</p>
           <div className="mt-0.5 flex items-center gap-1.5">
-            <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-gray-600">
-              {user?.role ?? '…'}
-            </span>
+            {user && (user.role === 'ADMIN' || user.role === 'MODERATOR') && (
+              <span
+                data-testid="profile-role-badge"
+                className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-gray-600"
+              >
+                {user.role}
+              </span>
+            )}
             {user && (
               <span
                 className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${
