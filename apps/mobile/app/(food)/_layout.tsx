@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs, usePathname } from 'expo-router';
+import { colors, countPillText } from '@chefer/ui-mobile';
+import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
 import { landingSurfaceSync, useSyncLandingCache } from '../../src/features/navigation/use-landing';
 import { getToken } from '../../src/lib/auth-store';
 import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
@@ -29,6 +31,12 @@ export default function FoodTabsLayout() {
   // and never writes the persisted mode.
   const pathname = usePathname();
   useSyncLandingCache();
+  // Following (ux-design.md §2.1): the More tab carries the in-app
+  // notification badge (pending requests + unread Activity, capped `9+`,
+  // hidden at 0). This always-mounted layout is what keeps the 60 s
+  // foreground poll running; with `friends.availability` off it only ever
+  // asks `availability` and the count stays 0.
+  const { badgeCount } = useFriendsMe();
   const token = getToken();
   if (landingCheckedForToken !== token) {
     landingCheckedForToken = token;
@@ -79,6 +87,13 @@ export default function FoodTabsLayout() {
         name="more"
         options={{
           title: 'More',
+          tabBarBadge: badgeCount > 0 ? countPillText(badgeCount) : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.primary,
+            color: colors.primaryForeground,
+            fontSize: 12,
+          },
+          tabBarAccessibilityLabel: badgeCount > 0 ? `More, ${badgeCount} new` : undefined,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="menu-outline" color={color} size={size + 2} />
           ),
