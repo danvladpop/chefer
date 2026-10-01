@@ -10,6 +10,12 @@
  *   out/catalog.build.json      per-row build diagnostics + validator issues +
  *                               demand coverage (input for review-page.ts)
  *
+ *   pnpm ingredients:build --catalog
+ *
+ * also writes packages/database/data/ingredients/catalog.json (byte-identical
+ * to the candidate). Use it only after the owner has spot-checked the review
+ * page; a build with validator errors refuses to write it.
+ *
  * Every number in the output is read from a dataset file. A value the
  * dataset does not publish stays null, and the validators report it.
  */
@@ -31,6 +37,7 @@ import {
   CIQUAL_RELEASE,
   FDC_FOUNDATION_RELEASE,
   FDC_SR_LEGACY_RELEASE,
+  INGREDIENTS_DIR,
   loadSources,
   N,
   OUT_DIR,
@@ -38,6 +45,11 @@ import {
   type FdcFood,
   type Sources,
 } from './lib/sources';
+
+/** The committed catalog (D7: git is the source of truth for global rows). */
+const CATALOG_PATH = join(INGREDIENTS_DIR, '../../packages/database/data/ingredients/catalog.json');
+/** FDC portion units never imported: US can sizes do not fit the EU market. */
+const SKIPPED_FDC_PORTION_UNITS = ['can'];
 
 const ANIMAL_ORIGIN = new Set([
   'BEEF',
@@ -234,7 +246,13 @@ function buildRow(d: DraftEntry, src: Sources): { entry: CatalogEntry; diag: Row
 
   // Portions: own FDC food first, then portionsFrom.
   const portionFoods = [...(ownFdc ? [ownFdc] : []), ...fdcFoods(d.portionsFrom)];
-  const mapped = mapPortions(portionFoods, { portionAs: d.portionAs, skipUnits: d.skipPortions });
+  // FDC "can" portions are US can sizes (tomato purée can = 822 g), so they are
+  // never imported: "can" lines stay PARTIAL until a cited EU size is added
+  // (owner decision, 2026-10-01).
+  const mapped = mapPortions(portionFoods, {
+    portionAs: d.portionAs,
+    skipUnits: [...SKIPPED_FDC_PORTION_UNITS, ...(d.skipPortions ?? [])],
+  });
   const portions: CatalogPortion[] = mapped.map((p) => ({
     unit: p.unit,
     grams: p.grams,
@@ -386,7 +404,14 @@ function main() {
   const coverage = computeCoverage(entries);
   const vocabulary = computeVocabularyCoverage(entries);
 
-  writeFileSync(join(OUT_DIR, 'catalog.candidate.json'), `${JSON.stringify(entries, null, 2)}\n`);
+  const catalogJson = `${JSON.stringify(entries, null, 2)}\n`;
+  writeFileSync(join(OUT_DIR, 'catalog.candidate.json'), catalogJson);
+  if (process.argv.includes('--catalog')) {
+    if (summary.errors > 0)
+      throw new Error(`${summary.errors} validator errors: catalog.json not written`);
+    writeFileSync(CATALOG_PATH, catalogJson);
+    console.log(`wrote ${entries.length} rows to ${CATALOG_PATH}`);
+  }
   const out: BuildOutput = {
     generatedFrom: {
       draft: 'scripts/ingredients/catalog-draft.json',

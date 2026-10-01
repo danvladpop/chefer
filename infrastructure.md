@@ -777,7 +777,7 @@ prisma/
   - `build-catalog.ts` (`ingredients:build`) reads every nutrient, portion and density from the datasets into `out/catalog.candidate.json`.
   - `review-page.ts` (`ingredients:review`) renders `out/catalog-review.html` with a seeded ~5% spot-check sample.
   - `export-demand.sh` (P0) and `golden-fixture.mjs` (the engine's FDC test fixture) live alongside.
-- **Sources and licences:** `data/ingredients/SOURCES.md` records each dataset, its release and its licence (FDC CC0, CIQUAL Etalab 2.0). `catalog.json` is committed only after the owner's spot-check.
+- **Sources and licences:** `data/ingredients/SOURCES.md` records each dataset, its release and its licence (FDC CC0, CIQUAL Etalab 2.0). `data/ingredients/catalog.json` (v1: 1,085 global rows, owner-reviewed 2026-10-01) is the git source of truth for global rows (D7). It is written only by `pnpm ingredients:catalog`, which refuses to write when the validators report errors, and it is excluded from prettier so it stays byte-identical to the build output. `src/catalog/catalog-file.test.ts` fails CI if the committed file has a validator error, an unsorted or duplicate slug, or a row without a source reference. FDC `can` portions are never imported, because they are US sizes.
 
 **Tests:** `pnpm --filter @chefer/database test` (vitest, added with the ingredient catalog). The repositories are tested
 with a mocked client; `recipe-line.repository.test.ts` covers the dual write (order, single transaction, joining a

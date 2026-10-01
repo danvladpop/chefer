@@ -319,6 +319,24 @@ These run in CI (`packages/database` test) and inside `ingredients:sync`:
 
 ---
 
+### 4.6 As built in P3 (2026-10-01)
+
+- **The catalog.** v1 is `packages/database/data/ingredients/catalog.json`: 1,085 rows. 826 come from FDC SR Legacy, 99 from FDC Foundation (2026-04-30) and 160 from CIQUAL 2025. There are no label rows.
+- **Validation.** The validators report 0 errors. 94.4% of prod demand lines resolve by slug or alias. An independent cross-check matched every FDC and CIQUAL nutrient value, density and portion to the raw files.
+- **Owner decisions** (recorded in `SOURCES.md`):
+  - the energy allow-list also covers vinegars (acetic acid) and cocoa/carob (FDC specific factors);
+  - the 31 proxy rows are accepted;
+  - FDC's "½ fillet" and "½ breast" records count as one fillet or breast as sold;
+  - FDC `can` portions are dropped because they are US sizes;
+  - v1 ships below the ~1,200 target.
+- **Where the data contradicts §4:**
+  - Foundation records often lack energy or fiber, so SR Legacy fills in for those rows.
+  - No row has an `edibleFraction`, because the FDC CSVs carry no refuse data.
+  - FDC lard (902 kcal) fails the 0–900 range, so CIQUAL lard is used.
+  - Where an FDC specific-factor energy fails the EU energy check and CIQUAL has the same food, CIQUAL is used.
+- **Count-portion and density gaps are warnings, not errors** (90 and 22 rows). The engine marks the affected lines PARTIAL instead of blocking the sync.
+- **CI gate.** `pnpm ingredients:catalog` writes the file, and `src/catalog/catalog-file.test.ts` gates it in CI.
+
 ## 5. Computation engine (shared, pure)
 
 **Location:** `packages/utils/src/nutrition/`. It is pure TypeScript with no I/O, so web, mobile and API all use the same code: server truth plus client live preview. **Types and zod schemas** for `RecipeLine`, `NutritionFacts` and `NutritionStatus` go in `@chefer/types`.

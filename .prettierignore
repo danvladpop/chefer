@@ -12,3 +12,5 @@ next-env.d.ts
 
 # One catalog row per line keeps review diffs readable (scripts/ingredients)
 scripts/ingredients/catalog-draft.json
+# Written by `pnpm ingredients:build --catalog`; kept byte-identical to the build output
+packages/database/data/ingredients/catalog.json
