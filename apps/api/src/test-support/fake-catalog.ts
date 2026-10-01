@@ -138,6 +138,27 @@ export function fakeCatalog(
       rows[i] = row;
       return Promise.resolve(row);
     },
+    listVisible: (owner, opts) => {
+      const hits = rows
+        .filter(
+          (r) =>
+            r.status === 'ACTIVE' &&
+            (opts.mineOnly ? r.ownerId === owner : visible(r, owner)) &&
+            (!opts.category || r.category === opts.category) &&
+            (!opts.key && !opts.text
+              ? true
+              : (opts.key !== undefined &&
+                  r.aliases.some((a) => a.alias.includes(opts.key ?? ''))) ||
+                (opts.text !== undefined &&
+                  r.name.toLowerCase().includes((opts.text ?? '').toLowerCase()))),
+        )
+        .sort(
+          (a, b) =>
+            Number(b.ownerId !== null) - Number(a.ownerId !== null) || a.name.localeCompare(b.name),
+        );
+      const page = hits.slice(opts.offset, opts.offset + opts.limit);
+      return Promise.resolve({ rows: page, hasMore: hits.length > opts.offset + opts.limit });
+    },
     deprecatePrivate: (id, owner) => {
       const r = rows.find((x) => x.id === id && x.ownerId === owner);
       if (r) {

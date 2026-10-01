@@ -4,6 +4,7 @@ import {
   ingredientRepository,
   prisma,
   type CatalogIngredientRow,
+  type IIngredientPriceRepository,
   type IIngredientRepository,
   type IngredientCategory,
   type IngredientPrice,
@@ -85,6 +86,32 @@ export interface ResolvedLineDto {
   match: CatalogIngredientRef | null;
   candidates: CatalogIngredientRef[];
   unitProblem?: LineProblem;
+}
+
+/**
+ * One row of `ingredients.catalogList` (the Ingredients page, plan §10): the
+ * catalog row with its full nutrition, aliases, portions, provenance and the
+ * linked price row. Global nutrition is read-only (D7).
+ */
+export interface CatalogListItem extends CatalogIngredientDetail {
+  imageUrl: string;
+  aliases: { alias: string; locale: string }[];
+  prices: {
+    per100gEur: number | null;
+    per100mlEur: number | null;
+    perPieceEur: number | null;
+  } | null;
+  /**
+   * The linked legacy price row's name: what `ingredients.update` addresses
+   * for an admin's price/image edit of a global row. Null when none is linked.
+   */
+  priceRowName: string | null;
+  /**
+   * What the caller may change: `full` for their own private row (nutrition
+   * included, by `id`), `priceImage` for an admin on a global row that has a
+   * linked price row, `none` otherwise.
+   */
+  editable: 'full' | 'priceImage' | 'none';
 }
 
 export interface IngredientListItem {
@@ -236,6 +263,10 @@ export class IngredientsService {
     private readonly catalog: IIngredientRepository = ingredientRepository,
     private readonly resolver: IngredientResolver = ingredientResolver,
     private readonly nutrition: RecipeNutritionService = recipeNutritionService,
+    private readonly prices: Pick<
+      IIngredientPriceRepository,
+      'findLinkedPrices'
+    > = ingredientPriceRepository,
   ) {}
 
   /** Links the user's pre-catalog custom ingredients to private catalog rows (private-twins.ts). */
@@ -389,6 +420,76 @@ export class IngredientsService {
     );
 
     return { items, hasMore: rows.length > opts.limit };
+  }
+
+  /**
+   * The Ingredients page's catalog listing (plan §10): ACTIVE global rows plus
+   * the caller's private rows (never another user's, I4), private first, by
+   * name. Search matches any alias (diacritic-free) or the display name. Each
+   * row carries its source, aliases, portions and the linked price row. The
+   * legacy `list` stays for installed clients (D10).
+   */
+  async catalogList(
+    userId: string,
+    role: string,
+    opts: {
+      search?: string | undefined;
+      category?: IngredientCategory | undefined;
+      mineOnly?: boolean | undefined;
+      limit: number;
+      offset: number;
+    },
+  ): Promise<{ items: CatalogListItem[]; hasMore: boolean; nextCursor: number | null }> {
+    await this.ensurePrivateTwins(userId);
+    const text = opts.search?.trim() ?? '';
+    const key = text ? normalizeIngredientKey(text) : '';
+    const page = await this.catalog.listVisible(userId, {
+      key: key || undefined,
+      text: text || undefined,
+      category: opts.category,
+      mineOnly: opts.mineOnly,
+      limit: opts.limit,
+      offset: opts.offset,
+    });
+
+    const prices = await this.prices.findLinkedPrices(
+      page.rows.map((r) => r.id),
+      userId,
+    );
+    const items = await Promise.all(
+      page.rows.map(async (row): Promise<CatalogListItem> => {
+        const mine = row.ownerId === userId;
+        const alias = primaryAlias(row);
+        const linked = prices.filter(
+          (p) => p.ingredientId === row.id && p.creatorId === (mine ? userId : null),
+        );
+        const price = linked.find((p) => p.ingredientName === alias) ?? linked[0] ?? null;
+        const editable: CatalogListItem['editable'] = mine
+          ? 'full'
+          : role === 'ADMIN' && price
+            ? 'priceImage'
+            : 'none';
+        return {
+          ...toDetail(row, userId),
+          imageUrl: price?.imageUrl ?? row.imageUrl ?? (await resolveIngredientImage(alias)),
+          aliases: row.aliases.map((a) => ({ alias: a.alias, locale: a.locale })),
+          prices: price
+            ? {
+                per100gEur: price.pricePer100gEur,
+                per100mlEur: price.pricePer100mlEur,
+                perPieceEur: price.pricePerPieceEur,
+              }
+            : null,
+          priceRowName: price?.ingredientName ?? null,
+          editable,
+        };
+      }),
+    );
+    return {
+      items,
+      hasMore: page.hasMore,
+      nextCursor: page.hasMore ? opts.offset + page.rows.length : null,
+    };
   }
 
   /**

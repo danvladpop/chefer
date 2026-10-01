@@ -96,6 +96,50 @@ export interface IIngredientRepository {
   ): Promise<CatalogIngredientRow>;
   /** Marks a private ingredient DEPRECATED (its recipe lines keep pointing at it). */
   deprecatePrivate(id: string, ownerId: string): Promise<void>;
+  /**
+   * One page of the ACTIVE rows `ownerId` may see, for the Ingredients page
+   * (plan §10): the owner's private rows first, then globals, by name.
+   * `key` (a normalized lookup key) matches any visible alias; `text` matches
+   * the display name, case-insensitive.
+   */
+  listVisible(ownerId: string, opts: CatalogListQuery): Promise<CatalogListPage>;
+}
+
+export interface CatalogListQuery {
+  key?: string | undefined;
+  text?: string | undefined;
+  category?: IngredientCategory | undefined;
+  /** Only the owner's private rows. */
+  mineOnly?: boolean | undefined;
+  limit: number;
+  offset: number;
+}
+
+export interface CatalogListPage {
+  rows: CatalogIngredientRow[];
+  hasMore: boolean;
+}
+
+/** The where-clause of `listVisible`, exported for its unit test. */
+export function catalogListWhere(
+  ownerId: string,
+  opts: Omit<CatalogListQuery, 'limit' | 'offset'>,
+): Prisma.IngredientWhereInput {
+  const search: Prisma.IngredientWhereInput[] = [];
+  if (opts.key) {
+    search.push({
+      aliases: {
+        some: { alias: { contains: opts.key }, OR: [{ ownerId: null }, { ownerId }] },
+      },
+    });
+  }
+  if (opts.text) search.push({ name: { contains: opts.text, mode: 'insensitive' } });
+  return {
+    status: 'ACTIVE',
+    ...(opts.mineOnly ? { ownerId } : visibleTo(ownerId)),
+    ...(opts.category ? { category: opts.category } : {}),
+    ...(search.length > 0 ? { AND: [{ OR: search }] } : {}),
+  };
 }
 
 const INCLUDE = {
@@ -294,6 +338,18 @@ export class IngredientRepository implements IIngredientRepository {
         include: INCLUDE,
       });
     });
+  }
+
+  async listVisible(ownerId: string, opts: CatalogListQuery): Promise<CatalogListPage> {
+    const rows = await prisma.ingredient.findMany({
+      where: catalogListWhere(ownerId, opts),
+      include: INCLUDE,
+      // Private rows (ownerId set) before globals (null), then by name.
+      orderBy: [{ ownerId: { sort: 'asc', nulls: 'last' } }, { name: 'asc' }, { id: 'asc' }],
+      skip: opts.offset,
+      take: opts.limit + 1, // one extra row to detect hasMore
+    });
+    return { rows: rows.slice(0, opts.limit), hasMore: rows.length > opts.limit };
   }
 
   async deprecatePrivate(id: string, ownerId: string): Promise<void> {
