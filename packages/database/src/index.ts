@@ -182,6 +182,34 @@ export {
   type ListSharedRecipesOptions,
 } from './repositories/index';
 
+// Ingredient catalog validators (docs/plan-ingredient-catalog.md §4.5) — pure, no I/O
+export {
+  validateCatalog,
+  validateEntry,
+  summarizeIssues,
+  normalizeAlias,
+  energyCheck,
+  euEnergyKcal,
+  ENERGY_ALLOW_LIST,
+  CATALOG_CATEGORIES,
+  NUTRITION_SOURCES,
+  VOLUME_UNITS,
+  COUNT_PORTION_UNITS,
+  COUNT_PORTION_CATEGORIES,
+  DENSITY_CATEGORIES,
+  DENSITY_SLUG_PATTERN,
+  type CatalogEntry,
+  type CatalogAlias,
+  type CatalogPortion,
+  type CatalogCategory,
+  type CatalogNutritionSource,
+  type CountPortionUnit,
+  type ValidationIssue,
+  type ValidationRule,
+  type ValidationSeverity,
+  type ValidateOptions,
+} from './catalog/index';
+
 // Re-export Prisma types for convenience
 export type {
   User,
