@@ -629,15 +629,15 @@ this program (the web phase is the reverse rows in [`mobile_parity_backlog.md`](
 `friends.*` procedure is dark behind the `friends` flag + `FRIENDS_ALLOWLIST` (§9); all user-visible copy is
 `FRIENDS_COPY` (`@chefer/types`) and the product name is **Following** (the word "Friends" is never user-visible).
 
-| Route                 | Screen                                                                                                                                                                                                                                                            |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `friends/index`       | Intro (`friends.me.activated === false`: name, visibility, what is shared, `Turn on Following`) or the home: search, Requests (≤ 3), You follow / Followers, Suggested. `?list=followers` opens on Followers (the `Review followers` link of the Private confirm) |
-| `friends/requests`    | All incoming follow requests (`RequestRow`, infinite scroll)                                                                                                                                                                                                      |
-| `friends/activity`    | The Activity inbox: `New` / `Earlier`, opening it calls `friends.markActivityRead`                                                                                                                                                                                |
-| `friends/settings`    | `Sharing & privacy`: visibility (Private/Public, forced-private note), the four sharing switches, `See what followers see`, Blocked people, `Turn off Following`                                                                                                  |
-| `friends/blocked`     | Blocked people (`PersonRow` + `Unblock`)                                                                                                                                                                                                                          |
-| `friends/suggestions` | `Suggested for you` (See all, 30)                                                                                                                                                                                                                                 |
-| `friends/[userId]`    | Someone's profile (or the owner's own preview): header, `Food \| Gym` switch (provisional until M-PROFILE is merged and re-checked, see below)                                                                                                                    |
+| Route                 | Screen                                                                                                                                                                                                                                                                 |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `friends/index`       | Intro (`friends.me.activated === false`: name, visibility, what is shared, `Turn on Following`) or the home: search, Requests (≤ 3), You follow / Followers, Suggested. `?list=followers` opens on Followers (the `Review followers` link of the Private confirm)      |
+| `friends/requests`    | All incoming follow requests (`RequestRow`, infinite scroll)                                                                                                                                                                                                           |
+| `friends/activity`    | The Activity inbox: `New` / `Earlier`, opening it calls `friends.markActivityRead`                                                                                                                                                                                     |
+| `friends/settings`    | `Sharing & privacy`: visibility (Private/Public, forced-private note), the four sharing switches, `See what followers see`, Blocked people, `Turn off Following`                                                                                                       |
+| `friends/blocked`     | Blocked people (`PersonRow` + `Unblock`)                                                                                                                                                                                                                               |
+| `friends/suggestions` | `Suggested for you` (See all, 30)                                                                                                                                                                                                                                      |
+| `friends/[userId]`    | Someone's profile, or your own preview (`See what followers see`): header, the `Food \| Gym` switch (local state, initialised from the app mode, never calls `setMode`), the Food and Gym tabs; thin route file over `src/features/friends/profile/profile-screen.tsx` |
 
 All seven are registered as `Stack.Screen`s in `app/_layout.tsx` inside the signed-in `Stack.Protected`.
 
@@ -661,9 +661,19 @@ All seven are registered as `Stack.Screen`s in `app/_layout.tsx` inside the sign
   (the Followers-row overflow: `Remove follower`, `Block`), skeletons.
 - `settings/` — `Sharing & privacy` (visibility section + its confirm sheets, sharing switches with the filter snackbar and the
   targets confirm), Blocked people, the `Turn off Following` sheet, `use-update-settings`.
-- `profile/`, `add-to-week/` — the profile screen (header, `Food | Gym`, week, recipes grid, routine, last 7 days) and the
-  `AddToWeekSheet` (`friends.addRecipeToWeek` / `undoAddToWeek`). _Provisional: documented from `docs/friends/ux-design.md`
-  §8–§10 while M-PROFILE (F2.2) is in flight; the merge step corrects this to the shipped code._
+- `profile/` — `profile-screen.tsx` (loading / locked / not-available / error / offline states, sticky `Food | Gym` switch under the
+  scrolling header), `profile-header.tsx`, `sections.ts` (pure: locked, not-shared and own-preview panels), `format.ts`,
+  `use-viewer-units.ts` (the VIEWER's units: a one-off `getQueryData` peek at their cached `gym.bootstrap` — no gym query is
+  created or observed from a Following screen, INV-7 — else their food units). `food/` — `food-tab.tsx` (`This week` · `Recipes`),
+  `friend-week-view.tsx` (day chips, read-only meal cards, `Hidden recipe`, totals), `friend-recipe-grid.tsx` (20 per page, source
+  domain, heart with Undo snackbar, search above 12). `gym/` — `gym-tab.tsx`, `friend-routine-card.tsx`,
+  `friend-last-seven-days.tsx` + `friend-workout-card.tsx` (all workouts in one list, no paging; `Show sets`), `workout-format.ts`.
+  Everything reads `friends.*` only.
+- `add-to-week/` — `add-to-week-sheet.tsx` + `add-to-week-logic.ts` (pure rules): `This week` always, `Next week` only from
+  Thursday, past days disabled; an empty slot `Add here` adds directly, a filled one closes the sheet and, from `onExited`, opens the
+  `Replace {meal}?` confirm; a table clash (`data.unsafeForTable`) offers `Use anyway`; no plan for that week shows `Make a plan`;
+  success is a snackbar with `Undo` (`friends.undoAddToWeek`, passing `previousPinned` back so a replaced slot's "Your pick" flag is
+  restored). The server adds the recipe as the viewer's own private copy (INV-5).
 
 **Entry points** (all gated on `friends.availability`; with it off nothing renders and `availability` is the only friends
 query that ever runs):
@@ -692,11 +702,18 @@ query that ever runs):
   `Screen`, and when it is off (or the answer failed) the full-screen `Following isn’t available right now.` + `Go back`.
   A query that fails with `data.friendsUnavailable` mid-session (kill switch) shows the same screen.
 - **Units are the viewer's** (a followed person's workouts show in the viewer's gym unit, falling back to the food units).
-- **Extractions** (so the profile reuses the owner's visuals read-only instead of duplicating them): `MealCardView` out of
-  `src/features/meal-plan/plan-meal-card.tsx` and `DayCardView` out of `src/features/gym/routine/` — _provisional until M-PROFILE
-  merges_. The existing meal-plan and gym-routine screens render through them unchanged.
+- **Extractions** (the profile reuses the owner's visuals read-only instead of duplicating them): `MealCardView`
+  (`src/features/meal-plan/meal-card-view.tsx`; `PlanMealCard` now wraps it with its chips, pin and swap column) and `DayCardView`
+  (`src/features/gym/routine/day-card-view.tsx`; the owner's Routine tab passes its `Next:` lines and overrides, the Following
+  `FriendRoutineCard` renders another person's routine with it). The existing plan and routine screens are visually unchanged.
+- **Recipe detail and Cookbook additions:** `app/recipe/[id].tsx` takes an `?owner={userId}` param (set by profile links) and, for
+  another person's recipe, shows `By {name}` (→ profile), `SourceLink`, `Add to my week` (primary; Cook and the heart stay) and a
+  `Report recipe` overflow item (Edit is never offered); my copies show `From {first}` (or `From another Chefer cook` when the original
+  is gone); my own auto-hidden recipe shows the owner-only banner (`recipe-hidden-banner`, no appeal). `app/(food)/recipes.tsx` shows a
+  `From {first}` chip on Saved cards of other people's recipes and on my copies.
 - **Tests:** `tests/unit/friends-core-*.test.tsx` (harness `friends-core-harness.tsx`: the real tRPC React client over a
-  recording fake link), `friends-home-*`, `friends-settings-*`; Maestro `e2e/friends-requests.flow.yaml`.
+  recording fake link), `friends-home-*`, `friends-settings-*`, `friends-profile-*`; Maestro `e2e/friends-requests.flow.yaml` and
+  `e2e/friends.flow.yaml` (profile: follow, Food week, Recipes heart, Gym last 7 days).
 - **OTA only:** the whole feature is JavaScript on the current runtime — no native module, no `app.config.js`, `eas.json`,
   `ios/`, `android/` or dependency change (`business_flow.md` §20; `docs/friends/implementation-plan.md` §6).
 
