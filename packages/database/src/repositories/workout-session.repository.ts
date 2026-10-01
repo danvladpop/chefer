@@ -1,4 +1,5 @@
 import type {
+  Exercise,
   Prisma,
   SessionExercise,
   SessionSet,
@@ -15,6 +16,12 @@ import { prisma } from '../client';
 
 export type SessionExerciseWithSets = SessionExercise & { sets: SessionSet[] };
 export type SessionWithChildren = WorkoutSession & { exercises: SessionExerciseWithSets[] };
+
+/** The exercise columns another user's workout view may read (Following, plan §5). */
+export type SessionExerciseMeta = Pick<Exercise, 'id' | 'name' | 'ownerId' | 'trackingType'>;
+export type CompletedSessionWithExerciseMeta = WorkoutSession & {
+  exercises: (SessionExercise & { sets: SessionSet[]; exercise: SessionExerciseMeta })[];
+};
 
 export interface SessionSetWriteData {
   id: string;
@@ -324,6 +331,45 @@ export class WorkoutSessionRepository implements IWorkoutSessionRepository {
       const previous = await snapshot(tx, id, existing.status);
       await tx.workoutSession.delete({ where: { id } });
       return previous;
+    });
+  }
+
+  /**
+   * Following (plan §2.4, PRD FD-15): COMPLETED sessions whose `localDate` is
+   * between the bounds inclusive (string compare on `YYYY-MM-DD`), newest
+   * `startedAt` first, at most `max`. Exercises in order with
+   * `Exercise { id, name, ownerId, trackingType }`; only working sets
+   * (`completedAt != null AND isWarmup = false`). Read-only. Deliberately NOT
+   * on `IWorkoutSessionRepository`, so the gym services' repository mocks
+   * don't have to grow; Following depends on `Pick<WorkoutSessionRepository, …>`.
+   */
+  async listCompletedInLocalDateRange(
+    userId: string,
+    fromLocalDate: string,
+    toLocalDate: string,
+    max = 30,
+  ): Promise<CompletedSessionWithExerciseMeta[]> {
+    if (max <= 0 || fromLocalDate > toLocalDate) return [];
+    return prisma.workoutSession.findMany({
+      where: {
+        userId,
+        status: 'COMPLETED',
+        localDate: { gte: fromLocalDate, lte: toLocalDate },
+      },
+      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+      take: max,
+      include: {
+        exercises: {
+          orderBy: { position: 'asc' },
+          include: {
+            exercise: { select: { id: true, name: true, ownerId: true, trackingType: true } },
+            sets: {
+              where: { completedAt: { not: null }, isWarmup: false },
+              orderBy: { position: 'asc' },
+            },
+          },
+        },
+      },
     });
   }
 }
