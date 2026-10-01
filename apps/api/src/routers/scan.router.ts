@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import express, { Router, type Request, type Response } from 'express';
 import { scanService } from '../application/tracker/scan.service.js';
+import { rejectWithoutAiConsent } from '../lib/ai-consent-gate.js';
 import { runWithAiCallContext } from '../lib/ai/call-context.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { isPremiumUser } from '../lib/entitlements.js';
@@ -41,6 +42,10 @@ scanRouter.post(
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
+
+    // R-10 (App Store 5.1.2(i)): the photo goes to the AI provider — refuse
+    // it without AI-data consent on record (403 + `reason`, no upgradeRequired).
+    if (await rejectWithoutAiConsent(res, { userId: user.id })) return;
 
     const mime = (req.headers['content-type'] ?? '').split(';')[0]?.trim() ?? '';
     if (!SUPPORTED_MIME.has(mime)) {

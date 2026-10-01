@@ -20,6 +20,7 @@ import {
   type Recipe,
 } from '@chefer/database';
 import {
+  AI_CONSENT_REQUIRED_MESSAGE,
   FRIENDS_COPY,
   type addRecipeToWeekInputSchema,
   type PlanTailoring,
@@ -43,6 +44,7 @@ import {
   trainingDayBonus,
   trainingWeekdays,
 } from '@chefer/utils';
+import { aiConsentMissing, aiConsentRequiredError } from '../../lib/ai-consent-gate.js';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type {
@@ -534,6 +536,13 @@ export class MealPlanService {
       return this.generateCurated(userId, weekOffset, withAccess);
     }
     if (options.instant) {
+      return this.generateInstant(userId, weekOffset, withAccess);
+    }
+    // The blocking AI week sends the whole profile to the AI provider. Without
+    // AI-data consent (server-side, R-10) the user gets the curated week
+    // instead — the same one the instant path builds, with no tailoring — so
+    // generation never fails over consent.
+    if (await aiConsentMissing({ userId })) {
       return this.generateInstant(userId, weekOffset, withAccess);
     }
     return this.generateBlocking(userId, weekOffset, withAccess);
@@ -1114,6 +1123,20 @@ export class MealPlanService {
       });
     } catch (err) {
       if (err instanceof TRPCError && err.cause instanceof PoolExhaustedCause) {
+        // The blocking AI week is the only thing that can build this table's
+        // week, and it sends the profile to the AI provider: without AI-data
+        // consent (R-10) it must not run. The pool-exhausted answer clients
+        // already handle is returned instead, saying how to unlock it.
+        if (await aiConsentMissing({ userId })) {
+          console.info(
+            '[meal-plan] curated pool too small for this table and no AI data consent — no AI week',
+          );
+          throw new TRPCError({
+            code: 'PRECONDITION_FAILED',
+            message: `We don't have enough recipes matching your restrictions to plan this week without AI. ${AI_CONSENT_REQUIRED_MESSAGE}`,
+            cause: new PoolExhaustedCause(),
+          });
+        }
         console.info(
           '[meal-plan] curated pool too small for this table — premium uses the blocking AI week',
         );
@@ -1391,10 +1414,8 @@ export class MealPlanService {
     }
     const gate = await this.tailoringRepo.findUserGate(userId);
     if (!gate?.aiDataConsentAt) {
-      throw new TRPCError({
-        code: 'PRECONDITION_FAILED',
-        message: 'Allow AI personalisation to let your chef tailor your week.',
-      });
+      // R-10: the typed rejection (`data.reason`) so clients open the sheet.
+      throw aiConsentRequiredError();
     }
     const weekOffset = weekOffsetOf(plan.weekStartDate, getMondayOfWeek(0));
     const wanted = new Set(untailoredDays(row));

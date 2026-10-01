@@ -2,11 +2,15 @@ import { z } from 'zod';
 import { VIDEO_IMPORT_COPY } from '@chefer/types';
 import { isSupportedVideoUrl } from '@chefer/utils';
 import { recipeImportService } from '../application/recipe-import/recipe-import.service.js';
-import { premiumProcedure, protectedProcedure, router } from '../lib/trpc.js';
+import { aiConsentProcedure, premiumProcedure, router } from '../lib/trpc.js';
 
 // ─── Recipe import (F5 Cheferize) ────────────────────────────────────────────
 // Merged into the `recipe` namespace (routers/index.ts mergeRouters), so the
 // public procedures are `recipe.importPreview` / `recipe.importSave`.
+//
+// importPreview / importVideoPreview are AI-consent gated server-side
+// (`aiConsentProcedure`, R-10): the extraction sends the user's link, text or
+// photo (and their allergies) to the AI provider.
 //
 // importPreview is PROTECTED, not premium: the free tier gets one extraction
 // preview a day (the §6.4 ghost state) — the quota inside the service
@@ -69,7 +73,7 @@ export const importRouter = router({
    * Extract + Cheferize preview from a URL, pasted text, or photo.
    * Metered via `recipeImportsPerDay` (free 1/day — the ghost state).
    */
-  importPreview: protectedProcedure.input(importSourceSchema).mutation(async ({ ctx, input }) => {
+  importPreview: aiConsentProcedure.input(importSourceSchema).mutation(async ({ ctx, input }) => {
     // exactOptionalPropertyTypes: only pass the fields that are actually set.
     return recipeImportService.preview(ctx.user, {
       ...(input.url !== undefined ? { url: input.url } : {}),
@@ -84,7 +88,7 @@ export const importRouter = router({
    * read from the video's caption, subtitles or speech (never its frames).
    * Same quota as importPreview; refunded when the video can't be read.
    */
-  importVideoPreview: protectedProcedure
+  importVideoPreview: aiConsentProcedure
     .input(
       z.object({
         url: z
