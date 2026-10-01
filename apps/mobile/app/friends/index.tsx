@@ -1,8 +1,12 @@
-import { FriendsStubScreen } from '../../src/features/friends/components/friends-stub-screen';
-import { FRIENDS_SCREEN_TITLES } from '../../src/features/friends/components/screen-titles';
+import { FriendsGate } from '../../src/features/friends/components/friends-gate';
+import { FriendsEntry } from '../../src/features/friends/home/friends-entry';
 
-// STUB (F2.0): header + gate only, so `router.push('/friends')` typechecks
-// for the parallel lanes. The owning lane replaces this body (UX §2.2).
+// `/friends`: the intro until the person turns Following on, then the home
+// (UX §4–§5). Inside the availability gate like every Following route.
 export default function FriendsHomeRoute() {
-  return <FriendsStubScreen title={FRIENDS_SCREEN_TITLES.home} testID="friends-home" />;
+  return (
+    <FriendsGate>
+      <FriendsEntry />
+    </FriendsGate>
+  );
 }
