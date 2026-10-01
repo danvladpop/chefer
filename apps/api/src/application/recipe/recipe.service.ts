@@ -1,8 +1,10 @@
 import { TRPCError } from '@trpc/server';
 import {
   favouriteRecipeRepository,
+  followRepository,
   mealRatingRepository,
   type CreateManualRecipeData,
+  type IFavouriteRecipeRepository,
   type IMealRatingRepository,
   type Recipe,
 } from '@chefer/database';
@@ -10,11 +12,84 @@ import type { SafetyChecks, TableSafety } from '@chefer/types';
 import type { RecipeData } from '../../lib/ai/types.js';
 import { ensureCuratedRecipes, safeCuratedPools } from '../../lib/curated-recipes/index.js';
 import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
+import { moderationService, type ModerationService } from '../friends/moderation.service.js';
+import { socialAccessService } from '../friends/social-access.service.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import { selectDiscoverRecipes, type DiscoverFilters, type DiscoverRecipeDto } from './discover.js';
-import { findRecipeVisibleTo } from './recipe-access.js';
+import {
+  defaultRecipeSocialDeps,
+  findRecipeVisibleTo,
+  friendsEnabledFor,
+  recipeAttribution,
+  type RecipeAttribution,
+  type RecipeSocialDeps,
+} from './recipe-access.js';
 
 type UpdateManualRecipeData = Partial<CreateManualRecipeData>;
+
+/** One `findAllRecipesForUser` row (the recipe + its creator/origin creator names). */
+type RecipeWithPeople = Awaited<
+  ReturnType<IFavouriteRecipeRepository['findAllRecipesForUser']>
+>[number];
+
+/**
+ * The Following columns (plan §2.3). `recipe.list` rows never carry them raw:
+ * they surface only as the optional `creator`/`origin` keys, so a row for a
+ * user who never used Following has exactly the pre-Following key set (INV-8).
+ */
+type FollowingColumns = 'originRecipeId' | 'originCreatorId' | 'hiddenAt' | 'hiddenReason';
+
+/** A `recipe.list` row: the recipe as before, plus the optional attribution keys. */
+export type RecipeListRow = Omit<Recipe, FollowingColumns> &
+  Pick<RecipeAttribution, 'creator' | 'origin'> & {
+    isFavourite: boolean;
+    safetyChecks?: SafetyChecks;
+  };
+
+/** What `list` needs from Following. Injectable for tests. */
+export interface RecipeListSocialDeps {
+  isEnabled(userId: string): Promise<boolean>;
+  /** Whether the user turned Following on (has a SocialProfile). */
+  isActivated(userId: string): Promise<boolean>;
+  /** Accepted followees whose profile shares recipes. */
+  visibleCreatorIds(userId: string): Promise<string[]>;
+}
+
+const defaultListSocialDeps: RecipeListSocialDeps = {
+  isEnabled: friendsEnabledFor,
+  isActivated: async (userId) => (await socialAccessService.profile(userId)) !== null,
+  visibleCreatorIds: (userId) => followRepository.acceptedFolloweeIdsSharingRecipes(userId),
+};
+
+/** Strips the raw relations/columns and adds the omitted-when-absent attribution keys. */
+function toListRow(
+  userId: string,
+  row: RecipeWithPeople,
+  friendsOn: boolean,
+  isFavourite: boolean,
+): Omit<RecipeListRow, 'safetyChecks'> {
+  const {
+    creator,
+    originCreator,
+    originRecipeId: _originRecipeId,
+    originCreatorId: _originCreatorId,
+    hiddenAt: _hiddenAt,
+    hiddenReason: _hiddenReason,
+    ...base
+  } = row;
+  const { creator: creatorDto, origin } = recipeAttribution(
+    userId,
+    row,
+    { creator, originCreator },
+    { friendsOn },
+  );
+  return {
+    ...base,
+    isFavourite,
+    ...(creatorDto && { creator: creatorDto }),
+    ...(origin && { origin }),
+  };
+}
 
 /**
  * `SafetyService.check` assumes a full `SafetyCheckable` row (ingredients +
@@ -44,18 +119,42 @@ function normaliseCuisine<T extends { cuisineType?: string }>(data: T): T {
   return data;
 }
 
-/** NOT_FOUND unless the user may see the recipe — same answer for missing and private. */
-async function assertRecipeVisible(userId: string, recipeId: string): Promise<void> {
-  if (!(await findRecipeVisibleTo(userId, recipeId))) {
-    throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
-  }
-}
-
 export class RecipeService {
   constructor(
     private readonly ratingRepo: IMealRatingRepository = mealRatingRepository,
     private readonly safety: SafetyService = safetyService,
+    private readonly moderation: Pick<ModerationService, 'checkRecipeText'> = moderationService,
+    private readonly social: RecipeListSocialDeps = defaultListSocialDeps,
+    /** The Following branch of recipe access (recipe-access.ts, plan §4.3). */
+    private readonly recipeSocial: RecipeSocialDeps = defaultRecipeSocialDeps,
   ) {}
+
+  /** `findRecipeVisibleTo` with this service's social deps. */
+  private findVisible(userId: string, recipeId: string): Promise<Recipe | null> {
+    return findRecipeVisibleTo(userId, recipeId, undefined, this.recipeSocial);
+  }
+
+  /** NOT_FOUND unless the user may see the recipe — same answer for missing and private. */
+  private async assertRecipeVisible(userId: string, recipeId: string): Promise<void> {
+    if (!(await this.findVisible(userId, recipeId))) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+  }
+
+  /**
+   * Following (plan §4.2, `recipe.list`): the creators whose hearted recipes
+   * join Saved/All — people the viewer follows (accepted) who share recipes.
+   * Only when Following is on for the viewer AND they turned it on
+   * (SocialAccess rule 0); otherwise undefined = today's rows exactly.
+   */
+  private async listSocial(
+    userId: string,
+  ): Promise<{ friendsOn: boolean; visibleCreatorIds?: string[] }> {
+    if (!(await this.social.isEnabled(userId))) return { friendsOn: false };
+    if (!(await this.social.isActivated(userId))) return { friendsOn: true };
+    const ids = await this.social.visibleCreatorIds(userId);
+    return ids.length > 0 ? { friendsOn: true, visibleCreatorIds: ids } : { friendsOn: true };
+  }
 
   async list(
     userId: string,
@@ -73,17 +172,20 @@ export class RecipeService {
        */
       forTable?: boolean | undefined;
     },
-  ): Promise<(Recipe & { isFavourite: boolean; safetyChecks?: SafetyChecks })[]> {
+  ): Promise<RecipeListRow[]> {
     const { forTable, ...listOpts } = opts;
+    const { friendsOn, visibleCreatorIds } = await this.listSocial(userId);
     const [recipes, savedIds] = await Promise.all([
-      favouriteRecipeRepository.findAllRecipesForUser(userId, listOpts),
+      favouriteRecipeRepository.findAllRecipesForUser(userId, {
+        ...listOpts,
+        ...(visibleCreatorIds && { visibleCreatorIds }),
+      }),
       favouriteRecipeRepository.findSavedRecipeIds(userId),
     ]);
     const saved = new Set(savedIds);
-    const withFavourite = recipes.map((recipe) => ({
-      ...recipe,
-      isFavourite: saved.has(recipe.id),
-    }));
+    const withFavourite = recipes.map((recipe) =>
+      toListRow(userId, recipe, friendsOn, saved.has(recipe.id)),
+    );
     if (!forTable) return withFavourite;
 
     // T-01.2/T-08.10: the Replace picker (and any other `forTable` list)
@@ -118,9 +220,13 @@ export class RecipeService {
       myRecipesOnly?: boolean | undefined;
     },
   ): Promise<{ hiddenCount: number; filteredFor: string[] }> {
+    const { visibleCreatorIds } = await this.listSocial(userId);
     const [ctx, recipes] = await Promise.all([
       this.safety.loadContext(userId),
-      favouriteRecipeRepository.findAllRecipesForUser(userId, opts),
+      favouriteRecipeRepository.findAllRecipesForUser(userId, {
+        ...opts,
+        ...(visibleCreatorIds && { visibleCreatorIds }),
+      }),
     ]);
     const visible = this.safety.filter(recipes, ctx);
     const filteredFor = [...ctx.prefs.allergies, ...ctx.prefs.dietaryRestrictions];
@@ -128,7 +234,15 @@ export class RecipeService {
   }
 
   async create(userId: string, data: CreateManualRecipeData): Promise<Recipe> {
-    return favouriteRecipeRepository.createManualRecipe(userId, normaliseCuisine(data));
+    // PRD §9.4 word filter — applies only when the author shares recipes
+    // (moderation.service decides; BAD_REQUEST + data.textRejected otherwise).
+    await this.moderation.checkRecipeText(userId, {
+      name: data.name,
+      description: data.description,
+    });
+    // Origins are never taken from a create (only RecipeCopyService sets them).
+    const { originRecipeId: _o, originCreatorId: _c, ...own } = data;
+    return favouriteRecipeRepository.createManualRecipe(userId, normaliseCuisine(own));
   }
 
   async getMyRecipe(userId: string, recipeId: string): Promise<Recipe> {
@@ -147,6 +261,20 @@ export class RecipeService {
         message: 'Recipe not found or you do not have permission to edit it.',
       });
     }
+    // PRD §9.4 word filter on the text as it will be after the edit; with the
+    // recipe id, clean text lifts a FILTER hide (moderation.service). A copy
+    // of someone else's recipe is never shared (PRD §13), so it isn't filtered.
+    const isCopy = existing.originRecipeId != null || existing.originCreatorId != null;
+    if (!isCopy) {
+      await this.moderation.checkRecipeText(
+        userId,
+        {
+          name: data.name ?? existing.name,
+          description: data.description ?? existing.description,
+        },
+        recipeId,
+      );
+    }
     return favouriteRecipeRepository.updateManualRecipe(userId, recipeId, normaliseCuisine(data));
   }
 
@@ -156,7 +284,7 @@ export class RecipeService {
       await favouriteRecipeRepository.remove(userId, recipeId);
       return { isSaved: false };
     } else {
-      await assertRecipeVisible(userId, recipeId);
+      await this.assertRecipeVisible(userId, recipeId);
       await favouriteRecipeRepository.save(userId, recipeId);
       return { isSaved: true };
     }
@@ -196,7 +324,7 @@ export class RecipeService {
         message: 'Recipe must be saved before toggling use in next plan.',
       });
     }
-    if (useInNextPlan) await assertRecipeVisible(userId, recipeId);
+    if (useInNextPlan) await this.assertRecipeVisible(userId, recipeId);
     await favouriteRecipeRepository.toggleUseInNextPlan(userId, recipeId, useInNextPlan);
     return { useInNextPlan };
   }
@@ -207,7 +335,7 @@ export class RecipeService {
     rating: number,
     notes?: string,
   ): Promise<{ rating: number; notes: string | null }> {
-    await assertRecipeVisible(userId, recipeId);
+    await this.assertRecipeVisible(userId, recipeId);
     const upsertData: { userId: string; recipeId: string; rating: number; notes?: string } = {
       userId,
       recipeId,
@@ -280,7 +408,7 @@ export class RecipeService {
     userId: string,
     recipeId: string,
   ): Promise<{ safetyChecks: SafetyChecks | null }> {
-    const recipe = await findRecipeVisibleTo(userId, recipeId);
+    const recipe = await this.findVisible(userId, recipeId);
     if (!recipe) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     }

@@ -139,6 +139,31 @@ export interface IMealPlanRepository {
    * exist in this plan.
    */
   setDayMeals(planId: string, dayOfWeek: number, meals: PlanMealSlotJson[]): Promise<void>;
+  /**
+   * Following (`friends.addRecipeToWeek`, plan §2.4): appends one slot to the
+   * day — creating the day row when the plan has none for it — and returns
+   * the new slot's index. Appending never moves an existing slot's index.
+   * SERIALIZABLE read-modify-write of the day's JSON, retried on conflict.
+   */
+  appendDayMeal(
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    recipeId: string,
+    opts?: { pinned?: boolean },
+  ): Promise<number>;
+  /**
+   * Following Undo (`friends.undoAddToWeek`): removes the slot at `slotIndex`
+   * only if it still holds `recipeId` (and `mealType`, when given). Returns
+   * whether a slot was removed — a stale or repeated Undo is a no-op.
+   */
+  removeDayMealIfMatches(
+    planId: string,
+    dayOfWeek: number,
+    slotIndex: number,
+    recipeId: string,
+    mealType?: string,
+  ): Promise<boolean>;
   /** True when the plan's shopping list has ticks or custom items. */
   hasShoppingProgress(planId: string): Promise<boolean>;
   findAllByUserId(
@@ -176,6 +201,29 @@ export interface IMealPlanRepository {
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
+
+const DAY_WRITE_ATTEMPTS = 5;
+
+/**
+ * A day's `meals` JSON is read-modify-written; two concurrent writers would
+ * otherwise both read the same array and the second write would drop the
+ * first one's slot. SERIALIZABLE aborts the loser (P2034) and it retries on
+ * top of the winner's result (the daily-log `mutateDay` pattern).
+ */
+async function serializableDayWrite<T>(
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await prisma.$transaction(fn, { isolationLevel: 'Serializable' });
+    } catch (err) {
+      const conflict =
+        typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2034';
+      if (!conflict || attempt >= DAY_WRITE_ATTEMPTS) throw err;
+      await new Promise((r) => setTimeout(r, 10 * attempt + Math.random() * 25));
+    }
+  }
+}
 
 export class MealPlanRepository implements IMealPlanRepository {
   /**
@@ -527,6 +575,63 @@ export class MealPlanRepository implements IMealPlanRepository {
     await prisma.mealPlan.updateMany({
       where: { id: planId, origin: MealPlanOrigin.CARRY_FORWARD },
       data: { origin: MealPlanOrigin.USER },
+    });
+  }
+
+  async appendDayMeal(
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    recipeId: string,
+    opts: { pinned?: boolean } = {},
+  ): Promise<number> {
+    const slot: PlanMealSlotJson = {
+      type: mealType,
+      recipeId,
+      ...(opts.pinned && { pinned: true }),
+    };
+    const index = await serializableDayWrite(async (tx) => {
+      const day = await tx.mealPlanDay.findFirst({ where: { mealPlanId: planId, dayOfWeek } });
+      if (!day) {
+        await tx.mealPlanDay.create({
+          data: { mealPlanId: planId, dayOfWeek, meals: [slot] as Prisma.InputJsonValue },
+        });
+        return 0;
+      }
+      const meals = (day.meals as unknown as PlanMealSlotJson[] | null) ?? [];
+      await tx.mealPlanDay.update({
+        where: { id: day.id },
+        data: { meals: [...meals, slot] as Prisma.InputJsonValue },
+      });
+      return meals.length;
+    });
+    // An edited copy is the user's week now (audit F-PLAN-4-2), as updateDayMeal.
+    await prisma.mealPlan.updateMany({
+      where: { id: planId, origin: MealPlanOrigin.CARRY_FORWARD },
+      data: { origin: MealPlanOrigin.USER },
+    });
+    return index;
+  }
+
+  async removeDayMealIfMatches(
+    planId: string,
+    dayOfWeek: number,
+    slotIndex: number,
+    recipeId: string,
+    mealType?: string,
+  ): Promise<boolean> {
+    return serializableDayWrite(async (tx) => {
+      const day = await tx.mealPlanDay.findFirst({ where: { mealPlanId: planId, dayOfWeek } });
+      if (!day) return false;
+      const meals = (day.meals as unknown as PlanMealSlotJson[] | null) ?? [];
+      const slot: PlanMealSlotJson | undefined = meals[slotIndex];
+      if (slot?.recipeId !== recipeId) return false;
+      if (mealType !== undefined && slot.type !== mealType) return false;
+      await tx.mealPlanDay.update({
+        where: { id: day.id },
+        data: { meals: meals.filter((_, i) => i !== slotIndex) },
+      });
+      return true;
     });
   }
 

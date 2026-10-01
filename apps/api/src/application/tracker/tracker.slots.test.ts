@@ -45,7 +45,8 @@ vi.mock('@chefer/database', async (importOriginal) => ({
   weightEntryRepository: { findLatest: vi.fn().mockResolvedValue(null) },
 }));
 
-vi.mock('../recipe/recipe-access.js', () => ({
+vi.mock('../recipe/recipe-access.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../recipe/recipe-access.js')>()),
   findRecipeVisibleTo: vi.fn(() => Promise.resolve(YOGURT)),
 }));
 
