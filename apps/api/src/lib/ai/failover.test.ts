@@ -23,6 +23,7 @@ function stubService(overrides: Partial<Record<keyof IAIService, unknown>> = {})
     generateMealPlan: vi.fn().mockResolvedValue({ days: [] }),
     generateMealPlanDay: vi.fn().mockResolvedValue({ dayOfWeek: 0, meals: [] }),
     generateRecipeSwap: vi.fn().mockResolvedValue({ id: 'r1' }),
+    repairRecipeLines: vi.fn().mockResolvedValue([]),
     generateShoppingList: vi.fn().mockResolvedValue({ items: [] }),
     estimateIngredientPrices: vi.fn().mockResolvedValue([]),
     chat: vi.fn().mockResolvedValue(new ReadableStream()),

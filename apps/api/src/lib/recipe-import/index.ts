@@ -8,4 +8,4 @@ export {
   decodeEntities,
   type PageContent,
 } from './extract-content.js';
-export { type MacroCheckResult, type MacroVocabularyRow } from './macro-check.js';
+export { type MacroCheckResult } from './macro-check.js';

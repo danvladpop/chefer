@@ -2,6 +2,7 @@ import type {
   CheferizeInput,
   CoachReviewInput,
   MealPlanInput,
+  RecipeLineRepairRequest,
   ShoppingListInput,
   SwapInput,
 } from './types.js';
@@ -19,14 +20,23 @@ OUTPUT SIZE RULES (mandatory — minimise tokens):
 - imageUrl: always null
 - id format: "recipe_<snake_case_name>" e.g. "recipe_grilled_salmon"
 
-NUTRITION RULES:
-- Every day's total calories MUST land within ±5% of the stated daily target.
-  The target already includes the goal adjustment (deficit/surplus) — do NOT
-  add or subtract more on top of it.
+PORTION RULES:
+- Size every ingredient quantity so each day's total calories land within ±5%
+  of the stated daily target. The target already includes the goal adjustment
+  (deficit/surplus) — do NOT add or subtract more on top of it.
 - Calories: breakfast 20-25%, lunch 30-35%, dinner 35-40%, snack 10-15%
 - No recipe name repeats across 7 days
-- Accurate macros (calories, protein, carbs, fat, fiber)
 - Realistic prepTimeMins and cookTimeMins
+
+INGREDIENT RULES (mandatory — nutrition is computed from these, never stated):
+- Every ingredient has a "slug" copied EXACTLY from the CATALOG list in the
+  user message; "name" is how the recipe calls it. Never invent a slug.
+- Pick the slug for the state you measure: raw/dry meat, grains and legumes
+  (e.g. rice-white-dry, chicken-breast-raw) unless a cooked or canned item is
+  really meant.
+- unit: "g" for solids, "ml" for liquids; "tsp"/"tbsp" only for oils, spices
+  and sauces; "to taste" only for salt and pepper.
+- Do NOT output nutritionInfo, calories or macros.
 
 SAFETY (non-negotiable): Never include allergens or disliked ingredients.
 Honour all dietary restrictions (vegan, gluten-free, halal, etc.).`;
@@ -63,7 +73,7 @@ export function buildHouseholdSection(input: MealPlanInput): string {
   const h = input.householdContext;
   if (!h) return '';
   const lines = [
-    `Household: cooking for ${h.memberCount + 1} people total; every recipe must use servings=${h.portionSum} and scale ingredient quantities to it (nutritionInfo stays PER SERVING).`,
+    `Household: cooking for ${h.memberCount + 1} people total; every recipe must use servings=${h.portionSum} and scale ingredient quantities to it (quantities are for the whole table; calorie targets are per person).`,
   ];
   const { allergies, dietaryRestrictions } = h.mergedSafety;
   if (allergies.length || dietaryRestrictions.length) {
@@ -137,7 +147,7 @@ export function buildCalorieCorrectionSection(input: MealPlanInput): string {
     c.target * 0.9,
   )} and ${Math.round(
     c.target * 1.1,
-  )} kcal. Fix it by scaling portion sizes (ingredient quantities AND nutritionInfo together), not by adding token side dishes.${
+  )} kcal. Fix it by scaling portion sizes (ingredient quantities), not by adding token side dishes.${
     c.previousDayMacros && input.macroTargets
       ? ` Its macros per day were ${c.previousDayMacros
           .map((m) => `P${Math.round(m.proteinG)}/C${Math.round(m.carbsG)}/F${Math.round(m.fatG)}`)
@@ -146,6 +156,15 @@ export function buildCalorieCorrectionSection(input: MealPlanInput): string {
         } g — bring each within ±20% by changing what is cooked (leaner proteins, more grains or fruit), not by restating numbers.`
       : ''
   }`;
+}
+
+/**
+ * plan-ingredient-catalog §6.3: the catalog slug list, FIRST in the user
+ * message so identical lists share a cacheable prompt prefix.
+ */
+export function buildCatalogSection(catalogSlugs: string | undefined): string {
+  if (!catalogSlugs) return '';
+  return `CATALOG — every ingredient's "slug" must be one of these (exact spelling):\n${catalogSlugs}\n\n`;
 }
 
 export function buildMealPlanUserPrompt(input: MealPlanInput): string {
@@ -198,12 +217,12 @@ export function buildMealPlanUserPrompt(input: MealPlanInput): string {
     if (section) signalLines.push(section);
   }
 
-  return `\
+  return `${buildCatalogSection(input.catalogSlugs)}\
 7-day plan for: ${input.biologicalSex} ${input.age}yo ${input.heightCm}cm ${input.weightKg}kg, ${activity}
 Goal: ${goal}
 Target: ${input.dailyCalorieTarget} kcal/day, ${input.mealsPerDay} meals/day (${mealTypes.join('+')}), serving ${input.servingSize}${
     input.macroTargets
-      ? `\nMacros per day: protein ${input.macroTargets.proteinG} g, carbs ${input.macroTargets.carbsG} g, fat ${input.macroTargets.fatG} g (each within ±20%). nutritionInfo must be what the listed ingredient quantities actually provide.`
+      ? `\nMacros per day: protein ${input.macroTargets.proteinG} g, carbs ${input.macroTargets.carbsG} g, fat ${input.macroTargets.fatG} g (each within ±20%), from what the listed ingredient quantities provide.`
       : ''
   }
 Allergies: ${allergies}
@@ -245,23 +264,51 @@ export function buildMealPlanDayChunkPrompt(
   return lines.join('\n');
 }
 
+// ─── Repair round (plan-ingredient-catalog §6.3) ──────────────────────────────
+
+export const REPAIR_LINES_SYSTEM_PROMPT = `\
+You fix recipe ingredient lines so they match the Chefer ingredient catalog.
+Each line either names a slug the catalog does not have, or uses a unit that
+cannot be converted to grams for that ingredient. For every line return:
+- slug: copied EXACTLY from the CATALOG list (prefer one of the line's candidates
+  when it is the same food; raw/dry state for meat, grains and legumes)
+- quantity and unit: the same amount, in "g" for solids or "ml" for liquids
+- id: echoed unchanged
+Never invent a slug. Do not output nutrition.`;
+
+export function buildRepairLinesPrompt(request: RecipeLineRepairRequest): string {
+  const lines = request.lines
+    .map(
+      (l) =>
+        `- id=${l.id} | recipe "${l.recipeName}" | "${l.rawName}" ${l.quantity} ${l.unit}` +
+        `${l.slug ? ` | slug "${l.slug}"` : ''} | problem ${l.problem}` +
+        (l.candidates.length ? ` | candidates: ${l.candidates.join(', ')}` : ''),
+    )
+    .join('\n');
+  return `${buildCatalogSection(request.catalogSlugs)}Fix these lines:\n${lines}`;
+}
+
 // ─── Recipe Swap ──────────────────────────────────────────────────────────────
 
 export const SWAP_SYSTEM_PROMPT = `\
 You are Chefer, an expert nutritionist and personal chef.
 When swapping a recipe, provide a single alternative that:
 - Is a different dish (different name, different primary ingredients)
-- Has a similar calorie count (±150 kcal) and macro profile
+- Has a similar portion size and macro profile
 - Fits the same meal type
 - Strictly respects all dietary restrictions and allergies
-- Sets imageUrl to null`;
+- Sets imageUrl to null
+- Names every ingredient by a "slug" copied exactly from the CATALOG list
+  (raw/dry state for meat, grains and legumes), with unit "g" for solids and
+  "ml" for liquids ("tsp"/"tbsp" only for oils, spices and sauces)
+- Does NOT output nutritionInfo — nutrition is computed from the ingredients`;
 
 export function buildSwapUserPrompt(input: SwapInput): string {
   const restrictions = input.preferences.dietaryRestrictions.join(', ') || 'none';
   const allergies = input.preferences.allergies.join(', ') || 'none';
   const cuisines = input.preferences.cuisinePreferences.join(', ') || 'any';
 
-  return `\
+  return `${buildCatalogSection(input.catalogSlugs)}\
 Swap this ${input.mealType} recipe: "${input.originalRecipeName}"
 
 Constraints:
@@ -269,7 +316,7 @@ Constraints:
   Dietary restrictions:  ${restrictions}
   Preferred cuisines:    ${cuisines}
 
-Return one alternative ${input.mealType} recipe with similar nutrition. \
+Return one alternative ${input.mealType} recipe of a similar size. \
 Use id format "recipe_<slug_of_name>".`;
 }
 

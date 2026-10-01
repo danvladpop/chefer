@@ -1,3 +1,5 @@
+import { computeRecipeNutrition, type IngredientLookup } from '@chefer/utils';
+import { catalogBySlug } from '../../curated-recipes/computed-nutrition.js';
 import { findSafetyIssues } from '../../curated-recipes/safety.js';
 import { NO_RECIPE_SENTINEL } from '../prompts.js';
 import type { AiWorkload } from '../routing.js';
@@ -119,10 +121,38 @@ function dayTargets(input: MealPlanInput, dayOfWeek: number) {
   };
 }
 
-export function scoreMealPlan(input: MealPlanInput, output: unknown): CaseScores {
+/**
+ * Plans are scored on the catalog contract (plan-ingredient-catalog §6.3): the
+ * model states no nutrition, so day kcal/macros are COMPUTED from each line's
+ * slug, and `checks.catalogResolution` is the share of lines whose slug exists
+ * and whose unit converts — resolved without the server's repair round
+ * (target ≥ 0.95). `catalog` defaults to catalog.json (tests pass their own).
+ */
+export function scoreMealPlan(
+  input: MealPlanInput,
+  output: unknown,
+  catalog: IngredientLookup = catalogBySlug(),
+): CaseScores {
   const parsed = weekPlanResponseSchema.safeParse(output);
   if (!parsed.success) return { ...EMPTY };
   const plan = parsed.data;
+  let lines = 0;
+  let resolved = 0;
+  const computed = new Map<object, ReturnType<typeof computeRecipeNutrition>>();
+  for (const recipe of plan.days.flatMap((d) => d.meals.map((m) => m.recipe))) {
+    const result = computeRecipeNutrition(
+      recipe.ingredients.map((i) => ({
+        ingredientId: i.slug ?? null,
+        quantity: i.quantity,
+        unit: i.unit,
+      })),
+      catalog,
+      recipe.servings,
+    );
+    computed.set(recipe, result);
+    lines += result.lines.length;
+    resolved += result.lines.filter((l) => !l.problem).length;
+  }
 
   // The allergy set covers the whole household (meal-plan.service merges it).
   const safety = safetyCounts(
@@ -135,7 +165,7 @@ export function scoreMealPlan(input: MealPlanInput, output: unknown): CaseScores
   for (const day of plan.days) {
     const t = dayTargets(input, day.dayOfWeek);
     const sum = (key: 'calories' | 'protein' | 'carbs' | 'fat') =>
-      day.meals.reduce((acc, m) => acc + m.recipe.nutritionInfo[key], 0);
+      day.meals.reduce((acc, m) => acc + (computed.get(m.recipe)?.perServing[key] ?? 0), 0);
     kcalErrors.push(pctError(sum('calories'), t.kcal));
     if (t.macros) {
       macroErrors.push(
@@ -161,6 +191,7 @@ export function scoreMealPlan(input: MealPlanInput, output: unknown): CaseScores
       sevenDays: distinctDays === 7 && plan.days.length === 7 ? 1 : 0,
       mealCount: plan.days.length ? daysWithRightMealCount / plan.days.length : 0,
       uniqueDishes: names.length ? new Set(names).size / names.length : 0,
+      catalogResolution: lines ? resolved / lines : 0,
     },
   };
 }

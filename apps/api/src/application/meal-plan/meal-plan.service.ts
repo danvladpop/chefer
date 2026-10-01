@@ -51,6 +51,7 @@ import type {
   MealType,
   NutritionInfo,
   RecipeData,
+  SwapInput,
   WeekPlanResponse,
 } from '../../lib/ai/index.js';
 import {
@@ -66,13 +67,11 @@ import { hasFeature } from '../../lib/entitlements.js';
 import { unsafeForTableError } from '../../lib/friends-errors.js';
 import { notifyTailoringQueued } from '../../lib/plan-tailoring-signal.js';
 import { PoolExhaustedCause } from '../../lib/pool-exhausted.js';
-import type { MacroVocabularyRow } from '../../lib/recipe-import/macro-check.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
 import {
   computeHouseholdContext,
   legacyServingSizePlaceholders,
 } from '../household/household.service.js';
-import { loadMacroVocabulary } from '../ingredients/macro-vocabulary.js';
 import {
   recipeNutritionService,
   type NutritionLineDto,
@@ -98,8 +97,13 @@ import {
   trainingNutritionService,
   type TrainingNutritionService,
 } from '../training-nutrition/training-nutrition.service.js';
+import { catalogSlugList } from './ai-recipe-catalog.js';
+import {
+  aiRecipeFinisher,
+  type AiRecipeFinisher,
+  type FinishContext,
+} from './ai-recipe-finisher.js';
 import { planCuratedWeek, type CuratedShapeOptions } from './curated-planner.js';
-import { reconcileRecipeMacros } from './macro-reconcile.js';
 import { planShapeService } from './plan-shape.service.js';
 import {
   lockedSlotIndexes,
@@ -497,6 +501,8 @@ export class MealPlanService {
     private readonly copies: Pick<RecipeCopyService, 'ownedRecipeFor'> = recipeCopyService,
     /** The Following branch of recipe access (recipe-access.ts §4.3). */
     private readonly recipeSocial: RecipeSocialDeps = defaultRecipeSocialDeps,
+    /** Catalog computation of AI recipes (plan-ingredient-catalog §6.3). */
+    private readonly aiFinisher: AiRecipeFinisher = aiRecipeFinisher,
   ) {}
 
   /** `findRecipeVisibleTo` with this service's repository and social deps. */
@@ -747,7 +753,8 @@ export class MealPlanService {
       ...householdContext?.mergedSafety,
     };
     return {
-      aiInput,
+      // plan-ingredient-catalog §6.3: the slugs this table may eat
+      aiInput: { ...aiInput, catalogSlugs: catalogSlugList(planSafety) },
       liveTargets,
       liveCalorieTarget,
       trainingDays,
@@ -807,7 +814,14 @@ export class MealPlanService {
     // 3a. Honest numbers first (audit F-REC-2-4): AI recipes whose stated
     // calories drift from their ingredients get resized and restated
     // (macro-reconcile.ts), so the day totals below are real.
-    weekPlan = await this.reconcilePlanMacros(weekPlan, userId);
+    const finishCtx = this.finishContext(
+      userId,
+      aiInput,
+      planSafety,
+      hiddenRecipeIds,
+      (dow) => (trainingDayTargets.get(dow) ?? liveTargets).dailyCalorieTarget,
+    );
+    weekPlan = (await this.aiFinisher.finishPlan(weekPlan, finishCtx)).plan;
 
     // 3a. Server-side day-total validation (trust P-1): the prompt demands
     // ±5% but models routinely return days 25-45% under target — and, with
@@ -818,17 +832,19 @@ export class MealPlanService {
     const firstScore = planOffTargetScore(weekPlan, liveTargets, trainingDayTargets);
     if (firstScore > 0) {
       try {
-        const retryPlan = await this.reconcilePlanMacros(
-          await aiService.generateMealPlan({
-            ...aiInput,
-            calorieCorrection: {
-              target: liveCalorieTarget,
-              previousDayTotals: planDayKcalTotals(weekPlan),
-              previousDayMacros: planDayMacroTotals(weekPlan),
-            },
-          }),
-          userId,
-        );
+        const retryPlan = (
+          await this.aiFinisher.finishPlan(
+            await aiService.generateMealPlan({
+              ...aiInput,
+              calorieCorrection: {
+                target: liveCalorieTarget,
+                previousDayTotals: planDayKcalTotals(weekPlan),
+                previousDayMacros: planDayMacroTotals(weekPlan),
+              },
+            }),
+            finishCtx,
+          )
+        ).plan;
         if (planOffTargetScore(retryPlan, liveTargets, trainingDayTargets) < firstScore) {
           weekPlan = retryPlan;
         }
@@ -949,6 +965,10 @@ export class MealPlanService {
             creatorId: userId,
           };
         }),
+    );
+    // …and their catalog lines (status COMPUTED; plan-ingredient-catalog §6.3).
+    await this.aiFinisher.persistLines(
+      recipes.filter((r) => !pinnedIds.has(r.id) && !safetyPass.curatedIds.has(r.id)),
     );
 
     // 7. Persist the meal plan (archives only the plan for the same week)
@@ -1240,28 +1260,41 @@ export class MealPlanService {
         remaining(),
       );
 
-    let dayPlan = await this.reconcilePlanMacros({ days: [await ask(aiInput)] }, userId);
+    const finishCtx = {
+      ...this.finishContext(
+        userId,
+        aiInput,
+        planSafety,
+        hiddenRecipeIds,
+        () => dayTargets.dailyCalorieTarget,
+      ),
+      canCallAi: () => remaining() >= TAILORING_RETRY_MIN_REMAINING_MS,
+    };
+    let dayPlan = (await this.aiFinisher.finishPlan({ days: [await ask(aiInput)] }, finishCtx))
+      .plan;
     const firstScore = planOffTargetScore(dayPlan, dayTargets);
     // Same day-total validation as the week (trust P-1, F-PLAN-1-2): one
     // corrective retry, only when the budget still has room for it; keep
     // the closer attempt. Not logged — the user asked once.
     if (firstScore > 0 && remaining() >= TAILORING_RETRY_MIN_REMAINING_MS) {
       try {
-        const retry = await this.reconcilePlanMacros(
-          {
-            days: [
-              await ask({
-                ...aiInput,
-                calorieCorrection: {
-                  target: dayTargets.dailyCalorieTarget,
-                  previousDayTotals: planDayKcalTotals(dayPlan),
-                  previousDayMacros: planDayMacroTotals(dayPlan),
-                },
-              }),
-            ],
-          },
-          userId,
-        );
+        const retry = (
+          await this.aiFinisher.finishPlan(
+            {
+              days: [
+                await ask({
+                  ...aiInput,
+                  calorieCorrection: {
+                    target: dayTargets.dailyCalorieTarget,
+                    previousDayTotals: planDayKcalTotals(dayPlan),
+                    previousDayMacros: planDayMacroTotals(dayPlan),
+                  },
+                }),
+              ],
+            },
+            finishCtx,
+          )
+        ).plan;
         if (planOffTargetScore(retry, dayTargets) < firstScore) dayPlan = retry;
       } catch (err) {
         console.warn('[tailoring] corrective retry failed; keeping the first day:', err);
@@ -1313,6 +1346,7 @@ export class MealPlanService {
           };
         }),
       );
+      await this.aiFinisher.persistLines(recipes);
       if (pending) recipeImageWorker.wake();
     }
     return { meals: merged };
@@ -1765,34 +1799,30 @@ export class MealPlanService {
    * computeHouseholdContext). Filtering itself stays `filterSafeRecipes`,
    * unchanged.
    */
-  /**
-   * Resizes and restates AI recipes whose stated calories drift from their
-   * ingredients (audit F-REC-2-4, macro-reconcile.ts). Curated recipes are
-   * hand-checked and left alone. One vocabulary query per plan.
-   */
-  private async reconcilePlanMacros<T extends { days: { meals: { recipe: RecipeData }[] }[] }>(
-    weekPlan: T,
+  /** How AI recipes are finished for this user (plan-ingredient-catalog §6.3). */
+  private finishContext(
     userId: string,
-  ): Promise<T> {
-    const aiRecipes = weekPlan.days
-      .flatMap((d) => d.meals.map((m) => m.recipe))
-      .filter((r) => !r.id.startsWith('curated-'));
-    if (aiRecipes.length === 0) return weekPlan;
-    const rows = await loadRecipeVocabulary(aiRecipes, userId);
-    const reconciled = new Map<RecipeData, RecipeData>();
-    let scaled = 0;
-    for (const recipe of aiRecipes) {
-      const result = reconcileRecipeMacros(recipe, rows);
-      if (result.action === 'scaled') scaled += 1;
-      reconciled.set(recipe, result.recipe);
-    }
-    if (scaled > 0) console.info(`[meal-plan] reconciled macros of ${scaled} AI recipe(s)`);
+    aiInput: MealPlanInput,
+    safety: SafetyPrefs,
+    hiddenRecipeIds: string[],
+    dayTarget: (dayOfWeek: number) => number,
+  ): FinishContext {
+    const catalogSlugs = aiInput.catalogSlugs ?? catalogSlugList(safety);
     return {
-      ...weekPlan,
-      days: weekPlan.days.map((d) => ({
-        ...d,
-        meals: d.meals.map((m) => ({ ...m, recipe: reconciled.get(m.recipe) ?? m.recipe })),
-      })),
+      catalogSlugs,
+      dayTarget,
+      swapInput: (mealType, originalRecipeName) => ({
+        userId,
+        mealType,
+        originalRecipeName,
+        preferences: {
+          dietaryRestrictions: safety.dietaryRestrictions,
+          allergies: safety.allergies,
+          cuisinePreferences: aiInput.cuisinePreferences,
+        },
+        catalogSlugs,
+      }),
+      fallback: (mealType) => pickSafeCurated(mealType, hiddenRecipeIds, undefined, safety),
     };
   }
 
@@ -2158,19 +2188,24 @@ export class MealPlanService {
     const previousRecipeId = slot?.recipeId;
     const currentRecipe = slot ? await this.repo.findRecipeById(slot.recipeId) : null;
 
-    // Call AI swap
+    // Call AI swap (catalog slugs, no nutrition — plan-ingredient-catalog §6.3)
+    const catalogSlugs = catalogSlugList(mergedSafety);
+    const swapInput = (type: MealType, originalRecipeName: string): SwapInput => ({
+      userId,
+      mealType: type,
+      originalRecipeName,
+      preferences: {
+        dietaryRestrictions: mergedSafety.dietaryRestrictions,
+        allergies: mergedSafety.allergies,
+        cuisinePreferences: dietaryPrefs?.cuisinePreferences ?? [],
+      },
+      catalogSlugs,
+    });
     let newRecipe: RecipeData;
     try {
-      newRecipe = await aiService.generateRecipeSwap({
-        userId,
-        mealType: mealType as MealType,
-        originalRecipeName: currentRecipe?.name ?? mealType,
-        preferences: {
-          dietaryRestrictions: mergedSafety.dietaryRestrictions,
-          allergies: mergedSafety.allergies,
-          cuisinePreferences: dietaryPrefs?.cuisinePreferences ?? [],
-        },
-      });
+      newRecipe = await aiService.generateRecipeSwap(
+        swapInput(mealType as MealType, currentRecipe?.name ?? mealType),
+      );
     } catch (err) {
       throw toFriendlyAiError(
         err,
@@ -2179,12 +2214,20 @@ export class MealPlanService {
       );
     }
 
-    // Server-minted id, as for generated weeks (recipe-ids.ts).
-    newRecipe = { ...newRecipe, id: randomUUID() };
-    newRecipe = reconcileRecipeMacros(
+    // Computed from the catalog and sized like the dish it replaces (§6.3);
+    // a recipe that still won't compute falls back to curated below.
+    const finished = await this.aiFinisher.finishRecipe(
       newRecipe,
-      await loadRecipeVocabulary([newRecipe], userId),
-    ).recipe;
+      mealType as MealType,
+      (currentRecipe?.nutritionInfo as { calories?: number } | null)?.calories ?? 0,
+      { catalogSlugs, swapInput },
+    );
+    if (!finished) {
+      console.warn('[meal-plan] AI swap did not compute from the catalog; using a curated recipe');
+      return this.swapCurated(userId, planId, dayOfWeek, mealType, plan, slotIndex);
+    }
+    // Server-minted id, as for generated weeks (recipe-ids.ts).
+    newRecipe = { ...finished, id: randomUUID() };
 
     // Usage is logged by the caller's quota reservation (reserveAiSwap).
 
@@ -2218,6 +2261,7 @@ export class MealPlanService {
         creatorId: userId,
       },
     ]);
+    await this.aiFinisher.persistLines([newRecipe]);
 
     // Update the day's meal slot
     await this.repo.updateDayMeal(
@@ -3022,18 +3066,6 @@ export function nearestPortionStep(ratio: number): number {
     (best, step) => (Math.abs(step - ratio) < Math.abs(best - ratio) ? step : best),
     1,
   );
-}
-
-/** The macro vocabulary rows `userId` may read for every ingredient in `recipes` (one query, F6). */
-async function loadRecipeVocabulary(
-  recipes: RecipeData[],
-  userId: string,
-): Promise<Map<string, MacroVocabularyRow>> {
-  const rows = await loadMacroVocabulary(
-    recipes.flatMap((r) => r.ingredients.map((i) => i.name)),
-    userId,
-  );
-  return new Map(rows.map((r) => [r.ingredientName, r]));
 }
 
 /**

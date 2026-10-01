@@ -481,6 +481,16 @@ These tests are the core quality gate:
   - round with `roundQuantity`, then **recompute**. Stored numbers are always the recomputed ones.
 - **Eval harness.** Update `lib/ai/eval/scorer.ts`. Remove the AI-nutrition checks and add a resolution rate metric: % of lines resolved without repair. Target ≥ 95%.
 
+### 6.3.1 As built in P7 (2026-10-01)
+
+- **Code.** `application/meal-plan/ai-recipe-catalog.ts` holds the slug list, `computeAiRecipe`, `slotTargets` and `fitToSlotTarget`. `ai-recipe-finisher.ts` holds `AiRecipeFinisher`: compute → repair → regenerate → curated fallback or drop → fit → `persistLines`. A new `IAIService.repairRecipeLines` is implemented for Gemini, OpenAI-compatible, mock and failover (the `swap` workload).
+- **Slug list size.** About 5k tokens unfiltered, 3.4k for vegan and 4.3k for gluten-free. No explicit prompt caching yet: the list goes first in the user message, so identical lists share a prefix for providers that cache implicitly. Token use before vs after still needs measuring in `AiCallLog` on prod (§12).
+- **Slot targets did not exist in code** (only in the prompt text). The shares are now the prompt's midpoints, normalised per day. A swap targets the replaced dish's computed kcal.
+- **Fallback order.** "Regenerate the slot" uses `generateRecipeSwap`. If the AI is down or still wrong, a safe curated recipe; if none, the slot is dropped, the same as the safety pass.
+- **Plausibility ceiling (§12 risk) not built yet.** For example "more than 400 g of cooked rice per serving → repair". The slot-target fit already bounds portions to 0.6–1.8×.
+- **The eval** now scores computed kcal plus `catalogResolution`. Only the mock provider was run here (`catalogResolution` 1.0); a live-provider eval run is pending (it costs AI calls).
+- **Live check** with the mock AI on a dev clone: a generated week of 15 AI recipes came out all COMPUTED with lines, days within about 1,700–2,000 kcal of a ~2,000 target, and the AI swap was COMPUTED with lines.
+
 ### 6.4 Stop the self-growing global vocabulary (F1)
 
 - `IngredientPriceWorker` **must not create global rows** any more. It only prices existing `Ingredient` rows via the `IngredientPrice.ingredientId` link.

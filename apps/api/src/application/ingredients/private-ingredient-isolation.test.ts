@@ -8,12 +8,14 @@ import {
 } from '../../test-support/fake-ingredient-prices.js';
 import { PantryService } from '../pantry/pantry.service.js';
 import { estimatePlanCostEur } from '../shared/plan-cost.js';
-import { loadMacroVocabulary } from './macro-vocabulary.js';
 
 // Regression for plan-ingredient-catalog F6 / invariant I4: user A's private
 // ingredient row must never be read for, or change the numbers of, user B.
 // Before the fix, reconcile, the import cross-check, plan cost, the shopping
-// list and pantry savings all loaded vocabulary rows by name only.
+// list and pantry savings all loaded vocabulary rows by name only. (Reconcile
+// and the import cross-check no longer read the vocabulary at all since the
+// ingredient catalog; the resolver/compute isolation is tested in
+// ingredient-resolver.test.ts and recipe-nutrition.service.test.ts.)
 // (The shopping-list path is covered in shopping-list.service.test.ts.)
 
 vi.mock('@chefer/database', async (importOriginal) => {
@@ -60,17 +62,6 @@ describe('private ingredient isolation (F6)', () => {
     expect(visibleToUser('userB')).toEqual({ OR: [{ creatorId: null }, { creatorId: 'userB' }] });
     expect(visibleToUser(undefined)).toEqual({ creatorId: null });
     expect(visibleToUser(null)).toEqual({ creatorId: null });
-  });
-
-  it('macro vocabulary (plan reconcile, swap, import cross-check) hides other users’ rows', async () => {
-    const names = LINES.map((l) => l.name);
-    const forB = await loadMacroVocabulary(names, 'userB');
-    const forA = await loadMacroVocabulary(names, 'userA');
-    const anonymous = await loadMacroVocabulary(names, undefined);
-
-    expect(forB.map((r) => r.ingredientName)).toEqual(['chicken breast']);
-    expect(forA.map((r) => r.ingredientName).sort()).toEqual(['chicken breast', 'tahini']);
-    expect(anonymous.map((r) => r.ingredientName)).toEqual(['chicken breast']);
   });
 
   it('plan cost never prices a line from another user’s private row', async () => {

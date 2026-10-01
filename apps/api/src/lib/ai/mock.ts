@@ -17,6 +17,8 @@ import type {
   MealPlanInput,
   RecipeData,
   RecipeExtractionSource,
+  RecipeLineRepair,
+  RecipeLineRepairRequest,
   ShoppingListInput,
   ShoppingListResponse,
   SwapInput,
@@ -145,6 +147,15 @@ export class MockAIService implements IAIService {
     const day = week.days.find((d) => d.dayOfWeek === request.dayOfWeek) ??
       week.days[0] ?? { meals: [] };
     return { dayOfWeek: request.dayOfWeek, meals: structuredClone(day.meals) };
+  }
+
+  /** Deterministic repair: the first candidate, the same amount in grams. */
+  async repairRecipeLines(request: RecipeLineRepairRequest): Promise<RecipeLineRepair[]> {
+    await delay(50);
+    return request.lines.flatMap((l) => {
+      const slug = l.candidates[0];
+      return slug ? [{ id: l.id, slug, quantity: l.quantity, unit: 'g' }] : [];
+    });
   }
 
   async generateRecipeSwap(input: SwapInput): Promise<RecipeData> {

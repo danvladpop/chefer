@@ -127,6 +127,12 @@ export interface MealPlanInput {
     kcalBonus: number;
     proteinBonus: number;
   };
+  /**
+   * plan-ingredient-catalog §6.3: the catalog slugs this table may use,
+   * grouped by category (ai-recipe-catalog.ts `catalogSlugList`). Present →
+   * every generated line must name one; the model states no nutrition.
+   */
+  catalogSlugs?: string;
 }
 
 // ─── Meal photo analysis (F4 Snap-to-Log) ────────────────────────────────────
@@ -211,6 +217,37 @@ export interface SwapInput {
     allergies: string[];
     cuisinePreferences: string[];
   };
+  /** The catalog slugs the table may use (see MealPlanInput.catalogSlugs). */
+  catalogSlugs?: string;
+}
+
+/**
+ * plan-ingredient-catalog §6.3 repair round: generated lines whose slug is
+ * not in the catalog, or whose unit the row can't convert, sent back once with
+ * the resolver's top candidates. The model answers slugs and quantities only.
+ */
+export interface RecipeLineRepairRequest {
+  lines: {
+    /** Opaque id the answer echoes back. */
+    id: string;
+    recipeName: string;
+    rawName: string;
+    slug?: string | undefined;
+    quantity: number;
+    unit: string;
+    /** Why it failed: NO_INGREDIENT / NO_DENSITY / NO_PORTION / BAD_UNIT / BAD_QTY. */
+    problem: string;
+    /** Up to three catalog slugs that look close. */
+    candidates: string[];
+  }[];
+  catalogSlugs: string;
+}
+
+export interface RecipeLineRepair {
+  id: string;
+  slug: string;
+  quantity: number;
+  unit: string;
 }
 
 export interface ShoppingListInput {
@@ -337,6 +374,8 @@ export interface IAIService {
    */
   generateMealPlanDay(input: MealPlanInput, request: MealPlanDayRequest): Promise<DayPlan>;
   generateRecipeSwap(input: SwapInput): Promise<RecipeData>;
+  /** plan-ingredient-catalog §6.3: one repair round for unresolved generated lines. */
+  repairRecipeLines(request: RecipeLineRepairRequest): Promise<RecipeLineRepair[]>;
   generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse>;
   /**
    * Store-agnostic EUR prices. Nutrition fields come back null unless

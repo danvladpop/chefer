@@ -8,6 +8,7 @@ import {
   buildIngredientPricesPrompt,
   buildMealPlanDayChunkPrompt,
   buildMealPlanUserPrompt,
+  buildRepairLinesPrompt,
   buildReviewUserPrompt,
   buildShoppingListPrompt,
   buildSwapUserPrompt,
@@ -21,6 +22,7 @@ import {
   MEAL_PHOTO_USER_PROMPT,
   MEAL_PLAN_DAY_CHUNK_RULES,
   MEAL_PLAN_SYSTEM_PROMPT,
+  REPAIR_LINES_SYSTEM_PROMPT,
   REVIEW_SYSTEM_PROMPT,
   SHOPPING_LIST_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
@@ -30,9 +32,10 @@ import {
   cheferizedRecipeSchema,
   dayPlanSchema,
   extractedRecipeSchema,
+  generatedRecipeSchema,
   ingredientPricesResponseSchema,
   parseMealPhotoResponse,
-  recipeSchema,
+  recipeLineRepairResponseSchema,
   shoppingListResponseSchema,
   weekPlanResponseSchema,
 } from './schemas.js';
@@ -53,6 +56,8 @@ import type {
   MealPlanInput,
   RecipeData,
   RecipeExtractionSource,
+  RecipeLineRepair,
+  RecipeLineRepairRequest,
   ShoppingListInput,
   ShoppingListResponse,
   SwapInput,
@@ -107,15 +112,27 @@ const INGREDIENT_SCHEMA: Schema = {
   required: ['name', 'quantity', 'unit'],
 };
 
+/** A generated line names its catalog row (plan-ingredient-catalog §6.3). */
+const GENERATED_INGREDIENT_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    name: { type: Type.STRING },
+    slug: { type: Type.STRING },
+    quantity: { type: Type.NUMBER },
+    unit: { type: Type.STRING },
+  },
+  required: ['name', 'slug', 'quantity', 'unit'],
+};
+
+/** Generated recipe (plan, day, swap): catalog slugs, NO nutrition — the server computes it (I2). */
 const RECIPE_SCHEMA: Schema = {
   type: Type.OBJECT,
   properties: {
     id: { type: Type.STRING },
     name: { type: Type.STRING },
     description: { type: Type.STRING },
-    ingredients: { type: Type.ARRAY, items: INGREDIENT_SCHEMA },
+    ingredients: { type: Type.ARRAY, items: GENERATED_INGREDIENT_SCHEMA },
     instructions: { type: Type.ARRAY, items: { type: Type.STRING } },
-    nutritionInfo: NUTRITION_SCHEMA,
     cuisineType: { type: Type.STRING },
     dietaryTags: { type: Type.ARRAY, items: { type: Type.STRING } },
     prepTimeMins: { type: Type.NUMBER },
@@ -129,7 +146,6 @@ const RECIPE_SCHEMA: Schema = {
     'description',
     'ingredients',
     'instructions',
-    'nutritionInfo',
     'cuisineType',
     'dietaryTags',
     'prepTimeMins',
@@ -137,6 +153,26 @@ const RECIPE_SCHEMA: Schema = {
     'servings',
     'imageUrl',
   ],
+};
+
+const REPAIR_LINES_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    items: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          slug: { type: Type.STRING },
+          quantity: { type: Type.NUMBER },
+          unit: { type: Type.STRING },
+        },
+        required: ['id', 'slug', 'quantity', 'unit'],
+      },
+    },
+  },
+  required: ['items'],
 };
 
 /** One plan day — the week's item schema, also used alone for live tailoring. */
@@ -537,7 +573,7 @@ export class GeminiAIService implements IAIService {
 
     if (!raw) throw new Error('GeminiAIService: empty response from generateRecipeSwap');
 
-    const parsed = recipeSchema.safeParse(JSON.parse(raw));
+    const parsed = generatedRecipeSchema.safeParse(JSON.parse(raw));
     if (!parsed.success) {
       throw new Error(
         `GeminiAIService: recipe swap response failed validation — ${parsed.error.message}`,
@@ -546,6 +582,35 @@ export class GeminiAIService implements IAIService {
 
     // Strip any hallucinated image URL — images come from our own pipeline
     return { ...parsed.data, imageUrl: null };
+  }
+
+  /** plan-ingredient-catalog §6.3 repair round: slugs and quantities only. */
+  async repairRecipeLines(request: RecipeLineRepairRequest): Promise<RecipeLineRepair[]> {
+    if (request.lines.length === 0) return [];
+    const response = await this.generateWithRetry(
+      {
+        model: this.models.main,
+        contents: buildRepairLinesPrompt(request),
+        config: {
+          systemInstruction: REPAIR_LINES_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: REPAIR_LINES_SCHEMA,
+          temperature: 0.1,
+          maxOutputTokens: 2048,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      },
+      'repairRecipeLines',
+    );
+    const raw = response.text;
+    if (!raw) throw new Error('GeminiAIService: empty response from repairRecipeLines');
+    const parsed = recipeLineRepairResponseSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) {
+      throw new Error(
+        `GeminiAIService: repair response failed validation — ${parsed.error.message}`,
+      );
+    }
+    return parsed.data.items;
   }
 
   async generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse> {

@@ -2,20 +2,8 @@
 // `crossCheckMacros` — the AI-calorie sanity check against the AI-estimated
 // price vocabulary — was removed with the ingredient catalog (plan §6.2):
 // import nutrition is now computed, never the AI's. What remains:
-//   - MacroVocabularyRow: the legacy vocabulary row plan reconcile still reads
-//     until P7 repurposes it;
 //   - MacroCheckResult: the shape of `importPreview.macroCheck`, kept for
 //     installed clients (now derived from the catalog computation).
-
-export interface MacroVocabularyRow {
-  ingredientName: string;
-  caloriesPer100g: number | null;
-  proteinPer100g: number | null;
-  carbsPer100g: number | null;
-  fatPer100g: number | null;
-  fiberPer100g: number | null;
-  gramsPerPiece: number | null;
-}
 
 export interface MacroCheckResult {
   /** 'ok' — every line computes from the catalog; 'unknown' — some lines have

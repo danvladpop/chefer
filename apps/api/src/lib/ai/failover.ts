@@ -17,6 +17,8 @@ import type {
   MealPlanInput,
   RecipeData,
   RecipeExtractionSource,
+  RecipeLineRepair,
+  RecipeLineRepairRequest,
   ShoppingListInput,
   ShoppingListResponse,
   SwapInput,
@@ -181,6 +183,10 @@ export class ChainAIService implements IAIService {
       (s) => s.generateMealPlanDay(input, request),
       input,
     );
+  }
+
+  repairRecipeLines(request: RecipeLineRepairRequest): Promise<RecipeLineRepair[]> {
+    return this.run('repairRecipeLines', 'swap', (s) => s.repairRecipeLines(request), request);
   }
 
   generateRecipeSwap(input: SwapInput): Promise<RecipeData> {
