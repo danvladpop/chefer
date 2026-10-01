@@ -218,6 +218,15 @@ export {
   type ValidationRule,
   type ValidationSeverity,
   type ValidateOptions,
+  // Catalog sync (§4.4 step 7): catalog.json → global Ingredient rows
+  applyCatalogSync,
+  planCatalogSync,
+  loadGlobalIngredients,
+  entryScalars,
+  CatalogValidationError,
+  type CatalogSyncPlan,
+  type CatalogSyncReport,
+  type DbGlobalIngredient,
 } from './catalog/index';
 
 // Re-export Prisma types for convenience

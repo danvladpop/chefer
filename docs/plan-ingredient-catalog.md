@@ -337,6 +337,14 @@ These run in CI (`packages/database` test) and inside `ingredients:sync`:
 - **Count-portion and density gaps are warnings, not errors** (90 and 22 rows). The engine marks the affected lines PARTIAL instead of blocking the sync.
 - **CI gate.** `pnpm ingredients:catalog` writes the file, and `src/catalog/catalog-file.test.ts` gates it in CI.
 
+### 4.7 As built in P4 (2026-10-01)
+
+- **Entry points.** `packages/database/src/catalog/sync.ts` holds `planCatalogSync` (pure) and `applyCatalogSync` (one transaction). `sync-cli.ts` is the command line, run by `pnpm ingredients:sync [--dry-run]`.
+- **Deploy.** The compose `migrate` service now runs `prisma db push && tsx src/catalog/sync-cli.ts`. A sync failure fails the deploy, the same as a `db push` failure.
+- **Removed slugs (§4.4 step 7).** A removed slug that is still referenced becomes DEPRECATED. "Referenced" means any recipe line, `IngredientPrice.ingredientId` or merged private row points at it. A DEPRECATED row loses its aliases, so it stops resolving, but keeps its portions so its existing lines can be recomputed. A returning slug becomes ACTIVE again.
+- **`pg_trgm`** is created by the sync with `CREATE EXTENSION IF NOT EXISTS`. The trigram indexes themselves belong to P5, with the resolver.
+- **CI gate (§4.5).** `src/catalog/catalog-file.test.ts` runs in CI's `pnpm test` and fails on any validator error in the committed file. The sync re-validates before writing.
+
 ## 5. Computation engine (shared, pure)
 
 **Location:** `packages/utils/src/nutrition/`. It is pure TypeScript with no I/O, so web, mobile and API all use the same code: server truth plus client live preview. **Types and zod schemas** for `RecipeLine`, `NutritionFacts` and `NutritionStatus` go in `@chefer/types`.

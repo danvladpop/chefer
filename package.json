@@ -39,6 +39,7 @@
     "ingredients:build": "apps/api/node_modules/.bin/tsx scripts/ingredients/build-catalog.ts",
     "ingredients:catalog": "apps/api/node_modules/.bin/tsx scripts/ingredients/build-catalog.ts --catalog",
     "ingredients:review": "apps/api/node_modules/.bin/tsx scripts/ingredients/review-page.ts",
+    "ingredients:sync": "pnpm --filter @chefer/database ingredients:sync",
     "ai:eval": "pnpm --filter @chefer/api ai:eval"
   },
   "devDependencies": {

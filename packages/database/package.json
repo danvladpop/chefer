@@ -19,6 +19,7 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:prod": "prisma migrate deploy",
     "db:seed": "tsx src/seed.ts",
+    "ingredients:sync": "tsx src/catalog/sync-cli.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate"
   },

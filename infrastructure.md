@@ -779,6 +779,19 @@ prisma/
   - `export-demand.sh` (P0) and `golden-fixture.mjs` (the engine's FDC test fixture) live alongside.
 - **Sources and licences:** `data/ingredients/SOURCES.md` records each dataset, its release and its licence (FDC CC0, CIQUAL Etalab 2.0). `data/ingredients/catalog.json` (v1: 1,085 global rows, owner-reviewed 2026-10-01) is the git source of truth for global rows (D7). It is written only by `pnpm ingredients:catalog`, which refuses to write when the validators report errors, and it is excluded from prettier so it stays byte-identical to the build output. `src/catalog/catalog-file.test.ts` fails CI if the committed file has a validator error, an unsorted or duplicate slug, or a row without a source reference. FDC `can` portions are never imported, because they are US sizes.
 
+**Catalog sync** (`src/catalog/sync.ts` + `sync-cli.ts`, plan §4.4 step 7, P4). Run it with `pnpm ingredients:sync [--dry-run]`; it also runs on every deploy (§12).
+
+- **Validation first.** `applyCatalogSync` runs the validators, and any error aborts before a single write (`CatalogValidationError`).
+- **Planning.** It loads every global row with its aliases, portions and a "referenced" flag: does any recipe line, price row or merged private row point at it? It refuses to run if the database holds two global rows with the same slug. The pure `planCatalogSync` then works out the writes, and everything is written in ONE transaction.
+- **What the plan does:**
+  - creates new slugs, and updates only the columns that changed (an unchanged row is never written, so a re-run is a no-op);
+  - makes global aliases and portions match the file exactly, deleting before creating so an alias can move between rows;
+  - reactivates a DEPRECATED slug that is back in the file;
+  - for a slug that left the file: if it is still referenced it becomes `DEPRECATED`, loses its aliases (so it stops resolving) and keeps its portions; otherwise it is deleted.
+- **What it never touches:** private rows, and `imageUrl` (admins edit that).
+- **Database extension:** it creates `pg_trgm` outside the transaction and only warns if that fails. This is the one raw SQL statement outside migrations, as plan §6.1 specifies.
+- **Tests:** `sync.test.ts` covers the planner. Live runs covered the first sync, an idempotent re-run, a value edit, an alias move, a portion edit, a referenced and an unreferenced removal, a reactivation, and the rejection of an invalid file.
+
 **Tests:** `pnpm --filter @chefer/database test` (vitest, added with the ingredient catalog). The repositories are tested
 with a mocked client; `recipe-line.repository.test.ts` covers the dual write (order, single transaction, joining a
 caller's transaction, `USER_ENTERED` totals).
@@ -3133,6 +3146,11 @@ Caddy. See **`docs/plan-deployment.md`** for the full plan. Key files:
   The recipe-image worker probes the folder at startup and logs `✗ IMAGE STORAGE NOT WRITABLE`
   when it is wrong; meanwhile recipes get the free Pollinations fallback instead of paid images.
 
+- **The `migrate` one-shot service** (same image as `api`, which waits for it to complete successfully) runs `prisma db push --skip-generate`, then `tsx src/catalog/sync-cli.ts`.
+  - The second step is the **ingredient catalog sync**: it upserts `packages/database/data/ingredients/catalog.json` into the global `ingredients`, `ingredient_aliases` and `ingredient_portions` rows (§5.1).
+  - Both steps are idempotent. An unchanged catalog is a ~0.1 s no-op; the first sync of 1,085 rows took ~0.3 s on a dev clone.
+  - A failure in either step (a validator error, a failed write) exits non-zero and fails the deploy, the same as a failed `db push`. CI's catalog gate means a bad `catalog.json` cannot reach `master`.
+  - The sync also runs `CREATE EXTENSION IF NOT EXISTS pg_trgm`, for the resolver's fuzzy candidates. If that fails it only warns.
 - `infrastructure/docker/Caddyfile` — TLS + single-origin path routing (`/trpc`, `/api/uploads/*`,
   `/api/recipe-images/*`, `/api/chat`, `/api/health`, `/uploads/*`, `/static/exercises/*` (gym
   exercise photos, gym_plan.md §5.5) → API; rest → web).
@@ -3306,8 +3324,9 @@ secrets never enter CI: `.env.production` lives only on the VM.
 # 1. Bootstrap (checks Node 20+, pnpm, Docker; copies .env files; installs deps; starts DB)
 ./infrastructure/scripts/setup.sh
 
-# 2. Push schema to DB
+# 2. Push schema to DB, then load the global ingredient catalog
 pnpm db:push
+pnpm ingredients:sync
 
 # 3. Seed with test data
 pnpm db:seed
@@ -3330,6 +3349,7 @@ pnpm db:push          # Sync schema to DB (dev only, no migration)
 pnpm db:migrate       # Create a named migration
 pnpm db:migrate:prod  # Apply migrations (production)
 pnpm db:seed          # Seed development data
+pnpm ingredients:sync # Upsert catalog.json into the global ingredient rows (also runs on every deploy)
 pnpm db:studio        # Prisma Studio at localhost:5555
 pnpm db:generate      # Regenerate Prisma client after schema change
 ```

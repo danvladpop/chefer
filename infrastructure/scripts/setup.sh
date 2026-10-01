@@ -120,6 +120,9 @@ fi
 pnpm db:push 2>/dev/null || {
   log_warning "db:push failed (database might not be accessible). Run manually: pnpm db:push"
 }
+pnpm ingredients:sync 2>/dev/null || {
+  log_warning "ingredients:sync failed. Run manually after db:push: pnpm ingredients:sync"
+}
 
 # ─── Done ────────────────────────────────────────────────────────────────────
 
