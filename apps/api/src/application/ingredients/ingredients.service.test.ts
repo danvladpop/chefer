@@ -19,6 +19,7 @@ vi.mock('@chefer/database', async (importOriginal) => ({
     searchCatalog: vi.fn(),
     findUnlinkedPrivate: vi.fn(),
     linkIngredient: vi.fn(),
+    findLinkedPrices: vi.fn(),
   },
   prisma: {
     ingredientPrice: {
@@ -284,6 +285,21 @@ describe('update and delete', () => {
     expect(recompute).toHaveBeenCalledWith('askyr');
   });
 
+  it('a private edit by id can change the category and density (P9)', async () => {
+    vi.mocked(prisma.ingredientPrice.findFirst).mockResolvedValue(null);
+    await service.update('alice', 'USER', {
+      id: 'askyr',
+      name: 'Lidl skyr',
+      ...macros,
+      category: 'DAIRY_YOGURT_CREAM',
+      densityGPerMl: 1.05,
+    });
+    expect(catalog.rows.find((r) => r.id === 'askyr')).toMatchObject({
+      category: 'DAIRY_YOGURT_CREAM',
+      densityGPerMl: 1.05,
+    });
+  });
+
   it("another user's private id is NOT_FOUND for update and delete", async () => {
     await expect(
       service.update('alice', 'USER', { id: 'bsauce', name: 'x sauce', ...macros }),
@@ -333,5 +349,105 @@ describe('computeNutrition', () => {
       unmatched: [],
       perServing: { calories: 88, fat: 10 },
     });
+  });
+});
+
+describe('catalogList', () => {
+  const PRICES = [
+    {
+      ingredientName: 'garlic',
+      ingredientId: 'garlic',
+      imageUrl: 'https://cdn/garlic.png',
+      pricePer100gEur: 0.9,
+      pricePer100mlEur: null,
+      pricePerPieceEur: 0.3,
+      creatorId: null,
+    },
+    // another user's private price row linked to a global row: never used
+    {
+      ingredientName: 'olive oil',
+      ingredientId: 'oil',
+      imageUrl: 'https://cdn/bob-oil.png',
+      pricePer100gEur: 99,
+      pricePer100mlEur: null,
+      pricePerPieceEur: null,
+      creatorId: 'bob',
+    },
+  ];
+
+  beforeEach(() => {
+    vi.mocked(ingredientPriceRepository.findLinkedPrices).mockImplementation((ids, userId) =>
+      Promise.resolve(
+        PRICES.filter(
+          (p) => ids.includes(p.ingredientId) && (p.creatorId === null || p.creatorId === userId),
+        ),
+      ),
+    );
+  });
+
+  it('lists the caller’s private rows first, then globals, never another user’s (I4)', async () => {
+    const r = await service.catalogList('alice', 'USER', { limit: 50, offset: 0 });
+    const ids = r.items.map((i) => i.id);
+    expect(ids[0]).toBe('askyr');
+    expect(ids).not.toContain('bsauce');
+    expect(ids).toEqual(expect.arrayContaining(['garlic', 'oil', 'olives', 'tahini']));
+    expect(r.hasMore).toBe(false);
+    expect(r.nextCursor).toBeNull();
+  });
+
+  it('carries source, aliases, portions, nutrition and the linked global price row', async () => {
+    const r = await service.catalogList('alice', 'USER', {
+      search: 'usturoi',
+      limit: 10,
+      offset: 0,
+    });
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0]).toMatchObject({
+      id: 'garlic',
+      name: 'Garlic, raw',
+      nutritionSource: 'USDA_FDC',
+      owner: 'global',
+      aliases: expect.arrayContaining([{ alias: 'usturoi', locale: 'en' }]) as unknown,
+      portions: [{ unit: 'clove', grams: 3 }],
+      per100g: expect.objectContaining({ calories: 149, fiber: 2.1 }) as unknown,
+      imageUrl: 'https://cdn/garlic.png',
+      prices: { per100gEur: 0.9, per100mlEur: null, perPieceEur: 0.3 },
+      priceRowName: 'garlic',
+      // global nutrition is read-only, and a non-admin cannot edit prices (D7)
+      editable: 'none',
+    });
+  });
+
+  it('lets an admin edit price/image of a global row only when a price row is linked', async () => {
+    const r = await service.catalogList('admin', 'ADMIN', { limit: 50, offset: 0 });
+    const byId = new Map(r.items.map((i) => [i.id, i]));
+    expect(byId.get('garlic')?.editable).toBe('priceImage');
+    expect(byId.get('tahini')?.editable).toBe('none');
+    // another user's private price row never surfaces
+    expect(byId.get('oil')?.prices).toBeNull();
+    expect(byId.get('oil')?.imageUrl).toBe('https://cdn/fallback.png');
+  });
+
+  it('marks the owner’s private rows fully editable and filters mineOnly / category', async () => {
+    const mine = await service.catalogList('alice', 'USER', {
+      mineOnly: true,
+      limit: 10,
+      offset: 0,
+    });
+    expect(mine.items.map((i) => [i.id, i.owner, i.editable])).toEqual([['askyr', 'mine', 'full']]);
+    const oils = await service.catalogList('alice', 'USER', {
+      category: 'OIL_FAT',
+      limit: 10,
+      offset: 0,
+    });
+    expect(oils.items.map((i) => i.id)).toEqual(['oil']);
+  });
+
+  it('pages with a next cursor', async () => {
+    const first = await service.catalogList('alice', 'USER', { limit: 2, offset: 0 });
+    expect(first.items).toHaveLength(2);
+    expect(first.nextCursor).toBe(2);
+    const second = await service.catalogList('alice', 'USER', { limit: 2, offset: 2 });
+    expect(second.items.map((i) => i.id)).not.toEqual(first.items.map((i) => i.id));
   });
 });

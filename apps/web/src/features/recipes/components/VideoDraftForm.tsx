@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { RouterOutputs } from '@/lib/trpc';
+import type { RouterInputs, RouterOutputs } from '@/lib/trpc';
 import { AlertTriangle, Info, Plus, X } from 'lucide-react';
 import { VIDEO_IMPORT_COPY, type VideoDraftField } from '@chefer/types';
 import {
@@ -12,7 +12,11 @@ import {
   videoFormToDraft,
   type VideoDraftFormValues,
 } from '@chefer/utils';
+import { useLiveNutrition } from '../hooks/useLiveNutrition';
+import { lineRowName, rowsFromImport, toSaveLines, type LineRow } from '../lib/recipe-lines';
+import { NutritionPreview } from './NutritionPreview';
 import { Field, inputCls } from './recipe-form-fields';
+import { RecipeLinesEditor } from './RecipeLinesEditor';
 
 // ─── Video import review form ────────────────────────────────────────────────
 // The owner's flow (2026-09-26): the AI reads the video's words into a draft,
@@ -20,9 +24,15 @@ import { Field, inputCls } from './recipe-form-fields';
 // field is editable; fields the words did not cover carry a "not found"
 // badge until the user fills them. Validation is the shared
 // videoDraftProblems, so web, mobile and importSave agree.
+//
+// Ingredients (plan-ingredient-catalog §6.2, §10): each line is matched to the
+// catalog. A line the server could not match shows its suggestions, a search
+// and "Create as my ingredient"; the save sends the picked ingredientIds and
+// is blocked while lines still need data unless the user explicitly accepts
+// incomplete nutrition (`acceptPartial`). Nutrition is computed, never the AI's.
 
 export type VideoImportPreviewData = RouterOutputs['recipe']['importVideoPreview'];
-export type VideoDraftRecipe = VideoImportPreviewData['draft'];
+export type VideoDraftRecipe = RouterInputs['recipe']['importSave']['recipe'];
 
 function Badge({ tone, children }: { tone: 'missing' | 'check'; children: string }) {
   return (
@@ -48,18 +58,26 @@ export function VideoDraftForm({
   saving: boolean;
   saveError: string | null;
   onBack: () => void;
-  onSave: (recipe: VideoDraftRecipe) => void;
+  onSave: (recipe: VideoDraftRecipe, opts: { acceptPartial: boolean }) => void;
 }) {
   const [form, setForm] = useState<VideoDraftFormValues>(() => videoDraftToForm(preview.draft));
+  const [lines, setLines] = useState<LineRow[]>(() => {
+    const rows = rowsFromImport(preview.draft.ingredients, preview.resolution);
+    return rows.length > 0 ? rows : rowsFromImport([{ name: '', quantity: 0, unit: 'g' }], []);
+  });
+  const [acceptPartial, setAcceptPartial] = useState(false);
   // Servings and time are pre-filled with the model's guess: their badge
   // stays until the user has looked at (edited) the field.
   const [touched, setTouched] = useState<Partial<Record<VideoDraftField, boolean>>>({});
   const [problems, setProblems] = useState<string[]>([]);
-  // Per-row "amount not heard" flags; they follow rows as rows are removed,
-  // and clear once the user edits that amount.
-  const [unheard, setUnheard] = useState<boolean[]>(() =>
-    preview.draft.ingredients.map((_, i) => preview.unverifiedQuantities.includes(i)),
+  // Per-row "amount not heard" flags (by row key, so they follow rows as rows
+  // are removed); they clear once the user edits that amount.
+  const [unheard, setUnheard] = useState<ReadonlySet<string>>(
+    () =>
+      new Set(lines.flatMap((r, i) => (preview.unverifiedQuantities.includes(i) ? [r.key] : []))),
   );
+  const servings = Math.max(1, Math.round(Number(form.servings) || 1));
+  const live = useLiveNutrition(lines, servings);
 
   const flagged = (field: VideoDraftField) => preview.notFound.includes(field);
   const update = (patch: Partial<VideoDraftFormValues>, field?: VideoDraftField) => {
@@ -67,28 +85,36 @@ export function VideoDraftForm({
     if (field) setTouched((t) => ({ ...t, [field]: true }));
     setProblems([]);
   };
-  const setIngredient = (index: number, patch: Partial<VideoDraftFormValues['ingredients'][0]>) => {
-    update({
-      ingredients: form.ingredients.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-    });
-    if (patch.quantity !== undefined) setUnheard((u) => u.map((f, i) => (i === index ? false : f)));
-  };
-  const removeIngredient = (index: number) => {
-    update({ ingredients: form.ingredients.filter((_, i) => i !== index) });
-    setUnheard((u) => u.filter((_, i) => i !== index));
+  const updateLines = (next: LineRow[]) => {
+    setLines(next);
+    setProblems([]);
   };
   const setStep = (index: number, value: string) =>
     update({ instructions: form.instructions.map((s, i) => (i === index ? value : s)) });
 
   const nameMissing = flagged('name') && !form.name.trim();
-  const ingredientsMissing = flagged('ingredients') && !form.ingredients.some((i) => i.name.trim());
+  const ingredientsMissing = flagged('ingredients') && !lines.some((r) => lineRowName(r));
   const stepsMissing = flagged('instructions') && !form.instructions.some((s) => s.trim());
 
   const handleSave = () => {
-    const edited = videoFormToDraft(preview.draft, form);
+    const edited = videoFormToDraft(preview.draft, {
+      ...form,
+      ingredients: lines.map((r) => ({ quantity: r.quantity, unit: r.unit, name: lineRowName(r) })),
+    });
     const found = videoDraftProblems(edited);
+    if (found.length === 0 && live.missingCount > 0 && !acceptPartial) {
+      found.push(
+        `${live.missingCount} ingredient${live.missingCount === 1 ? ' needs' : 's need'} a match — pick one for each, or tick “Save with incomplete nutrition”.`,
+      );
+    }
     setProblems(found);
-    if (found.length === 0) onSave(finalizeVideoDraft(preview.draft, edited));
+    if (found.length > 0) return;
+    // The catalog lines (with their ingredientIds) replace the draft's; the
+    // server computes nutrition from them.
+    onSave(
+      { ...finalizeVideoDraft(preview.draft, edited), ingredients: toSaveLines(lines) },
+      { acceptPartial },
+    );
   };
 
   return (
@@ -183,65 +209,25 @@ export function VideoDraftForm({
           </h3>
           {ingredientsMissing && <Badge tone="missing">{VIDEO_IMPORT_COPY.notFound}</Badge>}
         </div>
-        <ul className="space-y-2">
-          {form.ingredients.map((row, index) => {
-            const amountUnheard = unheard[index] === true;
-            return (
-              <li key={index}>
-                <div className="flex items-center gap-2">
-                  <input
-                    aria-label={`Amount for ingredient ${index + 1}`}
-                    value={row.quantity}
-                    inputMode="decimal"
-                    placeholder="Qty"
-                    onChange={(e) => setIngredient(index, { quantity: e.target.value })}
-                    className={cn(
-                      inputCls(false),
-                      'w-16 shrink-0',
-                      amountUnheard && 'border-amber-400',
-                    )}
-                  />
-                  <input
-                    aria-label={`Unit for ingredient ${index + 1}`}
-                    value={row.unit}
-                    placeholder="g"
-                    maxLength={20}
-                    onChange={(e) => setIngredient(index, { unit: e.target.value })}
-                    className={cn(inputCls(false), 'w-16 shrink-0')}
-                  />
-                  <input
-                    aria-label={`Ingredient ${index + 1}`}
-                    value={row.name}
-                    placeholder="Ingredient"
-                    maxLength={80}
-                    onChange={(e) => setIngredient(index, { name: e.target.value })}
-                    className={cn(inputCls(ingredientsMissing), 'min-w-0 flex-1')}
-                  />
-                  <button
-                    type="button"
-                    aria-label={`Remove ingredient ${index + 1}`}
-                    onClick={() => removeIngredient(index)}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                {amountUnheard && (
-                  <p className="mt-1 text-xs text-amber-800">{VIDEO_IMPORT_COPY.quantityCheck}</p>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-        <button
-          type="button"
-          onClick={() =>
-            update({ ingredients: [...form.ingredients, { quantity: '', unit: '', name: '' }] })
+        <RecipeLinesEditor
+          rows={lines}
+          onChange={updateLines}
+          problems={live.problems}
+          idPrefix="video"
+          onQuantityEdited={(row) =>
+            setUnheard((u) => {
+              if (!u.has(row.key)) return u;
+              const next = new Set(u);
+              next.delete(row.key);
+              return next;
+            })
           }
-          className="mt-2 flex min-h-11 items-center gap-1.5 rounded-xl px-2 text-sm font-medium text-[#944a00] hover:bg-amber-50"
-        >
-          <Plus className="h-4 w-4" /> Add ingredient
-        </button>
+          rowNote={(row) =>
+            unheard.has(row.key) ? (
+              <p className="mt-1 text-xs text-amber-800">{VIDEO_IMPORT_COPY.quantityCheck}</p>
+            ) : null
+          }
+        />
       </section>
 
       <section aria-labelledby="video-steps-title">
@@ -298,10 +284,30 @@ export function VideoDraftForm({
         </div>
       )}
 
+      <section aria-labelledby="video-nutrition-title">
+        <h3 id="video-nutrition-title" className="mb-2 text-sm font-semibold text-gray-900">
+          Nutrition per serving
+        </h3>
+        <NutritionPreview live={live} />
+        {live.missingCount > 0 && (
+          <label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-gray-800">
+            <input
+              type="checkbox"
+              checked={acceptPartial}
+              onChange={(e) => {
+                setAcceptPartial(e.target.checked);
+                setProblems([]);
+              }}
+              className="h-5 w-5 shrink-0 accent-[#944a00]"
+            />
+            Save with incomplete nutrition
+          </label>
+        )}
+      </section>
+
       <p className="text-xs text-gray-500">
-        {VIDEO_IMPORT_COPY.nutritionNote} Source:{' '}
-        <span className="break-all">{preview.sourceUrl}</span> — saved to your private collection
-        only.
+        Source: <span className="break-all">{preview.sourceUrl}</span> — saved to your private
+        collection only.
       </p>
 
       <div role="alert" aria-atomic="true">

@@ -80,6 +80,32 @@ export const ingredientsRouter = router({
     }),
 
   /**
+   * The Ingredients page's catalog listing (plan-ingredient-catalog §10):
+   * ACTIVE global rows + the caller's private rows, with source, aliases,
+   * portions, full nutrition and the linked price row. Additive; `list`
+   * stays for installed clients.
+   */
+  catalogList: protectedProcedure
+    .input(
+      z.object({
+        search: z.string().max(60).optional(),
+        category: ingredientCategorySchema.optional(),
+        mineOnly: z.boolean().optional(),
+        limit: z.number().int().min(1).max(200).default(60),
+        offset: z.number().int().min(0).default(0),
+        // tRPC infinite queries page with `cursor` (the next offset); it wins over `offset`.
+        cursor: z.number().int().min(0).nullish(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { cursor, ...rest } = input;
+      return ingredientsService.catalogList(ctx.user.id, ctx.user.role, {
+        ...rest,
+        offset: cursor ?? rest.offset,
+      });
+    }),
+
+  /**
    * Updates an ingredient. Own custom rows: the creator (nutrition included;
    * their recipes are recomputed). Global rows: admins, price and image only —
    * global nutrition comes from catalog.json (D7). `id` addresses a private
@@ -89,6 +115,9 @@ export const ingredientsRouter = router({
     .input(
       z.object({
         id: z.string().min(1).max(40).optional(),
+        // P9 (additive): a private row's category and density are editable too.
+        category: ingredientCategorySchema.optional(),
+        densityGPerMl: z.number().positive().max(3).nullish(),
         name: z.string().min(2).max(60),
         imageUrl: z.string().url().nullish(),
         generateAiImage: z.boolean().optional(),

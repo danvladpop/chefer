@@ -4,3 +4,4 @@ export * from './compute';
 export * from './rounding';
 export * from './ingredient-name';
 export * from './ingredient-units';
+export * from './picker';

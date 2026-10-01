@@ -199,6 +199,7 @@ export {
   ingredientPriceRepository,
   type IIngredientPriceRepository,
   type IngredientCatalogRow,
+  type LinkedIngredientPrice,
 } from './ingredient-price.repository';
 
 export {
@@ -298,6 +299,9 @@ export {
   type IngredientKeyMatch,
   type PrivateIngredientData,
   type PrivateReviewRow,
+  type CatalogListQuery,
+  type CatalogListPage,
+  catalogListWhere,
 } from './ingredient.repository';
 
 export {
