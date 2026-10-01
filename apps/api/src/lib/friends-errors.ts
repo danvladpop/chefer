@@ -83,7 +83,7 @@ export function friendsUnavailableError(): TRPCError {
 export function friendsNotActivatedError(): TRPCError {
   return new TRPCError({
     code: 'PRECONDITION_FAILED',
-    message: 'Turn on Following to use this.',
+    message: FRIENDS_COPY.server.notActivated,
     cause: new FriendsNotActivatedCause(),
   });
 }
@@ -91,10 +91,7 @@ export function friendsNotActivatedError(): TRPCError {
 export function friendsLockedError(reason: FriendsLockedReason): TRPCError {
   return new TRPCError({
     code: 'FORBIDDEN',
-    message:
-      reason === 'locked'
-        ? 'Follow this person to see this.'
-        : 'This person isn’t sharing this right now.',
+    message: reason === 'locked' ? FRIENDS_COPY.server.locked : FRIENDS_COPY.server.notShared,
     cause: new FriendsLockedCause(reason),
   });
 }

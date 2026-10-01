@@ -47,7 +47,7 @@ function limit(
   userId: string,
   max: number,
   windowMs: number,
-  message = 'Too many attempts. Please wait a few minutes and try again.',
+  message: string = FRIENDS_COPY.server.tooManyAttempts,
 ): void {
   if (!consume(`friends.${procedure}:${userId}`, max, windowMs)) {
     throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message });
@@ -83,7 +83,10 @@ export const graphProcedures = {
       return socialProfileService.updateSettings(ctx.user.id, input, source(ctx.isMobileClient));
     }),
 
-  deactivate: activeFriendsProcedure.input(deactivateFriendsInputSchema).mutation(({ ctx }) => {
+  // `friendsProcedure`, not `activeFriendsProcedure` (F3.1): turning off twice
+  // (a double tap, a retry after a dropped response) answers `ok`, like every
+  // other friends.* mutation (FR-12.5). The service is a no-op without a profile.
+  deactivate: friendsProcedure.input(deactivateFriendsInputSchema).mutation(({ ctx }) => {
     limit('deactivate', ctx.user.id, 5, HOUR);
     return socialProfileService.deactivate(ctx.user.id, source(ctx.isMobileClient));
   }),
@@ -106,13 +109,16 @@ export const graphProcedures = {
     }),
 
   // ─── The follow lifecycle ───────────────────────────────────────────────────
+  // The limit runs BEFORE the access check (F3.1, as the content reads do), so
+  // probing ids through follow counts against the same 60/h as real follows.
   follow: activeFriendsProcedure
     .input(targetUserInputSchema)
-    .use(requireSocialAccess('header'))
-    .mutation(({ ctx, input }) => {
+    .use(({ ctx, next }) => {
       limit('follow', ctx.user.id, 60, HOUR);
-      return followService.follow(ctx.user.id, input.userId, ctx.socialMemo);
-    }),
+      return next();
+    })
+    .use(requireSocialAccess('header'))
+    .mutation(({ ctx, input }) => followService.follow(ctx.user.id, input.userId, ctx.socialMemo)),
 
   unfollow: activeFriendsProcedure.input(targetUserInputSchema).mutation(({ ctx, input }) => {
     limit('unfollow', ctx.user.id, 60, HOUR);

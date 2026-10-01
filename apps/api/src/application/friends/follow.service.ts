@@ -1,8 +1,9 @@
 import { TRPCError } from '@trpc/server';
 import { followRepository, Prisma, type Follow, type IFollowRepository } from '@chefer/database';
-import type { FriendUserSummary, Page, Relation } from '@chefer/types';
+import { FRIENDS_COPY, type FriendUserSummary, type Page, type Relation } from '@chefer/types';
 import { followOutcome, relationOf } from '@chefer/utils';
 import { profileNotAvailableError } from '../../lib/friends-errors.js';
+import { consume } from '../../lib/rate-limit.js';
 import {
   activityService,
   friendSummaryHydrator,
@@ -39,50 +40,22 @@ import { suggestionService, type SuggestionInvalidator } from './suggestion.serv
 //
 // Requests are capped at 3 per (viewer, target) per 7 days (PRD §6.2). A
 // cancelled or declined request deletes its row, so the cap can't be counted
-// from the table: it is a keyed sliding-window limiter here, in process
-// memory (the API is single-instance, the same assumption as
-// lib/rate-limit.ts). It has its own store so its 7-day window is never swept
-// early by the shared limiter's shorter windows.
+// from the table: it is a keyed sliding-window limit on the shared in-memory
+// limiter (lib/rate-limit.ts — the API is single-instance; each bucket keeps
+// its own window, so the 7-day window is never swept early by a shorter one).
+//
+// The same budget, on its own key, gates the NEW_FOLLOWER item of an instant
+// (public) follow: follow → unfollow → follow loops would otherwise re-raise
+// the owner's unread badge up to the hourly follow limit (F3.1). The follow
+// itself always goes through; past the cap it is just silent.
 
 export const REQUEST_CAP = { max: 3, windowMs: 7 * 86_400_000 } as const;
 
-/** Sliding-window limiter with ONE fixed window, keyed by any string. */
-export class KeyedWindowLimiter {
-  private readonly hits = new Map<string, number[]>();
-  private lastSweep = 0;
+/** Records one hit for `key`; false when the key is over REQUEST_CAP. */
+export type RequestCap = (key: string) => boolean;
 
-  constructor(
-    private readonly max: number,
-    private readonly windowMs: number,
-    private readonly now: () => number = Date.now,
-  ) {}
-
-  /** Records a hit for `key` unless it is over the cap; returns whether it was allowed. */
-  tryConsume(key: string): boolean {
-    const now = this.now();
-    this.sweep(now);
-    const live = (this.hits.get(key) ?? []).filter((t) => now - t < this.windowMs);
-    if (live.length >= this.max) {
-      this.hits.set(key, live);
-      return false;
-    }
-    live.push(now);
-    this.hits.set(key, live);
-    return true;
-  }
-
-  reset(): void {
-    this.hits.clear();
-  }
-
-  private sweep(now: number): void {
-    if (now - this.lastSweep < 3_600_000) return;
-    this.lastSweep = now;
-    for (const [key, times] of this.hits) {
-      if (times.every((t) => now - t >= this.windowMs)) this.hits.delete(key);
-    }
-  }
-}
+export const sharedRequestCap: RequestCap = (key) =>
+  consume(`friends.followCap:${key}`, REQUEST_CAP.max, REQUEST_CAP.windowMs);
 
 export type FollowServiceRepository = Pick<
   IFollowRepository,
@@ -120,10 +93,7 @@ export class FollowService {
     private readonly suggestions: SuggestionInvalidator = suggestionService,
     private readonly hydrator: FriendSummaryHydrator = friendSummaryHydrator,
     private readonly tx: SocialTx = runSocialTx,
-    private readonly requestCap: KeyedWindowLimiter = new KeyedWindowLimiter(
-      REQUEST_CAP.max,
-      REQUEST_CAP.windowMs,
-    ),
+    private readonly requestCap: RequestCap = sharedRequestCap,
   ) {}
 
   /** Follow, or ask to (PRD FR-12.1/12.2). Returns the resulting relation — the client's truth. */
@@ -133,7 +103,7 @@ export class FollowService {
     memo?: SocialAccessMemo,
   ): Promise<{ relation: Relation }> {
     if (viewerId === targetId) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'You can’t follow yourself.' });
+      throw new TRPCError({ code: 'BAD_REQUEST', message: FRIENDS_COPY.server.followSelf });
     }
     const access = await this.access.assert(viewerId, targetId, 'header', memo);
     if (access.outgoing === 'ACCEPTED') return { relation: 'following' };
@@ -147,12 +117,10 @@ export class FollowService {
       owner.forcedPrivateAt !== null || followOutcome(owner.visibility) === 'request'
         ? 'PENDING'
         : 'ACCEPTED';
-    if (status === 'PENDING' && !this.requestCap.tryConsume(`${viewerId}:${targetId}`)) {
-      throw new TRPCError({
-        code: 'TOO_MANY_REQUESTS',
-        message: 'You’ve asked to follow this person several times this week. Try again later.',
-      });
+    if (status === 'PENDING' && !this.requestCap(`request:${viewerId}:${targetId}`)) {
+      throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: FRIENDS_COPY.server.requestCap });
     }
+    const announce = status === 'PENDING' || this.requestCap(`notify:${viewerId}:${targetId}`);
 
     try {
       await this.tx(async (db) => {
@@ -160,7 +128,7 @@ export class FollowService {
         if (status === 'PENDING') {
           await this.activity.notify(targetId, 'FOLLOW_REQUEST', viewerId, db);
         } else {
-          await this.activity.notify(targetId, 'NEW_FOLLOWER', viewerId, db);
+          if (announce) await this.activity.notify(targetId, 'NEW_FOLLOWER', viewerId, db);
           // An old declined request's item would otherwise read "You accepted".
           await this.activity.withdraw(targetId, 'FOLLOW_REQUEST', viewerId, db);
         }

@@ -116,6 +116,8 @@ interface World {
   shared?: Recipe[];
   routine?: FriendRoutineRow | null;
   sessions?: FriendSessionRow[];
+  /** Ids blocked by, or blocking, the viewer. */
+  blocked?: string[];
 }
 
 function setup(world: World = {}) {
@@ -168,6 +170,7 @@ function setup(world: World = {}) {
         fatG: 70,
       })),
     },
+    blocks: { blockedIdsEither: vi.fn(async () => world.blocked ?? []) },
     now: () => world.now ?? new Date('2026-10-01T12:00:00Z'), // a Thursday
   } satisfies FriendContentDeps;
   return { service: new FriendContentService(deps), deps, writes };
@@ -268,6 +271,52 @@ describe('week (INV-4: read-only)', () => {
     expect(hidden!.totals.kcal).toBe(400);
     expect(snack).toMatchObject({ leftoverOf: 'Sunday', recipe: { isFavourite: true } });
     expect(deps.favourites.findSavedRecipeIds).toHaveBeenCalledWith(VIEWER);
+  });
+
+  it('F3.1: a copy of a hidden original, a blocked person’s recipe and a filtered name are masked too', async () => {
+    const BLOCKED = 'cblocked0000000000000001';
+    const OTHER = 'cother000000000000000001';
+    const { service, deps } = setup({
+      thisWeek: plan('2026-09-28', {
+        0: [
+          { type: 'breakfast', recipeId: 'copy-of-hidden' },
+          { type: 'lunch', recipeId: 'copy-of-blocked' },
+          { type: 'dinner', recipeId: 'by-blocked' },
+          { type: 'snack', recipeId: 'filtered' },
+        ],
+        1: [
+          { type: 'lunch', recipeId: 'copy-ok' },
+          { type: 'dinner', recipeId: 'ai' },
+        ],
+      }),
+      recipes: [
+        recipe('orig-hidden', {
+          creatorId: OTHER,
+          hiddenAt: new Date(),
+          hiddenReason: 'REPORTS',
+        }),
+        recipe('orig-ok', { creatorId: OTHER }),
+        recipe('copy-of-hidden', { originRecipeId: 'orig-hidden', originCreatorId: OTHER }),
+        recipe('copy-of-blocked', { originRecipeId: 'gone', originCreatorId: BLOCKED }),
+        recipe('by-blocked', { creatorId: BLOCKED }), // placed before INV-5
+        recipe('filtered', { name: 'fuck this stew' }),
+        recipe('copy-ok', { originRecipeId: 'orig-ok', originCreatorId: OTHER }),
+        recipe('ai', { source: 'AI', creatorId: null }),
+      ],
+      blocked: [BLOCKED],
+    });
+    const week = await service.week(VIEWER, OWNER, follower);
+    const masked = (id: string) =>
+      week!.days.flatMap((d) => d.meals).find((m) => m.recipe.id === id)!.recipe;
+    for (const id of ['copy-of-hidden', 'copy-of-blocked', 'by-blocked', 'filtered']) {
+      expect(masked(id), id).toMatchObject({
+        name: FRIENDS_COPY.food.hiddenRecipe,
+        imageUrl: null,
+        hidden: true,
+      });
+    }
+    for (const id of ['copy-ok', 'ai']) expect(masked(id).hidden, id).toBe(false);
+    expect(deps.blocks.blockedIdsEither).toHaveBeenCalledWith(VIEWER);
   });
 
   it('targets only when can.targets, from the read-only reader', async () => {

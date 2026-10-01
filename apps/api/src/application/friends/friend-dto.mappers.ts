@@ -18,6 +18,7 @@ import {
   type NutritionTargets,
 } from '@chefer/types';
 import {
+  containsBlockedTerm,
   dayTotals,
   displayNameOf,
   firstNameOf,
@@ -160,12 +161,14 @@ export function toFriendProfileDto(input: {
  * A recipe card. `ownerId` is the profile owner (for `byOwner`); `savedIds`
  * are the VIEWER's hearts. An auto-hidden recipe (PRD §9) keeps its id and
  * numbers but withholds name, photo and source: `Hidden recipe`, no image.
+ * `withheld` renders a card the same way for a reason the row itself doesn't
+ * carry (F3.1, see `withheldRecipeIds` in friend-content.service.ts).
  */
 export function toFriendRecipeCard(
   recipe: Recipe,
-  ctx: { ownerId: string; savedIds: ReadonlySet<string> },
+  ctx: { ownerId: string; savedIds: ReadonlySet<string>; withheld?: boolean },
 ): FriendRecipeCard {
-  const hidden = recipe.hiddenAt !== null;
+  const hidden = recipe.hiddenAt !== null || ctx.withheld === true;
   const perServing = slotTotals(readNutrition(recipe.nutritionInfo), 1);
   const imageStatus = (IMAGE_STATUSES as readonly string[]).includes(recipe.imageStatus)
     ? recipe.imageStatus
@@ -201,6 +204,8 @@ export interface FriendWeekInput {
   recipesById: ReadonlyMap<string, Recipe>;
   savedIds: ReadonlySet<string>;
   targets: NutritionTargets | null;
+  /** Recipe ids shown as `Hidden recipe` although their own row isn't hidden (F3.1). */
+  withheldIds?: ReadonlySet<string>;
 }
 
 /**
@@ -227,7 +232,11 @@ export function toFriendWeekDto(input: FriendWeekInput): FriendWeekDto {
       const meal: FriendWeekMeal = {
         type: slot.type,
         portion,
-        recipe: toFriendRecipeCard(recipe, { ownerId: input.ownerId, savedIds: input.savedIds }),
+        recipe: toFriendRecipeCard(recipe, {
+          ownerId: input.ownerId,
+          savedIds: input.savedIds,
+          withheld: input.withheldIds?.has(recipe.id) === true,
+        }),
         totals: macros(slotTotals(nutrition, portion)),
       };
       if (slot.leftoverOf !== undefined) meal.leftoverOf = slot.leftoverOf;
@@ -258,6 +267,22 @@ export function toFriendTargets(t: NutritionTargets): FriendMacroTotals {
 // ─── Gym ──────────────────────────────────────────────────────────────────────
 
 /**
+ * Free text a follower sees on the Gym tab (routine, day, workout and custom
+ * exercise names) never went through the word filter, which only checks names
+ * and shared recipes (PRD §9.4). A hit is replaced by a neutral label (F3.1).
+ */
+function filtered(text: string, fallback: string): string {
+  return containsBlockedTerm(text) ? fallback : text;
+}
+
+/** A custom exercise's name, filtered; curated library names are ours and pass as they are. */
+function exerciseName(exercise: { name: string; ownerId: string | null }): string {
+  return exercise.ownerId === null
+    ? exercise.name
+    : filtered(exercise.name, FRIENDS_COPY.gym.filtered.exercise);
+}
+
+/**
  * The active routine: days in order with their exercises (`sets × reps`, rest,
  * superset). Exercises of a tracking type the client can't render are dropped
  * (the gym.* rule, application/gym/client-level.ts). No notes, no target RIR.
@@ -267,19 +292,19 @@ export function toFriendRoutineDto(
   renderable: ReadonlySet<ExerciseTrackingType>,
 ): FriendRoutineDto {
   return {
-    name: routine.name,
+    name: filtered(routine.name, FRIENDS_COPY.gym.routine),
     days: [...routine.days]
       .sort((a, b) => a.position - b.position)
       .map((day) => ({
         position: day.position,
-        name: day.name,
+        name: filtered(day.name, FRIENDS_COPY.gym.filtered.day(day.position + 1)),
         plannedWeekday: day.plannedWeekday ?? null,
         exercises: [...day.exercises]
           .sort((a, b) => a.position - b.position)
           .filter((e) => renderable.has(e.exercise.trackingType))
           .map((e) => ({
             exerciseId: e.exercise.id,
-            name: e.exercise.name,
+            name: exerciseName(e.exercise),
             isCustom: e.exercise.ownerId !== null,
             sets: e.sets,
             repMin: e.repMin,
@@ -326,7 +351,7 @@ export function toFriendWorkoutDto(
     if (sets.length === 0) continue;
     exercises.push({
       exerciseId: e.exercise.id,
-      name: e.exercise.name,
+      name: exerciseName(e.exercise),
       isCustom: e.exercise.ownerId !== null,
       trackingType: e.exercise.trackingType,
       sets,
@@ -334,7 +359,7 @@ export function toFriendWorkoutDto(
   }
   return {
     id: session.id,
-    name: session.name,
+    name: filtered(session.name, FRIENDS_COPY.gym.filtered.workout),
     localDate: session.localDate,
     startedAt: session.startedAt.toISOString(),
     durationMin: friendDurationMin(session.startedAt, session.finishedAt),

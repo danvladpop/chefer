@@ -13,7 +13,7 @@ import {
   type ISuggestionDismissalRepository,
   type SocialDbClient,
 } from '@chefer/database';
-import type { FriendUserSummary, Page } from '@chefer/types';
+import { FRIENDS_COPY, type FriendUserSummary, type Page } from '@chefer/types';
 import {
   friendSummaryHydrator,
   pageOf,
@@ -39,12 +39,19 @@ import { suggestionService, type SuggestionInvalidator } from './suggestion.serv
 // Answers never reveal whether the other id exists (INV-3): blocking an
 // unknown id is the same `ok` (nothing is written — the FK would fail);
 // unblocking is always `ok`. Unblocking restores nothing (FR-13.3).
+//
+// F3.1: only someone who has turned Following on can be blocked. A Block row
+// against any user id made `friends.blocked` (and the data export) name that
+// user — an oracle for "this id is a Chefer account, and this is their name"
+// for people who never joined Following. Every path to a person in the app
+// (search, suggestions, lists, Activity, a profile) is an activated profile,
+// so nothing legitimate is lost: the answer is `ok` either way.
 
 export type BlockServiceBlockRepository = Pick<IBlockRepository, 'create' | 'delete' | 'listMade'>;
 export type BlockServiceFollowRepository = Pick<IFollowRepository, 'deleteBothWays'>;
 export type BlockServiceNotificationRepository = Pick<INotificationRepository, 'withdrawBetween'>;
 export type BlockServiceDismissalRepository = Pick<ISuggestionDismissalRepository, 'deleteBetween'>;
-export type BlockServiceProfileRepository = Pick<ISocialProfileRepository, 'findUsers'>;
+export type BlockServiceProfileRepository = Pick<ISocialProfileRepository, 'find'>;
 
 export class BlockService {
   constructor(
@@ -61,9 +68,9 @@ export class BlockService {
   /** Block `blockedId` (FR-13.2). Idempotent; self → BAD_REQUEST. */
   async block(blockerId: string, blockedId: string): Promise<{ ok: true }> {
     if (blockerId === blockedId) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'You can’t block yourself.' });
+      throw new TRPCError({ code: 'BAD_REQUEST', message: FRIENDS_COPY.server.blockSelf });
     }
-    const [target] = await this.profiles.findUsers([blockedId]);
+    const target = await this.profiles.find(blockedId);
     if (target) {
       await this.tx((db) => this.blockInTx(db, blockerId, blockedId));
     }

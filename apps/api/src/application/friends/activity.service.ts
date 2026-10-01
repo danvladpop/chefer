@@ -12,7 +12,8 @@ import {
   type SocialUserRow,
 } from '@chefer/database';
 import type { ActivityItemDto, FriendUserSummary, Page } from '@chefer/types';
-import { decodeCursor, displayNameOf, encodeCursor, firstNameOf, relationOf } from '@chefer/utils';
+import { decodeCursor, encodeCursor } from '@chefer/utils';
+import { toFriendUserSummary } from './friend-dto.mappers.js';
 
 // ─── Following: Activity inbox + the shared person-row hydration ──────────────
 // (docs/friends/implementation-plan.md §4.4 activity.service, §4.5; PRD §12,
@@ -55,26 +56,23 @@ export function pageOf<R, T>(
 // ─── FriendUserSummary ────────────────────────────────────────────────────────
 
 /**
- * Builds the one person-row DTO field by field (INV-2/INV-6). `edges` are the
- * follow rows between the viewer and this user (either direction, any extra
- * rows are ignored).
+ * The one person-row DTO for a user seen by `viewerId`, from the follow rows
+ * between them (`edges`, either direction; extra rows are ignored). Built by
+ * the allow-list mapper (friend-dto.mappers.ts, INV-2/INV-6): this only works
+ * out the relation from the edges, so there is ONE `FriendUserSummary` builder.
  */
-export function toFriendUserSummary(
+export function summaryFromEdges(
   user: SocialUserRow,
   viewerId: string,
   edges: readonly Follow[],
 ): FriendUserSummary {
   const outgoing = edges.find((e) => e.followerId === viewerId && e.followeeId === user.id);
   const incoming = edges.find((e) => e.followerId === user.id && e.followeeId === viewerId);
-  return {
-    id: user.id,
-    displayName: displayNameOf(user),
-    firstName: firstNameOf(user),
-    imageUrl: user.image ?? null,
-    relation: relationOf({ isSelf: user.id === viewerId, outgoing: outgoing?.status ?? null }),
-    followsYou: incoming?.status === 'ACCEPTED',
-    requestedYou: incoming?.status === 'PENDING',
-  };
+  return toFriendUserSummary(user, {
+    isSelf: user.id === viewerId,
+    outgoing: outgoing?.status ?? null,
+    incoming: incoming?.status ?? null,
+  });
 }
 
 export type HydratorProfileRepository = Pick<ISocialProfileRepository, 'findUsers'>;
@@ -110,7 +108,7 @@ export class FriendSummaryHydrator {
       edges,
       summary: (userId) => {
         const user = byId.get(userId);
-        return user ? toFriendUserSummary(user, viewerId, byOther.get(userId) ?? []) : null;
+        return user ? summaryFromEdges(user, viewerId, byOther.get(userId) ?? []) : null;
       },
     };
   }

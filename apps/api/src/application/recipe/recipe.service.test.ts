@@ -565,4 +565,27 @@ describe("RecipeService hearting a followed creator's recipe (FR-17.2)", () => {
     });
     expect(save).not.toHaveBeenCalled();
   });
+  it('F3.1: an auto-hidden recipe can’t be newly hearted, or re-hearted after an unheart', async () => {
+    findRecipeById.mockResolvedValue({
+      ...recipe({ id: 'theirs', name: 'Dal', source: 'MANUAL', creatorId: 'maria' }),
+      hiddenAt: new Date('2026-09-30T10:00:00Z'),
+      hiddenReason: 'REPORTS',
+    });
+    // Visible creator, but the viewer never hearted it (hasHearted → false).
+    const service = new RecipeService(
+      undefined,
+      undefined,
+      moderation(),
+      listSocial(),
+      recipeSocial(true),
+    );
+    await expect(service.toggleFavourite('u1', 'theirs')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(service.rate('u1', 'theirs', 1)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(service.getSafetyChecks('u1', 'theirs')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(save).not.toHaveBeenCalled();
+  });
 });

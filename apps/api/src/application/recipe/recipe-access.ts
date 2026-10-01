@@ -52,6 +52,20 @@ export function isSocialRecipeCandidate(
   );
 }
 
+/**
+ * Another user's recipe that automatic moderation hid (PRD §9.3). A viewer
+ * who hearted it before the hide may still OPEN it (FR-17.3), but nothing may
+ * newly copy it into their records (PRD §13: "can't be newly hearted or
+ * added") — a fresh copy would carry the hidden name and photo into the
+ * copier's week, where their own followers see it (F3.1).
+ */
+export function isHiddenForeignRecipe(
+  recipe: Pick<Recipe, 'creatorId'> & { hiddenAt?: Date | null },
+  userId: string,
+): boolean {
+  return recipe.hiddenAt != null && recipe.creatorId !== userId;
+}
+
 /** What the social branch needs. Injectable for tests; the default is lazy. */
 export interface RecipeSocialDeps {
   /** `isFriendsEnabledFor(userId)` — the flag or the allowlist. */

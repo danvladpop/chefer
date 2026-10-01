@@ -9,12 +9,13 @@ import {
   type SocialUserRow,
 } from '@chefer/database';
 import { PROFILE_NOT_AVAILABLE_MESSAGE } from '../../lib/friends-errors.js';
+import { consume, resetRateLimits } from '../../lib/rate-limit.js';
 import { FriendSummaryHydrator, type SocialTx } from './activity.service.js';
 import {
   FollowService,
-  KeyedWindowLimiter,
   REQUEST_CAP,
   type FollowServiceRepository,
+  type RequestCap,
 } from './follow.service.js';
 import { SocialAccessMemo, SocialAccessService } from './social-access.service.js';
 
@@ -208,7 +209,9 @@ function makeWorld() {
     return fn(t);
   };
   let now = T0.getTime();
-  const cap = new KeyedWindowLimiter(REQUEST_CAP.max, REQUEST_CAP.windowMs, () => now);
+  // The production cap is the shared limiter; only the clock is the test's.
+  const cap: RequestCap = (key) =>
+    consume(`test:${key}`, REQUEST_CAP.max, REQUEST_CAP.windowMs, now);
   const service = new FollowService(repo, access, activity, suggestions, hydrator, tx, cap);
   return {
     service,
@@ -227,6 +230,7 @@ function makeWorld() {
 
 let w: ReturnType<typeof makeWorld>;
 beforeEach(() => {
+  resetRateLimits();
   w = makeWorld();
 });
 
@@ -318,6 +322,18 @@ describe('follow', () => {
     }
     // The window slides: 7 days later the first requests have expired.
     w.advance(REQUEST_CAP.windowMs);
+    await expect(w.service.follow(ME, PRIV)).resolves.toEqual({ relation: 'requested' });
+  });
+
+  it('F3.1: follow/unfollow loops on a public owner notify at most 3 times a week, but still follow', async () => {
+    for (let i = 0; i < 6; i++) {
+      await expect(w.service.follow(ME, PUB)).resolves.toEqual({ relation: 'following' });
+      await w.service.unfollow(ME, PUB);
+    }
+    const bumps = w.notices.filter((n) => n.op === 'notify' && n.kind === 'NEW_FOLLOWER');
+    expect(bumps).toHaveLength(REQUEST_CAP.max);
+    expect(w.repo.create).toHaveBeenCalledTimes(6);
+    // The notify budget is separate from the request cap: requests still work.
     await expect(w.service.follow(ME, PRIV)).resolves.toEqual({ relation: 'requested' });
   });
 
@@ -428,20 +444,5 @@ describe('lists', () => {
     for (const item of [...following.items, ...requests.items, ...followers.items]) {
       expect(Object.keys(item)).not.toContain('email');
     }
-  });
-});
-
-describe('KeyedWindowLimiter', () => {
-  it('allows max hits per window per key, sliding', () => {
-    let now = 0;
-    const limiter = new KeyedWindowLimiter(2, 1000, () => now);
-    expect(limiter.tryConsume('a')).toBe(true);
-    expect(limiter.tryConsume('a')).toBe(true);
-    expect(limiter.tryConsume('a')).toBe(false);
-    expect(limiter.tryConsume('b')).toBe(true);
-    now = 999;
-    expect(limiter.tryConsume('a')).toBe(false);
-    now = 1000;
-    expect(limiter.tryConsume('a')).toBe(true);
   });
 });

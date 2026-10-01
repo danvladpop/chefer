@@ -11,7 +11,7 @@ import {
   type ModerationAction,
   type SocialDbClient,
 } from '@chefer/database';
-import { MODERATION, type reportInputSchema } from '@chefer/types';
+import { FRIENDS_COPY, MODERATION, type reportInputSchema } from '@chefer/types';
 import { firstBlockedField } from '@chefer/utils';
 import { profileNotAvailableError, textRejectedError } from '../../lib/friends-errors.js';
 import { runSocialTx, type SocialTx } from './activity.service.js';
@@ -170,7 +170,7 @@ export class ModerationService {
   async reportAndBlock(reporterId: string, input: ReportInput): Promise<{ ok: true }> {
     const targetId = input.userId;
     if (targetId === reporterId) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'You can’t report yourself.' });
+      throw new TRPCError({ code: 'BAD_REQUEST', message: FRIENDS_COPY.server.reportSelf });
     }
 
     // 1. The target must be header-visible to the reporter, or tied to them
@@ -189,7 +189,7 @@ export class ModerationService {
         recipe.source !== 'MANUAL' ||
         recipe.originRecipeId !== null
       ) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not available.' });
+        throw new TRPCError({ code: 'NOT_FOUND', message: FRIENDS_COPY.server.recipeNotAvailable });
       }
     }
 
