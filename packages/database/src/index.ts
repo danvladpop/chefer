@@ -176,6 +176,10 @@ export {
   notificationRepository,
   type INotificationRepository,
   type SocialNotificationData,
+  FriendRecipeRepository,
+  friendRecipeRepository,
+  type IFriendRecipeRepository,
+  type ListSharedRecipesOptions,
 } from './repositories/index';
 
 // Re-export Prisma types for convenience

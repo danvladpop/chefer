@@ -267,3 +267,10 @@ export {
   type INotificationRepository,
   type SocialNotificationData,
 } from './notification.repository';
+
+export {
+  FriendRecipeRepository,
+  friendRecipeRepository,
+  type IFriendRecipeRepository,
+  type ListSharedRecipesOptions,
+} from './friend-recipe.repository';

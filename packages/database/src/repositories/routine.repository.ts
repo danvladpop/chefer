@@ -1,4 +1,4 @@
-import type { Prisma, Routine, RoutineDay, RoutineExercise } from '@prisma/client';
+import type { Exercise, Prisma, Routine, RoutineDay, RoutineExercise } from '@prisma/client';
 import { prisma } from '../client';
 
 // ─── Gym routines (gym_plan.md §2.2 / §4.1) ──────────────────────────────────
@@ -9,6 +9,12 @@ import { prisma } from '../client';
 
 export type RoutineDayWithExercises = RoutineDay & { exercises: RoutineExercise[] };
 export type RoutineWithDays = Routine & { days: RoutineDayWithExercises[] };
+
+/** The exercise columns another user's routine view may read (Following, plan §5). */
+export type RoutineExerciseMeta = Pick<Exercise, 'id' | 'name' | 'ownerId' | 'trackingType'>;
+export type RoutineWithExerciseMeta = Routine & {
+  days: (RoutineDay & { exercises: (RoutineExercise & { exercise: RoutineExerciseMeta })[] })[];
+};
 
 export interface RoutineExerciseWriteData {
   /** Existing id to keep (ignored unless it already belongs to this routine). */
@@ -68,6 +74,20 @@ const withDays = {
   days: {
     orderBy: { position: 'asc' },
     include: { exercises: { orderBy: { position: 'asc' } } },
+  },
+} satisfies Prisma.RoutineInclude;
+
+const withDaysAndExerciseMeta = {
+  days: {
+    orderBy: { position: 'asc' },
+    include: {
+      exercises: {
+        orderBy: { position: 'asc' },
+        include: {
+          exercise: { select: { id: true, name: true, ownerId: true, trackingType: true } },
+        },
+      },
+    },
   },
 } satisfies Prisma.RoutineInclude;
 
@@ -280,6 +300,21 @@ export class RoutineRepository implements IRoutineRepository {
     });
     if (res.count === 0) return null;
     return this.findByIdForUser(userId, id);
+  }
+
+  /**
+   * Following (plan §2.4, §5): the active, unarchived routine (same pick as
+   * `findActive`) with days and exercises in order, each exercise joined to
+   * `Exercise { id, name, ownerId, trackingType }`. Read-only. Deliberately
+   * NOT on `IRoutineRepository`, so the gym services' repository mocks don't
+   * have to grow; Following depends on `Pick<RoutineRepository, …>`.
+   */
+  async findActiveWithExercises(userId: string): Promise<RoutineWithExerciseMeta | null> {
+    return prisma.routine.findFirst({
+      where: { userId, isActive: true, archivedAt: null },
+      include: withDaysAndExerciseMeta,
+      orderBy: { updatedAt: 'desc' },
+    });
   }
 }
 
