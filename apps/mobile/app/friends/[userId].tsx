@@ -1,10 +1,10 @@
 import { useLocalSearchParams } from 'expo-router';
-import { FriendsStubScreen } from '../../src/features/friends/components/friends-stub-screen';
+import { FriendProfileScreen } from '../../src/features/friends/profile/profile-screen';
 
-// STUB (F2.0): gate + header only, so `router.push(`/friends/${id}`)` typechecks
-// for the parallel lanes. F2.2 replaces this with the profile (UX §8); its
-// nav-bar title is the person's name, scrolled in once the header is gone.
+// Someone's profile (UX §8): the header, then their Food | Gym content as far
+// as they share it with me. My own id opens the preview of what followers
+// see (§8.3, `See what followers see`).
 export default function FriendProfileRoute() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
-  return <FriendsStubScreen title="" testID={`friends-profile-${userId}`} />;
+  return <FriendProfileScreen userId={userId} />;
 }
